@@ -142,6 +142,26 @@ describe('three-scene segment lighting', () => {
     expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.2)
   })
 
+  it('Auto Performance: the music picks the pattern, changing only on bar lines (at once on a drop)', () => {
+    const auto = { auto: true, pattern: 'split' as const }
+    const quiet = run(4, { bass: 0.1, energy: 0.1 }, auto)
+    expect(last(quiet).pattern).toBe('pulse')
+    const building = run(4, { bass: 0.6, energy: 0.6, build: 0.8 }, auto)
+    expect(last(building).pattern).toBe('energyFlow')
+    const groove = run(40, { bass: 0.7, energy: 0.7 }, auto)
+    const picks = new Set(groove.map(frame => frame.pattern))
+    expect(picks).toEqual(new Set(['ringChase', 'split', 'energyFlow']))
+    // Changes land on bar lines (a multiple of 4 beats).
+    for (let i = 1; i < groove.length; i += 1) {
+      if (groove[i]!.pattern !== groove[i - 1]!.pattern) expect(groove[i]!.beats % 4).toBeLessThan(0.1)
+    }
+    const dropped = run(4, t => (t < 3.3 ? { bass: 0.7, energy: 0.7 } : { bass: 0.9, energy: 0.8, section: 'b', sectionType: 'drop' }), auto)
+    const dropFrame = dropped.find(frame => frame.drop === 1)!
+    expect(dropFrame.pattern).toBe('pulse')
+    // Off, the chosen pattern plays.
+    expect(last(run(4, { bass: 0.1, energy: 0.1 }, { pattern: 'split' })).pattern).toBe('split')
+  })
+
   it('crossfades to a new pattern instead of snapping', () => {
     const lighting = new Cinema2ThreeSegmentLighting()
     for (let index = 0; index < 60; index += 1) lighting.update(musicFrame(index, LOUD), { pattern: 'energyFlow', sync: true, flicker: 0, reactivity: 1 })

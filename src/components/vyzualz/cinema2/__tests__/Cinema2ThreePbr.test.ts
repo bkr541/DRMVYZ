@@ -305,7 +305,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance = uCinema2SegColor')
     expect(shader.fragmentShader).not.toContain('uCinema2GlowColor')
     expect((shader.uniforms.uCinema2SegRole as { value: number }).value).toBe(0)
-    const frame = { beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1, flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0] }
+    const frame = { pattern: 'ringChase' as const, beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1, flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0] }
     bridge.draw(execution('high'), overrides({}), 0, null, { color: [1, 0.5, 0], strength: 3, frame })
     expect((shader.uniforms.uCinema2SegStrength as { value: number }).value).toBe(3)
     expect((shader.uniforms.uCinema2Seg0 as { value: THREE.Vector4 }).value.toArray()).toEqual([9.5, 0.6, 0.2, 0.1])

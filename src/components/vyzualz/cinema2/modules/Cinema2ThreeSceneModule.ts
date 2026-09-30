@@ -76,7 +76,7 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * Segment lighting: `config.segments` maps part names to a role - `feed` (energy runs along it into the logo), `core` (flares when energy
  * arrives) or `field` (the lit wall) - and those parts are lit LED segment by LED segment from their `_SEGMENT` and `_GLOW_PHASE` vertex
  * attributes (see Cinema2ThreeSegmentLighting), replacing their own emissive. Parameters: `segmentPattern` (`energyFlow` | `ringChase` |
- * `split` | `pulse`), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentColor` (the energy
+ * `split` | `pulse`), `segmentAuto` (true: the music picks the pattern), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentColor` (the energy
  * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
  *
  * Shadows: `config.shadows` = `{ cast: [parts], receive: [parts] }` names which parts cast and receive shadows from spot lights authored
@@ -242,6 +242,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
                 sync: parameters.get('segmentSync') !== false,
                 flicker: readNumber(parameters.get('segmentFlicker'), 0, 1) ?? 0,
                 reactivity: readNumber(parameters.get('segmentReactivity'), 0, 1) ?? 1,
+                auto: parameters.get('segmentAuto') === true,
               })
               segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, frame: segmentFrame }
             }

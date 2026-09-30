@@ -1,6 +1,6 @@
 # CONDUIT: Cinema 2.0 preset plan
 
-**Status:** Steps 1 (assets) and 2 (per-segment lighting) done (2026-09-30). Steps 3-4 not started.
+**Status:** Steps 1-3 done (2026-09-30): assets, per-segment lighting, and the CONDUIT preset with its controls. Step 4 (tuning) not started.
 
 ## Goal
 
@@ -182,6 +182,52 @@ All three share one world coordinate system, so they line up without per-instanc
 - **Manifest:** a new native preset manifest (`drmvyz.cinema2.conduit`, name CONDUIT). It places the three assets in the scene and adds the HDR studio environment, a few music-driven accent lights, `reflective-floor`, `volumetric-atmosphere` (kept light) and `cinematic-finish`/bloom.
 - **Controls:** the controls in the table above, bound through the shared parameter and choreography path.
 - **Camera Movement:** drives the camera's `motion` amplitude (drift, sway, dolly-zoom), with its tempo taken from BPM Sync.
+
+**Result (2026-09-30):**
+
+- **Preset:** `presets/Cinema2ConduitPreset.ts` (`drmvyz.cinema2.conduit`, name CONDUIT) is registered as a keeper in the first-party catalog and exported from the Cinema 2.0 index.
+- **Scene:** one `three-scene` module draws the chamber, the tubes and the wordmark at the shared origin. The module:
+  - lights the tubes, rim and wall by segment (`config.segments`: energy = feed, rim = core, segments = field);
+  - sets per-part materials: pearl letters with clearcoat, chrome ring and pipes, brushed silver shell, smoked-grey LED diffusers;
+  - uses the neutral studio environment and two soft panels.
+- **Controls:**
+  - Master Controls:
+    - Auto Performance, which drives `segmentAuto`;
+    - Master Intensity, which drives `segmentReactivity` and is the strength of every choreography rule;
+    - BPM Sync, which drives `segmentSync` and the camera's `tempoSync`;
+    - Camera Movement, which drives the camera's `motionAmount` (drift, weave over two bars, bob, a lens breath every bar, a zoom punch on every kick).
+  - Design: Pattern (Energy Flow / Ring Chase / Split / Pulse). Editing it turns Auto Performance off (`userEditSetParameters`).
+  - Effects: Flicker.
+  - Palette: Energy Color, which drives the segment colour and the three warm energy lights.
+- **Auto Performance:** implemented in `Cinema2ThreeSegmentLighting` (`auto: true`):
+  - Pulse on a drop and in quiet or vocal passages;
+  - Energy Flow through a build;
+  - otherwise Ring Chase, Split and Energy Flow in rotation every four bars;
+  - it only changes pattern on a bar line, except that a drop switches at once.
+- **Lights:** a key spot on the wordmark, a wall wash, three warm energy point lights (two by the tubes, one over the floor) and ambient. The energy lights swell on the downbeat, lift through a build and hit on a drop.
+- **Effects:** the reflective floor at y = 0 (misses fall back to a dim silver rather than black), a light haze, bloom and a filmic finish.
+- **Verified in Chrome:** the preset ran through the production `Cinema2Runtime` with synthetic music (the HUM:N frame factory):
+  - no failed passes and no module diagnostics;
+  - about 60 fps at 1280×720;
+  - high, medium and low quality all run;
+  - the patterns are visibly distinct: Ring Chase shows comets, Split shows the lit half trading, and a quiet Pulse dims the wall.
+- **Tuning already found necessary:** the first run was blown out.
+  - The silver room mirrors the studio environment.
+  - The key light and wall wash scattered through the haze.
+  - The pale LED diffusers washed the pattern to pastel.
+  - The floor showed black patches where reflections missed.
+
+  Fixed by lowering the environment, panels, lights and haze, darkening the LED "off" colour and the shell, raising segment strength, and giving the floor a silver fallback for misses.
+- **Tests:**
+  - `Cinema2Conduit.test.ts`: 8 tests covering the catalog/gate/compiler, the exact controls per group, the pattern options and their Auto-off behaviour, the segment and camera bindings, the assets and module validity, the light budget and the effects chain.
+  - Plus an Auto Performance test in the segment lighting suite.
+  - The node (21) and DOM (9) Cinema 2.0 failures are the same with and without this change, so they are pre-existing.
+
+**Open for step 4:**
+- the wordmark still blows out to white;
+- high quality has a warm cast from the energy lights, while low quality's neutral silver is closer to the mockups;
+- a quiet Pulse should take the wall darker;
+- measure against the four mockups.
 
 ### Step 4: Tuning and verification
 

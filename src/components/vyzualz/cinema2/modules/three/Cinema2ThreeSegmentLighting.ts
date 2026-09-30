@@ -20,6 +20,10 @@ import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
  *   everything.
  * Flicker (0-1) makes segments drop out and stutter at random, each on its own.
  *
+ * Auto (`auto: true`) picks the pattern from the music instead: Pulse for a drop (the full-rig hit) and for quiet or vocal passages, Energy
+ * Flow through a build, and otherwise a rotation of Ring Chase, Split and Energy Flow every four bars. It only changes pattern on a bar line
+ * (a drop switches at once), and the change crossfades like a manual one.
+ *
  * Everything here is a pure function of the beat clock and the audio, so the GPU shader below and `evaluateCinema2SegmentBrightness` (its
  * TypeScript twin, for tests) give the same answer.
  */
@@ -36,10 +40,14 @@ export interface Cinema2ThreeSegmentInputs {
   readonly flicker: number
   /** 0-1: how strongly the lighting follows the music (0 holds a steady glow). */
   readonly reactivity: number
+  /** Let the music choose the pattern (Auto Performance); `pattern` is then ignored. */
+  readonly auto?: boolean
 }
 
 /** The per-frame values the shader reads. */
 export interface Cinema2ThreeSegmentFrame {
+  /** The pattern playing (the chosen one, or Auto's pick). */
+  readonly pattern: Cinema2ThreeSegmentPattern
   readonly beats: number
   /** Smoothed bass and energy, 0-1. */
   readonly level: number
@@ -94,6 +102,8 @@ export class Cinema2ThreeSegmentLighting {
   private sectionId: string | null = null
   private lastTimeSec: number | null = null
   private weights: [number, number, number, number] = [1, 0, 0, 0]
+  private autoPattern: Cinema2ThreeSegmentPattern | null = null
+  private autoBar: number | null = null
   private readonly waves: { start: number; gain: number }[] = []
 
   reset(): void {
@@ -106,7 +116,18 @@ export class Cinema2ThreeSegmentLighting {
     this.chase = 0
     this.sectionId = null
     this.lastTimeSec = null
+    this.autoPattern = null
+    this.autoBar = null
     this.waves.length = 0
+  }
+
+  /** Auto Performance: the pattern the music calls for right now. */
+  private autoChoice(beats: number, build: number): Cinema2ThreeSegmentPattern {
+    if (this.drop > 0.5) return 'pulse'
+    if (this.quiet > 0.5) return 'pulse'
+    if (build >= 0.5) return 'energyFlow'
+    const rotation: readonly Cinema2ThreeSegmentPattern[] = ['ringChase', 'split', 'energyFlow']
+    return rotation[((Math.floor(beats / 16) % rotation.length) + rotation.length) % rotation.length]!
   }
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>, inputs: Readonly<Cinema2ThreeSegmentInputs>): Readonly<Cinema2ThreeSegmentFrame> {
@@ -144,8 +165,22 @@ export class Cinema2ThreeSegmentLighting {
       if (this.dropHeld > DROP_HOLD_SEC) this.drop *= Math.exp(-dt / DROP_DECAY_SEC)
     }
 
+    // Auto Performance re-decides on every bar line, or at once on a drop.
+    let pattern = inputs.pattern
+    if (inputs.auto) {
+      const bar = Math.floor(beats / 4)
+      if (this.autoPattern === null || bar !== this.autoBar || dropped) {
+        this.autoPattern = this.autoChoice(beats, build)
+        this.autoBar = bar
+      }
+      pattern = this.autoPattern
+    } else {
+      this.autoPattern = null
+      this.autoBar = null
+    }
+
     // Crossfade toward the active pattern.
-    const active = CINEMA2_THREE_SEGMENT_PATTERNS.indexOf(inputs.pattern)
+    const active = CINEMA2_THREE_SEGMENT_PATTERNS.indexOf(pattern)
     const blend = 1 - Math.exp(-dt / CROSSFADE_SEC)
     this.weights = this.weights.map((weight, index) => weight + ((index === active ? 1 : 0) - weight) * (dt > 0 ? blend : 0)) as [number, number, number, number]
     if (this.lastBeats === null) this.weights = this.weights.map((_, index) => (index === active ? 1 : 0)) as [number, number, number, number]
@@ -177,6 +212,7 @@ export class Cinema2ThreeSegmentLighting {
     const splitSide = splitUnit % 2 === 0 ? -1 : 1
 
     return Object.freeze({
+      pattern,
       beats,
       level: this.level,
       drop: this.drop,
