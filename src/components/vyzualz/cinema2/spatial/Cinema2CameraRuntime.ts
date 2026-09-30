@@ -195,8 +195,9 @@ export class Cinema2CameraRuntime {
     const rollDegrees = clamp(finalSafety.pose.rollDegrees + bank, -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
 
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
+    const fovDegrees = fitCinema2FovToMinAspect(finalSafety.pose.fovDegrees, aspect, camera.minAspect)
     const projectionMatrix = camera.projection === 'perspective'
-      ? createPerspectiveMatrix(finalSafety.pose.fovDegrees, aspect, finalSafety.pose.near, finalSafety.pose.far)
+      ? createPerspectiveMatrix(fovDegrees, aspect, finalSafety.pose.near, finalSafety.pose.far)
       : createOrthographicMatrix(finalSafety.pose.orthographicHeight, aspect, finalSafety.pose.near, finalSafety.pose.far)
 
     this.currentFrame = Object.freeze({
@@ -207,7 +208,7 @@ export class Cinema2CameraRuntime {
       rig: camera.rig?.kind ?? 'static',
       position: finalSafety.pose.position,
       target: finalSafety.pose.target,
-      fovDegrees: finalSafety.pose.fovDegrees,
+      fovDegrees,
       orthographicHeight: finalSafety.pose.orthographicHeight,
       near: finalSafety.pose.near,
       far: finalSafety.pose.far,
@@ -692,6 +693,16 @@ export function createCinema2OrthographicProjection(
   far: number,
 ): Cinema2Matrix4 {
   return createOrthographicMatrix(verticalHeight, aspect, near, far)
+}
+
+/**
+ * The vertical FOV to draw with: `fovDegrees` at `minAspect` and wider, and below it widened so the horizontal view matches `minAspect`'s
+ * (fit to width). Capped at 150 degrees.
+ */
+export function fitCinema2FovToMinAspect(fovDegrees: number, aspect: number, minAspect: number | undefined): number {
+  if (minAspect == null || !Number.isFinite(minAspect) || minAspect <= 0 || !(aspect > 0) || aspect >= minAspect) return fovDegrees
+  const halfTan = Math.tan(degreesToRadians(fovDegrees) / 2) * (minAspect / aspect)
+  return Math.min(150, (Math.atan(halfTan) * 2 * 180) / Math.PI)
 }
 
 function createPerspectiveMatrix(fovDegrees: number, aspect: number, near: number, far: number): Cinema2Matrix4 {

@@ -451,6 +451,12 @@ export interface Cinema2CameraManifest {
   /** Optional scene-node target; mutually exclusive with authored target coordinates. */
   targetNode?: Cinema2SceneNodeRef
   fovDegrees?: number
+  /**
+   * Perspective only: the narrowest aspect (width / height) the framing was composed for. On a narrower Stage the vertical FOV widens so
+   * the horizontal view stays what it is at this aspect (fit to width), instead of the sides being cropped away. Wider Stages are
+   * unaffected (the vertical FOV holds). Omit for the plain vertical FOV at every aspect.
+   */
+  minAspect?: number
   /** Vertical orthographic world span; ignored by perspective cameras. */
   orthographicHeight?: number
   near?: number

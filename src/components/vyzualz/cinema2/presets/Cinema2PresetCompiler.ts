@@ -760,6 +760,9 @@ function validateCameraDefinition(
   if (camera.fovDegrees != null && (!Number.isFinite(camera.fovDegrees) || camera.fovDegrees <= 0 || camera.fovDegrees >= 180)) {
     diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Perspective FOV must be finite and between 0 and 180 degrees.', `${path}.fovDegrees`))
   }
+  if (camera.minAspect != null && (!Number.isFinite(camera.minAspect) || camera.minAspect < 0.25 || camera.minAspect > 4)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera minAspect must be a finite width / height ratio between 0.25 and 4.', `${path}.minAspect`))
+  }
   if (camera.orthographicHeight != null && (!Number.isFinite(camera.orthographicHeight) || camera.orthographicHeight <= 0)) {
     diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Orthographic height must be a positive finite number.', `${path}.orthographicHeight`))
   }

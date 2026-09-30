@@ -89,6 +89,7 @@ interface Cinema2NormalizedRenderTargetDescriptor {
     | { kind: 'fixed'; width: number; height: number }
   >
   colorFormat: Cinema2RenderTargetColorFormat
+  fallbackColorFormat: Cinema2RenderTargetColorFormat | null
   depthFormat: Cinema2RenderTargetDepthFormat
   filter: Cinema2RenderTargetFilter
   wrap: Cinema2RenderTargetWrap
@@ -168,7 +169,7 @@ export class Cinema2ResourceManager {
   ): Cinema2RenderTargetLease {
     this.assertUsable('acquire a render target')
     const normalizedOwnerId = normalizeOwnerId(ownerId)
-    const normalized = normalizeDescriptor(descriptor)
+    const normalized = this.withSupportedColorFormat(normalizeDescriptor(descriptor))
     const size = resolveTargetSize(this.viewport, normalized, this.maximumTextureSize, this.renderTargetScale)
     const sampleableDepth = options.sampleableDepth === true && normalized.depthFormat !== 'none'
     const key = descriptorKey(normalized, size.width, size.height, sampleableDepth)
@@ -443,6 +444,15 @@ export class Cinema2ResourceManager {
     this.contextAvailable = false
   }
 
+  /** Swaps a float color format the GPU cannot render to for the descriptor's authored fallback (the allocation fails later without one). */
+  private withSupportedColorFormat(
+    descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
+  ): Readonly<Cinema2NormalizedRenderTargetDescriptor> {
+    const fallback = descriptor.fallbackColorFormat
+    if (!fallback || (descriptor.colorFormat !== 'rgba16f' && descriptor.colorFormat !== 'rgba32f') || supportsFloatColorTargets(this.gl)) return descriptor
+    return Object.freeze({ ...descriptor, colorFormat: fallback, fallbackColorFormat: null })
+  }
+
   private createSurfaces(
     descriptor: Readonly<Cinema2NormalizedRenderTargetDescriptor>,
     width: number,
@@ -642,6 +652,10 @@ function normalizeDescriptor(descriptor: Cinema2RenderTargetDescriptor): Readonl
   if (!isColorFormat(descriptor.colorFormat)) {
     throw new Error(`Cinema 2.0 render-target color format "${String(descriptor.colorFormat)}" is unsupported.`)
   }
+  const fallbackColorFormat = descriptor.fallbackColorFormat ?? null
+  if (fallbackColorFormat !== null && !isColorFormat(fallbackColorFormat)) {
+    throw new Error(`Cinema 2.0 render-target fallback color format "${String(fallbackColorFormat)}" is unsupported.`)
+  }
   const depthFormat = descriptor.depthFormat ?? 'none'
   if (depthFormat !== 'none' && depthFormat !== 'depth16' && depthFormat !== 'depth24') {
     throw new Error(`Cinema 2.0 render-target depth format "${String(depthFormat)}" is unsupported.`)
@@ -657,6 +671,7 @@ function normalizeDescriptor(descriptor: Cinema2RenderTargetDescriptor): Readonl
   return Object.freeze({
     size: normalizedSize,
     colorFormat: descriptor.colorFormat,
+    fallbackColorFormat,
     depthFormat,
     filter,
     wrap,

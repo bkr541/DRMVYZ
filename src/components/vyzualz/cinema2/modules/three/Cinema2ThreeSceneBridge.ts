@@ -90,6 +90,11 @@ export interface Cinema2ThreeSceneOptions {
    * Cinema2ThreeSegmentLighting), replacing the material's own emissive. Needs the `_SEGMENT` and `_GLOW_PHASE` vertex attributes.
    */
   segments?: Readonly<Record<string, Cinema2ThreeSegmentRole>>
+  /**
+   * The engine target is a float target and the preset tone-maps later (`config.hdr`): segment light is emitted unrolled, above 1. Ignored
+   * where the GPU cannot render to float textures (the preset's targets then fall back to 8-bit).
+   */
+  hdr?: boolean
   /** Parts that cast and receive shadows from spot lights flagged `threeShadow` (`config.shadows`); none by default. */
   shadows?: Readonly<{ cast: readonly string[]; receive: readonly string[] }>
 }
@@ -105,6 +110,11 @@ export interface Cinema2ThreeGlowDraw {
 export interface Cinema2ThreeSegmentDraw {
   color: readonly [number, number, number]
   strength: number
+  /**
+   * 0-1: how much a segment's light gathers into a hot core where its surface faces the camera. On rounded LED bars and tubes this gives
+   * a white-hot centre line with deeper-colored edges, like a real diffuser; 0 lights every surface evenly. Default 0.
+   */
+  core?: number
   frame: Readonly<Cinema2ThreeSegmentFrame>
 }
 
@@ -244,6 +254,8 @@ export class Cinema2ThreeSceneBridge {
       uCinema2SegWeights: { value: new THREE.Vector4(1, 0, 0, 0) },
       uCinema2SegFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
       uCinema2SegGain: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2SegCore: { value: 0 },
+      uCinema2SegHdr: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') != null ? 1 : 0 },
     }
 
     for (const instance of instances) {
@@ -526,6 +538,7 @@ export class Cinema2ThreeSceneBridge {
     const frame = segments.frame
     uniforms.uCinema2SegColor.value.setRGB(segments.color[0], segments.color[1], segments.color[2], this.library.THREE.SRGBColorSpace)
     uniforms.uCinema2SegStrength.value = Math.max(0, segments.strength)
+    uniforms.uCinema2SegCore.value = Math.min(1, Math.max(0, segments.core ?? 0))
     uniforms.uCinema2Seg0.value.set(Number.isFinite(frame.beats) ? frame.beats % 4096 : 0, frame.level, frame.drop, frame.quiet)
     uniforms.uCinema2Seg1.value.set(frame.chase, frame.splitSide, frame.flicker, frame.reactivity)
     uniforms.uCinema2SegWeights.value.set(frame.weights[0], frame.weights[1], frame.weights[2], frame.weights[3])
@@ -775,9 +788,15 @@ interface SegmentUniforms {
   uCinema2SegWeights: { value: ThreeNamespace.Vector4 }
   uCinema2SegFront: { value: ThreeNamespace.Vector4 }
   uCinema2SegGain: { value: ThreeNamespace.Vector4 }
+  uCinema2SegCore: { value: number }
+  /** 1: emit the full (HDR) light; 0: roll it off toward white for an 8-bit target. */
+  uCinema2SegHdr: { value: number }
 }
 
-/** Replaces the material's emitted light with the segment pattern's brightness times the energy color, rolled off softly toward white. */
+/**
+ * Replaces the material's emitted light with the segment pattern's brightness times the energy color: at full strength into a float target,
+ * otherwise rolled off softly toward white.
+ */
 export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms, role: { value: number }): void {
   Object.assign(shader.uniforms, shared, { uCinema2SegRole: role })
   shader.vertexShader = shader.vertexShader
@@ -795,15 +814,23 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
       'uniform vec3 uCinema2SegColor;',
       'uniform float uCinema2SegStrength;',
       'uniform float uCinema2SegRole;',
+      'uniform float uCinema2SegHdr;',
+      'uniform float uCinema2SegCore;',
       'varying vec4 vCinema2Segment;',
       'varying float vCinema2SegPhase;',
       CINEMA2_THREE_SEGMENT_GLSL,
     ].join('\n'))
     .replace('#include <emissivemap_fragment>', [
       '#include <emissivemap_fragment>',
-      // Soft exponential roll-off (1 - e^-x) instead of a hard per-channel clip: the scene has no tone mapping, so a bright amber would clip its
-      // green channel and turn yellow; this keeps a moderately lit LED amber and rolls only the brightest toward a warm-white core.
-      'totalEmissiveRadiance = 1.0 - exp( - uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) ) );',
+      // Hot core: brightest where the surface faces the camera (the centre line of a rounded LED bar), falling off toward its edges.
+      'float cinema2SegFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
+      'float cinema2SegCore = mix( 1.0, 0.1 + 0.9 * cinema2SegFacing * cinema2SegFacing * cinema2SegFacing, uCinema2SegCore );',
+      // A core part (the logo's glow) uses its phase as a reach: 1 where the light sits, fading to 0 up the letter walls it climbs.
+      'float cinema2SegReach = uCinema2SegRole > 0.5 && uCinema2SegRole < 1.5 ? vCinema2SegPhase : 1.0;',
+      'vec3 cinema2SegLight = uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) * cinema2SegCore * cinema2SegReach );',
+      // Into a float target the light goes out as is, and the finish's tone curve turns the brightest into a warm-white core. Into an 8-bit
+      // target a hard per-channel clip would turn a bright amber yellow (its green channel clips first), so it rolls off softly (1 - e^-x).
+      'totalEmissiveRadiance = mix( 1.0 - exp( - cinema2SegLight ), cinema2SegLight, uCinema2SegHdr );',
     ].join('\n'))
 }
 

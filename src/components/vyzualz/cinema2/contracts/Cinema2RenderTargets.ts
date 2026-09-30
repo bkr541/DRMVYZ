@@ -13,6 +13,12 @@ export type Cinema2RenderTargetSize =
 export interface Cinema2RenderTargetDescriptor {
   size: Cinema2RenderTargetSize
   colorFormat: Cinema2RenderTargetColorFormat
+  /**
+   * What to allocate instead when `colorFormat` is a float format and the GPU cannot render to float textures (no
+   * EXT_color_buffer_float). Without it such a target fails to allocate, so only set it when the passes reading the target cope
+   * with clipped 8-bit values.
+   */
+  fallbackColorFormat?: Cinema2RenderTargetColorFormat
   depthFormat?: Cinema2RenderTargetDepthFormat
   filter?: Cinema2RenderTargetFilter
   wrap?: Cinema2RenderTargetWrap
@@ -61,6 +67,9 @@ export function validateCinema2RenderTargetDescriptor(
 
   if (!COLOR_FORMATS.has(value.colorFormat as Cinema2RenderTargetColorFormat)) {
     diagnostics.push(error('CINEMA2_RENDER_TARGET_COLOR_FORMAT_INVALID', `Unsupported render target color format "${String(value.colorFormat)}".`, `${path}.colorFormat`))
+  }
+  if (value.fallbackColorFormat != null && !COLOR_FORMATS.has(value.fallbackColorFormat as Cinema2RenderTargetColorFormat)) {
+    diagnostics.push(error('CINEMA2_RENDER_TARGET_COLOR_FORMAT_INVALID', `Unsupported render target fallback color format "${String(value.fallbackColorFormat)}".`, `${path}.fallbackColorFormat`))
   }
   if (value.depthFormat != null && !DEPTH_FORMATS.has(value.depthFormat as Cinema2RenderTargetDepthFormat)) {
     diagnostics.push(error('CINEMA2_RENDER_TARGET_DEPTH_FORMAT_INVALID', `Unsupported render target depth format "${String(value.depthFormat)}".`, `${path}.depthFormat`))

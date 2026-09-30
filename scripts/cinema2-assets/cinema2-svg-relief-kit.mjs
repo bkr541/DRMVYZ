@@ -89,16 +89,17 @@ export const areaOf = polygon => {
 export const shapeArea = shape => Math.abs(areaOf(shape.outer)) - shape.holes.reduce((sum, hole) => sum + Math.abs(areaOf(hole)), 0)
 
 /**
- * A bevelled extrusion of `shapes`, centred in depth about z = 0. The bevel's widest point is exactly the SVG outline, so it never grows into
- * a gap next to a neighbouring part. Returns indexed, crease-shaded geometry.
+ * A bevelled extrusion of `shapes`, centred in depth about z = 0. By default the bevel's widest point is exactly the SVG outline, so it never
+ * grows into a gap next to a neighbouring part; `offset` moves the widest point out by `bevel + offset` instead (a lip grown round a shape).
+ * Returns indexed, crease-shaded geometry.
  */
-export function buildExtrusion(shapes, { depth, bevel, creaseAngle, bevelSegments = 3 }) {
+export function buildExtrusion(shapes, { depth, bevel, creaseAngle, bevelSegments = 3, offset = -bevel }) {
   let geometry = new THREE.ExtrudeGeometry(shapes.map(toThreeShape), {
     depth,
     bevelEnabled: true,
     bevelThickness: bevel,
     bevelSize: bevel,
-    bevelOffset: -bevel,
+    bevelOffset: offset,
     bevelSegments,
     curveSegments: 1,
     steps: 1,
@@ -112,6 +113,34 @@ export function buildExtrusion(shapes, { depth, bevel, creaseAngle, bevelSegment
     normals: new Float32Array(geometry.getAttribute('normal').array),
     indices: Uint32Array.from(geometry.getIndex().array),
   }
+}
+
+/**
+ * Splits an indexed mesh ({ positions, normals, indices }) in two by a per-triangle test `keep(normal, centroid)` on the face normal and
+ * centroid: [kept, rest], each re-indexed with only the vertices it uses.
+ */
+export function splitMesh(mesh, keep) {
+  const out = [{ positions: [], normals: [], indices: [], map: new Map() }, { positions: [], normals: [], indices: [], map: new Map() }]
+  const p = mesh.positions, n = mesh.normals
+  const v = i => new THREE.Vector3(p[i * 3], p[i * 3 + 1], p[i * 3 + 2])
+  for (let t = 0; t < mesh.indices.length; t += 3) {
+    const [a, b, c] = [mesh.indices[t], mesh.indices[t + 1], mesh.indices[t + 2]]
+    const pa = v(a), pb = v(b), pc = v(c)
+    const face = new THREE.Vector3().crossVectors(pb.clone().sub(pa), pc.clone().sub(pa)).normalize()
+    const centroid = pa.add(pb).add(pc).multiplyScalar(1 / 3)
+    const target = out[keep(face, centroid) ? 0 : 1]
+    for (const index of [a, b, c]) {
+      let mapped = target.map.get(index)
+      if (mapped === undefined) {
+        mapped = target.positions.length / 3
+        target.map.set(index, mapped)
+        target.positions.push(p[index * 3], p[index * 3 + 1], p[index * 3 + 2])
+        target.normals.push(n[index * 3], n[index * 3 + 1], n[index * 3 + 2])
+      }
+      target.indices.push(mapped)
+    }
+  }
+  return out.map(part => ({ positions: new Float32Array(part.positions), normals: new Float32Array(part.normals), indices: Uint32Array.from(part.indices) }))
 }
 
 // ── Relief ────────────────────────────────────────────────────────────────────

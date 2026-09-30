@@ -246,6 +246,13 @@ export {
 } from './effects/Cinema2CinematicFinishEffect'
 
 export {
+  CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID,
+  CINEMA2_HDR_BLOOM_EFFECT_VERSION,
+  CINEMA2_HDR_BLOOM_MAX_LEVELS,
+  cinema2HdrBloomEffectDefinition,
+} from './effects/Cinema2HdrBloomEffect'
+
+export {
   CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,
   CINEMA2_REFLECTIVE_FLOOR_EFFECT_VERSION,
   CINEMA2_REFLECTIVE_FLOOR_QUALITY_PROFILES,

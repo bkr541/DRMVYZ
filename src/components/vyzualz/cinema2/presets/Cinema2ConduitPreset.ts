@@ -87,7 +87,7 @@ const WALL_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('conduit-wall-lights'
 const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
-const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
+const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('hdr-bloom')
 const FINISH_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('cinematic-finish')
 const FLOOR_EFFECT_ID = cinema2StableId<Cinema2EffectId>('conduit-floor')
 const VOLUMETRIC_EFFECT_ID = cinema2StableId<Cinema2EffectId>('conduit-haze')
@@ -97,12 +97,21 @@ const FINISH_EFFECT_ID = cinema2StableId<Cinema2EffectId>('conduit-finish')
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
-export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.45, 0.12)
+/**
+ * A warm peach amber, matched to the owner's mockup through the finish's filmic curve: a lit LED reads cream-white, its glow peach, and the
+ * glow's fading edge orange. (A deeper orange stays saturated even at full brightness, and its glow tints the silver walls pink.)
+ */
+export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.58, 0.34)
 const BACKGROUND = color(0.02, 0.02, 0.022)
 /** Chamber floor height (the assets' world frame). */
 const FLOOR_Y = 0
-/** Segment brightness (the segment light rolls off softly toward white, so a lit LED stays amber and the brightest get a warm-white core). */
-const SEGMENT_STRENGTH = 3.4
+/**
+ * Segment brightness. The scene renders HDR, so a lit LED is many times brighter than the white letters: the finish's filmic curve turns its
+ * core warm white, the HDR bloom wraps it in an orange halo, and the floor reflects it as light.
+ */
+const SEGMENT_STRENGTH = 10
+/** How much each LED's light gathers into a hot centre line where its rounded diffuser faces the camera. */
+const SEGMENT_CORE = 0.7
 const ENERGY_LIGHT_REST = 0.12
 
 const PATTERN_LABELS: Readonly<Record<Cinema2ThreeSegmentPattern, string>> = Object.freeze({
@@ -285,9 +294,11 @@ const FINISH_PASS_ID = passId('finish')
 const SCENE_COLOR_ID = slotId('scene-color')
 const SCENE_DEPTH_ID = slotId('scene-depth')
 
+// Float targets carry the LEDs' light above white through the floor, haze and bloom to the finish's tone curve. A GPU that cannot render to
+// float textures gets 8-bit targets (the segment light then rolls off toward white in the shader instead).
 const viewportTarget = (id: Cinema2RenderTargetId, depth = false) => Object.freeze({
   id,
-  descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, ...(depth ? { depthFormat: 'depth24' as const } : {}) }),
+  descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const, ...(depth ? { depthFormat: 'depth24' as const } : {}) }),
   ownership: 'transient' as const,
 })
 
@@ -311,8 +322,8 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
  * energy lights') light, so an off segment looked dimly lit and the pattern only tinted them.
  */
 const LED_OFF = color(0.05, 0.05, 0.055)
-/** Brushed silver, a little darker than the asset's bake so the chamber reads mid-grey like the owner's mockups rather than white. */
-const SHELL = color(0.62, 0.62, 0.64)
+/** Brushed silver, a little darker than the asset's bake: neutral metal that takes its warmth from the LEDs, like the mockup. */
+const SHELL = color(0.64, 0.63, 0.62)
 
 export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
@@ -341,28 +352,44 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     version: 1,
     enabled: true,
     parameters: Object.freeze({
-      // Wordmark: glossy pearl letters, polished chrome ring, dark silver back plate.
-      'letters.color': color(0.7, 0.69, 0.67),
-      'letters.roughness': 0.22,
-      'letters.metalness': 0.15,
-      'letters.clearcoat': 0.3,
-      'letters.clearcoatRoughness': 0.08,
-      // A darker chrome ring and back plate, so the white letters stand off them with a dark edge as in the mockups.
-      'outline.color': color(0.55, 0.55, 0.57),
+      // Wordmark: bright white glossy letter faces on polished bronze-chrome walls, a chrome frame on a darker stepped lip, near-black gaps.
+      'letters.color': color(0.92, 0.91, 0.89),
+      'letters.roughness': 0.2,
+      'letters.metalness': 0.05,
+      'letters.clearcoat': 0.5,
+      'letters.clearcoatRoughness': 0.06,
+      'walls.color': color(0.56, 0.46, 0.38),
+      'walls.roughness': 0.16,
+      'walls.metalness': 1,
+      'outline.color': color(0.72, 0.66, 0.6),
       'outline.roughness': 0.1,
       'outline.metalness': 1,
-      'outline.environmentIntensity': 0.6,
-      'plate.color': color(0.14, 0.14, 0.15),
-      'plate.roughness': 0.3,
+      'base.color': color(0.32, 0.28, 0.25),
+      'base.roughness': 0.18,
+      'plate.roughness': 0.35,
       // Tubes: chrome pipes, darker steel couplers, a near-black channel under the windows.
-      'pipe.roughness': 0.12,
-      'coupler.roughness': 0.25,
+      'pipe.color': color(0.78, 0.76, 0.74),
+      'pipe.roughness': 0.1,
+      // Chrome only reads as chrome with plenty to reflect: the tube parts take more of the studio environment than the brushed wall.
+      'pipe.environmentIntensity': 1.8,
+      'coupler.color': color(0.66, 0.64, 0.62),
+      'coupler.roughness': 0.14,
+      'coupler.environmentIntensity': 1.6,
+      'flange.color': color(0.6, 0.58, 0.56),
+      'flange.roughness': 0.18,
+      'flange.environmentIntensity': 1.4,
       // Chamber: brushed silver, dark recessed tracks.
       // Brushed, not mirror: a mirror-smooth wall facing the camera reflects the studio's front light as a white hot spot.
       'shell.color': SHELL,
-      'shell.roughness': 0.46,
-      'shell.metalness': 0.8,
-      'shell.environmentIntensity': 0.9,
+      'shell.roughness': 0.3,
+      'shell.metalness': 0.85,
+      'shell.environmentIntensity': 0.85,
+      // The side walls face across the room, away from the wall washes, so they lean on the environment instead.
+      'hull.color': color(0.6, 0.59, 0.58),
+      'hull.environmentIntensity': 1.6,
+      'steel.color': color(0.46, 0.45, 0.44),
+      'iris.color': color(0.2, 0.19, 0.18),
+      'trim.color': color(0.035, 0.035, 0.038),
       'trim.roughness': 0.4,
       // LED diffusers, as seen when a segment is dark.
       'segments.color': LED_OFF,
@@ -376,6 +403,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       segmentFlicker: 0.15,
       segmentReactivity: 1,
       segmentStrength: SEGMENT_STRENGTH,
+      segmentCore: SEGMENT_CORE,
       segmentColor: CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR,
     }),
     parameterBindings: Object.freeze({
@@ -392,9 +420,12 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         Object.freeze({ asset: CINEMA2_CONDUIT_TUBES_ASSET_ID, node: TUBES_NODE_ID }),
         Object.freeze({ asset: CINEMA2_CONDUIT_WORDMARK_ASSET_ID, node: WORDMARK_NODE_ID }),
       ]),
-      parts: Object.freeze(['letters', 'outline', 'plate', 'pipe', 'coupler', 'shell', 'trim', 'segments', 'energy']),
-      // Every LED segment is lit by the pattern: the tubes feed the logo, the rim is the core, the wall is the field.
-      segments: Object.freeze({ energy: 'feed', rim: 'core', segments: 'field' }),
+      // Rendered into float targets and tone-mapped by the finish, so the LEDs emit their full light.
+      hdr: true,
+      parts: Object.freeze(['letters', 'walls', 'outline', 'base', 'plate', 'pipe', 'channel', 'flange', 'coupler', 'shell', 'hull', 'steel', 'iris', 'trim', 'bolts', 'segments', 'energy']),
+      // Every LED segment is lit by the pattern: the tubes feed the logo, the logo's glow (the rim in the gaps and the walls it climbs) is the
+      // core, the wall is the field.
+      segments: Object.freeze({ energy: 'feed', rim: 'core', walls: 'core', segments: 'field' }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       // Two soft panels front-left and front-right give the chrome and the pearl letters a clean highlight band.
       panels: Object.freeze([
@@ -429,6 +460,8 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     label: 'CONDUIT Front',
     projection: 'perspective' as const,
     fovDegrees: 42,
+    // Composed at 16:9; on a narrower Stage (the app's is nearly square) the view widens vertically instead of cropping the tube flanges.
+    minAspect: 16 / 9,
     near: 0.1,
     far: 60,
     // The frame the assets were built for (docs/cinema2-conduit-plan.md): level with the chamber, the wordmark in the middle spanning about
@@ -456,13 +489,13 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     // and the warm energy lights. Two washes from high left and right, each on its own half of the wall, light it evenly; a single wash aimed
     // at the middle made a white hot spot behind the logo.
     lights: Object.freeze([
-      spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.2, color(0.96, 0.97, 1), 0.9),
-      spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.2, color(0.96, 0.97, 1), 0.9),
+      spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.26, color(1, 0.97, 0.93), 0.9),
+      spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.26, color(1, 0.97, 0.93), 0.9),
       spot(KEY_LIGHT_ID, vec3(0, 7.5, 5.5), LOGO_TARGET_ID, 18, 0.08, color(1, 0.98, 0.96)),
       energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 5),
       energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 5),
       energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 4),
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.9, 0.9, 0.92), intensity: 0.12 }),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(1, 0.97, 0.94), intensity: 0.1 }),
     ]),
   }),
   environment: Object.freeze({
@@ -477,9 +510,10 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      // Polished metal: a glossy mirror of the wall, the tubes and the glowing segments. Where screen-space reflection finds nothing to reflect it
-      // shows a dim silver (`skyColor`) instead of black, and a thicker hit test catches the thin wall details.
-      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.62, roughness: 0.14, fresnel: 2.4, albedo: 0.8, poolIntensity: 0.3, specular: 1.1, fadeDistance: 30, maxReflection: 24, thickness: 0.8, skyColor: color(0.45, 0.45, 0.46), baseColor: color(0.42, 0.42, 0.43), grit: 0.05, gritScale: 6 }),
+      // Polished metal: a bright mirror of the wall, the tubes and the LEDs, each lit segment pulling a long vertical streak toward the viewer
+      // (`streak`). Where screen-space reflection finds nothing to reflect it shows a dim silver (`skyColor`) instead of black, and a thicker hit
+      // test catches the thin wall details.
+      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.88, roughness: 0.3, fresnel: 1.4, albedo: 0.8, poolIntensity: 0.3, specular: 1.1, fadeDistance: 30, maxReflection: 13, thickness: 4, skyColor: color(0.55, 0.55, 0.55), baseColor: color(0.55, 0.55, 0.55), streak: 0.85, edgeFallback: 0.8, grit: 0.03, gritScale: 6 }),
     }),
     Object.freeze({
       id: VOLUMETRIC_EFFECT_ID,
@@ -501,9 +535,9 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      // The Stage renders in 8-bit, so bloom can only pick out what is near white; the threshold sits above the lit walls and the letters so the
-      // hot LED cores glow without smearing the wordmark.
-      parameters: Object.freeze({ mix: 0.65, threshold: 0.8, radius: 3, intensity: 1.3 }),
+      // Only what is brighter than white glows (the LEDs), so the letters and the lit walls stay crisp; the mip chain gives each lit segment a
+      // hot halo that fades into a wide orange glow.
+      parameters: Object.freeze({ mix: 1, threshold: 2, knee: 0.8, intensity: 0.8, spread: 0.7, levels: 7 }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,
@@ -512,7 +546,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 3,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, exposure: 1, vignette: 0.4, grain: 0.06, aberration: 0.08, contrast: 1.08, saturation: 1.05 }),
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 1, temperature: 0, vignette: 0.4, grain: 0.05, aberration: 0.08, contrast: 1.18, saturation: 1.05 }),
     }),
   ]),
   choreography: Object.freeze({ rules: choreographyRules }),

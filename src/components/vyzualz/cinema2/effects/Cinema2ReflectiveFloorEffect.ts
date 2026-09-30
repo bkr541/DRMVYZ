@@ -53,7 +53,10 @@ import {
  * reflections and dark cracks from world-anchored noise, at `gritScale` world units per patch. Optional `surfaceTexture` names a shipped texture
  * (layout `surface-normal-crack-roughness`, see the texture registry) that replaces the procedural ripples with a real normal map, crack mask and
  * roughness map, tiled every `surfaceTextureScale` world units and blended in by `surfaceTextureStrength`; it fades in once loaded, and a missing or
- * failed texture leaves the procedural look untouched. The shadow-casting light (`config.castShadow`, roadmap #10) is occluded in its floor
+ * failed texture leaves the procedural look untouched. Optional `streak` (0-1, default 0) makes it polished metal: reflections smear along the
+ * screen's vertical, so each bright light pulls a long streak toward the viewer (with an HDR scene, lit LEDs streak brightest). Optional
+ * `edgeFallback` (0-1, default 0): where a reflection would leave through the top of the screen (a tall set seen from close by), use the colour
+ * at the screen's top edge instead of `skyColor`, so the upper structure's lights keep streaking down the floor. The shadow-casting light (`config.castShadow`, roadmap #10) is occluded in its floor
  * pool and specular by the engine shadow map, scaled by `shadowStrength` (0-1, default 1). It needs the scene depth; without a depth input, or without a world camera, the effect passes
  * the image through unchanged.
  *
@@ -69,15 +72,18 @@ export interface Cinema2ReflectiveFloorQualityProfile {
   steps: number
   /** Blur taps for rough reflections (1 = sharp). */
   blurTaps: number
+  /** Taps along the vertical streak of a `streak` floor (0 = no streaks on this tier). */
+  streakTaps: number
 }
 
 export const CINEMA2_REFLECTIVE_FLOOR_QUALITY_PROFILES: Readonly<Record<Cinema2RenderQualityLevel, Readonly<Cinema2ReflectiveFloorQualityProfile>>> = Object.freeze({
-  low: Object.freeze({ steps: 10, blurTaps: 1 }),
-  medium: Object.freeze({ steps: 18, blurTaps: 3 }),
-  high: Object.freeze({ steps: 30, blurTaps: 5 }),
+  low: Object.freeze({ steps: 10, blurTaps: 1, streakTaps: 6 }),
+  medium: Object.freeze({ steps: 18, blurTaps: 3, streakTaps: 10 }),
+  high: Object.freeze({ steps: 30, blurTaps: 5, streakTaps: 14 }),
 })
 
 const MAX_STEPS = 32
+const MAX_STREAK_TAPS = 16
 const MAX_LIGHTS = CINEMA2_VOLUMETRIC_MAX_LIGHTS
 
 const FRAGMENT_SOURCE = `#version 300 es
@@ -114,6 +120,9 @@ uniform float u_surface;
 uniform float u_surfaceScale;
 uniform int u_steps;
 uniform int u_blurTaps;
+uniform int u_streakTaps;
+uniform float u_streak;
+uniform float u_edgeFallback;
 uniform vec3 u_ambient;
 uniform int u_lightCount;
 uniform vec4 u_lightPos[${MAX_LIGHTS}];
@@ -192,6 +201,11 @@ vec3 traceReflection(vec3 hitPoint, vec3 reflected, vec3 origin) {
     float s = (float(i) + 0.5 + jitter * 0.5) / float(u_steps);
     float t = u_maxReflection * s * s;
     vec3 pos = hitPoint + reflected * t;
+    // A ray leaving through the top of the screen would reflect what is above the frame: optionally stand in the colour where it left.
+    if (u_edgeFallback > 0.001) {
+      vec4 exitClip = u_viewProj * vec4(pos, 1.0);
+      if (exitClip.w > 0.0001 && exitClip.y / exitClip.w > 1.0) return vec3(clamp(exitClip.x / exitClip.w * 0.5 + 0.5, 0.0, 1.0), 0.995, 0.5);
+    }
     vec2 uv;
     float overshoot;
     if (behindScene(pos, origin, uv, overshoot) && overshoot < u_thickness + t * 0.06) {
@@ -211,7 +225,27 @@ vec3 traceReflection(vec3 hitPoint, vec3 reflected, vec3 origin) {
   return vec3(0.0);
 }
 
+// Brushed/polished metal: reflections smear along the screen's vertical, so every bright light pulls a long streak across the floor. The
+// streak grows with the reflection's screen distance (near the camera a reflection stretches further) and is weighted toward its centre.
+vec3 streakedReflection(vec2 uv, float travelled) {
+  float halfLength = u_streak * (0.02 + 0.45 * travelled);
+  float jitter = hash21(gl_FragCoord.xy * 1.37 + fract(u_time * 0.41) * 613.0) - 0.5;
+  vec3 sum = vec3(0.0);
+  float total = 0.0;
+  for (int i = 0; i < ${MAX_STREAK_TAPS}; i++) {
+    if (i >= u_streakTaps) break;
+    float t = ((float(i) + 0.5 + jitter) / float(u_streakTaps)) * 2.0 - 1.0;
+    float w = exp(-2.2 * t * t);
+    // Alternate taps step a little sideways (by the roughness), softening the reflection's edges across the streak too.
+    float across = (mod(float(i), 2.0) < 0.5 ? -1.0 : 1.0) * u_roughness * (0.004 + 0.03 * travelled);
+    sum += texture(u_source, clamp(uv + vec2(across, t * halfLength), vec2(0.0), vec2(1.0))).rgb * w;
+    total += w;
+  }
+  return sum / max(total, 0.0001);
+}
+
 vec3 sampleReflectionColor(vec2 uv, float travelled, float roughnessScale) {
+  if (u_streak > 0.001 && u_streakTaps > 1) return streakedReflection(uv, travelled);
   vec3 sum = texture(u_source, uv).rgb;
   if (u_blurTaps <= 1 || u_roughness * roughnessScale <= 0.01) return sum;
   float radius = u_roughness * roughnessScale * (0.004 + 0.028 * clamp(travelled / max(u_maxReflection, 0.001), 0.0, 1.0));
@@ -316,9 +350,13 @@ void main() {
 
   vec3 hit = traceReflection(hitPoint, reflected, origin);
   vec3 environment = u_skyColor;
-  if (hit.z > 0.5) {
+  if (hit.z > 0.75) {
     vec2 edge = min(hit.xy, 1.0 - hit.xy);
     float edgeFade = smoothstep(0.0, 0.1, min(edge.x, edge.y));
+    environment = mix(u_skyColor, sampleReflectionColor(hit.xy, length(hit.xy - v_uv), roughnessScale), edgeFade);
+  } else if (hit.z > 0.25) {
+    // Left through the top edge: the colour there, faded only toward the side edges.
+    float edgeFade = smoothstep(0.0, 0.1, min(hit.x, 1.0 - hit.x)) * u_edgeFallback;
     environment = mix(u_skyColor, sampleReflectionColor(hit.xy, length(hit.xy - v_uv), roughnessScale), edgeFade);
   }
 
@@ -348,6 +386,8 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['maxReflection', 1, 120],
   ['thickness', 0.05, 10],
   ['grit', 0, 1],
+  ['streak', 0, 1],
+  ['edgeFallback', 0, 1],
   ['gritScale', 0.5, 40],
   ['baseLift', 0.1, 20],
   ['surfaceTextureScale', 0.5, 60],
@@ -396,7 +436,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
         'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_glare', 'u_glareColor', 'u_glareRows', 'u_glareShape', 'u_surfaceTex', 'u_surface', 'u_surfaceScale', ...CINEMA2_SHADOW_UNIFORM_NAMES,
-        'u_steps', 'u_blurTaps', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
+        'u_steps', 'u_blurTaps', 'u_streakTaps', 'u_streak', 'u_edgeFallback', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -458,6 +498,9 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_surfaceScale', clamp(number(p, 'surfaceTextureScale', 6), 0.5, 60))
     program.setInt('u_steps', profile.steps)
     program.setInt('u_blurTaps', profile.blurTaps)
+    program.setInt('u_streakTaps', profile.streakTaps)
+    program.setFloat('u_streak', clamp(number(p, 'streak', 0), 0, 1))
+    program.setFloat('u_edgeFallback', clamp(number(p, 'edgeFallback', 0), 0, 1))
     program.setVec3('u_ambient', lights.ambient[0], lights.ambient[1], lights.ambient[2])
     program.setInt('u_lightCount', lights.count)
     setEffectUniformArray(gl, program, 'u_lightPos[0]', lights.position, 4)

@@ -76,8 +76,12 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * Segment lighting: `config.segments` maps part names to a role - `feed` (energy runs along it into the logo), `core` (flares when energy
  * arrives) or `field` (the lit wall) - and those parts are lit LED segment by LED segment from their `_SEGMENT` and `_GLOW_PHASE` vertex
  * attributes (see Cinema2ThreeSegmentLighting), replacing their own emissive. Parameters: `segmentPattern` (`energyFlow` | `ringChase` |
- * `split` | `pulse`), `segmentAuto` (true: the music picks the pattern), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentColor` (the energy
+ * `split` | `pulse`), `segmentAuto` (true: the music picks the pattern), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentCore` (0-1, how much each segment's light gathers into a hot centre where it faces the camera), `segmentColor` (the energy
  * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
+ *
+ * `config.hdr: true` declares that the preset renders this module into float (`rgba16f`) targets and tone-maps later: the segments'
+ * light is then emitted at full strength, many times brighter than white, for bloom and the finish's tone curve to shape. Without it (or
+ * on a GPU that cannot render to float textures) it rolls off softly toward white, so an 8-bit target does not clip amber to yellow.
  *
  * Shadows: `config.shadows` = `{ cast: [parts], receive: [parts] }` names which parts cast and receive shadows from spot lights authored
  * with `config.threeShadow` (up to two, medium and high only; see CINEMA2_THREE_SHADOW_BUDGET). Keep casters to the models inside those lights'
@@ -192,7 +196,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), hdr: context.module.config?.hdr === true, ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -244,7 +248,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
                 reactivity: readNumber(parameters.get('segmentReactivity'), 0, 1) ?? 1,
                 auto: parameters.get('segmentAuto') === true,
               })
-              segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, frame: segmentFrame }
+              segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, core: readNumber(parameters.get('segmentCore'), 0, 1) ?? 0, frame: segmentFrame }
             }
           },
           dispose: () => {
@@ -345,6 +349,9 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
   if (rawSegments !== undefined && (!rawSegments || typeof rawSegments !== 'object' || Array.isArray(rawSegments)
     || Object.values(rawSegments).some(role => !CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_SEGMENTS_INVALID', path: '$.config.segments', message: `config.segments must map part names to a role: ${CINEMA2_THREE_SEGMENT_ROLES.join(', ')}.` })
+  }
+  if (module.config?.hdr !== undefined && typeof module.config.hdr !== 'boolean') {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_HDR_INVALID', path: '$.config.hdr', message: 'config.hdr must be true or false.' })
   }
   const rawPanels = module.config?.panels
   if (rawPanels !== undefined) {

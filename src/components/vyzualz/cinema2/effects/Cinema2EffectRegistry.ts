@@ -5,6 +5,7 @@ import {
   cinema2FeedbackTrailsEffectDefinition,
 } from './Cinema2BuiltinEffects'
 import { cinema2CinematicFinishEffectDefinition } from './Cinema2CinematicFinishEffect'
+import { cinema2HdrBloomEffectDefinition } from './Cinema2HdrBloomEffect'
 import { cinema2ReflectiveFloorEffectDefinition } from './Cinema2ReflectiveFloorEffect'
 import { cinema2VolumetricAtmosphereEffectDefinition } from './Cinema2VolumetricAtmosphereEffect'
 import type { Cinema2EffectDiagnostic, Cinema2EffectTypeDefinition } from './Cinema2EffectContracts'
@@ -91,6 +92,7 @@ export const cinema2NativeEffectRegistry = new Cinema2EffectRegistry()
 for (const definition of [
   cinema2BlurEffectDefinition,
   cinema2BloomEffectDefinition,
+  cinema2HdrBloomEffectDefinition,
   cinema2FeedbackTrailsEffectDefinition,
   cinema2VolumetricAtmosphereEffectDefinition,
   cinema2ReflectiveFloorEffectDefinition,
