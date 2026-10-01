@@ -137,6 +137,9 @@ export class Cinema2CameraRuntime {
   private flightRate = 1
   private lastKickId: string | null = null
   private punchEnvelope = 0
+  /** Kick-zoom fallback state: seconds since the last kick event, and the last whole beat the punch fired on. */
+  private sinceKickSec = Infinity
+  private lastPunchBeat: number | null = null
   private splinePath: Readonly<SplinePath> | null = null
   private currentFrame: Readonly<Cinema2CameraFrame>
   private frameCount = 0
@@ -180,7 +183,9 @@ export class Cinema2CameraRuntime {
     const basePosition = pose.position
     const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2)
     if (motion?.drift) pose = applyDrift(pose, motion.drift, frame.elapsedTimeSec, motionAmount)
-    if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount)
+    // A bound Zoom on Kick toggle owns the kick zoom outright (full strength when on, none when off), independent of the motion amount.
+    const kickZoom = camera.controls?.kickZoom ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? 1 : 0) : motionAmount
+    if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
     let smoothed = this.previousPose && smoothingMs > 0
@@ -259,11 +264,20 @@ export class Cinema2CameraRuntime {
     }
 
     this.punchEnvelope *= Math.exp(-dt / 0.22)
+    this.sinceKickSec += dt
     const kick = frame.audio?.rhythm.kick
     if (kick && kick.id !== this.lastKickId) {
       this.lastKickId = kick.id
+      this.sinceKickSec = 0
       this.punchEnvelope = Math.max(this.punchEnvelope, clamp(finite(kick.strength, 0), 0, 1))
     }
+    // With a Zoom on Kick toggle bound, the zoom must not depend on catching a one-frame kick flag: when no kick event has arrived for a
+    // while but a track with a tempo is playing, punch on each beat of the beat clock instead (a four-on-the-floor kick lands there anyway).
+    const wholeBeat = Math.floor(beats)
+    if (camera.controls?.kickZoom && bpm != null && this.sinceKickSec > KICK_FALLBACK_SEC && this.lastPunchBeat !== null && wholeBeat !== this.lastPunchBeat) {
+      this.punchEnvelope = Math.max(this.punchEnvelope, 0.85)
+    }
+    this.lastPunchBeat = wholeBeat
     return { beats, locked }
   }
 
@@ -274,6 +288,8 @@ export class Cinema2CameraRuntime {
     this.bankDegrees = 0
     this.punchEnvelope = 0
     this.lastKickId = null
+    this.sinceKickSec = Infinity
+    this.lastPunchBeat = null
   }
 
   getFrame(): Readonly<Cinema2CameraFrame> {
@@ -905,6 +921,9 @@ export function cinema2CameraDriftNoise(timeSec: number, speed: number, seed: nu
   return sum / weightTotal
 }
 
+/** Seconds without a kick event after which a bound Zoom on Kick follows the beat instead. */
+const KICK_FALLBACK_SEC = 1.5
+
 /** A toggle (boolean parameter) or number (above 0.5) camera control; false when unbound. */
 function readToggleControl(
   controls: Readonly<Cinema2CameraControlBindingsManifest> | undefined,
@@ -920,7 +939,7 @@ function readToggleControl(
 /** The track's tempo (analysed, else the host transport's), or null when there is none. */
 /**
  * Beat-locked sway on top of the drift: side-to-side weave and roll rock over two bars (8 beats), a vertical bob every beat, FOV breathing
- * every bar and a quick FOV punch on each kick. All of it scales with the Camera Motion amount.
+ * every bar and a quick FOV punch on each kick. All of it scales with the Camera Motion amount, except the punch when a `kickZoom` toggle is bound.
  */
 function applyTempoSway(
   pose: CameraPose,
@@ -928,12 +947,13 @@ function applyTempoSway(
   beats: number,
   punchEnvelope: number,
   amount: number,
+  punchAmount = amount,
 ): CameraPose {
   const tau = Math.PI * 2
   const weave = Math.sin((tau * beats) / 8) * Math.max(0, finite(tempo.weave, 0)) * amount
   const bob = Math.sin(tau * beats + 0.6) * Math.max(0, finite(tempo.bob, 0)) * amount
   const roll = Math.sin((tau * beats) / 8 + 1.1) * Math.max(0, finite(tempo.roll, 0)) * amount
-  const fov = Math.sin((tau * beats) / 4) * Math.max(0, finite(tempo.fov, 0)) * amount - punchEnvelope * Math.max(0, finite(tempo.punch, 0)) * amount
+  const fov = Math.sin((tau * beats) / 4) * Math.max(0, finite(tempo.fov, 0)) * amount - punchEnvelope * Math.max(0, finite(tempo.punch, 0)) * punchAmount
   return {
     ...pose,
     position: addVec3(pose.position, freezeVec3([weave, bob, 0])),

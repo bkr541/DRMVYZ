@@ -13,6 +13,7 @@ import {
   CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID,
   CINEMA2_CONDUIT_BPM_SYNC_ID,
   CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID,
+  CINEMA2_CONDUIT_ZOOM_ON_KICK_ID,
   CINEMA2_CONDUIT_ENERGY_COLOR_ID,
   CINEMA2_CONDUIT_FLICKER_ID,
   CINEMA2_CONDUIT_MASTER_INTENSITY_ID,
@@ -48,7 +49,7 @@ describe('CONDUIT preset', () => {
     const visible = parameters.filter(parameter => parameter.exposure === 'primary' && parameter.section === 'Design')
     for (const parameter of visible) expect(CINEMA2_DESIGN_PARENT_GROUP_IDS).toContain(parameter.designParentGroup)
     const inGroup = (group: string) => visible.filter(parameter => parameter.designParentGroup === group).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(parameter => parameter.label)
-    expect(inGroup('master-controls')).toEqual(['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement'])
+    expect(inGroup('master-controls')).toEqual(['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Zoom on Kick'])
     expect(inGroup('design')).toEqual(['Pattern'])
     expect(inGroup('effects')).toEqual(['Flicker'])
     expect(inGroup('palette')).toEqual(['Energy Color'])
@@ -57,6 +58,7 @@ describe('CONDUIT preset', () => {
     expect(byId(CINEMA2_CONDUIT_BPM_SYNC_ID)).toMatchObject({ type: 'boolean', defaultValue: true })
     expect(byId(CINEMA2_CONDUIT_MASTER_INTENSITY_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
     expect(byId(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
+    expect(byId(CINEMA2_CONDUIT_ZOOM_ON_KICK_ID)).toMatchObject({ type: 'boolean', defaultValue: true })
     expect(byId(CINEMA2_CONDUIT_FLICKER_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
     expect(byId(CINEMA2_CONDUIT_ENERGY_COLOR_ID)).toMatchObject({ type: 'color' })
   })
@@ -82,7 +84,7 @@ describe('CONDUIT preset', () => {
 
   it('Camera Movement scales the camera\'s drift, weave, lens breath and kick zoom, locked to the beat by BPM Sync', () => {
     const camera = manifest.cameras![0]!
-    expect(camera.controls).toEqual({ motionAmount: ref(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID), tempoSync: ref(CINEMA2_CONDUIT_BPM_SYNC_ID) })
+    expect(camera.controls).toEqual({ motionAmount: ref(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID), tempoSync: ref(CINEMA2_CONDUIT_BPM_SYNC_ID), kickZoom: ref(CINEMA2_CONDUIT_ZOOM_ON_KICK_ID) })
     expect(camera.motion?.tempo).toMatchObject({ weave: expect.any(Number), fov: expect.any(Number), punch: expect.any(Number) })
     expect(camera.motion?.drift?.position).toBeGreaterThan(0)
   })

@@ -933,6 +933,7 @@ function validateCameraControls(
     ['smoothingMs', ['float', 'integer']],
     ['motionAmount', ['float', 'integer']],
     ['tempoSync', ['boolean', 'float', 'integer']],
+    ['kickZoom', ['boolean', 'float', 'integer']],
   ])
   for (const [name, ref] of Object.entries(controls)) {
     const controlPath = `${path}.${name}`
@@ -951,6 +952,9 @@ function validateCameraControls(
     }
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
+    }
+    if (name === 'kickZoom' && camera.motion?.tempo == null) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'kickZoom requires the camera to author `motion.tempo`.', controlPath))
     }
     if (name === 'tempoSync' && camera.motion?.tempo == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'tempoSync requires the camera to author `motion.tempo`.', controlPath))

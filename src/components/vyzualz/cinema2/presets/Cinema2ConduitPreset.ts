@@ -61,6 +61,7 @@ export const CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2Parame
 export const CINEMA2_CONDUIT_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('conduit-master-intensity')
 export const CINEMA2_CONDUIT_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('conduit-bpm-sync')
 export const CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID = cinema2StableId<Cinema2ParameterId>('conduit-camera-movement')
+export const CINEMA2_CONDUIT_ZOOM_ON_KICK_ID = cinema2StableId<Cinema2ParameterId>('conduit-zoom-on-kick')
 export const CINEMA2_CONDUIT_PATTERN_ID = cinema2StableId<Cinema2ParameterId>('conduit-pattern')
 export const CINEMA2_CONDUIT_FLICKER_ID = cinema2StableId<Cinema2ParameterId>('conduit-flicker')
 export const CINEMA2_CONDUIT_ENERGY_COLOR_ID = cinema2StableId<Cinema2ParameterId>('conduit-energy-color')
@@ -172,7 +173,7 @@ const PARAMETERS = Object.freeze([
     ...baseParameter,
     id: CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID,
     label: 'Camera Movement',
-    description: 'How much the camera zooms and sways with the music: a slow drift, a side-to-side weave over two bars, a lens breath every bar and a small zoom punch on every kick. At 0 the camera holds still.',
+    description: 'How much the camera sways with the music: a slow drift, a side-to-side weave over two bars and a lens breath every bar. At 0 the camera holds still (Zoom on Kick works on its own).',
     type: 'float' as const,
     defaultValue: 0.5,
     min: 0,
@@ -180,6 +181,16 @@ const PARAMETERS = Object.freeze([
     step: 0.01,
     designParentGroup: 'master-controls' as const,
     order: 4,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_ZOOM_ON_KICK_ID,
+    label: 'Zoom on Kick',
+    description: 'On: the camera punches in on every kick drum hit in the loaded track, then eases back out (on the beat when no kicks are detected). Works whatever Camera Movement is set to.',
+    type: 'boolean' as const,
+    defaultValue: true,
+    designParentGroup: 'master-controls' as const,
+    order: 5,
   }),
   Object.freeze({
     ...baseParameter,
@@ -477,15 +488,17 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     transform: Object.freeze({ position: vec3(0, 1.92, 7) }),
     target: vec3(0, 1.92, 0),
     rig: Object.freeze({ kind: 'static' as const }),
-    // Camera Movement scales all of this (0 = locked off): a slow drift, a weave over two bars, a small bob, a lens breath every bar and a zoom
-    // punch on every kick. BPM Sync locks it to the track's beats; off, it free-runs at 120 BPM.
+    // Camera Movement scales the sway (0 = locked off): a slow drift, a weave over two bars, a small bob and a lens breath every bar. Zoom on
+    // Kick owns the zoom punch on every kick (4 degrees of FOV, about 10% closer; on the beat when the track gives no kick events), at full
+    // strength whatever Camera Movement is set to. BPM
+    // Sync locks the sway to the track's beats; off, it free-runs at 120 BPM.
     motion: cinema2CinematicMotion('gentle', {
       overrides: Object.freeze({
         drift: Object.freeze({ position: 0.14, target: 0.05, rollDegrees: 0.3, fovDegrees: 0.6, speed: 0.07 }),
-        tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.3, bob: 0.03, roll: 0.6, fov: 1.6, punch: 2.2 }),
+        tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.3, bob: 0.03, roll: 0.6, fov: 1.6, punch: 4 }),
       }),
     }),
-    controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID), tempoSync: cinema2Ref(CINEMA2_CONDUIT_BPM_SYNC_ID) }),
+    controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID), tempoSync: cinema2Ref(CINEMA2_CONDUIT_BPM_SYNC_ID), kickZoom: cinema2Ref(CINEMA2_CONDUIT_ZOOM_ON_KICK_ID) }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_CONDUIT_CAMERA_ID) }),
   lighting: Object.freeze({

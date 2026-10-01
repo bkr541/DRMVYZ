@@ -23,6 +23,7 @@ import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 const CAMERA_ID = cinema2StableId<Cinema2CameraId>('tempo-camera')
 const AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('tempo-amount')
 const SYNC_ID = cinema2StableId<Cinema2ParameterId>('tempo-sync')
+const KICK_ID = cinema2StableId<Cinema2ParameterId>('tempo-kick-zoom')
 
 const PATH = [
   { position: [0, 1, 0], target: [0, 1, -10] },
@@ -39,6 +40,7 @@ function manifest(camera: Partial<Cinema2CameraManifest>): Cinema2NativePresetMa
     parameters: [
       { id: AMOUNT_ID, label: 'Motion', type: 'float', defaultValue: 1, min: 0, max: 2 },
       { id: SYNC_ID, label: 'Sync', type: 'boolean', defaultValue: true },
+      { id: KICK_ID, label: 'Zoom on Kick', type: 'boolean', defaultValue: true },
     ],
     cameras: [{
       id: CAMERA_ID, label: 'Tempo', projection: 'perspective', target: [0, 0, 0], fovDegrees: 60,
@@ -185,6 +187,36 @@ describe('Cinema 2.0 camera tempo motion', () => {
     expect(Math.abs(later - before)).toBeLessThan(0.3)
     const soft = camera.update(frame(4, { bpm: 120, kickId: 'k2', kickStrength: 0.3 })).fovDegrees
     expect(before - soft).toBeLessThan((before - hit) * 0.6)
+  })
+
+  it('a bound Zoom on Kick toggle owns the kick zoom: full strength with the motion amount at 0 when on, none when off', () => {
+    const { camera, state } = build({
+      motion: { tempo: { punch: 3, fov: 0 } }, rig: { kind: 'static' } as never,
+      controls: { motionAmount: cinema2Ref(AMOUNT_ID), tempoSync: cinema2Ref(SYNC_ID), kickZoom: cinema2Ref(KICK_ID) },
+    })
+    expect(state.setPersistentValue(AMOUNT_ID, 0).ok).toBe(true)
+    run(camera, 2, { bpm: 120 })
+    const hit = camera.update(frame(2.1, { bpm: 120, kickId: 'k1', kickStrength: 1 })).fovDegrees
+    expect(60 - hit).toBeGreaterThan(2) // the full punch from the authored 60 degrees, though the rest of the motion is off
+    expect(state.setPersistentValue(KICK_ID, false).ok).toBe(true)
+    for (let step = 0; step < 90; step += 1) camera.update(frame(2.2 + step / 60, { bpm: 120 }))
+    const off = run(camera, 2, { bpm: 120, kickId: 'k2', kickStrength: 1 }, 3.8).map(f => f.fovDegrees)
+    for (const fov of off) expect(fov).toBeCloseTo(60, 2) // off: no kick zoom and no beat fallback
+  })
+
+  it('a bound Zoom on Kick follows the beat when the track gives no kick events, and only while a track with a tempo plays', () => {
+    const { camera } = build({
+      motion: { tempo: { punch: 3, fov: 0 } }, rig: { kind: 'static' } as never,
+      controls: { motionAmount: cinema2Ref(AMOUNT_ID), tempoSync: cinema2Ref(SYNC_ID), kickZoom: cinema2Ref(KICK_ID) },
+    })
+    const fovs = run(camera, 4, { bpm: 120 }).map(f => f.fovDegrees).slice(150)
+    expect(Math.max(...fovs) - Math.min(...fovs)).toBeGreaterThan(1.5) // punches on the beats with no kick events at all
+    const { camera: silent } = build({
+      motion: { tempo: { punch: 3, fov: 0 } }, rig: { kind: 'static' } as never,
+      controls: { motionAmount: cinema2Ref(AMOUNT_ID), tempoSync: cinema2Ref(SYNC_ID), kickZoom: cinema2Ref(KICK_ID) },
+    })
+    const still = run(silent, 4, null).map(f => f.fovDegrees)
+    expect(Math.max(...still) - Math.min(...still)).toBeLessThan(0.01) // no track, no zoom
   })
 
   it('needs no music to move: it free-runs at the reference tempo, so Camera Motion always does something', () => {
