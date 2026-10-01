@@ -353,15 +353,19 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     enabled: true,
     parameters: Object.freeze({
       // Wordmark: bright white glossy letter faces on polished bronze-chrome walls, a chrome frame on a darker stepped lip, near-black gaps.
-      'letters.color': color(0.92, 0.91, 0.89),
+      // A soft white, not paper white: with the glossy coat the highlights stand out against it (at 0.92 every face sat in one band of near-white).
+      'letters.color': color(0.74, 0.74, 0.74),
       'letters.roughness': 0.2,
       'letters.metalness': 0.05,
-      'letters.clearcoat': 0.5,
+      'letters.clearcoat': 1,
       'letters.clearcoatRoughness': 0.06,
-      'walls.color': color(0.56, 0.46, 0.38),
-      'walls.roughness': 0.16,
+      // Less of the even studio room on the letters, so the key light shapes them.
+      'letters.environmentIntensity': 0.6,
+      // Darker bronze-grey side walls and a darker chrome frame, so the white letter faces stand out against them, as in the mockup.
+      'walls.color': color(0.3, 0.27, 0.25),
+      'walls.roughness': 0.22,
       'walls.metalness': 1,
-      'outline.color': color(0.72, 0.66, 0.6),
+      'outline.color': color(0.42, 0.41, 0.4),
       'outline.roughness': 0.1,
       'outline.metalness': 1,
       'base.color': color(0.32, 0.28, 0.25),
@@ -425,7 +429,11 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       parts: Object.freeze(['letters', 'walls', 'outline', 'base', 'plate', 'pipe', 'channel', 'flange', 'coupler', 'shell', 'hull', 'steel', 'iris', 'trim', 'bolts', 'segments', 'energy']),
       // Every LED segment is lit by the pattern: the tubes feed the logo, the logo's glow (the rim in the gaps and the walls it climbs) is the
       // core, the wall is the field.
-      segments: Object.freeze({ energy: 'feed', rim: 'core', walls: 'core', segments: 'field' }),
+      // The letters' side walls do not glow (glowing, they washed the letters' edges cream); only the thin seams in the gaps do.
+      segments: Object.freeze({ energy: 'feed', rim: 'core', segments: 'field' }),
+      // The letters cast shadows onto the lower layer of the mark (its swashes and sweeps are part of 'letters'), the frame, its lip and the
+      // dark gaps behind them; nothing else is in the key light's narrow cone.
+      shadows: Object.freeze({ cast: Object.freeze(['letters', 'walls']), receive: Object.freeze(['letters', 'outline', 'base', 'plate', 'rim', 'walls']) }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       // Two soft panels front-left and front-right give the chrome and the pearl letters a clean highlight band.
       panels: Object.freeze([
@@ -491,7 +499,14 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     lights: Object.freeze([
       spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.26, color(1, 0.97, 0.93), 0.9),
       spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.26, color(1, 0.97, 0.93), 0.9),
-      spot(KEY_LIGHT_ID, vec3(0, 7.5, 5.5), LOGO_TARGET_ID, 18, 0.08, color(1, 0.98, 0.96)),
+      // A real key from high in front: the letters' tops and bevels catch it and their undersides fall off to grey, as in the mockup (at 0.08 the
+      // wordmark was lit only by the even studio reflections and read flat).
+      // It also casts the letters' shadows onto the frame and its lip behind them (medium and high quality), the depth of the mockup's wordmark.
+      Object.freeze({
+        ...spot(KEY_LIGHT_ID, vec3(0.6, 8, 5), LOGO_TARGET_ID, 20, 1.2, color(1, 0.99, 0.97)),
+        // A short range keeps the shadow map's depth precision on the wordmark.
+        config: Object.freeze({ coneAngleDegrees: 20, penumbra: 0.6, range: 14, threeShadow: true }),
+      }),
       energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 5),
       energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 5),
       energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 4),

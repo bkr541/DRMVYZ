@@ -274,3 +274,18 @@ The owner's comparison: the four tubes are about 2.5 times too thick and swallow
 - **Owner's review:** the top/bottom-edge reroute looked bad and was reverted to the diagonal route. The eased tube sampling stayed, since CONDUIT's budget needs it.
 - **Change.** The last stretch of each tube turns toward the camera (`BACK_TURN` 0.7) and plugs into the back of the wordmark's lip (z -0.2), at a point moved 0.42 in from the frame's outer edge toward the centre (`BACK_INSET`). The joint and the coupler are hidden behind the letters; from the front the tubes run diagonally from the corner flanges and pass behind the wordmark's ends.
 - **Checks.** `npm run assets:check` and the CONDUIT and asset-budget tests pass.
+
+**Step 5: letter contrast and lighting (2026-10-01).** Compared on a close-up of the wordmark against the mockup after each change.
+1. **Dark sides and thin seams.**
+   - The letters' side walls no longer glow (`walls` removed from `config.segments`). They are a darker bronze-grey (0.3, 0.27, 0.25), and the frame is darker chrome (0.42).
+   - The gap glow bands narrowed to 0.028 (were 0.05) and the outer lip line to 0.025 (was 0.035).
+   - Each letter now has a defined dark edge and only a thin seam of light.
+2. **Key light.** Intensity 0.08 → 1.2 from (0.6, 8, 5), range 14. The range matters: a shorter range makes the light fade faster, which first dimmed the whole frame.
+3. **Letter material and shape.**
+   - Letters a soft white (0.74, was 0.92) with a full glossy clearcoat and environment 0.6.
+   - A wider rounded edge: bevel 0.042 with 4 segments (was 0.016 with 3), depth 0.21.
+   - Measured on the white surfaces: the median went from 236 to about 226 (mockup 218), with highlights standing out against it. Faces no longer sit in one band of near-white.
+4. **Shadows.** The key light casts shadows (`threeShadow`, medium and high), with letters and walls casting and the letters, frame, lip, gaps and walls receiving. Measured on and off, they change only about 1,400 pixels.
+   - **Why:** the whole mark is one flat layer. The frame is only the thin outer ring, and every letter plus the swashes and sweeps sit at the same height, so a shadow has nowhere to fall.
+   - In the mockup the letters stand clearly above a lower swash layer; that height difference is most of its depth and shadow. Raising the letters above that layer is the next fix, and needs the owner's decision on which shapes form the lower layer.
+- **Budget.** The wider bevel pushed CONDUIT 628 KB over its low-tier budget, so letter outlines are sampled 9 per curve (were 12). `npm run assets:check` and the CONDUIT and asset-budget tests pass.

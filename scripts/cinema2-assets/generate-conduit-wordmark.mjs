@@ -50,20 +50,20 @@ const ATTACH_SCALE = CONDUIT_WORDMARK.width / 4.23
 const BODY_PATHS = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
 
 const RING_SAMPLES_PER_CURVE = 8
-const BODY_SAMPLES_PER_CURVE = 12
+const BODY_SAMPLES_PER_CURVE = 9
 const CREASE_ANGLE = (38 * Math.PI) / 180
 /**
  * Depths (z, local to the wordmark centre). The letters stand proud of the frame and the frame of the lip; the dark plate in the gaps sits
  * just in front of the lip (the lip is the whole silhouette, grown).
  * `bevel` is each part's rounded edge. The frame is only ~0.025 wide in places, so its bevel (which eats in from both edges) stays small.
  */
-const LETTERS = { back: -0.08, front: 0.11, bevel: 0.016, bevelSegments: 3 }
+const LETTERS = { back: -0.08, front: 0.13, bevel: 0.042, bevelSegments: 4 }
 const FRAME = { back: -0.08, front: 0.045, bevel: 0.006, bevelSegments: 3 }
 const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegments: 4 }
 const PLATE = { back: -0.1, front: -0.078 }
 /** Glow bands: `width` = how far the glow reaches out from an edge; they lie just proud of the plate (and of the lip's front, round it). */
 /** `peak` scales the rim's light against the wall LEDs' (the logo reads as white letters edged with light, not as a lamp). */
-const RIM = { depth: 0.01, width: 0.05, spacing: 0.05, lipWidth: 0.035, fade: 0.08, peak: 0.5 }
+const RIM = { depth: 0.01, width: 0.028, spacing: 0.05, lipWidth: 0.025, fade: 0.08, peak: 0.5 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */

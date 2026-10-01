@@ -69,7 +69,7 @@ describe('CONDUIT preset', () => {
   })
 
   it('drives the segment lighting from the controls: pattern, auto, sync, flicker, reactivity (Master Intensity) and the energy color', () => {
-    expect(module.config?.segments).toEqual({ energy: 'feed', rim: 'core', walls: 'core', segments: 'field' })
+    expect(module.config?.segments).toEqual({ energy: 'feed', rim: 'core', segments: 'field' })
     expect(module.parameterBindings).toMatchObject({
       segmentPattern: ref(CINEMA2_CONDUIT_PATTERN_ID),
       segmentAuto: ref(CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID),
