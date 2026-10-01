@@ -4,7 +4,7 @@
 //
 // Layout (from the owner's wall reference, world units; floor y = 0, +Z toward the camera, the back wall at z ~ -3.5):
 //   - a central disc (r 1.63) on the chamber axis (0, 2.27), a stepped ring, a recessed LED track, a thick portal ring, a thin ring, a band of
-//     eight spoke sectors (a tall pillar at the top, flared T-ribs left and right, diagonal ribs, a pedestal at the bottom) with recessed
+//     eight spoke sectors (a tall pillar at the top, flared T-ribs left and right, diagonal ribs; no pedestal at the bottom, so the wordmark floats) with recessed
 //     rounded panels between them, and an outer arch;
 //   - side walls curving from the back wall toward the camera, where the tube flanges mount;
 //   - four thin groove rings on the floor.
@@ -206,7 +206,7 @@ dashedRing(2.1, 12, 0.3, Z.track + 0.12, 0, 0.13)
 dashedRing(2.65, 16, 0.32, Z.ringStep + 0.2, 1, 0.12)
 dashedRing(3.56, 20, 0.3, Z.track + 0.14, 2, 0.14)
 
-// Spokes: a tall pillar at the top, flared T-ribs left and right, diagonal ribs, a pedestal at the bottom.
+// Spokes: a tall pillar at the top, flared T-ribs left and right, diagonal ribs.
 const SPOKE_R0 = 3.95, SPOKE_R1 = 6.3
 addShape('shell', ray(deg(90), SPOKE_R0 - 0.1, 7.4, 0.62, 0.46), [], Z.pillar, 0.52, 0.04)
 for (let k = 0; k < 5; k += 1) {
@@ -253,7 +253,7 @@ for (let k = 0; k < 16; k += 1) {
     addSegment([[x - 0.055, py - 0.42], [x + 0.055, py - 0.42], [x + 0.055, py + 0.42], [x - 0.055, py + 0.42]], Z.plate + 0.1 + 0.03, 5, 0.5, sideOf(Math.cos(angle)), 0.055)
   }
 }
-addShape('shell', ray(deg(270), 1.6, 3.2, 0.34, 0.42), [], Z.pedestal, 0.5, 0.04)
+// (No pedestal under the centre: it read as a post holding up the wordmark, which floats in the owner's mockup.)
 
 // Recessed panels between the spokes: raised rounded frames around each window.
 const halfWidthAt = angle => {

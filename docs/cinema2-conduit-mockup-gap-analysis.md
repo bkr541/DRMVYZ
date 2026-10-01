@@ -215,3 +215,26 @@ For each mockup state, at 16:9 and at the owner's Stage aspect:
 - **Warm spill is approximate.** It comes from a handful of lights plus the bloom, not true light from every LED.
 - **Reflections are screen-space.** The floor only reflects what is on screen.
 - **Hand-coded detail has a ceiling.** Geometry detail written in code (no hand-modelled assets) can get close to the mockup's density but will be simpler. If the owner wants the exact wall and tube detail, hand-modelled assets are the way to get it.
+
+## 7. Proportions pass (2026-10-01)
+
+The owner's comparison: the four tubes are about 2.5 times too thick and swallow the wordmark's corners; the wordmark should be larger on screen; the letters lack contrast and shading. Agreed order:
+1. automatic tube attachment points;
+2. scale the wordmark;
+3. resize and reroute the tubes;
+4. framing check, then owner review;
+5. letter contrast and lighting;
+6. final grade and checks.
+
+**Step 1: done.**
+- **What changed:** `generate-conduit-wordmark.mjs` now writes the tube attachment points (the frame's outer edge nearest the mockup's tube ends, left side, mirrored for the right) to `scripts/cinema2-assets/conduit-layout.json`. `generate-conduit-tubes.mjs` reads them instead of hand-typed values. The file is written only when generating the shipped model, not for a custom output path.
+- **How to regenerate:** run the wordmark generator first, then the tubes.
+- **Check:** both regenerated models are byte-identical to the committed ones, so the preset is unchanged.
+
+**Step 2: done.**
+- **Wordmark size.** 5.4 units wide (was 4.23, about 1.28x), centred where it was. Depths, bevels and glow widths stay in absolute units, so the bigger letters keep crisp edges and thinner seams of light.
+- **Tube attachments.** The mockup-derived targets scale with the width; the layout file now gives upper-left (-2.075, 2.818) and lower-left (-2.685, 1.776).
+- **Post removed.** The back wall's pedestal under the centre read as a post holding the wordmark up; in the mockup it floats.
+- **Result:** the wordmark spans about 53% of the frame width at 16:9 (mockup about 51%) and about 50% on the owner's 1594×1460 Stage (was about 39-46%).
+- **Budget.** The bigger mark pushed CONDUIT 147 KB over its low-tier asset budget, so the glow bands are sampled every 0.05 (was 0.04). `npm run assets:check` and the CONDUIT and asset-budget tests pass.
+- **Tubes.** They were regenerated to the new attachment points, but are still the old size and route, so they still overlap the outer letters; that is step 3.

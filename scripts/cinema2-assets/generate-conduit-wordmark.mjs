@@ -16,9 +16,10 @@
 // Every vertex carries `_GLOW_PHASE` and `_SEGMENT` (group, along, side, random - see docs/cinema2-conduit-plan.md). For the glowing parts
 // (rim, walls) the phase is the glow's reach: 1 where the light sits, 0 where it has faded.
 //
-// World coordinates shared by all CONDUIT assets: floor at y = 0, +Y up, +Z toward the camera. The wordmark is 4.23 units wide, centred on
-// (0, 2.09, 0), facing +Z. The generator also prints the four tube attachment points on the frame (used by generate-conduit-tubes.mjs).
-import { readFileSync } from 'node:fs'
+// World coordinates shared by all CONDUIT assets: floor at y = 0, +Y up, +Z toward the camera. The wordmark is 5.4 units wide, centred on
+// (0, 2.09, 0), facing +Z. The generator also writes the tube attachment points on the frame to conduit-layout.json, which
+// generate-conduit-tubes.mjs reads, so the tubes always meet the frame when the wordmark changes size or shape (run this generator first).
+import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -36,8 +37,16 @@ import { writeGlb } from './cinema2-tube-kit.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const svg = readFileSync(join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg'), 'utf8')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/conduit-wordmark.glb')
+/** Shared layout read by generate-conduit-tubes.mjs (written next to the generators; only when generating the shipped model). */
+const layoutPath = join(root, 'scripts/cinema2-assets/conduit-layout.json')
 
-export const CONDUIT_WORDMARK = Object.freeze({ width: 4.23, centre: Object.freeze([0, 2.09, 0]) })
+/**
+ * Width 5.4 (was 4.23, scaled about 1.28x so the wordmark dominates the frame like the owner's mockup); centred where it was. Depths, bevels and
+ * glow widths stay in absolute units, so the bigger letters keep crisp edges and thin seams of light.
+ */
+export const CONDUIT_WORDMARK = Object.freeze({ width: 5.4, centre: Object.freeze([0, 2.09, 0]) })
+/** The tube-attachment targets below were measured on the original 4.23-wide mark; they scale with the width. */
+const ATTACH_SCALE = CONDUIT_WORDMARK.width / 4.23
 const BODY_PATHS = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
 
 const RING_SAMPLES_PER_CURVE = 8
@@ -54,7 +63,7 @@ const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegment
 const PLATE = { back: -0.1, front: -0.078 }
 /** Glow bands: `width` = how far the glow reaches out from an edge; they lie just proud of the plate (and of the lip's front, round it). */
 /** `peak` scales the rim's light against the wall LEDs' (the logo reads as white letters edged with light, not as a lamp). */
-const RIM = { depth: 0.01, width: 0.05, spacing: 0.04, lipWidth: 0.035, fade: 0.08, peak: 0.5 }
+const RIM = { depth: 0.01, width: 0.05, spacing: 0.05, lipWidth: 0.035, fade: 0.08, peak: 0.5 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */
@@ -201,11 +210,11 @@ for (let x = -2.2; x <= 2.2; x += 0.01) for (let y = -0.7; y <= 0.7; y += 0.01) 
 }
 if (overlapSamples > 0) throw new Error(`${((overlapSamples / Math.max(1, bodySamples)) * 100).toFixed(2)}% of the wordmark body lies in two or more paths: overlapping reliefs would z-fight.`)
 
-// ── Tube attachment points: the ring's outer edge nearest each target (mockup-derived, world units) ──
+// ── Tube attachment points: the frame's outer edge nearest each target (mockup-derived, world units; the right side mirrors the left) ──
 const [cx, cy, cz] = CONDUIT_WORDMARK.centre
 const outer = ringShapes.map(shape => shape.outer).sort((a, b) => b.length - a.length)[0]
 const nearest = target => outer.reduce((best, p) => (Math.hypot(p[0] - target[0], p[1] - target[1]) < Math.hypot(best[0] - target[0], best[1] - target[1]) ? p : best), outer[0])
-const attachments = { upper: nearest([-1.62 - cx, 2.67 - cy]), lower: nearest([-2.09 - cx, 1.84 - cy]) }
+const attachments = { upper: nearest([-1.62 * ATTACH_SCALE, (2.67 - cy) * ATTACH_SCALE]), lower: nearest([-2.09 * ATTACH_SCALE, (1.84 - cy) * ATTACH_SCALE]) }
 
 const halfWidth = CONDUIT_WORDMARK.width / 2
 const segmentOf = (x) => [0, (x / halfWidth + 1) / 2, Math.sign(x), 0.5]
@@ -226,4 +235,13 @@ const result = writeGlb(outputPath, meshes, MATERIALS, 'DRMVYZ scripts/cinema2-a
 console.log(`Wrote ${outputPath}`)
 for (const mesh of meshes) console.log(`  ${mesh.name}: ${mesh.indices.length / 3} triangles, ${mesh.positions.length / 3} vertices`)
 console.log(`  total ${result.triangles} triangles, ${(result.byteLength / 1024).toFixed(0)} KB, wordmark ${CONDUIT_WORDMARK.width} x ${((maxY - minY) * scale).toFixed(3)} units`)
-console.log(`  tube attachments (world): upper-left ${(attachments.upper[0] + cx).toFixed(3)}, ${(attachments.upper[1] + cy).toFixed(3)}; lower-left ${(attachments.lower[0] + cx).toFixed(3)}, ${(attachments.lower[1] + cy).toFixed(3)} (mirror for the right)`)
+// Rounded to millimetres so the layout file is stable and readable.
+const worldPoint = p => [Number((p[0] + cx).toFixed(3)), Number((p[1] + cy).toFixed(3)), 0]
+const layout = {
+  generatedBy: 'scripts/cinema2-assets/generate-conduit-wordmark.mjs',
+  note: 'Tube attachment points on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.',
+  wordmark: { width: CONDUIT_WORDMARK.width, centre: [...CONDUIT_WORDMARK.centre] },
+  attachments: { upper: worldPoint(attachments.upper), lower: worldPoint(attachments.lower) },
+}
+if (!process.argv[2]) writeFileSync(layoutPath, `${JSON.stringify(layout, null, 2)}\n`)
+console.log(`  tube attachments (world): upper-left ${(attachments.upper[0] + cx).toFixed(3)}, ${(attachments.upper[1] + cy).toFixed(3)}; lower-left ${(attachments.lower[0] + cx).toFixed(3)}, ${(attachments.lower[1] + cy).toFixed(3)} (mirror for the right)${process.argv[2] ? '' : `, written to ${layoutPath}`}`)

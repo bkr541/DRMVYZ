@@ -17,7 +17,9 @@
 // docs/cinema2-conduit-plan.md. Only `energy` glows; the other parts carry the attributes so the whole asset shares one layout.
 //
 // World coordinates shared by all CONDUIT assets: floor y = 0, +Z toward the camera, the wordmark centred on (0, 2.09, 0). The attachment
-// points are the ones generate-conduit-wordmark.mjs prints (the frame's outer edge nearest the mockup's tube ends).
+// points come from conduit-layout.json, written by generate-conduit-wordmark.mjs (the frame's outer edge nearest the mockup's tube ends), so
+// regenerate the wordmark first whenever it changes.
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
@@ -26,6 +28,9 @@ import { frameSamples, hash, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/conduit-tubes.glb')
+/** Where the tubes meet the wordmark frame (left side; the right mirrors it), from the wordmark generator. */
+const LAYOUT = JSON.parse(readFileSync(join(root, 'scripts/cinema2-assets/conduit-layout.json'), 'utf8'))
+const ATTACH = LAYOUT.attachments
 
 /** The camera CONDUIT is framed for; the channel runs along the side of each pipe that faces it. */
 const CAMERA = new THREE.Vector3(0, 1.92, 7)
@@ -48,8 +53,8 @@ const LIP_RADIUS = 0.022
  * coupler comes in from.
  */
 const LEFT_TUBES = [
-  { name: 'upper', flange: [-4.82, 4.5, -1.25], axis: [1, 0, 0.5], via: [[-3.95, 4.42, -0.85], [-3.35, 4.02, -0.55], [-2.95, 3.62, -0.35]], attach: [-1.625, 2.661, 0], arrive: [0.812, -0.584, 0.12] },
-  { name: 'lower', flange: [-4.95, 0.45, -1.25], axis: [1, 0, 0.5], via: [[-4.05, 0.6, -0.85], [-3.55, 0.9, -0.55]], attach: [-2.104, 1.844, 0], arrive: [0.805, 0.593, 0.12] },
+  { name: 'upper', flange: [-4.82, 4.5, -1.25], axis: [1, 0, 0.5], via: [[-3.95, 4.42, -0.85], [-3.35, 4.02, -0.55], [-2.95, 3.62, -0.35]], attach: ATTACH.upper, arrive: [0.812, -0.584, 0.12] },
+  { name: 'lower', flange: [-4.95, 0.45, -1.25], axis: [1, 0, 0.5], via: [[-4.05, 0.6, -0.85], [-3.55, 0.9, -0.55]], attach: ATTACH.lower, arrive: [0.805, 0.593, 0.12] },
 ]
 
 const MATERIALS = {
