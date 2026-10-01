@@ -24,14 +24,17 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/golden-roots.glb')
 
 // Logo landmarks (measured from dvydrm-logo.glb / the master SVG): half-width 1.0, outline bottom -0.628, top +0.628, star tip -0.58.
-const FLOOR_Y = -1.55
+// The model is built in the logo's frame (the logo 0.05 above the origin). Its floor sits 0.72 below the logo's bottom edge, so the trunk below
+// the split is about half the logo's height, as in the owner's mockup (a stout trunk under a large logo); the preset lowers the logo and this
+// model together by 0.25 to put this floor on the scene's floor at y = -1.55.
+const FLOOR_Y = -1.3
 
 // ── The curve network ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
 // Logo landmarks in world units (the logo is placed 0.05 above the origin), measured from a raster of the logo model: its bottom edge runs at
 // y ~-0.57 from x 0.1 to 0.8; the bottom band is solid from y ~-0.48 to -0.28; the inner lower opening spans x ~0.15-0.49 at y ~-0.22 to -0.08
 // and opens up into the space inside the lower swirl (x ~0.39-0.55 up to y ~0.1); the swirl's own ribbon is solid at x ~0.2-0.35, y ~0; the outer
 // lobe's opening spans x ~0.63-0.83, y ~-0.24 to 0.0. The logo is ~0.07 deep about z = 0 (negative z is behind it).
-const TRUNK_TOP_Y = -0.8
+const TRUNK_TOP_Y = -0.7
 
 /**
  * The trunk's strands twisting round its axis from the floor to just under the star, as in the owner's model (image 5): wide at the root flare,
@@ -54,25 +57,25 @@ function trunkStrand(index) {
   return points
 }
 
-// Inner branch (right side; mirrored for the left): from the trunk top it goes behind the logo's bottom band, crosses forward through the inner
-// lower opening, and curls its tip in front of the lower swirl's ribbon.
-const innerBranch = [[0.05, TRUNK_TOP_Y - 0.06, 0], [0.16, -0.66, -0.06], [0.28, -0.44, -0.12], [0.4, -0.2, -0.06], [0.44, -0.13, 0.06], [0.46, -0.04, 0.13], [0.4, 0.04, 0.14], [0.33, 0.02, 0.13]]
-// Outer branch: out in front of the logo's bottom edge, up in front of the outer lobe's lower ribbon, then back through the outer lobe's opening,
-// ending behind it.
-const outerBranch = [[0.05, TRUNK_TOP_Y - 0.06, 0.02], [0.22, -0.72, 0.1], [0.46, -0.66, 0.14], [0.66, -0.6, 0.14], [0.77, -0.38, 0.12], [0.75, -0.16, 0.04], [0.74, -0.12, -0.04], [0.72, -0.04, -0.12], [0.66, 0, -0.12]]
+// Inner branch (right side; mirrored for the left): slender, as in the mockup - from the trunk top it goes behind the logo's bottom band,
+// crosses forward through the inner lower opening, and curls its tip in front of the lower swirl's ribbon.
+const innerBranch = [[0.05, TRUNK_TOP_Y - 0.04, 0], [0.16, -0.62, -0.06], [0.28, -0.44, -0.1], [0.4, -0.2, -0.06], [0.44, -0.13, 0.06], [0.46, -0.04, 0.12], [0.4, 0.04, 0.13], [0.33, 0.02, 0.12]]
+// The main limb: the mockup's tree raises its two limbs diagonally from the split, across the front of the logo's bottom band and up into the
+// outer lower lobes, each ending in a curl inside its lobe.
+const outerBranch = [[0.05, TRUNK_TOP_Y - 0.03, 0.03], [0.2, -0.6, 0.09], [0.38, -0.47, 0.11], [0.56, -0.37, 0.1], [0.7, -0.25, 0.08], [0.79, -0.1, 0.06], [0.81, 0.04, 0.05], [0.75, 0.12, 0.06], [0.69, 0.08, 0.07]]
 // A short tendril curling out and forward under the logo.
 const tendril = [[0.1, TRUNK_TOP_Y + 0.02, 0.05], [0.2, -0.76, 0.14], [0.27, -0.8, 0.2], [0.23, -0.86, 0.23]]
 
 /** Where leaves hang, as (curve, t along it, side bias): few and small, mostly below the logo and at the inner branch's curl. */
 const leafSites = [
-  ['outerBranch', 0.25, -1], ['outerBranch', 0.42, 1], ['outerBranch', 0.55, -1], ['outerBranch', 0.7, 1], ['outerBranch', 0.88, -1],
-  ['innerBranch', 0.35, -1], ['innerBranch', 0.6, 1], ['innerBranch', 0.82, 1], ['innerBranch', 1, -1],
+  ['outerBranch', 0.25, -1], ['outerBranch', 0.4, 1], ['outerBranch', 0.55, -1], ['outerBranch', 0.68, 1], ['outerBranch', 0.8, -1], ['outerBranch', 0.92, 1], ['outerBranch', 1, -1],
+  ['innerBranch', 0.6, 1], ['innerBranch', 0.82, 1], ['innerBranch', 1, -1],
   ['tendril', 1, 1],
 ]
 /** Where twigs grow off the limbs, as (curve, t along it, side bias). */
 const twigSites = [
-  ['outerBranch', 0.18, 1], ['outerBranch', 0.34, -1], ['outerBranch', 0.5, 1], ['outerBranch', 0.62, -1],
-  ['innerBranch', 0.22, 1], ['innerBranch', 0.45, -1], ['innerBranch', 0.68, 1],
+  ['outerBranch', 0.2, 1], ['outerBranch', 0.36, -1], ['outerBranch', 0.5, 1], ['outerBranch', 0.64, -1], ['outerBranch', 0.78, 1],
+  ['innerBranch', 0.5, -1],
 ]
 
 const mirror = points => points.map(([x, y, z]) => [-x, y, z])
@@ -108,7 +111,8 @@ function addLeaf(start, out, key, phase) {
   const stem = [p0, p1, p2, p3].map(v => [v.x, v.y, v.z])
   addTube(stem, taper(0.012, 0.005), 6, 'leaves', null, () => phase, 8)
   const along = new THREE.Vector3().subVectors(p3, p2).normalize()
-  const leaf = buildLeaf(p3, along, 0.085 + hash(`leaf:${key}`) * 0.045, jitter(`leaf-twist:${key}`, 0.5))
+  // Small and pointed, like the mockup's leaves (larger ones read as flat yellow paddles).
+  const leaf = buildLeaf(p3, along, 0.05 + hash(`leaf:${key}`) * 0.03, jitter(`leaf-twist:${key}`, 0.5))
   meshes.push({ name: `leaf-${curveIndex++}`, part: 'leaves', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase) })
 }
 /** A point on a Catmull-Rom curve and a sideways direction there, for hanging leaves and forking rootlets. */
@@ -133,59 +137,61 @@ for (let index = 0; index < TRUNK_STRANDS; index += 1) {
   addVeins(strand, trunkR, `trunk:${index}`, 2, TRUNK_PHASE)
 }
 
-// The root flare, as wide as the owner's model and mockup (about 1.7x the logo's width): a ring of thick buttresses rising from the trunk base,
-// each settling onto the floor and snaking out as a long rope that forks twice, plus a ring of shorter roots between them. Roots toward the
-// camera are shorter so they do not run down the frame.
-const ROOT_COUNT = 30
+// The root flare, as in the owner's mockup: a few short buttresses where the trunk meets the floor, and many thin roots snaking out across it,
+// spreading about twice the logo's width, forking as they go, each with a glowing seam along it (the mockup's roots are tendrils of light,
+// not heavy ropes). Roots toward the camera are shorter so they do not run down the frame.
+const ROOT_COUNT = 32
 function addRoot(key, heading, reach, girth, lift, forks) {
   const towardCamera = Math.max(0, Math.sin(heading))
   const length = reach * (1 - 0.28 * towardCamera)
-  const waves = 2 + hash(`waves:${key}`) * 1.6, phase = hash(`phase:${key}`) * Math.PI * 2, sway = (0.1 + hash(`sway:${key}`) * 0.08) * Math.min(1, length)
+  const waves = 2.5 + hash(`waves:${key}`) * 2, phase = hash(`phase:${key}`) * Math.PI * 2, sway = (0.14 + hash(`sway:${key}`) * 0.12) * Math.min(1, length)
   const points = []
   for (let k = 0; k <= 9; k += 1) {
     const u = k / 9
     const r = 0.1 + (length - 0.1) * u
     // A buttress that rises from high on the trunk and settles onto the floor, snaking side to side as it goes.
     // ...and arching over the floor in a couple of low humps on the way out, so a root reads as a rope, not a flat blade, from a low camera.
-    const humps = 0.06 + hash(`hump:${key}`) * 0.07
+    const humps = 0.08 + hash(`hump:${key}`) * 0.09
     const y = lift * Math.pow(1 - u, 2.4) + humps * Math.pow(Math.sin(u * Math.PI * (1.5 + hash(`hump-n:${key}`))), 2) * Math.min(1, u * 2.5) * (1 - u) * 1.6 + 0.006
     const lateral = sway * Math.sin(u * Math.PI * waves + phase) * Math.min(1, u * 3)
     const dx = Math.cos(heading), dz = Math.sin(heading)
     points.push([dx * r - dz * lateral, FLOOR_Y + y, (dz * r + dx * lateral) * 0.85])
   }
   // Rope-like: thick at the buttress, staying thick most of the way out and rounding off at the tip (not a spike).
-  const radiusAt = t => girth * (0.3 + 0.7 * Math.pow(1 - t, 1.6)) * Math.sqrt(Math.max(0, 1 - Math.pow(t, 6))) + 0.008
+  const radiusAt = t => girth * (0.35 + 0.65 * Math.pow(1 - t, 1.4)) * Math.sqrt(Math.max(0, 1 - Math.pow(t, 6))) + 0.005
   const rootPhase = phaseRamp(ROOT_TOP, 0)
-  addTube(points, radiusAt, 10, 'roots', { amplitude: 0.12, seed: hash(`bark:${key}`) }, rootPhase, 32)
-  if (girth > 0.07) addVeins(points.slice(0, 7), t => radiusAt(t * 6 / 9), key, 1, t => rootPhase(t * 6 / 9))
+  addTube(points, radiusAt, girth > 0.06 ? 9 : 7, 'roots', { amplitude: 0.1, seed: hash(`bark:${key}`) }, rootPhase, 28)
+  // Every root carries a glowing seam along most of its length.
+  addVeins(points.slice(0, 9), t => radiusAt(t * 8 / 9), key, 1, t => rootPhase(t * 8 / 9))
   for (let f = 0; f < forks; f += 1) {
     const forkT = 0.35 + (f / Math.max(1, forks)) * 0.45 + jitter(`${key}:fork:${f}`, 0.05)
     const sign = (f + (hash(key) > 0.5 ? 1 : 0)) % 2 === 0 ? 1 : -1
     const fork = curvePoint(points, forkT, sign, `${key}:${forkT}`)
     const side = new THREE.Vector3().crossVectors(fork.tangent, new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(sign)
-    const reachOut = 0.35 + hash(`${key}:fork-reach:${f}`) * 0.25
+    const reachOut = 0.3 + hash(`${key}:fork-reach:${f}`) * 0.35
     const rootlet = [0, 0.25, 0.5, 0.75, 1].map(s => {
       const v = fork.at.clone().addScaledVector(fork.tangent, s * reachOut * 0.8).addScaledVector(side, s * reachOut * 0.6)
       return [v.x, Math.max(FLOOR_Y + 0.008, v.y - s * 0.05), v.z]
     })
-    addTube(rootlet, t => Math.max(0.016, radiusAt(forkT) * 0.65) * (1 - 0.7 * t) + 0.004, 7, 'roots', null, phaseRamp(rootPhase(forkT), 0), 16)
+    addTube(rootlet, t => Math.max(0.01, radiusAt(forkT) * 0.6) * (1 - 0.7 * t) + 0.003, 6, 'roots', null, phaseRamp(rootPhase(forkT), 0), 14)
   }
   return { points, rootPhase }
 }
 for (let index = 0; index < ROOT_COUNT; index += 1) {
   const key = `root:${index}`
-  const major = index % 2 === 0
-  const heading = (index / ROOT_COUNT) * Math.PI * 2 + jitter(`heading:${key}`, 0.1)
-  const reach = major ? 1.45 + hash(`reach:${key}`) * 0.4 : 0.8 + hash(`reach:${key}`) * 0.35
-  const { points, rootPhase } = addRoot(key, heading, reach, major ? 0.13 - hash(`girth:${key}`) * 0.025 : 0.07, major ? 0.36 : 0.18, major ? 3 : 1)
-  if (index % 2 === 1) addLeaf([points[2][0], points[2][1] + 0.03, points[2][2]], new THREE.Vector3(Math.cos(heading), 0.55, Math.sin(heading)).normalize(), `base-leaf:${index}`, rootPhase(2 / 9))
+  // Every fourth root is a short buttress off the trunk base; the rest are long thin tendrils.
+  const buttress = index % 4 === 0
+  const heading = (index / ROOT_COUNT) * Math.PI * 2 + jitter(`heading:${key}`, 0.12)
+  const reach = buttress ? 0.75 + hash(`reach:${key}`) * 0.3 : 1.2 + hash(`reach:${key}`) * 0.8
+  addRoot(key, heading, reach, buttress ? 0.1 : 0.05 + hash(`girth:${key}`) * 0.025, buttress ? 0.32 : 0.2, 2)
 }
 
 // The branches, a twisting strand on the inner branch, the tendrils and their leaves (right side, mirrored for the left).
 for (const side of [1, -1]) {
   const flip = points => (side === 1 ? points : mirror(points))
-  const innerR = t => 0.022 + 0.09 * Math.pow(1 - t, 1.3)
-  const outerR = t => 0.02 + 0.085 * Math.pow(1 - t, 1.3)
+  // The main limbs carry the weight; the branches through the openings are slender.
+  const innerR = t => 0.012 + 0.045 * Math.pow(1 - t, 1.3)
+  const outerR = t => 0.02 + 0.095 * Math.pow(1 - t, 1.2)
   const curves = { innerBranch: flip(innerBranch), outerBranch: flip(outerBranch), tendril: flip(tendril) }
   const phaseOf = { innerBranch: LIMB_PHASE, outerBranch: LIMB_PHASE, tendril: phaseRamp(TRUNK_TOP, 0.75) }
   addTube(curves.innerBranch, innerR, 10, 'roots', { amplitude: 0.1, seed: hash(`bark:inner:${side}`) }, LIMB_PHASE)

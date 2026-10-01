@@ -1,0 +1,10 @@
+{
+  "id": "cinema2-studio-environment-gem",
+  "kind": "environment",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/generate-studio-environment.mjs <out> <width> gem (equirectangular Radiance RGBE: a near-black room scattered with small hard lights, so cut glass sparkles facet by facet; 512 px wide for the low tier)",
+  "files": {
+    "high": "public/cinema2/environments/studio-gem-1024.hdr",
+    "low": "public/cinema2/environments/studio-gem-512.hdr"
+  }
+}

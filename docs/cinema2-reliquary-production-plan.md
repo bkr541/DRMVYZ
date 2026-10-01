@@ -306,7 +306,49 @@ Comparing the owner's screenshot of the app (nearly square Stage) with the mocku
 - **Result:** at 1594×1460 the logo is about 45% of the frame width (was about 33%), with the root flare and the inner edges of the framing trees in view. 16:9 is unchanged.
 - **Limit found:** going tighter (1.15 or 1.05) pushes the roots off the bottom before the logo reaches the mockup's size. Our golden tree's trunk is about 77% of the logo's height from the logo to the floor, against about 45% in the mockup. Closing that is part of item 3: a shorter trunk with the logo lower on it.
 
-Items 2-4: not started.
+**2. Crystal: done (2026-09-30).**
+- **Cause:** the logo read as chrome because it reflected the shared soft studio room: every facet mirrored the same pale grey, and with a white body and strong reflections it read as polished metal.
+- **New environment.** A third room from the existing generator (`generate-studio-environment.mjs ... gem`), asset `cinema2-studio-environment-gem` (71 KB + 22 KB). It is a near-black room scattered with 48 small hard lights, like a jeweller's display case, so each flat facet reflects either black or a brilliant point. RELIQUARY uses it; the other two rooms regenerate byte-identical, and GO-TO and CONDUIT are untouched.
+- **Geometry.** The cut-crystal ribbon is sampled coarsely along its length (4 samples per curve, was 10), so the three cut bands break into flat panels that each catch a different light. Crease angle 8°, depth 0.06, 24k triangles (was 75k).
+- **Material.**
+  - body pure white (was (0.9, 0.92, 0.95));
+  - clarity 0.95 (was 0.9);
+  - thickness 0.35 (was 0.14);
+  - roughness 0 (was 0.03);
+  - environment 2.5 (was 1.8).
+- **Glare.** Threshold 8 → 16, intensity 0.55 → 0.4, length 0.035 → 0.03: fewer, smaller stars.
+- **Variants rejected, for the record:**
+  - fully clear glass in the soft room read as black obsidian (it refracts the dark forest);
+  - lower clarity read as milky porcelain;
+  - a bevel of 0.07 for a central ridge inverted the logo's thin sections and filled its holes.
+- **Result:** the crystal reads as clear glass with dark centres and point sparkles. It is still less brilliant than the mockup, where offline rendering lights the glass from inside, and its ribbons have no central ridge (the thin sections cannot take a wider bevel).
+- **Tests.** RELIQUARY uses the gem room and clear-glass settings. The full Cinema 2.0 suite shows the same failures as the committed code. `npm run assets:check` passes.
+
+**3. Golden tree shape: done (2026-09-30).**
+- **Proportions.** The golden-roots model now has its floor at y -1.3 in the logo's frame (was -1.55), so the trunk below the split is about half the logo's height, like the mockup. The preset lowers the logo and the tree together by `TREE_DROP` = 0.25, so the tree stands on the scene floor, and the camera follows to (0, -0.65, 4.6) aimed at (0, -0.57, 0). On the owner's Stage the logo is larger than before, with the root flare and the floor rings in view.
+- **Limbs.** The two main limbs rise diagonally from the split, across the front of the logo's bottom band and up into the outer lower lobes, ending in curls inside them (base radius 0.115). The first try ran them flat along the logo's bottom edge and read as a crescent. The branches through the inner openings are now slender (base 0.057, was 0.11).
+- **Roots.** 32 roots (was 30): every fourth a short buttress off the trunk base, the rest long, thinner, wavier tendrils (radius 0.05-0.075, reaching 1.2-2.0). Each forks twice and carries a glowing seam along most of its length (only the major roots had one, near the trunk). The small leaves on the roots, which read as gold balls, are gone.
+  - Tried and rejected: 44 very thin roots read as scattered straw.
+- **Leaves.** Smaller and pointed (0.05-0.08, was 0.085-0.13); more of them on the main limbs, fewer on the inner branches.
+- **Budget and tests.** 86k triangles, 2.6 MB; `npm run assets:check` passes. A new RELIQUARY test checks that the logo and tree are lowered together. The full Cinema 2.0 suite shows the same failures as the committed code.
+- **Still short of the mockup:** its roots are finer, more numerous and interwoven, glowing along every strand. From the low camera ours still fan out from the base somewhat like spokes. This is near the ceiling of hand-coded geometry.
+
+**4. Background vines and bark: done (2026-10-01).**
+- **Vines.** Thin glowing strands (radius 0.014 near, was 0.034 broad half-sunk bands) riding just proud of the bark, three per foreground strand and two per mid-tree strand. Dark burnished gold (0.4, 0.24, 0.08), so an unlit vine is a dark line and the glow gives the color.
+  - A bright gold picked up the warm haze and read pale beige.
+  - The vines' glow share is 0.7 (was 2.2); stronger, the tone curve rolled the amber to pale peach.
+- **Sparkle points.** 8-13 tiny glowing crystals (octahedra, 8 triangles each) along every vine, in the `buds` part, with glow share 4 (was 1.5). They give the mockup's white-hot points. Leaves on the vines are smaller (0.045-0.075, was 0.07-0.12) and fewer.
+- **Bark.** Environment reflection 0 (was 0.15): the trunks no longer read pale grey-cream and stay near black, as in the mockup.
+- **Budget.** The forest is 133k triangles, 7.5 MB; `npm run assets:check` passes.
+- **Frame time.** Medium measured 11.6-14.8 ms of GPU time, but the committed code measured 16-20 ms in the same session, so the harness's GPU timer varies with the machine's load. Medium holds 60 fps in every run.
+- **Tests.** The full Cinema 2.0 suite shows the same failures as the committed code.
+- **Still short of the mockup:** its bark has glossy highlights from the glow, and its vines are denser. The warm orange haze over the foreground trees (the spill lights lighting the mist) dulls them; that is phase 7 tuning.
+
+**5. Depth and framing: done (2026-10-01).** After items 1 and 3 the owner saw the logo and tree too large on the Stage (about 60% of the width) with the foreground trees pushed out of frame.
+- **Trees.** Foreground trees moved in from x ±3.2 to ±2.45 (and back from z -1.2 to -1.5), leaning in less (-0.25, was -0.55). The outer mid trees moved from ±4.9 to ±4.1.
+- **Camera.** (0, -0.6, 4.1) aimed at (0, -0.5, 0), with `minAspect` 1.7 (was 1.3).
+- **Result:** at 16:9 the logo is about 39% of the width (mockup about 43%) with both trees framing it; at 1594×1460 about 37%, with the trees at the edges.
+- **Why cropping can't work:** cropping the sides on a near-square Stage cannot keep both the logo at the mockup's size and the framing trees in view, so the Stage widens vertically instead and shows more floor and sky.
 
 ## 4. Acceptance checks
 

@@ -135,8 +135,8 @@ describe('RELIQUARY preset', () => {
     const finish = (manifest.effects ?? []).find(effect => effect.typeId === 'cinematic-finish')
     expect(finish?.parameters).toMatchObject({ toneMap: 1 })
     expect((finish?.parameters as { aberration: number }).aberration).toBeLessThanOrEqual(0.05)
-    // Composed at 16:9; a narrower Stage crops the outer trees first and only widens vertically below 1.3:1, so the logo stays large.
-    expect(manifest.cameras?.[0]?.minAspect).toBe(1.3)
+    // Composed at 16:9; a narrower Stage widens vertically (below 1.7:1) so the framing trees stay in view round a logo near the mockup's size.
+    expect(manifest.cameras?.[0]?.minAspect).toBe(1.7)
     // The front fill lights the models but stays out of the haze (aimed from the camera, it veiled the scene).
     const fill = (manifest.lighting?.lights ?? []).find(light => light.id === 'reliquary-fill')
     expect((fill as { config?: { scatter?: boolean } } | undefined)?.config?.scatter).toBe(false)
@@ -196,6 +196,22 @@ describe('golden-roots shared asset', () => {
 
   it('is registered in the shared studio-neutral environment (reused from GO-TO, avoids tinting the metal)', () => {
     expect(cinema2ThreeEnvironmentRegistry.has(CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID)).toBe(true)
+  })
+
+  it('RELIQUARY lowers the logo and the golden tree together, so the tree (built with its floor 0.25 up, a stout trunk under a large logo) stands on the scene floor', () => {
+    const node = (id: string) => (manifest.scene?.nodes ?? []).find(entry => entry.id === id) as { transform?: { position?: readonly number[] } } | undefined
+    const drop = -(node(CINEMA2_RELIQUARY_ROOTS_NODE_ID)?.transform?.position?.[1] ?? 0)
+    expect(drop).toBeCloseTo(0.25)
+    expect(node(CINEMA2_RELIQUARY_LOGO_NODE_ID)?.transform?.position?.[1]).toBeCloseTo(0.05 - drop)
+  })
+
+  it('RELIQUARY reflects the gem environment (small hard lights in the dark), so the cut crystal sparkles facet by facet', () => {
+    expect(cinema2ThreeEnvironmentRegistry.has('cinema2-studio-environment-gem')).toBe(true)
+    expect((manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>).config?.environment).toBe('cinema2-studio-environment-gem')
+    // Clear glass (not chrome or porcelain): a pure white body, nearly fully transmissive, flawless polish.
+    const parameters = (manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>).parameters ?? {}
+    expect(parameters['crystal.transmission']).toBeGreaterThanOrEqual(0.95)
+    expect(parameters['crystal.metalness']).toBe(0)
   })
 
   it('registers the three-scene module type', () => {

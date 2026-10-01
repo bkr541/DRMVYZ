@@ -79,6 +79,13 @@
       "origin": "scripts/cinema2-assets/generate-studio-environment.mjs (equirectangular Radiance RGBE: dark room with an overhead panel, a bright key softbox, a cool strip light and a magenta accent; 512 px wide for the low tier)"
     },
     {
+      "id": "cinema2-studio-environment-gem",
+      "kind": "environment",
+      "license": "generated-in-house",
+      "attribution": null,
+      "origin": "scripts/cinema2-assets/generate-studio-environment.mjs <out> <width> gem (equirectangular Radiance RGBE: a near-black room scattered with small hard lights, so cut glass sparkles facet by facet; 512 px wide for the low tier)"
+    },
+    {
       "id": "cinema2-studio-environment-neutral",
       "kind": "environment",
       "license": "generated-in-house",

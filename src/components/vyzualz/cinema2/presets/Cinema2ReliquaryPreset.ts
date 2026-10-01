@@ -27,7 +27,7 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_DVYDRM_LOGO_FACETED_ASSET_ID, CINEMA2_GOLDEN_ROOTS_ASSET_ID, CINEMA2_RELIQUARY_TREES_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
-import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
+import { CINEMA2_STUDIO_GEM_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
 
@@ -104,7 +104,12 @@ const GLARE_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-glare')
 
 /** The golden roots and the trees stand on this plane (see the generator scripts); the logo floats above the tree's trunk. */
 const FLOOR_Y = -1.55
-const LOGO_HEIGHT = 0.05
+/**
+ * The golden-roots model is built in the logo's frame with its own floor 0.25 above the scene's (a short trunk under a large logo, like the
+ * mockup), so the logo and the tree are lowered together by `TREE_DROP`, putting the tree's floor on the scene's floor.
+ */
+const TREE_DROP = 0.25
+const LOGO_HEIGHT = 0.05 - TREE_DROP
 
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
@@ -117,18 +122,19 @@ const DEFAULT_BACKGROUND = color(0.01, 0.008, 0.007)
 const DEFAULT_GLOW = color(1, 0.54, 0.28)
 const DEFAULT_CUE = color(0.94, 0.96, 1)
 const DEFAULT_STROBE = color(1, 1, 1)
-const CRYSTAL_ROUGHNESS = 0.03
+const CRYSTAL_ROUGHNESS = 0
 const ROOT_ROUGHNESS = 0.24
 /**
- * Cut crystal, tuned against the owner's production mockup: mostly clear (fully clear glass refracts the dark stage and reads black), a bright
- * cool-white body (with the HDR chain it no longer clips flat under the spots, so the cut bands stay readable), a diamond-like index,
- * dispersion so the cuts split bright light into rainbows, and a faint iridescent film for spectral fringes on the cut edges.
+ * Cut crystal, tuned against the owner's production mockup: nearly fully clear with a pure white body, so it reads as glass you can see through
+ * (dark centres) rather than chrome or porcelain; thick enough to bend what is behind it; a flawless polish; a diamond-like index; dispersion
+ * so the cuts split bright light into rainbows; and a faint iridescent film for spectral fringes on the cut edges. Its sparkle comes from the
+ * gem environment (a dark room of small hard lights): each flat facet reflects black or a brilliant point.
  */
-const CRYSTAL_BODY = color(0.9, 0.92, 0.95)
+const CRYSTAL_BODY = color(1, 1, 1)
 const CRYSTAL_IRIDESCENCE = 0.4
-const CRYSTAL_CLARITY = 0.9
+const CRYSTAL_CLARITY = 0.95
 const CRYSTAL_IOR = 2.2
-const CRYSTAL_THICKNESS = 0.14
+const CRYSTAL_THICKNESS = 0.35
 const CRYSTAL_SPARKLE = 5
 /** Overhead cue spots: dim at rest so the crystal never vanishes, hard and bright on a hit. */
 const CUE_REST = 0.08
@@ -144,14 +150,15 @@ const SPILL_REST = 0.25
  * lighting, and a part they are not hitting falls into shadow (the owner's mockups). The gold a little so it reads as warm polished metal, and
  * the dark bark almost none (the shared studio environment otherwise lights it grey).
  */
-const CRYSTAL_ENVIRONMENT = 1.8
+const CRYSTAL_ENVIRONMENT = 2.5
 const GOLD_ENVIRONMENT = 0.45
 /**
  * The glowing gold (the tree vines and their buds) takes much less: mirroring the white studio environment it reads pale cream, and the glow,
  * not the room, should give it its colour, as in the mockup.
  */
 const VINE_ENVIRONMENT = 0.12
-const BARK_ENVIRONMENT = 0.15
+/** The bark reflects none of the environment: even a little lit the dark trunks a pale grey-cream (the mockup's bark stays near black). */
+const BARK_ENVIRONMENT = 0
 
 const baseParameter = {
   section: 'Design',
@@ -537,7 +544,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       parts: Object.freeze(['crystal', 'rings', 'roots', 'veins', 'leaves', 'vines', 'buds', 'bark']),
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
-      glow: Object.freeze({ veins: 1.2, vines: 2.2, buds: 1.5, leaves: 0.3, roots: 0.12, rings: 0.5 }),
+      glow: Object.freeze({ veins: 1.2, vines: 0.7, buds: 4, leaves: 0.3, roots: 0.12, rings: 0.5 }),
       // Embers drifting up through the scene and rising thicker from the golden tree's base (in the glow color, brightening with the music),
       // and dust turning slowly in the light shaft. Medium quality draws half, low none.
       particles: Object.freeze([
@@ -550,7 +557,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is
       // outside those cones, and as one merged mesh it would be drawn into every shadow map for nothing.
       shadows: Object.freeze({ cast: Object.freeze(['roots', 'veins', 'leaves']), receive: Object.freeze(['crystal', 'roots']) }),
-      environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
+      // The jeweller's-case room: dozens of small hard lights in the dark, so the cut crystal sparkles facet by facet (the soft studio room
+      // lit every facet the same pale grey, and the glass read as chrome or porcelain).
+      environment: CINEMA2_STUDIO_GEM_ENVIRONMENT_ASSET_ID,
       // Two faint panels high front-left and back-right: just enough for the crystal's facets and the gold to catch a band between cues.
       panels: Object.freeze([
         Object.freeze({ position: vec3(-3, 3.8, 3.4), target: vec3(0, 0, 0), size: Object.freeze([2.6, 1.6]), color: Object.freeze([0.9, 0.94, 1]), intensity: 1.2 }),
@@ -568,7 +577,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         module: cinema2Ref(CINEMA2_RELIQUARY_MODULE_ID),
         transform: Object.freeze({ position: vec3(0, LOGO_HEIGHT, 0) }),
       }),
-      Object.freeze({ id: CINEMA2_RELIQUARY_ROOTS_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_RELIQUARY_MODULE_ID) }),
+      Object.freeze({ id: CINEMA2_RELIQUARY_ROOTS_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_RELIQUARY_MODULE_ID), transform: Object.freeze({ position: vec3(0, -TREE_DROP, 0) }) }),
       Object.freeze({ id: CINEMA2_RELIQUARY_TREES_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_RELIQUARY_MODULE_ID) }),
       // Aim points for the cue spots (on the logo's parts) and the strobe heads (the middle of the logo).
       ...CUE_SPOTS.map(({ name, aim }) => Object.freeze({
@@ -595,16 +604,16 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     label: 'RELIQUARY Front',
     projection: 'perspective' as const,
     fovDegrees: 34,
-    // Composed at 16:9. On a narrower Stage the view first crops the sides (the outer trees go off the edges, so the logo and the golden tree
-    // stay as large as the mockup's); only below 1.3:1 does it widen vertically, so on the app's nearly square Stage the root flare and the
-    // inner edges of the framing trees stay in view. Fitting the full 16:9 width there shrank the logo to about a third of the frame.
-    minAspect: 1.3,
+    // Composed at 16:9 (the logo about 40% of the frame width, the foreground trees framing it). Below 1.7:1 the view widens vertically
+    // rather than cropping the sides, so on the app's nearly square Stage the trees stay in view and the logo stays near the mockup's size.
+    // (Cropping the sides instead, at 1.3, made the logo about 60% of the width and pushed the trees out of frame.)
+    minAspect: 1.7,
     near: 0.1,
     far: 60,
     // Framed on the owner's mockup at 16:9: the logo about 40% of the frame width, a little above the middle; the golden tree and its root
     // flare on the wet floor under it; the foreground trees framing both edges and the forest behind.
-    transform: Object.freeze({ position: vec3(0, -0.5, 4.9) }),
-    target: vec3(0, -0.42, 0),
+    transform: Object.freeze({ position: vec3(0, -0.6, 4.1) }),
+    target: vec3(0, -0.5, 0),
     rig: Object.freeze({ kind: 'static' as const }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_RELIQUARY_CAMERA_ID) }),
@@ -713,7 +722,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       order: 4,
       scope: 'output' as const,
       // Four-point star glints on only the hottest highlights: the glints on the crystal, the strobe heads, the brightest leaves on a pulse.
-      parameters: Object.freeze({ mix: 1, threshold: 8, intensity: 0.55, length: 0.035, streaks: 4, rotation: 0 }),
+      parameters: Object.freeze({ mix: 1, threshold: 16, intensity: 0.4, length: 0.03, streaks: 4, rotation: 0 }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,

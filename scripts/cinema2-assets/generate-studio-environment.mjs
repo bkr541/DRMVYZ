@@ -1,7 +1,9 @@
 // Generates the in-house studio environment used for image-based lighting by the Cinema 2.0 Three.js module.
-//   node scripts/cinema2-assets/generate-studio-environment.mjs <out.hdr> [width=1024] [neutral]
+//   node scripts/cinema2-assets/generate-studio-environment.mjs <out.hdr> [width=1024] [neutral | gem]
 // The default room has a cool strip light and a magenta accent; `neutral` (used by GO-TO) keeps the same layout and brightness but takes every hue out
-// of the room and the lights, so mirror-like surfaces reflect plain white and grey (and warm gold stays gold).
+// of the room and the lights, so mirror-like surfaces reflect plain white and grey (and warm gold stays gold). `gem` (used by RELIQUARY's cut
+// crystal) is a near-black room scattered with dozens of small hard lights, like a jeweller's display case: each flat facet of cut glass
+// reflects either black or a brilliant point, so it sparkles facet by facet instead of reflecting one soft, even room.
 // An equirectangular (2:1) Radiance RGBE image: a dark room with a large overhead softbox, a bright key softbox front-left, a cool strip light
 // on the right, a dim warm bounce from the floor and a faint horizon gradient. High dynamic range on purpose (the softboxes reach 10-20), so
 // glossy surfaces show crisp, bright reflections and the environment can be rotated to move them. Written with the standard Radiance RLE
@@ -12,13 +14,26 @@ const outPath = process.argv[2]
 const width = Number(process.argv[3] ?? 1024)
 const height = width / 2
 const neutral = process.argv[4] === 'neutral'
+const gem = process.argv[4] === 'gem'
 if (!outPath) throw new Error('usage: generate-studio-environment.mjs <out.hdr> [width]')
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t) }
 const angularDifference = (a, b) => { const d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d }
 
+/** Seeded 0-1 random for the gem room's lights. */
+const seeded = n => { let h = Math.imul(n ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296 }
+/** The gem room: a smaller key in front (so the face of the glass still reads) and 48 small hard points, mostly above the horizon. */
+const gemBoxes = [
+  { az: 0.5 * Math.PI, el: 0.45, halfAz: 0.16, halfEl: 0.1, soft: 0.04, color: [1, 0.98, 0.95], intensity: 9 },
+  ...Array.from({ length: 48 }, (_, i) => {
+    const size = 0.012 + seeded(i * 5 + 1) * 0.03
+    const warm = seeded(i * 5 + 2) < 0.3
+    return { az: seeded(i * 5 + 3) * Math.PI * 2, el: -0.15 + seeded(i * 5 + 4) * 1.35, halfAz: size, halfEl: size, soft: size * 0.4, color: warm ? [1, 0.88, 0.7] : [0.96, 0.98, 1], intensity: 25 + seeded(i * 5 + 5) * 45 }
+  }),
+]
+
 // A rectangular light in (azimuth, elevation) space with soft edges: centre, half sizes in radians, edge softness, colour and intensity.
-const boxes = neutral ? [
+const boxes = gem ? gemBoxes : neutral ? [
   { az: 0.55 * Math.PI, el: 0.62, halfAz: 0.42, halfEl: 0.22, soft: 0.12, color: [1, 0.98, 0.95], intensity: 14 },   // key softbox, front-left, high
   { az: 0, el: 1.35, halfAz: 0.9, halfEl: 0.32, soft: 0.2, color: [0.98, 0.98, 1], intensity: 6 },                    // large overhead panel
   { az: 1.5 * Math.PI, el: 0.25, halfAz: 0.09, halfEl: 0.5, soft: 0.05, color: [0.96, 0.98, 1], intensity: 9 },     // strip light, right
@@ -36,12 +51,12 @@ function radiance(u, v) {
   // Base room: near-black with a faint cool gradient toward the horizon and a dim warm floor bounce.
   const horizon = Math.exp(-Math.abs(el) / 0.35)
   // The neutral room is brighter overhead (a pale ceiling) and dark below, so facets tilted up read light and facets tilted down read dark.
-  let r = neutral ? 0.045 + 0.11 * horizon + 0.17 * smooth(-0.1, 0.85, el) : 0.012 + 0.03 * horizon
-  let g = neutral ? r : 0.014 + 0.034 * horizon
-  let b = neutral ? r : 0.02 + 0.05 * horizon
+  let r = gem ? 0.006 + 0.012 * horizon : neutral ? 0.045 + 0.11 * horizon + 0.17 * smooth(-0.1, 0.85, el) : 0.012 + 0.03 * horizon
+  let g = neutral || gem ? r : 0.014 + 0.034 * horizon
+  let b = neutral || gem ? r : 0.02 + 0.05 * horizon
   if (el < 0) {
     const floor = smooth(0, -1.2, el) * 0.06
-    if (neutral) { r += floor; g += floor; b += floor } else { r += floor * 1.0; g += floor * 0.78; b += floor * 0.55 }
+    if (gem) { r += floor * 0.2; g += floor * 0.2; b += floor * 0.2 } else if (neutral) { r += floor; g += floor; b += floor } else { r += floor * 1.0; g += floor * 0.78; b += floor * 0.55 }
   }
   for (const box of boxes) {
     const dAz = angularDifference(az, box.az)

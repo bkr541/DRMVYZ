@@ -49,21 +49,39 @@ function addLeaf(at, outward, size, twist, phase) {
   meshes.push({ name: `bud-${curveIndex++}`, part: 'buds', positions: leaf.positions, normals: leaf.normals, indices: leaf.indices, phases: new Float32Array(leaf.positions.length / 3).fill(phase), seeds: seedsFor(leaf.positions) })
 }
 
+/** A tiny glowing crystal (an octahedron, 8 triangles): the sparkle points dotted along the vines in the owner's mockup. */
+function addSparkle(at, size, phase) {
+  const axes = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]
+  const faces = [[0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4], [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5]]
+  const positions = [], normals = [], indices = []
+  for (const face of faces) {
+    const n = face.reduce((sum, i) => [sum[0] + axes[i][0], sum[1] + axes[i][1], sum[2] + axes[i][2]], [0, 0, 0]).map(v => v / Math.sqrt(3))
+    for (const i of face) { positions.push(at.x + axes[i][0] * size, at.y + axes[i][1] * size, at.z + axes[i][2] * size); normals.push(...n); indices.push(indices.length) }
+  }
+  meshes.push({ name: `bud-${curveIndex++}`, part: 'buds', positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices), phases: new Float32Array(positions.length / 3).fill(phase), seeds: seedsFor(positions) })
+}
+
 /**
- * Broad gold vines wrapping a host curve: each is a thick strand centred ON the host's surface, so half of it sinks into the bark and what
- * shows is a raised flat band (image 6), with gold leaves along it.
+ * Thin glowing gold vines wrapping a host curve, as in the owner's mockup: each rides just proud of the bark, dotted with tiny sparkle points
+ * and a few small leaves. (Broad half-sunk bands, after the tree reference, read as flat ribbons against the mockup's fine lines of light.)
  */
 function wrapInVines(points, hostRadiusAt, key, { count, turns, phaseAt, width, leaves = true }) {
   for (let v = 0; v < count; v += 1) {
     const vineKey = `${key}:vine:${v}`
     const start = (v / count) * Math.PI * 2 + jitter(`${vineKey}:angle`, 0.5)
     // Every vine on a strand winds the same way (crossing vines read as a gold X pattern, not as a vine growing up the tree).
-    const spiral = veinControlPoints(points, hostRadiusAt, start, turns + jitter(`${vineKey}:turns`, 0.5), 1.0, 40)
-    const radius = t => Math.max(width * 0.35, width * (1 - 0.5 * t))
-    addTube(spiral, radius, 6, 'vines', { samples: 44, phaseAt })
-    if (!leaves) continue
+    const spiral = veinControlPoints(points, hostRadiusAt, start, turns + jitter(`${vineKey}:turns`, 0.5), 1.02, 40)
+    const radius = t => Math.max(width * 0.45, width * (1 - 0.4 * t))
+    addTube(spiral, radius, 5, 'vines', { samples: 44, phaseAt })
     const curve = new THREE.CatmullRomCurve3(spiral.map(p => new THREE.Vector3(...p)), false, 'centripetal')
-    const leafCount = 3 + Math.floor(hash(`${vineKey}:leaves`) * 3)
+    // Sparkle points along the whole vine.
+    const sparkles = 8 + Math.floor(hash(`${vineKey}:sparkles`) * 6)
+    for (let k = 0; k < sparkles; k += 1) {
+      const t = Math.min(0.99, Math.max(0.01, (k + 0.5 + jitter(`${vineKey}:sparkle:${k}`, 0.45)) / sparkles))
+      addSparkle(curve.getPointAt(t), width * (1.3 + hash(`${vineKey}:sparkle-size:${k}`) * 1.1), phaseAt(t))
+    }
+    if (!leaves) continue
+    const leafCount = 2 + Math.floor(hash(`${vineKey}:leaves`) * 3)
     for (let b = 0; b < leafCount; b += 1) {
       const t = Math.min(0.98, Math.max(0.03, (b + 0.5 + jitter(`${vineKey}:leaf:${b}`, 0.3)) / leafCount))
       const at = curve.getPointAt(t)
@@ -71,7 +89,7 @@ function wrapInVines(points, hostRadiusAt, key, { count, turns, phaseAt, width, 
       const outward = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0))
       if (outward.lengthSq() < 1e-6) outward.set(1, 0, 0)
       outward.normalize().multiplyScalar(b % 2 === 0 ? 1 : -1).addScaledVector(tangent, 0.4).add(new THREE.Vector3(0, 0.3, 0.4)).normalize()
-      addLeaf(at, outward, 0.07 + hash(`${vineKey}:leaf-size:${b}`) * 0.05, jitter(`${vineKey}:leaf-twist:${b}`, 0.8), phaseAt(t))
+      addLeaf(at, outward, 0.045 + hash(`${vineKey}:leaf-size:${b}`) * 0.03, jitter(`${vineKey}:leaf-twist:${b}`, 0.8), phaseAt(t))
     }
   }
 }
@@ -180,17 +198,17 @@ function tree(key, { base, height, lean, strands, strandRadius, spread, twist, i
   }
 }
 
-const NEAR = { radial: 14, samples: 44, leaves: true, vineWidth: 0.034 }
-const MID = { radial: 10, samples: 32, leaves: true, vineWidth: 0.028 }
-const FAR = { radial: 8, samples: 20, leaves: false, vineWidth: 0.03 }
+const NEAR = { radial: 14, samples: 44, leaves: true, vineWidth: 0.014 }
+const MID = { radial: 10, samples: 32, leaves: true, vineWidth: 0.012 }
+const FAR = { radial: 8, samples: 20, leaves: false, vineWidth: 0.014 }
 
 for (const side of [1, -1]) {
   const s = side === 1 ? 'r' : 'l'
   const inward = -side
   // Foreground: the two massive trees at the frame edges, leaning in toward the logo, their limbs arching over the top of the frame.
-  tree(`near:${s}`, { base: [3.2 * side, 0, -1.2], height: 5.8, lean: [-0.55 * side, -0.4], strands: 4, strandRadius: 0.32, spread: 0.3, twist: 1.3, inward, limbs: 2, roots: 8, twigs: 4, vines: 2, detail: NEAR })
+  tree(`near:${s}`, { base: [2.45 * side, 0, -1.5], height: 5.8, lean: [-0.25 * side, -0.4], strands: 4, strandRadius: 0.32, spread: 0.3, twist: 1.3, inward, limbs: 2, roots: 8, twigs: 4, vines: 3, detail: NEAR })
   // Mid: one further out, one tucked in behind the logo's side.
-  tree(`mid-out:${s}`, { base: [4.9 * side, 0, -3.4], height: 6.2, lean: [-0.5 * side, 0.2], strands: 3, strandRadius: 0.24, spread: 0.22, twist: 1.1, inward, limbs: 1, roots: 5, twigs: 2, vines: 1, detail: MID })
+  tree(`mid-out:${s}`, { base: [4.1 * side, 0, -3.4], height: 6.2, lean: [-0.5 * side, 0.2], strands: 3, strandRadius: 0.24, spread: 0.22, twist: 1.1, inward, limbs: 1, roots: 5, twigs: 2, vines: 2, detail: MID })
   tree(`mid-in:${s}`, { base: [3.7 * side, 0, -6.4], height: 6.6, lean: [0.3 * side, -0.2], strands: 2, strandRadius: 0.2, spread: 0.18, twist: 1, inward, limbs: 1, roots: 4, twigs: 1, vines: 1, detail: MID })
   // Far: single and double trunks deep behind, faded by the haze.
   tree(`far-a:${s}`, { base: [4.2 * side, 0, -8.5], height: 7.4, lean: [0.2 * side, 0], strands: 2, strandRadius: 0.18, spread: 0.14, twist: 0.8, inward, limbs: 1, roots: 3, twigs: 0, vines: 1, detail: FAR })
@@ -268,7 +286,9 @@ for (const part of ['bark', 'vines', 'buds']) {
 // and leaves: polished gold; the audio glow adds their light on top (the leaves carry a faint glow of their own so they read between pulses).
 const MATERIALS = {
   bark: { baseColorFactor: [0.035, 0.024, 0.016, 1], metallicFactor: 0, roughnessFactor: 1, textures: { normal: bark.normal, metallicRoughness: bark.metallicRoughness, normalScale: 1 } },
-  vines: { baseColorFactor: [0.95, 0.64, 0.26, 1], metallicFactor: 1, roughnessFactor: 0.28 },
+  // Dark burnished gold: unlit, a vine reads as a dark line on the bark, and the glow gives it its color (a bright gold picked up the haze and
+  // read pale beige).
+  vines: { baseColorFactor: [0.4, 0.24, 0.08, 1], metallicFactor: 1, roughnessFactor: 0.3 },
   buds: { baseColorFactor: [1, 0.72, 0.32, 1], metallicFactor: 0.8, roughnessFactor: 0.25, emissiveFactor: [0.25, 0.13, 0.03] },
 }
 

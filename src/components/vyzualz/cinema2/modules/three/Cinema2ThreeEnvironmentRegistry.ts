@@ -7,6 +7,9 @@ export const CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID: Cinema2AssetId = 'cinema2-stud
 /** The same room with every hue taken out (plain white and grey lights): polished surfaces reflect neutral light. Used by the logo presets; see `assets/cinema2/cinema2-studio-environment-neutral`. */
 export const CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID: Cinema2AssetId = 'cinema2-studio-environment-neutral'
 
+/** A near-black room scattered with small hard lights, so cut glass sparkles facet by facet. Used by RELIQUARY; see `assets/cinema2/cinema2-studio-environment-gem`. */
+export const CINEMA2_STUDIO_GEM_ENVIRONMENT_ASSET_ID: Cinema2AssetId = 'cinema2-studio-environment-gem'
+
 export interface Cinema2ThreeEnvironmentRecord {
   id: string
   url: string

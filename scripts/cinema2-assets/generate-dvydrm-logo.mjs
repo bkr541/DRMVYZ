@@ -43,7 +43,7 @@ const outputPath = outputArgument ? resolve(outputArgument) : join(root, FACETED
  * The cut crystal (with --faceted): `depth` of the straight side wall, `bevel` how far the cut bands reach in from the edge (and down from the
  * table), in `bands` flat steps. The crease angle is below one band's turn, so every band shades flat and keeps a crisp edge.
  */
-const CUT = { depth: 0.05, bevel: 0.045, bands: 4, creaseAngle: (15 * Math.PI) / 180 }
+const CUT = { depth: 0.06, bevel: 0.05, bands: 3, creaseAngle: (8 * Math.PI) / 180 }
 
 const WIDTH_UNITS = 2
 const SAMPLES_PER_CURVE = 3
@@ -51,7 +51,7 @@ const SAMPLES_PER_CURVE = 3
  * The crystal is smooth-shaded along its length, so its contours are sampled much more finely than the ring's or the rounded edge would show
  * kinks (the cut crystal a little less finely: its flat bands hide small kinks, and its extruded bevel multiplies every sample).
  */
-const CRYSTAL_SAMPLES_PER_CURVE = FACETED ? 10 : 16
+const CRYSTAL_SAMPLES_PER_CURVE = FACETED ? 4 : 16
 const CREASE_ANGLE = (38 * Math.PI) / 180
 
 /** The gold ring: extrusion depth (world units at 2 units wide) and bevel. */

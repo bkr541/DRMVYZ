@@ -87,14 +87,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/dvydrm-logo-faceted.glb",
-        "bytes": 2709024,
-        "triangles": 75366
+        "bytes": 1013284,
+        "triangles": 23902
       }
     },
     "gpuBytes": {
-      "high": 2707788,
-      "medium": 2707788,
-      "low": 2707788
+      "high": 1012052,
+      "medium": 1012052,
+      "low": 1012052
     }
   },
   {
@@ -106,14 +106,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/golden-roots.glb",
-        "bytes": 2964216,
-        "triangles": 90762
+        "bytes": 2704208,
+        "triangles": 86228
       }
     },
     "gpuBytes": {
-      "high": 2960076,
-      "medium": 2960076,
-      "low": 2960076
+      "high": 2700064,
+      "medium": 2700064,
+      "low": 2700064
     }
   },
   {
@@ -144,14 +144,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/reliquary-trees.glb",
-        "bytes": 7014080,
-        "triangles": 128068
+        "bytes": 7655040,
+        "triangles": 133476
       }
     },
     "gpuBytes": {
-      "high": 9316618,
-      "medium": 9316618,
-      "low": 9316618
+      "high": 9957578,
+      "medium": 9957578,
+      "low": 9957578
     }
   },
   {
@@ -223,6 +223,31 @@ export const CINEMA2_ASSET_RECORDS = [
       "low": {
         "url": "/cinema2/environments/studio-512.hdr",
         "bytes": 42279,
+        "width": 512,
+        "height": 256
+      }
+    },
+    "gpuBytes": {
+      "high": 4194304,
+      "medium": 4194304,
+      "low": 4194304
+    }
+  },
+  {
+    "id": "cinema2-studio-environment-gem",
+    "kind": "environment",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/environments/studio-gem-1024.hdr",
+        "bytes": 72608,
+        "width": 1024,
+        "height": 512
+      },
+      "low": {
+        "url": "/cinema2/environments/studio-gem-512.hdr",
+        "bytes": 22233,
         "width": 512,
         "height": 256
       }
