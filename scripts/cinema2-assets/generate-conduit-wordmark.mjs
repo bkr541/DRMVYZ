@@ -10,13 +10,13 @@
 //   `outline`  the frame's face: the SVG's outline ring (even-odd), a raised extrusion round the letters.
 //   `base`     a darker chrome step under the frame, grown out past the SVG outline, so the frame sits on a stepped lip.
 //   `plate`    near-black floor of the gaps inside the frame, behind the letters.
-//   `rim`      glowing bands on the plate round every letter edge and along the frame's inner edge, and round the foot of the outer lip: the
+//   `rim`      glowing bands on the plate round every letter edge and along the frame's inner edge, plus a visible band across the outer lip: the
 //              amber light in the owner's mockups. CONDUIT drives it from the music and from energy arriving through the tubes.
 //
 // Every vertex carries `_GLOW_PHASE` and `_SEGMENT` (group, along, side, random - see docs/cinema2-conduit-plan.md). For the glowing parts
 // (rim, walls) the phase is the glow's reach: 1 where the light sits, 0 where it has faded.
 //
-// World coordinates shared by all CONDUIT assets: floor at y = 0, +Y up, +Z toward the camera. The wordmark is 5.4 units wide, centred on
+// World coordinates shared by all CONDUIT assets: floor at y = 0, +Y up, +Z toward the camera. The wordmark is 4.8 units wide, centred on
 // (0, 2.09, 0), facing +Z. The generator also writes the tube attachment points on the frame to conduit-layout.json, which
 // generate-conduit-tubes.mjs reads, so the tubes always meet the frame when the wordmark changes size or shape (run this generator first).
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -41,10 +41,10 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 const layoutPath = join(root, 'scripts/cinema2-assets/conduit-layout.json')
 
 /**
- * Width 5.4 (was 4.23, scaled about 1.28x so the wordmark dominates the frame like the owner's mockup); centred where it was. Depths, bevels and
- * glow widths stay in absolute units, so the bigger letters keep crisp edges and thin seams of light.
+ * Keep the mark near half the 16:9 frame width, leaving four visible tube-to-outline junctions. Depths, bevels and glow widths stay in absolute
+ * units so the letters remain crisp at the production camera.
  */
-export const CONDUIT_WORDMARK = Object.freeze({ width: 5.4, centre: Object.freeze([0, 2.09, 0]) })
+export const CONDUIT_WORDMARK = Object.freeze({ width: 4.8, centre: Object.freeze([0, 2.09, 0]) })
 /** The tube-attachment targets below were measured on the original 4.23-wide mark; they scale with the width. */
 const ATTACH_SCALE = CONDUIT_WORDMARK.width / 4.23
 const BODY_PATHS = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
@@ -61,9 +61,8 @@ const LETTERS = { back: -0.08, front: 0.13, bevel: 0.042, bevelSegments: 4 }
 const FRAME = { back: -0.08, front: 0.045, bevel: 0.006, bevelSegments: 3 }
 const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegments: 4 }
 const PLATE = { back: -0.1, front: -0.078 }
-/** Glow bands: `width` = how far the glow reaches out from an edge; they lie just proud of the plate (and of the lip's front, round it). */
-/** `peak` scales the rim's light against the wall LEDs' (the logo reads as white letters edged with light, not as a lamp). */
-const RIM = { depth: 0.01, width: 0.028, spacing: 0.05, lipWidth: 0.025, fade: 0.08, peak: 0.5 }
+/** The interior seams stay restrained; the outer silhouette fills the exposed lip and carries the stronger production-reference glow. */
+const RIM = { depth: 0.01, width: 0.028, spacing: 0.05, lipWidth: 0.042, fade: 0.08, gapPeak: 0.5, outerPeak: 1.15 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */
@@ -164,10 +163,10 @@ function bandAround(shape, loop, width) {
   return Object.assign(band, { source: points, width })
 }
 /**
- * Extrudes glow bands one by one, each vertex's phase (the glow's reach) falling from 1 at the edge the band hugs to `RIM.fade` at its far
- * side: a bright line of light at the foot of each letter that fades across the gap.
+ * Extrudes glow bands one by one, each vertex's phase (the glow's reach) falling from `peak` at the hugged edge to its faded far side.
+ * The outer perimeter gets a stronger peak than the fine seams at the feet of the letters.
  */
-function glowBands(bands, back, front) {
+function glowBands(bands, back, front, peak) {
   const list = bands.map(band => {
     const mesh = slab([band], { back, front, bevel: 0.002, bevelSegments: 1 })
     const phases = new Float32Array(mesh.positions.length / 3)
@@ -176,7 +175,7 @@ function glowBands(bands, back, front) {
       let d = Infinity
       for (const p of band.source) d = Math.min(d, Math.hypot(p[0] - x, p[1] - y))
       const t = Math.min(1, d / band.width)
-      phases[i] = RIM.peak * (RIM.fade + (1 - RIM.fade) * (1 - t) ** 2)
+      phases[i] = peak * (RIM.fade + (1 - RIM.fade) * (1 - t) ** 2)
     }
     return { ...mesh, phases }
   })
@@ -186,10 +185,10 @@ const gapBands = [
   ...letterShapes.flatMap(shape => [shape.outer, ...shape.holes].map(loop => bandAround(shape, loop, RIM.width))),
   ...ringShapes.flatMap(shape => shape.holes.map(loop => bandAround(shape, loop, RIM.width))),
 ]
-const gapGlow = glowBands(gapBands, PLATE.front - 0.004, PLATE.front + RIM.depth)
-// Round the outside of the frame, on the lip's face: the thin line of light that outlines the whole mark.
+const gapGlow = glowBands(gapBands, PLATE.front - 0.004, PLATE.front + RIM.depth, RIM.gapPeak)
+// The continuous outside band lies on the exposed lip, in front of its metal surface but behind the raised letters and frame.
 const lipBands = outerShapes.map(shape => bandAround(shape, shape.outer, RIM.lipWidth))
-const lipGlow = glowBands(lipBands, LIP.front - 0.004, LIP.front + RIM.depth)
+const lipGlow = glowBands(lipBands, LIP.front - 0.004, LIP.front + RIM.depth, RIM.outerPeak)
 const rim = { ...merged([gapGlow, lipGlow]), phases: new Float32Array([...gapGlow.phases, ...lipGlow.phases]) }
 
 // Walls glow from their foot: the letters' from the plate, the frame's from the lip.
@@ -215,6 +214,14 @@ const [cx, cy, cz] = CONDUIT_WORDMARK.centre
 const outer = ringShapes.map(shape => shape.outer).sort((a, b) => b.length - a.length)[0]
 const nearest = target => outer.reduce((best, p) => (Math.hypot(p[0] - target[0], p[1] - target[1]) < Math.hypot(best[0] - target[0], best[1] - target[1]) ? p : best), outer[0])
 const attachments = { upper: nearest([-1.62 * ATTACH_SCALE, (2.67 - cy) * ATTACH_SCALE]), lower: nearest([-2.09 * ATTACH_SCALE, (1.84 - cy) * ATTACH_SCALE]) }
+const outwardAt = point => {
+  const i = outer.indexOf(point)
+  const previous = outer[(i - 1 + outer.length) % outer.length], next = outer[(i + 1) % outer.length]
+  const dx = next[0] - previous[0], dy = next[1] - previous[1]
+  const length = Math.hypot(dx, dy) || 1
+  const normal = [dy / length, -dx / length]
+  return contains(outer, [point[0] + normal[0] * 0.01, point[1] + normal[1] * 0.01]) ? [-normal[0], -normal[1]] : normal
+}
 
 const halfWidth = CONDUIT_WORDMARK.width / 2
 const segmentOf = (x) => [0, (x / halfWidth + 1) / 2, Math.sign(x), 0.5]
@@ -239,9 +246,10 @@ console.log(`  total ${result.triangles} triangles, ${(result.byteLength / 1024)
 const worldPoint = p => [Number((p[0] + cx).toFixed(3)), Number((p[1] + cy).toFixed(3)), 0]
 const layout = {
   generatedBy: 'scripts/cinema2-assets/generate-conduit-wordmark.mjs',
-  note: 'Tube attachment points on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.',
-  wordmark: { width: CONDUIT_WORDMARK.width, centre: [...CONDUIT_WORDMARK.centre] },
+  note: 'Tube attachment points and outward normals on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.',
+  wordmark: { width: CONDUIT_WORDMARK.width, centre: [...CONDUIT_WORDMARK.centre], lipOutset: LIP.grow },
   attachments: { upper: worldPoint(attachments.upper), lower: worldPoint(attachments.lower) },
+  normals: { upper: outwardAt(attachments.upper), lower: outwardAt(attachments.lower) },
 }
 if (!process.argv[2]) writeFileSync(layoutPath, `${JSON.stringify(layout, null, 2)}\n`)
 console.log(`  tube attachments (world): upper-left ${(attachments.upper[0] + cx).toFixed(3)}, ${(attachments.upper[1] + cy).toFixed(3)}; lower-left ${(attachments.lower[0] + cx).toFixed(3)}, ${(attachments.lower[1] + cy).toFixed(3)} (mirror for the right)${process.argv[2] ? '' : `, written to ${layoutPath}`}`)

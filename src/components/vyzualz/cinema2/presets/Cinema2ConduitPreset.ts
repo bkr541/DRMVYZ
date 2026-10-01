@@ -99,10 +99,10 @@ const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze(
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 
 /**
- * A warm peach amber, matched to the owner's mockup through the finish's filmic curve: a lit LED reads cream-white, its glow peach, and the
- * glow's fading edge orange. (A deeper orange stays saturated even at full brightness, and its glow tints the silver walls pink.)
+ * One warm orange for the tube windows, the complete wordmark perimeter and the chamber LEDs. Their individual intensities differ, but the
+ * shared Energy Color keeps the illuminated structure visually connected.
  */
-export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.58, 0.34)
+export const CINEMA2_CONDUIT_DEFAULT_ENERGY_COLOR = color(1, 0.45, 0.12)
 const BACKGROUND = color(0.02, 0.02, 0.022)
 /** Chamber floor height (the assets' world frame). */
 const FLOOR_Y = 0

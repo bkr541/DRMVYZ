@@ -292,3 +292,9 @@ The preset was tuned in Chrome through the production runtime with synthetic mus
 - **Floor:** darker and less streaky than the mockups' polished silver with long warm reflections. Screen-space reflections are sharp and limited to what is on screen.
 
 **Tests:** 84 passing across CONDUIT, segment lighting, three-scene, PBR, RELIQUARY, GO-TO and audio glow. Typecheck and lint are clean on the changed files.
+
+## 2026-10-01 outline and tube-junction refinement
+
+The production reference calls for four visible tube-to-outline sockets and a continuous orange perimeter, while keeping the letter faces unobstructed. The wordmark is now 4.8 world units wide at the same camera, placing it near half the 16:9 frame rather than enlarging it into the collars. Its generator exports the outer-contour normals and lip outset alongside each attachment point. The tube generator uses those values to hold each broad collar outside the silhouette and run only a narrow socket to the illuminated lip; the former inward/backward attachment and camera-facing turn are removed. The outer rim fills the exposed lip and has a stronger glow phase than the interior seams. The preset's default Energy Color is a deeper orange, still shared by the tubes, rim and wall LEDs.
+
+The generated-geometry test checks all four socket reaches, keeps collars behind the raised frame, and checks that the emissive rim extends past the nominal silhouette. A model-only 16:9 browser preview confirmed that the junctions are visible without collars covering the letters; the preset's music-driven shader, bloom and reflective floor still require an in-app visual comparison for final lighting approval.

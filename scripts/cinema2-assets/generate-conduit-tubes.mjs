@@ -35,26 +35,19 @@ const ATTACH = LAYOUT.attachments
 /** The camera CONDUIT is framed for; the channel runs along the side of each pipe that faces it. */
 const CAMERA = new THREE.Vector3(0, 1.92, 7)
 /**
- * Pipe radius. Proportioned to the wordmark like the owner's mockup: a tube's diameter is about a sixth of the wordmark's height (it was 0.235,
- * nearly half the height, and the tubes swallowed the wordmark's corners). The channel, LED bars and couplers are sized from it.
+ * Pipe radius. The energy conduit is substantial but remains much smaller than the letters; the collar clearance below is sized from it.
  */
-const R = 0.145
+const R = 0.165
 const COUPLER_LENGTH = 0.7
 /**
  * How far the couplers bulge past the pipe, as a share of their modelled bulge: 0.48 makes the widest collars 1.3x the pipe radius (were 1.62x),
  * so they no longer stand out over the wordmark's frame. Grooves, rings, blocks and glow rings keep their proportions.
  */
 const COUPLER_BULGE = 0.48
-/** How far the tube's mouth sinks into the wordmark's back. */
-const SINK = 0.04
-/**
- * The tubes plug into the BACK of the wordmark, hidden behind it: the end point moves this far in from the frame's outer edge (toward the
- * wordmark's centre), so the whole joint sits behind the silhouette, and sits on the back of the frame's lip (z, world).
- */
-const BACK_INSET = 0.42
-const BACK_Z = -0.2
-/** How strongly the last stretch turns to come in from behind (0: along the old diagonal; 1: straight toward the camera). */
-const BACK_TURN = 0.7
+/** The broad collar stays outside the logo; only its narrow socket reaches the illuminated outer lip. */
+const COLLAR_SETBACK = 0.24
+const SOCKET_SINK = 0.025
+const EDGE_Z = -0.16
 /** The wall flanges are modelled at full size and scaled by this (their neck still matches the pipe). */
 const FLANGE_SCALE = 0.6
 /** Length of the flange (housing to neck) along its axis; the pipe starts where it ends. */
@@ -97,13 +90,13 @@ const glowRing = (r0, r1, y0, y1) => lathe(Array.from({ length: 9 }, (_, k) => {
 function buildLeftTube(spec) {
   const flange = v3(spec.flange)
   const axis = v3(spec.axis).normalize()
-  // Come in from behind: the old diagonal approach, turned toward the camera, ending on the wordmark's back, inset from its outer edge.
+  const outward = v3([...LAYOUT.normals[spec.name], 0]).normalize()
   const diagonal = v3(spec.arrive).normalize()
-  const arrive = diagonal.clone().multiplyScalar(1 - BACK_TURN).add(new THREE.Vector3(0, 0, BACK_TURN)).normalize()
-  const attach = v3(spec.attach)
-  const towardCentre = new THREE.Vector3(-attach.x, LAYOUT.wordmark.centre[1] - attach.y, 0).normalize()
-  attach.addScaledVector(towardCentre, BACK_INSET).setZ(BACK_Z)
-  const end = attach.clone().addScaledVector(arrive, SINK)
+  // Keep the final run diagonal in the image plane. The contour normal also steers it squarely into the frame rather than across a letter.
+  const arrive = diagonal.multiplyScalar(0.75).addScaledVector(outward, -0.25).normalize()
+  if (-arrive.dot(outward) < 0.75) throw new Error(`CONDUIT ${spec.name} tube approaches the outline too obliquely.`)
+  const edge = v3(spec.attach).addScaledVector(outward, LAYOUT.wordmark.lipOutset).setZ(EDGE_Z)
+  const end = edge.clone().addScaledVector(arrive, -COLLAR_SETBACK)
   const couplerStart = end.clone().addScaledVector(arrive, -COUPLER_LENGTH)
   const pipeStart = flange.clone().addScaledVector(axis, FLANGE_LENGTH)
   const leave = pipeStart.clone().addScaledVector(axis, 0.35)
@@ -240,9 +233,16 @@ function buildLeftTube(spec) {
     [cr(1.34), 0.6 * L], [cr(1.27), 0.605 * L], [cr(1.27), 0.62 * L], [cr(1.34), 0.625 * L], [cr(1.34), 0.72 * L],
     [cr(1.5), 0.725 * L], [cr(1.56), 0.745 * L], [cr(1.56), 0.83 * L], [cr(1.5), 0.85 * L],
     [cr(1.22), 0.855 * L], [cr(1.22), 0.9 * L],
-    [cr(1.48), 0.905 * L], [cr(1.62), 0.925 * L], [cr(1.62), 1.0 * L - SINK * 0.5], [cr(1.4), 1.0 * L - SINK * 0.3], [cr(1.4), L + 0.05], [R * 0.9, L + 0.05],
+    [cr(1.48), 0.905 * L], [cr(1.62), 0.925 * L], [cr(1.62), 0.98 * L], [cr(1.4), L], [cr(1.4), L + 0.05], [R * 0.9, L + 0.05],
   ]
   const couplerParts = [withPhase(lathe(couplerProfile, 40), (i, mesh) => couplerPhase(Math.min(L, Math.max(0, mesh.positions[i * 3 + 1]))))]
+  // The slim socket spans the collar-to-outline gap, finishing just behind the raised chrome face. No wide metal crosses the letter silhouette.
+  const socketLength = COLLAR_SETBACK + SOCKET_SINK
+  const socketProfile = [
+    [R * 0.9, L + 0.025], [R * 0.9, L + 0.055], [R * 0.64, L + 0.09],
+    [R * 0.64, L + socketLength - 0.03], [R * 0.55, L + socketLength],
+  ]
+  couplerParts.push(withPhase(lathe(socketProfile, 32), 1))
   // Slotted blocks over the first gap; the glow shows between them.
   const block = roundedBox(0.035, 0.105 * L, 0.035, 0.009)
   for (let k = 0; k < 10; k += 1) {

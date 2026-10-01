@@ -1,24 +1,35 @@
 {
   "generatedBy": "scripts/cinema2-assets/generate-conduit-wordmark.mjs",
-  "note": "Tube attachment points on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.",
+  "note": "Tube attachment points and outward normals on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.",
   "wordmark": {
-    "width": 5.4,
+    "width": 4.8,
     "centre": [
       0,
       2.09,
       0
-    ]
+    ],
+    "lipOutset": 0.045
   },
   "attachments": {
     "upper": [
-      -2.075,
-      2.818,
+      -1.844,
+      2.737,
       0
     ],
     "lower": [
-      -2.685,
-      1.776,
+      -2.387,
+      1.811,
       0
+    ]
+  },
+  "normals": {
+    "upper": [
+      -0.3165872006874411,
+      0.9485634108275998
+    ],
+    "lower": [
+      -0.9591339662990632,
+      -0.2829523541012292
     ]
   }
 }

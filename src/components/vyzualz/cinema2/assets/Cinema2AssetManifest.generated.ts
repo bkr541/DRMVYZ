@@ -30,14 +30,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-tubes.glb",
-        "bytes": 3790484,
-        "triangles": 75616
+        "bytes": 3457884,
+        "triangles": 66464
       }
     },
     "gpuBytes": {
-      "high": 3769592,
-      "medium": 3769592,
-      "low": 3769592
+      "high": 3437040,
+      "medium": 3437040,
+      "low": 3437040
     }
   },
   {
@@ -49,14 +49,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-wordmark.glb",
-        "bytes": 4809744,
-        "triangles": 101004
+        "bytes": 4687268,
+        "triangles": 98534
       }
     },
     "gpuBytes": {
-      "high": 4801832,
-      "medium": 4801832,
-      "low": 4801832
+      "high": 4679352,
+      "medium": 4679352,
+      "low": 4679352
     }
   },
   {
