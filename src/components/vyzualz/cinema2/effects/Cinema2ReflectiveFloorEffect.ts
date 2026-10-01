@@ -55,7 +55,9 @@ import {
  * roughness map, tiled every `surfaceTextureScale` world units and blended in by `surfaceTextureStrength`; it fades in once loaded, and a missing or
  * failed texture leaves the procedural look untouched. Optional `streak` (0-1, default 0) makes it polished metal: reflections smear along the
  * screen's vertical, so each bright light pulls a long streak toward the viewer (with an HDR scene, lit LEDs streak brightest). Optional
- * `edgeFallback` (0-1, default 0): where a reflection would leave through the top of the screen (a tall set seen from close by), use the colour
+ * `samplingStability` (0-1, default 0) trades the floor's moving stochastic reflection samples for fixed, centered samples; use it with a
+ * restrained reflectivity on clean stages where temporal grain is more distracting than a sharp mirror. Optional `edgeFallback` (0-1, default 0):
+ * where a reflection would leave through the top of the screen (a tall set seen from close by), use the colour
  * at the screen's top edge instead of `skyColor`, so the upper structure's lights keep streaking down the floor. The shadow-casting light (`config.castShadow`, roadmap #10) is occluded in its floor
  * pool and specular by the engine shadow map, scaled by `shadowStrength` (0-1, default 1). It needs the scene depth; without a depth input, or without a world camera, the effect passes
  * the image through unchanged.
@@ -122,6 +124,7 @@ uniform int u_steps;
 uniform int u_blurTaps;
 uniform int u_streakTaps;
 uniform float u_streak;
+uniform float u_samplingStability;
 uniform float u_edgeFallback;
 uniform vec3 u_ambient;
 uniform int u_lightCount;
@@ -193,7 +196,7 @@ bool behindScene(vec3 pos, vec3 origin, out vec2 uv, out float overshoot) {
 
 // Marches the mirrored ray through the depth buffer. Returns the hit uv in xy and 1/0 in z.
 vec3 traceReflection(vec3 hitPoint, vec3 reflected, vec3 origin) {
-  float jitter = hash21(gl_FragCoord.xy + fract(u_time * 0.618) * 977.0);
+  float jitter = mix(hash21(gl_FragCoord.xy + fract(u_time * 0.618) * 977.0), 0.5, u_samplingStability);
   float previousT = 0.0;
   for (int i = 0; i < ${MAX_STEPS}; i++) {
     if (i >= u_steps) break;
@@ -229,7 +232,7 @@ vec3 traceReflection(vec3 hitPoint, vec3 reflected, vec3 origin) {
 // streak grows with the reflection's screen distance (near the camera a reflection stretches further) and is weighted toward its centre.
 vec3 streakedReflection(vec2 uv, float travelled) {
   float halfLength = u_streak * (0.02 + 0.45 * travelled);
-  float jitter = hash21(gl_FragCoord.xy * 1.37 + fract(u_time * 0.41) * 613.0) - 0.5;
+  float jitter = (hash21(gl_FragCoord.xy * 1.37 + fract(u_time * 0.41) * 613.0) - 0.5) * (1.0 - u_samplingStability);
   vec3 sum = vec3(0.0);
   float total = 0.0;
   for (int i = 0; i < ${MAX_STREAK_TAPS}; i++) {
@@ -387,6 +390,7 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['thickness', 0.05, 10],
   ['grit', 0, 1],
   ['streak', 0, 1],
+  ['samplingStability', 0, 1],
   ['edgeFallback', 0, 1],
   ['gritScale', 0.5, 40],
   ['baseLift', 0.1, 20],
@@ -436,7 +440,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
       optionalUniforms: [
         'u_depth', 'u_time', 'u_enabled', 'u_viewProj', 'u_invViewProj', 'u_floorY', 'u_baseColor', 'u_albedo', 'u_reflectivity',
         'u_roughness', 'u_fresnel', 'u_fadeDistance', 'u_skyColor', 'u_pool', 'u_specular', 'u_maxReflection', 'u_thickness', 'u_grit', 'u_gritScale', 'u_baseLift', 'u_glare', 'u_glareColor', 'u_glareRows', 'u_glareShape', 'u_surfaceTex', 'u_surface', 'u_surfaceScale', ...CINEMA2_SHADOW_UNIFORM_NAMES,
-        'u_steps', 'u_blurTaps', 'u_streakTaps', 'u_streak', 'u_edgeFallback', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
+        'u_steps', 'u_blurTaps', 'u_streakTaps', 'u_streak', 'u_samplingStability', 'u_edgeFallback', 'u_ambient', 'u_lightCount', 'u_lightPos[0]', 'u_lightDir[0]', 'u_lightCol[0]', 'u_lightInner[0]',
       ],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
@@ -500,6 +504,7 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setInt('u_blurTaps', profile.blurTaps)
     program.setInt('u_streakTaps', profile.streakTaps)
     program.setFloat('u_streak', clamp(number(p, 'streak', 0), 0, 1))
+    program.setFloat('u_samplingStability', clamp(number(p, 'samplingStability', 0), 0, 1))
     program.setFloat('u_edgeFallback', clamp(number(p, 'edgeFallback', 0), 0, 1))
     program.setVec3('u_ambient', lights.ambient[0], lights.ambient[1], lights.ambient[2])
     program.setInt('u_lightCount', lights.count)

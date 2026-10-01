@@ -24,6 +24,7 @@ import {
   CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
   CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID,
 } from '../presets/Cinema2AtmosphereReferencePreset'
+import { CINEMA2_CONDUIT_PRESET_MANIFEST } from '../presets/Cinema2ConduitPreset'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, CINEMA2_THRESHOLD_PRESET_MANIFEST } from '../presets/Cinema2ThresholdPreset'
 import { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
@@ -157,6 +158,7 @@ describe('Cinema 2.0 Reflective Floor effect', () => {
     expect(runtime.execute(FLOOR, context({ depth: true, camera: true }))).toBe('applied')
     expect(lastUniform(gl, 'uniform1f', 'u_grit')).toBe(0)
     expect(lastUniform(gl, 'uniform1f', 'u_baseLift')).toBe(1)
+    expect(lastUniform(gl, 'uniform1f', 'u_samplingStability')).toBe(0)
     runtime.dispose()
 
     // Threshold authors wet, cracked concrete: grit, scale and a lifted base reach the shader.
@@ -172,6 +174,18 @@ describe('Cinema 2.0 Reflective Floor effect', () => {
     expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(
       expect.arrayContaining(['$.parameters.grit', '$.parameters.gritScale', '$.parameters.baseLift']),
     )
+  })
+
+  it('accepts stable reflection sampling on a clean stage without changing the default for other presets', () => {
+    const conduitFloor = CINEMA2_CONDUIT_PRESET_MANIFEST.effects![0]!
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(conduitFloor)).toEqual([])
+    const { gl, runtime } = createEffectRuntime('low', CINEMA2_CONDUIT_PRESET_MANIFEST)
+    expect(runtime.execute(conduitFloor.id, context({ depth: true, camera: true }))).toBe('applied')
+    expect(lastUniform(gl, 'uniform1f', 'u_samplingStability')).toBe(1)
+    runtime.dispose()
+
+    const bad = { ...effectManifest(FLOOR), parameters: { samplingStability: 1.1 } }
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toContain('$.parameters.samplingStability')
   })
 
   it('passes the image through when it cannot depth-test against a world camera', () => {

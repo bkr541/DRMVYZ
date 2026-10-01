@@ -541,10 +541,9 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      // Polished metal: a bright mirror of the wall, the tubes and the LEDs, each lit segment pulling a long vertical streak toward the viewer
-      // (`streak`). Where screen-space reflection finds nothing to reflect it shows a dim silver (`skyColor`) instead of black, and a thicker hit
-      // test catches the thin wall details.
-      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.7, roughness: 0.32, fresnel: 1.4, albedo: 0.82, poolIntensity: 0.5, specular: 1.1, fadeDistance: 30, maxReflection: 13, thickness: 4, skyColor: color(0.63, 0.61, 0.58), baseColor: color(0.63, 0.61, 0.58), streak: 0.45, edgeFallback: 0.8, grit: 0, gritScale: 6 }),
+      // Warm polished metal: fixed reflection samples remove low-tier shimmer, while restrained reflectivity keeps the mirrored wordmark from
+      // competing with the real one. The remaining LEDs leave soft streaks, and a thicker hit test catches the thin wall details.
+      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.2, roughness: 0.32, fresnel: 1.4, albedo: 0.82, poolIntensity: 0.5, specular: 1.1, fadeDistance: 30, maxReflection: 13, thickness: 4, skyColor: color(0.63, 0.59, 0.53), baseColor: color(0.63, 0.53, 0.43), streak: 0.45, samplingStability: 1, edgeFallback: 0.8, grit: 0, gritScale: 6 }),
     }),
     Object.freeze({
       id: VOLUMETRIC_EFFECT_ID,

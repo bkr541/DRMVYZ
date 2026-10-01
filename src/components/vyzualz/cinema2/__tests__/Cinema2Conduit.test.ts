@@ -115,7 +115,8 @@ describe('CONDUIT preset', () => {
   it('finishes with the reflective floor at the chamber floor, a light haze, HDR bloom and a filmic grade', () => {
     const effects = manifest.effects ?? []
     expect(effects.map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
-    expect(effects[0]!.parameters).toMatchObject({ floorY: 0 })
+    expect(effects[0]!.parameters).toMatchObject({ floorY: 0, grit: 0, samplingStability: 1 })
+    expect((effects[0]!.parameters as { reflectivity: number }).reflectivity).toBeLessThan(0.3)
     expect((effects[1]!.parameters as { density: number }).density).toBeLessThan(0.03)
   })
 })
