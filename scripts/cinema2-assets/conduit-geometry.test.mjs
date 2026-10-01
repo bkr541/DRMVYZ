@@ -27,7 +27,7 @@ function model(name) {
       peak: Math.max(...Array.from({ length: phaseAccessor.count }, (_, i) => bytes.readFloatLE(phaseStart + i * 4))),
     }
   }
-  return { mesh }
+  return { mesh, material: materialName => gltf.materials.find(candidate => candidate.name === materialName) }
 }
 
 test('the four narrow sockets reach the outer lip while broad collars remain behind the raised frame', () => {
@@ -49,8 +49,11 @@ test('the four narrow sockets reach the outer lip while broad collars remain beh
 })
 
 test('the outer glow extends beyond the nominal wordmark silhouette', () => {
-  const rim = model('wordmark').mesh('rim')
+  const wordmark = model('wordmark')
+  const rim = wordmark.mesh('rim')
   assert.ok(rim.bounds.min[0] < -layout.wordmark.width / 2)
   assert.ok(rim.bounds.max[0] > layout.wordmark.width / 2)
-  assert.ok(rim.peak > 1, 'The perimeter must be brighter than the restrained interior seams')
+  assert.ok(rim.peak > 0.54, 'The perimeter must retain a music-driven emissive edge')
+  const unlitColor = wordmark.material('rim').pbrMetallicRoughness.baseColorFactor
+  assert.ok(unlitColor.slice(0, 3).every(channel => channel < 0.1), 'The unlit rim must not reflect cream-colored light over its emission')
 })

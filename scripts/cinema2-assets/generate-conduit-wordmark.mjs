@@ -62,7 +62,7 @@ const FRAME = { back: -0.08, front: 0.045, bevel: 0.006, bevelSegments: 3 }
 const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegments: 4 }
 const PLATE = { back: -0.1, front: -0.078 }
 /** The interior seams stay restrained; the outer silhouette fills the exposed lip and carries the stronger production-reference glow. */
-const RIM = { depth: 0.01, width: 0.028, spacing: 0.05, lipWidth: 0.042, fade: 0.08, gapPeak: 0.5, outerPeak: 1.15 }
+const RIM = { depth: 0.01, width: 0.028, spacing: 0.05, lipWidth: 0.042, fade: 0.08, gapPeak: 0.5, outerPeak: 0.55 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */
@@ -74,7 +74,8 @@ const MATERIALS = {
   outline: { baseColorFactor: [0.86, 0.82, 0.78, 1], metallicFactor: 1, roughnessFactor: 0.12 },
   base: { baseColorFactor: [0.42, 0.37, 0.33, 1], metallicFactor: 1, roughnessFactor: 0.2 },
   plate: { baseColorFactor: [0.07, 0.065, 0.06, 1], metallicFactor: 0.9, roughnessFactor: 0.35 },
-  rim: { baseColorFactor: [1, 0.62, 0.28, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.55, 0.2] },
+  // A dark diffuser when unlit: the segment shader supplies all of the rim's visible hue, shared with the tubes and wall LEDs.
+  rim: { baseColorFactor: [0.04, 0.018, 0.008, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [1, 0.55, 0.2] },
 }
 
 // One transform for every part so their placement is exactly the SVG's.

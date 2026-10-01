@@ -49,7 +49,7 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-wordmark.glb",
-        "bytes": 4687268,
+        "bytes": 4687272,
         "triangles": 98534
       }
     },
