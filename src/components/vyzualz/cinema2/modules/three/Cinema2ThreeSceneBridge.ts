@@ -12,6 +12,7 @@ import {
   type Cinema2ThreeSegmentFrame,
   type Cinema2ThreeSegmentRole,
 } from './Cinema2ThreeSegmentLighting'
+import { Cinema2ThreeParticleField, type Cinema2ThreeParticleSpec } from './Cinema2ThreeParticles'
 import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
@@ -95,6 +96,8 @@ export interface Cinema2ThreeSceneOptions {
    * where the GPU cannot render to float textures (the preset's targets then fall back to 8-bit).
    */
   hdr?: boolean
+  /** Glowing point fields drifting through the scene (`config.particles`): embers, dust (see Cinema2ThreeParticles). */
+  particles?: readonly Readonly<Cinema2ThreeParticleSpec>[]
   /** Parts that cast and receive shadows from spot lights flagged `threeShadow` (`config.shadows`); none by default. */
   shadows?: Readonly<{ cast: readonly string[]; receive: readonly string[] }>
 }
@@ -206,6 +209,9 @@ export class Cinema2ThreeSceneBridge {
   private stage: WarmStage = 'environment'
   private environmentLoad: 'idle' | 'loading' | 'done' = 'idle'
   private readonly panels: { light: ThreeNamespace.RectAreaLight; spec: Readonly<Cinema2ThreePanelSpec> }[] = []
+  private readonly particleFields: Cinema2ThreeParticleField[] = []
+  /** The audio glow's breath this frame (0 without a glow), which lifts the particle fields. */
+  private glowBreath = 0
   private readonly diagnostics: Cinema2ThreeBridgeDiagnostic[] = []
   private upgraded = false
   private compiling = false
@@ -320,6 +326,12 @@ export class Cinema2ThreeSceneBridge {
         this.panels.push({ light, spec })
       }
     }
+
+    ;(options.particles ?? []).forEach((spec, index) => {
+      const field = new Cinema2ThreeParticleField(THREE, spec, index)
+      this.scene.add(field.points)
+      this.particleFields.push(field)
+    })
   }
 
   /** Non-fatal problems (for example a shipped environment that failed to load and fell back to the built-in room). */
@@ -364,6 +376,11 @@ export class Cinema2ThreeSceneBridge {
       this.applySegments(segments)
       this.place(exec, spinRadians)
       applyCinema2CameraFrame(this.camera, camera)
+      if (this.particleFields.length > 0) {
+        const scale = (exec.height * this.camera.projectionMatrix.elements[5]!) / 2
+        const glowColor = this.glowUniforms.uCinema2GlowStrength.value > 0 ? this.glowUniforms.uCinema2GlowColor.value : null
+        for (const field of this.particleFields) field.update(exec.frame.elapsedTimeSec, lighting.quality, this.glowBreath, glowColor, scale)
+      }
       this.lightRig.update(lighting)
       // Shadows only while a flagged spot casts (the renderer is shared per context, so this is set every draw).
       renderer.shadowMap.enabled = this.lightRig.shadowCasterCount > 0
@@ -393,6 +410,8 @@ export class Cinema2ThreeSceneBridge {
     }
     for (const { light } of this.panels) this.scene.remove(light)
     this.panels.length = 0
+    for (const field of this.particleFields) { this.scene.remove(field.points); field.dispose() }
+    this.particleFields.length = 0
     this.placed.length = 0
     this.pendingTextures.length = 0
     // Geometry and textures belong to the shared asset (freed when its last holder releases it); the renderer belongs to the context.
@@ -524,6 +543,7 @@ export class Cinema2ThreeSceneBridge {
 
   private applyGlow(glow: Readonly<Cinema2ThreeGlowDraw> | null): void {
     const uniforms = this.glowUniforms
+    this.glowBreath = glow ? Math.max(0, glow.frame.breath) : 0
     if (!glow) { uniforms.uCinema2GlowStrength.value = 0; return }
     uniforms.uCinema2GlowColor.value.setRGB(glow.color[0], glow.color[1], glow.color[2], this.library.THREE.SRGBColorSpace)
     uniforms.uCinema2GlowStrength.value = Math.max(0, glow.strength)

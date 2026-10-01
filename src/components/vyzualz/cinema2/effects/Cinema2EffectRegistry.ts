@@ -6,6 +6,8 @@ import {
 } from './Cinema2BuiltinEffects'
 import { cinema2CinematicFinishEffectDefinition } from './Cinema2CinematicFinishEffect'
 import { cinema2HdrBloomEffectDefinition } from './Cinema2HdrBloomEffect'
+import { cinema2GlareEffectDefinition } from './Cinema2GlareEffect'
+import { cinema2DepthOfFieldEffectDefinition } from './Cinema2DepthOfFieldEffect'
 import { cinema2ReflectiveFloorEffectDefinition } from './Cinema2ReflectiveFloorEffect'
 import { cinema2VolumetricAtmosphereEffectDefinition } from './Cinema2VolumetricAtmosphereEffect'
 import type { Cinema2EffectDiagnostic, Cinema2EffectTypeDefinition } from './Cinema2EffectContracts'
@@ -93,6 +95,8 @@ for (const definition of [
   cinema2BlurEffectDefinition,
   cinema2BloomEffectDefinition,
   cinema2HdrBloomEffectDefinition,
+  cinema2GlareEffectDefinition,
+  cinema2DepthOfFieldEffectDefinition,
   cinema2FeedbackTrailsEffectDefinition,
   cinema2VolumetricAtmosphereEffectDefinition,
   cinema2ReflectiveFloorEffectDefinition,

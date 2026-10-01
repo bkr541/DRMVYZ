@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phases 1-5 built (2026-09-30), awaiting the owner's review in the app. Phases 6-7 not started.
+**Status:** Phases 1-6 built (2026-09-30), awaiting the owner's review in the app. Phase 7 not started.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -253,6 +253,29 @@ New engine capabilities: the earlier plan's steps 11-13.
 2. **Glints.** A new built-in effect that turns the brightest highlights (crystal edges, strobe hits) into star-shaped glints and soft streaks.
 3. **Depth of field.** A new built-in effect that blurs by distance, using the frame's depth, so the logo and the tree stay sharp while the far forest goes soft.
 4. **Cost.** Measure the frame cost of each at 1080p per quality tier.
+
+**Result (2026-09-30):** built; checked in the render harness against the mockup at 16:9, at 1100×1016 and on the low tier, with frame times measured at 1080p. Not yet reviewed by the owner in the app.
+
+- **Particles.** A new `config.particles` option in the three-scene module (`modules/three/Cinema2ThreeParticles.ts`): fields of glowing points drifting through a box, animated entirely in the shader (one draw call per field, no per-frame upload).
+  - Each point wraps round the box, fading at its edges so nothing pops, and sways and twinkles on its own.
+  - `tint: 'glow'` takes the Glow Color, and `reactivity` lets the audio glow's breath brighten the field.
+  - High quality draws the full field, medium half, low none.
+  - RELIQUARY has three fields: embers through the scene (260), thicker embers rising from the golden tree's base (110), and dust in the light shaft (180).
+- **Glare.** A new built-in `glare` effect: four-point star glints on only the hottest highlights. Threshold 8 in linear light, so the crystal's brightest glints, strobe heads and pulsing leaves catch it, and ordinary highlights don't. Streaks are 3.5% of the frame height. It is drawn at half resolution; low quality skips it.
+- **Depth of field.** A new built-in `depth-of-field` effect: blur by distance from the frame's depth. RELIQUARY focuses at 5 units (the logo and tree) ±2.2. The far forest softens over 5 units to 7 px at 1080p, and the foreground trees stay sharp.
+  - A golden-angle disc gathers the blur, and each sample counts only as far as its own blur reaches, so the sharp logo does not smear onto the soft background.
+  - Samples: 20 on high, 12 on medium, none on low.
+- **Render graph.** scene → floor → haze → depth of field → HDR bloom → glare → finish.
+- **Performance fix (engine).** The first build measured 46.6 ms of GPU time per frame at 1080p on high, about 42 fps. Phase 5 alone had already been 34.8 ms.
+  - Switching off one effect at a time showed the haze was the cost: it evaluated every light at every march step, including the two strobe heads, which are off between hits.
+  - The haze now skips lights that are off this frame (`packCinema2VolumetricLights`, scattering only); the floor still lights from every light.
+  - With depth of field reduced from 28 to 20 samples, high measured 10.6-18.2 ms of GPU time (varying between runs) and medium 5.9-6.3 ms, against 24.6 ms for the committed phase 5 in the same harness.
+  - The harness's frame loop stays above 50 fps on high and at 60 on medium. The owner's MacBook remains the real check (phase 7).
+- **Tests.** New `Cinema2Phase6Effects.test.ts`: glare and depth-of-field registration and validation, tier scaling, particle parsing and the module's validation of them, and the haze's light packing. The RELIQUARY tests cover the new render graph (depth of field reads the depth) and the ember fields. The full Cinema 2.0 suite shows the same failures as the committed code.
+
+Still short of the mockup:
+- **Embers:** the mockup has more embers, concentrated along the glowing vines, and its light shaft has a bright source glare where it enters the frame.
+- **Medium glints:** on medium the glints are shorter (fewer taps).
 
 **Done when:**
 - Embers and dust drift in the light.

@@ -120,9 +120,12 @@ describe('RELIQUARY preset', () => {
     expect(warning?.message).toContain('reliquary-extra-light-')
   })
 
-  it('renders scene -> wet floor -> haze (with ground mist) -> HDR bloom -> filmic finish, with a static camera', () => {
-    expect((manifest.effects ?? []).map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
-    expect(manifest.render?.passes?.map(pass => pass.kind)).toEqual(['scene', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen'])
+  it('renders scene -> wet floor -> haze (with ground mist) -> depth of field -> HDR bloom -> glare -> filmic finish, with a static camera', () => {
+    expect((manifest.effects ?? []).map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'depth-of-field', 'hdr-bloom', 'glare', 'cinematic-finish'])
+    expect(manifest.render?.passes?.map(pass => pass.kind)).toEqual(['scene', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen', 'fullscreen'])
+    // Depth of field reads the scene depth.
+    const focusPass = manifest.render?.passes?.find(pass => pass.id === 'reliquary-focus-pass') as { inputs?: { attachment: string }[] } | undefined
+    expect(focusPass?.inputs?.some(input => input.attachment === 'depth')).toBe(true)
     expect(manifest.cameras?.[0]?.rig).toEqual({ kind: 'static' })
   })
 
@@ -142,6 +145,10 @@ describe('RELIQUARY preset', () => {
     expect(spill).toHaveLength(2)
     for (const light of spill) expect((light as { controls?: { color?: unknown } }).controls?.color).toEqual({ $ref: byLabel('Glow Color')?.id })
     expect((manifest.choreography?.rules ?? []).some(rule => rule.source.signal === 'downbeat' && rule.actions.some(action => action.target.kind === 'light-group' && (action.target.ref as { $ref: string }).$ref === 'reliquary-spill'))).toBe(true)
+    // Embers (in the glow color, lifted by the music) and dust in the light shaft.
+    const particles = (manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>).config?.particles as { tint?: string; reactivity: number }[]
+    expect(particles.length).toBeGreaterThanOrEqual(2)
+    expect(particles.some(field => field.tint === 'glow' && field.reactivity > 0)).toBe(true)
     // A polished wet floor: little ripple, reflections streaked.
     const floor = (manifest.effects ?? []).find(effect => effect.typeId === 'reflective-floor')
     expect((floor?.parameters as { grit: number }).grit).toBeLessThanOrEqual(0.08)

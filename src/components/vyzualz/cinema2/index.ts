@@ -253,6 +253,20 @@ export {
 } from './effects/Cinema2HdrBloomEffect'
 
 export {
+  CINEMA2_GLARE_EFFECT_TYPE_ID,
+  CINEMA2_GLARE_EFFECT_VERSION,
+  CINEMA2_GLARE_TAPS,
+  cinema2GlareEffectDefinition,
+} from './effects/Cinema2GlareEffect'
+
+export {
+  CINEMA2_DEPTH_OF_FIELD_EFFECT_TYPE_ID,
+  CINEMA2_DEPTH_OF_FIELD_EFFECT_VERSION,
+  CINEMA2_DEPTH_OF_FIELD_SAMPLES,
+  cinema2DepthOfFieldEffectDefinition,
+} from './effects/Cinema2DepthOfFieldEffect'
+
+export {
   CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID,
   CINEMA2_REFLECTIVE_FLOOR_EFFECT_VERSION,
   CINEMA2_REFLECTIVE_FLOOR_QUALITY_PROFILES,

@@ -33,6 +33,7 @@ import {
   readCinema2ThreeSegmentPattern,
   type Cinema2ThreeSegmentRole,
 } from './three/Cinema2ThreeSegmentLighting'
+import { parseCinema2ThreeParticleSpec, type Cinema2ThreeParticleSpec } from './three/Cinema2ThreeParticles'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { Cinema2ThreeAudioGlow, readCinema2ThreeGlowMode } from './three/Cinema2ThreeAudioGlow'
 import { cinema2ThreeEnvironmentRegistry, type Cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironmentRegistry'
@@ -78,6 +79,10 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * attributes (see Cinema2ThreeSegmentLighting), replacing their own emissive. Parameters: `segmentPattern` (`energyFlow` | `ringChase` |
  * `split` | `pulse`), `segmentAuto` (true: the music picks the pattern), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentCore` (0-1, how much each segment's light gathers into a hot centre where it faces the camera), `segmentColor` (the energy
  * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
+ *
+ * `config.particles`: `[{ count, center, size, pointSize, color, brightness, drift?, twinkle?, reactivity?, tint? }]` fields of glowing points
+ * drifting through a box - embers, dust in a light shaft (see Cinema2ThreeParticles). `tint: 'glow'` takes the glow color; `reactivity` lets
+ * the audio glow brighten the field. High quality draws `count`, medium half, low none.
  *
  * `config.hdr: true` declares that the preset renders this module into float (`rgba16f`) targets and tone-maps later: the segments'
  * and the audio glow's light is then emitted at full strength, many times brighter than white, for bloom and the finish's tone curve to
@@ -139,6 +144,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       let spinRadians = 0
       const glowShares = parseGlow(context.module)
       const shadowParts = parseShadows(context.module)
+      const particles = parseParticles(context.module)
       const audioGlow = glowShares ? new Cinema2ThreeAudioGlow() : null
       let glowDraw: Cinema2ThreeGlowDraw | null = null
       const segmentRoles = parseSegments(context.module)
@@ -197,7 +203,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), hdr: context.module.config?.hdr === true, ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -351,6 +357,16 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     || Object.values(rawSegments).some(role => !CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_SEGMENTS_INVALID', path: '$.config.segments', message: `config.segments must map part names to a role: ${CINEMA2_THREE_SEGMENT_ROLES.join(', ')}.` })
   }
+  const rawParticles = module.config?.particles
+  if (rawParticles !== undefined) {
+    if (!Array.isArray(rawParticles)) {
+      diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PARTICLES_INVALID', path: '$.config.particles', message: 'config.particles must be a list of particle fields.' })
+    } else {
+      rawParticles.forEach((entry, index) => {
+        if (!parseCinema2ThreeParticleSpec(entry)) diagnostics.push({ code: 'CINEMA2_THREE_SCENE_PARTICLES_INVALID', path: `$.config.particles[${index}]`, message: 'A particle field needs count (0-4000), center [x, y, z], size [x, y, z] above 0, pointSize (0-2), color [r, g, b] in 0..1 and brightness (0-100); drift [x, y, z], twinkle (0-1), reactivity (0-1) and tint (color | glow) are optional.' })
+      })
+    }
+  }
   if (module.config?.hdr !== undefined && typeof module.config.hdr !== 'boolean') {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_HDR_INVALID', path: '$.config.hdr', message: 'config.hdr must be true or false.' })
   }
@@ -365,6 +381,12 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     }
   }
   return diagnostics
+}
+
+function parseParticles(module: Readonly<Cinema2ModuleManifest>): readonly Readonly<Cinema2ThreeParticleSpec>[] {
+  const raw = module.config?.particles
+  if (!Array.isArray(raw)) return []
+  return raw.map(entry => parseCinema2ThreeParticleSpec(entry)).filter((spec): spec is Readonly<Cinema2ThreeParticleSpec> => spec !== null)
 }
 
 function parseShadows(module: Readonly<Cinema2ModuleManifest>): Readonly<{ cast: readonly string[]; receive: readonly string[] }> | null {

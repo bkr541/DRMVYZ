@@ -487,7 +487,10 @@ export interface Cinema2VolumetricLightUniforms {
 }
 
 /** Packs the shared light list into fixed-size uniform arrays. Ambient lights fold into `ambient`. */
-/** Packs the shared lights for a fullscreen lighting pass; `scatteringOnly` leaves out lights authored `config.scatter: false` (the haze). */
+/**
+ * Packs the shared lights for a fullscreen lighting pass; `scatteringOnly` (the haze) leaves out lights authored `config.scatter: false` and
+ * lights that are off this frame.
+ */
 export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2ResolvedLightFrame>[], shadowLightId: string | null = null, scatteringOnly = false): Cinema2VolumetricLightUniforms {
   const position = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
   const direction = new Float32Array(CINEMA2_VOLUMETRIC_MAX_LIGHTS * 4)
@@ -503,7 +506,8 @@ export function packCinema2VolumetricLights(lights: readonly Readonly<Cinema2Res
       ambient[2] += light.color[2] * light.intensity
       continue
     }
-    if (scatteringOnly && light.scatter === false) continue
+    // For the haze, a light that is off this frame (a strobe between hits) adds nothing but costs a full evaluation at every march step.
+    if (scatteringOnly && (light.scatter === false || light.intensity <= 1e-4)) continue
     if (count >= CINEMA2_VOLUMETRIC_MAX_LIGHTS) break
     const offset = count * 4
     position.set([light.position[0], light.position[1], light.position[2], light.range], offset)

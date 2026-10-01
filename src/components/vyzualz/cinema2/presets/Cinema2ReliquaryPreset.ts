@@ -97,6 +97,10 @@ const FLOOR_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-ground')
 const VOLUMETRIC_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-haze')
 const BLOOM_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-bloom-effect')
 const FINISH_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-finish')
+const FOCUS_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('depth-of-field')
+const GLARE_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('glare')
+const FOCUS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-focus')
+const GLARE_EFFECT_ID = cinema2StableId<Cinema2EffectId>('reliquary-glare')
 
 /** The golden roots and the trees stand on this plane (see the generator scripts); the logo floats above the tree's trunk. */
 const FLOOR_Y = -1.55
@@ -411,10 +415,14 @@ const SCENE_TARGET_ID = targetId('scene')
 const FLOOR_TARGET_ID = targetId('ground')
 const ATMOSPHERE_TARGET_ID = targetId('haze')
 const BLOOM_TARGET_ID = targetId('bloom')
+const FOCUS_TARGET_ID = targetId('focus')
+const GLARE_TARGET_ID = targetId('glare')
 const SCENE_PASS_ID = passId('scene')
 const FLOOR_PASS_ID = passId('ground')
 const ATMOSPHERE_PASS_ID = passId('haze')
 const BLOOM_PASS_ID = passId('bloom')
+const FOCUS_PASS_ID = passId('focus')
+const GLARE_PASS_ID = passId('glare')
 const FINISH_PASS_ID = passId('finish')
 const SCENE_COLOR_ID = slotId('scene-color')
 const SCENE_DEPTH_ID = slotId('scene-depth')
@@ -530,6 +538,13 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
       glow: Object.freeze({ veins: 1.2, vines: 2.2, buds: 1.5, leaves: 0.3, roots: 0.12, rings: 0.5 }),
+      // Embers drifting up through the scene and rising thicker from the golden tree's base (in the glow color, brightening with the music),
+      // and dust turning slowly in the light shaft. Medium quality draws half, low none.
+      particles: Object.freeze([
+        Object.freeze({ count: 260, center: vec3(0, 0.8, -1.6), size: vec3(8.5, 5, 4.5), pointSize: 0.05, color: color(1, 0.6, 0.3).slice(0, 3), tint: 'glow', brightness: 5, drift: vec3(0.02, 0.12, 0), twinkle: 0.8, reactivity: 0.8 }),
+        Object.freeze({ count: 110, center: vec3(0, -0.95, 0.1), size: vec3(3.4, 1.3, 2.2), pointSize: 0.04, color: color(1, 0.6, 0.3).slice(0, 3), tint: 'glow', brightness: 5, drift: vec3(0, 0.18, 0), twinkle: 0.9, reactivity: 1 }),
+        Object.freeze({ count: 180, center: vec3(0.6, 2.2, -7), size: vec3(2.2, 4.5, 2), pointSize: 0.03, color: color(0.95, 0.95, 1).slice(0, 3), brightness: 2, drift: vec3(-0.03, -0.04, 0.01), twinkle: 0.4, reactivity: 0.2 }),
+      ]),
       // Rendered into float targets and tone-mapped by the finish, so the glow emits its full light.
       hdr: true,
       // The golden tree's wood, veins and leaves cast shadows onto the crystal from the shadow-casting cue spots. The forest does not cast: it is
@@ -666,11 +681,22 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       parameterBindings: Object.freeze({ density: cinema2Ref(CINEMA2_RELIQUARY_HAZE_ID), beamIntensity: cinema2Ref(CINEMA2_RELIQUARY_BEAM_ID) }),
     }),
     Object.freeze({
+      id: FOCUS_EFFECT_ID,
+      typeId: FOCUS_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 2,
+      scope: 'output' as const,
+      // Focused on the logo and the golden tree (about 5 units from the camera); the foreground trees stay sharp too, and the forest behind
+      // softens with distance, like the mockup.
+      parameters: Object.freeze({ mix: 1, focusDistance: 5, focusRange: 2.2, falloff: 5, farBlur: 7, nearBlur: 0 }),
+    }),
+    Object.freeze({
       id: BLOOM_EFFECT_ID,
       typeId: BLOOM_EFFECT_TYPE_ID,
       version: 1,
       enabled: true,
-      order: 2,
+      order: 3,
       scope: 'output' as const,
       // HDR bloom: only what is brighter than white glows (the lit gold, the strobe, the crystal's hottest glints), so the crystal body and the
       // gold wood stay crisp; the mip chain gives each lit vine a hot halo that fades into a wide amber glow.
@@ -678,11 +704,21 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_RELIQUARY_BLOOM_ID) }),
     }),
     Object.freeze({
+      id: GLARE_EFFECT_ID,
+      typeId: GLARE_EFFECT_TYPE_ID,
+      version: 1,
+      enabled: true,
+      order: 4,
+      scope: 'output' as const,
+      // Four-point star glints on only the hottest highlights: the glints on the crystal, the strobe heads, the brightest leaves on a pulse.
+      parameters: Object.freeze({ mix: 1, threshold: 8, intensity: 0.55, length: 0.035, streaks: 4, rotation: 0 }),
+    }),
+    Object.freeze({
       id: FINISH_EFFECT_ID,
       typeId: FINISH_EFFECT_TYPE_ID,
       version: 1,
       enabled: true,
-      order: 3,
+      order: 5,
       scope: 'output' as const,
       // Filmic tone curve: the HDR glow rolls to warm-white cores with amber edges while the dark bark keeps its depth. Light lens fringing and
       // grain only (stronger fringing split the trees' edges into red and cyan).
@@ -696,7 +732,9 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       viewportTarget(SCENE_TARGET_ID, true),
       viewportTarget(FLOOR_TARGET_ID),
       viewportTarget(ATMOSPHERE_TARGET_ID),
+      viewportTarget(FOCUS_TARGET_ID),
       viewportTarget(BLOOM_TARGET_ID),
+      viewportTarget(GLARE_TARGET_ID),
     ]),
     passes: Object.freeze([
       Object.freeze({
@@ -710,8 +748,10 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       }),
       effectPass(FLOOR_PASS_ID, SCENE_PASS_ID, SCENE_COLOR_ID, FLOOR_EFFECT_ID, 'ground', FLOOR_TARGET_ID, true),
       effectPass(ATMOSPHERE_PASS_ID, FLOOR_PASS_ID, slotId('ground-output'), VOLUMETRIC_EFFECT_ID, 'haze', ATMOSPHERE_TARGET_ID, true),
-      effectPass(BLOOM_PASS_ID, ATMOSPHERE_PASS_ID, slotId('haze-output'), BLOOM_EFFECT_ID, 'bloom', BLOOM_TARGET_ID, false),
-      effectPass(FINISH_PASS_ID, BLOOM_PASS_ID, slotId('bloom-output'), FINISH_EFFECT_ID, 'finish', null, false),
+      effectPass(FOCUS_PASS_ID, ATMOSPHERE_PASS_ID, slotId('haze-output'), FOCUS_EFFECT_ID, 'focus', FOCUS_TARGET_ID, true),
+      effectPass(BLOOM_PASS_ID, FOCUS_PASS_ID, slotId('focus-output'), BLOOM_EFFECT_ID, 'bloom', BLOOM_TARGET_ID, false),
+      effectPass(GLARE_PASS_ID, BLOOM_PASS_ID, slotId('bloom-output'), GLARE_EFFECT_ID, 'glare', GLARE_TARGET_ID, false),
+      effectPass(FINISH_PASS_ID, GLARE_PASS_ID, slotId('glare-output'), FINISH_EFFECT_ID, 'finish', null, false),
     ]),
     outputPass: cinema2Ref(FINISH_PASS_ID),
   }),
