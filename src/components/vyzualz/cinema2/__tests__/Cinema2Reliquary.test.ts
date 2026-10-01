@@ -129,13 +129,14 @@ describe('RELIQUARY preset', () => {
     expect(manifest.cameras?.[0]?.rig).toEqual({ kind: 'static' })
   })
 
-  it('renders HDR: float targets with an 8-bit fallback, the glow emitted above white, a filmic tone curve and a 16:9 framing that holds on a narrow Stage', () => {
+  it('renders HDR: float targets with an 8-bit fallback, the glow emitted above white, a filmic tone curve and a framing that keeps the logo large on a narrow Stage', () => {
     for (const target of manifest.render?.targets ?? []) expect(target.descriptor).toMatchObject({ colorFormat: 'rgba16f', fallbackColorFormat: 'rgba8' })
     expect((manifest.modules?.[0] as Readonly<Cinema2ModuleManifest>).config?.hdr).toBe(true)
     const finish = (manifest.effects ?? []).find(effect => effect.typeId === 'cinematic-finish')
     expect(finish?.parameters).toMatchObject({ toneMap: 1 })
     expect((finish?.parameters as { aberration: number }).aberration).toBeLessThanOrEqual(0.05)
-    expect(manifest.cameras?.[0]?.minAspect).toBeCloseTo(16 / 9)
+    // Composed at 16:9; a narrower Stage crops the outer trees first and only widens vertically below 1.3:1, so the logo stays large.
+    expect(manifest.cameras?.[0]?.minAspect).toBe(1.3)
     // The front fill lights the models but stays out of the haze (aimed from the camera, it veiled the scene).
     const fill = (manifest.lighting?.lights ?? []).find(light => light.id === 'reliquary-fill')
     expect((fill as { config?: { scatter?: boolean } } | undefined)?.config?.scatter).toBe(false)

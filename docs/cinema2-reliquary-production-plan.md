@@ -292,6 +292,22 @@ Still short of the mockup:
 
 **Done when:** the owner compares the two side by side and signs off.
 
+### Phase 6b: Pre-tuning fixes (after the owner's review of phase 6)
+
+Comparing the owner's screenshot of the app (nearly square Stage) with the mockup showed four structural gaps to fix before phase 7:
+1. framing on the Stage;
+2. the crystal reads as chrome, not clear cut glass;
+3. the golden tree's limbs should sweep along the outer lobes, and its roots should be many thin glowing tendrils, not a pile of blades;
+4. the background vines should be thin with sparkle points, not broad ribbons, and the bark should not reflect pale.
+
+**1. Framing: done (2026-09-30).**
+- **Problem:** `minAspect` was 16:9, so on the owner's ~1.09:1 Stage the whole 16:9 width was fitted and the logo shrank to about a third of the frame width, with empty floor below.
+- **Fix:** `minAspect` is now 1.3. A narrower Stage first crops the outer trees off the sides and only widens vertically below 1.3:1, and the camera target moved from y -0.4 to -0.42.
+- **Result:** at 1594×1460 the logo is about 45% of the frame width (was about 33%), with the root flare and the inner edges of the framing trees in view. 16:9 is unchanged.
+- **Limit found:** going tighter (1.15 or 1.05) pushes the roots off the bottom before the logo reaches the mockup's size. Our golden tree's trunk is about 77% of the logo's height from the logo to the floor, against about 45% in the mockup. Closing that is part of item 3: a shorter trunk with the logo lower on it.
+
+Items 2-4: not started.
+
 ## 4. Acceptance checks
 
 For the mockup, at 16:9 and at the owner's Stage aspect:

@@ -595,14 +595,16 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     label: 'RELIQUARY Front',
     projection: 'perspective' as const,
     fovDegrees: 34,
-    // Composed at 16:9; on a narrower Stage (the app's is nearly square) the view widens vertically instead of cropping the framing trees.
-    minAspect: 16 / 9,
+    // Composed at 16:9. On a narrower Stage the view first crops the sides (the outer trees go off the edges, so the logo and the golden tree
+    // stay as large as the mockup's); only below 1.3:1 does it widen vertically, so on the app's nearly square Stage the root flare and the
+    // inner edges of the framing trees stay in view. Fitting the full 16:9 width there shrank the logo to about a third of the frame.
+    minAspect: 1.3,
     near: 0.1,
     far: 60,
     // Framed on the owner's mockup at 16:9: the logo about 40% of the frame width, a little above the middle; the golden tree and its root
     // flare on the wet floor under it; the foreground trees framing both edges and the forest behind.
     transform: Object.freeze({ position: vec3(0, -0.5, 4.9) }),
-    target: vec3(0, -0.4, 0),
+    target: vec3(0, -0.42, 0),
     rig: Object.freeze({ kind: 'static' as const }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_RELIQUARY_CAMERA_ID) }),
