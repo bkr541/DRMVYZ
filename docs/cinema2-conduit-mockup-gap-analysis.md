@@ -238,3 +238,39 @@ The owner's comparison: the four tubes are about 2.5 times too thick and swallow
 - **Result:** the wordmark spans about 53% of the frame width at 16:9 (mockup about 51%) and about 50% on the owner's 1594×1460 Stage (was about 39-46%).
 - **Budget.** The bigger mark pushed CONDUIT 147 KB over its low-tier asset budget, so the glow bands are sampled every 0.05 (was 0.04). `npm run assets:check` and the CONDUIT and asset-budget tests pass.
 - **Tubes.** They were regenerated to the new attachment points, but are still the old size and route, so they still overlap the outer letters; that is step 3.
+
+**Step 3: done.**
+- **Style.** Kept the current design: chrome pipe, LED channel and machined couplers. The owner did not choose the mockup's glass glowing-core style, which can still be done later.
+- **Size.**
+  - Pipe radius 0.145 (was 0.235): a tube's diameter is now about 18% of the wordmark's height (was nearly half), close to the mockup's 16%. The channel, LED bars and coupler rings follow the radius.
+  - Couplers 0.7 long (was 1.15), sinking 0.04 into the frame (was 0.08). LED bars 0.26 long with 0.045 ribs, lips 0.011.
+  - Flanges scaled to 0.6 of their modelled size, with the neck still matching the pipe.
+- **Route.**
+  - Flanges at the upper and lower corners (y 4.6 and 0.45), angled slightly toward the wordmark. Each tube sweeps in one smooth diagonal S and meets the wordmark's end at about 30°.
+  - The spline's middle point is computed between the two ends, replacing the hand-placed points.
+  - A first try at 20°, with the flanges moved toward the middle, ran the tubes nearly flat with kinks.
+- **Result.** At 16:9 and on the owner's Stage, the tubes no longer cover any letters, and their proportions match the mockup.
+- **Budget.** 78k triangles; `npm run assets:check` and the CONDUIT and asset-budget tests pass.
+
+**Fix after the owner's review of step 3: coupler slimmed (2026-10-01).**
+- **Problem:** the owner's screenshot showed the tube ends still covering the wordmark's corners. The analysis found four causes: the tube ends in front of the letters; the bulky coupler sits at the very end; it runs over the frame's face; and the collars are wide. Of the four fixes proposed, the owner chose only the coupler slimming for now.
+- **Change:** `COUPLER_BULGE` = 0.48 scales the couplers' bulge past the pipe, so the widest collars are 1.3x the pipe radius (were 1.62x). Grooves, rings, slotted blocks (now 0.035) and glow rings keep their proportions. The turned profile uses 40 segments (was 44), keeping CONDUIT within its low-tier asset budget (it went 9 KB over otherwise).
+- **Result:** the couplers are visibly slimmer and cover less of the corners.
+- **Still open:** the coupler still overlaps the upper "D" and "M" corners and the lower swash ends, because it still ends in front of the letters. The other three fixes (end the tube behind the wordmark, move the coupler back along the tube with a short plain pipe into the frame, and push the attachment points to the outline's outer extremities) would clear it.
+
+**Rerouted to the owner's sketch (2026-10-01).**
+- **The sketch:** the owner drew each tube running inward above (or below) the wordmark and plugging into its top (or bottom) edge near the ends, at the upper left of the "D" and under the left swash, mirrored on the right. Confirmed: mirror the right side exactly; keep the ribbed coupler, set back from the word.
+- **Attachment points.** In `generate-conduit-wordmark.mjs` they are the outline points nearest targets set as fractions of the mark's half width and height (upper (-0.66, 1.6), lower (-0.66, -1.6)). The layout file now gives upper-left (-1.75, 2.878) on the top edge and lower-left (-1.848, 1.406) on the bottom edge.
+- **Route.** Each tube leaves its corner flange, runs inward at about the flange's height and sweeps through a smooth two-point bend onto a straight end that comes down onto the top edge (or up into the bottom edge), leaning a little inward. Its last part is:
+  - the slim coupler;
+  - a 0.3 plain pipe (`PLAIN_LENGTH`) with a slim collar;
+  - the plug into the outline's edge 0.07 behind the wordmark's centre plane, sinking only 0.02.
+
+  The upper tubes have a longer straight run before the bend (0.75) than the lower ones (0.3), which run close to the floor.
+- **Overlap check (new).** The wordmark is rendered as a flat red mask with and without the tubes. The covered share of its silhouette, eroded 7 px to exclude the bloom fringe and floor reflection, is 0.26% at 1594×1460 and 0.37% at 1280×720: only the contact at the four joints.
+- **Budget.** The longer tubes went 468 KB over CONDUIT's low-tier budget, so their sampling was eased (row pitch 0.06, 24 sides, 8×8 LED bars): 76k triangles. `npm run assets:check` and the CONDUIT and asset-budget tests pass.
+
+**Sketch reroute reverted; tubes now enter through the back (2026-10-01).**
+- **Owner's review:** the top/bottom-edge reroute looked bad and was reverted to the diagonal route. The eased tube sampling stayed, since CONDUIT's budget needs it.
+- **Change.** The last stretch of each tube turns toward the camera (`BACK_TURN` 0.7) and plugs into the back of the wordmark's lip (z -0.2), at a point moved 0.42 in from the frame's outer edge toward the centre (`BACK_INSET`). The joint and the coupler are hidden behind the letters; from the front the tubes run diagonally from the corner flanges and pass behind the wordmark's ends.
+- **Checks.** `npm run assets:check` and the CONDUIT and asset-budget tests pass.

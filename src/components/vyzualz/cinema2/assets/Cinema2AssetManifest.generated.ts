@@ -30,14 +30,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-tubes.glb",
-        "bytes": 3686872,
-        "triangles": 75792
+        "bytes": 3790484,
+        "triangles": 75616
       }
     },
     "gpuBytes": {
-      "high": 3666016,
-      "medium": 3666016,
-      "low": 3666016
+      "high": 3769592,
+      "medium": 3769592,
+      "low": 3769592
     }
   },
   {

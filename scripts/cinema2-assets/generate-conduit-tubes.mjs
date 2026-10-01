@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
-import { gridMesh, lathe, merged, mirroredX, placed, roundedBox } from './cinema2-hard-surface-kit.mjs'
+import { gridMesh, lathe, merged, mirroredX, placed, roundedBox, transformed } from './cinema2-hard-surface-kit.mjs'
 import { frameSamples, hash, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -34,27 +34,47 @@ const ATTACH = LAYOUT.attachments
 
 /** The camera CONDUIT is framed for; the channel runs along the side of each pipe that faces it. */
 const CAMERA = new THREE.Vector3(0, 1.92, 7)
-const R = 0.235
-const COUPLER_LENGTH = 1.15
-/** How far the tube's mouth sinks into the frame past its outer edge. */
-const SINK = 0.08
+/**
+ * Pipe radius. Proportioned to the wordmark like the owner's mockup: a tube's diameter is about a sixth of the wordmark's height (it was 0.235,
+ * nearly half the height, and the tubes swallowed the wordmark's corners). The channel, LED bars and couplers are sized from it.
+ */
+const R = 0.145
+const COUPLER_LENGTH = 0.7
+/**
+ * How far the couplers bulge past the pipe, as a share of their modelled bulge: 0.48 makes the widest collars 1.3x the pipe radius (were 1.62x),
+ * so they no longer stand out over the wordmark's frame. Grooves, rings, blocks and glow rings keep their proportions.
+ */
+const COUPLER_BULGE = 0.48
+/** How far the tube's mouth sinks into the wordmark's back. */
+const SINK = 0.04
+/**
+ * The tubes plug into the BACK of the wordmark, hidden behind it: the end point moves this far in from the frame's outer edge (toward the
+ * wordmark's centre), so the whole joint sits behind the silhouette, and sits on the back of the frame's lip (z, world).
+ */
+const BACK_INSET = 0.42
+const BACK_Z = -0.2
+/** How strongly the last stretch turns to come in from behind (0: along the old diagonal; 1: straight toward the camera). */
+const BACK_TURN = 0.7
+/** The wall flanges are modelled at full size and scaled by this (their neck still matches the pipe). */
+const FLANGE_SCALE = 0.6
 /** Length of the flange (housing to neck) along its axis; the pipe starts where it ends. */
-const FLANGE_LENGTH = 0.5
+const FLANGE_LENGTH = 0.5 * FLANGE_SCALE
 /** The channel: its half-angle either side of the camera-facing line, its floor radius, and the stretch of the pipe (fractions) it runs. */
 const CHANNEL = { half: (42 * Math.PI) / 180, floor: 0.72 * R, from: 0.04, to: 0.975 }
 /** LED bars in the channel: half-angle, dome height above the channel floor, nominal length, and the chrome rib between two bars. */
-const LED = { half: (33 * Math.PI) / 180, height: 0.22 * R, length: 0.42, rib: 0.075, ribTop: 0.93 * R }
+const LED = { half: (33 * Math.PI) / 180, height: 0.22 * R, length: 0.26, rib: 0.045, ribTop: 0.93 * R }
 /** The channel's rolled lips: a bead of this radius along each edge. */
-const LIP_RADIUS = 0.022
+const LIP_RADIUS = 0.011
 
 /**
  * The two left tubes (the right ones mirror them). `flange` is the wall mount's centre and `axis` the way it faces (into the room and a little
- * toward the camera); `via` are the spline's inner control points; `attach` is the frame's edge point and `arrive` the direction the straight
- * coupler comes in from.
+ * toward the camera); `attach` is the frame's edge point and `arrive` the direction the straight coupler comes in from. As in the mockup, each
+ * leaves its high (or low) corner flange into the room and sweeps in one gentle diagonal S to meet the wordmark's end (about 30 degrees); the
+ * spline's middle is placed automatically between the two ends.
  */
 const LEFT_TUBES = [
-  { name: 'upper', flange: [-4.82, 4.5, -1.25], axis: [1, 0, 0.5], via: [[-3.95, 4.42, -0.85], [-3.35, 4.02, -0.55], [-2.95, 3.62, -0.35]], attach: ATTACH.upper, arrive: [0.812, -0.584, 0.12] },
-  { name: 'lower', flange: [-4.95, 0.45, -1.25], axis: [1, 0, 0.5], via: [[-4.05, 0.6, -0.85], [-3.55, 0.9, -0.55]], attach: ATTACH.lower, arrive: [0.805, 0.593, 0.12] },
+  { name: 'upper', flange: [-4.82, 4.6, -1.25], axis: [1, -0.25, 0.5], attach: ATTACH.upper, arrive: [0.86, -0.48, 0.14] },
+  { name: 'lower', flange: [-4.95, 0.45, -1.25], axis: [1, 0.25, 0.5], attach: ATTACH.lower, arrive: [0.86, 0.48, 0.14] },
 ]
 
 const MATERIALS = {
@@ -77,11 +97,18 @@ const glowRing = (r0, r1, y0, y1) => lathe(Array.from({ length: 9 }, (_, k) => {
 function buildLeftTube(spec) {
   const flange = v3(spec.flange)
   const axis = v3(spec.axis).normalize()
-  const arrive = v3(spec.arrive).normalize()
-  const end = v3(spec.attach).addScaledVector(arrive, SINK)
+  // Come in from behind: the old diagonal approach, turned toward the camera, ending on the wordmark's back, inset from its outer edge.
+  const diagonal = v3(spec.arrive).normalize()
+  const arrive = diagonal.clone().multiplyScalar(1 - BACK_TURN).add(new THREE.Vector3(0, 0, BACK_TURN)).normalize()
+  const attach = v3(spec.attach)
+  const towardCentre = new THREE.Vector3(-attach.x, LAYOUT.wordmark.centre[1] - attach.y, 0).normalize()
+  attach.addScaledVector(towardCentre, BACK_INSET).setZ(BACK_Z)
+  const end = attach.clone().addScaledVector(arrive, SINK)
   const couplerStart = end.clone().addScaledVector(arrive, -COUPLER_LENGTH)
   const pipeStart = flange.clone().addScaledVector(axis, FLANGE_LENGTH)
-  const control = [pipeStart, pipeStart.clone().addScaledVector(axis, 0.35), ...spec.via.map(v3), couplerStart.clone().addScaledVector(arrive, -0.4), couplerStart]
+  const leave = pipeStart.clone().addScaledVector(axis, 0.35)
+  const lead = couplerStart.clone().addScaledVector(arrive, -0.45)
+  const control = [pipeStart, leave, leave.clone().lerp(lead, 0.5), lead, couplerStart]
   const { centres, tangents } = frameSamples(control.map(p => [p.x, p.y, p.z]), 260)
   const arc = [0]
   for (let i = 1; i < centres.length; i += 1) arc.push(arc[i - 1] + centres[i].distanceTo(centres[i - 1]))
@@ -104,9 +131,9 @@ function buildLeftTube(spec) {
   }
   const dirAt = (f, theta) => f.front.clone().multiplyScalar(Math.cos(theta)).addScaledVector(f.side, Math.sin(theta))
   const tangentialAt = (f, theta) => f.front.clone().multiplyScalar(-Math.sin(theta)).addScaledVector(f.side, Math.cos(theta))
-  const rowsFor = (s0, s1, pitch = 0.045) => Math.max(1, Math.ceil((s1 - s0) / pitch))
+  const rowsFor = (s0, s1, pitch = 0.06) => Math.max(1, Math.ceil((s1 - s0) / pitch))
   /** A surface of revolution about the pipe's spine between s0 and s1, over angles a0..a1, at radius `radius(s, theta)`. */
-  const sweep = (s0, s1, a0, a1, radius, cols, outward = (f, theta) => dirAt(f, theta), pitch = 0.045) => {
+  const sweep = (s0, s1, a0, a1, radius, cols, outward = (f, theta) => dirAt(f, theta), pitch = 0.06) => {
     const rows = rowsFor(s0, s1, pitch)
     const frames = Array.from({ length: rows + 1 }, (_, r) => frameAt(s0 + ((s1 - s0) * r) / rows))
     const thetaOf = c => a0 + ((a1 - a0) * c) / cols
@@ -125,7 +152,7 @@ function buildLeftTube(spec) {
 
   // ── Pipe body: open along the channel, closed before and after it ──
   const pipe = [
-    sweep(0, pipeLength, H, Math.PI * 2 - H, () => R, 30),
+    sweep(0, pipeLength, H, Math.PI * 2 - H, () => R, 24),
     sweep(0, s0, -H, H, () => R, 8),
     sweep(s1, pipeLength, -H, H, () => R, 8),
   ]
@@ -167,7 +194,7 @@ function buildLeftTube(spec) {
   const windows = []
   for (let k = 0; k < count; k += 1) {
     const a = s0 + 0.02 + k * pitch, b = a + pitch - LED.rib
-    const rows = 10, cols = 10
+    const rows = 8, cols = 8
     const frames = Array.from({ length: rows + 1 }, (_, r) => frameAt(a + ((b - a) * r) / rows))
     // A domed bar with rounded ends: the width and the dome pinch in over the last few rows at each end.
     const pinch = r => Math.sqrt(Math.max(0, 1 - Math.pow((2 * r) / rows - 1, 8)))
@@ -191,7 +218,7 @@ function buildLeftTube(spec) {
     [0.66, 0.075], [0.69, 0.095], [0.69, 0.165], [0.66, 0.185],
     [0.57, 0.185], [0.57, 0.175], [0.49, 0.175], [0.49, 0.2],
     [0.46, 0.22], [0.45, 0.3], [0.41, 0.33],
-    [0.3, 0.33], [0.28, 0.35], [0.28, 0.45], [0.25, 0.47], [R * 1.02, FLANGE_LENGTH],
+    [0.3, 0.33], [0.28, 0.35], [0.28, 0.45], [0.25, 0.47], [(R * 1.02) / FLANGE_SCALE, 0.5],
   ]
   const flangeParts = [lathe(flangeProfile, 48)]
   const hex = lathe([[0, 0], [0.034, 0], [0.034, 0.03], [0.026, 0.042], [0, 0.042]], 6)
@@ -200,31 +227,33 @@ function buildLeftTube(spec) {
     flangeParts.push(placed(hex, new THREE.Vector3(Math.cos(angle) * 0.62, 0.185, Math.sin(angle) * 0.62), new THREE.Vector3(0, 1, 0)))
   }
   const flangeGlow = glowRing(0.49, 0.555, 0.176, 0.2)
-  const inFlange = mesh => placed(mesh, flange, axis)
+  const inFlange = mesh => placed(transformed(mesh, new THREE.Matrix4().makeScale(FLANGE_SCALE, FLANGE_SCALE, FLANGE_SCALE)), flange, axis)
 
   // ── Coupler: one lathe profile along the straight approach, y in units of the coupler length ──
   const L = COUPLER_LENGTH
+  /** A coupler radius: `m` times the pipe radius as modelled, with the bulge above the pipe slimmed by COUPLER_BULGE. */
+  const cr = m => R * (1 + (m - 1) * COUPLER_BULGE)
   const couplerProfile = [
-    [R * 0.98, -0.02], [R * 1.0, 0], [R * 1.48, 0], [R * 1.62, 0.025 * L], [R * 1.62, 0.1 * L], [R * 1.48, 0.125 * L],
-    [R * 1.34, 0.125 * L], [R * 1.34, 0.2 * L], [R * 1.26, 0.205 * L], [R * 1.26, 0.225 * L], [R * 1.34, 0.23 * L], [R * 1.34, 0.36 * L],
-    [R * 1.1, 0.365 * L], [R * 1.1, 0.475 * L], [R * 1.34, 0.48 * L],
-    [R * 1.34, 0.6 * L], [R * 1.27, 0.605 * L], [R * 1.27, 0.62 * L], [R * 1.34, 0.625 * L], [R * 1.34, 0.72 * L],
-    [R * 1.5, 0.725 * L], [R * 1.56, 0.745 * L], [R * 1.56, 0.83 * L], [R * 1.5, 0.85 * L],
-    [R * 1.22, 0.855 * L], [R * 1.22, 0.9 * L],
-    [R * 1.48, 0.905 * L], [R * 1.62, 0.925 * L], [R * 1.62, 1.0 * L - SINK * 0.5], [R * 1.4, 1.0 * L - SINK * 0.3], [R * 1.4, L + 0.05], [R * 0.9, L + 0.05],
+    [R * 0.98, -0.02], [cr(1.0), 0], [cr(1.48), 0], [cr(1.62), 0.025 * L], [cr(1.62), 0.1 * L], [cr(1.48), 0.125 * L],
+    [cr(1.34), 0.125 * L], [cr(1.34), 0.2 * L], [cr(1.26), 0.205 * L], [cr(1.26), 0.225 * L], [cr(1.34), 0.23 * L], [cr(1.34), 0.36 * L],
+    [cr(1.1), 0.365 * L], [cr(1.1), 0.475 * L], [cr(1.34), 0.48 * L],
+    [cr(1.34), 0.6 * L], [cr(1.27), 0.605 * L], [cr(1.27), 0.62 * L], [cr(1.34), 0.625 * L], [cr(1.34), 0.72 * L],
+    [cr(1.5), 0.725 * L], [cr(1.56), 0.745 * L], [cr(1.56), 0.83 * L], [cr(1.5), 0.85 * L],
+    [cr(1.22), 0.855 * L], [cr(1.22), 0.9 * L],
+    [cr(1.48), 0.905 * L], [cr(1.62), 0.925 * L], [cr(1.62), 1.0 * L - SINK * 0.5], [cr(1.4), 1.0 * L - SINK * 0.3], [cr(1.4), L + 0.05], [R * 0.9, L + 0.05],
   ]
-  const couplerParts = [withPhase(lathe(couplerProfile, 44), (i, mesh) => couplerPhase(Math.min(L, Math.max(0, mesh.positions[i * 3 + 1]))))]
+  const couplerParts = [withPhase(lathe(couplerProfile, 40), (i, mesh) => couplerPhase(Math.min(L, Math.max(0, mesh.positions[i * 3 + 1]))))]
   // Slotted blocks over the first gap; the glow shows between them.
-  const block = roundedBox(0.05, 0.105 * L, 0.05, 0.012)
+  const block = roundedBox(0.035, 0.105 * L, 0.035, 0.009)
   for (let k = 0; k < 10; k += 1) {
     const angle = (k / 10) * Math.PI * 2 + 0.2
-    const r = R * 1.23
+    const r = cr(1.23)
     couplerParts.push(withPhase(placed(block, new THREE.Vector3(Math.cos(angle) * r, 0.42 * L, Math.sin(angle) * r), new THREE.Vector3(0, 1, 0), -angle), couplerPhase(0.42 * L)))
   }
   const couplerGlows = [
-    { mesh: glowRing(R * 1.08, R * 1.2, 0.37 * L, 0.47 * L), y: 0.42 * L },
-    { mesh: glowRing(R * 1.2, R * 1.3, 0.857 * L, 0.898 * L), y: 0.88 * L },
-    { mesh: glowRing(R * 1.24, R * 1.3, 0.203 * L, 0.227 * L), y: 0.215 * L },
+    { mesh: glowRing(cr(1.08), cr(1.2), 0.37 * L, 0.47 * L), y: 0.42 * L },
+    { mesh: glowRing(cr(1.2), cr(1.3), 0.857 * L, 0.898 * L), y: 0.88 * L },
+    { mesh: glowRing(cr(1.24), cr(1.3), 0.203 * L, 0.227 * L), y: 0.215 * L },
   ]
   const inCoupler = mesh => placed(mesh, couplerStart, arrive)
 
