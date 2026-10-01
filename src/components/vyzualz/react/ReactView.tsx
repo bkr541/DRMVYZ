@@ -78,6 +78,7 @@ import {
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
 import { readCinema2LastPresetId, writeCinema2LastPresetId } from './cinema2WorkspacePreferences'
+import { useCinema2WorkspaceRestoreState } from './useCinema2WorkspaceRestoreState'
 import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
@@ -424,7 +425,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     if (lastPresetId && cinema2NativePresetRegistry.has(lastPresetId)) return lastPresetId
     return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
   })
-  const cinema2RestoreState = cinema2WorkspaceSessionStore.getPresetState(cinema2PresetId)
+  const cinema2RestoreState = useCinema2WorkspaceRestoreState(cinema2PresetId)
   const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
     cinema2WorkspaceSessionStore.selectPreset(presetId)

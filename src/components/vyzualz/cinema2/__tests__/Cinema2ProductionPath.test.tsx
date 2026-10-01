@@ -7,6 +7,7 @@ import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFea
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { useReactStore } from '../../../../stores/reactStore'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
+import { useCinema2WorkspaceRestoreState } from '../../react/useCinema2WorkspaceRestoreState'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
 import { ReactEnginePanel } from '../../react/ReactEnginePanel'
 import { CinemaWorkspace } from '../../react/CinemaWorkspace'
@@ -29,6 +30,7 @@ import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2Au
 import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
+  CINEMA2_GO_TO_PRESET_ID,
   CINEMA2_INTERLOCK_PRESET_ID,
   CINEMA2_REACTOR_PRESET_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,
@@ -87,7 +89,7 @@ function ProductionReentryHarness({
 }) {
   const engineId = useReactStore(state => state.activeReactEngineId)
   const [runtime, setRuntime] = React.useState<Cinema2Runtime | null>(null)
-  const restoreState = cinema2WorkspaceSessionStore.getPresetState(presetId)
+  const restoreState = useCinema2WorkspaceRestoreState(presetId)
   return (
     <>
       <ReactEngineBrowser />
@@ -106,6 +108,24 @@ function ProductionReentryHarness({
         </>
       ) : <div data-production-engine={engineId} />}
     </>
+  )
+}
+
+function StrictModeRestoreHarness({
+  presetId,
+  onCinema2RuntimeReady,
+}: {
+  presetId: Cinema2PresetId
+  onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void
+}) {
+  const restoreState = useCinema2WorkspaceRestoreState(presetId)
+  return (
+    <Cinema2Stage
+      presetId={presetId}
+      restoreState={restoreState}
+      onRuntimeReady={onCinema2RuntimeReady}
+      onRuntimeRetiring={state => cinema2WorkspaceSessionStore.storePresetState(state)}
+    />
   )
 }
 
@@ -426,6 +446,66 @@ describe('Cinema 2.0 production sibling path', () => {
     })
     expect(CinemaResizeObserverMock.instances.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
   }, 20_000)
+
+  it('keeps a 3D preset activation stable when StrictMode retirement stores its initial restore snapshot', async () => {
+    const before = getCinema2RuntimeDiagnostics()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => callbacks.delete(id)))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
+    ))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960,
+      height: 540,
+      top: 0,
+      left: 0,
+      right: 960,
+      bottom: 540,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    const runtimeRef: { current: Cinema2Runtime | null } = { current: null }
+    cinema2WorkspaceSessionStore.selectPreset(CINEMA2_GO_TO_PRESET_ID)
+    useReactStore.getState().selectReactEngine('cinema2')
+
+    await act(async () => root?.render(
+      <React.StrictMode>
+        <StrictModeRestoreHarness
+          presetId={CINEMA2_GO_TO_PRESET_ID}
+          onCinema2RuntimeReady={runtime => { runtimeRef.current = runtime }}
+        />
+      </React.StrictMode>,
+    ))
+
+    expect(runtimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_GO_TO_PRESET_ID)
+    expect(cinema2WorkspaceSessionStore.getPresetState(CINEMA2_GO_TO_PRESET_ID)).not.toBeNull()
+    expect(callbacks.size).toBe(1)
+    expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+      createdRuntimeCount: before.createdRuntimeCount + 2,
+      disposedRuntimeCount: before.disposedRuntimeCount + 1,
+      activeRuntimeCount: before.activeRuntimeCount + 1,
+      activeAnimationFrameCount: before.activeAnimationFrameCount + 1,
+      activeWebGLContextCount: before.activeWebGLContextCount + 1,
+    })
+
+    const scheduled = [...callbacks.entries()][0]
+    expect(scheduled).toBeDefined()
+    callbacks.delete(scheduled![0])
+    await act(async () => scheduled![1](16.67))
+    expect(callbacks.size).toBe(1)
+    expect(getCinema2RuntimeDiagnostics()).toMatchObject({
+      createdRuntimeCount: before.createdRuntimeCount + 2,
+      disposedRuntimeCount: before.disposedRuntimeCount + 1,
+      activeRuntimeCount: before.activeRuntimeCount + 1,
+    })
+  })
 
   it('captures canonical Music Intelligence through the real Cinema 2.0 Stage runtime path', async () => {
     const audioDiagnosticsBefore = getCinema2AudioIntelligenceBridgeDiagnostics()
