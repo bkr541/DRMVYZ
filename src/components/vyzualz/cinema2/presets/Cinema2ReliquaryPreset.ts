@@ -144,7 +144,7 @@ const STROBE_PEAK = 3.5
 /** The glow renders HDR (float targets), so a lit vine can be several times brighter than white before the filmic curve rolls it off. */
 const GLOW_STRENGTH = 2.2
 /** Warm spill lights by the foreground trees: a low resting level, lifted on each downbeat. */
-const SPILL_REST = 0.25
+const SPILL_REST = 0.3
 /**
  * Each material's share of the studio environment. Kept low for the crystal so it is not evenly lit all the time: the overhead spots do the
  * lighting, and a part they are not hitting falls into shadow (the owner's mockups). The gold a little so it reads as warm polished metal, and
@@ -157,8 +157,11 @@ const GOLD_ENVIRONMENT = 0.45
  * not the room, should give it its colour, as in the mockup.
  */
 const VINE_ENVIRONMENT = 0.12
-/** The bark reflects none of the environment: even a little lit the dark trunks a pale grey-cream (the mockup's bark stays near black). */
-const BARK_ENVIRONMENT = 0
+/**
+ * The bark's share of the gem environment (near black with small hard lights): the wet trunks catch glossy highlights along their grooves, as in
+ * the mockup, and stay dark between them. (The soft studio room, even at 0.15, lit them a pale grey-cream.)
+ */
+const BARK_ENVIRONMENT = 0.32
 
 const baseParameter = {
   section: 'Design',
@@ -395,8 +398,8 @@ function spillLight(id: Cinema2LightId, position: Cinema2Vector3) {
     transform: Object.freeze({ position }),
     node: cinema2Ref(ROOT_NODE_ID),
     controls: Object.freeze({ color: cinema2Ref(CINEMA2_RELIQUARY_GLOW_COLOR_ID) }),
-    // It also lights the low ground mist round the trees, the warm fog of the mockup.
-    config: Object.freeze({ range: 3.2 }),
+    // Kept out of the haze: lighting the mist turned it into an orange glow over the trees (the mockup's mist is grey-white).
+    config: Object.freeze({ range: 4.2, scatter: false }),
   })
 }
 
@@ -544,7 +547,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       parts: Object.freeze(['crystal', 'rings', 'roots', 'veins', 'leaves', 'vines', 'buds', 'bark']),
       // What glows, and how much of the glow each part takes: the thin veins and the tree vines carry it, the leaves and buds catch it,
       // and the gold wood itself warms a little. The dark bark and the crystal do not glow.
-      glow: Object.freeze({ veins: 1.2, vines: 0.7, buds: 4, leaves: 0.3, roots: 0.12, rings: 0.5 }),
+      glow: Object.freeze({ veins: 1.2, vines: 1.3, buds: 2.2, leaves: 0.3, roots: 0.12, rings: 0.2 }),
       // Embers drifting up through the scene and rising thicker from the golden tree's base (in the glow color, brightening with the music),
       // and dust turning slowly in the light shaft. Medium quality draws half, low none.
       particles: Object.freeze([
@@ -587,7 +590,7 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         transform: Object.freeze({ position: vec3(aim[0], aim[1] + LOGO_HEIGHT, aim[2]) }),
       })),
       Object.freeze({ id: STROBE_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, -0.2, 0) }) }),
-      Object.freeze({ id: BACK_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(-1.6, -1.55, -9.8) }) }),
+      Object.freeze({ id: BACK_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(-3, -1.55, -16) }) }),
     ]),
     roots: Object.freeze([cinema2Ref(ROOT_NODE_ID)]),
   }),
@@ -653,8 +656,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         config: Object.freeze({ coneAngleDegrees: 30, penumbra: 0.8, range: 30, scatter: false }),
       }),
       // Warm spill from the glowing vines onto the bark and the floor round the foreground trees, swelling on the downbeat with the glow.
-      spillLight(SPILL_LEFT_LIGHT_ID, vec3(-2.6, -0.7, -0.3)),
-      spillLight(SPILL_RIGHT_LIGHT_ID, vec3(2.6, -0.7, -0.3)),
+      spillLight(SPILL_LEFT_LIGHT_ID, vec3(-1.85, 0.2, -0.7)),
+      spillLight(SPILL_RIGHT_LIGHT_ID, vec3(1.85, 0.2, -0.7)),
       Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.2, 0.18, 0.16), intensity: 0.08 }),
     ]),
   }),
@@ -686,8 +689,8 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       // Haze in the air so the overhead beams, the strobe and the back light read as shafts of light and the forest has depth, plus low thin
       // ground mist round the roots and the tree bases (kept under the logo so it never washes out the crystal or the floor reflections).
       parameters: Object.freeze({
-        mix: 1, density: 0.03, beamIntensity: 2.2, mistAmount: 1.0, mistHeight: 0.32, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.4, anisotropy: 0.6,
-        occlusion: 0.6, ambientHaze: 0.02, noiseScale: 0.3, noiseStrength: 0.55, drift: 0.1, maxDistance: 34, reactivity: 0.6,
+        mix: 1, density: 0.03, beamIntensity: 2.2, mistAmount: 1.5, mistHeight: 0.32, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.4, anisotropy: 0.6,
+        occlusion: 0.6, ambientHaze: 0.05, noiseScale: 0.3, noiseStrength: 0.55, drift: 0.1, maxDistance: 34, reactivity: 0.6,
       }),
       parameterBindings: Object.freeze({ density: cinema2Ref(CINEMA2_RELIQUARY_HAZE_ID), beamIntensity: cinema2Ref(CINEMA2_RELIQUARY_BEAM_ID) }),
     }),

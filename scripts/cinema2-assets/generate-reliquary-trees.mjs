@@ -285,7 +285,9 @@ for (const part of ['bark', 'vines', 'buds']) {
 // ── PBR materials (Linear-sRGB). Bark: near-black brown, slightly glossy like the mockup's wet-looking trunks, with the bark texture. Vines
 // and leaves: polished gold; the audio glow adds their light on top (the leaves carry a faint glow of their own so they read between pulses).
 const MATERIALS = {
-  bark: { baseColorFactor: [0.035, 0.024, 0.016, 1], metallicFactor: 0, roughnessFactor: 1, textures: { normal: bark.normal, metallicRoughness: bark.metallicRoughness, normalScale: 1 } },
+  // A little metallic with a dark warm-brown base, so the wet bark's highlights come out warm brown, as in the mockup (a plain dielectric
+  // reflects white, and the trunks read cool silver).
+  bark: { baseColorFactor: [0.12, 0.068, 0.034, 1], metallicFactor: 0.5, roughnessFactor: 1, textures: { normal: bark.normal, metallicRoughness: bark.metallicRoughness, normalScale: 1 } },
   // Dark burnished gold: unlit, a vine reads as a dark line on the bark, and the glow gives it its color (a bright gold picked up the haze and
   // read pale beige).
   vines: { baseColorFactor: [0.4, 0.24, 0.08, 1], metallicFactor: 1, roughnessFactor: 0.3 },

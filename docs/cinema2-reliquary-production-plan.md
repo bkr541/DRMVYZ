@@ -1,7 +1,7 @@
 # RELIQUARY: production plan
 
 **Date:** 2026-09-30
-**Status:** Phases 1-6 built (2026-09-30), awaiting the owner's review in the app. Phase 7 not started.
+**Status:** Phases 1-7 built (2026-10-01); phase 7's owner review in the app and the MacBook frame-time check are still to do.
 
 **Related:**
 - `docs/cinema2-reliquary-cinematic-plan.md` is the earlier plan (Stage 1 steps 1-7 done, step 8 shadows blocked). This document takes over from it.
@@ -291,6 +291,29 @@ Still short of the mockup:
 5. **Docs:** update this document and `docs/cinema2-reliquary-cinematic-plan.md` with the results.
 
 **Done when:** the owner compares the two side by side and signs off.
+
+**Result (2026-10-01):** tuned in the render harness against the mockup at 16:9 and at 1594×1460, while playing and on a drop. Awaiting the owner's review in the app.
+
+- **Orange fog.** The warm spill lights are out of the haze again (`scatter: false`): lighting the mist made an orange glow over the foreground trees. They moved in by the new tree positions (x ±1.85, y 0.2, z -0.7, range 4.2) and rest at 0.3.
+- **Bark.** It now reflects the gem room (environment 0.32), so the wet trunks catch highlights along their grooves instead of reading as black shapes. The bark is baked slightly metallic (0.5) with a dark warm-brown base, so those highlights are warm brown, not cool silver.
+- **White wedge.** The light shaft now lands far behind the forest (-3, -1.55, -16), and the wedge behind the trunk is mostly gone.
+  - Tried and reverted: a brighter low ground mist (`ambientHaze` 0.5 with `ambientHeight` 0.45). The shaft lit it into a white glow behind the trunk that washed out the logo; ablation showed the combination was the cause.
+  - Mist amount is 1.5.
+- **Floor rings.** Two faint rings near the roots (radius 1.6 and 1.9, glow share 0.2), where there were three out to 2.75 at 0.5.
+- **Glow reaction.** Measured on the right-hand tree's vines over 4 s per mode, with the music at energy 0.75. Before tuning the swing was about 8 of 255, and Master Intensity 0 looked like 1: the sparkles rested above white and the spill lights kept the vines lit.
+  - Vines' glow share 1.3 (was 0.7), sparkles 2.2 (was 4), spill rest 0.3.
+  - Now the highlights swing 34 (Energy), 24 (Breathing), 29 (Energy & Breathing) and 24 (BPM Sync off), against 13 at Master 0. Mean vine brightness is 37 at Master 0 and 48 in Energy & Breathing.
+- **Frame times** (1080p, this harness):
+  - High: 17-22 ms GPU and about 19 ms CPU, so about 50-53 fps. The committed code measured the same in this session (22 ms GPU, 19.6 ms CPU), so this phase added no cost.
+  - Medium and low hold 60 fps.
+  - High's CPU time (about 19 ms, against 4 on medium) is the open item for the owner's MacBook check.
+- **Tests.** The full Cinema 2.0 suite shows the same failures as the committed code. `npm run assets:check` passes.
+
+**Still short of the mockup:**
+- its glow is denser and brighter overall (an offline render);
+- its light shaft has a bright source glare at the top of the frame;
+- its ground mist is a visible grey-white band, which ours cannot reach without the shaft washing out the logo;
+- its roots are finer and interwoven.
 
 ### Phase 6b: Pre-tuning fixes (after the owner's review of phase 6)
 

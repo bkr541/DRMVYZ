@@ -231,7 +231,7 @@ for (const side of [1, -1]) {
 
 // Ripple rings on the floor round the root flare (the mockup's rings of light on the wet floor; the model's platform edge): thin grooves lying
 // half sunk in the floor. They take a little of the glow, starting at the root tips' phase, so a pulse leaves the tree as a ripple.
-for (const [k, radius] of [1.95, 2.3, 2.75].entries()) {
+for (const [k, radius] of [1.6, 1.9].entries()) {
   const points = Array.from({ length: 97 }, (_, i) => {
     const a = (i / 96) * Math.PI * 2
     return [Math.cos(a) * radius, FLOOR_Y + 0.002, Math.sin(a) * radius * 0.92]
