@@ -109,13 +109,13 @@ const BACKGROUND = color(0.02, 0.02, 0.022)
 /** Chamber floor height (the assets' world frame). */
 const FLOOR_Y = 0
 /**
- * Segment brightness. The scene renders HDR, so a lit LED is many times brighter than the white letters: the finish's filmic curve turns its
- * core warm white, the HDR bloom wraps it in an orange halo, and the floor reflects it as light.
+ * Keep the emitter brighter than the pearl letters without turning the adjacent metal into a second light source. The segment shader
+ * supplies the narrow white-hot center; this strength sets the peak without changing the pattern's quieter resting level.
  */
-const SEGMENT_STRENGTH = 10
+const SEGMENT_STRENGTH = 9
 /** How much each LED's light gathers into a hot centre line where its rounded diffuser faces the camera. */
-const SEGMENT_CORE = 0.7
-const ENERGY_LIGHT_REST = 0.22
+const SEGMENT_CORE = 0.88
+const ENERGY_LIGHT_REST = 0.16
 
 const PATTERN_LABELS: Readonly<Record<Cinema2ThreeSegmentPattern, string>> = Object.freeze({
   energyFlow: 'Energy Flow',
@@ -334,7 +334,7 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
  * The LED diffusers, when a segment is dark: near-black smoked glass, like the owner's mockups. Lighter diffusers catch the room's (and the warm
  * energy lights') light, so an off segment looked dimly lit and the pattern only tinted them.
  */
-const LED_OFF = color(0.05, 0.05, 0.055)
+const LED_OFF = color(0.025, 0.025, 0.03)
 /** Midtone brushed silver: brighter than the recessed tracks, but below the pearl letters and emissive LEDs. */
 const SHELL = color(0.47, 0.46, 0.45)
 
@@ -414,6 +414,9 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'iris.environmentIntensity': 0.55,
       'trim.color': color(0.035, 0.035, 0.038),
       'trim.roughness': 0.4,
+      // The inset tube track stays dark around both lit and unlit windows; its rolled chrome lips remain part of `pipe`.
+      'channel.color': color(0.025, 0.024, 0.025),
+      'channel.roughness': 0.5,
       // LED diffusers, as seen when a segment is dark.
       'segments.color': LED_OFF,
       'segments.metalness': 0,

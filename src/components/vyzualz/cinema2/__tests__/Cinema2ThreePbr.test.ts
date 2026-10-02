@@ -307,6 +307,10 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.vertexShader).toContain('vCinema2SegPhase = _glow_phase')
     // Rolled off toward white unless the preset renders HDR (config.hdr) on a GPU with float targets; the stub has none.
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance = mix( 1.0 - exp( - cinema2SegLight ), cinema2SegLight, uCinema2SegHdr )')
+    expect(shader.fragmentShader).toContain('smoothstep( 0.08, 0.45, cinema2SegBrightness )')
+    expect(shader.fragmentShader).toContain('mix( uCinema2SegColor, cinema2SegWhite, cinema2SegHotCore )')
+    expect(shader.fragmentShader).toContain('cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 : 0.4 )')
+    expect(shader.fragmentShader).toContain('min( 1.0, 1.3 * vCinema2SegPhase )')
     expect((shader.uniforms.uCinema2SegHdr as { value: number }).value).toBe(0)
     expect(shader.fragmentShader).not.toContain('uCinema2GlowColor')
     expect((shader.uniforms.uCinema2SegRole as { value: number }).value).toBe(0)

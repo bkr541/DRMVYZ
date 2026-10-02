@@ -24,8 +24,8 @@ import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
  * Flow through a build, and otherwise a rotation of Ring Chase, Split and Energy Flow every four bars. It only changes pattern on a bar line
  * (a drop switches at once), and the change crossfades like a manual one.
  *
- * The emitted light is 1 - e^-(color x strength x brightness) per channel (see the bridge), so a lit LED keeps its hue and only the brightest
- * roll toward a warm-white core.
+ * The bridge gives front-facing LED centers a brightness-dependent white-hot tint while the edges keep Energy Color. HDR targets retain their
+ * emissive range; 8-bit fallback targets apply 1 - e^-light per channel to avoid hard clipping.
  *
  * Everything here is a pure function of the beat clock and the audio, so the GPU shader below and `evaluateCinema2SegmentBrightness` (its
  * TypeScript twin, for tests) give the same answer.

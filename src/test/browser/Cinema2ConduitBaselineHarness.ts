@@ -72,7 +72,8 @@ const requestedVariant = query.get('variant')
 const variant: ConduitCaptureVariant = CONDUIT_CAPTURE_VARIANTS.find(value => value === requestedVariant) ?? 'baseline'
 const requestedQuality = query.get('quality')
 const quality = requestedQuality === 'low' || requestedQuality === 'medium' ? requestedQuality : 'high'
-const captureState = query.get('state') === 'peak' ? 'peak' : 'steady'
+const captureState = query.get('state') === 'peak' ? 'peak' : query.get('state') === 'idle' ? 'idle' : 'steady'
+const captureColor = query.get('color') === 'blue' ? 'blue' : 'default'
 const canvas = document.querySelector<HTMLCanvasElement>('#conduit-capture')
 if (!canvas) throw new Error('The CONDUIT capture canvas is missing.')
 
@@ -136,9 +137,10 @@ for (const [id, value] of [
   [CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID, 0],
   [CINEMA2_CONDUIT_ZOOM_ON_KICK_ID, false],
   [CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID, false],
-  [CINEMA2_CONDUIT_PATTERN_ID, 'pulse'],
+  [CINEMA2_CONDUIT_PATTERN_ID, captureState === 'idle' ? 'energyFlow' : 'pulse'],
   [CINEMA2_CONDUIT_FLICKER_ID, 0],
-  [CINEMA2_CONDUIT_MASTER_INTENSITY_ID, captureState === 'peak' ? 1 : 0],
+  [CINEMA2_CONDUIT_MASTER_INTENSITY_ID, captureState === 'steady' ? 0 : 1],
+  ...(captureColor === 'blue' ? [[CINEMA2_CONDUIT_ENERGY_COLOR_ID, [0.08, 0.48, 1, 1]] as const] : []),
 ] as const) {
   const result = state.setPersistentValue(id, value)
   if (!result.ok) throw new Error(`CONDUIT capture control rejected: ${id}: ${result.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
@@ -148,7 +150,7 @@ runtime.start()
 
 Object.assign(window, {
   __conduitCapture: {
-    variant, quality, state: captureState,
+    variant, quality, state: captureState, color: captureColor,
     triggerPeak: () => { if (captureState === 'peak') audioSection = 'drop' },
     status: () => ({
       frameCount: runtime.getSnapshot().frameCount,

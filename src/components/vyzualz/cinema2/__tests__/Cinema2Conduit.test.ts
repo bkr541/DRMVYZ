@@ -127,6 +127,17 @@ describe('CONDUIT preset', () => {
     expect(manifest.environment?.exposure).toBe(1)
   })
 
+  it('keeps LED diffusers and tube tracks darker than lit emitters without changing Energy Color linkage', () => {
+    const material = module.parameters as Record<string, unknown>
+    const channel = material['channel.color'] as readonly number[]
+    const off = material['energy.color'] as readonly number[]
+    expect(channel[0]).toBeLessThan(0.05)
+    expect(off[0]).toBeLessThan(0.05)
+    expect(material['channel.roughness']).toBeGreaterThan(material['pipe.roughness'] as number)
+    expect(material.segmentCore).toBeGreaterThan(0.8)
+    expect(material.segmentColor).toEqual(parameters.find(parameter => parameter.id === CINEMA2_CONDUIT_ENERGY_COLOR_ID)?.defaultValue)
+  })
+
   it('gives the wordmark pearl faces over dark recessed depth without changing the global grade', () => {
     const material = module.parameters as Record<string, unknown>
     const red = (part: string) => (material[`${part}.color`] as readonly number[])[0]

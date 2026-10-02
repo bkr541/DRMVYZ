@@ -30,12 +30,16 @@ const matrix = smoke
   : [
       ...views.flatMap(view => tiers.flatMap(quality => states.map(state => ({ view, quality, state, variant: 'baseline' })))),
       ...diagnosticVariants.map(variant => ({ view: views[0], quality: 'high', state: 'steady', variant })),
+      { view: views[0], quality: 'high', state: 'idle', variant: 'baseline' },
+      { view: views[0], quality: 'high', state: 'steady', variant: 'baseline', color: 'blue' },
+      { view: views[0], quality: 'high', state: 'peak', variant: 'baseline', color: 'blue' },
     ]
+const labelOf = entry => `${entry.view.name}-${entry.quality}-${entry.state}-${entry.variant}${entry.color ? `-${entry.color}` : ''}`
 const selectedLabels = onlyArgument ? new Set(onlyArgument.slice('--only='.length).split(',')) : null
 const cases = selectedLabels
-  ? matrix.filter(entry => selectedLabels.has(`${entry.view.name}-${entry.quality}-${entry.state}-${entry.variant}`))
+  ? matrix.filter(entry => selectedLabels.has(labelOf(entry)))
   : matrix
-if (selectedLabels && cases.length !== selectedLabels.size) throw new Error(`Unknown --only case label. Available labels: ${matrix.map(entry => `${entry.view.name}-${entry.quality}-${entry.state}-${entry.variant}`).join(', ')}`)
+if (selectedLabels && cases.length !== selectedLabels.size) throw new Error(`Unknown --only case label. Available labels: ${matrix.map(labelOf).join(', ')}`)
 
 /** Coarse spatial diagnostics, not semantic masks or a perceptual match score. */
 const regions = {
@@ -103,8 +107,8 @@ try {
   context = await browser.newContext({ deviceScaleFactor: 1 })
   const results = []
   for (const entry of cases) {
-    const { view, quality, state, variant } = entry
-    const label = `${view.name}-${quality}-${state}-${variant}`
+    const { view, quality, state, variant, color } = entry
+    const label = labelOf(entry)
     const page = await context.newPage()
     await page.setViewportSize({ width: view.width, height: view.height })
     const errors = []
@@ -115,6 +119,7 @@ try {
       url.searchParams.set('quality', quality)
       url.searchParams.set('state', state)
       url.searchParams.set('variant', variant)
+      if (color) url.searchParams.set('color', color)
       await page.goto(url.href, { waitUntil: 'domcontentloaded' })
       await page.waitForFunction(() => {
         const capture = globalThis.__conduitCapture
@@ -133,9 +138,9 @@ try {
       if (status.performance.resolvedQuality !== quality) throw new Error(`Expected ${quality} quality, got ${status.performance.resolvedQuality}.`)
       if (status.modules.failedModuleCount > 0) throw new Error('The 3D module reported a load/render failure.')
       const filename = `${label}.png`
-      const screenshot = await page.locator('#conduit-capture').screenshot({ path: join(output, filename) })
+      const screenshot = await page.locator('#conduit-capture').screenshot({ path: join(output, filename), timeout: 120_000 })
       const metrics = await measureScreenshot(page, screenshot)
-      results.push({ label, view, quality, state, variant, filename, status, metrics })
+      results.push({ label, view, quality, state, variant, color: color ?? 'default', filename, status, metrics })
       console.log(`${label}: wordmark median ${metrics.wordmarkArea.medianSrgbLuma}, floor median ${metrics.floor.medianSrgbLuma}`)
     } catch (error) {
       throw new Error(`${label}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
@@ -146,7 +151,7 @@ try {
   const gitCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   await writeFile(join(output, 'manifest.json'), `${JSON.stringify({ schemaVersion: 1, gitCommit, generatedAt: new Date().toISOString(), smoke, regions, results }, null, 2)}\n`)
   const rows = results.map(result => `| [${result.label}](${result.filename}) | ${result.metrics.wordmarkArea.medianSrgbLuma} | ${result.metrics.floor.medianSrgbLuma} | ${result.metrics.frame.nearWhiteFraction} |`).join('\n')
-  await writeFile(join(output, 'index.md'), `# CONDUIT step-1 baseline captures\n\nGit commit: \`${gitCommit}\`. Mode: ${smoke ? 'smoke' : selectedLabels ? 'selected cases' : 'complete matrix'}. Camera Movement = 0, Zoom on Kick = off, Auto Performance = off, Pattern = Pulse, Flicker = 0, Energy Color = preset default. Steady uses Master Intensity = 0 (the preset's fixed 0.35 segment level). Peak uses Master Intensity = 1 and a controlled synthetic drop/maximum energy input, captured shortly after the drop transition. These are diagnostic states, not a measured song.\n\nThe table uses broad image rectangles, not material masks. Values are approximate sRGB luminance fractions (0–1); near-white means all RGB channels are at least 250/255. See [manifest.json](manifest.json) for regions, p95 values, warm-pixel fractions, quality, viewport, and runtime diagnostics. No pass is a pixel-perfect target comparison.\n\n| Capture | Wordmark-area median | Floor median | Frame near-white fraction |\n| --- | ---: | ---: | ---: |\n${rows}\n\nDiagnostic variants preserve the first-party manifest and alter only a temporary capture copy: scene-only bypasses all effects; no-floor/no-haze/no-bloom bypass one effect; no-studio removes the studio environment response and area panels; no-led disables segment emission and energy point lights; asset-only views keep just the chamber, tubes, or wordmark. They are isolation tools, not proposed production settings.\n`)
+  await writeFile(join(output, 'index.md'), `# CONDUIT diagnostic captures\n\nGit commit: \`${gitCommit}\`. Mode: ${smoke ? 'smoke' : selectedLabels ? 'selected cases' : 'complete matrix'}. Camera Movement = 0, Zoom on Kick = off, Auto Performance = off, Flicker = 0. Steady uses Pulse with Master Intensity = 0 (fixed 0.35 segment level); idle uses Energy Flow with Master Intensity = 1 and no audio energy; peak uses Pulse with Master Intensity = 1 and a controlled synthetic drop/maximum energy input. Blue cases change only Energy Color. These are diagnostic states, not a measured song.\n\nThe table uses broad image rectangles, not material masks. Values are approximate sRGB luminance fractions (0–1); near-white means all RGB channels are at least 250/255. See [manifest.json](manifest.json) for regions, p95 values, warm-pixel fractions, quality, viewport, and runtime diagnostics. No pass is a pixel-perfect target comparison.\n\n| Capture | Wordmark-area median | Floor median | Frame near-white fraction |\n| --- | ---: | ---: | ---: |\n${rows}\n\nDiagnostic variants preserve the first-party manifest and alter only a temporary capture copy: scene-only bypasses all effects; no-floor/no-haze/no-bloom bypass one effect; no-studio removes the studio environment response and area panels; no-led disables segment emission and energy point lights; asset-only views keep just the chamber, tubes, or wordmark. They are isolation tools, not proposed production settings.\n`)
   console.log(`Capture set: ${relative(root, output)}`)
 } finally {
   await context?.close()

@@ -848,12 +848,20 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
     ].join('\n'))
     .replace('#include <emissivemap_fragment>', [
       '#include <emissivemap_fragment>',
-      // Hot core: brightest where the surface faces the camera (the centre line of a rounded LED bar), falling off toward its edges.
+      // Hot core: only the front-facing middle of a diffuser tends toward white. Its edges retain Energy Color, so changing that control
+      // still recolors the tube, chamber and perimeter together. The flatter logo perimeter gets less white to preserve its thin amber line.
       'float cinema2SegFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
       'float cinema2SegCore = mix( 1.0, 0.1 + 0.9 * cinema2SegFacing * cinema2SegFacing * cinema2SegFacing, uCinema2SegCore );',
-      // A core part (the logo's glow) uses its phase as a reach: 1 where the light sits, fading to 0 up the letter walls it climbs.
-      'float cinema2SegReach = uCinema2SegRole > 0.5 && uCinema2SegRole < 1.5 ? vCinema2SegPhase : 1.0;',
-      'vec3 cinema2SegLight = uCinema2SegColor * ( uCinema2SegStrength * cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase ) * cinema2SegCore * cinema2SegReach );',
+      'float cinema2SegBrightness = cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase );',
+      'float cinema2SegHotCore = pow( cinema2SegFacing, 6.0 ) * smoothstep( 0.08, 0.45, cinema2SegBrightness );',
+      'cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 : 0.4 );',
+      // An amber Energy Color warms its white core; a blue Energy Color retains a neutral white core instead of inheriting an orange cast.
+      'float cinema2SegWarmth = saturate( uCinema2SegColor.r - uCinema2SegColor.b );',
+      'vec3 cinema2SegWhite = vec3( 1.0, 1.0 - 0.06 * cinema2SegWarmth, 1.0 - 0.25 * cinema2SegWarmth );',
+      'vec3 cinema2SegHotColor = mix( uCinema2SegColor, cinema2SegWhite, cinema2SegHotCore );',
+      // The logo's thin perimeter can be brighter without growing into the letter faces: phase still fades its emission up the walls.
+      'float cinema2SegReach = uCinema2SegRole > 0.5 && uCinema2SegRole < 1.5 ? min( 1.0, 1.3 * vCinema2SegPhase ) : 1.0;',
+      'vec3 cinema2SegLight = cinema2SegHotColor * ( uCinema2SegStrength * cinema2SegBrightness * cinema2SegCore * cinema2SegReach );',
       // Into a float target the light goes out as is, and the finish's tone curve turns the brightest into a warm-white core. Into an 8-bit
       // target a hard per-channel clip would turn a bright amber yellow (its green channel clips first), so it rolls off softly (1 - e^-x).
       'totalEmissiveRadiance = mix( 1.0 - exp( - cinema2SegLight ), cinema2SegLight, uCinema2SegHdr );',
