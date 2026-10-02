@@ -127,6 +127,20 @@ describe('CONDUIT preset', () => {
     expect(manifest.environment?.exposure).toBe(1)
   })
 
+  it('gives the wordmark pearl faces over dark recessed depth without changing the global grade', () => {
+    const material = module.parameters as Record<string, unknown>
+    const red = (part: string) => (material[`${part}.color`] as readonly number[])[0]
+    expect(red('letters')).toBeGreaterThan(red('walls'))
+    expect(red('walls')).toBeGreaterThan(red('base'))
+    expect(material['letters.clearcoat']).toBeLessThan(0.5)
+    expect(material['letters.environmentIntensity']).toBeLessThan(0.5)
+    expect(material['plate.environmentIntensity']).toBeLessThan(material['letters.environmentIntensity'] as number)
+    const key = manifest.lighting?.lights.find(light => light.id === 'conduit-key')
+    expect(key?.transform?.position?.[0]).toBeLessThan(-1)
+    expect(module.config?.shadows).toMatchObject({ cast: ['letters', 'walls'], receive: expect.arrayContaining(['letters', 'plate']) })
+    expect(manifest.environment?.exposure).toBe(1)
+  })
+
   it('finishes with the reflective floor at the chamber floor, a light haze, HDR bloom and a filmic grade', () => {
     const effects = manifest.effects ?? []
     expect(effects.map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])

@@ -365,25 +365,27 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     version: 1,
     enabled: true,
     parameters: Object.freeze({
-      // Wordmark: bright white glossy letter faces on polished bronze-chrome walls, a chrome frame on a darker stepped lip, near-black gaps.
-      // A soft white, not paper white: with the glossy coat the highlights stand out against it (at 0.92 every face sat in one band of near-white).
-      'letters.color': color(0.74, 0.74, 0.74),
-      'letters.roughness': 0.2,
+      // Pearl faces carry the mark. A softer coat and less uniform studio reflection let the off-axis key model the faces without clipping them.
+      'letters.color': color(0.7, 0.69, 0.68),
+      'letters.roughness': 0.28,
       'letters.metalness': 0.05,
-      'letters.clearcoat': 1,
-      'letters.clearcoatRoughness': 0.06,
-      // Less of the even studio room on the letters, so the key light shapes them.
-      'letters.environmentIntensity': 0.6,
-      // Darker bronze-grey side walls and a darker chrome frame, so the white letter faces stand out against them, as in the mockup.
-      'walls.color': color(0.3, 0.27, 0.25),
-      'walls.roughness': 0.22,
+      'letters.clearcoat': 0.42,
+      'letters.clearcoatRoughness': 0.16,
+      'letters.environmentIntensity': 0.42,
+      // Recessed bronze sidewalls, outline, and backing separate every counter and sweep from the light face.
+      'walls.color': color(0.25, 0.22, 0.2),
+      'walls.roughness': 0.28,
       'walls.metalness': 1,
-      'outline.color': color(0.28, 0.26, 0.23),
-      'outline.roughness': 0.22,
+      'walls.environmentIntensity': 0.55,
+      'outline.color': color(0.25, 0.23, 0.21),
+      'outline.roughness': 0.26,
       'outline.metalness': 1,
-      'base.color': color(0.23, 0.21, 0.19),
-      'base.roughness': 0.24,
+      'outline.environmentIntensity': 0.7,
+      'base.color': color(0.2, 0.18, 0.16),
+      'base.roughness': 0.3,
+      'base.environmentIntensity': 0.5,
       'plate.roughness': 0.35,
+      'plate.environmentIntensity': 0.25,
       // Tubes remain reflective, but the housing must not be a continuous pale stripe brighter than its LED windows.
       'pipe.color': color(0.6, 0.58, 0.56),
       'pipe.roughness': 0.18,
@@ -517,13 +519,12 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     // add the two half-wall washes and energy spill. The centre fill is deliberately weaker/broader than the old wall washes: it must not make
     // a hot spot behind the logo or erase the raised/recessed metal contrast.
     lights: Object.freeze([
-      // A real key from high in front: the letters' tops and bevels catch it and their undersides fall off to grey, as in the mockup (at 0.08 the
-      // wordmark was lit only by the even studio reflections and read flat).
+      // An off-axis key rakes across the letters' tops and bevels, giving the pearl faces a gentle gradient instead of a flat front wash.
       // It also casts the letters' shadows onto the frame and its lip behind them (medium and high quality), the depth of the mockup's wordmark.
       Object.freeze({
-        ...spot(KEY_LIGHT_ID, vec3(0.6, 8, 5), LOGO_TARGET_ID, 20, 1.05, color(1, 0.99, 0.97)),
+        ...spot(KEY_LIGHT_ID, vec3(-1.8, 7, 5), LOGO_TARGET_ID, 25, 0.92, color(1, 0.99, 0.97)),
         // A short range keeps the shadow map's depth precision on the wordmark.
-        config: Object.freeze({ coneAngleDegrees: 20, penumbra: 0.6, range: 14, threeShadow: true }),
+        config: Object.freeze({ coneAngleDegrees: 25, penumbra: 0.6, range: 14, threeShadow: true }),
       }),
       spot(WALL_LOW_LIGHT_ID, vec3(0, 6.5, 6), WALL_CENTRE_TARGET_ID, 55, 0.12, color(1, 0.94, 0.87), 0.95),
       spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.2, color(1, 0.94, 0.87), 0.9),

@@ -42,11 +42,13 @@ function model(name) {
     const indexView = gltf.bufferViews[indexAccessor.bufferView]
     const indexStart = binaryOffset + (indexView.byteOffset ?? 0) + (indexAccessor.byteOffset ?? 0)
     const indexBytes = indexAccessor.componentType === 5125 ? 4 : 2
+    const phases = Array.from({ length: phaseAccessor.count }, (_, i) => bytes.readFloatLE(phaseStart + i * 4))
     return {
       bounds: accessor,
       positions: Array.from({ length: accessor.count }, (_, i) => [0, 1, 2].map(axis => bytes.readFloatLE(start + (i * 3 + axis) * 4))),
       indices: Array.from({ length: indexAccessor.count }, (_, i) => indexBytes === 4 ? bytes.readUInt32LE(indexStart + i * 4) : bytes.readUInt16LE(indexStart + i * 2)),
-      peak: Math.max(...Array.from({ length: phaseAccessor.count }, (_, i) => bytes.readFloatLE(phaseStart + i * 4))),
+      phases,
+      peak: Math.max(...phases),
     }
   }
   return { mesh, material: materialName => gltf.materials.find(candidate => candidate.name === materialName) }
@@ -91,4 +93,13 @@ test('every glowing rim triangle stays local to its sampled contour, including t
     }
   }
   assert.ok(longest < 0.12, `A rim triangle bridges a letter gap (${longest.toFixed(3)} units)`)
+})
+
+test('the inner seam glow stays below the stronger outer perimeter glow', () => {
+  const rim = model('wordmark').mesh('rim')
+  const inner = rim.phases.filter((_, index) => rim.positions[index][2] > -0.072)
+  const outer = rim.phases.filter((_, index) => rim.positions[index][2] <= -0.072)
+  assert.ok(inner.length > 0 && outer.length > 0, 'The inner and outer rim bands must both exist.')
+  assert.ok(Math.max(...inner) <= 0.4, 'The gap emitter must not thicken the white letter contours.')
+  assert.ok(Math.max(...outer) > 0.54, 'The outer perimeter must retain its stronger outline glow.')
 })
