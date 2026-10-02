@@ -496,7 +496,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     near: 0.1,
     far: 60,
     // The frame the assets were built for (docs/cinema2-conduit-plan.md): level with the chamber, the wordmark in the middle spanning about
-    // half the width, the tube flanges at the corners, the floor in the lower quarter.
+    // three fifths of the width, the tube flanges at the corners, the floor in the lower quarter.
     transform: Object.freeze({ position: vec3(0, 1.92, 7) }),
     target: vec3(0, 1.92, 0),
     rig: Object.freeze({ kind: 'static' as const }),

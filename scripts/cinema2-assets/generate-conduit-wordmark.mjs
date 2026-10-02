@@ -41,10 +41,10 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 const layoutPath = join(root, 'scripts/cinema2-assets/conduit-layout.json')
 
 /**
- * Keep the mark near half the 16:9 frame width, leaving four visible tube-to-outline junctions. Depths, bevels and glow widths stay in absolute
- * units so the letters remain crisp at the production camera.
+ * Enlarge the approved 4.8-unit mark by 20% in the image plane, about its existing centre. The four tube-to-outline junctions follow the
+ * generated contour layout. Depths, bevels and glow widths stay in absolute units so the letters retain their approved finish.
  */
-export const CONDUIT_WORDMARK = Object.freeze({ width: 4.8, centre: Object.freeze([0, 2.09, 0]) })
+export const CONDUIT_WORDMARK = Object.freeze({ width: 5.76, centre: Object.freeze([0, 2.09, 0]) })
 /** The tube-attachment targets below were measured on the original 4.23-wide mark; they scale with the width. */
 const ATTACH_SCALE = CONDUIT_WORDMARK.width / 4.23
 const BODY_PATHS = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
@@ -59,10 +59,11 @@ const CREASE_ANGLE = (38 * Math.PI) / 180
  */
 const LETTERS = { back: -0.08, front: 0.13, bevel: 0.008, bevelSegments: 4 }
 const FRAME = { back: -0.08, front: 0.045, bevel: 0.0035, bevelSegments: 3 }
-const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegments: 4 }
+/** A broader exterior chrome border; it grows away from the SVG rather than eating into the letter faces or counters. */
+const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.09, bevelSegments: 4 }
 const PLATE = { back: -0.1, front: -0.078 }
 /** The interior seams stay restrained; the outer silhouette fills the exposed lip and carries the stronger production-reference glow. */
-const RIM = { depth: 0.01, width: 0.02, spacing: 0.05, lipWidth: 0.042, fade: 0.08, gapPeak: 0.38, outerPeak: 0.55 }
+const RIM = { depth: 0.01, width: 0.02, spacing: 0.05, lipWidth: 0.078, fade: 0.08, gapPeak: 0.38, outerPeak: 0.55 }
 /** How far up a wall (from its foot) the glow climbs before it fades out. */
 const WALL_GLOW_REACH = 0.09
 /** The walls' glow at their very foot, relative to the rim's brightest line. */
@@ -207,7 +208,9 @@ const walls = [
 const bodyShapes = bodyContours.map(contours => nestedShapes(contours, toWorld))
 const insideAny = (shapes, point) => shapes.some(shape => contains(shape.outer, point) && !shape.holes.some(hole => contains(hole, point)))
 let overlapSamples = 0, bodySamples = 0
-for (let x = -2.2; x <= 2.2; x += 0.01) for (let y = -0.7; y <= 0.7; y += 0.01) {
+const bodyHalfWidth = CONDUIT_WORDMARK.width / 2
+const bodyHalfHeight = (maxY - minY) * scale / 2
+for (let x = -bodyHalfWidth; x <= bodyHalfWidth; x += 0.01) for (let y = -bodyHalfHeight; y <= bodyHalfHeight; y += 0.01) {
   const hits = bodyShapes.filter(shapes => insideAny(shapes, [x, y])).length
   if (hits > 0) bodySamples += 1
   if (hits > 1) overlapSamples += 1

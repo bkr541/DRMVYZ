@@ -3,7 +3,7 @@
 //   node scripts/cinema2-assets/generate-conduit-tubes.mjs [out.glb]      (default: public/cinema2/models/conduit-tubes.glb)
 //
 // Parts (materials):
-//   `pipe`     the chrome tube bodies, swept along a Catmull-Rom spline with a rotation-minimizing frame, open along the front where the channel
+//   `pipe`     the chrome tube bodies, swept along a smooth cubic curve, open along the front where the channel
 //              runs; the rolled lips of the channel; the chrome ribs that divide it into windows.
 //   `channel`  the dark recessed channel along the camera-facing side of each pipe: its floor, side walls and end walls.
 //   `flange`   the wall mounts, lathe-turned: a recessed housing, a thick rounded disc, a hub and a neck into the pipe, and a ring of hex bolts.
@@ -24,7 +24,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
 import { gridMesh, lathe, merged, mirroredX, placed, roundedBox, transformed } from './cinema2-hard-surface-kit.mjs'
-import { frameSamples, hash, writeGlb } from './cinema2-tube-kit.mjs'
+import { hash, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/conduit-tubes.glb')
@@ -63,7 +63,7 @@ const LIP_RADIUS = 0.011
  * The two left tubes (the right ones mirror them). `flange` is the wall mount's centre and `axis` the way it faces (into the room and a little
  * toward the camera); `attach` is the frame's edge point and `arrive` the direction the straight coupler comes in from. As in the mockup, each
  * leaves its high (or low) corner flange into the room and sweeps in one gentle diagonal S to meet the wordmark's end (about 30 degrees); the
- * spline's middle is placed automatically between the two ends.
+ * curve's tangent handles scale with the free pipe span, keeping the shorter lower tubes rounded when the wordmark grows.
  */
 const LEFT_TUBES = [
   { name: 'upper', flange: [-4.82, 4.6, -1.25], axis: [1, -0.25, 0.5], attach: ATTACH.upper, arrive: [0.86, -0.48, 0.14] },
@@ -99,10 +99,23 @@ function buildLeftTube(spec) {
   const end = edge.clone().addScaledVector(arrive, -COLLAR_SETBACK)
   const couplerStart = end.clone().addScaledVector(arrive, -COUPLER_LENGTH)
   const pipeStart = flange.clone().addScaledVector(axis, FLANGE_LENGTH)
-  const leave = pipeStart.clone().addScaledVector(axis, 0.35)
-  const lead = couplerStart.clone().addScaledVector(arrive, -0.45)
-  const control = [pipeStart, leave, leave.clone().lerp(lead, 0.5), lead, couplerStart]
-  const { centres, tangents } = frameSamples(control.map(p => [p.x, p.y, p.z]), 260)
+  // Tangent handles guide a single smooth bend rather than becoming knots the spine must pass through. This avoids tight elbows as the
+  // larger wordmark shortens the lower runs, and joins the flange and straight coupler with matching tangents.
+  const handleLength = pipeStart.distanceTo(couplerStart) * 0.35
+  const curve = new THREE.CubicBezierCurve3(
+    pipeStart,
+    pipeStart.clone().addScaledVector(axis, handleLength),
+    couplerStart.clone().addScaledVector(arrive, -handleLength),
+    couplerStart,
+  )
+  curve.arcLengthDivisions = 1000
+  const centres = curve.getSpacedPoints(260)
+  const tangents = centres.map((_, i) => curve.getTangentAt(i / (centres.length - 1)))
+  for (let i = 1; i < centres.length - 1; i += 1) {
+    const angle = tangents[i - 1].angleTo(tangents[i + 1])
+    const bendRadius = centres[i - 1].distanceTo(centres[i + 1]) / Math.max(angle, 1e-9)
+    if (bendRadius < R * 2) throw new Error(`CONDUIT ${spec.name} tube bends too tightly for its radius.`)
+  }
   const arc = [0]
   for (let i = 1; i < centres.length; i += 1) arc.push(arc[i - 1] + centres[i].distanceTo(centres[i - 1]))
   const pipeLength = arc[arc.length - 1]
