@@ -381,6 +381,8 @@ const NUMERIC: readonly Cinema2EffectNumericRange[] = Object.freeze([
   ['floorY', -50, 50],
   ['albedo', 0, 1],
   ['reflectivity', 0, 1],
+  ['lowReflectivity', 0, 1],
+  ['mediumReflectivity', 0, 1],
   ['roughness', 0, 1],
   ['fresnel', 0.5, 8],
   ['fadeDistance', 1, 300],
@@ -479,7 +481,10 @@ class ReflectiveFloorEffectInstance implements Cinema2EffectInstance {
     program.setFloat('u_floorY', clamp(number(p, 'floorY', 0), -50, 50))
     program.setVec3('u_baseColor', base[0], base[1], base[2])
     program.setFloat('u_albedo', clamp(number(p, 'albedo', 0.12), 0, 1))
-    program.setFloat('u_reflectivity', clamp(number(p, 'reflectivity', 0.65), 0, 1))
+    // Optional per-tier values let an authored look tame sparse screen-space reflection samples on low/medium without flattening high quality.
+    const authoredReflectivity = clamp(number(p, 'reflectivity', 0.65), 0, 1)
+    const tierReflectivity = context.quality === 'low' ? 'lowReflectivity' : context.quality === 'medium' ? 'mediumReflectivity' : 'reflectivity'
+    program.setFloat('u_reflectivity', clamp(number(p, tierReflectivity, authoredReflectivity), 0, 1))
     program.setFloat('u_roughness', clamp(number(p, 'roughness', 0.22), 0, 1))
     program.setFloat('u_fresnel', clamp(number(p, 'fresnel', 3), 0.5, 8))
     program.setFloat('u_fadeDistance', clamp(number(p, 'fadeDistance', 45), 1, 300))

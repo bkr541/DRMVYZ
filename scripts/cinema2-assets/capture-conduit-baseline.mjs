@@ -143,7 +143,8 @@ try {
       results.push({ label, view, quality, state, variant, color: color ?? 'default', filename, status, metrics })
       console.log(`${label}: wordmark median ${metrics.wordmarkArea.medianSrgbLuma}, floor median ${metrics.floor.medianSrgbLuma}`)
     } catch (error) {
-      throw new Error(`${label}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+      const diagnostics = errors.length ? ` Browser errors: ${errors.join(' | ')}` : ''
+      throw new Error(`${label}: ${error instanceof Error ? error.message : String(error)}${diagnostics}`, { cause: error })
     } finally {
       await page.close()
     }

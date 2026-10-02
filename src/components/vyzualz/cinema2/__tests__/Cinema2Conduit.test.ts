@@ -157,6 +157,21 @@ describe('CONDUIT preset', () => {
     expect(effects.map(effect => effect.typeId)).toEqual(['reflective-floor', 'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
     expect(effects[0]!.parameters).toMatchObject({ floorY: 0, grit: 0, samplingStability: 1 })
     expect((effects[0]!.parameters as { reflectivity: number }).reflectivity).toBeLessThan(0.3)
+    const floor = effects[0]!.parameters as { baseColor: readonly number[]; skyColor: readonly number[]; albedo: number; streak: number; lowReflectivity: number; mediumReflectivity: number; reflectivity: number }
+    expect(floor.baseColor[0]! - floor.baseColor[2]!).toBeLessThan(0.05)
+    expect(floor.skyColor[0]! - floor.skyColor[2]!).toBeLessThan(0.05)
+    expect(floor.albedo).toBeLessThan(0.6)
+    expect(floor.streak).toBeGreaterThan(0)
+    expect(floor.lowReflectivity).toBeLessThan(floor.mediumReflectivity)
+    expect(floor.mediumReflectivity).toBeLessThan(floor.reflectivity)
     expect((effects[1]!.parameters as { density: number }).density).toBeLessThan(0.03)
+    const bloom = effects[2]!.parameters as { threshold: number; intensity: number; spread: number }
+    expect(bloom.threshold).toBeGreaterThan(1.4)
+    expect(bloom.intensity).toBeLessThan(1)
+    expect(bloom.spread).toBeLessThan(0.75)
+    const finish = effects[3]!.parameters as { toneMap: number; exposure: number; grain: number; aberration: number }
+    expect(finish).toMatchObject({ toneMap: 1, exposure: 1 })
+    expect(finish.grain).toBeLessThan(0.03)
+    expect(finish.aberration).toBeLessThan(0.03)
   })
 })

@@ -534,7 +534,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.2, color(1, 0.94, 0.87), 0.9),
       energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 5),
       energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 5),
-      energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 4, 0.4),
+      energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 3.4, 0.55),
       Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(1, 0.97, 0.94), intensity: 0.12 }),
     ]),
   }),
@@ -550,9 +550,10 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      // Warm polished metal: fixed reflection samples remove low-tier shimmer, while restrained reflectivity keeps the mirrored wordmark from
-      // competing with the real one. The remaining LEDs leave soft streaks, and a thicker hit test catches the thin wall details.
-      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.2, roughness: 0.32, fresnel: 1.4, albedo: 0.82, poolIntensity: 0.5, specular: 1.1, fadeDistance: 30, maxReflection: 13, thickness: 4, skyColor: color(0.63, 0.59, 0.53), baseColor: color(0.63, 0.53, 0.43), streak: 0.45, samplingStability: 1, edgeFallback: 0.8, grit: 0, gritScale: 6 }),
+      // Cooler midtone metal replaces the continuous cream foreground. Lower diffuse response keeps the broad key light off the floor;
+      // screen-space LED reflections and localized specular remain visible without mirroring the entire wordmark. Sparse low/medium reflection
+      // marches use less reflectivity than high quality, avoiding chunky reflected letters on those tiers.
+      parameters: Object.freeze({ mix: 1, floorY: FLOOR_Y, reflectivity: 0.16, lowReflectivity: 0.05, mediumReflectivity: 0.09, roughness: 0.48, fresnel: 1.4, albedo: 0.45, poolIntensity: 0.6, specular: 1.5, fadeDistance: 30, maxReflection: 13, thickness: 4, skyColor: color(0.42, 0.41, 0.4), baseColor: color(0.47, 0.46, 0.45), streak: 0.5, samplingStability: 1, edgeFallback: 0.55, grit: 0, gritScale: 6 }),
     }),
     Object.freeze({
       id: VOLUMETRIC_EFFECT_ID,
@@ -563,7 +564,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       scope: 'output' as const,
       // A light haze only: enough to soften the depth and catch the warm light, never enough to wash out the wall.
       parameters: Object.freeze({
-        mix: 1, density: 0.005, beamIntensity: 0.5, mistAmount: 0.2, mistHeight: 0.3, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.3, anisotropy: 0.5,
+        mix: 1, density: 0.004, beamIntensity: 0.45, mistAmount: 0.2, mistHeight: 0.3, mistFloor: FLOOR_Y, floorY: FLOOR_Y, floorReflection: 0.3, anisotropy: 0.5,
         occlusion: 0.5, ambientHaze: 0.01, noiseScale: 0.3, noiseStrength: 0.4, drift: 0.08, maxDistance: 30, reactivity: 0.5,
       }),
     }),
@@ -574,9 +575,8 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      // Only what is brighter than white glows (the LEDs), so the letters and the lit walls stay crisp; the mip chain gives each lit segment a
-      // hot halo that fades into a wide orange glow.
-      parameters: Object.freeze({ mix: 1, threshold: 1.3, knee: 0.6, intensity: 1, spread: 0.8, levels: 7 }),
+      // A higher HDR threshold and tighter halo reserve glow for the LED cores without joining adjacent bars or softening the letters.
+      parameters: Object.freeze({ mix: 1, threshold: 1.55, knee: 0.45, intensity: 0.8, spread: 0.68, levels: 7 }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,
@@ -585,7 +585,8 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 3,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 1, temperature: 0, vignette: 0.18, grain: 0.04, aberration: 0.04, contrast: 1.1, saturation: 1.1 }),
+      // Leave exposure and the filmic curve stable; a nearly neutral grade and lighter grain/fringing preserve metal and SVG bevel detail.
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 1, temperature: -0.02, vignette: 0.14, grain: 0.025, aberration: 0.02, contrast: 1.08, saturation: 1.04 }),
     }),
   ]),
   choreography: Object.freeze({ rules: choreographyRules }),

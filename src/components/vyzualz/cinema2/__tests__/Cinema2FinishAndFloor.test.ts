@@ -188,6 +188,20 @@ describe('Cinema 2.0 Reflective Floor effect', () => {
     expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toContain('$.parameters.samplingStability')
   })
 
+  it('uses optional lower reflectivity for sparse low/medium floor samples while preserving the authored high value', () => {
+    const floor = CINEMA2_CONDUIT_PRESET_MANIFEST.effects![0]!
+    for (const [quality, expected] of [['low', 0.05], ['medium', 0.09], ['high', 0.16]] as const) {
+      const { gl, runtime } = createEffectRuntime(quality, CINEMA2_CONDUIT_PRESET_MANIFEST)
+      expect(runtime.execute(floor.id, context({ depth: true, camera: true }))).toBe('applied')
+      expect(lastUniform(gl, 'uniform1f', 'u_reflectivity')).toBeCloseTo(expected)
+      runtime.dispose()
+    }
+    const bad = { ...effectManifest(FLOOR), parameters: { lowReflectivity: 1.1, mediumReflectivity: -0.1 } }
+    expect(cinema2ReflectiveFloorEffectDefinition.validate!(bad).map(diagnostic => diagnostic.path)).toEqual(
+      expect.arrayContaining(['$.parameters.lowReflectivity', '$.parameters.mediumReflectivity']),
+    )
+  })
+
   it('passes the image through when it cannot depth-test against a world camera', () => {
     for (const options of [{ depth: false, camera: true }, { depth: true, camera: false }]) {
       const { gl, runtime } = createEffectRuntime('high')
