@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url'
 import {
   buildExtrusion,
   contains,
-  contoursOf,
+  contoursOfAdaptive,
   isInside,
   nestedShapes,
   pathData,
@@ -49,16 +49,16 @@ export const CONDUIT_WORDMARK = Object.freeze({ width: 4.8, centre: Object.freez
 const ATTACH_SCALE = CONDUIT_WORDMARK.width / 4.23
 const BODY_PATHS = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
 
-const RING_SAMPLES_PER_CURVE = 8
-const BODY_SAMPLES_PER_CURVE = 9
+/** Native master is 2006px wide; bound tessellation deviation to less than half a master pixel. */
+const CURVE_MAX_ERROR_SVG = 0.35
 const CREASE_ANGLE = (38 * Math.PI) / 180
 /**
  * Depths (z, local to the wordmark centre). The letters stand proud of the frame and the frame of the lip; the dark plate in the gaps sits
  * just in front of the lip (the lip is the whole silhouette, grown).
  * `bevel` is each part's rounded edge. The frame is only ~0.025 wide in places, so its bevel (which eats in from both edges) stays small.
  */
-const LETTERS = { back: -0.08, front: 0.13, bevel: 0.042, bevelSegments: 4 }
-const FRAME = { back: -0.08, front: 0.045, bevel: 0.006, bevelSegments: 3 }
+const LETTERS = { back: -0.08, front: 0.13, bevel: 0.008, bevelSegments: 4 }
+const FRAME = { back: -0.08, front: 0.045, bevel: 0.0035, bevelSegments: 3 }
 const LIP = { back: -0.2, front: -0.086, bevel: 0.032, grow: 0.045, bevelSegments: 4 }
 const PLATE = { back: -0.1, front: -0.078 }
 /** The interior seams stay restrained; the outer silhouette fills the exposed lip and carries the stronger production-reference glow. */
@@ -79,8 +79,8 @@ const MATERIALS = {
 }
 
 // One transform for every part so their placement is exactly the SVG's.
-const ringContours = contoursOf(pathData(svg, 'outer-outline-ring'), RING_SAMPLES_PER_CURVE)
-const bodyContours = BODY_PATHS.map(id => contoursOf(pathData(svg, id), BODY_SAMPLES_PER_CURVE))
+const ringContours = contoursOfAdaptive(pathData(svg, 'outer-outline-ring'), CURVE_MAX_ERROR_SVG)
+const bodyContours = BODY_PATHS.map(id => contoursOfAdaptive(pathData(svg, id), CURVE_MAX_ERROR_SVG))
 const all = [...ringContours, ...bodyContours.flat()].flat()
 const minX = Math.min(...all.map(p => p[0])), maxX = Math.max(...all.map(p => p[0]))
 const minY = Math.min(...all.map(p => p[1])), maxY = Math.max(...all.map(p => p[1]))
@@ -145,8 +145,9 @@ const [letterFace, letterWalls] = frontAndWalls(slab(letterShapes, LETTERS))
 
 // ── Glow bands ───────────────────────────────────────────────────────────────
 /**
- * A glowing band `width` wide round one boundary loop of `shape`, on the side away from the material: outside a letter's outline, inside a
- * letter's counter, inside the frame's hole, outside the lip. The loop is resampled evenly and pushed along smoothed normals.
+ * A glowing ribbon `width` wide round one boundary loop of `shape`, on the side away from the material: outside a letter's outline, inside a
+ * letter's counter, inside the frame's hole, outside the lip. Keep the two sampled edges paired: a polygon-with-hole extrusion can bridge a
+ * tight concave hook during triangulation and fill the entire negative-space notch with emissive geometry.
  */
 function bandAround(shape, loop, width) {
   const points = resampleLoop(loop, RIM.spacing, Math.PI).map(v => v.p)
@@ -158,27 +159,30 @@ function bandAround(shape, loop, width) {
     if (isInside(shape, [p[0] + n[0] * 0.004, p[1] + n[1] * 0.004])) n = [-n[0], -n[1]]
     return [p[0] + n[0] * width, p[1] + n[1] * width]
   })
-  // The offset loop encloses the original when it runs outward (letter outlines), and sits inside it otherwise (counters, the frame's hole).
-  const area = poly => poly.reduce((sum, p, i) => sum + p[0] * poly[(i + 1) % poly.length][1] - poly[(i + 1) % poly.length][0] * p[1], 0) / 2
-  const band = Math.abs(area(offset)) > Math.abs(area(points)) ? { outer: offset, holes: [points] } : { outer: points, holes: [offset] }
-  return Object.assign(band, { source: points, width })
+  return { source: points, offset, width }
 }
 /**
- * Extrudes glow bands one by one, each vertex's phase (the glow's reach) falling from `peak` at the hugged edge to its faded far side.
+ * Builds local quads rather than triangulating two whole offset loops. This bounds every triangle to one contour sample interval, even at
+ * the small pointed counter of the inner letter. Each vertex's phase falls from `peak` at the hugged edge to its faded far side.
  * The outer perimeter gets a stronger peak than the fine seams at the feet of the letters.
  */
-function glowBands(bands, back, front, peak) {
+function glowBands(bands, front, peak) {
   const list = bands.map(band => {
-    const mesh = slab([band], { back, front, bevel: 0.002, bevelSegments: 1 })
-    const phases = new Float32Array(mesh.positions.length / 3)
-    for (let i = 0; i < phases.length; i += 1) {
-      const x = mesh.positions[i * 3], y = mesh.positions[i * 3 + 1]
-      let d = Infinity
-      for (const p of band.source) d = Math.min(d, Math.hypot(p[0] - x, p[1] - y))
-      const t = Math.min(1, d / band.width)
-      phases[i] = peak * (RIM.fade + (1 - RIM.fade) * (1 - t) ** 2)
+    const positions = [], normals = [], indices = [], phases = []
+    for (let i = 0; i < band.source.length; i += 1) {
+      const next = (i + 1) % band.source.length
+      const [p, q, r, s] = [band.source[i], band.source[next], band.offset[next], band.offset[i]]
+      const base = positions.length / 3
+      for (const point of [p, q, r, s]) {
+        positions.push(point[0], point[1], front)
+        normals.push(0, 0, 1)
+      }
+      phases.push(peak, peak, peak * RIM.fade, peak * RIM.fade)
+      const cross = (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0])
+      if (cross >= 0) indices.push(base, base + 1, base + 2, base, base + 2, base + 3)
+      else indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
     }
-    return { ...mesh, phases }
+    return { positions: new Float32Array(positions), normals: new Float32Array(normals), indices: new Uint32Array(indices), phases: new Float32Array(phases) }
   })
   return { ...merged(list), phases: new Float32Array(list.flatMap(mesh => Array.from(mesh.phases))) }
 }
@@ -186,10 +190,10 @@ const gapBands = [
   ...letterShapes.flatMap(shape => [shape.outer, ...shape.holes].map(loop => bandAround(shape, loop, RIM.width))),
   ...ringShapes.flatMap(shape => shape.holes.map(loop => bandAround(shape, loop, RIM.width))),
 ]
-const gapGlow = glowBands(gapBands, PLATE.front - 0.004, PLATE.front + RIM.depth, RIM.gapPeak)
+const gapGlow = glowBands(gapBands, PLATE.front + RIM.depth, RIM.gapPeak)
 // The continuous outside band lies on the exposed lip, in front of its metal surface but behind the raised letters and frame.
 const lipBands = outerShapes.map(shape => bandAround(shape, shape.outer, RIM.lipWidth))
-const lipGlow = glowBands(lipBands, LIP.front - 0.004, LIP.front + RIM.depth, RIM.outerPeak)
+const lipGlow = glowBands(lipBands, LIP.front + RIM.depth, RIM.outerPeak)
 const rim = { ...merged([gapGlow, lipGlow]), phases: new Float32Array([...gapGlow.phases, ...lipGlow.phases]) }
 
 // Walls glow from their foot: the letters' from the plate, the frame's from the lip.
@@ -249,6 +253,8 @@ const layout = {
   generatedBy: 'scripts/cinema2-assets/generate-conduit-wordmark.mjs',
   note: 'Tube attachment points and outward normals on the wordmark frame (left side, world units; the right side mirrors them). Do not edit by hand: regenerate the wordmark, then the tubes.',
   wordmark: { width: CONDUIT_WORDMARK.width, centre: [...CONDUIT_WORDMARK.centre], lipOutset: LIP.grow },
+  sourceBounds: { minX, maxX, minY, maxY },
+  curveMaxErrorSvg: CURVE_MAX_ERROR_SVG,
   attachments: { upper: worldPoint(attachments.upper), lower: worldPoint(attachments.lower) },
   normals: { upper: outwardAt(attachments.upper), lower: outwardAt(attachments.lower) },
 }

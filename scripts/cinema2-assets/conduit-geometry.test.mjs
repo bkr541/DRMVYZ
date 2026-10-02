@@ -1,11 +1,28 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { contoursOfAdaptive, pathData } from './cinema2-svg-relief-kit.mjs'
 
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const layout = JSON.parse(readFileSync(join(root, 'scripts/cinema2-assets/conduit-layout.json'), 'utf8'))
+const bodyIds = ['left-primary-body', 'central-interlock-body', 'left-inner-body', 'right-primary-body', 'right-interlock-and-sweep', 'left-lower-sweep', 'center-lower-sweep', 'four-point-symbol']
+
+test('the generated geometry is traced from the approved master SVG with bounded curve sampling', () => {
+  const source = readFileSync(join(root, 'scripts/cinema2-assets/sources/dvydrm-wordmark-master.svg'), 'utf8')
+  assert.equal(createHash('sha256').update(source).digest('hex'), '0ac33e757c07ed5e13b04b72d8c5f90403628531adb4632973729fd05df566f9')
+  assert.ok(layout.curveMaxErrorSvg > 0 && layout.curveMaxErrorSvg <= 0.5)
+  const ring = contoursOfAdaptive(pathData(source, 'outer-outline-ring'), layout.curveMaxErrorSvg)
+  assert.equal(ring.length, 2, 'The SVG outer-outline ring must retain its even-odd hole.')
+  const contours = [...ring, ...bodyIds.flatMap(id => contoursOfAdaptive(pathData(source, id), layout.curveMaxErrorSvg))]
+  const points = contours.flat()
+  for (const [key, value] of Object.entries({
+    minX: Math.min(...points.map(point => point[0])), maxX: Math.max(...points.map(point => point[0])),
+    minY: Math.min(...points.map(point => point[1])), maxY: Math.max(...points.map(point => point[1])),
+  })) assert.ok(Math.abs(layout.sourceBounds[key] - value) < 1e-8, `Stale generated ${key} bound.`)
+})
 
 function model(name) {
   const bytes = readFileSync(join(root, `public/cinema2/models/conduit-${name}.glb`))
@@ -21,9 +38,14 @@ function model(name) {
     const phaseAccessor = gltf.accessors[entry.primitives[0].attributes._GLOW_PHASE]
     const phaseView = gltf.bufferViews[phaseAccessor.bufferView]
     const phaseStart = binaryOffset + (phaseView.byteOffset ?? 0) + (phaseAccessor.byteOffset ?? 0)
+    const indexAccessor = gltf.accessors[entry.primitives[0].indices]
+    const indexView = gltf.bufferViews[indexAccessor.bufferView]
+    const indexStart = binaryOffset + (indexView.byteOffset ?? 0) + (indexAccessor.byteOffset ?? 0)
+    const indexBytes = indexAccessor.componentType === 5125 ? 4 : 2
     return {
       bounds: accessor,
       positions: Array.from({ length: accessor.count }, (_, i) => [0, 1, 2].map(axis => bytes.readFloatLE(start + (i * 3 + axis) * 4))),
+      indices: Array.from({ length: indexAccessor.count }, (_, i) => indexBytes === 4 ? bytes.readUInt32LE(indexStart + i * 4) : bytes.readUInt16LE(indexStart + i * 2)),
       peak: Math.max(...Array.from({ length: phaseAccessor.count }, (_, i) => bytes.readFloatLE(phaseStart + i * 4))),
     }
   }
@@ -56,4 +78,17 @@ test('the outer glow extends beyond the nominal wordmark silhouette', () => {
   assert.ok(rim.peak > 0.54, 'The perimeter must retain a music-driven emissive edge')
   const unlitColor = wordmark.material('rim').pbrMetallicRoughness.baseColorFactor
   assert.ok(unlitColor.slice(0, 3).every(channel => channel < 0.1), 'The unlit rim must not reflect cream-colored light over its emission')
+})
+
+test('every glowing rim triangle stays local to its sampled contour, including the inner hook', () => {
+  const rim = model('wordmark').mesh('rim')
+  let longest = 0
+  for (let i = 0; i < rim.indices.length; i += 3) {
+    const corners = rim.indices.slice(i, i + 3).map(index => rim.positions[index])
+    for (let j = 0; j < 3; j += 1) {
+      const a = corners[j], b = corners[(j + 1) % 3]
+      longest = Math.max(longest, Math.hypot(a[0] - b[0], a[1] - b[1]))
+    }
+  }
+  assert.ok(longest < 0.12, `A rim triangle bridges a letter gap (${longest.toFixed(3)} units)`)
 })

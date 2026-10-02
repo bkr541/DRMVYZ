@@ -97,10 +97,12 @@ describe('CONDUIT preset', () => {
     expect(cinema2ThreeSceneModuleDefinition.validate!(module)).toEqual([])
   })
 
-  it('keeps its lights within the shared limit, the symmetric wall washes first, with warm energy lights that carry the energy color and follow the music', () => {
+  it('keeps the logo key and symmetric wall fill in the low-tier light budget, with paired washes and reactive energy lights at higher tiers', () => {
     const lights = manifest.lighting?.lights ?? []
     expect(lights.filter(light => light.type !== 'ambient').length).toBeLessThanOrEqual(CINEMA2_SHARED_LIGHT_LIMIT)
-    expect(lights.slice(0, 2).map(light => light.id)).toEqual(['conduit-wall-wash-left', 'conduit-wall-wash-right'])
+    expect(lights.slice(0, 4).map(light => light.id)).toEqual(['conduit-key', 'conduit-wall-low-fill', 'conduit-wall-wash-left', 'conduit-wall-wash-right'])
+    expect(lights[2]?.intensity).toBe(lights[3]?.intensity)
+    expect(Number(lights[1]?.intensity)).toBeLessThan(Number(lights[2]?.intensity))
     const energy = manifest.lighting?.groups?.find(group => group.label === 'Energy Lights')
     expect(energy?.lights).toHaveLength(3)
     for (const light of lights.filter(entry => energy?.lights.some(member => member.$ref === entry.id))) {
@@ -110,6 +112,19 @@ describe('CONDUIT preset', () => {
     expect(rules.some(rule => rule.source.signal === 'downbeat' && rule.actions.some(action => action.target.kind === 'light-group'))).toBe(true)
     expect(rules.some(rule => rule.source.signal === 'drop')).toBe(true)
     for (const rule of rules) expect(rule.strengthParameter).toEqual(ref(CINEMA2_CONDUIT_MASTER_INTENSITY_ID))
+  })
+
+  it('keeps raised chamber metal above recessed metal, with controlled studio reflections and tube-housing highlights', () => {
+    const material = module.parameters as Record<string, unknown>
+    const red = (part: string) => (material[`${part}.color`] as readonly number[])[0]
+    expect(red('shell')).toBeGreaterThan(red('steel'))
+    expect(red('steel')).toBeGreaterThan(red('iris'))
+    expect(red('pipe')).toBeGreaterThan(red('coupler'))
+    expect(material['pipe.roughness']).toBeGreaterThanOrEqual(0.16)
+    expect(material['shell.environmentIntensity']).toBeLessThan(1)
+    expect(material['hull.environmentIntensity']).toBeLessThan(1)
+    expect(material.environmentIntensity).toBeLessThan(0.45)
+    expect(manifest.environment?.exposure).toBe(1)
   })
 
   it('finishes with the reflective floor at the chamber floor, a light haze, HDR bloom and a filmic grade', () => {

@@ -71,12 +71,14 @@ const TUBES_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-tubes-node')
 const WORDMARK_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wordmark-node')
 const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-root')
 const LOGO_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-logo-target')
+const WALL_CENTRE_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-centre-target')
 const WALL_LEFT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-left-target')
 const WALL_RIGHT_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-wall-right-target')
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('conduit-world-layer')
 
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-ambient')
 const KEY_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-key')
+const WALL_LOW_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-low-fill')
 const WALL_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-wash-left')
 const WALL_RIGHT_LIGHT_ID = cinema2StableId<Cinema2LightId>('conduit-wall-wash-right')
 const SPILL_LEFT_ID = cinema2StableId<Cinema2LightId>('conduit-spill-left')
@@ -333,8 +335,8 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
  * energy lights') light, so an off segment looked dimly lit and the pattern only tinted them.
  */
 const LED_OFF = color(0.05, 0.05, 0.055)
-/** Warm brushed silver: brighter than the recessed tracks, but still below the pearl letters and emissive LEDs. */
-const SHELL = color(0.7, 0.68, 0.65)
+/** Midtone brushed silver: brighter than the recessed tracks, but below the pearl letters and emissive LEDs. */
+const SHELL = color(0.47, 0.46, 0.45)
 
 export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
@@ -382,31 +384,32 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'base.color': color(0.23, 0.21, 0.19),
       'base.roughness': 0.24,
       'plate.roughness': 0.35,
-      // Tubes: chrome pipes, darker steel couplers, a near-black channel under the windows.
-      'pipe.color': color(0.78, 0.76, 0.74),
-      'pipe.roughness': 0.1,
-      // Chrome only reads as chrome with plenty to reflect: the tube parts take more of the studio environment than the brushed wall.
-      'pipe.environmentIntensity': 1.8,
-      'coupler.color': color(0.66, 0.64, 0.62),
-      'coupler.roughness': 0.14,
-      'coupler.environmentIntensity': 1.6,
-      'flange.color': color(0.6, 0.58, 0.56),
-      'flange.roughness': 0.18,
-      'flange.environmentIntensity': 1.4,
-      // Chamber: brushed silver, dark recessed tracks.
-      // Brushed, not mirror: a mirror-smooth wall facing the camera reflects the studio's front light as a white hot spot.
+      // Tubes remain reflective, but the housing must not be a continuous pale stripe brighter than its LED windows.
+      'pipe.color': color(0.6, 0.58, 0.56),
+      'pipe.roughness': 0.18,
+      'pipe.environmentIntensity': 1.05,
+      'coupler.color': color(0.48, 0.46, 0.44),
+      'coupler.roughness': 0.22,
+      'coupler.environmentIntensity': 0.9,
+      'flange.color': color(0.45, 0.43, 0.41),
+      'flange.roughness': 0.24,
+      'flange.environmentIntensity': 0.85,
+      // Raised chamber metal is midtone silver; recessed panel floors and the iris step down progressively.
       'shell.color': SHELL,
-      'shell.roughness': 0.3,
-      'shell.metalness': 0.85,
-      'shell.environmentIntensity': 0.85,
-      // The side walls face across the room, away from the wall washes, so they lean on the environment instead.
-      'hull.color': color(0.68, 0.65, 0.61),
-      'hull.environmentIntensity': 1.6,
-      'steel.color': color(0.55, 0.53, 0.5),
-      'steel.environmentIntensity': 1.1,
-      'iris.color': color(0.4, 0.38, 0.35),
-      'iris.metalness': 0.7,
-      'iris.environmentIntensity': 1,
+      'shell.roughness': 0.36,
+      'shell.metalness': 0.9,
+      'shell.environmentIntensity': 0.48,
+      'hull.color': color(0.5, 0.49, 0.47),
+      'hull.roughness': 0.42,
+      'hull.metalness': 0.85,
+      'hull.environmentIntensity': 0.75,
+      'steel.color': color(0.36, 0.35, 0.34),
+      'steel.roughness': 0.46,
+      'steel.environmentIntensity': 0.65,
+      'iris.color': color(0.27, 0.26, 0.25),
+      'iris.roughness': 0.38,
+      'iris.metalness': 0.85,
+      'iris.environmentIntensity': 0.55,
       'trim.color': color(0.035, 0.035, 0.038),
       'trim.roughness': 0.4,
       // LED diffusers, as seen when a segment is dark.
@@ -414,7 +417,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'segments.metalness': 0,
       'energy.color': LED_OFF,
       'energy.metalness': 0,
-      environmentIntensity: 0.45,
+      environmentIntensity: 0.38,
       segmentPattern: 'energyFlow',
       segmentAuto: true,
       segmentSync: true,
@@ -449,10 +452,10 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       // dark gaps behind them; nothing else is in the key light's narrow cone.
       shadows: Object.freeze({ cast: Object.freeze(['letters', 'walls']), receive: Object.freeze(['letters', 'outline', 'base', 'plate', 'rim', 'walls']) }),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
-      // Two soft panels front-left and front-right give the chrome and the pearl letters a clean highlight band.
+      // Restrained front-side panels leave a narrow chrome highlight without flattening broad metal surfaces.
       panels: Object.freeze([
-        Object.freeze({ position: vec3(-4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.3 }),
-        Object.freeze({ position: vec3(4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([3, 1.6]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.3 }),
+        Object.freeze({ position: vec3(-4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([2.4, 1.3]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.18 }),
+        Object.freeze({ position: vec3(4, 5, 6), target: vec3(0, 2, 0), size: Object.freeze([2.4, 1.3]), color: Object.freeze([0.95, 0.96, 1]), intensity: 0.18 }),
       ]),
     }),
   })]),
@@ -464,6 +467,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       Object.freeze({ id: TUBES_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_CONDUIT_MODULE_ID) }),
       Object.freeze({ id: WORDMARK_NODE_ID, kind: 'module' as const, parent: cinema2Ref(ROOT_NODE_ID), module: cinema2Ref(CINEMA2_CONDUIT_MODULE_ID) }),
       Object.freeze({ id: LOGO_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, 2.09, 0) }) }),
+      Object.freeze({ id: WALL_CENTRE_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(0, 3, -3.5) }) }),
       Object.freeze({ id: WALL_LEFT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(-3.6, 3, -3.5) }) }),
       Object.freeze({ id: WALL_RIGHT_TARGET_ID, kind: 'group' as const, parent: cinema2Ref(ROOT_NODE_ID), transform: Object.freeze({ position: vec3(3.6, 3, -3.5) }) }),
     ]),
@@ -509,24 +513,25 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       Object.freeze({ id: WALL_GROUP_ID, label: 'Wall Washes', lights: Object.freeze([cinema2Ref(WALL_LEFT_LIGHT_ID), cinema2Ref(WALL_RIGHT_LIGHT_ID)]) }),
       Object.freeze({ id: ENERGY_GROUP_ID, label: 'Energy Lights', lights: Object.freeze([cinema2Ref(SPILL_LEFT_ID), cinema2Ref(SPILL_RIGHT_ID), cinema2Ref(FLOOR_POOL_ID)]) }),
     ]),
-    // Most important first: low quality keeps the two wall washes (the wall stays evenly lit and symmetric); medium adds the key on the wordmark
-    // and the warm energy lights. Two washes from high left and right, each on its own half of the wall, light it evenly; a single wash aimed
-    // at the middle made a white hot spot behind the logo.
+    // Low quality keeps only the first two non-ambient lights: retain the logo key, then a soft centred wall fill for symmetry. Medium/high
+    // add the two half-wall washes and energy spill. The centre fill is deliberately weaker/broader than the old wall washes: it must not make
+    // a hot spot behind the logo or erase the raised/recessed metal contrast.
     lights: Object.freeze([
-      spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.4, color(1, 0.94, 0.87), 0.9),
-      spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.4, color(1, 0.94, 0.87), 0.9),
       // A real key from high in front: the letters' tops and bevels catch it and their undersides fall off to grey, as in the mockup (at 0.08 the
       // wordmark was lit only by the even studio reflections and read flat).
       // It also casts the letters' shadows onto the frame and its lip behind them (medium and high quality), the depth of the mockup's wordmark.
       Object.freeze({
-        ...spot(KEY_LIGHT_ID, vec3(0.6, 8, 5), LOGO_TARGET_ID, 20, 1.2, color(1, 0.99, 0.97)),
+        ...spot(KEY_LIGHT_ID, vec3(0.6, 8, 5), LOGO_TARGET_ID, 20, 1.05, color(1, 0.99, 0.97)),
         // A short range keeps the shadow map's depth precision on the wordmark.
         config: Object.freeze({ coneAngleDegrees: 20, penumbra: 0.6, range: 14, threeShadow: true }),
       }),
+      spot(WALL_LOW_LIGHT_ID, vec3(0, 6.5, 6), WALL_CENTRE_TARGET_ID, 55, 0.12, color(1, 0.94, 0.87), 0.95),
+      spot(WALL_LEFT_LIGHT_ID, vec3(-5.5, 7.5, 3.5), WALL_LEFT_TARGET_ID, 44, 0.2, color(1, 0.94, 0.87), 0.9),
+      spot(WALL_RIGHT_LIGHT_ID, vec3(5.5, 7.5, 3.5), WALL_RIGHT_TARGET_ID, 44, 0.2, color(1, 0.94, 0.87), 0.9),
       energyPoint(SPILL_LEFT_ID, vec3(-3.3, 3.2, -1.4), 5),
       energyPoint(SPILL_RIGHT_ID, vec3(3.3, 3.2, -1.4), 5),
       energyPoint(FLOOR_POOL_ID, vec3(0, 0.5, 1.2), 4, 0.4),
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(1, 0.97, 0.94), intensity: 0.16 }),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(1, 0.97, 0.94), intensity: 0.12 }),
     ]),
   }),
   environment: Object.freeze({

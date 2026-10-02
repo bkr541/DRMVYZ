@@ -53,6 +53,52 @@ export function contoursOf(d, samplesPerCurve) {
   return contours
 }
 
+/** Flatten absolute M/C/Z paths until each cubic's control polygon is within `maxError` SVG units of its chord. */
+export function contoursOfAdaptive(d, maxError = 0.35) {
+  if (!(maxError > 0)) throw new Error('Adaptive curve error must be positive.')
+  const tokens = d.match(/[MCZ]|-?\d*\.?\d+(?:e-?\d+)?/gi) ?? []
+  const contours = []
+  let current = null
+  let cursor = [0, 0]
+  let index = 0
+  const number = () => Number(tokens[index++])
+  const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+  const chordDistance = (p, a, b) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const length = Math.hypot(dx, dy)
+    return length < 1e-12 ? Math.hypot(p[0] - a[0], p[1] - a[1]) : Math.abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / length
+  }
+  const flatten = (p0, p1, p2, p3, depth) => {
+    if (depth >= 16 || Math.max(chordDistance(p1, p0, p3), chordDistance(p2, p0, p3)) <= maxError) {
+      current.push(p3)
+      return
+    }
+    const a = midpoint(p0, p1), b = midpoint(p1, p2), c = midpoint(p2, p3)
+    const d = midpoint(a, b), e = midpoint(b, c), m = midpoint(d, e)
+    flatten(p0, a, d, m, depth + 1)
+    flatten(m, e, c, p3, depth + 1)
+  }
+  while (index < tokens.length) {
+    const command = tokens[index++]
+    if (command === 'M') {
+      current = [[number(), number()]]
+      cursor = current[0]
+    } else if (command === 'C') {
+      while (index < tokens.length && !/[A-Za-z]/.test(tokens[index])) {
+        const p1 = [number(), number()], p2 = [number(), number()], p3 = [number(), number()]
+        flatten(cursor, p1, p2, p3, 0)
+        cursor = p3
+      }
+    } else if (command === 'Z') {
+      const first = current[0], last = current[current.length - 1]
+      if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-6) current.pop()
+      contours.push(current)
+      current = null
+    } else throw new Error(`Unsupported path command "${command}" in the master SVG.`)
+  }
+  return contours
+}
+
 export function contains(polygon, [x, y]) {
   let inside = false
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {

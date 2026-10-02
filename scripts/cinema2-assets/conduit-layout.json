@@ -10,6 +10,13 @@
     ],
     "lipOutset": 0.045
   },
+  "sourceBounds": {
+    "minX": -0.491,
+    "maxX": 2004.896908203125,
+    "minY": -0.8829414062500005,
+    "maxY": 584.491
+  },
+  "curveMaxErrorSvg": 0.35,
   "attachments": {
     "upper": [
       -1.844,
