@@ -1,0 +1,136 @@
+import {
+  cinema2StableId,
+  type Cinema2Color,
+  type Cinema2ModuleManifest,
+  type Cinema2ModuleTypeId,
+} from '../contracts/Cinema2NativePresetManifest'
+import type {
+  Cinema2ModuleCreateContext,
+  Cinema2ModuleDiagnostic,
+  Cinema2ModuleRenderExecutionContext,
+  Cinema2ModuleTypeDefinition,
+} from './Cinema2ModuleContracts'
+import {
+  buildCinema2DepthProofLayout,
+  packCinema2DepthInstances,
+  type Cinema2DepthProofLayout,
+} from './depth/Cinema2DepthLayout'
+import { Cinema2DepthRenderer, type Cinema2DepthDrawState } from './depth/Cinema2DepthRenderer'
+
+export const CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('depth-native')
+export const CINEMA2_DEPTH_NATIVE_MODULE_VERSION = 1 as const
+
+const DEFAULT_LIGHT: Cinema2Color = Object.freeze([0.86, 0.9, 1, 1]) as Cinema2Color
+const DEFAULT_BODY: Cinema2Color = Object.freeze([0.012, 0.014, 0.021, 1]) as Cinema2Color
+
+export interface Cinema2DepthModuleInspection {
+  portalCount: number
+  instanceCount: number
+  estimatedGpuBytes: number
+}
+
+interface Cinema2DepthRendererRuntime {
+  draw(state: Readonly<Cinema2DepthDrawState>): void
+  estimateGpuBytes(): number
+  dispose(): void
+}
+
+export function createCinema2DepthNativeModuleDefinition(options: {
+  createRenderer?: (gl: WebGL2RenderingContext, instances: Float32Array) => Cinema2DepthRendererRuntime
+} = {}): Readonly<Cinema2ModuleTypeDefinition> {
+  const createRenderer = options.createRenderer ?? ((gl, instances) => new Cinema2DepthRenderer(gl, instances))
+  return Object.freeze({
+    typeId: CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID,
+    version: CINEMA2_DEPTH_NATIVE_MODULE_VERSION,
+    validate: validateModule,
+    create(context: Cinema2ModuleCreateContext) {
+      const layout = resolveLayout(context.module)
+      const instances = packCinema2DepthInstances(layout.instances)
+      const renderer = context.resources.acquire(
+        `depth:proof:${layout.portalCount}:${layout.aperture}:${layout.spacing}`,
+        'Cinema2DepthRenderer',
+        gl => createRenderer(gl, instances),
+        value => value.dispose(),
+      )
+      const estimatedGpuBytes = renderer.estimateGpuBytes()
+      context.resources.reportGpuBytes(estimatedGpuBytes)
+
+      const provider = Object.freeze({
+        id: `${context.module.id}:depth-tunnel`,
+        moduleId: context.module.id,
+        intent: 'world' as const,
+        execute(execution: Cinema2ModuleRenderExecutionContext) {
+          if (!execution.depthAvailable) throw new Error(`Cinema 2.0 Depth module "${context.module.id}" requires a render target with a depth attachment.`)
+          if (!execution.camera) throw new Error(`Cinema 2.0 Depth module "${context.module.id}" requires final Camera Runtime state.`)
+          const light = readColor(context, 'lightColor', DEFAULT_LIGHT)
+          const body = readColor(context, 'bodyColor', DEFAULT_BODY)
+          renderer.draw({
+            viewProjection: execution.camera.viewProjectionMatrix,
+            cameraPosition: execution.camera.position,
+            lightColor: [light[0], light[1], light[2]],
+            bodyColor: [body[0], body[1], body[2]],
+            intensity: clamp(readNumber(context, 'intensity', 1), 0, 2),
+            spill: clamp(readNumber(context, 'spill', 0.7), 0, 2),
+          })
+        },
+      })
+
+      return {
+        lifecycle: { update: () => {}, dispose: () => {} },
+        render: { providers: Object.freeze([provider]) },
+        inspect: (): Cinema2DepthModuleInspection => ({
+          portalCount: layout.portalCount,
+          instanceCount: layout.instances.length,
+          estimatedGpuBytes,
+        }),
+      }
+    },
+  })
+}
+
+export const cinema2DepthNativeModuleDefinition = createCinema2DepthNativeModuleDefinition()
+
+function resolveLayout(module: Readonly<Cinema2ModuleManifest>): Readonly<Cinema2DepthProofLayout> {
+  return buildCinema2DepthProofLayout({
+    portalCount: readConfigNumber(module, 'portalCount'),
+    aperture: readConfigNumber(module, 'aperture'),
+    spacing: readConfigNumber(module, 'spacing'),
+    frameThickness: readConfigNumber(module, 'frameThickness'),
+  })
+}
+
+function validateModule(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
+  const diagnostics: Cinema2ModuleDiagnostic[] = []
+  for (const property of ['portalCount', 'aperture', 'spacing', 'frameThickness']) {
+    const value = module.config?.[property]
+    if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value))) {
+      diagnostics.push({
+        code: 'CINEMA2_DEPTH_CONFIG_INVALID',
+        path: `$.config.${property}`,
+        message: `Depth module config "${property}" must be a finite number.`,
+      })
+    }
+  }
+  return Object.freeze(diagnostics.map(diagnostic => Object.freeze(diagnostic)))
+}
+
+function readConfigNumber(module: Readonly<Cinema2ModuleManifest>, name: string): number | undefined {
+  const value = module.config?.[name]
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function readNumber(context: Cinema2ModuleCreateContext, name: string, fallback: number): number {
+  const value = context.parameters.get(name)
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readColor(context: Cinema2ModuleCreateContext, name: string, fallback: Cinema2Color): Cinema2Color {
+  const value = context.parameters.get(name)
+  return Array.isArray(value) && value.length === 4 && value.every(component => typeof component === 'number' && Number.isFinite(component))
+    ? value as unknown as Cinema2Color
+    : fallback
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}

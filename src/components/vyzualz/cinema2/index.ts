@@ -938,6 +938,31 @@ export {
 } from './modules/Cinema2SayItNativeModule'
 
 export {
+  CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_DEPTH_NATIVE_MODULE_VERSION,
+  cinema2DepthNativeModuleDefinition,
+  createCinema2DepthNativeModuleDefinition,
+  type Cinema2DepthModuleInspection,
+} from './modules/Cinema2DepthNativeModule'
+
+export {
+  CINEMA2_DEPTH_INSTANCE_FLOATS,
+  CINEMA2_DEPTH_PROOF_APERTURE,
+  CINEMA2_DEPTH_PROOF_PORTAL_COUNT,
+  CINEMA2_DEPTH_PROOF_SPACING,
+  buildCinema2DepthProofLayout,
+  packCinema2DepthInstances,
+  type Cinema2DepthInstance,
+  type Cinema2DepthInstanceKind,
+  type Cinema2DepthProofLayout,
+} from './modules/depth/Cinema2DepthLayout'
+
+export {
+  Cinema2DepthRenderer,
+  type Cinema2DepthDrawState,
+} from './modules/depth/Cinema2DepthRenderer'
+
+export {
   CINEMA2_SAY_IT_MATERIAL_STYLES,
   Cinema2SayItBridge,
   type Cinema2SayItDrawState,
@@ -1012,6 +1037,21 @@ export {
   CINEMA2_SAY_IT_RANDOM_SEED_ID,
   CINEMA2_SAY_IT_TRAILS_ID,
 } from './presets/Cinema2SayItPreset'
+
+export {
+  CINEMA2_DEPTH_BACKGROUND_ID,
+  CINEMA2_DEPTH_BLOOM_ID,
+  CINEMA2_DEPTH_BODY_COLOR_ID,
+  CINEMA2_DEPTH_CAMERA_ID,
+  CINEMA2_DEPTH_FINISH_ID,
+  CINEMA2_DEPTH_HAZE_ID,
+  CINEMA2_DEPTH_INTENSITY_ID,
+  CINEMA2_DEPTH_LIGHT_COLOR_ID,
+  CINEMA2_DEPTH_MODULE_ID,
+  CINEMA2_DEPTH_PRESET_ID,
+  CINEMA2_DEPTH_PRESET_MANIFEST,
+  CINEMA2_DEPTH_SPILL_ID,
+} from './presets/Cinema2DepthPreset'
 
 export {
   defineCinema2FirstPartyPreset,
