@@ -453,6 +453,24 @@ function buildDocumentInput(state: LyricsState): CreateLyricDocumentInput {
   }
 }
 
+/**
+ * Single activation model for every save path (manual, imported, AI, recovered drafts):
+ *   1. An explicit instruction from the user action (Save + Make Active) wins, including an explicit `false`.
+ *   2. An already-saved document keeps its persisted state (an active document stays active).
+ *   3. A new, unsaved document honors the draft's "activate on first save" intent.
+ *   4. Otherwise it is saved inactive.
+ * The RPC writes `is_active = p_activate` on update, so this must return the final state, not just a request.
+ */
+export function resolveSaveActivation(input: {
+  explicit?: boolean
+  savedDocument: Pick<LyricDocument, 'isActive'> | null
+  draftActivateOnSave: boolean
+}): boolean {
+  if (input.explicit !== undefined) return input.explicit
+  if (input.savedDocument) return input.savedDocument.isActive === true
+  return input.draftActivateOnSave
+}
+
 function cueInputs(cues: LyricCue[], documentId: string): CreateLyricCueInput[] {
   return cues.map((cue, index) => createLyricCueInputFromCue(cue, documentId, index))
 }
@@ -1434,7 +1452,11 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         selectedCueId: state.selectedCueId,
         document: buildDocumentInput(state),
         cues: cueSnapshot,
-        activate: options?.makeActive ?? state.editorDocument?.isActive ?? false,
+        activate: resolveSaveActivation({
+          explicit: options?.makeActive,
+          savedDocument: state.editorDocument,
+          draftActivateOnSave: state.draftActivateOnSave,
+        }),
         resolve: result => resolve(result as SaveLyricDocumentResult | null),
       }
       void enqueueWrite(set, get, queue, job)
@@ -1484,7 +1506,10 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         selectedCueId: state.selectedCueId,
         document: buildDocumentInput(state),
         cues,
-        activate: state.editorDocument?.isActive ?? false,
+        activate: resolveSaveActivation({
+          savedDocument: state.editorDocument,
+          draftActivateOnSave: state.draftActivateOnSave,
+        }),
         resolve: result => resolve(result as SaveLyricDocumentResult | null),
       }
       void enqueueWrite(set, get, queue, job)

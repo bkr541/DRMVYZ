@@ -3,7 +3,7 @@ import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
-import { useLyricsStore } from '../../stores/lyricsStore'
+import { resolveSaveActivation, useLyricsStore } from '../../stores/lyricsStore'
 import {
   deleteLyricDocument,
   getFullLyricDocument,
@@ -954,10 +954,20 @@ export function LyricManagerView({
     [],
   )
 
-  const doSave = useCallback(async (makeActive?: boolean): Promise<boolean> => {
+  const doSave = useCallback(async (requestedMakeActive?: boolean): Promise<boolean> => {
     setError(null)
     const validation = validateLyricCues(storeCues)
-    const allowEmptyInactiveDraft = !makeActive && editorDocument?.isActive !== true
+    // A first draft's "activate on save" intent is honored only for a valid document: an invalid or
+    // empty placeholder still saves, as an inactive draft. Explicit Save + Make Active is never softened.
+    const intentOnlyActivation = requestedMakeActive === undefined
+      && resolveSaveActivation({ savedDocument: editorDocument, draftActivateOnSave })
+      && !editorDocument
+    const makeActive = intentOnlyActivation && validation.errors.length > 0 ? false : requestedMakeActive
+    const allowEmptyInactiveDraft = !resolveSaveActivation({
+      explicit: makeActive,
+      savedDocument: editorDocument,
+      draftActivateOnSave,
+    })
     const blockingIssues = validation.issues.filter(issue => (
       issue.severity === 'error'
       && !(allowEmptyInactiveDraft && issue.code === 'empty_document')
@@ -973,12 +983,13 @@ export function LyricManagerView({
       makeActive === undefined ? undefined : { makeActive },
     )
     if (!result?.ok) return false
-    showStatus(makeActive ? 'Saved and made active' : 'Saved')
+    showStatus(requestedMakeActive ? 'Saved and made active' : 'Saved')
     if (selectedTrack) await refreshDocuments(selectedTrack)
     return true
   }, [
     storeCues,
-    editorDocument?.isActive,
+    editorDocument,
+    draftActivateOnSave,
     refreshDocuments,
     saveActiveLyricDocument,
     selectedTrack,
