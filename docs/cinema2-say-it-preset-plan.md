@@ -116,15 +116,17 @@ Step 1 deliberately does not expose editable text. Its acceptance criteria are f
 
 Step 2's code path is complete when every printable Basic Latin input maps deterministically to a valid one- or two-line layout and repeated characters share geometry. Measured live-edit leak checks and low-tier frame-time acceptance remain part of Step 3 production hardening.
 
-### Step 3 — production hardening and quality tiers
+### Step 3 — production hardening and quality tiers (implemented)
 
-1. Add low/medium/high geometry or shading policy and measured visible-glyph budgets.
-2. Prewarm shaders and upload glyph geometry before the first visible animated frame.
-3. Add graceful diagnostics for failed asset loads and unsupported characters.
-4. Measure GPU memory, decode time, first-frame latency and frame time on representative hardware.
-5. Verify context loss/restoration, preset switching and resource release.
-6. Add screenshot baselines at assembled, maximum separation and edge-on rotation moments.
-7. Tune camera fit for wide, square and portrait Stages, including two-line bounds.
+1. Added explicit low/medium/high profiles. Every tier preserves the complete 20-glyph content budget; low and medium remove glyph shadows and soften/reduce reflections, while high retains the full chrome treatment.
+2. Added a 2×2 offscreen prewarm pass. Each new glyph set or quality variant compiles its material/light shader and uploads active geometry one frame before it is presented.
+3. Preserved graceful load, truncation and unsupported-character diagnostics, and added bounded GPU-memory, frame-time and future glyph-budget diagnostics.
+4. Added inspectable library-load, asset-decode/acquire, prewarm, first-visible-frame, current/average/maximum draw-time, sample-count and estimated-GPU-byte telemetry. Frame warnings begin only after 30 samples.
+5. Verified deterministic bridge disposal and asset release through the same module resource lease path used by preset switching and WebGL context retirement; Cinema 2.0 re-creates the module after context restoration.
+6. Added stable assembled, maximum-separation and edge-on-rotation capture checkpoints for visual regression tooling.
+7. Promoted the authored camera fit to shared constants and verified the maximum two-line block retains at least 15% framing margin in wide, square and portrait Stage shapes.
+
+Representative-hardware timings and captured PNG artifacts remain environment-specific release evidence; the runtime now exposes the measurements and deterministic checkpoints needed to collect them without changing production behavior.
 
 ### Step 4 — expanded motion and effects
 
@@ -143,6 +145,7 @@ Step 2's code path is complete when every printable Basic Latin input maps deter
 - `src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItGlyphMetrics.generated.json` — versioned metrics and kerning.
 - `src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItTextLayout.ts` — sanitization, bounds, wrapping, alignment and automatic fit.
 - `src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItMotion.ts` — deterministic independent glyph transforms.
+- `src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItQuality.ts` — quality budgets, camera-fit constants and deterministic visual checkpoints.
 - `src/components/vyzualz/cinema2/modules/sayIt/Cinema2SayItBridge.ts` — PBR mesh drawing into the Cinema 2.0 target.
 - `src/components/vyzualz/cinema2/modules/Cinema2SayItNativeModule.ts` — asset, lifecycle, beat clock and parameter integration.
 - `src/components/vyzualz/cinema2/presets/Cinema2SayItPreset.ts` — keeper manifest and render graph.
@@ -157,6 +160,7 @@ npx vitest run \
   src/components/vyzualz/cinema2/__tests__/Cinema2SayItMotion.test.ts \
   src/components/vyzualz/cinema2/__tests__/Cinema2SayItTextLayout.test.ts \
   src/components/vyzualz/cinema2/__tests__/Cinema2SayItModule.test.ts \
+  src/components/vyzualz/cinema2/__tests__/Cinema2SayItQuality.test.ts \
   src/components/vyzualz/cinema2/__tests__/Cinema2SayItPreset.test.ts \
   src/components/vyzualz/cinema2/__tests__/Cinema2KeeperPresetFramework.test.ts
 ```

@@ -111,12 +111,12 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
 
     instance.render!.providers[0]!.execute(lowExecution)
     expect(draw).toHaveBeenCalledTimes(1)
-    expect(draw.mock.calls[0]?.[1].poses).toHaveLength(12)
+    expect(draw.mock.calls[0]?.[1].poses).toHaveLength(20)
     expect(instance.inspect()).toMatchObject({
-      state: 'ready', quality: 'low', visibleGlyphCount: 20, renderedGlyphCount: 12,
+      state: 'ready', quality: 'low', visibleGlyphCount: 20, renderedGlyphCount: 20,
       performance: { drawSampleCount: 1, estimatedGpuBytes: 6 * 1024 * 1024 },
     })
-    expect(instance.getDiagnostics?.()).toEqual(expect.arrayContaining([
+    expect(instance.getDiagnostics?.()).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_SAY_IT_QUALITY_GLYPH_BUDGET' }),
     ]))
     expect(reportGpuBytes).toHaveBeenCalledWith(6 * 1024 * 1024)
@@ -126,5 +126,34 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
     disposeLease!()
     expect(disposeBridge).toHaveBeenCalledOnce()
     expect(release).toHaveBeenCalledWith(asset)
+  })
+
+  it('fails gracefully with a stable diagnostic when the glyph asset cannot load', async () => {
+    const moduleManifest = CINEMA2_SAY_IT_PRESET_MANIFEST.modules![0]!
+    const values = new Map<string, Cinema2JsonValue>(Object.entries(moduleManifest.parameters ?? {}))
+    const parameters = {
+      get: (name: string) => values.get(name),
+      getAuthored: (name: string) => values.get(name),
+      resolve: () => null,
+    }
+    const definition = createCinema2SayItNativeModuleDefinition({
+      assets: { acquire: vi.fn().mockRejectedValue(new Error('offline')), release: vi.fn() },
+      loadLibrary: vi.fn().mockResolvedValue({} as never),
+    })
+    const instance = definition.create({
+      module: moduleManifest,
+      parameters,
+      targets: {},
+      media: {},
+      resources: { reportGpuBytes: vi.fn() },
+      randomness: {},
+    } as unknown as Cinema2ModuleCreateContext) as ReturnType<typeof definition.create> & { inspect(): Cinema2SayItModuleInspection }
+
+    instance.render!.providers[0]!.execute({ lightingEnvironment: { quality: 'high' } } as never)
+    await vi.waitFor(() => expect(instance.inspect().state).toBe('failed'))
+    expect(instance.getDiagnostics?.()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'CINEMA2_SAY_IT_LOAD_FAILED', message: expect.stringContaining('offline') }),
+    ]))
+    instance.lifecycle.dispose()
   })
 })

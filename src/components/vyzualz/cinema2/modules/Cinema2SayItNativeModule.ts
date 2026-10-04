@@ -103,6 +103,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let resolvedQuality: Cinema2RenderQualityLevel | null = null
       let qualityDiagnostic: Cinema2ModuleDiagnostic | null = null
       let memoryDiagnostic: Cinema2ModuleDiagnostic | null = null
+      let performanceDiagnostic: Cinema2ModuleDiagnostic | null = null
       let libraryLoadMs: number | null = null
       let assetDecodeMs: number | null = null
       let prewarmMs: number | null = null
@@ -234,6 +235,13 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           drawSampleCount += 1
           averageDrawMs = averageDrawMs == null ? drawMs : averageDrawMs + (drawMs - averageDrawMs) / drawSampleCount
           maximumDrawMs = maximumDrawMs == null ? drawMs : Math.max(maximumDrawMs, drawMs)
+          performanceDiagnostic = drawSampleCount >= 30 && averageDrawMs > profile.frameBudgetMs
+            ? {
+                code: 'CINEMA2_SAY_IT_FRAME_BUDGET_EXCEEDED',
+                message: `SAY IT averages ${averageDrawMs.toFixed(2)} ms of module draw time, above the ${profile.frameBudgetMs.toFixed(2)} ms ${quality}-quality budget.`,
+                path: `module.${context.module.id}.performance`,
+              }
+            : null
           if (firstVisibleFrameMs == null) firstVisibleFrameMs = elapsedMilliseconds(createdAtMs, now())
           const bytes = bridge.estimateGpuBytes()
           reportGpuBytes(bytes, profile)
@@ -304,6 +312,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           ...contentDiagnostics,
           ...(qualityDiagnostic ? [qualityDiagnostic] : []),
           ...(memoryDiagnostic ? [memoryDiagnostic] : []),
+          ...(performanceDiagnostic ? [performanceDiagnostic] : []),
         ]),
         inspect: (): Cinema2SayItModuleInspection => ({
           state,

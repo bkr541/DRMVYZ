@@ -22,14 +22,21 @@ const layout = resolveCinema2SayItTextLayout(
 )
 
 describe('Cinema 2.0 SAY IT production quality policy', () => {
-  it('enforces measured visible-glyph budgets by quality tier', () => {
+  it('keeps the complete bounded message at every quality tier', () => {
     const poses = resolveCinema2SayItGlyphPoses(4, { cycleSeconds: 8, motionAmount: 1, spread: 1 }, layout.glyphs)
     expect(poses).toHaveLength(20)
-    expect(limitCinema2SayItPosesForQuality(poses, CINEMA2_SAY_IT_QUALITY_PROFILES.low)).toHaveLength(12)
-    expect(limitCinema2SayItPosesForQuality(poses, CINEMA2_SAY_IT_QUALITY_PROFILES.medium)).toHaveLength(16)
+    expect(limitCinema2SayItPosesForQuality(poses, CINEMA2_SAY_IT_QUALITY_PROFILES.low)).toHaveLength(20)
+    expect(limitCinema2SayItPosesForQuality(poses, CINEMA2_SAY_IT_QUALITY_PROFILES.medium)).toHaveLength(20)
     expect(limitCinema2SayItPosesForQuality(poses, CINEMA2_SAY_IT_QUALITY_PROFILES.high)).toHaveLength(20)
     expect(CINEMA2_SAY_IT_QUALITY_PROFILES.low.castShadows).toBe(false)
     expect(CINEMA2_SAY_IT_QUALITY_PROFILES.high.castShadows).toBe(true)
+  })
+
+  it('can apply a stricter future geometry budget without mutating poses', () => {
+    const poses = resolveCinema2SayItGlyphPoses(4, { cycleSeconds: 8, motionAmount: 1, spread: 1 }, layout.glyphs)
+    const limited = limitCinema2SayItPosesForQuality(poses, { ...CINEMA2_SAY_IT_QUALITY_PROFILES.low, maxVisibleGlyphs: 12 })
+    expect(limited).toHaveLength(12)
+    expect(poses).toHaveLength(20)
   })
 
   it('keeps the maximum text block inside wide, square and portrait camera frames', () => {

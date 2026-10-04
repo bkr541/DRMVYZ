@@ -13,12 +13,12 @@ export interface Cinema2SayItQualityProfile {
 
 export const CINEMA2_SAY_IT_QUALITY_PROFILES: Readonly<Record<Cinema2RenderQualityLevel, Readonly<Cinema2SayItQualityProfile>>> = Object.freeze({
   low: Object.freeze({
-    quality: 'low', maxVisibleGlyphs: 12, castShadows: false,
+    quality: 'low', maxVisibleGlyphs: 20, castShadows: false,
     environmentIntensityScale: 0.72, roughnessFloor: 0.24,
     frameBudgetMs: 6, gpuBudgetBytes: 8 * 1024 * 1024,
   }),
   medium: Object.freeze({
-    quality: 'medium', maxVisibleGlyphs: 16, castShadows: false,
+    quality: 'medium', maxVisibleGlyphs: 20, castShadows: false,
     environmentIntensityScale: 0.9, roughnessFloor: 0.12,
     frameBudgetMs: 9, gpuBudgetBytes: 12 * 1024 * 1024,
   }),
