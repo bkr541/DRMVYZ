@@ -34,84 +34,7 @@
 .lmv-header-left  { display: flex; align-self: stretch; align-items: center; gap: 14px; min-width: 0; }
 .lmv-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-.lmv-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  color: rgba(196,207,211,0.7);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.lmv-back-btn:hover {
-  color: var(--az-cyan, #4ac7db);
-  border-color: rgba(74,199,219,0.3);
-  background: rgba(74,199,219,0.06);
-}
-
-.lmv-header-title-group { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.lmv-header-title {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(232,238,240,0.95);
-  white-space: nowrap;
-}
-
 /* ── Toggle ──────────────────────────────────────────────────────────── */
-
-.lmv-toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
-  user-select: none;
-}
-.lmv-toggle-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(196,207,211,0.55);
-}
-.lmv-toggle-track {
-  width: 30px;
-  height: 16px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.12);
-  position: relative;
-  transition: all 0.2s;
-  cursor: pointer;
-  outline: none;
-}
-.lmv-toggle-track--on {
-  background: rgba(74,199,219,0.25);
-  border-color: rgba(74,199,219,0.5);
-}
-.lmv-toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: rgba(196,207,211,0.5);
-  transition: transform 0.2s, background 0.2s;
-}
-.lmv-toggle-track--on .lmv-toggle-thumb {
-  transform: translateX(14px);
-  background: var(--az-cyan, #4ac7db);
-}
 
 /* ── Status bar ──────────────────────────────────────────────────────── */
 
@@ -146,12 +69,7 @@
   display: flex;
   align-items: center;
 }
-.lmv-doc-search-icon {
-  position: absolute;
-  left: 9px;
-  color: rgba(196,207,211,0.3);
-  pointer-events: none;
-}
+
 .lmv-doc-search {
   width: 100%;
   padding: 6px 10px 6px 28px;
@@ -165,8 +83,6 @@
 }
 .lmv-doc-search:focus { border-color: rgba(74,199,219,0.35); }
 .lmv-doc-search::placeholder { color: rgba(196,207,211,0.28); }
-
-.lmv-doc-new-btn { width: 100%; justify-content: center; font-size: 11px; }
 
 .lmv-doc-list {
   flex: 1;
@@ -260,38 +176,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.lmv-tab-bar {
-  display: flex;
-  border-bottom: 1px solid rgba(154,178,188,0.1);
-  background: rgba(10,14,16,0.6);
-  flex-shrink: 0;
-}
-.lmv-tab-btn {
-  padding: 12px 22px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: rgba(196,207,211,0.45);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap;
-}
-.lmv-tab-btn:not(:disabled):hover { color: rgba(196,207,211,0.75); }
-.lmv-tab-btn--disabled,
-.lmv-tab-btn:disabled {
-  color: rgba(196,207,211,0.22) !important;
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.lmv-tab-btn--active {
-  color: var(--az-cyan, #4ac7db);
-  border-bottom-color: var(--az-cyan, #4ac7db);
 }
 
 .lmv-tab-content {
@@ -391,22 +275,15 @@
 .lmv-section-label:first-child { margin-top: 0; }
 
 .lmv-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.lmv-grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
 .lmv-field { display: flex; flex-direction: column; gap: 4px; }
-.lmv-field--short { max-width: 200px; }
+
 .lmv-field-label {
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(196,207,211,0.38);
-}
-.lmv-field-hint {
-  font-size: 9px;
-  color: rgba(196,207,211,0.28);
-  margin-top: 2px;
-  line-height: 1.4;
 }
 
 .lmv-input,
@@ -467,16 +344,6 @@
 .lmv-btn--ghost:hover:not(:disabled) {
   background: rgba(255,255,255,0.1);
   color: rgba(232,238,240,0.9);
-}
-
-.lmv-btn--primary {
-  background: rgba(74,199,219,0.18);
-  border-color: rgba(74,199,219,0.4);
-  color: var(--az-cyan, #4ac7db);
-}
-.lmv-btn--primary:hover:not(:disabled) {
-  background: rgba(74,199,219,0.28);
-  border-color: rgba(74,199,219,0.6);
 }
 
 .lmv-icon-btn {
@@ -615,109 +482,6 @@
 
 /* ── Cue list (manual editor) ────────────────────────────────────────── */
 
-.lmv-cue-list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 16px;
-  margin-bottom: 0;
-}
-.lmv-cue-count-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 16px;
-  padding: 0 5px;
-  border-radius: 8px;
-  background: rgba(74,199,219,0.15);
-  color: var(--az-cyan, #4ac7db);
-  font-size: 9px;
-  font-weight: 700;
-}
-.lmv-add-cue-btn { font-size: 10px; padding: 5px 10px; }
-
-.lmv-cue-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 4px;
-}
-.lmv-cue-empty { font-size: 11px; color: rgba(196,207,211,0.3); padding: 12px 4px; text-align: center; }
-
-.lmv-cue-row {
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(20,27,31,0.5);
-  transition: border-color 0.12s;
-  overflow: hidden;
-}
-.lmv-cue-row:hover { border-color: rgba(255,255,255,0.1); }
-.lmv-cue-row--selected { border-color: rgba(74,199,219,0.3); background: rgba(74,199,219,0.04); }
-
-.lmv-cue-row-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 8px;
-}
-.lmv-cue-num {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
-  font-weight: 700;
-  color: rgba(196,207,211,0.4);
-  flex-shrink: 0;
-}
-.lmv-cue-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.lmv-cue-row-text { font-size: 12px; color: rgba(232,238,240,0.88); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lmv-cue-row-timing { font-size: 9px; color: rgba(196,207,211,0.35); font-variant-numeric: tabular-nums; }
-
-.lmv-cue-row-actions {
-  display: flex;
-  gap: 4px;
-  padding: 4px 8px 6px;
-  justify-content: flex-end;
-  border-top: 1px solid rgba(255,255,255,0.04);
-}
-
-/* ── Inline cue editor ───────────────────────────────────────────────── */
-
-.lmv-cue-editor {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.lmv-cue-editor--inline { background: transparent; }
-.lmv-cue-editor-title {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(74,199,219,0.7);
-}
-.lmv-cue-text-input { min-height: 52px; }
-.lmv-time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.lmv-time-set-btn {
-  font-size: 9px;
-  color: var(--az-cyan, #4ac7db);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 2px 0;
-  text-align: left;
-  opacity: 0.7;
-  transition: opacity 0.12s;
-}
-.lmv-time-set-btn:hover { opacity: 1; }
-.lmv-cue-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
 /* ── Collapsible defaults ────────────────────────────────────────────── */
 
 .lmv-collapsible-toggle {
@@ -770,25 +534,8 @@
 
 /* ── Nav icon in sidebar (used in AnalyzerSidebar) ───────────────────── */
 
-.lmv-nav-icon-lyrics path,
-.lmv-nav-icon-lyrics line,
-.lmv-nav-icon-lyrics rect {
-  transition: opacity 0.15s;
-}
-
 /* ── Track-first workflow additions ─────────────────────────────────── */
 
-.lmv-header-back {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.04);
-  color: rgba(232,238,240,0.8);
-  cursor: pointer;
-  font-size: 16px;
-}
-.lmv-header-back:hover { border-color: rgba(74,199,219,0.35); color: #4ac7db; }
 .lmv-dirty-badge,
 .lmv-legacy-badge {
   border-radius: 999px;
@@ -819,9 +566,6 @@
   padding-right: 3px;
 }
 .lmv-track-card-topline,
-.lmv-track-lyrics-row,
-.lmv-track-control-strip,
-.lmv-track-identity-status,
 .lmv-doc-rename-row,
 .lmv-doc-actions,
 .lmv-dialog-actions,
@@ -833,21 +577,9 @@
 .lmv-track-card-topline { justify-content: space-between; }
 .lmv-track-title { font-weight: 700; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lmv-track-artist { margin-top: 2px; font-size: 10px; color: rgba(196,207,211,0.5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lmv-track-lyrics-row { justify-content: space-between; margin-top: 7px; font-size: 9px; }
+
 .lmv-track-state { padding: 14px 8px; color: rgba(196,207,211,0.42); text-align: center; }
 .lmv-load-more { display: block; margin: 8px auto 0; }
-
-.lmv-track-control-strip {
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 7px 16px;
-  border-bottom: 1px solid rgba(154,178,188,0.1);
-  background: rgba(14,19,22,0.92);
-}
-.lmv-track-control-strip > div:first-child { min-width: 150px; display: flex; flex-direction: column; }
-.lmv-track-control-strip > div:first-child span { font-size: 10px; color: rgba(196,207,211,0.45); }
-.lmv-track-identity-status { flex: 1; flex-wrap: wrap; color: rgba(196,207,211,0.42); font-size: 9px; }
-.lmv-track-identity-status span { border-right: 1px solid rgba(255,255,255,0.08); padding-right: 7px; }
 
 .lmv-doc-card { cursor: default; }
 .lmv-doc-card-main { width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 0; cursor: pointer; }
@@ -914,34 +646,22 @@
 @media (max-width: 1100px) {
   .lmv-track-grid { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
   .lmv-doc-sidebar { width: 235px; }
-  .lmv-track-identity-status { display: none; }
+  
 }
 
 @media (max-width: 820px) {
   .lmv-header { padding: 0 10px 0 0; }
-  .lmv-toggle-row,
+  
   .lmv-header-right .lmv-btn--ghost { display: none; }
   .lmv-track-browser { padding: 10px; }
   .lmv-track-grid { display: flex; overflow-x: auto; overflow-y: hidden; max-height: none; }
-  .lmv-track-control-strip { flex-wrap: wrap; }
+  
   .lmv-doc-sidebar { width: 100%; border: 0; max-height: 300px; }
   .lmv-doc-sidebar { border-bottom: 1px solid rgba(154,178,188,0.1); }
 }
 
 /* Shared lyric cue editor --------------------------------------------------- */
-.lmv-workflow-content--timeline-editor {
-  min-width: 0;
-  overflow: visible;
-}
 
-.lyric-cue-editor-root {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.lyric-cue-editor-toolbar,
 .lyric-cue-list__controls,
 .lyric-cue-inspector__heading,
 .lyric-word-editor__header {
@@ -951,28 +671,11 @@
   flex-wrap: wrap;
 }
 
-.lyric-cue-editor-toolbar {
-  min-height: 38px;
-  padding: 7px 9px;
-  border: 1px solid rgba(154,178,188,0.12);
-  border-radius: 7px;
-  background: rgba(13,19,22,0.72);
-}
-
-.lyric-cue-editor-toolbar label,
 .lyric-cue-list__controls label {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   color: rgba(196,207,211,0.58);
-  font-size: 9px;
-}
-
-.lyric-cue-editor-toolbar__zoom { min-width: 150px; }
-.lyric-cue-editor-toolbar__zoom input { min-width: 90px; flex: 1; }
-.lyric-cue-editor-toolbar__hint {
-  margin-left: auto;
-  color: rgba(216,185,90,0.72);
   font-size: 9px;
 }
 
@@ -1029,11 +732,6 @@
   height: 52px;
   opacity: 0.88;
   pointer-events: none;
-}
-
-.vz-ml-waveform-canvas.lyric-waveform-canvas {
-  inset: 0;
-  height: 100%;
 }
 
 .lyric-cue-timeline__playhead {
@@ -1146,17 +844,8 @@
   pointer-events: none;
 }
 
-.lyric-cue-editor-layout {
-  display: grid;
-  grid-template-columns: minmax(420px, 1.35fr) minmax(300px, 0.65fr);
-  align-items: start;
-  gap: 10px;
-  min-width: 0;
-}
-
 .lyric-cue-list,
-.lyric-cue-inspector,
-.lyric-cue-editor__empty-selection {
+.lyric-cue-inspector {
   min-width: 0;
   border: 1px solid rgba(154,178,188,0.12);
   border-radius: 8px;
@@ -1192,7 +881,6 @@
 .lyric-cue-inspector__metadata { display: grid; gap: 8px; margin-top: 10px; }
 .lyric-cue-inspector__error { color: #e05a5a; }
 .lyric-cue-inspector__delete { width: 100%; justify-content: center; margin-top: 10px; }
-.lyric-cue-editor__empty-selection { min-height: 180px; display: grid; place-items: center; padding: 20px; color: rgba(196,207,211,0.36); text-align: center; }
 
 .lyric-word-editor { grid-column: 1 / -1; margin-top: 5px; padding-top: 8px; border-top: 1px solid rgba(154,178,188,0.1); }
 .lyric-word-editor__header { justify-content: space-between; margin-bottom: 6px; }
@@ -1206,13 +894,13 @@
 .lyric-cue-inspector__empty-words { grid-column: 1 / -1; padding: 9px; color: rgba(196,207,211,0.4); font-size: 9px; text-align: center; }
 
 @media (max-width: 1250px) {
-  .lyric-cue-editor-layout { grid-template-columns: 1fr; }
+  
   .lyric-cue-list__scroll { max-height: 300px; }
 }
 
 @media (max-width: 820px) {
-  .lyric-cue-editor-toolbar { align-items: stretch; }
-  .lyric-cue-editor-toolbar__hint { width: 100%; margin-left: 0; }
+  
+  
   .lyric-cue-timeline__inner { height: 118px; }
   .lyric-cue-block { top: 78px; height: 31px; }
   .lyric-cue-inspector__grid { grid-template-columns: 1fr; }
@@ -1384,11 +1072,6 @@
   padding: 0 20px 0 0;
   background: rgba(12,16,19,0.96);
   box-shadow: none;
-}
-
-.lmv-header-title {
-  font-size: 13px;
-  letter-spacing: 0.12em;
 }
 
 .lmv-btn {
@@ -1645,12 +1328,6 @@
   overflow: hidden;
 }
 
-.lmv-track-browser-actions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
 .lmv-track-search-wrap,
 .lmv-doc-search-wrap {
   position: relative;
@@ -1709,12 +1386,6 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-shadow: 0 0 14px rgba(74,199,219,0.66);
-}
-
-.lmv-track-card-main {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
 }
 
 .lmv-track-card-topline {
@@ -1803,19 +1474,6 @@
   margin-top: 10px;
 }
 
-.lmv-tab-bar {
-  min-height: 36px;
-  padding: 10px 8px;
-  gap: 18px;
-  border-bottom-color: rgba(126,218,232,0.12);
-  background: rgba(7,14,17,0.34);
-}
-
-.lmv-tab-btn {
-  padding: 0 16px;
-  color: rgba(196,207,211,0.58);
-}
-
 .lmv-tab-content {
   min-height: 0;
   padding: 0;
@@ -1825,27 +1483,6 @@
 .lmv-workflow-content {
   padding: 10px 14px 12px;
   gap: 10px;
-}
-
-.lmv-workflow-content--timeline-editor > .lmv-section-label,
-.lmv-workflow-content--timeline-editor > .lmv-grid2,
-.lmv-workflow-content--timeline-editor > .lmv-field--short,
-.lmv-workflow-content--timeline-editor > .lmv-collapsible-toggle,
-.lmv-workflow-content--timeline-editor > .lmv-defaults-section {
-  display: none;
-}
-
-.lyric-cue-editor-toolbar {
-  justify-content: flex-end;
-  min-height: 34px;
-  border: 0;
-  padding: 0 0 8px;
-  background: transparent;
-}
-
-.lyric-cue-editor-toolbar .lmv-btn {
-  padding: 6px 10px;
-  font-size: 9px;
 }
 
 .lyric-cue-timeline__scroll {
@@ -1875,12 +1512,6 @@
   border-radius: 999px;
   background: rgba(10,214,239,0.62);
   border-color: rgba(10,214,239,0.84);
-}
-
-.lyric-cue-editor-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
 }
 
 .lyric-cue-list {
@@ -1916,8 +1547,7 @@
   box-shadow: inset 3px 0 #20d7ef;
 }
 
-.lyric-cue-inspector,
-.lyric-cue-editor__empty-selection {
+.lyric-cue-inspector {
   border-radius: 7px;
   background: rgba(11,20,24,0.75);
 }
@@ -1930,40 +1560,6 @@
 .lmv-extraction-console {
   flex-shrink: 0;
 }
-
-.lmv-console-steps {
-  display: grid;
-  gap: 6px;
-}
-
-.lmv-console-step {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 8px;
-  color: rgba(196,207,211,0.66);
-  font-size: 10px;
-}
-
-.lmv-console-step span {
-  color: rgba(237,249,251,0.72);
-  font-variant-numeric: tabular-nums;
-}
-
-.lmv-console-step strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.lmv-console-step em {
-  font-style: normal;
-  text-align: right;
-}
-
-.lmv-console-ok { color: #61d6aa; }
-.lmv-console-pending { color: #d8b95a; }
 
 .lmv-preview-cue-box {
   min-height: 112px;
@@ -2119,15 +1715,6 @@
 .lmv-timeline-toolbar__field--zoom input { width: 110px; min-width: 70px; }
 .lmv-timeline-toolbar__field--volume input { width: 80px; min-width: 60px; }
 
-
-.lmv-sr-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
 /* Lyric draft recovery and truthful transport semantics ---------------------- */
 .lmv-recovery-review {
   margin: 0 0 18px;
@@ -2263,19 +1850,6 @@
   margin-top: 0;
 }
 .lyric-cue-editor-overlays label { text-transform: capitalize; }
-.lyric-cue-editor-toolbar__authority {
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: rgba(216,185,90,0.08);
-  color: rgba(216,185,90,0.78);
-  font-size: 8px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.lyric-cue-editor-toolbar__authority--trusted {
-  background: rgba(97,214,170,0.08);
-  color: rgba(143,243,204,0.82);
-}
 
 .lyric-cue-timeline__inner {
   min-width: 100%;
@@ -2456,46 +2030,6 @@
 .lyric-cue-context-menu button:last-child { color: #ff9c9c; }
 
 /* Patch 6: final Lyric Manager hardening */
-.lmv-track-filter {
-  position: relative;
-}
-.lmv-track-filter > summary {
-  list-style: none;
-}
-.lmv-track-filter > summary::-webkit-details-marker { display: none; }
-.lmv-track-filter-menu {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 6px);
-  right: 0;
-  display: grid;
-  width: 190px;
-  overflow: hidden;
-  border: 1px solid rgba(126,218,232,0.2);
-  border-radius: 7px;
-  background: #0a1418;
-  box-shadow: 0 16px 42px rgba(0,0,0,0.5);
-}
-.lmv-track-filter-option {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 0;
-  border-bottom: 1px solid rgba(154,178,188,0.08);
-  padding: 8px 10px;
-  background: transparent;
-  color: rgba(237,249,251,0.78);
-  font: inherit;
-  font-size: 9px;
-  text-align: left;
-  cursor: pointer;
-}
-.lmv-track-filter-option:last-child { border-bottom: 0; }
-.lmv-track-filter-option:hover,
-.lmv-track-filter-option:focus-visible,
-.lmv-track-filter-option--active { background: rgba(74,199,219,0.12); color: #effcff; outline: none; }
-.lmv-track-filter-option em { color: #61d6aa; font-style: normal; }
 
 .lmv-presentation-controls,
 .lmv-presentation-section { display: grid; gap: 9px; }
@@ -2597,22 +2131,14 @@
   outline-offset: 1px;
   background: rgba(74,199,219,0.1);
 }
-.lyric-cue-editor-toolbar__hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.lyric-cue-editor-toolbar__hint .lmv-inline-action { flex: 0 0 auto; }
 
 @media (max-width: 820px) {
   .lmv-presentation-grid { grid-template-columns: 1fr; }
-  .lmv-track-filter-menu { left: 0; right: auto; }
+  
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lmv-root *,
-  .lyric-cue-editor * { scroll-behavior: auto !important; transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+  .lmv-root * { scroll-behavior: auto !important; transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
 }
 
 /* Shared Dropdown replacement for the Track Library filter selector. Narrowed
@@ -2705,23 +2231,11 @@
   margin-left: auto;
 }
 
-/* ── Lyric Manager layout mockup: Stage 1 left rail ---------------------
-   Fixture-backed only. Scoped beneath .lmv-mockup-left-rail so the
-   production Lyric Manager and Media Manager retain their existing layout. */
-.lmv-mockup-left-rail > .vz-inspector-inner {
-  padding: 0;
-}
-
 /* Match the Media Manager window surface: its rail panels are the
    var(--az-panel) card colour, not the darker default .vz-inspector-inner
    fill. Scoped high enough (.mmv-content > .vz-inspector.<rail> >) to beat
    both the base rule and the themed [data-theme] .vz-inspector-inner override. */
-.mmv-content > .vz-inspector.lmv-mockup-left-rail > .vz-inspector-inner,
-.mmv-content > .vz-inspector.lmv-mockup-right-rail > .vz-inspector-inner {
-  background: var(--az-panel);
-}
 
-.lmv-mockup-left-shell,
 .lmv-workspace-shell {
   display: flex;
   flex: 1;
@@ -2730,8 +2244,6 @@
   overflow: hidden;
 }
 
-.lmv-mockup-track-workspace,
-.lmv-mockup-lyric-management,
 .lmv-track-workspace,
 .lmv-lyric-management {
   box-sizing: border-box;
@@ -2741,7 +2253,6 @@
   overflow: hidden;
 }
 
-.lmv-mockup-track-workspace,
 .lmv-track-workspace {
   flex: 1 1 100%;
   padding: 14px 12px 12px;
@@ -2766,13 +2277,11 @@
   padding-right: 0;
 }
 
-.lmv-mockup-left-shell[data-has-selected-track='true'] .lmv-mockup-track-workspace,
 .lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
   flex: 0 0 55%;
   border-bottom: 1px solid rgba(126,218,232,0.12);
 }
 
-.lmv-mockup-lyric-management,
 .lmv-lyric-management {
   flex: 0 0 45%;
   padding: 14px 12px 12px;
@@ -2837,76 +2346,13 @@
   transform: translateY(0);
 }
 
-/* Window header — mirrors the Media Library panel header (.vz-panel-header +
-   .vz-panel-title in the Media Manager): a full-width row with a bottom
-   divider, an uppercase muted title, and a currentColor icon. The negative
-   margins pull it out of the section's 14px/12px padding so the divider spans
-   the whole window like the production panel does. */
-.lmv-mockup-rail-title,
-.lmv-rail-title {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-  margin: -14px -12px 0;
-  padding: 0 14px;
-  min-height: 42px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
-  color: var(--az-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
-.lmv-mockup-rail-title svg,
-.lmv-rail-title svg {
-  flex-shrink: 0;
-  color: currentColor;
-}
-
-/* Functional view: the label grows so a header action button (Add Tracks) sits
-   flush-right in the "Track Workspace" row — same pattern as the Media Manager
-   panel header's New Media chip. */
-.lmv-rail-title > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lmv-rail-title-action.dv-icon-chip {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-/* Track Workspace / Lyric Management / Document Workspace headers now render
-   the shared RailWindowHeader component (src/components/vyzualz/layout/
-   RailWindowHeader.tsx + .css) instead of a local .lmv-rail-title treatment —
-   see that component for the "Solid Bar — Drop Shadow" styling itself. */
-
-/* Center visualizer's collapsible group header (a reusable .drc-header
-   group, not the .lmv-rail-title used by Track Workspace/Lyric Management/
-   Document Workspace): matched to Track Workspace's row height, title
-   font-size, and left inset. Track Workspace's icon/text sits 14px from the
-   rail edge — its Drop Shadow header is edge-to-edge (.lmv-left-rail
-   .vz-inspector-inner and .lmv-track-workspace's own padding are both
-   zeroed), so only .lmv-rail-title's own 14px padding remains — but
-   .lmv-center (this header's container, whether Live Preview's
-   .lmv-live-preview-enlarged or Track Timeline/Lyric Cues' own windows once
-   their padding is zeroed below) carries no such padding of its own, so
-   that 14px is reproduced directly on the header instead of being split
-   across ancestors. Color, weight, letter-spacing, and case are left as the
-   shared .drc-header default on purpose. Shared by Live Preview, Track
-   Timeline, and Lyric Cues via headerClassName so every top-level group in
-   the center column collapses/expands with the same look; other Collapsible
-   groups (Validation, Document Stats, Track Library, Overlays, Cue list, …)
-   are unaffected. */
+/* Center column group headers (Live Preview, Track Timeline, Cue list) use the reusable .drc-header group,
+   matched to RailWindowHeader's row height and title size. The rail headers sit 14px from the rail edge
+   (their rails carry no padding of their own), and .lmv-center carries none either, so that 14px is
+   reproduced directly on the header. Color, weight, letter-spacing, and case are left as the shared
+   .drc-header default on purpose. Shared via headerClassName so every top-level group in the center column
+   collapses/expands with the same look; other Collapsible groups (Validation, Document Stats, Track
+   Library, Overlays, …) are unaffected. */
 .drc-header.lmv-live-preview-header {
   min-height: 42px;
   font-size: 12px;
@@ -2931,14 +2377,9 @@
   padding-top: 0;
 }
 
-/* Track Timeline / Lyric Cues used to get their edge-to-edge header bleed
-   from .lmv-rail-title's negative margins against this window's own
-   14px/12px/12px padding (see .lmv-track-timeline-window rule below); now
-   that .lmv-live-preview-header provides the row directly, the window's own
-   padding is zeroed so the header can sit flush like Live Preview's
-   container does, and .drc-group/.drc-body take over reproducing that
-   padding around the (unchanged) top gap and the lanes/toolbar/timeline
-   content, which already carry their own top margins. */
+/* Track Timeline / Cue list sit flush under .lmv-live-preview-header, so the windows carry no padding of
+   their own; .drc-group/.drc-body reproduce it around the lanes/toolbar/list content, which already carry
+   their own top margins. */
 .lmv-track-timeline-window,
 .lmv-lyric-cues-window {
   padding: 0;
@@ -2964,7 +2405,6 @@
   gap: 6px;
 }
 
-.lmv-mockup-workspace-tabs.dv-underline-tabs,
 .lmv-workspace-tabs.dv-underline-tabs {
   flex: 0 0 auto;
   /* Space above the tab row — matches the Media Manager library
@@ -2982,13 +2422,11 @@
   padding: 0 24px;
 }
 
-.lmv-mockup-workspace-tabs .dv-underline-tab,
 .lmv-workspace-tabs .dv-underline-tab {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.lmv-mockup-track-panel,
 .lmv-workspace-tab-panel {
   display: flex;
   flex: 1 1 auto;
@@ -3007,12 +2445,11 @@
 
 /* Keep the "Track Library" group header on the same left edge as the tabs and
    the search row instead of the heavier default .drc-header. */
-.lmv-mockup-track-panel .drc-header,
+
 .lmv-workspace-tab-panel .drc-header {
   font-weight: 700;
 }
 
-.lmv-mockup-track-panel > .drc-group,
 .lmv-workspace-tab-panel > .drc-group {
   display: flex;
   flex: 1 1 auto;
@@ -3024,83 +2461,12 @@
 
 /* No inset card, no side padding: the search row and the track records line up
    flush with the "Track Library" header and the tabs above. */
-.drc-body.lmv-mockup-track-library-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  margin-top: 12px;
-  padding: 0 0 8px;
-  /* Standard search-row -> records gap, matching the production Track Library
-     (.lmv-track-search-wrap { margin: 10px 0 }). */
-  gap: 10px;
-  background: transparent;
-  border-radius: 0;
-  overflow: hidden;
-}
 
 /* Search row mirrors the Media Manager library search
    (.vz-media-browser--manager .vz-md-search-*): magnifier icon overlaid inside
    the bare underline input, optional clear button, grid/list view toggles — all
    flush with the "Track Library" header and tabs above. */
-.lmv-mockup-track-search-row.vz-md-search-row {
-  padding: 0;
-  border-bottom: 0;
-}
 
-.lmv-mockup-track-search-row .vz-md-search-wrap {
-  position: relative;
-}
-
-.lmv-mockup-track-search-row .vz-md-search-icon {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-}
-
-.lmv-mockup-track-search.dv-text-input {
-  padding-left: 24px !important;
-}
-
-.lmv-mockup-track-search-row .vz-md-search-clear {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.lmv-mockup-track-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 2px 0 0;
-}
-
-.lmv-mockup-track-list[data-track-view='grid'] {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  align-content: start;
-}
-
-.lmv-mockup-track-list .vz-track-row {
-  flex: 0 0 auto;
-}
-
-.lmv-mockup-empty-state {
-  padding: 18px 8px;
-  color: rgba(196,207,211,0.36);
-  font-size: 10px;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.lmv-mockup-empty-tab {
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.lmv-mockup-lyric-management > .lmv-doc-sidebar,
 .lmv-lyric-management > .lmv-doc-sidebar {
   width: 100%;
   flex: 1 1 auto;
@@ -3121,12 +2487,11 @@
 
 /* Gap between the "Lyric Management" window header and the Lyric Versions group
    heading — same 24px the Track Library group carries above. */
-.lmv-mockup-lyric-management .lmv-doc-sidebar > .drc-group,
+
 .lmv-lyric-management .lmv-doc-sidebar > .drc-group {
   padding-top: 24px;
 }
 
-.lmv-mockup-lyric-management .lmv-doc-list,
 .lmv-lyric-management .lmv-doc-list {
   min-height: 0;
   padding-inline: 0;
@@ -3157,10 +2522,6 @@
   border-radius: 0;
 }
 
-.lmv-workspace-tab-panel .lmv-track-browser-actions {
-  margin: 0;
-}
-
 .lmv-workspace-tab-panel .lmv-track-search-wrap {
   margin: 0;
   max-width: none;
@@ -3171,274 +2532,6 @@
   min-height: 0;
   max-height: none;
   overflow-y: auto;
-}
-
-/* ── Lyric Manager layout mockup: Stage 2 center preview -----------------
-   Fixture transport and injected production-derived lyric rendering only. */
-.lmv-mockup-center {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px;
-  overflow: hidden;
-}
-
-.lmv-mockup-track-identity {
-  flex: 0 0 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border: 1px solid rgba(154,178,188,0.1);
-  border-radius: 7px;
-  background: rgba(13,19,24,0.72);
-}
-
-.lmv-mockup-track-identity-art.vz-track-row-art {
-  width: 42px;
-  height: 42px;
-  min-width: 42px;
-  border-radius: 6px;
-  color: var(--az-cyan, #4ac7db);
-}
-
-.lmv-mockup-track-identity-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.lmv-mockup-track-identity-title {
-  overflow: hidden;
-  color: rgba(237,249,251,0.94);
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lmv-mockup-track-identity-artist {
-  overflow: hidden;
-  color: rgba(196,207,211,0.5);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lmv-mockup-track-identity-meta {
-  min-width: 0;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.lmv-mockup-track-identity-meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 7px;
-  border: 1px solid rgba(154,178,188,0.11);
-  border-radius: 4px;
-  background: rgba(255,255,255,0.025);
-  color: rgba(196,207,211,0.58);
-  font-size: 9px;
-  font-weight: 650;
-  letter-spacing: 0.035em;
-  white-space: nowrap;
-}
-
-.lmv-mockup-live-preview {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(154,178,188,0.1);
-  border-radius: 8px;
-  background: rgba(6,11,18,0.9);
-}
-
-.lmv-mockup-preview-viewport {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 78%, rgba(74,199,219,0.09), transparent 34%),
-    radial-gradient(circle at 50% 15%, rgba(145,92,255,0.07), transparent 38%),
-    #050a11;
-}
-
-.lmv-mockup-preview-kicker {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  left: 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  pointer-events: none;
-}
-
-.lmv-mockup-preview-kicker span {
-  color: rgba(196,207,211,0.36);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.lmv-mockup-preview-kicker strong {
-  color: rgba(232,238,240,0.58);
-  font-size: 9px;
-  font-weight: 650;
-}
-
-.lmv-lyric-renderer-surface,
-.lmv-mockup-lyric-surface {
-  position: absolute;
-  inset: 0;
-}
-
-.lmv-lyric-renderer-surface canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-
-.lmv-mockup-preview-transport.mms-controls {
-  flex: 0 0 auto;
-  padding: 9px 12px 10px;
-  background: rgba(9,14,18,0.88);
-}
-
-/* ── Lyric Manager layout mockup: Stage 3 synchronized track timeline ------
-   Uses the shared Track Timeline canvas renderer and canonical viewport math;
-   all four rows share the same plot width, viewport, and playhead ratio. */
-.lmv-mockup-center-editor {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(154,178,188,0.1);
-  border-radius: 8px;
-  background: rgba(6,11,18,0.9);
-}
-
-.lmv-mockup-center-editor .lmv-mockup-live-preview {
-  flex: 1 1 auto;
-  min-height: 220px;
-  border: 0;
-  border-radius: 0;
-}
-
-.lmv-mockup-track-timeline {
-  flex: 0 0 auto;
-  min-width: 0;
-  border-top: 1px solid rgba(126,218,232,0.14);
-  background: rgba(7,12,16,0.96);
-  outline: none;
-}
-
-.lmv-mockup-track-timeline:focus-visible {
-  box-shadow: inset 0 0 0 1px rgba(74,199,219,0.5);
-}
-
-.lmv-mockup-timeline-heading {
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px 0 12px;
-  border-bottom: 1px solid rgba(154,178,188,0.09);
-  background: rgba(13,19,24,0.76);
-}
-
-.lmv-mockup-timeline-heading span {
-  color: rgba(232,238,240,0.7);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.lmv-mockup-timeline-heading strong {
-  color: rgba(126,218,232,0.7);
-  font-family: var(--az-font-data, 'Exo 2', Inter, system-ui, sans-serif);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.045em;
-}
-
-.lmv-mockup-timeline-rows {
-  min-width: 0;
-}
-
-.lmv-mockup-timeline-row {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  border-bottom: 1px solid rgba(154,178,188,0.075);
-}
-
-.lmv-mockup-timeline-row:last-child {
-  border-bottom: 0;
-}
-
-.lmv-mockup-timeline-label {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 9px 0 11px;
-  border-right: 1px solid rgba(154,178,188,0.08);
-  background: rgba(12,18,22,0.9);
-  color: rgba(196,207,211,0.52);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.045em;
-  white-space: nowrap;
-}
-
-.lmv-mockup-timeline-plot {
-  position: relative;
-  min-width: 0;
-  overflow: hidden;
-  cursor: crosshair;
-  touch-action: none;
-  user-select: none;
-}
-
-.lmv-mockup-timeline-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  display: block;
-  pointer-events: none;
-}
-
-.lmv-mockup-timeline-playhead {
-  position: absolute;
-  z-index: 2;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  transform: translateX(-0.5px);
-  background: rgba(236,251,255,0.9);
-  box-shadow: 0 0 5px rgba(74,199,219,0.7);
-  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -4086,8 +3179,7 @@
 }
 
 .lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-traces { display: none; }
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle),
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group .lmv-toggle-row { padding: 0 9px; }
+.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) { padding: 0 9px; }
 
 .lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-title {
   font-size: 16px;

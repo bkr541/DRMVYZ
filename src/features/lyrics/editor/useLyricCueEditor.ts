@@ -77,10 +77,9 @@ function cueMatchesFilter(cue: LyricCue, filter: LyricCueFilter, issues: ReturnT
 }
 
 /**
- * All non-JSX state/logic for lyric cue editing, lifted out of the former
- * LyricCueEditor component so Track Timeline, Lyric Cues, and Document
- * Workspace's Cue Inspector/Cue Settings can all consume the same live
- * selection/history/actions as *siblings* instead of one nesting the others.
+ * All non-JSX state/logic for lyric cue editing, shared by the timeline
+ * toolbar, the stacked cue lanes, the cue list and the Cue inspector so they
+ * all consume the same live selection/history/actions as *siblings*.
  */
 export function useLyricCueEditor({
   trackId,

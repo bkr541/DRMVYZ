@@ -17,12 +17,6 @@ export function formatMsClock(ms: number | null | undefined): string {
   return `${mins}:${secs.toString().padStart(2, '0')}.${hundredths.toString().padStart(2, '0')}`
 }
 
-export function formatTrackDate(value: string | null | undefined): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString()
-}
-
 export function trackInitials(track: LyricManagerTrack | null): string {
   if (!track) return '♪'
   const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()

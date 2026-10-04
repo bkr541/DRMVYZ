@@ -33,7 +33,6 @@ import {
   computeViewportRangeLayout,
   computeWaveformViewport,
   timeToViewportRatio,
-  type TimelineViewport,
 } from "../../timeline/timelineViewport";
 import {
   DEFAULT_TIMELINE_OVERLAY_VISIBILITY,

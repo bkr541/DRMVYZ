@@ -18,8 +18,7 @@ interface Props {
 
 /**
  * Track info row at the top of the Live Preview body, above the visual
- * preview — replaces "Track Information" in Document Workspace, since
- * that's now redundant with this row. Laid out as Layout Lab Template's
+ * preview — the single place track metadata is shown in Lyric Manager. Laid out as Layout Lab Template's
  * "Split Rail" concept: an accent rail + artwork, an identity column
  * (title/badges/artist/versions), a 2×2 stat grid, and actions stacked on
  * the far right. There is no artwork/cover-image field anywhere in the data

@@ -14,7 +14,7 @@ import { useReactStore } from '../../stores/reactStore'
 import { adaptMIAnalysis, resolveTrackSections } from '../trackIntelligence/trackMapAdapter'
 import type { LyricCue, LyricDocument, LyricSectionType, LyricTranscriptionJob } from '../../types/lyrics'
 import type { Track } from '../../types'
-import type { TrackIntelligenceAnalysis, BeatMarkerMI } from '../musicIntelligence/types'
+import type { BeatMarkerMI } from '../musicIntelligence/types'
 import type { LyricBeatGridStatus } from './editor/lyricCueEditorModel'
 import type { LyricDocumentImportResult } from './utils/lyricDocumentImport'
 import type {
@@ -2286,6 +2286,7 @@ export function LyricManagerView({
                 canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
                 onUpdateCue={cueEditor.commitCuePatch}
                 onUpdateWord={cueEditor.updateCueWord}
+                focusWordId={navigationTarget?.cueId === cueEditor.selectedCue.id ? navigationTarget.wordId : null}
               />
             ) : (
               <div className="lmv-inspector-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>

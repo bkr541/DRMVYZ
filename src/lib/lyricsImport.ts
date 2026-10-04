@@ -36,28 +36,6 @@ export function formatMs(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`
 }
 
-/** Parse an "MM:SS.mmm" or "HH:MM:SS.mmm" timestamp string to milliseconds. */
-export function parseTimestampToMs(value: string): number {
-  const trimmed = value.trim()
-  // Try numeric first
-  const numeric = Number(trimmed)
-  if (!isNaN(numeric)) return Math.round(numeric)
-
-  // MM:SS.mmm or HH:MM:SS.mmm
-  const parts = trimmed.split(':').map(Number)
-  if (parts.some(isNaN)) throw new Error(`Cannot parse timestamp: "${value}"`)
-
-  if (parts.length === 2) {
-    const [m, s] = parts
-    return Math.round((m * 60 + s) * 1000)
-  }
-  if (parts.length === 3) {
-    const [h, m, s] = parts
-    return Math.round((h * 3600 + m * 60 + s) * 1000)
-  }
-  throw new Error(`Cannot parse timestamp: "${value}"`)
-}
-
 // ── Validation error ──────────────────────────────────────────────────────────
 
 export class LyricParseError extends Error {

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+/**
+ * Cue-editing behavior of the production Lyric Manager workspace, exercised through the same pieces
+ * LyricManagerView composes: the useLyricCueEditor hook, the Track Timeline window + toolbar, the stacked
+ * cue lanes, the cue list and the Cue inspector. (Migrated from the retired standalone LyricCueEditor.)
+ */
+
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,12 +27,83 @@ vi.mock('../../../lib/lyricsDb', () => ({
 
 import { useLyricsStore } from '../../../stores/lyricsStore'
 import { useVisualStore } from '../../../stores/visualStore'
-import { LyricCueEditor } from './LyricCueEditor'
+import { useLyricCueEditor, type UseLyricCueEditorParams } from '../editor/useLyricCueEditor'
+import { LyricCueInspector } from '../editor/LyricCueInspector'
+import { LyricCuesWindow, LyricCueStackedTimeline } from './LyricCuesWindow'
+import { LyricTimelineToolbar } from './LyricTimelineToolbar'
+import { LyricTrackTimelineWindow } from './LyricTrackTimelineWindow'
 
 const CUES: LyricCue[] = [
   { id: 'cue-1', startMs: 0, endMs: 1_000, text: 'First', confidence: 0.95, reviewStatus: 'reviewed' },
   { id: 'cue-2', startMs: 1_000, endMs: 2_000, text: 'Second', confidence: 0.4, reviewStatus: 'unreviewed' },
 ]
+
+interface WorkspaceProps extends Partial<UseLyricCueEditorParams> {
+  onAnalyzeTrack?: () => void
+}
+
+/** The center + inspector wiring from LyricManagerView, minus data loading and layout chrome. */
+function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
+  const durationMs = overrides.durationMs ?? 5_000
+  const currentTimeMs = overrides.currentTimeMs === undefined ? 500 : overrides.currentTimeMs
+  const navigationTarget = overrides.navigationTarget ?? null
+  const editor = useLyricCueEditor({
+    trackId: 'track-1',
+    trackUrl: null,
+    decodedBuffer: null,
+    durationMs,
+    currentTimeMs,
+    beatGridMs: [0, 500, 1_000],
+    ...overrides,
+  })
+  const { selectedCue, actions } = editor
+  return (
+    <>
+      <LyricTrackTimelineWindow
+        durationMs={durationMs}
+        currentTimeMs={currentTimeMs}
+        zoom={editor.waveformZoom}
+        sections={[]}
+        beatGrid={[]}
+        trackId="track-1"
+        trackUrl={null}
+        waveformPeaks={editor.peaks}
+        waveformLoading={editor.loading}
+        beatGridStatus={overrides.beatGridStatus ?? 'missing'}
+        beatGridStatusMessage={overrides.beatGridStatusMessage ?? null}
+        onAnalyzeTrack={onAnalyzeTrack}
+        toolbar={(
+          <LyricTimelineToolbar
+            editor={editor}
+            selectedTrackLoaded
+            selectedTrackPlaying={false}
+            currentTimeMs={currentTimeMs}
+            durationMs={durationMs}
+            volume={0.8}
+            onTogglePlayback={() => undefined}
+            onVolumeChange={() => undefined}
+          />
+        )}
+        cueTimeline={<LyricCueStackedTimeline editor={editor} durationMs={durationMs} currentTimeMs={currentTimeMs} onSeek={() => undefined} />}
+      />
+      <LyricCuesWindow editor={editor} />
+      {selectedCue && actions && (
+        <LyricCueInspector
+          cue={selectedCue}
+          cues={editor.cues}
+          currentTimeMs={editor.canonicalPlayheadMs}
+          durationMs={durationMs}
+          actions={actions}
+          canMergePrevious={editor.selectedIndex > 0}
+          canMergeNext={editor.selectedIndex >= 0 && editor.selectedIndex < editor.orderedCues.length - 1}
+          onUpdateCue={editor.commitCuePatch}
+          onUpdateWord={editor.updateCueWord}
+          focusWordId={navigationTarget?.cueId === selectedCue.id ? navigationTarget.wordId : null}
+        />
+      )}
+    </>
+  )
+}
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -59,26 +136,19 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-async function renderEditor(overrides: Partial<React.ComponentProps<typeof LyricCueEditor>> = {}) {
-  await act(async () => {
-    root.render(
-      <LyricCueEditor
-        trackId="track-1"
-        trackUrl={null}
-        decodedBuffer={null}
-        durationMs={5_000}
-        currentTimeMs={500}
-        onSeek={vi.fn()}
-        beatGridMs={[0, 500, 1_000]}
-        {...overrides}
-      />,
-    )
-  })
+async function renderWorkspace(props: WorkspaceProps = {}) {
+  await act(async () => { root.render(<Workspace {...props} />) })
+  // The cue list is a collapsed group by default.
+  const toggle = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('Cue list'))
+  if (toggle) await act(async () => toggle.click())
 }
 
-describe('LyricCueEditor selection synchronization', () => {
+const setValue = (input: HTMLInputElement, value: string) =>
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
+
+describe('Lyric Manager cue editing workspace', () => {
   it('keeps timeline selection and cue-list selection synchronized both ways', async () => {
-    await renderEditor()
+    await renderWorkspace()
     const firstRow = container.querySelector<HTMLElement>('[data-cue-row-id="cue-1"]')!
     const secondRow = container.querySelector<HTMLElement>('[data-cue-row-id="cue-2"]')!
     const firstBlock = container.querySelector<HTMLElement>('[data-testid="lyric-cue-cue-1"]')!
@@ -98,13 +168,12 @@ describe('LyricCueEditor selection synchronization', () => {
 
   it('uses the shared Audio Dock waveform zoom state', async () => {
     useVisualStore.getState().setWaveformZoom(4)
-    await renderEditor()
+    await renderWorkspace()
     const zoom = container.querySelector<HTMLInputElement>('input[aria-label="Shared waveform zoom"]')!
     expect(zoom.value).toBe('4')
 
     await act(async () => {
-      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      valueSetter?.call(zoom, '8')
+      setValue(zoom, '8')
       zoom.dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(useVisualStore.getState().waveformZoom).toBe(8)
@@ -119,15 +188,15 @@ describe('LyricCueEditor selection synchronization', () => {
       ],
       selectedCueId: 'cue-1',
     })
-    await renderEditor({
+    await renderWorkspace({
       beatGridMs: [],
       beatGridStatus: 'temporary',
       beatGridStatusMessage: 'Temporary grid in use.',
       onAnalyzeTrack: analyze,
-      analysisActionLabel: 'Analyze Track',
       navigationTarget: { cueId: 'cue-2', wordId: 'word-2', revision: 1 },
     })
 
+    // Track Timeline owns the recovery action (the hint shows beside its title).
     const analyzeButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent === 'Analyze Track')
     expect(analyzeButton).toBeTruthy()
@@ -138,7 +207,7 @@ describe('LyricCueEditor selection synchronization', () => {
   })
 
   it('filters low-confidence and warning rows without changing canonical cues', async () => {
-    await renderEditor()
+    await renderWorkspace()
     const filter = container.querySelector<HTMLButtonElement>('.lyric-cue-list__controls [role="combobox"]')!
     await act(async () => filter.click())
     const lowConfidence = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
@@ -163,7 +232,7 @@ describe('LyricCueEditor selection synchronization', () => {
       cueHistoryPast: [],
       cueHistoryFuture: [],
     })
-    await renderEditor({ currentTimeMs: 3_000 })
+    await renderWorkspace({ currentTimeMs: 3_000 })
 
     const moveButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === 'Move to playhead')!
@@ -205,15 +274,14 @@ describe('LyricCueEditor selection synchronization', () => {
       cueHistoryPast: [],
       cueHistoryFuture: [],
     })
-    await renderEditor()
+    await renderWorkspace()
 
     const startInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 start milliseconds"]')!
     const endInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 end milliseconds"]')!
     await act(async () => {
-      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      valueSetter?.call(startInput, '1200')
+      setValue(startInput, '1200')
       startInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
-      valueSetter?.call(endInput, '1600')
+      setValue(endInput, '1600')
       endInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     })
 
@@ -262,7 +330,7 @@ describe('LyricCueEditor selection synchronization', () => {
       cueHistoryPast: [],
       cueHistoryFuture: [],
     })
-    await renderEditor()
+    await renderWorkspace()
 
     const removeTiming = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === 'Remove invalid timing')!
@@ -292,10 +360,9 @@ describe('LyricCueEditor selection synchronization', () => {
     const startInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 start milliseconds"]')!
     const endInput = container.querySelector<HTMLInputElement>('[aria-label="Word 1 end milliseconds"]')!
     await act(async () => {
-      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      valueSetter?.call(startInput, '1100')
+      setValue(startInput, '1100')
       startInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
-      valueSetter?.call(endInput, '1500')
+      setValue(endInput, '1500')
       endInput.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
     })
 

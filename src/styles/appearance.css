@@ -261,7 +261,6 @@ body,
   .az-toggle-input:checked + .az-toggle-track,
   .ref-toggle input[type='checkbox']:checked + .ref-toggle-track,
   .mum-toggle input[type='checkbox']:checked ~ .mum-toggle-track,
-  .lmm-toggle input[type='checkbox']:checked ~ .lmm-toggle-track,
   .vz-ml-insp-toggle-input:checked + .vz-ml-insp-toggle-track
 ) {
   background-color: rgba(var(--color-primary-rgb), 0.34);

@@ -58,11 +58,6 @@ interface Props {
   onUpdateCue: (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => void
   onUpdateWord: (cueId: string, wordId: string, patch: Partial<Omit<LyricWord, 'id'>>) => void
   focusWordId?: string | null
-  /** Default true (today's behavior). Lyric Manager's Document Workspace
-   * suppresses these since the same style/animation/effects config now has
-   * its own dedicated "Cue Settings" window. */
-  showPresentationControls?: boolean
-  showStyleMetadataJson?: boolean
 }
 
 const SOURCES: LyricSource[] = ['manual', 'import', 'transcription', 'corrected', 'generated', 'unknown']
@@ -239,8 +234,6 @@ export function LyricCueInspector({
   onUpdateCue,
   onUpdateWord,
   focusWordId = null,
-  showPresentationControls = true,
-  showStyleMetadataJson = true,
 }: Props) {
   const [text, setText] = useState(cue.text)
   const [start, setStart] = useState(String(cue.startMs))
@@ -381,27 +374,25 @@ export function LyricCueInspector({
         <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
       </div>
 
-      {showPresentationControls && (
-        <DualRailCollapsible
-          className="lyric-cue-inspector__presentation"
-          defaultOpen
-          label="Appearance overrides"
-        >
-          <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
-          <LyricPresentationControls
-            style={cue.style ?? {}}
-            animation={cue.animation ?? {}}
-            effects={cue.effects ?? {}}
-            allowInherit
-            onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
-            onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
-            onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
-            onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
-            onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
-            onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
-          />
-        </DualRailCollapsible>
-      )}
+      <DualRailCollapsible
+        className="lyric-cue-inspector__presentation"
+        defaultOpen
+        label="Appearance overrides"
+      >
+        <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
+        <LyricPresentationControls
+          style={cue.style ?? {}}
+          animation={cue.animation ?? {}}
+          effects={cue.effects ?? {}}
+          allowInherit
+          onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
+          onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
+          onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
+          onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
+          onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
+          onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
+        />
+      </DualRailCollapsible>
 
       <DualRailCollapsible
         className="lyric-cue-inspector__metadata"
@@ -434,13 +425,9 @@ export function LyricCueInspector({
           ))}
         </fieldset>
         <p>Use the JSON fields only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
-        {showStyleMetadataJson && (
-          <>
-            <LyricCueJsonField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
-            <LyricCueJsonField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
-            <LyricCueJsonField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
-          </>
-        )}
+        <LyricCueJsonField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
+        <LyricCueJsonField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
+        <LyricCueJsonField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
         <LyricCueJsonField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
       </DualRailCollapsible>
 

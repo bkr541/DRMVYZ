@@ -11,7 +11,7 @@ interface Props {
   onUpdateDefaultEffects: (patch: Partial<LyricEffects>) => void
 }
 
-/** Document-level presentation defaults, hosted in Document Workspace. */
+/** Document-level presentation defaults, hosted in the Document tab of the right inspector. */
 export function LyricDocumentPresentationPanel({
   defaultStyle,
   defaultAnimation,

@@ -200,7 +200,6 @@ export interface LyricsState {
   loadLyricsForAudioTrack(audioTrackId: string, force?: boolean): Promise<void>
   loadLyricsForVisualSession(visualSessionId: string): Promise<void>
   saveActiveLyricDocument(cues?: LyricCue[], options?: SaveEditorDocumentOptions): Promise<SaveLyricDocumentResult | null>
-  replaceActiveCues(inputs: CreateLyricCueInput[]): Promise<SaveLyricDocumentResult | null>
   saveLyricDocumentMetadata(documentId: string, patch: UpdateLyricDocumentInput): Promise<SaveLyricDocumentResult | null>
   activateLyricDocument(documentId: string): Promise<ActivateLyricDocumentResult | null>
   saveTimingChanges(): Promise<SaveLyricDocumentResult | null>
@@ -726,7 +725,6 @@ async function executeWriteJob(queue: DocumentWriteQueue, job: WriteJob): Promis
 
 function commitCanonicalResult(
   set: (partial: Partial<LyricsState> | ((state: LyricsState) => Partial<LyricsState>)) => void,
-  get: () => LyricsState,
   queue: DocumentWriteQueue,
   job: WriteJob,
   result: AnyWriteResult,
@@ -873,7 +871,7 @@ async function drainQueue(
       }
 
       queue.failedJob = null
-      commitCanonicalResult(set, get, queue, job, result)
+      commitCanonicalResult(set, queue, job, result)
       job.resolve(result)
     }
   } finally {
@@ -1454,59 +1452,6 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
         cues: cueSnapshot,
         activate: resolveSaveActivation({
           explicit: options?.makeActive,
-          savedDocument: state.editorDocument,
-          draftActivateOnSave: state.draftActivateOnSave,
-        }),
-        resolve: result => resolve(result as SaveLyricDocumentResult | null),
-      }
-      void enqueueWrite(set, get, queue, job)
-    })
-  },
-
-  replaceActiveCues: async (inputs) => {
-    const state = get()
-    if (!state.editorDocumentId) {
-      set({ error: 'Save the lyric document first before replacing cues.' })
-      return null
-    }
-    const builtCues = inputs.map((input, index) => normalizeCue({
-      id: input.lyricDocumentId && input.lyricDocumentId !== state.editorDocumentId
-        ? input.lyricDocumentId
-        : uniqueId(`replacement-cue-${index}`),
-      startMs: input.startMs,
-      endMs: input.endMs,
-      text: input.text,
-      style: input.style,
-      animation: input.animation,
-      effects: input.effects,
-      words: input.words,
-      groups: input.groups,
-      confidence: input.confidence,
-      source: input.source,
-      reviewStatus: input.reviewStatus,
-      sectionId: input.sectionId,
-      sectionType: input.sectionType,
-      warnings: input.warnings,
-      analysisMetadata: input.analysisMetadata,
-      originalTranscriptionText: input.originalTranscriptionText,
-    }))
-    // Extraction/replace boundary: repaired words carry deterministic timing
-    // into canonical state; nothing is dropped for lacking it.
-    const cues = hasRepairableWordTiming(builtCues)
-      ? normalizeLyricCueTiming(builtCues).cues
-      : builtCues
-    const queue = ensureQueue(state, state.activeLogicalDocumentId, state.editorDocument, state.cues)
-    return new Promise<SaveLyricDocumentResult | null>(resolve => {
-      const job: AtomicJob = {
-        kind: 'atomic',
-        id: uniqueId('lyric-write'),
-        logicalDocumentId: state.activeLogicalDocumentId,
-        accountId: accountScope(state),
-        editVersion: state.activeEditVersion,
-        selectedCueId: state.selectedCueId,
-        document: buildDocumentInput(state),
-        cues,
-        activate: resolveSaveActivation({
           savedDocument: state.editorDocument,
           draftActivateOnSave: state.draftActivateOnSave,
         }),
