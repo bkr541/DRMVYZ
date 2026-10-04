@@ -887,4 +887,155 @@ describe('LyricManagerView track-first workflow', () => {
     expect(onNavigationIntentConsumed).toHaveBeenCalledWith('intent-ai-track-a')
   })
 
+
+  describe('responsive drawers', () => {
+    let managerWidth = 1848
+    const observers: Array<() => void> = []
+    let originalObserver: typeof ResizeObserver | undefined
+    let originalRect: typeof HTMLElement.prototype.getBoundingClientRect
+
+    async function resizeManager(width: number) {
+      managerWidth = width
+      await act(async () => { observers.forEach(notify => notify()) })
+    }
+
+    beforeEach(() => {
+      managerWidth = 1848
+      observers.length = 0
+      originalObserver = globalThis.ResizeObserver
+      originalRect = HTMLElement.prototype.getBoundingClientRect
+      globalThis.ResizeObserver = class {
+        constructor(private readonly callback: () => void) { observers.push(() => this.callback()) }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver
+      HTMLElement.prototype.getBoundingClientRect = function patched(this: HTMLElement) {
+        const rect = originalRect.call(this)
+        if (!this.classList.contains('lmv-root')) return rect
+        return { ...rect, width: managerWidth, right: managerWidth, toJSON: () => ({}) } as DOMRect
+      }
+    })
+
+    afterEach(() => {
+      globalThis.ResizeObserver = originalObserver as typeof ResizeObserver
+      HTMLElement.prototype.getBoundingClientRect = originalRect
+    })
+
+    const layoutRoot = () => container.querySelector<HTMLElement>('.lmv-root')!
+    const leftRail = () => container.querySelector<HTMLElement>('.lmv-left-rail')!
+    const rightRail = () => container.querySelector<HTMLElement>('.lmv-right-rail')!
+    const drawerToggle = (label: string) =>
+      [...container.querySelectorAll<HTMLButtonElement>('.lmv-drawer-toggle')].find(button => button.textContent?.includes(label))
+
+    it('keeps both rails docked at desktop widths, with no drawer controls or dead resize chrome', async () => {
+      await render()
+      expect(layoutRoot().dataset.layout).toBe('wide')
+      await resizeManager(1368)
+      expect(layoutRoot().dataset.layout).toBe('standard')
+      expect(container.querySelector('.lmv-drawer-bar')).toBeNull()
+      expect(leftRail().classList.contains('lmv-rail--drawer')).toBe(false)
+      expect(rightRail().classList.contains('lmv-rail--drawer')).toBe(false)
+      // Docked rails keep their collapse toggles.
+      expect(container.querySelector('.vz-inspector-toggle--left')).not.toBeNull()
+      expect(container.querySelector('.vz-inspector-toggle--right')).not.toBeNull()
+    })
+
+    it('laptop width: Tracks & Versions becomes a drawer while the Inspector stays docked', async () => {
+      await render()
+      await resizeManager(1208)
+
+      expect(layoutRoot().dataset.layout).toBe('laptop')
+      expect(leftRail().classList.contains('lmv-rail--drawer')).toBe(true)
+      expect(rightRail().classList.contains('lmv-rail--drawer')).toBe(false)
+      expect(drawerToggle('Tracks')).toBeTruthy()
+      expect(drawerToggle('Inspector')).toBeUndefined()
+      // A drawer has no desktop collapse toggle or dead separator.
+      expect(container.querySelector('.vz-inspector-toggle--left')).toBeNull()
+      expect(container.querySelector('.lmv-body')?.getAttribute('data-left-collapsed')).toBeNull()
+    })
+
+    it('narrow width: both rails are drawers and the editor stays mounted', async () => {
+      await render()
+      await resizeManager(696)
+
+      expect(layoutRoot().dataset.layout).toBe('narrow')
+      expect(leftRail().classList.contains('lmv-rail--drawer')).toBe(true)
+      expect(rightRail().classList.contains('lmv-rail--drawer')).toBe(true)
+      expect(drawerToggle('Tracks')).toBeTruthy()
+      expect(drawerToggle('Inspector')).toBeTruthy()
+      expect(container.querySelector('.lmv-center')).not.toBeNull()
+      expect(container.querySelector('[aria-label="Timeline controls"]')).toBeNull()
+    })
+
+    it('opens and closes a drawer from its button, the close control, the scrim and Escape — one at a time', async () => {
+      await render()
+      await resizeManager(696)
+      const isOpen = (rail: HTMLElement) => rail.classList.contains('lmv-rail--drawer-open')
+
+      await act(async () => drawerToggle('Tracks')!.click())
+      expect(isOpen(leftRail())).toBe(true)
+      expect(drawerToggle('Tracks')!.getAttribute('aria-expanded')).toBe('true')
+      expect(container.querySelector('[data-testid="lyric-drawer-scrim"]')).not.toBeNull()
+
+      // Opening the Inspector replaces the Tracks drawer rather than stacking two overlays.
+      await act(async () => drawerToggle('Inspector')!.click())
+      expect(isOpen(leftRail())).toBe(false)
+      expect(isOpen(rightRail())).toBe(true)
+
+      await act(async () => container.querySelector<HTMLElement>('[data-testid="lyric-drawer-scrim"]')!.click())
+      expect(isOpen(rightRail())).toBe(false)
+      expect(container.querySelector('[data-testid="lyric-drawer-scrim"]')).toBeNull()
+
+      await act(async () => drawerToggle('Tracks')!.click())
+      await act(async () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) })
+      expect(isOpen(leftRail())).toBe(false)
+
+      await act(async () => drawerToggle('Inspector')!.click())
+      await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Close inspector"]')!.click())
+      expect(isOpen(rightRail())).toBe(false)
+    })
+
+    it('keeps the track selection and the inspector tab when drawers close and reopen', async () => {
+      await render()
+      await resizeManager(696)
+
+      await act(async () => drawerToggle('Tracks')!.click())
+      await act(async () => trackCard('Reverie').click())
+      await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+      // Opening a version from the Tracks drawer returns the user to the editor.
+      await waitFor(() => expect(leftRail().classList.contains('lmv-rail--drawer-open')).toBe(false))
+      expect(trackCard('Reverie').getAttribute('aria-pressed')).toBe('true')
+
+      await act(async () => drawerToggle('Inspector')!.click())
+      const reviewTab = [...rightRail().querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Review')!
+      await act(async () => reviewTab.click())
+      expect(reviewTab.getAttribute('aria-selected')).toBe('true')
+
+      await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Close inspector"]')!.click())
+      await act(async () => drawerToggle('Inspector')!.click())
+      const tabs = [...rightRail().querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      expect(tabs.find(tab => tab.getAttribute('aria-selected') === 'true')?.textContent).toBe('Review')
+      // The editor state was never touched by any of this.
+      expect(useLyricsStore.getState().editorDirty).toBe(false)
+    })
+
+    it('restores the docked layout, with the desktop collapse preference intact, when widening again', async () => {
+      await render()
+      // Collapse the docked left rail on desktop, then shrink to a drawer and grow back.
+      await act(async () => container.querySelector<HTMLButtonElement>('.vz-inspector-toggle--left')!.click())
+      expect(container.querySelector('.lmv-body')?.getAttribute('data-left-collapsed')).toBe('true')
+
+      await resizeManager(1208)
+      expect(container.querySelector('.lmv-body')?.getAttribute('data-left-collapsed')).toBeNull()
+      await act(async () => drawerToggle('Tracks')!.click())
+
+      await resizeManager(1848)
+      expect(layoutRoot().dataset.layout).toBe('wide')
+      expect(container.querySelector('.lmv-drawer-bar')).toBeNull()
+      expect(container.querySelector('.lmv-drawer-scrim')).toBeNull()
+      expect(container.querySelector('.lmv-body')?.getAttribute('data-left-collapsed')).toBe('true')
+    })
+  })
+
 })

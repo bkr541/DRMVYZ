@@ -56,6 +56,7 @@ import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPa
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspector } from './editor/LyricCueInspector'
 import { LyricInspector, type LyricInspectorTab } from './components/LyricInspector'
+import { lyricLayoutDrawers, useLyricLayoutMode } from './lyricLayoutMode'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
@@ -341,6 +342,12 @@ export function LyricManagerView({
   const [trackDeleting, setTrackDeleting] = useState(false)
   const [leftRailCollapsed, setLeftRailCollapsed] = useState(false)
   const [rightRailCollapsed, setRightRailCollapsed] = useState(false)
+  // Responsive layout: as the manager narrows, rails become slide-over drawers instead of stacking under the
+  // timeline. The desktop collapse flags above are left alone, so the docked layout is restored as it was.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const layoutMode = useLyricLayoutMode(rootRef)
+  const drawers = lyricLayoutDrawers(layoutMode)
+  const [openDrawer, setOpenDrawer] = useState<'left' | 'right' | null>(null)
   const mountedRef = useRef(false)
   const accountIdRef = useRef<string | null>(null)
   const selectedTrackIdRef = useRef<string | null>(null)
@@ -1882,8 +1889,32 @@ export function LyricManagerView({
     return null
   }, [editorDocument, documents.length, selectedTrack])
 
+  // A drawer that no longer exists in the current layout must not stay "open".
+  useEffect(() => { setOpenDrawer(null) }, [layoutMode])
+
+  useEffect(() => {
+    if (!openDrawer) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenDrawer(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [openDrawer])
+
+  // Opening or switching a lyric version from the Tracks drawer returns the user to the editor.
+  const lastEditorDocumentIdRef = useRef(editorDocumentId)
+  useEffect(() => {
+    if (lastEditorDocumentIdRef.current === editorDocumentId) return
+    lastEditorDocumentIdRef.current = editorDocumentId
+    setOpenDrawer(current => (current === 'left' ? null : current))
+  }, [editorDocumentId])
+
+  const toggleDrawer = (side: 'left' | 'right') => setOpenDrawer(current => (current === side ? null : side))
+  const drawerClass = (side: 'left' | 'right', isDrawer: boolean) =>
+    isDrawer ? ` lmv-rail--drawer${openDrawer === side ? ' lmv-rail--drawer-open' : ''}` : ''
+
   return (
-    <div className="lmv-root">
+    <div ref={rootRef} className="lmv-root" data-layout={layoutMode}>
       <LyricManagerHeader
         isSaving={isSaving}
         saveStatus={activeWriteStatus}
@@ -1923,16 +1954,25 @@ export function LyricManagerView({
 
       <div
         className="lmv-body"
-        data-left-collapsed={leftRailCollapsed ? 'true' : undefined}
-        data-right-collapsed={rightRailCollapsed ? 'true' : undefined}
+        data-left-collapsed={!drawers.left && leftRailCollapsed ? 'true' : undefined}
+        data-right-collapsed={!drawers.right && rightRailCollapsed ? 'true' : undefined}
       >
+        {openDrawer && (
+          <div className="lmv-drawer-scrim" data-testid="lyric-drawer-scrim" onClick={() => setOpenDrawer(null)} aria-hidden="true" />
+        )}
         <WorkspaceRail
           side="left"
           label="Lyric Manager library and versions"
-          collapsed={leftRailCollapsed}
-          onToggleCollapsed={() => setLeftRailCollapsed(value => !value)}
-          className="lmv-left-rail"
+          collapsed={drawers.left ? false : leftRailCollapsed}
+          onToggleCollapsed={drawers.left ? undefined : () => setLeftRailCollapsed(value => !value)}
+          className={`lmv-left-rail${drawerClass('left', drawers.left)}`}
         >
+          {drawers.left && (
+            <div className="lmv-drawer-head">
+              <span>Tracks &amp; Versions</span>
+              <button type="button" className="lmv-drawer-close" aria-label="Close tracks and versions" onClick={() => setOpenDrawer(null)}>×</button>
+            </div>
+          )}
           <div
             ref={workspaceShellRef}
             className="lmv-workspace-shell"
@@ -2089,6 +2129,30 @@ export function LyricManagerView({
         </WorkspaceRail>
 
         <main className="lmv-center" aria-label="Lyric editing workspace">
+          {(drawers.left || drawers.right) && (
+            <div className="lmv-drawer-bar">
+              {drawers.left && (
+                <button
+                  type="button"
+                  className="lmv-drawer-toggle"
+                  aria-expanded={openDrawer === 'left'}
+                  onClick={() => toggleDrawer('left')}
+                >
+                  ☰ Tracks &amp; Versions
+                </button>
+              )}
+              {drawers.right && (
+                <button
+                  type="button"
+                  className="lmv-drawer-toggle lmv-drawer-toggle--end"
+                  aria-expanded={openDrawer === 'right'}
+                  onClick={() => toggleDrawer('right')}
+                >
+                  Inspector ▸
+                </button>
+              )}
+            </div>
+          )}
           <div className="lmv-live-preview-enlarged">
             <LyricLivePreviewPanel
               cues={storeCues}
@@ -2197,10 +2261,16 @@ export function LyricManagerView({
         <WorkspaceRail
           side="right"
           label="Lyric Manager preview and validation"
-          collapsed={rightRailCollapsed}
-          onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
-          className="lmv-right-rail"
+          collapsed={drawers.right ? false : rightRailCollapsed}
+          onToggleCollapsed={drawers.right ? undefined : () => setRightRailCollapsed(value => !value)}
+          className={`lmv-right-rail${drawerClass('right', drawers.right)}`}
         >
+          {drawers.right && (
+            <div className="lmv-drawer-head">
+              <span>Inspector</span>
+              <button type="button" className="lmv-drawer-close" aria-label="Close inspector" onClick={() => setOpenDrawer(null)}>×</button>
+            </div>
+          )}
           <LyricInspector
             activeTab={inspectorTab}
             onTabChange={setInspectorTab}
