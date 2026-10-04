@@ -7094,8 +7094,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    portaled to the header. React always sets showAudioSourceControl, so
    .vz-dock-rekordbox-menu itself never renders inside .rv-shell anymore. */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger {
-  grid-column: 1;
+  /* Under SYNC (column 3), in the cell the blank placeholder used to fill; the placeholder now sits where the trigger was. Sized like
+     SYNC and the placeholder above it: 6px inset from the card edge, and the same 6px shave at the bottom CUE has. */
+  grid-column: 3;
   grid-row: 2;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  margin-right: 6px;
 }
 
 /* Row 1's height only gives the BPM group ~TAP/SYNC's height to work with —
@@ -22068,4 +22073,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgb(31, 48, 55);
   border-color: rgba(74, 199, 219, 0.5);
   color: rgba(112, 228, 245, 0.96);
+}
+
+/* The empty placeholder and the Source trigger have traded cells: the placeholder keeps the second row's rhythm under BPM, where the trigger
+   used to be, and the trigger sits under SYNC. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-btn {
+  grid-column: 1;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
 }

@@ -11,7 +11,7 @@ import {
 } from '../cinema2/parameters/Cinema2InspectorModel'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
-import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
+import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
@@ -601,19 +601,19 @@ function ScalarTextControl({
   onChange: (value: string) => void
 }) {
   const description = [control.definition.description, control.disabledReason].filter(Boolean).join(' ')
+  // The shared text row, so these fields match every other text input in the app (e.g. Sound Drawing's Static Text): its label cluster and the
+  // DreamViz text input, not a bare browser input.
   return (
-    <div className="rv-ctrl-row" data-cinema2-control-id={control.definition.id} data-cinema2-control-type={control.definition.type}>
-      <label className="rv-ctrl-label" htmlFor={id}>{control.definition.label}</label>
-      <input
+    <div data-cinema2-control-id={control.definition.id} data-cinema2-control-type={control.definition.type}>
+      <TextInputRow
         id={id}
-        className="rv-ctrl-text-input"
-        type="text"
+        label={control.definition.label}
         value={value}
+        onChange={onChange}
+        maxLength={256}
         disabled={!control.enabled}
-        onChange={event => onChange(event.target.value)}
-        aria-describedby={description ? `${id}-description` : undefined}
+        description={description || undefined}
       />
-      {description && <span id={`${id}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
