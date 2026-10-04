@@ -19,7 +19,11 @@ export interface Cinema2SayItDrawState {
   roughness: number
   environmentIntensity: number
   environmentRotationRadians: number
+  materialStyle: Cinema2SayItMaterialStyle
 }
+
+export const CINEMA2_SAY_IT_MATERIAL_STYLES = Object.freeze(['chrome', 'brushed', 'pearl', 'neon'] as const)
+export type Cinema2SayItMaterialStyle = typeof CINEMA2_SAY_IT_MATERIAL_STYLES[number]
 
 interface GlyphInstance {
   id: string
@@ -187,8 +191,23 @@ export class Cinema2SayItBridge {
       glyph.mesh.castShadow = profile.castShadows
       glyph.mesh.receiveShadow = profile.castShadows
       glyph.material.color.setRGB(state.color[0], state.color[1], state.color[2], THREE.SRGBColorSpace)
-      glyph.material.metalness = 1
-      glyph.material.roughness = Math.min(1, Math.max(profile.roughnessFloor, state.roughness))
+      glyph.material.emissive.setRGB(0, 0, 0)
+      glyph.material.emissiveIntensity = 0
+      if (state.materialStyle === 'brushed') {
+        glyph.material.metalness = 0.88
+        glyph.material.roughness = Math.min(1, Math.max(0.38, profile.roughnessFloor, state.roughness))
+      } else if (state.materialStyle === 'pearl') {
+        glyph.material.metalness = 0.18
+        glyph.material.roughness = Math.min(1, Math.max(0.22, profile.roughnessFloor, state.roughness))
+      } else if (state.materialStyle === 'neon') {
+        glyph.material.metalness = 0.32
+        glyph.material.roughness = Math.min(1, Math.max(0.14, profile.roughnessFloor, state.roughness))
+        glyph.material.emissive.setRGB(state.color[0], state.color[1], state.color[2], THREE.SRGBColorSpace)
+        glyph.material.emissiveIntensity = 0.42
+      } else {
+        glyph.material.metalness = 1
+        glyph.material.roughness = Math.min(1, Math.max(profile.roughnessFloor, state.roughness))
+      }
     }
 
     this.scene.environmentIntensity = Math.max(0, state.environmentIntensity)

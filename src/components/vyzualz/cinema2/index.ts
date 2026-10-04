@@ -938,11 +938,24 @@ export {
 } from './modules/Cinema2SayItNativeModule'
 
 export {
+  CINEMA2_SAY_IT_MATERIAL_STYLES,
+  Cinema2SayItBridge,
+  type Cinema2SayItDrawState,
+  type Cinema2SayItMaterialStyle,
+} from './modules/sayIt/Cinema2SayItBridge'
+
+export {
+  CINEMA2_SAY_IT_MOTION_DIRECTIONS,
+  CINEMA2_SAY_IT_MOTION_PROGRAMS,
+  CINEMA2_SAY_IT_MOTION_SAFETY_MODES,
   CINEMA2_SAY_IT_PROOF_TEXT,
   cinema2SayItIsExactlyAssembled,
   resolveCinema2SayItGlyphPoses,
   type Cinema2SayItGlyphPose,
+  type Cinema2SayItMotionDirection,
   type Cinema2SayItMotionOptions,
+  type Cinema2SayItMotionProgram,
+  type Cinema2SayItMotionSafety,
 } from './modules/sayIt/Cinema2SayItMotion'
 
 export {
@@ -978,6 +991,13 @@ export {
 } from './modules/sayIt/Cinema2SayItTextLayout'
 
 export {
+  CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID,
+  CINEMA2_SAY_IT_AXIS_X_ID,
+  CINEMA2_SAY_IT_AXIS_Y_ID,
+  CINEMA2_SAY_IT_AXIS_Z_ID,
+  CINEMA2_SAY_IT_CAMERA_MOTION_ID,
+  CINEMA2_SAY_IT_FOCUS_ID,
+  CINEMA2_SAY_IT_GLYPH_DELAY_ID,
   CINEMA2_SAY_IT_PRESET_ID,
   CINEMA2_SAY_IT_PRESET_MANIFEST,
   CINEMA2_SAY_IT_MODULE_ID,
@@ -985,6 +1005,12 @@ export {
   CINEMA2_SAY_IT_LINE_TWO_TEXT_ID,
   CINEMA2_SAY_IT_TEXT_ID,
   CINEMA2_SAY_IT_LINE_MODE_ID,
+  CINEMA2_SAY_IT_MATERIAL_STYLE_ID,
+  CINEMA2_SAY_IT_MOTION_DIRECTION_ID,
+  CINEMA2_SAY_IT_MOTION_PROGRAM_ID,
+  CINEMA2_SAY_IT_MOTION_SAFETY_ID,
+  CINEMA2_SAY_IT_RANDOM_SEED_ID,
+  CINEMA2_SAY_IT_TRAILS_ID,
 } from './presets/Cinema2SayItPreset'
 
 export {

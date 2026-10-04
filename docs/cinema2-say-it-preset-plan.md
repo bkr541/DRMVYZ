@@ -55,7 +55,7 @@ Inspector text + design controls
                                      ▼
                        engine-owned scene target
                                      │
-                               bloom + finish
+                    trails + depth of field + bloom + finish
 ```
 
 The glyph package is generated at build time and registered through the existing Cinema 2.0 asset manifest. Geometry and textures remain shared, while each visible glyph owns its transform and material instance. Motion is calculated from stable glyph indices and the Cinema 2.0 beat clock, so the same time and settings always produce the same frame. Assembly poses are authored values, not the result of accumulated physics, which guarantees exact reassembly and avoids drift.
@@ -128,13 +128,16 @@ Step 2's code path is complete when every printable Basic Latin input maps deter
 
 Representative-hardware timings and captured PNG artifacts remain environment-specific release evidence; the runtime now exposes the measurements and deterministic checkpoints needed to collect them without changing production behavior.
 
-### Step 4 — expanded motion and effects
+### Step 4 — expanded motion and effects (implemented)
 
-1. Add selectable motion programs such as flip, tumble, wave, scatter and hinge.
-2. Add per-glyph delay, direction, axis weighting and deterministic random seed controls.
-3. Add beat, downbeat, phrase, build and drop choreography through ordinary Cinema 2.0 targets.
-4. Add optional camera motion, depth-of-field, trails and alternate material presets only after the base typography remains legible.
-5. Keep an always-available exact-assembly interval and a reduced-motion/lock-off setting.
+1. Added five deterministic motion programs: Flip, Tumble, Wave, Scatter and Hinge. Each program derives its pose from authored layout plus cycle time rather than accumulating transforms.
+2. Added glyph delay, forward/reverse/center-out/alternate/random direction, X/Y/Z rotation weights and a deterministic random seed. Identical text, time and settings produce identical poses.
+3. Added optional beat, downbeat, phrase, build and drop choreography through ordinary module, effect and camera targets. `Auto Performance` is the single user authority for signal-driven accents; authored Motion Amount zero remains a true lock-off.
+4. Added bounded Camera Motion, feedback Trails, depth-based Depth of Field and Chrome, Brushed Metal, Pearl and Neon material styles. The render graph is now scene → trails → depth of field → bloom → cinematic finish, with the original scene depth routed directly to the focus pass.
+5. Added Full Motion, Reduced Motion and Lock Off safety modes. Reduced Motion limits both angular and positional excursion, while Lock Off always returns the exact authored layout.
+6. Preserved the exact assembly hold at the start and end of every cycle for all five programs, including when automatic performance signals are active.
+
+Step 4 is complete when the manifest compiles through the keeper gate, every visible control has a consumer, all motion programs remain deterministic, reduced/lock-off safety is test-covered and the expanded post stack validates as a five-pass graph.
 
 ## Current implementation files
 

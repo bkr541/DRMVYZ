@@ -11,8 +11,21 @@ import type {
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
-import { Cinema2SayItBridge, type Cinema2SayItDrawState } from './sayIt/Cinema2SayItBridge'
-import { resolveCinema2SayItGlyphPoses } from './sayIt/Cinema2SayItMotion'
+import {
+  CINEMA2_SAY_IT_MATERIAL_STYLES,
+  Cinema2SayItBridge,
+  type Cinema2SayItDrawState,
+  type Cinema2SayItMaterialStyle,
+} from './sayIt/Cinema2SayItBridge'
+import {
+  CINEMA2_SAY_IT_MOTION_DIRECTIONS,
+  CINEMA2_SAY_IT_MOTION_PROGRAMS,
+  CINEMA2_SAY_IT_MOTION_SAFETY_MODES,
+  resolveCinema2SayItGlyphPoses,
+  type Cinema2SayItMotionDirection,
+  type Cinema2SayItMotionProgram,
+  type Cinema2SayItMotionSafety,
+} from './sayIt/Cinema2SayItMotion'
 import {
   limitCinema2SayItPosesForQuality,
   resolveCinema2SayItQualityProfile,
@@ -53,6 +66,9 @@ export interface Cinema2SayItModuleInspection {
   visibleGlyphCount: number
   renderedGlyphCount: number
   quality: Cinema2RenderQualityLevel | null
+  motionProgram: Cinema2SayItMotionProgram
+  motionSafety: Cinema2SayItMotionSafety
+  materialStyle: Cinema2SayItMaterialStyle
   truncated: boolean
   replacementCount: number
   performance: Readonly<Cinema2SayItPerformanceInspection>
@@ -112,16 +128,20 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let averageDrawMs: number | null = null
       let maximumDrawMs: number | null = null
       let drawSampleCount = 0
+      let motionProgram: Cinema2SayItMotionProgram = 'tumble'
+      let motionSafety: Cinema2SayItMotionSafety = 'full'
+      let materialStyle: Cinema2SayItMaterialStyle = 'chrome'
       let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout({ line1: CINEMA2_SAY_IT_DEFAULT_TEXT, line2: '' }, {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
       })
       let layoutKey = ''
       let drawState: Readonly<Cinema2SayItDrawState> = Object.freeze({
-        poses: resolveCinema2SayItGlyphPoses(0, { cycleSeconds: 8, motionAmount: 1, spread: 1 }, layout.glyphs),
+        poses: resolveCinema2SayItGlyphPoses(0, { cycleSeconds: 8, motionAmount: 1, spread: 1, program: motionProgram }, layout.glyphs),
         color: Object.freeze([0.82, 0.84, 0.88] as const),
         roughness: 0.16,
         environmentIntensity: 1.25,
         environmentRotationRadians: 0,
+        materialStyle,
       })
       const beatClock = new Cinema2BeatClock()
       const diagnostics: Cinema2ModuleDiagnostic[] = []
@@ -257,8 +277,26 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             // the same authored cycle follows the detected track tempo.
             const timeSeconds = beatState.beats / 2
             const cycleSeconds = readNumber(parameters.get('cycleSeconds'), 2, 60) ?? 8
-            const motionAmount = readNumber(parameters.get('motionAmount'), 0, 1) ?? 1
-            const spread = readNumber(parameters.get('spread'), 0, 3) ?? 1
+            const authoredMotionAmount = readNumber(parameters.get('motionAmount'), 0, 1) ?? 1
+            const authoredSpread = readNumber(parameters.get('spread'), 0, 3) ?? 1
+            motionProgram = readEnum(parameters.get('motionProgram'), CINEMA2_SAY_IT_MOTION_PROGRAMS, 'tumble')
+            const motionDirection = readEnum(parameters.get('motionDirection'), CINEMA2_SAY_IT_MOTION_DIRECTIONS, 'alternate') as Cinema2SayItMotionDirection
+            motionSafety = readEnum(parameters.get('motionSafety'), CINEMA2_SAY_IT_MOTION_SAFETY_MODES, 'full')
+            const glyphDelay = readNumber(parameters.get('glyphDelay'), 0, 0.02) ?? 0.004
+            const axisWeights = Object.freeze([
+              readNumber(parameters.get('axisX'), 0, 1) ?? 1,
+              readNumber(parameters.get('axisY'), 0, 1) ?? 1,
+              readNumber(parameters.get('axisZ'), 0, 1) ?? 1,
+            ] as const)
+            const randomSeed = readNumber(parameters.get('randomSeed'), 0, 9999) ?? 7
+            const beatAccent = readNumber(parameters.get('beatAccent'), 0, 1) ?? 0
+            const downbeatAccent = readNumber(parameters.get('downbeatAccent'), 0, 1) ?? 0
+            const phraseAccent = readNumber(parameters.get('phraseAccent'), 0, 1) ?? 0
+            const buildAmount = readNumber(parameters.get('buildAmount'), 0, 1) ?? 0
+            const dropAccent = readNumber(parameters.get('dropAccent'), 0, 1) ?? 0
+            const performanceDrive = 1 + beatAccent * 0.08 + downbeatAccent * 0.14 + phraseAccent * 0.1 + buildAmount * 0.18 + dropAccent * 0.32
+            const motionAmount = Math.min(1, authoredMotionAmount * performanceDrive)
+            const spread = Math.min(3, authoredSpread * (1 + buildAmount * 0.12 + dropAccent * 0.24))
             const authoredLine1 = parameters.get('line1Text')
             const authoredLine2 = parameters.get('line2Text')
             const line1Text = typeof authoredLine1 === 'string' ? authoredLine1 : CINEMA2_SAY_IT_DEFAULT_TEXT
@@ -290,12 +328,24 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const roughness = readNumber(parameters.get('roughness'), 0.04, 1) ?? 0.16
             const environmentIntensity = readNumber(parameters.get('environmentIntensity'), 0, 4) ?? 1.25
             const highlightSweep = readNumber(parameters.get('highlightSweep'), 0, 2) ?? 0.65
+            materialStyle = readEnum(parameters.get('materialStyle'), CINEMA2_SAY_IT_MATERIAL_STYLES, 'chrome')
             drawState = Object.freeze({
-              poses: resolveCinema2SayItGlyphPoses(timeSeconds, { cycleSeconds, motionAmount, spread }, layout.glyphs),
+              poses: resolveCinema2SayItGlyphPoses(timeSeconds, {
+                cycleSeconds,
+                motionAmount,
+                spread,
+                program: motionProgram,
+                glyphDelay,
+                direction: motionDirection,
+                axisWeights,
+                randomSeed,
+                safety: motionSafety,
+              }, layout.glyphs),
               color: Object.freeze(color),
               roughness,
               environmentIntensity,
               environmentRotationRadians: timeSeconds * highlightSweep * 0.7,
+              materialStyle,
             })
           },
           dispose: () => {
@@ -322,6 +372,9 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           visibleGlyphCount: layout.glyphs.length,
           renderedGlyphCount,
           quality: resolvedQuality,
+          motionProgram,
+          motionSafety,
+          materialStyle,
           truncated: layout.truncated,
           replacementCount: layout.replacementCount,
           performance: Object.freeze({
@@ -355,6 +408,10 @@ function readColor(value: unknown): readonly [number, number, number] | null {
 
 function readAlignment(value: unknown): Cinema2SayItAlignment {
   return value === 'left' || value === 'right' ? value : 'center'
+}
+
+function readEnum<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
+  return typeof value === 'string' && values.includes(value as T) ? value as T : fallback
 }
 
 function message(error: unknown): string {

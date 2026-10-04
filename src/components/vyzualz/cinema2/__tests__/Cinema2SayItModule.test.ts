@@ -35,8 +35,15 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
 
     values.set('line1Text', 'HELLO')
     values.set('line2Text', 'WORLD')
+    values.set('motionProgram', 'hinge')
+    values.set('motionSafety', 'reduced')
+    values.set('materialStyle', 'neon')
     instance.lifecycle.update({ frame, parameters, targets: {} as never })
-    expect(instance.inspect()).toMatchObject({ state: 'idle', text: 'HELLO\nWORLD', lineCount: 2, visibleGlyphCount: 10, truncated: false, replacementCount: 0 })
+    expect(instance.inspect()).toMatchObject({
+      state: 'idle', text: 'HELLO\nWORLD', lineCount: 2, visibleGlyphCount: 10,
+      motionProgram: 'hinge', motionSafety: 'reduced', materialStyle: 'neon',
+      truncated: false, replacementCount: 0,
+    })
 
     values.set('lineMode', 'one')
     values.set('line1Text', 'ABCDEFGHIJKLM 🚀')
