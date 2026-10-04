@@ -512,6 +512,7 @@ export {
 } from './modules/Cinema2ThreeSceneModule'
 export {
   CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID,
+  CINEMA2_SAY_IT_GLYPH_ASSET_ID,
   cinema2ThreeAssetRegistry,
 } from './modules/three/Cinema2ThreeAssetManifest'
 export {
@@ -925,6 +926,49 @@ export {
 export {
   CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS,
 } from './presets/Cinema2FirstPartyPresetCatalog'
+
+export {
+  CINEMA2_SAY_IT_MODULE_TYPE_ID,
+  CINEMA2_SAY_IT_MODULE_VERSION,
+  cinema2SayItNativeModuleDefinition,
+  createCinema2SayItNativeModuleDefinition,
+  type Cinema2SayItModuleInspection,
+  type Cinema2SayItModuleState,
+} from './modules/Cinema2SayItNativeModule'
+
+export {
+  CINEMA2_SAY_IT_PROOF_TEXT,
+  cinema2SayItIsExactlyAssembled,
+  resolveCinema2SayItGlyphPoses,
+  type Cinema2SayItGlyphPose,
+  type Cinema2SayItMotionOptions,
+} from './modules/sayIt/Cinema2SayItMotion'
+
+export {
+  CINEMA2_SAY_IT_DEFAULT_TEXT,
+  CINEMA2_SAY_IT_FONT_FAMILY,
+  CINEMA2_SAY_IT_GLYPH_METRICS_VERSION,
+  CINEMA2_SAY_IT_MAX_ASSEMBLED_HEIGHT,
+  CINEMA2_SAY_IT_MAX_ASSEMBLED_WIDTH,
+  CINEMA2_SAY_IT_MAX_CHARACTERS,
+  CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE,
+  CINEMA2_SAY_IT_MAX_LINES,
+  resolveCinema2SayItTextLayout,
+  sanitizeCinema2SayItText,
+  type Cinema2SayItAlignment,
+  type Cinema2SayItLayoutGlyph,
+  type Cinema2SayItLayoutOptions,
+  type Cinema2SayItLineMode,
+  type Cinema2SayItTextLayout,
+} from './modules/sayIt/Cinema2SayItTextLayout'
+
+export {
+  CINEMA2_SAY_IT_PRESET_ID,
+  CINEMA2_SAY_IT_PRESET_MANIFEST,
+  CINEMA2_SAY_IT_MODULE_ID,
+  CINEMA2_SAY_IT_TEXT_ID,
+  CINEMA2_SAY_IT_LINE_MODE_ID,
+} from './presets/Cinema2SayItPreset'
 
 export {
   defineCinema2FirstPartyPreset,

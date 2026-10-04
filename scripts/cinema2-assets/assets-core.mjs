@@ -10,6 +10,7 @@ export const LICENSE_ALLOWLIST = Object.freeze({
   'CC-BY-3.0': Object.freeze({ attribution: true }),
   MIT: Object.freeze({ attribution: true }),
   'Apache-2.0': Object.freeze({ attribution: true }),
+  'OFL-1.1': Object.freeze({ attribution: true }),
   'generated-in-house': Object.freeze({ attribution: false }),
 })
 

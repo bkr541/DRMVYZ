@@ -10,6 +10,7 @@ import { cinema2InterlockLiquidLightModuleDefinition } from './Cinema2InterlockL
 import { cinema2HumNNativeModuleDefinition } from './Cinema2HumNNativeModule'
 import { cinema2ThresholdNativeModuleDefinition } from './Cinema2ThresholdNativeModule'
 import { cinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModule'
+import { cinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -119,6 +120,10 @@ if (!thresholdNativeRegistration.ok) {
 const threeSceneRegistration = cinema2NativeModuleRegistry.register(cinema2ThreeSceneModuleDefinition)
 if (!threeSceneRegistration.ok) {
   throw new Error(`Cinema 2.0 Three scene module registration failed: ${threeSceneRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const sayItRegistration = cinema2NativeModuleRegistry.register(cinema2SayItNativeModuleDefinition)
+if (!sayItRegistration.ok) {
+  throw new Error(`Cinema 2.0 SAY IT native module registration failed: ${sayItRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

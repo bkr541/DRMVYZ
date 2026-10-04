@@ -13,6 +13,7 @@ import { CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST } from './Cinema2ReferenceVisu
 import { CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST } from './Cinema2SpatialReferencePreset'
 import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from './Cinema2ThreeModelReferencePreset'
 import { CINEMA2_THRESHOLD_PRESET_MANIFEST } from './Cinema2ThresholdPreset'
+import { CINEMA2_SAY_IT_PRESET_MANIFEST } from './Cinema2SayItPreset'
 
 /**
  * Single production registration seam for first-party native Cinema 2.0 presets.
@@ -59,6 +60,10 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_THRESHOLD_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_SAY_IT_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'keeper',

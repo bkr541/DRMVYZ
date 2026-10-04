@@ -155,6 +155,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-say-it-glyphs",
+    "kind": "model",
+    "compression": "none",
+    "license": "OFL-1.1",
+    "attribution": "Anton Regular, Copyright 2020 The Anton Project Authors, licensed under the SIL Open Font License 1.1. License text ships at public/cinema2/licenses/Anton-OFL-1.1.txt.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/say-it-glyphs-v1.glb",
+        "bytes": 1963748,
+        "triangles": 57482
+      }
+    },
+    "gpuBytes": {
+      "high": 1887064,
+      "medium": 1887064,
+      "low": 1887064
+    }
+  },
+  {
     "id": "cinema2-smoke-sprites",
     "kind": "texture",
     "layout": "sprite-sheet-rgba",

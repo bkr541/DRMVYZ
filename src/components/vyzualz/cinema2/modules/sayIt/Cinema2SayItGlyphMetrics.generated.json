@@ -1,0 +1,994 @@
+{
+  "version": 1,
+  "repertoire": {
+    "firstCodePoint": 32,
+    "lastCodePoint": 126,
+    "fallbackCodePoint": 63
+  },
+  "font": {
+    "family": "Anton",
+    "source": "scripts/cinema2-assets/sources/anton/Anton-Regular.ttf",
+    "license": "OFL-1.1",
+    "unitsPerEm": 2048,
+    "fontSize": 2,
+    "ascender": 2.352539,
+    "descender": -0.658203,
+    "lineAdvance": 3.010742
+  },
+  "glyphs": {
+    "32": {
+      "mesh": null,
+      "advance": 0.46875,
+      "centerX": 0,
+      "centerY": 0,
+      "minX": 0,
+      "minY": 0,
+      "maxX": 0,
+      "maxY": 0
+    },
+    "33": {
+      "mesh": "glyph-u0021",
+      "advance": 0.458008,
+      "centerX": 0.228516,
+      "centerY": 0.859863,
+      "minX": 0.053711,
+      "minY": 0.000977,
+      "maxX": 0.40332,
+      "maxY": 1.71875
+    },
+    "34": {
+      "mesh": "glyph-u0022",
+      "advance": 0.857422,
+      "centerX": 0.426758,
+      "centerY": 1.408203,
+      "minX": 0.040039,
+      "minY": 1.097656,
+      "maxX": 0.813477,
+      "maxY": 1.71875
+    },
+    "35": {
+      "mesh": "glyph-u0023",
+      "advance": 1.092773,
+      "centerX": 0.546875,
+      "centerY": 0.777832,
+      "minX": 0.037109,
+      "minY": 0,
+      "maxX": 1.056641,
+      "maxY": 1.555664
+    },
+    "36": {
+      "mesh": "glyph-u0024",
+      "advance": 0.923828,
+      "centerX": 0.461426,
+      "centerY": 0.764648,
+      "minX": 0.033203,
+      "minY": -0.110352,
+      "maxX": 0.889648,
+      "maxY": 1.639648
+    },
+    "37": {
+      "mesh": "glyph-u0025",
+      "advance": 2.113281,
+      "centerX": 1.056641,
+      "centerY": 0.854004,
+      "minX": 0.041016,
+      "minY": -0.017578,
+      "maxX": 2.072266,
+      "maxY": 1.725586
+    },
+    "38": {
+      "mesh": "glyph-u0026",
+      "advance": 1.040039,
+      "centerX": 0.522461,
+      "centerY": 0.856934,
+      "minX": 0.03418,
+      "minY": -0.020508,
+      "maxX": 1.010742,
+      "maxY": 1.734375
+    },
+    "39": {
+      "mesh": "glyph-u0027",
+      "advance": 0.427734,
+      "centerX": 0.211914,
+      "centerY": 1.408203,
+      "minX": 0.040039,
+      "minY": 1.097656,
+      "maxX": 0.383789,
+      "maxY": 1.71875
+    },
+    "40": {
+      "mesh": "glyph-u0028",
+      "advance": 0.582031,
+      "centerX": 0.297363,
+      "centerY": 0.79834,
+      "minX": 0.047852,
+      "minY": -0.183594,
+      "maxX": 0.546875,
+      "maxY": 1.780273
+    },
+    "41": {
+      "mesh": "glyph-u0029",
+      "advance": 0.582031,
+      "centerX": 0.284668,
+      "centerY": 0.79834,
+      "minX": 0.035156,
+      "minY": -0.183594,
+      "maxX": 0.53418,
+      "maxY": 1.780273
+    },
+    "42": {
+      "mesh": "glyph-u002A",
+      "advance": 0.904297,
+      "centerX": 0.452148,
+      "centerY": 1.139648,
+      "minX": 0.035156,
+      "minY": 0.723633,
+      "maxX": 0.869141,
+      "maxY": 1.555664
+    },
+    "43": {
+      "mesh": "glyph-u002B",
+      "advance": 0.710938,
+      "centerX": 0.355469,
+      "centerY": 0.610352,
+      "minX": 0.039063,
+      "minY": 0.293945,
+      "maxX": 0.671875,
+      "maxY": 0.926758
+    },
+    "44": {
+      "mesh": "glyph-u002C",
+      "advance": 0.472656,
+      "centerX": 0.236328,
+      "centerY": 0.03125,
+      "minX": 0.053711,
+      "minY": -0.229492,
+      "maxX": 0.418945,
+      "maxY": 0.291992
+    },
+    "45": {
+      "mesh": "glyph-u002D",
+      "advance": 0.62207,
+      "centerX": 0.310547,
+      "centerY": 0.610352,
+      "minX": 0.058594,
+      "minY": 0.49707,
+      "maxX": 0.5625,
+      "maxY": 0.723633
+    },
+    "46": {
+      "mesh": "glyph-u002E",
+      "advance": 0.457031,
+      "centerX": 0.228516,
+      "centerY": 0.146484,
+      "minX": 0.053711,
+      "minY": 0.000977,
+      "maxX": 0.40332,
+      "maxY": 0.291992
+    },
+    "47": {
+      "mesh": "glyph-u002F",
+      "advance": 0.810547,
+      "centerX": 0.40625,
+      "centerY": 0.862793,
+      "minX": 0.02832,
+      "minY": 0,
+      "maxX": 0.78418,
+      "maxY": 1.725586
+    },
+    "48": {
+      "mesh": "glyph-u0030",
+      "advance": 0.988281,
+      "centerX": 0.494141,
+      "centerY": 0.859375,
+      "minX": 0.039063,
+      "minY": -0.015625,
+      "maxX": 0.949219,
+      "maxY": 1.734375
+    },
+    "49": {
+      "mesh": "glyph-u0031",
+      "advance": 0.661133,
+      "centerX": 0.312988,
+      "centerY": 0.859863,
+      "minX": 0.024414,
+      "minY": 0,
+      "maxX": 0.601563,
+      "maxY": 1.719727
+    },
+    "50": {
+      "mesh": "glyph-u0032",
+      "advance": 0.988281,
+      "centerX": 0.510254,
+      "centerY": 0.862793,
+      "minX": 0.056641,
+      "minY": 0,
+      "maxX": 0.963867,
+      "maxY": 1.725586
+    },
+    "51": {
+      "mesh": "glyph-u0033",
+      "advance": 0.988281,
+      "centerX": 0.488281,
+      "centerY": 0.851074,
+      "minX": 0.038086,
+      "minY": -0.019531,
+      "maxX": 0.938477,
+      "maxY": 1.72168
+    },
+    "52": {
+      "mesh": "glyph-u0034",
+      "advance": 0.988281,
+      "centerX": 0.493652,
+      "centerY": 0.859375,
+      "minX": 0.017578,
+      "minY": -0.000977,
+      "maxX": 0.969727,
+      "maxY": 1.719727
+    },
+    "53": {
+      "mesh": "glyph-u0035",
+      "advance": 0.988281,
+      "centerX": 0.499512,
+      "centerY": 0.847656,
+      "minX": 0.044922,
+      "minY": -0.024414,
+      "maxX": 0.954102,
+      "maxY": 1.719727
+    },
+    "54": {
+      "mesh": "glyph-u0036",
+      "advance": 0.988281,
+      "centerX": 0.508789,
+      "centerY": 0.859375,
+      "minX": 0.052734,
+      "minY": -0.015625,
+      "maxX": 0.964844,
+      "maxY": 1.734375
+    },
+    "55": {
+      "mesh": "glyph-u0037",
+      "advance": 0.988281,
+      "centerX": 0.501953,
+      "centerY": 0.860352,
+      "minX": 0.068359,
+      "minY": 0.000977,
+      "maxX": 0.935547,
+      "maxY": 1.719727
+    },
+    "56": {
+      "mesh": "glyph-u0038",
+      "advance": 0.988281,
+      "centerX": 0.494141,
+      "centerY": 0.86084,
+      "minX": 0.044922,
+      "minY": -0.018555,
+      "maxX": 0.943359,
+      "maxY": 1.740234
+    },
+    "57": {
+      "mesh": "glyph-u0039",
+      "advance": 0.988281,
+      "centerX": 0.508789,
+      "centerY": 0.859375,
+      "minX": 0.052734,
+      "minY": -0.015625,
+      "maxX": 0.964844,
+      "maxY": 1.734375
+    },
+    "58": {
+      "mesh": "glyph-u003A",
+      "advance": 0.483398,
+      "centerX": 0.241211,
+      "centerY": 0.737793,
+      "minX": 0.066406,
+      "minY": 0.231445,
+      "maxX": 0.416016,
+      "maxY": 1.244141
+    },
+    "59": {
+      "mesh": "glyph-u003B",
+      "advance": 0.490234,
+      "centerX": 0.24707,
+      "centerY": 0.62207,
+      "minX": 0.064453,
+      "minY": 0,
+      "maxX": 0.429688,
+      "maxY": 1.244141
+    },
+    "60": {
+      "mesh": "glyph-u003C",
+      "advance": 0.642578,
+      "centerX": 0.3125,
+      "centerY": 0.732422,
+      "minX": 0.03418,
+      "minY": 0.195313,
+      "maxX": 0.59082,
+      "maxY": 1.269531
+    },
+    "61": {
+      "mesh": "glyph-u003D",
+      "advance": 0.62207,
+      "centerX": 0.310547,
+      "centerY": 0.793457,
+      "minX": 0.05957,
+      "minY": 0.49707,
+      "maxX": 0.561523,
+      "maxY": 1.089844
+    },
+    "62": {
+      "mesh": "glyph-u003E",
+      "advance": 0.642578,
+      "centerX": 0.330078,
+      "centerY": 0.732422,
+      "minX": 0.051758,
+      "minY": 0.195313,
+      "maxX": 0.608398,
+      "maxY": 1.269531
+    },
+    "63": {
+      "mesh": "glyph-u003F",
+      "advance": 0.984375,
+      "centerX": 0.500977,
+      "centerY": 0.867676,
+      "minX": 0.046875,
+      "minY": 0.000977,
+      "maxX": 0.955078,
+      "maxY": 1.734375
+    },
+    "64": {
+      "mesh": "glyph-u0040",
+      "advance": 1.728516,
+      "centerX": 0.867188,
+      "centerY": 0.790039,
+      "minX": 0.0625,
+      "minY": -0.154297,
+      "maxX": 1.671875,
+      "maxY": 1.734375
+    },
+    "65": {
+      "mesh": "glyph-u0041",
+      "advance": 0.970703,
+      "centerX": 0.485352,
+      "centerY": 0.859375,
+      "minX": 0.029297,
+      "minY": 0,
+      "maxX": 0.941406,
+      "maxY": 1.71875
+    },
+    "66": {
+      "mesh": "glyph-u0042",
+      "advance": 0.957031,
+      "centerX": 0.498047,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.919922,
+      "maxY": 1.71875
+    },
+    "67": {
+      "mesh": "glyph-u0043",
+      "advance": 0.948242,
+      "centerX": 0.486328,
+      "centerY": 0.859375,
+      "minX": 0.0625,
+      "minY": -0.015625,
+      "maxX": 0.910156,
+      "maxY": 1.734375
+    },
+    "68": {
+      "mesh": "glyph-u0044",
+      "advance": 0.986328,
+      "centerX": 0.499023,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.921875,
+      "maxY": 1.71875
+    },
+    "69": {
+      "mesh": "glyph-u0045",
+      "advance": 0.823242,
+      "centerX": 0.431152,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.786133,
+      "maxY": 1.71875
+    },
+    "70": {
+      "mesh": "glyph-u0046",
+      "advance": 0.797852,
+      "centerX": 0.419922,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.763672,
+      "maxY": 1.71875
+    },
+    "71": {
+      "mesh": "glyph-u0047",
+      "advance": 0.969727,
+      "centerX": 0.488281,
+      "centerY": 0.859375,
+      "minX": 0.0625,
+      "minY": -0.015625,
+      "maxX": 0.914063,
+      "maxY": 1.734375
+    },
+    "72": {
+      "mesh": "glyph-u0048",
+      "advance": 0.998047,
+      "centerX": 0.499023,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.921875,
+      "maxY": 1.71875
+    },
+    "73": {
+      "mesh": "glyph-u0049",
+      "advance": 0.453125,
+      "centerX": 0.226563,
+      "centerY": 0.859375,
+      "minX": 0.060547,
+      "minY": 0,
+      "maxX": 0.392578,
+      "maxY": 1.71875
+    },
+    "74": {
+      "mesh": "glyph-u004A",
+      "advance": 0.932617,
+      "centerX": 0.457031,
+      "centerY": 0.851563,
+      "minX": 0.037109,
+      "minY": -0.015625,
+      "maxX": 0.876953,
+      "maxY": 1.71875
+    },
+    "75": {
+      "mesh": "glyph-u004B",
+      "advance": 0.944336,
+      "centerX": 0.519043,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.961914,
+      "maxY": 1.71875
+    },
+    "76": {
+      "mesh": "glyph-u004C",
+      "advance": 0.794922,
+      "centerX": 0.424805,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.773438,
+      "maxY": 1.71875
+    },
+    "77": {
+      "mesh": "glyph-u004D",
+      "advance": 1.492188,
+      "centerX": 0.746094,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 1.416016,
+      "maxY": 1.71875
+    },
+    "78": {
+      "mesh": "glyph-u004E",
+      "advance": 0.996094,
+      "centerX": 0.498047,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.919922,
+      "maxY": 1.71875
+    },
+    "79": {
+      "mesh": "glyph-u004F",
+      "advance": 0.972656,
+      "centerX": 0.486328,
+      "centerY": 0.859375,
+      "minX": 0.0625,
+      "minY": -0.015625,
+      "maxX": 0.910156,
+      "maxY": 1.734375
+    },
+    "80": {
+      "mesh": "glyph-u0050",
+      "advance": 0.944336,
+      "centerX": 0.494141,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.912109,
+      "maxY": 1.71875
+    },
+    "81": {
+      "mesh": "glyph-u0051",
+      "advance": 0.987305,
+      "centerX": 0.502441,
+      "centerY": 0.775879,
+      "minX": 0.052734,
+      "minY": -0.182617,
+      "maxX": 0.952148,
+      "maxY": 1.734375
+    },
+    "82": {
+      "mesh": "glyph-u0052",
+      "advance": 0.953125,
+      "centerX": 0.496094,
+      "centerY": 0.859375,
+      "minX": 0.076172,
+      "minY": 0,
+      "maxX": 0.916016,
+      "maxY": 1.71875
+    },
+    "83": {
+      "mesh": "glyph-u0053",
+      "advance": 0.922852,
+      "centerX": 0.462891,
+      "centerY": 0.859375,
+      "minX": 0.041016,
+      "minY": -0.015625,
+      "maxX": 0.884766,
+      "maxY": 1.734375
+    },
+    "84": {
+      "mesh": "glyph-u0054",
+      "advance": 0.791016,
+      "centerX": 0.395508,
+      "centerY": 0.859375,
+      "minX": 0.019531,
+      "minY": 0,
+      "maxX": 0.771484,
+      "maxY": 1.71875
+    },
+    "85": {
+      "mesh": "glyph-u0055",
+      "advance": 0.947266,
+      "centerX": 0.473633,
+      "centerY": 0.851563,
+      "minX": 0.055664,
+      "minY": -0.015625,
+      "maxX": 0.891602,
+      "maxY": 1.71875
+    },
+    "86": {
+      "mesh": "glyph-u0056",
+      "advance": 0.938477,
+      "centerX": 0.46875,
+      "centerY": 0.859863,
+      "minX": 0.022461,
+      "minY": 0,
+      "maxX": 0.915039,
+      "maxY": 1.719727
+    },
+    "87": {
+      "mesh": "glyph-u0057",
+      "advance": 1.423828,
+      "centerX": 0.711914,
+      "centerY": 0.859375,
+      "minX": 0.026367,
+      "minY": 0,
+      "maxX": 1.397461,
+      "maxY": 1.71875
+    },
+    "88": {
+      "mesh": "glyph-u0058",
+      "advance": 0.967773,
+      "centerX": 0.484375,
+      "centerY": 0.859863,
+      "minX": 0.026367,
+      "minY": 0,
+      "maxX": 0.942383,
+      "maxY": 1.719727
+    },
+    "89": {
+      "mesh": "glyph-u0059",
+      "advance": 0.892578,
+      "centerX": 0.445801,
+      "centerY": 0.859375,
+      "minX": 0.009766,
+      "minY": 0,
+      "maxX": 0.881836,
+      "maxY": 1.71875
+    },
+    "90": {
+      "mesh": "glyph-u005A",
+      "advance": 0.820313,
+      "centerX": 0.40918,
+      "centerY": 0.859375,
+      "minX": 0.03125,
+      "minY": 0,
+      "maxX": 0.787109,
+      "maxY": 1.71875
+    },
+    "91": {
+      "mesh": "glyph-u005B",
+      "advance": 0.635742,
+      "centerX": 0.331055,
+      "centerY": 0.79834,
+      "minX": 0.060547,
+      "minY": -0.183594,
+      "maxX": 0.601563,
+      "maxY": 1.780273
+    },
+    "92": {
+      "mesh": "glyph-u005C",
+      "advance": 0.810547,
+      "centerX": 0.404297,
+      "centerY": 0.862793,
+      "minX": 0.026367,
+      "minY": 0,
+      "maxX": 0.782227,
+      "maxY": 1.725586
+    },
+    "93": {
+      "mesh": "glyph-u005D",
+      "advance": 0.635742,
+      "centerX": 0.304688,
+      "centerY": 0.79834,
+      "minX": 0.03418,
+      "minY": -0.183594,
+      "maxX": 0.575195,
+      "maxY": 1.780273
+    },
+    "94": {
+      "mesh": "glyph-u005E",
+      "advance": 0.947266,
+      "centerX": 0.473633,
+      "centerY": 0.872559,
+      "minX": 0.039063,
+      "minY": 0.421875,
+      "maxX": 0.908203,
+      "maxY": 1.323242
+    },
+    "95": {
+      "mesh": "glyph-u005F",
+      "advance": 0.730469,
+      "centerX": 0.365234,
+      "centerY": -0.240234,
+      "minX": 0.046875,
+      "minY": -0.353516,
+      "maxX": 0.683594,
+      "maxY": -0.126953
+    },
+    "96": {
+      "mesh": "glyph-u0060",
+      "advance": 0.634766,
+      "centerX": 0.291504,
+      "centerY": 1.731934,
+      "minX": 0.05957,
+      "minY": 1.516602,
+      "maxX": 0.523438,
+      "maxY": 1.947266
+    },
+    "97": {
+      "mesh": "glyph-u0061",
+      "advance": 0.966797,
+      "centerX": 0.471191,
+      "centerY": 0.732422,
+      "minX": 0.040039,
+      "minY": -0.015625,
+      "maxX": 0.902344,
+      "maxY": 1.480469
+    },
+    "98": {
+      "mesh": "glyph-u0062",
+      "advance": 1.00293,
+      "centerX": 0.509277,
+      "centerY": 0.851563,
+      "minX": 0.074219,
+      "minY": -0.015625,
+      "maxX": 0.944336,
+      "maxY": 1.71875
+    },
+    "99": {
+      "mesh": "glyph-u0063",
+      "advance": 0.982422,
+      "centerX": 0.494629,
+      "centerY": 0.732422,
+      "minX": 0.058594,
+      "minY": -0.015625,
+      "maxX": 0.930664,
+      "maxY": 1.480469
+    },
+    "100": {
+      "mesh": "glyph-u0064",
+      "advance": 0.996094,
+      "centerX": 0.496094,
+      "centerY": 0.851563,
+      "minX": 0.060547,
+      "minY": -0.015625,
+      "maxX": 0.931641,
+      "maxY": 1.71875
+    },
+    "101": {
+      "mesh": "glyph-u0065",
+      "advance": 0.976563,
+      "centerX": 0.489258,
+      "centerY": 0.732422,
+      "minX": 0.058594,
+      "minY": -0.015625,
+      "maxX": 0.919922,
+      "maxY": 1.480469
+    },
+    "102": {
+      "mesh": "glyph-u0066",
+      "advance": 0.560547,
+      "centerX": 0.278809,
+      "centerY": 0.868164,
+      "minX": 0.039063,
+      "minY": 0,
+      "maxX": 0.518555,
+      "maxY": 1.736328
+    },
+    "103": {
+      "mesh": "glyph-u0067",
+      "advance": 1.007813,
+      "centerX": 0.493164,
+      "centerY": 0.613281,
+      "minX": 0.044922,
+      "minY": -0.253906,
+      "maxX": 0.941406,
+      "maxY": 1.480469
+    },
+    "104": {
+      "mesh": "glyph-u0068",
+      "advance": 1.010742,
+      "centerX": 0.507324,
+      "centerY": 0.859375,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 0.944336,
+      "maxY": 1.71875
+    },
+    "105": {
+      "mesh": "glyph-u0069",
+      "advance": 0.486328,
+      "centerX": 0.243164,
+      "centerY": 0.922852,
+      "minX": 0.068359,
+      "minY": 0,
+      "maxX": 0.417969,
+      "maxY": 1.845703
+    },
+    "106": {
+      "mesh": "glyph-u006A",
+      "advance": 0.525391,
+      "centerX": 0.243544,
+      "centerY": 0.795898,
+      "minX": 0.030056,
+      "minY": -0.253906,
+      "maxX": 0.457031,
+      "maxY": 1.845703
+    },
+    "107": {
+      "mesh": "glyph-u006B",
+      "advance": 0.981445,
+      "centerX": 0.538086,
+      "centerY": 0.859375,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 1.005859,
+      "maxY": 1.71875
+    },
+    "108": {
+      "mesh": "glyph-u006C",
+      "advance": 0.496094,
+      "centerX": 0.248047,
+      "centerY": 0.859375,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 0.425781,
+      "maxY": 1.71875
+    },
+    "109": {
+      "mesh": "glyph-u006D",
+      "advance": 1.516602,
+      "centerX": 0.760254,
+      "centerY": 0.740234,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 1.450195,
+      "maxY": 1.480469
+    },
+    "110": {
+      "mesh": "glyph-u006E",
+      "advance": 0.99707,
+      "centerX": 0.500488,
+      "centerY": 0.740234,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 0.930664,
+      "maxY": 1.480469
+    },
+    "111": {
+      "mesh": "glyph-u006F",
+      "advance": 0.993164,
+      "centerX": 0.496582,
+      "centerY": 0.732422,
+      "minX": 0.058594,
+      "minY": -0.015625,
+      "maxX": 0.93457,
+      "maxY": 1.480469
+    },
+    "112": {
+      "mesh": "glyph-u0070",
+      "advance": 1.00293,
+      "centerX": 0.505371,
+      "centerY": 0.618164,
+      "minX": 0.070313,
+      "minY": -0.244141,
+      "maxX": 0.94043,
+      "maxY": 1.480469
+    },
+    "113": {
+      "mesh": "glyph-u0071",
+      "advance": 0.996094,
+      "centerX": 0.496094,
+      "centerY": 0.618164,
+      "minX": 0.060547,
+      "minY": -0.244141,
+      "maxX": 0.931641,
+      "maxY": 1.480469
+    },
+    "114": {
+      "mesh": "glyph-u0072",
+      "advance": 0.693359,
+      "centerX": 0.374023,
+      "centerY": 0.741211,
+      "minX": 0.070313,
+      "minY": 0,
+      "maxX": 0.677734,
+      "maxY": 1.482422
+    },
+    "115": {
+      "mesh": "glyph-u0073",
+      "advance": 0.949219,
+      "centerX": 0.475098,
+      "centerY": 0.732422,
+      "minX": 0.038086,
+      "minY": -0.015625,
+      "maxX": 0.912109,
+      "maxY": 1.480469
+    },
+    "116": {
+      "mesh": "glyph-u0074",
+      "advance": 0.610352,
+      "centerX": 0.300781,
+      "centerY": 0.851563,
+      "minX": 0.032227,
+      "minY": -0.015625,
+      "maxX": 0.569336,
+      "maxY": 1.71875
+    },
+    "117": {
+      "mesh": "glyph-u0075",
+      "advance": 0.998047,
+      "centerX": 0.49707,
+      "centerY": 0.724609,
+      "minX": 0.066406,
+      "minY": -0.015625,
+      "maxX": 0.927734,
+      "maxY": 1.464844
+    },
+    "118": {
+      "mesh": "glyph-u0076",
+      "advance": 0.921875,
+      "centerX": 0.460938,
+      "centerY": 0.732422,
+      "minX": 0.021484,
+      "minY": 0,
+      "maxX": 0.900391,
+      "maxY": 1.464844
+    },
+    "119": {
+      "mesh": "glyph-u0077",
+      "advance": 1.392578,
+      "centerX": 0.696289,
+      "centerY": 0.732422,
+      "minX": 0.046875,
+      "minY": 0,
+      "maxX": 1.345703,
+      "maxY": 1.464844
+    },
+    "120": {
+      "mesh": "glyph-u0078",
+      "advance": 0.917969,
+      "centerX": 0.458984,
+      "centerY": 0.73291,
+      "minX": 0.007813,
+      "minY": 0,
+      "maxX": 0.910156,
+      "maxY": 1.46582
+    },
+    "121": {
+      "mesh": "glyph-u0079",
+      "advance": 0.921875,
+      "centerX": 0.458008,
+      "centerY": 0.610352,
+      "minX": 0.015625,
+      "minY": -0.244141,
+      "maxX": 0.900391,
+      "maxY": 1.464844
+    },
+    "122": {
+      "mesh": "glyph-u007A",
+      "advance": 0.771484,
+      "centerX": 0.392578,
+      "centerY": 0.732422,
+      "minX": 0.027344,
+      "minY": 0,
+      "maxX": 0.757813,
+      "maxY": 1.464844
+    },
+    "123": {
+      "mesh": "glyph-u007B",
+      "advance": 0.679688,
+      "centerX": 0.337891,
+      "centerY": 0.79834,
+      "minX": 0.030273,
+      "minY": -0.183594,
+      "maxX": 0.645508,
+      "maxY": 1.780273
+    },
+    "124": {
+      "mesh": "glyph-u007C",
+      "advance": 0.432617,
+      "centerX": 0.216309,
+      "centerY": 0.912598,
+      "minX": 0.060547,
+      "minY": -0.082031,
+      "maxX": 0.37207,
+      "maxY": 1.907227
+    },
+    "125": {
+      "mesh": "glyph-u007D",
+      "advance": 0.680664,
+      "centerX": 0.34668,
+      "centerY": 0.79834,
+      "minX": 0.039063,
+      "minY": -0.183594,
+      "maxX": 0.654297,
+      "maxY": 1.780273
+    },
+    "126": {
+      "mesh": "glyph-u007E",
+      "advance": 0.985352,
+      "centerX": 0.514648,
+      "centerY": 0.963867,
+      "minX": 0.048828,
+      "minY": 0.791016,
+      "maxX": 0.980469,
+      "maxY": 1.136719
+    }
+  },
+  "kerning": {
+    "65:84": -0.025391,
+    "65:86": -0.042969,
+    "65:87": -0.027344,
+    "65:89": -0.046875,
+    "70:65": -0.016602,
+    "76:84": -0.0625,
+    "76:86": -0.041992,
+    "76:87": -0.017578,
+    "76:89": -0.0625,
+    "80:65": -0.029297,
+    "84:65": -0.025391,
+    "84:97": -0.037109,
+    "84:111": -0.043945,
+    "86:65": -0.041016,
+    "87:65": -0.027344,
+    "89:65": -0.046875,
+    "89:74": -0.072266,
+    "99:120": -0.03125,
+    "101:120": -0.027344,
+    "120:99": -0.037109,
+    "120:101": -0.037109,
+    "120:111": -0.037109
+  }
+}
