@@ -34,8 +34,8 @@ const KIND_CODE: Readonly<Record<Cinema2DepthInstanceKind, number>> = Object.fre
 
 /**
  * Step-1 visual proof: a fixed tunnel whose portal sides already carry a
- * deliberate reference-like lighting composition. Step 2 replaces those
- * fixed values with the user-selectable deterministic light programs.
+ * deliberate reference-like fallback composition. The Step-2 renderer
+ * replaces those packed light values each frame with deterministic programs.
  */
 export function buildCinema2DepthProofLayout(options: {
   portalCount?: number

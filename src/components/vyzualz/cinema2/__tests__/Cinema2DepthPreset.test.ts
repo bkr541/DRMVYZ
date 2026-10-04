@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
 import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID,
@@ -13,6 +14,14 @@ import {
   buildCinema2DepthProofLayout,
   packCinema2DepthInstances,
 } from '../modules/depth/Cinema2DepthLayout'
+import {
+  CINEMA2_DEPTH_LIGHT_PROGRAMS,
+  createCinema2DepthLightFrame,
+  resolveCinema2DepthProgramEmission,
+  updateCinema2DepthLightFrame,
+  type Cinema2DepthLightControls,
+} from '../modules/depth/Cinema2DepthLightPrograms'
+import { Cinema2DepthRenderer } from '../modules/depth/Cinema2DepthRenderer'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -21,7 +30,7 @@ import {
   CINEMA2_DEPTH_PRESET_MANIFEST,
 } from '../presets/Cinema2DepthPreset'
 
-describe('Cinema 2.0 Depth Step-1 preset', () => {
+describe('Cinema 2.0 Depth Step-2 preset', () => {
   it('builds the fixed procedural proof tunnel deterministically', () => {
     const first = buildCinema2DepthProofLayout()
     const second = buildCinema2DepthProofLayout()
@@ -52,10 +61,21 @@ describe('Cinema 2.0 Depth Step-1 preset', () => {
     expect(compilation.ok, compilation.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join('\n')).toBe(true)
     const effectValidation = cinema2NativeEffectRegistry.validateEffects(CINEMA2_DEPTH_PRESET_MANIFEST.effects ?? [])
     expect(effectValidation.ok, effectValidation.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join('\n')).toBe(true)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Light Program', type: 'enum', defaultValue: 'depthChase' }),
+      expect.objectContaining({ label: 'Direction', type: 'enum', defaultValue: 'forward' }),
+      expect.objectContaining({ label: 'Rate', defaultValue: 1.1 }),
+      expect.objectContaining({ label: 'Active Span', defaultValue: 3 }),
+      expect.objectContaining({ label: 'Random Seed', defaultValue: 7 }),
+      expect.objectContaining({ label: 'Center Object', defaultValue: true }),
+    ]))
+    expect(Object.keys(CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!.parameterBindings ?? {})).toEqual(expect.arrayContaining([
+      'program', 'direction', 'rate', 'activeSpan', 'seed', 'centerEnabled', 'centerScale', 'centerIntensity',
+    ]))
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(1)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(2)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -66,11 +86,110 @@ describe('Cinema 2.0 Depth Step-1 preset', () => {
     expect(atmospherePass?.inputs?.map(input => input.attachment)).toEqual(['color', 'depth'])
   })
 
+  it('evaluates all five light programs deterministically with bounded per-side output', () => {
+    const layout = buildCinema2DepthProofLayout()
+    for (const program of CINEMA2_DEPTH_LIGHT_PROGRAMS) {
+      const controls: Cinema2DepthLightControls = {
+        program,
+        direction: 'forward',
+        rate: 1.1,
+        activeSpan: 3,
+        seed: 41,
+        centerEnabled: true,
+        centerIntensity: 0.38,
+      }
+      const first = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+      const second = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+      updateCinema2DepthLightFrame(first, layout, 2.75, controls)
+      updateCinema2DepthLightFrame(second, layout, 2.75, controls)
+      expect([...second.emissions]).toEqual([...first.emissions])
+      expect([...second.spills]).toEqual([...first.spills])
+      expect([...first.emissions].every(value => value >= 0 && value <= 2)).toBe(true)
+      expect([...first.spills].every(value => value >= 0 && value <= 2)).toBe(true)
+    }
+
+    const orbit: Cinema2DepthLightControls = {
+      program: 'sideOrbit', direction: 'forward', rate: 1, activeSpan: 10, seed: 0,
+      centerEnabled: false, centerIntensity: 0,
+    }
+    const sideLevels = [0, 1, 2, 3].map(side => resolveCinema2DepthProgramEmission(2, side, 10, 0.6, orbit))
+    expect(new Set(sideLevels.map(value => value.toFixed(5))).size).toBeGreaterThan(1)
+  })
+
+  it('reverses the depth chase, loops exactly, and preserves authored zero rate', () => {
+    const base: Cinema2DepthLightControls = {
+      program: 'depthChase', direction: 'forward', rate: 2, activeSpan: 1, seed: 0,
+      centerEnabled: true, centerIntensity: 0.4,
+    }
+    const forwardNear = resolveCinema2DepthProgramEmission(2, 0, 10, 1, base)
+    const reverseFar = resolveCinema2DepthProgramEmission(8, 0, 10, 1, { ...base, direction: 'reverse' })
+    expect(forwardNear).toBeCloseTo(reverseFar, 6)
+    expect(resolveCinema2DepthProgramEmission(2, 0, 10, 0, base)).toBeCloseTo(
+      resolveCinema2DepthProgramEmission(2, 0, 10, 5, base),
+      6,
+    )
+    const frozen = { ...base, rate: 0 }
+    expect(resolveCinema2DepthProgramEmission(4, 3, 10, 0, frozen)).toBe(
+      resolveCinema2DepthProgramEmission(4, 3, 10, 999, frozen),
+    )
+  })
+
+  it('applies center-object visibility and intensity without changing instance count', () => {
+    const layout = buildCinema2DepthProofLayout()
+    const frame = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+    const centerIndex = layout.instances.findIndex(instance => instance.kind === 'center')
+    const controls: Cinema2DepthLightControls = {
+      program: 'fullPulse', direction: 'forward', rate: 1, activeSpan: 3, seed: 7,
+      centerEnabled: false, centerIntensity: 1.4,
+    }
+    updateCinema2DepthLightFrame(frame, layout, 1, controls)
+    expect(frame.emissions[centerIndex]).toBe(0)
+    updateCinema2DepthLightFrame(frame, layout, 1, { ...controls, centerEnabled: true })
+    expect(frame.emissions[centerIndex]).toBeCloseTo(1.4)
+    expect(frame.emissions).toHaveLength(157)
+  })
+
+  it('uploads the animated light state and keeps the complete tunnel to one instanced draw', () => {
+    const gl = createCinemaMockWebGL()
+    const layout = buildCinema2DepthProofLayout()
+    const frame = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+    updateCinema2DepthLightFrame(frame, layout, 1.5, {
+      program: 'gatePulse', direction: 'forward', rate: 1.1, activeSpan: 3, seed: 7,
+      centerEnabled: true, centerIntensity: 0.38,
+    })
+    const renderer = new Cinema2DepthRenderer(gl, packCinema2DepthInstances(layout.instances))
+    renderer.draw({
+      viewProjection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+      cameraPosition: [0, 0, 8],
+      lightColor: [0.86, 0.9, 1],
+      bodyColor: [0.012, 0.014, 0.021],
+      intensity: 1,
+      spill: 0.72,
+      centerScale: 1,
+      emissions: frame.emissions,
+      spills: frame.spills,
+    })
+    expect(vi.mocked(gl.bufferSubData)).toHaveBeenCalledOnce()
+    expect(vi.mocked(gl.drawElementsInstanced)).toHaveBeenCalledOnce()
+    renderer.dispose()
+    expect(gl.__calls.createdBuffers).toBe(gl.__calls.deletedBuffers)
+    expect(gl.__calls.createdVertexArrays).toBe(gl.__calls.deletedVertexArrays)
+    expect(gl.__calls.createdPrograms).toBe(gl.__calls.deletedPrograms)
+  })
+
   it('passes final camera and bound controls to one resource-owned tunnel renderer', () => {
     const moduleManifest = CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!
     const values = new Map<string, Cinema2JsonValue>(Object.entries(moduleManifest.parameters ?? {}))
     values.set('intensity', 1.4)
     values.set('spill', 0.9)
+    values.set('program', 'sideOrbit')
+    values.set('direction', 'reverse')
+    values.set('rate', 1.5)
+    values.set('activeSpan', 4)
+    values.set('seed', 27)
+    values.set('centerEnabled', true)
+    values.set('centerScale', 1.6)
+    values.set('centerIntensity', 0.6)
     const parameters = {
       get: (name: string) => values.get(name),
       getAuthored: (name: string) => values.get(name),
@@ -103,10 +222,13 @@ describe('Cinema 2.0 Depth Step-1 preset', () => {
     instance.render!.providers[0]!.execute({
       depthAvailable: true,
       camera: { position: [1, 2, 8], viewProjectionMatrix: Array.from({ length: 16 }, (_, index) => index) },
+      frame: { elapsedTimeSec: 2.25 },
     } as never)
     expect(draw).toHaveBeenCalledOnce()
-    expect(draw.mock.calls[0]?.[0]).toMatchObject({ intensity: 1.4, spill: 0.9, cameraPosition: [1, 2, 8] })
-    expect(instance.inspect()).toMatchObject({ portalCount: 10, instanceCount: 157, estimatedGpuBytes: 4096 })
+    expect(draw.mock.calls[0]?.[0]).toMatchObject({ intensity: 1.4, spill: 0.9, centerScale: 1.6, cameraPosition: [1, 2, 8] })
+    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(157)
+    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(157)
+    expect(instance.inspect()).toMatchObject({ portalCount: 10, instanceCount: 157, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 
     instance.lifecycle.dispose()

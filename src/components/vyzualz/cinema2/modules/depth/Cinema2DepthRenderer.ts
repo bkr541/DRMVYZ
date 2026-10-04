@@ -12,6 +12,7 @@ layout(location = 3) in vec4 i_centerSizeX;
 layout(location = 4) in vec4 i_sizeKindEmission;
 layout(location = 5) in vec4 i_portalSideSpill;
 uniform mat4 u_viewProjection;
+uniform float u_centerScale;
 out vec3 v_world;
 out vec3 v_normal;
 out vec3 v_local;
@@ -22,6 +23,7 @@ flat out float v_spill;
 
 void main() {
   vec3 size = vec3(i_centerSizeX.w, i_sizeKindEmission.x, i_sizeKindEmission.y);
+  if (i_sizeKindEmission.z > 3.5) size *= u_centerScale;
   vec3 world = i_centerSizeX.xyz + a_position * size;
   gl_Position = u_viewProjection * vec4(world, 1.0);
   v_world = world;
@@ -65,6 +67,7 @@ void main() {
   }
 
   if (v_kind > 3.5) {
+    if (v_emission <= 0.0001) discard;
     float center = 1.0 - smoothstep(0.16, 0.72, length(v_local.xy));
     outColor = vec4(mix(u_lightColor, vec3(1.0), 0.4) * v_emission * u_intensity * (2.0 + center * 4.0), 1.0);
     return;
@@ -83,13 +86,18 @@ export interface Cinema2DepthDrawState {
   bodyColor: readonly [number, number, number]
   intensity: number
   spill: number
+  centerScale: number
+  emissions: Float32Array
+  spills: Float32Array
 }
 
-/** Draws the complete Step-1 tunnel with one instanced cube draw. */
+/** Draws the complete tunnel and its animated Step-2 light state with one instanced cube draw. */
 export class Cinema2DepthRenderer {
   private readonly program: ShaderProgram
   private readonly vao: WebGLVertexArrayObject
   private readonly buffers: WebGLBuffer[] = []
+  private readonly instanceBuffer: WebGLBuffer
+  private readonly packedInstances: Float32Array
   private readonly instanceCount: number
   private readonly gpuBytes: number
   private disposed = false
@@ -99,7 +107,7 @@ export class Cinema2DepthRenderer {
       label: 'Cinema2/Depth/PortalTunnel',
       vertSrc: VERTEX_SOURCE,
       fragSrc: FRAGMENT_SOURCE,
-      requiredUniforms: ['u_viewProjection', 'u_cameraPosition', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
+      requiredUniforms: ['u_viewProjection', 'u_centerScale', 'u_cameraPosition', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -119,7 +127,8 @@ export class Cinema2DepthRenderer {
     gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
     this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, indices)
 
-    this.createBuffer(gl.ARRAY_BUFFER, packedInstances)
+    this.packedInstances = new Float32Array(packedInstances)
+    this.instanceBuffer = this.createBuffer(gl.ARRAY_BUFFER, this.packedInstances, gl.DYNAMIC_DRAW)
     for (let attribute = 0; attribute < 3; attribute += 1) {
       gl.enableVertexAttribArray(3 + attribute)
       gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, CINEMA2_DEPTH_INSTANCE_FLOATS * 4, attribute * 16)
@@ -147,6 +156,9 @@ export class Cinema2DepthRenderer {
     program.setVec3('u_bodyColor', ...state.bodyColor)
     program.setFloat('u_intensity', state.intensity)
     program.setFloat('u_spillAmount', state.spill)
+    program.setFloat('u_centerScale', state.centerScale)
+
+    this.updateLighting(state.emissions, state.spills)
 
     gl.bindVertexArray(this.vao)
     gl.enable(gl.DEPTH_TEST)
@@ -170,11 +182,25 @@ export class Cinema2DepthRenderer {
     this.program.dispose()
   }
 
-  private createBuffer(target: number, data: Float32Array | Uint16Array): WebGLBuffer {
+  private updateLighting(emissions: Float32Array, spills: Float32Array): void {
+    if (emissions.length !== this.instanceCount || spills.length !== this.instanceCount) {
+      throw new Error('Cinema 2.0 Depth lighting buffers must match the renderer instance count.')
+    }
+    for (let index = 0; index < this.instanceCount; index += 1) {
+      const offset = index * CINEMA2_DEPTH_INSTANCE_FLOATS
+      this.packedInstances[offset + 7] = emissions[index]!
+      this.packedInstances[offset + 10] = spills[index]!
+    }
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.instanceBuffer)
+    this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.packedInstances)
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null)
+  }
+
+  private createBuffer(target: number, data: Float32Array | Uint16Array, usage = this.gl.STATIC_DRAW): WebGLBuffer {
     const buffer = this.gl.createBuffer()
     if (!buffer) throw new Error('Cinema 2.0 Depth could not allocate a buffer.')
     this.gl.bindBuffer(target, buffer)
-    this.gl.bufferData(target, data as ArrayBufferView<ArrayBuffer>, this.gl.STATIC_DRAW)
+    this.gl.bufferData(target, data as ArrayBufferView<ArrayBuffer>, usage)
     this.buffers.push(buffer)
     return buffer
   }

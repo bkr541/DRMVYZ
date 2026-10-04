@@ -210,7 +210,9 @@ Goal: prove the portal geometry, depth composition and HDR light treatment befor
 
 Step 1 acceptance: the still image must immediately read as a deep illuminated square tunnel, with dark structure visible through spill rather than flat ambient lighting.
 
-### Step 2 — light programs and user controls
+### Step 2 — light programs and user controls (implemented)
+
+Implementation status (October 4, 2026): all portal strips now receive deterministic per-ring/per-side light values derived from absolute transport time, program, direction, rate, active span and seed. Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse are available in the Inspector. The optional center object has visibility, size and intensity controls. Animated emission and spill values update one reusable instance buffer, and the entire tunnel remains one instanced draw.
 
 1. Add per-ring/per-side light state to the renderer.
 2. Implement Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse.

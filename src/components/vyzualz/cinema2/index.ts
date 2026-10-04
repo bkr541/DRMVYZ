@@ -958,6 +958,18 @@ export {
 } from './modules/depth/Cinema2DepthLayout'
 
 export {
+  CINEMA2_DEPTH_LIGHT_DIRECTIONS,
+  CINEMA2_DEPTH_LIGHT_PROGRAMS,
+  createCinema2DepthLightFrame,
+  resolveCinema2DepthProgramEmission,
+  updateCinema2DepthLightFrame,
+  type Cinema2DepthLightControls,
+  type Cinema2DepthLightDirection,
+  type Cinema2DepthLightFrame,
+  type Cinema2DepthLightProgram,
+} from './modules/depth/Cinema2DepthLightPrograms'
+
+export {
   Cinema2DepthRenderer,
   type Cinema2DepthDrawState,
 } from './modules/depth/Cinema2DepthRenderer'
@@ -1039,10 +1051,15 @@ export {
 } from './presets/Cinema2SayItPreset'
 
 export {
+  CINEMA2_DEPTH_ACTIVE_SPAN_ID,
   CINEMA2_DEPTH_BACKGROUND_ID,
   CINEMA2_DEPTH_BLOOM_ID,
   CINEMA2_DEPTH_BODY_COLOR_ID,
   CINEMA2_DEPTH_CAMERA_ID,
+  CINEMA2_DEPTH_CENTER_ENABLED_ID,
+  CINEMA2_DEPTH_CENTER_INTENSITY_ID,
+  CINEMA2_DEPTH_CENTER_SCALE_ID,
+  CINEMA2_DEPTH_DIRECTION_ID,
   CINEMA2_DEPTH_FINISH_ID,
   CINEMA2_DEPTH_HAZE_ID,
   CINEMA2_DEPTH_INTENSITY_ID,
@@ -1050,6 +1067,9 @@ export {
   CINEMA2_DEPTH_MODULE_ID,
   CINEMA2_DEPTH_PRESET_ID,
   CINEMA2_DEPTH_PRESET_MANIFEST,
+  CINEMA2_DEPTH_PROGRAM_ID,
+  CINEMA2_DEPTH_RATE_ID,
+  CINEMA2_DEPTH_SEED_ID,
   CINEMA2_DEPTH_SPILL_ID,
 } from './presets/Cinema2DepthPreset'
 

@@ -15,6 +15,14 @@ import {
   packCinema2DepthInstances,
   type Cinema2DepthProofLayout,
 } from './depth/Cinema2DepthLayout'
+import {
+  CINEMA2_DEPTH_LIGHT_DIRECTIONS,
+  CINEMA2_DEPTH_LIGHT_PROGRAMS,
+  createCinema2DepthLightFrame,
+  updateCinema2DepthLightFrame,
+  type Cinema2DepthLightDirection,
+  type Cinema2DepthLightProgram,
+} from './depth/Cinema2DepthLightPrograms'
 import { Cinema2DepthRenderer, type Cinema2DepthDrawState } from './depth/Cinema2DepthRenderer'
 
 export const CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('depth-native')
@@ -27,6 +35,8 @@ export interface Cinema2DepthModuleInspection {
   portalCount: number
   instanceCount: number
   estimatedGpuBytes: number
+  lightProgram: Cinema2DepthLightProgram
+  direction: Cinema2DepthLightDirection
 }
 
 interface Cinema2DepthRendererRuntime {
@@ -46,6 +56,7 @@ export function createCinema2DepthNativeModuleDefinition(options: {
     create(context: Cinema2ModuleCreateContext) {
       const layout = resolveLayout(context.module)
       const instances = packCinema2DepthInstances(layout.instances)
+      const lightFrame = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
       const renderer = context.resources.acquire(
         `depth:proof:${layout.portalCount}:${layout.aperture}:${layout.spacing}`,
         'Cinema2DepthRenderer',
@@ -64,6 +75,17 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           if (!execution.camera) throw new Error(`Cinema 2.0 Depth module "${context.module.id}" requires final Camera Runtime state.`)
           const light = readColor(context, 'lightColor', DEFAULT_LIGHT)
           const body = readColor(context, 'bodyColor', DEFAULT_BODY)
+          const lightProgram = readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'depthChase')
+          const direction = readEnum(context, 'direction', CINEMA2_DEPTH_LIGHT_DIRECTIONS, 'forward')
+          updateCinema2DepthLightFrame(lightFrame, layout, resolveTimeSeconds(execution), {
+            program: lightProgram,
+            direction,
+            rate: clamp(readNumber(context, 'rate', 1.1), 0, 8),
+            activeSpan: clamp(Math.round(readNumber(context, 'activeSpan', 3)), 1, layout.portalCount),
+            seed: Math.round(clamp(readNumber(context, 'seed', 7), 0, 9999)),
+            centerEnabled: readBoolean(context, 'centerEnabled', true),
+            centerIntensity: clamp(readNumber(context, 'centerIntensity', 0.38), 0, 2),
+          })
           renderer.draw({
             viewProjection: execution.camera.viewProjectionMatrix,
             cameraPosition: execution.camera.position,
@@ -71,6 +93,9 @@ export function createCinema2DepthNativeModuleDefinition(options: {
             bodyColor: [body[0], body[1], body[2]],
             intensity: clamp(readNumber(context, 'intensity', 1), 0, 2),
             spill: clamp(readNumber(context, 'spill', 0.7), 0, 2),
+            centerScale: clamp(readNumber(context, 'centerScale', 1), 0.25, 4),
+            emissions: lightFrame.emissions,
+            spills: lightFrame.spills,
           })
         },
       })
@@ -82,6 +107,8 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           portalCount: layout.portalCount,
           instanceCount: layout.instances.length,
           estimatedGpuBytes,
+          lightProgram: readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'depthChase'),
+          direction: readEnum(context, 'direction', CINEMA2_DEPTH_LIGHT_DIRECTIONS, 'forward'),
         }),
       }
     },
@@ -122,6 +149,29 @@ function readConfigNumber(module: Readonly<Cinema2ModuleManifest>, name: string)
 function readNumber(context: Cinema2ModuleCreateContext, name: string, fallback: number): number {
   const value = context.parameters.get(name)
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function readBoolean(context: Cinema2ModuleCreateContext, name: string, fallback: boolean): boolean {
+  const value = context.parameters.get(name)
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function readEnum<const T extends string>(
+  context: Cinema2ModuleCreateContext,
+  name: string,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const value = context.parameters.get(name)
+  return typeof value === 'string' && allowed.includes(value as T) ? value as T : fallback
+}
+
+function resolveTimeSeconds(execution: Cinema2ModuleRenderExecutionContext): number {
+  const { frame } = execution
+  if (frame.transport?.sourcePresent && Number.isFinite(frame.transport.timeSec)) return Math.max(0, frame.transport.timeSec)
+  const audioTime = frame.audio?.upstream.timeSec
+  if (typeof audioTime === 'number' && Number.isFinite(audioTime)) return Math.max(0, audioTime)
+  return Number.isFinite(frame.elapsedTimeSec) ? Math.max(0, frame.elapsedTimeSec) : 0
 }
 
 function readColor(context: Cinema2ModuleCreateContext, name: string, fallback: Cinema2Color): Cinema2Color {
