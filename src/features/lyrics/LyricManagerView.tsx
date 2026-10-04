@@ -44,7 +44,7 @@ import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, InformationCircleIcon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -357,11 +357,9 @@ export function LyricManagerView({
     ownerWindow.addEventListener('pointermove', onMove)
     ownerWindow.addEventListener('pointerup', onUp, { once: true })
   }, [lyricManagementHeightPct])
-  // Diagnostics mirrors the left rail's Lyric Management splitter. Track
-  // Information keeps its fixed top share; the remaining right-rail space
-  // is split between Document Workspace and the Diagnostics window. The
-  // percentage is measured against that lower shell so dragging Diagnostics
-  // never distorts Track Information.
+  // Diagnostics mirrors the left rail's Lyric Management splitter: the right
+  // rail's full height is split between Document Workspace and the Diagnostics
+  // window, with the percentage measured against the right workspace shell.
   const diagnosticsShellRef = useRef<HTMLDivElement>(null)
   const [diagnosticsHeightPct, setDiagnosticsHeightPct] = useState<number | null>(null)
   const handleDiagnosticsResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -2300,133 +2298,112 @@ export function LyricManagerView({
           onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
           className="lmv-right-rail"
         >
-          <div
-            className="lmv-right-workspace-shell"
-            data-has-selected-track={lyricManagementPhase !== 'unmounted' ? 'true' : 'false'}
-          >
-            {lyricManagementPhase !== 'unmounted' && (
-              <section
-                className={`lmv-track-information lmv-track-information--${lyricManagementPhase}`}
-                aria-label="Track Information"
-              >
+          <div ref={diagnosticsShellRef} className="lmv-right-workspace-shell">
+            <section
+              className="lmv-document-workspace"
+              aria-label="Document Workspace"
+              style={diagnosticsHeightPct != null
+                ? { flexBasis: `${100 - diagnosticsHeightPct}%` }
+                : undefined}
+            >
+              <div className="lmv-document-workspace-header">
                 <RailWindowHeader
                   side="right"
-                  icon={<InformationCircleIcon size={15} color="currentColor" aria-hidden="true" />}
-                  label="Track Information"
-                />
-                <div className="lmv-track-information-body">
-                  <span className="lmv-track-information-placeholder">Track details will appear here.</span>
-                </div>
-              </section>
-            )}
-
-            <div ref={diagnosticsShellRef} className="lmv-right-lower-shell">
-              <section
-                className="lmv-document-workspace"
-                aria-label="Document Workspace"
-                style={diagnosticsHeightPct != null
-                  ? { flexBasis: `${100 - diagnosticsHeightPct}%` }
-                  : undefined}
-              >
-                <div className="lmv-document-workspace-header">
-                  <RailWindowHeader
-                    side="right"
-                    icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
-                    label="Document Workspace"
-                  />
-                </div>
-
-                <div className="lmv-document-workspace-body">
-                  {cueEditor.selectedCue && cueEditor.actions ? (
-                    <>
-                      <LyricCueInspectorWindow
-                        cue={cueEditor.selectedCue}
-                        cues={cueEditor.cues}
-                        currentTimeMs={cueEditor.canonicalPlayheadMs}
-                        durationMs={editorDurationMs}
-                        sections={sectionOptions}
-                        actions={cueEditor.actions}
-                        canMergePrevious={cueEditor.selectedIndex > 0}
-                        canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
-                        onUpdateCue={cueEditor.commitCuePatch}
-                        onUpdateWord={cueEditor.updateCueWord}
-                      />
-                      {editorDocument && (
-                        <LyricDocumentPresentationPanel
-                          defaultStyle={draftDefaultStyle}
-                          defaultAnimation={draftDefaultAnimation}
-                          defaultEffects={draftDefaultEffects}
-                          onUpdateDefaultStyle={updateDraftDefaultStyle}
-                          onUpdateDefaultAnimation={updateDraftDefaultAnimation}
-                          onUpdateDefaultEffects={updateDraftDefaultEffects}
-                        />
-                      )}
-                      <LyricCueSettingsPanel
-                        cue={cueEditor.selectedCue}
-                        onUpdateCue={cueEditor.commitCuePatch}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
-                      {editorDocument && (
-                        <LyricDocumentPresentationPanel
-                          defaultStyle={draftDefaultStyle}
-                          defaultAnimation={draftDefaultAnimation}
-                          defaultEffects={draftDefaultEffects}
-                          onUpdateDefaultStyle={updateDraftDefaultStyle}
-                          onUpdateDefaultAnimation={updateDraftDefaultAnimation}
-                          onUpdateDefaultEffects={updateDraftDefaultEffects}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
-
-              <div
-                className="lmv-diagnostics-pane"
-                style={diagnosticsHeightPct != null ? { flexBasis: `${diagnosticsHeightPct}%` } : undefined}
-              >
-                <div
-                  className="lmv-diagnostics-resize-handle"
-                  role="separator"
-                  aria-orientation="horizontal"
-                  aria-label="Resize Diagnostics"
-                  aria-valuenow={Math.round(diagnosticsHeightPct ?? 45)}
-                  aria-valuemin={20}
-                  aria-valuemax={70}
-                  tabIndex={0}
-                  onPointerDown={handleDiagnosticsResizeStart}
-                  onKeyDown={event => {
-                    if (event.key === 'ArrowUp') { event.preventDefault(); setDiagnosticsHeightPct(Math.min(70, (diagnosticsHeightPct ?? 45) + 2)) }
-                    if (event.key === 'ArrowDown') { event.preventDefault(); setDiagnosticsHeightPct(Math.max(20, (diagnosticsHeightPct ?? 45) - 2)) }
-                  }}
-                />
-                <LyricPreviewPanel
-                  cues={storeCues}
-                  document={editorDocument}
-                  onNavigateToIssue={handleNavigateToValidationIssue}
-                  extractionConsole={
-                    <LyricWorkflowStatus
-                      selectedTrack={selectedTrack}
-                      loadedTrackMatches={selectedTrackLoaded}
-                      activeVersion={activeVersionForSelectedTrack}
-                      editorDocument={editorDocument}
-                      cues={storeCues}
-                      trackMapAvailable={Boolean(activeEditorAnalysis && (trustedBeatGridMs.length >= 2 || activeEditorSections.length > 0))}
-                      trackMapRevision={activeEditorAnalysis?.analysisVersion ?? null}
-                      saveStatus={activeWriteStatus}
-                      saveRevision={lastCanonicalWrite?.sequence ?? null}
-                      runtimeAudioTrackId={runtimeAudioTrackId}
-                      runtimeActiveDocumentId={runtimeActiveDocumentId}
-                      lyricsDisplayEnabled={lyricsDisplayEnabled}
-                      latestJob={latestTranscriptionJob}
-                      jobsLoading={transcriptionJobLoading || documentsLoading}
-                    />
-                  }
+                  icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
+                  label="Document Workspace"
                 />
               </div>
+
+              <div className="lmv-document-workspace-body">
+                {cueEditor.selectedCue && cueEditor.actions ? (
+                  <>
+                    <LyricCueInspectorWindow
+                      cue={cueEditor.selectedCue}
+                      cues={cueEditor.cues}
+                      currentTimeMs={cueEditor.canonicalPlayheadMs}
+                      durationMs={editorDurationMs}
+                      sections={sectionOptions}
+                      actions={cueEditor.actions}
+                      canMergePrevious={cueEditor.selectedIndex > 0}
+                      canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
+                      onUpdateCue={cueEditor.commitCuePatch}
+                      onUpdateWord={cueEditor.updateCueWord}
+                    />
+                    {editorDocument && (
+                      <LyricDocumentPresentationPanel
+                        defaultStyle={draftDefaultStyle}
+                        defaultAnimation={draftDefaultAnimation}
+                        defaultEffects={draftDefaultEffects}
+                        onUpdateDefaultStyle={updateDraftDefaultStyle}
+                        onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                        onUpdateDefaultEffects={updateDraftDefaultEffects}
+                      />
+                    )}
+                    <LyricCueSettingsPanel
+                      cue={cueEditor.selectedCue}
+                      onUpdateCue={cueEditor.commitCuePatch}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
+                    {editorDocument && (
+                      <LyricDocumentPresentationPanel
+                        defaultStyle={draftDefaultStyle}
+                        defaultAnimation={draftDefaultAnimation}
+                        defaultEffects={draftDefaultEffects}
+                        onUpdateDefaultStyle={updateDraftDefaultStyle}
+                        onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                        onUpdateDefaultEffects={updateDraftDefaultEffects}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </section>
+
+            <div
+              className="lmv-diagnostics-pane"
+              style={diagnosticsHeightPct != null ? { flexBasis: `${diagnosticsHeightPct}%` } : undefined}
+            >
+              <div
+                className="lmv-diagnostics-resize-handle"
+                role="separator"
+                aria-orientation="horizontal"
+                aria-label="Resize Diagnostics"
+                aria-valuenow={Math.round(diagnosticsHeightPct ?? 45)}
+                aria-valuemin={20}
+                aria-valuemax={70}
+                tabIndex={0}
+                onPointerDown={handleDiagnosticsResizeStart}
+                onKeyDown={event => {
+                  if (event.key === 'ArrowUp') { event.preventDefault(); setDiagnosticsHeightPct(Math.min(70, (diagnosticsHeightPct ?? 45) + 2)) }
+                  if (event.key === 'ArrowDown') { event.preventDefault(); setDiagnosticsHeightPct(Math.max(20, (diagnosticsHeightPct ?? 45) - 2)) }
+                }}
+              />
+              <LyricPreviewPanel
+                cues={storeCues}
+                document={editorDocument}
+                onNavigateToIssue={handleNavigateToValidationIssue}
+                extractionConsole={
+                  <LyricWorkflowStatus
+                    selectedTrack={selectedTrack}
+                    loadedTrackMatches={selectedTrackLoaded}
+                    activeVersion={activeVersionForSelectedTrack}
+                    editorDocument={editorDocument}
+                    cues={storeCues}
+                    trackMapAvailable={Boolean(activeEditorAnalysis && (trustedBeatGridMs.length >= 2 || activeEditorSections.length > 0))}
+                    trackMapRevision={activeEditorAnalysis?.analysisVersion ?? null}
+                    saveStatus={activeWriteStatus}
+                    saveRevision={lastCanonicalWrite?.sequence ?? null}
+                    runtimeAudioTrackId={runtimeAudioTrackId}
+                    runtimeActiveDocumentId={runtimeActiveDocumentId}
+                    lyricsDisplayEnabled={lyricsDisplayEnabled}
+                    latestJob={latestTranscriptionJob}
+                    jobsLoading={transcriptionJobLoading || documentsLoading}
+                  />
+                }
+              />
             </div>
           </div>
         </WorkspaceRail>

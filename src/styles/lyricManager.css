@@ -1615,7 +1615,7 @@
 }
 
 /* Right rail's top/left/right inset is applied per-section below instead
-   (.lmv-track-info-panel, .lmv-right-panel) so the Document Workspace
+   (.lmv-right-panel) so the Document Workspace
    header can reach the rail's true top and side edges with no surrounding
    gap, matching Track Workspace's fit on the left rail — while everything
    else keeps its original position. Bottom inset is untouched since
@@ -1795,16 +1795,6 @@
   border-right: 1px solid rgba(126,218,232,0.1);
 }
 
-.lmv-track-info-panel {
-  flex: 0 0 auto;
-  /* Left/right bumped from 14px to 26px (14 + the 12px .lmv-right-rail
-     .vz-inspector-inner used to provide, now zeroed so the Document
-     Workspace header above can reach the rail's true side edges) so this
-     panel's content keeps its original horizontal position. */
-  padding: 12px 26px 4px;
-  border-bottom: 1px solid rgba(126,218,232,0.1);
-}
-
 /* SelectedTrackHero's empty <-> filled swap, driven by useMountTransition
    (LyricManagerView.tsx) since only one of the two ever mounts at a time —
    each fades/slides independently as the track selection changes. The
@@ -1825,44 +1815,6 @@
 
 .lmv-track-state--entered {
   opacity: 1;
-}
-
-.lmv-track-info-fill {
-  transition: opacity 200ms ease, transform 200ms ease;
-}
-
-.lmv-track-info-fill--entering,
-.lmv-track-info-fill--exiting {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-.lmv-track-info-fill--entered {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.lmv-track-info-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.lmv-track-info-header .lmv-track-art {
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  font-size: 13px;
-}
-
-.lmv-track-info-header .lmv-track-card-main {
-  flex: 1 1 0%;
-  min-width: 0;
-}
-
-.lmv-track-info-stats {
-  margin-top: 10px;
 }
 
 .lmv-track-info-versions {
@@ -2915,18 +2867,6 @@
   overflow: hidden;
 }
 
-/* Track Information owns the fixed top share of the right rail. The lower
-   shell then mirrors the left rail's Track Workspace / Lyric Management
-   splitter so Document Workspace and Diagnostics can exchange height without
-   changing Track Information's footprint. */
-.lmv-right-lower-shell {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
 .lmv-document-workspace,
 .lmv-diagnostics-pane {
   box-sizing: border-box;
@@ -3069,53 +3009,12 @@
   transform: translateY(0);
 }
 
-/* Track Information: the fixed top window in the right rail. It is visible
-   only once a track is selected (lyricManagementPhase, shared with the left
-   rail's Lyric Management section) and keeps a ~25% share while the lower
-   Document Workspace / Diagnostics pair handles its own resizable split. */
-.lmv-track-information {
-  box-sizing: border-box;
-  min-height: 0;
-  flex: 0 0 25%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.lmv-track-information--entering,
-.lmv-track-information--exiting {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.lmv-track-information--entered {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.lmv-track-information-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-}
-
-.lmv-track-information-placeholder {
-  color: rgba(196, 207, 211, 0.42);
-  font-size: 11px;
-  text-align: center;
-}
-
 /* Right rail "Document Workspace" header: now restyled to match Track
    Workspace's Drop Shadow bar exactly, including its edge-to-edge fit, so
-   this wrapper carries no padding of its own — SelectedTrackHero/
-   LyricPreviewPanel below it get their inset back directly (see
-   .lmv-track-info-panel/.lmv-right-panel) instead of relying on this
-   wrapper's padding to cancel via the shared .lmv-rail-title's negative
-   margin, the way it worked before. */
+   this wrapper carries no padding of its own — LyricPreviewPanel below
+   it gets its inset back directly (see .lmv-right-panel) instead of
+   relying on this wrapper's padding to cancel via the shared
+   .lmv-rail-title's negative margin, the way it worked before. */
 .lmv-document-workspace-header {
   padding: 0;
 }
