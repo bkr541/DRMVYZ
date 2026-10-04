@@ -470,6 +470,26 @@ export function resolveSaveActivation(input: {
   return input.draftActivateOnSave
 }
 
+/**
+ * The explicit `makeActive` a plain Save should pass, given what the UI knows right now. A new draft's
+ * "activate on first save" intent is dropped (saved inactive) when the track already has an active version
+ * — e.g. AI extraction auto-activated one after the draft was created — or the draft has validation errors
+ * (an empty placeholder is still saved, just never activated). An explicit user request always wins.
+ * Returns undefined to let resolveSaveActivation decide.
+ */
+export function resolveSaveRequest(input: {
+  requestedMakeActive?: boolean
+  savedDocument: Pick<LyricDocument, 'isActive'> | null
+  draftActivateOnSave: boolean
+  trackHasActiveVersion: boolean
+  hasValidationErrors: boolean
+}): boolean | undefined {
+  if (input.requestedMakeActive !== undefined) return input.requestedMakeActive
+  const intentOnlyActivation = input.savedDocument === null && input.draftActivateOnSave
+  if (intentOnlyActivation && (input.trackHasActiveVersion || input.hasValidationErrors)) return false
+  return undefined
+}
+
 function cueInputs(cues: LyricCue[], documentId: string): CreateLyricCueInput[] {
   return cues.map((cue, index) => createLyricCueInputFromCue(cue, documentId, index))
 }
@@ -1132,6 +1152,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     })
   },
   abandonLyricDocument: (documentId) => {
+    // A deleted document must never linger as the runtime preview override.
+    if (get().runtimeLyricPreview?.documentId === documentId) set({ runtimeLyricPreview: null })
     abandonedCanonicalDocuments.add(documentId)
     for (const queue of writeQueues.values()) {
       if (queue.canonicalDocumentId === documentId || queue.logicalDocumentId === `document:${documentId}`) {

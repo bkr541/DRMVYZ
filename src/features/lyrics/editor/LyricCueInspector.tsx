@@ -22,7 +22,7 @@ import {
   retainLyricGroupsForWords,
   validateWordTiming,
 } from './lyricCueEditorModel'
-import { LyricPresentationControls } from '../components/LyricPresentationControls'
+import { LyricAnchorField, LyricFontSizeField, LyricPresentationControls } from '../components/LyricPresentationControls'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 import { LyricCueJsonField } from './LyricCueJsonField'
 
@@ -322,23 +322,6 @@ export function LyricCueInspector({
           <input className="lmv-num" type="number" min={1} step={1} value={end} onChange={event => setEnd(event.target.value)} onBlur={applyTiming} onKeyDown={event => event.key === 'Enter' && applyTiming()} />
         </label>
         <label>
-          <span>Duration (ms)</span>
-          <input
-            className="lmv-num"
-            type="number"
-            min={1}
-            step={1}
-            value={duration}
-            onChange={event => setDuration(event.target.value)}
-            onBlur={applyDuration}
-            onKeyDown={event => event.key === 'Enter' && applyDuration()}
-          />
-        </label>
-        <label>
-          <span>Confidence (0–1)</span>
-          <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={confidence} onChange={event => setConfidence(event.target.value)} onBlur={applyConfidence} onKeyDown={event => event.key === 'Enter' && applyConfidence()} />
-        </label>
-        <label>
           <span>Section</span>
           <DropdownSelect
             className="lmv-select"
@@ -359,6 +342,25 @@ export function LyricCueInspector({
             <option value="">Unspecified</option>
             {REVIEW_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
           </DropdownSelect>
+        </label>
+        <LyricAnchorField label="Position" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
+        <LyricFontSizeField label="Text size" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
+        <label>
+          <span>Duration (ms)</span>
+          <input
+            className="lmv-num"
+            type="number"
+            min={1}
+            step={1}
+            value={duration}
+            onChange={event => setDuration(event.target.value)}
+            onBlur={applyDuration}
+            onKeyDown={event => event.key === 'Enter' && applyDuration()}
+          />
+        </label>
+        <label>
+          <span>Confidence (0–1)</span>
+          <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={confidence} onChange={event => setConfidence(event.target.value)} onBlur={applyConfidence} onKeyDown={event => event.key === 'Enter' && applyConfidence()} />
         </label>
       </div>
 
@@ -385,6 +387,7 @@ export function LyricCueInspector({
           animation={cue.animation ?? {}}
           effects={cue.effects ?? {}}
           allowInherit
+          omit={['anchor', 'fontSize']}
           onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
           onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
           onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}

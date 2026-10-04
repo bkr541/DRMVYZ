@@ -84,11 +84,6 @@ export function LyricTimelineToolbar({
         </div>
       </div>
 
-      <div className="lmv-timeline-toolbar__group">
-        <IconChipButton onClick={addAtPlayhead}>+ Add cue</IconChipButton>
-        <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
-        <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
-      </div>
 
       <div className="lmv-timeline-toolbar__group">
         <button
@@ -117,11 +112,13 @@ export function LyricTimelineToolbar({
         </label>
       </div>
 
+      <label className="lmv-timeline-toolbar__field lmv-timeline-toolbar__field--zoom">
+        <span>Zoom {waveformZoom.toFixed(2)}×</span>
+        <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
+      </label>
       <div className="lmv-timeline-toolbar__group lmv-timeline-toolbar__group--end">
-        <label className="lmv-timeline-toolbar__field lmv-timeline-toolbar__field--zoom">
-          <span>Zoom {waveformZoom.toFixed(2)}×</span>
-          <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
-        </label>
+        <IconChipButton disabled={cueHistoryPast.length === 0} onClick={undoCueEdit} aria-label="Undo lyric edit">Undo</IconChipButton>
+        <IconChipButton disabled={cueHistoryFuture.length === 0} onClick={redoCueEdit} aria-label="Redo lyric edit">Redo</IconChipButton>
 
         <label className="lmv-timeline-toolbar__field lmv-timeline-toolbar__field--volume">
           <span>♬</span>
@@ -153,6 +150,7 @@ export function LyricTimelineToolbar({
             </label>
           ))}
         </DualRailCollapsible>
+        <IconChipButton className="lmv-timeline-toolbar__add" onClick={addAtPlayhead}>+ Add cue</IconChipButton>
       </div>
     </div>
   )

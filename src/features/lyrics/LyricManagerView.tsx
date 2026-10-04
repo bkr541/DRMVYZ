@@ -2,7 +2,7 @@ import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
-import { resolveSaveActivation, useLyricsStore } from '../../stores/lyricsStore'
+import { resolveSaveActivation, resolveSaveRequest, useLyricsStore } from '../../stores/lyricsStore'
 import {
   deleteLyricDocument,
   getFullLyricDocument,
@@ -56,6 +56,7 @@ import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPa
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspector } from './editor/LyricCueInspector'
 import { LyricInspector, type LyricInspectorTab } from './components/LyricInspector'
+import { LyricReviewSummary } from './components/LyricReviewSummary'
 import { lyricLayoutDrawers, useLyricLayoutMode } from './lyricLayoutMode'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
@@ -873,12 +874,15 @@ export function LyricManagerView({
   const doSave = useCallback(async (requestedMakeActive?: boolean): Promise<boolean> => {
     setError(null)
     const validation = validateLyricCues(storeCues)
-    // A first draft's "activate on save" intent is honored only for a valid document: an invalid or
-    // empty placeholder still saves, as an inactive draft. Explicit Save + Make Active is never softened.
-    const intentOnlyActivation = requestedMakeActive === undefined
-      && resolveSaveActivation({ savedDocument: editorDocument, draftActivateOnSave })
-      && !editorDocument
-    const makeActive = intentOnlyActivation && validation.errors.length > 0 ? false : requestedMakeActive
+    // A first draft's "activate on save" intent applies only to a valid document on a track with no active
+    // version; otherwise it saves as an inactive draft. Explicit Save + Make Active is never softened.
+    const makeActive = resolveSaveRequest({
+      requestedMakeActive,
+      savedDocument: editorDocument,
+      draftActivateOnSave,
+      trackHasActiveVersion: documents.some(document => document.isActive),
+      hasValidationErrors: validation.errors.length > 0,
+    })
     const allowEmptyInactiveDraft = !resolveSaveActivation({
       explicit: makeActive,
       savedDocument: editorDocument,
@@ -906,6 +910,7 @@ export function LyricManagerView({
     storeCues,
     editorDocument,
     draftActivateOnSave,
+    documents,
     refreshDocuments,
     saveActiveLyricDocument,
     selectedTrack,
@@ -1980,7 +1985,7 @@ export function LyricManagerView({
           >
           <section
             className="lmv-track-workspace"
-            aria-label="Track Workspace"
+            aria-label="Tracks"
             style={lyricManagementHeightPct != null && showLyricVersions
               ? { flexBasis: `${100 - lyricManagementHeightPct}%` }
               : undefined}
@@ -1988,7 +1993,7 @@ export function LyricManagerView({
             <RailWindowHeader
               side="left"
               icon={<AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />}
-              label="Track Workspace"
+              label="Tracks"
               actions={
                 <IconChipButton
                   tone="primary"
@@ -2007,12 +2012,12 @@ export function LyricManagerView({
               tabs={WORKSPACE_TABS}
               activeTab={workspaceTabForWorkflow(activeTab)}
               onChange={(tab) => setActiveTab(workflowTabForWorkspace(tab))}
-              ariaLabel="Track Workspace"
+              ariaLabel="Track workspace"
               className="lmv-workspace-tabs"
               variant="underline"
             />
 
-            <div className="lmv-workspace-tab-panel" role="tabpanel" aria-label="Track Workspace panel">
+            <div className="lmv-workspace-tab-panel" role="tabpanel" aria-label="Tracks panel">
             {workspaceTabForWorkflow(activeTab) === 'tracks' && (
           <LyricTrackBrowser
             tracks={tracks}
@@ -2071,14 +2076,14 @@ export function LyricManagerView({
           {showLyricVersions && (
           <section
             className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`}
-            aria-label="Lyric Management"
+            aria-label="Versions"
             style={lyricManagementHeightPct != null ? { flexBasis: `${lyricManagementHeightPct}%` } : undefined}
           >
             <div
               className="lmv-lyric-management-resize-handle"
               role="separator"
               aria-orientation="horizontal"
-              aria-label="Resize Lyric Management"
+              aria-label="Resize Versions"
               aria-valuenow={Math.round(lyricManagementHeightPct ?? 45)}
               aria-valuemin={20}
               aria-valuemax={70}
@@ -2092,7 +2097,7 @@ export function LyricManagerView({
             <RailWindowHeader
               side="left"
               icon={<SubtitleIcon size={15} color="currentColor" aria-hidden="true" />}
-              label="Lyric Management"
+              label="Versions"
               actions={
                 <>
                   <IconChipButton
@@ -2153,25 +2158,28 @@ export function LyricManagerView({
               )}
             </div>
           )}
-          <div className="lmv-live-preview-enlarged">
-            <LyricLivePreviewPanel
-              cues={storeCues}
-              document={editorDocument}
-              selectedCue={selectedCue}
-              currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-              isPlaying={selectedTrackPlaying}
-              globalOffsetMs={globalOffsetMs}
-              onPreviewLyrics={handlePreviewInPerformanceView}
-              previewDestination={returnView === 'showManager' ? 'Show Manager' : 'React'}
-              track={selectedTrack}
-              openVersionTitle={editorDocument?.title ?? null}
-              activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
-              loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
-              selectedTrackLoaded={selectedTrackLoaded}
-              onLoadTrack={() => { void handleLoadSelectedTrack() }}
-              onTogglePlayback={handleTogglePlayback}
-            />
-          </div>
+          <LyricLivePreviewPanel
+            cues={storeCues}
+            document={editorDocument}
+            selectedCue={selectedCue}
+            currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+            isPlaying={selectedTrackPlaying}
+            globalOffsetMs={globalOffsetMs}
+            onPreviewLyrics={handlePreviewInPerformanceView}
+            previewDestination={returnView === 'showManager' ? 'Show Manager' : 'React'}
+            track={selectedTrack}
+            versions={documents.map(document => ({ id: document.id, title: document.title || 'Untitled' }))}
+            openVersionId={editorDocumentId}
+            openVersionTitle={editorDocument?.title ?? (selectedTrack ? 'Unsaved draft' : null)}
+            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
+            loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
+            selectedTrackLoaded={selectedTrackLoaded}
+            onLoadTrack={() => { void handleLoadSelectedTrack() }}
+            onOpenVersion={versionId => {
+              const version = documents.find(document => document.id === versionId)
+              if (version) handleSelectDocument(version)
+            }}
+          />
 
           {engine.currentTrack && !engine.currentAudioTrackId && (
             <section className="lmv-local-track-link" aria-label="Local track identity">
@@ -2315,6 +2323,7 @@ export function LyricManagerView({
                 )}
               </>
             )}
+            summary={<LyricReviewSummary cues={storeCues} onOpenReview={() => setInspectorTab('review')} />}
             review={(
               <LyricPreviewPanel
                 cues={storeCues}

@@ -142,32 +142,22 @@ export function LyricTrackTimelineWindow({
       ? 'Beat snapping is using a temporary BPM grid. Run analysis to replace it with detected beats.'
       : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
 
+  // Rows read top to bottom as in the reference: ruler, sections, audio, lyric lanes, beats. Each row has a
+  // fixed label gutter and a content area; every content area measures its own width, so they stay aligned.
+  const lane = (className: string, label: string | null, content: ReactNode) => (
+    <div className={`lmv-track-timeline-lane ${className}`}>
+      <span className="lmv-track-timeline-lane-label" aria-hidden="true">{label}</span>
+      <div className="lmv-track-timeline-lane-body">{content}</div>
+    </div>
+  )
+
   return (
     <section className="lmv-track-timeline-window" aria-label="Track Timeline" onKeyDown={onKeyDown}>
-      <DualRailCollapsible
-        label="Track Timeline"
-        headerClassName="lmv-live-preview-header"
-        headerAccessory={beatGridHint && (
-          <span className="lmv-track-timeline-hint">
-            {beatGridHint}
-            {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
-              <button type="button" className="lmv-inline-action" onClick={onAnalyzeTrack}>{analysisActionLabel}</button>
-            )}
-          </span>
-        )}
-      >
-        {toolbar}
+      <DualRailCollapsible label="Track Timeline" headerClassName="lmv-live-preview-header">
         <div className="lmv-track-timeline-lanes lmv-track-timeline-lanes--stacked">
-          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--timing">
-            <TimingRow viewport={viewport} />
-          </div>
-          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--section">
-            <TrackSectionRow sections={sections} viewport={viewport} />
-          </div>
-          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--beatgrid">
-            <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />
-          </div>
-          <div className="lmv-track-timeline-lane lmv-track-timeline-lane--waveform">
+          {lane('lmv-track-timeline-lane--timing', null, <TimingRow viewport={viewport} />)}
+          {lane('lmv-track-timeline-lane--section', null, <TrackSectionRow sections={sections} viewport={viewport} />)}
+          {lane('lmv-track-timeline-lane--waveform', 'Audio', (
             <LyricWaveformCanvas
               peaks={waveformPeaks}
               loading={waveformLoading}
@@ -175,9 +165,19 @@ export function LyricTrackTimelineWindow({
               currentTimeSec={currentSec}
               viewport={viewport}
             />
-          </div>
+          ))}
           {cueTimeline && <div className="lmv-track-timeline-cue-lanes">{cueTimeline}</div>}
+          {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />)}
         </div>
+        {beatGridHint && (
+          <div className="lmv-track-timeline-hint">
+            <span>{beatGridHint}</span>
+            {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
+              <button type="button" className="lmv-inline-action" onClick={onAnalyzeTrack}>{analysisActionLabel}</button>
+            )}
+          </div>
+        )}
+        {toolbar}
       </DualRailCollapsible>
     </section>
   )

@@ -144,7 +144,7 @@ describe('LyricInspector tabs', () => {
     expect(startLabel.firstElementChild?.tagName).toBe('SPAN')
     expect(scope.querySelector('.lyric-cue-inspector__grid')).not.toBeNull()
     const captions = [...scope.querySelectorAll('.lyric-cue-inspector__grid > label > span')].map(span => span.textContent)
-    expect(captions.slice(0, 7)).toEqual(['Text', 'Start time (ms)', 'End time (ms)', 'Duration (ms)', 'Confidence (0–1)', 'Section', 'Review state'])
+    expect(captions).toEqual(['Text', 'Start time (ms)', 'End time (ms)', 'Section', 'Review state', 'Position', 'Text size', 'Duration (ms)', 'Confidence (0–1)'])
   })
 
   it('shows document identity and default presentation in the Document tab', async () => {
@@ -219,7 +219,7 @@ describe('LyricInspector tabs', () => {
   })
 
   it('keeps document defaults and cue overrides separate: the cue tab offers inherit, the document tab does not', async () => {
-    const cueSize = fieldByLabel(pane('cue'), 'Font size')
+    const cueSize = fieldByLabel(pane('cue'), 'Text size')
     const docSize = fieldByLabel(pane('document'), 'Font size')
     expect(cueSize.placeholder).toBe('Inherit')
     expect(docSize.placeholder).not.toBe('Inherit')

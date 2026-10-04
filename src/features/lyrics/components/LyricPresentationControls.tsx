@@ -23,6 +23,8 @@ interface Props {
   onClearStyle?: () => void
   onClearAnimation?: () => void
   onClearEffects?: () => void
+  /** Appearance fields rendered elsewhere (the Cue inspector shows Position and Text size in its main grid). */
+  omit?: Array<'anchor' | 'fontSize'>
 }
 
 function optionalNumber(value: string): number | undefined {
@@ -61,6 +63,59 @@ function anchorPresetFor(value: Partial<LyricStyle>): LyricAnchorPreset {
   return 'custom'
 }
 
+interface StyleFieldProps {
+  style: Partial<LyricStyle>
+  allowInherit?: boolean
+  onStyleChange: (patch: Partial<LyricStyle>) => void
+  label?: string
+}
+
+/** Screen position preset (top / center / lower third / bottom, or a custom x/y). */
+export function LyricAnchorField({ style, onStyleChange, label = 'Screen anchor' }: StyleFieldProps) {
+  const anchorPreset = anchorPresetFor(style)
+  return (
+    <label>
+      <span>{label}</span>
+      <DropdownSelect
+        className="lmv-select"
+        value={anchorPreset}
+        onChange={event => {
+          const patch = anchorPresetPatch(event.target.value as LyricAnchorPreset)
+          if (patch) onStyleChange(patch)
+        }}
+      >
+        <option value="custom">Custom position</option>
+        <option value="top">Top center</option>
+        <option value="center">Center</option>
+        <option value="lower-third">Lower third</option>
+        <option value="bottom">Bottom center</option>
+      </DropdownSelect>
+    </label>
+  )
+}
+
+/** Font size in the 8–300 range; empty means "inherit" when overriding. */
+export function LyricFontSizeField({ style, allowInherit = false, onStyleChange, label = 'Font size' }: StyleFieldProps) {
+  return (
+    <label>
+      <span>{label}</span>
+      <input
+        className="lmv-num"
+        type="number"
+        min={8}
+        max={300}
+        step={1}
+        value={style.fontSize ?? ''}
+        placeholder={allowInherit ? 'Inherit' : '72'}
+        onChange={event => {
+          const value = optionalNumber(event.target.value)
+          onStyleChange({ fontSize: value === undefined ? undefined : clampPresentationNumber(value, 8, 300) })
+        }}
+      />
+    </label>
+  )
+}
+
 export function LyricPresentationControls({
   style,
   animation,
@@ -72,10 +127,10 @@ export function LyricPresentationControls({
   onClearStyle,
   onClearAnimation,
   onClearEffects,
+  omit,
 }: Props) {
   const animationPreset = animationPresetFor(animation, allowInherit)
   const effectPreset = effectPresetFor(effects, allowInherit)
-  const anchorPreset = anchorPresetFor(style)
 
   return (
     <div className="lmv-presentation-controls">
@@ -104,22 +159,7 @@ export function LyricPresentationControls({
               />
             </span>
           </label>
-          <label>
-            <span>Font size</span>
-            <input
-              className="lmv-num"
-              type="number"
-              min={8}
-              max={300}
-              step={1}
-              value={style.fontSize ?? ''}
-              placeholder={allowInherit ? 'Inherit' : '72'}
-              onChange={event => {
-                const value = optionalNumber(event.target.value)
-                onStyleChange({ fontSize: value === undefined ? undefined : clampPresentationNumber(value, 8, 300) })
-              }}
-            />
-          </label>
+          {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
           <label>
             <span>Weight</span>
             <DropdownSelect className="lmv-select" value={style.fontWeight ?? ''} onChange={event => onStyleChange({ fontWeight: event.target.value ? Number(event.target.value) : undefined })}>
@@ -141,23 +181,7 @@ export function LyricPresentationControls({
               <option value="right">Right</option>
             </DropdownSelect>
           </label>
-          <label>
-            <span>Screen anchor</span>
-            <DropdownSelect
-              className="lmv-select"
-              value={anchorPreset}
-              onChange={event => {
-                const patch = anchorPresetPatch(event.target.value as LyricAnchorPreset)
-                if (patch) onStyleChange(patch)
-              }}
-            >
-              <option value="custom">Custom position</option>
-              <option value="top">Top center</option>
-              <option value="center">Center</option>
-              <option value="lower-third">Lower third</option>
-              <option value="bottom">Bottom center</option>
-            </DropdownSelect>
-          </label>
+          {!omit?.includes('anchor') && <LyricAnchorField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
           <label>
             <span>Opacity</span>
             <BubbleRevealSlider

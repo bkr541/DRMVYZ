@@ -1,41 +1,50 @@
 import { useRef } from 'react'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { StatusBadge } from '../../../components/vyzualz/react/controls/StatusBadge'
+import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 import { useMountTransition } from '../../../hooks/useMountTransition'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import { formatDuration, trackInitials } from '../utils/lyricManagerFormat'
 
+export interface LyricHeaderVersion {
+  id: string
+  title: string
+}
+
 interface Props {
   track: LyricManagerTrack | null
+  /** Saved versions of the track, for the OPEN selector. */
+  versions: LyricHeaderVersion[]
+  /** The version open in the editor (null for an unsaved draft). */
+  openVersionId: string | null
   openVersionTitle: string | null
   activeVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   selectedTrackPlaying: boolean
   onLoadTrack: () => void
-  onTogglePlayback: () => void
+  /** Opens another saved version through the owner's guarded (unsaved-changes aware) handler. */
+  onOpenVersion: (versionId: string) => void
 }
 
 /**
- * Track info row at the top of the Live Preview body, above the visual
- * preview — the single place track metadata is shown in Lyric Manager. Laid out as Layout Lab Template's
- * "Split Rail" concept: an accent rail + artwork, an identity column
- * (title/badges/artist/versions), a 2×2 stat grid, and actions stacked on
- * the far right. There is no artwork/cover-image field anywhere in the data
- * model (verified: neither LyricManagerTrack/SavedAudioTrack nor the
- * audio_tracks table has one), so the artwork slot reuses the existing
- * trackInitials() placeholder treatment rather than a real image — real
- * artwork storage is a separate, later change.
+ * Compact track strip at the top of the center workspace: artwork, title/artist, a single metadata line, and
+ * the two version concepts side by side — OPEN (what the editor has open; selectable) and ACTIVE (the
+ * persisted production version; read-only here — activation stays in the Versions list / Save + Make
+ * Active). There is no artwork field in the data model (neither LyricManagerTrack nor audio_tracks has
+ * one), so the artwork slot keeps the trackInitials() placeholder.
  */
 export function LyricTrackMetaHeader({
   track,
+  versions,
+  openVersionId,
   openVersionTitle,
   activeVersionTitle,
   loading,
   selectedTrackLoaded,
   selectedTrackPlaying,
   onLoadTrack,
-  onTogglePlayback,
+  onOpenVersion,
 }: Props) {
   const hasTrack = Boolean(track)
   const emptyPhase = useMountTransition(!hasTrack, 200)
@@ -45,6 +54,15 @@ export function LyricTrackMetaHeader({
   if (track) lastTrackRef.current = track
   const displayTrack = track ?? lastTrackRef.current
 
+  const meta = displayTrack
+    ? [
+        displayTrack.bpm ? `${Math.round(displayTrack.bpm)} BPM` : null,
+        displayTrack.musicalKey || null,
+        displayTrack.durationSec ? formatDuration(displayTrack.durationSec) : null,
+        displayTrack.genre || null,
+      ].filter(Boolean)
+    : []
+
   return (
     <section className="lmv-track-meta-header" aria-label="Track metadata">
       {emptyPhase !== 'unmounted' && (
@@ -52,40 +70,50 @@ export function LyricTrackMetaHeader({
       )}
       {filledPhase !== 'unmounted' && displayTrack && (
         <div className={`lmv-track-meta-fill lmv-track-meta-fill--${filledPhase}`}>
-          <span className="lmv-track-meta-rail-accent" aria-hidden="true" />
           <div className="lmv-track-art" aria-hidden="true"><span>{trackInitials(displayTrack)}</span></div>
 
           <div className="lmv-track-meta-identity">
             <div className="lmv-track-card-topline">
               <span className="lmv-track-title">{displayTrack.title || displayTrack.fileName}</span>
+              <span className="lmv-track-artist">{displayTrack.artist || 'Unknown artist'}</span>
               <span className="lmv-track-state-badges">
-                <StatusBadge tone="selected">Selected</StatusBadge>
                 {selectedTrackLoaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
                 {selectedTrackPlaying && <StatusBadge tone="playing">Playing</StatusBadge>}
               </span>
             </div>
-            <span className="lmv-track-artist">{displayTrack.artist || 'Unknown artist'}</span>
-            <dl className="lmv-workflow-status-grid lmv-track-info-versions">
-              <div><dt>Open version</dt><dd>{openVersionTitle ?? 'None'}</dd></div>
-              <div><dt>Active version</dt><dd className={activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}>{activeVersionTitle ?? 'None'}</dd></div>
-            </dl>
+            <div className="lmv-track-meta-line" aria-label="Track details">{meta.join(' • ')}</div>
           </div>
 
-          <div className="lmv-track-meta-chips" aria-label="Track details">
-            <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">Key</span><span className="lmv-track-meta-chip-value">{displayTrack.musicalKey || '—'}</span></span>
-            <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">BPM</span><span className="lmv-track-meta-chip-value">{displayTrack.bpm ? Math.round(displayTrack.bpm) : '—'}</span></span>
-            <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">Genre</span><span className="lmv-track-meta-chip-value">{displayTrack.genre || '—'}</span></span>
-            <span className="lmv-track-meta-chip"><span className="lmv-track-meta-chip-label">Duration</span><span className="lmv-track-meta-chip-value">{formatDuration(displayTrack.durationSec)}</span></span>
+          <div className="lmv-track-meta-versions">
+            <div className="lmv-track-meta-version">
+              <span className="lmv-track-meta-version-label" id="lmv-open-version-label">Open</span>
+              {versions.length > 0 ? (
+                <DropdownSelect
+                  className="lmv-select lmv-track-meta-version-select"
+                  aria-labelledby="lmv-open-version-label"
+                  value={openVersionId ?? ''}
+                  onChange={event => { if (event.target.value && event.target.value !== openVersionId) onOpenVersion(event.target.value) }}
+                >
+                  {!openVersionId && <option value="" disabled>{openVersionTitle ?? 'Unsaved draft'}</option>}
+                  {versions.map(version => <option key={version.id} value={version.id}>{version.title}</option>)}
+                </DropdownSelect>
+              ) : (
+                <span className="lmv-track-meta-version-value">{openVersionTitle ?? 'Unsaved draft'}</span>
+              )}
+            </div>
+            <div className="lmv-track-meta-version">
+              <span className="lmv-track-meta-version-label">Active</span>
+              <span className={`lmv-track-meta-version-value ${activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}`}>
+                {activeVersionTitle ?? 'None'}
+              </span>
+            </div>
           </div>
 
-          <div className="lmv-track-hero-actions">
-            <IconChipButton onClick={onLoadTrack} disabled={loading}>
-              {loading ? 'Loading…' : selectedTrackLoaded ? 'Reload deck' : 'Load deck'}
+          {!selectedTrackLoaded && (
+            <IconChipButton className="lmv-track-meta-load" onClick={onLoadTrack} disabled={loading}>
+              {loading ? 'Loading…' : 'Load deck'}
             </IconChipButton>
-            <IconChipButton tone="primary" onClick={onTogglePlayback} disabled={!selectedTrackLoaded}>
-              {selectedTrackPlaying ? 'Pause' : 'Preview'}
-            </IconChipButton>
-          </div>
+          )}
         </div>
       )}
     </section>

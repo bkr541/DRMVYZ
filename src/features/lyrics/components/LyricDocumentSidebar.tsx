@@ -1,5 +1,4 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
-import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
@@ -192,7 +191,7 @@ export function LyricDocumentSidebar({
 
   return (
     <aside className="lmv-doc-sidebar">
-      <Collapsible label="Lyric Versions" defaultOpen bodyClassName="lmv-lyric-versions-body">
+      <div className="lmv-lyric-versions-body">
         <div className="lmv-doc-search-row">
           <div className="lmv-doc-search-wrap">
             <DreamVizTextInput
@@ -217,7 +216,7 @@ export function LyricDocumentSidebar({
             className="lmv-doc-filter-dropdown"
           />
         </div>
-      </Collapsible>
+      </div>
 
       <div className="lmv-doc-list">
         {loading && <div className="lmv-doc-empty">Loading lyric versions…</div>}

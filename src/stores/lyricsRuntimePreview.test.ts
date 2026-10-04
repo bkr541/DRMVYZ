@@ -199,4 +199,16 @@ describe('runtime lyric preview', () => {
     expect(state.runtimeLyricPreview).toBeNull()
     expect(state.runtimeActiveDocumentId).toBe(docB.id)
   })
+
+  it('drops the preview when its document is deleted, but not when another document is', async () => {
+    await loadActiveAAndOpenB()
+    useLyricsStore.getState().beginRuntimeLyricPreview(TRACK)
+
+    useLyricsStore.getState().abandonLyricDocument(docA.id)
+    expect(useLyricsStore.getState().runtimeLyricPreview?.documentId).toBe(docB.id)
+
+    useLyricsStore.getState().abandonLyricDocument(docB.id)
+    expect(useLyricsStore.getState().runtimeLyricPreview).toBeNull()
+    expect(resolveEffectiveRuntimeLyrics(useLyricsStore.getState()).isPreview).toBe(false)
+  })
 })

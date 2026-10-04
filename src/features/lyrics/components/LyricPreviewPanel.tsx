@@ -1,17 +1,17 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
-import { ViewIcon } from 'hugeicons-react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
-import { resolveLyricCueConfidence, type LyricCue, type LyricDocument, type LyricStyle } from '../../../types/lyrics'
+import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
   formatMsCompact,
   type LyricValidationIssue,
 } from '../utils/lyricValidation'
 import { getLyricReviewStatistics } from '../utils/lyricReview'
+import { getLyricReviewSummary } from '../utils/lyricReviewSummary'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
-import { LyricTrackMetaHeader } from './LyricTrackMetaHeader'
+import { LyricTrackMetaHeader, type LyricHeaderVersion } from './LyricTrackMetaHeader'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 interface Props {
@@ -32,12 +32,14 @@ interface LivePreviewProps {
   onPreviewLyrics: () => void
   previewDestination?: 'React' | 'Visualizer' | 'Show Manager'
   track: LyricManagerTrack | null
+  versions: LyricHeaderVersion[]
+  openVersionId: string | null
   openVersionTitle: string | null
   activeVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   onLoadTrack: () => void
-  onTogglePlayback: () => void
+  onOpenVersion: (versionId: string) => void
 }
 
 export function calculateLyricCueProgress(
@@ -169,59 +171,39 @@ export function LyricLivePreviewPanel({
   onPreviewLyrics,
   previewDestination = 'Visualizer',
   track,
+  versions,
+  openVersionId,
   openVersionTitle,
   activeVersionTitle,
   loading,
   selectedTrackLoaded,
   onLoadTrack,
-  onTogglePlayback,
+  onOpenVersion,
 }: LivePreviewProps) {
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
   const activeCue = useMemo(() => activeCueAt(cues, currentAudioTimeMs, globalOffsetMs), [cues, currentAudioTimeMs, globalOffsetMs])
   const previewCue = isPlaying && activeCue ? activeCue : selectedCue ?? activeCue
   const selectedIndex = previewCue ? cues.findIndex(cue => cue.id === previewCue.id) : -1
   const progressPercent = calculateLyricCueProgress(currentAudioTimeMs, previewCue, globalOffsetMs)
+  const previewNote = `Auditions this version in ${previewDestination}. It does not become Active.`
 
   return (
-    <RightInspectorSection
-      title={(
-        <>
-          <ViewIcon size={13} color="currentColor" aria-hidden="true" />
-          <span>Live Preview</span>
-        </>
-      )}
-      headerClassName="lmv-live-preview-header"
-    >
-      <div className="lmv-live-preview-body">
-        <LyricTrackMetaHeader
-          track={track}
-          openVersionTitle={openVersionTitle}
-          activeVersionTitle={activeVersionTitle}
-          loading={loading}
-          selectedTrackLoaded={selectedTrackLoaded}
-          selectedTrackPlaying={isPlaying}
-          onLoadTrack={onLoadTrack}
-          onTogglePlayback={onTogglePlayback}
-        />
+    <div className="lmv-live-preview-body">
+      <LyricTrackMetaHeader
+        track={track}
+        versions={versions}
+        openVersionId={openVersionId}
+        openVersionTitle={openVersionTitle}
+        activeVersionTitle={activeVersionTitle}
+        loading={loading}
+        selectedTrackLoaded={selectedTrackLoaded}
+        selectedTrackPlaying={isPlaying}
+        onLoadTrack={onLoadTrack}
+        onOpenVersion={onOpenVersion}
+      />
+      <div className="lmv-preview-stage" aria-label="Lyric preview">
         {previewCue ? (
-          <>
-            <StylePreviewBox cue={previewCue} doc={document} />
-            <div className="lmv-preview-cue-meta">
-              <span>{isPlaying && activeCue?.id === previewCue.id ? 'Playing cue' : 'Selected cue'}: {selectedIndex + 1} / {cues.length}</span>
-              <strong>{previewCue.text || 'Empty cue'}</strong>
-              <div
-                className="lmv-preview-progress"
-                role="progressbar"
-                aria-label="Cue playback progress"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={Math.round(progressPercent)}
-              >
-                <span style={{ width: `${progressPercent}%` }} />
-              </div>
-              <em>{formatMsCompact(toEffectiveLyricTimeMs(previewCue.startMs, globalOffsetMs))} / {formatMsCompact(toEffectiveLyricTimeMs(previewCue.endMs, globalOffsetMs))}</em>
-            </div>
-          </>
+          <StylePreviewBox cue={previewCue} doc={document} />
         ) : (
           <div className="lmv-preview-empty">Select a cue to preview its appearance</div>
         )}
@@ -229,15 +211,31 @@ export function LyricLivePreviewPanel({
           className="lmv-preview-viz-btn"
           onClick={onPreviewLyrics}
           disabled={!hasTimedCues}
-          title={hasTimedCues
-            ? `Audition this version in ${previewDestination}. It stays a preview and does not become the active version.`
-            : 'No cues to preview. Import or create lyric cues first.'}
+          aria-describedby="lmv-preview-note"
+          title={hasTimedCues ? previewNote : 'No cues to preview. Import or create lyric cues first.'}
         >
           Preview Lyrics ↗
         </IconChipButton>
-        <p className="lmv-preview-viz-note">Auditions this version in {previewDestination}. It does not become Active.</p>
+        <div className="lmv-preview-caption">
+          <span>
+            {previewCue
+              ? `${isPlaying && activeCue?.id === previewCue.id ? 'Playing cue' : 'Cue'} ${selectedIndex + 1} / ${cues.length} · ${formatMsCompact(toEffectiveLyricTimeMs(previewCue.startMs, globalOffsetMs))} – ${formatMsCompact(toEffectiveLyricTimeMs(previewCue.endMs, globalOffsetMs))}`
+              : ''}
+          </span>
+          <span id="lmv-preview-note" className="lmv-preview-note">{previewNote}</span>
+        </div>
+        <div
+          className="lmv-preview-progress"
+          role="progressbar"
+          aria-label="Cue playback progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progressPercent)}
+        >
+          <span style={{ width: `${progressPercent}%` }} />
+        </div>
       </div>
-    </RightInspectorSection>
+    </div>
   )
 }
 
@@ -249,14 +247,7 @@ export function LyricPreviewPanel({
 }: Props) {
   const validation = useMemo(() => validateLyricCues(cues), [cues])
   const review = useMemo(() => getLyricReviewStatistics(cues), [cues])
-  const validationCueIds = new Set(validation.issues.map(issue => issue.cueId).filter((id): id is string => Boolean(id)))
-  const attentionCueIds = new Set<string>(validationCueIds)
-  for (const cue of cues) {
-    if (!cue.reviewStatus || cue.reviewStatus === 'unreviewed') attentionCueIds.add(cue.id)
-    const confidence = resolveLyricCueConfidence(cue)
-    if (confidence !== undefined && confidence < 0.7) attentionCueIds.add(cue.id)
-    if ((cue.warnings?.length ?? 0) > 0) attentionCueIds.add(cue.id)
-  }
+  const attentionCueIds = useMemo(() => getLyricReviewSummary(cues).attentionCueIds, [cues])
 
   const fmtMs = (ms: number | null) => ms !== null ? formatMsCompact(ms) : '—'
   const validationBadge = (

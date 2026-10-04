@@ -588,17 +588,6 @@ export function LyricCueTimeline({
       data-testid="lyric-cue-timeline"
       data-timeline-background="true"
     >
-      {stackedLanes && Array.from({ length: shownLaneCount }, (_, lane) => (
-        <span
-          key={`lane-label-${lane}`}
-          className="lyric-cue-timeline__lane-label"
-          style={{ top: lane * STACKED_LANE_HEIGHT }}
-          aria-hidden="true"
-        >
-          Lyrics {lane + 1}
-        </span>
-      ))}
-
       {!compact && showRuler && (
         <div
           className="lyric-cue-timeline__ruler"
@@ -912,6 +901,22 @@ export function LyricCueTimeline({
     </div>
   );
 
-  if (compact || stackedLanes) return timeline;
+  if (stackedLanes) {
+    // Lane labels live in the same fixed gutter as the Track Timeline's other rows (--lmv-lane-gutter).
+    return (
+      <div className="lyric-cue-timeline__stacked">
+        <div className="lyric-cue-timeline__gutter" aria-hidden="true" style={{ height: timelineHeight }}>
+          {Array.from({ length: shownLaneCount }, (_, lane) => (
+            <span key={`lane-label-${lane}`} className="lyric-cue-timeline__lane-label" style={{ top: lane * STACKED_LANE_HEIGHT }}>
+              Lyrics {lane + 1}
+            </span>
+          ))}
+        </div>
+        {timeline}
+      </div>
+    );
+  }
+
+  if (compact) return timeline;
   return <div className="lyric-cue-timeline__scroll">{timeline}</div>;
 }

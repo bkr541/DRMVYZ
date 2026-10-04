@@ -16,7 +16,7 @@ const lyricDbMocks = vi.hoisted(() => ({
 vi.mock('../lib/supabase', () => ({ supabaseConfigured: true }))
 vi.mock('../lib/lyricsDb', () => lyricDbMocks)
 
-import { resolveSaveActivation, useLyricsStore } from './lyricsStore'
+import { resolveSaveActivation, resolveSaveRequest, useLyricsStore } from './lyricsStore'
 
 const TRACK = 'track-1'
 
@@ -82,6 +82,28 @@ describe('resolveSaveActivation precedence', () => {
   it('a new document honors draft intent and otherwise saves inactive', () => {
     expect(resolveSaveActivation({ savedDocument: null, draftActivateOnSave: true })).toBe(true)
     expect(resolveSaveActivation({ savedDocument: null, draftActivateOnSave: false })).toBe(false)
+  })
+})
+
+describe('resolveSaveRequest (what a plain Save asks for)', () => {
+  const base = { savedDocument: null, draftActivateOnSave: true, trackHasActiveVersion: false, hasValidationErrors: false }
+
+  it('lets first-save intent stand when the track has no active version and the draft is valid', () => {
+    expect(resolveSaveRequest(base)).toBeUndefined()
+  })
+
+  it('saves the draft inactive when an active version appeared after the draft was created (e.g. AI extraction)', () => {
+    expect(resolveSaveRequest({ ...base, trackHasActiveVersion: true })).toBe(false)
+  })
+
+  it('saves an invalid or empty draft inactive instead of activating it', () => {
+    expect(resolveSaveRequest({ ...base, hasValidationErrors: true })).toBe(false)
+  })
+
+  it('never softens an explicit request, and never touches an already-saved document', () => {
+    expect(resolveSaveRequest({ ...base, requestedMakeActive: true, trackHasActiveVersion: true, hasValidationErrors: true })).toBe(true)
+    expect(resolveSaveRequest({ ...base, requestedMakeActive: false })).toBe(false)
+    expect(resolveSaveRequest({ ...base, savedDocument: { isActive: true }, trackHasActiveVersion: true })).toBeUndefined()
   })
 })
 

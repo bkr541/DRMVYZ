@@ -392,11 +392,31 @@ describe('LyricManagerView track-first workflow', () => {
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
-    const versionRows = container.querySelector('.lmv-track-info-versions')?.textContent ?? ''
-    expect(versionRows).toContain('Open version')
+    // OPEN (the editor's version) and ACTIVE (the persisted production version) are separate concepts.
+    const versionRows = container.querySelector('.lmv-track-meta-versions')?.textContent ?? ''
+    expect(versionRows).toContain('Open')
     expect(versionRows).toContain('Alternate Lyrics')
-    expect(versionRows).toContain('Active version')
+    expect(versionRows).toContain('Active')
     expect(versionRows).toContain('Approved Lyrics')
+    const active = [...container.querySelectorAll('.lmv-track-meta-version')].find(row => row.textContent?.startsWith('Active'))
+    expect(active?.textContent).toContain('Approved Lyrics')
+  })
+
+  it('opens another saved version from the header OPEN selector without changing the active version', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+
+    const openSelect = container.querySelector<HTMLElement>('.lmv-track-meta-version-select [role="combobox"], .lmv-track-meta-version-select[role="combobox"]')
+      ?? container.querySelector<HTMLElement>('.lmv-track-meta-versions [role="combobox"]')!
+    await act(async () => openSelect.click())
+    const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(item => item.textContent?.trim() === 'Alternate Lyrics')!
+    await act(async () => option.click())
+
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
+    expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
+    const active = [...container.querySelectorAll('.lmv-track-meta-version')].find(row => row.textContent?.startsWith('Active'))
+    expect(active?.textContent).toContain('Approved Lyrics')
   })
 
   it('handles a track with no lyrics and saves a new document with the selected audio_tracks ID', async () => {
@@ -663,9 +683,12 @@ describe('LyricManagerView track-first workflow', () => {
     await flush()
 
     expect(mocks.engine.addTrackUrls).toHaveBeenCalledTimes(1)
-    expect(mocks.engine.addTrackUrls).toHaveBeenCalledWith([
-      expect.objectContaining({ dbId: 'track-b', url: 'signed-track-b' }),
-    ])
+    // The stale track-A response was abandoned: only track B reached the deck.
+    expect(mocks.engine.addTrackUrls).toHaveBeenCalledWith(
+      [expect.objectContaining({ dbId: 'track-b', url: 'signed-track-b' })],
+      expect.objectContaining({ notifyOnBlocked: false }),
+    )
+    expect(JSON.stringify(mocks.engine.addTrackUrls.mock.calls)).not.toContain('signed-track-a')
   })
 
   it('keeps obsolete audio failures off the newly selected track', async () => {
@@ -713,8 +736,9 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    const heroStats = container.querySelector('.lmv-track-meta-chips')?.textContent ?? ''
-    expect(heroStats).toContain('Duration')
+    const heroStats = container.querySelector('.lmv-track-meta-line')?.textContent ?? ''
+    expect(heroStats).toContain('150 BPM')
+    expect(heroStats).toContain('3:00')
     expect(heroStats).not.toContain('Updated')
 
     expect(container.textContent).not.toContain('↻ Loop')
@@ -879,7 +903,8 @@ describe('LyricManagerView track-first workflow', () => {
       />,
     ))
 
-    await waitFor(() => expect(trackCard('Reverie').getAttribute('aria-pressed')).toBe('true'))
+    // The AI Extract workflow replaces the track list in the left rail, so selection is read from the store.
+    await waitFor(() => expect(useLyricsStore.getState().activeAudioTrackId).toBe('track-a'))
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     const aiTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(button => button.textContent?.includes('AI Extract'))

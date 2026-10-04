@@ -15,6 +15,8 @@ interface Props {
   cue: ReactNode
   document: ReactNode
   review: ReactNode
+  /** Persistent compact summary under the panes (e.g. Review & Validation counts). */
+  summary?: ReactNode
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * tabs never resets inputs, scroll, or collapsible state, and never touches the
  * lyric store.
  */
-export function LyricInspector({ activeTab, onTabChange, cue, document, review }: Props) {
+export function LyricInspector({ activeTab, onTabChange, cue, document, review, summary }: Props) {
   const panes: Array<[LyricInspectorTab, ReactNode]> = [['cue', cue], ['document', document], ['review', review]]
   return (
     <div className="lmv-inspector">
@@ -48,6 +50,7 @@ export function LyricInspector({ activeTab, onTabChange, cue, document, review }
           {content}
         </div>
       ))}
+      {summary}
     </div>
   )
 }

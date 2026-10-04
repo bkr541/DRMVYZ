@@ -228,7 +228,6 @@
   line-height: 1.5;
 }
 .lmv-preview-viz-btn { width: 100%; justify-content: center; font-size: 10px; }
-.lmv-preview-viz-note { margin: 6px 0 0; font-size: 10px; line-height: 1.4; text-align: center; color: rgba(196,207,211,0.45); }
 
 /* ── Validation badges ───────────────────────────────────────────────── */
 
@@ -1322,11 +1321,53 @@
   flex-direction: column;
 }
 
-.drc-body.lmv-track-library-body {
+.lmv-track-library-body {
+  display: flex;
   flex: 1;
   min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 12px;
   overflow: hidden;
 }
+
+.lmv-lyric-versions-body { padding: 4px 14px 0; }
+
+/* Quick filter chips (All / With Lyrics / Needs Review); less common filters sit in the trailing dropdown. */
+.lmv-track-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lmv-filter-chip {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(126,218,232,0.18);
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(196,207,211,0.7);
+  font-family: inherit;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.lmv-filter-chip:hover { color: #e8f4f8; background: rgba(255,255,255,0.05); }
+
+.lmv-filter-chip.is-active {
+  border-color: rgba(74,199,219,0.7);
+  background: rgba(74,199,219,0.18);
+  color: #67f7ff;
+}
+
+.lmv-track-filter-chips { flex-wrap: nowrap; }
+.lmv-track-filter-chips .lmv-track-filter-dropdown { flex: 1 1 56px; min-width: 56px; width: auto; max-width: 90px; margin-left: auto; }
 
 .lmv-track-search-wrap,
 .lmv-doc-search-wrap {
@@ -1463,17 +1504,6 @@
   opacity: 1;
 }
 
-.lmv-track-info-versions {
-  margin-top: 10px;
-}
-
-.lmv-track-hero-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 10px;
-}
-
 .lmv-tab-content {
   min-height: 0;
   padding: 0;
@@ -1572,29 +1602,9 @@
   display: none;
 }
 
-.lmv-preview-cue-meta {
-  display: grid;
-  gap: 6px;
-  margin: 8px 0 10px;
-  color: rgba(196,207,211,0.62);
-  font-size: 11px;
-}
-
-.lmv-preview-cue-meta strong {
-  color: rgba(237,249,251,0.9);
-  font-size: 12px;
-}
-
-.lmv-preview-cue-meta em {
-  color: rgba(196,207,211,0.48);
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-}
-
 .lmv-preview-progress {
-  height: 4px;
+  height: 3px;
   overflow: hidden;
-  border-radius: 999px;
   background: rgba(255,255,255,0.09);
 }
 
@@ -1712,7 +1722,6 @@
   font-size: 9px;
 }
 
-.lmv-timeline-toolbar__field--zoom input { width: 110px; min-width: 70px; }
 .lmv-timeline-toolbar__field--volume input { width: 80px; min-width: 60px; }
 
 /* Lyric draft recovery and truthful transport semantics ---------------------- */
@@ -2545,22 +2554,15 @@
   flex: 0 0 auto;
 }
 
-/* Split Rail (Layout Lab Template's TrackHeaderStyleGallery concept 04):
-   an accent rail + artwork, an identity column carrying title/badges/
-   artist/versions, a 2×2 stat grid, and actions stacked on the far right —
-   ported from .lltm-row--rail/.lltm-rail-* (reactView.css) into this
-   component's own lmv-track-meta-* classes so Lyric Manager doesn't take a
-   runtime dependency on React View's stylesheet. */
+/* Compact track strip: artwork, title / artist / one metadata line, and OPEN + ACTIVE on the right. */
 .lmv-track-meta-fill {
   display: flex;
   align-items: center;
   gap: 14px;
-  flex-wrap: wrap;
-  padding: 12px 16px 12px 0;
-  border: 1px solid rgba(126,218,232,0.12);
-  border-radius: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(126,218,232,0.14);
+  border-radius: 8px;
   background: rgba(11,21,25,0.85);
-  overflow: hidden;
   transition: opacity 200ms ease, transform 200ms ease;
 }
 
@@ -2575,102 +2577,132 @@
   transform: translateY(0);
 }
 
-.lmv-track-meta-rail-accent {
-  flex: 0 0 auto;
-  align-self: stretch;
-  width: 4px;
-  background: linear-gradient(180deg, #67f7ff, #4ac7db);
-}
-
 .lmv-track-meta-header .lmv-track-art {
   flex: 0 0 auto;
-  width: 56px;
-  height: 56px;
-  font-size: 15px;
+  width: 48px;
+  height: 48px;
+  font-size: 14px;
 }
 
 .lmv-track-meta-identity {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 160px;
-  flex: 1 1 220px;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 200px;
 }
 
-.lmv-track-meta-chips {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(64px, auto));
-  gap: 8px 18px;
-  flex: 0 0 auto;
+.lmv-track-meta-header .lmv-track-card-topline {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 4px 10px;
 }
 
-.lmv-track-meta-chip {
+.lmv-track-meta-header .lmv-track-title { font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.lmv-track-meta-header .lmv-track-artist { margin-top: 0; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
+.lmv-track-meta-header .lmv-track-artist::before { content: '•'; margin-right: 10px; color: rgba(196,207,211,0.4); }
+
+.lmv-track-meta-line {
+  color: rgba(196,207,211,0.62);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.lmv-track-meta-versions {
   display: flex;
+  flex: 0 1 240px;
   flex-direction: column;
-  gap: 2px;
-  min-width: 44px;
+  gap: 6px;
+  min-width: 170px;
 }
 
-.lmv-track-meta-chip-label {
+.lmv-track-meta-version {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.lmv-track-meta-version-label {
+  color: rgba(196,207,211,0.5);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(196,207,211,0.42);
 }
 
-.lmv-track-meta-chip-value {
-  font-size: 12px;
+.lmv-track-meta-version-value {
+  min-width: 0;
+  padding: 5px 9px;
+  overflow: hidden;
+  border: 1px solid rgba(126,218,232,0.14);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.025);
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(232,244,248,0.9);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.lmv-track-meta-header .lmv-track-info-versions {
-  margin-top: 0;
-  flex: 0 0 auto;
-}
+.lmv-track-meta-load { flex: 0 0 auto; }
 
-.lmv-track-meta-header .lmv-track-hero-actions {
-  margin-top: 0;
-  flex: 0 0 auto;
-}
-
-/* ── Enlarged Live Preview (center column) ───────────────────────────── */
-
-.lmv-live-preview-enlarged {
-  flex: 0 0 auto;
-}
-
-.lmv-live-preview-enlarged .lmv-preview-cue-box {
-  min-height: 96px;
-}
-
-.lmv-live-preview-enlarged .lmv-preview-cue-text {
-  font-size: 1.15em;
-}
-
-/* The track meta header used to sit directly in .lmv-center, above this
-   whole collapsible group; now it's the body's first child instead, still
-   above the visual preview. Its own padding/background/divider (see
-   .lmv-track-meta-header) already look right full-bleed, so the default
-   Step Indent .drc-body treatment (padded/indented/tinted) is zeroed here
-   and reproduced instead by .lmv-live-preview-body around everything below
-   the header — direct-child scoped so nested Collapsible groups elsewhere
-   in this panel (there are none today, but keeps this from leaking) aren't
-   affected. */
-.lmv-live-preview-enlarged > .drc-group > .drc-body {
-  margin-top: 0;
-  padding: 0;
-  gap: 0;
-  background: transparent;
-  border-radius: 0;
-}
+/* ── Live preview (center column): track strip + one lyric preview stage ─── */
 
 .lmv-live-preview-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 14px 12px;
+  padding: 10px 14px 6px;
+}
+
+.lmv-preview-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  background: #000;
+}
+
+.lmv-preview-stage .lmv-preview-cue-box {
+  min-height: 150px;
+  border: 0;
+  border-radius: 0;
+}
+
+.lmv-preview-stage .lmv-preview-cue-text { font-size: 1.2em; }
+
+.lmv-preview-stage .lmv-preview-empty {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+}
+
+.lmv-preview-stage .lmv-preview-viz-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: auto;
+  padding: 0 12px;
+}
+
+.lmv-preview-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 10px 6px;
+  color: rgba(196,207,211,0.5);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+}
+
+.lmv-preview-note {
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Track Timeline window (center column) ───────────────────────────── */
@@ -2683,7 +2715,7 @@
 }
 
 .lmv-track-timeline-hint {
-  margin-left: auto;
+  margin: 8px 0 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2818,6 +2850,7 @@
    Track reference rows and the editable lyric-cue lanes now share one
    continuous timeline surface, matching the Layout Lab source-of-truth. */
 .lmv-track-timeline-lanes--stacked {
+  --lmv-lane-gutter: 64px;
   display: flex;
   flex-direction: column;
   border-radius: 6px;
@@ -2827,7 +2860,7 @@
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--timing { height: 24px; flex: 0 0 24px; }
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--section { height: 30px; flex: 0 0 30px; }
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--beatgrid { height: 26px; flex: 0 0 26px; }
-.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 120px; flex: 0 0 120px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 110px; flex: 0 0 110px; }
 
 .lmv-track-timeline-cue-lanes {
   position: relative;
@@ -2964,23 +2997,6 @@
   grid-template-columns: 18px minmax(56px, 1fr) 58px 58px 34px 18px;
 }
 
-/* Lyric lanes: labelled rows in the stacked cue timeline. Labels sit under the cue blocks
-   (z-index) and ignore pointer events so double-click-to-add and drags are unaffected. */
-.lyric-cue-timeline__lane-label {
-  position: absolute;
-  left: 6px;
-  z-index: 1;
-  height: 12px;
-  margin-top: 3px;
-  color: rgba(196,207,211,0.34);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  line-height: 12px;
-  text-transform: uppercase;
-  pointer-events: none;
-}
-
 /* Cue list: four columns that fit the center column at any width — no horizontal scroll. */
 .lyric-cue-list .lyric-cue-list__table {
   width: 100%;
@@ -3022,9 +3038,6 @@
 /* Active row in the compact cue table: tint the number instead of prepending a glyph (the # column is narrow). */
 .lyric-cue-list__table .lyric-cue-list__row--active td:first-child::before { content: none; }
 .lyric-cue-list__table .lyric-cue-list__row--active td:first-child { color: #61d6aa; font-weight: 700; }
-
-.lmv-live-preview-enlarged .lmv-preview-cue-meta { margin: 2px 0 4px; gap: 4px; }
-.lmv-live-preview-enlarged .lmv-preview-viz-note { margin-top: 4px; }
 
 /* ── Responsive layout ───────────────────────────────────────────────────
    Driven by LyricManagerView's measured width (data-layout on .lmv-root; see
@@ -3187,3 +3200,102 @@
 }
 
 .lmv-root[data-layout='narrow'] .lmv-header-left { flex: 0 0 auto; }
+
+/* Timeline rows: a fixed label gutter, then the content area. Every row measures its own content width, so
+   ruler, sections, waveform, lyric lanes and beats stay pixel-aligned. */
+.lmv-track-timeline-lane {
+  display: grid;
+  grid-template-columns: var(--lmv-lane-gutter, 0px) minmax(0, 1fr);
+}
+
+.lmv-track-timeline-lane-body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.lmv-track-timeline-lane-label,
+.lyric-cue-timeline__lane-label {
+  padding-left: 10px;
+  color: rgba(196,207,211,0.5);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lmv-track-timeline-lane-label {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid rgba(74,199,219,0.12);
+  background: rgba(4,10,15,0.7);
+}
+
+.lmv-track-timeline-cue-lanes .lyric-cue-timeline__stacked {
+  display: grid;
+  grid-template-columns: var(--lmv-lane-gutter, 0px) minmax(0, 1fr);
+}
+
+.lyric-cue-timeline__gutter {
+  position: relative;
+  border-right: 1px solid rgba(74,199,219,0.12);
+  background: rgba(4,10,15,0.7);
+}
+
+.lyric-cue-timeline__lane-label {
+  position: absolute;
+  left: 0;
+  height: 36px;
+  line-height: 36px;
+}
+
+/* Inspector: a little air under the tab strip, and the compact Review & Validation card pinned beneath the panes. */
+.lmv-inspector-tabs { padding-top: 6px; }
+
+.lmv-review-summary {
+  flex: 0 0 auto;
+  padding: 10px 14px 12px;
+  border-top: 1px solid rgba(126,218,232,0.12);
+  background: rgba(8,15,18,0.6);
+}
+
+.lmv-review-summary__title {
+  margin-bottom: 6px;
+  color: rgba(232,244,248,0.85);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.lmv-review-summary__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 14px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(126,218,232,0.1);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.02);
+  color: rgba(196,207,211,0.75);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lmv-review-summary__row + .lmv-review-summary__row { margin-top: 5px; }
+.lmv-review-summary__row:hover { border-color: rgba(74,199,219,0.4); background: rgba(74,199,219,0.07); }
+.lmv-review-summary__row strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.lmv-review-summary__row--error strong { color: #e05a5a; }
+.lmv-review-summary__row--warn strong { color: #d8b95a; }
+.lmv-review-summary__row--review strong { color: #ff6b81; }
+.lmv-review-summary__row.is-clear strong { color: #61d6aa; }
+
+.lmv-timeline-toolbar__field--zoom { flex: 1 1 150px; max-width: 240px; }
+.lmv-timeline-toolbar__field--zoom input { width: 100%; }
