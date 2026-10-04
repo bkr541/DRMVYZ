@@ -336,6 +336,7 @@ export type Cinema2CameraRigManifest =
   | Cinema2CameraPathRigManifest
 
 export type Cinema2CameraPathInterpolation = 'linear' | 'spline'
+export type Cinema2CameraMotionSafetyMode = 'full' | 'reduced' | 'lockoff'
 
 /** Slow, deterministic handheld-style wander. Every amplitude defaults to 0 (off). */
 export interface Cinema2CameraDriftManifest {
@@ -427,6 +428,8 @@ export interface Cinema2CameraControlBindingsManifest {
   smoothingMs?: Cinema2ParameterRef
   /** Scales drift and bank together (0 = locked off, 1 = as authored). Requires `motion`. */
   motionAmount?: Cinema2ParameterRef
+  /** Full motion, reduced travel/accents, or a fixed first-frame lockoff. Requires an enum parameter and authored motion. */
+  motionSafety?: Cinema2ParameterRef
   /** Locks `motion.tempo` to the track's beats and tempo (a toggle or a number above 0.5). Requires `motion.tempo`. */
   tempoSync?: Cinema2ParameterRef
   /**

@@ -174,17 +174,23 @@ export class Cinema2CameraRuntime {
     const camera = this.authoredCamera
     const motion = camera.motion
     const safety = resolveSafety(camera)
+    const motionSafety = resolveMotionSafety(camera.controls, this.parameters)
     const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame) : null
-    let pose = this.resolveBaseRig(camera, frame, tempoState ? this.flightTimeSec : frame.elapsedTimeSec)
-    pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec)
+    const authoredTimeSec = tempoState ? this.flightTimeSec : frame.elapsedTimeSec
+    const motionTimeSec = authoredTimeSec * motionSafety.travelScale
+    let pose = this.resolveBaseRig(camera, frame, motionTimeSec)
+    pose = applyAuthoredTransition(camera, pose, frame.elapsedTimeSec * motionSafety.travelScale)
     const safetyReference = clonePose(pose)
     pose = this.applyUserControls(camera, pose, safety)
-    pose = this.applyTargetContributions(pose)
+    const userPose = pose
+    pose = blendPose(userPose, this.applyTargetContributions(userPose), motionSafety.motionScale)
     const basePosition = pose.position
-    const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2)
+    const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2) * motionSafety.motionScale
     if (motion?.drift) pose = applyDrift(pose, motion.drift, frame.elapsedTimeSec, motionAmount)
     // A bound Zoom on Kick toggle owns the kick zoom outright (full strength when on, none when off), independent of the motion amount.
-    const kickZoom = camera.controls?.kickZoom ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? 1 : 0) : motionAmount
+    const kickZoom = camera.controls?.kickZoom
+      ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionSafety.motionScale : 0)
+      : motionAmount
     if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
@@ -641,6 +647,30 @@ function smoothPose(previous: CameraPose, next: CameraPose, deltaTimeSec: number
     far: lerp(previous.far, next.far, alpha),
     rollDegrees: lerp(previous.rollDegrees, next.rollDegrees, alpha),
   }
+}
+
+function blendPose(from: CameraPose, to: CameraPose, amount: number): CameraPose {
+  const t = clamp(amount, 0, 1)
+  return {
+    position: lerpVec3(from.position, to.position, t),
+    target: lerpVec3(from.target, to.target, t),
+    fovDegrees: lerp(from.fovDegrees, to.fovDegrees, t),
+    orthographicHeight: lerp(from.orthographicHeight, to.orthographicHeight, t),
+    near: lerp(from.near, to.near, t),
+    far: lerp(from.far, to.far, t),
+    rollDegrees: lerp(from.rollDegrees, to.rollDegrees, t),
+  }
+}
+
+function resolveMotionSafety(
+  controls: Readonly<Cinema2CameraControlBindingsManifest> | undefined,
+  parameters: Cinema2ParameterState,
+): Readonly<{ travelScale: number; motionScale: number }> {
+  const ref = controls?.motionSafety
+  const value = ref ? parameters.getValue(ref.$ref as Cinema2ParameterId) : 'full'
+  if (value === 'lockoff') return { travelScale: 0, motionScale: 0 }
+  if (value === 'reduced') return { travelScale: 0.22, motionScale: 0.35 }
+  return { travelScale: 1, motionScale: 1 }
 }
 
 function readNumberControl(

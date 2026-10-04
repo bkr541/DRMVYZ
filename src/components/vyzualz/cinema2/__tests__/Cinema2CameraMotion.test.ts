@@ -23,6 +23,7 @@ import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 
 const CAMERA_ID = cinema2StableId<Cinema2CameraId>('motion-camera')
 const MOTION_AMOUNT_ID = cinema2StableId<Cinema2ParameterId>('motion-amount')
+const MOTION_SAFETY_ID = cinema2StableId<Cinema2ParameterId>('motion-safety')
 const FOV_ID = cinema2StableId<Cinema2ParameterId>('motion-fov')
 
 function manifest(camera: Partial<Cinema2CameraManifest>, withControls = false): Cinema2NativePresetManifest {
@@ -274,6 +275,50 @@ describe('Cinema 2.0 camera motion: authoring validation', () => {
     })
     expect(withoutMotion.ok).toBe(false)
     expect(withoutMotion.diagnostics.map(entry => entry.code)).toContain('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID')
+  })
+})
+
+describe('Cinema 2.0 camera motion: safety modes', () => {
+  const buildSafety = (mode: 'full' | 'reduced' | 'lockoff') => {
+    const base = manifest({
+      rig: { kind: 'fly', points: ZIGZAG, durationSeconds: 10 },
+      motion: { interpolation: 'spline', constantSpeed: true, drift: { position: 0.2 }, fovRateLimitDegreesPerSecond: 8 },
+    })
+    const authored: Cinema2NativePresetManifest = {
+      ...base,
+      parameters: [
+        ...(base.parameters ?? []),
+        { id: MOTION_SAFETY_ID, label: 'Motion Safety', type: 'enum', defaultValue: 'full', options: [
+          { value: 'full', label: 'Full' }, { value: 'reduced', label: 'Reduced' }, { value: 'lockoff', label: 'Lock Off' },
+        ] },
+      ],
+      cameras: [{ ...base.cameras![0], controls: { motionSafety: cinema2Ref(MOTION_SAFETY_ID) } }],
+    }
+    const compiled = compileCinema2NativePreset(authored)
+    if (!compiled.ok) throw new Error(compiled.diagnostics.map(entry => entry.message).join('; '))
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    state.setPersistentValue(MOTION_SAFETY_ID, mode)
+    const resolver = new Cinema2FinalValueResolver(compiled.plan.targets, {
+      resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : state.getValue(target.parameterId),
+    })
+    const spatial = new Cinema2SpatialRuntime(compiled.plan.scene, compiled.plan.targets.targets, resolver)
+    return { plan: compiled.plan, resolver, camera: new Cinema2CameraRuntime(compiled.plan, state, resolver, spatial) }
+  }
+
+  it('slows Reduced travel and holds Lock Off at the opening pose while suppressing choreography offsets', () => {
+    const full = buildSafety('full').camera.update(frame(5))
+    const reduced = buildSafety('reduced').camera.update(frame(5))
+    const locked = buildSafety('lockoff')
+    const positionTarget = locked.plan.targets.targets.find(target => target.kind === 'camera' && target.property === 'transform.position')
+    expect(positionTarget).toBeDefined()
+    locked.resolver.replaceTransientContributions('choreography', [{
+      targetId: positionTarget!.id,
+      contribution: { contributorId: 'choreography:test:safety', operation: 'add', value: [1, 1, -1], priority: 1 },
+    }])
+    const lockoff = locked.camera.update(frame(5))
+    const start = ZIGZAG[0].position
+    expect(Math.hypot(...sub(full.position, start))).toBeGreaterThan(Math.hypot(...sub(reduced.position, start)))
+    expect(lockoff.position).toEqual(start)
   })
 })
 

@@ -23,6 +23,11 @@ export interface Cinema2DepthLightControls {
   seed: number
   centerEnabled: boolean
   centerIntensity: number
+  beatAccent?: number
+  downbeatAccent?: number
+  phraseAccent?: number
+  buildAmount?: number
+  dropAccent?: number
 }
 
 export interface Cinema2DepthLightFrame {
@@ -65,7 +70,7 @@ export function updateCinema2DepthLightFrame(
     const emission = instance.kind === 'strip'
       ? resolveCinema2DepthProgramEmission(instance.portalIndex, instance.sideIndex, layout.portalCount, timeSeconds, controls)
       : instance.kind === 'center' && controls.centerEnabled
-        ? clamp(controls.centerIntensity, 0, 2)
+        ? clamp(clamp(controls.centerIntensity, 0, 2) * (1 + clamp(controls.downbeatAccent ?? 0, 0, 1) * 0.3 + clamp(controls.dropAccent ?? 0, 0, 1) * 0.7), 0, 2)
         : 0
     output.emissions[index] = emission
     if (instance.kind === 'strip') portalLevels[instance.portalIndex] = Math.max(portalLevels[instance.portalIndex]!, emission)
@@ -133,6 +138,17 @@ export function resolveCinema2DepthProgramEmission(
       break
     }
   }
+  const beat = clamp(controls.beatAccent ?? 0, 0, 1)
+  const downbeat = clamp(controls.downbeatAccent ?? 0, 0, 1)
+  const phrase = clamp(controls.phraseAccent ?? 0, 0, 1)
+  const build = clamp(controls.buildAmount ?? 0, 0, 1)
+  const drop = clamp(controls.dropAccent ?? 0, 0, 1)
+  const phraseFace = positiveModulo(side + portal + seed, 4) === 0 ? 0.42 : 0.06
+  level += beat * 0.1
+  level += (portal === 0 ? 0.5 : 0.08) * downbeat
+  level += phraseFace * phrase
+  level += (1 - level) * build * 0.24
+  level += (1 - level) * drop * 0.88
   return clamp(level, 0, 1)
 }
 

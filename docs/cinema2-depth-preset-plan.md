@@ -223,7 +223,9 @@ Implementation status (October 4, 2026): all portal strips now receive determini
 
 Step 2 acceptance: every side of every visible portal can be addressed independently without increasing draw calls linearly with portal count.
 
-### Step 3 — camera movement and music choreography
+### Step 3 — camera movement and music choreography (implemented)
+
+Implementation status (October 4, 2026): the proof camera is now a constant-speed spline fly rig with a 14-second, 42-unit repeating lap. Three structural laps are submitted in the existing single instanced draw and recentered as the camera crosses each boundary; the optional center object remains a fixed distance ahead so it cannot pop at the seam. The camera adds restrained path sway, target drift, FOV breathing and bounded roll. Full, Reduced and Lock Off motion-safety modes scale path travel, secondary motion and camera choreography together. Optional beat, downbeat, phrase, build and drop rules add bounded module, camera and effect accents behind Auto Performance, while missing music capabilities leave the authored animation intact.
 
 1. Replace the proof camera with a looping fly rig and matching repeat offset.
 2. Add camera travel, lateral sway, target drift, FOV breathing and bounded roll.

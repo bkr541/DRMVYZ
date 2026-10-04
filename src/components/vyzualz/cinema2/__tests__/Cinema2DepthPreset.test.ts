@@ -26,11 +26,16 @@ import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2First
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import {
+  CINEMA2_DEPTH_AUTO_PERFORMANCE_ID,
+  CINEMA2_DEPTH_BPM_SYNC_ID,
+  CINEMA2_DEPTH_LAP_DISTANCE,
+  CINEMA2_DEPTH_LAP_SECONDS,
+  CINEMA2_DEPTH_MOTION_SAFETY_ID,
   CINEMA2_DEPTH_PRESET_ID,
   CINEMA2_DEPTH_PRESET_MANIFEST,
 } from '../presets/Cinema2DepthPreset'
 
-describe('Cinema 2.0 Depth Step-2 preset', () => {
+describe('Cinema 2.0 Depth Step-3 preset', () => {
   it('builds the fixed procedural proof tunnel deterministically', () => {
     const first = buildCinema2DepthProofLayout()
     const second = buildCinema2DepthProofLayout()
@@ -46,6 +51,11 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
     const packed = packCinema2DepthInstances(first.instances)
     expect(packed).toHaveLength(first.instances.length * CINEMA2_DEPTH_INSTANCE_FLOATS)
     expect([...packed]).toEqual([...packCinema2DepthInstances(second.instances)])
+
+    const repeated = buildCinema2DepthProofLayout({ lapCopies: 3 })
+    expect(repeated).toMatchObject({ portalCount: 10, lapCopies: 3, repeatDistance: CINEMA2_DEPTH_LAP_DISTANCE })
+    expect(repeated.instances).toHaveLength(469)
+    expect(repeated.instances.filter(instance => instance.kind === 'center')).toHaveLength(1)
   })
 
   it('registers an exact-name first-party keeper that passes authoring and compilation', () => {
@@ -75,7 +85,7 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(2)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(3)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -84,6 +94,33 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.render?.targets?.every(target => target.descriptor.colorFormat === 'rgba16f')).toBe(true)
     const atmospherePass = CINEMA2_DEPTH_PRESET_MANIFEST.render?.passes[1]
     expect(atmospherePass?.inputs?.map(input => input.attachment)).toEqual(['color', 'depth'])
+  })
+
+  it('authors a seamless fly rig, three motion-safety modes, and bounded optional choreography', () => {
+    const camera = CINEMA2_DEPTH_PRESET_MANIFEST.cameras![0]!
+    expect(camera.rig).toMatchObject({
+      kind: 'fly', durationSeconds: CINEMA2_DEPTH_LAP_SECONDS, loop: true,
+      repeatOffset: [0, 0, -CINEMA2_DEPTH_LAP_DISTANCE],
+    })
+    expect(camera.motion).toMatchObject({ interpolation: 'spline', constantSpeed: true, rollDegrees: -7 })
+    expect(camera.controls).toEqual({
+      motionSafety: { $ref: CINEMA2_DEPTH_MOTION_SAFETY_ID },
+      tempoSync: { $ref: CINEMA2_DEPTH_BPM_SYNC_ID },
+    })
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, defaultValue: true }),
+      expect.objectContaining({ id: CINEMA2_DEPTH_MOTION_SAFETY_ID, type: 'enum', defaultValue: 'full' }),
+    ]))
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.map(rule => rule.source.signal)).toEqual([
+      'beat', 'downbeat', 'phrase', 'continuous', 'drop',
+    ])
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.every(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(new Set(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions.map(action => action.target.kind)))).toEqual(
+      new Set(['module', 'effect', 'camera']),
+    )
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!.parameters).toMatchObject({
+      beatAccent: 0, downbeatAccent: 0, phraseAccent: 0, buildAmount: 0, dropAccent: 0,
+    })
   })
 
   it('evaluates all five light programs deterministically with bounded per-side output', () => {
@@ -134,6 +171,19 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
     )
   })
 
+  it('keeps music accents bounded and optional', () => {
+    const base: Cinema2DepthLightControls = {
+      program: 'sideOrbit', direction: 'forward', rate: 1.1, activeSpan: 3, seed: 7,
+      centerEnabled: true, centerIntensity: 0.38,
+    }
+    const idle = resolveCinema2DepthProgramEmission(4, 2, 10, 1.25, base)
+    const absent = resolveCinema2DepthProgramEmission(4, 2, 10, 1.25, { ...base, beatAccent: 0, downbeatAccent: 0, phraseAccent: 0, buildAmount: 0, dropAccent: 0 })
+    const drop = resolveCinema2DepthProgramEmission(4, 2, 10, 1.25, { ...base, dropAccent: 1 })
+    expect(absent).toBe(idle)
+    expect(drop).toBeGreaterThanOrEqual(idle)
+    expect(drop).toBeLessThanOrEqual(1)
+  })
+
   it('applies center-object visibility and intensity without changing instance count', () => {
     const layout = buildCinema2DepthProofLayout()
     const frame = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
@@ -168,6 +218,9 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
       centerScale: 1,
       emissions: frame.emissions,
       spills: frame.spills,
+      repeatDistance: layout.repeatDistance,
+      repeatOriginZ: 8.4,
+      centerDistance: 8.4 - layout.centerDepth,
     })
     expect(vi.mocked(gl.bufferSubData)).toHaveBeenCalledOnce()
     expect(vi.mocked(gl.drawElementsInstanced)).toHaveBeenCalledOnce()
@@ -226,9 +279,9 @@ describe('Cinema 2.0 Depth Step-2 preset', () => {
     } as never)
     expect(draw).toHaveBeenCalledOnce()
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ intensity: 1.4, spill: 0.9, centerScale: 1.6, cameraPosition: [1, 2, 8] })
-    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(157)
-    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(157)
-    expect(instance.inspect()).toMatchObject({ portalCount: 10, instanceCount: 157, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
+    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(469)
+    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(469)
+    expect(instance.inspect()).toMatchObject({ portalCount: 10, lapCopies: 3, instanceCount: 469, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 
     instance.lifecycle.dispose()

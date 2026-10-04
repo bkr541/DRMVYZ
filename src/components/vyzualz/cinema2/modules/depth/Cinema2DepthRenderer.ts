@@ -13,6 +13,10 @@ layout(location = 4) in vec4 i_sizeKindEmission;
 layout(location = 5) in vec4 i_portalSideSpill;
 uniform mat4 u_viewProjection;
 uniform float u_centerScale;
+uniform vec3 u_cameraPosition;
+uniform float u_repeatDistance;
+uniform float u_repeatOriginZ;
+uniform float u_centerDistance;
 out vec3 v_world;
 out vec3 v_normal;
 out vec3 v_local;
@@ -25,6 +29,12 @@ void main() {
   vec3 size = vec3(i_centerSizeX.w, i_sizeKindEmission.x, i_sizeKindEmission.y);
   if (i_sizeKindEmission.z > 3.5) size *= u_centerScale;
   vec3 world = i_centerSizeX.xyz + a_position * size;
+  float lap = floor((u_repeatOriginZ - u_cameraPosition.z) / max(u_repeatDistance, 0.0001) + 0.0001);
+  if (i_sizeKindEmission.z > 3.5) {
+    world.z = u_cameraPosition.z - u_centerDistance + a_position.z * size.z;
+  } else {
+    world.z -= lap * u_repeatDistance;
+  }
   gl_Position = u_viewProjection * vec4(world, 1.0);
   v_world = world;
   v_normal = a_normal;
@@ -89,6 +99,9 @@ export interface Cinema2DepthDrawState {
   centerScale: number
   emissions: Float32Array
   spills: Float32Array
+  repeatDistance: number
+  repeatOriginZ: number
+  centerDistance: number
 }
 
 /** Draws the complete tunnel and its animated Step-2 light state with one instanced cube draw. */
@@ -107,7 +120,7 @@ export class Cinema2DepthRenderer {
       label: 'Cinema2/Depth/PortalTunnel',
       vertSrc: VERTEX_SOURCE,
       fragSrc: FRAGMENT_SOURCE,
-      requiredUniforms: ['u_viewProjection', 'u_centerScale', 'u_cameraPosition', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
+      requiredUniforms: ['u_viewProjection', 'u_centerScale', 'u_cameraPosition', 'u_repeatDistance', 'u_repeatOriginZ', 'u_centerDistance', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -157,6 +170,9 @@ export class Cinema2DepthRenderer {
     program.setFloat('u_intensity', state.intensity)
     program.setFloat('u_spillAmount', state.spill)
     program.setFloat('u_centerScale', state.centerScale)
+    program.setFloat('u_repeatDistance', state.repeatDistance)
+    program.setFloat('u_repeatOriginZ', state.repeatOriginZ)
+    program.setFloat('u_centerDistance', state.centerDistance)
 
     this.updateLighting(state.emissions, state.spills)
 

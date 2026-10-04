@@ -17,6 +17,7 @@ export interface Cinema2DepthInstance {
 
 export interface Cinema2DepthProofLayout {
   portalCount: number
+  lapCopies: number
   aperture: number
   spacing: number
   repeatDistance: number
@@ -42,11 +43,14 @@ export function buildCinema2DepthProofLayout(options: {
   aperture?: number
   spacing?: number
   frameThickness?: number
+  lapCopies?: number
 } = {}): Readonly<Cinema2DepthProofLayout> {
   const portalCount = integer(options.portalCount ?? CINEMA2_DEPTH_PROOF_PORTAL_COUNT, 8, 24)
   const aperture = finite(options.aperture, CINEMA2_DEPTH_PROOF_APERTURE, 4, 14)
   const spacing = finite(options.spacing, CINEMA2_DEPTH_PROOF_SPACING, 2.5, 8)
   const frameThickness = finite(options.frameThickness, 0.5, 0.2, 1.4)
+  const lapCopyRadius = Math.floor(integer(options.lapCopies ?? 1, 1, 5) / 2)
+  const lapCopies = lapCopyRadius * 2 + 1
   const frameDepth = Math.min(0.8, spacing * 0.18)
   const half = aperture * 0.5
   const outer = half + frameThickness * 0.5
@@ -88,11 +92,35 @@ export function buildCinema2DepthProofLayout(options: {
   const centerDepth = -(portalCount - 1) * spacing - spacing * 1.8
   push(instances, 'center', portalCount, -1, [0, 0, centerDepth], [0.55, 0.55, 0.4], 0.34, 0.34)
 
+  const repeatDistance = portalCount * spacing
+  if (lapCopies > 1) {
+    const baseInstances = [...instances]
+    instances.length = 0
+    for (let lap = -lapCopyRadius; lap <= lapCopyRadius; lap += 1) {
+      for (const instance of baseInstances) {
+        // The renderer keeps one vanishing-point object a fixed distance ahead
+        // of the camera so it never duplicates or pops at a lap boundary.
+        if (instance.kind === 'center' && lap !== 0) continue
+        push(
+          instances,
+          instance.kind,
+          instance.portalIndex,
+          instance.sideIndex,
+          [instance.center[0], instance.center[1], instance.center[2] - lap * repeatDistance],
+          instance.size,
+          instance.emission,
+          instance.spill,
+        )
+      }
+    }
+  }
+
   return Object.freeze({
     portalCount,
+    lapCopies,
     aperture,
     spacing,
-    repeatDistance: portalCount * spacing,
+    repeatDistance,
     centerDepth,
     instances: Object.freeze(instances.map(instance => Object.freeze(instance))),
   })

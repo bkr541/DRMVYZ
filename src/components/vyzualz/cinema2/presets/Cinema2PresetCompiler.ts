@@ -932,6 +932,7 @@ function validateCameraControls(
     ['pathProgress', ['float', 'integer']],
     ['smoothingMs', ['float', 'integer']],
     ['motionAmount', ['float', 'integer']],
+    ['motionSafety', ['enum']],
     ['tempoSync', ['boolean', 'float', 'integer']],
     ['kickZoom', ['boolean', 'float', 'integer']],
   ])
@@ -959,8 +960,8 @@ function validateCameraControls(
     if (name === 'tempoSync' && camera.motion?.tempo == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'tempoSync requires the camera to author `motion.tempo`.', controlPath))
     }
-    if (name === 'motionAmount' && camera.motion == null) {
-      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'motionAmount requires the camera to author `motion`.', controlPath))
+    if ((name === 'motionAmount' || name === 'motionSafety') && camera.motion == null) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires the camera to author \`motion\`.`, controlPath))
     }
   }
 }
