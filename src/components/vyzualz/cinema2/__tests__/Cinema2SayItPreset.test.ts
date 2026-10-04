@@ -4,7 +4,12 @@ import { CINEMA2_SAY_IT_MODULE_TYPE_ID } from '../modules/Cinema2SayItNativeModu
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
-import { CINEMA2_SAY_IT_PRESET_ID, CINEMA2_SAY_IT_PRESET_MANIFEST } from '../presets/Cinema2SayItPreset'
+import {
+  CINEMA2_SAY_IT_LINE_ONE_TEXT_ID,
+  CINEMA2_SAY_IT_LINE_TWO_TEXT_ID,
+  CINEMA2_SAY_IT_PRESET_ID,
+  CINEMA2_SAY_IT_PRESET_MANIFEST,
+} from '../presets/Cinema2SayItPreset'
 
 describe('Cinema 2.0 SAY IT preset', () => {
   it('is a first-party keeper named exactly SAY IT', () => {
@@ -31,9 +36,16 @@ describe('Cinema 2.0 SAY IT preset', () => {
       ...Object.keys(CINEMA2_SAY_IT_PRESET_MANIFEST.environment?.controls ?? {}),
     ])
     expect(bindings).toEqual(new Set([
-      'text', 'lineMode', 'alignment', 'tracking', 'lineSpacing', 'glyphScale',
+      'line1Text', 'line2Text', 'lineMode', 'alignment', 'tracking', 'lineSpacing', 'glyphScale',
       'motionAmount', 'bpmSync', 'cycleSeconds', 'spread', 'roughness', 'environmentIntensity', 'highlightSweep', 'color',
       'intensity', 'mix', 'backgroundColor',
     ]))
+  })
+
+  it('exposes Line 1 and Line 2 as separate single-line text inputs', () => {
+    const line1 = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_SAY_IT_LINE_ONE_TEXT_ID)
+    const line2 = CINEMA2_SAY_IT_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_SAY_IT_LINE_TWO_TEXT_ID)
+    expect(line1).toMatchObject({ label: 'Line 1', type: 'string', defaultValue: 'SAY IT' })
+    expect(line2).toMatchObject({ label: 'Line 2', type: 'string', defaultValue: '' })
   })
 })

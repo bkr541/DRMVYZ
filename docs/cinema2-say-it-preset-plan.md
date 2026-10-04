@@ -107,12 +107,12 @@ Step 1 deliberately does not expose editable text. Its acceptance criteria are f
 2. Built all 95 printable Basic Latin characters with consistent extrusion, bevel, centered local origins, winding and normals. Space is metrics-only; the other 94 code points are named GLB meshes.
 3. Exported advance widths, visual bounds, local centers, line metrics and kerning pairs in the versioned generated metrics manifest.
 4. Replaced the proof asset with `cinema2-say-it-glyphs` while preserving the `say-it-native` module boundary.
-5. Added the user-facing multiline `Message` parameter, CR/LF normalization, tab handling, unsupported-character fallback and bounded truncation.
+5. Added separate user-facing `Line 1` and `Line 2` single-line text inputs, newline/tab normalization, unsupported-character fallback and bounded truncation. `Line 2` is shown in two-line mode.
 6. Added controls for one/two-line mode, alignment, tracking, line spacing and glyph scale. Character limits remain authored invariants rather than editable performance controls.
 7. Layouts are centered from actual visual bounds, preserve space advances without allocating meshes and automatically fit the camera frame.
 8. Repeated characters reuse shared decoded geometry; only lightweight roots and material instances are created per visible occurrence.
 9. Empty input returns to `SAY IT`; unsupported characters use `?`; both truncation and replacement produce diagnostics.
-10. Tests cover the complete repertoire, explicit and automatic two-line layout, one-line enforcement, repeated geometry, input limits, fallback, fit bounds and generalized exact-assembly motion.
+10. Tests cover the complete repertoire, independent two-line input, one-line enforcement, repeated geometry, input limits, fallback, fit bounds and generalized exact-assembly motion.
 
 Step 2's code path is complete when every printable Basic Latin input maps deterministically to a valid one- or two-line layout and repeated characters share geometry. Measured live-edit leak checks and low-tier frame-time acceptance remain part of Step 3 production hardening.
 

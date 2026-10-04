@@ -18,6 +18,11 @@ export interface Cinema2SayItLayoutOptions {
   glyphScale: number
 }
 
+export interface Cinema2SayItTextInput {
+  line1: unknown
+  line2?: unknown
+}
+
 export interface Cinema2SayItLayoutGlyph {
   id: string
   character: string
@@ -139,40 +144,45 @@ export function sanitizeCinema2SayItText(input: unknown, maximumLines: 1 | 2 = 2
   truncated: boolean
   replacementCount: number
 }> {
-  const source = typeof input === 'string' && input.trim().length > 0 ? input : CINEMA2_SAY_IT_DEFAULT_TEXT
-  const normalized = source.replace(/\r\n?/g, '\n').replace(/\t/g, ' ')
-  const lines: string[][] = [[]]
-  const characterLimit = Math.min(CINEMA2_SAY_IT_MAX_CHARACTERS, CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE * maximumLines)
-  let count = 0
+  const sources = resolveLineSources(input)
+  const lines: string[] = []
+  let remaining = Math.min(CINEMA2_SAY_IT_MAX_CHARACTERS, CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE * maximumLines)
   let truncated = false
   let replacementCount = 0
 
-  const nextLine = () => {
-    if (lines.length >= maximumLines) { truncated = true; return false }
-    lines.push([])
-    return true
+  for (let lineIndex = 0; lineIndex < maximumLines; lineIndex += 1) {
+    const source = typeof sources[lineIndex] === 'string' ? sources[lineIndex] : ''
+    const normalized = source.replace(/\r\n?|\n|\t/g, ' ').trim()
+    const characters = Array.from(normalized)
+    const lineLimit = Math.min(CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE, remaining)
+    if (characters.length > lineLimit) truncated = true
+    const visibleCharacters = characters.slice(0, lineLimit).map(rawCharacter => {
+      const rawCodePoint = rawCharacter.codePointAt(0) ?? metrics.repertoire.fallbackCodePoint
+      const supported = rawCodePoint >= metrics.repertoire.firstCodePoint && rawCodePoint <= metrics.repertoire.lastCodePoint
+      if (!supported) replacementCount += 1
+      return String.fromCodePoint(supported ? rawCodePoint : metrics.repertoire.fallbackCodePoint)
+    })
+    const line = visibleCharacters.join('').trim()
+    lines.push(line)
+    remaining -= line.length
   }
 
-  for (const rawCharacter of Array.from(normalized)) {
-    if (rawCharacter === '\n') {
-      if (lines[lines.length - 1]!.length > 0) nextLine()
-      continue
-    }
-    if (count >= characterLimit) { truncated = true; break }
-    if (lines[lines.length - 1]!.length >= CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE && !nextLine()) break
-    const rawCodePoint = rawCharacter.codePointAt(0) ?? metrics.repertoire.fallbackCodePoint
-    const supported = rawCodePoint >= metrics.repertoire.firstCodePoint && rawCodePoint <= metrics.repertoire.lastCodePoint
-    const codePoint = supported ? rawCodePoint : metrics.repertoire.fallbackCodePoint
-    if (!supported) replacementCount += 1
-    lines[lines.length - 1]!.push(String.fromCodePoint(codePoint))
-    count += 1
-  }
-
-  const cleaned = lines
-    .map(line => line.join('').replace(/^ +| +$/g, ''))
-    .filter(line => line.length > 0)
+  const cleaned = lines.filter(line => line.length > 0)
   if (cleaned.length === 0) return Object.freeze({ lines: Object.freeze([CINEMA2_SAY_IT_DEFAULT_TEXT]), truncated, replacementCount })
   return Object.freeze({ lines: Object.freeze(cleaned), truncated, replacementCount })
+}
+
+function resolveLineSources(input: unknown): readonly string[] {
+  if (isRecord(input)) {
+    return [typeof input.line1 === 'string' ? input.line1 : '', typeof input.line2 === 'string' ? input.line2 : '']
+  }
+  if (typeof input !== 'string') return ['', '']
+  const [line1 = '', ...remainingLines] = input.replace(/\r\n?/g, '\n').split('\n')
+  return [line1, remainingLines.join(' ')]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function layoutLine(line: string, lineIndex: number, tracking: number, scale: number) {

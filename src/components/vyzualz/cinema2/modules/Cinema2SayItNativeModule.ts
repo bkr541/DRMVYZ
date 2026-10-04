@@ -62,7 +62,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let library: Cinema2ThreeLibrary | null = null
       let asset: Cinema2ThreeLoadedAsset | null = null
       let reportedBytes = -1
-      let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout(CINEMA2_SAY_IT_DEFAULT_TEXT, {
+      let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout({ line1: CINEMA2_SAY_IT_DEFAULT_TEXT, line2: '' }, {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
       })
       let layoutKey = ''
@@ -153,29 +153,31 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const cycleSeconds = readNumber(parameters.get('cycleSeconds'), 2, 60) ?? 8
             const motionAmount = readNumber(parameters.get('motionAmount'), 0, 1) ?? 1
             const spread = readNumber(parameters.get('spread'), 0, 3) ?? 1
-            const authoredText = parameters.get('text')
-            const text = typeof authoredText === 'string' ? authoredText : CINEMA2_SAY_IT_DEFAULT_TEXT
+            const authoredLine1 = parameters.get('line1Text')
+            const authoredLine2 = parameters.get('line2Text')
+            const line1Text = typeof authoredLine1 === 'string' ? authoredLine1 : CINEMA2_SAY_IT_DEFAULT_TEXT
+            const line2Text = typeof authoredLine2 === 'string' ? authoredLine2 : ''
             const alignment = readAlignment(parameters.get('alignment'))
             const lineMode = parameters.get('lineMode') === 'one' ? 'one' as const : 'two' as const
             const tracking = readNumber(parameters.get('tracking'), -0.15, 0.5) ?? 0.06
             const lineSpacing = readNumber(parameters.get('lineSpacing'), 0.55, 1.2) ?? 0.7
             const glyphScale = readNumber(parameters.get('glyphScale'), 0.35, 1.5) ?? 1
-            const nextLayoutKey = JSON.stringify([text, alignment, lineMode, tracking, lineSpacing, glyphScale])
+            const nextLayoutKey = JSON.stringify([line1Text, line2Text, alignment, lineMode, tracking, lineSpacing, glyphScale])
             if (nextLayoutKey !== layoutKey) {
               layoutKey = nextLayoutKey
-              layout = resolveCinema2SayItTextLayout(text, { alignment, lineMode, tracking, lineSpacing, glyphScale })
+              layout = resolveCinema2SayItTextLayout({ line1: line1Text, line2: line2Text }, { alignment, lineMode, tracking, lineSpacing, glyphScale })
               contentDiagnostics = []
               if (layout.truncated) contentDiagnostics.push({
                 code: 'CINEMA2_SAY_IT_TEXT_TRUNCATED',
                 message: lineMode === 'one'
-                  ? 'SAY IT limited the message to one line and 12 characters.'
-                  : 'SAY IT limited the message to two lines, 12 characters per line and 20 characters total.',
-                path: `module.${context.module.id}.parameters.text`,
+                  ? 'SAY IT limited Line 1 to 12 characters.'
+                  : 'SAY IT limited the text to 12 characters per line and 20 characters total.',
+                path: `module.${context.module.id}.parameters`,
               })
               if (layout.replacementCount > 0) contentDiagnostics.push({
                 code: 'CINEMA2_SAY_IT_UNSUPPORTED_CHARACTERS',
                 message: `SAY IT replaced ${layout.replacementCount} unsupported character${layout.replacementCount === 1 ? '' : 's'} with ?; the preset supports printable Basic Latin.`,
-                path: `module.${context.module.id}.parameters.text`,
+                path: `module.${context.module.id}.parameters`,
               })
             }
             const color = readColor(parameters.get('color')) ?? [0.82, 0.84, 0.88]

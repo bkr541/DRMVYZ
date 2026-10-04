@@ -28,7 +28,10 @@ export const CINEMA2_SAY_IT_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('dr
 export const CINEMA2_SAY_IT_MODULE_ID = cinema2StableId<Cinema2ModuleId>('say-it-glyphs')
 
 const parameterId = (name: string) => cinema2StableId<Cinema2ParameterId>(`say-it-${name}`)
-export const CINEMA2_SAY_IT_TEXT_ID = parameterId('text')
+export const CINEMA2_SAY_IT_LINE_ONE_TEXT_ID = parameterId('text')
+export const CINEMA2_SAY_IT_LINE_TWO_TEXT_ID = parameterId('line-2-text')
+/** Backwards-compatible alias for the original first-line parameter ID. */
+export const CINEMA2_SAY_IT_TEXT_ID = CINEMA2_SAY_IT_LINE_ONE_TEXT_ID
 export const CINEMA2_SAY_IT_MOTION_ID = parameterId('motion')
 export const CINEMA2_SAY_IT_BPM_SYNC_ID = parameterId('bpm-sync')
 export const CINEMA2_SAY_IT_CYCLE_ID = parameterId('cycle-seconds')
@@ -115,7 +118,7 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_SAY_IT_PRESET_ID,
-  revision: 2,
+  revision: 3,
   metadata: Object.freeze({
     name: 'SAY IT',
     description: 'Type one or two short lines of bevelled chrome text. Every character breaks apart through independent 3D rotations, then resolves precisely.',
@@ -132,15 +135,23 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
-      ...base(CINEMA2_SAY_IT_TEXT_ID, 'Message', 'Printable English letters, numbers and punctuation. Press Return for a second line; input is limited to 12 characters per line and 20 total.', 'master-controls', 1, 'Text'),
-      type: 'text' as const,
+      ...base(CINEMA2_SAY_IT_LINE_ONE_TEXT_ID, 'Line 1', 'First line of printable English letters, numbers and punctuation; limited to 12 characters.', 'master-controls', 1, 'Text'),
+      type: 'string' as const,
       defaultValue: 'SAY IT',
       modulatable: false,
       choreographable: false,
     }),
-    floatParameter(CINEMA2_SAY_IT_MOTION_ID, 'Motion Amount', 'How far the letters travel and how strongly they rotate. At 0 the phrase stays assembled.', 'master-controls', 2, 'Playback', 1, 0, 1, 0.01),
     Object.freeze({
-      ...base(CINEMA2_SAY_IT_BPM_SYNC_ID, 'BPM Sync', 'Follow the detected track tempo. Off uses the reference rate of 120 BPM.', 'master-controls', 3, 'Playback'),
+      ...base(CINEMA2_SAY_IT_LINE_TWO_TEXT_ID, 'Line 2', 'Second line of printable English letters, numbers and punctuation; limited to 12 characters and 20 total across both lines.', 'master-controls', 2, 'Text'),
+      type: 'string' as const,
+      defaultValue: '',
+      modulatable: false,
+      choreographable: false,
+      visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_SAY_IT_LINE_MODE_ID, value: 'two' })]),
+    }),
+    floatParameter(CINEMA2_SAY_IT_MOTION_ID, 'Motion Amount', 'How far the letters travel and how strongly they rotate. At 0 the phrase stays assembled.', 'master-controls', 3, 'Playback', 1, 0, 1, 0.01),
+    Object.freeze({
+      ...base(CINEMA2_SAY_IT_BPM_SYNC_ID, 'BPM Sync', 'Follow the detected track tempo. Off uses the reference rate of 120 BPM.', 'master-controls', 4, 'Playback'),
       type: 'boolean' as const,
       defaultValue: true,
     }),
@@ -183,12 +194,13 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
       version: 1,
       enabled: true,
       parameters: Object.freeze({
-        text: 'SAY IT', lineMode: 'two', alignment: 'center', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
+        line1Text: 'SAY IT', line2Text: '', lineMode: 'two', alignment: 'center', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
         motionAmount: 1, bpmSync: true, cycleSeconds: 8, spread: 1, roughness: 0.16,
         environmentIntensity: 1.25, highlightSweep: 0.65, color: DEFAULT_CHROME,
       }),
       parameterBindings: Object.freeze({
-        text: cinema2Ref(CINEMA2_SAY_IT_TEXT_ID),
+        line1Text: cinema2Ref(CINEMA2_SAY_IT_LINE_ONE_TEXT_ID),
+        line2Text: cinema2Ref(CINEMA2_SAY_IT_LINE_TWO_TEXT_ID),
         lineMode: cinema2Ref(CINEMA2_SAY_IT_LINE_MODE_ID),
         alignment: cinema2Ref(CINEMA2_SAY_IT_ALIGNMENT_ID),
         tracking: cinema2Ref(CINEMA2_SAY_IT_TRACKING_ID),

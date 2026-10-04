@@ -27,28 +27,28 @@ describe('Cinema 2.0 SAY IT production text layout', () => {
     }
   })
 
-  it('supports explicit and automatic two-line wrapping with hard bounds', () => {
-    const explicit = sanitizeCinema2SayItText('HELLO\nWORLD')
+  it('keeps two individual line inputs within per-line and total bounds', () => {
+    const explicit = sanitizeCinema2SayItText({ line1: 'HELLO', line2: 'WORLD' })
     expect(explicit.lines).toEqual(['HELLO', 'WORLD'])
     expect(explicit.truncated).toBe(false)
 
-    const automatic = sanitizeCinema2SayItText('ABCDEFGHIJKLMNOPQRSTUVWX')
-    expect(automatic.lines).toHaveLength(2)
-    expect(automatic.lines[0]).toHaveLength(CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE)
-    expect(automatic.lines.join('')).toHaveLength(CINEMA2_SAY_IT_MAX_CHARACTERS)
-    expect(automatic.truncated).toBe(true)
-    expect(sanitizeCinema2SayItText('FIRST\nSECOND', 1)).toEqual(expect.objectContaining({ lines: ['FIRSTSECOND'], truncated: true }))
+    const bounded = sanitizeCinema2SayItText({ line1: 'ABCDEFGHIJKLM', line2: '123456789012' })
+    expect(bounded.lines).toHaveLength(2)
+    expect(bounded.lines[0]).toHaveLength(CINEMA2_SAY_IT_MAX_CHARACTERS_PER_LINE)
+    expect(bounded.lines.join('')).toHaveLength(CINEMA2_SAY_IT_MAX_CHARACTERS)
+    expect(bounded.truncated).toBe(true)
+    expect(sanitizeCinema2SayItText({ line1: 'FIRST', line2: 'SECOND' }, 1)).toEqual(expect.objectContaining({ lines: ['FIRST'], truncated: false }))
   })
 
   it('uses SAY IT for empty input and replaces unsupported Unicode explicitly', () => {
-    expect(sanitizeCinema2SayItText('   ').lines).toEqual([CINEMA2_SAY_IT_DEFAULT_TEXT])
-    const unsupported = sanitizeCinema2SayItText('CAFÉ 🚀')
-    expect(unsupported.lines).toEqual(['CAF? ?'])
+    expect(sanitizeCinema2SayItText({ line1: '   ', line2: '' }).lines).toEqual([CINEMA2_SAY_IT_DEFAULT_TEXT])
+    const unsupported = sanitizeCinema2SayItText({ line1: 'CAFÉ', line2: '🚀' })
+    expect(unsupported.lines).toEqual(['CAF?', '?'])
     expect(unsupported.replacementCount).toBe(2)
   })
 
   it('instances repeated glyph geometry independently and fits the assembled block', () => {
-    const layout = resolveCinema2SayItTextLayout('AAAAAAAAAAAA\n99999999', { ...OPTIONS, glyphScale: 1.5 })
+    const layout = resolveCinema2SayItTextLayout({ line1: 'AAAAAAAAAAAA', line2: '99999999' }, { ...OPTIONS, glyphScale: 1.5 })
     expect(layout.glyphs).toHaveLength(20)
     expect(new Set(layout.glyphs.map(glyph => glyph.id)).size).toBe(20)
     expect(new Set(layout.glyphs.slice(0, 12).map(glyph => glyph.mesh))).toEqual(new Set(['glyph-u0041']))
@@ -57,7 +57,7 @@ describe('Cinema 2.0 SAY IT production text layout', () => {
   })
 
   it('feeds exact assembled positions into the generalized motion system', () => {
-    const layout = resolveCinema2SayItTextLayout('FLIP\n360!', OPTIONS)
+    const layout = resolveCinema2SayItTextLayout({ line1: 'FLIP', line2: '360!' }, OPTIONS)
     const assembled = resolveCinema2SayItGlyphPoses(0, { cycleSeconds: 8, motionAmount: 1, spread: 1 }, layout.glyphs)
     const moving = resolveCinema2SayItGlyphPoses(4, { cycleSeconds: 8, motionAmount: 1, spread: 1 }, layout.glyphs)
     expect(cinema2SayItIsExactlyAssembled(assembled, layout.glyphs)).toBe(true)

@@ -959,6 +959,7 @@ export {
   type Cinema2SayItLayoutGlyph,
   type Cinema2SayItLayoutOptions,
   type Cinema2SayItLineMode,
+  type Cinema2SayItTextInput,
   type Cinema2SayItTextLayout,
 } from './modules/sayIt/Cinema2SayItTextLayout'
 
@@ -966,6 +967,8 @@ export {
   CINEMA2_SAY_IT_PRESET_ID,
   CINEMA2_SAY_IT_PRESET_MANIFEST,
   CINEMA2_SAY_IT_MODULE_ID,
+  CINEMA2_SAY_IT_LINE_ONE_TEXT_ID,
+  CINEMA2_SAY_IT_LINE_TWO_TEXT_ID,
   CINEMA2_SAY_IT_TEXT_ID,
   CINEMA2_SAY_IT_LINE_MODE_ID,
 } from './presets/Cinema2SayItPreset'

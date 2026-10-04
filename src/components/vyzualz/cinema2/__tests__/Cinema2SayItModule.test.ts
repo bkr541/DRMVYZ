@@ -33,21 +33,24 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
       randomness: {},
     } as unknown as Cinema2ModuleCreateContext) as ReturnType<typeof cinema2SayItNativeModuleDefinition.create> & { inspect(): Cinema2SayItModuleInspection }
 
-    values.set('text', 'HELLO\nWORLD')
+    values.set('line1Text', 'HELLO')
+    values.set('line2Text', 'WORLD')
     instance.lifecycle.update({ frame, parameters, targets: {} as never })
     expect(instance.inspect()).toMatchObject({ state: 'idle', text: 'HELLO\nWORLD', lineCount: 2, visibleGlyphCount: 10, truncated: false, replacementCount: 0 })
 
     values.set('lineMode', 'one')
-    values.set('text', 'ABCDEFGHIJKLM 🚀')
+    values.set('line1Text', 'ABCDEFGHIJKLM 🚀')
     instance.lifecycle.update({ frame: { ...frame, frameId: 2 }, parameters, targets: {} as never })
     expect(instance.inspect()).toMatchObject({ text: 'ABCDEFGHIJKL', lineCount: 1, visibleGlyphCount: 12, truncated: true })
     expect(instance.getDiagnostics?.()).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_SAY_IT_TEXT_TRUNCATED' }),
     ]))
 
-    values.set('text', 'GO 🚀')
+    values.set('lineMode', 'two')
+    values.set('line1Text', 'GO')
+    values.set('line2Text', '🚀')
     instance.lifecycle.update({ frame: { ...frame, frameId: 3 }, parameters, targets: {} as never })
-    expect(instance.inspect()).toMatchObject({ text: 'GO ?', replacementCount: 1, truncated: false })
+    expect(instance.inspect()).toMatchObject({ text: 'GO\n?', replacementCount: 1, truncated: false })
     expect(instance.getDiagnostics?.()).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_SAY_IT_UNSUPPORTED_CHARACTERS' }),
     ]))
