@@ -77,7 +77,11 @@ export function LyricTrackBrowser({
   onSearchChange,
   onSelectTrack,
   onLoadTrack,
+  onOpenActiveLyrics,
   onOpenAiExtract,
+  onMakeOpenVersionActive,
+  canMakeOpenVersionActive,
+  onDeleteTrack,
   onLoadMore,
   onRetry,
 }: Props) {
@@ -148,11 +152,17 @@ export function LyricTrackBrowser({
             playing={playingAudioTrackId === track.dbId}
             canLoad
             canOpenLyrics
-            canRemove={false}
             isActive={selectedTrackId === track.dbId}
             selectedBadge
             directAiExtract
             onOpenAiExtract={() => onOpenAiExtract(track)}
+            actionsInOverflow
+            onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
+            onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
+            canRemove
+            // The Lyric Manager owns the delete confirmation (ConfirmTrackDeleteDialog); the card never deletes directly.
+            confirmRemove={false}
+            onRemove={() => onDeleteTrack(track)}
           />
         ))}
       </div>

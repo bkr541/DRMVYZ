@@ -106,13 +106,67 @@ describe('LyricTrackBrowser', () => {
     expect(onLoadMore).toHaveBeenCalledOnce()
   })
 
-  it('shows only Load and AI Extract actions on the card — no delete, no lyric menu', async () => {
+  const rowActionLabels = () => [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
+    .map(button => button.getAttribute('aria-label'))
+  const openOverflowMenu = async () => {
+    const more = container.querySelector<HTMLButtonElement>('button[aria-label="More actions for Reverie"]')!
+    await act(async () => more.click())
+    return [...document.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')]
+  }
+  const menuItem = (items: HTMLElement[], label: string) => items.find(item => item.textContent?.trim() === label)
+
+  it('keeps Load and AI Extract on the row and moves the other actions into a more menu — no inline delete', async () => {
     await render()
 
-    const actionLabels = [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
-      .map(button => button.getAttribute('aria-label'))
-    expect(actionLabels).toEqual(['Load Reverie', 'AI extract lyrics for Reverie'])
+    expect(rowActionLabels()).toEqual(['Load Reverie', 'AI extract lyrics for Reverie', 'More actions for Reverie'])
     expect(container.querySelector('.vz-track-remove-btn')).toBeNull()
+    expect(document.querySelector('[role="menu"]')).toBeNull()
+  })
+
+  it('offers Open Active Lyrics only for tracks with an active lyric version, and opens that track', async () => {
+    const onOpenActiveLyrics = vi.fn()
+    const onSelectTrack = vi.fn()
+    await render({ onOpenActiveLyrics, onSelectTrack })
+
+    const items = await openOverflowMenu()
+    expect(items.map(item => item.textContent?.trim())).toEqual(['Open Active Lyrics', 'Delete Track'])
+    await act(async () => menuItem(items, 'Open Active Lyrics')!.click())
+
+    expect(onOpenActiveLyrics).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+    // The parent handler selects the track itself; the card must not also fire a plain selection.
+    expect(onSelectTrack).not.toHaveBeenCalled()
+
+    await render({ tracks: [track({ activeLyricDocumentId: null, activeLyricDocumentName: null })] })
+    const withoutActive = await openOverflowMenu()
+    expect(withoutActive.map(item => item.textContent?.trim())).toEqual(['Delete Track'])
+  })
+
+  it('offers Make Open Version Active only when the parent allows it, and delegates to the parent handler', async () => {
+    const onMakeOpenVersionActive = vi.fn()
+    const canMakeOpenVersionActive = vi.fn((candidate: LyricManagerTrack) => candidate.dbId === 'track-a')
+    await render({ onMakeOpenVersionActive, canMakeOpenVersionActive })
+
+    const items = await openOverflowMenu()
+    expect(items.map(item => item.textContent?.trim())).toEqual(['Open Active Lyrics', 'Make Open Version Active', 'Delete Track'])
+    await act(async () => menuItem(items, 'Make Open Version Active')!.click())
+    expect(onMakeOpenVersionActive).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+
+    await render({ canMakeOpenVersionActive: () => false })
+    const hidden = await openOverflowMenu()
+    expect(menuItem(hidden, 'Make Open Version Active')).toBeUndefined()
+  })
+
+  it('routes Delete Track to the parent confirmation flow without deleting on the click itself', async () => {
+    const onDeleteTrack = vi.fn()
+    await render({ onDeleteTrack })
+
+    const items = await openOverflowMenu()
+    await act(async () => menuItem(items, 'Delete Track')!.click())
+
+    expect(onDeleteTrack).toHaveBeenCalledOnce()
+    expect(onDeleteTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+    // No second, card-owned confirmation: the Lyric Manager's ConfirmTrackDeleteDialog is the single gate.
+    expect(document.querySelector('[role="alertdialog"], [role="dialog"]')).toBeNull()
   })
 
   it('shows empty-search, loading, and recoverable error states', async () => {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Download01Icon, SubtitleIcon, MagicWand01Icon, Delete02Icon } from 'hugeicons-react'
-import { ContextActionMenu } from '../context-menu/ContextActionMenu'
+import { Download01Icon, SubtitleIcon, MagicWand01Icon, Delete02Icon, MoreHorizontalIcon } from 'hugeicons-react'
+import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { StatusBadge } from '../react/controls/StatusBadge'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -33,6 +33,11 @@ export interface AudioTrackCardProps {
   /** Lyric Manager: replace the lyric-actions menu button with a single direct
    *  "AI Extract" icon button (calls `onOpenAiExtract`). */
   directAiExtract?: boolean
+  /** Lyric Manager: keep the row to Load / AI Extract and move Open Active Lyrics,
+   *  Make Active Version and Delete Track into one "more" (⋯) menu. Items appear only
+   *  when their handler is supplied (`onOpenActiveLyrics`, `onMakeActiveVersion`,
+   *  `canRemove` + `onRemove`). */
+  actionsInOverflow?: boolean
 }
 
 function fmtDuration(s: number | null): string {
@@ -68,9 +73,29 @@ export function AudioTrackCard({
   onMakeActiveVersion,
   confirmRemove = true,
   directAiExtract,
+  actionsInOverflow,
 }: AudioTrackCardProps) {
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const requestRemove = () => {
+    if (confirmRemove) setConfirmDelete(true)
+    else onRemove?.()
+  }
+  const overflowItems: ContextActionMenuItem[] = actionsInOverflow
+    ? [
+        ...(onOpenActiveLyrics ? [{ id: 'active', label: 'Open Active Lyrics', onSelect: onOpenActiveLyrics }] : []),
+        ...(onMakeActiveVersion ? [{ id: 'make-active', label: 'Make Open Version Active', onSelect: onMakeActiveVersion }] : []),
+        ...(canRemove && onRemove
+          ? [{
+              id: 'delete',
+              label: 'Delete Track',
+              danger: true,
+              dividerBefore: Boolean(onOpenActiveLyrics || onMakeActiveVersion),
+              onSelect: requestRemove,
+            }]
+          : []),
+      ]
+    : []
   const lyricsMenuItems = [
     ...(onLoadAndPlay ? [{ id: 'load-play', label: 'Load and Play', onSelect: onLoadAndPlay }] : []),
     ...(onOpenTimeline ? [{ id: 'timeline', label: 'Open in Lyric Manager', onSelect: onOpenTimeline }] : []),
@@ -129,7 +154,7 @@ export function AudioTrackCard({
             <MagicWand01Icon size={13} color="currentColor" />
           </button>
         )}
-        {canOpenLyrics && !directAiExtract && lyricsMenuItems.length > 0 && (
+        {canOpenLyrics && !directAiExtract && !actionsInOverflow && lyricsMenuItems.length > 0 && (
           <button
             type="button"
             className="vz-track-action-btn"
@@ -145,14 +170,29 @@ export function AudioTrackCard({
             <SubtitleIcon size={13} color="currentColor" />
           </button>
         )}
-        {canRemove && onRemove && (
+        {actionsInOverflow && overflowItems.length > 0 && (
+          <button
+            type="button"
+            className="vz-track-action-btn"
+            aria-haspopup="menu"
+            title="More actions"
+            aria-label={`More actions for ${track.title}`}
+            onClick={event => {
+              event.stopPropagation()
+              const rect = event.currentTarget.getBoundingClientRect()
+              setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
+            }}
+          >
+            <MoreHorizontalIcon size={13} color="currentColor" />
+          </button>
+        )}
+        {!actionsInOverflow && canRemove && onRemove && (
           <button
             type="button"
             className="vz-track-remove-btn"
             onClick={event => {
               event.stopPropagation()
-              if (confirmRemove) setConfirmDelete(true)
-              else onRemove()
+              requestRemove()
             }}
             title="Delete track and linked lyric data"
             aria-label={`Delete ${track.title} and linked lyric data`}
@@ -161,25 +201,28 @@ export function AudioTrackCard({
           </button>
         )}
       </div>
-      {lyricsMenu && (
-        <ContextActionMenu
-          x={lyricsMenu.x}
-          y={lyricsMenu.y}
-          ariaLabel={`Lyric actions for ${track.title}`}
-          header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
-          onClose={() => setLyricsMenu(null)}
-          items={lyricsMenuItems}
-        />
-      )}
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete Track"
-          message={`Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`}
-          notice="Deleted audio tracks will not be available to use within specific areas within React Shows, Lyrics, etc. The same deleted audio track will still be available to be used when loaded in the Audio Dock."
-          onCancel={() => setConfirmDelete(false)}
-          onConfirm={() => { setConfirmDelete(false); onRemove?.() }}
-        />
-      )}
+      {/* Both are portaled, but React still bubbles their events through this card: keep menu/dialog clicks from selecting the row. */}
+      <div onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        {lyricsMenu && (
+          <ContextActionMenu
+            x={lyricsMenu.x}
+            y={lyricsMenu.y}
+            ariaLabel={`Lyric actions for ${track.title}`}
+            header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
+            onClose={() => setLyricsMenu(null)}
+            items={actionsInOverflow ? overflowItems : lyricsMenuItems}
+          />
+        )}
+        {confirmDelete && (
+          <ConfirmDialog
+            title="Delete Track"
+            message={`Delete “${track.title}”? This also deletes its saved lyric versions and transcription jobs.`}
+            notice="Deleted audio tracks will not be available to use within specific areas within React Shows, Lyrics, etc. The same deleted audio track will still be available to be used when loaded in the Audio Dock."
+            onCancel={() => setConfirmDelete(false)}
+            onConfirm={() => { setConfirmDelete(false); onRemove?.() }}
+          />
+        )}
+      </div>
     </div>
   )
 }
