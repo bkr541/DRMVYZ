@@ -785,9 +785,11 @@ describe('LyricManagerView track-first workflow', () => {
     await waitFor(() => expect(container.textContent).toContain('Recovered lyric draft conflicts with the server'))
     expect(mocks.saveLyricDocumentAtomic).not.toHaveBeenCalled()
 
-    await act(async () => buttonWithText('Review').click())
+    // Scoped to the dialog: the right inspector also has a "Review" tab.
+    const recoveryDialog = container.querySelector<HTMLElement>('[role="alertdialog"]')!
+    await act(async () => buttonWithText('Review', recoveryDialog).click())
     expect(container.textContent).toContain('Cue timing, text, or metadata changed')
-    await act(async () => buttonWithText('Restore as Unsaved').click())
+    await act(async () => buttonWithText('Restore as Unsaved', recoveryDialog).click())
 
     expect(useLyricsStore.getState()).toMatchObject({
       draftTitle: 'Recovered title',

@@ -321,11 +321,11 @@ export function LyricCueInspector({
           />
         </label>
         <label>
-          <span>Start (ms)</span>
+          <span>Start time (ms)</span>
           <input className="lmv-num" type="number" min={0} step={1} value={start} onChange={event => setStart(event.target.value)} onBlur={applyTiming} onKeyDown={event => event.key === 'Enter' && applyTiming()} />
         </label>
         <label>
-          <span>End (ms)</span>
+          <span>End time (ms)</span>
           <input className="lmv-num" type="number" min={1} step={1} value={end} onChange={event => setEnd(event.target.value)} onBlur={applyTiming} onKeyDown={event => event.key === 'Enter' && applyTiming()} />
         </label>
         <label>
@@ -346,21 +346,7 @@ export function LyricCueInspector({
           <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={confidence} onChange={event => setConfidence(event.target.value)} onBlur={applyConfidence} onKeyDown={event => event.key === 'Enter' && applyConfidence()} />
         </label>
         <label>
-          <span>Source</span>
-          <DropdownSelect className="lmv-select" value={cue.source ?? ''} onChange={event => onUpdateCue(cue.id, { source: event.target.value ? event.target.value as LyricSource : undefined })}>
-            <option value="">Unspecified</option>
-            {SOURCES.map(source => <option key={source} value={source}>{source.replace(/_/g, ' ')}</option>)}
-          </DropdownSelect>
-        </label>
-        <label>
-          <span>Review status</span>
-          <DropdownSelect className="lmv-select" value={cue.reviewStatus ?? ''} onChange={event => onUpdateCue(cue.id, { reviewStatus: event.target.value ? event.target.value as LyricReviewStatus : undefined })}>
-            <option value="">Unspecified</option>
-            {REVIEW_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-          </DropdownSelect>
-        </label>
-        <label className="lyric-cue-inspector__wide">
-          <span>Section association</span>
+          <span>Section</span>
           <DropdownSelect
             className="lmv-select"
             value={cue.sectionId ?? ''}
@@ -374,25 +360,14 @@ export function LyricCueInspector({
           </DropdownSelect>
           {cue.sectionId && !selectedSection && <small>Stored section is not available in the current track analysis.</small>}
         </label>
+        <label>
+          <span>Review state</span>
+          <DropdownSelect className="lmv-select" value={cue.reviewStatus ?? ''} onChange={event => onUpdateCue(cue.id, { reviewStatus: event.target.value ? event.target.value as LyricReviewStatus : undefined })}>
+            <option value="">Unspecified</option>
+            {REVIEW_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
+          </DropdownSelect>
+        </label>
       </div>
-
-      <fieldset className="lyric-cue-inspector__warnings">
-        <legend>Warnings</legend>
-        {WARNINGS.map(warning => (
-          <label key={warning}>
-            <IconMorphCheckbox
-              checked={currentWarnings.has(warning)}
-              onChange={event => {
-                const next = new Set(currentWarnings)
-                if (event.target.checked) next.add(warning)
-                else next.delete(warning)
-                onUpdateCue(cue.id, { warnings: next.size ? [...next] : undefined })
-              }}
-            />
-            {warning.replace(/_/g, ' ')}
-          </label>
-        ))}
-      </fieldset>
 
       <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
         <IconChipButton disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</IconChipButton>
@@ -409,8 +384,8 @@ export function LyricCueInspector({
       {showPresentationControls && (
         <DualRailCollapsible
           className="lyric-cue-inspector__presentation"
-          defaultOpen={false}
-          label="Cue appearance overrides"
+          defaultOpen
+          label="Appearance overrides"
         >
           <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
           <LyricPresentationControls
@@ -431,9 +406,34 @@ export function LyricCueInspector({
       <DualRailCollapsible
         className="lyric-cue-inspector__metadata"
         defaultOpen={false}
-        label="Advanced metadata JSON"
+        label="Advanced"
       >
-        <p>Use this only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
+        <label className="lyric-cue-inspector__source">
+          <span>Source</span>
+          <DropdownSelect className="lmv-select" value={cue.source ?? ''} onChange={event => onUpdateCue(cue.id, { source: event.target.value ? event.target.value as LyricSource : undefined })}>
+            <option value="">Unspecified</option>
+            {SOURCES.map(source => <option key={source} value={source}>{source.replace(/_/g, ' ')}</option>)}
+          </DropdownSelect>
+        </label>
+
+        <fieldset className="lyric-cue-inspector__warnings">
+          <legend>Warnings</legend>
+          {WARNINGS.map(warning => (
+            <label key={warning}>
+              <IconMorphCheckbox
+                checked={currentWarnings.has(warning)}
+                onChange={event => {
+                  const next = new Set(currentWarnings)
+                  if (event.target.checked) next.add(warning)
+                  else next.delete(warning)
+                  onUpdateCue(cue.id, { warnings: next.size ? [...next] : undefined })
+                }}
+              />
+              {warning.replace(/_/g, ' ')}
+            </label>
+          ))}
+        </fieldset>
+        <p>Use the JSON fields only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
         {showStyleMetadataJson && (
           <>
             <LyricCueJsonField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />

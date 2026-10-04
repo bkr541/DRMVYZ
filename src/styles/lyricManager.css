@@ -311,23 +311,6 @@
   gap: 6px;
 }
 
-/* ── Right panel ─────────────────────────────────────────────────────── */
-
-.lmv-right-panel {
-  width: 320px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border-left: 1px solid rgba(154,178,188,0.1);
-  background: rgba(11,16,18,0.7);
-  overflow-y: auto;
-  padding: 14px 12px 24px;
-}
-.lmv-right-panel::-webkit-scrollbar { width: 4px; }
-.lmv-right-panel::-webkit-scrollbar-track { background: transparent; }
-.lmv-right-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-
 /* ── Preview cue box ─────────────────────────────────────────────────── */
 
 .lmv-preview-cue-box {
@@ -931,7 +914,6 @@
 @media (max-width: 1100px) {
   .lmv-track-grid { grid-template-columns: repeat(2, minmax(210px, 1fr)); }
   .lmv-doc-sidebar { width: 235px; }
-  .lmv-right-panel { width: 270px; }
   .lmv-track-identity-status { display: none; }
 }
 
@@ -943,10 +925,8 @@
   .lmv-track-grid { display: flex; overflow-x: auto; overflow-y: hidden; max-height: none; }
   .lmv-track-control-strip { flex-wrap: wrap; }
   .lmv-body { overflow-y: auto; display: grid; grid-template-columns: 1fr; }
-  .lmv-doc-sidebar,
-  .lmv-right-panel { width: 100%; border: 0; max-height: 300px; }
+  .lmv-doc-sidebar { width: 100%; border: 0; max-height: 300px; }
   .lmv-doc-sidebar { border-bottom: 1px solid rgba(154,178,188,0.1); }
-  .lmv-right-panel { border-top: 1px solid rgba(154,178,188,0.1); }
   .lmv-center { min-height: 480px; }
 }
 
@@ -1614,12 +1594,9 @@
   box-sizing: border-box;
 }
 
-/* Right rail's top/left/right inset is applied per-section below instead
-   (.lmv-right-panel) so the Document Workspace
-   header can reach the rail's true top and side edges with no surrounding
-   gap, matching Track Workspace's fit on the left rail — while everything
-   else keeps its original position. Bottom inset is untouched since
-   nothing needs to reach the bottom edge. */
+/* The right rail carries no inset of its own: the inspector's tab strip
+   reaches the rail's true top and side edges, and the tab panes apply
+   their own padding (.lmv-inspector-pane). */
 .lmv-right-rail .vz-inspector-inner {
   padding: 0 0 8px;
 }
@@ -1990,44 +1967,6 @@
 .lmv-console-ok { color: #61d6aa; }
 .lmv-console-pending { color: #d8b95a; }
 
-.lmv-right-panel {
-  width: 100%;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  /* Left/right bumped from 14px to 26px (14 + the 12px .lmv-right-rail
-     .vz-inspector-inner used to provide, now zeroed so the Document
-     Workspace header above can reach the rail's true side edges) so this
-     panel's content keeps its original horizontal position. */
-  padding: 16px 26px 12px;
-  background: transparent;
-  border-left: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* "Diagnostics" window: groups Workflow Status, Validation, and Document
-   Stats (moved here from being flat direct children of .lmv-right-panel)
-   under one titled section, living under Document Workspace like Track
-   Information above it. */
-.lmv-diagnostics-window {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Diagnostics now renders the shared RailWindowHeader component, matching
-   Track Workspace/Lyric Management/Document Workspace's Drop Shadow bar
-   exactly. The negative margin pulls it out of .lmv-right-panel's own
-   16px/26px top/side padding so it reaches the panel's true edges flush,
-   instead of nesting Diagnostics as an inset card. */
-.lmv-diagnostics-window > .rw-window-header {
-  margin: -16px -26px 0;
-}
-
 .lmv-preview-cue-box {
   min-height: 112px;
   border-radius: 4px;
@@ -2253,7 +2192,6 @@
   }
   .lmv-track-browser { flex-basis: 260px; }
   .lmv-doc-sidebar { min-height: 240px; }
-  .lmv-right-panel { width: 100%; max-height: none; }
   .lmv-center { min-height: 760px; }
 }
 .lmv-sr-label {
@@ -2858,45 +2796,12 @@
 }
 
 .lmv-mockup-left-shell,
-.lmv-workspace-shell,
-.lmv-right-workspace-shell {
+.lmv-workspace-shell {
   display: flex;
   flex: 1;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-}
-
-.lmv-document-workspace,
-.lmv-diagnostics-pane {
-  box-sizing: border-box;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.lmv-document-workspace {
-  flex: 0 0 55%;
-  border-bottom: 1px solid rgba(126,218,232,0.12);
-}
-
-.lmv-document-workspace-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.lmv-diagnostics-pane {
-  position: relative;
-  flex: 0 0 45%;
-}
-
-.lmv-diagnostics-pane > .lmv-right-panel {
-  width: 100%;
-  height: 100%;
-  flex: 1 1 auto;
 }
 
 .lmv-mockup-track-workspace,
@@ -2966,8 +2871,7 @@
    straddling above it, which .lmv-lyric-management's own overflow: hidden
    would clip) and rather than a real flex child, so it never adds to the
    two sections' combined flex-basis — they already sum to 100%. */
-.lmv-lyric-management-resize-handle,
-.lmv-diagnostics-resize-handle {
+.lmv-lyric-management-resize-handle {
   position: absolute;
   top: 0;
   left: 0;
@@ -2979,9 +2883,7 @@
 }
 
 .lmv-lyric-management-resize-handle:hover,
-.lmv-lyric-management-resize-handle:focus-visible,
-.lmv-diagnostics-resize-handle:hover,
-.lmv-diagnostics-resize-handle:focus-visible {
+.lmv-lyric-management-resize-handle:focus-visible {
   background: rgba(74, 199, 219, 0.3);
   outline: none;
 }
@@ -3007,16 +2909,6 @@
 .lmv-lyric-management--entered {
   opacity: 1;
   transform: translateY(0);
-}
-
-/* Right rail "Document Workspace" header: now restyled to match Track
-   Workspace's Drop Shadow bar exactly, including its edge-to-edge fit, so
-   this wrapper carries no padding of its own — LyricPreviewPanel below
-   it gets its inset back directly (see .lmv-right-panel) instead of
-   relying on this wrapper's padding to cancel via the shared
-   .lmv-rail-title's negative margin, the way it worked before. */
-.lmv-document-workspace-header {
-  padding: 0;
 }
 
 /* Window header — mirrors the Media Library panel header (.vz-panel-header +
@@ -3765,8 +3657,7 @@
 /* ── Track Timeline window (center column) ───────────────────────────── */
 
 .lmv-track-timeline-window,
-.lmv-lyric-cues-window,
-.lmv-document-defaults-window {
+.lmv-lyric-cues-window {
   flex: 0 0 auto;
   padding: 14px 12px 12px;
   border-bottom: 1px solid rgba(126,218,232,0.1);
@@ -3863,35 +3754,49 @@
   margin-top: 10px;
 }
 
-/* ── Document Info window (center column) ────────────────────────────── */
+/* ── Right inspector: Cue | Document | Review ───────────────────────── */
 
-.lmv-document-defaults-window .lmv-workflow-content {
-  padding: 14px 0 0;
+.lmv-inspector {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
 }
 
-/* ── Document Workspace: Cue Inspector / Cue Settings windows ────────── */
-
-.lmv-cue-inspector-window,
-.lmv-cue-settings-window {
+.lmv-inspector-tabs {
   flex: 0 0 auto;
-  padding: 14px 12px 12px;
-  border-bottom: 1px solid rgba(126,218,232,0.1);
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(126,218,232,0.12);
 }
 
-.lmv-cue-inspector-window .lyric-cue-inspector,
-.lmv-cue-settings-window .lyric-cue-inspector__presentation,
-.lmv-cue-settings-window .lyric-cue-inspector__metadata {
-  margin-top: 10px;
+.lmv-inspector-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  container-type: inline-size;
 }
 
-.lmv-cue-panels-empty {
-  flex: 0 0 auto;
-  padding: 20px 26px;
+.lmv-inspector-pane[hidden] {
+  display: none;
+}
+
+.lmv-inspector-empty {
+  padding: 20px 8px;
   color: rgba(196,207,211,0.42);
   font-size: 11px;
   line-height: 1.5;
   text-align: center;
-  border-bottom: 1px solid rgba(126,218,232,0.1);
+}
+
+.lmv-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 /* ── Lyric Manager: Layout Lab “01 · Stacked Lanes” production port ───────
@@ -3955,17 +3860,11 @@
   bottom: 0;
 }
 
-/* Document-level defaults now live in the right-side Document Workspace,
-   immediately beneath Cue Inspector, using the shared collapsible/control
-   components rather than a one-off center-workspace treatment. */
+/* Document-level presentation defaults: the second group in the Document tab. */
 .lmv-document-presentation-window {
   flex: 0 0 auto;
-  padding: 14px 12px 12px;
-  border-bottom: 1px solid rgba(126,218,232,0.1);
-}
-
-.lmv-document-presentation-window .lmv-defaults-section {
-  padding-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(126,218,232,0.1);
 }
 
 /* ── Runtime lyric preview indicator (performance views) ─────────────── */
@@ -3988,3 +3887,64 @@
   box-shadow: 0 4px 18px rgba(0,0,0,0.4);
 }
 .lmv-runtime-preview-indicator em { font-style: normal; color: rgba(196,207,211,0.5); }
+
+/* Inspector controls: two columns, label above input. The grid collapses to
+   one column only when the inspector itself is genuinely narrow (container
+   query on the pane), never because of the window width. */
+.lmv-inspector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.lmv-inspector-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: rgba(196,207,211,0.58);
+  font-size: 9px;
+}
+
+.lmv-inspector-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(196,207,211,0.42);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.lmv-inspector-pane .lyric-cue-inspector__grid,
+.lmv-inspector-pane .lmv-presentation-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+@container (max-width: 250px) {
+  .lmv-inspector-grid,
+  .lmv-inspector-pane .lyric-cue-inspector__grid,
+  .lmv-inspector-pane .lmv-presentation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Flat inspector: the tab pane is the only surface, so the cards the
+   shared editor/presentation components draw for themselves are dropped
+   and groups are separated by hairline dividers instead of nesting. */
+.lmv-inspector-pane .lyric-cue-inspector,
+.lmv-inspector-pane .lmv-defaults-section,
+.lmv-inspector-pane .lmv-presentation-section {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lmv-inspector-pane .lmv-presentation-section + .lmv-presentation-section {
+  padding-top: 10px;
+  border-top: 1px solid rgba(154,178,188,0.1);
+}
+
+.lmv-inspector-pane .lyric-word-editor__row {
+  grid-template-columns: 18px minmax(56px, 1fr) 58px 58px 34px 18px;
+}

@@ -44,7 +44,7 @@ import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -55,8 +55,8 @@ import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
 import { LyricCuesWindow, LyricCueStackedTimeline } from './components/LyricCuesWindow'
 import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
-import { LyricCueInspectorWindow } from './components/LyricCueInspectorWindow'
-import { LyricCueSettingsPanel } from './components/LyricCueSettingsPanel'
+import { LyricCueInspector } from './editor/LyricCueInspector'
+import { LyricInspector, type LyricInspectorTab } from './components/LyricInspector'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
@@ -357,31 +357,9 @@ export function LyricManagerView({
     ownerWindow.addEventListener('pointermove', onMove)
     ownerWindow.addEventListener('pointerup', onUp, { once: true })
   }, [lyricManagementHeightPct])
-  // Diagnostics mirrors the left rail's Lyric Management splitter: the right
-  // rail's full height is split between Document Workspace and the Diagnostics
-  // window, with the percentage measured against the right workspace shell.
-  const diagnosticsShellRef = useRef<HTMLDivElement>(null)
-  const [diagnosticsHeightPct, setDiagnosticsHeightPct] = useState<number | null>(null)
-  const handleDiagnosticsResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
-    const container = diagnosticsShellRef.current
-    if (!container) return
-    event.preventDefault()
-    const rect = container.getBoundingClientRect()
-    const startY = event.clientY
-    const startPct = diagnosticsHeightPct ?? 45
-    const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
-    const onMove = (moveEvent: PointerEvent) => {
-      const deltaPct = ((moveEvent.clientY - startY) / rect.height) * 100
-      setDiagnosticsHeightPct(Math.max(20, Math.min(70, startPct - deltaPct)))
-    }
-    const onUp = () => {
-      ownerWindow.removeEventListener('pointermove', onMove)
-      ownerWindow.removeEventListener('pointerup', onUp)
-    }
-    ownerWindow.addEventListener('pointermove', onMove)
-    ownerWindow.addEventListener('pointerup', onUp, { once: true })
-  }, [diagnosticsHeightPct])
+  // Right inspector tab. Owned here (not by the inspector) so it only changes on an explicit user click:
+  // selecting cues, switching documents, or saving never moves the user between Cue / Document / Review.
+  const [inspectorTab, setInspectorTab] = useState<LyricInspectorTab>('cue')
   const [documents, setDocuments] = useState<LyricDocumentVersion[]>([])
   const [legacyDocuments, setLegacyDocuments] = useState<
     LyricDocumentVersion[]
@@ -2277,15 +2255,6 @@ export function LyricManagerView({
                 }}
                 showTimeline={false}
               />
-
-              <LyricDocumentDefaultsPanel
-                draftTitle={draftTitle}
-                draftArtist={draftArtist}
-                globalOffsetMs={globalOffsetMs}
-                onUpdateTitle={setDraftTitle}
-                onUpdateArtist={setDraftArtist}
-                onUpdateGlobalOffset={setGlobalOffsetMs}
-              />
             </>
           )}
           </div>
@@ -2298,89 +2267,50 @@ export function LyricManagerView({
           onToggleCollapsed={() => setRightRailCollapsed(value => !value)}
           className="lmv-right-rail"
         >
-          <div ref={diagnosticsShellRef} className="lmv-right-workspace-shell">
-            <section
-              className="lmv-document-workspace"
-              aria-label="Document Workspace"
-              style={diagnosticsHeightPct != null
-                ? { flexBasis: `${100 - diagnosticsHeightPct}%` }
-                : undefined}
-            >
-              <div className="lmv-document-workspace-header">
-                <RailWindowHeader
-                  side="right"
-                  icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
-                  label="Document Workspace"
-                />
-              </div>
-
-              <div className="lmv-document-workspace-body">
-                {cueEditor.selectedCue && cueEditor.actions ? (
-                  <>
-                    <LyricCueInspectorWindow
-                      cue={cueEditor.selectedCue}
-                      cues={cueEditor.cues}
-                      currentTimeMs={cueEditor.canonicalPlayheadMs}
-                      durationMs={editorDurationMs}
-                      sections={sectionOptions}
-                      actions={cueEditor.actions}
-                      canMergePrevious={cueEditor.selectedIndex > 0}
-                      canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
-                      onUpdateCue={cueEditor.commitCuePatch}
-                      onUpdateWord={cueEditor.updateCueWord}
-                    />
-                    {editorDocument && (
-                      <LyricDocumentPresentationPanel
-                        defaultStyle={draftDefaultStyle}
-                        defaultAnimation={draftDefaultAnimation}
-                        defaultEffects={draftDefaultEffects}
-                        onUpdateDefaultStyle={updateDraftDefaultStyle}
-                        onUpdateDefaultAnimation={updateDraftDefaultAnimation}
-                        onUpdateDefaultEffects={updateDraftDefaultEffects}
-                      />
-                    )}
-                    <LyricCueSettingsPanel
-                      cue={cueEditor.selectedCue}
-                      onUpdateCue={cueEditor.commitCuePatch}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="lmv-cue-panels-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
-                    {editorDocument && (
-                      <LyricDocumentPresentationPanel
-                        defaultStyle={draftDefaultStyle}
-                        defaultAnimation={draftDefaultAnimation}
-                        defaultEffects={draftDefaultEffects}
-                        onUpdateDefaultStyle={updateDraftDefaultStyle}
-                        onUpdateDefaultAnimation={updateDraftDefaultAnimation}
-                        onUpdateDefaultEffects={updateDraftDefaultEffects}
-                      />
-                    )}
-                  </>
-                )}
-              </div>
-            </section>
-
-            <div
-              className="lmv-diagnostics-pane"
-              style={diagnosticsHeightPct != null ? { flexBasis: `${diagnosticsHeightPct}%` } : undefined}
-            >
-              <div
-                className="lmv-diagnostics-resize-handle"
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label="Resize Diagnostics"
-                aria-valuenow={Math.round(diagnosticsHeightPct ?? 45)}
-                aria-valuemin={20}
-                aria-valuemax={70}
-                tabIndex={0}
-                onPointerDown={handleDiagnosticsResizeStart}
-                onKeyDown={event => {
-                  if (event.key === 'ArrowUp') { event.preventDefault(); setDiagnosticsHeightPct(Math.min(70, (diagnosticsHeightPct ?? 45) + 2)) }
-                  if (event.key === 'ArrowDown') { event.preventDefault(); setDiagnosticsHeightPct(Math.max(20, (diagnosticsHeightPct ?? 45) - 2)) }
-                }}
+          <LyricInspector
+            activeTab={inspectorTab}
+            onTabChange={setInspectorTab}
+            cue={cueEditor.selectedCue && cueEditor.actions ? (
+              <LyricCueInspector
+                cue={cueEditor.selectedCue}
+                cues={cueEditor.cues}
+                currentTimeMs={cueEditor.canonicalPlayheadMs}
+                durationMs={editorDurationMs}
+                sections={sectionOptions}
+                actions={cueEditor.actions}
+                canMergePrevious={cueEditor.selectedIndex > 0}
+                canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
+                onUpdateCue={cueEditor.commitCuePatch}
+                onUpdateWord={cueEditor.updateCueWord}
               />
+            ) : (
+              <div className="lmv-inspector-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
+            )}
+            document={editorPlaceholder ? (
+              <div className="lmv-inspector-empty">Open or create a lyric version to edit its document settings.</div>
+            ) : (
+              <>
+                <LyricDocumentDefaultsPanel
+                  draftTitle={draftTitle}
+                  draftArtist={draftArtist}
+                  globalOffsetMs={globalOffsetMs}
+                  onUpdateTitle={setDraftTitle}
+                  onUpdateArtist={setDraftArtist}
+                  onUpdateGlobalOffset={setGlobalOffsetMs}
+                />
+                {editorDocument && (
+                  <LyricDocumentPresentationPanel
+                    defaultStyle={draftDefaultStyle}
+                    defaultAnimation={draftDefaultAnimation}
+                    defaultEffects={draftDefaultEffects}
+                    onUpdateDefaultStyle={updateDraftDefaultStyle}
+                    onUpdateDefaultAnimation={updateDraftDefaultAnimation}
+                    onUpdateDefaultEffects={updateDraftDefaultEffects}
+                  />
+                )}
+              </>
+            )}
+            review={(
               <LyricPreviewPanel
                 cues={storeCues}
                 document={editorDocument}
@@ -2404,8 +2334,8 @@ export function LyricManagerView({
                   />
                 }
               />
-            </div>
-          </div>
+            )}
+          />
         </WorkspaceRail>
       </div>
 

@@ -9,7 +9,7 @@ interface Props {
   onUpdateGlobalOffset: (value: number) => void
 }
 
-/** Document identity/timing fields that remain in the center workspace. */
+/** Document identity and timing fields, hosted in the Document tab of the right inspector. */
 export function LyricDocumentDefaultsPanel({
   draftTitle,
   draftArtist,
@@ -19,35 +19,30 @@ export function LyricDocumentDefaultsPanel({
   onUpdateGlobalOffset,
 }: Props) {
   return (
-    <section className="lmv-document-defaults-window" aria-label="Document Info">
-      <div className="lmv-rail-title">
-        <span>Document Info</span>
-      </div>
-      <div className="lmv-workflow-content lmv-workflow-content--timeline-editor">
-        <div className="lmv-grid2">
-          <div className="lmv-field">
-            <label className="lmv-field-label" htmlFor="lyric-document-title">Title</label>
-            <DreamVizTextInput
-              id="lyric-document-title"
-              className="lmv-input"
-              placeholder="Song Title"
-              value={draftTitle}
-              onChange={event => onUpdateTitle(event.target.value)}
-            />
-          </div>
-          <div className="lmv-field">
-            <label className="lmv-field-label" htmlFor="lyric-document-artist">Artist</label>
-            <DreamVizTextInput
-              id="lyric-document-artist"
-              className="lmv-input"
-              placeholder="Artist Name"
-              value={draftArtist}
-              onChange={event => onUpdateArtist(event.target.value)}
-            />
-          </div>
-        </div>
-        <div className="lmv-field lmv-field--short">
-          <label className="lmv-field-label" htmlFor="lyric-global-offset">Global offset (ms)</label>
+    <section className="lmv-document-info" aria-label="Document Info">
+      <div className="lmv-inspector-grid">
+        <label className="lmv-inspector-field" htmlFor="lyric-document-title">
+          <span>Title</span>
+          <DreamVizTextInput
+            id="lyric-document-title"
+            className="lmv-input"
+            placeholder="Song Title"
+            value={draftTitle}
+            onChange={event => onUpdateTitle(event.target.value)}
+          />
+        </label>
+        <label className="lmv-inspector-field" htmlFor="lyric-document-artist">
+          <span>Artist</span>
+          <DreamVizTextInput
+            id="lyric-document-artist"
+            className="lmv-input"
+            placeholder="Artist Name"
+            value={draftArtist}
+            onChange={event => onUpdateArtist(event.target.value)}
+          />
+        </label>
+        <label className="lmv-inspector-field" htmlFor="lyric-global-offset">
+          <span>Global offset (ms)</span>
           <input
             id="lyric-global-offset"
             className="lmv-num"
@@ -56,8 +51,8 @@ export function LyricDocumentDefaultsPanel({
             value={globalOffsetMs}
             onChange={event => onUpdateGlobalOffset(Number.isFinite(Number(event.target.value)) ? Math.round(Number(event.target.value)) : 0)}
           />
-          <span className="lmv-field-hint">Applied at render time. Canonical cue and word timestamps remain integer milliseconds.</span>
-        </div>
+        </label>
+        <p className="lmv-inspector-hint">Applied at render time. Canonical cue and word timestamps remain integer milliseconds.</p>
       </div>
     </section>
   )
