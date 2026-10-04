@@ -4,7 +4,12 @@ import { useState, useEffect, useRef, useCallback, useId, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
-import { useLyricsStore } from '../../../stores/lyricsStore'
+import {
+  selectEffectiveRuntimeCues,
+  selectEffectiveRuntimeDocumentId,
+  selectEffectiveRuntimeGlobalOffsetMs,
+  useLyricsStore,
+} from '../../../stores/lyricsStore'
 import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import { toEffectiveLyricTimeMs } from '../../../features/lyrics/runtime/lyricPlaybackResolver'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -547,10 +552,10 @@ export function SoundDrawingTimelineLane({
     lyricAudioTrackId,
     lyricDocumentId,
   } = useLyricsStore(useShallow(state => ({
-    lyricCues: state.runtimeCues,
-    lyricGlobalOffsetMs: state.runtimeGlobalOffsetMs,
+    lyricCues: selectEffectiveRuntimeCues(state),
+    lyricGlobalOffsetMs: selectEffectiveRuntimeGlobalOffsetMs(state),
     lyricAudioTrackId: state.runtimeAudioTrackId,
-    lyricDocumentId: state.runtimeActiveDocumentId,
+    lyricDocumentId: selectEffectiveRuntimeDocumentId(state),
   })))
   const playbackDocumentId = useLyricPlaybackSelector(state => state.documentId)
   const activeLyricCueId = useLyricPlaybackSelector(state => state.activeCue?.id ?? null)

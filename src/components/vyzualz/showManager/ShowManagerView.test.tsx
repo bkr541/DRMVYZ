@@ -301,6 +301,7 @@ vi.mock('../../../stores/lyricsStore', () => ({
   }),
 }))
 
+vi.mock('../../../features/lyrics/components/LyricRuntimePreviewIndicator', () => ({ LyricRuntimePreviewIndicator: () => null }))
 vi.mock('../react/ReactView', () => ({
   ReactView: () => <div data-testid="react-workspace" />,
 }))

@@ -200,8 +200,8 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           {/* Next-action hint when valid */}
           {!hasErrors && result.cues.length > 0 && (
             <div className="lmv-parse-next-hint">
-              Click <strong>Import to Draft</strong> to load these cues, then use{' '}
-              <strong>Preview in Visualizer</strong> to see them live.
+              Click <strong>Import to Draft</strong> to load these cues, then save and use{' '}
+              <strong>Preview Lyrics</strong> to see them live.
             </div>
           )}
 

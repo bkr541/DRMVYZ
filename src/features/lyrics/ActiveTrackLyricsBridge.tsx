@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
-import { useLyricsStore } from '../../stores/lyricsStore'
+import { resolveEffectiveRuntimeLyrics, useLyricsStore } from '../../stores/lyricsStore'
 import { musicIntelligenceEngine } from '../musicIntelligence/MusicIntelligenceEngine'
 
 interface ActiveTrackLyricsActions {
@@ -51,29 +51,26 @@ export function ActiveTrackLyricsBridge() {
   }
 
   useEffect(() => {
-    let previousCues = useLyricsStore.getState().runtimeCues
-    let previousDocumentId = useLyricsStore.getState().runtimeActiveDocumentId
-    let previousAudioTrackId = useLyricsStore.getState().runtimeAudioTrackId
-    let previousOffsetMs = useLyricsStore.getState().runtimeGlobalOffsetMs
+    // The engine consumes the effective runtime lyrics: a temporary preview version if one exists, else the persisted active version.
+    let previous = resolveEffectiveRuntimeLyrics(useLyricsStore.getState())
 
     const syncPlaybackSource = (state: ReturnType<typeof useLyricsStore.getState>, force = false) => {
+      const next = resolveEffectiveRuntimeLyrics(state)
       if (!force
-        && state.runtimeCues === previousCues
-        && state.runtimeActiveDocumentId === previousDocumentId
-        && state.runtimeAudioTrackId === previousAudioTrackId
-        && state.runtimeGlobalOffsetMs === previousOffsetMs
+        && next.cues === previous.cues
+        && next.documentId === previous.documentId
+        && next.audioTrackId === previous.audioTrackId
+        && next.globalOffsetMs === previous.globalOffsetMs
+        && next.isPreview === previous.isPreview
       ) return
 
-      previousCues = state.runtimeCues
-      previousDocumentId = state.runtimeActiveDocumentId
-      previousAudioTrackId = state.runtimeAudioTrackId
-      previousOffsetMs = state.runtimeGlobalOffsetMs
+      previous = next
 
       musicIntelligenceEngine.setActiveLyrics({
-        documentId: state.runtimeActiveDocumentId,
-        sourceIdentity: `${state.runtimeAudioTrackId ?? 'unbound'}:${state.runtimeActiveDocumentId ?? 'none'}`,
-        cues: state.runtimeCues,
-        globalOffsetMs: state.runtimeGlobalOffsetMs,
+        documentId: next.documentId,
+        sourceIdentity: `${next.audioTrackId ?? 'unbound'}:${next.documentId ?? 'none'}${next.isPreview ? ':preview' : ''}`,
+        cues: next.cues,
+        globalOffsetMs: next.globalOffsetMs,
       })
       musicIntelligenceEngine.resolveLyricsAt(getCurrentTime(), 'discontinuous')
     }

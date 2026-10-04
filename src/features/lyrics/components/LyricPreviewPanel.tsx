@@ -29,7 +29,8 @@ interface LivePreviewProps {
   currentAudioTimeMs?: number | null
   isPlaying?: boolean
   globalOffsetMs?: number
-  onPreviewInVisualizer: () => void
+  /** Auditions the open saved version in the performance view; never makes it active. */
+  onPreviewLyrics: () => void
   previewDestination?: 'React' | 'Visualizer' | 'Show Manager'
   track: LyricManagerTrack | null
   openVersionTitle: string | null
@@ -166,7 +167,7 @@ export function LyricLivePreviewPanel({
   currentAudioTimeMs = null,
   isPlaying = false,
   globalOffsetMs = 0,
-  onPreviewInVisualizer,
+  onPreviewLyrics,
   previewDestination = 'Visualizer',
   track,
   openVersionTitle,
@@ -227,14 +228,15 @@ export function LyricLivePreviewPanel({
         )}
         <IconChipButton
           className="lmv-preview-viz-btn"
-          onClick={onPreviewInVisualizer}
+          onClick={onPreviewLyrics}
           disabled={!hasTimedCues}
           title={hasTimedCues
-            ? `Push draft cues to ${previewDestination} for live preview`
+            ? `Audition this version in ${previewDestination}. It stays a preview and does not become the active version.`
             : 'No cues to preview. Import or create lyric cues first.'}
         >
-          Preview in {previewDestination} ↗
+          Preview Lyrics ↗
         </IconChipButton>
+        <p className="lmv-preview-viz-note">Auditions this version in {previewDestination}. It does not become Active.</p>
       </div>
     </RightInspectorSection>
   )

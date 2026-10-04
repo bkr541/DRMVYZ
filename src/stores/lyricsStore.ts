@@ -46,6 +46,33 @@ export type RuntimeLyricsStatus =
   | 'active-version'
   | 'error'
 
+/**
+ * Temporary runtime lyric override used to audition a saved, non-active version
+ * in the performance views. It never touches persisted activation: the active
+ * version keeps living in the `runtime*` fields and resumes the moment the
+ * preview ends. Cues are referenced (the store replaces cue arrays instead of
+ * mutating them), not copied.
+ */
+export interface RuntimeLyricPreview {
+  audioTrackId: string
+  documentId: string
+  document: LyricDocument
+  cues: LyricCue[]
+  globalOffsetMs: number
+}
+
+export type BeginRuntimeLyricPreviewResult =
+  | { ok: true }
+  | { ok: false; reason: 'no-document' | 'unsaved-changes' | 'track-mismatch' | 'no-timed-cues' }
+
+export interface EffectiveRuntimeLyrics {
+  audioTrackId: string | null
+  documentId: string | null
+  cues: LyricCue[]
+  globalOffsetMs: number
+  isPreview: boolean
+}
+
 export interface SaveEditorDocumentOptions {
   makeActive?: boolean
 }
@@ -91,6 +118,8 @@ export interface LyricsState {
   runtimeCues: LyricCue[]
   runtimeGlobalOffsetMs: number
   runtimeLyricsStatus: RuntimeLyricsStatus
+  /** Temporary preview override; when set (for the loaded track) it wins over the persisted active version. */
+  runtimeLyricPreview: RuntimeLyricPreview | null
   isLoading:           boolean
   isSaving:            boolean
   activeWriteStatus:   LyricWriteStatus
@@ -151,6 +180,9 @@ export interface LyricsState {
   preserveDraftForNextEditorExit(): void
   clearLyrics(): void
   clearRuntimeLyrics(status?: RuntimeLyricsStatus, preserveEditor?: boolean): void
+  /** Previews the saved version open in the editor on `audioTrackId` without activating it. */
+  beginRuntimeLyricPreview(audioTrackId: string): BeginRuntimeLyricPreviewResult
+  endRuntimeLyricPreview(): void
 
   selectCue(cueId: string | null): void
   updateCueTiming(cueId: string, patch: { startMs?: number; endMs?: number }): void
@@ -320,6 +352,39 @@ function runtimeLyricsState(
     runtimeCues: cues,
     runtimeGlobalOffsetMs: toCanonicalLyricMs(document?.globalOffsetMs ?? 0),
     runtimeLyricsStatus: status,
+  }
+}
+
+/** The preview only applies while its own track is the runtime track. */
+function livePreview(state: Pick<LyricsState, 'runtimeLyricPreview' | 'runtimeAudioTrackId'>): RuntimeLyricPreview | null {
+  const preview = state.runtimeLyricPreview
+  return preview && preview.audioTrackId === state.runtimeAudioTrackId ? preview : null
+}
+
+type RuntimeLyricsSource = Pick<
+  LyricsState,
+  'runtimeLyricPreview' | 'runtimeAudioTrackId' | 'runtimeActiveDocumentId' | 'runtimeCues' | 'runtimeGlobalOffsetMs'
+>
+
+/**
+ * Runtime lyric resolution: temporary preview version, otherwise the persisted
+ * active version. The per-field selectors keep stable references for React.
+ */
+export const selectEffectiveRuntimeCues = (state: RuntimeLyricsSource): LyricCue[] =>
+  livePreview(state)?.cues ?? state.runtimeCues
+export const selectEffectiveRuntimeGlobalOffsetMs = (state: RuntimeLyricsSource): number =>
+  livePreview(state)?.globalOffsetMs ?? state.runtimeGlobalOffsetMs
+export const selectEffectiveRuntimeDocumentId = (state: RuntimeLyricsSource): string | null =>
+  livePreview(state)?.documentId ?? state.runtimeActiveDocumentId
+export const selectIsRuntimeLyricPreviewActive = (state: RuntimeLyricsSource): boolean => livePreview(state) !== null
+
+export function resolveEffectiveRuntimeLyrics(state: RuntimeLyricsSource): EffectiveRuntimeLyrics {
+  return {
+    audioTrackId: state.runtimeAudioTrackId,
+    documentId: selectEffectiveRuntimeDocumentId(state),
+    cues: selectEffectiveRuntimeCues(state),
+    globalOffsetMs: selectEffectiveRuntimeGlobalOffsetMs(state),
+    isPreview: livePreview(state) !== null,
   }
 }
 
@@ -695,6 +760,9 @@ function commitCanonicalResult(
             'active-version',
           )
         : {}),
+      ...(updatesRuntime && state.runtimeLyricPreview?.documentId === result.document.id
+        ? { runtimeLyricPreview: null }
+        : {}),
     }
     if (!sameAccount || abandoned) return base
 
@@ -878,6 +946,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
   runtimeCues: [],
   runtimeGlobalOffsetMs: 0,
   runtimeLyricsStatus: 'idle',
+  runtimeLyricPreview: null,
   isLoading:           false,
   isSaving:            false,
   activeWriteStatus:   'saved',
@@ -984,7 +1053,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       || (state.editorDocument !== null && state.editorDocument.userId !== accountId)
     set({
       ...(clearLoadedState ? editorDocumentState(null, [], null, null, uniqueId('draft')) : {}),
-      ...(clearLoadedState ? runtimeLyricsState(null) : {}),
+      ...(clearLoadedState ? { ...runtimeLyricsState(null), runtimeLyricPreview: null } : {}),
       operationAccountId: accountId,
       writeStates: {},
       isLoading: false,
@@ -1055,7 +1124,8 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       }
     }
   },
-  beginEditorSession: () => set({ editorSessionActive: true, skipNextEditorResync: false }),
+  // Re-entering the editor ends any performance preview: the snapshot would go stale as soon as the version is edited.
+  beginEditorSession: () => set({ editorSessionActive: true, skipNextEditorResync: false, runtimeLyricPreview: null }),
   endEditorSession: () => set({ editorSessionActive: false }),
   markEditorDirty: (dirty = true) => set(state => ({
     editorDirty: dirty,
@@ -1094,6 +1164,7 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       activeAudioTrackId: null,
       cues: [],
       ...runtimeLyricsState(null),
+      runtimeLyricPreview: null,
       isLoading: false,
       isSaving: false,
       activeWriteStatus: 'saved',
@@ -1125,11 +1196,36 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     invalidateRead('audioTrack')
     set(state => ({
       ...runtimeLyricsState(null, null, [], status),
+      runtimeLyricPreview: null,
       ...(!preserveEditor && !state.editorSessionActive && !state.editorDirty
         ? editorDocumentState(null, [], null, null, uniqueId('draft'))
         : {}),
       isLoading: false,
     }))
+  },
+
+  beginRuntimeLyricPreview: (audioTrackId) => {
+    const state = get()
+    const document = state.editorDocument
+    if (!document) return { ok: false, reason: 'no-document' }
+    // Unsaved (or still-writing) editor state is never promoted to runtime lyrics.
+    if (state.editorDirty || state.activeWriteStatus !== 'saved') return { ok: false, reason: 'unsaved-changes' }
+    if (document.audioTrackId !== audioTrackId) return { ok: false, reason: 'track-mismatch' }
+    if (!state.cues.some(cue => cue.endMs > cue.startMs)) return { ok: false, reason: 'no-timed-cues' }
+    set({
+      runtimeLyricPreview: {
+        audioTrackId,
+        documentId: document.id,
+        document,
+        cues: state.cues,
+        globalOffsetMs: toCanonicalLyricMs(document.globalOffsetMs ?? 0),
+      },
+    })
+    return { ok: true }
+  },
+
+  endRuntimeLyricPreview: () => {
+    if (get().runtimeLyricPreview) set({ runtimeLyricPreview: null })
   },
 
   selectCue: (cueId) => set({ selectedCueId: cueId }),
@@ -1237,6 +1333,9 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
     const owner = beginRead('audioTrack', accountId, audioTrackId)
     set(state => ({
       ...runtimeLyricsState(audioTrackId, null, [], supabaseConfigured ? 'loading' : 'no-active-version'),
+      ...(state.runtimeLyricPreview && state.runtimeLyricPreview.audioTrackId !== audioTrackId
+        ? { runtimeLyricPreview: null }
+        : {}),
       ...(!preserveEditor && !state.editorSessionActive && !state.editorDirty
         ? editorDocumentState(null, [], audioTrackId, null, uniqueId('track-read'))
         : {}),

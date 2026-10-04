@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
+import { LyricRuntimePreviewIndicator } from '../../features/lyrics/components/LyricRuntimePreviewIndicator'
 import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/UnsavedLyricChangesDialog'
 import { UnsavedMediaChangesDialog } from './media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
@@ -106,6 +107,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <Suspense fallback={<WorkspaceLoading label="React View" />}>
               <ReactView
@@ -123,6 +125,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <Suspense fallback={<WorkspaceLoading label="Show Manager" />}>
               <ShowManagerView />

@@ -308,6 +308,7 @@ export function LyricManagerView({
     editorDirty,
     markEditorDirty,
     preserveDraftForNextEditorExit,
+    beginRuntimeLyricPreview,
     restoreRecoveredLyricDraft,
     runtimeAudioTrackId,
     runtimeActiveDocumentId,
@@ -1724,21 +1725,31 @@ export function LyricManagerView({
     return () => { cancelled = true }
   }, [navigationIntent, onNavigationIntentConsumed, openTrackWorkflow, setError])
 
+  // Preview is an audition, not an activation: the open saved version is handed to the runtime as a
+  // temporary override and the persisted active version is left untouched.
   const handlePreviewInPerformanceView = useCallback(() => {
-    const timedCues = storeCues.filter((cue) => cue.endMs > cue.startMs)
-    if (timedCues.length === 0) {
-      showStatus('Timed cues are required before previewing in the performance view.')
-      return
-    }
     if (editorDirty) {
-      showStatus(
-        'Save or discard unsaved changes before opening the performance preview.',
-      )
+      showStatus('Save or discard unsaved changes before previewing this version.')
       return
     }
-    if (selectedTrack && engine.currentAudioTrackId !== selectedTrack.dbId) {
+    if (!selectedTrack) {
+      showStatus('Select a track before previewing this version.')
+      return
+    }
+    if (engine.currentAudioTrackId !== selectedTrack.dbId) {
+      showStatus('Load the selected track to the deck before previewing this version.')
+      return
+    }
+    const result = beginRuntimeLyricPreview(selectedTrack.dbId)
+    if (!result.ok) {
       showStatus(
-        'Load the selected track to the deck before opening the performance preview.',
+        result.reason === 'no-timed-cues'
+          ? 'Timed cues are required before previewing this version.'
+          : result.reason === 'unsaved-changes'
+            ? 'Wait for the version to finish saving before previewing it.'
+            : result.reason === 'track-mismatch'
+              ? 'This version belongs to a different track.'
+              : 'Open a saved lyric version before previewing it.',
       )
       return
     }
@@ -1746,8 +1757,8 @@ export function LyricManagerView({
     setLyricsDisplayEnabled(true)
     onBack()
   }, [
+    beginRuntimeLyricPreview,
     editorDirty,
-    storeCues,
     engine.currentAudioTrackId,
     onBack,
     preserveDraftForNextEditorExit,
@@ -2166,7 +2177,7 @@ export function LyricManagerView({
               currentAudioTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
               isPlaying={selectedTrackPlaying}
               globalOffsetMs={globalOffsetMs}
-              onPreviewInVisualizer={handlePreviewInPerformanceView}
+              onPreviewLyrics={handlePreviewInPerformanceView}
               previewDestination={returnView === 'showManager' ? 'Show Manager' : 'React'}
               track={selectedTrack}
               openVersionTitle={editorDocument?.title ?? null}

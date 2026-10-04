@@ -99,6 +99,7 @@ vi.mock('../VyzualzSidebar', () => ({
 vi.mock('../../../stores/lyricsStore', () => ({
   useLyricsStore: (selector: (state: { editorDirty: boolean; isSaving: boolean }) => unknown) => selector({ editorDirty: false, isSaving: false }),
 }))
+vi.mock('../../../features/lyrics/components/LyricRuntimePreviewIndicator', () => ({ LyricRuntimePreviewIndicator: () => null }))
 vi.mock('../../../features/media/MediaManagerView', () => ({ MediaManagerView: () => <div>Media</div> }))
 vi.mock('../../../features/lyrics/LyricManagerView', () => ({ LyricManagerView: () => <div>Lyrics</div> }))
 

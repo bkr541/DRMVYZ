@@ -10,7 +10,7 @@ import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDia
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import { useLyricsStore } from '../../../stores/lyricsStore'
+import { selectEffectiveRuntimeCues, selectEffectiveRuntimeGlobalOffsetMs, useLyricsStore } from '../../../stores/lyricsStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell'
@@ -309,8 +309,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     ...createCinemaFontLibrarySnapshot(oscillatorFontAssets),
   ]), [mediaAssets, oscillatorFontAssets])
   const lyricPlayback = useLyricPlaybackSelector((state) => state)
-  const runtimeLyricCues = useLyricsStore((state) => state.runtimeCues)
-  const runtimeLyricGlobalOffsetMs = useLyricsStore((state) => state.runtimeGlobalOffsetMs)
+  const runtimeLyricCues = useLyricsStore(selectEffectiveRuntimeCues)
+  const runtimeLyricGlobalOffsetMs = useLyricsStore(selectEffectiveRuntimeGlobalOffsetMs)
   const activeLaserDmxManagedShow = useMemo(
     () => laserDmxShowManagerShows.find(show => show.id === laserDmxShowManagerActiveShowId) ?? null,
     [laserDmxShowManagerActiveShowId, laserDmxShowManagerShows],
