@@ -22,6 +22,11 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_SAY_IT_MODULE_TYPE_ID } from '../modules/Cinema2SayItNativeModule'
+import {
+  CINEMA2_SAY_IT_CAMERA_DISTANCE,
+  CINEMA2_SAY_IT_CAMERA_FOV_DEGREES,
+  CINEMA2_SAY_IT_COMPOSED_MIN_ASPECT,
+} from '../modules/sayIt/Cinema2SayItQuality'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 
 export const CINEMA2_SAY_IT_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.say-it')
@@ -118,7 +123,7 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_SAY_IT_PRESET_ID,
-  revision: 3,
+  revision: 4,
   metadata: Object.freeze({
     name: 'SAY IT',
     description: 'Type one or two short lines of bevelled chrome text. Every character breaks apart through independent 3D rotations, then resolves precisely.',
@@ -233,11 +238,11 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
       id: CINEMA2_SAY_IT_CAMERA_ID,
       label: 'SAY IT Front',
       projection: 'perspective' as const,
-      fovDegrees: 34,
-      minAspect: 1.6,
+      fovDegrees: CINEMA2_SAY_IT_CAMERA_FOV_DEGREES,
+      minAspect: CINEMA2_SAY_IT_COMPOSED_MIN_ASPECT,
       near: 0.1,
       far: 40,
-      transform: Object.freeze({ position: vec3(0, 0, 7) }),
+      transform: Object.freeze({ position: vec3(0, 0, CINEMA2_SAY_IT_CAMERA_DISTANCE) }),
       targetNode: cinema2Ref(FOCUS_NODE_ID),
       rig: Object.freeze({ kind: 'static' as const }),
     }),

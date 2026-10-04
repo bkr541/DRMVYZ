@@ -934,6 +934,7 @@ export {
   createCinema2SayItNativeModuleDefinition,
   type Cinema2SayItModuleInspection,
   type Cinema2SayItModuleState,
+  type Cinema2SayItPerformanceInspection,
 } from './modules/Cinema2SayItNativeModule'
 
 export {
@@ -943,6 +944,19 @@ export {
   type Cinema2SayItGlyphPose,
   type Cinema2SayItMotionOptions,
 } from './modules/sayIt/Cinema2SayItMotion'
+
+export {
+  CINEMA2_SAY_IT_BASELINE_VIEWPORTS,
+  CINEMA2_SAY_IT_CAMERA_DISTANCE,
+  CINEMA2_SAY_IT_CAMERA_FOV_DEGREES,
+  CINEMA2_SAY_IT_COMPOSED_MIN_ASPECT,
+  CINEMA2_SAY_IT_QUALITY_PROFILES,
+  CINEMA2_SAY_IT_VISUAL_BASELINES,
+  limitCinema2SayItPosesForQuality,
+  resolveCinema2SayItQualityProfile,
+  type Cinema2SayItQualityProfile,
+  type Cinema2SayItVisualBaseline,
+} from './modules/sayIt/Cinema2SayItQuality'
 
 export {
   CINEMA2_SAY_IT_DEFAULT_TEXT,

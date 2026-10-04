@@ -14,6 +14,11 @@ import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { Cinema2SayItBridge, type Cinema2SayItDrawState } from './sayIt/Cinema2SayItBridge'
 import { resolveCinema2SayItGlyphPoses } from './sayIt/Cinema2SayItMotion'
 import {
+  limitCinema2SayItPosesForQuality,
+  resolveCinema2SayItQualityProfile,
+  type Cinema2SayItQualityProfile,
+} from './sayIt/Cinema2SayItQuality'
+import {
   CINEMA2_SAY_IT_DEFAULT_TEXT,
   resolveCinema2SayItTextLayout,
   type Cinema2SayItAlignment,
@@ -26,7 +31,19 @@ import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinem
 export const CINEMA2_SAY_IT_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('say-it-native')
 export const CINEMA2_SAY_IT_MODULE_VERSION = 1 as const
 
-export type Cinema2SayItModuleState = 'idle' | 'loading' | 'building' | 'ready' | 'failed'
+export type Cinema2SayItModuleState = 'idle' | 'loading' | 'building' | 'prewarming' | 'ready' | 'failed'
+
+export interface Cinema2SayItPerformanceInspection {
+  libraryLoadMs: number | null
+  assetDecodeMs: number | null
+  prewarmMs: number | null
+  firstVisibleFrameMs: number | null
+  lastDrawMs: number | null
+  averageDrawMs: number | null
+  maximumDrawMs: number | null
+  drawSampleCount: number
+  estimatedGpuBytes: number
+}
 
 export interface Cinema2SayItModuleInspection {
   state: Cinema2SayItModuleState
@@ -34,8 +51,23 @@ export interface Cinema2SayItModuleInspection {
   text: string
   lineCount: number
   visibleGlyphCount: number
+  renderedGlyphCount: number
+  quality: Cinema2RenderQualityLevel | null
   truncated: boolean
   replacementCount: number
+  performance: Readonly<Cinema2SayItPerformanceInspection>
+}
+
+interface Cinema2SayItBridgeRuntime {
+  prewarm(exec: Cinema2ModuleRenderExecutionContext, state: Readonly<Cinema2SayItDrawState>, profile: Readonly<Cinema2SayItQualityProfile>): boolean
+  draw(exec: Cinema2ModuleRenderExecutionContext, state: Readonly<Cinema2SayItDrawState>, profile: Readonly<Cinema2SayItQualityProfile>): void
+  estimateGpuBytes(): number
+  dispose(): void
+}
+
+interface Cinema2SayItAssetCache {
+  acquire(library: Cinema2ThreeLibrary, id: string, quality: Cinema2RenderQualityLevel): Promise<Cinema2ThreeLoadedAsset>
+  release(asset: Cinema2ThreeLoadedAsset): void
 }
 
 const defaultAssetCache = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
@@ -45,11 +77,15 @@ const defaultAssetCache = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
  * package. Text layout is pure and bounded; only visible glyphs are instanced.
  */
 export function createCinema2SayItNativeModuleDefinition(options: {
-  assets?: Cinema2ThreeAssetCache
+  assets?: Cinema2SayItAssetCache
   loadLibrary?: () => Promise<Cinema2ThreeLibrary>
+  createBridge?: (gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, asset: Readonly<Cinema2ThreeLoadedAsset>) => Cinema2SayItBridgeRuntime
+  now?: () => number
 } = {}): Readonly<Cinema2ModuleTypeDefinition> {
   const assets = options.assets ?? defaultAssetCache
   const loadLibrary = options.loadLibrary ?? loadCinema2ThreeLibrary
+  const createBridge = options.createBridge ?? ((gl, library, asset) => new Cinema2SayItBridge(gl, library, asset))
+  const now = options.now ?? (() => performance.now())
 
   return Object.freeze({
     typeId: CINEMA2_SAY_IT_MODULE_TYPE_ID,
@@ -57,11 +93,24 @@ export function createCinema2SayItNativeModuleDefinition(options: {
     create(context: Cinema2ModuleCreateContext) {
       let state: Cinema2SayItModuleState = 'idle'
       let disposed = false
-      let bridge: Cinema2SayItBridge | null = null
+      const createdAtMs = now()
+      let bridge: Cinema2SayItBridgeRuntime | null = null
       let bridgeCreateFailed = false
       let library: Cinema2ThreeLibrary | null = null
       let asset: Cinema2ThreeLoadedAsset | null = null
       let reportedBytes = -1
+      let renderedGlyphCount = 0
+      let resolvedQuality: Cinema2RenderQualityLevel | null = null
+      let qualityDiagnostic: Cinema2ModuleDiagnostic | null = null
+      let memoryDiagnostic: Cinema2ModuleDiagnostic | null = null
+      let libraryLoadMs: number | null = null
+      let assetDecodeMs: number | null = null
+      let prewarmMs: number | null = null
+      let firstVisibleFrameMs: number | null = null
+      let lastDrawMs: number | null = null
+      let averageDrawMs: number | null = null
+      let maximumDrawMs: number | null = null
+      let drawSampleCount = 0
       let layout: Readonly<Cinema2SayItTextLayout> = resolveCinema2SayItTextLayout({ line1: CINEMA2_SAY_IT_DEFAULT_TEXT, line2: '' }, {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
       })
@@ -93,8 +142,12 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         state = 'loading'
         void (async () => {
           try {
+            const libraryStartedAt = now()
             library = await loadLibrary()
+            libraryLoadMs = elapsedMilliseconds(libraryStartedAt, now())
+            const assetStartedAt = now()
             const loaded = await assets.acquire(library, CINEMA2_SAY_IT_GLYPH_ASSET_ID, quality)
+            assetDecodeMs = elapsedMilliseconds(assetStartedAt, now())
             if (disposed) { assets.release(loaded); return }
             asset = loaded
             state = 'building'
@@ -115,10 +168,10 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           bridge = context.resources.acquire(
             'say-it:bridge',
             'SayItBridge',
-            gl => new Cinema2SayItBridge(gl, library!, asset!),
+            gl => createBridge(gl, library!, asset!),
             value => { value.dispose(); releaseAsset() },
           )
-          state = 'ready'
+          state = 'prewarming'
         } catch (error) {
           bridgeCreateFailed = true
           state = 'failed'
@@ -127,18 +180,63 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         }
       }
 
+      const reportGpuBytes = (bytes: number, profile: Readonly<Cinema2SayItQualityProfile>) => {
+        if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
+        memoryDiagnostic = bytes > profile.gpuBudgetBytes
+          ? {
+              code: 'CINEMA2_SAY_IT_GPU_BUDGET_EXCEEDED',
+              message: `SAY IT estimates ${formatMegabytes(bytes)} MB of GPU memory, above the ${formatMegabytes(profile.gpuBudgetBytes)} MB ${profile.quality}-quality budget.`,
+              path: `module.${context.module.id}.resources`,
+            }
+          : null
+      }
+
       const provider = Object.freeze({
         id: `${context.module.id}:say-it`,
         moduleId: context.module.id,
         intent: 'world' as const,
         execute(execution: Cinema2ModuleRenderExecutionContext) {
           const quality = execution.lightingEnvironment?.quality ?? 'high'
+          resolvedQuality = quality
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed) buildBridge()
-          if (!bridge || state !== 'ready') return
-          bridge.draw(execution, drawState)
+          if (!bridge || (state !== 'prewarming' && state !== 'ready')) return
+
+          const profile = resolveCinema2SayItQualityProfile(quality)
+          const poses = limitCinema2SayItPosesForQuality(drawState.poses, profile)
+          const qualityDrawState: Readonly<Cinema2SayItDrawState> = poses === drawState.poses
+            ? drawState
+            : Object.freeze({ ...drawState, poses })
+          renderedGlyphCount = poses.length
+          const omittedGlyphs = drawState.poses.length - poses.length
+          qualityDiagnostic = omittedGlyphs > 0
+            ? {
+                code: 'CINEMA2_SAY_IT_QUALITY_GLYPH_BUDGET',
+                message: `SAY IT ${quality} quality draws ${profile.maxVisibleGlyphs} glyphs; ${omittedGlyphs} trailing glyph${omittedGlyphs === 1 ? ' was' : 's were'} omitted. Choose a higher quality tier to draw the complete message.`,
+                path: `module.${context.module.id}.quality`,
+              }
+            : null
+
+          const prewarmStartedAt = now()
+          if (!bridge.prewarm(execution, qualityDrawState, profile)) {
+            prewarmMs = elapsedMilliseconds(prewarmStartedAt, now())
+            state = 'prewarming'
+            const bytes = bridge.estimateGpuBytes()
+            reportGpuBytes(bytes, profile)
+            return
+          }
+
+          state = 'ready'
+          const drawStartedAt = now()
+          bridge.draw(execution, qualityDrawState, profile)
+          const drawMs = elapsedMilliseconds(drawStartedAt, now())
+          lastDrawMs = drawMs
+          drawSampleCount += 1
+          averageDrawMs = averageDrawMs == null ? drawMs : averageDrawMs + (drawMs - averageDrawMs) / drawSampleCount
+          maximumDrawMs = maximumDrawMs == null ? drawMs : Math.max(maximumDrawMs, drawMs)
+          if (firstVisibleFrameMs == null) firstVisibleFrameMs = elapsedMilliseconds(createdAtMs, now())
           const bytes = bridge.estimateGpuBytes()
-          if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
+          reportGpuBytes(bytes, profile)
         },
       })
 
@@ -201,15 +299,33 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           },
         },
         render: { providers: Object.freeze([provider]) },
-        getDiagnostics: () => Object.freeze([...diagnostics, ...contentDiagnostics]),
+        getDiagnostics: () => Object.freeze([
+          ...diagnostics,
+          ...contentDiagnostics,
+          ...(qualityDiagnostic ? [qualityDiagnostic] : []),
+          ...(memoryDiagnostic ? [memoryDiagnostic] : []),
+        ]),
         inspect: (): Cinema2SayItModuleInspection => ({
           state,
           assetLoaded: asset != null,
           text: layout.text,
           lineCount: layout.lines.length,
           visibleGlyphCount: layout.glyphs.length,
+          renderedGlyphCount,
+          quality: resolvedQuality,
           truncated: layout.truncated,
           replacementCount: layout.replacementCount,
+          performance: Object.freeze({
+            libraryLoadMs,
+            assetDecodeMs,
+            prewarmMs,
+            firstVisibleFrameMs,
+            lastDrawMs,
+            averageDrawMs,
+            maximumDrawMs,
+            drawSampleCount,
+            estimatedGpuBytes: Math.max(0, reportedBytes),
+          }),
         }),
       }
     },
@@ -234,4 +350,13 @@ function readAlignment(value: unknown): Cinema2SayItAlignment {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function elapsedMilliseconds(start: number, end: number): number {
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0
+  return Math.max(0, end - start)
+}
+
+function formatMegabytes(bytes: number): string {
+  return (Math.max(0, bytes) / (1024 * 1024)).toFixed(1)
 }

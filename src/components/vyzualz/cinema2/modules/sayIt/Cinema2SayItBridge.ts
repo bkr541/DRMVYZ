@@ -7,6 +7,7 @@ import { Cinema2GlStateGuard } from '../three/Cinema2GlStateGuard'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { getCinema2ThreeRenderer } from '../three/Cinema2ThreeRendererHost'
 import type { Cinema2SayItGlyphPose } from './Cinema2SayItMotion'
+import type { Cinema2SayItQualityProfile } from './Cinema2SayItQuality'
 
 interface ExternalFramebufferRenderer {
   setRenderTargetFramebuffer(target: ThreeNamespace.WebGLRenderTarget, framebuffer: WebGLFramebuffer): void
@@ -22,7 +23,8 @@ export interface Cinema2SayItDrawState {
 
 interface GlyphInstance {
   id: string
-  mesh: string
+  meshName: string
+  mesh: ThreeNamespace.Mesh
   root: ThreeNamespace.Group
   material: ThreeNamespace.MeshStandardMaterial
 }
@@ -37,12 +39,14 @@ export class Cinema2SayItBridge {
   private readonly scene: ThreeNamespace.Scene
   private readonly camera: ThreeNamespace.PerspectiveCamera
   private readonly target: ThreeNamespace.WebGLRenderTarget
+  private readonly warmTarget: ThreeNamespace.WebGLRenderTarget
   private readonly lightRig: Cinema2ThreeLightRig
   private readonly guard: Cinema2GlStateGuard
   private readonly assembly: ThreeNamespace.Group
   private readonly sourceMeshes = new Map<string, ThreeNamespace.Mesh>()
   private readonly glyphs: GlyphInstance[] = []
   private glyphSignature = ''
+  private warmedSignature = ''
   private disposed = false
 
   constructor(
@@ -65,6 +69,8 @@ export class Cinema2SayItBridge {
     this.target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true })
     ;(this.target as unknown as { isXRRenderTarget: boolean }).isXRRenderTarget = true
     this.target.texture.colorSpace = THREE.SRGBColorSpace
+    this.warmTarget = new THREE.WebGLRenderTarget(2, 2, { depthBuffer: true })
+    this.warmTarget.texture.colorSpace = THREE.SRGBColorSpace
 
     asset.scene.traverse(object => {
       const mesh = object as ThreeNamespace.Mesh
@@ -79,39 +85,51 @@ export class Cinema2SayItBridge {
     return Math.round(bytes)
   }
 
-  draw(exec: Cinema2ModuleRenderExecutionContext, state: Readonly<Cinema2SayItDrawState>): void {
-    if (this.disposed) return
-    if (!exec.depthAvailable) throw new Error('The SAY IT module requires a render target with a depth attachment.')
-    if (!exec.camera || !exec.lightingEnvironment) throw new Error('The SAY IT module requires final Camera and Lighting state.')
+  /**
+   * Compiles the active material/light variant and uploads the active glyph
+   * buffers into an offscreen 2x2 target. A changed glyph set or quality tier
+   * gets one non-visible warmup frame before draw() is allowed to present it.
+   */
+  prewarm(
+    exec: Cinema2ModuleRenderExecutionContext,
+    state: Readonly<Cinema2SayItDrawState>,
+    profile: Readonly<Cinema2SayItQualityProfile>,
+  ): boolean {
+    if (this.disposed) return false
+    this.validateExecution(exec)
+    const requestedSignature = `${state.poses.map(pose => `${pose.id}:${pose.mesh}`).join('|')}@${profile.quality}`
+    if (requestedSignature === this.warmedSignature) return true
 
     this.guard.capture()
-    const { THREE } = this.library
     try {
       this.renderer.resetState()
-      this.syncGlyphs(state.poses)
-      for (let index = 0; index < this.glyphs.length; index += 1) {
-        const glyph = this.glyphs[index]!
-        const pose = state.poses[index]
-        if (!pose || pose.id !== glyph.id || pose.mesh !== glyph.mesh) throw new Error('The SAY IT motion state does not match the active text layout.')
-        glyph.root.position.set(pose.position[0], pose.position[1], pose.position[2])
-        glyph.root.rotation.set(pose.rotation[0], pose.rotation[1], pose.rotation[2], 'XYZ')
-        glyph.root.scale.setScalar(pose.scale)
-        glyph.material.color.setRGB(state.color[0], state.color[1], state.color[2], THREE.SRGBColorSpace)
-        glyph.material.metalness = 1
-        glyph.material.roughness = Math.min(1, Math.max(0.04, state.roughness))
-      }
+      this.applyState(exec, state, profile)
+      this.warmTarget.viewport.set(0, 0, 2, 2)
+      this.warmTarget.scissor.set(0, 0, 2, 2)
+      this.renderer.setRenderTarget(this.warmTarget)
+      this.renderer.compile(this.scene, this.camera)
+      this.renderer.render(this.scene, this.camera)
+      this.renderer.setRenderTarget(null)
+      this.warmedSignature = requestedSignature
+      return false
+    } finally {
+      this.renderer.resetState()
+      this.guard.restore()
+    }
+  }
 
-      this.scene.environmentIntensity = Math.max(0, state.environmentIntensity) * Math.max(0, exec.lightingEnvironment.environment.exposure)
-      this.scene.environmentRotation.set(0, state.environmentRotationRadians, 0)
-      const placement = exec.spatialNodes?.[0]
-      if (placement) this.assembly.matrix.fromArray(placement.worldMatrix as unknown as number[])
-      else this.assembly.matrix.identity()
-      this.assembly.visible = placement?.visible ?? true
-      this.assembly.matrixWorldNeedsUpdate = true
-      applyCinema2CameraFrame(this.camera, exec.camera)
-      this.lightRig.update(exec.lightingEnvironment)
-      this.renderer.shadowMap.enabled = this.lightRig.shadowCasterCount > 0
-      this.renderer.shadowMap.type = THREE.PCFShadowMap
+  draw(
+    exec: Cinema2ModuleRenderExecutionContext,
+    state: Readonly<Cinema2SayItDrawState>,
+    profile: Readonly<Cinema2SayItQualityProfile>,
+  ): void {
+    if (this.disposed) return
+    this.validateExecution(exec)
+
+    this.guard.capture()
+    try {
+      this.renderer.resetState()
+      this.applyState(exec, state, profile)
 
       ;(this.renderer as unknown as ExternalFramebufferRenderer).setRenderTargetFramebuffer(this.target, exec.target as WebGLFramebuffer)
       this.target.viewport.set(0, 0, exec.width, exec.height)
@@ -134,9 +152,58 @@ export class Cinema2SayItBridge {
     }
     this.glyphs.length = 0
     this.glyphSignature = ''
+    this.warmedSignature = ''
     this.scene.remove(this.assembly)
     // Geometry and the environment are shared; the asset cache and renderer host own them.
     this.target.dispose()
+    this.warmTarget.dispose()
+  }
+
+  private validateExecution(exec: Cinema2ModuleRenderExecutionContext): asserts exec is Cinema2ModuleRenderExecutionContext & {
+    camera: NonNullable<Cinema2ModuleRenderExecutionContext['camera']>
+    lightingEnvironment: NonNullable<Cinema2ModuleRenderExecutionContext['lightingEnvironment']>
+  } {
+    if (!exec.depthAvailable) throw new Error('The SAY IT module requires a render target with a depth attachment.')
+    if (!exec.camera || !exec.lightingEnvironment) throw new Error('The SAY IT module requires final Camera and Lighting state.')
+  }
+
+  private applyState(
+    exec: Cinema2ModuleRenderExecutionContext & {
+      camera: NonNullable<Cinema2ModuleRenderExecutionContext['camera']>
+      lightingEnvironment: NonNullable<Cinema2ModuleRenderExecutionContext['lightingEnvironment']>
+    },
+    state: Readonly<Cinema2SayItDrawState>,
+    profile: Readonly<Cinema2SayItQualityProfile>,
+  ): void {
+    const { THREE } = this.library
+    this.syncGlyphs(state.poses)
+    for (let index = 0; index < this.glyphs.length; index += 1) {
+      const glyph = this.glyphs[index]!
+      const pose = state.poses[index]
+      if (!pose || pose.id !== glyph.id || pose.mesh !== glyph.meshName) throw new Error('The SAY IT motion state does not match the active text layout.')
+      glyph.root.position.set(pose.position[0], pose.position[1], pose.position[2])
+      glyph.root.rotation.set(pose.rotation[0], pose.rotation[1], pose.rotation[2], 'XYZ')
+      glyph.root.scale.setScalar(pose.scale)
+      glyph.mesh.castShadow = profile.castShadows
+      glyph.mesh.receiveShadow = profile.castShadows
+      glyph.material.color.setRGB(state.color[0], state.color[1], state.color[2], THREE.SRGBColorSpace)
+      glyph.material.metalness = 1
+      glyph.material.roughness = Math.min(1, Math.max(profile.roughnessFloor, state.roughness))
+    }
+
+    this.scene.environmentIntensity = Math.max(0, state.environmentIntensity)
+      * profile.environmentIntensityScale
+      * Math.max(0, exec.lightingEnvironment.environment.exposure)
+    this.scene.environmentRotation.set(0, state.environmentRotationRadians, 0)
+    const placement = exec.spatialNodes?.[0]
+    if (placement) this.assembly.matrix.fromArray(placement.worldMatrix as unknown as number[])
+    else this.assembly.matrix.identity()
+    this.assembly.visible = placement?.visible ?? true
+    this.assembly.matrixWorldNeedsUpdate = true
+    applyCinema2CameraFrame(this.camera, exec.camera)
+    this.lightRig.update(exec.lightingEnvironment)
+    this.renderer.shadowMap.enabled = profile.castShadows && this.lightRig.shadowCasterCount > 0
+    this.renderer.shadowMap.type = THREE.PCFShadowMap
   }
 
   private syncGlyphs(poses: readonly Readonly<Cinema2SayItGlyphPose>[]): void {
@@ -148,6 +215,7 @@ export class Cinema2SayItBridge {
       glyph.material.dispose()
     }
     this.glyphs.length = 0
+    this.warmedSignature = ''
     for (const pose of poses) {
       const source = this.sourceMeshes.get(pose.mesh)
       if (!source) throw new Error(`The SAY IT glyph package is missing mesh "${pose.mesh}".`)
@@ -164,7 +232,7 @@ export class Cinema2SayItBridge {
       root.name = pose.id
       root.add(mesh)
       this.assembly.add(root)
-      this.glyphs.push({ id: pose.id, mesh: pose.mesh, root, material })
+      this.glyphs.push({ id: pose.id, meshName: pose.mesh, mesh, root, material })
     }
     this.glyphSignature = signature
   }

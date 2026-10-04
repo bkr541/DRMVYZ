@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
-import { cinema2SayItNativeModuleDefinition, type Cinema2SayItModuleInspection } from '../modules/Cinema2SayItNativeModule'
+import { cinema2SayItNativeModuleDefinition, createCinema2SayItNativeModuleDefinition, type Cinema2SayItModuleInspection } from '../modules/Cinema2SayItNativeModule'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import { CINEMA2_SAY_IT_PRESET_MANIFEST } from '../presets/Cinema2SayItPreset'
 
@@ -55,5 +55,76 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
       expect.objectContaining({ code: 'CINEMA2_SAY_IT_UNSUPPORTED_CHARACTERS' }),
     ]))
     instance.lifecycle.dispose()
+  })
+
+  it('prewarms before the first visible frame, applies quality budgets and releases resources', async () => {
+    const moduleManifest = CINEMA2_SAY_IT_PRESET_MANIFEST.modules![0]!
+    const values = new Map<string, Cinema2JsonValue>(Object.entries(moduleManifest.parameters ?? {}))
+    const parameters = {
+      get: (name: string) => values.get(name),
+      getAuthored: (name: string) => values.get(name),
+      resolve: () => null,
+    }
+    values.set('line1Text', 'ABCDEFGHIJKL')
+    values.set('line2Text', '12345678')
+
+    const release = vi.fn()
+    const disposeBridge = vi.fn()
+    const draw = vi.fn()
+    const prewarm = vi.fn().mockReturnValueOnce(false).mockReturnValue(true)
+    const reportGpuBytes = vi.fn()
+    const bridge = { prewarm, draw, dispose: disposeBridge, estimateGpuBytes: () => 6 * 1024 * 1024 }
+    const asset = { id: 'cinema2-say-it-glyphs', scene: {} as never, triangleCount: 57_482, gpuBytes: 2_000_000 }
+    let disposeLease: (() => void) | null = null
+    let clock = 0
+    const definition = createCinema2SayItNativeModuleDefinition({
+      assets: { acquire: vi.fn().mockResolvedValue(asset), release },
+      loadLibrary: vi.fn().mockResolvedValue({} as never),
+      createBridge: () => bridge,
+      now: () => ++clock,
+    })
+    const resources = {
+      acquire: (_key: string, _kind: string, create: (gl: WebGL2RenderingContext) => typeof bridge, dispose: (value: typeof bridge) => void) => {
+        const value = create({} as WebGL2RenderingContext)
+        disposeLease = () => dispose(value)
+        return value
+      },
+      reportGpuBytes,
+      getSnapshot: () => ({ activeLeaseCount: 1, disposedLeaseCount: 0, estimatedGpuBytes: 0 }),
+    }
+    const instance = definition.create({
+      module: moduleManifest,
+      parameters,
+      targets: {},
+      media: {},
+      resources,
+      randomness: {},
+    } as unknown as Cinema2ModuleCreateContext) as ReturnType<typeof definition.create> & { inspect(): Cinema2SayItModuleInspection }
+    instance.lifecycle.update({ frame, parameters, targets: {} as never })
+
+    const lowExecution = { depthAvailable: true, lightingEnvironment: { quality: 'low' } } as never
+    instance.render!.providers[0]!.execute(lowExecution)
+    await vi.waitFor(() => expect(instance.inspect().state).toBe('building'))
+    instance.render!.providers[0]!.execute(lowExecution)
+    expect(instance.inspect().state).toBe('prewarming')
+    expect(draw).not.toHaveBeenCalled()
+
+    instance.render!.providers[0]!.execute(lowExecution)
+    expect(draw).toHaveBeenCalledTimes(1)
+    expect(draw.mock.calls[0]?.[1].poses).toHaveLength(12)
+    expect(instance.inspect()).toMatchObject({
+      state: 'ready', quality: 'low', visibleGlyphCount: 20, renderedGlyphCount: 12,
+      performance: { drawSampleCount: 1, estimatedGpuBytes: 6 * 1024 * 1024 },
+    })
+    expect(instance.getDiagnostics?.()).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'CINEMA2_SAY_IT_QUALITY_GLYPH_BUDGET' }),
+    ]))
+    expect(reportGpuBytes).toHaveBeenCalledWith(6 * 1024 * 1024)
+
+    instance.lifecycle.dispose()
+    expect(disposeLease).not.toBeNull()
+    disposeLease!()
+    expect(disposeBridge).toHaveBeenCalledOnce()
+    expect(release).toHaveBeenCalledWith(asset)
   })
 })
