@@ -3,7 +3,7 @@ import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/Ic
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   LyricAnimation,
   LyricCue,
@@ -23,7 +23,7 @@ import {
   validateWordTiming,
 } from './lyricCueEditorModel'
 import { LyricAnchorField, LyricFontSizeField, LyricPresentationControls } from '../components/LyricPresentationControls'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { NumberInputRow, SelectRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { LyricCueJsonField } from './LyricCueJsonField'
 
 export interface LyricSectionOption {
@@ -76,6 +76,12 @@ const WARNINGS: LyricWarning[] = [
   'provider_warning',
   'unknown',
 ]
+
+/** Draft strings back to the number | '' shape NumberInputRow takes. */
+function draftNumber(value: string): number | '' {
+  const number = Number(value)
+  return value.trim() === '' || !Number.isFinite(number) ? '' : number
+}
 
 function parseFiniteInteger(value: string): number | null {
   if (!value.trim()) return null
@@ -176,7 +182,7 @@ function WordTimingEditor({
                 key={`${word.id}-text-${word.text}`}
                 onBlur={event => onUpdateWord(cue.id, word.id, { text: event.target.value })}
               />
-              <input
+              <DreamVizTextInput
                 className="lmv-num"
                 type="number"
                 step={1}
@@ -188,7 +194,7 @@ function WordTimingEditor({
                   if (value !== null) onUpdateWord(cue.id, word.id, { startMs: value })
                 }}
               />
-              <input
+              <DreamVizTextInput
                 className="lmv-num"
                 type="number"
                 step={1}
@@ -235,6 +241,7 @@ export function LyricCueInspector({
   onUpdateWord,
   focusWordId = null,
 }: Props) {
+  const fieldId = useId()
   const [text, setText] = useState(cue.text)
   const [start, setStart] = useState(String(cue.startMs))
   const [end, setEnd] = useState(String(cue.endMs))
@@ -303,65 +310,91 @@ export function LyricCueInspector({
       )}
 
       <div className="lyric-cue-inspector__grid">
-        <label className="lyric-cue-inspector__wide">
-          <span>Text</span>
+        <div className="rv-ctrl-row lyric-cue-inspector__wide">
+          <span className="rv-ctrl-label-cluster">
+            <label className="rv-ctrl-label" htmlFor={`${fieldId}-text`}>Text</label>
+          </span>
           <textarea
-            className="lmv-textarea"
+            id={`${fieldId}-text`}
+            className="dv-text-input lmv-cue-textarea"
             rows={3}
+            spellCheck={false}
             value={text}
             onChange={event => setText(event.target.value)}
             onBlur={() => onUpdateCue(cue.id, { text })}
           />
-        </label>
-        <label>
-          <span>Start time (ms)</span>
-          <input className="lmv-num" type="number" min={0} step={1} value={start} onChange={event => setStart(event.target.value)} onBlur={applyTiming} onKeyDown={event => event.key === 'Enter' && applyTiming()} />
-        </label>
-        <label>
-          <span>End time (ms)</span>
-          <input className="lmv-num" type="number" min={1} step={1} value={end} onChange={event => setEnd(event.target.value)} onBlur={applyTiming} onKeyDown={event => event.key === 'Enter' && applyTiming()} />
-        </label>
-        <label>
-          <span>Section</span>
-          <DropdownSelect
-            className="lmv-select"
-            value={cue.sectionId ?? ''}
-            onChange={event => {
-              const section = sections.find(item => item.id === event.target.value)
-              onUpdateCue(cue.id, { sectionId: section?.id, sectionType: section?.type })
-            }}
-          >
-            <option value="">No section</option>
-            {sections.map(section => <option key={section.id} value={section.id}>{section.label} ({section.type.replace(/_/g, ' ')})</option>)}
-          </DropdownSelect>
-          {cue.sectionId && !selectedSection && <small>Stored section is not available in the current track analysis.</small>}
-        </label>
-        <label>
-          <span>Review state</span>
-          <DropdownSelect className="lmv-select" value={cue.reviewStatus ?? ''} onChange={event => onUpdateCue(cue.id, { reviewStatus: event.target.value ? event.target.value as LyricReviewStatus : undefined })}>
-            <option value="">Unspecified</option>
-            {REVIEW_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-          </DropdownSelect>
-        </label>
+        </div>
+        <NumberInputRow
+          id={`${fieldId}-start`}
+          label="Start time (ms)"
+          min={0}
+          step={1}
+          value={draftNumber(start)}
+          onChange={value => setStart(String(value))}
+          onEmpty={() => setStart('')}
+          onBlur={applyTiming}
+          onKeyDown={event => event.key === 'Enter' && applyTiming()}
+        />
+        <NumberInputRow
+          id={`${fieldId}-end`}
+          label="End time (ms)"
+          min={1}
+          step={1}
+          value={draftNumber(end)}
+          onChange={value => setEnd(String(value))}
+          onEmpty={() => setEnd('')}
+          onBlur={applyTiming}
+          onKeyDown={event => event.key === 'Enter' && applyTiming()}
+        />
+        <SelectRow
+          id={`${fieldId}-section`}
+          label="Section"
+          value={cue.sectionId ?? ''}
+          onChange={value => {
+            const section = sections.find(item => item.id === value)
+            onUpdateCue(cue.id, { sectionId: section?.id, sectionType: section?.type })
+          }}
+          options={[
+            { value: '', label: 'No section' },
+            ...sections.map(section => ({ value: section.id, label: `${section.label} (${section.type.replace(/_/g, ' ')})` })),
+          ]}
+          description={cue.sectionId && !selectedSection ? 'Stored section is not available in the current track analysis.' : undefined}
+        />
+        <SelectRow
+          id={`${fieldId}-review`}
+          label="Review state"
+          value={cue.reviewStatus ?? ''}
+          onChange={value => onUpdateCue(cue.id, { reviewStatus: value ? value as LyricReviewStatus : undefined })}
+          options={[
+            { value: '', label: 'Unspecified' },
+            ...REVIEW_STATUSES.map(status => ({ value: status, label: status })),
+          ]}
+        />
         <LyricAnchorField label="Position" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
         <LyricFontSizeField label="Text size" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
-        <label>
-          <span>Duration (ms)</span>
-          <input
-            className="lmv-num"
-            type="number"
-            min={1}
-            step={1}
-            value={duration}
-            onChange={event => setDuration(event.target.value)}
-            onBlur={applyDuration}
-            onKeyDown={event => event.key === 'Enter' && applyDuration()}
-          />
-        </label>
-        <label>
-          <span>Confidence (0–1)</span>
-          <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={confidence} onChange={event => setConfidence(event.target.value)} onBlur={applyConfidence} onKeyDown={event => event.key === 'Enter' && applyConfidence()} />
-        </label>
+        <NumberInputRow
+          id={`${fieldId}-duration`}
+          label="Duration (ms)"
+          min={1}
+          step={1}
+          value={draftNumber(duration)}
+          onChange={value => setDuration(String(value))}
+          onEmpty={() => setDuration('')}
+          onBlur={applyDuration}
+          onKeyDown={event => event.key === 'Enter' && applyDuration()}
+        />
+        <NumberInputRow
+          id={`${fieldId}-confidence`}
+          label="Confidence (0–1)"
+          min={0}
+          max={1}
+          step={0.01}
+          value={draftNumber(confidence)}
+          onChange={value => setConfidence(String(value))}
+          onEmpty={() => setConfidence('')}
+          onBlur={applyConfidence}
+          onKeyDown={event => event.key === 'Enter' && applyConfidence()}
+        />
       </div>
 
       <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
@@ -402,13 +435,16 @@ export function LyricCueInspector({
         defaultOpen={false}
         label="Advanced"
       >
-        <label className="lyric-cue-inspector__source">
-          <span>Source</span>
-          <DropdownSelect className="lmv-select" value={cue.source ?? ''} onChange={event => onUpdateCue(cue.id, { source: event.target.value ? event.target.value as LyricSource : undefined })}>
-            <option value="">Unspecified</option>
-            {SOURCES.map(source => <option key={source} value={source}>{source.replace(/_/g, ' ')}</option>)}
-          </DropdownSelect>
-        </label>
+        <SelectRow
+          id={`${fieldId}-source`}
+          label="Source"
+          value={cue.source ?? ''}
+          onChange={value => onUpdateCue(cue.id, { source: value ? value as LyricSource : undefined })}
+          options={[
+            { value: '', label: 'Unspecified' },
+            ...SOURCES.map(source => ({ value: source, label: source.replace(/_/g, ' ') })),
+          ]}
+        />
 
         <fieldset className="lyric-cue-inspector__warnings">
           <legend>Warnings</legend>

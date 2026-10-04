@@ -15,11 +15,6 @@ export type LyricTrackFilter =
   | 'loaded'
   | 'needs-review'
 
-/** The three quick filters shown as chips; the rest live in the "More" dropdown. */
-const CHIP_FILTERS: LyricTrackFilter[] = ['all', 'has-versions', 'needs-review']
-const CHIP_LABELS: Record<string, string> = { all: 'All', 'has-versions': 'With Lyrics', 'needs-review': 'Needs Review' }
-const MORE_FILTERS: LyricTrackFilter[] = ['has-active', 'no-active', 'loaded']
-
 const TRACK_FILTER_LABELS: Record<LyricTrackFilter, string> = {
   all: 'All Tracks',
   'has-versions': 'Has Lyric Versions',
@@ -112,30 +107,16 @@ export function LyricTrackBrowser({
             aria-label="Search tracks by title or artist"
           />
         </div>
-      </div>
-
-      <div className="lmv-track-filter-chips" role="group" aria-label="Track filters">
-        {CHIP_FILTERS.map(id => (
-          <button
-            key={id}
-            type="button"
-            className={`lmv-filter-chip${filter === id ? ' is-active' : ''}`}
-            aria-pressed={filter === id}
-            onClick={() => setFilter(id)}
-          >
-            {CHIP_LABELS[id]}
-          </button>
-        ))}
         <UnderlineDropdown
-          id="lyric-track-filter-more"
-          value={MORE_FILTERS.includes(filter) ? filter : ''}
-          placeholder="More"
-          options={MORE_FILTERS.map(value => ({ value, label: TRACK_FILTER_LABELS[value] }))}
+          id="lyric-track-filter"
+          value={filter}
+          options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
           onChange={value => setFilter(value as LyricTrackFilter)}
-          ariaLabel={`More track filters${MORE_FILTERS.includes(filter) ? `: ${TRACK_FILTER_LABELS[filter]}` : ''}`}
-          menuLabel="More Track Filters"
+          ariaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+          menuLabel="Track Library Filters"
+          title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
           size="dense"
-          menuWidth={200}
+          menuWidth={220}
           showDescriptions={false}
           className="lmv-track-filter-dropdown"
         />

@@ -1,4 +1,4 @@
-import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
+import { useId } from 'react'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
 import {
@@ -10,7 +10,7 @@ import {
   type LyricAnimationPreset,
   type LyricEffectPreset,
 } from '../utils/lyricPresentation'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { NumberInputRow, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 interface Props {
   style: Partial<LyricStyle>
@@ -72,47 +72,38 @@ interface StyleFieldProps {
 
 /** Screen position preset (top / center / lower third / bottom, or a custom x/y). */
 export function LyricAnchorField({ style, onStyleChange, label = 'Screen anchor' }: StyleFieldProps) {
-  const anchorPreset = anchorPresetFor(style)
   return (
-    <label>
-      <span>{label}</span>
-      <DropdownSelect
-        className="lmv-select"
-        value={anchorPreset}
-        onChange={event => {
-          const patch = anchorPresetPatch(event.target.value as LyricAnchorPreset)
-          if (patch) onStyleChange(patch)
-        }}
-      >
-        <option value="custom">Custom position</option>
-        <option value="top">Top center</option>
-        <option value="center">Center</option>
-        <option value="lower-third">Lower third</option>
-        <option value="bottom">Bottom center</option>
-      </DropdownSelect>
-    </label>
+    <SelectRow
+      label={label}
+      value={anchorPresetFor(style)}
+      onChange={value => {
+        const patch = anchorPresetPatch(value as LyricAnchorPreset)
+        if (patch) onStyleChange(patch)
+      }}
+      options={[
+        { value: 'custom', label: 'Custom position' },
+        { value: 'top', label: 'Top center' },
+        { value: 'center', label: 'Center' },
+        { value: 'lower-third', label: 'Lower third' },
+        { value: 'bottom', label: 'Bottom center' },
+      ]}
+    />
   )
 }
 
 /** Font size in the 8–300 range; empty means "inherit" when overriding. */
 export function LyricFontSizeField({ style, allowInherit = false, onStyleChange, label = 'Font size' }: StyleFieldProps) {
   return (
-    <label>
-      <span>{label}</span>
-      <input
-        className="lmv-num"
-        type="number"
-        min={8}
-        max={300}
-        step={1}
-        value={style.fontSize ?? ''}
-        placeholder={allowInherit ? 'Inherit' : '72'}
-        onChange={event => {
-          const value = optionalNumber(event.target.value)
-          onStyleChange({ fontSize: value === undefined ? undefined : clampPresentationNumber(value, 8, 300) })
-        }}
-      />
-    </label>
+    <NumberInputRow
+      label={label}
+      min={8}
+      max={300}
+      step={1}
+      value={style.fontSize ?? ''}
+      placeholder={allowInherit ? 'Inherit' : '72'}
+      onChange={value => onStyleChange({ fontSize: clampPresentationNumber(value, 8, 300) })}
+      onEmpty={() => onStyleChange({ fontSize: undefined })}
+    />
   )
 }
 
@@ -129,6 +120,7 @@ export function LyricPresentationControls({
   onClearEffects,
   omit,
 }: Props) {
+  const fieldId = useId()
   const animationPreset = animationPresetFor(animation, allowInherit)
   const effectPreset = effectPresetFor(effects, allowInherit)
 
@@ -142,8 +134,10 @@ export function LyricPresentationControls({
           )}
         </div>
         <div className="lmv-presentation-grid">
-          <label>
-            <span>Text color</span>
+          <div className="rv-ctrl-row">
+            <span className="rv-ctrl-label-cluster">
+              <label className="rv-ctrl-label" htmlFor={`${fieldId}-color`}>Text color</label>
+            </span>
             <span className="lmv-color-control">
               <input
                 type="color"
@@ -152,63 +146,69 @@ export function LyricPresentationControls({
                 aria-label="Lyric text color"
               />
               <DreamVizTextInput
-                className="lmv-input"
+                id={`${fieldId}-color`}
+                className="rv-ctrl-text-input"
                 value={style.color ?? ''}
                 placeholder={allowInherit ? 'Inherit' : '#ffffff'}
                 onChange={event => onStyleChange({ color: event.target.value || undefined })}
               />
             </span>
-          </label>
+          </div>
           {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
-          <label>
-            <span>Weight</span>
-            <DropdownSelect className="lmv-select" value={style.fontWeight ?? ''} onChange={event => onStyleChange({ fontWeight: event.target.value ? Number(event.target.value) : undefined })}>
-              {allowInherit && <option value="">Inherit</option>}
-              <option value="400">Regular</option>
-              <option value="500">Medium</option>
-              <option value="600">Semibold</option>
-              <option value="700">Bold</option>
-              <option value="800">Extra bold</option>
-              <option value="900">Black</option>
-            </DropdownSelect>
-          </label>
-          <label>
-            <span>Alignment</span>
-            <DropdownSelect className="lmv-select" value={style.align ?? ''} onChange={event => onStyleChange({ align: event.target.value ? event.target.value as LyricStyle['align'] : undefined })}>
-              {allowInherit && <option value="">Inherit</option>}
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </DropdownSelect>
-          </label>
+          <SelectRow
+            label="Weight"
+            value={style.fontWeight === undefined ? (allowInherit ? '' : '400') : String(style.fontWeight)}
+            onChange={value => onStyleChange({ fontWeight: value ? Number(value) : undefined })}
+            options={[
+              ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
+              { value: '400', label: 'Regular' },
+              { value: '500', label: 'Medium' },
+              { value: '600', label: 'Semibold' },
+              { value: '700', label: 'Bold' },
+              { value: '800', label: 'Extra bold' },
+              { value: '900', label: 'Black' },
+            ]}
+          />
+          <SelectRow
+            label="Alignment"
+            value={style.align ?? (allowInherit ? '' : 'left')}
+            onChange={value => onStyleChange({ align: value ? value as LyricStyle['align'] : undefined })}
+            options={[
+              ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
+              { value: 'left', label: 'Left' },
+              { value: 'center', label: 'Center' },
+              { value: 'right', label: 'Right' },
+            ]}
+          />
           {!omit?.includes('anchor') && <LyricAnchorField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
-          <label>
-            <span>Opacity</span>
-            <BubbleRevealSlider
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={style.opacity ?? 1}
-              onChange={event => onStyleChange({ opacity: clampPresentationNumber(Number(event.target.value), 0, 1) })}
-              aria-label="Lyric opacity"
-            />
-            <output>{Math.round((style.opacity ?? 1) * 100)}%</output>
-          </label>
-          <label>
-            <span>X position</span>
-            <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={style.x ?? ''} placeholder={allowInherit ? 'Inherit' : '0.5'} onChange={event => {
-              const value = optionalNumber(event.target.value)
-              onStyleChange({ x: value === undefined ? undefined : clampPresentationNumber(value, 0, 1) })
-            }} />
-          </label>
-          <label>
-            <span>Y position</span>
-            <input className="lmv-num" type="number" min={0} max={1} step={0.01} value={style.y ?? ''} placeholder={allowInherit ? 'Inherit' : '0.78'} onChange={event => {
-              const value = optionalNumber(event.target.value)
-              onStyleChange({ y: value === undefined ? undefined : clampPresentationNumber(value, 0, 1) })
-            }} />
-          </label>
+          <SliderRow
+            label="Opacity"
+            min={0}
+            max={1}
+            step={0.05}
+            value={style.opacity ?? 1}
+            onChange={value => onStyleChange({ opacity: clampPresentationNumber(value, 0, 1) })}
+          />
+          <NumberInputRow
+            label="X position"
+            min={0}
+            max={1}
+            step={0.01}
+            value={style.x ?? ''}
+            placeholder={allowInherit ? 'Inherit' : '0.5'}
+            onChange={value => onStyleChange({ x: clampPresentationNumber(value, 0, 1) })}
+            onEmpty={() => onStyleChange({ x: undefined })}
+          />
+          <NumberInputRow
+            label="Y position"
+            min={0}
+            max={1}
+            step={0.01}
+            value={style.y ?? ''}
+            placeholder={allowInherit ? 'Inherit' : '0.78'}
+            onChange={value => onStyleChange({ y: clampPresentationNumber(value, 0, 1) })}
+            onEmpty={() => onStyleChange({ y: undefined })}
+          />
         </div>
       </div>
 
@@ -219,27 +219,25 @@ export function LyricPresentationControls({
             <button type="button" className="lmv-inline-action" onClick={onClearAnimation}>Use document default</button>
           )}
         </div>
-        <label>
-          <span>Animation preset</span>
-          <DropdownSelect
-            className="lmv-select"
-            value={animationPreset}
-            onChange={event => {
-              const preset = event.target.value as LyricAnimationPreset
-              const patch = animationPresetPatch(preset)
-              if (patch) onAnimationChange(patch)
-              else onClearAnimation?.()
-            }}
-          >
-            {allowInherit && <option value="inherit">Inherit</option>}
-            <option value="none">None</option>
-            <option value="fade">Fade</option>
-            <option value="fade-up">Fade up</option>
-            <option value="pop">Scale pop</option>
-            <option value="typewriter">Typewriter</option>
-            <option value="glitch">Glitch</option>
-          </DropdownSelect>
-        </label>
+        <SelectRow
+          label="Animation preset"
+          value={animationPreset}
+          onChange={value => {
+            const preset = value as LyricAnimationPreset
+            const patch = animationPresetPatch(preset)
+            if (patch) onAnimationChange(patch)
+            else onClearAnimation?.()
+          }}
+          options={[
+            ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
+            { value: 'none', label: 'None' },
+            { value: 'fade', label: 'Fade' },
+            { value: 'fade-up', label: 'Fade up' },
+            { value: 'pop', label: 'Scale pop' },
+            { value: 'typewriter', label: 'Typewriter' },
+            { value: 'glitch', label: 'Glitch' },
+          ]}
+        />
       </div>
 
       <div className="lmv-presentation-section">
@@ -249,26 +247,24 @@ export function LyricPresentationControls({
             <button type="button" className="lmv-inline-action" onClick={onClearEffects}>Use document default</button>
           )}
         </div>
-        <label>
-          <span>Effect preset</span>
-          <DropdownSelect
-            className="lmv-select"
-            value={effectPreset}
-            onChange={event => {
-              const preset = event.target.value as LyricEffectPreset
-              const patch = effectPresetPatch(preset)
-              if (patch) onEffectsChange(patch)
-              else onClearEffects?.()
-            }}
-          >
-            {allowInherit && <option value="inherit">Inherit</option>}
-            <option value="none">None</option>
-            <option value="soft-glow">Soft glow</option>
-            <option value="beat-punch">Beat punch</option>
-            <option value="glitch">Glitch</option>
-            <option value="bass-reactive">Bass reactive</option>
-          </DropdownSelect>
-        </label>
+        <SelectRow
+          label="Effect preset"
+          value={effectPreset}
+          onChange={value => {
+            const preset = value as LyricEffectPreset
+            const patch = effectPresetPatch(preset)
+            if (patch) onEffectsChange(patch)
+            else onClearEffects?.()
+          }}
+          options={[
+            ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
+            { value: 'none', label: 'None' },
+            { value: 'soft-glow', label: 'Soft glow' },
+            { value: 'beat-punch', label: 'Beat punch' },
+            { value: 'glitch', label: 'Glitch' },
+            { value: 'bass-reactive', label: 'Bass reactive' },
+          ]}
+        />
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useId, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphToggle } from './controls/IconMorphToggle'
@@ -86,10 +86,13 @@ export interface NumberInputRowProps {
   id?: string
   placeholder?: string
   onEmpty?: () => void
+  /** For callers that commit a draft value on blur / Enter instead of on every keystroke. */
+  onBlur?: () => void
+  onKeyDown?: KeyboardEventHandler<HTMLInputElement>
 }
 
 export function NumberInputRow({
-  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty,
+  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty, onBlur, onKeyDown,
 }: NumberInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -109,6 +112,8 @@ export function NumberInputRow({
           step={step}
           disabled={disabled}
           placeholder={placeholder}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
           onChange={event => {
             if (event.target.value === '') {
               onEmpty?.()

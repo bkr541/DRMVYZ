@@ -36,7 +36,7 @@ export function LyricInspector({ activeTab, onTabChange, cue, document, review, 
         onChange={onTabChange}
         ariaLabel="Lyric inspector"
         variant="underline"
-        className="lmv-inspector-tabs"
+        className="rv-main-workspace-tabs lmv-inspector-tabs"
       />
       {panes.map(([id, content]) => (
         <div

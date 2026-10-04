@@ -870,7 +870,6 @@
 .lyric-cue-inspector__heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lyric-cue-inspector__duration { color: #61d6aa; font-variant-numeric: tabular-nums; }
 .lyric-cue-inspector__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.lyric-cue-inspector__grid label,
 .lyric-cue-inspector__json-field { display: flex; flex-direction: column; gap: 4px; color: rgba(196,207,211,0.58); font-size: 9px; }
 .lyric-cue-inspector__wide { grid-column: 1 / -1; }
 .lyric-cue-inspector__actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 10px 0; }
@@ -1332,42 +1331,6 @@
 }
 
 .lmv-lyric-versions-body { padding: 4px 14px 0; }
-
-/* Quick filter chips (All / With Lyrics / Needs Review); less common filters sit in the trailing dropdown. */
-.lmv-track-filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.lmv-filter-chip {
-  height: 24px;
-  padding: 0 8px;
-  border: 1px solid rgba(126,218,232,0.18);
-  border-radius: 5px;
-  background: transparent;
-  color: rgba(196,207,211,0.7);
-  font-family: inherit;
-  font-size: 8.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  flex: 0 0 auto;
-  cursor: pointer;
-}
-
-.lmv-filter-chip:hover { color: #e8f4f8; background: rgba(255,255,255,0.05); }
-
-.lmv-filter-chip.is-active {
-  border-color: rgba(74,199,219,0.7);
-  background: rgba(74,199,219,0.18);
-  color: #67f7ff;
-}
-
-.lmv-track-filter-chips { flex-wrap: nowrap; }
-.lmv-track-filter-chips .lmv-track-filter-dropdown { flex: 1 1 56px; min-width: 56px; width: auto; max-width: 90px; margin-left: auto; }
 
 .lmv-track-search-wrap,
 .lmv-doc-search-wrap {
@@ -2061,8 +2024,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
-.lmv-presentation-controls label { display: grid; gap: 4px; color: rgba(196,207,211,0.58); font-size: 8px; }
-.lmv-presentation-controls output { color: rgba(237,249,251,0.7); font-size: 8px; }
 .lmv-color-control { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 5px; }
 .lmv-color-control input[type='color'] { width: 32px; height: 28px; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .lmv-inline-action {
@@ -2810,10 +2771,12 @@
   flex-direction: column;
 }
 
+/* Tab strip is the standard RailTabs underline variant with the shared
+   .rv-main-workspace-tabs sizing (as in Media Details / Sound Drawing's
+   Inspector); only the side inset is local, since this rail has no padding. */
 .lmv-inspector-tabs {
   flex: 0 0 auto;
   padding: 0 14px;
-  border-bottom: 1px solid rgba(126,218,232,0.12);
 }
 
 .lmv-inspector-pane {
@@ -2945,13 +2908,14 @@
   gap: 8px 10px;
 }
 
-.lmv-inspector-field {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  color: rgba(196,207,211,0.58);
-  font-size: 9px;
+/* Fields are the shared Sound Drawing control rows (rv-ctrl-row); let them shrink inside the two-column grid. */
+.lmv-inspector-pane .rv-ctrl-row { min-width: 0; }
+
+/* Multi-line cue text: the shared underline text-field treatment (.dv-text-input) on a textarea. */
+.lmv-cue-textarea {
+  min-height: 56px;
+  resize: vertical;
+  line-height: 1.35 !important;
 }
 
 .lmv-inspector-hint {
@@ -3250,8 +3214,7 @@
   line-height: 36px;
 }
 
-/* Inspector: a little air under the tab strip, and the compact Review & Validation card pinned beneath the panes. */
-.lmv-inspector-tabs { padding-top: 6px; }
+/* Inspector: the compact Review & Validation card pinned beneath the panes. */
 
 .lmv-review-summary {
   flex: 0 0 auto;

@@ -1,3 +1,5 @@
+// The shared control rows (rv-ctrl-*) and rail tab sizing live here; a lazy-loaded Lyric Manager must not depend on Sound Drawing having loaded it first.
+import '../../styles/reactView.css'
 import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -43,7 +45,7 @@ import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
+import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -2279,6 +2281,11 @@ export function LyricManagerView({
               <button type="button" className="lmv-drawer-close" aria-label="Close inspector" onClick={() => setOpenDrawer(null)}>×</button>
             </div>
           )}
+          <RailWindowHeader
+            side="right"
+            icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
+            label="Document Workspace"
+          />
           <LyricInspector
             activeTab={inspectorTab}
             onTabChange={setInspectorTab}

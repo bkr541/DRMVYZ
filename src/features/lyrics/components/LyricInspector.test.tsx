@@ -121,10 +121,11 @@ async function typeInto(input: HTMLInputElement | HTMLTextAreaElement, value: st
   })
 }
 
-const fieldByLabel = (scope: HTMLElement, label: string) =>
-  [...scope.querySelectorAll<HTMLLabelElement>('label')]
-    .find(item => item.querySelector('span')?.textContent === label)
-    ?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea') as HTMLInputElement
+// Fields are the shared Sound Drawing control rows: <div.rv-ctrl-row><span.rv-ctrl-label-cluster><label for>…</label></span><input id/></div>.
+const fieldByLabel = (scope: HTMLElement, label: string) => {
+  const caption = [...scope.querySelectorAll<HTMLLabelElement>('label.rv-ctrl-label')].find(item => item.textContent === label)
+  return (caption ? scope.ownerDocument.getElementById(caption.htmlFor) : null) as HTMLInputElement
+}
 
 describe('LyricInspector tabs', () => {
   it('renders Cue, Document and Review tabs with Cue active by default', () => {
@@ -139,11 +140,12 @@ describe('LyricInspector tabs', () => {
     const scope = pane('cue')
     expect(fieldByLabel(scope, 'Start time (ms)').value).toBe('1000')
     expect(fieldByLabel(scope, 'End time (ms)').value).toBe('4000')
-    // Label above input: each control is a column-direction label whose first child is the caption.
-    const startLabel = fieldByLabel(scope, 'Start time (ms)').closest('label')!
-    expect(startLabel.firstElementChild?.tagName).toBe('SPAN')
+    // Label above input: each control is the shared rv-ctrl-row whose first child is the caption cluster.
+    const startRow = fieldByLabel(scope, 'Start time (ms)').closest('.rv-ctrl-row')!
+    expect(startRow.firstElementChild?.classList.contains('rv-ctrl-label-cluster')).toBe(true)
+    expect(fieldByLabel(scope, 'Start time (ms)').classList.contains('dv-text-input')).toBe(true)
     expect(scope.querySelector('.lyric-cue-inspector__grid')).not.toBeNull()
-    const captions = [...scope.querySelectorAll('.lyric-cue-inspector__grid > label > span')].map(span => span.textContent)
+    const captions = [...scope.querySelectorAll('.lyric-cue-inspector__grid > .rv-ctrl-row > .rv-ctrl-label-cluster > label')].map(label => label.textContent)
     expect(captions).toEqual(['Text', 'Start time (ms)', 'End time (ms)', 'Section', 'Review state', 'Position', 'Text size', 'Duration (ms)', 'Confidence (0–1)'])
   })
 
