@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type KeyboardEventHandler, type ReactNode } from 'react'
 import type { BeatMarkerMI } from '../../musicIntelligence/types'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
@@ -27,7 +27,10 @@ interface Props {
   beatGridStatusMessage: string | null
   onAnalyzeTrack?: () => void
   analysisActionLabel?: string
+  /** Timeline controls rendered directly above the lanes (see LyricTimelineToolbar). */
+  toolbar?: ReactNode
   cueTimeline?: ReactNode
+  onKeyDown?: KeyboardEventHandler<HTMLElement>
 }
 
 /** Track Section row: read-only, presentational — reuses Track Map's own
@@ -123,7 +126,9 @@ export function LyricTrackTimelineWindow({
   beatGridStatusMessage,
   onAnalyzeTrack,
   analysisActionLabel = 'Analyze Track',
+  toolbar,
   cueTimeline,
+  onKeyDown,
 }: Props) {
   const durationSec = Math.max(1, durationMs / 1000)
   const currentSec = Math.max(0, (getCurrentTimeMs?.() ?? currentTimeMs ?? 0) / 1000)
@@ -138,7 +143,7 @@ export function LyricTrackTimelineWindow({
       : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
 
   return (
-    <section className="lmv-track-timeline-window" aria-label="Track Timeline">
+    <section className="lmv-track-timeline-window" aria-label="Track Timeline" onKeyDown={onKeyDown}>
       <DualRailCollapsible
         label="Track Timeline"
         headerClassName="lmv-live-preview-header"
@@ -151,6 +156,7 @@ export function LyricTrackTimelineWindow({
           </span>
         )}
       >
+        {toolbar}
         <div className="lmv-track-timeline-lanes lmv-track-timeline-lanes--stacked">
           <div className="lmv-track-timeline-lane lmv-track-timeline-lane--timing">
             <TimingRow viewport={viewport} />

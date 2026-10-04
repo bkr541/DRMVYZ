@@ -1,4 +1,3 @@
-import { BubbleRevealSlider } from '../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -49,10 +48,10 @@ import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
 import { useMountTransition } from '../../hooks/useMountTransition'
-import { formatDuration, formatMsClock } from './utils/lyricManagerFormat'
 import { useLyricCueEditor } from './editor/useLyricCueEditor'
 import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
-import { LyricCuesWindow, LyricCueStackedTimeline } from './components/LyricCuesWindow'
+import { handleLyricUndoRedoKey, LyricCuesWindow, LyricCueStackedTimeline } from './components/LyricCuesWindow'
+import { LyricTimelineToolbar } from './components/LyricTimelineToolbar'
 import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspector } from './editor/LyricCueInspector'
@@ -185,72 +184,6 @@ function canonicalDocumentVersion(
     language: metadataValue('language'),
     documentReviewStatus: metadataValue('reviewStatus') ?? metadataValue('review_status'),
   }
-}
-
-function LyricTransportBar({
-  selectedTrack,
-  selectedTrackLoaded,
-  selectedTrackPlaying,
-  currentTimeMs,
-  durationMs,
-  volume,
-  bpm,
-  musicalKey,
-  snapMode,
-  onToggleSnap,
-  onTogglePlayback,
-  onVolumeChange,
-}: {
-  selectedTrack: LyricManagerTrack | null
-  selectedTrackLoaded: boolean
-  selectedTrackPlaying: boolean
-  currentTimeMs: number | null
-  durationMs: number
-  volume: number
-  bpm: number | null
-  musicalKey: string | null
-  snapMode: LyricSnapMode
-  onToggleSnap: () => void
-  onTogglePlayback: () => void
-  onVolumeChange: (volume: number) => void
-}) {
-  const safeDuration = Math.max(0, durationMs)
-  const safeCurrent = Math.min(safeDuration, Math.max(0, currentTimeMs ?? 0))
-
-  return (
-    <footer className="lmv-transport-bar" aria-label="Lyric preview transport">
-      <div className="lmv-transport-left">
-        <button className="lmv-transport-chip" type="button" onClick={onToggleSnap} aria-pressed={snapMode !== 'none'} title="Toggle the cue editor's canonical snap mode">⌕ Snap: {snapMode === 'none' ? 'Off' : snapMode}</button>
-      </div>
-
-      <div className="lmv-transport-center">
-        <button className="lmv-transport-icon" type="button" disabled={!selectedTrackLoaded} onClick={onTogglePlayback} aria-label={selectedTrackPlaying ? 'Pause lyric preview' : 'Play lyric preview'}>
-          {selectedTrackPlaying ? 'Ⅱ' : '▶'}
-        </button>
-        <div className="lmv-transport-time">
-          <strong>{formatMsClock(safeCurrent)}</strong>
-          <span>/ {selectedTrack ? formatDuration((safeDuration || (selectedTrack.durationSec ?? 0) * 1000) / 1000) : '0:00'}</span>
-        </div>
-      </div>
-
-      <div className="lmv-transport-right">
-        <label className="lmv-volume-control">
-          <span>♬</span>
-          <BubbleRevealSlider
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={Number.isFinite(volume) ? volume : 0.8}
-            onChange={event => onVolumeChange(Number(event.target.value))}
-            aria-label="Preview volume"
-          />
-        </label>
-        <div className="lmv-mini-select"><span>BPM</span><strong>{bpm ? Math.round(bpm) : '—'}</strong></div>
-        <div className="lmv-mini-select"><span>Key</span><strong>{musicalKey || '—'}</strong></div>
-      </div>
-    </footer>
-  )
 }
 
 export function LyricManagerView({
@@ -2226,6 +2159,19 @@ export function LyricManagerView({
                 beatGridStatusMessage={beatGridStatusMessage}
                 onAnalyzeTrack={handleAnalyzeSelectedTrack}
                 analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
+                onKeyDown={event => handleLyricUndoRedoKey(event, cueEditor)}
+                toolbar={
+                  <LyricTimelineToolbar
+                    editor={cueEditor}
+                    selectedTrackLoaded={selectedTrackLoaded}
+                    selectedTrackPlaying={selectedTrackPlaying}
+                    currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                    durationMs={editorDurationMs}
+                    volume={engine.volume}
+                    onTogglePlayback={handleTogglePlayback}
+                    onVolumeChange={engine.setVolume}
+                  />
+                }
                 cueTimeline={
                   <LyricCueStackedTimeline
                     editor={cueEditor}
@@ -2242,19 +2188,7 @@ export function LyricManagerView({
                 }
               />
 
-              <LyricCuesWindow
-                editor={cueEditor}
-                durationMs={editorDurationMs}
-                currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-                onSeek={(timeMs) => {
-                  if (!selectedTrackLoaded) {
-                    showStatus('Load the selected track to the deck before seeking.')
-                    return
-                  }
-                  engine.seek(timeMs / 1000)
-                }}
-                showTimeline={false}
-              />
+              <LyricCuesWindow editor={cueEditor} />
             </>
           )}
           </div>
@@ -2338,21 +2272,6 @@ export function LyricManagerView({
           />
         </WorkspaceRail>
       </div>
-
-      <LyricTransportBar
-        selectedTrack={selectedTrack}
-        selectedTrackLoaded={selectedTrackLoaded}
-        selectedTrackPlaying={selectedTrackPlaying}
-        currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-        durationMs={editorDurationMs}
-        volume={engine.volume}
-        bpm={selectedTrack?.bpm ?? null}
-        musicalKey={selectedTrack?.musicalKey ?? null}
-        snapMode={snapMode}
-        onToggleSnap={() => setSnapMode(current => current === 'none' ? (trustedBeatGridMs.length >= 2 ? 'beat' : 'millisecond') : 'none')}
-        onTogglePlayback={handleTogglePlayback}
-        onVolumeChange={engine.setVolume}
-      />
 
       <LyricRecoveryDialog
         recovery={recoveryCandidate}

@@ -722,14 +722,15 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('[aria-label="Previous unavailable"]')).toBeNull()
     expect(container.querySelector('[aria-label="Next unavailable"]')).toBeNull()
 
-    const snap = buttonWithText('⌕ Snap: Off')
-    expect(snap.disabled).toBe(false)
-    await act(async () => snap.click())
-    expect(buttonWithText('⌕ Snap: beat').getAttribute('aria-pressed')).toBe('true')
-    const snapDropdown = [...container.querySelectorAll<HTMLLabelElement>('label')]
-      .find(label => label.querySelector('span')?.textContent === 'Snap')
-      ?.querySelector<HTMLElement>('[role="combobox"]')
-    expect(snapDropdown?.textContent).toContain('Beat')
+    // One authoritative Snap control (in the timeline toolbar); the old footer chip is gone.
+    expect(container.querySelector('.lmv-transport-bar')).toBeNull()
+    const snapChips = [...container.querySelectorAll<HTMLButtonElement>('button')].filter(button => /Snap:/.test(button.textContent ?? ''))
+    expect(snapChips).toHaveLength(1)
+    expect(snapChips[0].disabled).toBe(false)
+    await act(async () => snapChips[0].click())
+    expect(snapChips[0].getAttribute('aria-pressed')).toBe('true')
+    const resolution = container.querySelector<HTMLElement>('[aria-label="Snap resolution"]')
+    expect(resolution?.textContent).toMatch(/Beat|10 ms grid/)
   })
 
   it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {

@@ -104,6 +104,8 @@ interface Props {
   onDeleteCue?: (cueId: string) => void;
 }
 
+/** Row pitch of the stacked lyric lanes (px); lyricManager.css draws the lane dividers at the same pitch. */
+const STACKED_LANE_HEIGHT = 36;
 const MAX_VISIBLE_CUE_LANES = 6;
 const CUE_LANE_HEIGHT = 24;
 const CUE_LANE_GAP = 4;
@@ -237,8 +239,11 @@ export function LyricCueTimeline({
       new Map(laneLayout.assignments.map((item) => [item.cueId, item.lane])),
     [laneLayout],
   );
+  // Stacked (Lyric Manager) mode always shows at least two labelled lyric lanes so overlapping or
+  // alternating cues have a second row; a third appears only while cues overlap three deep. Lane
+  // placement is derived from cue timing (assignCueOverlapLanes) and is never written back to a cue.
   const shownLaneCount = stackedLanes
-    ? Math.max(1, maxVisibleLanes)
+    ? Math.max(Math.min(2, maxVisibleLanes), Math.min(maxVisibleLanes, laneLayout.laneCount || 1))
     : Math.max(1, Math.min(maxVisibleLanes, laneLayout.laneCount || 1));
   const selectedCue = cues.find((cue) => cue.id === selectedCueId) ?? null;
   // Canonical cues carry no untimed words (they are repaired at every
@@ -260,7 +265,7 @@ export function LyricCueTimeline({
         : (showRuler || showWaveform)
           ? 108
           : 8;
-  const stackedLaneHeight = 30;
+  const stackedLaneHeight = STACKED_LANE_HEIGHT;
   const timelineHeight = compact
     ? undefined
     : stackedLanes
@@ -584,6 +589,17 @@ export function LyricCueTimeline({
       data-testid="lyric-cue-timeline"
       data-timeline-background="true"
     >
+      {stackedLanes && Array.from({ length: shownLaneCount }, (_, lane) => (
+        <span
+          key={`lane-label-${lane}`}
+          className="lyric-cue-timeline__lane-label"
+          style={{ top: lane * STACKED_LANE_HEIGHT }}
+          aria-hidden="true"
+        >
+          Lyrics {lane + 1}
+        </span>
+      ))}
+
       {!compact && showRuler && (
         <div
           className="lyric-cue-timeline__ruler"

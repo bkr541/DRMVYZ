@@ -1398,13 +1398,13 @@
 }
 
 .lmv-body {
-  --lmv-side-width: 400px;
+  --lmv-side-width: 340px;
   --lmv-left-width: var(--lmv-side-width);
   --lmv-right-width: var(--lmv-side-width);
   --lmv-collapsed-rail-width: 48px;
 
   display: grid;
-  grid-template-columns: var(--lmv-left-width) minmax(560px, 1fr) var(--lmv-right-width);
+  grid-template-columns: var(--lmv-left-width) minmax(0, 1fr) var(--lmv-right-width);
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -2037,31 +2037,8 @@
   font: inherit;
 }
 
-.lmv-transport-bar {
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: 400px minmax(360px, 1fr) 400px;
-  align-items: center;
-  gap: 18px;
-  min-height: 66px;
-  padding: 8px 22px;
-  border-top: 1px solid rgba(126,218,232,0.12);
-  background: rgba(7,14,17,0.95);
-  box-shadow: 0 -12px 38px rgba(0,0,0,0.24);
-}
-
-.lmv-transport-left,
-.lmv-transport-center,
-.lmv-transport-right,
-.lmv-volume-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .lmv-transport-chip,
-.lmv-transport-icon,
-.lmv-mini-select {
+.lmv-transport-icon {
   border: 1px solid rgba(126,218,232,0.1);
   background: rgba(255,255,255,0.035);
   color: rgba(196,207,211,0.72);
@@ -2069,35 +2046,29 @@
 }
 
 .lmv-transport-chip {
-  height: 34px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 10px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-}
-
-.lmv-transport-center {
-  justify-content: center;
-}
-
-.lmv-transport-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
   cursor: pointer;
 }
 
-.lmv-transport-icon:not(:disabled):nth-child(2) {
-  width: 58px;
-  height: 58px;
+.lmv-transport-icon {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 999px;
   border-color: rgba(74,199,219,0.7);
-  background: radial-gradient(circle, rgba(74,199,219,0.35), rgba(74,199,219,0.12));
+  background: radial-gradient(circle, rgba(74,199,219,0.3), rgba(74,199,219,0.1));
   color: rgba(237,249,251,0.95);
-  box-shadow: 0 0 28px rgba(74,199,219,0.32);
+  cursor: pointer;
 }
 
 .lmv-transport-icon:disabled {
+  border-color: rgba(126,218,232,0.1);
+  background: rgba(255,255,255,0.035);
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -2105,64 +2076,55 @@
 .lmv-transport-time {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-left: 8px;
+  gap: 6px;
 }
 
 .lmv-transport-time strong {
-  min-width: 96px;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border-radius: 5px;
   border: 1px solid rgba(126,218,232,0.14);
   background: rgba(255,255,255,0.035);
   color: rgba(237,249,251,0.94);
-  font-size: 20px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
 .lmv-transport-time span {
   color: rgba(196,207,211,0.45);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
-.lmv-transport-right {
-  justify-content: flex-end;
+/* Timeline controls: one wrapping row directly above the lanes. */
+.lmv-timeline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 0 2px;
 }
 
-.lmv-volume-control input {
-  width: 140px;
-  accent-color: #4ac7db;
+.lmv-timeline-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.lmv-mini-select {
-  min-width: 96px;
-  padding: 8px 10px;
-  border-radius: 5px;
-  display: grid;
-  gap: 2px;
+.lmv-timeline-toolbar__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(196,207,211,0.58);
+  font-size: 9px;
 }
 
-.lmv-mini-select span {
-  color: rgba(196,207,211,0.45);
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.lmv-mini-select strong {
-  color: rgba(237,249,251,0.9);
-  font-size: 12px;
-}
+.lmv-timeline-toolbar__field--zoom input { width: 110px; min-width: 70px; }
+.lmv-timeline-toolbar__field--volume input { width: 80px; min-width: 60px; }
 
 @media (max-width: 1420px) {
   .lmv-body {
-    --lmv-side-width: 360px;
-    grid-template-columns: var(--lmv-left-width) minmax(520px, 1fr) var(--lmv-right-width);
+    --lmv-side-width: 320px;
   }
-  .lmv-transport-bar { grid-template-columns: 1fr; gap: 10px; }
-  .lmv-transport-left,
-  .lmv-transport-right { justify-content: center; flex-wrap: wrap; }
 }
 
 @media (max-width: 980px) {
@@ -3623,11 +3585,11 @@
 }
 
 .lmv-live-preview-enlarged .lmv-preview-cue-box {
-  min-height: 180px;
+  min-height: 96px;
 }
 
 .lmv-live-preview-enlarged .lmv-preview-cue-text {
-  font-size: 1.4em;
+  font-size: 1.15em;
 }
 
 /* The track meta header used to sit directly in .lmv-center, above this
@@ -3650,8 +3612,8 @@
 .lmv-live-preview-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 20px 16px;
+  gap: 8px;
+  padding: 10px 14px 12px;
 }
 
 /* ── Track Timeline window (center column) ───────────────────────────── */
@@ -3659,7 +3621,7 @@
 .lmv-track-timeline-window,
 .lmv-lyric-cues-window {
   flex: 0 0 auto;
-  padding: 14px 12px 12px;
+  padding: 10px 12px 12px;
   border-bottom: 1px solid rgba(126,218,232,0.1);
 }
 
@@ -3741,10 +3703,6 @@
 
 /* ── Lyric Cues window (center column) ───────────────────────────────── */
 
-.lmv-lyric-cues-toolbar {
-  margin-top: 10px;
-}
-
 .lmv-lyric-cues-window .lyric-cue-timeline__scroll {
   margin-top: 10px;
   max-height: 220px;
@@ -3810,9 +3768,9 @@
 }
 
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--timing { height: 24px; flex: 0 0 24px; }
-.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--section { height: 44px; flex: 0 0 44px; }
-.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--beatgrid { height: 32px; flex: 0 0 32px; }
-.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 38px; flex: 0 0 38px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--section { height: 30px; flex: 0 0 30px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--beatgrid { height: 26px; flex: 0 0 26px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 120px; flex: 0 0 120px; }
 
 .lmv-track-timeline-cue-lanes {
   position: relative;
@@ -3827,21 +3785,21 @@
     repeating-linear-gradient(
       to bottom,
       rgba(5,11,17,0.6) 0,
-      rgba(5,11,17,0.6) 29px,
-      rgba(74,199,219,0.09) 29px,
-      rgba(74,199,219,0.09) 30px
+      rgba(5,11,17,0.6) 35px,
+      rgba(74,199,219,0.09) 35px,
+      rgba(74,199,219,0.09) 36px
     );
 }
 
 .lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block {
-  height: 22px;
-  min-height: 22px;
+  height: 28px;
+  min-height: 28px;
   padding: 0 8px;
   border: 1px solid rgba(74,199,219,0.35);
   border-radius: 5px;
   background: rgba(74,199,219,0.14);
   color: #bdeeff;
-  font-size: 9.5px;
+  font-size: 10.5px;
   box-shadow: none;
 }
 
@@ -3948,3 +3906,65 @@
 .lmv-inspector-pane .lyric-word-editor__row {
   grid-template-columns: 18px minmax(56px, 1fr) 58px 58px 34px 18px;
 }
+
+/* Lyric lanes: labelled rows in the stacked cue timeline. Labels sit under the cue blocks
+   (z-index) and ignore pointer events so double-click-to-add and drags are unaffected. */
+.lyric-cue-timeline__lane-label {
+  position: absolute;
+  left: 6px;
+  z-index: 1;
+  height: 12px;
+  margin-top: 3px;
+  color: rgba(196,207,211,0.34);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 12px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Cue list: four columns that fit the center column at any width — no horizontal scroll. */
+.lyric-cue-list .lyric-cue-list__table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.lyric-cue-list__table th:nth-child(1),
+.lyric-cue-list__table td:nth-child(1) { width: 34px; }
+.lyric-cue-list__table th:nth-child(2),
+.lyric-cue-list__table td:nth-child(2) { width: 132px; }
+.lyric-cue-list__table th:nth-child(4),
+.lyric-cue-list__table td:nth-child(4) { width: 112px; }
+
+.lyric-cue-list__table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lyric-cue-list__table .lyric-cue-list__time { font-variant-numeric: tabular-nums; }
+
+@container (max-width: 520px) {
+  .lyric-cue-list__table th:nth-child(2),
+  .lyric-cue-list__table td:nth-child(2) { width: 96px; }
+  .lyric-cue-list__table th:nth-child(4),
+  .lyric-cue-list__table td:nth-child(4) { width: 76px; }
+}
+
+.lmv-lyric-cues-window { container-type: inline-size; }
+
+.lmv-timeline-toolbar__group--end { margin-left: auto; gap: 12px; }
+.lmv-timeline-toolbar .lyric-cue-editor-overlays .lyric-cue-editor-overlays-trigger {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+/* Active row in the compact cue table: tint the number instead of prepending a glyph (the # column is narrow). */
+.lyric-cue-list__table .lyric-cue-list__row--active td:first-child::before { content: none; }
+.lyric-cue-list__table .lyric-cue-list__row--active td:first-child { color: #61d6aa; font-weight: 700; }
+
+.lmv-live-preview-enlarged .lmv-preview-cue-meta { margin: 2px 0 4px; gap: 4px; }
+.lmv-live-preview-enlarged .lmv-preview-viz-note { margin-top: 4px; }

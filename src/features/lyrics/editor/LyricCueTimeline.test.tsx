@@ -191,6 +191,74 @@ describe('LyricCueTimeline', () => {
     expect(tops).toEqual(['108px', '136px', '164px'])
   })
 
+  describe('stacked lyric lanes (Lyric Manager)', () => {
+    const stacked = {
+      stackedLanes: true,
+      maxVisibleLanes: 3,
+      showRuler: false,
+      showWaveform: false,
+      showOverlays: false,
+      showWordLane: false,
+    }
+    const laneLabels = () => [...container.querySelectorAll('.lyric-cue-timeline__lane-label')].map(node => node.textContent)
+    const top = (id: string) => container.querySelector<HTMLElement>(`[data-testid="lyric-cue-${id}"]`)!.style.top
+
+    it('always shows two labelled lyric lanes, even when no cues overlap', async () => {
+      const { timeline } = await renderTimeline({ ...stacked, cues: CUES })
+      expect(laneLabels()).toEqual(['Lyrics 1', 'Lyrics 2'])
+      expect(timeline.style.height).toBe('72px')
+      // Alternating, non-overlapping cues stay together in the first lane.
+      expect(top('cue-1')).toBe('4px')
+      expect(top('cue-2')).toBe('4px')
+    })
+
+    it('places an overlapping cue in the second lane without changing any cue timing', async () => {
+      const overlapping: LyricCue[] = [
+        { id: 'lead', startMs: 500, endMs: 2_500, text: 'Lead' },
+        { id: 'echo', startMs: 1_000, endMs: 3_000, text: 'Echo' },
+        { id: 'next', startMs: 2_600, endMs: 4_000, text: 'Next' },
+      ]
+      const before = JSON.stringify(overlapping)
+      const { props } = await renderTimeline({ ...stacked, cues: overlapping })
+
+      expect(top('lead')).toBe('4px')
+      expect(top('echo')).toBe('40px')
+      // `next` starts after `lead` ends, so it returns to lane 1.
+      expect(top('next')).toBe('4px')
+      expect(JSON.stringify(overlapping)).toBe(before)
+      expect(props.onCommitCue).not.toHaveBeenCalled()
+    })
+
+    it('grows a third lane only when cues overlap three deep', async () => {
+      const threeDeep: LyricCue[] = [
+        { id: 'a', startMs: 500, endMs: 3_000, text: 'A' },
+        { id: 'b', startMs: 1_000, endMs: 3_000, text: 'B' },
+        { id: 'c', startMs: 1_500, endMs: 3_000, text: 'C' },
+      ]
+      const { timeline } = await renderTimeline({ ...stacked, cues: threeDeep })
+      expect(laneLabels()).toEqual(['Lyrics 1', 'Lyrics 2', 'Lyrics 3'])
+      expect(timeline.style.height).toBe('108px')
+      expect(top('c')).toBe('76px')
+    })
+
+    it('drags a cue in the second lane by changing only its timing', async () => {
+      const overlapping: LyricCue[] = [
+        { id: 'lead', startMs: 500, endMs: 2_500, text: 'Lead' },
+        { id: 'echo', startMs: 1_000, endMs: 3_000, text: 'Echo' },
+      ]
+      const { props } = await renderTimeline({ ...stacked, cues: overlapping })
+      const echo = container.querySelector<HTMLElement>('[data-testid="lyric-cue-echo"]')!
+      await act(async () => { echo.dispatchEvent(pointer('pointerdown', 150)) })
+      await act(async () => { echo.dispatchEvent(pointer('pointermove', 200)) })
+      await act(async () => { echo.dispatchEvent(pointer('pointerup', 200, 0)) })
+
+      expect(props.onCommitCue).toHaveBeenCalledTimes(1)
+      const [id, patch] = vi.mocked(props.onCommitCue).mock.calls[0]
+      expect(id).toBe('echo')
+      expect(Object.keys(patch).sort()).toEqual(['endMs', 'startMs'])
+    })
+  })
+
   it('shows warning, confidence, inactive, and playback states without color alone', async () => {
     const stateCues: LyricCue[] = [
       { id: 'warning', startMs: 1_000, endMs: 2_000, text: 'Warning', confidence: 0.4 },
