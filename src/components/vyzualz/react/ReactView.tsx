@@ -859,7 +859,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           <RailWindowHeader
             side="left"
             icon={<DashboardSquare01Icon size={15} color="currentColor" aria-hidden="true" />}
-            label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} Workspace`}
+            label="React Workspace"
           />
           <div className="rv-left-workspace-shell" data-description-density="compact">
             <section
