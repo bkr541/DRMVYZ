@@ -695,6 +695,161 @@
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4), 0 0 22px color-mix(in srgb, var(--vz-media-tone) 30%, transparent);
 }
 
+/* ── Contact Sheet grid (Layout Lab → Media Thumbnail Styles → "02 · Contact Sheet") ─────────
+   Four across, square tiles. The picture leads; the name sits on a slim strip along the foot of
+   the tile. Everything else is a small overlay: type chip top-left, favourite / select top-right,
+   preview + remove on hover. The tile edge is computed in JS (computeVirtualMediaWindow) and fed
+   in as --vz-sheet-tile so the virtual-scroll row height matches the CSS row height exactly. */
+.vz-media-sheet {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: var(--vz-sheet-tile, auto);
+  gap: 6px;
+  padding: 0;
+  flex: 1;
+}
+
+.vz-media-card.vz-media-card--sheet {
+  --vz-media-tone: #9ab2bc;
+  display: block;
+  min-width: 0;
+  aspect-ratio: 1;
+  border: 1.5px solid color-mix(in srgb, var(--vz-media-tone) 30%, transparent);
+  border-radius: 7px;
+  background: #050a12;
+}
+.vz-media-card--sheet.vz-media-card--video { --vz-media-tone: #4ac7db; }
+.vz-media-card--sheet.vz-media-card--svg { --vz-media-tone: #d8b95a; }
+.vz-media-card.vz-media-card--sheet:hover {
+  transform: translateY(-1px);
+  border-color: var(--vz-media-tone);
+  box-shadow: none;
+}
+.vz-media-card.vz-media-card--sheet.vz-media-card--active {
+  border-color: var(--vz-media-tone) !important;
+  box-shadow: 0 0 0 1px var(--vz-media-tone), 0 0 14px color-mix(in srgb, var(--vz-media-tone) 40%, transparent);
+}
+.vz-media-card--sheet.vz-media-card--skeleton {
+  background: linear-gradient(90deg, #0a1420 25%, #0f1f30 50%, #0a1420 75%);
+  background-size: 200% 100%;
+  animation: vz-skeleton-shimmer 1.4s infinite;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.vz-media-sheet-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.vz-media-sheet-name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  padding: 14px 5px 4px;
+  background: linear-gradient(0deg, rgba(2, 5, 8, 0.92), rgba(2, 5, 8, 0));
+  color: rgba(240, 246, 248, 0.94);
+  font: 600 8.5px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Type / state chip, top-left. */
+.vz-media-card--sheet .vz-media-type-badge {
+  top: 3px;
+  left: 3px;
+  max-width: calc(100% - 26px);
+  padding: 2px 3px;
+  border-radius: 3px;
+  background: rgba(4, 8, 12, 0.74);
+  color: rgba(232, 244, 248, 0.86);
+  font-size: 6px;
+  letter-spacing: 0.08em;
+}
+.vz-media-card--sheet.vz-media-card--video .vz-media-type-badge { color: #67f7ff; }
+.vz-media-card--sheet.vz-media-card--svg .vz-media-type-badge { color: #d8b95a; }
+
+/* Favourite: top-right, shown on hover / focus or whenever it is set. */
+.vz-media-card--sheet .vz-media-star {
+  top: 3px;
+  right: 3px;
+  z-index: 2;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(4, 8, 12, 0.6);
+  opacity: 0;
+  transition: opacity 120ms ease, color 0.12s;
+}
+.vz-media-card--sheet.vz-media-card--multi .vz-media-star { right: 22px; }
+.vz-media-card--sheet:hover .vz-media-star,
+.vz-media-card--sheet .vz-media-star:focus-visible,
+.vz-media-card--sheet .vz-media-star--active { opacity: 1; }
+
+/* Bulk-select circle (Media Manager), top-right. */
+.vz-media-card--sheet .vz-media-select-toggle { top: 3px; right: 3px; width: 14px; height: 14px; border-width: 1px; }
+
+/* Preview + remove: small hover-only buttons in the foot corners, over the name strip. */
+.vz-media-card--sheet .vz-media-preview-btn,
+.vz-media-card--sheet .vz-media-remove {
+  z-index: 3;
+  bottom: 2px;
+  padding: 2px;
+  border-radius: 3px;
+  background: rgba(4, 8, 12, 0.7);
+  opacity: 0;
+  transition: opacity 120ms ease, color 0.12s, background 0.12s;
+}
+.vz-media-card--sheet .vz-media-preview-btn { left: 2px; }
+.vz-media-card--sheet .vz-media-remove { right: 2px; }
+.vz-media-card--sheet:hover .vz-media-preview-btn,
+.vz-media-card--sheet:hover .vz-media-remove,
+.vz-media-card--sheet .vz-media-preview-btn:focus-visible,
+.vz-media-card--sheet .vz-media-remove:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .vz-media-card--sheet .vz-media-star,
+  .vz-media-card--sheet .vz-media-preview-btn,
+  .vz-media-card--sheet .vz-media-remove { opacity: 1; }
+}
+
+/* State overlays scaled down to fit a tile. */
+.vz-media-card--sheet .vz-media-retry {
+  left: 3px;
+  right: 3px;
+  bottom: 18px;
+  justify-content: center;
+  padding: 2px 3px;
+  font-size: 7px;
+}
+.vz-media-card--sheet .vz-media-mutation-state {
+  position: absolute;
+  left: 3px;
+  bottom: 18px;
+  z-index: 2;
+  margin: 0;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(4, 8, 12, 0.78);
+  font-size: 6.5px;
+}
+.vz-media-card--sheet .vz-media-disabled-reason--overlay {
+  inset: auto 3px 18px 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding: 3px 4px;
+  font-size: 7px;
+}
+
 .vz-media-thumb {
   width: 100%;
   aspect-ratio: 16/9;
@@ -822,38 +977,6 @@
   color: rgba(196, 207, 211, 0.4);
   margin-top: 6px;
 }
-.vz-media-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-.vz-media-tag {
-  font-size: 7.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  color: var(--vz-media-tone);
-  text-transform: uppercase;
-  white-space: nowrap;
-  max-width: 72px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.vz-media-tag--more {
-  color: rgba(196, 207, 211, 0.4);
-}
-
-.vz-media-card-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
-}
-
 /* ── Collections view ────────────────────────────────────────────────── */
 .vz-coll-list {
   display: flex;
@@ -4434,7 +4557,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 
 /* ── Exo 2 data font — all in-panel detail / value text ─────────────────── */
 .vz-freq-label, .vz-beat-label, .vz-input-label, .vz-media-type-badge,
-.vz-media-name, .vz-media-meta, .vz-media-tag,
+.vz-media-name, .vz-media-meta,
 .vz-bpm-label, .vz-sync-label,
 .vz-band-bar-label, .vz-band-bar-val, .vz-waveform-label,
 .vz-slider-label, .vz-slider-val,
@@ -6469,28 +6592,6 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   animation: none;
   background: rgba(248,113,113,0.06);
   color: rgba(248,113,113,0.85);
-}
-
-.vz-media-virtual > .vz-media-grid {
-  grid-auto-rows: 146px;
-}
-
-.vz-media-virtual > .vz-media-grid > .vz-media-card {
-  height: 146px;
-  min-height: 0;
-}
-
-/* Compact mode (CANVAS): rows size to their actual content instead of the
-   fixed 146px row used elsewhere, since the shorter thumbnail + tightened
-   info block no longer needs that much height — a fixed row would just
-   leave the saved space behind as blank padding at the bottom of the card. */
-.vz-media-virtual--compact > .vz-media-grid {
-  grid-auto-rows: auto;
-}
-
-.vz-media-virtual--compact > .vz-media-grid > .vz-media-card {
-  height: auto;
-  min-height: 0;
 }
 
 .vz-media-virtual > .vz-media-list {

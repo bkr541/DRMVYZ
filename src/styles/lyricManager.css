@@ -2771,12 +2771,10 @@
   flex-direction: column;
 }
 
-/* Tab strip is the standard RailTabs underline variant with the shared
-   .rv-main-workspace-tabs sizing (as in Media Details / Sound Drawing's
-   Inspector); only the side inset is local, since this rail has no padding. */
+/* Same RailTabs underline strip as the left rail's Tracks / Import / AI Extract
+   tabs: it takes its sizing from .lmv-workspace-tabs, so nothing is set here. */
 .lmv-inspector-tabs {
   flex: 0 0 auto;
-  padding: 0 14px;
 }
 
 .lmv-inspector-pane {

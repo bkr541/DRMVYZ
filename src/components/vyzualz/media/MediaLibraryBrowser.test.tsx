@@ -554,12 +554,55 @@ describe('MediaLibraryBrowser capability boundaries', () => {
 })
 
 
+describe('MediaLibraryBrowser contact-sheet tiles', () => {
+  it('renders each grid item as a square tile with the name on a foot strip and the detail in the tooltip', async () => {
+    await renderBrowser({
+      activeMediaId: visual.id,
+      onSelect: vi.fn(),
+      context: 'visualizer',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+    })
+    expect(container?.querySelector('.vz-media-sheet')).not.toBeNull()
+    expect(container?.querySelector('.vz-media-grid')).toBeNull()
+    const tile = container?.querySelector<HTMLElement>('.vz-media-card.vz-media-card--sheet')
+    expect(tile).not.toBeNull()
+    expect(tile?.classList.contains('vz-media-card--active')).toBe(true)
+    expect(tile?.querySelector('.vz-media-sheet-name')?.textContent).toBe('Stage Image')
+    expect(tile?.querySelector('.vz-media-type-badge')).not.toBeNull()
+    expect(tile?.title).toBe('Stage Image · PNG · 1920×1080 · stage')
+  })
+
+  it('does not swap in the contact sheet for list view', async () => {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'visualizer',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+    })
+    act(() => findButtonByTitle('List view')?.click())
+    expect(container?.querySelector('.vz-media-sheet')).toBeNull()
+    expect(container?.querySelector('.vz-media-row')).not.toBeNull()
+  })
+})
+
 describe('MediaLibraryBrowser virtualization', () => {
   it('renders a bounded window relative to the viewport instead of the complete library', () => {
     const windowed = computeVirtualMediaWindow({ itemCount: 10_000, width: 1000, height: 600, scrollTop: 0, viewMode: 'grid', manager: true })
     expect(windowed.columns).toBeGreaterThan(1)
     expect(windowed.endIndex - windowed.startIndex).toBeLessThan(100)
     expect(windowed.bottomSpacer).toBeGreaterThan(0)
+  })
+
+  it('lays the grid out as four square contact-sheet tiles and sizes rows from the width', () => {
+    const windowed = computeVirtualMediaWindow({ itemCount: 100, width: 370, height: 600, scrollTop: 0, viewMode: 'grid', manager: false })
+    expect(windowed.columns).toBe(4)
+    // (370 - 3 gaps of 6px) / 4, floored; a row is one tile plus one gap.
+    expect(windowed.tileSize).toBe(88)
+    expect(windowed.rowHeight).toBe(94)
+    expect(windowed.startIndex % windowed.columns).toBe(0)
+    const list = computeVirtualMediaWindow({ itemCount: 100, width: 370, height: 600, scrollTop: 0, viewMode: 'list', manager: false })
+    expect(list.columns).toBe(1)
+    expect(list.tileSize).toBe(0)
   })
 
   it('keeps the rendered window bounded near the end of a large library', () => {

@@ -818,15 +818,6 @@
   outline-offset: 2px;
 }
 
-.vz-media-browser--manager .vz-media-virtual > .vz-media-grid {
-  grid-auto-rows: auto;
-}
-
-.vz-media-browser--manager .vz-media-virtual > .vz-media-grid > .vz-media-card {
-  height: auto;
-  min-height: 0;
-}
-
 /* ── Media editing ─────────────────────────────────────────────────────────── */
 
 /* The source <img>/<video> keeps decoding and playing while the edited canvas is

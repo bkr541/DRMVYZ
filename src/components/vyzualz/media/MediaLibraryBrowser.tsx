@@ -5,7 +5,7 @@ import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import type { ReactNode, RefObject } from 'react'
+import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Layers01Icon,
@@ -46,9 +46,15 @@ type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'pools' | 'images' 
 type ViewMode = 'grid' | 'list'
 
 
+/** Contact-sheet grid: four square tiles across, with this gap between tiles (px). Mirrors .vz-media-sheet in vyzualz.css. */
+export const MEDIA_SHEET_COLUMNS = 4
+export const MEDIA_SHEET_GAP = 6
+
 export interface VirtualMediaWindow {
   columns: number
   rowHeight: number
+  /** Edge length of one square tile in grid view (0 in list view). */
+  tileSize: number
   startIndex: number
   endIndex: number
   topSpacer: number
@@ -57,6 +63,7 @@ export interface VirtualMediaWindow {
 
 export function computeVirtualMediaWindow(input: {
   itemCount: number
+  /** Content width of the scroll area (padding excluded); grid tiles are sized from it. */
   width: number
   height: number
   scrollTop: number
@@ -66,8 +73,10 @@ export function computeVirtualMediaWindow(input: {
   overscanRows?: number
 }): VirtualMediaWindow {
   const height = Math.max(240, input.height || 600)
-  const columns = input.viewMode === 'list' ? 1 : 2
-  const rowHeight = input.viewMode === 'list' ? 58 : input.manager ? 145 : input.compact ? 100 : 150
+  const isList = input.viewMode === 'list'
+  const columns = isList ? 1 : MEDIA_SHEET_COLUMNS
+  const tileSize = isList ? 0 : Math.max(24, Math.floor((input.width - MEDIA_SHEET_GAP * (MEDIA_SHEET_COLUMNS - 1)) / MEDIA_SHEET_COLUMNS))
+  const rowHeight = isList ? 58 : tileSize + MEDIA_SHEET_GAP
   const totalRows = Math.ceil(input.itemCount / columns)
   const overscan = input.overscanRows ?? 3
   const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))
@@ -77,6 +86,7 @@ export function computeVirtualMediaWindow(input: {
   return {
     columns,
     rowHeight,
+    tileSize,
     startIndex: Math.min(input.itemCount, startRow * columns),
     endIndex: Math.min(input.itemCount, endRow * columns),
     topSpacer: startRow * rowHeight,
@@ -112,11 +122,15 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   useEffect(() => {
     const element = scrollRef.current
     if (!element) return
-    const update = () => setMetrics({
-      width: element.clientWidth || (manager ? 900 : 320),
-      height: element.clientHeight || 600,
-      scrollTop: element.scrollTop,
-    })
+    const update = () => {
+      const style = getComputedStyle(element)
+      const paddingX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
+      setMetrics({
+        width: Math.max(0, element.clientWidth - paddingX) || (manager ? 900 : 320),
+        height: element.clientHeight || 600,
+        scrollTop: element.scrollTop,
+      })
+    }
     update()
     element.addEventListener('scroll', update, { passive: true })
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
@@ -149,9 +163,13 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   return (
     <div className={`vz-media-virtual${compact ? ' vz-media-virtual--compact' : ''}`} data-rendered-cards={visibleItems.length}>
       {windowed.topSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.topSpacer }} aria-hidden="true" />}
-      <div className={viewMode === 'list' ? 'vz-media-list' : 'vz-media-grid'}>
-        {visibleItems.map(renderCard)}
-      </div>
+      {viewMode === 'list' ? (
+        <div className="vz-media-list">{visibleItems.map(renderCard)}</div>
+      ) : (
+        <div className="vz-media-sheet" style={{ '--vz-sheet-tile': `${windowed.tileSize}px` } as CSSProperties}>
+          {visibleItems.map(renderCard)}
+        </div>
+      )}
       {windowed.bottomSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.bottomSpacer }} aria-hidden="true" />}
       {loadingMore && <div className="vz-media-page-state" role="status">Loading more media…</div>}
       {!hasMore && items.length > 0 && <div className="vz-media-page-state">End of library</div>}
@@ -401,8 +419,8 @@ function MediaCard({
     : mutationState?.status === 'conflict'
       ? 'Conflict'
       : mutationState ? 'Retry available' : null
-  const displayName = (m.title ?? m.name).length > (isList ? 40 : 22)
-    ? (m.title ?? m.name).slice(0, isList ? 40 : 22) + '…'
+  const displayName = (m.title ?? m.name).length > 40
+    ? (m.title ?? m.name).slice(0, 40) + '…'
     : (m.title ?? m.name)
 
   const badge = m.uploading ? (
@@ -506,9 +524,15 @@ function MediaCard({
     )
   }
 
+  // Contact-sheet tile (Layout Lab → Media Thumbnail Styles → 02): a square picture with the
+  // name on a strip along its foot. Everything else the old card spelled out sits on the
+  // tile as a small overlay, or moves into the tooltip.
+  const kind = m.type === 'video' ? 'video' : isUnifiedSvgMediaItem(m) ? 'svg' : 'image'
+  const tooltip = disabledReason ?? [m.title ?? m.name, m.meta, m.tags.length ? m.tags.join(', ') : null].filter(Boolean).join(' · ')
+  const hasRetry = canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile))
   return (
     <div
-      className={`vz-media-card ${isActive ? 'vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}`}
+      className={`vz-media-card vz-media-card--sheet vz-media-card--${kind}${isActive ? ' vz-media-card--active' : ''}${disabled ? ' vz-media-card--disabled' : ''}${canMultiSelect ? ' vz-media-card--multi' : ''}`}
       onClick={event => {
         if (disabled || m.uploading) return
         if (canMultiSelect && event.shiftKey) { onShiftSelect(); return }
@@ -522,92 +546,73 @@ function MediaCard({
         onContextMenu({ x: event.clientX, y: event.clientY })
       } : undefined}
       style={m.uploading || disabled || !canSelect ? { opacity: m.uploading ? 0.6 : disabled ? 0.72 : 1, cursor: disabled ? 'not-allowed' : 'default' } : undefined}
-      title={disabledReason ?? undefined}
+      title={tooltip}
       draggable={canDrag && !m.uploading && !disabled}
       onDragStart={e => {
         e.dataTransfer.setData('vz/mediaId', m.id)
         e.dataTransfer.effectAllowed = 'copy'
       }}
     >
-      <div className="vz-media-thumb" style={{ background: '#050a12', overflow: 'hidden', position: 'relative' }}>
-        {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) ? (
-          <img
-            src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!}
-            alt={m.name}
-            onError={onThumbnailError}
-            onLoad={onThumbnailLoad}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-        ) : (
-          <div className={`vz-media-signing-placeholder${m.thumbnailSigningError ? ' vz-media-signing-placeholder--error' : ''}`}>
-            {m.thumbnailSigningError ? 'Preview unavailable' : m.thumbnailSigning ? 'Signing media…' : 'Preview pending'}
-          </div>
-        )}
-        {badge}
-        {canMultiSelect && (
-          <button
-            type="button"
-            className={`vz-media-select-toggle${isBulkSelected ? ' vz-media-select-toggle--active' : ''}`}
-            onPointerDown={e => e.stopPropagation()}
-            onClick={e => { e.stopPropagation(); onToggleBulkSelect() }}
-            aria-pressed={isBulkSelected}
-            aria-label={isBulkSelected ? 'Deselect media' : 'Select media'}
-          />
-        )}
-        {canRetry && (m.uploadError || (m.derivativeWarning && m.uploadSourceFile)) && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
-        {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
-        {canPreview && (
-          <button
-            className="vz-media-preview-btn"
-            onClick={e => { e.stopPropagation(); onPreview() }}
-            title="Preview media"
-          >
-            <PropertyViewIcon size={13} color="currentColor" />
-          </button>
-        )}
-      </div>
-      <div className="vz-media-info">
-        <div className="vz-media-name-row">
-          <div className="vz-media-name">{displayName}</div>
+      {(m.localThumbnailObjectUrl ?? m.thumbnailUrl) ? (
+        <img
+          className="vz-media-sheet-picture"
+          src={m.localThumbnailObjectUrl ?? m.thumbnailUrl!}
+          alt={m.name}
+          onError={onThumbnailError}
+          onLoad={onThumbnailLoad}
+        />
+      ) : (
+        <div className={`vz-media-signing-placeholder${m.thumbnailSigningError ? ' vz-media-signing-placeholder--error' : ''}`}>
+          {m.thumbnailSigningError ? 'Preview unavailable' : m.thumbnailSigning ? 'Signing…' : 'Preview pending'}
         </div>
-        <div className="vz-media-meta">{m.meta}</div>
-        {mutationLabel && <div className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</div>}
-        {disabledReason && <div className="vz-media-disabled-reason">{disabledReason}</div>}
-        {m.tags.length > 0 && (
-          <div className="vz-media-tags">
-            {m.tags.slice(0, 3).map(t => (
-              <span key={t} className="vz-media-tag">{t}</span>
-            ))}
-            {m.tags.length > 3 && <span className="vz-media-tag vz-media-tag--more">+{m.tags.length - 3}</span>}
-          </div>
-        )}
-        {(canFavorite || (canRemove && onRemove)) && (
-          <div className="vz-media-card-actions">
-            {canFavorite && (
-              <button
-                className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
-                onClick={e => { e.stopPropagation(); onToggleFavorite() }}
-                disabled={favoritePending}
-                aria-busy={favoritePending}
-                title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
-                style={{ position: 'static' }}
-              >
-                <FavouriteIcon size={15} color="currentColor" />
-              </button>
-            )}
-            {canRemove && onRemove && (
-              <button
-                className="vz-media-remove"
-                onClick={e => { e.stopPropagation(); onRemove() }}
-                title="Remove"
-                style={{ position: 'static' }}
-              >
-                <Delete02Icon size={13} color="currentColor" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+      )}
+      {badge}
+      {canMultiSelect && (
+        <button
+          type="button"
+          className={`vz-media-select-toggle${isBulkSelected ? ' vz-media-select-toggle--active' : ''}`}
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => { e.stopPropagation(); onToggleBulkSelect() }}
+          aria-pressed={isBulkSelected}
+          aria-label={isBulkSelected ? 'Deselect media' : 'Select media'}
+        />
+      )}
+      {canFavorite && (
+        <button
+          className={`vz-media-star ${m.favorite ? 'vz-media-star--active' : ''}`}
+          onClick={e => { e.stopPropagation(); onToggleFavorite() }}
+          disabled={favoritePending}
+          aria-busy={favoritePending}
+          title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
+          aria-label={m.favorite ? 'Unfavourite' : 'Favourite'}
+        >
+          <FavouriteIcon size={12} color="currentColor" />
+        </button>
+      )}
+      {hasRetry && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
+      {mutationLabel && <span className={`vz-media-mutation-state vz-media-mutation-state--${mutationState!.status}`}>{mutationLabel}</span>}
+      {disabledReason && <div className="vz-media-disabled-reason vz-media-disabled-reason--overlay">{disabledReason}</div>}
+      {canPreview && (
+        <button
+          className="vz-media-preview-btn"
+          onClick={e => { e.stopPropagation(); onPreview() }}
+          title="Preview media"
+          aria-label="Preview media"
+        >
+          <PropertyViewIcon size={11} color="currentColor" />
+        </button>
+      )}
+      {canRemove && onRemove && (
+        <button
+          className="vz-media-remove"
+          onClick={e => { e.stopPropagation(); onRemove() }}
+          title="Remove"
+          aria-label="Remove"
+        >
+          <Delete02Icon size={11} color="currentColor" />
+        </button>
+      )}
+      <span className="vz-media-sheet-name">{m.title ?? m.name}</span>
     </div>
   )
 }
@@ -1508,12 +1513,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             </NoticeCard>
           </div>
         ) : loading && filtered.length === 0 ? (
-          <div className="vz-media-grid" style={{ padding: '8px 4px' }}>
-            {[0, 1, 2].map(i => (
-              <div key={i} className="vz-media-card" style={{ opacity: 0.4, pointerEvents: 'none' }}>
-                <div className="vz-media-thumb" style={{ background: 'linear-gradient(90deg,#0a1420 25%,#0f1f30 50%,#0a1420 75%)', backgroundSize: '200% 100%', animation: 'vz-skeleton-shimmer 1.4s infinite' }}/>
-                <div className="vz-media-info"><div className="vz-media-name" style={{ background: '#0a1420', borderRadius: 2, height: 8, width: '70%' }}/></div>
-              </div>
+          <div className="vz-media-sheet" style={{ '--vz-sheet-tile': 'auto' } as CSSProperties}>
+            {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
+              <div key={i} className="vz-media-card vz-media-card--sheet vz-media-card--skeleton" aria-hidden="true" />
             ))}
           </div>
         ) : filtered.length === 0 && !searchActive && canUpload ? (
