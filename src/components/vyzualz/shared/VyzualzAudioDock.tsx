@@ -996,14 +996,14 @@ export function VyzualzAudioDock({
               onClick={() => setAudioSourcePopoverOpen(value => !value)}
               aria-haspopup="dialog"
               aria-expanded={audioSourcePopoverOpen}
+              aria-label="Audio source & Rekordbox"
               title="Audio source & Rekordbox"
             >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M4 7h10M4 17h6M18 17h2M14 7h6" />
                 <circle cx="16" cy="7" r="2" />
                 <circle cx="12" cy="17" r="2" />
               </svg>
-              <span>Source</span>
             </button>
             <InfoPopover
               open={audioSourcePopoverOpen}
@@ -1059,13 +1059,12 @@ export function VyzualzAudioDock({
             title={engine.source === 'file' && track ? 'Tap tempo' : 'Tap tempo (requires a file track)'}
             aria-label="Tap tempo"
           >
-            <svg className="vz-dock-action-icon" viewBox="0 0 32 32" width="13" height="13" fill="currentColor" aria-hidden="true">
+            <svg className="vz-dock-action-icon" viewBox="0 0 32 32" width="16" height="16" fill="currentColor" aria-hidden="true">
               <path d="M16,21c0.3,0,0.6-0.1,0.8-0.4l13-17c0.3-0.4,0.3-1.1-0.2-1.4c-0.4-0.3-1.1-0.3-1.4,0.2l-5.7,7.5l-1-4.8 c-0.4-1.8-2-3.1-3.8-3.1h-3.4c-1.8,0-3.4,1.2-3.8,3L5.8,25.5c-0.3,1.1,0,2.2,0.7,3.1C7.2,29.5,8.2,30,9.3,30h13.3 c1.1,0,2.2-0.5,2.9-1.4c0.7-0.9,0.9-2,0.7-3.1l-2.5-9.7c-0.1-0.5-0.7-0.9-1.2-0.7c-0.5,0.1-0.9,0.7-0.7,1.2l1.5,5.8H8.6l3.8-16.5 c0.2-0.9,1-1.5,1.8-1.5h3.4c0.9,0,1.7,0.6,1.8,1.5l1.4,6.5l-5.6,7.4c-0.3,0.4-0.3,1.1,0.2,1.4C15.6,20.9,15.8,21,16,21z"/>
               <path d="M15,8h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,8,15,8z"/>
               <path d="M15,11h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,11,15,11z"/>
               <path d="M15,14h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,14,15,14z"/>
             </svg>
-            <span className="vz-dock-tap-label">TAP</span>
           </button>
           <button
             className="vz-dock-cue-btn"
@@ -1074,10 +1073,9 @@ export function VyzualzAudioDock({
             disabled={!hasTrack || !transportReady || liveInputSelected}
             aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M5 21V4m0 1h11l-2.5 3L16 11H5"/>
             </svg>
-            <span className="vz-dock-cue-label">CUE</span>
           </button>
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
@@ -1087,14 +1085,17 @@ export function VyzualzAudioDock({
             disabled={liveInputSelected}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
             </svg>
-            <span className="vz-dock-sync-master-label">SYNC</span>
           </button>
-          {/* Blank placeholder so SYNC's column keeps the same two-row rhythm
-              as TAP/CUE's column instead of standing alone at full height. */}
-          <div className="vz-dock-blank-btn" aria-hidden="true" />
+          {/* Four blank placeholder keys under BPM (the old single wide blank is gone), reserved for future dock actions. */}
+          <div className="vz-dock-blank-group" aria-hidden="true">
+            <div className="vz-dock-blank-btn" />
+            <div className="vz-dock-blank-btn" />
+            <div className="vz-dock-blank-btn" />
+            <div className="vz-dock-blank-btn" />
+          </div>
         </div>
       </div>
       <HelpInfoTrigger

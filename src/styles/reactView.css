@@ -192,7 +192,9 @@
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
   --vz-dock-left-col: max(calc(var(--vz-left-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
-  --vz-dock-right-col: max(calc(var(--vz-right-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
+  /* The two side cards are the same width: the right card (BPM + four icon keys) takes the left card's, so the waveform between
+     them is centred in the dock. */
+  --vz-dock-right-col: var(--vz-dock-left-col);
 }
 
 /* Collapsing or expanding a rail never resizes the dock: its side cards always keep the expanded rail widths set above,
@@ -7060,7 +7062,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock .vz-dock-right {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr);
+  /* BPM takes the width; TAP / CUE and SYNC / SOURCE are icon-only keys in two fixed narrow columns. */
+  grid-template-columns: minmax(0, 1fr) 44px 44px;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   padding: 9px 11px;
@@ -7258,6 +7261,26 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 9.5px;
 }
 
+/* Row 2, column 1 (under BPM): four small blank keys in a row, the same height as CUE beside them. The group is the grid item; its
+   children lay out inside it, so the per-cell placement rules written for the old single blank do not apply to them. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  height: calc(100% - 6px);
+}
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group > .vz-dock-blank-btn {
+  grid-column: auto;
+  grid-row: auto;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-blank-group { display: none; }
+
 /* A stale-grid decision is important but transient. Present it as an opaque
    in-card decision sheet so it cannot make the compact dock grow vertically. */
 .rv-shell > .vz-transport-dock .vz-dock-bpm-stale {
@@ -7418,14 +7441,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 0;
   border-radius: 6px;
   overflow: hidden;
-}
-
-/* Icon-only when collapsed — there isn't room for icon + text without
-   overlap, and the button title/aria-label still carry the full meaning. */
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-label,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-label,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-label {
-  display: none;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-dot {
