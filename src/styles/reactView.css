@@ -6873,37 +6873,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transition: border-radius 180ms ease, padding 180ms ease;
 }
 
-/* Density control floats over the outer dock chrome so it never steals width
-   from the centered waveform. */
-.rv-shell > .vz-transport-dock .vz-dock-density-toggle {
-  position: absolute;
-  z-index: 8;
-  top: 1px;
-  left: 50%;
-  width: 30px;
-  height: 17px;
-  padding: 0;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(74, 199, 219, 0.28);
-  border-radius: 0 0 7px 7px;
-  background: rgba(5, 12, 18, 0.96);
-  color: rgba(124, 225, 239, 0.68);
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-density-toggle:hover,
-.rv-shell > .vz-transport-dock .vz-dock-density-toggle:focus-visible {
-  color: rgb(126, 237, 249);
-  border-color: rgba(74, 199, 219, 0.65);
-  background: rgba(12, 30, 40, 0.98);
-  outline: none;
-}
-
 /* Expanded left wing: track identity above, transport and volume sharing the
    second row. This creates the mirrored two-row rhythm used by the right wing. */
 .rv-shell > .vz-transport-dock .vz-dock-left {
@@ -7476,12 +7445,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   position: absolute;
   top: 4px;
   right: 4px;
-}
-
-/* The Stage Focus prop forces the same compact density while intentionally
-   hiding the user toggle. Leaving Stage Focus restores the saved preference. */
-.rv-shell > .vz-transport-dock--focus .vz-dock-density-toggle {
-  display: none;
 }
 
 @media (max-width: 1320px) {
@@ -21300,13 +21263,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .llhs-frame[data-cpu='medium'] { --llhs-cpu: var(--llhs-amber); }
 .llhs-frame[data-cpu='high'] { --llhs-cpu: var(--llhs-red); }
-.llhs-title {
-  margin-right: auto;
-  color: rgba(232, 238, 240, 0.35);
-  font: 800 13px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-}
+/* The page's real control group (HeaderControlGroup), taken out of its absolute centring so it flows between the frame's edge and the cluster. */
+.llhs-mid { display: flex; flex: 1 1 0; align-items: center; justify-content: center; min-width: 0; }
+.llhs-frame .vz-header-group { position: static; transform: none; max-width: 100%; flex: 0 1 auto; }
+/* The React output keys' own icons are 17px at 1.85px with a glow; drawn here like every other icon in the mock header (16px, 1.7px, no glow). */
+.llhs-mid .rv-global-output-icon { width: 16px; height: 16px; stroke-width: 1.7; filter: none; }
 .llhs-cluster { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .llhs-avatar {
   display: grid;
@@ -21317,7 +21278,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border: 1.5px solid rgba(74, 199, 219, 0.3);
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, rgba(74, 199, 219, 0.35), rgba(12, 22, 26, 0.9));
-  color: rgba(232, 244, 248, 0.72);
+  color: rgba(196, 212, 220, 0.62);
 }
 
 /* Track Timeline Visualizer button, drawn per concept. data-state mirrors the real button: ready / analyzing / empty. */

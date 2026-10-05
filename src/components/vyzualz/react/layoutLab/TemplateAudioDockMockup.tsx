@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
+import { isDockBlankSpace } from '../../shared/dockBlankSpace'
 
 // ── TemplateAudioDockMockup ─────────────────────────────────────────────────
 //
@@ -43,20 +44,12 @@ export function TemplateAudioDockMockup() {
   ].filter(Boolean).join(' ')
 
   return (
-    <div className={dockClassName} data-collapsed={collapsed ? 'true' : 'false'} aria-label="Bottom audio dock (mockup)">
-      <button
-        type="button"
-        className="vz-dock-density-toggle"
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? 'Expand audio deck (mockup)' : 'Collapse audio deck (mockup)'}
-        title={collapsed ? 'Expand audio deck (mockup)' : 'Collapse audio deck (mockup)'}
-        onClick={() => setCollapsed(value => !value)}
-      >
-        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          {collapsed ? <path d="M6 14l6-6 6 6" /> : <path d="M6 10l6 6 6-6" />}
-        </svg>
-      </button>
-
+    <div
+      className={dockClassName}
+      data-collapsed={collapsed ? 'true' : 'false'}
+      aria-label="Bottom audio dock (mockup)"
+      onClick={event => { if (isDockBlankSpace(event.target, event.currentTarget)) setCollapsed(value => !value) }}
+    >
       {/* ── LEFT: track art + title/artist + transport + volume ────────── */}
       <div className="vz-dock-help-region drm-help-overlay-anchor">
       <div className="vz-dock-left vz-dock-card">

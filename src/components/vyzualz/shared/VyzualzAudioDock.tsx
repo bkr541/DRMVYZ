@@ -1,5 +1,6 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
-import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from 'react'
+import { isDockBlankSpace } from './dockBlankSpace'
+import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
@@ -595,8 +596,10 @@ export function VyzualzAudioDock({
   const vol     = engine.volume
   const volPct  = `${Math.round(vol * 100)}%`
 
-  const handleDensityToggle = () => {
+  // There is no collapse button: clicking empty dock space (padding, the gaps between and inside the cards) toggles the dock.
+  const handleDockClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (!expandable || compact) return
+    if (!isDockBlankSpace(event.target, event.currentTarget)) return
     setCollapsedByUser(current => !current)
   }
 
@@ -693,25 +696,8 @@ export function VyzualzAudioDock({
       data-has-deck-label={deckLabel ? 'true' : undefined}
       data-live-input-disabled={liveInputSelected ? 'true' : undefined}
       aria-disabled={liveInputSelected ? 'true' : undefined}
+      onClick={handleDockClick}
     >
-
-      {expandable && !compact && (
-        <button
-          type="button"
-          className="vz-dock-density-toggle"
-          aria-expanded={!dockCollapsed}
-          aria-label={dockCollapsed ? 'Expand audio deck' : 'Collapse audio deck'}
-          title={dockCollapsed ? 'Expand audio deck' : 'Collapse audio deck'}
-          onClick={handleDensityToggle}
-        >
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            {dockCollapsed
-              ? <path d="M6 14l6-6 6 6"/>
-              : <path d="M6 10l6 6 6-6"/>
-            }
-          </svg>
-        </button>
-      )}
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
       <div className="vz-dock-help-region drm-help-overlay-anchor">

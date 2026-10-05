@@ -71,6 +71,21 @@ describe('HeaderStatusStyleGallery', () => {
     expect(concepts()[0]!.textContent).toContain('Saving…')
   })
 
+  it('draws the page\'s own centred control group in every mock header and swaps it per page', async () => {
+    await act(async () => root.render(<HeaderStatusStyleGallery />))
+    const labels = () => concepts().map(concept => concept.querySelector('.llhs-mid [role="toolbar"]')?.getAttribute('aria-label'))
+    expect(labels()).toEqual(Array(3).fill('Lyric Manager controls'))
+    expect(concepts()[0]!.querySelectorAll('.llhs-mid .vz-header-icon-key')).toHaveLength(3)
+    await press('Page', 'React')
+    expect(labels()).toEqual(Array(3).fill('React controls'))
+    expect(concepts()[0]!.querySelector('.llhs-mid .rv-global-output-blackout')).not.toBeNull()
+    await press('Page', 'Media')
+    expect(labels()).toEqual(Array(3).fill('Media Manager controls'))
+    await press('Page', 'Show')
+    expect(labels()).toEqual(Array(3).fill('Show Manager controls'))
+    expect(container.textContent).not.toContain('PAGE HEADING')
+  })
+
   it('replaces the header control group concepts in the Layout Lab Cinema middle column', async () => {
     await act(async () => root.render(<LayoutLabMockup />))
     const trigger = container.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')!

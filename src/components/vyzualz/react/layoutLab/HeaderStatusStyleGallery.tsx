@@ -1,5 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { TrackTimelineIcon } from '../trackTimeline/TrackTimelineIcon'
+import { Delete02Icon, SubtitleIcon } from 'hugeicons-react'
+import { HeaderControlGroup } from '../../layout/HeaderControlGroup'
+import { HeaderIconKey } from '../../layout/HeaderIconKey'
+import { SaveActiveGlyph, SaveGlyph } from '../../layout/HeaderGlyphs'
+import { BlackoutIcon, OutputArmIcon, RevealIcon } from '../ReactGlobalOutputControls'
 
 // ── HeaderStatusStyleGallery ─────────────────────────────────────────────
 //
@@ -9,25 +13,39 @@ import { TrackTimelineIcon } from '../trackTimeline/TrackTimelineIcon'
 // CPU readout, the loading indicator and the profile icon. Each concept draws all of
 // them in a different visual language — separate chips, one segmented strip, and open
 // "telemetry" readouts — with a different loading treatment (ring, dots, sweep line),
-// so the styles can be compared like for like in the same mock header (page heading
-// at the left). A control bar above drives every concept at once (save state, idle /
-// loading, CPU level, timeline button state) so each state can be judged.
+// so the styles can be compared like for like in the same mock header. The mock header
+// also carries the page's real centred control group (the production HeaderControlGroup
+// with that page's keys), so the cluster can be judged next to the buttons it sits beside.
+// A control bar above drives every concept at once (page, save state, idle / loading,
+// CPU level, timeline button state) so each state can be judged.
 // Presentation only — nothing is wired to a store or page.
 
 type SaveState = 'saved' | 'saving' | 'unsaved'
 type CpuLevel = 'low' | 'medium' | 'high'
 type TimelineState = 'ready' | 'analyzing' | 'empty'
+type HeaderPage = 'react' | 'media' | 'lyric' | 'show'
+
+/** The Track Timeline glyph (two lanes with a dash row between) redrawn as a 1.7px line so it matches the rest of the set. */
+const TimelineGlyph = () => (
+  <svg {...svgProps} width="16" height="16">
+    <rect x="3.5" y="3.5" width="17" height="5" rx="1.5" /><path d="M7 6h10" />
+    <path d="M3.5 12h3.5M10.25 12h3.5M17 12h3.5" />
+    <rect x="3.5" y="15.5" width="17" height="5" rx="1.5" /><path d="M7 18h10" />
+  </svg>
+)
 
 const TIMELINE_LABEL = 'Track Timeline Visualizer'
 
 const SAVE_LABEL: Record<SaveState, string> = { saved: 'Saved 10:44 AM', saving: 'Saving…', unsaved: 'Unsaved' }
 const CPU_PERCENT: Record<CpuLevel, number> = { low: 4, medium: 38, high: 86 }
 
+// Every icon in the mock headers — the page's control group and the whole status cluster — is one family: a 16px glyph drawn
+// as a 1.7px rounded line in the surrounding ink (the control group's HeaderIconKey style), so they read as one set.
 const svgProps = {
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 2,
+  strokeWidth: 1.7,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
   'aria-hidden': true,
@@ -38,6 +56,7 @@ interface StatusState {
   busy: boolean
   cpu: CpuLevel
   timeline: TimelineState
+  page: HeaderPage
 }
 
 interface ControlBarProps extends StatusState {
@@ -45,6 +64,7 @@ interface ControlBarProps extends StatusState {
   setBusy: (value: boolean) => void
   setCpu: (value: CpuLevel) => void
   setTimeline: (value: TimelineState) => void
+  setPage: (value: HeaderPage) => void
 }
 
 function Segmented<T extends string>({ label, value, options, onChange }: {
@@ -71,9 +91,15 @@ function Segmented<T extends string>({ label, value, options, onChange }: {
   )
 }
 
-function ControlBar({ save, busy, cpu, timeline, setSave, setBusy, setCpu, setTimeline }: ControlBarProps) {
+function ControlBar({ save, busy, cpu, timeline, page, setSave, setBusy, setCpu, setTimeline, setPage }: ControlBarProps) {
   return (
     <div className="llhs-controls" aria-label="Status states">
+      <Segmented<HeaderPage>
+        label="Page"
+        value={page}
+        onChange={setPage}
+        options={[{ id: 'react', label: 'React' }, { id: 'media', label: 'Media' }, { id: 'lyric', label: 'Lyric' }, { id: 'show', label: 'Show' }]}
+      />
       <Segmented<SaveState>
         label="Save"
         value={save}
@@ -102,11 +128,67 @@ function ControlBar({ save, busy, cpu, timeline, setSave, setBusy, setCpu, setTi
   )
 }
 
-/** A 60px mock page header: the page heading at the left, the status cluster at the right, then the profile icon. */
+const noop = () => {}
+
+/**
+ * The page's own centred control group, built from the production header components (HeaderControlGroup,
+ * HeaderIconKey) so the keys look exactly as they do in that page's header. Static: nothing is wired.
+ */
+function PageControlGroup({ page }: { page: HeaderPage }) {
+  if (page === 'react') {
+    // The React header's Production Output controls (ReactGlobalOutputControls, in its non-LaserDMX "preview" state).
+    return (
+      <HeaderControlGroup label="React controls">
+        <div className="rv-global-output" aria-label="Global performance output">
+          <button type="button" className="rv-global-output-status" disabled aria-label="OUTPUT PREVIEW">
+            <span className="rv-global-output-dot" aria-hidden="true" />
+            <OutputArmIcon />
+            <span className="rv-global-output-label">OUTPUT PREVIEW</span>
+          </button>
+          <button type="button" className="rv-global-output-reveal" disabled aria-label="Reveal output">
+            <RevealIcon />
+            <span className="rv-global-output-label">Reveal</span>
+          </button>
+          <button type="button" className="rv-global-output-blackout" disabled aria-label="Blackout output">
+            <BlackoutIcon />
+            <span className="rv-global-output-label">Blackout</span>
+          </button>
+        </div>
+      </HeaderControlGroup>
+    )
+  }
+  if (page === 'media') {
+    return (
+      <HeaderControlGroup label="Media Manager controls">
+        <HeaderIconKey label="Save Changes" icon={<SaveGlyph />} onClick={noop} />
+        <HeaderIconKey label="Delete Media" icon={<Delete02Icon size={16} color="currentColor" />} danger onClick={noop} />
+      </HeaderControlGroup>
+    )
+  }
+  if (page === 'lyric') {
+    return (
+      <HeaderControlGroup label="Lyric Manager controls">
+        <HeaderIconKey label="Show Lyrics" icon={<SubtitleIcon size={16} color="currentColor" />} pressed onClick={noop} />
+        <HeaderIconKey label="Save" icon={<SaveGlyph />} onClick={noop} />
+        <HeaderIconKey label="Save + Make Active" icon={<SaveActiveGlyph />} onClick={noop} />
+      </HeaderControlGroup>
+    )
+  }
+  return (
+    <HeaderControlGroup label="Show Manager controls">
+      <HeaderIconKey label="New Show" icon={<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5h9l5 5v12H5z" /><path d="M14 3.5v5h5M12 11v6M9 14h6" /></svg>} onClick={noop} />
+      <HeaderIconKey label="Open Show" icon={<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7h6l2 2h9l-2 10h-15z" /></svg>} onClick={noop} />
+      <HeaderIconKey label="Save + Make Active" icon={<SaveActiveGlyph />} onClick={noop} />
+      <HeaderIconKey label="Show Lyrics" icon={<SubtitleIcon size={16} color="currentColor" />} onClick={noop} />
+    </HeaderControlGroup>
+  )
+}
+
+/** A 60px mock page header: the page's control group in the middle, the status cluster at the right, then the profile icon. */
 function HeaderFrame({ state, children }: { state: StatusState; children: ReactNode }) {
   return (
     <div className="llhs-frame" data-save={state.save} data-busy={state.busy ? 'true' : 'false'} data-cpu={state.cpu} data-timeline={state.timeline}>
-      <span className="llhs-title" aria-hidden="true">PAGE HEADING</span>
+      <div className="llhs-mid"><PageControlGroup page={state.page} /></div>
       <div className="llhs-cluster">{children}</div>
       <span className="llhs-avatar" role="img" aria-label="Profile">
         <svg {...svgProps} width="16" height="16"><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></svg>
@@ -124,13 +206,13 @@ const SaveDot = () => <i className="llhs-save-dot" aria-hidden="true" />
 function SeparateChips({ state }: { state: StatusState }) {
   return (
     <>
-      <span className="llhs-chip llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
+      <span className="llhs-chip llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TimelineGlyph /></span>
       <span className="llhs-chip llhs-chip--saved" role="status"><SaveDot />{SAVE_LABEL[state.save]}</span>
       <span className="llhs-chip llhs-chip--cpu" aria-label={`CPU ${CPU_PERCENT[state.cpu]} percent`}>
         <small>CPU</small><b>{CPU_PERCENT[state.cpu]}%</b>
       </span>
       <span className="llhs-chip llhs-chip--square" role="status" aria-label={state.busy ? 'Loading' : 'Nothing loading'}>
-        <svg {...svgProps} className={`llhs-ring${state.busy ? ' is-spinning' : ''}`} width="18" height="18">
+        <svg {...svgProps} className={`llhs-ring${state.busy ? ' is-spinning' : ''}`} width="16" height="16">
           <circle cx="12" cy="12" r="9" opacity="0.28" />
           <path d="M12 3a9 9 0 0 1 9 9" />
         </svg>
@@ -145,9 +227,9 @@ function StatusStrip({ state }: { state: StatusState }) {
   const lit = Math.max(1, Math.ceil((CPU_PERCENT[state.cpu] / 100) * 5))
   return (
     <div className="llhs-strip">
-      <span className="llhs-strip-cell llhs-strip-cell--icon llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
+      <span className="llhs-strip-cell llhs-strip-cell--icon llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TimelineGlyph /></span>
       <span className="llhs-strip-cell llhs-strip-cell--saved" role="status">
-        <svg {...svgProps} width="13" height="13"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        <svg {...svgProps} width="16" height="16"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
         {SAVE_LABEL[state.save]}
       </span>
       <span className="llhs-strip-cell" aria-label={`CPU ${CPU_PERCENT[state.cpu]} percent`}>
@@ -169,7 +251,7 @@ function StatusStrip({ state }: { state: StatusState }) {
 function OpenTelemetry({ state }: { state: StatusState }) {
   return (
     <>
-      <span className="llhs-tele-key llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
+      <span className="llhs-tele-key llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TimelineGlyph /></span>
       <span className="llhs-tele llhs-tele--saved" role="status"><SaveDot />{SAVE_LABEL[state.save]}</span>
       <span className="llhs-tele llhs-tele--cpu" aria-label={`CPU ${CPU_PERCENT[state.cpu]} percent`}>
         <span className="llhs-tele-row"><small>CPU</small><b>{CPU_PERCENT[state.cpu]}%</b></span>
@@ -194,10 +276,11 @@ export function HeaderStatusStyleGallery() {
   const [busy, setBusy] = useState(true)
   const [cpu, setCpu] = useState<CpuLevel>('low')
   const [timeline, setTimeline] = useState<TimelineState>('ready')
-  const state: StatusState = { save, busy, cpu, timeline }
+  const [page, setPage] = useState<HeaderPage>('lyric')
+  const state: StatusState = { save, busy, cpu, timeline, page }
   return (
     <div className="llcm-gallery lldd-gallery llhs-gallery" aria-label="Header status concepts">
-      <ControlBar {...state} setSave={setSave} setBusy={setBusy} setCpu={setCpu} setTimeline={setTimeline} />
+      <ControlBar {...state} setSave={setSave} setBusy={setBusy} setCpu={setCpu} setTimeline={setTimeline} setPage={setPage} />
       {CONCEPTS.map(({ id, title, blurb, Concept }) => (
         <section key={id} className="lldd-gallery-row" data-testid={`header-status-concept-${id}`}>
           <div className="lldd-gallery-copy">

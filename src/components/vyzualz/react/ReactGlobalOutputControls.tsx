@@ -5,7 +5,7 @@ import { productionOutputController } from './output/ProductionOutput'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 
-function OutputArmIcon() {
+export function OutputArmIcon() {
   return (
     <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2v8" />
@@ -14,7 +14,7 @@ function OutputArmIcon() {
   )
 }
 
-function RevealIcon() {
+export function RevealIcon() {
   return (
     <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
@@ -23,7 +23,7 @@ function RevealIcon() {
   )
 }
 
-function BlackoutIcon() {
+export function BlackoutIcon() {
   return (
     <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 3l18 18" />
