@@ -58,6 +58,11 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   system: Object.freeze({
     getCpuUsage: () => ipcRenderer.invoke('drmvyz:system:get-cpu-usage'),
   }),
+  camera: Object.freeze({
+    getAccessStatus: () => ipcRenderer.invoke('drmvyz:camera:get-access'),
+    requestAccess: () => ipcRenderer.invoke('drmvyz:camera:request-access'),
+    openSettings: () => ipcRenderer.invoke('drmvyz:camera:open-settings'),
+  }),
   diagnostics: Object.freeze({
     // Fire-and-forget: logging must never block or reject on the caller.
     log: entry => { ipcRenderer.send('drmvyz:diagnostics:log', entry) },

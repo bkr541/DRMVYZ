@@ -2,13 +2,18 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildHeadlinerCameraConstraints,
+  describeHeadlinerCameraStatus,
   HEADLINER_DEFAULT_CAMERA_CONSTRAINTS,
+  HEADLINER_STARTUP_FRAME_TIMEOUT_MS,
   HeadlinerCameraRuntime,
   resolveHeadlinerCameraError,
 } from './HeadlinerCameraRuntime'
+import type { NativeCameraAccessStatus, NativeCameraBridge } from '../../../../native/cameraAccessBridge'
 
 class FakeTrack extends EventTarget {
   readonly kind = 'video'
+  label = ''
   readyState: MediaStreamTrackState = 'live'
   muted = false
   stop = vi.fn()
@@ -34,12 +39,19 @@ function makeVideo(): HTMLVideoElement {
   return video
 }
 
+const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0))
+
+function installNativeCamera(bridge: NativeCameraBridge | null) {
+  ;(window as unknown as { drmvyzNative?: unknown }).drmvyzNative = bridge ? { camera: bridge } : undefined
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  installNativeCamera(null)
 })
 
 describe('HeadlinerCameraRuntime', () => {
@@ -299,10 +311,215 @@ describe('HeadlinerCameraRuntime', () => {
     }
   })
 
-  it('maps unavailable-device errors to a contained operator message', () => {
-    expect(resolveHeadlinerCameraError(new DOMException('missing', 'NotFoundError'))).toEqual({
-      errorCode: 'unavailable',
-      message: 'The default front camera is unavailable. Check that a camera is connected and not in use by another app.',
+  it('maps each failure to its own code and message instead of one blanket "unavailable"', () => {
+    const resolve = (name: string, context = {}) => resolveHeadlinerCameraError(new DOMException('x', name), context)
+
+    expect(resolve('NotAllowedError').errorCode).toBe('permission-denied')
+    expect(resolve('NotAllowedError', { osAccess: 'denied' }).message).toContain('Your system is blocking camera access')
+    expect(resolve('NotAllowedError', { osAccess: 'restricted' }).message).toContain('restricted')
+    expect(resolve('NotFoundError').errorCode).toBe('no-camera')
+    expect(resolve('NotFoundError').message).toContain('No camera was found')
+    expect(resolve('OverconstrainedError', { specificDevice: true }).message).toContain('selected camera is not connected')
+    expect(resolve('NotReadableError').errorCode).toBe('camera-busy')
+    expect(resolve('AbortError')).toMatchObject({ errorCode: 'capture-error', message: expect.stringContaining('AbortError') })
+  })
+
+  it('titles each state for the canvas and the notification', () => {
+    const title = (errorCode: Parameters<typeof describeHeadlinerCameraStatus>[0]['errorCode']) =>
+      describeHeadlinerCameraStatus({ status: 'error', errorCode, message: 'm' }).title
+
+    expect(title('permission-denied')).toBe('Camera Permission Required')
+    expect(title('no-camera')).toBe('No Camera Found')
+    expect(title('camera-busy')).toBe('Camera Busy')
+    expect(title('no-video')).toBe('Camera Detected but Video Failed to Start')
+    expect(describeHeadlinerCameraStatus({ status: 'disconnected', errorCode: null, message: null }).title).toBe('Connection Lost')
+  })
+
+  it('requests the exact device when one is chosen and the default constraints otherwise', async () => {
+    expect(buildHeadlinerCameraConstraints('default-front-camera')).toBe(HEADLINER_DEFAULT_CAMERA_CONSTRAINTS)
+    expect(buildHeadlinerCameraConstraints('usb-1')).toEqual({ audio: false, video: { deviceId: { exact: 'usb-1' } } })
+
+    const track = new FakeTrack()
+    track.label = 'OBS Virtual Camera'
+    installMediaDevices(async () => new FakeStream(track) as unknown as MediaStream)
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    await runtime.start(video, 'obs-id')
+    video.dispatchEvent(new Event('loadeddata'))
+
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({ audio: false, video: { deviceId: { exact: 'obs-id' } } })
+    expect(runtime.getSnapshot()).toMatchObject({ status: 'live', cameraLabel: 'OBS Virtual Camera' })
+    expect(runtime.getFrameSource()?.sourceId).toBe('obs-id')
+    runtime.stop()
+  })
+
+  it('switches cameras by closing the old stream and opening the new one', async () => {
+    const first = new FakeTrack()
+    const second = new FakeTrack()
+    const streams = [first, second].map(track => new FakeStream(track) as unknown as MediaStream)
+    let call = 0
+    installMediaDevices(async () => streams[call++])
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    await runtime.start(video)
+    video.dispatchEvent(new Event('loadeddata'))
+
+    runtime.setSource('usb-2')
+    expect(first.stop).toHaveBeenCalledTimes(1)
+    await flush()
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenLastCalledWith({ audio: false, video: { deviceId: { exact: 'usb-2' } } })
+    expect(runtime.getFrameSource()?.stream).toBe(streams[1])
+    runtime.stop()
+  })
+
+  it('closes a stream that arrives after the camera choice changed', async () => {
+    const resolvers: Array<(stream: MediaStream) => void> = []
+    installMediaDevices(() => new Promise<MediaStream>(resolve => { resolvers.push(resolve) }))
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    void runtime.start(video)
+
+    runtime.setSource('usb-2')
+    expect(resolvers).toHaveLength(2)
+
+    const stale = new FakeTrack()
+    resolvers[0](new FakeStream(stale) as unknown as MediaStream)
+    await flush()
+    expect(stale.stop).toHaveBeenCalledTimes(1)
+
+    const fresh = new FakeTrack()
+    resolvers[1](new FakeStream(fresh) as unknown as MediaStream)
+    await flush()
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(fresh.stop).not.toHaveBeenCalled()
+    expect(runtime.getFrameSource()?.stream).toBeDefined()
+    runtime.stop()
+  })
+
+  it('retry() reopens the camera after a failure', async () => {
+    const track = new FakeTrack()
+    let call = 0
+    installMediaDevices(async () => {
+      call += 1
+      if (call === 1) throw new DOMException('busy', 'NotReadableError')
+      return new FakeStream(track) as unknown as MediaStream
+    })
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    await runtime.start(video)
+    expect(runtime.getSnapshot()).toMatchObject({ status: 'error', errorCode: 'camera-busy' })
+
+    runtime.retry()
+    await Promise.resolve()
+    await Promise.resolve()
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(runtime.getSnapshot().status).toBe('live')
+    runtime.stop()
+  })
+
+  it('reports "detected but no video" only after the full startup window', async () => {
+    vi.useFakeTimers()
+    try {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      const runtime = new HeadlinerCameraRuntime()
+      await runtime.start(makeVideo())
+
+      await vi.advanceTimersByTimeAsync(HEADLINER_STARTUP_FRAME_TIMEOUT_MS - 1)
+      expect(runtime.getSnapshot().status).toBe('requesting')
+      await vi.advanceTimersByTimeAsync(1)
+      expect(runtime.getSnapshot()).toMatchObject({ status: 'error', errorCode: 'no-video' })
+      expect(HEADLINER_STARTUP_FRAME_TIMEOUT_MS).toBeGreaterThan(5_000)
+      runtime.stop()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('goes live when the track unmutes after the first frame was already decoded', async () => {
+    const track = new FakeTrack()
+    track.muted = true
+    installMediaDevices(async () => new FakeStream(track) as unknown as MediaStream)
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 })
+    await runtime.start(video)
+
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(runtime.getSnapshot().status).toBe('requesting')
+
+    track.muted = false
+    track.dispatchEvent(new Event('unmute'))
+    expect(runtime.getSnapshot().status).toBe('live')
+    runtime.stop()
+  })
+
+  describe('operating-system camera permission', () => {
+    const bridge = (status: NativeCameraAccessStatus, afterRequest: NativeCameraAccessStatus = status) => {
+      const calls = { request: 0 }
+      installNativeCamera({
+        getAccessStatus: async () => status,
+        requestAccess: async () => { calls.request += 1; return afterRequest },
+      })
+      return calls
+    }
+
+    it('refuses to open the camera and says so when the OS has denied access', async () => {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      bridge('denied')
+      const runtime = new HeadlinerCameraRuntime()
+      await runtime.start(makeVideo())
+
+      expect(navigator.mediaDevices.getUserMedia).not.toHaveBeenCalled()
+      expect(runtime.getSnapshot()).toMatchObject({
+        status: 'error',
+        errorCode: 'permission-denied',
+        osAccess: 'denied',
+        message: expect.stringContaining('Your system is blocking camera access'),
+      })
+    })
+
+    it('reports a managed-device restriction distinctly', async () => {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      bridge('restricted')
+      const runtime = new HeadlinerCameraRuntime()
+      await runtime.start(makeVideo())
+
+      expect(runtime.getSnapshot().message).toContain('restricted')
+    })
+
+    it('raises the system prompt while undecided and opens the camera once granted', async () => {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      const calls = bridge('not-determined', 'granted')
+      const runtime = new HeadlinerCameraRuntime()
+      const video = makeVideo()
+      await runtime.start(video)
+      video.dispatchEvent(new Event('loadeddata'))
+
+      expect(calls.request).toBe(1)
+      expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(1)
+      expect(runtime.getSnapshot()).toMatchObject({ status: 'live', osAccess: 'granted' })
+      runtime.stop()
+    })
+
+    it('stays in the error state with a permission code when the prompt is refused', async () => {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      bridge('not-determined', 'denied')
+      const runtime = new HeadlinerCameraRuntime()
+      await runtime.start(makeVideo())
+
+      expect(navigator.mediaDevices.getUserMedia).not.toHaveBeenCalled()
+      expect(runtime.getSnapshot()).toMatchObject({ status: 'error', errorCode: 'permission-denied' })
+    })
+
+    it('still tries the browser when the OS status is unknown', async () => {
+      installMediaDevices(async () => new FakeStream(new FakeTrack()) as unknown as MediaStream)
+      bridge('unknown')
+      const runtime = new HeadlinerCameraRuntime()
+      await runtime.start(makeVideo())
+
+      expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(1)
+      runtime.stop()
     })
   })
 })

@@ -8,6 +8,7 @@ import type {
   HeadlinerCameraRuntimeStatus,
   HeadlinerCameraSlotId,
 } from './HeadlinerCameraRuntime'
+import type { HeadlinerInputSourceId } from './HeadlinerSettings'
 
 export const HEADLINER_MAX_CAMERA_LAYERS = 4
 export const HEADLINER_MAX_BACKING_PIXELS = 1920 * 1080
@@ -28,7 +29,7 @@ export interface HeadlinerLayerTransform {
 
 export interface HeadlinerCameraLayerInput {
   slotId: HeadlinerCameraSlotId
-  sourceId: 'default-front-camera'
+  sourceId: HeadlinerInputSourceId
   video: HTMLVideoElement
   enabled: boolean
   opacity: number
@@ -41,6 +42,8 @@ export interface HeadlinerCameraLayerInput {
 export interface HeadlinerProgramInput {
   mode: 'fullscreen'
   cameraStatus: HeadlinerCameraRuntimeStatus
+  /** Why there is no picture, drawn on the neutral surface. Falls back to a generic label when absent. */
+  statusLabel?: string
   layers: readonly HeadlinerCameraLayerInput[]
   masterEffectIds: readonly string[]
 }
@@ -69,11 +72,13 @@ type HeadlinerRenderedState = 'live' | 'lost' | 'neutral'
 export function createHeadlinerFullscreenProgram(
   source: HeadlinerCameraFrameSource | null,
   cameraStatus: HeadlinerCameraRuntimeStatus = source ? 'live' : 'idle',
+  statusLabel?: string,
 ): HeadlinerProgramInput {
   if (!source) {
     return {
       mode: 'fullscreen',
       cameraStatus,
+      ...(statusLabel ? { statusLabel } : {}),
       layers: [],
       masterEffectIds: [],
     }
@@ -309,7 +314,7 @@ export class HeadlinerFullscreenCompositor {
         this.markOutputRendered('lost')
         return 'lost'
       }
-      this.drawNeutralSurface('Camera Unavailable')
+      this.drawNeutralSurface(program.statusLabel ?? 'Camera Unavailable')
       this.markOutputRendered('neutral')
       return 'neutral'
     }
@@ -375,7 +380,8 @@ export class HeadlinerFullscreenCompositor {
       }
     }
 
-    const neutralLabel = program.cameraStatus === 'requesting' ? 'Starting Camera' : 'Camera Unavailable'
+    const neutralLabel = program.statusLabel
+      ?? (program.cameraStatus === 'requesting' ? 'Starting Camera' : 'Camera Unavailable')
     this.drawNeutralSurface(neutralLabel)
     this.markOutputRendered('neutral')
     return 'neutral'

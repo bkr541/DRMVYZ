@@ -24,10 +24,19 @@ describe('Headliner Stage 1 store and persistence contract', () => {
   it('normalizes canonical mutations back to Fullscreen/default front camera', () => {
     useReactStore.getState().setHeadlinerSettings({
       mode: 'mirror' as never,
-      inputSourceId: 'camera-2' as never,
+      inputSourceId: 42 as never,
     })
 
     expect(useReactStore.getState().headlinerSettings).toEqual(DEFAULT_HEADLINER_SETTINGS)
+  })
+
+  it('keeps a chosen camera across persistence so the pick survives a restart', () => {
+    useReactStore.getState().setHeadlinerSettings({ inputSourceId: 'usb-camera-device-id' })
+    const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+
+    expect(persisted.headlinerSettings).toEqual({ ...DEFAULT_HEADLINER_SETTINGS, inputSourceId: 'usb-camera-device-id' })
+    expect(mergeReactStoreState(persisted, useReactStore.getState()).headlinerSettings.inputSourceId).toBe('usb-camera-device-id')
+    useReactStore.getState().setHeadlinerSettings({ inputSourceId: DEFAULT_HEADLINER_SETTINGS.inputSourceId })
   })
 
   it('persists only stable Headliner authoring preferences and restores the preset-free selection', () => {
@@ -52,7 +61,7 @@ describe('Headliner Stage 1 store and persistence contract', () => {
 
     const corrupt = migrateReactStore({
       activeReactEngineId: 'headliner',
-      headlinerSettings: { mode: 'quad', inputSourceId: 'camera-9' },
+      headlinerSettings: { mode: 'quad', inputSourceId: { id: 'camera-9' } },
     }, 75)
     expect(corrupt.headlinerSettings).toEqual(DEFAULT_HEADLINER_SETTINGS)
   })

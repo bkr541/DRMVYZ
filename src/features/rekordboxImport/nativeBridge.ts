@@ -2,6 +2,7 @@ import type { RekordboxLibrary } from './types'
 import type { NativeOutputBridge } from '../../native/outputBridge'
 import type { NativeDiagnosticsBridge } from '../../native/diagnosticsBridge'
 import type { NativeSystemBridge } from '../../native/systemMetricsBridge'
+import type { NativeCameraBridge } from '../../native/cameraAccessBridge'
 
 export interface NativeRekordboxUsbScanResult {
   cancelled: boolean
@@ -36,6 +37,7 @@ export interface DrmvyzNativeBridge {
   output?: NativeOutputBridge
   diagnostics?: NativeDiagnosticsBridge
   system?: NativeSystemBridge
+  camera?: NativeCameraBridge
 }
 
 declare global {

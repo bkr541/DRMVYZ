@@ -2,13 +2,14 @@
 
 const path = require('node:path')
 const { pathToFileURL } = require('node:url')
-const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, session, shell, systemPreferences } = require('electron')
 // Must load before the native bridges so console.* is redirected before they run.
 const log = require('./logging.cjs')
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
 const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
 const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsBridge.cjs')
 const { installSystemMetricsBridge } = require('../native/system/systemMetricsBridge.cjs')
+const { installCameraAccessBridge, readCameraAccessStatus } = require('../native/system/cameraAccessBridge.cjs')
 
 const DEV_SERVER_URL = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
 const forceBuiltRenderer = process.argv.includes('--production')
@@ -94,7 +95,15 @@ function configureSessionSecurity() {
 
   appSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const requestingUrl = details.requestingUrl || webContents.getURL()
-    callback(permission === 'media' && isTrustedAppUrl(requestingUrl))
+    const allowed = permission === 'media' && isTrustedAppUrl(requestingUrl)
+    if (allowed && details.mediaTypes?.includes('video')) {
+      // Granting here only lifts Electron's own gate. macOS can still refuse the device, so
+      // record the OS state next to the grant to make a silent block diagnosable from the log.
+      log.scope('system:camera').info('camera request', {
+        osAccess: readCameraAccessStatus({ systemPreferences }),
+      })
+    }
+    callback(allowed)
   })
 
   // Record network failures for the app's own backends (Supabase, casting
@@ -212,6 +221,7 @@ if (!app.requestSingleInstanceLock()) {
     installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
     installDiagnosticsBridge({ ipcMain, log })
     installSystemMetricsBridge({ app, ipcMain, log })
+    installCameraAccessBridge({ ipcMain, shell, systemPreferences, log })
     createMainWindow()
 
     app.on('activate', () => {

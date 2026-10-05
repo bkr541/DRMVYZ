@@ -2,7 +2,12 @@ import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { CtrlSection, SelectRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
-import { HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
+import { IconChipButton } from '../controls/IconChipButton'
+import { DrawerNotice } from '../../shared/DrawerNotice'
+import { getNativeCameraBridge } from '../../../../native/cameraAccessBridge'
+import { describeHeadlinerCameraStatus, HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
+import { buildHeadlinerCameraOptions, useHeadlinerCameraDevices } from './HeadlinerCameraDevices'
+import { publishHeadlinerCameraRuntime, useHeadlinerCameraStatus } from './HeadlinerCameraStatus'
 import {
   createHeadlinerFullscreenProgram,
   HeadlinerFullscreenCompositor,
@@ -20,6 +25,16 @@ function HeadlinerFullscreenIcon() {
 export function HeadlinerEnginePanel() {
   const settings = useReactStore(state => state.headlinerSettings)
   const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
+  const { snapshot } = useHeadlinerCameraStatus()
+  // Camera names are hidden by the browser until access has been granted, so re-read once the camera goes live.
+  const { devices } = useHeadlinerCameraDevices(snapshot?.status === 'live')
+  const liveCameraLabel = snapshot?.status === 'live' ? snapshot.cameraLabel : null
+  const options = buildHeadlinerCameraOptions(devices, settings.inputSourceId, liveCameraLabel)
+  const description = liveCameraLabel
+    ? `Live: ${liveCameraLabel}`
+    : devices.length === 0
+      ? 'No cameras detected yet. Connect a camera or start a virtual camera (such as OBS); this list updates automatically.'
+      : `${devices.length} ${devices.length === 1 ? 'camera' : 'cameras'} detected. Default Front Camera uses your system's preferred camera.`
 
   return (
     <section className="rv-headliner-engine-panel" aria-label="Headliner setup">
@@ -41,9 +56,9 @@ export function HeadlinerEnginePanel() {
         id="headliner-input-source"
         label="Camera"
         value={settings.inputSourceId}
-        onChange={() => setHeadlinerSettings({ inputSourceId: 'default-front-camera' })}
-        options={[{ value: 'default-front-camera', label: 'Default Front Camera' }]}
-        description="Headliner uses the default computer front camera. Camera access is requested when Headliner becomes active."
+        onChange={inputSourceId => setHeadlinerSettings({ inputSourceId })}
+        options={options}
+        description={description}
       />
     </section>
   )
@@ -62,6 +77,10 @@ export function HeadlinerSurface({
   if (!runtimeRef.current) runtimeRef.current = new HeadlinerCameraRuntime('camera-1')
   const runtime = runtimeRef.current
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot, runtime.getSnapshot)
+  const inputSourceId = useReactStore(state => state.headlinerSettings.inputSourceId)
+  const inputSourceRef = useRef(inputSourceId)
+  inputSourceRef.current = inputSourceId
+  const status = describeHeadlinerCameraStatus(snapshot)
 
   useEffect(() => {
     const video = videoRef.current
@@ -70,40 +89,44 @@ export function HeadlinerSurface({
 
     const compositor = new HeadlinerFullscreenCompositor({
       canvas,
-      getProgramInput: () => createHeadlinerFullscreenProgram(
-        runtime.getFrameSource(),
-        runtime.getSnapshot().status,
-      ),
+      getProgramInput: () => {
+        const current = runtime.getSnapshot()
+        return createHeadlinerFullscreenProgram(
+          runtime.getFrameSource(),
+          current.status,
+          describeHeadlinerCameraStatus(current).title,
+        )
+      },
       onLiveFps,
     })
 
     onCanvasReady?.(canvas)
     onLiveFps?.(0)
     compositor.start()
-    void runtime.start(video)
+    publishHeadlinerCameraRuntime(runtime)
+    void runtime.start(video, inputSourceRef.current)
 
     return () => {
       compositor.stop()
+      publishHeadlinerCameraRuntime(null)
       runtime.stop()
       onCanvasReady?.(null)
     }
   }, [onCanvasReady, onLiveFps, runtime])
 
+  // Switching cameras in the setup panel reopens the stream; the first run is covered by start() above.
+  useEffect(() => {
+    runtime.setSource(inputSourceId)
+  }, [inputSourceId, runtime])
+
   const isLive = snapshot.status === 'live'
-  const statusTitle = snapshot.status === 'requesting'
-    ? 'Starting camera'
-    : snapshot.status === 'error'
-      ? snapshot.errorCode === 'permission-denied'
-        ? 'Camera permission denied'
-        : snapshot.errorCode === 'unavailable'
-          ? 'Camera unavailable'
-          : 'Camera error'
-      : snapshot.status === 'disconnected'
-        ? 'Connection Lost'
-        : 'Camera not started'
   const statusBody = snapshot.status === 'requesting'
-    ? 'Allow camera access to show the default front camera in Headliner.'
-    : snapshot.message ?? 'Fullscreen workspace is preparing the default front camera.'
+    ? 'Allow camera access to show the camera in Headliner.'
+    : status.detail ?? 'Fullscreen workspace is preparing the camera.'
+  const showNotice = snapshot.status === 'error'
+    || (snapshot.status === 'disconnected' && snapshot.errorCode !== null)
+  const canOpenSettings = snapshot.errorCode === 'permission-denied'
+    && typeof getNativeCameraBridge()?.openSettings === 'function'
 
   return (
     <section
@@ -125,9 +148,22 @@ export function HeadlinerSurface({
         muted
         playsInline
       />
+      {showNotice && (
+        <DrawerNotice tone="warning" role="alert" title={status.title}>
+          <div>{status.detail}</div>
+          <div className="rv-ctrl-action-row">
+            <IconChipButton onClick={() => runtime.retry()}>Try again</IconChipButton>
+            {canOpenSettings && (
+              <IconChipButton onClick={() => { void getNativeCameraBridge()?.openSettings?.() }}>
+                Open camera settings
+              </IconChipButton>
+            )}
+          </div>
+        </DrawerNotice>
+      )}
       {!isLive && (
         <div className="sr-only" role="status" aria-live="polite">
-          <strong>{statusTitle}</strong>
+          <strong>{status.title}</strong>
           <span>{statusBody}</span>
         </div>
       )}

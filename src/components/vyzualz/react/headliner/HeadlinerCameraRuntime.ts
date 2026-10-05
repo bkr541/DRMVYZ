@@ -1,17 +1,31 @@
+import { createLogger } from '../../../../lib/logger'
+import { getNativeCameraBridge, type NativeCameraAccessStatus } from '../../../../native/cameraAccessBridge'
+import { HEADLINER_DEFAULT_CAMERA_SOURCE_ID, type HeadlinerInputSourceId } from './HeadlinerSettings'
+import { describeHeadlinerCameraDevices } from './HeadlinerCameraDevices'
+
 export type HeadlinerCameraSlotId = 'camera-1' | 'camera-2' | 'camera-3' | 'camera-4'
 export type HeadlinerCameraRuntimeStatus = 'idle' | 'requesting' | 'live' | 'error' | 'disconnected'
-export type HeadlinerCameraErrorCode = 'permission-denied' | 'unavailable' | 'capture-error'
+export type HeadlinerCameraErrorCode =
+  | 'permission-denied'
+  | 'no-camera'
+  | 'camera-busy'
+  | 'no-video'
+  | 'capture-error'
 
 export interface HeadlinerCameraRuntimeSnapshot {
   slotId: HeadlinerCameraSlotId
   status: HeadlinerCameraRuntimeStatus
   errorCode: HeadlinerCameraErrorCode | null
   message: string | null
+  /** Name of the camera actually delivering frames (the browser's track label), once one is open. */
+  cameraLabel: string | null
+  /** The OS-level camera permission seen at the last preflight; null outside the desktop app. */
+  osAccess: NativeCameraAccessStatus | null
 }
 
 export interface HeadlinerCameraFrameSource {
   slotId: HeadlinerCameraSlotId
-  sourceId: 'default-front-camera'
+  sourceId: HeadlinerInputSourceId
   video: HTMLVideoElement
   stream: MediaStream
 }
@@ -30,8 +44,15 @@ export const HEADLINER_DEFAULT_CAMERA_CONSTRAINTS: Readonly<MediaStreamConstrain
   }),
 })
 
+export function buildHeadlinerCameraConstraints(sourceId: HeadlinerInputSourceId): MediaStreamConstraints {
+  if (sourceId === HEADLINER_DEFAULT_CAMERA_SOURCE_ID) return HEADLINER_DEFAULT_CAMERA_CONSTRAINTS
+  return { audio: false, video: { deviceId: { exact: sourceId } } }
+}
+
 export const HEADLINER_MUTE_LOSS_GRACE_MS = 1_500
-export const HEADLINER_STARTUP_FRAME_TIMEOUT_MS = 5_000
+// Opening a camera can take several seconds on a cold start (macOS wakes the device, virtual cameras
+// spin up a pipeline), so a short deadline reports working cameras as broken.
+export const HEADLINER_STARTUP_FRAME_TIMEOUT_MS = 10_000
 export const HEADLINER_RECOVERY_DELAYS_MS = Object.freeze([750, 1_500, 3_000] as const)
 
 const IDLE_SNAPSHOT: HeadlinerCameraRuntimeSnapshot = Object.freeze({
@@ -39,7 +60,72 @@ const IDLE_SNAPSHOT: HeadlinerCameraRuntimeSnapshot = Object.freeze({
   status: 'idle',
   errorCode: null,
   message: null,
+  cameraLabel: null,
+  osAccess: null,
 })
+
+const log = createLogger('react', 'headliner-camera')
+
+export interface HeadlinerCameraErrorContext {
+  /** True when the user picked a specific camera rather than the default. */
+  specificDevice?: boolean
+  osAccess?: NativeCameraAccessStatus | null
+}
+
+const ERROR_TITLES: Record<HeadlinerCameraErrorCode, string> = {
+  'permission-denied': 'Camera Permission Required',
+  'no-camera': 'No Camera Found',
+  'camera-busy': 'Camera Busy',
+  'no-video': 'Camera Detected but Video Failed to Start',
+  'capture-error': 'Camera Error',
+}
+
+export function headlinerCameraErrorMessage(
+  code: HeadlinerCameraErrorCode,
+  context: HeadlinerCameraErrorContext = {},
+  errorName = '',
+): string {
+  switch (code) {
+    case 'permission-denied':
+      if (context.osAccess === 'restricted') {
+        return 'Camera access is restricted on this computer (for example by parental controls or a managed-device policy), so DRMVYZ cannot open it.'
+      }
+      if (context.osAccess === 'denied') {
+        return 'Your system is blocking camera access for DRMVYZ. Turn DRMVYZ on in your system camera privacy settings, then quit and reopen DRMVYZ.'
+      }
+      return 'Camera access was blocked. Allow DRMVYZ to use the camera in your system camera privacy settings, then try again.'
+    case 'no-camera':
+      return context.specificDevice
+        ? 'The selected camera is not connected. Reconnect it or choose another camera.'
+        : 'No camera was found. Connect a camera (or start a virtual camera such as OBS), then try again.'
+    case 'camera-busy':
+      return 'The camera could not be opened. It may be in use by another app. Close other apps that use the camera, then try again.'
+    case 'no-video':
+      return 'A camera was detected but it never sent video. Another app may be holding it, or it may need a moment to wake up. Try again.'
+    default:
+      return `DRMVYZ could not start the camera${errorName ? ` (${errorName})` : ''}.`
+  }
+}
+
+export function describeHeadlinerCameraStatus(
+  snapshot: Pick<HeadlinerCameraRuntimeSnapshot, 'status' | 'errorCode' | 'message'>,
+): { title: string; detail: string | null } {
+  switch (snapshot.status) {
+    case 'requesting':
+      return { title: 'Starting Camera', detail: 'Allow camera access if your system asks.' }
+    case 'live':
+      return { title: 'Camera Live', detail: null }
+    case 'disconnected':
+      return { title: 'Connection Lost', detail: snapshot.message }
+    case 'error':
+      return {
+        title: snapshot.errorCode ? ERROR_TITLES[snapshot.errorCode] : 'Camera Error',
+        detail: snapshot.message,
+      }
+    default:
+      return { title: 'Camera Not Started', detail: snapshot.message }
+  }
+}
 
 function errorName(error: unknown): string {
   if (error && typeof error === 'object' && 'name' in error && typeof error.name === 'string') {
@@ -48,29 +134,31 @@ function errorName(error: unknown): string {
   return ''
 }
 
-export function resolveHeadlinerCameraError(error: unknown): Pick<HeadlinerCameraRuntimeSnapshot, 'errorCode' | 'message'> {
-  switch (errorName(error)) {
+export function resolveHeadlinerCameraError(
+  error: unknown,
+  context: HeadlinerCameraErrorContext = {},
+): Pick<HeadlinerCameraRuntimeSnapshot, 'errorCode' | 'message'> {
+  const name = errorName(error)
+  let code: HeadlinerCameraErrorCode
+  switch (name) {
     case 'NotAllowedError':
     case 'SecurityError':
-      return {
-        errorCode: 'permission-denied',
-        message: 'Camera permission was denied. Allow camera access, then leave and re-enter Headliner to try again.',
-      }
+    case 'PermissionDeniedError':
+      code = 'permission-denied'
+      break
     case 'NotFoundError':
     case 'DevicesNotFoundError':
     case 'OverconstrainedError':
+      code = 'no-camera'
+      break
     case 'NotReadableError':
     case 'TrackStartError':
-      return {
-        errorCode: 'unavailable',
-        message: 'The default front camera is unavailable. Check that a camera is connected and not in use by another app.',
-      }
+      code = 'camera-busy'
+      break
     default:
-      return {
-        errorCode: 'capture-error',
-        message: 'DRMVYZ could not start the default front camera.',
-      }
+      code = 'capture-error'
   }
+  return { errorCode: code, message: headlinerCameraErrorMessage(code, context, name) }
 }
 
 function stopStream(stream: MediaStream | null): void {
@@ -93,6 +181,11 @@ export class HeadlinerCameraRuntime {
   private startupFrameTimer: number | null = null
   private recoveryTimer: number | null = null
   private recoveryAttempt = 0
+  private sourceId: HeadlinerInputSourceId = HEADLINER_DEFAULT_CAMERA_SOURCE_ID
+  private cameraLabel: string | null = null
+  private osAccess: NativeCameraAccessStatus | null = null
+  /** Bumped whenever a request is superseded so a late-resolving stream is closed instead of adopted. */
+  private requestToken = 0
 
   constructor(slotId: HeadlinerCameraSlotId = 'camera-1') {
     this.slotId = slotId
@@ -110,16 +203,23 @@ export class HeadlinerCameraRuntime {
     if (this.snapshot.status !== 'live' || !this.video || !this.stream) return null
     return {
       slotId: this.slotId,
-      sourceId: 'default-front-camera',
+      sourceId: this.sourceId,
       video: this.video,
       stream: this.stream,
     }
   }
 
-  start(video: HTMLVideoElement): Promise<void> {
+  start(video: HTMLVideoElement, sourceId: HeadlinerInputSourceId = this.sourceId): Promise<void> {
     this.desiredActive = true
     this.video = video
     this.observeMediaDevices()
+    if (sourceId !== this.sourceId) {
+      this.sourceId = sourceId
+      if (this.stream || this.requestPromise) {
+        this.reopen()
+        return this.requestPromise ?? Promise.resolve()
+      }
+    }
 
     if (this.stream) {
       this.attachStream(video, this.stream)
@@ -129,6 +229,28 @@ export class HeadlinerCameraRuntime {
 
     this.recoveryAttempt = 0
     return this.requestCapture(false)
+  }
+
+  /** Switches to another camera (or the default). Closes the current stream and reopens with the new choice. */
+  setSource(sourceId: HeadlinerInputSourceId): void {
+    if (sourceId === this.sourceId) return
+    this.sourceId = sourceId
+    this.reopen()
+  }
+
+  /** Drops whatever the camera is doing and tries again from scratch — the manual "Try again" path. */
+  retry(): void {
+    this.reopen()
+  }
+
+  private reopen(): void {
+    if (!this.desiredActive || !this.video) return
+    this.requestToken += 1
+    this.requestPromise = null
+    this.clearRecoveryTimer()
+    this.recoveryAttempt = 0
+    this.detachStreamResources(true)
+    void this.requestCapture(false)
   }
 
   stop(): void {
@@ -158,7 +280,22 @@ export class HeadlinerCameraRuntime {
     if (recovering) this.detachStreamResources(true)
     if (!recovering) this.setSnapshot({ status: 'requesting', errorCode: null, message: null })
 
-    const request = mediaDevices.getUserMedia(HEADLINER_DEFAULT_CAMERA_CONSTRAINTS)
+    const token = ++this.requestToken
+    const sourceId = this.sourceId
+    const open = () => mediaDevices.getUserMedia(buildHeadlinerCameraConstraints(sourceId))
+    // The OS gate only exists in the desktop app. Elsewhere go straight to the browser prompt.
+    const preflight = getNativeCameraBridge() ? this.preflightOsAccess() : null
+    const capture = preflight
+      ? preflight.then(access => {
+        if (token === this.requestToken) this.osAccess = access
+        if (access === 'denied' || access === 'restricted') {
+          throw new DOMException(`Operating system camera access is ${access}.`, 'NotAllowedError')
+        }
+        return open()
+      })
+      : open()
+
+    const request = capture
       .then(stream => {
         const videoTracks = stream.getVideoTracks()
         if (videoTracks.length === 0) {
@@ -167,23 +304,66 @@ export class HeadlinerCameraRuntime {
           return
         }
 
-        if (!this.desiredActive || !this.video) {
+        if (!this.desiredActive || !this.video || token !== this.requestToken) {
           stopStream(stream)
           return
         }
 
+        const track = videoTracks[0]
+        this.cameraLabel = track.label || null
+        log.info('camera opened', {
+          source: sourceId,
+          label: track.label || null,
+          deviceId: track.getSettings?.().deviceId ?? null,
+          osAccess: this.osAccess,
+        })
         this.stream = stream
         this.attachStream(this.video, stream)
       })
       .catch(error => {
-        if (this.desiredActive) this.handleCaptureFailure(error, recovering)
+        if (this.desiredActive && token === this.requestToken) this.handleCaptureFailure(error, recovering)
       })
       .finally(() => {
-        this.requestPromise = null
+        if (token === this.requestToken) this.requestPromise = null
       })
 
     this.requestPromise = request
     return request
+  }
+
+  private async preflightOsAccess(): Promise<NativeCameraAccessStatus> {
+    const bridge = getNativeCameraBridge()
+    if (!bridge) return 'unknown'
+    try {
+      let status = (await bridge.getAccessStatus?.()) ?? 'unknown'
+      if (status === 'not-determined' && bridge.requestAccess) status = await bridge.requestAccess()
+      return status
+    } catch {
+      return 'unknown'
+    }
+  }
+
+  private errorContext(): HeadlinerCameraErrorContext {
+    return {
+      specificDevice: this.sourceId !== HEADLINER_DEFAULT_CAMERA_SOURCE_ID,
+      osAccess: this.osAccess,
+    }
+  }
+
+  /** Writes why a capture failed — and which cameras the system reported — so a bare "unavailable" is diagnosable. */
+  private logFailure(error: unknown, code: HeadlinerCameraErrorCode): void {
+    const name = errorName(error)
+    const detail = error instanceof Error ? error.message : String(error ?? '')
+    void describeHeadlinerCameraDevices().then(devices => {
+      log.warn('camera failed', {
+        code,
+        errorName: name || null,
+        errorMessage: detail || null,
+        source: this.sourceId,
+        osAccess: this.osAccess,
+        devices,
+      })
+    })
   }
 
   private attachStream(video: HTMLVideoElement, stream: MediaStream): void {
@@ -238,7 +418,8 @@ export class HeadlinerCameraRuntime {
     const handleUnmute = () => {
       if (!this.desiredActive || this.stream !== stream) return
       this.clearMuteLossTimer()
-      if (this.snapshot.status === 'disconnected' && track.readyState !== 'ended') {
+      // A track that was still muted when the first frame arrived (markLive declined) goes live here.
+      if (this.snapshot.status !== 'live' && track.readyState !== 'ended') {
         if (video.readyState >= 2) markLive()
       }
     }
@@ -257,7 +438,7 @@ export class HeadlinerCameraRuntime {
       if (this.recoveryAttempt > 0) {
         this.transitionToDisconnected('The camera did not resume video frames.', true)
       } else {
-        this.setError(new DOMException('Camera frames did not become available.', 'NotReadableError'))
+        this.setFailure('no-video', new DOMException('Camera frames did not become available.', 'AbortError'))
       }
     }, HEADLINER_STARTUP_FRAME_TIMEOUT_MS)
 
@@ -271,18 +452,19 @@ export class HeadlinerCameraRuntime {
   }
 
   private handleCaptureFailure(error: unknown, recovering: boolean): void {
-    const resolved = resolveHeadlinerCameraError(error)
+    const resolved = resolveHeadlinerCameraError(error, this.errorContext())
     if (!recovering) {
       this.setError(error)
       return
     }
+    this.logFailure(error, resolved.errorCode ?? 'capture-error')
 
     this.detachStreamResources(true)
     if (resolved.errorCode === 'permission-denied') {
       this.setSnapshot({
         status: 'disconnected',
         errorCode: resolved.errorCode,
-        message: 'The camera connection was lost. Camera permission is required to reconnect.',
+        message: `The camera connection was lost. ${resolved.message ?? 'Camera permission is required to reconnect.'}`,
       })
       return
     }
@@ -344,6 +526,7 @@ export class HeadlinerCameraRuntime {
 
     const stream = this.stream
     this.stream = null
+    this.cameraLabel = null
     if (stopTracks) stopStream(stream)
   }
 
@@ -367,16 +550,30 @@ export class HeadlinerCameraRuntime {
 
   private setError(error: unknown): void {
     this.detachStreamResources(true)
-    const resolved = resolveHeadlinerCameraError(error)
+    const resolved = resolveHeadlinerCameraError(error, this.errorContext())
+    this.logFailure(error, resolved.errorCode ?? 'capture-error')
     this.setSnapshot({ status: 'error', ...resolved })
   }
 
-  private setSnapshot(patch: Omit<HeadlinerCameraRuntimeSnapshot, 'slotId'>): void {
-    const next: HeadlinerCameraRuntimeSnapshot = { slotId: this.slotId, ...patch }
+  private setFailure(code: HeadlinerCameraErrorCode, error: unknown): void {
+    this.detachStreamResources(true)
+    this.logFailure(error, code)
+    this.setSnapshot({ status: 'error', errorCode: code, message: headlinerCameraErrorMessage(code, this.errorContext()) })
+  }
+
+  private setSnapshot(patch: Pick<HeadlinerCameraRuntimeSnapshot, 'status' | 'errorCode' | 'message'>): void {
+    const next: HeadlinerCameraRuntimeSnapshot = {
+      slotId: this.slotId,
+      ...patch,
+      cameraLabel: this.cameraLabel,
+      osAccess: this.osAccess,
+    }
     if (
       next.status === this.snapshot.status
       && next.errorCode === this.snapshot.errorCode
       && next.message === this.snapshot.message
+      && next.cameraLabel === this.snapshot.cameraLabel
+      && next.osAccess === this.snapshot.osAccess
     ) return
     this.snapshot = next
     this.listeners.forEach(listener => listener())

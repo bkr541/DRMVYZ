@@ -150,6 +150,9 @@
         "dmg"
       ],
       "icon": "public/drmvyz_logo2.png",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSMicrophoneUsageDescription": "DRMVYZ uses the default microphone only when you select Live Input for realtime analysis.",
         "NSLocalNetworkUsageDescription": "DRMVYZ uses the local network to discover and connect to receivers and to stream output to local casting devices you choose.",

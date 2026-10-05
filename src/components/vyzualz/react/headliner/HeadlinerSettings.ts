@@ -1,5 +1,7 @@
 export type HeadlinerEngineModeId = 'fullscreen'
-export type HeadlinerInputSourceId = 'default-front-camera'
+export const HEADLINER_DEFAULT_CAMERA_SOURCE_ID = 'default-front-camera'
+/** Either the default-camera sentinel or the `deviceId` of a camera the user picked. */
+export type HeadlinerInputSourceId = string
 
 export interface HeadlinerSettings {
   mode: HeadlinerEngineModeId
@@ -8,7 +10,7 @@ export interface HeadlinerSettings {
 
 export const DEFAULT_HEADLINER_SETTINGS: Readonly<HeadlinerSettings> = Object.freeze({
   mode: 'fullscreen',
-  inputSourceId: 'default-front-camera',
+  inputSourceId: HEADLINER_DEFAULT_CAMERA_SOURCE_ID,
 })
 
 export function normalizeHeadlinerEngineMode(value: unknown): HeadlinerEngineModeId {
@@ -16,7 +18,9 @@ export function normalizeHeadlinerEngineMode(value: unknown): HeadlinerEngineMod
 }
 
 export function normalizeHeadlinerInputSource(value: unknown): HeadlinerInputSourceId {
-  return value === 'default-front-camera' ? value : DEFAULT_HEADLINER_SETTINGS.inputSourceId
+  return typeof value === 'string' && value.length > 0 && value.length <= 512
+    ? value
+    : DEFAULT_HEADLINER_SETTINGS.inputSourceId
 }
 
 export function normalizeHeadlinerSettings(value: unknown): HeadlinerSettings {

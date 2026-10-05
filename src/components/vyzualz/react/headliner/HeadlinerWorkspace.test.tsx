@@ -269,7 +269,8 @@ describe('Headliner production workspace controls', () => {
   })
 
   it('keeps the frozen program canvas through track loss and resumes one live stream/RAF after bounded recovery', async () => {
-    vi.useFakeTimers()
+    // Leave requestAnimationFrame alone: this file drives frames by hand through its own stub.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
     try {
       const firstTrack = new FakeHeadlinerTrack()
       const secondTrack = new FakeHeadlinerTrack()
@@ -343,13 +344,13 @@ describe('Headliner production workspace controls', () => {
 
     const surface = container.querySelector<HTMLElement>('[data-headliner-surface="camera"]')
     expect(surface?.dataset.headlinerCameraStatus).toBe('error')
-    expect(container.textContent).toContain('Camera permission denied')
-    expect(container.textContent).toContain('Camera permission was denied')
+    expect(container.textContent).toContain('Camera Permission Required')
+    expect(container.textContent).toContain('Camera access was blocked')
     act(() => runNextFrame(16))
     const canvas = container.querySelector<HTMLCanvasElement>('[data-headliner-output-canvas="true"]')
     expect(canvas?.dataset.headlinerOutputRendered).toBe('true')
     expect(canvas?.dataset.headlinerOutputState).toBe('neutral')
-    expect(fillText).toHaveBeenCalledWith('Camera Unavailable', 320, 320, 524.8)
+    expect(fillText).toHaveBeenCalledWith('Camera Permission Required', 320, 320, 524.8)
   })
 
   it('keeps Presets, Design, and React restrained while shared Output uses the compositor canvas', async () => {
