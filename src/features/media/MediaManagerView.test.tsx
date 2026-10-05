@@ -83,7 +83,9 @@ describe('MediaManagerView', () => {
     const group = container.querySelector('.mmv-header .vz-header-group')
     expect(group?.getAttribute('aria-label')).toBe('Media Manager controls')
     const buttons = () => [...group!.querySelectorAll<HTMLButtonElement>('button')]
-    expect(buttons().map(button => button.textContent?.trim())).toEqual(['Save Changes', 'Delete Media'])
+    // Icon-only keys (like the Show Manager's): the accessible name is the label, there is no visible text.
+    expect(buttons().map(button => button.getAttribute('aria-label'))).toEqual(['Save Changes', 'Delete Media'])
+    expect(buttons().every(button => button.textContent?.trim() === '' && button.querySelector('svg'))).toBe(true)
     // Nothing published yet (no Info tab showing): both keys are dead.
     expect(buttons().every(button => button.disabled)).toBe(true)
 
@@ -97,7 +99,7 @@ describe('MediaManagerView', () => {
     expect(onDelete).toHaveBeenCalledTimes(1)
 
     act(() => { mocks.inspectorProps.current?.onHeaderActions?.({ onSave, saving: true, onDelete: null, deleting: false }) })
-    expect(buttons()[0]!.textContent?.trim()).toBe('Saving…')
+    expect(buttons()[0]!.title).toBe('Saving…')
     expect(buttons().every(button => button.disabled)).toBe(true)
   })
 })

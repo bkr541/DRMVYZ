@@ -93,11 +93,6 @@
   cursor: not-allowed;
 }
 
-.sm-header-icon-button__active-mark {
-  fill: currentColor;
-  stroke: none;
-}
-
 .sm-header-button {
   height: 30px;
   padding: 0 12px;

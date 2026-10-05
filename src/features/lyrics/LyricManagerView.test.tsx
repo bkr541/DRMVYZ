@@ -374,9 +374,10 @@ function cardAction(label: string, card: HTMLElement): HTMLButtonElement {
   return button
 }
 
+/** A button by its visible text, or — for icon-only keys such as the header's Save — by its accessible name. */
 function buttonWithText(text: string, rootElement: ParentNode = container): HTMLButtonElement {
   const button = [...rootElement.querySelectorAll<HTMLButtonElement>('button')]
-    .find(candidate => candidate.textContent?.trim() === text)
+    .find(candidate => candidate.textContent?.trim() === text || candidate.getAttribute('aria-label') === text)
   if (!button) throw new Error(`Button not found: ${text}`)
   return button
 }

@@ -75,6 +75,7 @@ import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompile
 import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { SaveActiveGlyph } from '../layout/HeaderGlyphs'
 import { useSharedDataActivity } from '../../../stores/useSharedDataActivity'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { MediaUploadModal } from '../MediaUploadModal'
@@ -2137,11 +2138,7 @@ export function ShowManagerView() {
                   ? 'Saving and making active…'
                   : 'Save + Make Active'}
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 3.5h12l2 2v15H5z" />
-                  <path d="M8 3.5v6h8v-6M8 20.5v-7h8v7" />
-                  <path className="sm-header-icon-button__active-mark" d="M18.5 11l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z" />
-                </svg>
+                <SaveActiveGlyph />
               </button>
             </div>
           )}

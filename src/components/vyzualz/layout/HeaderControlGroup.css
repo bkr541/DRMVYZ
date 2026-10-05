@@ -154,3 +154,23 @@
   color: #a8fbff;
   background: rgba(74, 199, 219, 0.18);
 }
+
+/* Icon-only keys (HeaderIconKey): the Show Manager's icon cells — 36px wide, the icon centred. Custom glyphs are drawn as a 1.7px
+   rounded line in the key's ink; library icons keep their own strokes. */
+.vz-header-group button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) {
+  width: 36px;
+  padding: 0;
+}
+.vz-header-group .vz-header-icon-key svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vz-header-group .vz-header-icon-key--danger:hover:not(:disabled) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+}
+.vz-header-group .vz-header-icon-key:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.6); outline-offset: -2px; }
+.vz-header-glyph-mark { fill: currentColor; stroke: none; }

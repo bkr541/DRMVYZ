@@ -1,5 +1,6 @@
-import { HeaderToggleKey } from '../../../components/vyzualz/layout/HeaderToggleKey'
-import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { SubtitleIcon } from 'hugeicons-react'
+import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
+import { SaveActiveGlyph, SaveGlyph } from '../../../components/vyzualz/layout/HeaderGlyphs'
 import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
 import { Badge } from '../../../components/vyzualz/react/controls/Badge'
@@ -46,30 +47,27 @@ export function LyricManagerHeader({
       </div>
 
       <HeaderControlGroup label="Lyric Manager controls">
-        <HeaderToggleKey
-          checked={lyricsDisplayEnabled}
-          onChange={() => onToggleLyricsDisplay()}
+        <HeaderIconKey
+          label="Show Lyrics"
           title="Show or hide active lyrics in the visualizer"
-        >
-          Show Lyrics
-        </HeaderToggleKey>
-
-        <IconChipButton
+          icon={<SubtitleIcon size={16} color="currentColor" />}
+          pressed={lyricsDisplayEnabled}
+          onClick={onToggleLyricsDisplay}
+        />
+        <HeaderIconKey
+          label="Save"
+          title={isSaving ? 'Saving…' : 'Save lyric document'}
+          icon={<SaveGlyph />}
+          disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSave}
+        />
+        <HeaderIconKey
+          label="Save + Make Active"
+          title={isSaving ? 'Saving…' : 'Save this version and make it the active runtime version'}
+          icon={<SaveActiveGlyph />}
           disabled={isSaving || (!dirty && !hasDocument)}
-          title="Save lyric document"
-        >
-          {isSaving ? 'Saving…' : 'Save'}
-        </IconChipButton>
-
-        <IconChipButton
-          tone="primary"
           onClick={onSaveAndMakeActive}
-          disabled={isSaving || (!dirty && !hasDocument)}
-          title="Save this version and make it the active runtime version"
-        >
-          {isSaving ? 'Saving…' : 'Save + Make Active'}
-        </IconChipButton>
+        />
       </HeaderControlGroup>
 
       <div className="lmv-header-right">

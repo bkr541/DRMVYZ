@@ -13,6 +13,8 @@ import { UnsavedMediaChangesDialog } from '../../components/vyzualz/media/Unsave
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
+import { HeaderIconKey } from '../../components/vyzualz/layout/HeaderIconKey'
+import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
@@ -84,23 +86,21 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           <PageHeadingPlate titleAs="h1" titleId="media-manager-title" title="Media Manager" icon={<MediaHeadingIcon />} />
         </div>
         <HeaderControlGroup label="Media Manager controls">
-          <IconChipButton
-            tone="primary"
-            onClick={() => headerActions?.onSave()}
+          <HeaderIconKey
+            label="Save Changes"
+            title={headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
+            icon={<SaveGlyph />}
             disabled={!headerActions || headerActions.saving}
-            title="Save the changes made on the Info tab"
-          >
-            {headerActions?.saving ? 'Saving…' : 'Save Changes'}
-          </IconChipButton>
-          <IconChipButton
-            className="dv-icon-chip--danger"
-            icon={<Delete02Icon size={13} color="currentColor" />}
-            onClick={() => headerActions?.onDelete?.()}
-            disabled={!headerActions?.onDelete || headerActions.deleting}
+            onClick={() => headerActions?.onSave()}
+          />
+          <HeaderIconKey
+            label="Delete Media"
             title="Delete this media item"
-          >
-            Delete Media
-          </IconChipButton>
+            icon={<Delete02Icon size={16} color="currentColor" />}
+            danger
+            disabled={!headerActions?.onDelete || headerActions.deleting}
+            onClick={() => headerActions?.onDelete?.()}
+          />
         </HeaderControlGroup>
         <div className="mmv-summary">
           <VyzualzHeaderActions page="media-manager" />

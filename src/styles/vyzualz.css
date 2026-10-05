@@ -6056,10 +6056,24 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.06em;
 }
+/* The CPU readout is always one line, "CPU 12%". Pages restyle .vsm-settings-btn for their own header (e.g. Show Manager's
+   `.sm-topbar > .vsm-settings-btn` makes it a 30px centred grid), so this layout is stated at a specificity no page rule reaches. */
+.vsm-settings-btn.vz-header-status-chip.vz-header-cpu {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 30px;
+  padding: 0 7px;
+  gap: 5px;
+  white-space: nowrap;
+}
 .vz-header-cpu { font-variant-numeric: tabular-nums; }
 .vz-header-cpu-label { opacity: 0.7; }
 .vz-header-cpu-value { min-width: 3ch; text-align: right; }
-.vsm-settings-btn.vz-header-activity { width: 30px; padding: 0; }
+.vsm-settings-btn.vz-header-status-chip.vz-header-activity { width: 30px; padding: 0; flex: 0 0 auto; }
 .vz-header-activity-ring { display: block; }
 .vz-header-activity-arc { transform-origin: 12px 12px; }
 /* Specific enough to beat the theme stylesheet's [data-theme] .vsm-settings-btn gray. */
