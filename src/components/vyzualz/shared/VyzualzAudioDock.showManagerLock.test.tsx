@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AudioEngine } from '../../../hooks/useAudioEngine'
 import { resetAudioSourcePolicyForTests } from '../../../audio/audioSourcePolicy'
+import { NotificationDrawer } from './NotificationDrawer'
 
 const fixture = vi.hoisted(() => ({
   engine: {
@@ -142,6 +143,22 @@ async function renderView(initialAppView: 'showManager' | 'react'): Promise<void
   })
 }
 
+// The dock's notices are listed in the page's Notifications drawer (the header bell) instead of drawn over the waveform.
+// These mocked page views have no header, so open the real drawer for the page directly.
+async function drawerText(page: 'react' | 'show-manager'): Promise<string> {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const drawerRoot = createRoot(host)
+  await act(async () => {
+    drawerRoot.render(<NotificationDrawer page={page} scope="viewport" onClose={() => {}} />)
+    await Promise.resolve()
+  })
+  const text = document.body.querySelector('.vz-notifications-drawer')?.textContent ?? ''
+  await act(async () => drawerRoot.unmount())
+  host.remove()
+  return text
+}
+
 async function dispatchAudioFile(name = 'track-c.wav'): Promise<void> {
   const input = container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')
   expect(input).not.toBeNull()
@@ -195,10 +212,10 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(fixture.engine.addPreparedTracks).not.toHaveBeenCalled()
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
     expect(fixture.engine.setSource).not.toHaveBeenCalled()
-    expect(container?.querySelector('[role="alert"]')?.textContent).toContain(
-      'An audio track cannot be loaded while in Show Manager.',
-    )
-    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('React or Media Manager')
+    expect(container?.querySelector('[role="alert"]')).toBeNull()
+    const drawer = await drawerText('show-manager')
+    expect(drawer).toContain('An audio track cannot be loaded while in Show Manager.')
+    expect(drawer).toContain('React or Media Manager')
   })
 
   it('disables the real Audio Dock track routes and surfaces capture errors while Live Input is selected', async () => {
@@ -213,7 +230,10 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(container?.querySelector('.vz-dock-addtrack-btn')?.textContent).toContain('Live Input Active')
     expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-disabled')).toBe('true')
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(true)
-    expect(container?.querySelector('[role="alert"]')?.textContent).toContain('Permission denied')
+    expect(container?.querySelector('[role="alert"]')).toBeNull()
+    const drawer = await drawerText('react')
+    expect(drawer).toContain('Live Input active')
+    expect(drawer).toContain('Permission denied')
 
     await dispatchAudioFile('blocked-during-live-input.wav')
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 import { ReloadIcon, Delete02Icon } from 'hugeicons-react'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from './controls/IconChipButton'
 import { LayerRow } from './controls/LayerRow'
 import { ToggleGlyph } from './controls/IconMorphToggle'
@@ -223,7 +223,7 @@ function CanvasOverrideStatus({
   onClear,
 }: CanvasOverrideStatusProps) {
   return (
-    <NoticeCard tone="warning" role="status" title={title}>
+    <DrawerNotice tone="warning" role="status" title={title}>
       <div className="rv-canvas-override-flag__content">
         <span className="rv-canvas-override-flag__message">{message}</span>
         <IconChipButton
@@ -234,7 +234,7 @@ function CanvasOverrideStatus({
           {clearLabel}
         </IconChipButton>
       </div>
-    </NoticeCard>
+    </DrawerNotice>
   )
 }
 
@@ -503,14 +503,14 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
         getDisabledReason={getCanvasLibraryDisabledReason}
       />
       {actionFeedback && (
-        <NoticeCard
+        <DrawerNotice
           tone="warning"
           role="alert"
           title="CANVAS media action"
           onDismiss={() => setActionFeedback(null)}
         >
           {actionFeedback}
-        </NoticeCard>
+        </DrawerNotice>
       )}
       {actionMenu && (
         <ContextActionMenu
@@ -2559,11 +2559,9 @@ export function CanvasEngineSurface({
           onCanvasReady={outputAvailable ? onCanvasReady : undefined}
           onStatusChange={setCutbankRendererNotice}
         />
-        <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
-          {cutbankRendererNotice && (
-            <NoticeCard tone="warning" role="status" title="CUTBANK">{cutbankRendererNotice}</NoticeCard>
-          )}
-        </div>
+        {cutbankRendererNotice && (
+          <DrawerNotice tone="warning" role="status" title="CUTBANK">{cutbankRendererNotice}</DrawerNotice>
+        )}
       </div>
     )
   }
@@ -2678,11 +2676,9 @@ export function CanvasEngineSurface({
           {sourceEffectsCanvasNode}
         </div>
         {activeMediaLoadError && (
-          <div className="rv-canvas-live-error-card">
-            <NoticeCard tone="error" role="alert" title="CANVAS media could not load">
-              {activeMediaLoadError}
-            </NoticeCard>
-          </div>
+          <DrawerNotice tone="error" role="alert" title="CANVAS media could not load">
+            {activeMediaLoadError}
+          </DrawerNotice>
         )}
         <CanvasParticleAuraLayer
           active={particleReconstructionActive}
@@ -2756,18 +2752,16 @@ export function CanvasEngineSurface({
             onStatusChange={setFracturesRendererNotice}
           />
         )}
-        <div className="rv-canvas-visualizer-notice-stack" aria-label="CANVAS visualizer notices">
-          {particleRendererNotice && particleReconstructionActive && (
-            <NoticeCard tone="warning" role="status" title="Particle renderer">{particleRendererNotice}</NoticeCard>
-          )}
-          {laserImageFxRendererNotice && laserImageFxActive && (
-            <NoticeCard tone="warning" role="status" title="Laser Image FX renderer">{laserImageFxRendererNotice}</NoticeCard>
-          )}
-          {fracturesRendererNotice && fragmentCollageActive && (
-            <NoticeCard tone="warning" role="status" title="Fractures renderer">{fracturesRendererNotice}</NoticeCard>
-          )}
-          <CanvasVisualizerOverrideNotices />
-        </div>
+        {particleRendererNotice && particleReconstructionActive && (
+          <DrawerNotice tone="warning" role="status" title="Particle renderer">{particleRendererNotice}</DrawerNotice>
+        )}
+        {laserImageFxRendererNotice && laserImageFxActive && (
+          <DrawerNotice tone="warning" role="status" title="Laser Image FX renderer">{laserImageFxRendererNotice}</DrawerNotice>
+        )}
+        {fracturesRendererNotice && fragmentCollageActive && (
+          <DrawerNotice tone="warning" role="status" title="Fractures renderer">{fracturesRendererNotice}</DrawerNotice>
+        )}
+        <CanvasVisualizerOverrideNotices />
       </div>
     </div>
   )
@@ -3600,10 +3594,10 @@ export function CanvasPerformanceAutomationControls() {
         disabled={!settings.poolAutomationEnabled}
       />
       {settings.poolAutomationEnabled && !settings.activeMediaPoolId && (
-        <NoticeCard tone="warning" role="status" title="No active Media Pool">Activate a Media Pool to start automatic CANVAS rotation.</NoticeCard>
+        <DrawerNotice tone="warning" role="status" title="No active Media Pool">Activate a Media Pool to start automatic CANVAS rotation.</DrawerNotice>
       )}
       {autoPerformanceActive && poolItems.length === 0 && (
-        <NoticeCard tone="warning" role="status" title="Performance pool is empty">Select media in the left SOURCE panel to build the performance pool.</NoticeCard>
+        <DrawerNotice tone="warning" role="status" title="Performance pool is empty">Select media in the left SOURCE panel to build the performance pool.</DrawerNotice>
       )}
       <CanvasHelpControl
         helpId="react.canvas.performanceOrchestration.performanceShow"
@@ -3728,7 +3722,7 @@ export function CanvasLayersPanel() {
     <section className="rv-cinema-panel-list" aria-label="Canvas layers">
       <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{activeLayerCount} / {MAX_CANVAS_AUTHORED_LAYERS}</span></div>
       <p className="rv-cinema-panel-list__hint">Top rows render above lower rows. Select a layer for Selection context, or drag a row to change stack order.</p>
-      {actionFeedback && <NoticeCard tone="error" role="status" title="Layer action failed">{actionFeedback}</NoticeCard>}
+      {actionFeedback && <DrawerNotice tone="error" role="status" title="Layer action failed">{actionFeedback}</DrawerNotice>}
       <div className="rv-cinema-layer-tree">
         {showCanvasRow && (
           <div className="rv-canvas-scope-row-wrap">
@@ -4964,9 +4958,9 @@ function CanvasPresetControlGroupSection({ title, label = title }: { title: stri
   return (
     <Collapsible label={label} defaultOpen>
       {title === 'Particles' && canvasPresetSettings.particleDensity > 0.02 && !activeItem && (
-        <NoticeCard tone="warning" role="status" title="Active media required">
+        <DrawerNotice tone="warning" role="status" title="Active media required">
           Particles need an active CANVAS library media item before they can sample pixels and emit from the source.
-        </NoticeCard>
+        </DrawerNotice>
       )}
       {group.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
     </Collapsible>

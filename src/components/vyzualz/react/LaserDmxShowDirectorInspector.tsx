@@ -30,7 +30,7 @@ import {
 import { CtrlSection, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { IconMorphCheckbox } from './controls/IconMorphToggle'
 import { IconChipButton } from './controls/IconChipButton'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { LaserDmxShowDirectorFixtureIcon } from './LaserDmxShowDirectorFixtureIcon'
 import {
   LASER_DMX_SCANNER_PATTERN_OPTIONS,
@@ -766,7 +766,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                   <IconChipButton onClick={() => setScannerMigrationPreview(previewLaserDmxLegacyScannerMigration(fixture, settings.gridSize))}>Preview Legacy Conversion</IconChipButton>
                 )}
                 {scannerMigrationPreview && !fixture.scanner && scannerWarningsVisible && (
-                  <NoticeCard tone="warning" role="status" title="Scanner conversion preview">
+                  <DrawerNotice tone="warning" role="status" title="Scanner conversion preview">
                     <p>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</p>
                     <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
                     <p>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</p>
@@ -776,7 +776,7 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                       commitScanner({ ...scannerMigrationPreview.scanner, migration: { ...scannerMigrationPreview.scanner.migration, status: 'migrated' } })
                       setScannerMigrationPreview(null)
                     }}>Apply Conversion</IconChipButton>
-                  </NoticeCard>
+                  </DrawerNotice>
                 )}
               </>
             )}
@@ -972,9 +972,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                   <div><span>Compatibility</span><strong>{scannerDiagnostics.compatibilityMode}</strong></div>
                 </div>
                 {scannerIssues.length > 0 && (
-                  <NoticeCard tone="warning" role="status" title="Scanner diagnostics">
+                  <DrawerNotice tone="warning" role="status" title="Scanner diagnostics">
                     {scannerIssues.map(issue => <div key={`${issue.code}:${issue.pointId ?? ''}`}>{issue.severity.toUpperCase()}: {issue.message}</div>)}
-                  </NoticeCard>
+                  </DrawerNotice>
                 )}
               </>
             )}
@@ -992,13 +992,13 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                   }}>Apply Conversion</IconChipButton>}
                 </div>
                 {scannerMigrationPreview && (
-                  <NoticeCard tone="warning" role="status" title="Scanner conversion preview">
+                  <DrawerNotice tone="warning" role="status" title="Scanner conversion preview">
                     <p>{scannerMigrationPreview.classification} · {Math.round(scannerMigrationPreview.confidence * 100)}% confidence</p>
                     <ScannerMigrationPreviewDiagram preview={scannerMigrationPreview} columns={settings.gridSize.columns} rows={settings.gridSize.rows} />
                     <p>{scannerMigrationPreview.visibleSegmentCount} visible · {scannerMigrationPreview.blankedSegmentCount} blanked segments</p>
                     {scannerMigrationPreview.ambiguous && <p>Review required: conversion is ambiguous.</p>}
                     {scannerMigrationPreview.warnings.map(warning => <p key={warning}>{warning}</p>)}
-                  </NoticeCard>
+                  </DrawerNotice>
                 )}
               </>
             )}
@@ -1053,9 +1053,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
         <SelectRow label="Trigger mode" value={fixture.trigger.mode} options={TRIGGER_MODE_OPTIONS} onChange={mode => updateTriggerMode(mode as LaserDmxShowDirectorTriggerMode)} />
         <p className="rv-show-director-trigger-hint">{TRIGGER_HINTS[fixture.trigger.mode]}</p>
         {triggerNotes.length > 0 && (
-          <NoticeCard tone="warning" role="status" ariaLabel="Show Director timing requirements" title="Timing requirements">
+          <DrawerNotice tone="warning" role="status" ariaLabel="Show Director timing requirements" title="Timing requirements">
             {triggerNotes.map(note => <div key={note}>{note}</div>)}
-          </NoticeCard>
+          </DrawerNotice>
         )}
         {(fixture.trigger.mode === 'beat' || fixture.trigger.mode === 'bar' || fixture.trigger.mode === 'phrase') && (
           <SelectRow label="Beat division" value={beatDivisionValue(fixture.trigger.beatDivision)} options={BEAT_DIVISION_OPTIONS} onChange={beatDivision => update({ trigger: { beatDivision: parseBeatDivision(beatDivision) } })} />

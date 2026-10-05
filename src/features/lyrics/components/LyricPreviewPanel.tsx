@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { ViewIcon } from 'hugeicons-react'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
@@ -131,7 +131,7 @@ function IssueList({
   if (!issues.length) return null
   const isError = issues[0]?.severity === 'error'
   return (
-    <NoticeCard
+    <DrawerNotice
       tone={isError ? 'error' : 'warning'}
       title={isError ? 'Validation errors' : 'Validation warnings'}
       ariaLabel={`${issues.length} ${isError ? 'error' : 'warning'}${issues.length === 1 ? '' : 's'}`}
@@ -153,7 +153,7 @@ function IssueList({
           <div key={issue.id}>{issue.message}</div>
         )
       })}
-    </NoticeCard>
+    </DrawerNotice>
   )
 }
 

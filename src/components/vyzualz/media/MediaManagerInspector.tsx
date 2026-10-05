@@ -5,7 +5,7 @@ import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from 
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { Badge } from '../react/controls/Badge'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
@@ -261,7 +261,7 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
         )}
       </Collapsible>
 
-      {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
+      {error && <DrawerNotice tone="error" role="alert" title="Save failed">{error}</DrawerNotice>}
 
       {confirmingDelete && (
         <MediaDeleteConfirmDialog
@@ -327,7 +327,7 @@ function AudioTrackInspector({ track, onHeaderActions }: { track: SavedAudioTrac
         <SelectRow id="mmi-track-key" label="Musical Key" value={musicalKey} options={[{ value: '', label: 'Unknown' }, ...MUSICAL_KEYS.map(k => ({ value: k, label: k }))]} onChange={setMusicalKey} />
       </Collapsible>
 
-      {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
+      {error && <DrawerNotice tone="error" role="alert" title="Save failed">{error}</DrawerNotice>}
     </div>
   )
 }

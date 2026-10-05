@@ -9,7 +9,7 @@ import {
   type MutableRefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { NoticeCard } from '../controls/NoticeCard'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 import {
   CANVAS_OUTPUT_AVAILABLE,
   isCanvasFracturesOutputDeferred,
@@ -722,7 +722,6 @@ function OutputCastPopover({
   const [aspectRatio, setAspectRatio] = useState<OutputAspectRatio | null>(null)
   const [pendingTargetId, setPendingTargetId] = useState<string | null>(null)
   const [pendingProviderAction, setPendingProviderAction] = useState<string | null>(null)
-  const [errorExpanded, setErrorExpanded] = useState(false)
   const [position, setPosition] = useState<CastPopoverPosition | null>(null)
   const popoverRef = useRef<HTMLElement | null>(null)
   const titleId = 'rv-output-cast-title'
@@ -751,9 +750,6 @@ function OutputCastPopover({
     if (!session || session.state === 'connected' || session.state === 'failed' || error) setPendingTargetId(null)
   }, [error, session])
 
-  useEffect(() => {
-    if (!session?.error) setErrorExpanded(false)
-  }, [session?.error])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -982,22 +978,12 @@ function OutputCastPopover({
                   {sessionStatsParts.length > 0 && (
                     <small><span className="rv-cast-session-field-label">Stats</span>{joinWithDot(sessionStatsParts)}</small>
                   )}
-                  {session.error && errorExpanded && (
-                    <NoticeCard tone="error" role="alert" title={sessionStatusLabel ?? 'Output failed'} className="rv-cast-notice-drop">
+                  {session.error && (
+                    <DrawerNotice tone="error" role="alert" title={sessionStatusLabel ?? 'Output failed'}>
                       {session.error}
-                    </NoticeCard>
+                    </DrawerNotice>
                   )}
                 </div>
-                {session.error && (
-                  <button
-                    type="button"
-                    className="rv-cast-session-error-toggle"
-                    aria-expanded={errorExpanded}
-                    onClick={() => setErrorExpanded(value => !value)}
-                  >
-                    {errorExpanded ? 'Hide Error' : 'Show Error'}
-                  </button>
-                )}
                 <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
               </div>
             </div>
@@ -1015,16 +1001,16 @@ function OutputCastPopover({
             </div>
 
             {!bridge && (
-              <NoticeCard tone="info" role="status" title="Desktop app required">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</NoticeCard>
+              <DrawerNotice tone="info" role="status" title="Desktop app required">Casting is available in the DRMVYZ desktop app. Browser builds keep the visualizer local.</DrawerNotice>
             )}
             {bridge && !canvasReady && (
-              <NoticeCard tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</NoticeCard>
+              <DrawerNotice tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</DrawerNotice>
             )}
-            {error && <NoticeCard tone="error" role="alert" title="Casting error">{error}</NoticeCard>}
+            {error && <DrawerNotice tone="error" role="alert" title="Casting error">{error}</DrawerNotice>}
             {providerIssues.map(status => (
-              <NoticeCard key={status.providerId} tone="warning" role="status" title={status.label}>
+              <DrawerNotice key={status.providerId} tone="warning" role="status" title={status.label}>
                 {status.message ?? 'This output provider is currently unavailable.'}
-              </NoticeCard>
+              </DrawerNotice>
             ))}
 
             {showWirelessDisplays && (

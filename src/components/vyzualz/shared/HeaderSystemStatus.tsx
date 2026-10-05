@@ -1,6 +1,7 @@
 import { useAppCpuUsage } from '../../../native/useAppCpuUsage'
 import { usePageActivityLabels } from '../../../stores/pageActivityStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
+import { HeaderNotificationsButton } from './HeaderNotificationsButton'
 
 /** Low under 25% of the computer, medium under 60%, high above. */
 function cpuLevel(percent: number) {
@@ -28,8 +29,8 @@ function ActivitySpinner({ busy }: { busy: boolean }) {
 }
 
 /**
- * Header status cluster shown left of the profile icon on every page: the app's CPU usage and a
- * circular activity indicator. The indicator animates (in the accent colour) while anything on
+ * Header status cluster shown left of the profile icon on every page: the app's CPU usage, a
+ * circular activity indicator and the Notifications bell. The indicator animates (in the accent colour) while anything on
  * this page is loading and rests in the same gray as the header's icon buttons otherwise.
  */
 export function HeaderSystemStatus({ page }: { page: AppPageId }) {
@@ -66,6 +67,7 @@ export function HeaderSystemStatus({ page }: { page: AppPageId }) {
       >
         <ActivitySpinner busy={busy} />
       </span>
+      <HeaderNotificationsButton page={page} />
     </>
   )
 }

@@ -3,7 +3,7 @@ import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactSectionType } from '../ReactTypes'
 import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { HelpInfoTrigger } from '../../../shared/InfoPopover'
-import { NoticeCard } from '../controls/NoticeCard'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 import { IconChipButton } from '../controls/IconChipButton'
 import { PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
@@ -870,14 +870,14 @@ function AnalysisPanel() {
         <div className="rv-pix-grid-diagnostic-tags"><span className="is-available">Available {runtime?.availableSources.length ?? 0}</span><span className="is-degraded">Degraded {runtime?.degradedSources.length ?? 0}</span><span className="is-fallback">Fallback {runtime?.assignmentsUsingFallback.length ?? 0}</span><span className="is-blocked">Confidence blocked {runtime?.assignmentsBlockedByConfidence.length ?? 0}</span><span className="is-unavailable">Unavailable {runtime?.unavailableSources.length ?? 0}</span></div>
       </Collapsible>
       <Collapsible label="CONFIGURATION VALIDATION" defaultOpen={validation.errors.length > 0}>
-        <NoticeCard className="rv-pix-grid-validation-summary" tone={validation.valid ? 'success' : 'warning'} role="status" title={validation.valid ? 'VALID' : 'ACTION REQUIRED'}>{validation.summary}</NoticeCard>
+        <DrawerNotice className="rv-pix-grid-validation-summary" tone={validation.valid ? 'success' : 'warning'} role="status" title={validation.valid ? 'VALID' : 'ACTION REQUIRED'}>{validation.summary}</DrawerNotice>
         <div className="rv-pix-grid-validation-list" role="list" aria-label="PixGrid validation issues">
           {validation.issues.map(item => <div key={`${item.code}:${item.path}`} role="listitem" className={`is-${item.severity}`}>
             <strong>{item.severity.toUpperCase()} · {label(item.code)}</strong>
             <span>{item.message}</span>
             <small>{item.path} · {item.remediation}</small>
           </div>)}
-          {!validation.issues.length && <NoticeCard tone="success" role="status" title="Configuration valid">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</NoticeCard>}
+          {!validation.issues.length && <DrawerNotice tone="success" role="status" title="Configuration valid">Smart groups, routes, fallbacks, performance program, and migration metadata are structurally valid.</DrawerNotice>}
         </div>
       </Collapsible>
       <Collapsible label="RUNTIME DIAGNOSTICS" defaultOpen={false}>

@@ -1,4 +1,4 @@
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useMemo, useState } from 'react'
 import { LyricSearchFilterRow } from './LyricSearchFilterRow'
@@ -107,10 +107,10 @@ export function LyricTrackBrowser({
       />
 
       {error && (
-        <NoticeCard tone="error" role="alert" title="Track browser error">
+        <DrawerNotice tone="error" role="alert" title="Track browser error">
           {error}{' '}
           <IconChipButton onClick={onRetry}>Retry</IconChipButton>
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       {!error && !loading && visibleTracks.length === 0 && (

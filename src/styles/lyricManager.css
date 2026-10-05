@@ -38,13 +38,6 @@
 
 /* ── Toggle ──────────────────────────────────────────────────────────── */
 
-/* ── Status bar ──────────────────────────────────────────────────────── */
-
-.lmv-status-bar {
-  padding: 7px 20px;
-  flex-shrink: 0;
-}
-
 /* ── Body (3-column) ─────────────────────────────────────────────────── */
 
 .lmv-body {
@@ -351,11 +344,6 @@
   gap: 2px;
 }
 
-/* ── Parse status banner ─────────────────────────────────────────────── */
-
-.lmv-parse-status {
-  margin-bottom: 10px;
-}
 .lmv-parse-source-tag {
   font-size: 9px;
   font-weight: 700;
@@ -462,17 +450,6 @@
 }
 .lmv-slider-val { font-size: 10px; color: rgba(196,207,211,0.6); min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* ── AI notice ───────────────────────────────────────────────────────── */
-
-.lmv-ai-notice {
-  margin-bottom: 4px;
-}
-.lmv-ai-notice code {
-  font-size: 10px;
-  background: rgba(74,199,219,0.1);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
 
 /* ── Nav icon in sidebar (used in AnalyzerSidebar) ───────────────────── */
 

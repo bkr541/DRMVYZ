@@ -1,7 +1,7 @@
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { PoolTextEntries } from './PoolTextEntries'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { Collapsible } from '../react/ReactControlRows'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
@@ -1510,12 +1510,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         ) : libraryFilter === 'pools' ? (
           renderPoolsView()
         ) : queryError && filtered.length === 0 ? (
-          <div className="vz-media-page-error">
-            <NoticeCard tone="error" role="alert" title="Media library unavailable">
-              {queryError}{' '}
-              <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
-            </NoticeCard>
-          </div>
+          <DrawerNotice tone="error" role="alert" title="Media library unavailable">
+            {queryError}{' '}
+            <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
+          </DrawerNotice>
         ) : loading && filtered.length === 0 ? (
           <div className="vz-media-sheet" style={{ '--vz-sheet-tile': 'auto' } as CSSProperties}>
             {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
@@ -1601,11 +1599,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         />
       )}
       {bulkActionError && (
-        <div className="vz-media-bulk-error-toast" role="alert">
-          <NoticeCard tone="error" role="alert" title="Media action failed" onDismiss={() => setBulkActionError(null)}>
-            {bulkActionError}
-          </NoticeCard>
-        </div>
+        <DrawerNotice tone="error" role="alert" title="Media action failed" onDismiss={() => setBulkActionError(null)}>
+          {bulkActionError}
+        </DrawerNotice>
       )}
       {deleteConfirm && (
         <MediaDeleteConfirmDialog

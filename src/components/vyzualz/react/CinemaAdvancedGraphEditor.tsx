@@ -1,5 +1,5 @@
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { createLogger } from '../../../lib/logger'
 import {
   Component,
@@ -409,17 +409,17 @@ function CinemaAdvancedGraphEditorSurface({ composition, definitions }: CinemaAd
         <span className="rv-cinema-graph-editor__zoom">{Math.round(viewport.zoom * 100)}%</span>
       </div>
 
-      {immutable && <NoticeCard tone="info" role="status" title="Reference graph">Built-in Cinema compositions are inspectable here but remain immutable. Duplicate one to edit its graph.</NoticeCard>}
-      {message && <NoticeCard tone="info" role="status" title="Graph update">{message}</NoticeCard>}
+      {immutable && <DrawerNotice tone="info" role="status" title="Reference graph">Built-in Cinema compositions are inspectable here but remain immutable. Duplicate one to edit its graph.</DrawerNotice>}
+      {message && <DrawerNotice tone="info" role="status" title="Graph update">{message}</DrawerNotice>}
       {validation.diagnostics.diagnostics.length > 0 && (
-        <NoticeCard
+        <DrawerNotice
           tone="warning"
           role="status"
           ariaLabel="Cinema graph diagnostics"
           title={`${validation.diagnostics.counts.error + validation.diagnostics.counts.fatal} errors · ${validation.diagnostics.counts.warning} warnings`}
         >
           {validation.diagnostics.diagnostics[0]?.message}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       <div
@@ -588,7 +588,7 @@ function CinemaGraphStructuredFallback({ composition, definitions }: CinemaAdvan
   }
   return (
     <div className="rv-cinema-graph-fallback" role="region" aria-label="Cinema structured graph fallback">
-      <NoticeCard tone="error" role="alert" title="Graph surface unavailable">{message}</NoticeCard>
+      <DrawerNotice tone="error" role="alert" title="Graph surface unavailable">{message}</DrawerNotice>
       <div className="rv-cinema-graph-accessible__connect">
         <label><span>Output port</span><DropdownSelect value={from} onChange={event => setFrom(event.target.value)}>{<option value="">Choose output…</option>}{outputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>
         <label><span>Input port</span><DropdownSelect value={to} onChange={event => setTo(event.target.value)}>{<option value="">Choose input…</option>}{inputs.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</DropdownSelect></label>

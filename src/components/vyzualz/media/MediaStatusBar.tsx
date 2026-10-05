@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaMutationOperation } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 
 export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolean }) {
@@ -69,19 +69,19 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     .sort((a, b) => b.updatedAt - a.updatedAt)[0]
 
   if (loading) return (
-    <NoticeCard tone="info" role="status" title="Media library refresh">
+    <DrawerNotice tone="info" role="status" title="Media library refresh">
       Reloading media library…
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (!storageAvailable) return (
-    <NoticeCard tone="warning" role="status" title="Cloud storage unavailable">
+    <DrawerNotice tone="warning" role="status" title="Cloud storage unavailable">
       Storage not configured — files are local only
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (mutationFailure) return (
-    <NoticeCard
+    <DrawerNotice
       tone={mutationFailure.status === 'conflict' ? 'warning' : 'error'}
       role="alert"
       title={`${operationLabels[mutationFailure.operation]} needs attention`}
@@ -96,11 +96,11 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
       >
         {mutationFailure.status === 'conflict' ? 'Reapply' : 'Retry'}
       </IconChipButton>
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (reorderFailure) return (
-    <NoticeCard
+    <DrawerNotice
       tone={reorderFailure.status === 'conflict' ? 'warning' : 'error'}
       role="alert"
       title="Collection order needs attention"
@@ -108,49 +108,49 @@ export function MediaStatusBar({ includeAudio = false }: { includeAudio?: boolea
     >
       Collection order: {reorderFailure.message}{' '}
       <IconChipButton className="vz-media-status-action" onClick={() => { void retryCollectionReorder(reorderFailure.collectionId) }}>Retry</IconChipButton>
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (uploadCleanupState) return (
-    <NoticeCard tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert" title="Upload cleanup needs attention">
+    <DrawerNotice tone={uploadCleanupState.status === 'failed' ? 'error' : 'warning'} role="alert" title="Upload cleanup needs attention">
       Failed upload cleanup: {uploadCleanupState.message ?? `${uploadCleanupState.completedPaths.length}/${uploadCleanupState.storagePaths.length} objects removed.`}{' '}
       <IconChipButton className="vz-media-status-action" onClick={() => { void retryUploadCleanup(uploadCleanupState.jobId) }}>Retry cleanup</IconChipButton>
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (deletionState) return (
-    <NoticeCard tone={deletionState.status === 'failed' ? 'error' : 'info'} role="status" title="Media deletion">
+    <DrawerNotice tone={deletionState.status === 'failed' ? 'error' : 'info'} role="status" title="Media deletion">
       {deletionState.status === 'failed'
         ? `Media deletion cleanup needs attention: ${deletionState.message ?? 'Retry the remaining storage objects.'}`
         : `Deleting media safely (${deletionState.completedPaths.length}/${deletionState.storagePaths.length} objects)…`}
       {deletionState.status === 'failed' && (
         <> <IconChipButton className="vz-media-status-action" onClick={() => { void retryDeletion(deletionState.itemId) }}>Retry</IconChipButton></>
       )}
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (deleteError) return (
-    <NoticeCard tone="error" role="alert" title="Delete failed" onDismiss={clearDeleteError}>
+    <DrawerNotice tone="error" role="alert" title="Delete failed" onDismiss={clearDeleteError}>
       Delete failed: {deleteError}
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (includeAudio && audioError) return (
-    <NoticeCard tone="error" role="alert" title="Audio library error" onDismiss={clearAudioError}>
+    <DrawerNotice tone="error" role="alert" title="Audio library error" onDismiss={clearAudioError}>
       {audioError}
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (loadError) return (
-    <NoticeCard tone="error" role="alert" title="Media library error" onDismiss={clearLoadError}>
+    <DrawerNotice tone="error" role="alert" title="Media library error" onDismiss={clearLoadError}>
       {loadError}
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   if (authRequired) return (
-    <NoticeCard tone="info" role="status" title="Cloud sync unavailable">
+    <DrawerNotice tone="info" role="status" title="Cloud sync unavailable">
       Sign in to sync media to cloud
-    </NoticeCard>
+    </DrawerNotice>
   )
 
   return null

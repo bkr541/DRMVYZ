@@ -1,6 +1,6 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -296,9 +296,9 @@ export function LyricCueInspector({
   return (
     <section className="lyric-cue-inspector" aria-label="Selected lyric cue editor">
       {issues.length > 0 && (
-        <NoticeCard tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`} title="Cue warnings">
+        <DrawerNotice tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`} title="Cue warnings">
           {issues.map((issue, index) => <div key={`${issue.code}-${issue.relatedCueId ?? issue.wordId ?? index}`}>{issue.message}</div>)}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       <div className="lyric-cue-inspector__grid">

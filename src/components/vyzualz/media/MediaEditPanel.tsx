@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CropIcon } from 'hugeicons-react'
 import { Collapsible, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { SaveAsMediaDialog } from './SaveAsMediaDialog'
 import {
   MEDIA_EDIT_RANGES,
@@ -57,7 +57,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
   if (unsupported) {
     return (
       <div className="mmi-body">
-        <NoticeCard tone="warning" role="status" title="Editing unavailable">{unsupported}</NoticeCard>
+        <DrawerNotice tone="warning" role="status" title="Editing unavailable">{unsupported}</DrawerNotice>
       </div>
     )
   }
@@ -168,7 +168,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
         {DETAIL_SLIDERS.map(renderSlider)}
       </Collapsible>
 
-      {error && <NoticeCard tone="error" role="alert" title="Save failed">{error}</NoticeCard>}
+      {error && <DrawerNotice tone="error" role="alert" title="Save failed">{error}</DrawerNotice>}
       {progressLabel && <div className="mmi-edit-progress" role="status" aria-live="polite">{progressLabel}</div>}
 
       <div className="mmi-actions mmi-actions--row">

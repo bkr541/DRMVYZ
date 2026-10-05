@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { NoticeCard } from '../../controls/NoticeCard'
+import { DrawerNotice } from '../../../shared/DrawerNotice'
 import type { ShaderDefinition, TextureInputDef } from '../registry/shaderRegistryTypes'
 import type {
   ShaderTexSourceSelection,
@@ -122,7 +122,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
       </DropdownSelect>
 
       {warning && (
-        <NoticeCard tone="warning" role="alert" title="Texture input unavailable">{warning}</NoticeCard>
+        <DrawerNotice tone="warning" role="alert" title="Texture input unavailable">{warning}</DrawerNotice>
       )}
     </div>
   )

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricCue } from '../../../types/lyrics'
 import { parseLyricDocumentJson, type LyricDocumentImportResult } from '../utils/lyricDocumentImport'
@@ -185,7 +185,7 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
         <div ref={resultRef} className="lmv-validation-box">
 
           {/* Status banner — role=status announces changes to screen readers */}
-          <NoticeCard
+          <DrawerNotice
             className="lmv-parse-status"
             tone={statusVariant === 'ok' ? 'success' : statusVariant === 'warn' ? 'warning' : 'error'}
             role="status"
@@ -195,7 +195,7 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
             {parseSource === 'file' && fileName && (
               <span className="lmv-parse-source-tag" aria-label={`from file: ${fileName}`}>from file</span>
             )}
-          </NoticeCard>
+          </DrawerNotice>
 
           {/* Next-action hint when valid */}
           {!hasErrors && result.cues.length > 0 && (
@@ -255,14 +255,14 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           )}
 
           {result.errors.length > 0 && (
-            <NoticeCard tone="error" role="alert" title="Import errors">
+            <DrawerNotice tone="error" role="alert" title="Import errors">
               {result.errors.map((e, i) => <div key={i}>{e}</div>)}
-            </NoticeCard>
+            </DrawerNotice>
           )}
           {result.warnings.length > 0 && (
-            <NoticeCard tone="warning" role="status" title="Import warnings">
+            <DrawerNotice tone="warning" role="status" title="Import warnings">
               {result.warnings.map((w, i) => <div key={i}>{w}</div>)}
-            </NoticeCard>
+            </DrawerNotice>
           )}
 
           {!hasErrors && previewCues.length > 0 && (

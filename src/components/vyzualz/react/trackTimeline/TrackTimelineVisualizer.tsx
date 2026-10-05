@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
@@ -29,7 +28,7 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { TrackTimelineIcon } from './TrackTimelineIcon'
-import { NoticeCard } from '../controls/NoticeCard'
+import { NotificationDrawer, NotificationBellIcon } from '../../shared/NotificationDrawer'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
@@ -461,15 +460,6 @@ function RailIcon({ name }: { name: RailIconName }) {
   )
 }
 
-function NotificationBellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S18 15 18 8.5" />
-      <path d="M13.7 20.5a2 2 0 0 1-3.4 0" />
-    </svg>
-  )
-}
-
 function TrackTimelineRail({
   onOverview,
   onDetail,
@@ -808,7 +798,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
   const [analysisPanelOpen, setAnalysisPanelOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [notificationsClosing, setNotificationsClosing] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
     model.bars,
@@ -894,8 +883,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const analysisHasWarning = !downbeatAvailable || model.warnings.length > 0
 
   // The notification-drawer feed: the Analysis Status summary followed by each
-  // distinct analysis warning, reusing the same NoticeCard treatment shown
-  // inline elsewhere in the visualizer.
+  // distinct analysis warning, shown in the shared NotificationDrawer.
   const notificationCards: Array<{ id: string; tone: 'warning' | 'success'; title: string; body: string }> = [
     {
       id: 'analysis-status',
@@ -913,22 +901,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       })),
   ]
 
-  // Closing runs a reverse animation: flag `closing`, then unmount only once
-  // the drawer's slide-out animation reports done (onAnimationEnd below).
-  const openNotifications = useCallback(() => {
-    setNotificationsClosing(false)
-    setNotificationsOpen(true)
-  }, [])
-  const requestCloseNotifications = useCallback(() => setNotificationsClosing(true), [])
-
-  useEffect(() => {
-    if (!notificationsOpen) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setNotificationsClosing(true)
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [notificationsOpen])
+  const openNotifications = useCallback(() => setNotificationsOpen(true), [])
+  const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
 
   const scrollToOverview = useCallback(() => {
     overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -1132,50 +1106,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         </section>
       </div>
 
-      {notificationsOpen && (
-        <div className={`ttv-notifications-overlay${notificationsClosing ? ' is-closing' : ''}`}>
-          <button
-            type="button"
-            className="ttv-notifications-scrim"
-            aria-label="Close notifications"
-            onClick={requestCloseNotifications}
-          />
-          <aside
-            className="ttv-notifications-drawer"
-            role="dialog"
-            aria-label="Notifications"
-            onAnimationEnd={event => {
-              if (event.target === event.currentTarget && notificationsClosing) {
-                setNotificationsOpen(false)
-                setNotificationsClosing(false)
-              }
-            }}
-          >
-            <header className="ttv-notifications-header">
-              <span>Notifications</span>
-              <button
-                type="button"
-                className="ttv-icon-btn"
-                onClick={requestCloseNotifications}
-                aria-label="Close notifications"
-              >
-                ×
-              </button>
-            </header>
-            <div className="ttv-notifications-list">
-              {notificationCards.map((card, index) => (
-                <div
-                  key={card.id}
-                  className="ttv-notifications-card"
-                  style={{ '--ttv-notif-index': index } as CSSProperties}
-                >
-                  <NoticeCard tone={card.tone} role="status" title={card.title}>{card.body}</NoticeCard>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </div>
-      )}
+      {notificationsOpen && <NotificationDrawer cards={notificationCards} onClose={closeNotifications} />}
     </div>
   )
 }

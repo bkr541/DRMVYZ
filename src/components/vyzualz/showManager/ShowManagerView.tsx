@@ -21,7 +21,7 @@ import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { PageHeadingPlate, ShowHeadingIcon } from '../layout/PageHeadingPlate'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
 import { MusicIntelligenceDiagnosticsPanel } from '../modulation/MusicIntelligenceDiagnosticsPanel'
@@ -2600,7 +2600,7 @@ export function ShowManagerView() {
               </div>
             )}
             {(activeSectionEngineId === 'canvas' || selectedEngineId === 'canvas') && canvasAuthoringError && (
-              <NoticeCard className="sm-stage-authoring-feedback" tone="error" role="alert" title="Canvas authoring failed">{canvasAuthoringError}</NoticeCard>
+              <DrawerNotice className="sm-stage-authoring-feedback" tone="error" role="alert" title="Canvas authoring failed">{canvasAuthoringError}</DrawerNotice>
             )}
           </div>
 
@@ -2777,12 +2777,11 @@ export function ShowManagerView() {
                   <p className="sm-new-show-field-note">{linkedAudioLoadError ?? 'Linked-track analysis is loading.'}</p>
                 )}
               </Collapsible>
-              <Collapsible label="Validation" defaultOpen={false}>
-                <NoticeCard tone="success" title="PixGrid document · OK">
-                  <p>No blocking PixGrid issues detected.</p>
-                  <p>Preset controls are connected to the existing PixGrid state.</p>
-                </NoticeCard>
-              </Collapsible>
+              {/* The "Validation" group held only this card; it is now listed in the page's Notifications drawer. */}
+              <DrawerNotice tone="success" title="PixGrid document · OK">
+                <p>No blocking PixGrid issues detected.</p>
+                <p>Preset controls are connected to the existing PixGrid state.</p>
+              </DrawerNotice>
               <Collapsible label="Document Stats" defaultOpen={false}>
                 <section className="sm-document-stats">
                   <div><span>Scenes</span><strong>{displayedPixGridState.scenes.length}</strong></div>
@@ -2800,9 +2799,9 @@ export function ShowManagerView() {
               </div>
               {activeLaserDmxShow && activeLaserDmxSection ? (
                 <>
-                  <NoticeCard tone="info" title="Show Track Map · linked audio">
+                  <DrawerNotice tone="info" title="Show Track Map · linked audio">
                     Section order and count come from this Show’s linked-track analysis. Edit labels, types, or shared boundaries below; the underlying audio analysis is not modified.
-                  </NoticeCard>
+                  </DrawerNotice>
                   <section className="sm-laser-copy-fixtures" data-testid="laser-dmx-copy-fixtures-controls">
                     <ToggleRow
                       id="show-manager-laser-copy-fixtures"
@@ -2849,9 +2848,9 @@ export function ShowManagerView() {
                       effectiveBpm={showRuntimeBpm}
                     />
                   )}
-                  <NoticeCard tone="success" title="Section fixture ownership · READY">
+                  <DrawerNotice tone="success" title="Section fixture ownership · READY">
                     {activeLaserDmxSection.fixtures.length} fixture{activeLaserDmxSection.fixtures.length === 1 ? '' : 's'} owned by this section. Select a fixture on the grid to edit its Part 1 controls.
-                  </NoticeCard>
+                  </DrawerNotice>
                 </>
               ) : activeLaserDmxShow ? (
                 <div className="sm-laser-empty-section">
@@ -3212,7 +3211,7 @@ function CanvasShowManagerInspector({
           />
         </Collapsible>
       ) : (
-        <NoticeCard tone="info" title="Show Track Map">{trackMapStatusMessage}</NoticeCard>
+        <DrawerNotice tone="info" title="Show Track Map">{trackMapStatusMessage}</DrawerNotice>
       )}
       <button type="button" className="sm-canvas-delete" onClick={onDelete}>Delete Show</button>
     </div>

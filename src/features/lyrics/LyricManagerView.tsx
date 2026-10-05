@@ -1,6 +1,6 @@
 // The shared control rows (rv-ctrl-*) and rail tab sizing live here; a lazy-loaded Lyric Manager must not depend on Sound Drawing having loaded it first.
 import '../../styles/reactView.css'
-import { NoticeCard } from '../../components/vyzualz/react/controls/NoticeCard'
+import { DrawerNotice } from '../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
@@ -1908,7 +1908,7 @@ export function LyricManagerView({
       />
 
       {(error || statusMsg) && (
-        <NoticeCard
+        <DrawerNotice
           className="lmv-status-bar"
           tone={error ? 'error' : 'info'}
           role={error ? 'alert' : 'status'}
@@ -1917,7 +1917,7 @@ export function LyricManagerView({
           dismissLabel="Dismiss lyric manager error"
         >
           {error ?? statusMsg}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       <div

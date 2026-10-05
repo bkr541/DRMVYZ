@@ -6100,6 +6100,67 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-header-cpu-value { min-width: 3ch; text-align: right; color: var(--vz-cpu-tone); }
 .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity,
 [data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity { width: 28px; padding: 0; }
+/* The Notifications bell is the one clickable chip: pointer input back on, a cyan edge on hover, and a dot for warnings / errors. */
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications,
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications {
+  position: relative;
+  width: 28px;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications:hover,
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[aria-expanded='true'],
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications:hover,
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[aria-expanded='true'] {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.4);
+}
+.vz-header-notifications svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.vz-header-notifications-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e0b95a;
+  box-shadow: 0 0 0 2px rgba(12, 16, 19, 0.92);
+}
+.vz-header-notifications-dot[data-tone='error'] { background: #f87171; }
+/* Attention: the dot pulses a ring outward, and the bell rings (swings from its top) once whenever a new warning or error appears. */
+.vz-header-notifications-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  color: #e0b95a;
+  opacity: 0;
+  animation: vz-header-notify-pulse 1.6s ease-out infinite;
+}
+.vz-header-notifications-dot[data-tone='error']::after { color: #f87171; }
+@keyframes vz-header-notify-pulse {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.vz-header-notifications svg { transform-origin: 50% 12%; }
+.vz-header-notifications[data-ringing='true'] svg { animation: vz-header-notify-ring 0.7s ease-in-out 2; }
+@keyframes vz-header-notify-ring {
+  0%, 100% { transform: rotate(0); }
+  15% { transform: rotate(16deg); }
+  35% { transform: rotate(-14deg); }
+  55% { transform: rotate(9deg); }
+  75% { transform: rotate(-6deg); }
+}
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[data-attention='warning'],
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[data-attention='warning'] { color: #e0b95a; }
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[data-attention='error'],
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications[data-attention='error'] { color: #f87171; }
+@media (prefers-reduced-motion: reduce) {
+  .vz-header-notifications-dot::after { animation: none; opacity: 0.5; transform: scale(1.6); }
+  .vz-header-notifications[data-ringing='true'] svg { animation: none; }
+}
 .vz-header-activity-ring { display: block; }
 .vz-header-activity-arc { transform-origin: 12px 12px; }
 /* Specific enough to beat the theme stylesheet's [data-theme] .vsm-settings-btn gray. */
@@ -6629,8 +6690,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   pointer-events: none;
 }
 
-.vz-media-page-state,
-.vz-media-page-error {
+.vz-media-page-state {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6640,11 +6700,6 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   color: rgba(196,207,211,0.58);
   font-size: 10px;
   text-align: center;
-}
-
-.vz-media-page-error {
-  min-height: 120px;
-  flex-direction: column;
 }
 
 .vz-media-signing-placeholder {
@@ -6897,20 +6952,9 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   }
 }
 
-/* Show Manager owns the Audio Dock source. The notice overlays the dock so the
-   required rejection remains visible without changing the transport geometry. */
+/* Show Manager owns the Audio Dock source. The rejection notice is listed in the page's Notifications drawer. */
 .az-dock.vz-transport-dock {
   position: relative;
-}
-
-.vz-dock-source-lock-notice {
-  position: absolute;
-  z-index: 24;
-  left: 50%;
-  bottom: 12px;
-  width: min(620px, calc(100% - 48px));
-  transform: translateX(-50%);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.46);
 }
 
 .vz-dock-addtrack-btn[aria-disabled='true'],

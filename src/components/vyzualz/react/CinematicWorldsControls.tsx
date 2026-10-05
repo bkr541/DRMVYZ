@@ -49,7 +49,7 @@ import {
   diagnoseCinematicMusicIntelligenceInputs,
 } from './CinematicMusicIntelligenceDiagnostics'
 import { Collapsible, ColorRow, CtrlSection, SelectRow, SliderRow, ToggleRow } from './ReactControlRows'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 
 const PORTAL_SHAPE_LABELS: Record<CinematicPortalShape, string> = {
   rectangle: 'Rectangle', circle: 'Circle', arch: 'Arch', triangle: 'Triangle', fracture: 'Fracture', organic: 'Organic', customMask: 'Custom Mask',
@@ -504,7 +504,7 @@ export function CinematicWorldsFxControls() {
           ]}
           description="Changes geometry density, particles, ray-march steps, atmospheric layers and feedback resolution."
         />
-        {!ultraSupported && config.qualityTier === 'ultra' && <NoticeCard tone="warning" role="status" title="Ultra quality unavailable">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</NoticeCard>}
+        {!ultraSupported && config.qualityTier === 'ultra' && <DrawerNotice tone="warning" role="status" title="Ultra quality unavailable">This project requests Ultra, but this device does not meet the safe WebGL2 and CPU threshold. Choose Auto to avoid overload.</DrawerNotice>}
       </Collapsible>
 
       {config.worldMode === 'reactiveConstellation' && uiMode === 'simple' && <ReactiveConstellationMacroControls config={config} onChange={save} />}
@@ -567,10 +567,10 @@ export function CinematicWorldsModulationControls() {
       <Collapsible label="Audio Reaction" defaultOpen>
         <ToggleRow id="cinematic-audio-enabled" label="World Audio Mapping" value={config.audioMapping.enabled} onChange={enabled => save({ ...config, audioMapping: { ...config.audioMapping, enabled } })} />
         {inputDiagnostics.unavailableRoutes.length > 0 && (
-          <NoticeCard tone="warning" role="status" title="Unavailable Music Intelligence inputs">
+          <DrawerNotice tone="warning" role="status" title="Unavailable Music Intelligence inputs">
             <p>{inputDiagnostics.reasons.map(reason => reason.message).join(' ')}</p>
             <p>Only {inputDiagnostics.unavailableRoutes.length} of {inputDiagnostics.activeRouteCount} active audio {inputDiagnostics.activeRouteCount === 1 ? 'mapping needs' : 'mappings need'} attention.</p>
-          </NoticeCard>
+          </DrawerNotice>
         )}
         {uiMode === 'simple' ? (
           <div className="rv-ctrl-info">This world is using {config.audioMapping.routes.length} curated source-to-target mappings. Advanced mode unlocks individual assignments, attack and release.</div>
@@ -591,9 +591,9 @@ export function CinematicWorldsModulationControls() {
                     ]} />
                     <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
                     {routeDiagnostic && (
-                      <NoticeCard tone="warning" title={`${CINEMATIC_SOURCE_LABELS[route.source]} unavailable`}>
+                      <DrawerNotice tone="warning" title={`${CINEMATIC_SOURCE_LABELS[route.source]} unavailable`}>
                         {routeDiagnostic.reasons.map(reason => reason.message).join(' ')}
-                      </NoticeCard>
+                      </DrawerNotice>
                     )}
                     <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />
                     <SliderRow id={`cinematic-route-${index}-attack`} label="Attack" value={route.attackMs} min={0} max={2000} step={10} onChange={attackMs => updateRoute(index, { attackMs })} />

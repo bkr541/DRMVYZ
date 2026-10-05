@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { MusicNote01Icon, PauseIcon, PlayIcon } from 'hugeicons-react'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { VzMiniWaveform } from '../transport/VzMiniWaveform'
@@ -151,12 +151,12 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
     <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
       <div className={`mms-media-area${cropMode && showEditPreview ? ' mms-media-area--cropping' : ''}`}>
         {!src ? (
-          <NoticeCard tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</NoticeCard>
+          <DrawerNotice tone="error" role="status" title="Media unavailable">{recovering ? 'Refreshing media link…' : 'Media file unavailable'}</DrawerNotice>
         ) : isVideo && videoError ? (
-          <NoticeCard tone="error" role="alert" title="Video unavailable">
+          <DrawerNotice tone="error" role="alert" title="Video unavailable">
             {recovering ? 'Refreshing media link…' : 'Video could not be loaded'}{' '}
             {!recovering && <IconChipButton onClick={() => { void recoverAsset() }}>Retry</IconChipButton>}
-          </NoticeCard>
+          </DrawerNotice>
         ) : isVideo ? (
           <video
             ref={videoRef}
@@ -172,10 +172,10 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
             playsInline
           />
         ) : imageError ? (
-          <NoticeCard tone="error" role="alert" title="Image unavailable">
+          <DrawerNotice tone="error" role="alert" title="Image unavailable">
             {recovering ? 'Refreshing media link…' : 'Image could not be loaded'}{' '}
             {!recovering && <IconChipButton onClick={() => { void recoverAsset() }}>Retry</IconChipButton>}
-          </NoticeCard>
+          </DrawerNotice>
         ) : (
           <img
             ref={imageRef}
@@ -221,9 +221,7 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
           />
         )}
         {previewFault && editing && (
-          <div className="mms-fault">
-            <NoticeCard tone="warning" role="status" title="Live preview unavailable">{previewFault}</NoticeCard>
-          </div>
+          <DrawerNotice tone="warning" role="status" title="Live preview unavailable">{previewFault}</DrawerNotice>
         )}
         {cropMode && showEditPreview && (
           <div className="mms-crop-toolbar" role="toolbar" aria-label="Crop">

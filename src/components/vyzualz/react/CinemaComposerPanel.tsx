@@ -1,6 +1,6 @@
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphCheckbox } from './controls/IconMorphToggle'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -303,9 +303,9 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       {active && editorMode === 'graph' ? (
         <CinemaAdvancedGraphEditor composition={active} definitions={state.definitions} />
       ) : !structured ? (
-        <NoticeCard tone="info" role="status" title="Structured editing is not active for this composition.">
+        <DrawerNotice tone="info" role="status" title="Structured editing is not active for this composition.">
           Switch to Graph to inspect any canonical composition, or create a Composer composition for structured visual-layer editing.
-        </NoticeCard>
+        </DrawerNotice>
       ) : (
         <>
           <Collapsible label={`Visuals (${layers.length})`}>

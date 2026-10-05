@@ -669,14 +669,6 @@
   border-width: 1px;
 }
 
-.vz-media-bulk-error-toast {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 1000;
-  width: min(340px, calc(100vw - 40px));
-}
-
 .vz-media-browser--manager .vz-md-search-row {
   padding-inline: 26px;
   /* +6px over the base 5px so the search/view-toggle row isn't crowded
@@ -844,14 +836,6 @@
 .mms-media-area--cropping > .mms-edit-canvas {
   margin-bottom: 44px;
   max-height: calc(100% - 44px);
-}
-
-.mms-fault {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 8px;
-  z-index: 2;
 }
 
 .mms-source--hidden {

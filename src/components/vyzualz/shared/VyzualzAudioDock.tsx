@@ -27,7 +27,7 @@ import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { HelpInfoTrigger, InfoPopover } from '../../shared/InfoPopover'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from './DrawerNotice'
 import {
   getAudioSourcePolicySnapshot,
   getLastAudioSourcePolicyMessage,
@@ -1094,7 +1094,7 @@ export function VyzualzAudioDock({
       </div>
 
       {showSourceLockMessage && (
-        <NoticeCard
+        <DrawerNotice
           className="vz-dock-source-lock-notice"
           tone="error"
           role="alert"
@@ -1102,28 +1102,28 @@ export function VyzualzAudioDock({
           onDismiss={() => setDismissedSourceLockAttempt(sourceLockAttemptId)}
         >
           {sourceLockMessage}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       {liveInputSelected && (
-        <NoticeCard
+        <DrawerNotice
           className="vz-dock-source-lock-notice"
           tone="info"
           title="Live Input active"
         >
           Track and Show controls are unavailable while Live Input analyzes the default microphone. Switch the input back to Track/File to restore them.
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       {engine.micError && (
-        <NoticeCard
+        <DrawerNotice
           className="vz-dock-source-lock-notice"
           tone="error"
           role="alert"
           title="Live Input unavailable"
         >
           {engine.micError}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       <input

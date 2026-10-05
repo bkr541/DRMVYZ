@@ -17,7 +17,7 @@ import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLy
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from './ReactControlRows'
 import { DualRailCollapsible } from './DualRailCollapsible'
-import { NoticeCard } from './controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
@@ -804,9 +804,9 @@ export function ReactEnginePanel({
           <CtrlSection label="Engine Mode" />
 
           {glyphLostNotice && (
-            <NoticeCard tone="warning" title="Source media unavailable" onDismiss={clearGlyphLostNotice}>
+            <DrawerNotice tone="warning" title="Source media unavailable" onDismiss={clearGlyphLostNotice}>
               <strong>"{glyphLostNotice}"</strong> was removed from your library. Select a new source below.
-            </NoticeCard>
+            </DrawerNotice>
           )}
 
           <OscillatorSourceDiagnostics
