@@ -21244,15 +21244,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* 08 · Blueprint Stencil */
 
-/* ── Header Status Style Gallery (Layout Lab / Cinema, right window → Design tab) ── */
-/* Three concepts for the Saved / CPU / Loading cluster at the right of every page header. A control bar drives all three. */
+/* ── Header Status Style Gallery (Layout Lab / Cinema, middle visualizer) ── */
+/* Three concepts for the Saved / CPU / Loading / Track Timeline button / profile cluster at the right of every page header,
+   each drawn in a full 60px mock header (heading left). A control bar drives all three. */
 
 .llhs-gallery { gap: 26px; }
 
 .llhs-controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-flow: row wrap;
+  gap: 8px 22px;
   padding: 10px 12px;
   border: 1px solid rgba(154, 178, 188, 0.14);
   border-radius: 8px;
@@ -21288,10 +21289,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  height: 56px;
+  gap: 10px;
+  height: 60px;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0 20px;
   overflow: hidden;
   background: rgba(12, 16, 19, 0.96);
   border: 1px solid rgba(154, 178, 188, 0.1);
@@ -21299,15 +21300,46 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .llhs-frame[data-cpu='medium'] { --llhs-cpu: var(--llhs-amber); }
 .llhs-frame[data-cpu='high'] { --llhs-cpu: var(--llhs-red); }
+.llhs-title {
+  margin-right: auto;
+  color: rgba(232, 238, 240, 0.35);
+  font: 800 13px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
 .llhs-cluster { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .llhs-avatar {
+  display: grid;
+  place-items: center;
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
   border: 1.5px solid rgba(74, 199, 219, 0.3);
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, rgba(74, 199, 219, 0.35), rgba(12, 22, 26, 0.9));
+  color: rgba(232, 244, 248, 0.72);
 }
+
+/* Track Timeline Visualizer button, drawn per concept. data-state mirrors the real button: ready / analyzing / empty. */
+.llhs-tl { position: relative; flex: 0 0 auto; cursor: default; }
+.llhs-tl[data-state='ready'] { color: var(--llhs-cyan); }
+.llhs-tl[data-state='empty'] { opacity: 0.36; }
+.llhs-tl[data-state='analyzing'] { color: var(--llhs-cyan); }
+.llhs-tl[data-state='analyzing'] svg { animation: llhs-pulse 1.2s ease-in-out infinite; }
+.llhs-chip.llhs-tl { width: 28px; padding: 0; justify-content: center; }
+.llhs-chip.llhs-tl[data-state='ready'], .llhs-chip.llhs-tl[data-state='analyzing'] { border-color: rgba(103, 247, 255, 0.32); background: rgba(103, 247, 255, 0.07); }
+.llhs-chip.llhs-tl[data-state='analyzing']::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid transparent;
+  border-top-color: rgba(103, 247, 255, 0.9);
+  border-right-color: rgba(103, 247, 255, 0.24);
+  border-radius: 50%;
+  animation: llhs-spin 0.9s linear infinite;
+}
+.llhs-tele-key { display: inline-grid; place-items: center; width: 24px; height: 28px; box-shadow: inset 0 -2px 0 transparent; }
+.llhs-tele-key[data-state='ready'], .llhs-tele-key[data-state='analyzing'] { box-shadow: inset 0 -2px 0 var(--llhs-cyan); }
 
 .llhs-save-dot {
   flex: 0 0 auto;
@@ -21422,159 +21454,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 @keyframes llhs-sweep { from { transform: translateX(-100%); } to { transform: translateX(270%); } }
 @media (prefers-reduced-motion: reduce) {
   .llhs-ring.is-spinning, .llhs-dots.is-busy i, .llhs-sweep.is-busy i { animation: llhs-pulse 1.4s ease-in-out infinite; }
+  .llhs-chip.llhs-tl[data-state='analyzing']::after { animation: none; }
   .llhs-sweep.is-busy i { width: 100%; }
 }
-
-/* ── Header Control Group Style Gallery (Layout Lab / Cinema, middle visualizer) ── */
-/* Five concepts for the standardized control group in the middle of every page
-   header row. Each is drawn in a 60px mock header (heading left, avatar right). */
-
-.llhg-gallery { gap: 30px; }
-
-.llhg-frame {
-  --llhg-cyan: #67f7ff;
-  display: grid;
-  grid-template-columns: minmax(80px, 1fr) auto minmax(80px, 1fr);
-  align-items: center;
-  gap: 16px;
-  height: 60px;
-  box-sizing: border-box;
-  padding: 0 20px;
-  overflow: hidden;
-  background: rgba(12, 16, 19, 0.96);
-  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
-}
-.llhg-frame-title {
-  color: rgba(232, 238, 240, 0.35);
-  font: 800 13px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.12em;
-}
-.llhg-frame-slot { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; }
-.llhg-frame-avatar {
-  justify-self: end;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid rgba(154, 178, 188, 0.3);
-  background: radial-gradient(circle at 35% 30%, #4a5b66, #1a2229);
-}
-
-.llhg-deck-key,
-.llhg-neon-key,
-.llhg-capsule-key {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  cursor: pointer;
-  color: rgba(196, 207, 211, 0.6);
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-}
-.llhg-deck-key svg,
-.llhg-neon-key svg,
-.llhg-capsule-key svg { width: 16px; height: 16px; }
-
-/* Status / Show Lyrics / Save reuse each concept's tool-key styling; these only widen the key to fit a label. */
-.llhg-frame .llhg-key--wide {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: auto;
-  padding: 0 10px;
-  font: 700 9px/1 var(--az-font, Inter, system-ui, sans-serif);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.llhg-frame .llhg-key--static { cursor: default; pointer-events: none; }
-.llhg-key-dot { width: 6px; height: 6px; border-radius: 50%; background: #61d6aa; box-shadow: 0 0 6px rgba(97, 214, 170, 0.7); }
-
-/* 01 · Segmented Deck */
-.llhg-deck {
-  display: flex;
-  align-items: stretch;
-  height: 42px;
-  border: 1px solid rgba(154, 178, 188, 0.22);
-  border-radius: 8px;
-  overflow: hidden;
-  background: linear-gradient(180deg, rgba(20, 28, 34, 0.95), rgba(10, 14, 17, 0.98));
-}
-.llhg-deck-seg { display: flex; align-items: center; gap: 0; padding: 0 12px; border-right: 1px solid rgba(154, 178, 188, 0.16); }
-.llhg-deck-seg--tools { padding: 0; }
-.llhg-deck-key {
-  width: 36px;
-  height: 100%;
-  border: 0;
-  border-right: 1px solid rgba(154, 178, 188, 0.12);
-  background: transparent;
-}
-.llhg-deck-key:last-child { border-right: 0; }
-.llhg-deck-key:hover { color: #e8f4f8; background: rgba(255, 255, 255, 0.05); }
-.llhg-deck-key.llhg-key--save { color: #67f7ff; background: rgba(74, 199, 219, 0.08); }
-.llhg-deck-key.llhg-key--save:hover { background: rgba(74, 199, 219, 0.18); }
-.llhg-deck-key.is-on { color: #67f7ff; background: rgba(74, 199, 219, 0.14); box-shadow: inset 0 -2px 0 #4ac7db; }
-
-/* 04 · Neon Underline */
-.llhg-neon {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 26px;
-  background: linear-gradient(180deg, transparent, rgba(74, 199, 219, 0.07));
-}
-.llhg-neon::after {
-  content: '';
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(103, 247, 255, 0.85) 15%, rgba(103, 247, 255, 0.85) 85%, transparent);
-  box-shadow: 0 0 8px rgba(103, 247, 255, 0.6);
-}
-.llhg-neon-cap { position: absolute; top: 8px; bottom: 8px; width: 10px; border: 1px solid rgba(103, 247, 255, 0.55); }
-.llhg-neon-cap--start { left: 6px; border-right: 0; transform: skewX(-14deg); }
-.llhg-neon-cap--end { right: 6px; border-left: 0; transform: skewX(-14deg); }
-.llhg-neon-sep { width: 1px; height: 20px; background: rgba(103, 247, 255, 0.25); transform: skewX(-14deg); }
-.llhg-neon-tools { display: flex; align-items: center; gap: 2px; }
-.llhg-neon-key { position: relative; width: 32px; height: 34px; border: 0; background: transparent; }
-.llhg-neon-key::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 2px; height: 2px; border-radius: 1px; background: transparent; }
-.llhg-neon-key:hover { color: #e8f4f8; }
-.llhg-neon-key.is-on { color: #67f7ff; filter: drop-shadow(0 0 5px rgba(103, 247, 255, 0.55)); }
-.llhg-neon-key.llhg-key--save { color: #67f7ff; }
-.llhg-neon-key.llhg-key--save::after { background: rgba(103, 247, 255, 0.5); }
-.llhg-neon-key.is-on::after { background: #67f7ff; box-shadow: 0 0 8px #67f7ff; }
-
-/* 05 · Command Capsule */
-.llhg-capsule {
-  padding: 1px;
-  border-radius: 24px;
-  background: linear-gradient(120deg, rgba(103, 247, 255, 0.7), rgba(122, 92, 255, 0.45) 50%, rgba(255, 95, 176, 0.5));
-}
-.llhg-capsule-body {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 44px;
-  padding: 0 8px 0 14px;
-  border-radius: 23px;
-  background: linear-gradient(180deg, rgba(24, 32, 42, 0.94), rgba(10, 14, 20, 0.97));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-.llhg-capsule-dots {
-  width: 2px;
-  height: 18px;
-  background: radial-gradient(circle, rgba(196, 207, 211, 0.5) 1px, transparent 1.5px) center / 2px 6px repeat-y;
-}
-.llhg-capsule-tools { display: flex; align-items: center; gap: 4px; }
-.llhg-capsule-key { width: 30px; height: 30px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 50%; background: rgba(255, 255, 255, 0.03); }
-.llhg-capsule-key:hover { color: #e8f4f8; border-color: rgba(103, 247, 255, 0.45); }
-.llhg-frame .llhg-capsule-key.llhg-key--wide { border-radius: 15px; }
-.llhg-capsule-key.llhg-key--save { color: #04181c; border-color: transparent; background: linear-gradient(160deg, #9ff9ff, #4ac7db); font-weight: 800; }
-.llhg-capsule-key.llhg-key--save:hover { color: #04181c; border-color: transparent; box-shadow: 0 0 12px rgba(103, 247, 255, 0.45); }
-.llhg-capsule-key.is-on { color: #67f7ff; border-color: rgba(103, 247, 255, 0.85); background: rgba(74, 199, 219, 0.14); box-shadow: 0 0 10px rgba(103, 247, 255, 0.3); }
 
 /* ── Layout Lab: Media Library thumbnail styles (Template engine, REACT tab) ───────────────────────────
    Three candidate treatments for the Media Library grid, all fitting the ~370px rail. The pictures are

@@ -6043,46 +6043,77 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 }
 
 /* ── Header profile avatar (doubles as the settings trigger) ───────────── */
-/* ── Header status cluster (CPU readout + activity ring), left of the profile icon ─────────────
-   Built on .vsm-settings-btn so the resting colour is exactly the header icon buttons' gray in every
-   theme (Layout Lab button included); only the shape is changed and pointer input is switched off. */
-.vsm-settings-btn.vz-header-status-chip {
-  width: auto;
-  min-width: 30px;
-  gap: 5px;
-  padding: 0 7px;
-  cursor: default;
-  pointer-events: none;
-  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.06em;
-}
-/* The CPU readout is always one line, "CPU 12%". Pages restyle .vsm-settings-btn for their own header (e.g. Show Manager's
-   `.sm-topbar > .vsm-settings-btn` makes it a 30px centred grid), so this layout is stated at a specificity no page rule reaches. */
-.vsm-settings-btn.vz-header-status-chip.vz-header-cpu {
+/* ── Header status cluster (Saved pill, CPU chip, loading chip), left of the profile icon ──────────────
+   Layout Lab Cinema → Design → "01 · Separate Chips": three independent chips (a rounded Saved pill, a CPU
+   label + value chip, a square chip holding a spinning ring). The CPU and loading chips are built on
+   .vsm-settings-btn so their resting text colour is exactly the header icon buttons' gray in every theme
+   (Layout Lab button included); the shape is restated here at a specificity no page rule or theme override reaches
+   (e.g. Show Manager's `.sm-topbar > .vsm-settings-btn` makes it a 30px centred grid). Pointer input is off. */
+.vz-header-chip,
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip,
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: auto;
-  min-width: 30px;
-  padding: 0 7px;
   gap: 5px;
+  width: auto;
+  height: 28px;
+  min-width: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid rgba(154, 178, 188, 0.2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
   white-space: nowrap;
+  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.05em;
 }
-.vz-header-cpu { font-variant-numeric: tabular-nums; }
-.vz-header-cpu-label { opacity: 0.7; }
-.vz-header-cpu-value { min-width: 3ch; text-align: right; }
-.vsm-settings-btn.vz-header-status-chip.vz-header-activity { width: 30px; padding: 0; flex: 0 0 auto; }
+.vz-header-chip--saved {
+  --vz-save-tone: #61d6aa;
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--vz-save-tone) 42%, transparent);
+  color: rgba(232, 244, 248, 0.88);
+}
+.vz-header-chip--saved[data-save-tone='saving'] { --vz-save-tone: #67f7ff; }
+.vz-header-chip--saved[data-save-tone='unsaved'] { --vz-save-tone: #e0b95a; }
+.vz-header-chip--saved[data-save-tone='error'] { --vz-save-tone: #f87171; }
+.vz-header-save-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vz-save-tone);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--vz-save-tone) 70%, transparent);
+}
+.vz-header-chip--saved[data-save-tone='saving'] .vz-header-save-dot { animation: vz-header-activity-pulse 1s ease-in-out infinite; }
+
+.vz-header-cpu { font-variant-numeric: tabular-nums; --vz-cpu-tone: currentColor; }
+.vz-header-cpu[data-cpu-level='low'] { --vz-cpu-tone: #61d6aa; }
+.vz-header-cpu[data-cpu-level='medium'] { --vz-cpu-tone: #e0b95a; }
+.vz-header-cpu[data-cpu-level='high'] { --vz-cpu-tone: #f87171; }
+.vz-header-cpu-label { opacity: 0.7; font-size: 9px; letter-spacing: 0.1em; }
+.vz-header-cpu-value { min-width: 3ch; text-align: right; color: var(--vz-cpu-tone); }
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity,
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity { width: 28px; padding: 0; }
 .vz-header-activity-ring { display: block; }
 .vz-header-activity-arc { transform-origin: 12px 12px; }
 /* Specific enough to beat the theme stylesheet's [data-theme] .vsm-settings-btn gray. */
-.vsm-settings-btn.vz-header-status-chip.vz-header-activity[data-busy='true'] { color: #4ac7db; transition: color 0.15s; }
-[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-activity[data-busy='true'] { color: #4ac7db; }
+.vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity[data-busy='true'],
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity[data-busy='true'] {
+  color: #67f7ff;
+  border-color: rgba(103, 247, 255, 0.4);
+  transition: color 0.15s, border-color 0.15s;
+}
 .vz-header-activity-arc--spinning { animation: vz-header-activity-spin 0.9s linear infinite; }
 @keyframes vz-header-activity-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .vz-header-activity-arc--spinning { animation: vz-header-activity-pulse 1.4s ease-in-out infinite; }
+  .vz-header-activity-arc--spinning,
+  .vz-header-chip--saved[data-save-tone='saving'] .vz-header-save-dot { animation: vz-header-activity-pulse 1.4s ease-in-out infinite; }
 }
 @keyframes vz-header-activity-pulse { 50% { opacity: 0.35; } }
 

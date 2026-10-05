@@ -17,7 +17,6 @@ import { PresetTwoColumnStyleGallery } from './layoutLab/PresetTwoColumnStyleGal
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
-import { HeaderControlGroupStyleGallery } from './layoutLab/HeaderControlGroupStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -274,7 +273,7 @@ export function LayoutLabMockup() {
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
             {engineId === 'cinema' && (
               <div className="llcm-stage-gallery">
-                <HeaderControlGroupStyleGallery />
+                <HeaderStatusStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (
@@ -392,13 +391,7 @@ export function LayoutLabMockup() {
                 onChange={() => {}}
                 ariaLabel="Layout Lab inspector tabs"
               />
-              <div className="vz-panel-body">
-                {engineId === 'cinema' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <HeaderStatusStyleGallery />
-                  </div>
-                )}
-              </div>
+              <div className="vz-panel-body" />
             </>
           )}
         </WorkspaceRail>

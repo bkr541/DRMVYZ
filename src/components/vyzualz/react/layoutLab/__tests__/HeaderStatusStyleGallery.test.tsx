@@ -29,7 +29,7 @@ const press = async (group: string, label: string) => {
 }
 
 describe('HeaderStatusStyleGallery', () => {
-  it('shows three differently styled Saved / CPU / Loading concepts', async () => {
+  it('shows three differently styled Saved / CPU / Loading / Track Timeline / profile concepts', async () => {
     await act(async () => root.render(<HeaderStatusStyleGallery />))
     expect(concepts().map(item => item.dataset.testid)).toEqual([
       'header-status-concept-separate-chips',
@@ -40,6 +40,8 @@ describe('HeaderStatusStyleGallery', () => {
       expect(concept.textContent).toContain('Saved 10:44 AM')
       expect(concept.querySelector('[aria-label^="CPU"]')?.textContent).toContain('4%')
       expect(concept.querySelector('[aria-label="Loading"]')).not.toBeNull()
+      expect(concept.querySelector('[aria-label="Track Timeline Visualizer"] svg')).not.toBeNull()
+      expect(concept.querySelector('[aria-label="Profile"]')).not.toBeNull()
     }
     // Three different Loading treatments: a ring, three dots and a sweep line.
     expect(concepts()[0]!.querySelector('.llhs-ring.is-spinning')).not.toBeNull()
@@ -52,10 +54,12 @@ describe('HeaderStatusStyleGallery', () => {
     await press('Save', 'Unsaved')
     await press('CPU', 'High')
     await press('Loading', 'Idle')
+    await press('Timeline', 'Analyzing')
     for (const concept of concepts()) {
       expect(concept.textContent).toContain('Unsaved')
       expect(concept.querySelector('[aria-label^="CPU"]')?.textContent).toContain('86%')
       expect(concept.querySelector('[aria-label="Nothing loading"]')).not.toBeNull()
+      expect(concept.querySelector('[aria-label^="Track Timeline Visualizer"]')?.getAttribute('data-state')).toBe('analyzing')
       expect(concept.querySelector('.llhs-frame')?.getAttribute('data-save')).toBe('unsaved')
       expect(concept.querySelector('.llhs-frame')?.getAttribute('data-cpu')).toBe('high')
     }
@@ -67,14 +71,15 @@ describe('HeaderStatusStyleGallery', () => {
     expect(concepts()[0]!.textContent).toContain('Saving…')
   })
 
-  it('is the content of the Design tab in the Layout Lab Cinema engine', async () => {
+  it('replaces the header control group concepts in the Layout Lab Cinema middle column', async () => {
     await act(async () => root.render(<LayoutLabMockup />))
     const trigger = container.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')!
     await act(async () => trigger.click())
     const option = [...container.querySelectorAll<HTMLElement>('[role="option"]')].find(item => /^◇\s*Cinema(?!\s*2)/.test(item.textContent ?? ''))!
     await act(async () => option.click())
-    const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')!
-    expect(rightRail.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim()).toBe('DESIGN')
-    expect(rightRail.querySelectorAll('[data-testid^="header-status-concept-"]')).toHaveLength(3)
+    const center = container.querySelector('.rv-center-col')!
+    expect(center.querySelectorAll('[data-testid^="header-status-concept-"]')).toHaveLength(3)
+    expect(center.querySelector('[data-testid^="header-control-concept-"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Layout Lab right rail"] [data-testid^="header-status-concept-"]')).toBeNull()
   })
 })

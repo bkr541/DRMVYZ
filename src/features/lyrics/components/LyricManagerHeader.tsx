@@ -3,7 +3,7 @@ import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import { SaveActiveGlyph, SaveGlyph } from '../../../components/vyzualz/layout/HeaderGlyphs'
 import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
-import { Badge } from '../../../components/vyzualz/react/controls/Badge'
+import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -40,6 +40,12 @@ export function LyricManagerHeader({
             ? 'Unsaved'
             : null
 
+  const saveTone: HeaderSaveTone = saveStatus === 'conflict' || saveStatus === 'failed'
+    ? 'error'
+    : saveStatus === 'queued' || saveStatus === 'saving'
+      ? 'saving'
+      : 'unsaved'
+
   return (
     <header className="lmv-header">
       <div className="lmv-header-left">
@@ -74,11 +80,7 @@ export function LyricManagerHeader({
         <VyzualzHeaderActions
           page="lyric-manager"
           leading={saveStatusLabel && (
-            <Badge
-              className="lmv-save-status-badge"
-              label={saveStatusLabel}
-              tone={saveStatus === 'conflict' || saveStatus === 'failed' ? '#f87171' : saveStatus === 'queued' || saveStatus === 'saving' ? '#4ac7db' : '#d8b95a'}
-            />
+            <HeaderSaveChip className="lmv-save-status-badge" label={saveStatusLabel} tone={saveTone} />
           )}
         />
       </div>

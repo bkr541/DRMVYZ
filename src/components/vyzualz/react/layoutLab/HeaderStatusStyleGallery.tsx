@@ -1,19 +1,24 @@
 import { useState, type ReactNode } from 'react'
+import { TrackTimelineIcon } from '../trackTimeline/TrackTimelineIcon'
 
 // ── HeaderStatusStyleGallery ─────────────────────────────────────────────
 //
-// Layout Lab / Cinema engine, right window → Design tab. Three concepts for the
-// status cluster that sits at the right of every page header (React, Media Manager,
-// Lyric Manager, Show Manager), left of the profile avatar: the save state ("Saved"),
-// the app's CPU readout, and the loading indicator. Each concept draws all three in
-// a different visual language — separate chips, one segmented strip, and open
+// Layout Lab / Cinema engine, middle visualizer. Three concepts for the cluster that
+// sits at the right of every page header (React, Media Manager, Lyric Manager, Show
+// Manager): the Track Timeline Visualizer button, the save state ("Saved"), the app's
+// CPU readout, the loading indicator and the profile icon. Each concept draws all of
+// them in a different visual language — separate chips, one segmented strip, and open
 // "telemetry" readouts — with a different loading treatment (ring, dots, sweep line),
-// so the styles can be compared like for like in the same mock header. A control
-// bar above drives every concept at once (save state, idle / loading, CPU level) so
-// each state can be judged. Presentation only — nothing is wired to a store or page.
+// so the styles can be compared like for like in the same mock header (page heading
+// at the left). A control bar above drives every concept at once (save state, idle /
+// loading, CPU level, timeline button state) so each state can be judged.
+// Presentation only — nothing is wired to a store or page.
 
 type SaveState = 'saved' | 'saving' | 'unsaved'
 type CpuLevel = 'low' | 'medium' | 'high'
+type TimelineState = 'ready' | 'analyzing' | 'empty'
+
+const TIMELINE_LABEL = 'Track Timeline Visualizer'
 
 const SAVE_LABEL: Record<SaveState, string> = { saved: 'Saved 10:44 AM', saving: 'Saving…', unsaved: 'Unsaved' }
 const CPU_PERCENT: Record<CpuLevel, number> = { low: 4, medium: 38, high: 86 }
@@ -32,12 +37,14 @@ interface StatusState {
   save: SaveState
   busy: boolean
   cpu: CpuLevel
+  timeline: TimelineState
 }
 
 interface ControlBarProps extends StatusState {
   setSave: (value: SaveState) => void
   setBusy: (value: boolean) => void
   setCpu: (value: CpuLevel) => void
+  setTimeline: (value: TimelineState) => void
 }
 
 function Segmented<T extends string>({ label, value, options, onChange }: {
@@ -64,7 +71,7 @@ function Segmented<T extends string>({ label, value, options, onChange }: {
   )
 }
 
-function ControlBar({ save, busy, cpu, setSave, setBusy, setCpu }: ControlBarProps) {
+function ControlBar({ save, busy, cpu, timeline, setSave, setBusy, setCpu, setTimeline }: ControlBarProps) {
   return (
     <div className="llhs-controls" aria-label="Status states">
       <Segmented<SaveState>
@@ -85,19 +92,30 @@ function ControlBar({ save, busy, cpu, setSave, setBusy, setCpu }: ControlBarPro
         onChange={setCpu}
         options={[{ id: 'low', label: 'Low' }, { id: 'medium', label: 'Medium' }, { id: 'high', label: 'High' }]}
       />
+      <Segmented<TimelineState>
+        label="Timeline"
+        value={timeline}
+        onChange={setTimeline}
+        options={[{ id: 'ready', label: 'Ready' }, { id: 'analyzing', label: 'Analyzing' }, { id: 'empty', label: 'Empty' }]}
+      />
     </div>
   )
 }
 
-/** A 56px mock of the right end of a page header: the status cluster, then the profile avatar. (The rail is too narrow to also draw the heading.) */
+/** A 60px mock page header: the page heading at the left, the status cluster at the right, then the profile icon. */
 function HeaderFrame({ state, children }: { state: StatusState; children: ReactNode }) {
   return (
-    <div className="llhs-frame" data-save={state.save} data-busy={state.busy ? 'true' : 'false'} data-cpu={state.cpu}>
+    <div className="llhs-frame" data-save={state.save} data-busy={state.busy ? 'true' : 'false'} data-cpu={state.cpu} data-timeline={state.timeline}>
+      <span className="llhs-title" aria-hidden="true">PAGE HEADING</span>
       <div className="llhs-cluster">{children}</div>
-      <span className="llhs-avatar" aria-hidden="true" />
+      <span className="llhs-avatar" role="img" aria-label="Profile">
+        <svg {...svgProps} width="16" height="16"><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" /></svg>
+      </span>
     </div>
   )
 }
+
+const timelineLabel = (timeline: TimelineState) => (timeline === 'analyzing' ? `${TIMELINE_LABEL} (analyzing)` : TIMELINE_LABEL)
 
 const SaveDot = () => <i className="llhs-save-dot" aria-hidden="true" />
 
@@ -106,6 +124,7 @@ const SaveDot = () => <i className="llhs-save-dot" aria-hidden="true" />
 function SeparateChips({ state }: { state: StatusState }) {
   return (
     <>
+      <span className="llhs-chip llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
       <span className="llhs-chip llhs-chip--saved" role="status"><SaveDot />{SAVE_LABEL[state.save]}</span>
       <span className="llhs-chip llhs-chip--cpu" aria-label={`CPU ${CPU_PERCENT[state.cpu]} percent`}>
         <small>CPU</small><b>{CPU_PERCENT[state.cpu]}%</b>
@@ -126,6 +145,7 @@ function StatusStrip({ state }: { state: StatusState }) {
   const lit = Math.max(1, Math.ceil((CPU_PERCENT[state.cpu] / 100) * 5))
   return (
     <div className="llhs-strip">
+      <span className="llhs-strip-cell llhs-strip-cell--icon llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
       <span className="llhs-strip-cell llhs-strip-cell--saved" role="status">
         <svg {...svgProps} width="13" height="13"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
         {SAVE_LABEL[state.save]}
@@ -149,6 +169,7 @@ function StatusStrip({ state }: { state: StatusState }) {
 function OpenTelemetry({ state }: { state: StatusState }) {
   return (
     <>
+      <span className="llhs-tele-key llhs-tl" data-state={state.timeline} role="img" aria-label={timelineLabel(state.timeline)}><TrackTimelineIcon /></span>
       <span className="llhs-tele llhs-tele--saved" role="status"><SaveDot />{SAVE_LABEL[state.save]}</span>
       <span className="llhs-tele llhs-tele--cpu" aria-label={`CPU ${CPU_PERCENT[state.cpu]} percent`}>
         <span className="llhs-tele-row"><small>CPU</small><b>{CPU_PERCENT[state.cpu]}%</b></span>
@@ -163,19 +184,20 @@ function OpenTelemetry({ state }: { state: StatusState }) {
 }
 
 const CONCEPTS = [
-  { id: 'separate-chips', title: '01 · Separate Chips', blurb: 'Three independent rounded chips, one box each: a Saved pill with a status dot, a CPU label + value chip whose number warms from green to amber to red, and a square chip holding a spinning ring. Reads as the header\'s other icon buttons.', Concept: SeparateChips },
-  { id: 'status-strip', title: '02 · Status Strip', blurb: 'One bordered strip divided by hairlines, like the control deck beside it: a check + Saved cell, a CPU cell with a five-bar level meter, and a Loading cell of three dots that wave while work is running.', Concept: StatusStrip },
-  { id: 'open-telemetry', title: '03 · Open Telemetry', blurb: 'No boxes at all: Saved with a glowing dot, CPU with a thin gauge line under its value, and Loading as a labelled sweep line that runs a cyan highlight across while busy. The lightest of the three.', Concept: OpenTelemetry },
+  { id: 'separate-chips', title: '01 · Separate Chips', blurb: 'Independent rounded chips, one box each: the Track Timeline button (cyan when ready), a Saved pill with a status dot, a CPU label + value chip whose number warms from green to amber to red, and a square chip holding a spinning ring. Reads as the header\'s other icon buttons.', Concept: SeparateChips },
+  { id: 'status-strip', title: '02 · Status Strip', blurb: 'One bordered strip divided by hairlines, like the control deck: a Track Timeline cell, a check + Saved cell, a CPU cell with a five-bar level meter, and a Loading cell of three dots that wave while work is running.', Concept: StatusStrip },
+  { id: 'open-telemetry', title: '03 · Open Telemetry', blurb: 'No boxes at all: the Track Timeline icon with a cyan underline when ready, Saved with a glowing dot, CPU with a thin gauge line under its value, and Loading as a labelled sweep line that runs a cyan highlight across while busy. The lightest of the three.', Concept: OpenTelemetry },
 ] as const
 
 export function HeaderStatusStyleGallery() {
   const [save, setSave] = useState<SaveState>('saved')
   const [busy, setBusy] = useState(true)
   const [cpu, setCpu] = useState<CpuLevel>('low')
-  const state: StatusState = { save, busy, cpu }
+  const [timeline, setTimeline] = useState<TimelineState>('ready')
+  const state: StatusState = { save, busy, cpu, timeline }
   return (
     <div className="llcm-gallery lldd-gallery llhs-gallery" aria-label="Header status concepts">
-      <ControlBar {...state} setSave={setSave} setBusy={setBusy} setCpu={setCpu} />
+      <ControlBar {...state} setSave={setSave} setBusy={setBusy} setCpu={setCpu} setTimeline={setTimeline} />
       {CONCEPTS.map(({ id, title, blurb, Concept }) => (
         <section key={id} className="lldd-gallery-row" data-testid={`header-status-concept-${id}`}>
           <div className="lldd-gallery-copy">

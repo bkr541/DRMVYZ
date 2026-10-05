@@ -472,7 +472,7 @@ describe('LyricManagerView track-first workflow', () => {
     // The save state is a badge in the header tail, directly left of the CPU readout (not in the Save button group).
     const badge = container.querySelector<HTMLElement>('.lmv-save-status-badge')
     expect(badge?.textContent).toBe('Unsaved')
-    expect(badge?.classList.contains('dv-badge')).toBe(true)
+    expect(badge?.classList.contains('vz-header-chip--saved')).toBe(true)
     expect(badge?.parentElement?.classList.contains('header-actions-stub')).toBe(true)
     expect(container.querySelector('.lmv-header [role="group"] .lmv-save-status-badge')).toBeNull()
 
