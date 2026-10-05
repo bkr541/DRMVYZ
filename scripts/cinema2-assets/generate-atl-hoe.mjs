@@ -3,21 +3,23 @@
 // while the four landmark silhouettes occupy progressively deeper skyline layers.
 //
 //   node scripts/cinema2-assets/generate-atl-hoe.mjs [out.glb]
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import opentype from 'opentype.js'
 import * as THREE from 'three'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { hash, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/atl-hoe.glb')
+const fontPath = join(root, 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf')
 
 const MATERIALS = {
-  sky: { baseColorFactor: [0.008, 0.022, 0.042, 1], metallicFactor: 0, roughnessFactor: 1 },
+  sky: { baseColorFactor: [0.035, 0.09, 0.17, 1], metallicFactor: 0, roughnessFactor: 1 },
   stars: { baseColorFactor: [0.5, 0.65, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.7, emissiveFactor: [0.75, 0.9, 1] },
-  buildings: { baseColorFactor: [0.035, 0.055, 0.07, 1], metallicFactor: 0.45, roughnessFactor: 0.72 },
-  landmarkDark: { baseColorFactor: [0.055, 0.075, 0.087, 1], metallicFactor: 0.5, roughnessFactor: 0.58 },
+  buildings: { baseColorFactor: [0.05, 0.075, 0.092, 1], metallicFactor: 0.45, roughnessFactor: 0.72 },
+  landmarkDark: { baseColorFactor: [0.075, 0.1, 0.118, 1], metallicFactor: 0.5, roughnessFactor: 0.58 },
   landmarkGlass: { baseColorFactor: [0.025, 0.065, 0.085, 1], metallicFactor: 0.72, roughnessFactor: 0.22 },
   warmWindows: { baseColorFactor: [0.7, 0.32, 0.045, 1], metallicFactor: 0, roughnessFactor: 0.46, emissiveFactor: [1, 0.43, 0.055] },
   cyanWindows: { baseColorFactor: [0.02, 0.42, 0.56, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.02, 0.65, 0.9] },
@@ -25,10 +27,10 @@ const MATERIALS = {
   signMetal: { baseColorFactor: [0.018, 0.024, 0.028, 1], metallicFactor: 0.88, roughnessFactor: 0.26 },
   signTrim: { baseColorFactor: [0.11, 0.14, 0.15, 1], metallicFactor: 0.85, roughnessFactor: 0.2 },
   signGlow: { baseColorFactor: [1, 0.82, 0.025, 1], metallicFactor: 0, roughnessFactor: 0.33, emissiveFactor: [1, 0.7, 0.02] },
-  signBorder: { baseColorFactor: [1, 0.34, 0.008, 1], metallicFactor: 0.05, roughnessFactor: 0.3, emissiveFactor: [0.8, 0.2, 0.005] },
+  signBorder: { baseColorFactor: [0.012, 0.014, 0.014, 1], metallicFactor: 0.3, roughnessFactor: 0.5 },
   signLetters: { baseColorFactor: [0.003, 0.003, 0.002, 1], metallicFactor: 0.05, roughnessFactor: 0.72 },
   road: { baseColorFactor: [0.018, 0.024, 0.026, 1], metallicFactor: 0.35, roughnessFactor: 0.8 },
-  foliage: { baseColorFactor: [0.003, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliage: { baseColorFactor: [0.02, 0.055, 0.05, 1], metallicFactor: 0, roughnessFactor: 1 },
 }
 
 const byPart = new Map()
@@ -71,7 +73,7 @@ function mergePart(part, list) {
 
 // A deep blue plane closes the world behind the skyline. Small emissive cubes
 // float just in front of it so stars retain parallax and bloom without a texture.
-box('sky', [0, 10, -34], [52, 26, 0.25])
+box('sky', [0, 10, -34], [80, 50, 0.25])
 for (let i = 0; i < 94; i += 1) {
   const x = -23 + hash(`star-x-${i}`) * 46
   const y = 7.5 + hash(`star-y-${i}`) * 13
@@ -256,99 +258,18 @@ function signCell(x, y) {
 for (let i = 0; i < 6; i += 1) signCell(topStart + i * (panel + gap), topY)
 for (let i = 0; i < 5; i += 1) signCell(bottomStart + i * (panel + gap), bottomY)
 
-const glyphWidth = { W: 1.08, A: 0.94, F: 0.82, L: 0.82, E: 0.82, H: 0.88, O: 0.94, U: 0.88, S: 0.84 }
-
-function polygon(points) {
-  const shape = new THREE.Shape()
-  shape.moveTo(points[0][0], points[0][1])
-  for (let i = 1; i < points.length; i += 1) shape.lineTo(points[i][0], points[i][1])
-  shape.closePath()
-  return shape
-}
-
-function rectangle(x0, y0, x1, y1) {
-  return polygon([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
-}
-
-function roundedRect(x0, y0, x1, y1, radius) {
-  const shape = new THREE.Shape()
-  shape.moveTo(x0 + radius, y0)
-  shape.lineTo(x1 - radius, y0)
-  shape.quadraticCurveTo(x1, y0, x1, y0 + radius)
-  shape.lineTo(x1, y1 - radius)
-  shape.quadraticCurveTo(x1, y1, x1 - radius, y1)
-  shape.lineTo(x0 + radius, y1)
-  shape.quadraticCurveTo(x0, y1, x0, y1 - radius)
-  shape.lineTo(x0, y0 + radius)
-  shape.quadraticCurveTo(x0, y0, x0 + radius, y0)
-  shape.closePath()
-  return shape
-}
-
-// These glyphs are modeled explicitly for the eleven sign cells. Their widths,
-// strokes, counters, and curves are tuned independently so the wordmark remains
-// broad and unmistakable after perspective compression and bloom.
-function letterShapes(letter) {
-  const w = glyphWidth[letter]
-  const left = -w / 2, right = w / 2
-  const bottom = -0.54, top = 0.54
-  const stroke = 0.19
-
-  switch (letter) {
-    case 'W':
-      return [polygon([
-        [left, top], [left + 0.22, top], [left + 0.34, -0.16], [-0.11, 0.23],
-        [0, -0.16], [0.11, 0.23], [right - 0.34, -0.16], [right - 0.22, top],
-        [right, top], [right - 0.22, bottom], [0.13, bottom], [0, -0.18],
-        [-0.13, bottom], [left + 0.22, bottom],
-      ])]
-    case 'A': {
-      const outer = polygon([[left, bottom], [-0.13, top], [0.13, top], [right, bottom], [right - 0.23, bottom], [0.29, -0.04], [-0.29, -0.04], [left + 0.23, bottom]])
-      return [outer, rectangle(-0.29, -0.08, 0.29, 0.09)]
-    }
-    case 'F':
-      return [rectangle(left, bottom, left + stroke, top), rectangle(left, top - stroke, right, top), rectangle(left, 0.02, right - 0.09, 0.02 + stroke)]
-    case 'L':
-      return [rectangle(left, bottom, left + stroke, top), rectangle(left, bottom, right, bottom + stroke)]
-    case 'E':
-      return [rectangle(left, bottom, left + stroke, top), rectangle(left, top - stroke, right, top), rectangle(left, -stroke / 2, right - 0.07, stroke / 2), rectangle(left, bottom, right, bottom + stroke)]
-    case 'H':
-      return [rectangle(left, bottom, left + stroke, top), rectangle(right - stroke, bottom, right, top), rectangle(left, -stroke / 2, right, stroke / 2)]
-    case 'O': {
-      const outer = roundedRect(left, bottom, right, top, 0.3)
-      outer.holes.push(roundedRect(left + stroke, bottom + stroke, right - stroke, top - stroke, 0.14))
-      return [outer]
-    }
-    case 'U': {
-      const outer = new THREE.Shape()
-      outer.moveTo(left, top)
-      outer.lineTo(left + stroke, top)
-      outer.lineTo(left + stroke, -0.22)
-      outer.quadraticCurveTo(left + stroke, bottom, 0, bottom)
-      outer.quadraticCurveTo(right - stroke, bottom, right - stroke, -0.22)
-      outer.lineTo(right - stroke, top)
-      outer.lineTo(right, top)
-      outer.lineTo(right, -0.22)
-      outer.quadraticCurveTo(right, bottom, 0, bottom)
-      outer.quadraticCurveTo(left, bottom, left, -0.22)
-      outer.closePath()
-      return [outer]
-    }
-    case 'S':
-      return [
-        rectangle(left, top - stroke, right, top),
-        rectangle(left, -stroke / 2, left + stroke, top),
-        rectangle(left, -stroke / 2, right, stroke / 2),
-        rectangle(right - stroke, bottom, right, stroke / 2),
-        rectangle(left, bottom, right, bottom + stroke),
-      ]
-    default:
-      throw new Error(`Unsupported ATL HOE sign glyph: ${letter}`)
-  }
-}
-
+const fontBytes = readFileSync(fontPath)
+const signFont = opentype.parse(fontBytes.buffer.slice(fontBytes.byteOffset, fontBytes.byteOffset + fontBytes.byteLength))
 function letterGeometry(letter) {
-  let geometry = new THREE.ExtrudeGeometry(letterShapes(letter), {
+  const shapePath = new THREE.ShapePath()
+  for (const command of signFont.charToGlyph(letter).getPath(0, 0, 1).commands) {
+    if (command.type === 'M') shapePath.moveTo(command.x, -command.y)
+    else if (command.type === 'L') shapePath.lineTo(command.x, -command.y)
+    else if (command.type === 'Q') shapePath.quadraticCurveTo(command.x1, -command.y1, command.x, -command.y)
+    else if (command.type === 'C') shapePath.bezierCurveTo(command.x1, -command.y1, command.x2, -command.y2, command.x, -command.y)
+    else if (command.type === 'Z') shapePath.currentPath?.closePath()
+  }
+  let geometry = new THREE.ExtrudeGeometry(shapePath.toShapes(false), {
     depth: 0.11,
     steps: 1,
     bevelEnabled: true,
@@ -357,8 +278,13 @@ function letterGeometry(letter) {
     bevelSegments: 1,
     curveSegments: 8,
   })
-  geometry.translate(0, 0, -0.055)
-  geometry.scale(1, 1, 1.35)
+  geometry.computeBoundingBox()
+  const bounds = geometry.boundingBox
+  const width = bounds.max.x - bounds.min.x
+  const height = bounds.max.y - bounds.min.y
+  const opticalWidths = { W: 0.9, A: 0.8, F: 0.7, L: 0.7, E: 0.7, H: 0.76, O: 0.82, U: 0.76, S: 0.72 }
+  geometry.translate(-(bounds.min.x + bounds.max.x) / 2, -(bounds.min.y + bounds.max.y) / 2, -0.055)
+  geometry.scale(opticalWidths[letter] / width, 0.96 / height, 1.35)
   geometry = mergeVertices(geometry, 1e-5)
   geometry.computeVertexNormals()
   return geometry

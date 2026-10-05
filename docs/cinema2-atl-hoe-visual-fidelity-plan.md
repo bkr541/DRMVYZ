@@ -123,7 +123,7 @@ Prevent subjective drift and make every later phase comparable to the same refer
 
 ## Phase 2 — Rebuild the Waffle House sign as the hero asset
 
-**Status:** Implemented. The approved 50° oblique assembly now uses purpose-built geometry for every letter, layered illuminated cells, dimensional cabinets and bezels, corner hardware, rear rails, and heavy steel supports. The scene and skyline remain unchanged by this phase.
+**Status:** Implemented. The approved 50° oblique assembly uses clean, optically sized font-outline geometry for every letter, layered illuminated cells, dimensional cabinets and bezels, non-emissive dark inner trim, corner hardware, rear rails, and heavy steel supports. The scene and skyline remain unchanged by this phase.
 
 ### Issues addressed
 
