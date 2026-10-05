@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
+import { trackInitials } from '../utils/lyricManagerFormat'
 
 
 export type LyricTrackFilter =
@@ -156,6 +157,7 @@ export function LyricTrackBrowser({
             directAiExtract
             onOpenAiExtract={() => onOpenAiExtract(track)}
             actionsInOverflow
+            artwork={<span>{trackInitials(track)}</span>}
             onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
             onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
             canRemove

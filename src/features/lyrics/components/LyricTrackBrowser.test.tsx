@@ -91,6 +91,17 @@ describe('LyricTrackBrowser', () => {
     expect(baseProps.onLoadTrack).not.toHaveBeenCalled()
   })
 
+  it('renders each track as a flat list row led by an artwork tile with the title initials', async () => {
+    await render({
+      tracks: [track({ title: 'MPH - Raw (UrBoiN8 Remix)', artist: 'UrBoiN8' }), track({ dbId: 'track-b', id: 'audio-track-b', title: 'POP', artist: 'DVYDMR' })],
+    })
+    const rows = [...container.querySelectorAll<HTMLElement>('.vz-track-row--list')]
+    expect(rows).toHaveLength(2)
+    // The dash in "MPH - Raw" is a separator, not an initial.
+    expect(rows.map(row => row.querySelector('.vz-track-row-art')?.textContent)).toEqual(['MR', 'PD'])
+    expect(rows[0]?.querySelector('.vz-track-row-art')?.getAttribute('aria-hidden')).toBe('true')
+  })
+
   it('forwards title-or-artist search and incremental loading actions', async () => {
     const onSearchChange = vi.fn()
     const onLoadMore = vi.fn()

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Download01Icon, SubtitleIcon, MagicWand01Icon, Delete02Icon, MoreHorizontalIcon } from 'hugeicons-react'
 import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
@@ -38,6 +38,9 @@ export interface AudioTrackCardProps {
    *  when their handler is supplied (`onOpenActiveLyrics`, `onMakeActiveVersion`,
    *  `canRemove` + `onRemove`). */
   actionsInOverflow?: boolean
+  /** Lyric Manager: render the card as a flat list row (hairline-separated, no card chrome) led by a
+   *  square artwork tile holding this content (e.g. the title initials; tracks have no artwork field). */
+  artwork?: ReactNode
 }
 
 function fmtDuration(s: number | null): string {
@@ -74,7 +77,9 @@ export function AudioTrackCard({
   confirmRemove = true,
   directAiExtract,
   actionsInOverflow,
+  artwork,
 }: AudioTrackCardProps) {
+  const iconSize = artwork ? 16 : 13
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const requestRemove = () => {
@@ -110,13 +115,14 @@ export function AudioTrackCard({
 
   return (
     <div
-      className={`vz-track-row${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
+      className={`vz-track-row${artwork ? ' vz-track-row--list' : ''}${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
       onClick={onSelect}
       role={onSelect ? 'button' : undefined}
       aria-pressed={onSelect ? Boolean(isActive) : undefined}
       tabIndex={onSelect ? 0 : undefined}
       onKeyDown={onSelect ? event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect() } } : undefined}
     >
+      {artwork && <div className="vz-track-row-art vz-track-row-art--list" aria-hidden="true">{artwork}</div>}
       <div className="vz-track-row-info">
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
@@ -140,7 +146,7 @@ export function AudioTrackCard({
             title={loading ? 'Loading…' : loaded ? 'Reload this saved track without starting playback' : 'Load this saved track without starting playback'}
             aria-label={loading ? `Loading ${track.title}` : loaded ? `Reload ${track.title}` : `Load ${track.title}`}
           >
-            <Download01Icon size={13} color="currentColor" />
+            <Download01Icon size={iconSize} color="currentColor" />
           </button>
         )}
         {canOpenLyrics && directAiExtract && onOpenAiExtract && (
@@ -151,7 +157,7 @@ export function AudioTrackCard({
             aria-label={`AI extract lyrics for ${track.title}`}
             onClick={event => { event.stopPropagation(); onOpenAiExtract() }}
           >
-            <MagicWand01Icon size={13} color="currentColor" />
+            <MagicWand01Icon size={iconSize} color="currentColor" />
           </button>
         )}
         {canOpenLyrics && !directAiExtract && !actionsInOverflow && lyricsMenuItems.length > 0 && (
@@ -167,7 +173,7 @@ export function AudioTrackCard({
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
           >
-            <SubtitleIcon size={13} color="currentColor" />
+            <SubtitleIcon size={iconSize} color="currentColor" />
           </button>
         )}
         {actionsInOverflow && overflowItems.length > 0 && (
@@ -183,7 +189,7 @@ export function AudioTrackCard({
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
           >
-            <MoreHorizontalIcon size={13} color="currentColor" />
+            <MoreHorizontalIcon size={iconSize} color="currentColor" />
           </button>
         )}
         {!actionsInOverflow && canRemove && onRemove && (
