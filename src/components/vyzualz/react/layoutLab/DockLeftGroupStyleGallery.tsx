@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 
 // ── DockLeftGroupStyleGallery ────────────────────────────────────────────
@@ -40,8 +40,9 @@ const PlayGlyph = ({ size }: { size: number }) => (
 const PauseGlyph = ({ size }: { size: number }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
 )
-const PlusGlyph = ({ size = 14 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}><path d="M12 5v14M5 12h14" /></svg>
+/** Load / replace: an arrow rising out of a tray — "bring a file in". Not a swap or loop glyph, which would read as repeat in a player. */
+const LoadGlyph = ({ size = 14 }: { size?: number }) => (
+  <svg {...svgProps} width={size} height={size}><path d="M12 15V4M8 8l4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
 )
 const VolumeGlyph = ({ size = 14 }: { size?: number }) => (
   <svg {...svgProps} width={size} height={size}>
@@ -69,12 +70,11 @@ function PlayButton({ state, className = '', size = 22 }: { state: DockState; cl
   )
 }
 
-function AddButton({ state, className = '', children }: { state: DockState; className?: string; children?: ReactNode }) {
+function AddButton({ state, className = '', size = 14 }: { state: DockState; className?: string; size?: number }) {
   const label = addLabel(state.loaded)
   return (
     <button type="button" className={`lldl-key ${className}`} aria-label={label} title={label}>
-      <PlusGlyph />
-      {children}
+      <LoadGlyph size={size} />
     </button>
   )
 }
@@ -146,16 +146,18 @@ function ProgressRing({ loaded }: { loaded: boolean }) {
 
 // ── Concepts ──────────────────────────────────────────────────────────────
 
-/** 01 — the production arrangement, tidied: round play on the left, info over volume on the right, Add as a corner key. */
+/** 01 — the production arrangement, tidied: round play on the left with the load button overlapping its rim, info over volume. */
 function CoverSlot({ state }: { state: DockState }) {
   return (
     <div className="lldl-card lldl-c1">
-      <PlayButton state={state} className="lldl-play--ring" size={24} />
+      <div className="lldl-overlay-host lldl-c1-play">
+        <PlayButton state={state} className="lldl-play--ring" size={24} />
+        <AddButton state={state} className="lldl-badge" size={12} />
+      </div>
       <div className="lldl-c1-body">
         <TrackInfo state={state} />
         <Volume state={state} />
       </div>
-      <AddButton state={state} className="lldl-c1-add" />
     </div>
   )
 }
@@ -174,22 +176,18 @@ function TransportRail({ state }: { state: DockState }) {
   )
 }
 
-/** 03 — a large rounded play tile wrapped in a progress ring; info and volume to its right, a labelled Add pill at the end. */
+/** 03 — a large rounded play tile wrapped in a progress ring, with the load button overlapping the ring's lower-right; info and volume to its right. */
 function ProgressTile({ state }: { state: DockState }) {
   return (
     <div className="lldl-card lldl-c3">
-      <div className="lldl-c3-tile">
+      <div className="lldl-overlay-host lldl-c3-tile">
         <ProgressRing loaded={state.loaded} />
         <PlayButton state={state} className="lldl-play--tile" size={22} />
+        <AddButton state={state} className="lldl-badge" size={12} />
       </div>
       <div className="lldl-c3-body">
         <TrackInfo state={state} />
-        <div className="lldl-c3-row">
-          <Volume state={state} showDb={false} />
-          <AddButton state={state} className="lldl-pill">
-            <span>{state.loaded ? 'Replace' : 'Add'}</span>
-          </AddButton>
-        </div>
+        <Volume state={state} />
       </div>
     </div>
   )
@@ -223,7 +221,7 @@ function CompactLine({ state }: { state: DockState }) {
   )
 }
 
-/** 06 — centred title above an evenly spaced control strip: Add key, play, volume. */
+/** 06 — centred title above an evenly spaced control strip: load key, play, volume. */
 function CenteredStrip({ state }: { state: DockState }) {
   return (
     <div className="lldl-card lldl-c6">
@@ -238,12 +236,12 @@ function CenteredStrip({ state }: { state: DockState }) {
 }
 
 const CONCEPTS = [
-  { id: 'cover-slot', title: '01 · Cover Slot', blurb: 'Round play ring on the left, title over volume on the right, Add as a corner key.', Concept: CoverSlot },
-  { id: 'transport-rail', title: '02 · Transport Rail', blurb: 'Two full-width rows: play, track info and Add above; volume with its dB readout below.', Concept: TransportRail },
-  { id: 'progress-tile', title: '03 · Progress Tile', blurb: 'A rounded play tile wrapped in a progress ring, with a labelled Add pill beside the volume.', Concept: ProgressTile },
-  { id: 'split-keys', title: '04 · Split Keys', blurb: 'A strict 2 × 2 grid: play and Add are matching keys, info and volume align to their rows.', Concept: SplitKeys },
+  { id: 'cover-slot', title: '01 · Cover Slot', blurb: 'Round play ring with the load button overlapping its rim; title over volume on the right.', Concept: CoverSlot },
+  { id: 'transport-rail', title: '02 · Transport Rail', blurb: 'Two full-width rows: play, track info and the load key above; volume with its dB readout below.', Concept: TransportRail },
+  { id: 'progress-tile', title: '03 · Progress Tile', blurb: 'A rounded play tile in a progress ring, with the load button overlapping its lower-right.', Concept: ProgressTile },
+  { id: 'split-keys', title: '04 · Split Keys', blurb: 'A strict 2 × 2 grid: play and load are matching keys, info and volume align to their rows.', Concept: SplitKeys },
   { id: 'compact-line', title: '05 · Compact Line', blurb: 'One transport line with a divider, and a position line with elapsed and total time beneath.', Concept: CompactLine },
-  { id: 'centered-strip', title: '06 · Centered Strip', blurb: 'Centred title over an evenly spaced strip: Add key, play, volume.', Concept: CenteredStrip },
+  { id: 'centered-strip', title: '06 · Centered Strip', blurb: 'Centred title over an evenly spaced strip: load key, play, volume.', Concept: CenteredStrip },
 ] as const
 
 function Segmented({ label, value, options, onChange }: {
