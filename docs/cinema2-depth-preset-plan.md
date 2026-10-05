@@ -117,7 +117,7 @@ The first production control set should remain expressive without exposing imple
 - **Portal Spacing** — distance between repeated frames.
 - **Frame Thickness** — mass of the dark structural sides.
 - **Depth Rails** — amount of visible connecting structure.
-- **Center Object** — visibility/intensity of the vanishing-point sphere or disc.
+- **Center Object** — visibility, size and matte-gray tone of the vanishing-point sphere.
 
 The visible portal count will be quality-owned rather than user-authored, preventing controls from exceeding performance budgets.
 
@@ -155,11 +155,11 @@ Cinema 2.0 currently clamps the shared camera roll target to ±45 degrees. This 
 
 The base animation will always work without audio. Music intelligence will add bounded accents through ordinary Cinema 2.0 targets:
 
-- **Beat:** advance or emphasize the current light step.
-- **Downbeat:** illuminate a complete near portal and add a short bloom pulse.
-- **Phrase:** change the active light program or reverse its direction at a safe boundary.
-- **Build:** increase light density, travel speed, haze and camera approach.
-- **Drop:** fire an outward depth chase, temporarily widen the active span and push the camera/FOV.
+- **Beat:** emphasize the currently active bars without lighting dark segments.
+- **Downbeat:** add one selected architectural bar and a restrained bloom pulse.
+- **Phrase:** add brief related-side articulation at a safe boundary.
+- **Build:** increase light travel speed and active-bar brightness with only a tightly bounded haze lift and camera approach.
+- **Drop:** add one deterministic accent bar, briefly accelerate the chase and push the camera/FOV.
 - **Breakdown:** reduce portal density and hold a small distant light around the vanishing point.
 
 User-authored zero values remain authoritative. Auto Performance must not re-enable camera movement, trails or other effects that the user has explicitly locked off.
@@ -197,7 +197,7 @@ The module will expose the same production telemetry expected of current keeper 
 
 ### Step 1 — static visual proof (implemented)
 
-Implementation status (October 4, 2026): the `Depth` keeper, `depth-native@1` module and fixed ten-portal proof renderer are in place. The proof uses a single instanced structural draw, a static perspective camera, depth, `rgba16f` targets with `rgba8` fallback, volumetric atmosphere, HDR bloom and cinematic finish. Focused layout, registration, compilation, effect-contract and resource-lifecycle coverage passes. Final authenticated Stage captures and reference tuning remain part of Step 5.
+Implementation status (October 4, 2026): the `Depth` keeper and `depth-native@1` module now use eight substantial gates spaced six units apart across a 48-unit repeating lap. Frames, strips and rails share one instanced box batch; rounded corner joints and the matte gray focal sphere share a low-poly sphere mesh in a second instanced batch. Three geometry laps preserve uninterrupted forward travel while the camera, layout and renderer recentering all derive from the same repeat configuration. Depth, `rgba16f` targets with `rgba8` fallback, restrained atmosphere, HDR bloom and cinematic finish remain in place. Focused layout, registration, compilation, effect-contract and resource-lifecycle coverage passes. Final visual judgment remains part of Step 5.
 
 Goal: prove the portal geometry, depth composition and HDR light treatment before building the full animation system.
 
@@ -212,10 +212,10 @@ Step 1 acceptance: the still image must immediately read as a deep illuminated s
 
 ### Step 2 — light programs and user controls (implemented)
 
-Implementation status (October 4, 2026): all portal strips now receive deterministic per-ring/per-side light values derived from absolute transport time, program, direction, rate, active span and seed. Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse are available in the Inspector. The optional center object has visibility, size and intensity controls. Animated emission and spill values update one reusable instance buffer, and the entire tunnel remains one instanced draw.
+Implementation status (October 4, 2026): every portal-side strip is independently addressed from absolute transport time, program, direction, rate, active span and seed. Sparse Architecture is now the Depth default: four staggered light tracks remain distributed through the shaft, crossfade one at a time, and occasionally form an L or opposite-side relationship. Inactive strips remain at zero emission, and spill follows the matching frame side/corner instead of lifting an entire portal. Builds accelerate and brighten the sparse pattern without activating dark bars; drops add one deterministic bar and briefly lift active-bar brightness. Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse remain available as alternate styles. The optional center sphere retains visibility, size and matte-tone controls. Animated emission and spill values update one reusable instance buffer, and the tunnel remains two instanced geometry draws regardless of portal count.
 
 1. Add per-ring/per-side light state to the renderer.
-2. Implement Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse.
+2. Implement Sparse Architecture, Depth Chase, Side Orbit, Gate Pulse, Alternating Frames and Full Pulse.
 3. Add direction, rate, active span, color, intensity, spill and seed controls.
 4. Add the optional center object and its controls.
 5. Guarantee deterministic output for identical time, seed and settings.
@@ -225,7 +225,7 @@ Step 2 acceptance: every side of every visible portal can be addressed independe
 
 ### Step 3 — camera movement and music choreography (implemented)
 
-Implementation status (October 4, 2026): the proof camera is now a constant-speed spline fly rig with a 14-second, 42-unit repeating lap. Three structural laps are submitted in the existing single instanced draw and recentered as the camera crosses each boundary; the optional center object remains a fixed distance ahead so it cannot pop at the seam. The camera adds restrained path sway, target drift, FOV breathing and bounded roll. Full, Reduced and Lock Off motion-safety modes scale path travel, secondary motion and camera choreography together. Optional beat, downbeat, phrase, build and drop rules add bounded module, camera and effect accents behind Auto Performance, while missing music capabilities leave the authored animation intact.
+Implementation status (October 4, 2026): the camera uses a constant-speed 14-second, 48-unit repeating spline authored as a deliberate corkscrew through all four tunnel quadrants. Camera positions approach the structure while independent look targets aim across, above and below the shaft, exposing walls, frame depth, rails and rounded joints instead of preserving concentric squares. Optional path-point roll was added to the shared camera API; Depth interpolates from roughly -29 to +38 degrees and closes with matching position, target and roll at the lap boundary. Three structural laps remain in two instanced geometry batches, while the matte focal sphere stays a fixed distance ahead. Full, Reduced and Lock Off scale path travel, secondary motion and camera choreography together. Optional beat, downbeat, phrase, build and drop rules add bounded accents without defining the base movement.
 
 1. Replace the proof camera with a looping fly rig and matching repeat offset.
 2. Add camera travel, lateral sway, target drift, FOV breathing and bounded roll.
@@ -237,6 +237,8 @@ Implementation status (October 4, 2026): the proof camera is now a constant-spee
 Step 3 acceptance: the camera can repeatedly pass through the structure without a seam, and audio accents remain bounded and optional.
 
 ### Step 4 — production effects and quality tiers
+
+Finishing status (October 4, 2026): the Depth-local HDR source gain has been reduced from 8× to 2.75×, with a higher bloom threshold, four-level narrow halo, lower bloom intensity/spread and a finite HDR clamp. Atmosphere density, beam energy, ambient haze, noise, ambient/point-light contribution and audio-driven lifts are now deliberately restrained. Local spill is lower while the neutral body material is slightly more readable, preserving very-dark structural context against a near-black background. The finish uses modestly reduced exposure, stronger contrast and vignette, and subtler grain/aberration. Remaining Step 4 work concerns quality-tier budgets, depth of field/trails, prewarming and diagnostics rather than the core look.
 
 1. Finalize the render graph: scene → atmosphere → depth of field → trails → HDR bloom → finish.
 2. Route original scene depth to every depth-aware effect.

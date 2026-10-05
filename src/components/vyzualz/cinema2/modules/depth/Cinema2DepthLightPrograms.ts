@@ -1,6 +1,7 @@
 import type { Cinema2DepthInstance, Cinema2DepthProofLayout } from './Cinema2DepthLayout'
 
 export const CINEMA2_DEPTH_LIGHT_PROGRAMS = Object.freeze([
+  'architecturalSparse',
   'depthChase',
   'sideOrbit',
   'gatePulse',
@@ -34,6 +35,7 @@ export interface Cinema2DepthLightFrame {
   readonly emissions: Float32Array
   readonly spills: Float32Array
   readonly portalLevels: Float32Array
+  readonly segmentLevels: Float32Array
 }
 
 export function createCinema2DepthLightFrame(instanceCount: number, portalCount = 0): Cinema2DepthLightFrame {
@@ -42,6 +44,7 @@ export function createCinema2DepthLightFrame(instanceCount: number, portalCount 
     emissions: new Float32Array(count),
     spills: new Float32Array(count),
     portalLevels: new Float32Array(Math.max(0, Math.floor(portalCount))),
+    segmentLevels: new Float32Array(Math.max(0, Math.floor(portalCount)) * 4),
   }
 }
 
@@ -59,26 +62,32 @@ export function updateCinema2DepthLightFrame(
     output.emissions.length !== layout.instances.length
     || output.spills.length !== layout.instances.length
     || output.portalLevels.length !== layout.portalCount
+    || output.segmentLevels.length !== layout.portalCount * 4
   ) {
     throw new Error('Cinema 2.0 Depth light-frame buffers must match the layout instance and portal counts.')
   }
 
   const portalLevels = output.portalLevels
+  const segmentLevels = output.segmentLevels
   portalLevels.fill(0)
+  segmentLevels.fill(0)
   for (let index = 0; index < layout.instances.length; index += 1) {
     const instance = layout.instances[index]!
     const emission = instance.kind === 'strip'
       ? resolveCinema2DepthProgramEmission(instance.portalIndex, instance.sideIndex, layout.portalCount, timeSeconds, controls)
       : instance.kind === 'center' && controls.centerEnabled
-        ? clamp(clamp(controls.centerIntensity, 0, 2) * (1 + clamp(controls.downbeatAccent ?? 0, 0, 1) * 0.3 + clamp(controls.dropAccent ?? 0, 0, 1) * 0.7), 0, 2)
+        ? clamp(controls.centerIntensity, 0, 2)
         : 0
     output.emissions[index] = emission
-    if (instance.kind === 'strip') portalLevels[instance.portalIndex] = Math.max(portalLevels[instance.portalIndex]!, emission)
+    if (instance.kind === 'strip') {
+      portalLevels[instance.portalIndex] = Math.max(portalLevels[instance.portalIndex]!, emission)
+      segmentLevels[instance.portalIndex * 4 + instance.sideIndex] = emission
+    }
   }
 
   for (let index = 0; index < layout.instances.length; index += 1) {
     const instance = layout.instances[index]!
-    output.spills[index] = resolveSpill(instance, portalLevels, controls)
+    output.spills[index] = resolveSpill(instance, segmentLevels, controls)
   }
   return output
 }
@@ -106,6 +115,10 @@ export function resolveCinema2DepthProgramEmission(
 
   let level: number
   switch (controls.program) {
+    case 'architecturalSparse': {
+      level = sparseArchitecturalLevel(portal, side, count, time, rate, span, direction, seed)
+      break
+    }
     case 'sideOrbit': {
       const orbit = positiveModulo(hash01(seed + 101) * 4 + direction * time * rate * 0.9 + portal * 0.23, 4)
       const sideDistance = circularDistance(side, orbit, 4)
@@ -121,7 +134,7 @@ export function resolveCinema2DepthProgramEmission(
     case 'alternatingFrames': {
       const step = Math.floor(Math.abs(time) * rate + hash01(seed + 211) * 2)
       const parity = positiveModulo(portal + step * direction, 2)
-      level = parity === 0 ? 1 : 0.035
+      level = parity === 0 ? 1 : 0
       break
     }
     case 'fullPulse': {
@@ -143,27 +156,118 @@ export function resolveCinema2DepthProgramEmission(
   const phrase = clamp(controls.phraseAccent ?? 0, 0, 1)
   const build = clamp(controls.buildAmount ?? 0, 0, 1)
   const drop = clamp(controls.dropAccent ?? 0, 0, 1)
-  const phraseFace = positiveModulo(side + portal + seed, 4) === 0 ? 0.42 : 0.06
-  level += beat * 0.1
-  level += (portal === 0 ? 0.5 : 0.08) * downbeat
-  level += phraseFace * phrase
-  level += (1 - level) * build * 0.24
-  level += (1 - level) * drop * 0.88
+  // Musical energy enhances the authored state instead of lifting every dark
+  // strip. Only a small deterministic selection can become newly emissive.
+  level *= 1 + beat * 0.12 + build * 0.2 + drop * 0.28
+  const accentEpoch = Math.floor(time * Math.max(0.25, rate * 0.5) + hash01(seed + 401) * 7)
+  const downbeatSegment = accentSegment(seed + 503, accentEpoch, count)
+  const phraseSegment = relatedSegment(downbeatSegment, count, seed + accentEpoch)
+  const dropSegment = accentSegment(seed + 809, accentEpoch + 3, count)
+  const segment = portal * 4 + side
+  if (segment === downbeatSegment) level = Math.max(level, downbeat * 0.68)
+  if (segment === phraseSegment) level = Math.max(level, phrase * 0.56)
+  if (segment === dropSegment) level = Math.max(level, drop * 0.92)
   return clamp(level, 0, 1)
+}
+
+/**
+ * Slowly changing bar tracks form the reference-style default. One track
+ * crossfades at a time, so motion stays smooth without filling the tunnel. A
+ * low-frequency related bar occasionally creates an L or opposite-side pair.
+ */
+function sparseArchitecturalLevel(
+  portal: number,
+  side: number,
+  portalCount: number,
+  time: number,
+  rate: number,
+  requestedCount: number,
+  direction: number,
+  seed: number,
+): number {
+  const trackCount = clamp(Math.round(requestedCount), 3, 6)
+  const timeline = Math.max(0, time) * rate * 0.55 + hash01(seed + 17) * trackCount * 2
+  const step = Math.floor(timeline)
+  const phase = timeline - step
+  const changingTrack = positiveModulo(step, trackCount)
+  const fade = smoothstep(0.12, 0.88, phase)
+  const segment = portal * 4 + side
+  let level = 0
+
+  for (let track = 0; track < trackCount; track += 1) {
+    const generation = Math.floor((step - track) / trackCount)
+    const current = sparseTrackSegment(track, generation, trackCount, portalCount, direction, seed)
+    if (track === changingTrack) {
+      const previous = sparseTrackSegment(track, generation - 1, trackCount, portalCount, direction, seed)
+      if (segment === previous) level = Math.max(level, 1 - fade)
+      if (segment === current) level = Math.max(level, fade)
+    } else if (segment === current) {
+      level = 1
+    }
+  }
+
+  const relationshipPhase = positiveModulo(timeline / trackCount + hash01(seed + 233), 1)
+  const relationshipEnvelope = smoothstep(0.4, 0.5, relationshipPhase)
+    * (1 - smoothstep(0.78, 0.9, relationshipPhase))
+  if (relationshipEnvelope > 0) {
+    const motifRound = Math.floor(timeline / trackCount)
+    const anchorTrack = positiveModulo(motifRound + seed, trackCount)
+    const anchorGeneration = Math.floor((step - anchorTrack) / trackCount)
+    const anchor = sparseTrackSegment(anchorTrack, anchorGeneration, trackCount, portalCount, direction, seed)
+    const relationship = relatedSegment(anchor, portalCount, seed + motifRound * 31)
+    if (segment === relationship) level = Math.max(level, relationshipEnvelope * 0.78)
+  }
+
+  return level
+}
+
+function sparseTrackSegment(
+  track: number,
+  generation: number,
+  trackCount: number,
+  portalCount: number,
+  direction: number,
+  seed: number,
+): number {
+  const depthStride = Math.max(1, Math.floor(portalCount / trackCount))
+  const seedPortal = Math.floor(hash01(seed + 71) * portalCount)
+  const portal = positiveModulo(seedPortal + track * depthStride + generation * direction, portalCount)
+  const side = Math.floor(hash01(seed + track * 131 + generation * 977) * 4)
+  return portal * 4 + side
+}
+
+function accentSegment(seed: number, epoch: number, portalCount: number): number {
+  return Math.floor(hash01(seed + epoch * 619) * portalCount * 4)
+}
+
+function relatedSegment(segment: number, portalCount: number, seed: number): number {
+  const portal = Math.floor(positiveModulo(segment, portalCount * 4) / 4)
+  const side = positiveModulo(segment, 4)
+  const sideOffset = hash01(seed + 919) < 0.68 ? 1 : 2
+  return portal * 4 + positiveModulo(side + sideOffset, 4)
 }
 
 function resolveSpill(
   instance: Readonly<Cinema2DepthInstance>,
-  portalLevels: Float32Array,
+  segmentLevels: Float32Array,
   controls: Readonly<Cinema2DepthLightControls>,
 ): number {
-  if (instance.kind === 'strip') return portalLevels[instance.portalIndex] ?? 0
-  if (instance.kind === 'frame') return (portalLevels[instance.portalIndex] ?? 0) * 0.72
-  if (instance.kind === 'node') return (portalLevels[instance.portalIndex] ?? 0) * 0.5
-  if (instance.kind === 'rail') {
-    return Math.max(portalLevels[instance.portalIndex] ?? 0, portalLevels[instance.portalIndex + 1] ?? 0) * 0.28
+  const segmentLevel = (portal: number, side: number) => segmentLevels[portal * 4 + positiveModulo(side, 4)] ?? 0
+  if (instance.kind === 'strip') return segmentLevel(instance.portalIndex, instance.sideIndex)
+  if (instance.kind === 'frame') return segmentLevel(instance.portalIndex, instance.sideIndex) * 0.34
+  if (instance.kind === 'node') {
+    const first = segmentLevel(instance.portalIndex, instance.sideIndex)
+    const second = segmentLevel(instance.portalIndex, instance.sideIndex + 1)
+    return Math.max(first, second) * 0.22
   }
-  return controls.centerEnabled ? clamp(controls.centerIntensity, 0, 2) : 0
+  if (instance.kind === 'rail') {
+    const sides = [instance.sideIndex, instance.sideIndex + 1]
+    return Math.max(...sides.flatMap(segmentSide => [
+      segmentLevel(instance.portalIndex, segmentSide),
+      segmentLevel(instance.portalIndex + 1, segmentSide),
+    ])) * 0.14
+  }
+  return 0
 }
 
 function movingWindow(distance: number, span: number): number {

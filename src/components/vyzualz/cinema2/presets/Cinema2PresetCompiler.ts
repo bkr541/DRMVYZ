@@ -809,6 +809,10 @@ function validateCameraDefinition(
           if (pointFov != null && (typeof pointFov !== 'number' || !Number.isFinite(pointFov) || pointFov <= 0 || pointFov >= 180)) {
             diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path point FOV must be finite and between 0 and 180 degrees.', `${pointPath}.fovDegrees`))
           }
+          const pointRoll = point.rollDegrees
+          if (pointRoll != null && (typeof pointRoll !== 'number' || !Number.isFinite(pointRoll) || Math.abs(pointRoll) > 45)) {
+            diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Path point roll must be finite and within ±45 degrees.', `${pointPath}.rollDegrees`))
+          }
         })
       }
       if (rig.durationSeconds != null && (!Number.isFinite(rig.durationSeconds) || rig.durationSeconds <= 0)) {

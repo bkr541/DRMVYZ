@@ -312,6 +312,8 @@ export interface Cinema2CameraPathPointManifest {
   position: Cinema2Vector3
   target?: Cinema2Vector3
   fovDegrees?: number
+  /** Optional authored axial orientation. Spline paths interpolate it with the position, target and FOV. */
+  rollDegrees?: number
 }
 
 /** Simple authored point-to-point path. `fly` is the distance/speed variant. */

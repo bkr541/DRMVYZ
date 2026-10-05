@@ -152,6 +152,22 @@ describe('Cinema 2.0 camera motion: spline paths', () => {
     expect(Math.hypot(...sub(halfway.position, fresh.position))).toBeGreaterThan(3)
     expect(Math.hypot(...sub(halfway.position, fresh.position))).toBeLessThan(4.1)
   })
+
+  it('interpolates optional authored path roll without changing paths that omit it', () => {
+    const authored = build({
+      rig: {
+        kind: 'path', durationSeconds: 10,
+        points: [
+          { position: [0, 0, 10], target: [0, 0, 0], rollDegrees: -30 },
+          { position: [0, 0, -10], target: [0, 0, -20], rollDegrees: 30 },
+        ],
+      },
+    }).camera
+    expect(authored.update(frame(0)).rollDegrees).toBeCloseTo(-30)
+    expect(authored.update(frame(5)).rollDegrees).toBeCloseTo(0)
+    expect(authored.update(frame(10)).rollDegrees).toBeCloseTo(30)
+    expect(build({ rig: { kind: 'path', points: ZIGZAG, durationSeconds: 10 } }).camera.update(frame(5)).rollDegrees).toBe(0)
+  })
 })
 
 describe('Cinema 2.0 camera motion: drift', () => {
@@ -263,6 +279,7 @@ describe('Cinema 2.0 camera motion: authoring validation', () => {
     expect(codes({ motion: { drift: { position: -1 } } })).toContain('CINEMA2_PRESET_CAMERA_MOTION_INVALID')
     expect(codes({ motion: { drift: { speed: 0 } } })).toContain('CINEMA2_PRESET_CAMERA_MOTION_INVALID')
     expect(codes({ motion: { rollDegrees: 80 } })).toContain('CINEMA2_PRESET_CAMERA_MOTION_INVALID')
+    expect(codes({ rig: { kind: 'path', durationSeconds: 5, points: [{ position: [0, 0, 1], rollDegrees: 0 }, { position: [0, 0, -1], rollDegrees: 50 }] } })).toContain('CINEMA2_PRESET_CAMERA_RIG_INVALID')
     expect(codes({ rig: { kind: 'orbit' }, motion: { interpolation: 'spline' } })).toContain('CINEMA2_PRESET_CAMERA_MOTION_INVALID')
     expect(codes({ motion: { interpolation: 'cubic' as never } })).toContain('CINEMA2_PRESET_CAMERA_MOTION_INVALID')
   })

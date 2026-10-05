@@ -11,6 +11,7 @@ import type {
   Cinema2ModuleTypeDefinition,
 } from './Cinema2ModuleContracts'
 import {
+  CINEMA2_DEPTH_REPEAT_ORIGIN_Z,
   buildCinema2DepthProofLayout,
   packCinema2DepthInstances,
   type Cinema2DepthProofLayout,
@@ -28,8 +29,8 @@ import { Cinema2DepthRenderer, type Cinema2DepthDrawState } from './depth/Cinema
 export const CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('depth-native')
 export const CINEMA2_DEPTH_NATIVE_MODULE_VERSION = 1 as const
 
-const DEFAULT_LIGHT: Cinema2Color = Object.freeze([0.86, 0.9, 1, 1]) as Cinema2Color
-const DEFAULT_BODY: Cinema2Color = Object.freeze([0.012, 0.014, 0.021, 1]) as Cinema2Color
+const DEFAULT_LIGHT: Cinema2Color = Object.freeze([0.96, 0.97, 1, 1]) as Cinema2Color
+const DEFAULT_BODY: Cinema2Color = Object.freeze([0.018, 0.019, 0.024, 1]) as Cinema2Color
 
 export interface Cinema2DepthModuleInspection {
   portalCount: number
@@ -76,7 +77,7 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           if (!execution.camera) throw new Error(`Cinema 2.0 Depth module "${context.module.id}" requires final Camera Runtime state.`)
           const light = readColor(context, 'lightColor', DEFAULT_LIGHT)
           const body = readColor(context, 'bodyColor', DEFAULT_BODY)
-          const lightProgram = readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'depthChase')
+          const lightProgram = readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'architecturalSparse')
           const direction = readEnum(context, 'direction', CINEMA2_DEPTH_LIGHT_DIRECTIONS, 'forward')
           const beatAccent = clamp(readNumber(context, 'beatAccent', 0), 0, 1)
           const downbeatAccent = clamp(readNumber(context, 'downbeatAccent', 0), 0, 1)
@@ -84,15 +85,15 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           const buildAmount = clamp(readNumber(context, 'buildAmount', 0), 0, 1)
           const dropAccent = clamp(readNumber(context, 'dropAccent', 0), 0, 1)
           const authoredRate = clamp(readNumber(context, 'rate', 1.1), 0, 8)
-          const authoredSpan = clamp(Math.round(readNumber(context, 'activeSpan', 3)), 1, layout.portalCount)
+          const authoredSpan = clamp(Math.round(readNumber(context, 'activeSpan', 4)), 1, layout.portalCount)
           updateCinema2DepthLightFrame(lightFrame, layout, resolveTimeSeconds(execution), {
             program: lightProgram,
             direction,
-            rate: authoredRate * (1 + buildAmount * 0.3 + dropAccent * 0.45),
-            activeSpan: Math.min(layout.portalCount, authoredSpan + Math.round(buildAmount * 2 + dropAccent * 3)),
+            rate: authoredRate * (1 + buildAmount * 0.45 + dropAccent * 0.65),
+            activeSpan: authoredSpan,
             seed: Math.round(clamp(readNumber(context, 'seed', 7), 0, 9999)),
             centerEnabled: readBoolean(context, 'centerEnabled', true),
-            centerIntensity: clamp(readNumber(context, 'centerIntensity', 0.38), 0, 2),
+            centerIntensity: clamp(readNumber(context, 'centerIntensity', 0.7), 0, 2),
             beatAccent,
             downbeatAccent,
             phraseAccent,
@@ -105,13 +106,13 @@ export function createCinema2DepthNativeModuleDefinition(options: {
             lightColor: [light[0], light[1], light[2]],
             bodyColor: [body[0], body[1], body[2]],
             intensity: clamp(readNumber(context, 'intensity', 1), 0, 2),
-            spill: clamp(readNumber(context, 'spill', 0.7), 0, 2),
+            spill: clamp(readNumber(context, 'spill', 0.28), 0, 2),
             centerScale: clamp(readNumber(context, 'centerScale', 1), 0.25, 4),
             emissions: lightFrame.emissions,
             spills: lightFrame.spills,
             repeatDistance: layout.repeatDistance,
-            repeatOriginZ: 8.4,
-            centerDistance: 8.4 - layout.centerDepth,
+            repeatOriginZ: CINEMA2_DEPTH_REPEAT_ORIGIN_Z,
+            centerDistance: CINEMA2_DEPTH_REPEAT_ORIGIN_Z - layout.centerDepth,
           })
         },
       })
@@ -124,7 +125,7 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           lapCopies: layout.lapCopies,
           instanceCount: layout.instances.length,
           estimatedGpuBytes,
-          lightProgram: readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'depthChase'),
+          lightProgram: readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'architecturalSparse'),
           direction: readEnum(context, 'direction', CINEMA2_DEPTH_LIGHT_DIRECTIONS, 'forward'),
         }),
       }

@@ -351,10 +351,10 @@ export class Cinema2CameraRuntime {
     return this.bankDegrees
   }
 
-  private getSplinePath(camera: Readonly<Cinema2CameraManifest>, fallbackTarget: Cinema2Vector3, fallbackFov: number): Readonly<SplinePath> | null {
+  private getSplinePath(camera: Readonly<Cinema2CameraManifest>, fallbackTarget: Cinema2Vector3, fallbackFov: number, fallbackRoll: number): Readonly<SplinePath> | null {
     const rig = camera.rig
     if (!rig || (rig.kind !== 'path' && rig.kind !== 'fly') || camera.motion?.interpolation !== 'spline' || rig.points.length < 2) return null
-    if (!this.splinePath) this.splinePath = buildSplinePath(rig, fallbackTarget, fallbackFov)
+    if (!this.splinePath) this.splinePath = buildSplinePath(rig, fallbackTarget, fallbackFov, fallbackRoll)
     return this.splinePath
   }
 
@@ -396,7 +396,7 @@ export class Cinema2CameraRuntime {
     }
 
     if (rig.kind === 'path' || rig.kind === 'fly') {
-      const spline = this.getSplinePath(camera, authoredTarget, fovDegrees)
+      const spline = this.getSplinePath(camera, authoredTarget, fovDegrees, rollDegrees)
       const constantSpeed = camera.motion?.constantSpeed ?? true
       const progressControl = readNumberControl(camera.controls, 'pathProgress', this.parameters)
       const progress = progressControl == null
@@ -405,7 +405,7 @@ export class Cinema2CameraRuntime {
       const lap = spline?.repeatOffset && progressControl == null ? pathLap(rig, pathTimeSec, spline.totalLength) : 0
       const sampled = spline
         ? sampleSplinePath(spline, progress, constantSpeed, lap)
-        : samplePath(rig.points, progress, authoredTarget, fovDegrees)
+        : samplePath(rig.points, progress, authoredTarget, fovDegrees, rollDegrees)
       return {
         position: sampled.position,
         target: sampled.target,
@@ -413,7 +413,7 @@ export class Cinema2CameraRuntime {
         orthographicHeight,
         near,
         far,
-        rollDegrees,
+        rollDegrees: sampled.rollDegrees,
       }
     }
 
@@ -544,11 +544,17 @@ function samplePath(
   progress: number,
   fallbackTarget: Cinema2Vector3,
   fallbackFov: number,
-): Pick<CameraPose, 'position' | 'target' | 'fovDegrees'> {
-  if (points.length === 0) return { position: DEFAULT_POSITION, target: fallbackTarget, fovDegrees: fallbackFov }
+  fallbackRoll: number,
+): Pick<CameraPose, 'position' | 'target' | 'fovDegrees' | 'rollDegrees'> {
+  if (points.length === 0) return { position: DEFAULT_POSITION, target: fallbackTarget, fovDegrees: fallbackFov, rollDegrees: fallbackRoll }
   if (points.length === 1) {
     const only = points[0]
-    return { position: freezeVec3(only.position), target: freezeVec3(only.target ?? fallbackTarget), fovDegrees: finite(only.fovDegrees, fallbackFov) }
+    return {
+      position: freezeVec3(only.position),
+      target: freezeVec3(only.target ?? fallbackTarget),
+      fovDegrees: finite(only.fovDegrees, fallbackFov),
+      rollDegrees: finite(only.rollDegrees, fallbackRoll),
+    }
   }
   const scaled = clamp(progress, 0, 1) * (points.length - 1)
   const leftIndex = Math.min(points.length - 2, Math.floor(scaled))
@@ -559,6 +565,7 @@ function samplePath(
     position: lerpVec3(left.position, right.position, local),
     target: lerpVec3(left.target ?? fallbackTarget, right.target ?? fallbackTarget, local),
     fovDegrees: lerp(finite(left.fovDegrees, fallbackFov), finite(right.fovDegrees, fallbackFov), local),
+    rollDegrees: lerp(finite(left.rollDegrees, fallbackRoll), finite(right.rollDegrees, fallbackRoll), local),
   }
 }
 
@@ -1020,6 +1027,7 @@ interface SplinePath {
   positions: readonly Cinema2Vector3[]
   targets: readonly Cinema2Vector3[]
   fovs: readonly number[]
+  rolls: readonly number[]
   loop: boolean
   /** Per-lap translation of positions and targets; null for ordinary loops. */
   repeatOffset: Cinema2Vector3 | null
@@ -1075,12 +1083,14 @@ function buildSplinePath(
   rig: Extract<Cinema2CameraRigManifest, { kind: 'path' | 'fly' }>,
   fallbackTarget: Cinema2Vector3,
   fallbackFov: number,
+  fallbackRoll: number,
 ): Readonly<SplinePath> {
   const loop = rig.loop === true
   const repeatOffset = loop && rig.repeatOffset ? freezeVec3(rig.repeatOffset) : null
   const positions = rig.points.map(point => freezeVec3(point.position))
   const targets = rig.points.map(point => freezeVec3(point.target ?? fallbackTarget))
   const fovs = rig.points.map(point => finite(point.fovDegrees, fallbackFov))
+  const rolls = rig.points.map(point => finite(point.rollDegrees, fallbackRoll))
   const segments = loop ? positions.length : positions.length - 1
   const samples = segments * SPLINE_SAMPLES_PER_SEGMENT
   const arcLengths = new Float64Array(samples + 1)
@@ -1090,7 +1100,7 @@ function buildSplinePath(
     arcLengths[index] = arcLengths[index - 1] + distance(previous, point)
     previous = point
   }
-  return Object.freeze({ positions, targets, fovs, loop, repeatOffset, segments, arcLengths, totalLength: Math.max(EPSILON, arcLengths[samples]) })
+  return Object.freeze({ positions, targets, fovs, rolls, loop, repeatOffset, segments, arcLengths, totalLength: Math.max(EPSILON, arcLengths[samples]) })
 }
 
 /** Inverse of the arc-length table: the spline parameter `u` at a given travelled distance. */
@@ -1114,7 +1124,7 @@ function sampleSplinePath(
   progress: number,
   constantSpeed: boolean,
   lap = 0,
-): Pick<CameraPose, 'position' | 'target' | 'fovDegrees'> {
+): Pick<CameraPose, 'position' | 'target' | 'fovDegrees' | 'rollDegrees'> {
   const p = clamp(progress, 0, 1)
   const u = constantSpeed ? splineParameterAtLength(path, p * path.totalLength) : p * path.segments
   if (path.repeatOffset && lap > 0) {
@@ -1123,11 +1133,13 @@ function sampleSplinePath(
       position: addVec3(evaluateSpline(path.positions, path.loop, path.segments, u, path.repeatOffset), shift),
       target: addVec3(evaluateSpline(path.targets, path.loop, path.segments, u, path.repeatOffset), shift),
       fovDegrees: evaluateSpline(path.fovs, path.loop, path.segments, u),
+      rollDegrees: evaluateSpline(path.rolls, path.loop, path.segments, u),
     }
   }
   return {
     position: evaluateSpline(path.positions, path.loop, path.segments, u, path.repeatOffset),
     target: evaluateSpline(path.targets, path.loop, path.segments, u, path.repeatOffset),
     fovDegrees: evaluateSpline(path.fovs, path.loop, path.segments, u),
+    rollDegrees: evaluateSpline(path.rolls, path.loop, path.segments, u),
   }
 }

@@ -3,6 +3,10 @@ import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { assertCinema2NoGlErrors } from '../../runtime/Cinema2GpuValidation'
 import { CINEMA2_DEPTH_INSTANCE_FLOATS } from './Cinema2DepthLayout'
 
+/** Depth-local HDR source gain; kept above display white but below bloom-flooding levels. */
+export const CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER = 2.75
+export const CINEMA2_DEPTH_CENTER_MATTE_COLOR = Object.freeze([0.16, 0.17, 0.18] as const)
+
 const VERTEX_SOURCE = `#version 300 es
 precision highp float;
 layout(location = 0) in vec3 a_position;
@@ -72,20 +76,21 @@ void main() {
   if (v_kind > 0.5 && v_kind < 1.5) {
     float core = mix(0.9, 1.0, smoothstep(0.08, 0.42, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y))));
     vec3 whiteCore = mix(u_lightColor, vec3(1.0), 0.58);
-    outColor = vec4(whiteCore * v_emission * u_intensity * core * 8.0, 1.0);
+    outColor = vec4(whiteCore * v_emission * u_intensity * core * ${CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER}, 1.0);
     return;
   }
 
   if (v_kind > 3.5) {
     if (v_emission <= 0.0001) discard;
-    float center = 1.0 - smoothstep(0.16, 0.72, length(v_local.xy));
-    outColor = vec4(mix(u_lightColor, vec3(1.0), 0.4) * v_emission * u_intensity * (2.0 + center * 4.0), 1.0);
+    vec3 matteGray = vec3(${CINEMA2_DEPTH_CENTER_MATTE_COLOR[0]}, ${CINEMA2_DEPTH_CENTER_MATTE_COLOR[1]}, ${CINEMA2_DEPTH_CENTER_MATTE_COLOR[2]});
+    float matteLight = 0.34 + diffuse * 0.58 + rim * 0.08;
+    outColor = vec4(matteGray * matteLight * clamp(v_emission, 0.0, 1.5), 1.0);
     return;
   }
 
-  float materialLift = v_kind > 1.5 && v_kind < 2.5 ? 1.3 : (v_kind > 2.5 ? 0.72 : 1.0);
-  vec3 structure = u_bodyColor * materialLift * (0.34 + diffuse * 0.7 + rim * 0.5 + faceEdge * 0.08);
-  structure += u_lightColor * v_spill * u_spillAmount * u_intensity * (0.055 + diffuse * 0.035 + rim * 0.045);
+  float materialLift = v_kind > 1.5 && v_kind < 2.5 ? 1.18 : (v_kind > 2.5 ? 0.82 : 1.0);
+  vec3 structure = u_bodyColor * materialLift * (0.46 + diffuse * 0.82 + rim * 0.62 + faceEdge * 0.12);
+  structure += u_lightColor * v_spill * u_spillAmount * u_intensity * (0.024 + diffuse * 0.022 + rim * 0.026);
   outColor = vec4(structure, 1.0);
 }`
 
@@ -104,10 +109,16 @@ export interface Cinema2DepthDrawState {
   centerDistance: number
 }
 
-/** Draws the complete tunnel and its animated Step-2 light state with one instanced cube draw. */
+interface Cinema2DepthGeometryBatch {
+  vao: WebGLVertexArrayObject
+  indexCount: number
+  instanceCount: number
+}
+
+/** Draws the complete tunnel as one box batch and one shared-sphere batch. */
 export class Cinema2DepthRenderer {
   private readonly program: ShaderProgram
-  private readonly vao: WebGLVertexArrayObject
+  private readonly batches: Cinema2DepthGeometryBatch[] = []
   private readonly buffers: WebGLBuffer[] = []
   private readonly instanceBuffer: WebGLBuffer
   private readonly packedInstances: Float32Array
@@ -125,33 +136,23 @@ export class Cinema2DepthRenderer {
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
 
-    const vao = gl.createVertexArray()
-    if (!vao) throw new Error('Cinema 2.0 Depth could not allocate a vertex array.')
-    this.vao = vao
-    gl.bindVertexArray(vao)
-
-    const { vertices, indices } = buildBox()
-    this.createBuffer(gl.ARRAY_BUFFER, vertices)
-    gl.enableVertexAttribArray(0)
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0)
-    gl.enableVertexAttribArray(1)
-    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12)
-    gl.enableVertexAttribArray(2)
-    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
-    this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, indices)
-
     this.packedInstances = new Float32Array(packedInstances)
     this.instanceBuffer = this.createBuffer(gl.ARRAY_BUFFER, this.packedInstances, gl.DYNAMIC_DRAW)
-    for (let attribute = 0; attribute < 3; attribute += 1) {
-      gl.enableVertexAttribArray(3 + attribute)
-      gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, CINEMA2_DEPTH_INSTANCE_FLOATS * 4, attribute * 16)
-      gl.vertexAttribDivisor(3 + attribute, 1)
-    }
+    this.instanceCount = Math.floor(packedInstances.length / CINEMA2_DEPTH_INSTANCE_FLOATS)
+    const sphereStart = findSphereStart(this.packedInstances, this.instanceCount)
+    const boxCount = sphereStart < 0 ? this.instanceCount : sphereStart
+    const sphereCount = sphereStart < 0 ? 0 : this.instanceCount - sphereStart
+    assertSphereBatchIsContiguous(this.packedInstances, sphereStart, this.instanceCount)
 
+    const box = buildBox()
+    const sphere = buildSphere()
+    if (boxCount > 0) this.batches.push(this.createBatch(box.vertices, box.indices, 0, boxCount))
+    if (sphereCount > 0) this.batches.push(this.createBatch(sphere.vertices, sphere.indices, sphereStart, sphereCount))
     gl.bindVertexArray(null)
     gl.bindBuffer(gl.ARRAY_BUFFER, null)
-    this.instanceCount = Math.floor(packedInstances.length / CINEMA2_DEPTH_INSTANCE_FLOATS)
-    this.gpuBytes = vertices.byteLength + indices.byteLength + packedInstances.byteLength
+    this.gpuBytes = packedInstances.byteLength
+      + box.vertices.byteLength + box.indices.byteLength
+      + sphere.vertices.byteLength + sphere.indices.byteLength
     assertCinema2NoGlErrors(gl, 'Depth renderer setup')
   }
 
@@ -176,7 +177,6 @@ export class Cinema2DepthRenderer {
 
     this.updateLighting(state.emissions, state.spills)
 
-    gl.bindVertexArray(this.vao)
     gl.enable(gl.DEPTH_TEST)
     gl.depthFunc(gl.LEQUAL)
     gl.depthMask(true)
@@ -184,7 +184,10 @@ export class Cinema2DepthRenderer {
     gl.enable(gl.CULL_FACE)
     gl.cullFace(gl.BACK)
     gl.colorMask(true, true, true, true)
-    gl.drawElementsInstanced(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+    for (const batch of this.batches) {
+      gl.bindVertexArray(batch.vao)
+      gl.drawElementsInstanced(gl.TRIANGLES, batch.indexCount, gl.UNSIGNED_SHORT, 0, batch.instanceCount)
+    }
     gl.disable(gl.CULL_FACE)
     gl.bindVertexArray(null)
     assertCinema2NoGlErrors(gl, 'Depth portal draw')
@@ -194,8 +197,36 @@ export class Cinema2DepthRenderer {
     if (this.disposed) return
     this.disposed = true
     for (const buffer of this.buffers) this.gl.deleteBuffer(buffer)
-    this.gl.deleteVertexArray(this.vao)
+    for (const batch of this.batches) this.gl.deleteVertexArray(batch.vao)
     this.program.dispose()
+  }
+
+  private createBatch(
+    vertices: Float32Array,
+    indices: Uint16Array,
+    instanceStart: number,
+    instanceCount: number,
+  ): Cinema2DepthGeometryBatch {
+    const { gl } = this
+    const vao = gl.createVertexArray()
+    if (!vao) throw new Error('Cinema 2.0 Depth could not allocate a vertex array.')
+    gl.bindVertexArray(vao)
+    this.createBuffer(gl.ARRAY_BUFFER, vertices)
+    gl.enableVertexAttribArray(0)
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 32, 0)
+    gl.enableVertexAttribArray(1)
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 32, 12)
+    gl.enableVertexAttribArray(2)
+    gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 32, 24)
+    this.createBuffer(gl.ELEMENT_ARRAY_BUFFER, indices)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer)
+    const stride = CINEMA2_DEPTH_INSTANCE_FLOATS * 4
+    for (let attribute = 0; attribute < 3; attribute += 1) {
+      gl.enableVertexAttribArray(3 + attribute)
+      gl.vertexAttribPointer(3 + attribute, 4, gl.FLOAT, false, stride, instanceStart * stride + attribute * 16)
+      gl.vertexAttribDivisor(3 + attribute, 1)
+    }
+    return { vao, indexCount: indices.length, instanceCount }
   }
 
   private updateLighting(emissions: Float32Array, spills: Float32Array): void {
@@ -219,6 +250,24 @@ export class Cinema2DepthRenderer {
     this.gl.bufferData(target, data as ArrayBufferView<ArrayBuffer>, usage)
     this.buffers.push(buffer)
     return buffer
+  }
+}
+
+function findSphereStart(packed: Float32Array, instanceCount: number): number {
+  for (let index = 0; index < instanceCount; index += 1) {
+    const kind = packed[index * CINEMA2_DEPTH_INSTANCE_FLOATS + 6]
+    if (kind === 2 || kind === 4) return index
+  }
+  return -1
+}
+
+function assertSphereBatchIsContiguous(packed: Float32Array, sphereStart: number, instanceCount: number): void {
+  if (sphereStart < 0) return
+  for (let index = sphereStart; index < instanceCount; index += 1) {
+    const kind = packed[index * CINEMA2_DEPTH_INSTANCE_FLOATS + 6]
+    if (kind !== 2 && kind !== 4) {
+      throw new Error('Cinema 2.0 Depth instances must group box geometry before spherical nodes and center geometry.')
+    }
   }
 }
 
@@ -248,5 +297,33 @@ function buildBox(): { vertices: Float32Array; indices: Uint16Array } {
     const base = faceIndex * 4
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3)
   })
+  return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) }
+}
+
+/** Shared low-poly sphere for instanced corner joints and the matte focal anchor. */
+function buildSphere(longitudeSegments = 12, latitudeSegments = 8): { vertices: Float32Array; indices: Uint16Array } {
+  const vertices: number[] = []
+  const indices: number[] = []
+  for (let latitude = 0; latitude <= latitudeSegments; latitude += 1) {
+    const v = latitude / latitudeSegments
+    const theta = v * Math.PI
+    const sinTheta = Math.sin(theta)
+    const cosTheta = Math.cos(theta)
+    for (let longitude = 0; longitude <= longitudeSegments; longitude += 1) {
+      const u = longitude / longitudeSegments
+      const phi = u * Math.PI * 2
+      const x = sinTheta * Math.cos(phi)
+      const y = cosTheta
+      const z = sinTheta * Math.sin(phi)
+      vertices.push(x * 0.5, y * 0.5, z * 0.5, x, y, z, u, v)
+    }
+  }
+  for (let latitude = 0; latitude < latitudeSegments; latitude += 1) {
+    for (let longitude = 0; longitude < longitudeSegments; longitude += 1) {
+      const first = latitude * (longitudeSegments + 1) + longitude
+      const second = first + longitudeSegments + 1
+      indices.push(first, first + 1, second, second, first + 1, second + 1)
+    }
+  }
   return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) }
 }

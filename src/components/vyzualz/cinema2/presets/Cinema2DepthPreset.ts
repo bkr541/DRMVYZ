@@ -26,6 +26,11 @@ import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2Cinem
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2VolumetricAtmosphereEffect'
 import { CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2DepthNativeModule'
+import {
+  CINEMA2_DEPTH_LAYOUT_CONFIG,
+  CINEMA2_DEPTH_REPEAT_DISTANCE,
+  CINEMA2_DEPTH_REPEAT_ORIGIN_Z,
+} from '../modules/depth/Cinema2DepthLayout'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 
@@ -76,14 +81,14 @@ const BLOOM_PASS_ID = passId('bloom')
 const FINISH_PASS_ID = passId('finish')
 const SCENE_COLOR_ID = slotId('scene-color')
 const SCENE_DEPTH_ID = slotId('scene-depth')
-export const CINEMA2_DEPTH_LAP_DISTANCE = 42
+export const CINEMA2_DEPTH_LAP_DISTANCE = CINEMA2_DEPTH_REPEAT_DISTANCE
 export const CINEMA2_DEPTH_LAP_SECONDS = 14
 
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
-const DEFAULT_BACKGROUND = color(0.0015, 0.002, 0.004)
-const DEFAULT_LIGHT = color(0.86, 0.9, 1)
-const DEFAULT_BODY = color(0.012, 0.014, 0.021)
+const DEFAULT_BACKGROUND = color(0.0005, 0.0007, 0.001)
+const DEFAULT_LIGHT = color(0.96, 0.97, 1)
+const DEFAULT_BODY = color(0.018, 0.019, 0.024)
 
 const parameterBase = Object.freeze({
   section: 'Design',
@@ -202,17 +207,23 @@ const cameraContinuousAction = (name: string, property: string, value: Cinema2Js
 })
 
 function depthFlightPoints() {
-  const point = (x: number, y: number, z: number, targetX: number, targetY: number, targetZ: number, fovDegrees: number) => Object.freeze({
-    position: vec3(x, y, z),
-    target: vec3(targetX, targetY, targetZ),
-    fovDegrees,
-  })
+  const point = (x: number, y: number, progress: number, targetX: number, targetY: number, lookAhead: number, fovDegrees: number, rollDegrees: number) => {
+    const z = CINEMA2_DEPTH_REPEAT_ORIGIN_Z - CINEMA2_DEPTH_LAP_DISTANCE * progress
+    return Object.freeze({
+      position: vec3(x, y, z),
+      target: vec3(targetX, targetY, z - lookAhead),
+      fovDegrees,
+      rollDegrees,
+    })
+  }
   return Object.freeze([
-    point(1.05, 0.75, 8.4, 0, 0, -18, 59),
-    point(0.35, 0.28, -1.5, -0.2, 0.08, -28, 58),
-    point(-0.45, -0.08, -11.5, 0.15, -0.04, -38, 57.5),
-    point(0.24, 0.14, -21.8, -0.12, 0.12, -49, 60.5),
-    point(0.9, 0.55, -31.2, 0, 0.04, -59, 59),
+    point(-2.45, 1.65, 0, 1.35, -0.8, 26.4, 62, -28),
+    point(-0.2, 2.35, 0.162, -1.65, -0.65, 26.6, 58, -8),
+    point(2.55, 0.85, 0.338, -1.45, 1.15, 26.2, 64, 24),
+    point(1.55, -2.15, 0.514, -1.9, 0.75, 26.8, 60, 38),
+    point(-1.75, -2.35, 0.695, 1.55, 1.35, 26.2, 65, 18),
+    point(-2.65, -0.15, 0.86, 1.45, -1.35, 26.3, 59, -18),
+    point(-2.5, 1.48, 0.967, 1.25, -0.85, 26.8, 62, -29),
   ])
 }
 
@@ -221,7 +232,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_DEPTH_PRESET_ID,
-  revision: 3,
+  revision: 7,
   metadata: Object.freeze({
     name: 'Depth',
     description: 'A deep procedural tunnel of dark square portals and cool-white HDR light strips.',
@@ -235,15 +246,15 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Perspective view through the portal sequence.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'Low ambient structure visibility and atmospheric scattering.' }),
     Object.freeze({ id: 'audio.transport' as const, requirement: 'optional' as const, purpose: 'Transport-safe light-program timing when a track is present.' }),
-    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beats add a restrained portal-light accent.' }),
-    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeats illuminate the near gate and lift bloom.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beats brighten the currently active architectural bars.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeats add one selected bar and lift bloom.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase boundaries add side articulation and a bounded camera offset.' }),
-    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drops widen the active portal span and push light, bloom and camera energy.' }),
-    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Build intensity increases light density, atmosphere and camera approach.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drops accent selected bars and push light, bloom and camera energy without flooding the tunnel.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Build intensity increases light travel and active-bar brightness without lifting dark strips.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
-    floatParameter(CINEMA2_DEPTH_INTENSITY_ID, 'Intensity', 'Master brightness of the portal lights and center object.', 1, 0, 2, 0.01, 'master-controls', 1, 'Light'),
+    floatParameter(CINEMA2_DEPTH_INTENSITY_ID, 'Intensity', 'Master brightness of the portal lights and their local structural response.', 1, 0, 2, 0.01, 'master-controls', 1, 'Light'),
     Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, label: 'Auto Performance', description: 'Allow beat, downbeat, phrase, build and drop signals to add bounded light, camera and effect accents.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 2, group: 'Playback' }),
     Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_BPM_SYNC_ID, label: 'BPM Sync', description: 'Sync camera travel and sway to detected track tempo. Without a track, motion free-runs at the authored rate.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 3, group: 'Playback' }),
     Object.freeze({
@@ -266,13 +277,14 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       ...parameterBase,
       id: CINEMA2_DEPTH_PROGRAM_ID,
       label: 'Light Program',
-      description: 'Choose how portal faces illuminate across the depth of the tunnel.',
+      description: 'Choose how independently addressed bars illuminate across the depth of the tunnel.',
       type: 'enum' as const,
-      defaultValue: 'depthChase',
+      defaultValue: 'architecturalSparse',
       designParentGroup: 'design' as const,
       order: 1,
       group: 'Light Program',
       options: Object.freeze([
+        Object.freeze({ value: 'architecturalSparse', label: 'Sparse Architecture' }),
         Object.freeze({ value: 'depthChase', label: 'Depth Chase' }),
         Object.freeze({ value: 'sideOrbit', label: 'Side Orbit' }),
         Object.freeze({ value: 'gatePulse', label: 'Gate Pulse' }),
@@ -296,14 +308,14 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       ]),
     }),
     floatParameter(CINEMA2_DEPTH_RATE_ID, 'Rate', 'Light-program travel or pulse rate. Zero freezes the selected state.', 1.1, 0, 4, 0.05, 'design', 3, 'Light Program'),
-    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_ACTIVE_SPAN_ID, label: 'Active Span', description: 'Approximate number of neighboring portals illuminated by depth-based programs.', type: 'integer' as const, defaultValue: 3, min: 1, max: 10, step: 1, designParentGroup: 'design' as const, order: 4, group: 'Light Program' }),
+    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_ACTIVE_SPAN_ID, label: 'Active Span', description: 'Approximate active-bar count for Sparse Architecture, or portal span for depth-based programs.', type: 'integer' as const, defaultValue: 4, min: 1, max: CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount, step: 1, designParentGroup: 'design' as const, order: 4, group: 'Light Program' }),
     Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_SEED_ID, label: 'Random Seed', description: 'Deterministic starting phase for every light program.', type: 'integer' as const, defaultValue: 7, min: 0, max: 9999, step: 1, designParentGroup: 'design' as const, order: 5, group: 'Light Program' }),
-    floatParameter(CINEMA2_DEPTH_SPILL_ID, 'Light Spill', 'How strongly active strips reveal the nearby dark structure.', 0.72, 0, 2, 0.01, 'design', 6, 'Material'),
+    floatParameter(CINEMA2_DEPTH_SPILL_ID, 'Light Spill', 'How strongly each active strip reveals only its nearby structure.', 0.28, 0, 2, 0.01, 'design', 6, 'Material'),
     Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_CENTER_ENABLED_ID, label: 'Center Object', description: 'Show the emissive object at the tunnel vanishing point.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'design' as const, order: 7, group: 'Center Object' }),
     Object.freeze({ ...floatParameter(CINEMA2_DEPTH_CENTER_SCALE_ID, 'Center Size', 'Scale of the object at the tunnel vanishing point.', 1, 0.25, 4, 0.05, 'design', 8, 'Center Object'), visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_CENTER_ENABLED_ID, value: true })]) }),
-    Object.freeze({ ...floatParameter(CINEMA2_DEPTH_CENTER_INTENSITY_ID, 'Center Intensity', 'Emissive brightness of the object at the tunnel vanishing point.', 0.38, 0, 2, 0.01, 'design', 9, 'Center Object'), visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_CENTER_ENABLED_ID, value: true })]) }),
-    floatParameter(CINEMA2_DEPTH_HAZE_ID, 'Atmosphere', 'Depth-aware haze that separates the nested portals.', 0.014, 0, 0.12, 0.001, 'effects', 1, 'Atmosphere'),
-    floatParameter(CINEMA2_DEPTH_BLOOM_ID, 'Bloom', 'Wide HDR glow around the light strips.', 0.82, 0, 3, 0.01, 'effects', 2, 'Post'),
+    Object.freeze({ ...floatParameter(CINEMA2_DEPTH_CENTER_INTENSITY_ID, 'Center Tone', 'Matte gray visibility of the sphere at the tunnel vanishing point.', 0.7, 0, 2, 0.01, 'design', 9, 'Center Object'), visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_CENTER_ENABLED_ID, value: true })]) }),
+    floatParameter(CINEMA2_DEPTH_HAZE_ID, 'Atmosphere', 'Subtle depth-aware air around illuminated structure.', 0.004, 0, 0.12, 0.001, 'effects', 1, 'Atmosphere'),
+    floatParameter(CINEMA2_DEPTH_BLOOM_ID, 'Bloom', 'Contained HDR halo around bright strip cores.', 0.28, 0, 3, 0.01, 'effects', 2, 'Post'),
     floatParameter(CINEMA2_DEPTH_FINISH_ID, 'Cinematic Finish', 'Tone curve, contrast, vignette and restrained grain.', 1, 0, 1, 0.01, 'effects', 3, 'Post'),
     colorParameter(CINEMA2_DEPTH_BACKGROUND_ID, 'Background', 'Near-black void behind the tunnel.', DEFAULT_BACKGROUND, 1),
     colorParameter(CINEMA2_DEPTH_LIGHT_COLOR_ID, 'Light Color', 'Color of the portal strips and their local spill.', DEFAULT_LIGHT, 2),
@@ -315,18 +327,18 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       typeId: CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID,
       version: 1,
       enabled: true,
-      config: Object.freeze({ portalCount: 10, aperture: 7.4, spacing: 4.2, frameThickness: 0.5, lapCopies: 3 }),
+      config: CINEMA2_DEPTH_LAYOUT_CONFIG,
       parameters: Object.freeze({
         intensity: 1,
-        program: 'depthChase',
+        program: 'architecturalSparse',
         direction: 'forward',
         rate: 1.1,
-        activeSpan: 3,
+        activeSpan: 4,
         seed: 7,
-        spill: 0.72,
+        spill: 0.28,
         centerEnabled: true,
         centerScale: 1,
-        centerIntensity: 0.38,
+        centerIntensity: 0.7,
         beatAccent: 0,
         downbeatAccent: 0,
         phraseAccent: 0,
@@ -370,8 +382,8 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       minAspect: 1,
       near: 0.25,
       far: 110,
-      transform: Object.freeze({ position: vec3(1.05, 0.75, 8.4) }),
-      target: vec3(0, 0, -18),
+      transform: Object.freeze({ position: vec3(-2.45, 1.65, CINEMA2_DEPTH_REPEAT_ORIGIN_Z) }),
+      target: vec3(1.35, -0.8, CINEMA2_DEPTH_REPEAT_ORIGIN_Z - 26.4),
       rig: Object.freeze({
         kind: 'fly' as const,
         points: depthFlightPoints(),
@@ -382,11 +394,10 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       motion: cinema2CinematicMotion('gentle', {
         splinePath: true,
         overrides: Object.freeze({
-          rollDegrees: -7,
-          drift: Object.freeze({ position: 0.18, target: 0.11, rollDegrees: 1.1, fovDegrees: 0.9, speed: 0.075, seed: 17 }),
-          bank: Object.freeze({ maxDegrees: 3.8, gain: 0.62, smoothingMs: 520 }),
+          drift: Object.freeze({ position: 0.08, target: 0.06, rollDegrees: 0.45, fovDegrees: 0.5, speed: 0.06, seed: 17 }),
+          bank: Object.freeze({ maxDegrees: 2.5, gain: 0.5, smoothingMs: 560 }),
           fovRateLimitDegreesPerSecond: 9,
-          tempo: Object.freeze({ referenceBpm: 120, flightSpeed: true, minRate: 0.72, maxRate: 1.4, weave: 0.24, bob: 0.08, roll: 1.7, fov: 1, punch: 1.4 }),
+          tempo: Object.freeze({ referenceBpm: 120, flightSpeed: true, minRate: 0.72, maxRate: 1.4, weave: 0.18, bob: 0.06, roll: 2.2, fov: 0.8, punch: 1.4 }),
         }),
       }),
       controls: Object.freeze({
@@ -415,7 +426,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
         source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
         actions: Object.freeze([
           moduleEnvelopeAction('beat-light', 'beatAccent', 1, 0.025, 0.16),
-          effectEnvelopeAction('beat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.06, 0.02, 0.16),
+          effectEnvelopeAction('beat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.025, 0.02, 0.16),
         ]),
       }),
       Object.freeze({
@@ -426,7 +437,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
         conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
         actions: Object.freeze([
           moduleEnvelopeAction('downbeat-light', 'downbeatAccent', 1, 0.04, 0.34),
-          effectEnvelopeAction('downbeat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.16, 0.04, 0.32),
+          effectEnvelopeAction('downbeat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.05, 0.04, 0.32),
           cameraEnvelopeAction('downbeat-roll', 'roll', 1.2, 0.035, 0.28),
         ]),
       }),
@@ -438,7 +449,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
         conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
         actions: Object.freeze([
           moduleEnvelopeAction('phrase-light', 'phraseAccent', 1, 0.08, 0.7),
-          effectEnvelopeAction('phrase-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.004, 0.08, 0.68),
+          effectEnvelopeAction('phrase-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.001, 0.08, 0.68),
           cameraEnvelopeAction('phrase-position', 'transform.position', vec3(-0.22, 0.09, -0.14), 0.08, 0.68),
           cameraEnvelopeAction('phrase-target', 'target', vec3(0.16, 0.04, -0.08), 0.08, 0.68),
         ]),
@@ -450,9 +461,10 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 120 }),
         actions: Object.freeze([
           moduleContinuousAction('build-light', 'buildAmount'),
-          effectContinuousAction('build-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.008),
+          effectContinuousAction('build-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.0015),
           cameraContinuousAction('build-push', 'transform.position', vec3(0, 0.05, -0.38)),
           cameraContinuousAction('build-fov', 'fovDegrees', -1.2),
+          cameraContinuousAction('build-roll', 'roll', 2.5),
         ]),
       }),
       Object.freeze({
@@ -463,18 +475,19 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
         conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
         actions: Object.freeze([
           moduleEnvelopeAction('drop-light', 'dropAccent', 1, 0.08, 0.62),
-          effectEnvelopeAction('drop-bloom', BLOOM_EFFECT_ID, 'intensity', 0.34, 0.06, 0.56),
-          effectEnvelopeAction('drop-contrast', FINISH_EFFECT_ID, 'contrast', 0.08, 0.06, 0.56),
+          effectEnvelopeAction('drop-bloom', BLOOM_EFFECT_ID, 'intensity', 0.08, 0.06, 0.56),
+          effectEnvelopeAction('drop-contrast', FINISH_EFFECT_ID, 'contrast', 0.04, 0.06, 0.56),
           cameraEnvelopeAction('drop-push', 'transform.position', vec3(0, -0.04, -0.62), 0.08, 0.56),
           cameraEnvelopeAction('drop-fov', 'fovDegrees', 1.6, 0.08, 0.56),
+          cameraEnvelopeAction('drop-roll', 'roll', 3.5, 0.08, 0.56),
         ]),
       }),
     ]),
   }),
   lighting: Object.freeze({
     lights: Object.freeze([
-      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.3, 0.34, 0.44), intensity: 0.08 }),
-      Object.freeze({ id: HAZE_LIGHT_ID, type: 'point' as const, color: DEFAULT_LIGHT, intensity: 0.5, transform: Object.freeze({ position: vec3(0, 0, -30) }), config: Object.freeze({ range: 42 }) }),
+      Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.3, 0.32, 0.38), intensity: 0.025 }),
+      Object.freeze({ id: HAZE_LIGHT_ID, type: 'point' as const, color: DEFAULT_LIGHT, intensity: 0.14, transform: Object.freeze({ position: vec3(0, 0, -30) }), config: Object.freeze({ range: 38 }) }),
     ]),
   }),
   environment: Object.freeze({
@@ -491,8 +504,8 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       order: 0,
       scope: 'output' as const,
       parameters: Object.freeze({
-        mix: 1, density: 0.014, beamIntensity: 0.22, mistAmount: 0, mistHeight: 0.5, mistFloor: -4.5, floorY: -4.5, floorReflection: 0,
-        anisotropy: 0.48, occlusion: 0.72, ambientHaze: 0.035, noiseScale: 0.34, noiseStrength: 0.22, drift: 0.04, maxDistance: 72, reactivity: 0,
+        mix: 1, density: 0.004, beamIntensity: 0.065, mistAmount: 0, mistHeight: 0.5, mistFloor: -4.5, floorY: -4.5, floorReflection: 0,
+        anisotropy: 0.4, occlusion: 0.82, ambientHaze: 0.004, noiseScale: 0.34, noiseStrength: 0.08, drift: 0.025, maxDistance: 60, reactivity: 0,
       }),
       parameterBindings: Object.freeze({ density: cinema2Ref(CINEMA2_DEPTH_HAZE_ID) }),
     }),
@@ -503,7 +516,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       enabled: true,
       order: 1,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, threshold: 1.05, knee: 0.7, intensity: 0.82, spread: 0.78, levels: 7 }),
+      parameters: Object.freeze({ mix: 1, threshold: 2.1, knee: 0.35, intensity: 0.28, spread: 0.28, levels: 4, clampMax: 12 }),
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_DEPTH_BLOOM_ID) }),
     }),
     Object.freeze({
@@ -513,7 +526,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 1, contrast: 1.16, saturation: 0.82, vignette: 0.62, grain: 0.045, aberration: 0.025 }),
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.92, contrast: 1.28, saturation: 0.78, vignette: 0.68, vignetteSoftness: 0.7, grain: 0.025, aberration: 0.012 }),
       parameterBindings: Object.freeze({ mix: cinema2Ref(CINEMA2_DEPTH_FINISH_ID) }),
     }),
   ]),
