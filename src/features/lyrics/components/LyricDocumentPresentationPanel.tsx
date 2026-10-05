@@ -1,4 +1,3 @@
-import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
 import { LyricPresentationControls } from './LyricPresentationControls'
 
@@ -11,7 +10,10 @@ interface Props {
   onUpdateDefaultEffects: (patch: Partial<LyricEffects>) => void
 }
 
-/** Document-level presentation defaults, hosted in the Document tab of the right inspector. */
+/**
+ * Document-level presentation defaults, hosted in the Document tab of the right inspector: the Default Appearance, Animation and
+ * Effects groups, which every cue inherits unless it defines an override.
+ */
 export function LyricDocumentPresentationPanel({
   defaultStyle,
   defaultAnimation,
@@ -21,24 +23,13 @@ export function LyricDocumentPresentationPanel({
   onUpdateDefaultEffects,
 }: Props) {
   return (
-    <section className="lmv-document-presentation-window" aria-label="Default Style / Animation / Effects">
-      <DualRailCollapsible
-        className="lmv-document-presentation-group"
-        headerClassName="lmv-collapsible-toggle"
-        bodyClassName="lmv-defaults-section"
-        defaultOpen
-        label="Default Style / Animation / Effects"
-      >
-        <div className="lmv-defaults-hint">These document defaults are inherited by every cue unless that cue defines an override.</div>
-        <LyricPresentationControls
-          style={defaultStyle}
-          animation={defaultAnimation}
-          effects={defaultEffects}
-          onStyleChange={onUpdateDefaultStyle}
-          onAnimationChange={onUpdateDefaultAnimation}
-          onEffectsChange={onUpdateDefaultEffects}
-        />
-      </DualRailCollapsible>
-    </section>
+    <LyricPresentationControls
+      style={defaultStyle}
+      animation={defaultAnimation}
+      effects={defaultEffects}
+      onStyleChange={onUpdateDefaultStyle}
+      onAnimationChange={onUpdateDefaultAnimation}
+      onEffectsChange={onUpdateDefaultEffects}
+    />
   )
 }

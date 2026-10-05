@@ -1,7 +1,5 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
-import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
-import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
@@ -23,7 +21,7 @@ import {
   validateWordTiming,
 } from './lyricCueEditorModel'
 import { LyricAnchorField, LyricFontSizeField, LyricPresentationControls } from '../components/LyricPresentationControls'
-import { NumberInputRow, SelectRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, NumberInputRow, SelectRow, TextAreaRow, ToggleRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { LyricCueJsonField } from './LyricCueJsonField'
 
 export interface LyricSectionOption {
@@ -134,36 +132,35 @@ function WordTimingEditor({
 
   return (
     <div ref={rootRef} className="lyric-word-editor">
-      <div className="lyric-word-editor__header">
-        <strong>Word timing</strong>
-        {invalidWords.length > 0 && (
-          <IconChipButton
-            onClick={() => {
-              // Drop the malformed timing, then route through canonical repair
-              // so the word ends re-timed inside a valid cue rather than left
-              // indefinitely untimed. Preserves lyric text and stays a single
-              // undo entry.
-              const cleared: LyricCue = {
-                ...cue,
-                words: words.map(word => invalidIds.has(word.id)
-                  ? { ...word, startMs: undefined, endMs: undefined }
-                  : word),
-              }
-              const repaired = normalizeLyricCueTiming([cleared]).cues[0] ?? cleared
-              const nextWords = repaired.words ?? []
-              const groups = retainLyricGroupsForWords(cue.groups, nextWords)
-              onUpdateCue(cue.id, {
-                words: nextWords.length ? nextWords : undefined,
-                groups: groups?.length ? groups : undefined,
-                startMs: repaired.startMs,
-                endMs: repaired.endMs,
-              })
-            }}
-          >
-            Remove invalid timing
-          </IconChipButton>
-        )}
-      </div>
+      {invalidWords.length > 0 && (
+        <div className="rv-ctrl-action-row">
+            <IconChipButton
+              onClick={() => {
+                // Drop the malformed timing, then route through canonical repair
+                // so the word ends re-timed inside a valid cue rather than left
+                // indefinitely untimed. Preserves lyric text and stays a single
+                // undo entry.
+                const cleared: LyricCue = {
+                  ...cue,
+                  words: words.map(word => invalidIds.has(word.id)
+                    ? { ...word, startMs: undefined, endMs: undefined }
+                    : word),
+                }
+                const repaired = normalizeLyricCueTiming([cleared]).cues[0] ?? cleared
+                const nextWords = repaired.words ?? []
+                const groups = retainLyricGroupsForWords(cue.groups, nextWords)
+                onUpdateCue(cue.id, {
+                  words: nextWords.length ? nextWords : undefined,
+                  groups: groups?.length ? groups : undefined,
+                  startMs: repaired.startMs,
+                  endMs: repaired.endMs,
+                })
+              }}
+            >
+              Remove invalid timing
+            </IconChipButton>
+        </div>
+      )}
       <div className="lyric-word-editor__rows">
         {words.map((word, index) => {
           const invalid = invalidIds.has(word.id)
@@ -242,6 +239,9 @@ export function LyricCueInspector({
   focusWordId = null,
 }: Props) {
   const fieldId = useId()
+  // Word Timing opens whenever a validation issue asks to focus one of its words.
+  const [wordTimingOpen, setWordTimingOpen] = useState(true)
+  useEffect(() => { if (focusWordId) setWordTimingOpen(true) }, [focusWordId])
   const [text, setText] = useState(cue.text)
   const [start, setStart] = useState(String(cue.startMs))
   const [end, setEnd] = useState(String(cue.endMs))
@@ -301,132 +301,124 @@ export function LyricCueInspector({
         </DrawerNotice>
       )}
 
-      <div className="lyric-cue-inspector__grid">
-        <div className="rv-ctrl-row lyric-cue-inspector__wide">
-          <span className="rv-ctrl-label-cluster">
-            <label className="rv-ctrl-label" htmlFor={`${fieldId}-text`}>Text</label>
-          </span>
-          <textarea
-            id={`${fieldId}-text`}
-            className="dv-text-input lmv-cue-textarea"
-            rows={3}
-            spellCheck={false}
-            value={text}
-            onChange={event => setText(event.target.value)}
-            onBlur={() => onUpdateCue(cue.id, { text })}
+      <Collapsible label="Cue">
+        <div className="lyric-cue-inspector__grid">
+          <div className="lyric-cue-inspector__wide">
+            <TextAreaRow
+              id={`${fieldId}-text`}
+              label="Text"
+              value={text}
+              onChange={setText}
+              onBlur={() => onUpdateCue(cue.id, { text })}
+            />
+          </div>
+          <NumberInputRow
+            id={`${fieldId}-start`}
+            label="Start time (ms)"
+            min={0}
+            step={1}
+            value={draftNumber(start)}
+            onChange={value => setStart(String(value))}
+            onEmpty={() => setStart('')}
+            onBlur={applyTiming}
+            onKeyDown={event => event.key === 'Enter' && applyTiming()}
+          />
+          <NumberInputRow
+            id={`${fieldId}-end`}
+            label="End time (ms)"
+            min={1}
+            step={1}
+            value={draftNumber(end)}
+            onChange={value => setEnd(String(value))}
+            onEmpty={() => setEnd('')}
+            onBlur={applyTiming}
+            onKeyDown={event => event.key === 'Enter' && applyTiming()}
+          />
+          <SelectRow
+            id={`${fieldId}-section`}
+            label="Section"
+            value={cue.sectionId ?? ''}
+            onChange={value => {
+              const section = sections.find(item => item.id === value)
+              onUpdateCue(cue.id, { sectionId: section?.id, sectionType: section?.type })
+            }}
+            options={[
+              { value: '', label: 'No section' },
+              ...sections.map(section => ({ value: section.id, label: `${section.label} (${section.type.replace(/_/g, ' ')})` })),
+            ]}
+            description={cue.sectionId && !selectedSection ? 'Stored section is not available in the current track analysis.' : undefined}
+          />
+          <SelectRow
+            id={`${fieldId}-review`}
+            label="Review state"
+            value={cue.reviewStatus ?? ''}
+            onChange={value => onUpdateCue(cue.id, { reviewStatus: value ? value as LyricReviewStatus : undefined })}
+            options={[
+              { value: '', label: 'Unspecified' },
+              ...REVIEW_STATUSES.map(status => ({ value: status, label: status })),
+            ]}
+          />
+          <LyricAnchorField label="Position" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
+          <LyricFontSizeField label="Text size" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
+          <NumberInputRow
+            id={`${fieldId}-duration`}
+            label="Duration (ms)"
+            min={1}
+            step={1}
+            value={draftNumber(duration)}
+            onChange={value => setDuration(String(value))}
+            onEmpty={() => setDuration('')}
+            onBlur={applyDuration}
+            onKeyDown={event => event.key === 'Enter' && applyDuration()}
+          />
+          <NumberInputRow
+            id={`${fieldId}-confidence`}
+            label="Confidence (0–1)"
+            min={0}
+            max={1}
+            step={0.01}
+            value={draftNumber(confidence)}
+            onChange={value => setConfidence(String(value))}
+            onEmpty={() => setConfidence('')}
+            onBlur={applyConfidence}
+            onKeyDown={event => event.key === 'Enter' && applyConfidence()}
           />
         </div>
-        <NumberInputRow
-          id={`${fieldId}-start`}
-          label="Start time (ms)"
-          min={0}
-          step={1}
-          value={draftNumber(start)}
-          onChange={value => setStart(String(value))}
-          onEmpty={() => setStart('')}
-          onBlur={applyTiming}
-          onKeyDown={event => event.key === 'Enter' && applyTiming()}
-        />
-        <NumberInputRow
-          id={`${fieldId}-end`}
-          label="End time (ms)"
-          min={1}
-          step={1}
-          value={draftNumber(end)}
-          onChange={value => setEnd(String(value))}
-          onEmpty={() => setEnd('')}
-          onBlur={applyTiming}
-          onKeyDown={event => event.key === 'Enter' && applyTiming()}
-        />
-        <SelectRow
-          id={`${fieldId}-section`}
-          label="Section"
-          value={cue.sectionId ?? ''}
-          onChange={value => {
-            const section = sections.find(item => item.id === value)
-            onUpdateCue(cue.id, { sectionId: section?.id, sectionType: section?.type })
-          }}
-          options={[
-            { value: '', label: 'No section' },
-            ...sections.map(section => ({ value: section.id, label: `${section.label} (${section.type.replace(/_/g, ' ')})` })),
-          ]}
-          description={cue.sectionId && !selectedSection ? 'Stored section is not available in the current track analysis.' : undefined}
-        />
-        <SelectRow
-          id={`${fieldId}-review`}
-          label="Review state"
-          value={cue.reviewStatus ?? ''}
-          onChange={value => onUpdateCue(cue.id, { reviewStatus: value ? value as LyricReviewStatus : undefined })}
-          options={[
-            { value: '', label: 'Unspecified' },
-            ...REVIEW_STATUSES.map(status => ({ value: status, label: status })),
-          ]}
-        />
-        <LyricAnchorField label="Position" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
-        <LyricFontSizeField label="Text size" style={cue.style ?? {}} allowInherit onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })} />
-        <NumberInputRow
-          id={`${fieldId}-duration`}
-          label="Duration (ms)"
-          min={1}
-          step={1}
-          value={draftNumber(duration)}
-          onChange={value => setDuration(String(value))}
-          onEmpty={() => setDuration('')}
-          onBlur={applyDuration}
-          onKeyDown={event => event.key === 'Enter' && applyDuration()}
-        />
-        <NumberInputRow
-          id={`${fieldId}-confidence`}
-          label="Confidence (0–1)"
-          min={0}
-          max={1}
-          step={0.01}
-          value={draftNumber(confidence)}
-          onChange={value => setConfidence(String(value))}
-          onEmpty={() => setConfidence('')}
-          onBlur={applyConfidence}
-          onKeyDown={event => event.key === 'Enter' && applyConfidence()}
-        />
-      </div>
+      </Collapsible>
 
-      <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
-        <IconChipButton disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</IconChipButton>
-        <IconChipButton disabled={currentTimeMs === null} onClick={actions.setEndToPlayhead}>Set end to playhead</IconChipButton>
-        <IconChipButton disabled={currentTimeMs === null} onClick={actions.moveToPlayhead}>Move to playhead</IconChipButton>
-        <IconChipButton disabled={currentTimeMs === null} onClick={actions.addAtPlayhead}>Add at playhead</IconChipButton>
-        <IconChipButton onClick={actions.duplicate}>Duplicate</IconChipButton>
-        <IconChipButton disabled={currentTimeMs === null || currentTimeMs <= cue.startMs || currentTimeMs >= cue.endMs} onClick={actions.split}>Split at playhead</IconChipButton>
-        <IconChipButton disabled={!canMergePrevious} onClick={actions.mergePrevious}>Merge previous</IconChipButton>
-        <IconChipButton disabled={!canMergeNext} onClick={actions.mergeNext}>Merge next</IconChipButton>
-        <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
-      </div>
+      <Collapsible label="Cue Actions">
+        <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
+          <IconChipButton disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</IconChipButton>
+          <IconChipButton disabled={currentTimeMs === null} onClick={actions.setEndToPlayhead}>Set end to playhead</IconChipButton>
+          <IconChipButton disabled={currentTimeMs === null} onClick={actions.moveToPlayhead}>Move to playhead</IconChipButton>
+          <IconChipButton disabled={currentTimeMs === null} onClick={actions.addAtPlayhead}>Add at playhead</IconChipButton>
+          <IconChipButton onClick={actions.duplicate}>Duplicate</IconChipButton>
+          <IconChipButton disabled={currentTimeMs === null || currentTimeMs <= cue.startMs || currentTimeMs >= cue.endMs} onClick={actions.split}>Split at playhead</IconChipButton>
+          <IconChipButton disabled={!canMergePrevious} onClick={actions.mergePrevious}>Merge previous</IconChipButton>
+          <IconChipButton disabled={!canMergeNext} onClick={actions.mergeNext}>Merge next</IconChipButton>
+          <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
+        </div>
+      </Collapsible>
 
-      <DualRailCollapsible
-        className="lyric-cue-inspector__presentation"
-        defaultOpen
-        label="Appearance overrides"
-      >
-        <p>Only fields set here override the document defaults. Other renderer metadata is preserved.</p>
-        <LyricPresentationControls
-          style={cue.style ?? {}}
-          animation={cue.animation ?? {}}
-          effects={cue.effects ?? {}}
-          allowInherit
-          omit={['anchor', 'fontSize']}
-          onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
-          onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
-          onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
-          onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
-          onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
-          onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
-        />
-      </DualRailCollapsible>
+      <LyricPresentationControls
+        style={cue.style ?? {}}
+        animation={cue.animation ?? {}}
+        effects={cue.effects ?? {}}
+        allowInherit
+        omit={['anchor', 'fontSize']}
+        onStyleChange={patch => onUpdateCue(cue.id, { style: { ...(cue.style ?? {}), ...patch } })}
+        onAnimationChange={patch => onUpdateCue(cue.id, { animation: { ...(cue.animation ?? {}), ...patch } })}
+        onEffectsChange={patch => onUpdateCue(cue.id, { effects: { ...(cue.effects ?? {}), ...patch } })}
+        onClearStyle={() => onUpdateCue(cue.id, { style: undefined })}
+        onClearAnimation={() => onUpdateCue(cue.id, { animation: undefined })}
+        onClearEffects={() => onUpdateCue(cue.id, { effects: undefined })}
+      />
 
-      <DualRailCollapsible
-        className="lyric-cue-inspector__metadata"
-        defaultOpen={false}
-        label="Advanced"
-      >
+      <Collapsible label="Word Timing" open={wordTimingOpen} onOpenChange={setWordTimingOpen}>
+        <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} onUpdateWord={onUpdateWord} focusWordId={focusWordId} />
+      </Collapsible>
+
+      <Collapsible label="Advanced" defaultOpen={false}>
         <SelectRow
           id={`${fieldId}-source`}
           label="Source"
@@ -437,32 +429,24 @@ export function LyricCueInspector({
             ...SOURCES.map(source => ({ value: source, label: source.replace(/_/g, ' ') })),
           ]}
         />
-
-        <fieldset className="lyric-cue-inspector__warnings">
-          <legend>Warnings</legend>
-          {WARNINGS.map(warning => (
-            <label key={warning}>
-              <IconMorphCheckbox
-                checked={currentWarnings.has(warning)}
-                onChange={event => {
-                  const next = new Set(currentWarnings)
-                  if (event.target.checked) next.add(warning)
-                  else next.delete(warning)
-                  onUpdateCue(cue.id, { warnings: next.size ? [...next] : undefined })
-                }}
-              />
-              {warning.replace(/_/g, ' ')}
-            </label>
-          ))}
-        </fieldset>
-        <p>Use the JSON fields only for uncommon renderer fields or troubleshooting. Unknown fields are preserved.</p>
+        {WARNINGS.map(warning => (
+          <ToggleRow
+            key={warning}
+            label={`Warning: ${warning.replace(/_/g, ' ')}`}
+            value={currentWarnings.has(warning)}
+            onChange={checked => {
+              const next = new Set(currentWarnings)
+              if (checked) next.add(warning)
+              else next.delete(warning)
+              onUpdateCue(cue.id, { warnings: next.size ? [...next] : undefined })
+            }}
+          />
+        ))}
         <LyricCueJsonField label="Style JSON" value={cue.style} onCommit={value => onUpdateCue(cue.id, { style: value as Partial<LyricStyle> })} />
         <LyricCueJsonField label="Animation JSON" value={cue.animation} onCommit={value => onUpdateCue(cue.id, { animation: value as Partial<LyricAnimation> })} />
         <LyricCueJsonField label="Effects JSON" value={cue.effects} onCommit={value => onUpdateCue(cue.id, { effects: value as Partial<LyricEffects> })} />
         <LyricCueJsonField label="Analysis metadata JSON" value={cue.analysisMetadata} onCommit={value => onUpdateCue(cue.id, { analysisMetadata: value })} />
-      </DualRailCollapsible>
-
-      <WordTimingEditor cue={cue} onUpdateCue={onUpdateCue} onUpdateWord={onUpdateWord} focusWordId={focusWordId} />
+      </Collapsible>
     </section>
   )
 }

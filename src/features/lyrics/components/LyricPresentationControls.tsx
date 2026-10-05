@@ -1,5 +1,4 @@
-import { useId } from 'react'
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
 import {
   anchorPresetPatch,
@@ -10,7 +9,7 @@ import {
   type LyricAnimationPreset,
   type LyricEffectPreset,
 } from '../utils/lyricPresentation'
-import { NumberInputRow, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 interface Props {
   style: Partial<LyricStyle>
@@ -25,12 +24,6 @@ interface Props {
   onClearEffects?: () => void
   /** Appearance fields rendered elsewhere (the Cue inspector shows Position and Text size in its main grid). */
   omit?: Array<'anchor' | 'fontSize'>
-}
-
-function optionalNumber(value: string): number | undefined {
-  if (!value.trim()) return undefined
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function animationPresetFor(value: Partial<LyricAnimation>, allowInherit: boolean): LyricAnimationPreset {
@@ -107,6 +100,11 @@ export function LyricFontSizeField({ style, allowInherit = false, onStyleChange,
   )
 }
 
+/**
+ * Appearance, Animation and Effects as three standard control groups (Collapsible + shared control rows). With `allowInherit`
+ * (a cue) they are the cue's "… Overrides" and each offers a reset to the document default; without it (the Document tab) they
+ * are the document's "Default …" groups.
+ */
 export function LyricPresentationControls({
   style,
   animation,
@@ -120,40 +118,26 @@ export function LyricPresentationControls({
   onClearEffects,
   omit,
 }: Props) {
-  const fieldId = useId()
   const animationPreset = animationPresetFor(animation, allowInherit)
   const effectPreset = effectPresetFor(effects, allowInherit)
+  const title = (name: string) => (allowInherit ? `${name} Overrides` : `Default ${name}`)
+  const resetAction = (active: boolean, onClear: (() => void) | undefined, label: string) => (
+    allowInherit && active && onClear
+      ? <div className="rv-ctrl-action-row"><IconChipButton onClick={onClear}>{label}</IconChipButton></div>
+      : null
+  )
 
   return (
-    <div className="lmv-presentation-controls">
-      <div className="lmv-presentation-section">
-        <div className="lmv-presentation-heading">
-          <strong>Appearance</strong>
-          {allowInherit && Object.keys(style).length > 0 && onClearStyle && (
-            <button type="button" className="lmv-inline-action" onClick={onClearStyle}>Use document defaults</button>
-          )}
-        </div>
-        <div className="lmv-presentation-grid">
-          <div className="rv-ctrl-row">
-            <span className="rv-ctrl-label-cluster">
-              <label className="rv-ctrl-label" htmlFor={`${fieldId}-color`}>Text color</label>
-            </span>
-            <span className="lmv-color-control">
-              <input
-                type="color"
-                value={typeof style.color === 'string' && /^#[0-9a-f]{6}$/i.test(style.color) ? style.color : '#ffffff'}
-                onChange={event => onStyleChange({ color: event.target.value })}
-                aria-label="Lyric text color"
-              />
-              <DreamVizTextInput
-                id={`${fieldId}-color`}
-                className="rv-ctrl-text-input"
-                value={style.color ?? ''}
-                placeholder={allowInherit ? 'Inherit' : '#ffffff'}
-                onChange={event => onStyleChange({ color: event.target.value || undefined })}
-              />
-            </span>
-          </div>
+    <>
+      <Collapsible label={title('Appearance')}>
+        {resetAction(Object.keys(style).length > 0, onClearStyle, 'Use document defaults')}
+        <div className="lmv-inspector-grid">
+          <ColorRow
+            label="Text color"
+            value={typeof style.color === 'string' ? style.color : ''}
+            placeholder={allowInherit ? 'Inherit' : '#FFFFFF'}
+            onChange={color => onStyleChange({ color })}
+          />
           {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
           <SelectRow
             label="Weight"
@@ -210,15 +194,10 @@ export function LyricPresentationControls({
             onEmpty={() => onStyleChange({ y: undefined })}
           />
         </div>
-      </div>
+      </Collapsible>
 
-      <div className="lmv-presentation-section">
-        <div className="lmv-presentation-heading">
-          <strong>Animation</strong>
-          {allowInherit && Object.keys(animation).length > 0 && onClearAnimation && (
-            <button type="button" className="lmv-inline-action" onClick={onClearAnimation}>Use document default</button>
-          )}
-        </div>
+      <Collapsible label={title('Animation')}>
+        {resetAction(Object.keys(animation).length > 0, onClearAnimation, 'Use document default')}
         <SelectRow
           label="Animation preset"
           value={animationPreset}
@@ -238,15 +217,10 @@ export function LyricPresentationControls({
             { value: 'glitch', label: 'Glitch' },
           ]}
         />
-      </div>
+      </Collapsible>
 
-      <div className="lmv-presentation-section">
-        <div className="lmv-presentation-heading">
-          <strong>Effects</strong>
-          {allowInherit && Object.keys(effects).length > 0 && onClearEffects && (
-            <button type="button" className="lmv-inline-action" onClick={onClearEffects}>Use document default</button>
-          )}
-        </div>
+      <Collapsible label={title('Effects')}>
+        {resetAction(Object.keys(effects).length > 0, onClearEffects, 'Use document default')}
         <SelectRow
           label="Effect preset"
           value={effectPreset}
@@ -265,7 +239,7 @@ export function LyricPresentationControls({
             { value: 'bass-reactive', label: 'Bass reactive' },
           ]}
         />
-      </div>
-    </div>
+      </Collapsible>
+    </>
   )
 }

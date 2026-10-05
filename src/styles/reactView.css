@@ -949,6 +949,19 @@
   gap: 3px;
 }
 
+/* Multi-line field (TextAreaRow): the shared underline text field on a textarea. */
+.rv-ctrl-textarea {
+  min-height: 56px;
+  resize: vertical;
+  line-height: 1.35;
+}
+
+.rv-ctrl-error {
+  color: #e05a5a;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
 /*
  * Semantic fieldsets should not interrupt the shared control rhythm. Keeping
  * the reset and stack behavior in one class prevents inline margin resets from

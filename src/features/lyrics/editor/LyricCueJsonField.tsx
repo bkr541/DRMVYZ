@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { LyricAnimation, LyricEffects, LyricStyle } from '../../../types/lyrics'
+import { TextAreaRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 function stableJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2)
@@ -30,20 +31,16 @@ export function LyricCueJsonField({
   }
 
   return (
-    <div className="lyric-cue-inspector__json-field">
-      <label>{label}</label>
-      <textarea
-        className="lmv-textarea"
-        rows={4}
-        value={draft}
-        aria-invalid={!!error}
-        onChange={event => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={event => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commit()
-        }}
-      />
-      {error && <span role="alert" className="lyric-cue-inspector__error">{error}</span>}
-    </div>
+    <TextAreaRow
+      label={label}
+      rows={4}
+      value={draft}
+      error={error}
+      onChange={setDraft}
+      onBlur={commit}
+      onKeyDown={event => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') commit()
+      }}
+    />
   )
 }

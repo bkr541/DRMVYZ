@@ -89,10 +89,11 @@ export interface NumberInputRowProps {
   /** For callers that commit a draft value on blur / Enter instead of on every keystroke. */
   onBlur?: () => void
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>
+  description?: string
 }
 
 export function NumberInputRow({
-  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty, onBlur, onKeyDown,
+  label, value, onChange, min, max, step = 0.1, unit, disabled = false, id, placeholder, onEmpty, onBlur, onKeyDown, description,
 }: NumberInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -114,6 +115,7 @@ export function NumberInputRow({
           placeholder={placeholder}
           onBlur={onBlur}
           onKeyDown={onKeyDown}
+          aria-describedby={description ? `${inputId}-description` : undefined}
           onChange={event => {
             if (event.target.value === '') {
               onEmpty?.()
@@ -125,6 +127,7 @@ export function NumberInputRow({
         />
         {unit && <span className="rv-ctrl-number-unit" aria-hidden="true">{unit}</span>}
       </div>
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )
 }
@@ -278,6 +281,55 @@ export function TextInputRow({
   )
 }
 
+// ── Text area row ─────────────────────────────────────────────────────────────
+
+export interface TextAreaRowProps {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  onBlur?: (value: string) => void
+  onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>
+  rows?: number
+  placeholder?: string
+  id?: string
+  disabled?: boolean
+  spellCheck?: boolean
+  description?: string
+  /** Validation message: marks the field invalid and is announced to assistive tech. */
+  error?: string | null
+}
+
+/** The multi-line sibling of TextInputRow: the same label-above-field row, with the shared underline field on a textarea. */
+export function TextAreaRow({
+  label, value, onChange, onBlur, onKeyDown, rows = 3, placeholder = '', id, disabled = false, spellCheck = false, description, error,
+}: TextAreaRowProps) {
+  const generatedId = useId()
+  const inputId = id ?? generatedId
+  return (
+    <div className="rv-ctrl-row">
+      <span className="rv-ctrl-label-cluster">
+        <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
+      </span>
+      <textarea
+        id={inputId}
+        className="dv-text-input rv-ctrl-textarea"
+        rows={rows}
+        value={value}
+        placeholder={placeholder}
+        spellCheck={spellCheck}
+        disabled={disabled}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={description ? `${inputId}-description` : undefined}
+        onChange={event => onChange(event.target.value)}
+        onBlur={() => onBlur?.(value)}
+        onKeyDown={onKeyDown}
+      />
+      {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
+      {error && <span role="alert" className="rv-ctrl-error">{error}</span>}
+    </div>
+  )
+}
+
 // ── Color row ─────────────────────────────────────────────────────────────────
 
 export interface ColorRowProps {
@@ -287,9 +339,11 @@ export interface ColorRowProps {
   disabled?: boolean
   id?: string
   description?: string
+  /** Readout shown while `value` is empty (e.g. "Inherit" for an optional override). The swatch then opens on white. */
+  placeholder?: string
 }
 
-export function ColorRow({ label, value, onChange, disabled = false, id, description }: ColorRowProps) {
+export function ColorRow({ label, value, onChange, disabled = false, id, description, placeholder }: ColorRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -302,12 +356,12 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
           id={inputId}
           type="color"
           className="rv-ctrl-color-input"
-          value={value}
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#ffffff'}
           disabled={disabled}
           onChange={event => onChange(event.target.value)}
           aria-describedby={description ? `${inputId}-description` : undefined}
         />
-        <output className="rv-ctrl-color-value" htmlFor={inputId}>{value.toUpperCase()}</output>
+        <output className="rv-ctrl-color-value" htmlFor={inputId}>{value ? value.toUpperCase() : (placeholder ?? '')}</output>
       </div>
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>

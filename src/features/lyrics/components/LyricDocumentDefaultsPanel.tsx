@@ -1,4 +1,4 @@
-import { NumberInputRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, NumberInputRow, TextInputRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 interface Props {
   draftTitle: string
@@ -19,7 +19,7 @@ export function LyricDocumentDefaultsPanel({
   onUpdateGlobalOffset,
 }: Props) {
   return (
-    <section className="lmv-document-info" aria-label="Document Info">
+    <Collapsible label="Document Info">
       <div className="lmv-inspector-grid">
         <TextInputRow
           id="lyric-document-title"
@@ -37,6 +37,7 @@ export function LyricDocumentDefaultsPanel({
           value={draftArtist}
           onChange={onUpdateArtist}
         />
+        <div className="lmv-inspector-grid__wide">
         <NumberInputRow
           id="lyric-global-offset"
           label="Global offset (ms)"
@@ -44,9 +45,10 @@ export function LyricDocumentDefaultsPanel({
           value={globalOffsetMs}
           onChange={value => onUpdateGlobalOffset(Math.round(value))}
           onEmpty={() => onUpdateGlobalOffset(0)}
+          description="Applied at render time. Canonical cue and word timestamps remain integer milliseconds."
         />
-        <p className="lmv-inspector-hint">Applied at render time. Canonical cue and word timestamps remain integer milliseconds.</p>
+        </div>
       </div>
-    </section>
+    </Collapsible>
   )
 }

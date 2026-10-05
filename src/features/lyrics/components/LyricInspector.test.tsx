@@ -111,6 +111,7 @@ afterEach(async () => {
 const pane = (id: LyricInspectorTab) => container.querySelector<HTMLElement>(`[data-inspector-pane="${id}"]`)!
 const tabButton = (label: string) => [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent === label)!
 const clickTab = async (label: string) => act(async () => tabButton(label).click())
+const groupTitles = (id: LyricInspectorTab) => [...pane(id).querySelectorAll('.drc-group > .drc-header > span:first-child')].map(node => node.textContent)
 
 async function typeInto(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
   const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
@@ -145,7 +146,7 @@ describe('LyricInspector tabs', () => {
     expect(startRow.firstElementChild?.classList.contains('rv-ctrl-label-cluster')).toBe(true)
     expect(fieldByLabel(scope, 'Start time (ms)').classList.contains('dv-text-input')).toBe(true)
     expect(scope.querySelector('.lyric-cue-inspector__grid')).not.toBeNull()
-    const captions = [...scope.querySelectorAll('.lyric-cue-inspector__grid > .rv-ctrl-row > .rv-ctrl-label-cluster > label')].map(label => label.textContent)
+    const captions = [...scope.querySelectorAll('.lyric-cue-inspector__grid .rv-ctrl-row > .rv-ctrl-label-cluster > label')].map(label => label.textContent)
     expect(captions).toEqual(['Text', 'Start time (ms)', 'End time (ms)', 'Section', 'Review state', 'Position', 'Text size', 'Duration (ms)', 'Confidence (0–1)'])
   })
 
@@ -156,7 +157,23 @@ describe('LyricInspector tabs', () => {
     expect(fieldByLabel(pane('document'), 'Title').value).toBe('Song')
     expect(fieldByLabel(pane('document'), 'Artist').value).toBe('Artist')
     expect(fieldByLabel(pane('document'), 'Global offset (ms)')).toBeTruthy()
-    expect(pane('document').textContent).toContain('Default Style / Animation / Effects')
+    expect(groupTitles('document')).toEqual(['Document Info', 'Default Appearance', 'Default Animation', 'Default Effects'])
+  })
+
+  it('builds every Cue and Document control from the standard groups and rows, with no bespoke headings or fields', () => {
+    expect(groupTitles('cue')).toEqual([
+      'Cue', 'Cue Actions', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
+    ])
+    for (const id of ['cue', 'document'] as const) {
+      const scope = pane(id)
+      // No hand-rolled section headings or inline helper paragraphs.
+      expect(scope.querySelector('.lmv-presentation-heading, .lmv-presentation-section, .lmv-defaults-hint, .lmv-inspector-hint, .lyric-word-editor__header')).toBeNull()
+      // Every color picker, textarea and text field lives in a shared control row.
+      for (const field of scope.querySelectorAll('input[type="color"], textarea')) expect(field.closest('.rv-ctrl-row')).not.toBeNull()
+      // Every group is the shared Collapsible (drc-group), and no stray bold sub-headings sit inside them.
+      expect(scope.querySelectorAll('.drc-group').length).toBeGreaterThan(0)
+      expect(scope.querySelector('strong')).toBeNull()
+    }
   })
 
   it('shows validation, stats and issue lists in the Review tab', async () => {
