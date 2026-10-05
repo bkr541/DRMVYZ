@@ -7430,6 +7430,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 5px;
 }
 
+/* Collapsed, TAP / CUE / SYNC sit in one row of three. The expanded layout places each of them on its own row and column of the
+   wider grid (CUE on row 2, SYNC in column 2 or 5); without this reset those placements squeeze the keys into a 34px-tall box. */
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-tap-btn,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-btn,
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-btn {
+  grid-column: auto;
+  grid-row: 1;
+  margin: 0;
+}
+
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-cue-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-sync-master-btn {
   width: 100%;
