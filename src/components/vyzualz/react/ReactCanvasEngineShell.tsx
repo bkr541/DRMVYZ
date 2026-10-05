@@ -604,13 +604,35 @@ function canvasObjectFit(fitMode: CanvasFitMode): CSSProperties['objectFit'] {
   return fitMode
 }
 
-function makeCanvasMediaStyle(
+export function makeCanvasMediaStyle(
   settings: ReturnType<typeof useReactStore.getState>['canvasEngineSettings'],
   drySourceMix: number,
+  /** Width / height of the media, when known. Needed to size a Cover fit (see below). */
+  mediaAspect: number | null = null,
 ): CSSProperties {
   const transform = hasCanvasBaseTransform(settings)
     ? `translate(${settings.positionX}%, ${settings.positionY}%) rotate(${settings.rotation}deg) scale(${settings.scale})`
     : undefined
+
+  // Cover is "fit the whole stage, then scale / move / rotate that picture" — the same order the canvas-drawn presets use. A plain
+  // `object-fit: cover` on a stage-sized element instead crops to the stage first and then shrinks the cropped result, so any Scale
+  // below 1 left a small box with its sides cut off. Sizing the element to the cover rectangle itself (the shell clips it to the
+  // stage) keeps scale 1 identical and lets a smaller Scale show the whole picture.
+  if (settings.fitMode === 'cover' && mediaAspect && Number.isFinite(mediaAspect) && mediaAspect > 0) {
+    return {
+      objectFit: 'fill',
+      width: `max(100cqw, calc(100cqh * ${mediaAspect}))`,
+      height: `max(100cqh, calc(100cqw / ${mediaAspect}))`,
+      // Wider/taller than the stage by design: centre it on the stage instead of letting the grid start-align an overflowing item.
+      placeSelf: 'unsafe center',
+      opacity: drySourceMix,
+      // Position is a percentage of the stage, as it is for every other fit: the element is bigger than the stage here, so a
+      // plain `translate(%)` (a percentage of the element) would move it too far. cqw / cqh are the stage's width / height.
+      transform: hasCanvasBaseTransform(settings)
+        ? `translate(${settings.positionX}cqw, ${settings.positionY}cqh) rotate(${settings.rotation}deg) scale(${settings.scale})`
+        : undefined,
+    }
+  }
 
   return {
     objectFit: canvasObjectFit(settings.fitMode),
@@ -1635,12 +1657,21 @@ export function CanvasEngineSurface({
     ?? (detectedBackgroundMode?.mediaKey === activeMediaTransparencyKey ? detectedBackgroundMode.mode : 'stage')
   const transparentStage = effectiveBackgroundMode === 'transparent'
   const activeTiming = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
+  // Width / height of the active media: the library's analysed size when it has one, else what the element reports once loaded.
+  const [loadedMediaAspect, setLoadedMediaAspect] = useState<{ mediaId: string; aspect: number } | null>(null)
+  const activeMediaAspect = activeItem?.width && activeItem?.height
+    ? activeItem.width / activeItem.height
+    : activeItem && loadedMediaAspect?.mediaId === activeItem.id ? loadedMediaAspect.aspect : null
+  const reportMediaSize = useCallback((mediaId: string, width: number, height: number) => {
+    if (width > 0 && height > 0) setLoadedMediaAspect(current => current?.mediaId === mediaId ? current : { mediaId, aspect: width / height })
+  }, [])
   const mediaStyle = useMemo(
     () => makeCanvasMediaStyle(
       settings,
       fragmentCollageActive && fracturesReadySourceKey === fracturesSourceKey ? 0 : outputContract.drySourceMix,
+      activeMediaAspect,
     ),
-    [fracturesReadySourceKey, fracturesSourceKey, fragmentCollageActive, outputContract.drySourceMix, settings],
+    [activeMediaAspect, fracturesReadySourceKey, fracturesSourceKey, fragmentCollageActive, outputContract.drySourceMix, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
   const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -2609,6 +2640,7 @@ export function CanvasEngineSurface({
               playsInline
               loop={settings.loopVideo && !activeTiming.loopClipRange && activeTiming.clipEndSec <= 0}
               preload="auto"
+              onLoadedMetadata={event => reportMediaSize(activeItem.id, event.currentTarget.videoWidth, event.currentTarget.videoHeight)}
               onCanPlay={event => {
                 lastDirectDrawableRef.current = {
                   mediaId: activeItem.id,
@@ -2637,6 +2669,7 @@ export function CanvasEngineSurface({
                   mediaRevision: activeItem.mediaRevision ?? 0,
                   handle: event.currentTarget,
                 }
+                reportMediaSize(activeItem.id, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
                 handleCanvasImageLoad(event.currentTarget)
               }}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
@@ -4965,15 +4998,9 @@ export function CanvasPresetParticleControls() {
 
 
 export function CanvasEnginePanel() {
-  const libraryMediaCount = useMediaStore(s => s.items.length)
   const mediaItems = useCanvasRuntimeMediaItems()
-  const canvasReadyCount = mediaItems.length
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
-  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
-  const selectedPreset = isCanvasLegacyEffectPresetId(selectedCanvasPresetId)
-    ? null
-    : CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   return (
     <>
       <div className="rv-canvas-engine-panel">
@@ -4986,18 +5013,6 @@ export function CanvasEnginePanel() {
         >
           <CanvasMediaLibrary compact />
         </CanvasHelpControl>
-        <div className="rv-canvas-panel-status">
-          <span>Saved media</span>
-          <strong>{libraryMediaCount}</strong>
-        </div>
-        <div className="rv-canvas-panel-status">
-          <span>CANVAS-ready</span>
-          <strong>{canvasReadyCount}</strong>
-        </div>
-        <div className="rv-canvas-panel-status">
-          <span>Preset</span>
-          <strong>{selectedPreset?.name ?? 'CANVAS'}</strong>
-        </div>
       </div>
     </>
   )

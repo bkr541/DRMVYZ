@@ -321,6 +321,11 @@ function CinematicCurrentPresetBrowser({
   )
 }
 
+/** A click on the active preset toggles it off to Clean Playback; any other click selects that preset. */
+export function resolveCanvasPresetClick(clickedId: CanvasPresetId, activeId: CanvasPresetId): CanvasPresetId {
+  return clickedId === activeId ? DEFAULT_CANVAS_PRESET_ID : clickedId
+}
+
 function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope }: { thumbnailGenerationKey: string; query: string; scope: PresetScopeTab; inScope: (presetKey: string) => boolean }) {
   const selectedCanvasPresetId = useReactStore(state => state.selectedCanvasPresetId)
   const selectCanvasPreset = useReactStore(state => state.selectCanvasPreset)
@@ -351,7 +356,8 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope 
             modified={canvasPreset.id === selectedCanvasPresetId
               && resolveCanvasPresetProvenance(canvasPreset, canvasPresetSettings).status === 'modified'}
             activeEngineId="canvas"
-            onSelect={id => selectCanvasPreset(id as CanvasPresetId)}
+            // Clicking the active preset again removes it: the loaded media falls back to Clean Playback (the default preset).
+            onSelect={id => selectCanvasPreset(resolveCanvasPresetClick(id as CanvasPresetId, selectedCanvasPresetId))}
             thumbnailGenerationKey={canvasThumbnailGenerationKey}
             modeHintOverride={null}
             showMore={false}
