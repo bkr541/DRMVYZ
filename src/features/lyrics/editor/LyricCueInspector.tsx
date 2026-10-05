@@ -295,14 +295,6 @@ export function LyricCueInspector({
 
   return (
     <section className="lyric-cue-inspector" aria-label="Selected lyric cue editor">
-      <div className="lyric-cue-inspector__heading">
-        <div>
-          <span className="lmv-section-label">Selected cue</span>
-          <strong>{cue.text || 'Empty cue'}</strong>
-        </div>
-        <span className="lyric-cue-inspector__duration">{cue.endMs - cue.startMs} ms</span>
-      </div>
-
       {issues.length > 0 && (
         <NoticeCard tone="warning" role="status" ariaLabel={`${issues.length} cue warnings`} title="Cue warnings">
           {issues.map((issue, index) => <div key={`${issue.code}-${issue.relatedCueId ?? issue.wordId ?? index}`}>{issue.message}</div>)}

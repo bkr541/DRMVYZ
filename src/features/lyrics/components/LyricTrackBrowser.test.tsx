@@ -242,6 +242,11 @@ describe('LyricTrackBrowser', () => {
 
     const badges = [...container.querySelectorAll('.vz-track-row-state-badges .dv-badge')].map(node => node.textContent)
     expect(badges).toEqual(['Selected', 'Loaded', 'Playing'])
+
+    // Selected is dot-only: its label is visually hidden but kept for assistive tech and the tooltip.
+    const selected = container.querySelector<HTMLElement>('.vz-track-row-selected-dot')
+    expect(selected?.title).toBe('Selected')
+    expect(selected?.querySelector('.sr-only')?.textContent).toBe('Selected')
   })
 
 })

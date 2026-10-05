@@ -2,6 +2,7 @@ import { HeaderToggleKey } from '../../../components/vyzualz/layout/HeaderToggle
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
+import { Badge } from '../../../components/vyzualz/react/controls/Badge'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
@@ -45,7 +46,6 @@ export function LyricManagerHeader({
       </div>
 
       <HeaderControlGroup label="Lyric Manager controls">
-        {saveStatusLabel && <span className={`lmv-dirty-badge lmv-dirty-badge--${saveStatus}`}>{saveStatusLabel}</span>}
         <HeaderToggleKey
           checked={lyricsDisplayEnabled}
           onChange={() => onToggleLyricsDisplay()}
@@ -73,7 +73,16 @@ export function LyricManagerHeader({
       </HeaderControlGroup>
 
       <div className="lmv-header-right">
-        <VyzualzHeaderActions page="lyric-manager" />
+        <VyzualzHeaderActions
+          page="lyric-manager"
+          leading={saveStatusLabel && (
+            <Badge
+              className="lmv-save-status-badge"
+              label={saveStatusLabel}
+              tone={saveStatus === 'conflict' || saveStatus === 'failed' ? '#f87171' : saveStatus === 'queued' || saveStatus === 'saving' ? '#4ac7db' : '#d8b95a'}
+            />
+          )}
+        />
       </div>
     </header>
   )

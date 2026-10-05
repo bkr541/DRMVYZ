@@ -39,6 +39,7 @@ import { loadSavedTrackIntoEngine } from '../../../audio/savedTrackLoader'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { MediaAddToSubmenu } from './MediaAddToMenu'
 import { AudioTrackCard } from './AudioTrackCard'
+import { trackInitials } from './trackInitials'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
@@ -1215,7 +1216,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     }
 
     return (
-      <div className="vz-track-list">
+      <div className={`vz-track-list${isManager ? ' vz-track-list--rows' : ''}`}>
         {filteredTracks.map(t => (
           <AudioTrackCard
             key={t.id}
@@ -1231,6 +1232,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             canRemove={canRemove}
             isActive={isManager && activeTrackId === t.id}
             onSelect={isManager && onSelectTrack ? () => onSelectTrack(t) : undefined}
+            // Media Manager: the same flat artwork row the Lyric Manager's Tracks list uses.
+            artwork={isManager ? <span>{trackInitials(t)}</span> : undefined}
+            selectedBadge={isManager}
             onOpenTimeline={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'timeline')) : undefined}
             onOpenActiveLyrics={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'active-lyrics')) : undefined}
             onOpenAiExtract={canOpenLyrics ? () => onOpenLyricManager?.(createLyricManagerNavigationIntent(t.dbId, 'ai-extract')) : undefined}

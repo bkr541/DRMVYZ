@@ -1,3 +1,4 @@
+import { trackInitials as sharedTrackInitials } from '../../../components/vyzualz/media/trackInitials'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 export function formatDuration(seconds: number | null | undefined): string {
@@ -18,14 +19,5 @@ export function formatMsClock(ms: number | null | undefined): string {
 }
 
 export function trackInitials(track: LyricManagerTrack | null): string {
-  if (!track) return '♪'
-  const source = `${track.title || track.fileName || ''} ${track.artist || ''}`.trim()
-  const initials = source
-    .split(/\s+/)
-    // Skip separators like the dash in "MPH - Raw" so they don't become an initial.
-    .filter(part => /[\p{L}\p{N}]/u.test(part))
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('')
-  return initials || '♪'
+  return sharedTrackInitials(track)
 }

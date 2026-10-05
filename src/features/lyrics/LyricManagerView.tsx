@@ -1203,6 +1203,13 @@ export function LyricManagerView({
 
   const handleActivateDocument = useCallback(
     (document: LyricDocumentVersion) => {
+      // A version with no cues can never pass activation validation. Say so now instead of confirming an action
+      // that cannot succeed. The open version is exempt while it has unsaved edits: its saved count is stale and the
+      // save-then-activate flow below validates what will actually be written.
+      if (document.cueCount === 0 && !(document.id === editorDocumentId && editorDirty)) {
+        setError(`“${document.title || 'Untitled'}” has no cues yet. Add timed cues before making it the active lyric version.`)
+        return
+      }
       requestTransition(
         `Save changes before activating “${document.title}”?`,
         async () => {
@@ -1217,8 +1224,11 @@ export function LyricManagerView({
     },
     [
       documents,
+      editorDirty,
+      editorDocumentId,
       performVersionActivation,
       requestTransition,
+      setError,
     ],
   )
 
@@ -2121,16 +2131,9 @@ export function LyricManagerView({
             onPreviewLyrics={handlePreviewInPerformanceView}
             previewDestination={returnView === 'showManager' ? 'Show Manager' : 'React'}
             track={selectedTrack}
-            versions={documents.map(document => ({ id: document.id, title: document.title || 'Untitled' }))}
-            openVersionId={editorDocumentId}
-            openVersionTitle={editorDocument?.title ?? (selectedTrack ? 'Unsaved draft' : null)}
             loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
             selectedTrackLoaded={selectedTrackLoaded}
             onLoadTrack={() => { void handleLoadSelectedTrack() }}
-            onOpenVersion={versionId => {
-              const version = documents.find(document => document.id === versionId)
-              if (version) handleSelectDocument(version)
-            }}
           />
 
           <div className="lmv-tab-content" role="tabpanel" aria-label="Lyric editor">

@@ -21,7 +21,7 @@ export interface AudioTrackCardProps {
   onOpenTimeline?: () => void
   onOpenActiveLyrics?: () => void
   onOpenAiExtract?: () => void
-  /** Show a "Selected" text badge when `isActive` (Media Library relies on the ring alone). */
+  /** Show a dot-only "Selected" badge when `isActive` (Media Library relies on the ring alone). */
   selectedBadge?: boolean
   /** Adds a "Load and Play" item to the lyric actions menu. */
   onLoadAndPlay?: () => void
@@ -127,7 +127,12 @@ export function AudioTrackCard({
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
           <span className="vz-track-row-state-badges">
-            {selectedBadge && isActive && <StatusBadge tone="selected">Selected</StatusBadge>}
+            {selectedBadge && isActive && (
+              // Dot only: the row's wash and left bar already say "selected"; the text stays for assistive tech and the tooltip.
+              <span className="vz-track-row-selected-dot" title="Selected">
+                <StatusBadge tone="selected"><span className="sr-only">Selected</span></StatusBadge>
+              </span>
+            )}
             {loaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
             {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
           </span>

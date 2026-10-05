@@ -12,7 +12,7 @@ import {
 import { getLyricReviewStatistics } from '../utils/lyricReview'
 import { getLyricReviewSummary } from '../utils/lyricReviewSummary'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
-import { LyricTrackMetaHeader, type LyricHeaderVersion } from './LyricTrackMetaHeader'
+import { LyricTrackMetaHeader } from './LyricTrackMetaHeader'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 
 interface Props {
@@ -33,13 +33,9 @@ interface LivePreviewProps {
   onPreviewLyrics: () => void
   previewDestination?: 'React' | 'Visualizer' | 'Show Manager'
   track: LyricManagerTrack | null
-  versions: LyricHeaderVersion[]
-  openVersionId: string | null
-  openVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   onLoadTrack: () => void
-  onOpenVersion: (versionId: string) => void
 }
 
 export function calculateLyricCueProgress(
@@ -171,13 +167,9 @@ export function LyricLivePreviewPanel({
   onPreviewLyrics,
   previewDestination = 'Visualizer',
   track,
-  versions,
-  openVersionId,
-  openVersionTitle,
   loading,
   selectedTrackLoaded,
   onLoadTrack,
-  onOpenVersion,
 }: LivePreviewProps) {
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
   const activeCue = useMemo(() => activeCueAt(cues, currentAudioTimeMs, globalOffsetMs), [cues, currentAudioTimeMs, globalOffsetMs])
@@ -190,14 +182,10 @@ export function LyricLivePreviewPanel({
     <div className="lmv-live-preview-body">
       <LyricTrackMetaHeader
         track={track}
-        versions={versions}
-        openVersionId={openVersionId}
-        openVersionTitle={openVersionTitle}
         loading={loading}
         selectedTrackLoaded={selectedTrackLoaded}
         selectedTrackPlaying={isPlaying}
         onLoadTrack={onLoadTrack}
-        onOpenVersion={onOpenVersion}
       />
       <div className="lmv-preview-stage" aria-label="Lyric preview">
         {previewCue ? (

@@ -178,7 +178,8 @@ describe('LyricInspector tabs', () => {
     // Same DOM node, same value: the pane was never unmounted or reset.
     expect(fieldByLabel(pane('cue'), 'Text')).toBe(text)
     expect(text.value).toBe('Edited but not committed')
-    expect(pane('cue').querySelector('.lyric-cue-inspector__heading strong')?.textContent).toBe('First line')
+    // Still cue A: its committed start time, not the uncommitted text edit.
+    expect(fieldByLabel(pane('cue'), 'Start time (ms)').value).toBe('1000')
     await clickTab('Document')
     expect(fieldByLabel(pane('document'), 'Title').value).toBe('New title')
     // Tab changes alone commit nothing to the cue.
@@ -191,7 +192,8 @@ describe('LyricInspector tabs', () => {
     expect(tabButton('Review').getAttribute('aria-selected')).toBe('true')
     expect(pane('review').hidden).toBe(false)
     await clickTab('Cue')
-    expect(pane('cue').querySelector('.lyric-cue-inspector__heading strong')?.textContent).toBe('Second line')
+    expect(fieldByLabel(pane('cue'), 'Start time (ms)').value).toBe('5000')
+    expect(fieldByLabel(pane('cue'), 'Text').value).toBe('Second line')
   })
 
   it('cue controls update the selected cue only', async () => {

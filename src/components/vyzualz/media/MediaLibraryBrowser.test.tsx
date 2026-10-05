@@ -585,6 +585,39 @@ describe('MediaLibraryBrowser contact-sheet tiles', () => {
   })
 })
 
+describe('MediaLibraryBrowser audio track rows', () => {
+  it('shows Media Manager tracks as the Lyric Manager\'s flat artwork rows, with the selected track marked by a dot', async () => {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      onSelectTrack: vi.fn(),
+      activeTrackId: track.id,
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+    act(() => findButton('Audio Tracks')?.click())
+    expect(container?.querySelector('.vz-track-list')?.classList.contains('vz-track-list--rows')).toBe(true)
+    const row = container?.querySelector<HTMLElement>('.vz-track-row')
+    expect(row?.classList.contains('vz-track-row--list')).toBe(true)
+    expect(row?.classList.contains('vz-track-row--active')).toBe(true)
+    expect(row?.querySelector('.vz-track-row-art')?.textContent).toBe('PT')
+    expect(row?.querySelector('.vz-track-row-selected-dot')?.getAttribute('title')).toBe('Selected')
+  })
+
+  it('leaves the Media Deck\'s track cards as they were', async () => {
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      context: 'react',
+      capabilities: MEDIA_DECK_CAPABILITIES,
+    })
+    act(() => findButton('Tracks')?.click())
+    expect(container?.querySelector('.vz-track-list--rows')).toBeNull()
+    expect(container?.querySelector('.vz-track-row--list')).toBeNull()
+    expect(container?.querySelector('.vz-track-row-art')).toBeNull()
+  })
+})
+
 describe('MediaLibraryBrowser virtualization', () => {
   it('renders a bounded window relative to the viewport instead of the complete library', () => {
     const windowed = computeVirtualMediaWindow({ itemCount: 10_000, width: 1000, height: 600, scrollTop: 0, viewMode: 'grid', manager: true })

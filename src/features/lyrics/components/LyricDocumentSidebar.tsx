@@ -155,7 +155,14 @@ function DocumentCard({
               </button>
             )}
             {!legacy && !doc.isActive && (
-              <button type="button" className="lmv-doc-action" onClick={onActivateDocument} title="Make Active" aria-label="Make Active">
+              <button
+                type="button"
+                className="lmv-doc-action"
+                onClick={onActivateDocument}
+                disabled={doc.cueCount === 0 && !isOpen}
+                title={doc.cueCount === 0 && !isOpen ? 'No cues yet — add cues before making this version active' : 'Make Active'}
+                aria-label="Make Active"
+              >
                 <CheckmarkCircle02Icon size={15} color="currentColor" />
               </button>
             )}

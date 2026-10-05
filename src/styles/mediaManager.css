@@ -95,6 +95,9 @@
   border: 0;
   border-radius: 0;
   box-shadow: none;
+  /* Runs to the rail's edges (past its 12px side padding) so the Audio Tracks rows can bleed edge to edge; the tab,
+     search and scroll paddings below put that 12px back for everything else. */
+  margin-inline: -12px;
 }
 
 /* Both rails' RailWindowHeader (Media Library / Media Details) pulls out of
@@ -675,7 +678,7 @@
 }
 
 .vz-media-browser--manager .vz-md-search-row {
-  padding-inline: 14px;
+  padding-inline: 26px;
   /* +6px over the base 5px so the search/view-toggle row isn't crowded
      against the filter tab row above it. */
   padding-top: 11px;
@@ -687,7 +690,7 @@
    tabs directly under its own .vz-panel-header with no such wrapper, so match
    that total here instead of inheriting the bare 5px. */
 .vz-media-browser--manager .vz-filter-tabs {
-  padding: 25px 14px 0;
+  padding: 25px 26px 0;
 }
 
 /* Match the CANVAS media library's seamless search pill: the input itself
@@ -725,7 +728,7 @@
 }
 
 .vz-media-browser--manager .vz-media-scroll {
-  padding: 10px;
+  padding: 10px 22px;
   /* Same barely-there light tint the Canvas Engine's Media Library uses
      behind its thumbnail grid (.rv-canvas-library-shell .vz-media-scroll). */
   background: rgba(255, 255, 255, 0.012);
@@ -751,6 +754,19 @@
   width: 100%;
   margin: 0 auto;
 }
+
+/* Audio Tracks in the Media Manager: the Lyric Manager's flat artwork rows (see .vz-track-row--list in vyzualz.css).
+   Rows run edge to edge so a loaded / selected row's wash reaches the rail edges; the artwork and the hairlines sit on the
+   26px content line shared with the tabs and search field above. */
+.vz-media-browser--manager .vz-track-list--rows {
+  width: auto;
+  max-width: none;
+  margin-inline: -22px;
+  padding: 0;
+  gap: 0;
+}
+.vz-media-browser--manager .vz-track-list--rows .vz-track-row.vz-track-row--list { padding-inline: 26px; }
+.vz-media-browser--manager .vz-track-list--rows .vz-track-row--list::after { left: 26px; right: 26px; }
 
 @media (max-width: 980px) {
   .mmv-summary { display: none; }

@@ -1,47 +1,29 @@
 import { useRef } from 'react'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { StatusBadge } from '../../../components/vyzualz/react/controls/StatusBadge'
-import { SelectRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { useMountTransition } from '../../../hooks/useMountTransition'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import { formatDuration, trackInitials } from '../utils/lyricManagerFormat'
 
-export interface LyricHeaderVersion {
-  id: string
-  title: string
-}
-
 interface Props {
   track: LyricManagerTrack | null
-  /** Saved versions of the track, for the OPEN selector. */
-  versions: LyricHeaderVersion[]
-  /** The version open in the editor (null for an unsaved draft). */
-  openVersionId: string | null
-  openVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   selectedTrackPlaying: boolean
   onLoadTrack: () => void
-  /** Opens another saved version through the owner's guarded (unsaved-changes aware) handler. */
-  onOpenVersion: (versionId: string) => void
 }
 
 /**
- * Compact track strip at the top of the center workspace: artwork, title/artist, a single metadata line, and
- * the OPEN selector (the version the editor has open) in the shared right-rail dropdown. The ACTIVE version is
- * not repeated here: the Versions list shows it, and activation stays there / in Save + Make Active. There is no artwork field in the data model (neither LyricManagerTrack nor audio_tracks has
+ * Compact track strip at the top of the center workspace: artwork, title/artist and a single metadata line. Which
+ * lyric version is open or active is shown (and changed) in the Versions list, not here. There is no artwork field in the data model (neither LyricManagerTrack nor audio_tracks has
  * one), so the artwork slot keeps the trackInitials() placeholder.
  */
 export function LyricTrackMetaHeader({
   track,
-  versions,
-  openVersionId,
-  openVersionTitle,
   loading,
   selectedTrackLoaded,
   selectedTrackPlaying,
   onLoadTrack,
-  onOpenVersion,
 }: Props) {
   const hasTrack = Boolean(track)
   const emptyPhase = useMountTransition(!hasTrack, 200)
@@ -79,23 +61,6 @@ export function LyricTrackMetaHeader({
               </span>
             </div>
             <div className="lmv-track-meta-line" aria-label="Track details">{meta.join(' • ')}</div>
-          </div>
-
-          <div className="lmv-track-meta-versions">
-            {versions.length > 0 ? (
-              <SelectRow
-                label="Open"
-                value={openVersionId ?? ''}
-                placeholder={openVersionTitle ?? 'Unsaved draft'}
-                onChange={value => { if (value && value !== openVersionId) onOpenVersion(value) }}
-                options={versions.map(version => ({ value: version.id, label: version.title }))}
-              />
-            ) : (
-              <div className="rv-ctrl-row">
-                <span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Open</span></span>
-                <span className="lmv-track-meta-version-value">{openVersionTitle ?? 'Unsaved draft'}</span>
-              </div>
-            )}
           </div>
 
           {!selectedTrackLoaded && (

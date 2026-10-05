@@ -33,6 +33,8 @@
 
 .lmv-header-left  { display: flex; align-self: stretch; align-items: center; gap: 14px; min-width: 0; }
 .lmv-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+/* Save state sits left of the CPU readout; it appears/disappears without moving the other header controls. */
+.lmv-save-status-badge { flex-shrink: 0; }
 
 /* ── Toggle ──────────────────────────────────────────────────────────── */
 
@@ -476,16 +478,6 @@
 
 /* ── Track-first workflow additions ─────────────────────────────────── */
 
-.lmv-dirty-badge {
-  border-radius: 999px;
-  padding: 2px 7px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.lmv-dirty-badge { background: rgba(216,185,90,0.14); color: #d8b95a; }
 
 .lmv-track-browser {
   flex-shrink: 0;
@@ -595,7 +587,6 @@
 /* Shared lyric cue editor --------------------------------------------------- */
 
 .lyric-cue-list__controls,
-.lyric-cue-inspector__heading,
 .lyric-word-editor__header {
   display: flex;
   align-items: center;
@@ -798,10 +789,6 @@
 .lyric-cue-list__empty { padding: 22px; text-align: center; color: rgba(196,207,211,0.4); }
 
 .lyric-cue-inspector { padding: 10px; }
-.lyric-cue-inspector__heading { justify-content: space-between; margin-bottom: 9px; }
-.lyric-cue-inspector__heading > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.lyric-cue-inspector__heading strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lyric-cue-inspector__duration { color: #61d6aa; font-variant-numeric: tabular-nums; }
 .lyric-cue-inspector__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .lyric-cue-inspector__json-field { display: flex; flex-direction: column; gap: 4px; color: rgba(196,207,211,0.58); font-size: 9px; }
 .lyric-cue-inspector__wide { grid-column: 1 / -1; }
@@ -1456,11 +1443,6 @@
 .lyric-cue-inspector {
   border-radius: 7px;
   background: rgba(11,20,24,0.75);
-}
-
-.lyric-cue-inspector__heading .lmv-section-label {
-  margin: 0;
-  color: #20d7ef;
 }
 
 .lmv-extraction-console {
@@ -2372,7 +2354,8 @@
   cursor: pointer;
   transition: color 0.12s;
 }
-.lmv-doc-action:hover { color: #67f7ff; }
+.lmv-doc-action:hover:not(:disabled) { color: #67f7ff; }
+.lmv-doc-action:disabled { opacity: 0.35; cursor: not-allowed; }
 .lmv-doc-action--danger:hover { color: #f87171; }
 .lmv-doc-action:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 3px; }
 .lmv-lyric-management .lmv-doc-empty { padding-inline: 24px; }

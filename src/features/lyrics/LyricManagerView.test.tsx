@@ -90,7 +90,8 @@ vi.mock('../../stores/audioStore', () => {
 })
 
 vi.mock('../../components/vyzualz/shared/VyzualzHeaderActions', () => ({
-  VyzualzHeaderActions: () => null,
+  // Renders only the page-status slot; the real component's ordering is covered by VyzualzHeaderActions.test.tsx.
+  VyzualzHeaderActions: ({ leading }: { leading?: React.ReactNode }) => <div className="header-actions-stub">{leading}</div>,
 }))
 
 vi.mock('../../components/vyzualz/MediaUploadModal', () => ({
@@ -399,29 +400,60 @@ describe('LyricManagerView track-first workflow', () => {
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
-    // The header shows only what is OPEN; the ACTIVE version is shown (once) in the Versions list.
-    const versionRows = container.querySelector('.lmv-track-meta-versions')?.textContent ?? ''
-    expect(versionRows).toContain('Open')
-    expect(versionRows).toContain('Alternate Lyrics')
-    expect(versionRows).not.toContain('Active')
+    // Which version is open / active is shown in the Versions list only, never in the track strip.
     expect(documentCard('Approved Lyrics').classList.contains('lmv-doc-card--active')).toBe(true)
     expect(documentCard('Alternate Lyrics').classList.contains('lmv-doc-card--active')).toBe(false)
+    expect(documentCard('Alternate Lyrics').classList.contains('lmv-doc-card--open')).toBe(true)
   })
 
-  it('opens another saved version from the header OPEN selector without changing the active version', async () => {
+  it('has no OPEN dropdown or ACTIVE field in the track strip', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    const strip = container.querySelector('.lmv-track-meta-header')!
+    expect(strip.querySelector('[role="combobox"]')).toBeNull()
+    expect(strip.querySelector('.lmv-track-meta-versions')).toBeNull()
+    expect(strip.textContent).not.toMatch(/\bActive\b/)
+  })
+
+  it('disables Make Active for a version with no cues and explains why', async () => {
+    documentsByTrack.get('track-a')![1]!.cueCount = 0
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    const openSelect = container.querySelector<HTMLElement>('.lmv-track-meta-version-select [role="combobox"], .lmv-track-meta-version-select[role="combobox"]')
-      ?? container.querySelector<HTMLElement>('.lmv-track-meta-versions [role="combobox"]')!
-    await act(async () => openSelect.click())
-    const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(item => item.textContent?.trim() === 'Alternate Lyrics')!
-    await act(async () => option.click())
-
-    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
+    const action = cardAction('Make Active', documentCard('Alternate Lyrics'))
+    expect(action.disabled).toBe(true)
+    expect(action.title).toContain('No cues yet')
+    await act(async () => action.click())
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
     expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
-    expect(documentCard('Approved Lyrics').classList.contains('lmv-doc-card--active')).toBe(true)
+  })
+
+  it('reports why instead of opening a confirmation when an empty version is made active another way', async () => {
+    documentsByTrack.get('track-a')![1]!.cueCount = 0
+    cuesByDocument.set('doc-a2', [])
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await act(async () => (documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement).click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
+
+    // The open version's button stays available (its saved count may be stale while editing)...
+    await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
+    // ...but with nothing unsaved there is nothing to save, so the empty version is refused with a clear message.
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(container.textContent).toContain('has no cues yet')
+    expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
+  })
+
+  it('activates a populated version from the Make Active icon and moves the active state to it', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
+    await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
+    await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
   })
 
   it('handles a track with no lyrics and saves a new document with the selected audio_tracks ID', async () => {
@@ -435,6 +467,13 @@ describe('LyricManagerView track-first workflow', () => {
       activeAudioTrackId: 'track-b',
       editorDirty: true,
     })
+
+    // The save state is a badge in the header tail, directly left of the CPU readout (not in the Save button group).
+    const badge = container.querySelector<HTMLElement>('.lmv-save-status-badge')
+    expect(badge?.textContent).toBe('Unsaved')
+    expect(badge?.classList.contains('dv-badge')).toBe(true)
+    expect(badge?.parentElement?.classList.contains('header-actions-stub')).toBe(true)
+    expect(container.querySelector('.lmv-header [role="group"] .lmv-save-status-badge')).toBeNull()
 
     await act(async () => buttonWithText('Save').click())
     await waitFor(() => expect(mocks.saveLyricDocumentAtomic).toHaveBeenCalled())

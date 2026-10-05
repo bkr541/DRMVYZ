@@ -6684,6 +6684,9 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-track-row--list .vz-track-row-title-line { justify-content: flex-start; gap: 8px; }
 .vz-track-row--list .vz-track-row-title { font-size: 10.5px; color: rgba(245, 248, 250, 0.96); }
 .vz-track-row--list .vz-track-row-state-badges { margin-left: 0; }
+/* Selected is just the badge's dot: no label and no capsule (border/fill) around it. */
+.vz-track-row-selected-dot { display: inline-flex; }
+.vz-track-row-selected-dot .dv-badge { gap: 0; padding: 0; border-width: 0; background: none; }
 .vz-track-row--list .vz-track-row-artist { font-size: 9px; }
 .vz-track-row--list .vz-track-row-details { font-size: 9px; color: rgba(196, 207, 211, 0.5); }
 .vz-track-row--list .vz-track-row-actions { flex-wrap: nowrap; gap: 10px; }
