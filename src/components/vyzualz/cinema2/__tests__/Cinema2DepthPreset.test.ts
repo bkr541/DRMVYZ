@@ -31,6 +31,7 @@ import {
   CINEMA2_DEPTH_CENTER_MATTE_COLOR,
   CINEMA2_DEPTH_STRIP_BOUNCE_GAIN,
   CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER,
+  CINEMA2_DEPTH_UNLIT_STRIP_LIGHT_MIX,
   CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT,
   Cinema2DepthRenderer,
 } from '../modules/depth/Cinema2DepthRenderer'
@@ -56,11 +57,12 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(second).toEqual(first)
     expect(first).toMatchObject({
       portalCount: 8, lapCopies: 3, aperture: 8.2, spacing: 6, repeatDistance: 48,
-      boxInstanceCount: 276, sphereInstanceCount: 97,
+      boxInstanceCount: 384, sphereInstanceCount: 97,
     })
-    expect(first.instances).toHaveLength(373)
+    expect(first.instances).toHaveLength(481)
     expect(first.instances.filter(instance => instance.kind === 'strip')).toHaveLength(96)
-    expect(first.instances.filter(instance => instance.kind === 'rail')).toHaveLength(84)
+    expect(first.instances.filter(instance => instance.kind === 'connector')).toHaveLength(96)
+    expect(first.instances.filter(instance => instance.kind === 'rail')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'node')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'center')).toHaveLength(1)
     expect(first.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(12)
@@ -71,8 +73,8 @@ describe('Cinema 2.0 Depth preset', () => {
     expect([...packed]).toEqual([...packCinema2DepthInstances(second.instances)])
 
     const baseLap = buildCinema2DepthProofLayout({ lapCopies: 1 })
-    expect(baseLap).toMatchObject({ boxInstanceCount: 92, sphereInstanceCount: 33 })
-    expect(baseLap.instances).toHaveLength(125)
+    expect(baseLap).toMatchObject({ boxInstanceCount: 128, sphereInstanceCount: 33 })
+    expect(baseLap.instances).toHaveLength(161)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(4)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.portalIndex === 0).map(instance => instance.emission)).toEqual([1, 0, 0, 0])
     for (let portal = 0; portal < baseLap.portalCount; portal += 1) {
@@ -82,6 +84,9 @@ describe('Cinema 2.0 Depth preset', () => {
         const longAxis = Math.max(strip.size[0], strip.size[1])
         expect(longAxis).toBeGreaterThan(baseLap.aperture)
       }
+      const connectors = baseLap.instances.filter(instance => instance.kind === 'connector' && instance.portalIndex === portal)
+      expect(connectors).toHaveLength(4)
+      expect(connectors.every(connector => connector.size[2] > baseLap.spacing && connector.emission === 0)).toBe(true)
     }
     expect(CINEMA2_DEPTH_LAP_DISTANCE).toBe(CINEMA2_DEPTH_REPEAT_DISTANCE)
     expect(CINEMA2_DEPTH_REPEAT_DISTANCE).toBe(CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount * CINEMA2_DEPTH_LAYOUT_CONFIG.spacing)
@@ -116,7 +121,7 @@ describe('Cinema 2.0 Depth preset', () => {
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(8)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(9)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -132,6 +137,8 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER).toBeLessThanOrEqual(3)
     expect(CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT).toBeGreaterThan(1)
     expect(CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT).toBeLessThan(2)
+    expect(CINEMA2_DEPTH_UNLIT_STRIP_LIGHT_MIX).toBeGreaterThan(0.05)
+    expect(CINEMA2_DEPTH_UNLIT_STRIP_LIGHT_MIX).toBeLessThan(0.1)
     expect(CINEMA2_DEPTH_STRIP_BOUNCE_GAIN).toBeGreaterThan(0)
     expect(CINEMA2_DEPTH_STRIP_BOUNCE_GAIN).toBeLessThanOrEqual(0.2)
     expect(CINEMA2_DEPTH_CENTER_MATTE_COLOR.every(component => component > 0.1 && component < 0.25)).toBe(true)
@@ -374,6 +381,14 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(offStrips.some(({ index }) => frame.spills[index]! > 0)).toBe(true)
     expect(offStrips.some(({ index }) => frame.spills[index] === 0)).toBe(true)
     expect(offStrips.every(({ index }) => frame.emissions[index] === 0)).toBe(true)
+
+    const connectors = layout.instances
+      .map((instance, index) => ({ instance, index }))
+      .filter(({ instance }) => instance.kind === 'connector')
+    expect(connectors).toHaveLength(layout.portalCount * 4 * layout.lapCopies)
+    expect(connectors.every(({ index }) => frame.emissions[index] === 0)).toBe(true)
+    expect(connectors.some(({ index }) => frame.spills[index]! > 0)).toBe(true)
+    expect(connectors.some(({ index }) => frame.spills[index] === 0)).toBe(true)
   })
 
   it('reverses the depth chase, loops exactly, and preserves authored zero rate', () => {
@@ -510,10 +525,10 @@ describe('Cinema 2.0 Depth preset', () => {
     } as never)
     expect(draw).toHaveBeenCalledOnce()
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ intensity: 1.4, spill: 0.9, centerScale: 1.6, cameraPosition: [1, 2, 8] })
-    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(373)
-    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(373)
+    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(481)
+    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(481)
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ repeatDistance: 48, repeatOriginZ: 12 })
-    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 373, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
+    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 481, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 
     instance.lifecycle.dispose()

@@ -12,7 +12,7 @@ export const CINEMA2_DEPTH_REPEAT_DISTANCE = CINEMA2_DEPTH_LAYOUT_CONFIG.portalC
 export const CINEMA2_DEPTH_REPEAT_ORIGIN_Z = CINEMA2_DEPTH_LAYOUT_CONFIG.spacing * 2
 export const CINEMA2_DEPTH_INSTANCE_FLOATS = 12
 
-export type Cinema2DepthInstanceKind = 'frame' | 'strip' | 'node' | 'rail' | 'center'
+export type Cinema2DepthInstanceKind = 'frame' | 'strip' | 'connector' | 'node' | 'rail' | 'center'
 
 export interface Cinema2DepthInstance {
   kind: Cinema2DepthInstanceKind
@@ -39,6 +39,7 @@ export interface Cinema2DepthProofLayout {
 const KIND_CODE: Readonly<Record<Cinema2DepthInstanceKind, number>> = Object.freeze({
   frame: 0,
   strip: 1,
+  connector: 5,
   node: 2,
   rail: 3,
   center: 4,
@@ -65,6 +66,12 @@ export function buildCinema2DepthProofLayout(options: {
   const frameDepth = Math.min(1.1, spacing * 0.16)
   const half = aperture * 0.5
   const outer = half + frameThickness * 0.5
+  const stripDepth = 0.14
+  const stripWidth = Math.max(0.09, frameThickness * 0.2)
+  // Let the four physical fixtures overlap by one strip width at each
+  // corner. Their emission is still addressed independently, but an
+  // inactive side can no longer disappear as a geometric gap in the gate.
+  const stripLength = aperture + stripWidth
   const boxes: Cinema2DepthInstance[] = []
   const spheres: Cinema2DepthInstance[] = []
 
@@ -77,12 +84,6 @@ export function buildCinema2DepthProofLayout(options: {
     push(boxes, 'frame', portalIndex, 2, [0, -outer, z], [aperture + frameThickness * 2, frameThickness, frameDepth], 0, sideEmission[2] * 0.34)
     push(boxes, 'frame', portalIndex, 3, [-outer, 0, z], [frameThickness, aperture, frameDepth], 0, sideEmission[3] * 0.34)
 
-    const stripDepth = 0.14
-    const stripWidth = Math.max(0.09, frameThickness * 0.2)
-    // Let the four physical fixtures overlap by one strip width at each
-    // corner. Their emission is still addressed independently, but an
-    // inactive side can no longer disappear as a geometric gap in the gate.
-    const stripLength = aperture + stripWidth
     const stripZ = z + frameDepth * 0.52
     push(boxes, 'strip', portalIndex, 0, [0, half, stripZ], [stripLength, stripWidth, stripDepth], sideEmission[0], sideEmission[0])
     push(boxes, 'strip', portalIndex, 1, [half, 0, stripZ], [stripWidth, stripLength, stripDepth], sideEmission[1], sideEmission[1])
@@ -97,11 +98,23 @@ export function buildCinema2DepthProofLayout(options: {
   }
 
   const railDepth = Math.max(0.2, spacing - frameDepth)
-  for (let portalIndex = 0; portalIndex < portalCount - 1; portalIndex += 1) {
+  for (let portalIndex = 0; portalIndex < portalCount; portalIndex += 1) {
     const z = -(portalIndex + 0.5) * spacing
     for (const [sideIndex, x, y] of [[0, outer, outer], [1, outer, -outer], [2, -outer, -outer], [3, -outer, outer]] as const) {
       const railWidth = Math.max(0.16, frameThickness * 0.28)
       push(boxes, 'rail', portalIndex, sideIndex, [x, y, z], [railWidth, railWidth, railDepth], 0, 0)
+    }
+  }
+
+  // Four longitudinal LED fixtures bridge every gate to the next one. The
+  // final set crosses the lap boundary, so the luminous cage remains
+  // continuous when geometry is recentered for endless travel.
+  const connectorWidth = Math.max(0.09, frameThickness * 0.2)
+  const connectorLength = spacing + stripDepth
+  for (let portalIndex = 0; portalIndex < portalCount; portalIndex += 1) {
+    const z = -(portalIndex + 0.5) * spacing
+    for (const [sideIndex, x, y] of [[0, half, half], [1, half, -half], [2, -half, -half], [3, -half, half]] as const) {
+      push(boxes, 'connector', portalIndex, sideIndex, [x, y, z], [connectorWidth, connectorWidth, connectorLength], 0, 0)
     }
   }
 

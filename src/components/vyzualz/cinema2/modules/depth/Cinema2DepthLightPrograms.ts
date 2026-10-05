@@ -269,6 +269,13 @@ function resolveSpill(
     const acrossGate = segmentLevel(instance.portalIndex, instance.sideIndex + 2) * 0.08
     return Math.max(own, aroundCorner, alongTunnel, acrossGate)
   }
+  if (instance.kind === 'connector') {
+    const cornerSides = [instance.sideIndex, instance.sideIndex + 1]
+    return Math.max(...cornerSides.flatMap(side => [
+      segmentLevel(instance.portalIndex, side),
+      segmentLevel(instance.portalIndex + 1, side),
+    ])) * 0.55
+  }
   if (instance.kind === 'frame') return segmentLevel(instance.portalIndex, instance.sideIndex) * 0.34
   if (instance.kind === 'node') {
     const first = segmentLevel(instance.portalIndex, instance.sideIndex)

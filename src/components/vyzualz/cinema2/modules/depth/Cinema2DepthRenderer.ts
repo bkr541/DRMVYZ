@@ -7,6 +7,8 @@ import { CINEMA2_DEPTH_INSTANCE_FLOATS } from './Cinema2DepthLayout'
 export const CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER = 2.75
 /** Keeps an inactive LED fixture readable without making it emissive. */
 export const CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT = 1.65
+/** Neutral diffuser content retained by an unpowered LED fixture. */
+export const CINEMA2_DEPTH_UNLIT_STRIP_LIGHT_MIX = 0.075
 /** Bounded local bounce applied to fixtures near an active strip. */
 export const CINEMA2_DEPTH_STRIP_BOUNCE_GAIN = 0.16
 export const CINEMA2_DEPTH_CENTER_MATTE_COLOR = Object.freeze([0.16, 0.17, 0.18] as const)
@@ -35,10 +37,11 @@ flat out float v_spill;
 
 void main() {
   vec3 size = vec3(i_centerSizeX.w, i_sizeKindEmission.x, i_sizeKindEmission.y);
-  if (i_sizeKindEmission.z > 3.5) size *= u_centerScale;
+  bool isCenter = i_sizeKindEmission.z > 3.5 && i_sizeKindEmission.z < 4.5;
+  if (isCenter) size *= u_centerScale;
   vec3 world = i_centerSizeX.xyz + a_position * size;
   float lap = floor((u_repeatOriginZ - u_cameraPosition.z) / max(u_repeatDistance, 0.0001) + 0.0001);
-  if (i_sizeKindEmission.z > 3.5) {
+  if (isCenter) {
     world.z = u_cameraPosition.z - u_centerDistance + a_position.z * size.z;
   } else {
     world.z -= lap * u_repeatDistance;
@@ -77,10 +80,11 @@ void main() {
   float rim = pow(1.0 - max(dot(normal, viewDirection), 0.0), 3.0);
   float faceEdge = smoothstep(0.3, 0.5, max(abs(v_local.x), max(abs(v_local.y), abs(v_local.z))));
 
-  if (v_kind > 0.5 && v_kind < 1.5) {
+  if ((v_kind > 0.5 && v_kind < 1.5) || (v_kind > 4.5 && v_kind < 5.5)) {
     float core = mix(0.9, 1.0, smoothstep(0.08, 0.42, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y))));
     vec3 whiteCore = mix(u_lightColor, vec3(1.0), 0.58);
-    vec3 fixture = u_bodyColor * ${CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT}
+    vec3 fixtureTint = mix(u_bodyColor, u_lightColor, ${CINEMA2_DEPTH_UNLIT_STRIP_LIGHT_MIX});
+    vec3 fixture = fixtureTint * ${CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT}
       * (0.48 + diffuse * 0.92 + rim * 0.58 + faceEdge * 0.14);
     vec3 localBounce = u_lightColor * v_spill * u_spillAmount * u_intensity
       * ${CINEMA2_DEPTH_STRIP_BOUNCE_GAIN} * (0.44 + diffuse * 0.36 + rim * 0.2);
@@ -89,7 +93,7 @@ void main() {
     return;
   }
 
-  if (v_kind > 3.5) {
+  if (v_kind > 3.5 && v_kind < 4.5) {
     if (v_emission <= 0.0001) discard;
     vec3 matteGray = vec3(${CINEMA2_DEPTH_CENTER_MATTE_COLOR[0]}, ${CINEMA2_DEPTH_CENTER_MATTE_COLOR[1]}, ${CINEMA2_DEPTH_CENTER_MATTE_COLOR[2]});
     float matteLight = 0.34 + diffuse * 0.58 + rim * 0.08;

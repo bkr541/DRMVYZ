@@ -232,7 +232,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_DEPTH_PRESET_ID,
-  revision: 8,
+  revision: 9,
   metadata: Object.freeze({
     name: 'Depth',
     description: 'A deep procedural tunnel of dark square portals and cool-white HDR light strips.',
