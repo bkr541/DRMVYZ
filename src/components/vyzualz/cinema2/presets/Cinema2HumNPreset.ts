@@ -77,7 +77,7 @@ export const CINEMA2_HUMN_FRAGMENT_EVENT_INTENT_ID = cinema2StableId<Cinema2Para
 const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
 const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
 
-const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'section') => Object.freeze({
+const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'section' | 'fallback') => Object.freeze({
   id: choreographyActionId(id),
   target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID) }),
   operation: 'spawn' as const,
@@ -85,11 +85,11 @@ const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'secti
 })
 
 /** Carries the event's own strength to the module for a half-beat; the module reads it once when it starts the move. */
-const structuralStrengthAction = (id: string, property: string) => Object.freeze({
+const structuralStrengthAction = (id: string, property: string, value = 1) => Object.freeze({
   id: choreographyActionId(id),
   target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_HUMN_MODULE_ID), property }),
   operation: 'set-for-duration' as const,
-  value: 1,
+  value,
   composition: 'replace' as const,
   durationBeats: 0.5,
 })
@@ -142,7 +142,7 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
     id: CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
     label: 'Auto Performance',
-    description: 'Lets the shared Visual Director choose the figure\'s poses and gestures: reaching toward the camera, sweeping an arm across the body, recoiling, grabbing its head or lunging on a drop, and looking around, looking up or turning to look back over a shoulder at phrase and section changes. Off, the figure only sways and nods in place.',
+    description: 'Lets the shared Visual Director choose the figure\'s poses and gestures: reaching toward the camera, sweeping an arm across the body, recoiling, grabbing its head or lunging on a drop, and looking around, looking up or turning to look back over a shoulder at phrase and section changes. Tracks without authored drop markers receive a restrained gesture every eight bars so the performance does not remain stuck in its idle pose. Off, the figure only performs its idle body and arm motion.',
     type: 'boolean' as const,
     defaultValue: true,
     section: 'Design',
@@ -311,7 +311,7 @@ const CINEMA2_HUMN_FIGURE_PARAMETERS = Object.freeze([
   Object.freeze({
     id: CINEMA2_HUMN_MOTION_AMOUNT_ID,
     label: 'Motion Amount',
-    description: 'How much the figure moves on its own: weight shift, spine and head sway, a dip and nod on every beat, and how much the camera drifts around it. At 0 the figure and the camera are still (gestures from Auto Performance still play).',
+    description: 'How much the figure moves on its own: weight shift, torso travel, shoulder, elbow and wrist articulation, spine and head sway, a dip and nod on every beat, and how much the camera drifts around it. At 0 the figure and the camera are still (gestures from Auto Performance still play).',
     type: 'float' as const,
     defaultValue: 0.6,
     min: 0,
@@ -656,6 +656,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       dropStrength: 0,
       phraseStrength: 0,
       sectionStrength: 0,
+      fallbackStrength: 0,
       autoPerformance: true,
       beatFlicker: 0,
       downbeatReveal: 0,
@@ -815,10 +816,27 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
         enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
         priority: 40,
         source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
-        conditions: Object.freeze([Object.freeze({ kind: 'drop' as const, min: 0.35 })]),
+        // The source has already crossed an authored drop marker or an authoritative
+        // drop-section transition. Gate on that event's confidence, not on the
+        // separately smoothed live drop-confidence signal, which necessarily lags it.
+        conditions: Object.freeze([Object.freeze({ kind: 'confidence' as const, min: 0.35 })]),
         actions: Object.freeze([
           structuralEventSpawnAction('hum-n-drop-event', 'drop'),
           structuralStrengthAction('hum-n-drop-strength', 'dropStrength'),
+        ]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('hum-n-fallback-performance-cadence'),
+        enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
+        priority: 39,
+        source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
+        // The module suppresses this shared-clock event when the track has authored
+        // drop markers. Otherwise, every second 16-beat phrase supplies a restrained
+        // arm/body gesture instead of leaving the figure in idle motion indefinitely.
+        conditions: Object.freeze([Object.freeze({ kind: 'beat-interval' as const, unit: 'phrase' as const, every: 2, phase: 0 })]),
+        actions: Object.freeze([
+          structuralEventSpawnAction('hum-n-fallback-performance-event', 'fallback'),
+          structuralStrengthAction('hum-n-fallback-performance-strength', 'fallbackStrength', 0.55),
         ]),
       }),
       Object.freeze({
@@ -1041,8 +1059,8 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       fovDegrees: 34,
       near: 0.05,
       far: 30,
-      transform: Object.freeze({ position: Object.freeze([0, 0.68, 0.98] as const) }),
-      target: Object.freeze([0, 0.62, 0] as const),
+      transform: Object.freeze({ position: Object.freeze([0, 0.7, 1.25] as const) }),
+      target: Object.freeze([0, 0.64, 0] as const),
       rig: Object.freeze({ kind: 'static' as const }),
       // Motion Amount scales all of this (0 = locked off). A slow handheld drift plus a beat-locked sway: a weave over two bars, a bob every
       // beat, a lens breath every bar and a small zoom punch on every kick. BPM Sync locks it to the track's beats; off, it free-runs at 120 BPM.

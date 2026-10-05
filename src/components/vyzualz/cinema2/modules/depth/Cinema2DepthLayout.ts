@@ -12,7 +12,7 @@ export const CINEMA2_DEPTH_REPEAT_DISTANCE = CINEMA2_DEPTH_LAYOUT_CONFIG.portalC
 export const CINEMA2_DEPTH_REPEAT_ORIGIN_Z = CINEMA2_DEPTH_LAYOUT_CONFIG.spacing * 2
 export const CINEMA2_DEPTH_INSTANCE_FLOATS = 12
 
-export type Cinema2DepthInstanceKind = 'frame' | 'strip' | 'connector' | 'node' | 'rail' | 'center'
+export type Cinema2DepthInstanceKind = 'frame' | 'strip' | 'connector' | 'node' | 'collar' | 'rail' | 'center'
 
 export interface Cinema2DepthInstance {
   kind: Cinema2DepthInstanceKind
@@ -41,6 +41,7 @@ const KIND_CODE: Readonly<Record<Cinema2DepthInstanceKind, number>> = Object.fre
   strip: 1,
   connector: 5,
   node: 2,
+  collar: 2,
   rail: 3,
   center: 4,
 })
@@ -91,9 +92,20 @@ export function buildCinema2DepthProofLayout(options: {
     push(boxes, 'strip', portalIndex, 3, [-half, 0, stripZ], [stripWidth, stripLength, stripDepth], sideEmission[3], sideEmission[3])
 
     const nodeSize = frameThickness * 1.2
-    for (const [sideIndex, x, y] of [[0, outer, outer], [1, outer, -outer], [2, -outer, -outer], [3, -outer, outer]] as const) {
+    const collarLength = frameThickness * 0.92
+    const collarWidth = frameThickness * 0.52
+    const collarOffset = nodeSize * 0.42
+    for (const [sideIndex, x, y, xDirection, yDirection] of [
+      [0, half, half, -1, -1],
+      [1, half, -half, -1, 1],
+      [2, -half, -half, 1, 1],
+      [3, -half, half, 1, -1],
+    ] as const) {
       const cornerSpill = Math.max(sideEmission[sideIndex], sideEmission[(sideIndex + 1) % 4]) * 0.22
-      push(spheres, 'node', portalIndex, sideIndex, [x, y, z + 0.02], [nodeSize, nodeSize, nodeSize], 0, cornerSpill)
+      push(spheres, 'node', portalIndex, sideIndex, [x, y, stripZ], [nodeSize, nodeSize, nodeSize], 0, cornerSpill)
+      push(spheres, 'collar', portalIndex, sideIndex, [x + xDirection * collarOffset, y, stripZ], [collarLength, collarWidth, collarWidth], 0, cornerSpill)
+      push(spheres, 'collar', portalIndex, sideIndex, [x, y + yDirection * collarOffset, stripZ], [collarWidth, collarLength, collarWidth], 0, cornerSpill)
+      push(spheres, 'collar', portalIndex, sideIndex, [x, y, stripZ], [collarWidth, collarWidth, collarLength], 0, cornerSpill)
     }
   }
 
@@ -112,7 +124,7 @@ export function buildCinema2DepthProofLayout(options: {
   const connectorWidth = Math.max(0.09, frameThickness * 0.2)
   const connectorLength = spacing + stripDepth
   for (let portalIndex = 0; portalIndex < portalCount; portalIndex += 1) {
-    const z = -(portalIndex + 0.5) * spacing
+    const z = -(portalIndex + 0.5) * spacing + frameDepth * 0.52
     for (const [sideIndex, x, y] of [[0, half, half], [1, half, -half], [2, -half, -half], [3, -half, half]] as const) {
       push(boxes, 'connector', portalIndex, sideIndex, [x, y, z], [connectorWidth, connectorWidth, connectorLength], 0, 0)
     }
@@ -128,7 +140,7 @@ export function buildCinema2DepthProofLayout(options: {
     const repeatedNodes: Cinema2DepthInstance[] = []
     for (let lap = -lapCopyRadius; lap <= lapCopyRadius; lap += 1) {
       appendLap(repeatedBoxes, boxes, lap, repeatDistance)
-      appendLap(repeatedNodes, spheres.filter(instance => instance.kind === 'node'), lap, repeatDistance)
+      appendLap(repeatedNodes, spheres.filter(instance => instance.kind !== 'center'), lap, repeatDistance)
     }
     const center = spheres.find(instance => instance.kind === 'center')
     instances = [...repeatedBoxes, ...repeatedNodes, ...(center ? [center] : [])]
@@ -136,7 +148,7 @@ export function buildCinema2DepthProofLayout(options: {
     instances = [...boxes, ...spheres]
   }
 
-  const boxInstanceCount = instances.findIndex(instance => instance.kind === 'node' || instance.kind === 'center')
+  const boxInstanceCount = instances.findIndex(instance => instance.kind === 'node' || instance.kind === 'collar' || instance.kind === 'center')
 
   return Object.freeze({
     portalCount,

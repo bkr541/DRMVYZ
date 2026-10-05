@@ -313,7 +313,7 @@ function buildBox(): { vertices: Float32Array; indices: Uint16Array } {
   return { vertices: new Float32Array(vertices), indices: new Uint16Array(indices) }
 }
 
-/** Shared low-poly sphere for instanced corner joints and the matte focal anchor. */
+/** Shared low-poly sphere for instanced junction hubs, rounded sleeves and the matte focal anchor. */
 function buildSphere(longitudeSegments = 12, latitudeSegments = 8): { vertices: Float32Array; indices: Uint16Array } {
   const vertices: number[] = []
   const indices: number[] = []

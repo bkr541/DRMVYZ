@@ -277,10 +277,10 @@ function resolveSpill(
     ])) * 0.55
   }
   if (instance.kind === 'frame') return segmentLevel(instance.portalIndex, instance.sideIndex) * 0.34
-  if (instance.kind === 'node') {
+  if (instance.kind === 'node' || instance.kind === 'collar') {
     const first = segmentLevel(instance.portalIndex, instance.sideIndex)
     const second = segmentLevel(instance.portalIndex, instance.sideIndex + 1)
-    return Math.max(first, second) * 0.22
+    return Math.max(first, second) * (instance.kind === 'collar' ? 0.3 : 0.22)
   }
   if (instance.kind === 'rail') {
     const sides = [instance.sideIndex, instance.sideIndex + 1]

@@ -33,6 +33,9 @@ export const CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleT
 export const CINEMA2_HUMN_NATIVE_MODULE_VERSION = 2 as const
 
 export type Cinema2HumNFragmentEventKind = 'beat' | 'downbeat' | 'kick' | 'snare'
+type Cinema2HumNQueuedStructuralKind = Cinema2HumNStructuralKind | 'fallback'
+
+const HUMN_DROP_MOMENT_TYPES = new Set(['drop', 'drop_impact', 'major_impact', 'high_impact'])
 
 /** The point of the figure Figure Scale grows about (metres, bind pose): the middle of the head, so a close-up keeps the face in frame. */
 export const CINEMA2_HUMN_FRAMING_ANCHOR = Object.freeze({ x: 0, y: 0.69, z: 0 })
@@ -61,10 +64,15 @@ function parseFragmentEventKind(payload: unknown): Cinema2HumNFragmentEventKind 
   return kind === 'beat' || kind === 'downbeat' || kind === 'kick' || kind === 'snare' ? kind : null
 }
 
-function parseStructuralEventKind(payload: unknown): Cinema2HumNStructuralKind | null {
+function parseStructuralEventKind(payload: unknown): Cinema2HumNQueuedStructuralKind | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
   const kind = (payload as { kind?: unknown }).kind
-  return kind === 'drop' || kind === 'phrase' || kind === 'section' ? kind : null
+  return kind === 'drop' || kind === 'phrase' || kind === 'section' || kind === 'fallback' ? kind : null
+}
+
+function hasAuthoredDropTimeline(frame: Cinema2ModuleUpdateContext['frame']): boolean {
+  const moments = frame.audio?.structure.semanticMoments
+  return Boolean(moments?.available && moments.value?.some(moment => HUMN_DROP_MOMENT_TYPES.has(moment.type)))
 }
 
 function frameTimeSec(frame: { transport?: { timeSec: number }; audio: { upstream: { timeSec: number } } | null; elapsedTimeSec: number }): number {
@@ -135,7 +143,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
     const performance = new Cinema2HumNPerformanceRuntime()
     const rig = createCinema2HumNRigState()
     const eventSeeds: Record<Cinema2HumNFragmentEventKind, number> = { beat: 0, downbeat: 0, kick: 0, snare: 0 }
-    const pendingStructural: { eventId: string; kind: Cinema2HumNStructuralKind }[] = []
+    const pendingStructural: { eventId: string; kind: Cinema2HumNQueuedStructuralKind }[] = []
     let downbeatCount = 0
     let audioGeneration: number | null = null
     let contextGeneration: number | null = null
@@ -213,14 +221,20 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
             const director = cinema2HumNDirectorContext(frame.director as never)
             for (const pending of pendingStructural.splice(0)) {
               if (beatSec == null) continue // no musical time: never fabricate a tempo
+              if (pending.kind === 'fallback' && hasAuthoredDropTimeline(frame)) continue
               const strength = clampNumber(number(`${pending.kind}Strength`, 0), 0, 1)
               if (strength <= 0.001) continue
               const stream = context.randomness.eventStream(pending.eventId, `hum-n-structural-${pending.kind}`)
               const family = stream.next()
               const direction = cinema2HumNDirectionFromUnit(stream.next())
               const alt = stream.next()
-              if (pending.kind === 'drop') {
-                const gatedStrength = cinema2HumNAutoDropStrength(strength, director?.impact ?? null)
+              if (pending.kind === 'drop' || pending.kind === 'fallback') {
+                // A real drop is additionally governed by Director impact. The
+                // fallback is already deliberately restrained by its authored
+                // strength and must not be rejected for lacking drop impact.
+                const gatedStrength = pending.kind === 'drop'
+                  ? cinema2HumNAutoDropStrength(strength, director?.impact ?? null)
+                  : strength
                 if (gatedStrength == null) continue
                 const gesture = selectCinema2HumNDropGesture(family, { auto: director, previous: performance.previousDropGesture })
                 performance.trigger({ eventId: pending.eventId, kind: 'drop', gesture, strength: gatedStrength, startSec: nowSec, beatSec }, nowSec)

@@ -57,13 +57,14 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(second).toEqual(first)
     expect(first).toMatchObject({
       portalCount: 8, lapCopies: 3, aperture: 8.2, spacing: 6, repeatDistance: 48,
-      boxInstanceCount: 384, sphereInstanceCount: 97,
+      boxInstanceCount: 384, sphereInstanceCount: 385,
     })
-    expect(first.instances).toHaveLength(481)
+    expect(first.instances).toHaveLength(769)
     expect(first.instances.filter(instance => instance.kind === 'strip')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'connector')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'rail')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'node')).toHaveLength(96)
+    expect(first.instances.filter(instance => instance.kind === 'collar')).toHaveLength(288)
     expect(first.instances.filter(instance => instance.kind === 'center')).toHaveLength(1)
     expect(first.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(12)
     expect(first.instances.every(instance => instance.size.every(value => value > 0))).toBe(true)
@@ -73,8 +74,8 @@ describe('Cinema 2.0 Depth preset', () => {
     expect([...packed]).toEqual([...packCinema2DepthInstances(second.instances)])
 
     const baseLap = buildCinema2DepthProofLayout({ lapCopies: 1 })
-    expect(baseLap).toMatchObject({ boxInstanceCount: 128, sphereInstanceCount: 33 })
-    expect(baseLap.instances).toHaveLength(161)
+    expect(baseLap).toMatchObject({ boxInstanceCount: 128, sphereInstanceCount: 129 })
+    expect(baseLap.instances).toHaveLength(257)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(4)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.portalIndex === 0).map(instance => instance.emission)).toEqual([1, 0, 0, 0])
     for (let portal = 0; portal < baseLap.portalCount; portal += 1) {
@@ -87,6 +88,18 @@ describe('Cinema 2.0 Depth preset', () => {
       const connectors = baseLap.instances.filter(instance => instance.kind === 'connector' && instance.portalIndex === portal)
       expect(connectors).toHaveLength(4)
       expect(connectors.every(connector => connector.size[2] > baseLap.spacing && connector.emission === 0)).toBe(true)
+      const nodes = baseLap.instances.filter(instance => instance.kind === 'node' && instance.portalIndex === portal)
+      const collars = baseLap.instances.filter(instance => instance.kind === 'collar' && instance.portalIndex === portal)
+      expect(nodes).toHaveLength(4)
+      expect(collars).toHaveLength(12)
+      for (const node of nodes) {
+        expect(Math.abs(node.center[0])).toBeCloseTo(baseLap.aperture * 0.5, 6)
+        expect(Math.abs(node.center[1])).toBeCloseTo(baseLap.aperture * 0.5, 6)
+        expect(collars.filter(collar => collar.sideIndex === node.sideIndex)).toHaveLength(3)
+        const connector = connectors.find(instance => instance.sideIndex === node.sideIndex)!
+        const connectorEnd = connector.center[2] + connector.size[2] * 0.5
+        expect(Math.abs(connectorEnd - node.center[2])).toBeLessThan(node.size[2] * 0.5)
+      }
     }
     expect(CINEMA2_DEPTH_LAP_DISTANCE).toBe(CINEMA2_DEPTH_REPEAT_DISTANCE)
     expect(CINEMA2_DEPTH_REPEAT_DISTANCE).toBe(CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount * CINEMA2_DEPTH_LAYOUT_CONFIG.spacing)
@@ -121,7 +134,7 @@ describe('Cinema 2.0 Depth preset', () => {
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(9)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(10)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -525,10 +538,10 @@ describe('Cinema 2.0 Depth preset', () => {
     } as never)
     expect(draw).toHaveBeenCalledOnce()
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ intensity: 1.4, spill: 0.9, centerScale: 1.6, cameraPosition: [1, 2, 8] })
-    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(481)
-    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(481)
+    expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(769)
+    expect(draw.mock.calls[0]?.[0].spills).toHaveLength(769)
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ repeatDistance: 48, repeatOriginZ: 12 })
-    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 481, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
+    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 769, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 
     instance.lifecycle.dispose()

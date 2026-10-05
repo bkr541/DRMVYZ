@@ -229,13 +229,15 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
   const anatomy: Record<Side, Anatomy> = { left: { bend: REST_BEND, twist: 0, flex: 0 }, right: { bend: REST_BEND, twist: 0, flex: 0 } }
   const shot: Cinema2HumNShot = { yaw: 0, pitch: 0, dolly: 0, lift: 0 }
 
-  // ── Idle: weight shift over two bars, breathing, spine and head sway, a dip, nod and small jaw drop on every beat.
-  root.x += 0.018 * amount * wave(8)
-  root.y += -0.01 * amount * env + 0.004 * amount * wave(4)
-  bones[B.root]!.y = 4 * amount * wave(16, 0.3)
-  bones[B.spine]!.y = 5 * amount * wave(16, 0.55)
-  bones[B.spine]!.z = 2 * amount * wave(8)
-  bones[B.chest]!.x = -2.2 * amount * wave(4) + 2 * amount * env
+  // ── Idle: visible full-body weight transfer, breathing, articulated arms,
+  // spine and head sway, plus a dip, nod and small jaw drop on every beat.
+  root.x += 0.036 * amount * wave(8)
+  root.y += -0.014 * amount * env + 0.007 * amount * wave(4)
+  root.z += 0.016 * amount * wave(8, 0.25)
+  bones[B.root]!.y = 7 * amount * wave(16, 0.3)
+  bones[B.spine]!.y = 8 * amount * wave(16, 0.55)
+  bones[B.spine]!.z = 3.5 * amount * wave(8)
+  bones[B.chest]!.x = -4 * amount * wave(4) + 3 * amount * env
   bones[B.neck]!.y = 3 * amount * wave(12, 0.2)
   bones[B.head]!.y = 8 * amount * wave(12, 0.6)
   bones[B.head]!.x = 3 * amount * wave(6) + 5 * amount * env
@@ -245,10 +247,14 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     const upper = side < 0 ? B.leftUpperArm : B.rightUpperArm
     const fore = side < 0 ? B.leftForearm : B.rightForearm
     const clavicle = side < 0 ? B.leftClavicle : B.rightClavicle
-    bones[clavicle]!.z = -side * 2 * amount * wave(4, 0.1)
-    bones[upper]!.z = side * -(2 + 2 * wave(4, side * 0.2)) * amount
-    bones[upper]!.x = -3 * amount * wave(8, side * 0.25)
-    anatomy[side < 0 ? 'left' : 'right'].bend += (4 + 4 * wave(8, 0.5 + side * 0.1)) * amount
+    const limb = side < 0 ? anatomy.left : anatomy.right
+    bones[clavicle]!.z = -side * (3 + 3 * wave(4, 0.1)) * amount
+    bones[upper]!.z = side * -(7 + 8 * wave(16, side * 0.18) + 3 * wave(4, side * 0.2)) * amount
+    bones[upper]!.x = (-8 * wave(8, side * 0.25) + 3 * wave(4, 0.15)) * amount
+    bones[upper]!.y = side * 5 * amount * wave(16, 0.4 + side * 0.1)
+    limb.bend += (12 + 14 * wave(8, 0.5 + side * 0.1)) * amount
+    limb.twist += side * 8 * amount * wave(16, 0.2)
+    limb.flex += 9 * amount * wave(8, 0.35 + side * 0.15)
   }
   hands.left.curl += 6 * amount * wave(8, 0.1)
   hands.right.curl += 6 * amount * wave(8, 0.6)
@@ -266,7 +272,7 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
   bones[B.neck]!.y += -18 * turn
   bones[B.head]!.y += -34 * turn
   bones[B.head]!.x += 6 * Math.abs(turn)
-  shot.dolly += 0.08 * Math.abs(turn)
+  shot.dolly += 0.12 * Math.abs(turn)
   bones[B.head]!.x += 14 * clamp01(g.nod)
 
   const reach = clamp01(g.reach)
@@ -286,7 +292,8 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     bones[B.head]!.x += -6 * reach
     root.z += 0.05 * reach
     blendHand({ curl: 12, spread: 20 }, reach, hands.left)
-    shot.dolly += 0.06 * reach
+    // Preserve the signature foreground-hand close-up from the wider base shot.
+    shot.dolly += 0.16 * reach
     shot.yaw += 8 * reach
   }
 
@@ -307,7 +314,9 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     blendHand({ curl: 10, spread: 22 }, sweep, hands.right)
     blendHand({ curl: 30, spread: 6 }, sweep, hands.left)
     shot.yaw += -10 * sweep
-    shot.dolly += 0.08 * sweep
+    // The arm span is the composition here, so widen instead of pushing the
+    // torso toward the lens and cropping the hands.
+    shot.dolly += -0.08 * sweep
   }
 
   const lookUp = clamp01(g.lookUp)
@@ -320,7 +329,7 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     bones[B.rightClavicle]!.z += 5 * lookUp
     shot.pitch += 16 * lookUp
     shot.lift += -0.1 * lookUp
-    shot.dolly += 0.1 * lookUp
+    shot.dolly += 0.04 * lookUp
   }
 
   const shock = clamp01(g.shock)
@@ -339,6 +348,7 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     anatomy.right.bend += 46 * shock
     blendHand({ curl: 4, spread: 24 }, shock, hands.left)
     blendHand({ curl: 4, spread: 24 }, shock, hands.right)
+    shot.dolly += -0.06 * shock
   }
 
   const grab = clamp01(g.headGrab)
@@ -356,6 +366,8 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     bones[B.chest]!.x += 6 * grab
     blendHand({ curl: 34, spread: 10 }, grab, hands.left)
     blendHand({ curl: 34, spread: 10 }, grab, hands.right)
+    // Widen for both raised forearms and hands instead of cropping them away.
+    shot.dolly += -0.12 * grab
   }
 
   const lunge = clamp01(g.lunge)
@@ -372,6 +384,7 @@ export function evaluateCinema2HumNRig(input: Readonly<Cinema2HumNRigInput>, sta
     anatomy.right.bend += 28 * lunge
     blendHand({ curl: 40, spread: 4 }, lunge, hands.left)
     blendHand({ curl: 40, spread: 4 }, lunge, hands.right)
+    shot.dolly += 0.04 * lunge
   }
 
   // ── Forward kinematics.
