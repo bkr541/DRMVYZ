@@ -366,6 +366,13 @@ function documentCard(title: string): HTMLElement {
   return card
 }
 
+/** Version-card actions are icon buttons, found by their accessible name. */
+function cardAction(label: string, card: HTMLElement): HTMLButtonElement {
+  const button = card.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+  if (!button) throw new Error(`Card action not found: ${label}`)
+  return button
+}
+
 function buttonWithText(text: string, rootElement: ParentNode = container): HTMLButtonElement {
   const button = [...rootElement.querySelectorAll<HTMLButtonElement>('button')]
     .find(candidate => candidate.textContent?.trim() === text)
@@ -452,7 +459,7 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    await act(async () => buttonWithText('Duplicate', documentCard('Approved Lyrics')).click())
+    await act(async () => cardAction('Duplicate', documentCard('Approved Lyrics')).click())
     await waitFor(() => expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-a1'))
     expect(useLyricsStore.getState()).toMatchObject({
       activeDocument: null,
@@ -468,7 +475,7 @@ describe('LyricManagerView track-first workflow', () => {
     const duplicateInput = duplicateSaveCalls[duplicateSaveCalls.length - 1]?.[0] as SaveLyricDocumentAtomicInput
     expect(duplicateInput.activate).toBe(false)
 
-    await act(async () => buttonWithText('Make Active', documentCard('Alternate Lyrics')).click())
+    await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
     expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
     await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
     await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
@@ -527,7 +534,7 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
-    await act(async () => buttonWithText('Make Active', documentCard('Alternate Lyrics')).click())
+    await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
     await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
     await flush()
 

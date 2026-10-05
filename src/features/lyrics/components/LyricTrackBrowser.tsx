@@ -1,8 +1,7 @@
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useMemo, useState } from 'react'
-import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
+import { LyricSearchFilterRow } from './LyricSearchFilterRow'
 import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import { trackInitials } from '../utils/lyricManagerFormat'
@@ -94,34 +93,18 @@ export function LyricTrackBrowser({
   return (
     <section className="lmv-track-browser" aria-label="Stored audio tracks">
       <div className="lmv-track-library-body">
-      <div className="lmv-track-search-row">
-        <div className="lmv-track-search-wrap">
-          <svg className="lmv-track-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
-          </svg>
-          <DreamVizTextInput
-            className="lmv-input lmv-track-search"
-            type="search"
-            value={search}
-            onChange={event => onSearchChange(event.target.value)}
-            placeholder="Search title or artist…"
-            aria-label="Search tracks by title or artist"
-          />
-        </div>
-        <UnderlineDropdown
-          id="lyric-track-filter"
-          value={filter}
-          options={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
-          onChange={value => setFilter(value as LyricTrackFilter)}
-          ariaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
-          menuLabel="Track Library Filters"
-          title={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
-          size="dense"
-          menuWidth={220}
-          showDescriptions={false}
-          className="lmv-track-filter-dropdown"
-        />
-      </div>
+      <LyricSearchFilterRow
+        searchValue={search}
+        onSearchChange={onSearchChange}
+        searchPlaceholder="Search title or artist…"
+        searchAriaLabel="Search tracks by title or artist"
+        filterId="lyric-track-filter"
+        filterValue={filter}
+        filterOptions={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
+        onFilterChange={value => setFilter(value as LyricTrackFilter)}
+        filterAriaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+        filterMenuLabel="Track Library Filters"
+      />
 
       {error && (
         <NoticeCard tone="error" role="alert" title="Track browser error">

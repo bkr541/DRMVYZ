@@ -64,26 +64,6 @@
   overflow: hidden;
 }
 
-.lmv-doc-search-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.lmv-doc-search {
-  width: 100%;
-  padding: 6px 10px 6px 28px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 6px;
-  color: inherit;
-  font-size: 11px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-.lmv-doc-search:focus { border-color: rgba(74,199,219,0.35); }
-.lmv-doc-search::placeholder { color: rgba(196,207,211,0.28); }
-
 .lmv-doc-list {
   flex: 1;
   overflow-y: auto;
@@ -101,22 +81,6 @@
   line-height: 1.5;
 }
 
-.lmv-doc-card {
-  padding: 10px 10px 8px;
-  border-radius: 7px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.15s;
-  margin-bottom: 4px;
-}
-.lmv-doc-card:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.07);
-}
-.lmv-doc-card--open {
-  background: rgba(74,199,219,0.07);
-  border-color: rgba(74,199,219,0.25);
-}
 .lmv-doc-card-title {
   font-size: 12px;
   font-weight: 600;
@@ -139,28 +103,6 @@
   gap: 5px;
   margin-top: 5px;
   flex-wrap: wrap;
-}
-.lmv-source-badge {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(255,255,255,0.07);
-  color: rgba(196,207,211,0.5);
-}
-.lmv-source-badge--ai_transcription { background: rgba(184,79,201,0.15); color: #b84fc9; }
-.lmv-source-badge--manual           { background: rgba(74,199,219,0.12); color: #4ac7db; }
-.lmv-active-badge {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  background: rgba(97,214,170,0.15);
-  color: #61d6aa;
 }
 .lmv-doc-card-date {
   font-size: 9px;
@@ -535,8 +477,7 @@
 
 /* ── Track-first workflow additions ─────────────────────────────────── */
 
-.lmv-dirty-badge,
-.lmv-legacy-badge {
+.lmv-dirty-badge {
   border-radius: 999px;
   padding: 2px 7px;
   font-size: 9px;
@@ -546,7 +487,6 @@
   white-space: nowrap;
 }
 .lmv-dirty-badge { background: rgba(216,185,90,0.14); color: #d8b95a; }
-.lmv-legacy-badge { background: rgba(216,185,90,0.12); color: #d8b95a; }
 
 .lmv-track-browser {
   flex-shrink: 0;
@@ -580,12 +520,8 @@
 .lmv-track-state { padding: 14px 8px; color: rgba(196,207,211,0.42); text-align: center; }
 .lmv-load-more { display: block; margin: 8px auto 0; }
 
-.lmv-doc-card { cursor: default; }
-.lmv-doc-card-main { width: 100%; background: none; border: 0; color: inherit; text-align: left; padding: 0; cursor: pointer; }
+.lmv-doc-card-main { width: 100%; background: none; border: 0; color: inherit; font-family: inherit; text-align: left; padding: 0; cursor: pointer; }
 .lmv-doc-card-main:focus-visible { outline: 1px solid #4ac7db; outline-offset: 2px; }
-.lmv-doc-card-meta { color: rgba(196,207,211,0.4); font-size: 9px; }
-.lmv-doc-actions { margin-top: 7px; flex-wrap: wrap; }
-.lmv-doc-action,
 .lmv-icon-btn {
   border: 0;
   background: none;
@@ -594,9 +530,7 @@
   font-size: 9px;
   padding: 2px 0;
 }
-.lmv-doc-action:hover,
 .lmv-icon-btn:hover { color: #4ac7db; }
-.lmv-doc-action--danger:hover { color: #e05a5a; }
 .lmv-doc-rename-row .lmv-input { min-width: 0; }
 .lmv-doc-section-label { margin: 18px 2px 5px; font-size: 9px; font-weight: 700; letter-spacing: 0.12em; color: #d8b95a; }
 .lmv-doc-legacy-note { margin: 0 2px 8px; color: rgba(196,207,211,0.36); font-size: 9px; line-height: 1.45; }
@@ -1330,17 +1264,14 @@
   overflow: hidden;
 }
 
-.lmv-lyric-versions-body { padding: 4px 14px 0; }
 
-.lmv-track-search-wrap,
-.lmv-doc-search-wrap {
+.lmv-track-search-wrap {
   position: relative;
   max-width: none;
   margin: 10px 0;
 }
 
-.lmv-track-search-wrap::before,
-.lmv-doc-search-wrap::before {
+.lmv-track-search-wrap::before {
   content: '⌕';
   position: absolute;
   z-index: 1;
@@ -1352,17 +1283,12 @@
   pointer-events: none;
 }
 
-.lmv-track-search,
-.lmv-doc-search {
+.lmv-track-search {
   height: 32px;
   padding-left: 30px;
   border-radius: 6px;
   background: rgba(10,18,22,0.74);
   border-color: rgba(126,218,232,0.11);
-}
-
-.lmv-doc-search {
-  margin: 10px 0 0;
 }
 
 .lmv-track-grid {
@@ -1424,18 +1350,6 @@
 
 .lmv-doc-list {
   padding: 8px 0 0;
-}
-
-.lmv-doc-card {
-  border-radius: 7px;
-  background: rgba(11,21,25,0.64);
-  border-color: rgba(126,218,232,0.08);
-}
-
-.lmv-doc-card--open {
-  border-color: rgba(74,199,219,0.48);
-  background: rgba(74,199,219,0.1);
-  box-shadow: inset 3px 0 0 #20d7ef;
 }
 
 .lmv-center {
@@ -1722,17 +1636,6 @@
 }
 
 /* Runtime lyric identity and activation signal path ------------------------- */
-.lmv-open-badge {
-  border: 1px solid rgba(232,244,248,0.18);
-  background: rgba(232,244,248,0.06);
-  color: rgba(232,244,248,0.72);
-  padding: 2px 5px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 
 /* Patch 2: explicit track identity and manual linking ---------------------- */
 .lmv-track-state-badges {
@@ -2165,42 +2068,6 @@
   padding-left: 24px !important;
 }
 
-/* Lyric Versions search + filter row: same "search grows, filter dropdown sits
-   flush-right" treatment as Track Library's .lmv-track-search-row, styled
-   exactly like that dropdown (same width, dense size, trigger height pinned
-   to the search input's own height so both underlines land on one line).
-   Narrowed 24px from its original 142px, matching Track Library's dropdown. */
-.lmv-doc-filter-dropdown {
-  width: 118px;
-  max-width: min(118px, 42vw);
-}
-
-.lmv-doc-search-row .lmv-doc-filter-dropdown .drm-dropdown__trigger {
-  min-height: 32px !important;
-}
-
-.lmv-doc-search-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 0;
-}
-
-.lmv-doc-search-row .lmv-doc-search-wrap {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-}
-
-.lmv-doc-search-row .lmv-doc-search {
-  margin: 0;
-}
-
-.lmv-doc-search-row .lmv-doc-filter-dropdown {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
 /* Match the Media Manager window surface: its rail panels are the
    var(--az-panel) card colour, not the darker default .vz-inspector-inner
    fill. Scoped high enough (.mmv-content > .vz-inspector.<rail> >) to beat
@@ -2466,6 +2333,87 @@
   min-height: 0;
   padding-inline: 0;
 }
+
+/* Versions window: the search + filter row sits on the same 24px content line, with the same spacing as the
+   Tracks window above it (.lmv-workspace-tab-panel .lmv-track-library-body). */
+.lmv-lyric-management .lmv-lyric-versions-body {
+  margin-top: 12px;
+  padding: 0 0 8px;
+}
+
+/* Version rows follow the Tracks list: flat, hairline-separated, running edge to edge so the active row's wash
+   reaches the rail edges while the content and hairlines stay on the 24px line. */
+.lmv-lyric-management .lmv-doc-list {
+  margin-inline: -24px;
+  padding: 0;
+}
+.lmv-doc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: default;
+  transition: background 0.15s;
+}
+.lmv-doc-card::after {
+  content: '';
+  position: absolute;
+  right: 24px;
+  bottom: 0;
+  left: 24px;
+  height: 1px;
+  background: rgba(154, 178, 188, 0.14);
+  pointer-events: none;
+}
+.lmv-doc-card:hover { background: rgba(255, 255, 255, 0.03); }
+/* Open in the editor (not necessarily active): a light wash. */
+.lmv-doc-card--open { background: rgba(74, 199, 219, 0.07); }
+/* Active version: exactly the selected track row (.vz-track-row--list.vz-track-row--active). */
+.lmv-doc-card.lmv-doc-card--active {
+  background: rgba(74, 199, 219, 0.13);
+  box-shadow: inset 2px 0 0 #4ac7db;
+}
+.lmv-doc-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.lmv-doc-card-heading { flex: 1 1 auto; min-width: 0; }
+.lmv-doc-card-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(196, 207, 211, 0.4);
+  font-size: 9px;
+}
+.lmv-doc-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+}
+.lmv-doc-action {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(205, 216, 221, 0.72);
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.lmv-doc-action:hover { color: #67f7ff; }
+.lmv-doc-action--danger:hover { color: #f87171; }
+.lmv-doc-action:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 3px; }
+.lmv-lyric-management .lmv-doc-empty { padding-inline: 24px; }
+.lmv-lyric-management .lmv-doc-section-label,
+.lmv-lyric-management .lmv-doc-legacy-note { margin-inline: 26px; }
 
 /* ── Functional LyricManagerView: LyricTrackBrowser in the Track Workspace ──
    The real browser wraps its Collapsible in an extra .lmv-track-browser section

@@ -1,5 +1,7 @@
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
-import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
+import { Badge } from '../../../components/vyzualz/react/controls/Badge'
+import { LyricSearchFilterRow } from './LyricSearchFilterRow'
+import { Copy01Icon, Delete02Icon, PencilEdit01Icon, CheckmarkCircle02Icon } from 'hugeicons-react'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -28,6 +30,12 @@ const SOURCE_LABELS: Record<string, string> = {
   ai_transcription: 'AI',
   api_lookup: 'API',
   json_import: 'JSON',
+}
+
+const NEUTRAL_BADGE_TONE = '#9ab2bc'
+const BADGE_TONES: Record<string, string> = {
+  ai_transcription: '#b84fc9',
+  manual: '#4ac7db',
 }
 
 function fmtRelativeDate(iso: string): string {
@@ -97,52 +105,69 @@ function DocumentCard({
     if (!renaming) setRenameValue(doc.title)
   }, [doc.title, renaming])
 
+  const isOpen = doc.id === openDocumentId
   return (
-    <div className={`lmv-doc-card${doc.id === openDocumentId ? ' lmv-doc-card--open' : ''}`}>
-      {renaming ? (
-        <div className="lmv-doc-rename-row">
-          <DreamVizTextInput
-            className="lmv-input"
-            value={renameValue}
-            autoFocus
-            onChange={event => setRenameValue(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === 'Enter' && renameValue.trim()) onCommitRename(renameValue.trim())
-              if (event.key === 'Escape') onCancelRename()
-            }}
-            aria-label="Lyric document name"
-          />
-          <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
-          <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
+    <div className={`lmv-doc-card${isOpen ? ' lmv-doc-card--open' : ''}${doc.isActive ? ' lmv-doc-card--active' : ''}`}>
+      <div className="lmv-doc-card-head">
+        <div className="lmv-doc-card-heading">
+          {renaming ? (
+            <div className="lmv-doc-rename-row">
+              <DreamVizTextInput
+                className="lmv-input"
+                value={renameValue}
+                autoFocus
+                onChange={event => setRenameValue(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' && renameValue.trim()) onCommitRename(renameValue.trim())
+                  if (event.key === 'Escape') onCancelRename()
+                }}
+                aria-label="Lyric document name"
+              />
+              <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
+              <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
+            </div>
+          ) : (
+            <button className="lmv-doc-card-main" onClick={onSelectDocument}>
+              <div className="lmv-doc-card-title">{doc.title || '(Untitled)'}</div>
+              {doc.artist && <div className="lmv-doc-card-artist">{doc.artist}</div>}
+            </button>
+          )}
         </div>
-      ) : (
-        <button className="lmv-doc-card-main" onClick={onSelectDocument}>
-          <div className="lmv-doc-card-title">{doc.title || '(Untitled)'}</div>
-          {doc.artist && <div className="lmv-doc-card-artist">{doc.artist}</div>}
-        </button>
-      )}
+
+        {!renaming && showActions && (
+          <div className="lmv-doc-actions" role="group" aria-label={`Actions for ${doc.title || 'lyric version'}`}>
+            <button type="button" className="lmv-doc-action" onClick={onStartRename} title="Rename" aria-label="Rename">
+              <PencilEdit01Icon size={15} color="currentColor" />
+            </button>
+            {!legacy && (
+              <button type="button" className="lmv-doc-action" onClick={onDuplicateDocument} title="Duplicate" aria-label="Duplicate">
+                <Copy01Icon size={15} color="currentColor" />
+              </button>
+            )}
+            {!legacy && !doc.isActive && (
+              <button type="button" className="lmv-doc-action" onClick={onActivateDocument} title="Make Active" aria-label="Make Active">
+                <CheckmarkCircle02Icon size={15} color="currentColor" />
+              </button>
+            )}
+            <button type="button" className="lmv-doc-action lmv-doc-action--danger" onClick={onDeleteDocument} title="Delete" aria-label="Delete">
+              <Delete02Icon size={15} color="currentColor" />
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="lmv-doc-card-meta">
-        <span className={`lmv-source-badge lmv-source-badge--${doc.sourceType}`}>
-          {SOURCE_LABELS[doc.sourceType] ?? doc.sourceType}
-        </span>
-        {doc.id === openDocumentId && <span className="lmv-open-badge">Open</span>}
-        {doc.isActive && <span className="lmv-active-badge">Active</span>}
-        {legacy && <span className="lmv-legacy-badge">Unattached</span>}
-        <span>{doc.cueCount} cues</span>
-        <span>{doc.language || 'Language —'}</span>
+        <Badge label={SOURCE_LABELS[doc.sourceType] ?? doc.sourceType} tone={BADGE_TONES[doc.sourceType] ?? NEUTRAL_BADGE_TONE} />
+        {isOpen && <Badge label="Open" tone="#e8f4f8" />}
+        {doc.isActive && <Badge label="Active" tone="#61d6aa" />}
+        {legacy && <Badge label="Unattached" tone="#d8b95a" />}
+        <Badge label={`${doc.cueCount} cues`} tone={NEUTRAL_BADGE_TONE} />
+        {doc.language && <Badge label={doc.language} tone={NEUTRAL_BADGE_TONE} />}
+      </div>
+      <div className="lmv-doc-card-detail">
         <span>{doc.documentReviewStatus || 'Review —'}</span>
         <span className="lmv-doc-card-date">{fmtRelativeDate(doc.updatedAt)}</span>
       </div>
-
-      {!renaming && showActions && (
-        <div className="lmv-doc-actions">
-          <button className="lmv-doc-action" onClick={onStartRename}>Rename</button>
-          {!legacy && <button className="lmv-doc-action" onClick={onDuplicateDocument}>Duplicate</button>}
-          {!legacy && !doc.isActive && <button className="lmv-doc-action" onClick={onActivateDocument}>Make Active</button>}
-          <button className="lmv-doc-action lmv-doc-action--danger" onClick={onDeleteDocument}>Delete</button>
-        </div>
-      )}
     </div>
   )
 }
@@ -192,30 +217,19 @@ export function LyricDocumentSidebar({
   return (
     <aside className="lmv-doc-sidebar">
       <div className="lmv-lyric-versions-body">
-        <div className="lmv-doc-search-row">
-          <div className="lmv-doc-search-wrap">
-            <DreamVizTextInput
-              className="lmv-doc-search"
-              placeholder="Search versions…"
-              aria-label="Search lyric versions"
-              value={search}
-              onChange={event => setSearch(event.target.value)}
-            />
-          </div>
-          <UnderlineDropdown
-            id="lyric-version-filter"
-            value={filter}
-            options={FILTERS.map(item => ({ value: item.id, label: item.label }))}
-            onChange={value => setFilter(value as DocFilter)}
-            ariaLabel={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
-            menuLabel="Lyric Version Filters"
-            title={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
-            size="dense"
-            menuWidth={180}
-            showDescriptions={false}
-            className="lmv-doc-filter-dropdown"
-          />
-        </div>
+        <LyricSearchFilterRow
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search versions…"
+          searchAriaLabel="Search lyric versions"
+          filterId="lyric-version-filter"
+          filterValue={filter}
+          filterOptions={FILTERS.map(item => ({ value: item.id, label: item.label }))}
+          onFilterChange={value => setFilter(value as DocFilter)}
+          filterAriaLabel={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
+          filterMenuLabel="Lyric Version Filters"
+          filterMenuWidth={180}
+        />
       </div>
 
       <div className="lmv-doc-list">
