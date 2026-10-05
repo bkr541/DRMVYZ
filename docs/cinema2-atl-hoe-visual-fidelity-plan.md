@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status:** Phases 0–3 implemented. The visual baseline, composition, hero sign, and four landmark towers are complete; city depth and infrastructure begin in Phase 4.
+**Status:** The approved sign remains implemented. The city skyscrapers and road/bridge layer were removed at the owner's request and are awaiting replacement; the sky, stars, and foreground canopy remain.
 
 ## Goal
 
@@ -216,6 +216,8 @@ Model each landmark as a deliberate subassembly with named parts and separate ma
 - Landmark placement continues to satisfy Phase 1 framing.
 
 ## Phase 4 — Build a dense layered city, roads, and foliage
+
+**Status:** Implemented. Three deterministic city depth bands now close the horizon with varied massing, rooflines, façade rhythms, and occupancy. The freeway has two perspective-aware decks, barriers, beams, columns, a ramp, and localized sodium pools. The lower-right canopy now combines muted back clusters, visible branches, and larger foreground leaf masses.
 
 ### Issues addressed
 

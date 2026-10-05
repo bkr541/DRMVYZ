@@ -16,9 +16,14 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 const fontPath = join(root, 'scripts/cinema2-assets/sources/anton/Anton-Regular.ttf')
 
 const MATERIALS = {
-  sky: { baseColorFactor: [0.035, 0.09, 0.17, 1], metallicFactor: 0, roughnessFactor: 1 },
+  sky: { baseColorFactor: [0.045, 0.1, 0.18, 1], metallicFactor: 0, roughnessFactor: 1 },
+  skyMid: { baseColorFactor: [0.065, 0.14, 0.23, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.035, 0.085, 0.16] },
+  skyHorizon: { baseColorFactor: [0.08, 0.16, 0.23, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.045, 0.095, 0.15] },
   stars: { baseColorFactor: [0.5, 0.65, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.7, emissiveFactor: [0.75, 0.9, 1] },
   buildings: { baseColorFactor: [0.05, 0.075, 0.092, 1], metallicFactor: 0.45, roughnessFactor: 0.72 },
+  distantBuildings: { baseColorFactor: [0.026, 0.05, 0.072, 1], metallicFactor: 0.25, roughnessFactor: 0.9 },
+  midBuildings: { baseColorFactor: [0.045, 0.068, 0.085, 1], metallicFactor: 0.38, roughnessFactor: 0.76 },
+  nearBuildings: { baseColorFactor: [0.06, 0.078, 0.09, 1], metallicFactor: 0.42, roughnessFactor: 0.68 },
   landmarkDark: { baseColorFactor: [0.075, 0.1, 0.118, 1], metallicFactor: 0.5, roughnessFactor: 0.58 },
   landmarkGlass: { baseColorFactor: [0.025, 0.065, 0.085, 1], metallicFactor: 0.72, roughnessFactor: 0.22 },
   warmWindows: { baseColorFactor: [0.7, 0.32, 0.045, 1], metallicFactor: 0, roughnessFactor: 0.46, emissiveFactor: [1, 0.43, 0.055] },
@@ -30,6 +35,8 @@ const MATERIALS = {
   signBorder: { baseColorFactor: [0.012, 0.014, 0.014, 1], metallicFactor: 0.3, roughnessFactor: 0.5 },
   signLetters: { baseColorFactor: [0.003, 0.003, 0.002, 1], metallicFactor: 0.05, roughnessFactor: 0.72 },
   road: { baseColorFactor: [0.018, 0.024, 0.026, 1], metallicFactor: 0.35, roughnessFactor: 0.8 },
+  roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
+  foliageBack: { baseColorFactor: [0.012, 0.035, 0.04, 1], metallicFactor: 0, roughnessFactor: 1 },
   foliage: { baseColorFactor: [0.02, 0.055, 0.05, 1], metallicFactor: 0, roughnessFactor: 1 },
 }
 
@@ -73,7 +80,9 @@ function mergePart(part, list) {
 
 // A deep blue plane closes the world behind the skyline. Small emissive cubes
 // float just in front of it so stars retain parallax and bloom without a texture.
-box('sky', [0, 10, -34], [80, 50, 0.25])
+box('sky', [0, 10, -34], [140, 70, 0.25])
+box('skyMid', [0, 5.2, -33.78], [140, 10.5, 0.08])
+box('skyHorizon', [0, 1.35, -33.62], [140, 4.8, 0.08])
 for (let i = 0; i < 94; i += 1) {
   const x = -23 + hash(`star-x-${i}`) * 46
   const y = 7.5 + hash(`star-y-${i}`) * 13
@@ -82,12 +91,21 @@ for (let i = 0; i < 94; i += 1) {
   box('stars', [x, y, z], [s, s, s * 0.35])
 }
 
-function windowsOnFront({ key, x, y, z, width, height, cols, rows, cyanEvery = 0, warmChance = 0.58 }) {
+function windowsOnFront({ key, x, y, z, width, height, cols, rows, cyanEvery = 0, warmChance = 0.58, sizeVariation = 0 }) {
   const dx = width / cols, dy = height / rows
   for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
     if (hash(`${key}:${row}:${col}`) > warmChance) continue
     const part = cyanEvery > 0 && (row + col * 3) % cyanEvery === 0 ? 'cyanWindows' : 'warmWindows'
-    box(part, [x - width / 2 + dx * (col + 0.5), y - height / 2 + dy * (row + 0.5), z], [dx * 0.52, dy * 0.42, 0.035])
+    const jitter = 1 - sizeVariation * hash(`${key}:size:${row}:${col}`)
+    box(part, [x - width / 2 + dx * (col + 0.5), y - height / 2 + dy * (row + 0.5), z], [dx * 0.52 * jitter, dy * 0.42 * jitter, 0.035])
+  }
+}
+
+function windowsOnSide({ key, x, y, z, depth, height, cols, rows, warmChance = 0.34 }) {
+  const dz = depth / cols, dy = height / rows
+  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
+    if (hash(`${key}:side:${row}:${col}`) > warmChance) continue
+    box('warmWindows', [x, y - height / 2 + dy * (row + 0.5), z - depth / 2 + dz * (col + 0.5)], [0.035, dy * 0.36, dz * 0.45])
   }
 }
 
@@ -107,19 +125,44 @@ function floorBands({ x, y0, z, width, floors, spacing, depth = 0.08 }) {
   for (let floor = 0; floor <= floors; floor += 1) box('signTrim', [x, y0 + floor * spacing, z], [width, 0.035, depth])
 }
 
-// Dense background massing establishes the Atlanta skyline and provides warm
-// lower-city light around the four named towers.
-const backgroundBlocks = [
-  [-12.6, 2.6, 6.2, -17, 2.8], [-10.1, 2.1, 4.8, -15.8, 2.5], [-8.1, 2.8, 7.7, -18.2, 3],
-  [-5.9, 2.5, 5.8, -15.3, 2.4], [-3.9, 2.1, 8.3, -19.5, 2.8], [1.4, 2.4, 7.1, -19.2, 2.8],
-  [3.1, 1.9, 8.8, -16.5, 2.6], [8.7, 2.4, 6.4, -18, 2.8], [11.1, 2.2, 8.1, -16.2, 2.5],
-  [13.4, 2.7, 6.8, -19.5, 3],
+// The city and road layer is intentionally disabled while its replacement is
+// redesigned. The sign, sky, stars, and foreground foliage remain generated.
+const includeCityAndRoad = false
+if (includeCityAndRoad) {
+// Three overlapping city bands close the horizon while retaining lower contrast
+// with distance. Roofline and window rhythms vary deterministically by building.
+const cityBands = [
+  { part: 'distantBuildings', prefix: 'far', warmChance: 0.14, blocks: [
+    [-20, 2.8, 4.5, -28, 2.4], [-17.5, 2.1, 6.1, -27.2, 2.2], [-15.2, 2.7, 5.2, -28.5, 2.5], [-12.5, 2.3, 7.0, -26.8, 2.4],
+    [-9.9, 2.8, 5.8, -28.1, 2.7], [-7.1, 2.2, 7.8, -26.4, 2.3], [-4.6, 2.7, 5.4, -27.6, 2.6], [-2.0, 2.1, 6.6, -28.4, 2.2],
+    [0.4, 2.8, 5.0, -27.1, 2.5], [3.0, 2.0, 7.2, -28.2, 2.2], [5.4, 2.7, 5.7, -26.7, 2.6], [8.0, 2.1, 6.8, -28.5, 2.3],
+    [10.5, 2.8, 5.3, -27.4, 2.5], [13.2, 2.2, 7.4, -28.2, 2.4], [15.8, 2.9, 5.8, -26.9, 2.7], [18.5, 2.4, 6.5, -28.3, 2.5], [21.2, 2.8, 5.5, -27.1, 2.6],
+  ] },
+  { part: 'midBuildings', prefix: 'mid', warmChance: 0.31, blocks: [
+    [-17.8, 2.6, 6.8, -22.5, 2.7], [-15.1, 2.2, 8.5, -21.2, 2.5], [-12.7, 2.5, 5.9, -23.1, 2.6], [-10.1, 2.9, 9.1, -21.7, 2.9],
+    [-7.2, 2.3, 6.7, -22.8, 2.5], [-4.8, 2.1, 8.0, -20.9, 2.4], [-2.5, 2.7, 5.6, -23.0, 2.8], [0.1, 2.0, 7.2, -21.8, 2.4],
+    [5.6, 2.1, 6.3, -22.6, 2.5], [9.5, 2.4, 7.6, -21.5, 2.6], [13.8, 2.7, 6.5, -22.8, 2.8], [16.6, 2.3, 8.2, -21.4, 2.5], [19.4, 2.8, 6.9, -22.4, 2.7],
+  ] },
+  { part: 'nearBuildings', prefix: 'near', warmChance: 0.46, blocks: [
+    [-16.5, 2.8, 5.4, -14.8, 2.8], [-13.7, 2.3, 7.1, -13.5, 2.5], [-11.2, 2.7, 5.8, -15.4, 2.7], [-8.4, 2.5, 7.8, -14.1, 2.6],
+    [-5.8, 2.2, 5.2, -13.2, 2.4], [-3.5, 2.4, 6.8, -15.0, 2.6], [1.0, 2.2, 5.0, -13.7, 2.5], [5.8, 2.1, 5.9, -14.7, 2.4],
+    [9.2, 2.5, 5.3, -13.4, 2.6], [12.3, 2.4, 6.4, -14.8, 2.5], [15.1, 2.8, 5.6, -13.6, 2.8], [18.2, 2.7, 7.0, -14.5, 2.7], [21.0, 2.5, 5.2, -13.2, 2.5],
+  ] },
 ]
-for (const [x, width, height, z, depth] of backgroundBlocks) blockBuilding(`background-${x}`, x, width, height, z, depth, { warmChance: 0.6 })
+for (const band of cityBands) for (let i = 0; i < band.blocks.length; i += 1) {
+  const [x, width, height, z, depth] = band.blocks[i]
+  const key = `${band.prefix}-${i}`
+  box(band.part, [x, height / 2, z], [width, height, depth])
+  const steppedRoof = i % 3 === 1
+  if (steppedRoof) box(band.part, [x, height + 0.28, z], [width * 0.62, 0.56, depth * 0.72])
+  if (i % 5 === 2) box(band.part, [x + width * 0.18, height + (steppedRoof ? 0.7 : 0.35), z], [0.08, 0.7, 0.08])
+  windowsOnFront({ key, x, y: height * 0.52, z: z + depth / 2 + 0.03, width: width * 0.82, height: height * 0.8, cols: Math.max(3, Math.round(width * 2.1)), rows: Math.max(5, Math.round(height * 1.25)), warmChance: band.warmChance, cyanEvery: band.prefix === 'near' && i % 4 === 0 ? 9 : 0, sizeVariation: 0.3 })
+  if (band.prefix !== 'far' && i % 2 === 0) windowsOnSide({ key, x: x + width / 2 + 0.025, y: height * 0.52, z, depth: depth * 0.8, height: height * 0.78, cols: 3, rows: Math.max(5, Math.round(height)), warmChance: band.warmChance * 0.55 })
+}
 
 // Westin Peachtree Plaza: a segmented cylindrical glass tower with continuous
 // floor rings, vertical mullions, the Sun Dial crown, and a thin rooftop mast.
-const westinX = -0.8, westinZ = -15.4
+const westinX = 2.8, westinZ = -15.4
 cylinder('landmarkGlass', [westinX, 6.35, westinZ], 1.08, 12.7, 40, [0, 0, 0], 'westin-body')
 for (let floor = 1; floor < 21; floor += 1) cylinder('landmarkDark', [westinX, 0.25 + floor * 0.59, westinZ], 1.095, 0.035, 40)
 for (let segment = 0; segment < 24; segment += 1) {
@@ -144,7 +187,7 @@ cylinder('signTrim', [westinX, 14.35, westinZ], 0.035, 2.15, 10)
 
 // Truist Plaza: deep recessed bays, full-height vertical ribs, a heavier base,
 // and a gold stepped crown whose dark ledges remain visible through bloom.
-const truistX = 3.45, truistZ = -17.8
+const truistX = 9.2, truistZ = -17.8
 box('landmarkDark', [truistX, 7.05, truistZ], [2.65, 14.1, 2.5], [0, 0, 0], 'truist-body')
 box('landmarkDark', [truistX, 1.2, truistZ + 0.08], [2.88, 2.4, 2.68], [0, 0, 0], 'truist-base')
 windowsOnFront({ key: 'truist', x: truistX, y: 7.1, z: truistZ + 1.27, width: 2.25, height: 12.8, cols: 7, rows: 22, warmChance: 0.43 })
@@ -164,7 +207,7 @@ box('crown', [truistX, crownY + 0.35, truistZ], [0.08, 0.9, 0.08])
 
 // Promenade II: a slender reflective shaft with pronounced ziggurat setbacks,
 // stainless vertical fins, and restrained turquoise lighting between dark bays.
-const promenadeX = 7.65, promenadeZ = -18.6
+const promenadeX = 14.0, promenadeZ = -18.6
 box('landmarkGlass', [promenadeX, 5.85, promenadeZ], [2.08, 11.7, 2.0], [0, 0, 0], 'promenade-body')
 box('landmarkDark', [promenadeX - 0.94, 5.7, promenadeZ + 0.02], [0.22, 11.4, 2.08])
 box('landmarkDark', [promenadeX + 0.94, 5.7, promenadeZ + 0.02], [0.22, 11.4, 2.08])
@@ -191,7 +234,7 @@ box('signTrim', [promenadeX, promenadeY + 0.48, promenadeZ], [0.06, 1.05, 0.06])
 
 // Georgia-Pacific Tower: broad offset granite-like slabs, a split upper mass,
 // deep vertical piers, and sparse warm offices keep it darker than its neighbors.
-const gpX = 12.25, gpZ = -17.2
+const gpX = 20.0, gpZ = -17.2
 const gpFront = gpZ + 1.38
 box('landmarkDark', [gpX, 5.35, gpZ], [2.7, 10.7, 2.76], [0, 0, 0], 'georgia-pacific-body')
 box('landmarkDark', [gpX - 0.55, 7.05, gpZ + 0.08], [1.5, 14.1, 2.6])
@@ -207,18 +250,35 @@ frontRibs({ x: gpX, y: 5.35, z: gpFront + 0.06, width: 2.58, height: 10.7, count
 box('signTrim', [gpX - 1.31, 7.0, gpZ + 0.1], [0.09, 14.0, 2.5])
 box('signTrim', [gpX + 1.31, 5.25, gpZ + 0.1], [0.09, 10.5, 2.5])
 
-// Layered downtown freeway and sodium pools beneath the skyline.
-box('road', [0, 0.82, -8.5], [30, 0.42, 2.8])
-box('road', [0, 0.24, -7.8], [31, 0.16, 3.3])
-for (let x = -14; x <= 14; x += 2.7) {
-  box('road', [x, -0.55, -8.3], [0.26, 1.45, 0.35])
-  box('warmWindows', [x, 0.52, -6.9], [0.12, 0.12, 0.08])
+// Layered downtown freeway: two decks, edge barriers, underside beams, a
+// rising ramp, and staggered columns. Warm pools are localized beneath lamps.
+box('road', [0, 0.76, -8.35], [34, 0.46, 3.05], [0, 0.035, -0.006], 'freeway-near-deck')
+box('road', [-1.4, 1.62, -10.85], [31, 0.38, 2.35], [0, -0.025, 0.008], 'freeway-rear-deck')
+box('road', [0, -1.48, -7.05], [32, 0.14, 2.55], [0, 0.018, 0], 'freeway-service-deck')
+box('road', [0, 1.12, -6.83], [34.1, 0.42, 0.16], [0, 0.035, -0.006], 'freeway-near-barrier')
+box('road', [-1.4, 1.94, -9.67], [31.1, 0.35, 0.14], [0, -0.025, 0.008], 'freeway-rear-barrier')
+box('road', [-8.7, 1.18, -7.25], [10.2, 0.3, 1.65], [0, -0.08, 0.075], 'freeway-ramp')
+for (let x = -15.5; x <= 15.5; x += 2.55) {
+  box('road', [x, 0.43, -8.3], [0.18, 0.34, 3.2], [0, 0.035, 0], 'freeway-crossbeam')
+}
+for (let i = 0; i < 10; i += 1) {
+  const x = -14.2 + i * 3.15
+  const z = -8.65 + (i % 2) * 0.42
+  box('road', [x, -0.55, z], [0.34, 2.1, 0.52], [0, 0.03, 0], 'freeway-column')
+  if (i % 2 === 0) box('road', [x, 0.33, z], [1.05, 0.24, 0.65], [0, 0.03, 0], 'freeway-cap')
+}
+for (const [i, x] of [-11.8, -5.4, 1.2, 8.1, 13.2].entries()) {
+  box('roadGlow', [x, 0.47, -6.78], [0.16, 0.13, 0.1], [0, 0, 0], `road-lamp-${i}`)
+  addGeometry('roadGlow', new THREE.CylinderGeometry(1, 1, 0.035, 24), {
+    at: [x, -1.39, -7.05], size: [0.72, 1, 0.38], name: `road-pool-${i}`,
+  })
+}
 }
 
 // The Waffle House sign: six cells over five offset cells, dimensional frames,
 // warm translucent faces, purpose-built black letters, rear cabinet, and steel supports.
 const panel = 1.42, gap = 0.08
-const topY = 7.4, bottomY = 5.86, signZ = 3.25
+const topY = 6.9, bottomY = 5.36, signZ = 3.25
 const bottomStart = -7.46
 const topStart = bottomStart - (panel + gap) / 2
 const signPivot = new THREE.Vector3(-5.2, 6.65, signZ)
@@ -227,7 +287,7 @@ const signPivot = new THREE.Vector3(-5.2, 6.65, signZ)
 // enough past it to expose the left cabinet walls and recede toward the right.
 const signRotation = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(50), -0.01))
 const signTransform = new THREE.Matrix4()
-  .makeTranslation(signPivot.x + 0.35, signPivot.y + 1.1, signPivot.z + 1.8)
+  .makeTranslation(signPivot.x + 2.95, signPivot.y - 0.15, signPivot.z + 6.3)
   .multiply(signRotation)
   .multiply(new THREE.Matrix4().makeTranslation(-signPivot.x, -signPivot.y, -signPivot.z))
 const signBox = (part, at, size, rotate = [0, 0, 0], name) => addGeometry(
@@ -293,24 +353,34 @@ for (const [word, start, y] of [['WAFFLE', topStart, topY], ['HOUSE', bottomStar
   for (let i = 0; i < word.length; i += 1) addGeometry('signLetters', letterGeometry(word[i]), { at: [start + i * (panel + gap), y, signZ + 0.535], parentMatrix: signTransform })
 }
 
-// Backing rails and splayed roadside support legs make the sign read as a
-// freestanding object even when the bottom of the frame is cropped.
-signBox('signMetal', [-5.2, 8.23, signZ - 0.08], [9.58, 0.22, 0.78])
+// The lower backing rail carries the two splayed legs and center support.
+// Their bases extend below the camera frame at the approved hero scale.
 signBox('signMetal', [-3.92, 5.02, signZ - 0.08], [8.08, 0.24, 0.82])
 signBox('signMetal', [-5.75, 2.35, signZ - 0.38], [0.38, 5.0, 0.5], [0, 0, -0.23])
 signBox('signMetal', [-1.95, 2.25, signZ - 0.38], [0.38, 4.8, 0.5], [0, 0, 0.25])
 signBox('signMetal', [-3.86, 2.25, signZ - 0.46], [0.32, 5.1, 0.46])
-signBox('signMetal', [-5.34, 8.9, signZ - 0.42], [0.24, 1.55, 0.52])
-signBox('signMetal', [-4.94, 8.9, signZ - 0.5], [0.28, 1.72, 0.56])
 
-// Near-black tree canopy on the lower right, built from low-poly volumes so
-// the camera and haze still produce depth around its silhouette.
-for (let i = 0; i < 48; i += 1) {
-  const x = 5.4 + hash(`tree-x-${i}`) * 9.8
-  const y = -0.2 + hash(`tree-y-${i}`) * 3.7
-  const z = 1.4 + hash(`tree-z-${i}`) * 3.2
-  const r = 0.65 + hash(`tree-r-${i}`) * 1.05
-  addGeometry('foliage', new THREE.IcosahedronGeometry(1, 1), { at: [x, y, z], size: [r * 1.2, r, r * 0.72] })
+// Layered lower-right canopy. A muted back layer establishes breadth, visible
+// branches break up the base, and larger near clusters form an irregular edge.
+for (let i = 0; i < 104; i += 1) {
+  const x = 4.6 + hash(`tree-back-x-${i}`) * 13.8
+  const y = -0.1 + hash(`tree-back-y-${i}`) * 4.15
+  const z = -0.4 + hash(`tree-back-z-${i}`) * 2.2
+  const r = 0.3 + hash(`tree-back-r-${i}`) * 0.62
+  addGeometry('foliageBack', new THREE.IcosahedronGeometry(1, 1), { at: [x, y, z], size: [r * 1.28, r, r * 0.7] })
+}
+for (let i = 0; i < 14; i += 1) {
+  const x = 6.0 + hash(`branch-x-${i}`) * 9.5
+  const y = -0.45 + hash(`branch-y-${i}`) * 1.5
+  const angle = -0.55 + hash(`branch-angle-${i}`) * 1.1
+  cylinder('foliage', [x, y, 3.2 + hash(`branch-z-${i}`) * 1.2], 0.11 + hash(`branch-r-${i}`) * 0.11, 2.0 + hash(`branch-h-${i}`) * 2.6, 8, [0, 0, angle], `tree-branch-${i}`)
+}
+for (let i = 0; i < 132; i += 1) {
+  const x = 5.1 + hash(`tree-front-x-${i}`) * 12.9
+  const y = -0.45 + hash(`tree-front-y-${i}`) * 4.3
+  const z = 2.1 + hash(`tree-front-z-${i}`) * 3.8
+  const r = 0.34 + hash(`tree-front-r-${i}`) * 0.68
+  addGeometry('foliage', new THREE.IcosahedronGeometry(1, 1), { at: [x, y, z], size: [r * (1.08 + hash(`tree-wide-${i}`) * 0.35), r, r * 0.74] })
 }
 
 mkdirSync(dirname(outputPath), { recursive: true })

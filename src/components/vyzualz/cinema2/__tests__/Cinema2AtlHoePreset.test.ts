@@ -33,21 +33,31 @@ describe('ATL HOE preset', () => {
     expect(cinema2NativePresetRegistry.get(CINEMA2_ATL_HOE_PRESET_ID)).not.toBeNull()
   })
 
-  it('renders one shipped 3D Atlanta environment with independently shaded sign, landmark and light parts', () => {
+  it('renders the shipped 3D sign, sky, and foliage without the removed city or road parts', () => {
     expect(module.typeId).toBe('three-scene')
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
-      'landmarkDark',
-      'landmarkGlass',
-      'warmWindows',
-      'cyanWindows',
-      'crown',
+      'skyMid',
+      'skyHorizon',
       'signMetal',
       'signGlow',
       'signBorder',
       'signLetters',
+      'foliageBack',
       'foliage',
+    ]))
+    expect(module.config?.parts).not.toEqual(expect.arrayContaining([
+      'landmarkDark',
+      'landmarkGlass',
+      'distantBuildings',
+      'midBuildings',
+      'nearBuildings',
+      'warmWindows',
+      'cyanWindows',
+      'crown',
+      'road',
+      'roadGlow',
     ]))
     expect(module.parameters).toMatchObject({
       'signGlow.emissiveIntensity': 0.85,
