@@ -590,7 +590,6 @@ export function VyzualzAudioDock({
     if (!activeTrack) return
     addCueMarker(buildManualCueMarker(request, cueMarkers, activeTrack.id))
   }, [addCueMarker, cueMarkers, engine])
-  const initial = track?.displayName?.[0]?.toUpperCase() ?? '♪'
   const title   = track?.displayName ?? 'No track loaded'
   const artist  = track?.artist?.trim() || (hasTrack ? '' : 'Load a track to begin')
   const vol     = engine.volume
@@ -703,45 +702,27 @@ export function VyzualzAudioDock({
       <div className="vz-dock-help-region drm-help-overlay-anchor">
       <div className="vz-dock-left vz-dock-card">
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
-        <label
-          className="az-dock-thumb vz-dock-art"
-          htmlFor={trackSourceLocked ? undefined : fileInputId}
-          aria-disabled={trackSourceLocked}
-          title={trackSourceLocked ? trackSourceLockTitle : hasTrack ? title : 'Click to load audio'}
-          onClick={event => {
-            if (!trackSourceLocked) return
-            event.preventDefault()
-            if (sourceSelectionLocked) requestAudioSourceMutation()
-          }}
-          style={{ cursor: trackSourceLocked ? 'not-allowed' : 'pointer', borderColor: preset.color + '40' }}
-        >
-          <span className="az-dock-thumb-letter" style={{ color: preset.color + 'cc' }}>
-            {hasTrack ? initial : '♪'}
-          </span>
-        </label>
+        {/* The play button sits where the track cover used to. */}
+        <div className="vz-dock-play-slot">
+          <button
+            className="az-play-btn"
+            title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Pause' : 'Play'}
+            aria-label={engine.isPlaying ? 'Pause' : 'Play'}
+            disabled={!hasTrack || !transportReady || liveInputSelected}
+            style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
+            onClick={handleTogglePlayback}
+          >
+            {engine.isPlaying
+              ? <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+              : <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            }
+          </button>
+        </div>
 
         <div className="vz-dock-left-body">
           <div className="vz-dock-track-row">
             <span className="vz-dock-track-title" title={title}>{title}</span>
             {artist && <span className="vz-dock-track-artist" title={artist}>{artist}</span>}
-          </div>
-
-          {/* Transport receives its own full-width row instead of competing with track metadata. */}
-          <div className="vz-dock-controls-row">
-            <div className="az-dock-transport">
-              <button
-                className="az-play-btn"
-                title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Pause' : 'Play'}
-                disabled={!hasTrack || !transportReady || liveInputSelected}
-                style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
-                onClick={handleTogglePlayback}
-              >
-                {engine.isPlaying
-                  ? <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                  : <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                }
-              </button>
-            </div>
           </div>
 
           {/* A dedicated full-width row prevents the volume control collapsing. */}

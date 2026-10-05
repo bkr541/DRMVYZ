@@ -2778,17 +2778,6 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   overflow: hidden;
 }
 
-.vz-dock-art {
-  grid-column: 1;
-  grid-row: 1;
-  width: 72px !important;
-  height: 72px !important;
-  border-radius: 10px;
-  flex-shrink: 0;
-  align-self: center;
-  box-shadow: inset 0 0 18px rgba(74, 199, 219, 0.05);
-}
-.vz-dock-art .az-dock-thumb-letter { font-size: 28px !important; }
 
 .vz-dock-left-body {
   grid-column: 2;
@@ -2833,28 +2822,20 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   letter-spacing: 0.025em;
 }
 
-/* Transport is isolated from the metadata so the controls keep their shape. */
-.vz-dock-controls-row {
+/* The play button sits in the first column, where the track cover used to. */
+.vz-dock-play-slot {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  min-width: 0;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
 }
 
-.vz-transport-dock .vz-dock-controls-row .az-dock-transport {
-  flex: 0 0 auto;
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-.vz-transport-dock .vz-dock-controls-row .az-transport-btn {
-  width: 31px;
-  height: 31px;
-}
-
-.vz-transport-dock .vz-dock-controls-row .az-play-btn {
-  width: 43px;
-  height: 43px;
+.vz-transport-dock .vz-dock-play-slot .az-play-btn {
+  width: 56px;
+  height: 56px;
 }
 
 /* Volume gets its own row so the fader can consume all remaining width. */
@@ -6957,8 +6938,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   position: relative;
 }
 
-.vz-dock-addtrack-btn[aria-disabled='true'],
-.vz-dock-art[aria-disabled='true'] {
+.vz-dock-addtrack-btn[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.56;
 }

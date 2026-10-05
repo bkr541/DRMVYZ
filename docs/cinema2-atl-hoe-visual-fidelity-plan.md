@@ -123,7 +123,7 @@ Prevent subjective drift and make every later phase comparable to the same refer
 
 ## Phase 2 — Rebuild the Waffle House sign as the hero asset
 
-**Status:** Implemented. The approved 50° oblique assembly uses clean, optically sized font-outline geometry for every letter, layered illuminated cells, dimensional cabinets and bezels, non-emissive dark inner trim, corner hardware, rear rails, and heavy steel supports. The scene and skyline remain unchanged by this phase.
+**Status:** Implemented, then restyled to match the supplied nighttime reference render of the real sign. The approved 50° oblique assembly is a gloss-black painted-steel cabinet (six cells over five, offset half a cell) with lighter edge rails that catch the moonlight; each cell is a black bezel around a recessed, glowing gold face with a thin warmer-orange lip, carrying a raised, flat black block letter; rivets on the exposed left end of each cabinet; a black base rail; and three square black legs that converge toward the ground and run out of frame. The letters are authored in the generator as outline polygons (no font file). The sky is a smooth, slightly lighter navy with a denser, brighter star field. The scene and skyline remain unchanged by this phase.
 
 ### Issues addressed
 

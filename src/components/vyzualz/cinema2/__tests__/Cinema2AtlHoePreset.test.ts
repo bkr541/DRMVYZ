@@ -42,6 +42,7 @@ describe('ATL HOE preset', () => {
       'skyHorizon',
       'signMetal',
       'signGlow',
+      'signGlowWarm',
       'signBorder',
       'signLetters',
       'foliageBack',
@@ -60,7 +61,7 @@ describe('ATL HOE preset', () => {
       'roadGlow',
     ]))
     expect(module.parameters).toMatchObject({
-      'signGlow.emissiveIntensity': 0.85,
+      'signGlow.emissiveIntensity': 1.25,
       'crown.emissiveIntensity': 3.1,
       'warmWindows.emissiveIntensity': 1.45,
       'cyanWindows.emissiveIntensity': 2.1,

@@ -6902,22 +6902,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   pointer-events: none;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-art {
-  width: 60px !important;
-  height: 60px !important;
-  border-radius: 8px;
-  align-self: center;
-  background:
-    linear-gradient(145deg, rgba(21, 39, 55, 0.96), rgba(12, 21, 31, 0.98));
-  box-shadow:
-    inset 0 0 22px rgba(74, 199, 219, 0.05),
-    0 0 0 1px rgba(255, 255, 255, 0.025);
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-art .az-dock-thumb-letter {
-  font-size: 20px !important;
-}
-
 .rv-shell > .vz-transport-dock .vz-dock-left-body {
   height: auto;
   min-width: 0;
@@ -6947,29 +6931,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 9.5px;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-controls-row {
-  grid-column: 1;
-  grid-row: 2;
-  justify-content: flex-start;
+/* The play button takes the track cover's place: the 60px first column of the left card. */
+.rv-shell > .vz-transport-dock .vz-dock-play-slot {
+  width: 60px;
+  height: 60px;
+  align-self: center;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-dock-transport {
-  gap: 7px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-transport-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn {
-  width: 38px;
-  height: 38px;
+.rv-shell > .vz-transport-dock .vz-dock-play-slot .az-play-btn {
+  width: 56px;
+  height: 56px;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-volume-row {
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 2;
   gap: 6px;
   align-self: center;
@@ -6980,10 +6955,46 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   font-size: 8.5px;
 }
 
-/* The cover is the upload target in React view. Removing the duplicate upload
-   row keeps the expanded deck at two rows and the collapsed deck at one. */
+/* Add / Replace Track: with the cover gone it is a small icon-only key in the left card's top-right corner (its label stays
+   readable to assistive tech), so the deck keeps two rows expanded and one collapsed. Placeholder styling, to be restyled. */
 .rv-shell > .vz-transport-dock .vz-dock-addtrack-btn {
-  display: none;
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 10px;
+  grid-column: auto;
+  grid-row: auto;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  gap: 0;
+  border-radius: 7px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-addtrack-btn span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keep the title clear of the key. */
+.rv-shell > .vz-transport-dock .vz-dock-track-row {
+  padding-right: 30px;
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-addtrack-btn {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-left-body {
+  padding-right: 34px;
 }
 
 /* The waveform owns the center column. Zoom controls overlay its right edge so
@@ -7313,7 +7324,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-card-label,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-help-region > .drm-help-info-trigger,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-track-row,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-addtrack-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-reset-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-analyzed-label,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-track-bar,
@@ -7329,16 +7339,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 7px 10px;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-art {
-  width: 40px !important;
-  height: 40px !important;
-  border-radius: 7px;
-}
-
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-art .az-dock-thumb-letter {
-  font-size: 15px !important;
-}
-
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-left-body {
   display: flex;
   flex-direction: row;
@@ -7346,20 +7346,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: 10px;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-controls-row {
-  display: flex;
-  flex: 0 0 auto;
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-play-slot {
+  width: 40px;
+  height: 40px;
 }
 
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-controls-row .az-dock-transport {
-  gap: 0;
-}
-
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-controls-row .az-transport-btn {
-  display: none;
-}
-
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-controls-row .az-play-btn {
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-play-slot .az-play-btn {
   width: 38px;
   height: 38px;
 }
@@ -7463,9 +7455,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
     column-gap: 9px;
   }
 
-  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-art {
-    width: 52px !important;
-    height: 52px !important;
+  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot {
+    width: 52px;
+    height: 52px;
+  }
+
+  .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
+    width: 48px;
+    height: 48px;
   }
 
   .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-artist,
@@ -22014,16 +22011,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Left wing: a lighter slate cover, a stronger title over a dim subtitle, a white play button and a plain volume bar. */
-.rv-shell > .vz-transport-dock .vz-dock-art {
-  border-color: rgba(255, 255, 255, 0.14) !important;
-  background: linear-gradient(145deg, rgb(45, 52, 61), rgb(38, 45, 53));
-  box-shadow: none;
-}
-
-.rv-shell > .vz-transport-dock .vz-dock-art .az-dock-thumb-letter {
-  color: rgba(245, 248, 250, 0.82) !important;
-}
-
 .rv-shell > .vz-transport-dock .vz-dock-track-title {
   font-weight: 800;
   color: rgba(248, 251, 252, 0.96);
@@ -22033,14 +22020,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: rgba(245, 248, 250, 0.32);
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn {
+.rv-shell > .vz-transport-dock .vz-dock-play-slot .az-play-btn {
   border: 2px solid rgba(150, 188, 204, 0.34) !important;
   background: rgba(255, 255, 255, 0.04);
   color: rgba(245, 249, 251, 0.96) !important;
   box-shadow: none !important;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-controls-row .az-play-btn:hover:not(:disabled) {
+.rv-shell > .vz-transport-dock .vz-dock-play-slot .az-play-btn:hover:not(:disabled) {
   border-color: rgba(74, 199, 219, 0.6) !important;
   background: rgba(74, 199, 219, 0.1);
 }
