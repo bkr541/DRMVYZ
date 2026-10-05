@@ -252,8 +252,23 @@ function resolveSpill(
   segmentLevels: Float32Array,
   controls: Readonly<Cinema2DepthLightControls>,
 ): number {
-  const segmentLevel = (portal: number, side: number) => segmentLevels[portal * 4 + positiveModulo(side, 4)] ?? 0
-  if (instance.kind === 'strip') return segmentLevel(instance.portalIndex, instance.sideIndex)
+  const portalCount = Math.max(1, Math.floor(segmentLevels.length / 4))
+  const segmentLevel = (portal: number, side: number) => segmentLevels[
+    positiveModulo(portal, portalCount) * 4 + positiveModulo(side, 4)
+  ] ?? 0
+  if (instance.kind === 'strip') {
+    const own = segmentLevel(instance.portalIndex, instance.sideIndex)
+    const aroundCorner = Math.max(
+      segmentLevel(instance.portalIndex, instance.sideIndex - 1),
+      segmentLevel(instance.portalIndex, instance.sideIndex + 1),
+    ) * 0.42
+    const alongTunnel = Math.max(
+      segmentLevel(instance.portalIndex - 1, instance.sideIndex),
+      segmentLevel(instance.portalIndex + 1, instance.sideIndex),
+    ) * 0.2
+    const acrossGate = segmentLevel(instance.portalIndex, instance.sideIndex + 2) * 0.08
+    return Math.max(own, aroundCorner, alongTunnel, acrossGate)
+  }
   if (instance.kind === 'frame') return segmentLevel(instance.portalIndex, instance.sideIndex) * 0.34
   if (instance.kind === 'node') {
     const first = segmentLevel(instance.portalIndex, instance.sideIndex)

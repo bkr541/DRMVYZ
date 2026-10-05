@@ -5,6 +5,10 @@ import { CINEMA2_DEPTH_INSTANCE_FLOATS } from './Cinema2DepthLayout'
 
 /** Depth-local HDR source gain; kept above display white but below bloom-flooding levels. */
 export const CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER = 2.75
+/** Keeps an inactive LED fixture readable without making it emissive. */
+export const CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT = 1.65
+/** Bounded local bounce applied to fixtures near an active strip. */
+export const CINEMA2_DEPTH_STRIP_BOUNCE_GAIN = 0.16
 export const CINEMA2_DEPTH_CENTER_MATTE_COLOR = Object.freeze([0.16, 0.17, 0.18] as const)
 
 const VERTEX_SOURCE = `#version 300 es
@@ -76,7 +80,12 @@ void main() {
   if (v_kind > 0.5 && v_kind < 1.5) {
     float core = mix(0.9, 1.0, smoothstep(0.08, 0.42, min(min(v_uv.x, 1.0 - v_uv.x), min(v_uv.y, 1.0 - v_uv.y))));
     vec3 whiteCore = mix(u_lightColor, vec3(1.0), 0.58);
-    outColor = vec4(whiteCore * v_emission * u_intensity * core * ${CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER}, 1.0);
+    vec3 fixture = u_bodyColor * ${CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT}
+      * (0.48 + diffuse * 0.92 + rim * 0.58 + faceEdge * 0.14);
+    vec3 localBounce = u_lightColor * v_spill * u_spillAmount * u_intensity
+      * ${CINEMA2_DEPTH_STRIP_BOUNCE_GAIN} * (0.44 + diffuse * 0.36 + rim * 0.2);
+    vec3 emitter = whiteCore * v_emission * u_intensity * core * ${CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER};
+    outColor = vec4(fixture + localBounce + emitter, 1.0);
     return;
   }
 

@@ -29,7 +29,9 @@ import {
 } from '../modules/depth/Cinema2DepthLightPrograms'
 import {
   CINEMA2_DEPTH_CENTER_MATTE_COLOR,
+  CINEMA2_DEPTH_STRIP_BOUNCE_GAIN,
   CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER,
+  CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT,
   Cinema2DepthRenderer,
 } from '../modules/depth/Cinema2DepthRenderer'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
@@ -73,6 +75,14 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(baseLap.instances).toHaveLength(125)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(4)
     expect(baseLap.instances.filter(instance => instance.kind === 'strip' && instance.portalIndex === 0).map(instance => instance.emission)).toEqual([1, 0, 0, 0])
+    for (let portal = 0; portal < baseLap.portalCount; portal += 1) {
+      const strips = baseLap.instances.filter(instance => instance.kind === 'strip' && instance.portalIndex === portal)
+      expect(strips).toHaveLength(4)
+      for (const strip of strips) {
+        const longAxis = Math.max(strip.size[0], strip.size[1])
+        expect(longAxis).toBeGreaterThan(baseLap.aperture)
+      }
+    }
     expect(CINEMA2_DEPTH_LAP_DISTANCE).toBe(CINEMA2_DEPTH_REPEAT_DISTANCE)
     expect(CINEMA2_DEPTH_REPEAT_DISTANCE).toBe(CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount * CINEMA2_DEPTH_LAYOUT_CONFIG.spacing)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!.config).toBe(CINEMA2_DEPTH_LAYOUT_CONFIG)
@@ -106,7 +116,7 @@ describe('Cinema 2.0 Depth preset', () => {
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(7)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(8)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -120,6 +130,10 @@ describe('Cinema 2.0 Depth preset', () => {
   it('authors a restrained high-contrast finishing stack', () => {
     expect(CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER).toBeGreaterThan(1)
     expect(CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER).toBeLessThanOrEqual(3)
+    expect(CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT).toBeGreaterThan(1)
+    expect(CINEMA2_DEPTH_UNLIT_STRIP_MATERIAL_LIFT).toBeLessThan(2)
+    expect(CINEMA2_DEPTH_STRIP_BOUNCE_GAIN).toBeGreaterThan(0)
+    expect(CINEMA2_DEPTH_STRIP_BOUNCE_GAIN).toBeLessThanOrEqual(0.2)
     expect(CINEMA2_DEPTH_CENTER_MATTE_COLOR.every(component => component > 0.1 && component < 0.25)).toBe(true)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: 'Light Spill', defaultValue: 0.28 }),
@@ -343,6 +357,23 @@ describe('Cinema 2.0 Depth preset', () => {
     }
     expect(frameInstances.some(({ index }) => frame.spills[index] === 0)).toBe(true)
     expect(frameInstances.some(({ index }) => frame.spills[index]! > 0)).toBe(true)
+  })
+
+  it('keeps off LED fixtures present and reveals only those near active bars', () => {
+    const layout = buildCinema2DepthProofLayout()
+    const frame = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+    updateCinema2DepthLightFrame(frame, layout, 2.75, {
+      program: 'architecturalSparse', direction: 'forward', rate: 1.1, activeSpan: 4, seed: 7,
+      centerEnabled: false, centerIntensity: 0,
+    })
+    const offStrips = layout.instances
+      .map((instance, index) => ({ instance, index }))
+      .filter(({ instance, index }) => instance.kind === 'strip' && frame.emissions[index] === 0)
+
+    expect(offStrips.length).toBeGreaterThan(0)
+    expect(offStrips.some(({ index }) => frame.spills[index]! > 0)).toBe(true)
+    expect(offStrips.some(({ index }) => frame.spills[index] === 0)).toBe(true)
+    expect(offStrips.every(({ index }) => frame.emissions[index] === 0)).toBe(true)
   })
 
   it('reverses the depth chase, loops exactly, and preserves authored zero rate', () => {

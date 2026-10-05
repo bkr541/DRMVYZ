@@ -79,7 +79,10 @@ export function buildCinema2DepthProofLayout(options: {
 
     const stripDepth = 0.14
     const stripWidth = Math.max(0.09, frameThickness * 0.2)
-    const stripLength = aperture * 0.92
+    // Let the four physical fixtures overlap by one strip width at each
+    // corner. Their emission is still addressed independently, but an
+    // inactive side can no longer disappear as a geometric gap in the gate.
+    const stripLength = aperture + stripWidth
     const stripZ = z + frameDepth * 0.52
     push(boxes, 'strip', portalIndex, 0, [0, half, stripZ], [stripLength, stripWidth, stripDepth], sideEmission[0], sideEmission[0])
     push(boxes, 'strip', portalIndex, 1, [half, 0, stripZ], [stripWidth, stripLength, stripDepth], sideEmission[1], sideEmission[1])
