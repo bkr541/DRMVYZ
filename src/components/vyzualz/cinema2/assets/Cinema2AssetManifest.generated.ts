@@ -3,6 +3,25 @@ import type { Cinema2GeneratedAssetRecord } from './Cinema2GeneratedAssetTypes'
 
 export const CINEMA2_ASSET_RECORDS = [
   {
+    "id": "cinema2-atl-hoe",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/atl-hoe.glb",
+        "bytes": 1323800,
+        "triangles": 22464
+      }
+    },
+    "gpuBytes": {
+      "high": 1309320,
+      "medium": 1309320,
+      "low": 1309320
+    }
+  },
+  {
     "id": "cinema2-conduit-chamber",
     "kind": "model",
     "compression": "none",

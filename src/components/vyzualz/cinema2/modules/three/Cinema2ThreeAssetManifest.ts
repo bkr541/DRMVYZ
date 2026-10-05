@@ -16,6 +16,8 @@ export const CINEMA2_CONDUIT_WORDMARK_ASSET_ID: Cinema2AssetId = 'cinema2-condui
 export const CINEMA2_CONDUIT_TUBES_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-tubes'
 /** CONDUIT's chamber: parts `shell`, `trim`, `floorTrim`, `segments` (95 emissive LED strips in 8 groups); vertices carry `_GLOW_PHASE` and `_SEGMENT`. */
 export const CINEMA2_CONDUIT_CHAMBER_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-chamber'
+/** ATL HOE's complete modeled night scene: Waffle House sign, Atlanta landmark skyline, freeway, stars and foreground canopy. */
+export const CINEMA2_ATL_HOE_ASSET_ID: Cinema2AssetId = 'cinema2-atl-hoe'
 /** SAY IT production glyph package: independently addressable bevelled meshes for printable Basic Latin U+0021-U+007E. */
 export const CINEMA2_SAY_IT_GLYPH_ASSET_ID: Cinema2AssetId = 'cinema2-say-it-glyphs'
 
