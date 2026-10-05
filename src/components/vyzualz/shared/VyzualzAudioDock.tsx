@@ -1056,10 +1056,8 @@ export function VyzualzAudioDock({
               <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
             </svg>
           </button>
-          {/* Four blank placeholder keys under BPM (the old single wide blank is gone), reserved for future dock actions. */}
+          {/* Two blank placeholder keys beside BPM, reserved for future dock actions. */}
           <div className="vz-dock-blank-group" aria-hidden="true">
-            <div className="vz-dock-blank-btn" />
-            <div className="vz-dock-blank-btn" />
             <div className="vz-dock-blank-btn" />
             <div className="vz-dock-blank-btn" />
           </div>

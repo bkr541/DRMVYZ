@@ -38,6 +38,14 @@ function tabLabels(ariaLabel: string): string[] {
 }
 
 describe('Template Layout Lab workspace', () => {
+  it('shows the six audio dock left-group concepts in the middle section', async () => {
+    await selectEngine('Template')
+
+    const stage = container.querySelector('.rv-canvas-wrap > .llcm-stage-gallery')
+    expect(stage?.querySelector('[aria-label="Audio dock left group concepts"]')).not.toBeNull()
+    expect(stage?.querySelectorAll('[data-testid^="dock-left-concept-"]')).toHaveLength(6)
+  })
+
   it('adds a Layout Lab-only Template engine with blank rails and no lower workspace', async () => {
     await selectEngine('Template')
 
@@ -55,7 +63,7 @@ describe('Template Layout Lab workspace', () => {
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
-    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
+    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(1)
 
     const presetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(button => button.textContent?.trim() === 'PRESETS')

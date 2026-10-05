@@ -18,6 +18,7 @@ import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
+import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
@@ -274,6 +275,11 @@ export function LayoutLabMockup() {
             {engineId === 'cinema' && (
               <div className="llcm-stage-gallery">
                 <HeaderStatusStyleGallery />
+              </div>
+            )}
+            {engineId === 'template' && (
+              <div className="llcm-stage-gallery">
+                <DockLeftGroupStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (
