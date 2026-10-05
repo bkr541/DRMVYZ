@@ -66,6 +66,22 @@ interface DrawContext {
   viewport: TrackTimelineViewport
 }
 
+/** The overview beat grid's three colours: cyan beats, green downbeats, red every-fourth-downbeat boundaries. */
+const GRID_BEAT_RGB = 'rgb(74, 199, 219)'
+const GRID_DOWNBEAT_RGB = 'rgb(97, 214, 170)'
+const GRID_FOUR_BAR_RGB = 'rgb(192, 49, 74)'
+
+/** Beat and bar markers use the beat grid's colours (see findFourBarBeats) so they read the same everywhere in the app. */
+const GRID_EVENT_COLORS: Record<string, string> = {
+  beat: GRID_BEAT_RGB,
+  downbeat: GRID_DOWNBEAT_RGB,
+  bar_start: GRID_DOWNBEAT_RGB,
+  '4_bar_block_start': GRID_FOUR_BAR_RGB,
+  '8_bar_block_start': GRID_FOUR_BAR_RGB,
+  '16_bar_block_start': GRID_FOUR_BAR_RGB,
+  '32_bar_block_start': GRID_FOUR_BAR_RGB,
+}
+
 const EVENT_COLOR_KEYS: Record<string, PaletteKey> = {
   beat: 'teal',
   downbeat: 'cyan',
@@ -232,18 +248,11 @@ export function drawTrackTimelineCanvas(
   return draw.hits
 }
 
+/** Flat row background. Rows draw only their own content: no decorative horizontal rules behind curves, markers or rulers. */
 function drawBackground(draw: DrawContext) {
   const { ctx, width, height, palette } = draw
   ctx.fillStyle = palette.background
   ctx.fillRect(0, 0, width, height)
-  ctx.strokeStyle = rgba(palette.border, 0.44)
-  ctx.lineWidth = 1
-  for (let y = 0.5; y < height; y += Math.max(18, height / 3)) {
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(width, y)
-    ctx.stroke()
-  }
 }
 
 function resolveViewport(viewport: TrackTimelineViewport | undefined, durationSec: number): TrackTimelineViewport {
@@ -393,9 +402,21 @@ function dominantBandColor(draw: DrawContext, low: number, mid: number, high: nu
 // short cyan regular beats, taller green downbeats, tallest red every-fourth-
 // downbeat markers — with no bar or time labels, and density reduction so
 // regular ticks never crowd below ~3px apart.
-const TRACK_MAP_BEAT_COLOR = 'rgba(74, 199, 219, 0.45)'
-const TRACK_MAP_DOWNBEAT_COLOR = 'rgba(97, 214, 170, 0.85)'
-const TRACK_MAP_FOUR_BAR_COLOR = 'rgba(192, 49, 74, 0.96)'
+const TRACK_MAP_BEAT_COLOR = rgba(GRID_BEAT_RGB, 0.45)
+const TRACK_MAP_DOWNBEAT_COLOR = rgba(GRID_DOWNBEAT_RGB, 0.85)
+const TRACK_MAP_FOUR_BAR_COLOR = rgba(GRID_FOUR_BAR_RGB, 0.96)
+
+/** Promotes every fourth downbeat to a four-bar marker, counted across the full grid so panning/zooming never resets the cadence. */
+function findFourBarBeats(model: TrackTimelineModel): Set<TrackTimelineBeat> {
+  const fourBarBeats = new Set<TrackTimelineBeat>()
+  let downbeatCount = 0
+  model.beats.forEach(beat => {
+    if (!beat.isDownbeat) return
+    downbeatCount += 1
+    if (downbeatCount % 4 === 0) fourBarBeats.add(beat)
+  })
+  return fourBarBeats
+}
 const TRACK_MAP_BEAT_TICK_H = 5
 const TRACK_MAP_DOWNBEAT_TICK_H = 13
 const TRACK_MAP_FOUR_BAR_TICK_H = 20
@@ -408,15 +429,7 @@ function drawBeatGrid(draw: DrawContext) {
     return
   }
 
-  // Promote every fourth downbeat to a four-bar marker, counted across the full
-  // grid so panning/zooming never resets the cadence at the visible edge.
-  const fourBarBeats = new Set<TrackTimelineBeat>()
-  let downbeatCount = 0
-  model.beats.forEach(beat => {
-    if (!beat.isDownbeat) return
-    downbeatCount += 1
-    if (downbeatCount % 4 === 0) fourBarBeats.add(beat)
-  })
+  const fourBarBeats = findFourBarBeats(model)
 
   const visibleBeats = model.beats.filter(
     beat => beat.time >= viewport.startSec - 0.01 && beat.time <= viewport.endSec + 0.01,
@@ -497,17 +510,21 @@ function drawDetailRuler(draw: DrawContext) {
   }
 
   const visibleBars = model.bars.filter(bar => overlapsViewport(bar.start, bar.end, viewport))
+  // The same grid colours and cadence as the overview beat grid: green downbeats / bar starts, red every fourth, cyan beats.
+  const fourBarTimes = [...findFourBarBeats(model)].map(beat => beat.time)
+  const isFourBarStart = (time: number) => fourBarTimes.some(fourBarTime => Math.abs(fourBarTime - time) < 0.02)
   ctx.font = TRACK_MAP_RULER_FONT
   ctx.textBaseline = 'top'
 
+  // BARS row: a bar-start tick at every bar, red where a four-bar block begins.
   visibleBars.forEach(bar => {
     const x1 = timeToX(bar.start, width, viewport)
     const x2 = timeToX(bar.end, width, viewport)
-    ctx.strokeStyle = TRACK_MAP_RULER_LINE
-    ctx.lineWidth = 1
+    ctx.strokeStyle = isFourBarStart(bar.start) ? TRACK_MAP_FOUR_BAR_COLOR : TRACK_MAP_DOWNBEAT_COLOR
+    ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo(x1 + 0.5, 0)
-    ctx.lineTo(x1 + 0.5, height)
+    ctx.moveTo(Math.floor(x1) + 0.5, 0)
+    ctx.lineTo(Math.floor(x1) + 0.5, dividerY)
     ctx.stroke()
 
     if (x2 - x1 > 20) {
@@ -516,15 +533,17 @@ function drawDetailRuler(draw: DrawContext) {
     }
   })
 
+  // BEATS row: short cyan beat ticks, taller green downbeats, tallest red four-bar boundaries.
   let lastBeatLabelX = -20
   model.beats.forEach(beat => {
     if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
-    const x = timeToX(beat.time, width, viewport)
-    ctx.strokeStyle = TRACK_MAP_RULER_LINE
-    ctx.lineWidth = beat.isDownbeat ? 1 : 0.8
+    const x = Math.floor(timeToX(beat.time, width, viewport)) + 0.5
+    const fourBar = beat.isDownbeat && isFourBarStart(beat.time)
+    ctx.strokeStyle = fourBar ? TRACK_MAP_FOUR_BAR_COLOR : beat.isDownbeat ? TRACK_MAP_DOWNBEAT_COLOR : TRACK_MAP_BEAT_COLOR
+    ctx.lineWidth = beat.isDownbeat ? 2 : 1
     ctx.beginPath()
-    ctx.moveTo(x + 0.5, dividerY)
-    ctx.lineTo(x + 0.5, height)
+    ctx.moveTo(x, dividerY)
+    ctx.lineTo(x, Math.min(height, dividerY + (fourBar ? TRACK_MAP_FOUR_BAR_TICK_H : beat.isDownbeat ? TRACK_MAP_DOWNBEAT_TICK_H : TRACK_MAP_BEAT_TICK_H + 3)))
     ctx.stroke()
 
     if (x - lastBeatLabelX > 14) {
@@ -803,7 +822,7 @@ function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, 
     if (!overlapsViewport(item.time, item.time + Math.max(0, item.duration), viewport)) return
     const x = timeToX(item.time, width, viewport)
     const x2 = item.duration > 0 ? Math.max(x + 2, timeToX(item.time + item.duration, width, viewport)) : x
-    const color = palette[EVENT_COLOR_KEYS[item.type] ?? spec.color]
+    const color = GRID_EVENT_COLORS[item.type] ?? palette[EVENT_COLOR_KEYS[item.type] ?? spec.color]
     if (item.duration > 0) {
       ctx.fillStyle = rgba(color, 0.15)
       ctx.fillRect(x, 9, x2 - x, height - 18)
@@ -826,11 +845,21 @@ function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, 
     ctx.fill()
 
     if (spec.events.length <= 45 && x > lastLabelRight + 8) {
-      ctx.font = `9px ${fonts.data}`
+      // Label chip: the marker's colour as the fill, a contrasting ink on top.
+      ctx.font = `700 9px ${fonts.data}`
       const clipped = fitText(ctx, item.label, 120)
-      ctx.fillStyle = rgba(color, 0.94)
-      ctx.fillText(clipped, x + 5, 11 + (index % 2) * 13)
-      lastLabelRight = x + 5 + ctx.measureText(clipped).width
+      const chipWidth = ctx.measureText(clipped).width + 10
+      const chipHeight = 14
+      const chipX = Math.min(x + 5, Math.max(2, width - chipWidth - 2))
+      const chipY = 3 + (index % 2) * 16
+      roundedRect(ctx, chipX, chipY, chipWidth, chipHeight, 3)
+      ctx.fillStyle = rgba(color, 0.92)
+      ctx.fill()
+      ctx.fillStyle = contrastInk(color)
+      ctx.textBaseline = 'middle'
+      ctx.fillText(clipped, chipX + 5, chipY + chipHeight / 2 + 0.5)
+      ctx.textBaseline = 'alphabetic'
+      lastLabelRight = chipX + chipWidth
     }
 
     hits.push({
@@ -974,13 +1003,22 @@ function normalizeValue(value: number, range: { min: number; max: number }): num
   return clamp((value - range.min) / Math.max(range.max - range.min, 1e-9), 0, 1)
 }
 
+/** The row's max (top-left) and min (bottom-left) values: bold, bright and on a dark plate so they read over the curve and its fill. */
 function drawRangeLabels(draw: DrawContext, range: { min: number; max: number }) {
   const { ctx, height, palette, fonts } = draw
-  ctx.font = `9px ${fonts.data}`
-  ctx.fillStyle = rgba(palette.muted, 0.72)
-  ctx.textBaseline = 'top'
-  ctx.fillText(formatValue(range.max), 4, 3)
-  ctx.fillText(formatValue(range.min), 4, height - 13)
+  ctx.font = `700 10.5px ${fonts.data}`
+  ctx.textBaseline = 'middle'
+  const drawLabel = (value: number, y: number) => {
+    const text = formatValue(value)
+    const plateWidth = ctx.measureText(text).width + 10
+    roundedRect(ctx, 3, y - 8, plateWidth, 16, 4)
+    ctx.fillStyle = rgba(palette.background, 0.82)
+    ctx.fill()
+    ctx.fillStyle = rgba(palette.text, 0.96)
+    ctx.fillText(text, 8, y + 0.5)
+  }
+  drawLabel(range.max, 11)
+  drawLabel(range.min, height - 11)
   ctx.textBaseline = 'alphabetic'
 }
 
@@ -1004,6 +1042,14 @@ function drawCenteredMessage(draw: DrawContext, message: string) {
   ctx.fillText(message, width / 2, height / 2)
   ctx.textAlign = 'start'
   ctx.textBaseline = 'alphabetic'
+}
+
+/** Dark ink on light fills, white on dark ones, so a label chip stays legible in any marker colour. */
+function contrastInk(fill: string): string {
+  const parsed = parseColor(fill)
+  if (!parsed) return 'rgba(8, 12, 14, 0.94)'
+  const luminance = (0.2126 * parsed[0] + 0.7152 * parsed[1] + 0.0722 * parsed[2]) / 255
+  return luminance > 0.5 ? 'rgba(8, 12, 14, 0.94)' : 'rgba(255, 255, 255, 0.96)'
 }
 
 function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {

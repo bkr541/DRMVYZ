@@ -1004,24 +1004,10 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                       <div className="ttv-info-rail-pills">
                         {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
                       </div>
-                      {model.warnings.length > 0 && (
-                        <NoticeCard className="ttv-menu-notice" tone="warning" role="status" title="Analysis warnings">
-                          {model.warnings.slice(0, 3).join(' ')}
-                        </NoticeCard>
-                      )}
                     </div>
                   </details>
                 </div>
               </div>
-
-              <NoticeCard
-                className="ttv-overview-notice"
-                tone={analysisHasWarning ? 'warning' : 'success'}
-                role="status"
-                title="Analysis Status"
-              >
-                {analysisStatusText}
-              </NoticeCard>
 
               <div className="ttv-overview-stack">
                 <OverviewTimelineRow
@@ -1066,11 +1052,15 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   </div>
                   <div className="ttv-detail-header-actions">
                     <div className="ttv-toolbar-actions">
-                      <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(false)}>Expand all</button>
-                      <button type="button" className="ttv-toolbar-btn" onClick={() => setAllCollapsed(true)}>Collapse all</button>
+                      <button type="button" className="ttv-icon-btn" onClick={() => setAllCollapsed(false)} aria-label="Expand all groups" title="Expand all groups">
+                        <RailIcon name="expand" />
+                      </button>
+                      <button type="button" className="ttv-icon-btn" onClick={() => setAllCollapsed(true)} aria-label="Collapse all groups" title="Collapse all groups">
+                        <RailIcon name="collapse" />
+                      </button>
                     </div>
-                    <button type="button" className="ttv-center-playhead-btn" onClick={centerDetailOnPlayhead}>
-                      Center on playhead
+                    <button type="button" className="ttv-icon-btn ttv-icon-btn--primary" onClick={centerDetailOnPlayhead} aria-label="Center on playhead" title="Center on playhead">
+                      <RailIcon name="center" />
                     </button>
                     <details className="ttv-overflow-menu ttv-overflow-menu--detail">
                       <summary className="ttv-icon-btn" aria-label="Open detail range menu" title="Detail range">•••</summary>
@@ -1134,9 +1124,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                     {formatTime(0)} / {formatTime(model.durationSec)}
                   </span>
                 </div>
-                {model.warnings.length > 0 && (
-                  <NoticeCard className="ttv-warning-banner" tone="warning" role="status" title="Analysis warnings">{model.warnings.slice(0, 3).join(' ')}</NoticeCard>
-                )}
                 <MusicIntelligenceDiagnosticsPanel />
               </div>
             </aside>

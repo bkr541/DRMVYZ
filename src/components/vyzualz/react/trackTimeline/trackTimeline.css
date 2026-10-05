@@ -235,16 +235,13 @@
   align-items: center;
 }
 
+.ttv-toolbar-actions { gap: 10px; }
+
 .ttv-overview-actions {
   flex: 0 0 auto;
   gap: 8px;
 }
 
-/* Analysis Status is the canonical NoticeCard (.dv-notice); this only places
-   it as a full-width banner between the overview heading and the timeline. */
-.ttv-overview-notice {
-  margin: 10px 0 2px;
-}
 
 .ttv-icon-btn {
   width: 36px;
@@ -300,11 +297,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
   font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-/* Canonical NoticeCard (.dv-notice); this only adds top spacing in the menu. */
-.ttv-menu-notice {
-  margin-top: 9px;
 }
 
 .ttv-overview-stack {
@@ -519,8 +511,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
   gap: 7px;
 }
 
-.ttv-toolbar-btn,
-.ttv-center-playhead-btn,
 .ttv-zoom-btn {
   border: 1px solid rgba(154, 178, 188, 0.17);
   background: rgba(255, 255, 255, 0.025);
@@ -529,24 +519,14 @@ summary.ttv-icon-btn::-webkit-details-marker {
   cursor: pointer;
 }
 
-.ttv-toolbar-btn,
-.ttv-center-playhead-btn {
-  min-height: 32px;
-  padding: 5px 12px;
-  border-radius: 7px;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.ttv-toolbar-btn:hover,
-.ttv-center-playhead-btn:hover,
 .ttv-zoom-btn:hover {
   border-color: rgba(var(--color-primary-rgb, 74, 199, 219), 0.42);
   color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
   background: rgba(var(--color-primary-rgb, 74, 199, 219), 0.07);
 }
 
-.ttv-center-playhead-btn {
+/* Icon-only detail actions share the header's .ttv-icon-btn; Center on playhead keeps its accent. */
+.ttv-icon-btn--primary {
   border-color: rgba(var(--color-primary-rgb, 74, 199, 219), 0.34);
   color: var(--color-primary, #4ac7db);
 }
@@ -835,10 +815,6 @@ summary.ttv-icon-btn::-webkit-details-marker {
   color: var(--color-secondary, #61d6aa);
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-
-.ttv-warning-banner {
-  margin: 10px 0 12px;
 }
 
 .ttv-analysis-panel {

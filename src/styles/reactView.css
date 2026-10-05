@@ -195,9 +195,8 @@
   --vz-dock-right-col: max(calc(var(--vz-right-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
 }
 
-/* The rails' live state lives on .rv-layout (collapsed rails, Stage Focus); mirror it onto the dock. */
-.rv-shell:has(> .rv-layout[data-left-collapsed='true']) > .az-dock { --vz-left-width: 48px; }
-.rv-shell:has(> .rv-layout[data-right-collapsed='true']) > .az-dock { --vz-right-width: 48px; }
+/* Collapsing or expanding a rail never resizes the dock: its side cards always keep the expanded rail widths set above,
+   so only Stage Focus (which takes the rails away entirely) changes them. */
 .rv-shell[data-stage-focus='true'] > .az-dock { --vz-left-width: 0px; --vz-right-width: 0px; }
 
 /* ── Shared panel header ─────────────────────────────────────────────────────── */
@@ -6847,8 +6846,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   gap: var(--vz-dock-gap);
   /* The waveform card spans exactly the Track Map's column (the stage column of .rv-layout), and the left and right
      cards fill the rail widths on either side of it: the dock's inline padding and gap come out of the rail columns, so
-     the waveform's left and right edges land on the Track Map's. Below the clamp the side cards keep a usable width and
-     the alignment gives way (rails collapsed, Stage Focus, narrow windows). */
+     the waveform's left and right edges land on the Track Map's while the rails are expanded. Collapsing a rail does not
+     change the dock; below the clamp the side cards keep a usable width and the alignment gives way (Stage Focus, narrow
+     windows). */
   grid-template-columns:
     var(--vz-dock-left-col)
     minmax(0, 1fr)
