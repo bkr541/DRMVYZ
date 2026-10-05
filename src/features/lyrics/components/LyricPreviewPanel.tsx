@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
+import { ViewIcon } from 'hugeicons-react'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { NoticeCard } from '../../../components/vyzualz/react/controls/NoticeCard'
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
@@ -35,7 +36,6 @@ interface LivePreviewProps {
   versions: LyricHeaderVersion[]
   openVersionId: string | null
   openVersionTitle: string | null
-  activeVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   onLoadTrack: () => void
@@ -174,7 +174,6 @@ export function LyricLivePreviewPanel({
   versions,
   openVersionId,
   openVersionTitle,
-  activeVersionTitle,
   loading,
   selectedTrackLoaded,
   onLoadTrack,
@@ -194,7 +193,6 @@ export function LyricLivePreviewPanel({
         versions={versions}
         openVersionId={openVersionId}
         openVersionTitle={openVersionTitle}
-        activeVersionTitle={activeVersionTitle}
         loading={loading}
         selectedTrackLoaded={selectedTrackLoaded}
         selectedTrackPlaying={isPlaying}
@@ -212,10 +210,10 @@ export function LyricLivePreviewPanel({
           onClick={onPreviewLyrics}
           disabled={!hasTimedCues}
           aria-describedby="lmv-preview-note"
-          title={hasTimedCues ? previewNote : 'No cues to preview. Import or create lyric cues first.'}
-        >
-          Preview Lyrics ↗
-        </IconChipButton>
+          title={hasTimedCues ? `Preview Lyrics — ${previewNote}` : 'No cues to preview. Import or create lyric cues first.'}
+          aria-label="Preview Lyrics"
+          icon={<ViewIcon size={14} color="currentColor" />}
+        />
         <div className="lmv-preview-caption">
           <span>
             {previewCue

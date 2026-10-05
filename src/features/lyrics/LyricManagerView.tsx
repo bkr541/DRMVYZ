@@ -63,8 +63,6 @@ import { LyricInspector, type LyricInspectorTab } from './components/LyricInspec
 import { LyricReviewSummary } from './components/LyricReviewSummary'
 import { lyricLayoutDrawers, useLyricLayoutMode } from './lyricLayoutMode'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
-import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
-import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
 import { getRecentLyricTranscriptionJobs, isActiveLyricTranscriptionJob } from './services/lyricExtraction'
 import { validateLyricCues, type LyricValidationIssue } from './utils/lyricValidation'
@@ -327,12 +325,6 @@ export function LyricManagerView({
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadPurpose, setUploadPurpose] = useState<'canonical' | 'vocal_reference'>('canonical')
   const [uploadedVocalReferenceTrack, setUploadedVocalReferenceTrack] = useState<LyricManagerTrack | null>(null)
-  const [linkRuntimeTrack, setLinkRuntimeTrack] = useState<Track | null>(null)
-  const [linkCandidates, setLinkCandidates] = useState<SavedTrackLinkCandidate[]>([])
-  const [linkSelectedTrackId, setLinkSelectedTrackId] = useState<string | null>(null)
-  const [linkLoading, setLinkLoading] = useState(false)
-  const [linkConfirming, setLinkConfirming] = useState(false)
-  const [linkError, setLinkError] = useState<string | null>(null)
   const [audioPreviewStates, setAudioPreviewStates] = useState<Record<string, {
     status: 'idle' | 'loading' | 'ready' | 'error'
     error: string | null
@@ -1590,58 +1582,6 @@ export function LyricManagerView({
     handleActivateDocument(openVersion)
   }, [documents, editorDocumentId, handleActivateDocument])
 
-  const handleOpenLinkSavedTrack = useCallback(async () => {
-    const runtimeTrack = engineRef.current.currentTrack
-    if (!runtimeTrack || runtimeTrack.dbId) return
-    setLinkRuntimeTrack(runtimeTrack)
-    setLinkCandidates([])
-    setLinkSelectedTrackId(null)
-    setLinkError(null)
-    setLinkLoading(true)
-    try {
-      const { data } = await supabase.auth.getUser()
-      const accountId = data.user?.id ?? null
-      if (!accountId || accountIdRef.current !== accountId) throw new Error('Sign in to search saved User Media tracks.')
-      const candidates = await findSavedTrackLinkCandidates(accountId, runtimeTrack)
-      if (!mountedRef.current || engineRef.current.currentTrack?.id !== runtimeTrack.id) return
-      setLinkCandidates(candidates)
-      setLinkSelectedTrackId(candidates.length === 1 ? candidates[0].track.dbId : null)
-    } catch (linkSearchError) {
-      if (mountedRef.current) {
-        setLinkError(linkSearchError instanceof Error ? linkSearchError.message : 'Saved track candidates could not be loaded.')
-      }
-    } finally {
-      if (mountedRef.current) setLinkLoading(false)
-    }
-  }, [])
-
-  const handleConfirmLinkSavedTrack = useCallback(async () => {
-    if (!linkRuntimeTrack || !linkSelectedTrackId) return
-    setLinkConfirming(true)
-    setLinkError(null)
-    try {
-      const { data } = await supabase.auth.getUser()
-      const accountId = data.user?.id ?? null
-      if (!accountId || accountIdRef.current !== accountId) throw new Error('Sign in to link this track.')
-      const freshTrack = await loadLyricManagerTrackById(accountId, linkSelectedTrackId)
-      if (!freshTrack) throw new Error('That saved track was deleted or is no longer accessible.')
-      await loadSavedTrackIntoEngine(engineRef.current, freshTrack, { getSignedUrl })
-      if (!mountedRef.current) return
-      setTracks(current => mergeTracks(current, [freshTrack]))
-      setLinkRuntimeTrack(null)
-      setLinkCandidates([])
-      setLinkSelectedTrackId(null)
-      showStatus('Saved track confirmed and reloaded with its canonical identity.')
-      openTrackWorkflow(freshTrack, freshTrack.activeLyricDocumentId ? 'active-lyrics' : 'timeline')
-    } catch (linkError) {
-      if (mountedRef.current) {
-        setLinkError(linkError instanceof Error ? linkError.message : 'The saved track could not be linked.')
-      }
-    } finally {
-      if (mountedRef.current) setLinkConfirming(false)
-    }
-  }, [getSignedUrl, linkRuntimeTrack, linkSelectedTrackId, openTrackWorkflow, showStatus])
-
   useEffect(() => {
     if (!navigationIntent || handledNavigationIntentRef.current === navigationIntent.id) return
     handledNavigationIntentRef.current = navigationIntent.id
@@ -2184,7 +2124,6 @@ export function LyricManagerView({
             versions={documents.map(document => ({ id: document.id, title: document.title || 'Untitled' }))}
             openVersionId={editorDocumentId}
             openVersionTitle={editorDocument?.title ?? (selectedTrack ? 'Unsaved draft' : null)}
-            activeVersionTitle={activeVersionForSelectedTrack?.title ?? null}
             loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
             selectedTrackLoaded={selectedTrackLoaded}
             onLoadTrack={() => { void handleLoadSelectedTrack() }}
@@ -2193,18 +2132,6 @@ export function LyricManagerView({
               if (version) handleSelectDocument(version)
             }}
           />
-
-          {engine.currentTrack && !engine.currentAudioTrackId && (
-            <section className="lmv-local-track-link" aria-label="Local track identity">
-              <div>
-                <strong>Local deck file has no saved track identity</strong>
-                <span>Link it explicitly to a saved User Media track so runtime lyrics can resolve safely.</span>
-              </div>
-              <IconChipButton onClick={() => { void handleOpenLinkSavedTrack() }}>
-                Link to Saved Track
-              </IconChipButton>
-            </section>
-          )}
 
           <div className="lmv-tab-content" role="tabpanel" aria-label="Lyric editor">
           {editorPlaceholder ? (
@@ -2442,24 +2369,6 @@ export function LyricManagerView({
         onCancel={() => setTrackDeleteTarget(null)}
         onConfirm={() => {
           void handleConfirmDeleteTrack()
-        }}
-      />
-
-      <LinkSavedTrackDialog
-        runtimeTrack={linkRuntimeTrack}
-        candidates={linkCandidates}
-        selectedTrackId={linkSelectedTrackId}
-        loading={linkLoading}
-        confirming={linkConfirming}
-        error={linkError}
-        onSelect={setLinkSelectedTrackId}
-        onConfirm={() => { void handleConfirmLinkSavedTrack() }}
-        onCancel={() => {
-          if (linkConfirming) return
-          setLinkRuntimeTrack(null)
-          setLinkCandidates([])
-          setLinkSelectedTrackId(null)
-          setLinkError(null)
         }}
       />
 

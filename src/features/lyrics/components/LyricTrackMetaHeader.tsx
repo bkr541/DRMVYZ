@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { StatusBadge } from '../../../components/vyzualz/react/controls/StatusBadge'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { SelectRow } from '../../../components/vyzualz/react/ReactControlRows'
 import { useMountTransition } from '../../../hooks/useMountTransition'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import { formatDuration, trackInitials } from '../utils/lyricManagerFormat'
@@ -18,7 +18,6 @@ interface Props {
   /** The version open in the editor (null for an unsaved draft). */
   openVersionId: string | null
   openVersionTitle: string | null
-  activeVersionTitle: string | null
   loading: boolean
   selectedTrackLoaded: boolean
   selectedTrackPlaying: boolean
@@ -29,9 +28,8 @@ interface Props {
 
 /**
  * Compact track strip at the top of the center workspace: artwork, title/artist, a single metadata line, and
- * the two version concepts side by side — OPEN (what the editor has open; selectable) and ACTIVE (the
- * persisted production version; read-only here — activation stays in the Versions list / Save + Make
- * Active). There is no artwork field in the data model (neither LyricManagerTrack nor audio_tracks has
+ * the OPEN selector (the version the editor has open) in the shared right-rail dropdown. The ACTIVE version is
+ * not repeated here: the Versions list shows it, and activation stays there / in Save + Make Active. There is no artwork field in the data model (neither LyricManagerTrack nor audio_tracks has
  * one), so the artwork slot keeps the trackInitials() placeholder.
  */
 export function LyricTrackMetaHeader({
@@ -39,7 +37,6 @@ export function LyricTrackMetaHeader({
   versions,
   openVersionId,
   openVersionTitle,
-  activeVersionTitle,
   loading,
   selectedTrackLoaded,
   selectedTrackPlaying,
@@ -85,28 +82,20 @@ export function LyricTrackMetaHeader({
           </div>
 
           <div className="lmv-track-meta-versions">
-            <div className="lmv-track-meta-version">
-              <span className="lmv-track-meta-version-label" id="lmv-open-version-label">Open</span>
-              {versions.length > 0 ? (
-                <DropdownSelect
-                  className="lmv-select lmv-track-meta-version-select"
-                  aria-labelledby="lmv-open-version-label"
-                  value={openVersionId ?? ''}
-                  onChange={event => { if (event.target.value && event.target.value !== openVersionId) onOpenVersion(event.target.value) }}
-                >
-                  {!openVersionId && <option value="" disabled>{openVersionTitle ?? 'Unsaved draft'}</option>}
-                  {versions.map(version => <option key={version.id} value={version.id}>{version.title}</option>)}
-                </DropdownSelect>
-              ) : (
+            {versions.length > 0 ? (
+              <SelectRow
+                label="Open"
+                value={openVersionId ?? ''}
+                placeholder={openVersionTitle ?? 'Unsaved draft'}
+                onChange={value => { if (value && value !== openVersionId) onOpenVersion(value) }}
+                options={versions.map(version => ({ value: version.id, label: version.title }))}
+              />
+            ) : (
+              <div className="rv-ctrl-row">
+                <span className="rv-ctrl-label-cluster"><span className="rv-ctrl-label">Open</span></span>
                 <span className="lmv-track-meta-version-value">{openVersionTitle ?? 'Unsaved draft'}</span>
-              )}
-            </div>
-            <div className="lmv-track-meta-version">
-              <span className="lmv-track-meta-version-label">Active</span>
-              <span className={`lmv-track-meta-version-value ${activeVersionTitle ? 'lmv-status-good' : 'lmv-status-missing'}`}>
-                {activeVersionTitle ?? 'None'}
-              </span>
-            </div>
+              </div>
+            )}
           </div>
 
           {!selectedTrackLoaded && (

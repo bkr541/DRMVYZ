@@ -399,14 +399,13 @@ describe('LyricManagerView track-first workflow', () => {
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
     await act(async () => alternate.click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
-    // OPEN (the editor's version) and ACTIVE (the persisted production version) are separate concepts.
+    // The header shows only what is OPEN; the ACTIVE version is shown (once) in the Versions list.
     const versionRows = container.querySelector('.lmv-track-meta-versions')?.textContent ?? ''
     expect(versionRows).toContain('Open')
     expect(versionRows).toContain('Alternate Lyrics')
-    expect(versionRows).toContain('Active')
-    expect(versionRows).toContain('Approved Lyrics')
-    const active = [...container.querySelectorAll('.lmv-track-meta-version')].find(row => row.textContent?.startsWith('Active'))
-    expect(active?.textContent).toContain('Approved Lyrics')
+    expect(versionRows).not.toContain('Active')
+    expect(documentCard('Approved Lyrics').classList.contains('lmv-doc-card--active')).toBe(true)
+    expect(documentCard('Alternate Lyrics').classList.contains('lmv-doc-card--active')).toBe(false)
   })
 
   it('opens another saved version from the header OPEN selector without changing the active version', async () => {
@@ -422,8 +421,7 @@ describe('LyricManagerView track-first workflow', () => {
 
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     expect(mocks.activateLyricDocument).not.toHaveBeenCalled()
-    const active = [...container.querySelectorAll('.lmv-track-meta-version')].find(row => row.textContent?.startsWith('Active'))
-    expect(active?.textContent).toContain('Approved Lyrics')
+    expect(documentCard('Approved Lyrics').classList.contains('lmv-doc-card--active')).toBe(true)
   })
 
   it('handles a track with no lyrics and saves a new document with the selected audio_tracks ID', async () => {
