@@ -73,7 +73,7 @@ export function LyricManagerHeader({
       </HeaderControlGroup>
 
       <div className="lmv-header-right">
-        <VyzualzHeaderActions />
+        <VyzualzHeaderActions page="lyric-manager" />
       </div>
     </header>
   )

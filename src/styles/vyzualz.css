@@ -6043,6 +6043,35 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 }
 
 /* ── Header profile avatar (doubles as the settings trigger) ───────────── */
+/* ── Header status cluster (CPU readout + activity ring), left of the profile icon ─────────────
+   Built on .vsm-settings-btn so the resting colour is exactly the header icon buttons' gray in every
+   theme (Layout Lab button included); only the shape is changed and pointer input is switched off. */
+.vsm-settings-btn.vz-header-status-chip {
+  width: auto;
+  min-width: 30px;
+  gap: 5px;
+  padding: 0 7px;
+  cursor: default;
+  pointer-events: none;
+  font: 700 10px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.06em;
+}
+.vz-header-cpu { font-variant-numeric: tabular-nums; }
+.vz-header-cpu-label { opacity: 0.7; }
+.vz-header-cpu-value { min-width: 3ch; text-align: right; }
+.vsm-settings-btn.vz-header-activity { width: 30px; padding: 0; }
+.vz-header-activity-ring { display: block; }
+.vz-header-activity-arc { transform-origin: 12px 12px; }
+/* Specific enough to beat the theme stylesheet's [data-theme] .vsm-settings-btn gray. */
+.vsm-settings-btn.vz-header-status-chip.vz-header-activity[data-busy='true'] { color: #4ac7db; transition: color 0.15s; }
+[data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-activity[data-busy='true'] { color: #4ac7db; }
+.vz-header-activity-arc--spinning { animation: vz-header-activity-spin 0.9s linear infinite; }
+@keyframes vz-header-activity-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .vz-header-activity-arc--spinning { animation: vz-header-activity-pulse 1.4s ease-in-out infinite; }
+}
+@keyframes vz-header-activity-pulse { 50% { opacity: 0.35; } }
+
 .vz-header-avatar {
   width: 28px;
   height: 28px;

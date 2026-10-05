@@ -5,6 +5,8 @@ import { IconChipButton } from '../../components/vyzualz/react/controls/IconChip
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { resolveSaveActivation, resolveSaveRequest, useLyricsStore } from '../../stores/lyricsStore'
+import { usePageActivities } from '../../stores/pageActivityStore'
+import { useSharedDataActivity } from '../../stores/useSharedDataActivity'
 import {
   deleteLyricDocument,
   getFullLyricDocument,
@@ -64,7 +66,7 @@ import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyric
 import { findSavedTrackLinkCandidates, type SavedTrackLinkCandidate } from './services/savedTrackLinking'
 import { LinkSavedTrackDialog } from './components/LinkSavedTrackDialog'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
-import { getRecentLyricTranscriptionJobs } from './services/lyricExtraction'
+import { getRecentLyricTranscriptionJobs, isActiveLyricTranscriptionJob } from './services/lyricExtraction'
 import { validateLyricCues, type LyricValidationIssue } from './utils/lyricValidation'
 import { toEffectiveLyricTimeMs } from './runtime/lyricPlaybackResolver'
 import {
@@ -313,6 +315,15 @@ export function LyricManagerView({
   const [navigationTarget, setNavigationTarget] = useState<{ cueId: string; wordId?: string | null; revision: number } | null>(null)
   const [latestTranscriptionJob, setLatestTranscriptionJob] = useState<LyricTranscriptionJob | null>(null)
   const [transcriptionJobLoading, setTranscriptionJobLoading] = useState(false)
+  // Header spinner: this page's own loading work (the saved-track library comes from the shared hook).
+  useSharedDataActivity('lyric-manager', ['audio'])
+  usePageActivities('lyric-manager', 'view', {
+    'lyric-tracks': tracksLoading && 'Loading tracks',
+    'lyric-documents': (documentsLoading || isLoading) && 'Loading lyric versions',
+    'lyric-job-status': transcriptionJobLoading && 'Checking lyric extraction',
+    'lyric-extraction': isActiveLyricTranscriptionJob(latestTranscriptionJob) && 'Extracting lyrics',
+    'lyric-save': isSaving && 'Saving lyrics',
+  })
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadPurpose, setUploadPurpose] = useState<'canonical' | 'vocal_reference'>('canonical')
   const [uploadedVocalReferenceTrack, setUploadedVocalReferenceTrack] = useState<LyricManagerTrack | null>(null)

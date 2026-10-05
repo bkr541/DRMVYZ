@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Layers01Icon, FolderAddIcon, Add01Icon, Delete02Icon } from 'hugeicons-react'
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
+import { useSharedDataActivity } from '../../stores/useSharedDataActivity'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
@@ -21,6 +22,7 @@ interface MediaManagerViewProps {
 }
 
 export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) {
+  useSharedDataActivity('media-manager', ['media', 'audio'])
   const mediaItems = useMediaStore(state => state.items)
   const savedTracks = useAudioStore(state => state.savedTracks)
   const openCollectionEditor = useMediaStore(state => state.openCollectionEditor)
@@ -101,7 +103,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           </IconChipButton>
         </HeaderControlGroup>
         <div className="mmv-summary">
-          <VyzualzHeaderActions />
+          <VyzualzHeaderActions page="media-manager" />
         </div>
       </header>
 

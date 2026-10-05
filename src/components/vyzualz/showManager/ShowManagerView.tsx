@@ -75,6 +75,7 @@ import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompile
 import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { useSharedDataActivity } from '../../../stores/useSharedDataActivity'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { MediaUploadModal } from '../MediaUploadModal'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
@@ -836,6 +837,7 @@ function findPixGridPreset(
 }
 
 export function ShowManagerView() {
+  useSharedDataActivity('show-manager', ['media', 'audio', 'persistence'])
   const engine = useSharedAudio()
   const showManagerAudioEngineRef = useRef(engine)
   showManagerAudioEngineRef.current = engine
@@ -2195,7 +2197,7 @@ export function ShowManagerView() {
         {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
           <ReactPersistenceStatus />
         )}
-        <VyzualzHeaderActions />
+        <VyzualzHeaderActions page="show-manager" />
       </header>
 
       <div className="sm-workspace">

@@ -38,6 +38,7 @@ import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
 import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+import { useSharedDataActivity } from '../../../stores/useSharedDataActivity'
 import {
   createLaserDmxShowManagerEmptyRuntimeShowDirector,
   createLaserDmxShowManagerRuntimeSectionPrograms,
@@ -201,6 +202,7 @@ const MAX_LOWER_SURFACE_HEIGHT = 640
 const MIN_STAGE_HEIGHT = 180
 
 export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewProps) {
+  useSharedDataActivity('react', ['media', 'audio', 'persistence'])
   const engine   = useSharedAudio()
   const analyser = engine.analyserMaster
 
@@ -822,7 +824,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           </svg>
         </button>
         <ReactPersistenceStatus />
-        <VyzualzHeaderActions />
+        <VyzualzHeaderActions page="react" />
       </div>
       {trackTimelineOpen
         && trackTimelineAvailability.enabled

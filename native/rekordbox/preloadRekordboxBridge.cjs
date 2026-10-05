@@ -55,6 +55,9 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
       return () => ipcRenderer.removeListener('drmvyz:output:receiver-requested', listener)
     },
   }),
+  system: Object.freeze({
+    getCpuUsage: () => ipcRenderer.invoke('drmvyz:system:get-cpu-usage'),
+  }),
   diagnostics: Object.freeze({
     // Fire-and-forget: logging must never block or reject on the caller.
     log: entry => { ipcRenderer.send('drmvyz:diagnostics:log', entry) },

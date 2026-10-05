@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { SettingsModal } from '../settings/SettingsModal'
 import { supabase, supabaseConfigured } from '../../../lib/supabase'
 import { getProfile } from '../../../lib/profileDb'
+import { HeaderSystemStatus } from './HeaderSystemStatus'
+import type { AppPageId } from '../../../stores/pageActivityStore'
 
-export function VyzualzHeaderActions() {
+/** Header tail shared by every page: CPU + activity status, then the profile / settings button. */
+export function VyzualzHeaderActions({ page }: { page: AppPageId }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null)
   const [initials,     setInitials]     = useState('')
@@ -27,6 +30,7 @@ export function VyzualzHeaderActions() {
 
   return (
     <>
+      <HeaderSystemStatus page={page} />
       {supabaseConfigured ? (
         <button
           type="button"
