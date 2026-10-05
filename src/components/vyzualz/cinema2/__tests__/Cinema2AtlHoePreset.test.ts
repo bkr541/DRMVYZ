@@ -42,7 +42,6 @@ describe('ATL HOE preset', () => {
       'skyHorizon',
       'signMetal',
       'signGlow',
-      'signGlowWarm',
       'signBorder',
       'signLetters',
       'foliageBack',

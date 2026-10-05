@@ -27,14 +27,12 @@ const MATERIALS = {
   warmWindows: { baseColorFactor: [0.7, 0.32, 0.045, 1], metallicFactor: 0, roughnessFactor: 0.46, emissiveFactor: [1, 0.43, 0.055] },
   cyanWindows: { baseColorFactor: [0.02, 0.42, 0.56, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.02, 0.65, 0.9] },
   crown: { baseColorFactor: [0.92, 0.46, 0.035, 1], metallicFactor: 0.18, roughnessFactor: 0.3, emissiveFactor: [1, 0.48, 0.045] },
-  // The night sign: gloss-black painted steel (cabinet, base rail and legs = signMetal; cell bezels = signBorder; the lighter edge rails
-  // and rivets that catch the moonlight = signTrim), a glowing gold face in each cell (signGlow) with a thin warmer lip just inside the
-  // bezel (signGlowWarm), and flat black raised letters (signLetters).
-  signMetal: { baseColorFactor: [0.03, 0.034, 0.042, 1], metallicFactor: 0.55, roughnessFactor: 0.38, emissiveFactor: [0.008, 0.012, 0.024] },
-  signTrim: { baseColorFactor: [0.16, 0.18, 0.21, 1], metallicFactor: 0.7, roughnessFactor: 0.28, emissiveFactor: [0.012, 0.018, 0.034] },
-  signGlow: { baseColorFactor: [1, 0.72, 0.02, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.6, 0.02] },
-  signGlowWarm: { baseColorFactor: [1, 0.55, 0.02, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.46, 0.015] },
-  signBorder: { baseColorFactor: [0.016, 0.018, 0.022, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.004, 0.006, 0.012] },
+  // The night sign: near-black painted steel (cabinet, base rail and legs = signMetal; cell frames = signBorder; the faint edge rails and
+  // rivets that catch a cool rim light = signTrim), a flat, bright yellow face in each cell (signGlow) and flat black letters (signLetters).
+  signMetal: { baseColorFactor: [0.012, 0.013, 0.016, 1], metallicFactor: 0.55, roughnessFactor: 0.38, emissiveFactor: [0.002, 0.003, 0.006] },
+  signTrim: { baseColorFactor: [0.06, 0.07, 0.085, 1], metallicFactor: 0.7, roughnessFactor: 0.28, emissiveFactor: [0.004, 0.006, 0.012] },
+  signGlow: { baseColorFactor: [1, 0.78, 0, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.65, 0.01] },
+  signBorder: { baseColorFactor: [0.006, 0.007, 0.009, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.001, 0.002, 0.004] },
   signLetters: { baseColorFactor: [0.004, 0.004, 0.004, 1], metallicFactor: 0, roughnessFactor: 0.82 },
   road: { baseColorFactor: [0.018, 0.024, 0.026, 1], metallicFactor: 0.35, roughnessFactor: 0.8 },
   roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
@@ -277,9 +275,9 @@ for (const [i, x] of [-11.8, -5.4, 1.2, 8.1, 13.2].entries()) {
 }
 }
 
-// The Waffle House sign, modeled on the real roadside sign: a white painted-metal cabinet in two rows (six cells over five cells
-// offset by half a cell), each cell a black bezel around a recessed, glowing gold face carrying one raised, heavy black block letter,
-// all standing on a black base rail and three square black legs that converge toward the ground.
+// The Waffle House sign, modeled on the real roadside sign: a near-black cabinet in two rows (six cells over five cells offset by half a
+// cell, the lower cabinet standing proud of the upper), each cell a thin black frame around a flat, bright yellow face carrying one heavy,
+// flat black block letter, all standing on a black base rail, a centre post and two legs that splay out under the rail and meet low down.
 const panel = 1.42, gap = 0.08
 const topY = 6.9, bottomY = 5.36, signZ = 3.25
 const bottomStart = -7.46
@@ -289,9 +287,12 @@ const signPivot = new THREE.Vector3(-5.2, 6.65, signZ)
 // The camera sits to the sign's right. A shallow positive yaw nearly aligns
 // the face with that sightline and reads front-on, so the hero sign turns far
 // enough past it to expose the left cabinet walls and recede toward the right.
-const signRotation = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(50), -0.01))
+// The roll tips the whole assembly clockwise so the top edge drops steeply to the right, as in the reference.
+const SIGN_YAW_DEG = 47
+const SIGN_ROLL_DEG = -8.5
+const signRotation = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(SIGN_YAW_DEG), THREE.MathUtils.degToRad(SIGN_ROLL_DEG)))
 const signTransform = new THREE.Matrix4()
-  .makeTranslation(signPivot.x + 2.95, signPivot.y - 0.15, signPivot.z + 6.3)
+  .makeTranslation(signPivot.x + 2.38, signPivot.y + 0.19, signPivot.z + 5.7)
   .multiply(signRotation)
   .multiply(new THREE.Matrix4().makeTranslation(-signPivot.x, -signPivot.y, -signPivot.z))
 const signBox = (part, at, size, rotate = [0, 0, 0], name) => addGeometry(
@@ -314,26 +315,24 @@ const face = panel - 0.17
 // The yellow face sits just proud of the cabinet front (never coplanar with it) and just behind the bezel's front edge.
 const faceZ = cabinetFront
 
-function signRow(name, count, startX, y) {
+// `dz` stands a row's whole cabinet proud of the other along the sign's own normal.
+function signRow(name, count, startX, y, dz = 0) {
   const rowWidth = count * panel + (count - 1) * gap + 0.28
   const rowCenter = startX + ((count - 1) * (panel + gap)) / 2
   const cabinetHeight = panel + 0.2
-  // The painted cabinet box, with a thin lighter edge rail along its front top and bottom.
-  signBox('signMetal', [rowCenter, y, signZ], [rowWidth, cabinetHeight, cabinetDepth], [0, 0, 0], `${name}-cabinet`)
-  signBox('signTrim', [rowCenter, y + cabinetHeight / 2 - 0.02, cabinetFront - 0.015], [rowWidth + 0.04, 0.05, 0.05], [0, 0, 0], `${name}-cabinet-top-edge`)
-  signBox('signTrim', [rowCenter, y - cabinetHeight / 2 + 0.02, cabinetFront - 0.015], [rowWidth + 0.04, 0.05, 0.05], [0, 0, 0], `${name}-cabinet-bottom-edge`)
+  const rowZ = signZ + dz
+  const rowFront = cabinetFront + dz
+  const rowFaceZ = faceZ + dz
+  // The painted cabinet box, with a thin edge rail along its front top and bottom that catches the rim light.
+  signBox('signMetal', [rowCenter, y, rowZ], [rowWidth, cabinetHeight, cabinetDepth], [0, 0, 0], `${name}-cabinet`)
+  signBox('signTrim', [rowCenter, y + cabinetHeight / 2 - 0.02, rowFront - 0.015], [rowWidth + 0.04, 0.035, 0.05], [0, 0, 0], `${name}-cabinet-top-edge`)
+  signBox('signTrim', [rowCenter, y - cabinetHeight / 2 + 0.02, rowFront - 0.015], [rowWidth + 0.04, 0.035, 0.05], [0, 0, 0], `${name}-cabinet-bottom-edge`)
   for (let i = 0; i < count; i += 1) {
     const x = startX + i * (panel + gap)
-    // Recessed yellow face with a white bezel frame raised around it.
-    signBox('signGlow', [x, y, faceZ], [face, face, 0.04], [0, 0, 0], `${name}-${i}-face`)
-    // A thin, warmer lip just inside the bezel, as on the real sign's lit faces.
-    const lip = 0.035, lipZ = faceZ + 0.026
-    signBox('signGlowWarm', [x, y + (face - lip) / 2, lipZ], [face, lip, 0.012], [0, 0, 0], `${name}-${i}-lip-top`)
-    signBox('signGlowWarm', [x, y - (face - lip) / 2, lipZ], [face, lip, 0.012], [0, 0, 0], `${name}-${i}-lip-bottom`)
-    signBox('signGlowWarm', [x - (face - lip) / 2, y, lipZ], [lip, face - 2 * lip, 0.012], [0, 0, 0], `${name}-${i}-lip-left`)
-    signBox('signGlowWarm', [x + (face - lip) / 2, y, lipZ], [lip, face - 2 * lip, 0.012], [0, 0, 0], `${name}-${i}-lip-right`)
+    // A flat yellow face, sitting just proud of the cabinet front and just behind the frame's front edge.
+    signBox('signGlow', [x, y, rowFaceZ], [face, face, 0.04], [0, 0, 0], `${name}-${i}-face`)
     const ring = (panel - face) / 2
-    const bezelZ = cabinetFront + bezelDepth / 2 - 0.03
+    const bezelZ = rowFront + bezelDepth / 2 - 0.03
     signBox('signBorder', [x, y + (panel - ring) / 2, bezelZ], [panel, ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-top`)
     signBox('signBorder', [x, y - (panel - ring) / 2, bezelZ], [panel, ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-bottom`)
     signBox('signBorder', [x - (panel - ring) / 2, y, bezelZ], [ring, panel - 2 * ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-left`)
@@ -341,15 +340,16 @@ function signRow(name, count, startX, y) {
   }
   return { rowWidth, rowCenter, cabinetHeight }
 }
+const LOWER_ROW_DZ = 0.34
 const topRow = signRow('top', 6, topStart, topY)
-const bottomRow = signRow('bottom', 5, bottomStart, bottomY)
+const bottomRow = signRow('bottom', 5, bottomStart, bottomY, LOWER_ROW_DZ)
 
-// Four rivets on the exposed left end of each cabinet, as on the real sign.
-for (const [row, y] of [[topRow, topY], [bottomRow, bottomY]]) {
+// Four rivets at the corners of the exposed left end of each cabinet, as on the real sign.
+for (const [row, y, dz0] of [[topRow, topY, 0], [bottomRow, bottomY, LOWER_ROW_DZ]]) {
   const x = row.rowCenter - row.rowWidth / 2 - 0.012
   for (const [dz, dy] of [[-0.24, 0.62], [0.24, 0.62], [-0.24, -0.62], [0.24, -0.62]]) {
     addGeometry('signTrim', new THREE.CylinderGeometry(0.04, 0.04, 0.035, 12), {
-      at: [x, y + dy, signZ + dz], rotate: [0, 0, Math.PI / 2], parentMatrix: signTransform,
+      at: [x, y + dy, signZ + dz0 + dz], rotate: [0, 0, Math.PI / 2], parentMatrix: signTransform,
     })
   }
 }
@@ -381,19 +381,20 @@ function strokeOutline(centre, thickness, samples = 90) {
   return [...left, ...right.reverse()]
 }
 const GLYPHS = {
-  W: { width: 1.14, outline: [[0, 1], [0.205, 0], [0.405, 0], [0.5, 0.475], [0.595, 0], [0.795, 0], [1, 1], [0.8, 1], [0.6975, 0.4875], [0.61, 0.93], [0.39, 0.93], [0.3025, 0.4875], [0.2, 1]], unit: true },
-  A: { width: 1.0, outline: [[0, 0], [0.255, 0], [0.31, 0.2], [0.69, 0.2], [0.745, 0], [1, 0], [0.63, 1], [0.37, 1]], holes: [[[0.378, 0.38], [0.622, 0.38], [0.5, 0.705]]], unit: true },
-  F: { width: 0.72, outline: [[0, 0], [0.25, 0], [0.25, 0.4], [0.62, 0.4], [0.62, 0.6], [0.25, 0.6], [0.25, 0.78], [1, 0.78], [1, 1], [0, 1]], xScale: 0.72 },
-  L: { width: 0.7, outline: [[0, 0], [1, 0], [1, 0.22], [0.36, 0.22], [0.36, 1], [0, 1]], xScale: 0.7 },
-  E: { width: 0.72, outline: [[0, 0], [1, 0], [1, 0.22], [0.35, 0.22], [0.35, 0.4], [0.89, 0.4], [0.89, 0.6], [0.35, 0.6], [0.35, 0.78], [1, 0.78], [1, 1], [0, 1]], xScale: 0.72 },
-  H: { width: 0.82, outline: [[0, 0], [0.3, 0], [0.3, 0.4], [0.7, 0.4], [0.7, 0], [1, 0], [1, 1], [0.7, 1], [0.7, 0.6], [0.3, 0.6], [0.3, 1], [0, 1]], xScale: 0.82 },
-  O: { width: 0.94, outline: superEllipse(0.5, 0.5, 0.5, 0.5), holes: [superEllipse(0.5, 0.5, 0.2, 0.275, 2.2)], xScale: 0.94 },
-  U: { width: 0.84, outline: [[0, 1], [0, 0.42], ...arc(0.5, 0.42, 0.5, 0.42, Math.PI, Math.PI * 2), [1, 1], [0.7, 1], [0.7, 0.42], ...arc(0.5, 0.42, 0.2, 0.2, Math.PI * 2, Math.PI).slice(0), [0.3, 1]], xScale: 0.84 },
-  S: { width: 0.78, strokeCentre: [[0.88, 0.78], [0.8, 0.9], [0.62, 0.955], [0.42, 0.965], [0.22, 0.925], [0.12, 0.82], [0.17, 0.69], [0.34, 0.585], [0.52, 0.5], [0.72, 0.42], [0.82, 0.31], [0.78, 0.17], [0.62, 0.065], [0.4, 0.035], [0.2, 0.08], [0.08, 0.2], [0.05, 0.3]], strokeWidth: 0.235, xScale: 0.78 },
+  W: { width: 1.14, outline: [[0, 1], [0.22, 0], [0.43, 0], [0.5, 0.4], [0.57, 0], [0.78, 0], [1, 1], [0.74, 1], [0.675, 0.44], [0.61, 0.92], [0.39, 0.92], [0.325, 0.44], [0.26, 1]], unit: true },
+  A: { width: 1.02, outline: [[0, 0], [0.3, 0], [0.345, 0.2], [0.655, 0.2], [0.7, 0], [1, 0], [0.64, 1], [0.36, 1]], holes: [[[0.405, 0.4], [0.595, 0.4], [0.5, 0.68]]], unit: true },
+  F: { width: 0.74, outline: [[0, 0], [0.34, 0], [0.34, 0.36], [0.66, 0.36], [0.66, 0.58], [0.34, 0.58], [0.34, 0.74], [1, 0.74], [1, 1], [0, 1]], xScale: 0.74 },
+  L: { width: 0.72, outline: [[0, 0], [1, 0], [1, 0.26], [0.4, 0.26], [0.4, 1], [0, 1]], xScale: 0.72 },
+  E: { width: 0.76, outline: [[0, 0], [1, 0], [1, 0.26], [0.4, 0.26], [0.4, 0.37], [0.92, 0.37], [0.92, 0.59], [0.4, 0.59], [0.4, 0.74], [1, 0.74], [1, 1], [0, 1]], xScale: 0.76 },
+  H: { width: 0.86, outline: [[0, 0], [0.35, 0], [0.35, 0.38], [0.65, 0.38], [0.65, 0], [1, 0], [1, 1], [0.65, 1], [0.65, 0.62], [0.35, 0.62], [0.35, 1], [0, 1]], xScale: 0.86 },
+  O: { width: 0.96, outline: superEllipse(0.5, 0.5, 0.5, 0.5), holes: [superEllipse(0.5, 0.5, 0.17, 0.24, 2.2)], xScale: 0.96 },
+  U: { width: 0.88, outline: [[0, 1], [0, 0.42], ...arc(0.5, 0.42, 0.5, 0.42, Math.PI, Math.PI * 2), [1, 1], [0.65, 1], [0.65, 0.42], ...arc(0.5, 0.42, 0.15, 0.15, Math.PI * 2, Math.PI).slice(0), [0.35, 1]], xScale: 0.88 },
+  S: { width: 0.78, strokeCentre: [[0.88, 0.78], [0.8, 0.9], [0.62, 0.955], [0.42, 0.965], [0.22, 0.925], [0.12, 0.82], [0.17, 0.69], [0.34, 0.585], [0.52, 0.5], [0.72, 0.42], [0.82, 0.31], [0.78, 0.17], [0.62, 0.065], [0.4, 0.035], [0.2, 0.08], [0.08, 0.2], [0.05, 0.3]], strokeWidth: 0.285, xScale: 0.8 },
 }
-const letterHeight = 1.0
-const letterDepth = 0.15
-const letterBevel = 0.014
+// Heavy, flat letters: tall in the face, with only a token extrusion so they read as printed black blocks.
+const letterHeight = 1.04
+const letterDepth = 0.06
+const letterBevel = 0.006
 function glyphShape(letter) {
   const glyph = GLYPHS[letter]
   let outline = glyph.outline
@@ -421,21 +422,26 @@ function letterGeometry(letter) {
   geometry.dispose()
   return creased
 }
-for (const [word, start, y] of [['WAFFLE', topStart, topY], ['HOUSE', bottomStart, bottomY]]) {
+for (const [word, start, y, dz] of [['WAFFLE', topStart, topY, 0], ['HOUSE', bottomStart, bottomY, LOWER_ROW_DZ]]) {
   for (let i = 0; i < word.length; i += 1) {
-    addGeometry('signLetters', letterGeometry(word[i]), { at: [start + i * (panel + gap), y, faceZ + 0.02], name: `letter-${word}-${i}`, parentMatrix: signTransform })
+    addGeometry('signLetters', letterGeometry(word[i]), { at: [start + i * (panel + gap), y, faceZ + dz + 0.02], name: `letter-${word}-${i}`, parentMatrix: signTransform })
   }
 }
 
-// The base rail under the lower row carries the legs: two splayed outward at the top and converging toward the ground, plus a
-// straight centre post. Their bases run well below the camera frame, in the 16:9 output and the tall Stage preview alike.
+// The base rail under the lower row carries the legs: two splayed outward under the rail and meeting low down in a V, plus a straight
+// centre post. Their bases run below the camera frame, in the 16:9 output and the tall Stage preview alike.
 const railY = bottomY - bottomRow.cabinetHeight / 2 - 0.15
-signBox('signMetal', [signCenterX, railY, signZ - 0.02], [bottomRow.rowWidth + 0.62, 0.3, cabinetDepth + 0.12], [0, 0, 0], 'base-rail')
-signBox('signTrim', [signCenterX, railY + 0.16, signZ + 0.28], [bottomRow.rowWidth + 0.66, 0.035, 0.06], [0, 0, 0], 'base-rail-edge')
-const legTop = railY - 0.1, legBottom = -4.5, legThickness = 0.36, legZ = signZ - 0.12
-signTube('signMetal', [signCenterX - 2.05, legTop], [signCenterX - 0.48, legBottom], legThickness, legZ, 'leg-left')
-signTube('signMetal', [signCenterX + 2.05, legTop], [signCenterX + 0.48, legBottom], legThickness, legZ, 'leg-right')
-signTube('signMetal', [signCenterX, legTop], [signCenterX, legBottom], legThickness, legZ - 0.04, 'leg-center')
+const railZ = signZ + LOWER_ROW_DZ
+signBox('signMetal', [signCenterX, railY, railZ - 0.02], [bottomRow.rowWidth + 0.62, 0.3, cabinetDepth + 0.12], [0, 0, 0], 'base-rail')
+signBox('signTrim', [signCenterX, railY + 0.16, railZ + 0.28], [bottomRow.rowWidth + 0.66, 0.025, 0.06], [0, 0, 0], 'base-rail-edge')
+const legTop = railY - 0.1, legBottom = -4.5, legThickness = 0.5, legZ = signZ - 0.05
+// The legs are authored in the sign's own (rolled) plane. The centre post leans against the roll so it stays visually upright, and the two
+// outer legs splay out under the rail and meet it at one foot, so they form a V instead of crossing in the tall Stage preview.
+const legSpan = legTop - legBottom
+const footX = signCenterX + Math.tan(THREE.MathUtils.degToRad(-SIGN_ROLL_DEG)) * legSpan
+signTube('signMetal', [signCenterX - 2.7, legTop], [footX, legBottom], legThickness, legZ, 'leg-left')
+signTube('signMetal', [signCenterX + 2.7, legTop], [footX, legBottom], legThickness, legZ, 'leg-right')
+signTube('signMetal', [signCenterX, legTop], [footX, legBottom], legThickness, legZ - 0.04, 'leg-center')
 
 // Layered lower-right canopy. A muted back layer establishes breadth, visible
 // branches break up the base, and larger near clusters form an irregular edge.

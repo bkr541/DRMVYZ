@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status:** The approved sign remains implemented. The city skyscrapers and road/bridge layer were removed at the owner's request and are awaiting replacement; the sky, stars, and foreground canopy remain.
+**Status (revision 2):** Phase 1 (sign) is implemented and awaiting owner approval. The sky, stars, and foreground canopy are still the earlier versions and do not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
 
 ## Goal
 
@@ -9,331 +9,210 @@ Rebuild the `ATL HOE` Cinema 2.0 preset so that its static frame closely matches
 The approved direction is:
 
 - a large, dimensional **WAFFLE HOUSE** roadside sign in the left foreground;
-- an Atlanta skyline that recognizably includes **Westin Peachtree Plaza Hotel, Truist Plaza, Promenade II, and Georgia-Pacific Tower**;
-- a dense city extending across the frame rather than a small cluster of generic towers;
-- cool blue nighttime ambience with controlled warm sign and window light;
-- atmospheric depth, layered elevated roads, and a substantial dark tree canopy in the lower-right foreground;
+- a dense Atlanta skyline that follows the silhouettes in the reference image (see [Open decisions](#open-decisions) on building identities);
+- cool blue nighttime ambience with controlled warm sign, crown, window, and street-lamp light;
+- atmospheric depth, an elevated lit roadway, and dark tree canopy framing both lower corners;
 - real 3D geometry and Cinema 2.0 lighting/post-processing, not a flat reference image used as the rendered background.
-
-## Current baseline
-
-The first implementation establishes the production path but falls short visually:
-
-- the scene reads as a stylized low-poly illustration;
-- the sign is nearly front-on and lacks cabinet depth, construction detail, and correct lettering;
-- the first `W` reads incorrectly and the type is too condensed;
-- the sign faces and crowns are overexposed;
-- the composition is vertically loose and contains too much empty black space;
-- the skyline is sparse, clustered, and only weakly resembles the requested landmarks;
-- windows are uniform emissive pixels rather than parts of believable façades;
-- the scene lacks cool ambient illumination and useful aerial perspective;
-- the freeway and foliage are placeholders;
-- the technically 3D scene does not present enough perspective, overlap, or material response to *look* three-dimensional.
-
-The existing prototype remains useful as a registration, rendering, and asset-pipeline foundation. It should be revised in place rather than retained as a competing preset.
 
 ## Non-negotiable acceptance rules
 
 1. **Static visual approval comes first.** Do not add audio choreography until the static composition, geometry, materials, and lighting pass the final visual review.
 2. **The sign must read `WAFFLE HOUSE` immediately.** No ambiguous glyphs, bloom-obscured strokes, or incorrect letter proportions.
-3. **The four named towers must be identifiable by silhouette and façade cues**, not only by their relative positions or window colors.
-4. **Warm emitters must retain detail.** Sign faces, letters, bezels, crown tiers, and windows must remain distinguishable at final exposure.
-5. **The scene must remain convincingly 3D at rest.** Perspective, visible side faces, overlaps, depth fog, shadowing, and material highlights must communicate depth without requiring camera movement.
-6. **The composition must work in both the tall embedded Stage preview and a 16:9 output.** The preview may reveal more vertical scene, but it must not crop the sign text or collapse the intended foreground/background relationship.
-7. **Every phase ends with a visual checkpoint.** Passing schema tests alone is not sufficient.
+3. **Each skyline landmark must be identifiable by silhouette and crown/facade cues in the reference**, not only by relative position or window color.
+4. **Warm emitters must retain detail.** Sign faces, letters, frames, crown tiers, and windows must remain distinguishable at final exposure.
+5. **The scene must remain convincingly 3D at rest.** Perspective, visible side faces, overlaps, depth fog, and material highlights must communicate depth without requiring camera movement.
+6. **The composition must work in both the tall embedded Stage preview and a 16:9 output.** The preview may reveal more vertical scene, but it must not crop the sign text or collapse the foreground/background relationship.
+7. **Every phase ends with a visual checkpoint** captured at 16:9 and at the embedded Stage aspect and compared with the reference. Passing schema tests alone is not sufficient, and the next phase does not start until the owner approves the checkpoint.
+
+## Current reference vs. current render
+
+Findings from comparing the owner's reference image with a capture of the preset as it renders in Cinema 2.0 (Stage preview, about 1.82:1). The reference is 16:9.
+
+| Area | Current render | Reference |
+|---|---|---|
+| **Skyline** | None. The city layer is disabled. | Dense skyline across the whole frame. Left to right: a dark tower with a red beacon; a round-crowned tower with a white crown ring and a thin mast; a tall ribbed tower with a stepped gold pyramid crown and a red beacon; a smaller stepped tower with a tiered gold crown; an angular glass building with a yellow triangular facet; many mid-rise blocks. Facades are dark blue-grey with warm amber window grids. |
+| **Roads and lamps** | None. | Elevated roadway with columns low in the frame and glowing orange street lamps on poles. |
+| **Sign cell faces** | Each yellow face has an orange ring inside it. | Flat, bright yellow. No orange ring. Faces sit in thin black cell frames with narrow dark gaps between cells. |
+| **Sign letters** | Thinner, with visible extrusion and bevel sides. | Heavier and wider, filling about 80% of the cell, reading as flat black. |
+| **Sign cabinet** | Blue-grey metal with a thick rail around each row. | Near-black with a thin frame and a faint cool rim light. The lower cabinet sits in front of the upper one. Rivets only at the corners. |
+| **Sign supports** | Three near-parallel vertical posts. | One centre post and two splayed legs forming a V that narrows toward the ground, all black. |
+| **Sign tilt and scale** | Top edge drops about 9° left to right. | About 17°, with stronger perspective. The top-left corner sits almost on the frame edge. |
+| **Sky** | Flat, saturated royal blue. Many bright stars. | Deep navy at the top, lighter and slightly warmer toward the horizon behind the city. Fewer, finer stars concentrated in the upper frame. |
+| **Foliage** | Smooth teal-grey blobs, right side only. | Near-black clumps with a leafy outline at both bottom corners. The right mass rises higher and overlaps the skyline. Faint warm rim light on lit edges. |
+| **Light and finish** | Hard-edged cells, jagged letter edges, no glow around the sign. Lower frame is flat dark blue. | Soft glow around the sign, warm haze low in the frame, cool upper frame, clean edges. |
 
 ## Reference composition targets
 
-These are visual guides rather than pixel-perfect measurements. They provide a stable target for implementation and review.
+These are visual guides rather than pixel-perfect measurements.
 
 | Element | Target |
 |---|---|
-| Waffle House sign | Occupies roughly the left half of a 16:9 frame; upper-left edge enters near the frame edge; strong oblique perspective exposes the cabinet top and left side. |
-| Sign text | Six top cells and five lower cells, with the lower row offset by about one cell; heavy, wide black letters with consistent optical margins. |
-| Westin Peachtree Plaza | Left of Truist Plaza; cylindrical glazed body, luminous round crown, thin mast. |
-| Truist Plaza | Dominant center-right landmark; tall vertically ribbed body and a detailed stepped golden crown rather than a solid triangle. |
-| Promenade II | Right of Truist Plaza; slender stepped massing with restrained cyan horizontal accents. |
-| Georgia-Pacific Tower | Farther right; broad, dark stepped slab with recognizable setbacks and limited warm windows. |
-| City density | Mid- and low-rise buildings fill the skyline from left to right, with overlapping depth layers. |
-| Roads | Multiple elevated decks with perspective, columns, underside depth, and localized sodium pools. |
-| Foliage | Large textured silhouette occupying much of the lower-right foreground and overlapping the city. |
-| Color | Cool blue sky and ambient fill; warm yellow-orange sign, crown, windows, and street lighting. |
+| Waffle House sign | Occupies roughly the left half of a 16:9 frame (about 52% of the width, about 60% of the height). Upper-left edge enters near the frame edge. Strong oblique perspective, top edge dropping about 17° to the right, exposing the cabinet top and left side. |
+| Sign text | Six top cells and five lower cells, the lower row offset by about one cell. Heavy, wide, flat black letters with consistent optical margins. |
+| Sign construction | Black cabinet and thin frames, flat yellow faces, corner rivets, a black base rail, a centre post and two splayed legs. |
+| Skyline | Reference silhouettes: round-crowned tower center-left, tallest ribbed tower with gold pyramid crown center-right, smaller tiered gold-crowned tower right, angular glass building low-center, dark tower with beacon at the left edge, mid-rise blocks filling the gaps. |
+| City density | Overlapping depth layers from left to right; no gaps at either edge or behind the sign. |
+| Roads | Elevated decks with perspective, columns, and localized sodium pools; orange lamp orbs on poles. |
+| Foliage | Near-black leaf-cluster silhouettes in both lower corners; the right mass overlaps the skyline. |
+| Color | Cool blue sky and ambient fill; warm yellow-orange sign, crowns, windows, and street lighting only. |
 
 ## Phase 0 — Establish a repeatable visual baseline
 
-**Status:** Implemented. Run `npm run test:e2e:cinema2-atl-hoe` to write a unique, git-ignored baseline set under `artifacts/cinema2-atl-hoe-visual-acceptance/`. The harness captures the three named checkpoints below at an exact two-second visual time and verifies duplicate image hashes. An optional development-only overlay can be generated with `--reference=/absolute/path/to/reference.png`; the reference is passed to the browser in memory and is not copied into the preset or repository.
+**Status:** Implemented. Run `npm run test:e2e:cinema2-atl-hoe` to write a unique, git-ignored baseline set under `artifacts/cinema2-atl-hoe-visual-acceptance/`. The harness captures named checkpoints at an exact two-second visual time and verifies duplicate image hashes. An optional development-only overlay can be generated with `--reference=/absolute/path/to/reference.png`; the reference is passed to the browser in memory and is not copied into the preset or repository.
 
-### Purpose
+Every phase below uses this harness for its checkpoint. Extend its checkpoint list when a phase needs a new diagnostic frame (for example an unlit silhouette frame in Phase 3). The supplied reference must never ship as part of the rendered preset.
 
-Prevent subjective drift and make every later phase comparable to the same reference.
+## Phase 1 — Sign
 
-### Code and tooling work
+**Status:** Implemented; awaiting owner approval of the checkpoint. A 50% overlay against the reference registers the sign's position, scale, tilt, and cell layout closely at 16:9, and the tall Stage preview shows the full sign uncropped. Details of what was built:
 
-- Add an ATL HOE visual-acceptance harness that can select the preset and capture stable frames at:
-  - 1920×1080 (primary composition);
-  - the embedded Stage's tall/narrow aspect ratio;
-  - one lower-quality tier for degradation review.
-- Hold exposure, render quality, camera state, and time constant during captures.
-- Save a small metadata record with camera transform, FOV, aspect policy, effect settings, and asset revision.
-- Capture the current prototype as the explicit `before` baseline.
-- Add an optional reference-overlay mode to the development harness only. The supplied image must never ship as part of the rendered preset.
+- Pose: yaw 47°, roll −8.5° (top edge drops about 17° on screen), moved up and left so the upper-left corner sits near the frame edge.
+- Faces: flat yellow, no orange lip (the `signGlowWarm` part and its material are removed from the generator, the preset, and the preset test). Thin black cell frames.
+- Letters: heavier strokes, taller in the face, extrusion cut to 0.06 with a token bevel so they read as flat.
+- Cabinet: near-black `signMetal`, `signBorder`, and `signTrim`; the lower cabinet is set 0.34 forward of the upper; corner rivets kept on the exposed left end.
+- Supports: a centre post plus two legs that splay out under the rail and meet it at one foot, so they form a V in the tall Stage preview instead of crossing.
+- Pose constants (`SIGN_YAW_DEG`, `SIGN_ROLL_DEG`) and the lower-row offset (`LOWER_ROW_DZ`) are named at the top of the sign section of the generator.
+
+The sign is the hero asset. It is self-contained, so it is done first and can be reviewed against the reference without the skyline.
+
+### Issues addressed
+
+- orange ring inside each face;
+- thin, extruded letters;
+- blue-grey cabinet with thick rails;
+- three parallel posts;
+- shallow tilt and perspective.
+
+### Implementation
+
+- Increase the sign's roll and yaw so the top edge drops about 17° left to right, with stronger perspective. Move it up and left so the upper-left corner nearly meets the frame edge. Keep it uncropped at both target aspect ratios.
+- Cell faces: flat, bright yellow; remove the orange lip; thin black cell frames with narrow dark gaps.
+- Letters: redraw the outline polygons heavier and wider, filling about 80% of the cell; flat black with minimal extrusion and no visible bevel sides. Re-check the `W`, `A`, `H`, `O`, `U`, and `S` counters at final output size.
+- Cabinet: near-black painted metal with a thin frame and a faint cool rim light. Set the lower cabinet in front of the upper one. Rivets at the corners only. Black base rail.
+- Supports: one centre post and two splayed legs forming a V that narrows toward the ground, all black, with believable thickness, replacing the three parallel posts.
 
 ### Likely files
 
-- `scripts/run-cinema2-atl-hoe-browser.mjs`
-- `src/test/browser/Cinema2AtlHoeVisualAcceptanceBrowserHarness.tsx`
-- `src/components/vyzualz/cinema2/__tests__/Cinema2AtlHoePreset.test.ts`
+- `scripts/cinema2-assets/generate-atl-hoe.mjs`
+- `src/components/vyzualz/cinema2/presets/Cinema2AtlHoePreset.ts` (sign transform, material parameters)
+- `public/cinema2/models/atl-hoe.glb` and `Cinema2AssetManifest.generated.ts` (regenerated with `npm run assets:build`)
 
 ### Exit criteria
 
-- The same code revision produces reproducible captures.
-- Both target aspect ratios are reviewed before asset remodeling begins.
-- The current visual gaps are represented by named checkpoints rather than memory or ad hoc screenshots.
+- `WAFFLE HOUSE` is legible and the first letter is unmistakably `W`.
+- Faces are flat yellow with no orange ring; letters read flat and heavy.
+- Cabinet is black, legs form the V, tilt and scale match the reference.
+- The sign alone is a close structural match to the reference.
 
-## Phase 1 — Correct camera, perspective, and large-scale composition
+## Phase 2 — Sky and atmosphere base
 
-**Status:** Implemented. The sign is now translated into the upper-left foreground and rotated as one rigid assembly to expose cabinet depth; the landmark anchors are spread across the background; and the locked camera uses a 16:9 fit-width policy for narrow Stage previews.
-
-### Issues addressed
-
-- excessive empty space;
-- centered horizontal-band composition;
-- weak foreground/background scale separation;
-- frontal, flattened sign presentation;
-- fragile tall-preview framing.
+Needed before the skyline so buildings have something to silhouette against.
 
 ### Implementation
 
-- Recompose the scene in a 16:9 world frame first.
-- Move the sign closer to the camera, farther left, higher in frame, and rotate it so its top, left side, and cabinet thickness are visible.
-- Set the camera slightly below the sign's center and aim through the gap between the sign and skyline, matching the reference's upward urban viewpoint.
-- Re-space the four landmark anchors across the background before remodeling their detail.
-- Replace the single hard-coded framing compromise with an aspect-aware camera strategy:
-  - preserve the full sign width in the embedded Stage;
-  - retain the authored 16:9 composition in output;
-  - avoid large unused vertical regions.
-- Use temporary landmark proxy volumes during this phase so composition can be approved independently of fine geometry.
+- Replace the flat blue with a gradient: deep navy at the top, slightly lighter and warmer toward the horizon behind the city.
+- Reduce the star count and size; concentrate stars in the upper frame.
+- Add a low warm haze band at the horizon, kept subtle so the upper atmosphere stays cool.
 
 ### Exit criteria
 
-- The sign occupies the correct foreground scale and is not cropped in either target aspect ratio.
-- The skyline fills the background width.
-- The image reads as foreground sign, middle-distance roads/buildings, and distant skyline even with flat diagnostic materials.
-- No detailed modeling proceeds until this silhouette composition is accepted.
+- The sky reads as a deep navy gradient, not a flat saturated blue.
+- Stars are fine and sparse.
+- A horizon band exists to separate distant silhouettes.
 
-## Phase 2 — Rebuild the Waffle House sign as the hero asset
+## Phase 3 — Skyline massing
 
-**Status:** Implemented, then restyled to match the supplied nighttime reference render of the real sign. The approved 50° oblique assembly is a gloss-black painted-steel cabinet (six cells over five, offset half a cell) with lighter edge rails that catch the moonlight; each cell is a black bezel around a recessed, glowing gold face with a thin warmer-orange lip, carrying a raised, flat black block letter; rivets on the exposed left end of each cabinet; a black base rail; and three square black legs that converge toward the ground and run out of frame. The letters are authored in the generator as outline polygons (no font file). The sky is a smooth, slightly lighter navy with a denser, brighter star field. The scene and skyline remain unchanged by this phase.
-
-### Issues addressed
-
-- incorrect `W` and condensed lettering;
-- weak panel proportions and optical spacing;
-- flat sign presentation;
-- missing cabinet, bezel, fastener, and support detail;
-- bloom erasing letter and border detail.
+The city generator is currently switched off because its earlier output did not match the reference. This phase is a rewrite, not a re-enable.
 
 ### Implementation
 
-- Replace the generic Anton-derived sign lettering with a dedicated in-house letter set authored specifically for the eleven sign cells.
-  - Match the reference's wide, heavy block construction.
-  - Adjust each glyph optically rather than applying one automatic fit scale.
-  - Test the `W`, `A`, `H`, `O`, `U`, and `S` counters at final output size.
-- Rebuild each cell with separate geometry for:
-  - rear metal cabinet;
-  - outer black metal frame;
-  - inset yellow face;
-  - thin orange/yellow inner border;
-  - raised or slightly inset black letter;
-  - bevels and corner hardware.
-- Give the full sign a structural rear frame, top/bottom rails, cross-members, and heavy angled supports with believable thickness.
-- Use physically plausible material separation: painted black metal, slightly rough illuminated acrylic, and non-emissive black lettering.
-- Keep the sign face emissive enough to motivate bloom, but make the panel's visible yellow come from material color plus controlled emission—not clipping.
-- If needed, split the current monolithic `cinema2-atl-hoe` asset into a dedicated sign asset and city asset so their materials, bounds, and revisions can be inspected independently.
-
-### Likely files
-
-- `scripts/cinema2-assets/generate-atl-hoe.mjs`, or new focused generators under `scripts/cinema2-assets/atl-hoe/`
-- `assets/cinema2/cinema2-atl-hoe-sign/asset.json` if the asset is split
-- `src/components/vyzualz/cinema2/presets/Cinema2AtlHoePreset.ts`
+- Author the landmark silhouettes from the reference first, as proxy volumes with their crowns:
+  - the round-crowned tower (glazed cylinder, white crown ring, thin mast);
+  - the tallest ribbed tower with a stepped gold pyramid crown;
+  - the smaller stepped tower with a tiered gold crown;
+  - the angular glass building;
+  - the dark tower with a beacon at the left edge.
+- Add three depth bands of mid-rise buildings: near mid-rises around the roads, middle-distance towers overlapping the landmarks without hiding them, and distant low-contrast silhouettes closing the horizon.
+- Vary width, height, roofline, and setbacks by band.
+- Capture an **unlit silhouette frame** and compare it with the reference silhouette before adding windows.
 
 ### Exit criteria
 
-- `WAFFLE HOUSE` is legible without bloom and remains legible with final bloom.
-- The first letter is unmistakably `W`.
-- Side walls, bevels, panel layers, and supports create clear depth in a static frame.
-- The sign alone is a close structural match to the reference before skyline detail is evaluated.
+- Each landmark is identifiable from the unlit silhouette frame.
+- No gaps at either edge or behind the sign.
+- Near, middle, and far bands are visibly separated.
 
-## Phase 3 — Rebuild the four landmark towers
-
-**Status:** Implemented. Westin Peachtree Plaza now has segmented cylindrical glazing and rooftop rings; Truist Plaza has deep ribbed bays and an edged tiered crown; Promenade II has a reflective stepped ziggurat profile; and Georgia-Pacific Tower has broad offset slabs, split setbacks, deep piers, and restrained office lighting.
-
-### Issues addressed
-
-- generic tower silhouettes;
-- inaccurate crowns and setbacks;
-- weak façade identity;
-- uniform, textureless building surfaces.
+## Phase 4 — Facades and emitters
 
 ### Implementation
 
-Model each landmark as a deliberate subassembly with named parts and separate material controls.
-
-#### Westin Peachtree Plaza Hotel
-
-- Build a segmented cylindrical glass façade with visible vertical mullions and alternating dark/lit room bands.
-- Rebuild the top as a luminous circular crown with a dark rim and a thin mast.
-- Use curved reflections and restrained highlight bands so the body reads as glass rather than a dark cylinder.
-
-#### Truist Plaza
-
-- Add strong vertical façade ribs, recessed window bays, and a darker structural base.
-- Replace the solid triangular crown with multiple stepped tiers, each with a dark edge and controlled warm emitter.
-- Preserve individual tier silhouettes after bloom.
-
-#### Promenade II
-
-- Rebuild its slender body, progressive upper setbacks, crown geometry, and vertical structure.
-- Use cyan accents selectively; they should be façade lights among mostly dark glass, not continuous game-like stripes.
-
-#### Georgia-Pacific Tower
-
-- Model the broad slab, stepped upper massing, and offset volumes that distinguish it from the surrounding generic blocks.
-- Keep the building darker and less emissive than the central landmarks.
-
-### Shared façade system
-
-- Replace thousands of identical window boxes with building-specific window modules or emissive façade panels.
-- Introduce deterministic variation in floor occupancy, color temperature, intensity, and dark floors.
-- Add mullions, spandrels, setbacks, parapets, roof structures, and side-face treatment.
-- Use level-of-detail variants if the increased geometry threatens the asset budget.
+- Dark blue-grey facade materials so buildings stay visible against the sky.
+- Warm amber window grids with deterministic variation in occupancy, intensity, and color temperature, including dark floors; building-specific window modules rather than uniform emissive boxes.
+- Glowing crown tiers and rings; red aviation beacons on the tallest towers and the left-edge tower.
+- Mullions, spandrels, setbacks, parapets, and roof structures.
+- Level-of-detail variants if the window density threatens the asset budget.
 
 ### Exit criteria
 
-- Each named landmark can be identified from an unlit silhouette capture.
-- A lit capture preserves façade structure and crown detail.
-- No landmark is identifiable solely because of its window color.
-- Landmark placement continues to satisfy Phase 1 framing.
+- A lit capture preserves facade structure and crown tier detail.
+- Warm light is localized; the scene's overall balance stays cool.
+- No landmark is identifiable solely by its window color.
 
-## Phase 4 — Build a dense layered city, roads, and foliage
-
-**Status:** Implemented. Three deterministic city depth bands now close the horizon with varied massing, rooflines, façade rhythms, and occupancy. The freeway has two perspective-aware decks, barriers, beams, columns, a ramp, and localized sodium pools. The lower-right canopy now combines muted back clusters, visible branches, and larger foreground leaf masses.
-
-### Issues addressed
-
-- sparse skyline concentrated on the right;
-- placeholder background blocks;
-- flat, uniform windows;
-- two-strip freeway placeholder;
-- small, featureless tree silhouette.
+## Phase 5 — Roadway and street lamps
 
 ### Implementation
 
-- Create three city depth bands:
-  - near mid-rise buildings around the roads;
-  - middle-distance towers that overlap the landmarks without hiding them;
-  - distant low-contrast silhouettes that close gaps at the horizon.
-- Vary building width, height, roofline, façade rhythm, window density, and color temperature by band.
-- Build the elevated roadway as multiple perspective-aware decks with edge barriers, beams, columns, ramps, and visible underside structure.
-- Add localized warm light pools under the roadway instead of evenly spaced emissive dots.
-- Rebuild the lower-right canopy from layered branch and leaf-cluster silhouettes:
-  - broad enough to match the reference's large foreground mass;
-  - irregular outer contour;
-  - multiple depth layers so rim light and haze reveal texture without making it bright.
-- Add small foreground occluders and overlapping geometry to reinforce parallax and scale.
+- Elevated decks with perspective, edge barriers, beams, and columns, low in the frame.
+- Orange lamp orbs on poles with localized light pools rather than evenly spaced dots.
 
 ### Exit criteria
 
-- No large skyline gaps remain behind the sign or at either edge.
-- Buildings become lower-contrast with distance.
-- The road has visible depth, support logic, and localized lighting.
-- The tree canopy occupies the intended lower-right area and has a readable irregular silhouette.
+- The road has visible depth and support logic.
+- Lamps read as glowing sodium sources and pools of light, not flat dots.
 
-## Phase 5 — Establish believable materials and lighting
-
-### Issues addressed
-
-- black-and-orange color dominance;
-- missing blue ambient illumination;
-- weak material distinction;
-- emissive surfaces acting like flat colored shapes;
-- insufficient shadow and highlight cues.
+## Phase 6 — Foliage
 
 ### Implementation
 
-- Establish a cool blue ambient/night environment before enabling warm emitters.
-- Tune materials by role:
-  - painted sign metal;
-  - yellow acrylic sign faces;
-  - black letter faces;
-  - glass curtain walls;
-  - concrete and stone building structure;
-  - steel roadway supports;
-  - dark organic foliage.
-- Add restrained cool key/fill lighting that reveals building side faces and sign construction.
-- Use a limited number of warm practical lights near the sign and roads to motivate local spill.
-- Enable targeted shadows for the sign letters, frame, supports, and the most important building recesses within Cinema 2.0's shadow budget.
-- Tune environment reflections per part instead of applying one broad reflection value to the entire city.
-- Confirm that emission is not being used to compensate for missing diffuse or specular lighting.
+- Rebuild the canopy as near-black leaf-cluster silhouettes with an irregular, leafy outline, replacing the smooth teal-grey blobs.
+- Place masses in both lower corners: the left behind and around the sign's legs, the right rising higher and overlapping the skyline.
+- Add a faint warm rim light on edges facing the city.
 
 ### Exit criteria
 
-- A grayscale capture still separates sign, glass, concrete, metal, roads, and foliage.
-- The dark sides of buildings remain visible against the sky.
-- Warm light is localized and the scene's overall balance remains cool.
-- Sign faces, crown tiers, and windows retain shape at final exposure.
+- The canopy frames both lower corners with a readable leafy contour.
+- Foliage is near-black, not blue-teal.
+- The right mass overlaps the skyline as in the reference.
 
-## Phase 6 — Rebuild atmosphere and post-processing around depth
-
-### Issues addressed
-
-- mostly black sky;
-- localized orange halos instead of aerial perspective;
-- weak distance separation;
-- excessive bloom and clipped highlights.
+## Phase 7 — Light and finish
 
 ### Implementation
 
-- Create a blue sky gradient or geometry-backed night dome with restrained stars; avoid a flat black background.
-- Use depth fog to desaturate and soften distant buildings progressively.
-- Add low, warm city haze near the horizon and road level while keeping upper atmosphere cool.
-- Reduce volumetric beam contribution unless a visible practical light justifies it.
-- Retune HDR bloom after all emissions are finalized:
-  - higher threshold;
-  - tighter radius;
-  - lower intensity;
-  - no joining of neighboring sign cells or crown tiers.
-- Retune cinematic finish for the reference's cooler shadows, controlled golden highlights, and mild vignette.
-- Verify exposure with highlight diagnostics so the sign and crowns do not clip into undifferentiated yellow-white.
+- Keep the upper frame cool and put warm light only low in the frame.
+- Add a soft glow around the sign that does not merge neighbouring cells or crown tiers.
+- Tune bloom after all emission is final (higher threshold, tighter radius, lower intensity).
+- Smooth the jagged letter and cell edges (anti-aliasing).
+- Add a mild vignette and cooler shadows.
+- Verify with highlight diagnostics that faces and crowns do not clip into undifferentiated yellow-white.
+- Use depth fog to soften distant buildings progressively.
 
 ### Exit criteria
 
-- The skyline has obvious near/middle/far depth separation.
-- The sky reads as deep blue rather than black.
-- Golden light softly occupies the lower city without tinting the entire frame orange.
-- Letter edges, panel borders, windows, and crown tiers remain crisp through bloom.
+- Letter edges, cell frames, windows, and crown tiers stay crisp through bloom.
+- Warm light occupies the lower city without tinting the whole frame.
+- No visible aliasing on the sign at final output.
 
-## Phase 7 — Quality tiers, performance, and final visual acceptance
-
-### Issues addressed
-
-- risk that improved fidelity only works at one aspect ratio or quality level;
-- risk of asset or frame-time regression;
-- lack of a formal visual sign-off boundary.
+## Phase 8 — Quality tiers, performance, and final static approval
 
 ### Implementation
 
 - Create high, medium, and low model variants where geometry or window density requires them.
-- Measure triangle counts, shipped size, GPU memory, and frame time against Cinema 2.0 budgets.
+- Measure triangle counts, shipped size, GPU memory, and frame time against Cinema 2.0 budgets. The model is currently about 1.2 MB without the city.
 - Validate the production render graph for failed passes, failed module nodes, and resource leaks.
-- Capture final frames for:
-  - 1920×1080 high quality;
-  - embedded Stage aspect high quality;
-  - 1920×1080 medium quality;
-  - a no-bloom diagnostic frame;
-  - an unlit silhouette diagnostic frame.
+- Capture final frames: 1920×1080 high quality, the embedded Stage aspect, 1920×1080 medium quality, a no-bloom diagnostic frame, and an unlit silhouette diagnostic frame.
 - Compare the final 16:9 frame with the owner reference using an overlay and a side-by-side contact sheet.
 - Record remaining deviations honestly in this document rather than masking them with heavier bloom or haze.
+- Update the ATL HOE preset tests for the new part names and material parameters.
 
 ### Automated validation
 
@@ -351,13 +230,13 @@ Model each landmark as a deliberate subassembly with named parts and separate ma
 - High and medium tiers preserve the landmark silhouettes and sign construction.
 - The preset is stable in the production Cinema 2.0 path and all ATL HOE-focused checks pass.
 
-## Phase 8 — Audio-reactive routing, only after static approval
+## Phase 9 — Audio-reactive routing, only after static approval
 
 This phase is intentionally deferred. It must not be used to distract from or compensate for missing static fidelity.
 
 Potential restrained routes after approval:
 
-- bass energy gently lifts sign and street-light spill without changing letter contrast;
+- bass energy gently lifts sign and street-lamp spill without changing letter contrast;
 - downbeats produce a small crown/window brightness swell;
 - musical intensity adjusts city-window occupancy or haze within narrow bounds;
 - camera drift or parallax remains subtle and can be reduced to zero;
@@ -369,49 +248,67 @@ Audio behavior requires its own owner review and acceptance criteria when this p
 
 | Finding | Owning phase |
 |---|---:|
-| Low-poly, illustrative appearance | 2, 3, 4, 5 |
-| Flat sign and weak perspective | 1, 2 |
-| Incorrect `W` and condensed typography | 2 |
-| Sign and crown overexposure | 5, 6 |
-| Excess empty space and centered composition | 1 |
-| Weak static depth cues | 1, 4, 5, 6 |
-| Sparse, right-clustered skyline | 1, 4 |
-| Inaccurate landmark identities | 3 |
-| Black/orange rather than blue/gold balance | 5, 6 |
-| Haze behaving as orange glow | 6 |
-| Uniform pixel windows | 3, 4 |
-| Placeholder freeway | 4 |
-| Inadequate foliage | 4 |
-| Missing material distinction | 2, 3, 4, 5 |
-| Tall-preview framing weakness | 0, 1, 7 |
+| Skyline missing | 3, 4 |
+| Roads and street lamps missing | 5 |
+| Orange ring inside sign faces | 1 |
+| Thin, extruded sign letters | 1 |
+| Blue-grey cabinet with thick rails | 1 |
+| Three parallel sign posts | 1 |
+| Shallow sign tilt and perspective | 1 |
+| Flat saturated sky, too many stars | 2 |
+| No horizon separation | 2, 7 |
+| Smooth teal foliage, right side only | 6 |
+| Hard edges and jagged letters | 7 |
+| No glow around the sign | 7 |
+| Facades and windows flat or absent | 4 |
+| Overexposure and clipped highlights | 7 |
+| Tall-preview framing weakness | 0, 1, 8 |
 
 ## Recommended execution order
 
 Execute the phases strictly in this order:
 
-1. baseline harness;
-2. silhouette composition and camera;
-3. hero sign;
-4. landmark towers;
-5. city/roads/foliage;
-6. materials and lighting;
-7. atmosphere and finish;
-8. quality/performance/final static approval;
+1. sign;
+2. sky and atmosphere base;
+3. skyline massing;
+4. facades and emitters;
+5. roadway and street lamps;
+6. foliage;
+7. light and finish;
+8. quality, performance, and final static approval;
 9. audio reactivity.
 
-This order prevents expensive detailed assets from being authored against the wrong camera, and prevents post-processing from hiding unresolved geometry or lighting problems.
+The sign goes first because it is self-contained and the most visible gap. The sky comes before the skyline so silhouettes can be judged against the right backdrop. Light and finish come last so post-processing cannot hide unresolved geometry or materials.
+
+## Open decisions
+
+1. **Building identities.** The previous plan named four landmarks (Westin Peachtree Plaza, Truist Plaza, Promenade II, Georgia-Pacific Tower). Identifying real buildings from the image alone is unreliable, so this plan models the silhouettes shown in the reference. Confirm if specific real buildings should be matched instead, and which silhouette is which.
+2. **Starting phase.** Phase 1 (sign) is recommended first. Phases 3 to 5 are the largest piece of work.
+
+## Prior implementation history
+
+The earlier plan used a different phase list. Its outcomes, kept for context:
+
+| Earlier phase | Outcome |
+|---|---|
+| 0 — Visual baseline harness | Implemented and retained as Phase 0 above. |
+| 1 — Camera and composition | Implemented. Sign moved into the upper-left foreground and rotated as one rigid assembly; locked camera uses a 16:9 fit-width policy for narrow Stage previews. Superseded in part by the stronger tilt in Phase 1 above. |
+| 2 — Sign | Implemented and restyled once to an earlier reference: gloss-black cabinet, six-over-five cells, gold faces with an orange lip, raised flat black letters, rivets, three converging legs. Superseded by Phase 1 above, which removes the orange lip and replaces the legs. |
+| 3 — Landmark towers | Implemented, then removed at the owner's request. Rebuilt in Phases 3 and 4 above. |
+| 4 — City, roads, foliage | Implemented, then the city and road layer were removed at the owner's request (generator flag `includeCityAndRoad = false`). The foliage remains and is rebuilt in Phase 6 above. |
+| 5–7 — Materials, atmosphere, quality | Not completed against the earlier reference. Folded into Phases 4, 7, and 8 above. |
+| 8 — Audio reactivity | Deferred. Now Phase 9. |
 
 ## Definition of complete
 
 ATL HOE's static environment is complete only when:
 
 - the visual hierarchy matches the supplied reference at 16:9;
-- `WAFFLE HOUSE` is crisp, correctly shaped, and structurally convincing;
-- the four named Atlanta landmarks are recognizable;
-- the city is dense and layered across the whole frame;
-- the freeway and tree canopy contribute meaningful foreground depth;
+- `WAFFLE HOUSE` is crisp, correctly shaped, and structurally convincing, with flat yellow faces, flat black letters, a black cabinet, and V-shaped legs;
+- the skyline silhouettes match the reference and the city is dense and layered across the whole frame;
+- the elevated roadway and street lamps contribute low-frame depth, and the foliage frames both lower corners;
 - the night is cool blue with controlled golden practical light;
 - haze separates distance rather than washing the scene orange;
 - the embedded Stage and output framing both work;
 - focused tests, asset checks, browser rendering, and performance checks pass;
-- the owner explicitly approves the static frame before Phase 8 begins.
+- the owner explicitly approves the static frame before Phase 9 begins.
