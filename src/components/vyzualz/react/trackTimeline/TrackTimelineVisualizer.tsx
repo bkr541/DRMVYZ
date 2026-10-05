@@ -437,10 +437,11 @@ function RailIcon({ name }: { name: RailIconName }) {
     )
   }
   if (name === 'expand' || name === 'collapse') {
+    // Collapse: the four corners turn inward (elbows pointing at the centre). Expand: the four corners push outward (brackets in each corner).
     const inward = name === 'collapse'
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d={inward ? 'M8 4v5H3M16 4v5h5M8 20v-5H3M16 20v-5h5' : 'M3 9h5V4M21 9h-5V4M3 15h5v5M21 15h-5v5'} />
+        <path d={inward ? 'M8 4v5H3M16 4v5h5M8 20v-5H3M16 20v-5h5' : 'M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5'} />
       </svg>
     )
   }

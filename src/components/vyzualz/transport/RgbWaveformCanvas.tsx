@@ -88,35 +88,13 @@ export function RgbWaveformCanvas({
     const { startSec: winStart, endSec: winEnd } = computeWaveformViewport(safe, ct, zm)
     const winLen = Math.max(0.001, winEnd - winStart)
 
-    ctx.fillStyle = 'rgba(10,13,18,0.96)'
-    ctx.fillRect(0, 0, cssW, cssH)
-
+    // Monochrome (the React / Show Manager dock): a transparent canvas, so the cyan waveform and playhead sit directly on the
+    // dock's own gray, with no dark fill and no grid lines behind them.
     if (mono) {
-      ctx.save()
-      ctx.strokeStyle = 'rgba(51, 209, 235, 0.08)'
-      ctx.lineWidth = 1
-      for (let i = 1; i < 24; i++) {
-        const x = Math.round((i / 24) * cssW) + 0.5
-        ctx.beginPath()
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, cssH)
-        ctx.stroke()
-      }
-      ctx.strokeStyle = 'rgba(51, 209, 235, 0.13)'
-      for (let i = 1; i < 6; i++) {
-        const x = Math.round((i / 6) * cssW) + 0.5
-        ctx.beginPath()
-        ctx.moveTo(x, 0)
-        ctx.lineTo(x, cssH)
-        ctx.stroke()
-      }
-      const mid = Math.round(cssH / 2) + 0.5
-      ctx.strokeStyle = 'rgba(51, 209, 235, 0.09)'
-      ctx.beginPath()
-      ctx.moveTo(0, mid)
-      ctx.lineTo(cssW, mid)
-      ctx.stroke()
-      ctx.restore()
+      ctx.clearRect(0, 0, cssW, cssH)
+    } else {
+      ctx.fillStyle = 'rgba(10,13,18,0.96)'
+      ctx.fillRect(0, 0, cssW, cssH)
     }
 
     const availH  = cssH - PAD * 2
@@ -253,7 +231,7 @@ export function RgbWaveformCanvas({
         ctx.fillRect(i * bw, y, Math.max(1, bw - 0.5), barH)
       }
 
-      if (progressX > 1) {
+      if (progressX > 1 && !mono) {
         const g = ctx.createLinearGradient(0, 0, progressX, 0)
         g.addColorStop(0, 'rgba(74,199,219,0.07)')
         g.addColorStop(1, 'rgba(74,199,219,0.02)')

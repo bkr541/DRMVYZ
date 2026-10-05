@@ -188,7 +188,7 @@
 .rv-shell > .az-dock {
   --vz-left-width: 330px;
   --vz-right-width: 400px;
-  --vz-dock-inline-pad: 12px;
+  --vz-dock-inline-pad: 6px;
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
   --vz-dock-left-col: max(calc(var(--vz-left-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
@@ -6844,7 +6844,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   bottom: 0;
   width: auto;
   height: 124px;
-  padding: 9px var(--vz-dock-inline-pad) 10px;
+  padding: 4px var(--vz-dock-inline-pad) 4px;
   gap: var(--vz-dock-gap);
   /* The waveform card spans exactly the Track Map's column (the stage column of .rv-layout), and the left and right
      cards fill the rail widths on either side of it: the dock's inline padding and gap come out of the rail columns, so
@@ -7302,8 +7302,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── User-collapsed / Stage Focus density ──────────────────────────────── */
 .rv-shell > .az-dock.vz-transport-dock--collapsed {
   height: 72px;
-  padding-top: 7px;
-  padding-bottom: 8px;
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-card {
@@ -22057,20 +22057,20 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   pointer-events: none;
 }
 
-/* Waveform: a cyan-edged box on a dark teal field, no second outline from the canvas inside it. */
+/* Waveform: no second outline from the canvas inside it. */
 .rv-shell > .vz-transport-dock .vz-dock-center {
   padding-inline: 0;
 }
 
+/* Just the cyan waveform and playhead on the dock's own gray: no box, border, glow or dark field around the waveform. */
 .rv-shell > .vz-transport-dock .vz-dock-waveform-wrap {
-  background: rgb(15, 24, 29);
-  box-shadow:
-    inset 0 0 0 1px rgba(74, 199, 219, 0.4),
-    inset 0 0 26px rgba(74, 199, 219, 0.03);
+  background: none;
+  box-shadow: none;
 }
 
-.rv-shell > .vz-transport-dock .vz-mini-waveform {
-  border-color: transparent;
+.rv-shell > .vz-transport-dock .vz-mini-waveform,
+.rv-shell > .vz-transport-dock .vz-peaks-wrap--deck .vz-peaks-fallback .vz-mini-waveform {
+  border: 0;
 }
 
 /* Left wing: a lighter slate cover, a stronger title over a dim subtitle, a white play button and a plain volume bar. */
