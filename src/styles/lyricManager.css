@@ -107,7 +107,6 @@
 .lmv-doc-card-date {
   font-size: 9px;
   color: rgba(196,207,211,0.28);
-  margin-left: auto;
 }
 
 /* ── Center workflow ─────────────────────────────────────────────────── */
@@ -2378,17 +2377,12 @@
   background: rgba(74, 199, 219, 0.13);
   box-shadow: inset 2px 0 0 #4ac7db;
 }
-.lmv-doc-card-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.lmv-doc-card-heading { flex: 1 1 auto; min-width: 0; }
+.lmv-doc-card-heading { min-width: 0; }
 .lmv-doc-card-detail {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  min-height: 18px;
   color: rgba(196, 207, 211, 0.4);
   font-size: 9px;
 }
@@ -2397,6 +2391,7 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 .lmv-doc-action {
   display: flex;

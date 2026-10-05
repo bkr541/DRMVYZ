@@ -79,7 +79,7 @@ export function AudioTrackCard({
   actionsInOverflow,
   artwork,
 }: AudioTrackCardProps) {
-  const iconSize = artwork ? 16 : 13
+  const iconSize = artwork ? 15 : 13
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const requestRemove = () => {

@@ -108,32 +108,42 @@ function DocumentCard({
   const isOpen = doc.id === openDocumentId
   return (
     <div className={`lmv-doc-card${isOpen ? ' lmv-doc-card--open' : ''}${doc.isActive ? ' lmv-doc-card--active' : ''}`}>
-      <div className="lmv-doc-card-head">
-        <div className="lmv-doc-card-heading">
-          {renaming ? (
-            <div className="lmv-doc-rename-row">
-              <DreamVizTextInput
-                className="lmv-input"
-                value={renameValue}
-                autoFocus
-                onChange={event => setRenameValue(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === 'Enter' && renameValue.trim()) onCommitRename(renameValue.trim())
-                  if (event.key === 'Escape') onCancelRename()
-                }}
-                aria-label="Lyric document name"
-              />
-              <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
-              <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
-            </div>
-          ) : (
-            <button className="lmv-doc-card-main" onClick={onSelectDocument}>
-              <div className="lmv-doc-card-title">{doc.title || '(Untitled)'}</div>
-              {doc.artist && <div className="lmv-doc-card-artist">{doc.artist}</div>}
-            </button>
-          )}
-        </div>
+      <div className="lmv-doc-card-heading">
+        {renaming ? (
+          <div className="lmv-doc-rename-row">
+            <DreamVizTextInput
+              className="lmv-input"
+              value={renameValue}
+              autoFocus
+              onChange={event => setRenameValue(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' && renameValue.trim()) onCommitRename(renameValue.trim())
+                if (event.key === 'Escape') onCancelRename()
+              }}
+              aria-label="Lyric document name"
+            />
+            <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
+            <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
+          </div>
+        ) : (
+          <button className="lmv-doc-card-main" onClick={onSelectDocument}>
+            <div className="lmv-doc-card-title">{doc.title || '(Untitled)'}</div>
+            {doc.artist && <div className="lmv-doc-card-artist">{doc.artist}</div>}
+          </button>
+        )}
+      </div>
 
+      <div className="lmv-doc-card-meta">
+        <Badge label={SOURCE_LABELS[doc.sourceType] ?? doc.sourceType} tone={BADGE_TONES[doc.sourceType] ?? NEUTRAL_BADGE_TONE} />
+        {isOpen && <Badge label="Open" tone="#e8f4f8" />}
+        {doc.isActive && <Badge label="Active" tone="#61d6aa" />}
+        {legacy && <Badge label="Unattached" tone="#d8b95a" />}
+        <Badge label={`${doc.cueCount} cues`} tone={NEUTRAL_BADGE_TONE} />
+        {doc.language && <Badge label={doc.language} tone={NEUTRAL_BADGE_TONE} />}
+      </div>
+      <div className="lmv-doc-card-detail">
+        <span>{doc.documentReviewStatus || 'Review —'}</span>
+        <span className="lmv-doc-card-date">{fmtRelativeDate(doc.updatedAt)}</span>
         {!renaming && showActions && (
           <div className="lmv-doc-actions" role="group" aria-label={`Actions for ${doc.title || 'lyric version'}`}>
             <button type="button" className="lmv-doc-action" onClick={onStartRename} title="Rename" aria-label="Rename">
@@ -154,19 +164,6 @@ function DocumentCard({
             </button>
           </div>
         )}
-      </div>
-
-      <div className="lmv-doc-card-meta">
-        <Badge label={SOURCE_LABELS[doc.sourceType] ?? doc.sourceType} tone={BADGE_TONES[doc.sourceType] ?? NEUTRAL_BADGE_TONE} />
-        {isOpen && <Badge label="Open" tone="#e8f4f8" />}
-        {doc.isActive && <Badge label="Active" tone="#61d6aa" />}
-        {legacy && <Badge label="Unattached" tone="#d8b95a" />}
-        <Badge label={`${doc.cueCount} cues`} tone={NEUTRAL_BADGE_TONE} />
-        {doc.language && <Badge label={doc.language} tone={NEUTRAL_BADGE_TONE} />}
-      </div>
-      <div className="lmv-doc-card-detail">
-        <span>{doc.documentReviewStatus || 'Review —'}</span>
-        <span className="lmv-doc-card-date">{fmtRelativeDate(doc.updatedAt)}</span>
       </div>
     </div>
   )
