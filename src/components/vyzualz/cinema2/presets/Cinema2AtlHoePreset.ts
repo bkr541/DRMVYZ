@@ -25,6 +25,15 @@ import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2
 import { CINEMA2_ATL_HOE_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
 import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import atlHoeParts from './atlHoeParts.json'
+import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
+import {
+  atlHoeChoreographyRules,
+  atlHoeModuleBindings,
+  CINEMA2_ATL_HOE_DESIGN_PARAMETERS,
+  CINEMA2_ATL_HOE_PARAMETER_IDS,
+  CINEMA2_ATL_HOE_SKY_PART_PARAMETERS,
+} from './Cinema2AtlHoeDesign'
 
 export const CINEMA2_ATL_HOE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.atl-hoe')
 export const CINEMA2_ATL_HOE_MODULE_ID = cinema2StableId<Cinema2ModuleId>('atl-hoe-scene')
@@ -111,6 +120,33 @@ function spot(id: Cinema2LightId, at: Cinema2Vector3, target: Cinema2SceneNodeId
  * light rig and finish are production-native, while audio choreography remains
  * absent until the visual composition is approved.
  */
+// The lit parts, in groups (the list is shared with the asset generator). Every part starts at the look of the single part it was split
+// from, so the default frame is unchanged; the Design tab then recolours and animates them group by group.
+const LIT_PART_LOOKS: ReadonlyArray<readonly [string, Cinema2Color, number, Cinema2Color?]> = [
+  ...atlHoeParts.signFaces.map(name => [name, color(1, 0.65, 0.01), 1.25, color(1, 0.6084, 0)] as const),
+  ...atlHoeParts.windows.map(name => [name, color(1, 0.6, 0.12), 1.45] as const),
+  ['glassWindows', color(0.22, 0.33, 0.46), 0.9],
+  ['cyanWindows', color(0.1, 0.9, 0.85), 1.8],
+  ['truistWindows', color(0.15, 0.9, 0.9), 1.4],
+  ...atlHoeParts.lampOrbs.map(name => [name, color(1, 0.4, 0.06), 1.3] as const),
+  ...atlHoeParts.lampHalos.map(name => [name, color(1, 0.45, 0.1), 0.38] as const),
+  ...atlHoeParts.stars.map(name => [name, color(0.58, 0.72, 0.92), 3] as const),
+  ['spireBoa', color(1, 0.62, 0.16), 2.2],
+  ['spireBoaTip', color(1, 0.92, 0.72), 2.4],
+  ['spireWestinRim', color(0.6, 0.9, 1), 1.6],
+  ['spireWestinMast', color(1, 0.92, 0.72), 2.4],
+  ['spireTruistEdge', color(0.6, 0.9, 1), 1.6],
+  ['spireTruistCap', color(1, 0.92, 0.72), 2.4],
+]
+const LIT_PART_PARAMETERS: Readonly<Record<string, Cinema2Color | number>> = Object.freeze(Object.fromEntries(
+  LIT_PART_LOOKS.flatMap(([name, emissive, intensity, base]) => [
+    [`${name}.emissive`, emissive],
+    [`${name}.emissiveIntensity`, intensity],
+    ...(base ? [[`${name}.color`, base], [`${name}.roughness`, 0.5]] : []),
+  ]),
+))
+const LIT_PART_NAMES: readonly string[] = Object.freeze([...LIT_PART_LOOKS.map(([name]) => name), ...atlHoeParts.skySurfaces, ...atlHoeParts.skyBands, ...atlHoeParts.bolts, ...atlHoeParts.boltTops])
+
 export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -127,44 +163,40 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'The sign, letterforms, towers, windows, freeway and trees are modeled geometry.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'A locked cinematic camera composes the foreground sign against the Atlanta landmarks.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'Moonlight, sign spill and skyline fill shape the modeled scene.' }),
+    Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Track energy swells the skyscraper windows.' }),
+    Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Bass breathes the sign in the Pulse pattern.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat-stepped street lights, spire blinks and sign flicker.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Spire flashes on the downbeat.' }),
+    Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'The Marquee chase restarts every bar.' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'The Cascade wave crosses the scene every phrase.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick and transient hits on the sign, lights and windows.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'The whole city blazes on a drop.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Builds lift the spires and impacts brighten the night.' }),
   ]),
-  parameters: Object.freeze([CINEMA2_QUALITY_MODE_PARAMETER]),
+  parameters: Object.freeze([CINEMA2_QUALITY_MODE_PARAMETER, ...CINEMA2_ATL_HOE_DESIGN_PARAMETERS]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_ATL_HOE_MODULE_ID,
     typeId: THREE_SCENE_TYPE_ID,
     version: 1,
     enabled: true,
+    parameterBindings: atlHoeModuleBindings(),
     parameters: Object.freeze({
+      ...LIT_PART_PARAMETERS,
+      ...CINEMA2_ATL_HOE_SKY_PART_PARAMETERS,
       environmentIntensity: 0.38,
-      'stars.emissive': color(0.58, 0.72, 0.92),
-      'stars.emissiveIntensity': 3,
-      'warmWindows.emissive': color(1, 0.6, 0.12),
-      'warmWindows.emissiveIntensity': 1.45,
-      'crown.emissive': color(1, 0.62, 0.16),
-      'crown.emissiveIntensity': 2.2,
       'cyanWindows.emissive': color(0.1, 0.9, 0.85),
       'cyanWindows.emissiveIntensity': 1.8,
       'glassWindows.emissive': color(0.22, 0.33, 0.46),
       'glassWindows.emissiveIntensity': 0.9,
-      'crownCool.emissive': color(0.6, 0.9, 1),
-      'crownCool.emissiveIntensity': 1.6,
       'truistWindows.emissive': color(0.15, 0.9, 0.9),
       'truistWindows.emissiveIntensity': 1.4,
       'bofaCore.emissive': color(1, 0.5, 0.1),
       'bofaCore.emissiveIntensity': 0.3,
       'bofaGlow.emissive': color(1, 0.45, 0.12),
       'bofaGlow.emissiveIntensity': 2.8,
-      'lampGlow.emissive': color(1, 0.45, 0.1),
-      'lampGlow.emissiveIntensity': 0.38,
-      'crownWhite.emissive': color(1, 0.92, 0.72),
-      'crownWhite.emissiveIntensity': 2.4,
       'beacon.emissive': color(1, 0.05, 0.03),
       'beacon.emissiveIntensity': 3,
       // The sign: near-black painted steel (cabinet, frames, rail, legs) around flat, bright yellow faces and flat black letters.
-      'signGlow.color': color(1, 0.78, 0),
-      'signGlow.emissive': color(1, 0.65, 0.01),
-      'signGlow.emissiveIntensity': 1.25,
-      'signGlow.roughness': 0.5,
       'signBorder.color': color(0.006, 0.007, 0.009),
       'signBorder.emissive': color(0.001, 0.002, 0.004),
       'signBorder.emissiveIntensity': 1,
@@ -195,7 +227,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     config: Object.freeze({
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATL_HOE_ASSET_ID, node: MODEL_NODE_ID })]),
       hdr: true,
-      parts: Object.freeze(['stars', 'lampGlow', 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'truistWindows', 'warmWindows', 'glassWindows', 'cyanWindows', 'crownCool', 'crown', 'crownWhite', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
+      parts: Object.freeze([...LIT_PART_NAMES, 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),
@@ -229,8 +261,19 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     transform: Object.freeze({ position: vec3(0, 5.9, 20) }),
     target: vec3(-0.4, 6.55, -8.4),
     rig: Object.freeze({ kind: 'static' as const }),
+    // Camera Movement scales a gentle sway (a slow drift, a weave and a lens breath); at its default of 0 the camera holds the authored frame.
+    // BPM Sync locks the sway to the track's beat grid; off, it free-runs at 120 BPM. Kick reactivity does not move the camera.
+    motion: cinema2CinematicMotion('gentle', {
+      overrides: Object.freeze({
+        drift: Object.freeze({ position: 0.1, target: 0.04, rollDegrees: 0.2, fovDegrees: 0.4, speed: 0.06 }),
+        tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.25, bob: 0.02, roll: 0.4, fov: 1.2, punch: 0 }),
+      }),
+    }),
+    controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.cameraMovement), tempoSync: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync) }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATL_HOE_CAMERA_ID) }),
+  // BPM Sync: the sign patterns' beat, bar and phrase timing follows the loaded track's tempo (on) or a steady 120 BPM (off), as the camera sway does.
+  choreography: Object.freeze({ rules: atlHoeChoreographyRules(CINEMA2_ATL_HOE_MODULE_ID, ATMOSPHERE_EFFECT_ID), tempoSyncParameter: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync) }),
   lighting: Object.freeze({
     lights: Object.freeze([
       spot(MOON_LIGHT_ID, vec3(-10, 18, 12), SKYLINE_TARGET_ID, 1.25, color(0.34, 0.49, 0.72), 48),

@@ -68,7 +68,9 @@ export class Cinema2ParameterState {
     }
 
     const dependentEdits = userEditSetParameters(definition)
-    return this.setPersistentValuesAtomically({ ...dependentEdits, [parameterId]: candidate })
+    // `metadata.mirrorParameters` lists parameters that take the edited value too (one visible control that overrides several hidden ones).
+    const mirrored = Object.fromEntries(mirrorParameters(definition).map(id => [id, candidate]))
+    return this.setPersistentValuesAtomically({ ...dependentEdits, ...mirrored, [parameterId]: candidate })
   }
 
   private setPersistentValuesAtomically(candidates: Readonly<Record<string, unknown>>): Cinema2ParameterStateMutationResult {
@@ -207,6 +209,11 @@ function userEditSetParameters(
 ): Readonly<Record<string, Cinema2JsonValue>> {
   const candidate = definition.metadata?.userEditSetParameters
   return isPlainObject(candidate) ? candidate as Readonly<Record<string, Cinema2JsonValue>> : Object.freeze({})
+}
+
+function mirrorParameters(definition: Readonly<Cinema2CompiledParameterDefinition>): readonly string[] {
+  const candidate = definition.metadata?.mirrorParameters
+  return Array.isArray(candidate) ? candidate.filter((id): id is string => typeof id === 'string') : []
 }
 
 function sortRecord(values: Readonly<Record<string, Cinema2JsonValue>>): Readonly<Record<string, Cinema2JsonValue>> {

@@ -853,6 +853,11 @@ export interface Cinema2ChoreographyRuleManifest {
   enabled?: boolean
   /** Optional route controls must be explicitly authored parameters to appear in UI. */
   enabledParameter?: Cinema2ParameterRef
+  /**
+   * The rule runs only while every condition holds (parameter-equals / parameter-not-equals against authored parameter values), so one
+   * enum parameter can switch between rule sets. Capability conditions are not evaluated here; a source capability already gates a rule.
+   */
+  enabledWhen?: readonly Cinema2ParameterConditionManifest[]
   strengthParameter?: Cinema2ParameterRef
   conditions?: readonly Cinema2ChoreographyConditionManifest[]
   config?: Cinema2JsonObject
@@ -860,6 +865,12 @@ export interface Cinema2ChoreographyRuleManifest {
 
 export interface Cinema2ChoreographyManifest {
   rules: readonly Cinema2ChoreographyRuleManifest[]
+  /**
+   * The preset's BPM Sync toggle (a boolean parameter). When set, beat, downbeat, bar and phrase events, beat counters and every beat length in
+   * the rules follow one musical clock: the loaded track's tempo and beat grid while the toggle is on, a steady 120 BPM while it is off.
+   * Kick, transient, drop and the continuous music signals always follow the audio.
+   */
+  tempoSyncParameter?: Cinema2ParameterRef
   config?: Cinema2JsonObject
 }
 

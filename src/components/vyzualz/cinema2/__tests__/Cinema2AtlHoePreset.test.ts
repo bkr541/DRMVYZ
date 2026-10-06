@@ -1,3 +1,4 @@
+import atlHoeParts from '../presets/atlHoeParts.json'
 import { describe, expect, it } from 'vitest'
 import type { Cinema2ModuleManifest } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_ATL_HOE_ASSET_ID, cinema2ThreeAssetRegistry } from '../modules/three/Cinema2ThreeAssetManifest'
@@ -38,8 +39,6 @@ describe('ATL HOE preset', () => {
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
-      'stars',
-      'lampGlow',
       'road',
       'roadPole',
       'roadGlow',
@@ -50,13 +49,6 @@ describe('ATL HOE preset', () => {
       'bofaGlow',
       'truistBody',
       'truistCrown',
-      'truistWindows',
-      'warmWindows',
-      'glassWindows',
-      'cyanWindows',
-      'crownCool',
-      'crown',
-      'crownWhite',
       'beacon',
       'gpStone',
       'gpStoneB',
@@ -69,7 +61,6 @@ describe('ATL HOE preset', () => {
       'midBuildings',
       'nearBuildings',
       'signMetal',
-      'signGlow',
       'signBorder',
       'signLetters',
       'foliageBack',
@@ -77,10 +68,14 @@ describe('ATL HOE preset', () => {
       'foliageFaint',
       'foliageLit',
     ]))
+    // The lit things are split into part groups (shared with the generator) that the Design tab drives separately.
+    expect(module.config?.parts).toEqual(expect.arrayContaining(Object.values(atlHoeParts).flat()))
     expect(module.parameters).toMatchObject({
-      'signGlow.emissiveIntensity': 1.25,
-      'crown.emissiveIntensity': 2.2,
-      'warmWindows.emissiveIntensity': 1.45,
+      'signFace00.emissiveIntensity': 1.25,
+      'signFace10.emissiveIntensity': 1.25,
+      'spireBoa.emissiveIntensity': 2.2,
+      'winA.emissiveIntensity': 1.45,
+      'lampOrbA.emissiveIntensity': 1.3,
       'beacon.emissiveIntensity': 3,
     })
   })
@@ -98,7 +93,6 @@ describe('ATL HOE preset', () => {
       'cinematic-finish',
     ])
     expect(manifest.environment?.fog).toMatchObject({ mode: 'exponential', density: 0.011 })
-    expect(manifest.choreography).toBeUndefined()
   })
 
   it('pins the Phase 0 visual-acceptance camera, effects, asset record and deterministic capture state', () => {

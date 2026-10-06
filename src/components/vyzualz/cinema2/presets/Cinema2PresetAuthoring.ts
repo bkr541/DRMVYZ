@@ -228,9 +228,11 @@ function collectParameterConsumers(manifest: Readonly<Cinema2NativePresetManifes
   }
   for (const ref of Object.values(manifest.environment?.controls ?? {})) addRef(ref)
 
+  addRef(manifest.choreography?.tempoSyncParameter)
   for (const rule of manifest.choreography?.rules ?? []) {
     addRef(rule.source.parameter)
     addRef(rule.enabledParameter)
+    addConditionRefs(rule.enabledWhen)
     addRef(rule.strengthParameter)
     for (const action of rule.actions) {
       if (action.target.kind === 'parameter') addRef(action.target.ref)

@@ -266,6 +266,36 @@ describe('Cinema 2.0 deterministic choreography runtime', () => {
     expect(h.dispatched).toHaveLength(2)
   })
 
+  it('runs a rule only while its enabledWhen parameter conditions hold, so one parameter can switch rule sets', () => {
+    const h = harness(baseManifest([
+      {
+        id: ruleId('enabled-when-trigger'),
+        priority: 10,
+        enabledWhen: [{ kind: 'parameter-equals', parameterId: ENABLED_ID, value: false }],
+        source: { signal: 'kick', capability: 'music.rhythm-events' },
+        actions: [{
+          id: actionId('enabled-when-trigger-action'),
+          target: { kind: 'parameter', ref: cinema2Ref(TRIGGER_ID) },
+          operation: 'trigger',
+          quantizeBeats: 1,
+        }],
+      },
+    ]))
+    const first = h.getSource()
+    h.updateSource({ timeSec: 1.1, rhythm: { ...first.rhythm, kickHit: true, kickStrength: 1, beatIndex: 2, beatPhase: 0.2, transientConfidence: 0.95 } })
+    h.runtime.update(h.nextFrame(1100))
+    expect(h.runtime.getSnapshot().pendingEventCount).toBe(0)
+
+    expect(h.parameterState.setPersistentValue(ENABLED_ID, false)).toMatchObject({ ok: true })
+    const second = h.getSource()
+    h.updateSource({ timeSec: 1.5, rhythm: { ...second.rhythm, kickHit: false, beatIndex: 3, beatPhase: 0 } })
+    h.runtime.update(h.nextFrame(1500))
+    const third = h.getSource()
+    h.updateSource({ timeSec: 1.7, rhythm: { ...third.rhythm, kickHit: true, kickStrength: 1, beatIndex: 3, beatPhase: 0.4, transientConfidence: 0.95 } })
+    h.runtime.update(h.nextFrame(1700))
+    expect(h.runtime.getSnapshot().pendingEventCount).toBe(1)
+  })
+
   it('drops queued choreography when its enabled parameter is turned off before the due beat', () => {
     const h = harness(baseManifest([
       {

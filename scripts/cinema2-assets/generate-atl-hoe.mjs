@@ -3,7 +3,7 @@
 // while the four landmark silhouettes occupy progressively deeper skyline layers.
 //
 //   node scripts/cinema2-assets/generate-atl-hoe.mjs [out.glb]
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
@@ -13,6 +13,9 @@ import { hash, writeGlb } from './cinema2-tube-kit.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/atl-hoe.glb')
 
+// The lit things are split into groups of parts so the Design tab can colour and animate them separately (see
+// docs/cinema2-atl-hoe-design-tab-plan.md). The same list is read by the preset, so the two cannot drift.
+const PART_GROUPS = JSON.parse(readFileSync(join(root, 'src/components/vyzualz/cinema2/presets/atlHoeParts.json'), 'utf8'))
 const MATERIALS = {
   // A dark backing plane closes the world behind the sky bands; the visible sky is the stack of skyBandNN strips built below.
   sky: { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.02, 0.07, 0.17] },
@@ -48,9 +51,10 @@ const MATERIALS = {
   // rivets that catch a cool rim light = signTrim), a flat, bright yellow face in each cell (signGlow) and flat black letters (signLetters).
   signMetal: { baseColorFactor: [0.012, 0.013, 0.016, 1], metallicFactor: 0.55, roughnessFactor: 0.38, emissiveFactor: [0.002, 0.003, 0.006] },
   signTrim: { baseColorFactor: [0.06, 0.07, 0.085, 1], metallicFactor: 0.7, roughnessFactor: 0.28, emissiveFactor: [0.004, 0.006, 0.012] },
-  signGlow: { baseColorFactor: [1, 0.78, 0, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.65, 0.01] },
+  signGlow: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.65, 0.01] },
   signBorder: { baseColorFactor: [0.006, 0.007, 0.009, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.001, 0.002, 0.004] },
-  signLetters: { baseColorFactor: [0.004, 0.004, 0.004, 1], metallicFactor: 0, roughnessFactor: 0.82 },
+  // The letters' and faces' base colours are white; the preset's colour parameters (Letter Color, Sign Color) supply the actual tint.
+  signLetters: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.82 },
   lampGlow: { baseColorFactor: [0.4, 0.18, 0.04, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [1, 0.45, 0.1] },
   roadPole: { baseColorFactor: [0.09, 0.09, 0.1, 1], metallicFactor: 0.4, roughnessFactor: 0.5 },
   // Matte near-black so the warm city light does not blaze off the decks' top faces, which the camera sees from above.
@@ -63,6 +67,21 @@ const MATERIALS = {
   foliageFaint: { baseColorFactor: [0.01, 0.03, 0.04, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.05, 0.14, 0.2] },
   foliageLit: { baseColorFactor: [0.4, 0.2, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.8, emissiveFactor: [1, 0.5, 0.1] },
 }
+
+// Every part in a group starts as a copy of the single part it was split from, so the default look is unchanged.
+for (const [group, source] of [['signFaces', 'signGlow'], ['windows', 'warmWindows'], ['lampOrbs', 'roadGlow'], ['lampHalos', 'lampGlow'], ['stars', 'stars']]) {
+  for (const name of PART_GROUPS[group]) MATERIALS[name] = MATERIALS[source]
+}
+MATERIALS.spireBoa = MATERIALS.crown
+MATERIALS.spireBoaTip = MATERIALS.crownWhite
+MATERIALS.spireWestinMast = MATERIALS.crownWhite
+MATERIALS.spireTruistCap = MATERIALS.crownWhite
+MATERIALS.spireWestinRim = MATERIALS.crownCool
+MATERIALS.spireTruistEdge = MATERIALS.crownCool
+for (const template of ['signGlow', 'warmWindows', 'lampGlow', 'crown', 'crownWhite', 'crownCool']) delete MATERIALS[template]
+const binOf = (value, edges) => edges.findIndex(edge => value < edge) === -1 ? edges.length : edges.findIndex(edge => value < edge)
+const WINDOW_EDGES = [-60, 250, 520, 800, 1060, 1300, 1560, 1730]
+const LAMP_EDGES = [400, 900, 1500]
 
 const byPart = new Map()
 const matrix = new THREE.Matrix4()
@@ -147,6 +166,7 @@ for (let i = 0; i < skyEdges.length - 1; i += 1) {
 // The tall embedded Stage preview opens far more sky above and below the 16:9 frame, so two caps continue the gradient's end colours
 // (using their neighbouring strip's correction) well past the visible range instead of letting the backing plane show.
 const skyStripCount = skyEdges.length - 1
+if (skyStripCount !== PART_GROUPS.skyBands.length) throw new Error(`atlHoeParts.json lists ${PART_GROUPS.skyBands.length} sky bands but the generator builds ${skyStripCount}.`)
 MATERIALS.skyCapTop = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: skyEmissiveFor(skyTargetAt(skyEdges[0] + 1), 0) }
 box('skyCapTop', [0, (skyEdges[0] + 140) / 2, SKY_Z], [140, 140 - skyEdges[0], 0.1])
 MATERIALS.skyCapBottom = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: skyEmissiveFor(skyTargetAt(skyEdges.at(-1) - 1), skyStripCount - 1) }
@@ -157,8 +177,56 @@ for (let i = 0; i < 120; i += 1) {
   const y = 6 + (1 - hash(`star-y-${i}`) ** 1.8) * 22
   const z = SKY_Z + 0.25 + hash(`star-z-${i}`) * 0.08
   const s = 0.024 + hash(`star-s-${i}`) ** 4 * 0.075
-  box('stars', [x, y, z], [s, s, s * 0.35])
+  box(PART_GROUPS.stars[i % PART_GROUPS.stars.length], [x, y, z], [s, s, s * 0.35])
 }
+
+// ── Thunderstorm lightning: twelve defined strikes (Design tab, Sky Pattern → Thunderstorm) ────────────────────────────────────────────
+// Each bolt is a jagged trunk with a few thin branches, flat in the sky just in front of the stars and well behind the skyline, as emissive
+// geometry (one part per bolt). At rest every bolt is painted exactly the sky colour at its height so it cannot be seen; a strike adds a
+// white-blue flash to its part. The rest colours are written to atlHoeBolts.json for the preset to use.
+const BOLT_Z = SKY_Z + 0.15
+const boltRest = {}
+for (let b = 0; b < PART_GROUPS.bolts.length; b += 1) {
+  const part = PART_GROUPS.bolts[b]
+  // Above the gradient strips the sky is the flat top cap, a different colour, so the part of a bolt up there is its own part.
+  const topPart = PART_GROUPS.boltTops[b]
+  const partAt = y => (y > skyEdges[0] ? topPart : part)
+  const x0 = -33 + b * 6 + (hash(`bolt-x-${b}`) - 0.5) * 2.4
+  const yTop = 46, yBottom = 5 + hash(`bolt-bottom-${b}`) * 8
+  const steps = 16
+  const trunk = [[x0, yTop]]
+  for (let k = 1; k <= steps; k += 1) {
+    const [px] = trunk[k - 1]
+    const pull = (x0 - px) * 0.18
+    trunk.push([px + pull + (hash(`bolt-j-${b}-${k}`) - 0.5) * 2.2, yTop + ((yBottom - yTop) * k) / steps + (hash(`bolt-v-${b}-${k}`) - 0.5) * 0.5])
+  }
+  trunk.forEach(([x, y], k) => {
+    if (k === 0) return
+    const [px, py] = trunk[k - 1]
+    strut(partAt((py + y) / 2), [px, py, BOLT_Z], [x, y, BOLT_Z], 0.16, `${part}-trunk-${k}`)
+  })
+  // Three branches, each leaving the trunk partway down and running outward and down in four jagged segments.
+  for (let branch = 0; branch < 3; branch += 1) {
+    const from = trunk[4 + Math.floor(hash(`bolt-branch-${b}-${branch}`) * 8)]
+    const direction = hash(`bolt-dir-${b}-${branch}`) > 0.5 ? 1 : -1
+    let [bx, by] = from
+    for (let k = 0; k < 4; k += 1) {
+      const nx = bx + direction * (0.9 + hash(`bolt-bx-${b}-${branch}-${k}`) * 1.1)
+      const ny = by - (1.0 + hash(`bolt-by-${b}-${branch}-${k}`) * 1.3)
+      strut(partAt((by + ny) / 2), [bx, by, BOLT_Z], [nx, ny, BOLT_Z], 0.09, `${part}-branch-${branch}-${k}`)
+      bx = nx; by = ny
+    }
+  }
+  const midY = (skyEdges[0] + yBottom) / 2
+  const stripIndex = Math.max(0, skyEdges.findIndex((edge, index) => index < skyEdges.length - 1 && midY <= edge && midY >= skyEdges[index + 1]))
+  const rest = skyEmissiveFor(skyTargetAt(midY), stripIndex)
+  MATERIALS[part] = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: rest }
+  boltRest[part] = rest.map(value => Math.round(value * 10000) / 10000)
+  const topRest = skyEmissiveFor(skyTargetAt(skyEdges[0] + 1), 0)
+  MATERIALS[topPart] = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: topRest }
+  boltRest[topPart] = topRest.map(value => Math.round(value * 10000) / 10000)
+}
+writeFileSync(join(root, 'src/components/vyzualz/cinema2/presets/atlHoeBolts.json'), `${JSON.stringify(boltRest, null, 2)}\n`)
 
 // ── Skyline (Phase 3: silhouettes only) ─────────────────────────────────────────────────────────────────────────────────────
 // Every building is placed from the reference frame (1672 × 941): `refPoint(u, v, z)` finds the world x / y that the preset camera sees at
@@ -269,7 +337,7 @@ for (const [section, gaps, yTop, front] of [
 // Granite ledge at the setback, and the projecting cornice under the crown with a lit gold edge.
 boaBand('bofaStone', boaU(BOA_LOWER[0]) - 3, boaU(BOA_LOWER[1]) + 3, boaV(BOA_SETBACK_Y), boaV(BOA_SETBACK_Y) + 7, lowerFront + 0.4, 0.6, 'boa-setback-ledge')
 boaBand('bofaStone', boaU(BOA_UPPER[0]) - 5, boaU(BOA_UPPER[1]) + 5, boaV(BOA_PLATFORM_Y) - 4, boaV(BOA_PLATFORM_Y) + 4, upperFront + 0.4, 0.6, 'boa-cornice')
-boaBand('crown', boaU(BOA_UPPER[0]) - 5, boaU(BOA_UPPER[1]) + 5, boaV(BOA_PLATFORM_Y) - 4, boaV(BOA_PLATFORM_Y) - 3, upperFront + 0.43, 0.05, 'boa-cornice-edge')
+boaBand('spireBoa', boaU(BOA_UPPER[0]) - 5, boaU(BOA_UPPER[1]) + 5, boaV(BOA_PLATFORM_Y) - 4, boaV(BOA_PLATFORM_Y) - 3, upperFront + 0.43, 0.05, 'boa-cornice-edge')
 
 // The crown, traced from the drawing (x centred on 442.5; y 822 = the cornice). `at` returns where a drawing point lands in the world: the
 // reference pixel is read on the point's own depth, so near and far parts of the crown stay registered with the picture.
@@ -288,7 +356,7 @@ const CROWN_TIERS = [
   { y0: 598, y1: 365, hw0: 205, hw1: 100, columns: 6, cells: 2 }, // middle tier: steeper, ~24°
   { y0: 358, y1: 238, hw0: 88, hw1: 54, columns: 4, cells: 1 },   // upper tier: a much smaller taper
 ]
-const GOLD = 'crown'
+const GOLD = 'spireBoa'
 CROWN_TIERS.forEach(({ y0, y1, hw0, hw1, columns, cells }, tier) => {
   const lo = at(y0, hw0), hi = at(y1, hw1)
   const height = hi.y - lo.y
@@ -324,15 +392,15 @@ for (const [name, y, halfWidth] of [['shelf-lower', 605, 236], ['shelf-upper', 3
     addGeometry(GOLD, new THREE.CylinderGeometry(hexRadius(rTop), hexRadius(rBottom), yt - yb, 6, 1, false), { at: [(xb + xt) / 2, (yb + yt) / 2, CZ], name: `boa-mast-${name}` })
   }
   const [xa, ya] = point(75), [, yTip] = point(0)
-  box('crownWhite', [xa, (ya + yTip) / 2, CZ], [crownPx * 5, yTip - ya, crownPx * 5], [0, 0, 0], 'boa-antenna')
+  box('spireBoaTip', [xa, (ya + yTip) / 2, CZ], [crownPx * 5, yTip - ya, crownPx * 5], [0, 0, 0], 'boa-antenna')
 }
 
 // Westin Peachtree Plaza: a round glass tower with a wider ring crown and a mast.
 refRound('landmarkGlass', 1086, 1184, 340, REF_BASE_V, LANDMARK_Z, 'westin-shaft')
 // A thin pale rim over a deeper dark band, both a touch wider than the shaft, then a tall slender mast.
-refRound('crownCool', 1082, 1190, 298, 306, LANDMARK_Z, 'westin-crown-rim', 48)
+refRound('spireWestinRim', 1082, 1190, 298, 306, LANDMARK_Z, 'westin-crown-rim', 48)
 refRound('landmarkDark', 1082, 1190, 306, 346, LANDMARK_Z, 'westin-crown-band', 48)
-refBand('crownWhite', 1133, 1137, 298, 168, LANDMARK_Z, 0.08, 'westin-mast')
+refBand('spireWestinMast', 1133, 1137, 298, 168, LANDMARK_Z, 0.08, 'westin-mast')
 
 // Truist Plaza: a near-black shaft in three bays split by dark piers, each floor a glowing cyan band; above it a blocky dark green-grey
 // crown that steps back in tiers (a little lopsided, as in the close-up) and ends in a small pale cap.
@@ -373,17 +441,17 @@ TRUIST_CROWN.forEach((box_, i) => {
   const [x0, x1, y0, y1] = fromEnlarged(box_)
   const depth = 2.6 + i * 0.12
   refBand('truistCrown', tModelU(x0), tModelU(x1), tModelV(y0), tModelV(y1), LANDMARK_Z, depth, `truist-crown-${i}`)
-  refBand('crownCool', tModelU(x0), tModelU(x1), tModelV(y0), tModelV(y0) + 1.5, LANDMARK_Z, depth + 0.05, `truist-crown-${i}-edge`)
+  refBand('spireTruistEdge', tModelU(x0), tModelU(x1), tModelV(y0), tModelV(y0) + 1.5, LANDMARK_Z, depth + 0.05, `truist-crown-${i}-edge`)
   if (i >= 3 && i <= 7) refWindows({ key: `truist-crown-${i}`, u0: tModelU(x0) + 3, u1: tModelU(x1) - 3, vTop: tModelV(y0) + 4, vBottom: tModelV(y1) - 1, z: LANDMARK_Z, depth, bayU: 8, bayV: 7, chance: 0.4, part: 'truistWindows' })
 })
 {
   const [sx0, sx1, sy0, sy1] = fromEnlarged([380, 630, 395, 425])
-  refBand('crownWhite', tModelU(sx0), tModelU(sx1), tModelV(sy0), tModelV(sy1), LANDMARK_Z, 3.6, 'truist-sign')
+  refBand('spireTruistCap', tModelU(sx0), tModelU(sx1), tModelV(sy0), tModelV(sy1), LANDMARK_Z, 3.6, 'truist-sign')
   const [dx0, dx1, dy0, dy1] = fromEnlarged([388, 503, 105, 150])
   refRound('truistCrown', tModelU(dx0), tModelU(dx1), tModelV(dy0), tModelV(dy1), LANDMARK_Z, 'truist-drum', 28)
-  refRound('crownCool', tModelU(dx0 - 3), tModelU(dx1 + 3), tModelV(dy0), tModelV(dy0) + 3, LANDMARK_Z, 'truist-drum-rim', 28)
+  refRound('spireTruistEdge', tModelU(dx0 - 3), tModelU(dx1 + 3), tModelV(dy0), tModelV(dy0) + 3, LANDMARK_Z, 'truist-drum-rim', 28)
   const [px0, px1, py0, py1] = fromEnlarged([445, 449, 45, 105])
-  refBand('crownWhite', tModelU(px0), tModelU(px1), tModelV(py0), tModelV(py1), LANDMARK_Z, 0.06, 'truist-spire')
+  refBand('spireTruistCap', tModelU(px0), tModelU(px1), tModelV(py0), tModelV(py1), LANDMARK_Z, 0.06, 'truist-spire')
 }
 
 // Georgia-Pacific Tower: a windowless warm-grey stone tower. Its left face is one straight line; three stacked sections step outward to the
@@ -446,6 +514,7 @@ for (const [part, band, z, depth] of [['distantBuildings', 'far', FAR_Z, 3], ['m
 // Windows are small emissive flat panels (two triangles each) on each building's front face, laid out on a grid read from the reference (about 12 × 14 reference
 // pixels a floor bay) with a deterministic share left dark, so floors look occupied rather than uniformly lit.
 function refWindows({ key, u0, u1, vTop, vBottom = 1000, z, depth, bayU = 12, bayV = 14, chance = 0.5, part = 'warmWindows' }) {
+  // Ordinary windows go to one of nine groups by their column, so patterns can sweep left to right across the city.
   const cols = Math.max(1, Math.floor((u1 - u0) / bayU))
   const rows = Math.max(1, Math.floor((vBottom - vTop) / bayV))
   const du = (u1 - u0) / cols, dv = (vBottom - vTop) / rows
@@ -455,7 +524,8 @@ function refWindows({ key, u0, u1, vTop, vBottom = 1000, z, depth, bayU = 12, ba
   for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
     if (hash(`${key}:${row}:${col}`) > chance) continue
     const [x, y] = refPoint(u0 + du * (col + 0.5), vTop + dv * (row + 0.5), z)
-    addGeometry(part, new THREE.PlaneGeometry(1, 1), { at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1] })
+    const target = part === 'warmWindows' ? PART_GROUPS.windows[binOf(u0 + du * (col + 0.5), WINDOW_EDGES)] : part
+    addGeometry(target, new THREE.PlaneGeometry(1, 1), { at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1] })
   }
 }
 refWindows({ key: 'boa', u0: boaU(740), u1: boaU(933), vTop: boaV(BOA_SETBACK_Y) + 10, z: FZ + 0.1, depth: 0.08, bayU: 9, bayV: 14, chance: 0.12 })
@@ -526,10 +596,11 @@ for (let u = 330, i = 0; u > ROAD_FROM; u -= 150 + hash(`lamp-l-${i}`) * 50, i +
 for (let u = 1740, i = 0; u < ROAD_TO; u += 150 + hash(`lamp-r-${i}`) * 50, i += 1) LAMPS.push([u, 820 + hash(`lamp-rv-${i}`) * 25])
 LAMPS.forEach(([u, v], i) => {
   refBand('roadPole', u - 1.8, u + 1.8, v, 884, ROAD_Z + 0.4, 0.3, `road-lamp-pole-${i}`)
-  refBand('roadGlow', u - 4, u + 4, v - 6, v + 2, ROAD_Z + 0.4, 0.5, `road-lamp-${i}`)
+  const lampBin = binOf(u, LAMP_EDGES)
+  refBand(PART_GROUPS.lampOrbs[lampBin], u - 4, u + 4, v - 6, v + 2, ROAD_Z + 0.4, 0.5, `road-lamp-${i}`)
   // A soft halo behind the orb, and a pool of light on the near deck's face below the lamp.
-  addGeometry('lampGlow', new THREE.CircleGeometry(1, 14), { at: [refPoint(u, v - 2, ROAD_Z + 0.2)[0], refPoint(u, v - 2, ROAD_Z + 0.2)[1], ROAD_Z + 0.2], size: [crownPxAt(ROAD_Z + 0.2) * 7, crownPxAt(ROAD_Z + 0.2) * 7, 1], name: `road-lamp-halo-${i}` })
-  addGeometry('lampGlow', new THREE.CircleGeometry(1, 14), { at: [refPoint(u, 898, ROAD_Z + 2.4)[0], refPoint(u, 898, ROAD_Z + 2.4)[1], ROAD_Z + 0.8 + 1.65], size: [crownPxAt(ROAD_Z + 2.4) * 46, crownPxAt(ROAD_Z + 2.4) * 7, 1], name: `road-lamp-pool-${i}` })
+  addGeometry(PART_GROUPS.lampHalos[lampBin], new THREE.CircleGeometry(1, 14), { at: [refPoint(u, v - 2, ROAD_Z + 0.2)[0], refPoint(u, v - 2, ROAD_Z + 0.2)[1], ROAD_Z + 0.2], size: [crownPxAt(ROAD_Z + 0.2) * 7, crownPxAt(ROAD_Z + 0.2) * 7, 1], name: `road-lamp-halo-${i}` })
+  addGeometry(PART_GROUPS.lampHalos[lampBin], new THREE.CircleGeometry(1, 14), { at: [refPoint(u, 898, ROAD_Z + 2.4)[0], refPoint(u, 898, ROAD_Z + 2.4)[1], ROAD_Z + 0.8 + 1.65], size: [crownPxAt(ROAD_Z + 2.4) * 46, crownPxAt(ROAD_Z + 2.4) * 7, 1], name: `road-lamp-pool-${i}` })
 })
 
 // The Waffle House sign, modeled on the real roadside sign: a near-black cabinet in two rows (six cells over five cells offset by half a
@@ -586,7 +657,7 @@ function signRow(name, count, startX, y, dz = 0) {
   for (let i = 0; i < count; i += 1) {
     const x = startX + i * (panel + gap)
     // A flat yellow face, sitting just proud of the cabinet front and just behind the frame's front edge.
-    signBox('signGlow', [x, y, rowFaceZ], [face, face, 0.04], [0, 0, 0], `${name}-${i}-face`)
+    signBox(PART_GROUPS.signFaces[(name === 'top' ? 0 : 6) + i], [x, y, rowFaceZ], [face, face, 0.04], [0, 0, 0], `${name}-${i}-face`)
     const ring = (panel - face) / 2
     const bezelZ = rowFront + bezelDepth / 2 - 0.03
     signBox('signBorder', [x, y + (panel - ring) / 2, bezelZ], [panel, ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-top`)

@@ -252,6 +252,8 @@ Remaining deviations from the owner reference, recorded honestly rather than mas
 
 ## Phase 9 — Audio-reactive routing, only after static approval
 
+**Status:** Implemented as the Design tab and audio-reactive controls; see `cinema2-atl-hoe-design-tab-plan.md`.
+
 This phase is intentionally deferred. It must not be used to distract from or compensate for missing static fidelity.
 
 Potential restrained routes after approval:

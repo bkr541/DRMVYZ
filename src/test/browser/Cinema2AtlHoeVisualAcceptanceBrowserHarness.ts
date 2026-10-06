@@ -96,6 +96,16 @@ const created = Cinema2Runtime.create(canvas, {
 })
 if (!created.runtime) throw new Error(created.error)
 const runtime = created.runtime
+// Development-only: `?params={"<parameter id>": value}` sets Design-tab values before the first frame, so a capture can show a palette
+// colour or a pattern without touching the preset's authored defaults.
+const requestedParameters = query.get('params')
+if (requestedParameters) {
+  const parameterState = runtime.getParameterState()
+  for (const [parameterId, value] of Object.entries(JSON.parse(requestedParameters) as Record<string, unknown>)) {
+    const result = parameterState.setPersistentValue(parameterId as Parameters<typeof parameterState.setPersistentValue>[0], value)
+    if (!result.ok) throw new Error(`ATL HOE capture could not set ${parameterId}: ${result.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+  }
+}
 runtime.resize({ width: innerWidth, height: innerHeight, dpr: 1 })
 runtime.start()
 

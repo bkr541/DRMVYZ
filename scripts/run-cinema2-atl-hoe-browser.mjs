@@ -12,9 +12,10 @@ const artifactRoot = join(root, 'artifacts/cinema2-atl-hoe-visual-acceptance')
 const referenceArgument = process.argv.find(argument => argument.startsWith('--reference='))
 const opacityArgument = process.argv.find(argument => argument.startsWith('--reference-opacity='))
 const onlyArgument = process.argv.find(argument => argument.startsWith('--only='))
-const supported = new Set([referenceArgument, opacityArgument, onlyArgument].filter(Boolean))
+const paramsArgument = process.argv.find(argument => argument.startsWith('--params='))
+const supported = new Set([referenceArgument, opacityArgument, onlyArgument, paramsArgument].filter(Boolean))
 const unsupported = process.argv.slice(2).filter(argument => !supported.has(argument))
-if (unsupported.length) throw new Error('Supported options: --only=checkpoint[,checkpoint], --reference=/path/image, --reference-opacity=0..1.')
+if (unsupported.length) throw new Error('Supported options: --only=checkpoint[,checkpoint], --reference=/path/image, --reference-opacity=0..1, --params=JSON (parameter id to value).')
 
 const referencePath = referenceArgument ? resolve(root, referenceArgument.slice('--reference='.length)) : null
 const referenceOpacity = opacityArgument ? Number(opacityArgument.slice('--reference-opacity='.length)) : 0.5
@@ -116,6 +117,7 @@ try {
       const url = new URL(baseUrl)
       url.searchParams.set('checkpoint', entry.checkpoint)
       url.searchParams.set('quality', entry.quality)
+      if (paramsArgument) url.searchParams.set('params', paramsArgument.slice('--params='.length))
       await page.goto(url.href, { waitUntil: 'domcontentloaded' })
       await page.waitForFunction(() => Boolean(globalThis.__cinema2AtlHoeVisualAcceptance), undefined, { timeout: 30_000 })
       const status = await page.evaluate(() => globalThis.__cinema2AtlHoeVisualAcceptance.prepare())

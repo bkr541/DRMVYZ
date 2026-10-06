@@ -1,3 +1,4 @@
+import { Cinema2BeatClock, CINEMA2_BEAT_CLOCK_REFERENCE_BPM } from '../modules/Cinema2BeatClock'
 import type {
   Cinema2CapabilityId,
   Cinema2ChoreographyActionManifest,
@@ -110,6 +111,22 @@ interface ActiveVariation {
   eventId: string
 }
 
+/**
+ * The musical clock of a preset whose manifest names a `tempoSyncParameter` (its BPM Sync toggle). On: the loaded track's tempo and beat grid
+ * (the shared Cinema2BeatClock, locked to the grid). Off: a steady 120 BPM. Beat, bar and phrase events, beat counters, delays and envelope
+ * lengths in beats all follow it; kicks, transients, drops and the continuous music signals stay driven by the audio itself.
+ */
+interface TempoTiming {
+  beats: number
+  beatSec: number
+  locked: boolean
+  beat: Readonly<ChoreographyEvent> | null
+  bar: Readonly<ChoreographyEvent> | null
+  phrase: Readonly<ChoreographyEvent> | null
+}
+const TEMPO_SIGNALS = new Set(['beat', 'downbeat', 'bar', 'phrase'])
+const BEATS_PER_BAR = 4
+
 const MAX_SEEN_EVENTS = 4096
 const EPSILON = 1e-6
 const DROP_MOMENT_TYPES = new Set(['drop', 'drop_impact', 'major_impact', 'high_impact'])
@@ -138,6 +155,9 @@ export class Cinema2ChoreographyRuntime {
   private diagnostics: Cinema2ChoreographyDiagnostic[] = []
   private previousAudioTimeSec: number | null = null
   private activeVariation: ActiveVariation | null = null
+  private readonly tempoClock = new Cinema2BeatClock()
+  private tempo: TempoTiming | null = null
+  private tempoPreviousBeats: number | null = null
   private disposed = false
   private frameCount = 0
   private activeContributionCount = 0
@@ -171,6 +191,7 @@ export class Cinema2ChoreographyRuntime {
       this.resetTransientState('audio-discontinuity')
     }
 
+    this.updateTempo(frame)
     const submissions: Cinema2TargetContributionSubmission[] = []
     const rules = [...(this.plan.manifest.choreography?.rules ?? [])]
       .filter(rule => rule.enabled !== false)
@@ -274,8 +295,13 @@ export class Cinema2ChoreographyRuntime {
   }
 
   private routeEnabled(rule: Readonly<Cinema2ChoreographyRuleManifest>): boolean {
-    if (!rule.enabledParameter) return true
-    return this.parameterState.getValue(rule.enabledParameter.$ref) === true
+    if (rule.enabledParameter && this.parameterState.getValue(rule.enabledParameter.$ref) !== true) return false
+    for (const condition of rule.enabledWhen ?? []) {
+      if (condition.kind === 'capability-available') continue
+      const equal = this.parameterState.getValue(condition.parameterId) === condition.value
+      if (condition.kind === 'parameter-equals' ? !equal : equal) return false
+    }
+    return true
   }
 
   private routeStrength(rule: Readonly<Cinema2ChoreographyRuleManifest>): number {
@@ -286,9 +312,11 @@ export class Cinema2ChoreographyRuntime {
 
   private sampleSource(rule: Readonly<Cinema2ChoreographyRuleManifest>, frame: Readonly<Cinema2ModuleFrameReadContext>): SourceSample {
     const source = rule.source
-    if (source.capability && !capabilityAvailable(source.capability, frame)) return unavailableSample()
+    const tempoDriven = this.tempo != null && TEMPO_SIGNALS.has(source.signal)
+    if (source.capability && !tempoDriven && !capabilityAvailable(source.capability, frame)) return unavailableSample()
     let sample: SourceSample
-    if (source.signal === 'continuous') sample = sampleContinuousPath(source.path, frame)
+    if (tempoDriven) sample = { available: true, value: 1, confidence: 1 }
+    else if (source.signal === 'continuous') sample = sampleContinuousPath(source.path, frame)
     else if (source.signal === 'parameter') sample = sampleParameter(source, this.parameterState)
     else if (source.signal === 'build') sample = sampleSignal(frame.audio?.structure.buildConfidence)
     else if (source.signal === 'vocal-presence') sample = sampleSignal(frame.audio?.features.vocalPresence)
@@ -327,14 +355,44 @@ export class Cinema2ChoreographyRuntime {
     })
   }
 
+  private updateTempo(frame: Readonly<Cinema2ModuleFrameReadContext>): void {
+    const reference = this.plan.manifest.choreography?.tempoSyncParameter
+    if (!reference) {
+      this.tempo = null
+      return
+    }
+    const sync = this.parameterState.getValue(reference.$ref) !== false
+    const state = this.tempoClock.update(frame, sync, CINEMA2_BEAT_CLOCK_REFERENCE_BPM)
+    const previous = this.tempoPreviousBeats
+    const crossed = (unit: number) => previous != null && state.beats > previous && Math.floor(state.beats / unit) > Math.floor(previous / unit)
+    const tick = (kind: string, unit: number): Readonly<ChoreographyEvent> | null => crossed(unit)
+      ? Object.freeze({ id: `cinema2-tempo:${kind}:${Math.floor(state.beats / unit)}`, strength: 1, confidence: 1 })
+      : null
+    const bpm = state.locked && state.bpm != null ? state.bpm : CINEMA2_BEAT_CLOCK_REFERENCE_BPM
+    this.tempo = { beats: state.beats, beatSec: 60 / bpm, locked: state.locked, beat: tick('beat', 1), bar: tick('bar', BEATS_PER_BAR), phrase: tick('phrase', BEATS_PER_PHRASE) }
+    this.tempoPreviousBeats = state.beats
+  }
+
+  private beatPos(frame: Readonly<Cinema2ModuleFrameReadContext>): number | null {
+    return this.tempo ? this.tempo.beats : beatPosition(frame.audio)
+  }
+
+  private beatSecOf(frame: Readonly<Cinema2ModuleFrameReadContext>): number | null {
+    return this.tempo ? this.tempo.beatSec : beatDurationSec(frame.audio)
+  }
+
   private eventsForRule(
     rule: Readonly<Cinema2ChoreographyRuleManifest>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
     sourceSample?: SourceSample,
   ): readonly Readonly<ChoreographyEvent>[] {
+    const signal = rule.source.signal
+    if (this.tempo && TEMPO_SIGNALS.has(signal)) {
+      const tick = signal === 'beat' ? this.tempo.beat : signal === 'phrase' ? this.tempo.phrase : this.tempo.bar
+      return tick ? Object.freeze([tick]) : Object.freeze([])
+    }
     const audio = frame.audio
     if (!audio) return Object.freeze([])
-    const signal = rule.source.signal
     if (signal === 'beat') return fromAudioEvent(audio.rhythm.beat)
     if (signal === 'downbeat') return fromAudioEvent(audio.rhythm.downbeat)
     if (signal === 'kick') return fromAudioEvent(audio.rhythm.kick)
@@ -393,7 +451,7 @@ export class Cinema2ChoreographyRuntime {
   ): boolean {
     if (rule.source.threshold != null && source.available && source.value != null && source.value < rule.source.threshold) return false
     for (const condition of rule.conditions ?? []) {
-      if (!conditionPasses(condition, source, event, frame)) return false
+      if (!conditionPasses(condition, source, event, frame, this.tempo)) return false
     }
     return true
   }
@@ -436,7 +494,7 @@ export class Cinema2ChoreographyRuntime {
       }
     }
 
-    const beat = beatPosition(frame.audio)
+    const beat = this.beatPos(frame)
     if (action.cooldownBeats && action.cooldownBeats > 0) {
       if (beat == null) {
         this.diagnosticOnce('CINEMA2_CHOREOGRAPHY_TIMING_UNAVAILABLE', 'Beat timing is unavailable for an authored cooldown.', `action.${action.id}.cooldownBeats`)
@@ -478,7 +536,7 @@ export class Cinema2ChoreographyRuntime {
     }
     if (this.pending.length === 0) return
 
-    const beat = beatPosition(frame.audio)
+    const beat = this.beatPos(frame)
     if (beat == null) return
     let index = 0
     while (index < this.pending.length) {
@@ -499,7 +557,7 @@ export class Cinema2ChoreographyRuntime {
     event: Readonly<ChoreographyEvent>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
   ): void {
-    const beat = beatPosition(frame.audio)
+    const beat = this.beatPos(frame)
     if (action.cooldownBeats && action.cooldownBeats > 0 && beat != null) {
       const prior = this.lastActionBeat.get(action.id)
       if (prior != null && beat - prior + EPSILON < action.cooldownBeats) return
@@ -541,7 +599,7 @@ export class Cinema2ChoreographyRuntime {
       return
     }
     if (action.operation === 'set-for-duration') {
-      const durationSec = durationSeconds(action, frame.audio)
+      const durationSec = durationSeconds(action, this.beatSecOf(frame))
       if (durationSec == null) {
         this.diagnosticOnce('CINEMA2_CHOREOGRAPHY_TIMING_UNAVAILABLE', 'Duration could not be resolved because beat timing is unavailable.', `action.${action.id}`)
         return
@@ -551,7 +609,7 @@ export class Cinema2ChoreographyRuntime {
         rule, action, target, eventId: event.id, eventStrength: event.strength,
         endSec: startSec + durationSec,
         startSec,
-        beatSec: beatDurationSec(frame.audio),
+        beatSec: this.beatSecOf(frame),
       })
       return
     }
@@ -582,7 +640,7 @@ export class Cinema2ChoreographyRuntime {
     if (existing && currentTimeSec(frame) < existing.endSec) {
       if (retrigger === 'ignore') return
       if (retrigger === 'extend') {
-        const extension = envelopeDurations(action, frame.audio)
+        const extension = envelopeDurations(action, this.beatSecOf(frame))
         if (!extension) {
           this.diagnosticOnce('CINEMA2_CHOREOGRAPHY_TIMING_UNAVAILABLE', 'Envelope beat timing is unavailable.', `action.${action.id}.envelope`)
           return
@@ -594,7 +652,7 @@ export class Cinema2ChoreographyRuntime {
         return
       }
     }
-    const durations = envelopeDurations(action, frame.audio)
+    const durations = envelopeDurations(action, this.beatSecOf(frame))
     if (!durations) {
       this.diagnosticOnce('CINEMA2_CHOREOGRAPHY_TIMING_UNAVAILABLE', 'Envelope beat timing is unavailable.', `action.${action.id}.envelope`)
       return
@@ -611,7 +669,7 @@ export class Cinema2ChoreographyRuntime {
       holdSec: durations.holdSec,
       releaseSec: durations.releaseSec,
       endSec: startSec + durations.attackSec + durations.holdSec + durations.releaseSec,
-      beatSec: beatDurationSec(frame.audio),
+      beatSec: this.beatSecOf(frame),
     })
   }
 
@@ -887,6 +945,7 @@ function conditionPasses(
   source: SourceSample,
   event: Readonly<ChoreographyEvent> | null,
   frame: Readonly<Cinema2ModuleFrameReadContext>,
+  tempo: Readonly<TempoTiming> | null,
 ): boolean {
   switch (condition.kind) {
     case 'source-threshold': {
@@ -906,7 +965,7 @@ function conditionPasses(
       return confidence != null && confidence >= condition.min
     }
     case 'once-per-event': return event != null
-    case 'beat-interval': return beatIntervalPasses(condition, frame)
+    case 'beat-interval': return beatIntervalPasses(condition, frame, tempo)
   }
 }
 
@@ -916,13 +975,19 @@ const BEATS_PER_PHRASE = 16
 function beatIntervalPasses(
   condition: Readonly<Extract<Cinema2ChoreographyConditionManifest, { kind: 'beat-interval' }>>,
   frame: Readonly<Cinema2ModuleFrameReadContext>,
+  tempo: Readonly<TempoTiming> | null,
 ): boolean {
+  const every = Math.max(1, Math.floor(condition.every))
+  if (tempo) {
+    const unitBeats = condition.unit === 'bar' ? BEATS_PER_BAR : condition.unit === 'phrase' ? BEATS_PER_PHRASE : 1
+    const count = Math.floor(tempo.beats / unitBeats)
+    return (((count % every) + every) % every) === (condition.phase ?? 0)
+  }
   const rhythm = frame.audio?.rhythm
   const unit = condition.unit ?? 'beat'
   const signal = unit === 'bar' ? rhythm?.barIndex : rhythm?.beatIndex
   if (!signal?.available || typeof signal.value !== 'number' || !Number.isFinite(signal.value)) return false
   const counter = unit === 'phrase' ? Math.floor(signal.value / BEATS_PER_PHRASE) : Math.floor(signal.value)
-  const every = Math.max(1, Math.floor(condition.every))
   return (((counter % every) + every) % every) === (condition.phase ?? 0)
 }
 
@@ -1024,7 +1089,7 @@ function mapValue(value: number, map: Readonly<Cinema2ChoreographyActionManifest
 
 function envelopeDurations(
   action: Readonly<Cinema2ChoreographyActionManifest>,
-  audio: Readonly<Cinema2AudioIntelligenceFrame> | null,
+  beatSec: number | null,
 ): { attackSec: number; holdSec: number; releaseSec: number } | null {
   const envelope = action.envelope
   const unit = envelope?.unit ?? 'beats'
@@ -1033,14 +1098,12 @@ function envelopeDurations(
   const hold = envelope?.hold ?? defaultHold
   const release = envelope?.release ?? (action.operation === 'pulse' ? 0.25 : 0)
   if (unit === 'seconds') return { attackSec: attack, holdSec: hold, releaseSec: release }
-  const beatSec = beatDurationSec(audio)
   return beatSec == null ? null : { attackSec: attack * beatSec, holdSec: hold * beatSec, releaseSec: release * beatSec }
 }
 
-function durationSeconds(action: Readonly<Cinema2ChoreographyActionManifest>, audio: Readonly<Cinema2AudioIntelligenceFrame> | null): number | null {
+function durationSeconds(action: Readonly<Cinema2ChoreographyActionManifest>, beatSec: number | null): number | null {
   if (action.durationSeconds != null) return Math.max(0, action.durationSeconds)
   const beats = action.durationBeats ?? 1
-  const beatSec = beatDurationSec(audio)
   return beatSec == null ? null : beats * beatSec
 }
 

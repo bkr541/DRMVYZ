@@ -164,6 +164,30 @@ describe('Cinema 2.0 parameter schema and persistent state foundation', () => {
     expect(restored.getValue(id('gain'))).toBe(0.75)
   })
 
+  it('lets one parameter mirror its edited value onto others through metadata.mirrorParameters', () => {
+    const base = manifest()
+    const result = compileCinema2NativePreset({
+      ...base,
+      parameters: [
+        ...(base.parameters ?? []).map(parameter => parameter.id === id('color')
+          ? { ...parameter, metadata: { mirrorParameters: [id('hidden-color-a'), id('hidden-color-b')] } }
+          : parameter),
+        { id: id('hidden-color-a'), label: 'Hidden A', type: 'color', defaultValue: [0, 1, 0, 1], exposure: 'hidden' },
+        { id: id('hidden-color-b'), label: 'Hidden B', type: 'color', defaultValue: [0, 0, 1, 1], exposure: 'hidden' },
+      ],
+    })
+    if (!result.ok) throw new Error(result.diagnostics.map(diagnostic => diagnostic.message).join('; '))
+    const state = new Cinema2ParameterState(result.plan.parameters)
+
+    expect(state.getValue(id('hidden-color-a'))).toEqual([0, 1, 0, 1])
+    expect(state.setPersistentValue(id('color'), [1, 0, 0, 1])).toEqual({ ok: true, diagnostics: [] })
+    expect(state.getValue(id('hidden-color-a'))).toEqual([1, 0, 0, 1])
+    expect(state.getValue(id('hidden-color-b'))).toEqual([1, 0, 0, 1])
+    // Editing a hidden parameter on its own does not touch the others.
+    expect(state.setPersistentValue(id('hidden-color-a'), [0, 0, 0, 1]).ok).toBe(true)
+    expect(state.getValue(id('hidden-color-b'))).toEqual([1, 0, 0, 1])
+  })
+
   it('rejects malformed serialized state atomically without overwriting canonical values', () => {
     const state = new Cinema2ParameterState(compiledPlan().parameters)
     expect(state.setPersistentValue(id('gain'), 0.25).ok).toBe(true)
