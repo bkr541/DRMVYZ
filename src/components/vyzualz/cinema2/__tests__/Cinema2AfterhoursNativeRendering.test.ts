@@ -238,15 +238,17 @@ type GlMocks = { drawArraysInstanced: { mockClear(): void; mock: { calls: unknow
  * Runs the module through `beats` beats of music in 1/8-beat steps and records what was drawn at each step. Beams cue in bursts on the beat
  * grid, so a single frame shows only the groups that are lit at that instant; behavior is judged over a stretch of music instead.
  */
-function sweepBeats(harness: ReturnType<typeof createHarness>, fromBeat: number, beats: number, withAudio = true): SweepStep[] {
+function sweepBeats(harness: ReturnType<typeof createHarness>, fromBeat: number, beats: number, withAudio = true, samplesPerBeat = 8): SweepStep[] {
   const steps: SweepStep[] = []
   const gl = harness.gl as unknown as GlMocks
-  for (let index = 0; index <= beats * 8; index += 1) {
-    const beat = fromBeat + index / 8
+  for (let index = 0; index <= beats * samplesPerBeat; index += 1) {
+    const beat = fromBeat + index / samplesPerBeat
     const timeSec = beat / 2
     const current = frame({
       frameId: index + 1,
       timeSec,
+      // A beat is half a second here, so this is the real time between two samples.
+      deltaTimeSec: 0.5 / samplesPerBeat,
       audio: withAudio ? beatAudio(timeSec, false, Math.floor(beat), beat - Math.floor(beat), Math.floor(beat / 4)) : null,
     })
     gl.drawArraysInstanced.mockClear()
@@ -405,9 +407,17 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
 
   it('lands hits exactly on the beat and can change the look on every beat', () => {
     const harness = createHarness({ pattern: 'beatJump', beamCount: 46, symmetry: true, pulseAmount: 0, bpmSync: true })
-    const steps = sweepBeats(harness, 8, 8)
+    // Sampled at 30 frames a beat (the real frame rate at 120 BPM), because a laser that has to travel to its next point is dark for a few frames.
+    const steps = sweepBeats(harness, 8, 8, true, 30)
     const onBeat = steps.filter(step => Number.isInteger(step.beat))
-    expect(onBeat.every(step => step.count > 0)).toBe(true)
+    const countAt = (beat: number) => steps.find(step => Math.abs(step.beat - beat) < 1e-6)!.count
+    for (const beat of [9, 10, 11]) {
+      // The trip is dark: shortly before a beat that moves the lasers, the lasers that have to travel switch off…
+      const dip = Math.min(...steps.filter(step => step.beat >= beat - 0.15 && step.beat < beat - 0.01).map(step => step.count))
+      expect(dip, `beat ${beat}`).toBeLessThan(countAt(beat + 0.1))
+      // …and they are all back on, at their new points, exactly on the beat: the look is complete on it.
+      expect(countAt(beat), `beat ${beat}`).toBe(countAt(beat + 0.1))
+    }
     const floorLaser = onBeat[0]!.beams[0]!.origin
     const aims = onBeat.map(step => step.beams.find(beam => beam.origin === floorLaser)?.target.map(value => value.toFixed(2)).join(','))
     expect(new Set(aims).size).toBeGreaterThanOrEqual(onBeat.length - 1)

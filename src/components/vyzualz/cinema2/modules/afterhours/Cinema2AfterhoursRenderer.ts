@@ -22,6 +22,8 @@ export interface Cinema2AfterhoursRendererDrawRequest {
   readonly cameraPosition: Cinema2Vector3
   readonly atmosphere: number
   readonly masterIntensity: number
+  /** Visual time in seconds for the beams' shimmer. The module freezes it while nothing plays, so a paused show holds still. */
+  readonly timeSec?: number
 }
 
 export interface Cinema2AfterhoursRendererSnapshot {
@@ -50,12 +52,21 @@ layout(location = 4) in vec4 aMeta;
 uniform mat4 uWorldToClip;
 uniform vec3 uCameraPosition;
 uniform float uAtmosphere;
+uniform vec2 uViewportPx;
+uniform float uPixelScale;
 out vec4 vColor;
 out vec4 vMeta;
 out float vSide;
 out float vLongitudinal;
 out float vViewDistance;
 out float vBeamLength;
+out float vHalfPx;
+out float vTravelPx;
+flat out float vPhase;
+
+// Half the width of a beam's quad on screen, in pixels at a 1080-pixel-tall viewport. It is wide enough to hold the whole glow, and it scales
+// with the viewport so a beam looks the same at any resolution.
+const float HALF_WIDTH_PX = 72.0;
 
 float viewportExitScale(vec2 originNdc, vec2 targetNdc) {
   vec2 delta = targetNdc - originNdc;
@@ -83,40 +94,55 @@ void main() {
   vec3 direction = beam / beamLength;
   float t = clamp(aCorner.x, 0.0, 1.0);
   vec3 center = mix(aOrigin, aTarget, t);
-  vec3 toCamera = normalize(uCameraPosition - center + vec3(0.000001, 0.0, 0.0));
-  vec3 sideAxis = cross(direction, toCamera);
-  float sideLength = length(sideAxis);
-  if (sideLength < 0.0001) sideAxis = cross(direction, vec3(0.0, 1.0, 0.0001));
-  sideAxis = normalize(sideAxis);
-  float sourceBloom = exp(-t * 34.0);
-  float widthWorld = mix(0.045, 0.085, clamp(uAtmosphere, 0.0, 1.0)) * (1.0 + sourceBloom * 1.35) * max(aMeta.w, 1.0);
-  vec3 worldPosition = center + sideAxis * aCorner.y * widthWorld;
+  float widthMul = max(aMeta.w, 1.0);
+  float halfPx = HALF_WIDTH_PX * (1.0 + 0.35 * (widthMul - 1.0)) * uPixelScale;
+
   vec4 originClip = uWorldToClip * vec4(aOrigin, 1.0);
   vec4 targetClip = uWorldToClip * vec4(aTarget, 1.0);
-  vec4 worldClip = uWorldToClip * vec4(worldPosition, 1.0);
+  vec4 centerClip = uWorldToClip * vec4(center, 1.0);
 
-  // Cinema 2.0 retains its finite 3D target for depth, scanner direction and
-  // camera perspective, then projects that direction to the actual visible
-  // stage boundary. This restores legacy Afterhours' stage-filling ray contract
-  // without reverting the preset to a screen-space renderer.
-  if (originClip.w > 0.0001 && targetClip.w > 0.0001 && worldClip.w > 0.0001) {
+  if (originClip.w > 0.0001 && targetClip.w > 0.0001 && centerClip.w > 0.0001) {
+    // Cinema 2.0 retains its finite 3D target for depth, scanner direction and camera perspective, then projects that direction to the actual
+    // visible stage boundary (the legacy stage-filling ray contract). The beam's width is laid out on screen, perpendicular to that visible
+    // direction, so every beam has the same thickness whatever its distance from the camera.
     vec2 originNdc = originClip.xy / originClip.w;
     vec2 targetNdc = targetClip.xy / targetClip.w;
     float exitScale = viewportExitScale(originNdc, targetNdc);
-    vec2 authoredCenterNdc = mix(originNdc, targetNdc, t);
     vec2 extendedTargetNdc = originNdc + (targetNdc - originNdc) * exitScale;
     vec2 extendedCenterNdc = mix(originNdc, extendedTargetNdc, t);
-    worldClip.xy += (extendedCenterNdc - authoredCenterNdc) * worldClip.w;
+    vec2 halfViewport = max(uViewportPx * 0.5, vec2(1.0));
+    vec2 travelPx = (extendedTargetNdc - originNdc) * halfViewport;
+    float travelLength = length(travelPx);
+    vec2 directionPx = travelLength > 0.001 ? travelPx / travelLength : vec2(0.0, 1.0);
+    vec2 perpendicularPx = vec2(-directionPx.y, directionPx.x);
+    vec2 offsetNdc = perpendicularPx * aCorner.y * halfPx / halfViewport;
+    // The quad starts a little behind the emitter so its glow can fade out round the source instead of being cut off by a flat edge.
+    float padPx = t < 0.5 ? halfPx * 0.9 : 0.0;
+    offsetNdc -= directionPx * padPx / halfViewport;
+    vTravelPx = max(travelLength, 1.0);
+    vLongitudinal = t < 0.5 ? -padPx / vTravelPx : 1.0;
+    // Every vertex shares w = 1: the beam is laid out directly in screen space, so it stays perfectly straight (a quad whose ends have different w
+    // skews its centre line) and keeps one thickness along its whole length.
+    gl_Position = vec4(extendedCenterNdc + offsetNdc, centerClip.z / centerClip.w, 1.0);
+  } else {
+    // A beam that does not project in front of the camera keeps the world-space quad (it is clipped away).
+    vec3 toCamera = normalize(uCameraPosition - center + vec3(0.000001, 0.0, 0.0));
+    vec3 sideAxis = cross(direction, toCamera);
+    if (length(sideAxis) < 0.0001) sideAxis = cross(direction, vec3(0.0, 1.0, 0.0001));
+    sideAxis = normalize(sideAxis);
+    gl_Position = uWorldToClip * vec4(center + sideAxis * aCorner.y * 0.06, 1.0);
+    vTravelPx = 1.0;
+    vLongitudinal = t;
   }
-  gl_Position = worldClip;
   vColor = aColor;
   vMeta = aMeta;
   // Preserve the signed quad coordinate through raster interpolation so the
   // fragment shader receives 0.0 at the beam center.
   vSide = aCorner.y;
-  vLongitudinal = t;
   vViewDistance = length(uCameraPosition - center);
   vBeamLength = beamLength;
+  vHalfPx = halfPx;
+  vPhase = fract(sin(float(gl_InstanceID) * 12.9898) * 43758.5453);
 }`
 
 const FRAGMENT_SHADER = `#version 300 es
@@ -127,30 +153,77 @@ in float vSide;
 in float vLongitudinal;
 in float vViewDistance;
 in float vBeamLength;
+in float vHalfPx;
+in float vTravelPx;
+flat in float vPhase;
 uniform float uAtmosphere;
 uniform float uMasterIntensity;
+uniform float uPixelScale;
+uniform float uTimeSec;
+uniform float uGlowScale;
 out vec4 outColor;
+
+float hash11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+float noise1(float x) {
+  float i = floor(x);
+  float f = fract(x);
+  float u = f * f * (3.0 - 2.0 * f);
+  return mix(hash11(i), hash11(i + 1.0), u);
+}
+
 void main() {
   float side = clamp(abs(vSide), 0.0, 1.0);
-  float core = exp(-side * side * 118.0);
-  float body = exp(-side * side * 34.0);
-  float halo = exp(-side * side * 6.4);
-  float sourceBloom = exp(-vLongitudinal * 56.0);
-  float rayFalloff = mix(1.0, 0.50, smoothstep(0.14, 1.0, vLongitudinal));
+  float widthMul = max(vMeta.w, 1.0);
+  // Distance from the beam's centre in pixels at a 1080-pixel-tall viewport. A sheet (wider and softer) spreads its glow further.
+  float pixelScale = max(uPixelScale, 0.05);
+  float widthSoftness = inversesqrt(widthMul);
+  float across = side * vHalfPx / pixelScale * widthSoftness;
+  // Behind the emitter the glow closes round it instead of ending flat.
+  float behind = max(0.0, -vLongitudinal * vTravelPx) / pixelScale * widthSoftness;
+  float d = length(vec2(across, behind));
+  float along01 = clamp(vLongitudinal, 0.0, 1.0);
   float atmosphere = clamp(uAtmosphere, 0.0, 1.0);
-  float temporal = clamp(vMeta.z, 0.0, 1.0);
+
+  // The beam is a stack, like real laser light in haze: a hair-thin white-hot core, a saturated body a few pixels wide, a soft coloured
+  // envelope, and a wide scattered haze. The two outer layers fade out before the quad's edge so no edge is ever visible.
+  float behindFraction = max(0.0, -vLongitudinal * vTravelPx) / max(vHalfPx * 0.9, 1.0);
+  float quadEdge = (1.0 - smoothstep(0.5, 1.0, side)) * (1.0 - smoothstep(0.5, 1.0, behindFraction));
+  float core = exp(-d * d / 1.7);
+  float body = exp(-d / 3.1);
+  float envelope = exp(-d / 9.5) * quadEdge * (0.45 + 0.55 * atmosphere);
+  float scatter = exp(-d / 24.0) * quadEdge * atmosphere * atmosphere;
+  float sourceBloom = exp(-along01 * 40.0) * exp(-d / 13.0) * (0.55 + atmosphere * 0.45);
+  float rayFalloff = mix(1.0, 0.42, smoothstep(0.14, 1.0, along01));
+
+  // Light travelling through haze is never perfectly even: it breathes and shimmers along the beam, each beam on its own phase.
+  float along = along01 * vBeamLength * 1.4;
+  float slow = noise1(along - uTimeSec * 2.6 + vPhase * 40.0);
+  float fast = noise1(along * 3.7 + uTimeSec * 4.1 + vPhase * 91.0);
+  float shimmer = 0.8 + 0.2 * (0.65 * slow + 0.35 * fast);
+  float breathe = 1.0 + 0.045 * sin(uTimeSec * 6.3 + vPhase * 6.2832);
+  float live = shimmer * breathe;
+
   float intensity = max(0.0, vMeta.x) * clamp(vMeta.y, 0.0, 1.0) * max(0.0, uMasterIntensity);
   // World-space distance separation keeps near paths crisp while allowing far
   // paths to recede naturally into haze instead of flattening into one plane.
   float distanceFade = mix(1.08, 0.62, smoothstep(7.0, 30.0, vViewDistance));
   float lengthDiscipline = mix(1.0, 0.88, smoothstep(10.0, 18.0, vBeamLength));
-  float temporalFade = mix(1.0, 0.42, temporal);
-  float optical = core * 1.72 + body * 0.40 + halo * atmosphere * 0.22 + sourceBloom * (0.22 + atmosphere * 0.12);
-  optical *= rayFalloff * distanceFade * lengthDiscipline * intensity * temporalFade;
-  vec3 coreColor = mix(vColor.rgb, vec3(1.0), core * 0.10);
-  vec3 rgb = coreColor * optical;
-  float alpha = clamp((core * 0.98 + body * 0.40 + halo * atmosphere * 0.12 + sourceBloom * 0.16) * distanceFade * intensity * temporalFade, 0.0, 1.0);
-  if (alpha < 0.001) discard;
+  float temporalFade = mix(1.0, 0.42, clamp(vMeta.z, 0.0, 1.0));
+  float optical = rayFalloff * distanceFade * lengthDiscipline * intensity * temporalFade;
+
+  // Colour changes across the beam: white-hot core, saturated body, and a halo that drifts slightly in hue and lightens.
+  vec3 base = vColor.rgb;
+  vec3 coreColor = mix(base, vec3(1.0), 0.55);
+  vec3 bodyColor = base * 1.08;
+  vec3 envelopeColor = mix(base, vec3(1.0), 0.10);
+  vec3 hazeColor = mix(base, base.gbr, 0.14);
+  vec3 rgb = (coreColor * core * (0.93 + 0.07 * live) * 1.45
+    + bodyColor * body * live * 0.80 * mix(1.0, uGlowScale, 0.6)
+    + envelopeColor * envelope * live * 0.30 * uGlowScale
+    + hazeColor * scatter * live * 0.22 * uGlowScale
+    + coreColor * sourceBloom * 0.35) * optical;
+  float alpha = clamp(max(rgb.r, max(rgb.g, rgb.b)), 0.0, 1.0);
+  if (alpha < 0.002) discard;
   outColor = vec4(rgb, alpha);
 }`
 
@@ -170,6 +243,10 @@ export class Cinema2AfterhoursRenderer {
   private readonly cameraPositionLocation: WebGLUniformLocation | null
   private readonly atmosphereLocation: WebGLUniformLocation | null
   private readonly masterIntensityLocation: WebGLUniformLocation | null
+  private readonly viewportLocation: WebGLUniformLocation | null
+  private readonly pixelScaleLocation: WebGLUniformLocation | null
+  private readonly timeLocation: WebGLUniformLocation | null
+  private readonly glowScaleLocation: WebGLUniformLocation | null
   private disposed = false
   private drawCount = 0
   private lastInstanceCount = 0
@@ -197,6 +274,10 @@ export class Cinema2AfterhoursRenderer {
       this.cameraPositionLocation = gl.getUniformLocation(this.program, 'uCameraPosition')
       this.atmosphereLocation = gl.getUniformLocation(this.program, 'uAtmosphere')
       this.masterIntensityLocation = gl.getUniformLocation(this.program, 'uMasterIntensity')
+      this.viewportLocation = gl.getUniformLocation(this.program, 'uViewportPx')
+      this.pixelScaleLocation = gl.getUniformLocation(this.program, 'uPixelScale')
+      this.timeLocation = gl.getUniformLocation(this.program, 'uTimeSec')
+      this.glowScaleLocation = gl.getUniformLocation(this.program, 'uGlowScale')
 
       gl.bindVertexArray(this.vao)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.baseBuffer)
@@ -237,6 +318,12 @@ export class Cinema2AfterhoursRenderer {
     gl.uniform3f(this.cameraPositionLocation, request.cameraPosition[0], request.cameraPosition[1], request.cameraPosition[2])
     gl.uniform1f(this.atmosphereLocation, clamp01(request.atmosphere))
     gl.uniform1f(this.masterIntensityLocation, clamp01(request.masterIntensity))
+    const viewport = readViewport(gl)
+    gl.uniform2f(this.viewportLocation, viewport.width, viewport.height)
+    gl.uniform1f(this.pixelScaleLocation, Math.min(3, Math.max(0.4, viewport.height / REFERENCE_VIEWPORT_HEIGHT)))
+    gl.uniform1f(this.timeLocation, finite(request.timeSec ?? 0, 0))
+    // Many overlapping beams add up, so each beam's soft glow gives way as the rig fills: the haze stays luminous without washing out.
+    gl.uniform1f(this.glowScaleLocation, glowScaleFor(instanceCount))
 
     gl.bindVertexArray(this.vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer)
@@ -304,6 +391,26 @@ export class Cinema2AfterhoursRenderer {
     for (const beam of request.beams) write(beam, 1)
     return instanceCount
   }
+}
+
+const REFERENCE_VIEWPORT_HEIGHT = 1080
+
+/** The size, in pixels, of the surface the beams are drawn onto. */
+function readViewport(gl: WebGL2RenderingContext): { width: number; height: number } {
+  try {
+    const value = typeof gl.getParameter === 'function' ? gl.getParameter(gl.VIEWPORT) as ArrayLike<number> | null : null
+    if (value && value.length >= 4 && value[2]! > 0 && value[3]! > 0) return { width: value[2]!, height: value[3]! }
+  } catch {
+    // Fall through to the drawing buffer.
+  }
+  const width = gl.drawingBufferWidth
+  const height = gl.drawingBufferHeight
+  return width > 0 && height > 0 ? { width, height } : { width: 1920, height: REFERENCE_VIEWPORT_HEIGHT }
+}
+
+/** 1 for a sparse show, easing down to 0.3 as the number of beams grows. */
+export function glowScaleFor(instanceCount: number): number {
+  return Math.min(1, Math.max(0.3, Math.sqrt(28 / Math.max(1, instanceCount))))
 }
 
 function configureInstanceAttribute(gl: WebGL2RenderingContext, location: number, size: number, floatOffset: number): void {

@@ -19,6 +19,7 @@ import {
   type Cinema2AfterhoursRandomSource,
 } from './afterhours/Cinema2AfterhoursDomain'
 import { evaluateCinema2AfterhoursPattern, type Cinema2AfterhoursPatternRay } from './afterhours/Cinema2AfterhoursPatternEngine'
+import { CINEMA2_AFTERHOURS_AIM_LEAD_SEC, Cinema2AfterhoursBeamBlanker } from './afterhours/Cinema2AfterhoursBeamBlanker'
 import {
   CINEMA2_AFTERHOURS_DEFAULT_PATTERN_ID,
   CINEMA2_AFTERHOURS_PATTERN_IDS,
@@ -183,6 +184,9 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
     let lastPaused: boolean | null = null
     let lastContextGeneration: number | null = null
     let renderBeams: readonly Cinema2AfterhoursRenderBeam[] = Object.freeze([])
+    const beamBlanker = new Cinema2AfterhoursBeamBlanker()
+    // The clock the beams' shimmer runs on: the track's time while playing, held while nothing plays.
+    let shimmerTimeSec = 0
     let lastTriggerEventId: string | null = null
     let pulseStartedAtSec = Number.NEGATIVE_INFINITY
     let lastAuthoredPattern: string | null = null
@@ -197,6 +201,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
 
     const resetTransientState = () => {
       renderBeams = Object.freeze([])
+      beamBlanker.reset()
       lastTriggerEventId = null
       pulseStartedAtSec = Number.NEGATIVE_INFINITY
       lastAuthoredPattern = null
@@ -226,6 +231,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           cameraPosition: execution.camera.position,
           atmosphere: config.atmosphere,
           masterIntensity: config.masterIntensity,
+          timeSec: shimmerTimeSec,
         })
       },
     })
@@ -295,6 +301,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           )
           if (animationActive) cueBeat = resolveCinema2AfterhoursCueBeat(frame, timeSec, config.bpmSync) ?? cueBeat
           const barStart = Math.floor(Math.max(0, cueBeat) / 4) * 4
+          let patternChanged = false
           if (playingPattern == null) {
             // The first pattern after a (re)start follows the song's own bar grid, so a seek replays the same bars.
             playingPattern = showPlan.patternId
@@ -303,12 +310,18 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
             // A new pattern always starts from its own first bar, on the bar line where it took over.
             playingPattern = showPlan.patternId
             patternStartBeat = barStart
+            patternChanged = true
           }
           if (hardCutRequested) {
             patternStartBeat = barStart
             hardCutRequested = false
+            patternChanged = true
           }
-          renderBeams = buildRenderBeams(config, showPlan, pulse, Math.max(0, cueBeat - patternStartBeat), cueSeed)
+          // A new pattern (or a hard cut) re-aims from scratch: its lasers are simply on at their first aim, not blanked on their way from the last look.
+          if (patternChanged) beamBlanker.reset()
+          const deltaSec = animationActive && Number.isFinite(frame.deltaTimeSec) ? Math.max(0, frame.deltaTimeSec) : 0
+          if (animationActive) shimmerTimeSec = timeSec
+          renderBeams = beamBlanker.apply(buildRenderBeams(config, showPlan, pulse, Math.max(0, cueBeat - patternStartBeat), cueSeed, aimLeadBeats(frame, config.bpmSync)), deltaSec)
 
           lastTimeSec = timeSec
           lastTrackId = frame.transport?.trackId
@@ -385,6 +398,7 @@ function buildRenderBeams(
   pulse: number,
   patternBeat: number,
   seed: string,
+  aimLeadBeats = 0,
 ): readonly Cinema2AfterhoursRenderBeam[] {
   const pulseAuthority = resolveCinema2AfterhoursPulseAuthority(pulse, config.pulseAmount)
   const blackoutScale = clamp01(1 - showPlan.blackout * config.blackoutAmount)
@@ -393,9 +407,9 @@ function buildRenderBeams(
   const motion = config.motionAmount > 1e-5
     ? clamp((clamp01(config.motionAmount) / 0.55) * showPlan.motionScale + pulseAuthority * 0.1, 0, 1.4)
     : 0
-  const frame = evaluateCinema2AfterhoursPattern({
+  const evaluateAt = (beat: number) => evaluateCinema2AfterhoursPattern({
     pattern: getCinema2AfterhoursPattern(showPlan.patternId),
-    beat: patternBeat,
+    beat,
     seed,
     symmetry: showPlan.symmetry,
     spread: clamp01(config.spread * showPlan.spreadScale),
@@ -404,7 +418,22 @@ function buildRenderBeams(
     topLasers: showPlan.topLasers,
     laserLimit: showPlan.laserLimit,
   })
+  const frame = evaluateAt(patternBeat)
+  // Which beams are lit, and how strongly, is read at the music's own position. Where each lit beam is aimed is read a moment ahead, so a
+  // laser that has to travel to its next point (and is dark while it does) sets off early enough to be lit there on the beat.
+  const aheadTargets = new Map<string, Cinema2Vector3>()
+  if (aimLeadBeats > 0) {
+    const counts = new Map<string, number>()
+    for (const ray of evaluateAt(patternBeat + aimLeadBeats).rays) {
+      const index = counts.get(ray.fixtureId) ?? 0
+      counts.set(ray.fixtureId, index + 1)
+      aheadTargets.set(`${ray.fixtureId}#${index}`, ray.targetWorld)
+    }
+  }
+  const litCounts = new Map<string, number>()
   return Object.freeze(frame.rays.map(ray => {
+    const index = litCounts.get(ray.fixtureId) ?? 0
+    litCounts.set(ray.fixtureId, index + 1)
     const bankIntensity = ray.fixtureId.includes('-bottom-') || ray.fixtureId.endsWith('center-00')
       ? showPlan.bottomIntensity
       : ray.fixtureId.includes('-overhead-') || ray.fixtureId.endsWith('center-01')
@@ -413,13 +442,20 @@ function buildRenderBeams(
     return Object.freeze({
       fixtureId: ray.fixtureId,
       originWorld: ray.originWorld,
-      targetWorld: ray.targetWorld,
+      targetWorld: aheadTargets.get(`${ray.fixtureId}#${index}`) ?? ray.targetWorld,
       intensity: ray.intensity * bankIntensity * (1 + pulseAuthority * 0.42) * blackoutScale,
       alpha: blackoutScale,
       color: rayColor(ray, config),
       width: ray.width,
     })
   }))
+}
+
+/** How many beats ahead the aims are read: the aim lead, in the beats of the current tempo. */
+function aimLeadBeats(frame: Readonly<Cinema2ModuleUpdateContext['frame']>, bpmSync: boolean): number {
+  const tempo = frame.audio?.rhythm.bpm
+  const bpm = bpmSync && tempo?.available && typeof tempo.value === 'number' && tempo.value > 1 ? tempo.value : FREE_RUN_BPM
+  return (CINEMA2_AFTERHOURS_AIM_LEAD_SEC * bpm) / 60
 }
 
 /** Primary beams lean toward the accent colour by Accent Mix (a stable amount per mirrored pair); accent and white roles are exact. */
