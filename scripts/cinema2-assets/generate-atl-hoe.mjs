@@ -56,9 +56,10 @@ const MATERIALS = {
   road: { baseColorFactor: [0.01, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
   roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
   // Near-black leaves with only a trace of blue-green; the warm city light picks out their city-facing edges.
-  foliageBack: { baseColorFactor: [0.006, 0.012, 0.016, 1], metallicFactor: 0, roughnessFactor: 1 },
-  foliageMid: { baseColorFactor: [0.016, 0.034, 0.042, 1], metallicFactor: 0, roughnessFactor: 1 },
-  foliage: { baseColorFactor: [0.03, 0.06, 0.07, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliageBack: { baseColorFactor: [0.003, 0.006, 0.009, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliage: { baseColorFactor: [0.003, 0.006, 0.009, 1], metallicFactor: 0, roughnessFactor: 1 },
+  // The faint rosettes inside the mass are lit by emission alone, so they read at one steady dim blue-green whatever the lights do.
+  foliageFaint: { baseColorFactor: [0.01, 0.03, 0.04, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.05, 0.14, 0.2] },
   foliageLit: { baseColorFactor: [0.4, 0.2, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.8, emissiveFactor: [1, 0.5, 0.1] },
 }
 
@@ -730,10 +731,12 @@ signTube('signMetal', [signCenterX + 2.7, legTop], [footX, legBottom], legThickn
 signTube('signMetal', [signCenterX, legTop], [footX, legBottom], legThickness, legZ - 0.04, 'leg-center')
 
 // ── Foliage (Phase 6) ───────────────────────────────────────────────────────────────────────────────────────────────────────
-// Dark leafy masses placed from the reference, as in the skyline: each mass is a filled body under a top contour (reference pixels) with
-// rows of small faceted leaf puffs along the contour so the edge reads as leaves, and a few dim amber flecks where city light catches them.
-// Four masses: the lower-left and the larger lower-right (both in front of the road, behind the sign's legs), a tree line behind the road
-// that closes the gap above it, and low clumps along the bottom edge. Contours run far past both edges for wide Stages.
+// The reference's trees are near-black clusters of rounded petals (small rosettes, about 25 reference pixels across) whose gaps let the lit
+// city show through, with a fainter blue rosette pattern inside the mass and a few amber glints. Each mass here is built the same way: a
+// filled body under a top contour (reference pixels), two rows of dark rosette cards along the contour so the silhouette is leafy, fainter
+// blue rosettes scattered inside, and sparse amber flecks. A rosette is a centre disc ringed by petal discs, flat and facing the camera.
+// Four masses: lower-left and lower-right (in front of the road, behind the sign's legs), a tree line behind the road, and low clumps along
+// the bottom edge. Contours run far past both edges for wide Stages and below the frame for the tall Stage.
 const pxAt = z => Math.abs(refPoint(1, 600, z)[0] - refPoint(0, 600, z)[0])
 function contourV(contour, u) {
   if (u <= contour[0][0]) return contour[0][1]
@@ -743,55 +746,67 @@ function contourV(contour, u) {
   }
   return contour.at(-1)[1]
 }
-function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, rows = 3, bodyPart = 'foliageBack', puffPart = 'foliage', flecks = 0, depth = 3.2 }) {
+const PETAL_DISC = new THREE.CircleGeometry(1, 7)
+/** One rosette (a centre disc and six petal discs) centred on reference pixel (u, v) at depth z, `radius` reference pixels across its petals' reach. */
+function rosette(part, u, v, z, radius, key) {
+  const [cx, cy] = refPoint(u, v, z)
   const px = pxAt(z)
-  // The body under the contour, one slab per contour segment, sunk a little below the edge so the puffs carry the silhouette.
+  const spin = hash(`${key}:spin`) * Math.PI * 2
+  const petal = radius * 0.4 * px
+  addGeometry(part, PETAL_DISC, { at: [cx, cy, z], size: [petal * 1.05, petal * 1.05, 1], name: `${key}-c` })
+  for (let k = 0; k < 6; k += 1) {
+    const angle = spin + (k * Math.PI) / 3 + (hash(`${key}:a${k}`) - 0.5) * 0.35
+    const reach = radius * 0.6 * px * (0.9 + hash(`${key}:r${k}`) * 0.25)
+    addGeometry(part, PETAL_DISC, { at: [cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach, z], size: [petal * (0.85 + hash(`${key}:s${k}`) * 0.3), petal * (0.85 + hash(`${key}:s${k}`) * 0.3), 1], name: `${key}-p${k}` })
+  }
+}
+function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, faint = 0, flecks = 0, depth = 3.2 }) {
+  const px = pxAt(z)
+  const front = z + depth / 2
+  // The body under the contour, one slab per contour segment, sunk below the edge so the rosettes carry the silhouette.
   for (let i = 0; i < contour.length - 1; i += 1) {
     const [u0, v0] = contour[i], [u1, v1] = contour[i + 1]
-    const top = Math.min(v0, v1) + 14
+    const top = Math.min(v0, v1) + rMax * 1.7
     const [x0] = refPoint(u0, top, z), [x1] = refPoint(u1, top, z)
     const [, yTop] = refPoint(refUy(u0, u1), top, z), [, yBottom] = refPoint(refUy(u0, u1), fillTo, z)
-    box(bodyPart, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], [Math.abs(x1 - x0) + 0.02, yTop - yBottom, depth], [0, 0, 0], `${key}-body-${i}`)
+    box('foliageBack', [(x0 + x1) / 2, (yTop + yBottom) / 2, z], [Math.abs(x1 - x0) + 0.02, yTop - yBottom, depth], [0, 0, 0], `${key}-body-${i}`)
   }
   const uStart = contour[0][0], uEnd = contour.at(-1)[0]
-  let count = 0
-  for (let row = 0; row < rows; row += 1) {
-    // Past the reference frame's edges (only seen on wide Stages) the puffs are spaced wider to keep the model small.
-    for (let u = uStart, i = 0; u <= uEnd; u += step * (u < -60 || u > 1730 ? 3 : 1) * (0.8 + hash(`${key}:step:${row}:${i}`) * 0.5), i += 1) {
+  // Dark rosettes along the contour, two staggered rows (the second sits lower and fills the gaps of the first).
+  for (let row = 0; row < 2; row += 1) {
+    for (let u = uStart + row * step * 0.5, i = 0; u <= uEnd; u += step * (u < -60 || u > 1730 ? 3 : 1) * (0.8 + hash(`${key}:step:${row}:${i}`) * 0.4), i += 1) {
       const r = rMin + hash(`${key}:r:${row}:${i}`) * (rMax - rMin)
-      const v = contourV(contour, u) + r * (0.55 + row * 0.8) + (hash(`${key}:v:${row}:${i}`) - 0.5) * r * 0.5
-      const [x, y] = refPoint(u, v, z + (hash(`${key}:z:${row}:${i}`) - 0.5) * 1.2)
-      addGeometry(row === 0 ? puffPart : row === 1 ? 'foliageMid' : bodyPart, new THREE.IcosahedronGeometry(1, 0), {
-        at: [x, y, z + (hash(`${key}:z:${row}:${i}`) - 0.5) * 1.2 + 0.4],
-        size: [r * px * (1.0 + hash(`${key}:w:${row}:${i}`) * 0.4), r * px, r * px * 0.8],
-        rotate: [hash(`${key}:rx:${row}:${i}`) * 3, hash(`${key}:ry:${row}:${i}`) * 3, hash(`${key}:rz:${row}:${i}`) * 3],
-        name: `${key}-puff-${row}-${i}`,
-      })
-      count += 1
+      const v = contourV(contour, u) + r * (0.55 + row * 1.05) + (hash(`${key}:v:${row}:${i}`) - 0.5) * r * 0.5
+      rosette('foliage', u, v, front + 0.05 + row * 0.01 + (i % 5) * 0.002, r, `${key}-edge-${row}-${i}`)
     }
+  }
+  // Faint blue rosettes inside the mass (only where the frame can see them), in front of the dark ones.
+  for (let i = 0; i < faint; i += 1) {
+    const u = uStart + hash(`${key}:faint-u:${i}`) * (Math.min(uEnd, 1760) - Math.max(uStart, -80)) + Math.max(0, -80 - uStart)
+    const v = contourV(contour, u) + rMax * 2 + hash(`${key}:faint-v:${i}`) * 260
+    rosette('foliageFaint', u, v, front + 0.12 + (i % 7) * 0.003, rMin + hash(`${key}:faint-r:${i}`) * (rMax - rMin), `${key}-faint-${i}`)
   }
   for (let i = 0; i < flecks; i += 1) {
     const u = uStart + hash(`${key}:fleck-u:${i}`) * (uEnd - uStart)
-    const v = contourV(contour, u) + 2 + hash(`${key}:fleck-v:${i}`) * 60
-    const [x, y] = refPoint(u, v, z + 1.0)
-    addGeometry('foliageLit', new THREE.OctahedronGeometry(1, 0), { at: [x, y, z + 1.0], size: [px * 2.6, px * 2, px * 1.5], name: `${key}-fleck-${i}` })
+    const v = contourV(contour, u) + 4 + hash(`${key}:fleck-v:${i}`) * 40
+    const [x, y] = refPoint(u, v, front + 0.2)
+    addGeometry('foliageLit', new THREE.OctahedronGeometry(1, 0), { at: [x, y, front + 0.2], size: [px * 1.7, px * 1.4, px * 1], name: `${key}-fleck-${i}` })
   }
-  return count
 }
 treeMass({
-  key: 'tree-left', z: 4, fillTo: 1700, radius: [8, 17], step: 10, flecks: 200,
+  key: 'tree-left', z: 4, fillTo: 1700, radius: [12, 18], step: 15, faint: 70, flecks: 70,
   contour: [[-1300, 700], [-900, 688], [-500, 706], [-200, 690], [0, 676], [60, 684], [110, 698], [170, 716], [230, 744], [290, 774], [335, 802], [370, 840], [395, 960]],
 })
 treeMass({
-  key: 'tree-right', z: 4.4, fillTo: 1700, radius: [8, 18], step: 10, flecks: 300,
+  key: 'tree-right', z: 4.4, fillTo: 1700, radius: [12, 19], step: 15, faint: 110, flecks: 110,
   contour: [[1085, 960], [1100, 905], [1130, 880], [1180, 858], [1240, 838], [1300, 822], [1350, 805], [1400, 770], [1450, 725], [1500, 690], [1550, 650], [1600, 610], [1672, 556], [2200, 548], [2800, 566], [3000, 572]],
 })
 treeMass({
-  key: 'tree-line', z: -10, fillTo: 905, radius: [6, 12], step: 8, depth: 2.4, flecks: 60,
+  key: 'tree-line', z: -10, fillTo: 905, radius: [7, 12], step: 10, depth: 2.4, faint: 0, flecks: 40,
   contour: [[330, 802], [420, 786], [520, 792], [620, 773], [700, 786], [780, 801], [870, 791], [960, 776], [1050, 769], [1130, 783], [1200, 802]],
 })
 treeMass({
-  key: 'tree-bottom', z: 6.5, fillTo: 1700, radius: [11, 22], step: 14, flecks: 40,
+  key: 'tree-bottom', z: 6.5, fillTo: 1700, radius: [13, 22], step: 20, faint: 20, flecks: 25,
   contour: [[380, 960], [500, 938], [620, 924], [740, 908], [860, 912], [980, 924], [1090, 932]],
 })
 

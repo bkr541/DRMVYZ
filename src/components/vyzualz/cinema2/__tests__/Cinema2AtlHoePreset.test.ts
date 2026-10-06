@@ -72,8 +72,8 @@ describe('ATL HOE preset', () => {
       'signBorder',
       'signLetters',
       'foliageBack',
-      'foliageMid',
       'foliage',
+      'foliageFaint',
       'foliageLit',
     ]))
     expect(module.parameters).toMatchObject({
