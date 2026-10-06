@@ -200,6 +200,8 @@ The city generator is currently switched off because its earlier output did not 
 
 ## Phase 7 — Light and finish
 
+**Status:** First pass implemented (preset values only, no model change). The orange city spot light is cut from 0.38 to 0.1 and the cool moon key raised from 0.95 to 1.25, so the tower walls (Truist crown, Georgia-Pacific stone, Bank of America shaft) read cool blue-grey instead of pink-orange; the fill buildings' environment response is raised (far 0.22, mid 0.4, near 0.55) so the city behind the trees is more visible; depth fog density goes from 0.008 to 0.011 for stronger distance separation; bloom threshold rises to 1.3 and intensity falls to 0.46 so edges stay crisp; grain 0.02, aberration 0.005, vignette 0.32. Second pass: each street lamp now has a small halo behind its orb and an amber pool on the near deck's face below it (`lampGlow`); bloom is retuned (threshold 1.0, intensity 0.75, spread 0.62) so the sign, crowns and lamps glow without merging the sign's cells; atmosphere mist is raised (amount 0.09, height 4) for a low haze; the Bank of America piers glow brighter (emissive 2.8, wider lit edge). The sky gradient was re-measured against the Phase 7 finish: the visible sky rows are within 2 levels of the target, so `SKY_CORRECTION` is unchanged (rows below the horizon are now hidden by the city and can no longer be measured). A highlight check on the 16:9 capture finds well under 1% near-white pixels, so faces and crowns are not clipping. Not done: a no-bloom diagnostic frame (the capture harness has no bloom toggle), and the low warm haze barely shows in the render, so it may need a stronger or geometry-based treatment.
+
 ### Implementation
 
 - Keep the upper frame cool and put warm light only low in the frame.
@@ -326,3 +328,6 @@ ATL HOE's static environment is complete only when:
 - the embedded Stage and output framing both work;
 - focused tests, asset checks, browser rendering, and performance checks pass;
 - the owner explicitly approves the static frame before Phase 9 begins.
+
+
+Georgia-Pacific Tower windows (added in Phase 7 from a daytime photo): the left half of each section carries a grid of small lit punched windows, the right-hand panels stay blank stone, and the recessed slot has horizontal louvres.

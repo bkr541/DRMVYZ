@@ -39,6 +39,7 @@ describe('ATL HOE preset', () => {
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
       'stars',
+      'lampGlow',
       'road',
       'roadPole',
       'roadGlow',
@@ -96,7 +97,7 @@ describe('ATL HOE preset', () => {
       'hdr-bloom',
       'cinematic-finish',
     ])
-    expect(manifest.environment?.fog).toMatchObject({ mode: 'exponential', density: 0.008 })
+    expect(manifest.environment?.fog).toMatchObject({ mode: 'exponential', density: 0.011 })
     expect(manifest.choreography).toBeUndefined()
   })
 

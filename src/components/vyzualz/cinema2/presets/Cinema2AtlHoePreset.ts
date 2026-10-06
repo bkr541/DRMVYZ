@@ -153,7 +153,9 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'bofaCore.emissive': color(1, 0.5, 0.1),
       'bofaCore.emissiveIntensity': 0.3,
       'bofaGlow.emissive': color(1, 0.45, 0.12),
-      'bofaGlow.emissiveIntensity': 1.6,
+      'bofaGlow.emissiveIntensity': 2.8,
+      'lampGlow.emissive': color(1, 0.45, 0.1),
+      'lampGlow.emissiveIntensity': 0.38,
       'crownWhite.emissive': color(1, 0.92, 0.72),
       'crownWhite.emissiveIntensity': 2.4,
       'beacon.emissive': color(1, 0.05, 0.03),
@@ -176,9 +178,9 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'landmarkGlass.environmentIntensity': 0.48,
       'landmarkGlass.roughness': 0.26,
       'buildings.environmentIntensity': 0.3,
-      'distantBuildings.environmentIntensity': 0.12,
-      'midBuildings.environmentIntensity': 0.22,
-      'nearBuildings.environmentIntensity': 0.34,
+      'distantBuildings.environmentIntensity': 0.22,
+      'midBuildings.environmentIntensity': 0.4,
+      'nearBuildings.environmentIntensity': 0.55,
       'landmarkDark.environmentIntensity': 0.44,
       'road.environmentIntensity': 0,
       'roadGlow.emissive': color(1, 0.4, 0.06),
@@ -193,7 +195,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     config: Object.freeze({
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATL_HOE_ASSET_ID, node: MODEL_NODE_ID })]),
       hdr: true,
-      parts: Object.freeze(['stars', 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'truistWindows', 'warmWindows', 'glassWindows', 'cyanWindows', 'crownCool', 'crown', 'crownWhite', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
+      parts: Object.freeze(['stars', 'lampGlow', 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'truistWindows', 'warmWindows', 'glassWindows', 'cyanWindows', 'crownCool', 'crown', 'crownWhite', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),
@@ -231,16 +233,16 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATL_HOE_CAMERA_ID) }),
   lighting: Object.freeze({
     lights: Object.freeze([
-      spot(MOON_LIGHT_ID, vec3(-10, 18, 12), SKYLINE_TARGET_ID, 0.95, color(0.34, 0.49, 0.72), 48),
+      spot(MOON_LIGHT_ID, vec3(-10, 18, 12), SKYLINE_TARGET_ID, 1.25, color(0.34, 0.49, 0.72), 48),
       spot(SIGN_LIGHT_ID, vec3(3, 9, 19), SIGN_TARGET_ID, 0, color(1, 0.93, 0.78), 26),
-      spot(CITY_LIGHT_ID, vec3(7, 4, -4), SKYLINE_TARGET_ID, 0.38, color(1, 0.45, 0.12), 52),
+      spot(CITY_LIGHT_ID, vec3(7, 4, -4), SKYLINE_TARGET_ID, 0.1, color(1, 0.45, 0.12), 52),
       Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.18, 0.29, 0.46), intensity: 0.62 }),
     ]),
   }),
   environment: Object.freeze({
     backgroundColor: color(0.025, 0.07, 0.14),
     exposure: 1.03,
-    fog: Object.freeze({ mode: 'exponential' as const, color: color(0.028, 0.06, 0.105), density: 0.008 }),
+    fog: Object.freeze({ mode: 'exponential' as const, color: color(0.028, 0.06, 0.105), density: 0.011 }),
   }),
   effects: Object.freeze([
     Object.freeze({
@@ -250,7 +252,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, density: 0.0035, beamIntensity: 0.075, mistAmount: 0.045, mistHeight: 2.2, mistFloor: -1.2, floorY: -1.2, floorReflection: 0, anisotropy: 0.46, occlusion: 0.72, ambientHaze: 0.008, noiseScale: 0.24, noiseStrength: 0.38, drift: 0.025, maxDistance: 62, reactivity: 0 }),
+      parameters: Object.freeze({ mix: 1, density: 0.0035, beamIntensity: 0.075, mistAmount: 0.09, mistHeight: 4, mistFloor: -1.2, floorY: -1.2, floorReflection: 0, anisotropy: 0.46, occlusion: 0.72, ambientHaze: 0.008, noiseScale: 0.24, noiseStrength: 0.38, drift: 0.025, maxDistance: 62, reactivity: 0 }),
     }),
     Object.freeze({
       id: BLOOM_EFFECT_ID,
@@ -259,7 +261,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 1,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, threshold: 1.18, knee: 0.32, intensity: 0.58, spread: 0.52, levels: 7 }),
+      parameters: Object.freeze({ mix: 1, threshold: 1.0, knee: 0.3, intensity: 0.75, spread: 0.62, levels: 7 }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,
@@ -268,7 +270,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.9, temperature: -0.018, vignette: 0.27, grain: 0.035, aberration: 0.012, contrast: 1.12, saturation: 1.05 }),
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.9, temperature: -0.018, vignette: 0.32, grain: 0.02, aberration: 0.005, contrast: 1.12, saturation: 1.05 }),
     }),
   ]),
   render: Object.freeze({

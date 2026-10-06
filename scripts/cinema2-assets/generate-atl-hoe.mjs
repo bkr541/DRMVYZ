@@ -51,6 +51,7 @@ const MATERIALS = {
   signGlow: { baseColorFactor: [1, 0.78, 0, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.65, 0.01] },
   signBorder: { baseColorFactor: [0.006, 0.007, 0.009, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.001, 0.002, 0.004] },
   signLetters: { baseColorFactor: [0.004, 0.004, 0.004, 1], metallicFactor: 0, roughnessFactor: 0.82 },
+  lampGlow: { baseColorFactor: [0.4, 0.18, 0.04, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [1, 0.45, 0.1] },
   roadPole: { baseColorFactor: [0.09, 0.09, 0.1, 1], metallicFactor: 0.4, roughnessFactor: 0.5 },
   // Matte near-black so the warm city light does not blaze off the decks' top faces, which the camera sees from above.
   road: { baseColorFactor: [0.01, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
@@ -286,7 +287,7 @@ const BOA_PIERS = [[735, 752, BOA_SETBACK_Y, lowerFront], [818, 838, BOA_SETBACK
   [757, 773, BOA_PLATFORM_Y, upperFront], [826, 846, BOA_PLATFORM_Y, upperFront], [902, 918, BOA_PLATFORM_Y, upperFront]]
 for (const [i, [x0, x1, yTop, front]] of BOA_PIERS.entries()) {
   boaBlock('bofaStone', boaU(x0), boaU(x1), boaV(yTop), front + 0.15, 0.4, `boa-pier-${i}`)
-  boaBlock('bofaGlow', boaU(x1) - 2.4, boaU(x1), boaV(yTop), front + 0.18, 0.1, `boa-pier-glow-${i}`)
+  boaBlock('bofaGlow', boaU(x1) - 3.6, boaU(x1), boaV(yTop), front + 0.18, 0.1, `boa-pier-glow-${i}`)
   boaBlock('bofaGlow', boaU(x0), boaU(x0) + 1.2, boaV(yTop), front + 0.18, 0.1, `boa-pier-glow-left-${i}`)
 }
 for (const [section, gaps, yTop, front] of [
@@ -447,6 +448,16 @@ GP_SECTIONS.forEach(({ part, vTop, vBottom, right }, i) => {
     box('gpSlot', [(x0 + x1) / 2, (yTop + yBottom) / 2, GP_Z + GP_DEPTH / 2 + 0.06], [Math.abs(x1 - x0), yTop - yBottom, 0.05], [0, 0, 0], `gp-${label}-${i}`)
   }
 })
+// From a daytime photo of the tower: the left part of every section is a grid of small punched windows (lit warm at night, bay about 8 × 11
+// reference pixels), the right-hand panels are blank stone, and the recessed slot carries horizontal louvres.
+GP_SECTIONS.forEach(({ vTop, vBottom, right }, i) => {
+  const width = right - GP_LEFT
+  refWindows({ key: `gp-win-${i}`, u0: GP_LEFT + 5, u1: GP_LEFT + width * 0.5, vTop: vTop + 9, vBottom: Math.min(vBottom, 1000), z: GP_Z, depth: GP_DEPTH, bayU: 8, bayV: 11, chance: 0.82 })
+  for (let v = vTop + 9; v < Math.min(vBottom, 1000); v += 7) {
+    const [x0, y] = refPoint(GP_LEFT + width * 0.55, v, GP_Z), [x1] = refPoint(GP_LEFT + width * 0.77, v, GP_Z)
+    box('gpLedge', [(x0 + x1) / 2, y, GP_Z + GP_DEPTH / 2 + 0.09], [Math.abs(x1 - x0), 0.035, 0.03], [0, 0, 0], `gp-louvre-${i}-${Math.round(v)}`)
+  }
+})
 // The notched crown: three blocks, tallest on the left.
 refBand('gpStone', GP_LEFT, GP_LEFT + 56, 224, 240, GP_Z, GP_DEPTH, 'gp-crown-left')
 refBand('gpStone', GP_LEFT + 56, GP_LEFT + 86, 230, 240, GP_Z, GP_DEPTH, 'gp-crown-mid')
@@ -543,12 +554,16 @@ refBlock('road', ROAD_FROM, ROAD_TO, 912, ROAD_Z + 0.8, 3.2, 'road-understructur
 // Pale underside beams catch a little of the lamp light so the deck has thickness.
 for (let u = ROAD_FROM; u < ROAD_TO; u += 90) refBand('road', u, u + 5, 872, 884, ROAD_Z + 0.4, 2.8, `road-beam-${u}`)
 // Lamps: the reference's five, then a steady run in both directions with a little deterministic spread.
+const crownPxAt = z => Math.abs(refPoint(1, 600, z)[0] - refPoint(0, 600, z)[0])
 const LAMPS = [[478, 790], [635, 818], [787, 828], [975, 800], [1075, 848], [1400, 845], [1560, 830], [1650, 845]]
 for (let u = 330, i = 0; u > ROAD_FROM; u -= 150 + hash(`lamp-l-${i}`) * 50, i += 1) LAMPS.push([u, 820 + hash(`lamp-lv-${i}`) * 25])
 for (let u = 1740, i = 0; u < ROAD_TO; u += 150 + hash(`lamp-r-${i}`) * 50, i += 1) LAMPS.push([u, 820 + hash(`lamp-rv-${i}`) * 25])
 LAMPS.forEach(([u, v], i) => {
   refBand('roadPole', u - 1.8, u + 1.8, v, 884, ROAD_Z + 0.4, 0.3, `road-lamp-pole-${i}`)
   refBand('roadGlow', u - 4, u + 4, v - 6, v + 2, ROAD_Z + 0.4, 0.5, `road-lamp-${i}`)
+  // A soft halo behind the orb, and a pool of light on the near deck's face below the lamp.
+  addGeometry('lampGlow', new THREE.CircleGeometry(1, 14), { at: [refPoint(u, v - 2, ROAD_Z + 0.2)[0], refPoint(u, v - 2, ROAD_Z + 0.2)[1], ROAD_Z + 0.2], size: [crownPxAt(ROAD_Z + 0.2) * 7, crownPxAt(ROAD_Z + 0.2) * 7, 1], name: `road-lamp-halo-${i}` })
+  addGeometry('lampGlow', new THREE.CircleGeometry(1, 14), { at: [refPoint(u, 898, ROAD_Z + 2.4)[0], refPoint(u, 898, ROAD_Z + 2.4)[1], ROAD_Z + 0.8 + 1.65], size: [crownPxAt(ROAD_Z + 2.4) * 46, crownPxAt(ROAD_Z + 2.4) * 7, 1], name: `road-lamp-pool-${i}` })
 })
 
 // The Waffle House sign, modeled on the real roadside sign: a near-black cabinet in two rows (six cells over five cells offset by half a
