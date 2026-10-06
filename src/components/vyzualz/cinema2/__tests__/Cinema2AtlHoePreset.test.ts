@@ -43,6 +43,8 @@ describe('ATL HOE preset', () => {
       'roadPole',
       'roadGlow',
       'bofaGlass',
+      'bofaRib',
+      'bofaCore',
       'bofaStone',
       'bofaGlow',
       'truistBody',

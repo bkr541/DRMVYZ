@@ -150,6 +150,8 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       'crownCool.emissiveIntensity': 1.6,
       'truistWindows.emissive': color(0.15, 0.9, 0.9),
       'truistWindows.emissiveIntensity': 1.4,
+      'bofaCore.emissive': color(1, 0.5, 0.1),
+      'bofaCore.emissiveIntensity': 0.3,
       'bofaGlow.emissive': color(1, 0.45, 0.12),
       'bofaGlow.emissiveIntensity': 1.6,
       'crownWhite.emissive': color(1, 0.92, 0.72),
@@ -187,7 +189,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     config: Object.freeze({
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATL_HOE_ASSET_ID, node: MODEL_NODE_ID })]),
       hdr: true,
-      parts: Object.freeze(['stars', 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'truistWindows', 'warmWindows', 'glassWindows', 'cyanWindows', 'crownCool', 'crown', 'crownWhite', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage']),
+      parts: Object.freeze(['stars', 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'truistWindows', 'warmWindows', 'glassWindows', 'cyanWindows', 'crownCool', 'crown', 'crownWhite', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage']),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),

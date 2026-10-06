@@ -25,6 +25,8 @@ const MATERIALS = {
   landmarkGlass: { baseColorFactor: [0.085, 0.12, 0.165, 1], metallicFactor: 0.72, roughnessFactor: 0.22 },
   // The model's tower is pale concrete with glass, so at night its stone catches the moon: a mid grey-blue body and a lighter crown and piers.
   bofaGlass: { baseColorFactor: [0.14, 0.06, 0.045, 1], metallicFactor: 0.35, roughnessFactor: 0.45 },
+  bofaRib: { baseColorFactor: [0.012, 0.01, 0.012, 1], metallicFactor: 0.2, roughnessFactor: 0.4 },
+  bofaCore: { baseColorFactor: [0.03, 0.015, 0.008, 1], metallicFactor: 0, roughnessFactor: 0.8, emissiveFactor: [0.55, 0.25, 0.06] },
   bofaStone: { baseColorFactor: [0.26, 0.12, 0.085, 1], metallicFactor: 0.15, roughnessFactor: 0.7 },
   bofaGlow: { baseColorFactor: [0.5, 0.2, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.6, emissiveFactor: [1, 0.45, 0.12] },
   truistBody: { baseColorFactor: [0.075, 0.09, 0.115, 1], metallicFactor: 0.3, roughnessFactor: 0.6 },
@@ -240,39 +242,118 @@ function refRound(part, u0, u1, vTop, vBottom, z, name, segments = 40) {
 const LANDMARK_Z = -16
 const FAR_Z = -28, MID_Z = -21, NEAR_Z = -12
 
-// Bank of America Plaza, from an owner-supplied model: a very slender rose-granite shaft with dark glass between vertical piers, one
-// setback partway up (a wider lower shaft, a narrower upper one), a small platform, then a tall gold lattice pyramid and a gold spire. It is
-// the tallest building in the scene. Model x 836.5 = reference u 945; model y 15 (spire tip) = v 40; one model pixel = 0.985 reference pixels, so the tower keeps the model's proportions (about 4.3 tall for every 1 wide) from spire tip to a ground line near the frame's bottom.
+// Bank of America Plaza, from an owner-supplied model, night render and elevation drawing: a very slender rose-granite shaft whose facade is
+// long vertical ribs of dark glass between wide piers, one setback partway up (a wider lower shaft, a narrower upper one), a projecting
+// cornice, then a crown of three truncated pyramids stacked with horizontal shelves between them (15–25° walls, steeper in the middle),
+// each an open steel lattice of horizontal bands, converging verticals and X bracing; a flat platform, a faceted mast and a thin antenna.
+// It is the tallest building in the scene. The shaft keeps the earlier model's placement (model x 836.5 = reference u 945, model y 15 = v 40,
+// 0.985 reference pixels per model pixel); the crown is traced from the drawing, whose upper-shaft width of 615 drawing pixels is 159
+// reference pixels, so one drawing pixel is K = 0.2585 reference pixels and the drawing's y 822 (crown base) sits at v 257.
 const boaU = x => 945 + (x - 836.5) * 0.985
 const boaV = y => 40 + (y - 15) * 0.985
-const BOA_LOWER = [735, 938], BOA_UPPER = [757, 918], BOA_SETBACK_Y = 440, BOA_PLATFORM_Y = 235, BOA_APEX_Y = 72
-refBlock('bofaGlass', boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1]), boaV(BOA_SETBACK_Y), LANDMARK_Z, 3.4, 'boa-lower-shaft')
-refBlock('bofaGlass', boaU(BOA_UPPER[0]), boaU(BOA_UPPER[1]), boaV(BOA_PLATFORM_Y), LANDMARK_Z, 3.3, 'boa-upper-shaft')
-// Vertical granite piers (lit along one edge, so the night view shows the tower's copper-orange lines), then a granite ledge at the setback.
-for (const [i, [x0, x1, yTop]] of [[735, 752, BOA_SETBACK_Y], [818, 838, BOA_SETBACK_Y], [858, 876, BOA_SETBACK_Y], [920, 938, BOA_SETBACK_Y],
-  [757, 773, BOA_PLATFORM_Y], [826, 846, BOA_PLATFORM_Y], [902, 918, BOA_PLATFORM_Y]].entries()) {
-  refBlock('bofaStone', boaU(x0), boaU(x1), boaV(yTop), LANDMARK_Z, 3.55, `boa-pier-${i}`)
-  refBlock('bofaGlow', boaU(x1) - 2.4, boaU(x1), boaV(yTop), LANDMARK_Z, 3.62, `boa-pier-glow-${i}`)
-  refBlock('bofaGlow', boaU(x0), boaU(x0) + 1.2, boaV(yTop), LANDMARK_Z, 3.62, `boa-pier-glow-left-${i}`)
+const BOA_LOWER = [735, 938], BOA_UPPER = [757, 918], BOA_SETBACK_Y = 440, BOA_PLATFORM_Y = 235
+// The front faces of the shaft stand on one plane (FZ), so the reference pixels they are read from are exact; each shaft is as deep as it is
+// wide. `boaBlock` / `boaBand` read columns and rows on FZ and put the box's front face at `front`.
+const FZ = LANDMARK_Z
+function boaBlock(part, u0, u1, vTop, front, depth, name) {
+  const [x0] = refPoint(u0, vTop, FZ), [x1] = refPoint(u1, vTop, FZ)
+  const [, yTop] = refPoint(refUy(u0, u1), vTop, FZ), [, yBase] = refPoint(refUy(u0, u1), REF_BASE_V, FZ)
+  box(part, [(x0 + x1) / 2, (yTop + yBase) / 2, front - depth / 2], [Math.abs(x1 - x0), yTop - yBase, depth], [0, 0, 0], name)
 }
-refBand('bofaStone', boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1]), boaV(BOA_SETBACK_Y), boaV(BOA_SETBACK_Y) + 7, LANDMARK_Z, 3.7, 'boa-setback-ledge')
-refBand('bofaStone', boaU(752), boaU(923), boaV(BOA_PLATFORM_Y - 8), boaV(BOA_PLATFORM_Y + 6), LANDMARK_Z, 3.7, 'boa-platform')
-{
-  const [xl, yBase] = refPoint(boaU(760), boaV(BOA_PLATFORM_Y - 8), LANDMARK_Z)
-  const [xr, yApex] = refPoint(boaU(913), boaV(BOA_APEX_Y), LANDMARK_Z)
-  const baseWidth = xr - xl
-  addGeometry('crown', new THREE.ConeGeometry(1, 1, 4), {
-    at: [(xl + xr) / 2, (yBase + yApex) / 2, LANDMARK_Z], size: [baseWidth / Math.SQRT2, yApex - yBase, baseWidth / Math.SQRT2], rotate: [0, Math.PI / 4, 0], name: 'boa-pyramid',
-  })
-  // Dark lattice across the glowing pyramid: five cross bands and a centre rib on the sloped face that looks at the camera, so it reads as a
-  // framed roof. At height t the face stands (baseWidth / 2)(1 - t) in front of the pyramid's axis.
-  const height = yApex - yBase, slope = Math.atan2(baseWidth / 2, height)
-  for (const [i, t] of [0.12, 0.3, 0.48, 0.66, 0.84].entries()) {
-    const halfWidth = (baseWidth / 2) * (1 - t)
-    box('truistCrown', [(xl + xr) / 2, yBase + height * t, LANDMARK_Z + halfWidth + 0.04], [halfWidth * 2 * 0.98, 0.1, 0.05], [-slope, 0, 0], `boa-lattice-${i}`)
+function boaBand(part, u0, u1, vTop, vBottom, front, depth, name) {
+  const [x0] = refPoint(u0, vTop, FZ), [x1] = refPoint(u1, vTop, FZ)
+  const [, yTop] = refPoint(refUy(u0, u1), vTop, FZ), [, yBottom] = refPoint(refUy(u0, u1), vBottom, FZ)
+  box(part, [(x0 + x1) / 2, (yTop + yBottom) / 2, front - depth / 2], [Math.abs(x1 - x0), yTop - yBottom, depth], [0, 0, 0], name)
+}
+/** A square-section steel member between two 3D points. */
+function strut(part, from, to, thickness, name) {
+  const a = new THREE.Vector3(...from), b = new THREE.Vector3(...to)
+  const direction = b.clone().sub(a)
+  const length = direction.length()
+  const euler = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()))
+  addGeometry(part, new THREE.BoxGeometry(1, 1, 1), { at: [(a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2], size: [thickness, length, thickness], rotate: [euler.x, euler.y, euler.z], name })
+}
+const boaWidth = (u0, u1) => Math.abs(refPoint(u1, 300, FZ)[0] - refPoint(u0, 300, FZ)[0])
+const upperFront = FZ, lowerFront = FZ + 0.1
+boaBlock('bofaGlass', boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1]), boaV(BOA_SETBACK_Y), lowerFront, boaWidth(boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1])), 'boa-lower-shaft')
+boaBlock('bofaGlass', boaU(BOA_UPPER[0]), boaU(BOA_UPPER[1]), boaV(BOA_PLATFORM_Y), upperFront, boaWidth(boaU(BOA_UPPER[0]), boaU(BOA_UPPER[1])), 'boa-upper-shaft')
+// Wide granite piers (one edge lit copper-orange for the night view) with, between them, long thin dark ribs of glass.
+const BOA_PIERS = [[735, 752, BOA_SETBACK_Y, lowerFront], [818, 838, BOA_SETBACK_Y, lowerFront], [858, 876, BOA_SETBACK_Y, lowerFront], [920, 938, BOA_SETBACK_Y, lowerFront],
+  [757, 773, BOA_PLATFORM_Y, upperFront], [826, 846, BOA_PLATFORM_Y, upperFront], [902, 918, BOA_PLATFORM_Y, upperFront]]
+for (const [i, [x0, x1, yTop, front]] of BOA_PIERS.entries()) {
+  boaBlock('bofaStone', boaU(x0), boaU(x1), boaV(yTop), front + 0.15, 0.4, `boa-pier-${i}`)
+  boaBlock('bofaGlow', boaU(x1) - 2.4, boaU(x1), boaV(yTop), front + 0.18, 0.1, `boa-pier-glow-${i}`)
+  boaBlock('bofaGlow', boaU(x0), boaU(x0) + 1.2, boaV(yTop), front + 0.18, 0.1, `boa-pier-glow-left-${i}`)
+}
+for (const [section, gaps, yTop, front] of [
+  ['upper', [[773, 826], [846, 902]], BOA_PLATFORM_Y + 8, upperFront],
+  ['lower', [[752, 818], [838, 858], [876, 920]], BOA_SETBACK_Y + 8, lowerFront],
+]) {
+  for (const [g, [g0, g1]] of gaps.entries()) {
+    for (let u = boaU(g0) + 2; u < boaU(g1) - 2; u += 4) {
+      boaBlock('bofaRib', u, u + 1.8, boaV(yTop), front + 0.05, 0.05, `boa-rib-${section}-${g}-${Math.round(u)}`)
+    }
   }
-  box('truistCrown', [(xl + xr) / 2, yBase + height / 2, LANDMARK_Z + baseWidth / 4 + 0.04], [0.09, Math.hypot(height, baseWidth / 2), 0.05], [-slope, 0, 0], 'boa-rib')
-  refBand('crown', boaU(834.5), boaU(838.5), boaV(BOA_APEX_Y), boaV(15), LANDMARK_Z, 0.1, 'boa-spire')
+}
+// Granite ledge at the setback, and the projecting cornice under the crown with a lit gold edge.
+boaBand('bofaStone', boaU(BOA_LOWER[0]) - 3, boaU(BOA_LOWER[1]) + 3, boaV(BOA_SETBACK_Y), boaV(BOA_SETBACK_Y) + 7, lowerFront + 0.4, 0.6, 'boa-setback-ledge')
+boaBand('bofaStone', boaU(BOA_UPPER[0]) - 5, boaU(BOA_UPPER[1]) + 5, boaV(BOA_PLATFORM_Y) - 4, boaV(BOA_PLATFORM_Y) + 4, upperFront + 0.4, 0.6, 'boa-cornice')
+boaBand('crown', boaU(BOA_UPPER[0]) - 5, boaU(BOA_UPPER[1]) + 5, boaV(BOA_PLATFORM_Y) - 4, boaV(BOA_PLATFORM_Y) - 3, upperFront + 0.43, 0.05, 'boa-cornice-edge')
+
+// The crown, traced from the drawing (x centred on 442.5; y 822 = the cornice). `at` returns where a drawing point lands in the world: the
+// reference pixel is read on the point's own depth, so near and far parts of the crown stay registered with the picture.
+const CK = 0.2585, CUC = 946.5
+const crownV = y => 257 + (y - 822) * CK
+const crownPx = Math.abs(refPoint(948, 257, FZ)[0] - refPoint(947, 257, FZ)[0])
+const dw = drawingPixels => drawingPixels * CK * crownPx
+const CZ = FZ - dw(300) // the crown's axis: the base of the first tier faces the camera on FZ
+const at = (y, halfWidth) => {
+  const hw = dw(halfWidth), z = CZ + hw
+  const [x, worldY] = refPoint(CUC, crownV(y), z)
+  return { x, y: worldY, hw, z }
+}
+const CROWN_TIERS = [
+  { y0: 822, y1: 605, hw0: 300, hw1: 225, columns: 8, cells: 2 }, // lower tier: the widest and heaviest, ~20° walls
+  { y0: 598, y1: 365, hw0: 205, hw1: 100, columns: 6, cells: 2 }, // middle tier: steeper, ~24°
+  { y0: 358, y1: 238, hw0: 88, hw1: 54, columns: 4, cells: 1 },   // upper tier: a much smaller taper
+]
+const GOLD = 'crown'
+CROWN_TIERS.forEach(({ y0, y1, hw0, hw1, columns, cells }, tier) => {
+  const lo = at(y0, hw0), hi = at(y1, hw1)
+  const height = hi.y - lo.y
+  // A dim amber core, so the lattice reads as bright steel against it instead of one solid wedge.
+  addGeometry('bofaCore', new THREE.CylinderGeometry(hi.hw * Math.SQRT2, lo.hw * Math.SQRT2, height, 4, 1, false), {
+    at: [(lo.x + hi.x) / 2, (lo.y + hi.y) / 2, CZ], rotate: [0, Math.PI / 4, 0], name: `boa-crown-core-${tier}`,
+  })
+  const face = (f, t) => [lo.x + (hi.x - lo.x) * t + f * (lo.hw + (hi.hw - lo.hw) * t), lo.y + height * t, lo.z + (hi.z - lo.z) * t + 0.03]
+  const rows = Math.max(2, Math.round(((y0 - y1) * CK) / 6))
+  for (let r = 0; r <= rows; r += 1) strut(GOLD, face(-1, r / rows), face(1, r / rows), 0.045, `boa-band-${tier}-${r}`)
+  for (let c = 0; c < columns; c += 1) {
+    const f = -1 + (2 * c) / (columns - 1)
+    strut(GOLD, face(f, 0), face(f, 1), 0.05, `boa-vertical-${tier}-${c}`)
+  }
+  for (let c = 0; c < columns - 1; c += 1) for (let cell = 0; cell < cells; cell += 1) {
+    const f0 = -1 + (2 * c) / (columns - 1), f1 = -1 + (2 * (c + 1)) / (columns - 1), t0 = cell / cells, t1 = (cell + 1) / cells
+    strut(GOLD, face(f0, t0), face(f1, t1), 0.04, `boa-brace-${tier}-${c}-${cell}-a`)
+    strut(GOLD, face(f1, t0), face(f0, t1), 0.04, `boa-brace-${tier}-${c}-${cell}-b`)
+  }
+})
+// Horizontal shelves between the tiers (and the flat platform under the mast): a granite slab with a lit gold lip.
+for (const [name, y, halfWidth] of [['shelf-lower', 605, 236], ['shelf-upper', 365, 110], ['platform', 232, 64]]) {
+  const slab = at(y, halfWidth), above = at(y - 7, halfWidth), below = at(y + 7, halfWidth)
+  box('bofaStone', [slab.x, slab.y, CZ], [slab.hw * 2, above.y - below.y, slab.hw * 2], [0, 0, 0], `boa-${name}`)
+  box(GOLD, [slab.x, above.y, slab.z + 0.03], [slab.hw * 2, 0.06, 0.05], [0, 0, 0], `boa-${name}-lip`)
+}
+// Faceted mast (two hexagonal tapers, chamfered as in the drawing) and a thin antenna, drawn at the crown's axis depth.
+{
+  const point = y => refPoint(CUC, crownV(y), CZ)
+  const hexRadius = drawingHalfWidth => dw(drawingHalfWidth) / 0.866
+  for (const [name, yBottom, yTop, rBottom, rTop] of [['lower', 225, 140, 33, 25], ['upper', 140, 75, 25, 19]]) {
+    const [xb, yb] = point(yBottom), [xt, yt] = point(yTop)
+    addGeometry(GOLD, new THREE.CylinderGeometry(hexRadius(rTop), hexRadius(rBottom), yt - yb, 6, 1, false), { at: [(xb + xt) / 2, (yb + yt) / 2, CZ], name: `boa-mast-${name}` })
+  }
+  const [xa, ya] = point(75), [, yTip] = point(0)
+  box('crownWhite', [xa, (ya + yTip) / 2, CZ], [crownPx * 5, yTip - ya, crownPx * 5], [0, 0, 0], 'boa-antenna')
 }
 
 // Westin Peachtree Plaza: a round glass tower with a wider ring crown and a mast.
@@ -396,8 +477,8 @@ function refWindows({ key, u0, u1, vTop, vBottom = 1000, z, depth, bayU = 12, ba
     addGeometry(part, new THREE.PlaneGeometry(1, 1), { at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1] })
   }
 }
-refWindows({ key: 'boa', u0: boaU(740), u1: boaU(933), vTop: boaV(BOA_SETBACK_Y) + 10, z: LANDMARK_Z, depth: 3.4, bayU: 9, bayV: 14, chance: 0.2 })
-refWindows({ key: 'boa-up', u0: boaU(762), u1: boaU(913), vTop: boaV(BOA_PLATFORM_Y) + 8, vBottom: boaV(BOA_SETBACK_Y), z: LANDMARK_Z, depth: 3.3, bayU: 9, bayV: 14, chance: 0.2 })
+refWindows({ key: 'boa', u0: boaU(740), u1: boaU(933), vTop: boaV(BOA_SETBACK_Y) + 10, z: FZ + 0.1, depth: 0.08, bayU: 9, bayV: 14, chance: 0.12 })
+refWindows({ key: 'boa-up', u0: boaU(762), u1: boaU(913), vTop: boaV(BOA_PLATFORM_Y) + 10, vBottom: boaV(BOA_SETBACK_Y), z: FZ, depth: 0.08, bayU: 9, bayV: 14, chance: 0.12 })
 // Westin: a fine grid of cool glass panels wraps the round shaft, with a bright cyan reflection running down its left-centre.
 {
   const [xl] = refPoint(1086, 400, LANDMARK_Z), [xr] = refPoint(1184, 400, LANDMARK_Z)
@@ -423,7 +504,7 @@ for (const [band, chance, z, depth] of [['far', 0.14, FAR_Z, 3], ['mid', 0.4, MI
   FILL[band].forEach(([u0, u1, vTop], i) => refWindows({ key: `${band}-${i}`, u0: u0 + 4, u1: u1 - 4, vTop: vTop + 10, z, depth, bayU: 13, bayV: 16, chance }))
 }
 // Red aviation beacons on the tallest points.
-for (const [i, [u, v, z]] of [[945, 39, LANDMARK_Z], [1135, 166, LANDMARK_Z], [1228 + (863.5 - 660) * 0.3646, 245 + (22.5 - 20) * 0.3646 - 1, LANDMARK_Z], [74, 506, MID_Z], [1190, 508, MID_Z], [1012, 244, LANDMARK_Z]].entries()) {
+for (const [i, [u, v, z]] of [[946.5, 42, LANDMARK_Z - 2.3], [1135, 166, LANDMARK_Z], [1228 + (863.5 - 660) * 0.3646, 245 + (22.5 - 20) * 0.3646 - 1, LANDMARK_Z], [74, 506, MID_Z], [1190, 508, MID_Z]].entries()) {
   const [x, y] = refPoint(u, v, z)
   box('beacon', [x, y, z + 0.1], [0.16, 0.16, 0.16], [0, 0, 0], `beacon-${i}`)
 }
