@@ -3,7 +3,6 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
-import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
 import { LaserDmxEnginePanel } from '../LaserDmxEnginePanel'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
@@ -27,7 +26,6 @@ describe('LaserDMX workspace architecture', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    useContextualHelpStore.setState({ infoEnabled: true })
     useReactStore.getState().resetReactView()
     useReactStore.getState().applyLaserDmxShowDirectorTemplate('small-club-rig')
   })
@@ -43,7 +41,6 @@ describe('LaserDMX workspace architecture', () => {
     await render(<LaserDmxEnginePanel />)
 
     expect(container.querySelector('[aria-label="LaserDMX Beam Matrix surfaces"]')).not.toBeNull()
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 
   it('places stage-wide design controls below Lighting Components in the left palette', async () => {
@@ -86,6 +83,5 @@ describe('LaserDMX workspace architecture', () => {
     expect(container.textContent).not.toContain('Snap to Grid')
     expect(container.textContent).not.toContain('Show Beams')
 
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })

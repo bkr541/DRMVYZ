@@ -3,7 +3,7 @@
  * waveform or any other element inside them) hit empty dock space, which toggles the dock between expanded and collapsed.
  */
 const BLANK_SPACE_CLASSES = [
-  'vz-dock-help-region',
+  'vz-dock-region',
   'vz-dock-card',
   'vz-dock-left-body',
   'vz-dock-right-main',

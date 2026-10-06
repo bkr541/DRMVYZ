@@ -5,7 +5,6 @@ import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../stores/reactStore'
-import { useContextualHelpStore } from '../../../features/contextualHelp/contextualHelpStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import type { BrandKit } from '../../../features/personalization/BrandKitTypes'
 import { CANVAS_REACT_CONTROL_GROUPS, CanvasEngineFxPanel, CanvasEngineSurface, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, FracturesReactControls, LaserImageFxReactControls, resolveCanvasPresetControlGroups } from './ReactCanvasEngineShell'
@@ -75,7 +74,6 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  useContextualHelpStore.setState({ infoEnabled: true })
   useBrandKitStore.setState({ activeKit: null })
   useReactStore.getState().resetReactView()
   host = document.createElement('div')
@@ -848,7 +846,7 @@ describe('CANVAS right-panel control contract', () => {
     const findAction = (label: string) => {
       const labelNode = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
         .find(node => node.textContent?.trim() === label)
-      return labelNode?.closest('.rv-canvas-react-control-help')
+      return labelNode?.closest('.rv-ctrl-toggle-row')
         ?.querySelector<HTMLButtonElement>('button.rv-canvas-fractures-action') ?? null
     }
 
@@ -883,7 +881,7 @@ describe('CANVAS right-panel control contract', () => {
 
     const freezeLabel = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
       .find(node => node.textContent?.trim() === 'Freeze Layout')
-    const freezeToggle = freezeLabel?.closest('.rv-canvas-react-control-help')
+    const freezeToggle = freezeLabel?.closest('.rv-ctrl-toggle-row')
       ?.querySelector<HTMLButtonElement>('button.rv-ctrl-toggle') ?? null
     act(() => freezeToggle?.click())
     settings = useReactStore.getState().canvasPresetSettings
@@ -894,7 +892,7 @@ describe('CANVAS right-panel control contract', () => {
 
     const liveFreezeToggle = [...host.querySelectorAll<HTMLElement>('.rv-ctrl-label')]
       .find(node => node.textContent?.trim() === 'Freeze Layout')
-      ?.closest('.rv-canvas-react-control-help')
+      ?.closest('.rv-ctrl-toggle-row')
       ?.querySelector<HTMLButtonElement>('button.rv-ctrl-toggle') ?? null
     act(() => liveFreezeToggle?.click())
     settings = useReactStore.getState().canvasPresetSettings

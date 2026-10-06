@@ -2,7 +2,6 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { RecordingPanel } from '../../recording/RecordingPanel'
 import type { RecorderState, RecordingMode } from '../../../../hooks/useRecorder'
-import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import {
   Collapsible,
   ColorRow,
@@ -224,7 +223,7 @@ function PresetsTabMockup({ state, onSelectEngine }: { state: PixGridMockState; 
                   : 'Selecting another engine’s preset switches that engine and loads the look.'}
             </p>
 
-            <div className="rv-pix-grid-presets-help drm-help-overlay-anchor">
+            <div className="rv-pix-grid-presets-list">
               {visible.length === 0 ? (
                 <div className="rv-preset-library-empty">
                   <strong>No favorite presets yet</strong>
@@ -248,12 +247,6 @@ function PresetsTabMockup({ state, onSelectEngine }: { state: PixGridMockState; 
                   ))}
                 </>
               )}
-              <HelpInfoTrigger
-                helpId="react.pixGrid.presetLibrary"
-                currentValue={`${active?.name ?? 'No PixGrid preset selected'} · ${state.presetFilter === 'current' ? 'Current Engine' : state.presetFilter === 'favorites' ? 'Favorites' : 'All Engines'} · ${shownCount} shown`}
-                currentValueTone={active ? 'accent' : 'default'}
-                placement="left"
-              />
             </div>
           </div>
         </div>
@@ -270,42 +263,36 @@ function EditingContext({ state }: { state: PixGridMockState }) {
   const targetValue = state.selectedLayerId ?? 'scene'
   return (
     <DesignSection label="Editing Context">
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SelectRow
-          label="Active Scene"
-          value={state.previewSceneMode === 'followTrack' ? 'followTrack' : state.activeScene.id}
-          options={[
-            { value: 'followTrack', label: 'Follow Track' },
-            ...state.scenes.map(scene => ({ value: scene.id, label: scene.name })),
-          ]}
-          onChange={value => {
-            if (value === 'followTrack') state.setPreviewSceneMode('followTrack')
-            else {
-              state.selectScene(value)
-              state.setPreviewSceneMode('selectedScene')
-            }
-          }}
-          description={state.previewSceneMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
-        />
-        <HelpInfoTrigger helpId="react.pixGrid.design.editingContext.activeScene" currentValue={state.previewSceneMode === 'followTrack' ? 'Follow Track' : state.activeScene.name} currentValueTone="accent" placement="left" />
-      </div>
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SelectRow
-          label="Edit Target"
-          value={targetValue}
-          options={[
-            { value: 'scene', label: 'Scene Pixels' },
-            ...state.activeLayers.map(layer => ({ value: layer.id, label: layer.name })),
-          ]}
-          onChange={value => {
-            const layerId = value === 'scene' ? null : value
-            state.selectLayer(layerId)
-            state.setDesignSurface(layerId ? 'layer' : 'scene')
-          }}
-          description={state.selectedLayer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
-        />
-        <HelpInfoTrigger helpId="react.pixGrid.design.editingContext.editTarget" currentValue={state.selectedLayer?.name ?? 'Scene Pixels'} currentValueTone={state.selectedLayer ? 'accent' : 'default'} placement="left" />
-      </div>
+      <SelectRow
+        label="Active Scene"
+        value={state.previewSceneMode === 'followTrack' ? 'followTrack' : state.activeScene.id}
+        options={[
+          { value: 'followTrack', label: 'Follow Track' },
+          ...state.scenes.map(scene => ({ value: scene.id, label: scene.name })),
+        ]}
+        onChange={value => {
+          if (value === 'followTrack') state.setPreviewSceneMode('followTrack')
+          else {
+            state.selectScene(value)
+            state.setPreviewSceneMode('selectedScene')
+          }
+        }}
+        description={state.previewSceneMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
+      />
+      <SelectRow
+        label="Edit Target"
+        value={targetValue}
+        options={[
+          { value: 'scene', label: 'Scene Pixels' },
+          ...state.activeLayers.map(layer => ({ value: layer.id, label: layer.name })),
+        ]}
+        onChange={value => {
+          const layerId = value === 'scene' ? null : value
+          state.selectLayer(layerId)
+          state.setDesignSurface(layerId ? 'layer' : 'scene')
+        }}
+        description={state.selectedLayer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
+      />
       <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
         <button type="button" className="rv-reset-btn" disabled={state.undoCount === 0} onClick={state.undo}>Undo</button>
         <button type="button" className="rv-reset-btn" disabled={state.redoCount === 0} onClick={state.redo}>Redo</button>
@@ -318,31 +305,13 @@ function EditingContext({ state }: { state: PixGridMockState }) {
 function GridDesign({ state }: { state: PixGridMockState }) {
   return (
     <DesignSection label="Grid Presentation">
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SelectRow label={state.grid.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.grid.quality} options={QUALITY_OPTIONS} onChange={quality => state.setGrid({ quality })} />
-        <HelpInfoTrigger helpId="react.pixGrid.design.grid.quality" currentValue={`${state.grid.qualityMode === 'adaptive' ? 'Adaptive start' : 'Fixed'} · ${QUALITY_OPTIONS.find(option => option.value === state.grid.quality)?.label ?? state.grid.quality}`} currentValueTone="accent" placement="left" />
-      </div>
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SliderRow label="Cell Gap" value={state.grid.cellGap} max={0.45} onChange={cellGap => state.setGrid({ cellGap })} />
-        <HelpInfoTrigger helpId="react.pixGrid.design.grid.cellGap" currentValue={`${Math.round(state.grid.cellGap * 100)}%`} placement="left" />
-      </div>
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SliderRow label="Cell Roundness" value={state.grid.cellRoundness} max={0.5} onChange={cellRoundness => state.setGrid({ cellRoundness })} />
-        <HelpInfoTrigger helpId="react.pixGrid.design.grid.cellRoundness" currentValue={`${Math.round(state.grid.cellRoundness * 100)}%`} placement="left" />
-      </div>
+      <SelectRow label={state.grid.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.grid.quality} options={QUALITY_OPTIONS} onChange={quality => state.setGrid({ quality })} />
+      <SliderRow label="Cell Gap" value={state.grid.cellGap} max={0.45} onChange={cellGap => state.setGrid({ cellGap })} />
+      <SliderRow label="Cell Roundness" value={state.grid.cellRoundness} max={0.5} onChange={cellRoundness => state.setGrid({ cellRoundness })} />
       <SliderRow label="Cell Calibration" value={state.grid.cellBrightness} onChange={cellBrightness => state.setGrid({ cellBrightness })} description="Advanced emitter calibration retained for compatibility." />
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SliderRow label="Glow" value={state.grid.glow} onChange={glow => state.setGrid({ glow })} description="Emitter halo strength." />
-        <HelpInfoTrigger helpId="react.pixGrid.performanceAndMatrix.ledMatrix.glow" currentValue={`${Math.round(state.grid.glow * 100)}%`} placement="left" />
-      </div>
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <SliderRow label="Diffusion" value={state.grid.diffusion} onChange={diffusion => state.setGrid({ diffusion })} description="Emitter edge softness." />
-        <HelpInfoTrigger helpId="react.pixGrid.performanceAndMatrix.ledMatrix.diffusion" currentValue={`${Math.round(state.grid.diffusion * 100)}%`} placement="left" />
-      </div>
-      <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-        <ToggleRow label="RGB Subpixels" value={state.grid.rgbSubpixels} onChange={rgbSubpixels => state.setGrid({ rgbSubpixels })} />
-        <HelpInfoTrigger helpId="react.pixGrid.performanceAndMatrix.ledMatrix.rgbSubpixelMode" currentValue={state.grid.rgbSubpixels ? 'On' : 'Off'} currentValueLabel="Status" currentValueTone={state.grid.rgbSubpixels ? 'accent' : 'default'} placement="left" />
-      </div>
+      <SliderRow label="Glow" value={state.grid.glow} onChange={glow => state.setGrid({ glow })} description="Emitter halo strength." />
+      <SliderRow label="Diffusion" value={state.grid.diffusion} onChange={diffusion => state.setGrid({ diffusion })} description="Emitter edge softness." />
+      <ToggleRow label="RGB Subpixels" value={state.grid.rgbSubpixels} onChange={rgbSubpixels => state.setGrid({ rgbSubpixels })} />
       <ToggleRow label="Cell Guides" value={state.grid.cellGuides} onChange={cellGuides => state.setGrid({ cellGuides })} />
     </DesignSection>
   )
@@ -700,12 +669,10 @@ function AnalysisPanel({ state }: { state: PixGridMockState }) {
 
 function ReactTabMockup({ state }: { state: PixGridMockState }) {
   const [surface, setSurface] = useState<PixGridMockReactSurface>('routing')
-  const labels: Record<PixGridMockReactSurface, string> = { routing: 'Routing', events: 'Events', choreography: 'Choreography', analysis: 'Analysis' }
   return (
     <div className="rv-workspace-panel">
-      <div className="rv-pix-grid-reactivity-tabs-help drm-help-overlay-anchor">
+      <div className="rv-pix-grid-reactivity-tabs-wrap">
         <PanelSubtabs value={surface} onChange={setSurface} ariaLabel="PixGrid reactivity surfaces" className="rv-pix-grid-reactivity-tabs" options={REACT_SURFACES} />
-        <HelpInfoTrigger helpId="react.pixGrid.reactivity.workspace.tabs" currentValue={labels[surface]} currentValueTone="accent" placement="left" />
       </div>
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">

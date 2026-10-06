@@ -36,7 +36,7 @@ describe('audio dock: empty space toggles expand / collapse', () => {
     expect(collapsed()).toBe(true)
     await act(async () => container.querySelector<HTMLElement>('.vz-dock-card')!.click())
     expect(collapsed()).toBe(false)
-    await act(async () => container.querySelector<HTMLElement>('.vz-dock-help-region')!.click())
+    await act(async () => container.querySelector<HTMLElement>('.vz-dock-region')!.click())
     expect(collapsed()).toBe(true)
   })
 

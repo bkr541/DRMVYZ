@@ -126,7 +126,7 @@ export function SoundDrawingPresetsMockup() {
             : 'Selecting another engine’s preset switches that engine and loads the look.'}
       </p>
 
-      <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
+      <div className="rv-sound-drawing-presets-list">
         {visiblePresets.length === 0 ? (
           <div className="rv-preset-library-empty">
             <strong>No favorite presets yet</strong>

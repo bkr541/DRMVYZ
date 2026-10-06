@@ -2966,7 +2966,7 @@
 }
 
 .lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-traces { display: none; }
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) { padding: 0 9px; }
+.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0 9px; }
 
 .lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-title {
   font-size: 16px;

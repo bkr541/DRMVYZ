@@ -2411,7 +2411,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                 ) : (
                 <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--beats drm-help-overlay-anchor"
+                    className="rv-timeline-lane rv-timeline-lane--beats"
                     role="group"
                     aria-label="Beat Grid"
                   >
@@ -2430,7 +2430,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                   </div>
 
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--sections drm-help-overlay-anchor"
+                    className="rv-timeline-lane rv-timeline-lane--sections"
                     role="group"
                     aria-label="Sections"
                   >
@@ -2524,7 +2524,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                   )}
 
                   <div
-                    className="rv-timeline-lane rv-timeline-lane--cues drm-help-overlay-anchor"
+                    className="rv-timeline-lane rv-timeline-lane--cues"
                     role="group"
                     aria-label="Cues and Presets"
                   >

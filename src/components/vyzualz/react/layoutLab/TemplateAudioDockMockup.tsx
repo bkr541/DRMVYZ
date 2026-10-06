@@ -1,6 +1,5 @@
 import { useState, type CSSProperties } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
-import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import { isDockBlankSpace } from '../../shared/dockBlankSpace'
 
 // ── TemplateAudioDockMockup ─────────────────────────────────────────────────
@@ -51,7 +50,7 @@ export function TemplateAudioDockMockup() {
       onClick={event => { if (isDockBlankSpace(event.target, event.currentTarget)) setCollapsed(value => !value) }}
     >
       {/* ── LEFT: play button + title/artist + volume ────────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-left vz-dock-card">
         <div className="vz-dock-play-slot">
           <button
@@ -112,11 +111,10 @@ export function TemplateAudioDockMockup() {
           <span>Replace Track</span>
         </label>
       </div>
-      <HelpInfoTrigger helpId="visualizer.audioDeck.trackPlayer" currentValue="Midnight Run" placement="above" />
       </div>
 
       {/* ── CENTER: waveform + zoom buttons ─────────────────────────────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-center vz-dock-card">
         <div className="vz-dock-waveform-wrap">
           <div className="rv-layout-lab-dock-waveform" aria-hidden="true">
@@ -137,11 +135,10 @@ export function TemplateAudioDockMockup() {
           <button type="button" className="vz-dock-zoom-btn" title="Zoom out (mockup)">−</button>
         </div>
       </div>
-      <HelpInfoTrigger helpId="visualizer.audioDeck.waveform" currentValue="1× zoom" placement="above" />
       </div>
 
       {/* ── RIGHT: BPM + stale-analysis banner + TAP / CUE / SYNC ───────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-right vz-dock-card">
         <div className="vz-dock-right-main">
           <div className="vz-dock-bpm-wrap">
@@ -223,11 +220,6 @@ export function TemplateAudioDockMockup() {
           </button>
         </div>
       </div>
-      <HelpInfoTrigger
-        helpId="visualizer.audioDeck.tempoAndSync"
-        currentValue={`${bpm.toFixed(2)} BPM · Sync ${bpmSync ? 'on' : 'off'}`}
-        placement="above"
-      />
       </div>
     </div>
   )

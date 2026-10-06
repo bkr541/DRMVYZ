@@ -4,13 +4,15 @@
 
 **Status.** Sections 1–7 describe the icons **as they were before removal**; file:line references are to the tree before Pass 1. Everything was read from the source, not inferred.
 
-**Pass 1 (done, uncommitted):** every `HelpInfoTrigger` was removed from the 16 product files, together with the props, maps and helpers that only fed them (`CANVAS_REACT_CONTROL_HELP_IDS`, the Fractures role `helpId`s, and several label formatters). The wrapper elements and their CSS were left in place so layout is unchanged. The Layout Lab mockups still use the icon.
+**Pass 1 (done):** every `HelpInfoTrigger` was removed from the 16 product files, together with the props, maps and helpers that only fed them.
 
-**Pass 2 (not started), once the header search exists:**
-- Remove `drm-help-overlay-anchor` and the per-surface offset CSS (`InfoPopover.css`, `reactView.css`, `vyzualz.css`).
-- Delete `HelpInfoTrigger` / `HelpLabel` and update the Layout Lab mockups and `HelpInfoTrigger.test.tsx`.
-- Collapse wrappers that no longer do anything: `CanvasHelpControl` is now a plain wrapper div, and `getLowerSurfaceHelpId` in `ReactView.tsx` now only decides which lower-workspace tabs get the wrapper class.
-- Decide what the Contextual Info setting becomes.
+**Pass 2 (done, uncommitted):**
+- `HelpInfoTrigger`, `HelpLabel`, their test and the icon asset are deleted; the Layout Lab mockups no longer use the icon.
+- `drm-help-overlay-anchor` and every per-surface offset rule are gone from `InfoPopover.css`, `reactView.css` and `vyzualz.css`.
+- About 125 wrapper elements that only hosted an icon were unwrapped (including the `CanvasHelpControl` component and `getLowerSurfaceHelpId`). Wrappers that also do layout were kept and renamed away from "help": `vz-dock-region`, `rv-header-output`, `rv-pix-grid-route-section`, `rv-pix-grid-reactivity-tabs-wrap`, and the four `*-presets-list` blocks.
+- The Contextual Info setting, its store (`src/features/contextualHelp`) and its App wiring are removed. The registry (`HelpCenter.ts`) and `InfoPopover` stay for the search.
+
+The tables below describe the icons as they were before removal.
 
 ---
 

@@ -533,59 +533,55 @@ export function ReactEnginePanel({
       {activeReactEngineId === 'oscilloscope' && (
         <>
           <CtrlSection label="Authored Performance" />
-          <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-            <ToggleRow
-              label="Auto Performance"
-              value={soundDrawingPerformanceSettings.autoPerformance}
-              disabled={soundDrawingPerformanceSettings.selectedShowId == null}
-              onChange={(value) =>
+          <ToggleRow
+            label="Auto Performance"
+            value={soundDrawingPerformanceSettings.autoPerformance}
+            disabled={soundDrawingPerformanceSettings.selectedShowId == null}
+            onChange={(value) =>
+              setSoundDrawingPerformanceSettings({
+                autoPerformance: value && soundDrawingPerformanceSettings.selectedShowId != null,
+                ...(value
+                  ? {
+                      performanceSource: 'generatedVisual',
+                      generatorPreference: 'authored',
+                      locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
+                    }
+                  : {}),
+              })
+            }
+            description={soundDrawingPerformanceSettings.selectedShowId == null
+              ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
+              : 'Adds section-aware choreography to the selected show. Turn it off to keep the same show loaded in its stable base-design state.'}
+          />
+          <div className="rv-ctrl-row">
+            <Dropdown
+              id="sound-drawing-performance-show"
+              label="Performance Show"
+              menuLabel="Performance Shows"
+              value={soundDrawingPerformanceSettings.selectedShowId}
+              onChange={(value) => {
                 setSoundDrawingPerformanceSettings({
-                  autoPerformance: value && soundDrawingPerformanceSettings.selectedShowId != null,
-                  ...(value
-                    ? {
-                        performanceSource: 'generatedVisual',
-                        generatorPreference: 'authored',
-                        locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
-                      }
-                    : {}),
+                  selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
+                  performanceSource: 'generatedVisual',
+                  generatorPreference: 'authored',
+                  locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
                 })
-              }
-              description={soundDrawingPerformanceSettings.selectedShowId == null
-                ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
-                : 'Adds section-aware choreography to the selected show. Turn it off to keep the same show loaded in its stable base-design state.'}
+              }}
+              options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
+                value: show.id,
+                label: show.name,
+                description: show.description,
+              }))}
+              placeholder="Select a Performance Show…"
+              ariaDescribedBy="sound-drawing-performance-show-description"
+              size="compact"
             />
-          </div>
-          <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-            <div className="rv-ctrl-row">
-              <Dropdown
-                id="sound-drawing-performance-show"
-                label="Performance Show"
-                menuLabel="Performance Shows"
-                value={soundDrawingPerformanceSettings.selectedShowId}
-                onChange={(value) => {
-                  setSoundDrawingPerformanceSettings({
-                    selectedShowId: value as NonNullable<typeof soundDrawingPerformanceSettings.selectedShowId>,
-                    performanceSource: 'generatedVisual',
-                    generatorPreference: 'authored',
-                    locks: { ...DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS.locks },
-                  })
-                }}
-                options={SOUND_DRAWING_PERFORMANCE_SHOWS.map((show) => ({
-                  value: show.id,
-                  label: show.name,
-                  description: show.description,
-                }))}
-                placeholder="Select a Performance Show…"
-                ariaDescribedBy="sound-drawing-performance-show-description"
-                size="compact"
-              />
-              <span
-                id="sound-drawing-performance-show-description"
-                className="rv-ctrl-description"
-              >
-                Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography.
-              </span>
-            </div>
+            <span
+              id="sound-drawing-performance-show-description"
+              className="rv-ctrl-description"
+            >
+              Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography.
+            </span>
           </div>
           <div
             className="rv-ctrl-info rv-control-helper-copy"
@@ -791,28 +787,24 @@ export function ReactEnginePanel({
             allMediaItems={allMediaItems}
           />
 
-          <div className="rv-sound-drawing-source-grid-help drm-help-overlay-anchor">
-            <SoundDrawingSourceGrid
-              value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
-              onChange={(sourceType) => set({ sourceType })}
-              disabled={!soundDrawingOwnership.domains.source.editable}
-              description={soundDrawingOwnership.domains.source.ariaDescription}
-            />
-          </div>
+          <SoundDrawingSourceGrid
+            value={osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType}
+            onChange={(sourceType) => set({ sourceType })}
+            disabled={!soundDrawingOwnership.domains.source.editable}
+            description={soundDrawingOwnership.domains.source.ariaDescription}
+          />
 
           {soundDrawingCapabilities.visualSize && (
-            <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-              <SliderRow
-                label="Visual Size"
-                value={osc.pathScale}
-                onChange={value => set({ pathScale: value })}
-                min={SOUND_DRAWING_VISUAL_SIZE_MIN}
-                max={SOUND_DRAWING_VISUAL_SIZE_MAX}
-                step={0.01}
-                disabled={!soundDrawingOwnership.domains.geometry.editable}
-                description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
-              />
-            </div>
+            <SliderRow
+              label="Visual Size"
+              value={osc.pathScale}
+              onChange={value => set({ pathScale: value })}
+              min={SOUND_DRAWING_VISUAL_SIZE_MIN}
+              max={SOUND_DRAWING_VISUAL_SIZE_MAX}
+              step={0.01}
+              disabled={!soundDrawingOwnership.domains.geometry.editable}
+              description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
+            />
           )}
 
           <fieldset
@@ -825,14 +817,12 @@ export function ReactEnginePanel({
               <>
               {!soundDrawingPerformanceSettings.autoPerformance && (
                 <>
-                  <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-                    <ToggleRow
-                      label="Follow Track Sections"
-                      value={osc.autoSectionMode}
-                      onChange={(v) => set({ autoSectionMode: v })}
-                      description="Automatically changes the manual Classic Scope topology from the analyzed section at the playhead."
-                    />
-                  </div>
+                  <ToggleRow
+                    label="Follow Track Sections"
+                    value={osc.autoSectionMode}
+                    onChange={(v) => set({ autoSectionMode: v })}
+                    description="Automatically changes the manual Classic Scope topology from the analyzed section at the playhead."
+                  />
                   {osc.autoSectionMode && (
                     <div className="rv-ctrl-info" role="status" aria-live="polite">
                       {currentAnalyzedSection
@@ -843,23 +833,21 @@ export function ReactEnginePanel({
                 </>
               )}
               {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && (
-                <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
-                  <SelectRow
-                    label="Classic Mode"
-                    value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
-                    onChange={(v) => set({ classicMode: v as ClassicScopeMode })}
-                    options={[
-                      { value: 'waveform',          label: 'Waveform' },
-                      // Named for what it does: this mode plots the signal against
-                      // a delayed copy of itself, which is a phase portrait, not a
-                      // stereo measurement. True stereo lives under Pro Scope.
-                      { value: 'monoDelayXY',       label: 'Mono Delay Portrait' },
-                      { value: 'radialScope',       label: 'Radial Scope' },
-                      { value: 'spiralScope',       label: 'Spiral Scope' },
-                      { value: 'professionalScope', label: 'Pro Scope' },
-                    ]}
-                  />
-                </div>
+                <SelectRow
+                  label="Classic Mode"
+                  value={osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode}
+                  onChange={(v) => set({ classicMode: v as ClassicScopeMode })}
+                  options={[
+                    { value: 'waveform',          label: 'Waveform' },
+                    // Named for what it does: this mode plots the signal against
+                    // a delayed copy of itself, which is a phase portrait, not a
+                    // stereo measurement. True stereo lives under Pro Scope.
+                    { value: 'monoDelayXY',       label: 'Mono Delay Portrait' },
+                    { value: 'radialScope',       label: 'Radial Scope' },
+                    { value: 'spiralScope',       label: 'Spiral Scope' },
+                    { value: 'professionalScope', label: 'Pro Scope' },
+                  ]}
+                />
               )}
               {(!osc.autoSectionMode || soundDrawingPerformanceSettings.autoPerformance) && osc.classicMode === 'professionalScope' && (
                 <>

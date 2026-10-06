@@ -248,45 +248,37 @@ function PerformanceProgramControls() {
 
   return (
     <Collapsible label="Performance Program" defaultOpen>
-      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
-        <ToggleRow
-          label="Performance Program"
-          value={performance.enabled}
-          onChange={setEnabled}
-          disabled={!program}
-          description="Disabling reveals the immutable authored rig without deleting the program."
-        />
-      </div>
-      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
-        <SliderRow
-          label="Program Intensity"
-          value={performance.tuning.intensity}
-          onChange={value => updateTuning({ intensity: value })}
-          min={0}
-          max={2}
-          step={0.05}
-          disabled={!program}
-        />
-      </div>
-      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
-        <SliderRow
-          label="Variation Amount"
-          value={performance.tuning.variation}
-          onChange={value => updateTuning({ variation: value })}
-          min={0}
-          max={2}
-          step={0.05}
-          disabled={!program || !supportsVariation}
-        />
-      </div>
-      <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
-        <ToggleRow
-          label="Audio Intelligence Response"
-          value={performance.audioIntelligenceEnabled}
-          onChange={setAudioIntelligenceEnabled}
-          disabled={!program}
-        />
-      </div>
+      <ToggleRow
+        label="Performance Program"
+        value={performance.enabled}
+        onChange={setEnabled}
+        disabled={!program}
+        description="Disabling reveals the immutable authored rig without deleting the program."
+      />
+      <SliderRow
+        label="Program Intensity"
+        value={performance.tuning.intensity}
+        onChange={value => updateTuning({ intensity: value })}
+        min={0}
+        max={2}
+        step={0.05}
+        disabled={!program}
+      />
+      <SliderRow
+        label="Variation Amount"
+        value={performance.tuning.variation}
+        onChange={value => updateTuning({ variation: value })}
+        min={0}
+        max={2}
+        step={0.05}
+        disabled={!program || !supportsVariation}
+      />
+      <ToggleRow
+        label="Audio Intelligence Response"
+        value={performance.audioIntelligenceEnabled}
+        onChange={setAudioIntelligenceEnabled}
+        disabled={!program}
+      />
       <NumberInputRow
         label="Variation Seed"
         value={performance.deterministicSeed}

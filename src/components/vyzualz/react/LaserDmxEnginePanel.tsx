@@ -21,7 +21,7 @@ export function LaserDmxEnginePanel() {
 
   return (
     <div className="rv-laser-workspace">
-      <div className="rv-laser-rig-toolbar rv-laser-workspace-mode-help drm-help-overlay-anchor">
+      <div className="rv-laser-rig-toolbar">
         <UnderlineTabs
           tabs={SURFACE_OPTIONS}
           activeTab={surface}

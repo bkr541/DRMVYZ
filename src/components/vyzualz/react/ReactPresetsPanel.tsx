@@ -709,19 +709,19 @@ export function ReactPresetsPanel() {
         ariaLabel={`Search ${activeEngine.label} presets`}
       />
       {activeReactEngineId === 'oscilloscope' ? (
-        <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
+        <div className="rv-sound-drawing-presets-list">
           {presetLibraryContent}
         </div>
       ) : activeReactEngineId === 'laserDmx' ? (
-        <div className="rv-laser-presets-help drm-help-overlay-anchor">
+        <div className="rv-laser-presets-list">
           {presetLibraryContent}
         </div>
       ) : activeReactEngineId === 'pixGrid' ? (
-        <div className="rv-pix-grid-presets-help drm-help-overlay-anchor">
+        <div className="rv-pix-grid-presets-list">
           {presetLibraryContent}
         </div>
       ) : activeReactEngineId === 'canvas' ? (
-        <div className="rv-canvas-presets-help drm-help-overlay-anchor">
+        <div className="rv-canvas-presets-list">
           {presetLibraryContent}
         </div>
       ) : presetLibraryContent}

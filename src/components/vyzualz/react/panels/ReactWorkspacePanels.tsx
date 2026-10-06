@@ -148,7 +148,7 @@ export function ReactReactivityWorkspacePanel({ cinemaFrameBridge = null }: { ci
   if (pixGridActive) {
     return (
       <div className="rv-workspace-panel">
-        <div className="rv-pix-grid-reactivity-tabs-help drm-help-overlay-anchor">
+        <div className="rv-pix-grid-reactivity-tabs-wrap">
           <PanelSubtabs
             value={pixGridSurface}
             onChange={value => setPixGridSurface(value)}

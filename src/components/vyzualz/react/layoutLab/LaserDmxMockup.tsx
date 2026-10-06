@@ -16,7 +16,7 @@ import {
 
 function ModeSelector({ state }: { state: LaserDmxMockState }) {
   return (
-    <div className="rv-laser-rig-toolbar rv-laser-workspace-mode-help drm-help-overlay-anchor">
+    <div className="rv-laser-rig-toolbar">
       <div className="rv-segmented-control rv-laser-rig-surfaces" role="tablist" aria-label="LaserDMX Beam Matrix surfaces">
         <button type="button" role="tab" aria-selected={state.mode === 'matrix'} className={state.mode === 'matrix' ? 'is-active' : ''} onClick={() => state.setMode('matrix')}>MATRIX</button>
         <button type="button" role="tab" aria-selected={state.mode === 'showDirector'} className={state.mode === 'showDirector' ? 'is-active' : ''} onClick={() => state.setMode('showDirector')}>SHOW DIRECTOR</button>

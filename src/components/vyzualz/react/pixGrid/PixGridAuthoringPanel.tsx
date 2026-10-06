@@ -32,19 +32,17 @@ export function PixGridAuthoringPanel() {
 
   return (
     <div className="rv-pix-grid-authoring-panel">
-      <div className="rv-pix-grid-authoring-control-help drm-help-overlay-anchor">
-        <button
-          type="button"
-          className={state.authoringOverlayVisible ? 'rv-pix-grid-edit-toggle is-active' : 'rv-pix-grid-edit-toggle'}
-          aria-pressed={state.authoringOverlayVisible}
-          onClick={() => setOverlay(!state.authoringOverlayVisible)}
-        >
-          {state.authoringOverlayVisible ? 'Close PixGrid Edit' : 'Edit PixGrid'}
-        </button>
-      </div>
+      <button
+        type="button"
+        className={state.authoringOverlayVisible ? 'rv-pix-grid-edit-toggle is-active' : 'rv-pix-grid-edit-toggle'}
+        aria-pressed={state.authoringOverlayVisible}
+        onClick={() => setOverlay(!state.authoringOverlayVisible)}
+      >
+        {state.authoringOverlayVisible ? 'Close PixGrid Edit' : 'Edit PixGrid'}
+      </button>
       <div className="rv-ctrl-info rv-pix-grid-authoring-hint rv-control-helper-copy">Edit on the center canvas. Changes save automatically.</div>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid scenes">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid scenes">
         <header><strong>SCENES</strong><span>{state.scenes.length}</span></header>
         <div className="rv-pix-grid-scene-list">
           {state.scenes.map(candidate => (
@@ -78,7 +76,7 @@ export function PixGridAuthoringPanel() {
         </div>
       </section>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid layers">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid layers">
         <header><strong>LAYERS</strong><span>{layers.length}</span></header>
         <div className="rv-pix-grid-layer-list">
           {layers.map((layer, index) => (
@@ -107,7 +105,7 @@ export function PixGridAuthoringPanel() {
         </div>
       </section>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid built-in artwork">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid built-in artwork">
         <header><strong>BUILT-INS</strong><span>{PIX_GRID_BUILT_IN_ASSETS.length}</span></header>
         <div className="rv-pix-grid-built-in-grid">
           {PIX_GRID_BUILT_IN_ASSETS.map(asset => (

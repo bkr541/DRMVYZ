@@ -128,33 +128,29 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
       />
 
       <DesignSection label="Editing Context" grouped={groupedSections}>
-        <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-          <SelectRow
-            label="Active Scene"
-            value={activeSceneValue}
-            options={[
-              { value: PIX_GRID_FOLLOW_TRACK_SCENE_VALUE, label: 'Follow Track' },
-              ...state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name })),
-            ]}
-            onChange={value => {
-              setState(selectPixGridPreviewScene(state, value))
-            }}
-            description={state.editor.scenePreviewMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
-          />
-        </div>
-        <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-          <SelectRow
-            label="Edit Target"
-            value={targetValue}
-            options={targetOptions}
-            onChange={value => {
-              const selectedLayerId = value === 'scene' ? null : value
-              setState(selectPixGridEditingTarget(state, selectedLayerId))
-              setSurface(selectedLayerId ? 'layer' : 'scene')
-            }}
-            description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
-          />
-        </div>
+        <SelectRow
+          label="Active Scene"
+          value={activeSceneValue}
+          options={[
+            { value: PIX_GRID_FOLLOW_TRACK_SCENE_VALUE, label: 'Follow Track' },
+            ...state.scenes.map(candidate => ({ value: candidate.id, label: candidate.name })),
+          ]}
+          onChange={value => {
+            setState(selectPixGridPreviewScene(state, value))
+          }}
+          description={state.editor.scenePreviewMode === 'followTrack' ? 'Track analysis owns the live scene.' : 'Editing Context owns the live preview scene.'}
+        />
+        <SelectRow
+          label="Edit Target"
+          value={targetValue}
+          options={targetOptions}
+          onChange={value => {
+            const selectedLayerId = value === 'scene' ? null : value
+            setState(selectPixGridEditingTarget(state, selectedLayerId))
+            setSurface(selectedLayerId ? 'layer' : 'scene')
+          }}
+          description={layer?.locked ? 'This layer is locked. Unlock it before editing its transform.' : 'Scene Pixels paints non-destructively above inherited artwork.'}
+        />
         <div className="rv-ctrl-action-row rv-pix-grid-history-row" aria-label="PixGrid edit history">
           <IconChipButton disabled={undoCount === 0} onClick={undo}>Undo</IconChipButton>
           <IconChipButton disabled={redoCount === 0} onClick={redo}>Redo</IconChipButton>
@@ -164,25 +160,13 @@ export function PixGridDesignPanel({ groupedSections = false }: { groupedSection
 
       {surface === 'grid' && (
         <DesignSection label="Grid Presentation" grouped={groupedSections}>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
-          </div>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
-          </div>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
-          </div>
+          <SelectRow label={state.qualityMode === 'adaptive' ? 'Starting Quality' : 'Fixed Quality'} value={state.quality} options={PIX_GRID_QUALITY_OPTIONS} onChange={value => setRequestedQuality(value as typeof state.quality)} />
+          <PixGridHistoryGesture><SliderRow label="Cell Gap" value={state.cellGap} max={0.45} onChange={value => setPresentation({ cellGap: value })} /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Cell Roundness" value={state.cellRoundness} max={0.5} onChange={value => setPresentation({ cellRoundness: value })} /></PixGridHistoryGesture>
           <PixGridHistoryGesture><SliderRow label="Cell Calibration" value={state.cellBrightness} onChange={value => setPresentation({ cellBrightness: value })} description="Advanced emitter calibration retained for compatibility." /></PixGridHistoryGesture>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Emitter halo strength." /></PixGridHistoryGesture>
-          </div>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
-          </div>
-          <div className="rv-pix-grid-design-control-help drm-help-overlay-anchor">
-            <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
-          </div>
+          <PixGridHistoryGesture><SliderRow label="Glow" value={state.glowAmount} onChange={value => setPresentation({ glowAmount: value })} description="Emitter halo strength." /></PixGridHistoryGesture>
+          <PixGridHistoryGesture><SliderRow label="Diffusion" value={state.diffusion} onChange={value => setPresentation({ diffusion: value })} description="Emitter edge softness." /></PixGridHistoryGesture>
+          <ToggleRow label="RGB Subpixels" value={state.rgbSubpixelMode} onChange={value => setPresentation({ rgbSubpixelMode: value })} />
           <ToggleRow label="Cell Guides" value={state.editor.guidesVisible} onChange={value => updateEditor({ guidesVisible: value })} />
         </DesignSection>
       )}

@@ -5,7 +5,6 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { migrateReactStore, useReactStore } from '../../../../stores/reactStore'
-import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactFxPanel } from '../ReactFxPanel'
 import { DEFAULT_OSCILLATOR_SETTINGS } from '../ReactTypes'
@@ -29,7 +28,6 @@ let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
 beforeEach(() => {
-  useContextualHelpStore.setState({ infoEnabled: true })
   useReactStore.getState().resetReactView()
   useReactStore.getState().setActiveReactEngineId('oscilloscope')
   container = document.createElement('div')
@@ -273,7 +271,6 @@ describe('Sound Drawing contextual help clean reset', () => {
     expect(container.textContent).toContain('Performance Show')
     expect(container.textContent).toContain('Auto Performance')
     expect(container.textContent).toContain('Complexity')
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
     expect(container.querySelector('.drm-priority-help-slot')).toBeNull()
     expect(document.body.querySelector('.drm-info-popover')).toBeNull()
   })
@@ -289,6 +286,5 @@ describe('Sound Drawing contextual help clean reset', () => {
     expect(toggle?.disabled).toBe(true)
     expect(row?.classList.contains('rv-ctrl-toggle-row--interactive-accessory')).toBe(false)
     expect(row?.querySelector('button[aria-haspopup="dialog"]')).toBeNull()
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })

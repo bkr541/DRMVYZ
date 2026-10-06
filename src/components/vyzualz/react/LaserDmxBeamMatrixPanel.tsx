@@ -50,142 +50,124 @@ export function LaserDmxBeamMatrixPanel() {
   return (
     <>
       {/* ── Program overview ────────────────────────────────────────────── */}
-      <div className="rv-laser-section-help drm-help-overlay-anchor">
-        <Collapsible label="Program" defaultOpen>
-          <div className="rv-bm-stats">
-            <span>Beams: <strong>{beamCount} / {LASER_DMX_MATRIX_MAX_BEAMS}</strong></span>
-            <span>Groups: <strong>{groupCount}</strong></span>
-            {selCount > 0 && <span className="rv-bm-sel-badge">{selCount} selected</span>}
-          </div>
+      <Collapsible label="Program" defaultOpen>
+        <div className="rv-bm-stats">
+          <span>Beams: <strong>{beamCount} / {LASER_DMX_MATRIX_MAX_BEAMS}</strong></span>
+          <span>Groups: <strong>{groupCount}</strong></span>
+          {selCount > 0 && <span className="rv-bm-sel-badge">{selCount} selected</span>}
+        </div>
 
-          <div className="rv-bm-toolbar">
+        <div className="rv-bm-toolbar">
+          <IconChipButton
+            disabled={atLimit}
+            title={atLimit ? `Beam limit (${LASER_DMX_MATRIX_MAX_BEAMS}) reached` : 'Add a new beam (choose origin and target in the editor)'}
+            aria-label="Add beam"
+            onClick={() => addLaserDmxMatrixBeam()}
+          >
+            + Add Beam
+          </IconChipButton>
+          {primaryId && (
             <IconChipButton
               disabled={atLimit}
-              title={atLimit ? `Beam limit (${LASER_DMX_MATRIX_MAX_BEAMS}) reached` : 'Add a new beam (choose origin and target in the editor)'}
-              aria-label="Add beam"
-              onClick={() => addLaserDmxMatrixBeam()}
+              title="Duplicate primary selected beam"
+              aria-label="Duplicate selected beam"
+              onClick={() => duplicateLaserDmxMatrixBeam(primaryId)}
             >
-              + Add Beam
-            </IconChipButton>
-            {primaryId && (
-              <IconChipButton
-                disabled={atLimit}
-                title="Duplicate primary selected beam"
-                aria-label="Duplicate selected beam"
-                onClick={() => duplicateLaserDmxMatrixBeam(primaryId)}
-              >
-                ⧉ Dup
-              </IconChipButton>
-            )}
-            {selCount > 0 && (
-              <>
-                <IconChipButton
-                  className="rv-glyph-upload-btn--danger"
-                  aria-label={`Delete ${selCount} selected beam${selCount !== 1 ? 's' : ''}`}
-                  onClick={() => setConfirmDeleteSelected(true)}
-                >
-                  × Del
-                </IconChipButton>
-                <IconChipButton
-                  aria-label="Clear beam selection"
-                  onClick={clearLaserDmxMatrixSelection}
-                >
-                  Desel
-                </IconChipButton>
-              </>
-            )}
-            <IconChipButton
-              aria-label="Select all beams"
-              onClick={() => setSelectedLaserDmxMatrixBeams(beams.map(b => b.id))}
-            >
-              All
-            </IconChipButton>
-          </div>
-
-          {/* ── Reset with confirmation ──────────────────────────────────── */}
-          {confirmReset ? (
-            <div className="rv-bm-confirm">
-              <span>Reset entire Beam Matrix program?</span>
-              <IconChipButton className="rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</IconChipButton>
-              <IconChipButton onClick={() => setConfirmReset(false)}>Cancel</IconChipButton>
-            </div>
-          ) : (
-            <IconChipButton
-              className="rv-bm-reset-btn"
-              onClick={handleReset}
-              aria-label="Reset Beam Matrix"
-            >
-              Reset Matrix
+              ⧉ Dup
             </IconChipButton>
           )}
-        </Collapsible>
-      </div>
+          {selCount > 0 && (
+            <>
+              <IconChipButton
+                className="rv-glyph-upload-btn--danger"
+                aria-label={`Delete ${selCount} selected beam${selCount !== 1 ? 's' : ''}`}
+                onClick={() => setConfirmDeleteSelected(true)}
+              >
+                × Del
+              </IconChipButton>
+              <IconChipButton
+                aria-label="Clear beam selection"
+                onClick={clearLaserDmxMatrixSelection}
+              >
+                Desel
+              </IconChipButton>
+            </>
+          )}
+          <IconChipButton
+            aria-label="Select all beams"
+            onClick={() => setSelectedLaserDmxMatrixBeams(beams.map(b => b.id))}
+          >
+            All
+          </IconChipButton>
+        </div>
+
+        {/* ── Reset with confirmation ──────────────────────────────────── */}
+        {confirmReset ? (
+          <div className="rv-bm-confirm">
+            <span>Reset entire Beam Matrix program?</span>
+            <IconChipButton className="rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</IconChipButton>
+            <IconChipButton onClick={() => setConfirmReset(false)}>Cancel</IconChipButton>
+          </div>
+        ) : (
+          <IconChipButton
+            className="rv-bm-reset-btn"
+            onClick={handleReset}
+            aria-label="Reset Beam Matrix"
+          >
+            Reset Matrix
+          </IconChipButton>
+        )}
+      </Collapsible>
 
       {/* ── Stage-wide visualizer guides ────────────────────────────────── */}
       <div className="rv-show-director-design-panel rv-laser-global-controls">
-        <div className="rv-laser-section-heading-help drm-help-overlay-anchor">
-          <CtrlSection label="Beam Matrix Design" />
-        </div>
+        <CtrlSection label="Beam Matrix Design" />
         <Collapsible label="Canvas" defaultOpen>
-          <div className="rv-laser-control-help drm-help-overlay-anchor">
-            <ToggleRow
-              label="Show Beam Editor"
-              value={editor.beamEditorVisible}
-              onChange={beamEditorVisible => setLaserDmxBeamMatrixEditorSettings({ beamEditorVisible })}
-              title="Show editing handles and Beam Matrix guides without affecting live laser output."
-            />
-          </div>
-          <div className="rv-laser-control-help drm-help-overlay-anchor">
-            <ToggleRow
-              label="Snap to Grid"
-              value={editor.snapEnabled}
-              onChange={snapEnabled => setLaserDmxBeamMatrixEditorSettings({ snapEnabled })}
-            />
-          </div>
-          <div className="rv-laser-control-help drm-help-overlay-anchor">
-            <ToggleRow
-              label="Show Grid"
-              value={editor.guidesVisible}
-              onChange={guidesVisible => setLaserDmxBeamMatrixEditorSettings({ guidesVisible })}
-              disabled={!editor.beamEditorVisible}
-            />
-          </div>
-          <div className="rv-laser-control-help drm-help-overlay-anchor">
-            <ToggleRow
-              label="Show Beam Paths"
-              value={editor.beamPathsVisible}
-              onChange={beamPathsVisible => setLaserDmxBeamMatrixEditorSettings({ beamPathsVisible })}
-              disabled={!editor.beamEditorVisible}
-              title="Show origin-to-target path lines in the editor."
-            />
-          </div>
-          <div className="rv-laser-control-help drm-help-overlay-anchor">
-            <SliderRow
-              label="Overscan"
-              value={editor.overscanAmount}
-              onChange={overscanAmount => setLaserDmxBeamMatrixEditorSettings({ overscanAmount })}
-              min={0}
-              max={0.5}
-              step={0.01}
-              color="#d8b95a"
-            />
-          </div>
+          <ToggleRow
+            label="Show Beam Editor"
+            value={editor.beamEditorVisible}
+            onChange={beamEditorVisible => setLaserDmxBeamMatrixEditorSettings({ beamEditorVisible })}
+            title="Show editing handles and Beam Matrix guides without affecting live laser output."
+          />
+          <ToggleRow
+            label="Snap to Grid"
+            value={editor.snapEnabled}
+            onChange={snapEnabled => setLaserDmxBeamMatrixEditorSettings({ snapEnabled })}
+          />
+          <ToggleRow
+            label="Show Grid"
+            value={editor.guidesVisible}
+            onChange={guidesVisible => setLaserDmxBeamMatrixEditorSettings({ guidesVisible })}
+            disabled={!editor.beamEditorVisible}
+          />
+          <ToggleRow
+            label="Show Beam Paths"
+            value={editor.beamPathsVisible}
+            onChange={beamPathsVisible => setLaserDmxBeamMatrixEditorSettings({ beamPathsVisible })}
+            disabled={!editor.beamEditorVisible}
+            title="Show origin-to-target path lines in the editor."
+          />
+          <SliderRow
+            label="Overscan"
+            value={editor.overscanAmount}
+            onChange={overscanAmount => setLaserDmxBeamMatrixEditorSettings({ overscanAmount })}
+            min={0}
+            max={0.5}
+            step={0.01}
+            color="#d8b95a"
+          />
         </Collapsible>
       </div>
 
       {/* ── Group inspector ─────────────────────────────────────────────── */}
-      <div className="rv-laser-section-help drm-help-overlay-anchor">
-        <Collapsible label="Reaction Groups" defaultOpen>
-          <LaserDmxReactionGroupInspector />
-        </Collapsible>
-      </div>
+      <Collapsible label="Reaction Groups" defaultOpen>
+        <LaserDmxReactionGroupInspector />
+      </Collapsible>
 
       {/* ── Cue list ────────────────────────────────────────────────────── */}
-      <div className="rv-laser-section-help drm-help-overlay-anchor">
-        <Collapsible label="Cue List" defaultOpen={false}>
-          <div className="rv-ctrl-info rv-control-helper-copy">Cue list controls appear here when authored timeline cues are available.</div>
-        </Collapsible>
-      </div>
+      <Collapsible label="Cue List" defaultOpen={false}>
+        <div className="rv-ctrl-info rv-control-helper-copy">Cue list controls appear here when authored timeline cues are available.</div>
+      </Collapsible>
 
       {confirmDeleteSelected && (
         <ConfirmDialog

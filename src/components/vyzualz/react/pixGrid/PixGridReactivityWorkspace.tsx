@@ -545,7 +545,7 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
   }
   return (
     <div data-testid={`pix-grid-${mode}-workspace`}>
-      <div className="rv-pix-grid-route-section-help drm-help-overlay-anchor">
+      <div className="rv-pix-grid-route-section">
         <Collapsible label={continuous ? 'CONTINUOUS ROUTES' : 'EVENT ROUTES'} defaultOpen>
           <div className="rv-pix-grid-summary-strip"><span><strong>{continuous ? program.continuousRoutes.length : program.eventRoutes.length}</strong> preset</span><span><strong>{selections.filter(item => item.kind === 'user').length}</strong> user</span><span><strong>{program.metadata.name}</strong> active</span></div>
           <div className="rv-ctrl-action-row"><IconChipButton onClick={() => addRoute()}>Add Route</IconChipButton><IconChipButton disabled={!selected} onClick={duplicate}>Duplicate</IconChipButton></div>
@@ -555,7 +555,7 @@ function RoutingOrEvents({ mode }: { mode: 'continuous' | 'event' }) {
       {selected?.kind === 'program-continuous' && <ProgramRouteEditor state={state} program={program} route={selected.route} continuous applyState={applyState} />}
       {selected?.kind === 'program-event' && <ProgramRouteEditor state={state} program={program} route={selected.route} continuous={false} applyState={applyState} />}
       {selected?.kind === 'user' && <UserRouteEditor state={state} selection={selected} applyState={applyState} />}
-      <div className="rv-pix-grid-route-section-help drm-help-overlay-anchor">
+      <div className="rv-pix-grid-route-section">
         <Collapsible label="SMART GROUP INTEGRATION" defaultOpen={false}>
           <SelectRow label="Selected Group" value={selectedGroup?.id ?? ''} options={state.groups.map(group => ({ value: group.id, label: group.name }))} disabled={state.groups.length === 0} onChange={groupId => applyState({ ...state, editor: { ...state.editor, selectedGroupId: groupId } })} />
           <div className="rv-pix-grid-origin-card"><strong>{selectedGroup?.name ?? 'No group selected'}</strong><span>{selectedGroup ? `${selectedGroup.cellRuns.reduce((sum, run) => sum + run[2], 0)} materialized cells · ${selectedGroup.mask.kind}` : 'Create a smart group in Design.'}</span><small>{selectedGroup ? `${groupRouteCount} targeting routes (${directGroupRouteCount} user · ${programGroupRouteCount} program) · mask ${maskCompilationStatus}` : 'Unavailable'}</small></div>
@@ -620,20 +620,12 @@ function ChoreographyPanel() {
   return (
     <div data-testid="pix-grid-choreography-workspace">
       <Collapsible label="PERFORMANCE PROGRAM" defaultOpen>
-        <div className="rv-pix-grid-react-control-help drm-help-overlay-anchor">
-          <SelectRow label="Change Performance Program Only" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.filter(item => item.id !== 'pix-grid-media-deck-performance').map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => changeProgramOnly(value as PixGridPerformanceProgramId)} description="Changes only the authored performance program and its overrides. Artwork and presentation settings remain unchanged." />
-        </div>
-        <div className="rv-pix-grid-react-control-help drm-help-overlay-anchor">
-          <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => setPerformance({ enabled })} />
-        </div>
-        <div className="rv-pix-grid-react-control-help drm-help-overlay-anchor">
-          <PixGridHistoryGesture><SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => setPerformance({ intensity })} /></PixGridHistoryGesture>
-        </div>
+        <SelectRow label="Change Performance Program Only" value={program.id} options={PIX_GRID_PERFORMANCE_PROGRAMS.filter(item => item.id !== 'pix-grid-media-deck-performance').map(item => ({ value: item.id, label: item.metadata.name }))} onChange={value => changeProgramOnly(value as PixGridPerformanceProgramId)} description="Changes only the authored performance program and its overrides. Artwork and presentation settings remain unchanged." />
+        <ToggleRow label="Auto Performance" value={state.performance.enabled} onChange={enabled => setPerformance({ enabled })} />
+        <PixGridHistoryGesture><SliderRow label="Performance Intensity" value={state.performance.intensity} onChange={intensity => setPerformance({ intensity })} /></PixGridHistoryGesture>
         <div className="rv-pix-grid-origin-card"><strong>{program.metadata.name}</strong><span>{program.metadata.description}</span><small>{program.visualRoles.length} visual roles · {program.bindings.length} bindings · {program.banks.length} banks</small></div>
         <div className="rv-pix-grid-live-card"><span>Active section <strong>{runtime?.activeSectionPlan ?? 'Waiting for analysis'}</strong></span><span>Motif <strong>{runtime?.activeProgramMotif ?? 'none'}</strong></span><span>Recruitment <strong>{runtime?.activeProgramRecruitment ?? 'none'}</strong></span><span>Evolution <strong>{runtime?.activeProgramEvolution ?? 'none'}</strong></span></div>
-        <div className="rv-pix-grid-react-control-help drm-help-overlay-anchor">
-          <SelectRow label="Section Plan" value={plan?.id ?? ''} options={program.sectionPlans.map(item => ({ value: item.id, label: `${label(item.id)} · ${item.sectionTypes.map(label).join('/')}` }))} onChange={setSectionId} />
-        </div>
+        <SelectRow label="Section Plan" value={plan?.id ?? ''} options={program.sectionPlans.map(item => ({ value: item.id, label: `${label(item.id)} · ${item.sectionTypes.map(label).join('/')}` }))} onChange={setSectionId} />
       </Collapsible>
       {plan && <SectionPlanEditor state={state} plan={plan} canDisable={enabledSectionCount > 1 || state.performance.programOverrides.sections[plan.id]?.enabled === false} applyState={applyState} />}
       <Collapsible label="VISUAL ROLES AND BANKS" defaultOpen={false}><div className="rv-pix-grid-inspection-list"><span>Roles: {program.visualRoles.map(label).join(' · ')}</span>{program.bindings.map(binding => <span key={binding.id}>{label(binding.id)}: {binding.target.kind} {label(binding.target.id)} → {binding.roles.map(label).join(', ')}</span>)}{program.banks.map(bank => <span key={bank.id}>{bank.label ?? label(bank.id)}: {bank.members.length} targets · {(bank.roles ?? []).map(label).join(', ')}</span>)}</div></Collapsible>

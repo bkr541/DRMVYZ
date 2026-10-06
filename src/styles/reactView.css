@@ -5411,172 +5411,22 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex: 1 1 auto;
 }
 
-/* Explicit Sound Drawing help anchors mirror the highlighted control bounds
-   without adding columns, padding, or interactive space to the controls. */
-.rv-workspace-tabs-wrap,
-.rv-sound-drawing-workspace-tabs-help,
-.rv-sound-drawing-control-help,
-.rv-sound-drawing-source-grid-help,
-.rv-sound-drawing-presets-help,
-.rv-sound-drawing-react-control-help {
+.rv-workspace-tabs-wrap {
   min-width: 0;
 }
 
-.rv-sound-drawing-workspace-tabs-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -7px;
-  --drm-help-overlay-right: -3px;
-  --drm-help-overlay-z: 30;
-}
-
-.rv-sound-drawing-control-help.drm-help-overlay-anchor,
-.rv-sound-drawing-source-grid-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -5px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-sound-drawing-react-control-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -7px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-sound-drawing-presets-help {
+/* Preset list blocks stack their cards with one gutter. */
+.rv-sound-drawing-presets-list,
+.rv-laser-presets-list,
+.rv-pix-grid-presets-list,
+.rv-canvas-presets-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.rv-sound-drawing-presets-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -9px;
-  --drm-help-overlay-right: -7px;
-  --drm-help-overlay-z: 28;
-}
-
-/* LaserDMX contextual-help anchors follow the same overlay model as Sound
-   Drawing: the icon floats outside the control's layout box and appears only
-   while its owning region is hovered, focused, or has an open popover. */
-.rv-laser-workspace-mode-help,
-.rv-laser-section-help,
-.rv-laser-section-heading-help,
-.rv-laser-control-help,
-.rv-laser-presets-help,
-.rv-laser-design-control-help,
-.rv-laser-performance-control-help {
-  min-width: 0;
-}
-
-.rv-laser-workspace-mode-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -5px;
-  --drm-help-overlay-z: 30;
-}
-
-.rv-laser-section-help.drm-help-overlay-anchor,
-.rv-laser-section-heading-help.drm-help-overlay-anchor,
-.rv-laser-control-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -5px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-laser-presets-help {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rv-laser-presets-help.drm-help-overlay-anchor,
-.rv-laser-design-control-help.drm-help-overlay-anchor,
-.rv-laser-performance-control-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -7px;
-  --drm-help-overlay-z: 28;
-}
-
-/* PixGrid contextual-help anchors keep the same visual language as the
-   Sound Drawing and LaserDMX rollouts while respecting the narrower rail
-   layouts used by authoring, design, presets, and reactivity controls. */
-.rv-pix-grid-workspace-tabs-help,
-.rv-pix-grid-authoring-control-help,
-.rv-pix-grid-authoring-section-help,
-.rv-pix-grid-presets-help,
-.rv-pix-grid-design-control-help,
-.rv-pix-grid-reactivity-tabs-help,
-.rv-pix-grid-route-section-help,
-.rv-pix-grid-react-control-help {
-  min-width: 0;
-}
-
-.rv-pix-grid-workspace-tabs-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -7px;
-  --drm-help-overlay-right: -3px;
-  --drm-help-overlay-z: 30;
-}
-
-.rv-pix-grid-authoring-control-help.drm-help-overlay-anchor,
-.rv-pix-grid-authoring-section-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -5px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-pix-grid-presets-help {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rv-pix-grid-presets-help.drm-help-overlay-anchor,
-.rv-pix-grid-design-control-help.drm-help-overlay-anchor,
-.rv-pix-grid-reactivity-tabs-help.drm-help-overlay-anchor,
-.rv-pix-grid-route-section-help.drm-help-overlay-anchor,
-.rv-pix-grid-react-control-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -7px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-pix-grid-reactivity-tabs-help {
+.rv-pix-grid-reactivity-tabs-wrap {
   flex: 0 0 auto;
-}
-
-/* CANVAS help anchors keep media, display, orchestration, recipe, and timing
-   icons outside normal layout flow while preserving the compact rail geometry. */
-.rv-canvas-workspace-tabs-help,
-.rv-canvas-source-help,
-.rv-canvas-presets-help,
-.rv-canvas-control-help,
-.rv-canvas-react-control-help,
-.rv-canvas-section-trigger-help {
-  min-width: 0;
-}
-
-.rv-canvas-workspace-tabs-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -7px;
-  --drm-help-overlay-right: -3px;
-  --drm-help-overlay-z: 30;
-}
-
-.rv-canvas-source-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -5px;
-  --drm-help-overlay-z: 28;
-}
-
-.rv-canvas-presets-help {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rv-canvas-presets-help.drm-help-overlay-anchor,
-.rv-canvas-control-help.drm-help-overlay-anchor,
-.rv-canvas-react-control-help.drm-help-overlay-anchor,
-.rv-canvas-section-trigger-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -7px;
-  --drm-help-overlay-z: 28;
 }
 
 .rv-context-workspace > .rv-left-tab-body {
@@ -5844,17 +5694,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
    compact lower workspace, and Stage Focus.
 ════════════════════════════════════════════════════════════════════════════ */
 
-/* Header help anchors float over their owning controls without changing the
-   header's flex measurements. The negative top offset matches the existing
-   lower-workspace contextual-help placement while keeping the icon inside the
-   Electron content viewport. */
-.rv-header-output-help.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -12px;
-  --drm-help-overlay-right: -9px;
-  --drm-help-overlay-z: 30;
-}
-
-.rv-header-output-help {
+.rv-header-output {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
@@ -6217,11 +6057,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
 }
 
-.rv-lower-workspace-tab-wrap.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -10px;
-  --drm-help-overlay-right: -9px;
-}
-
 .rv-lower-workspace-tabs button,
 .rv-stage-focus-btn {
   min-height: 26px;
@@ -6258,11 +6093,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.rv-lower-workspace-output-actions.drm-help-overlay-anchor {
-  --drm-help-overlay-top: -10px;
-  --drm-help-overlay-right: -9px;
 }
 
 .rv-canvas-cast-deferred {
@@ -6435,11 +6265,10 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: inset 0 -10px 22px rgba(0, 0, 0, 0.16);
 }
 
-.rv-track-map-strip--embedded .rv-timeline-lane.drm-help-overlay-anchor {
+.rv-track-map-strip--embedded .rv-timeline-lane--beats,
+.rv-track-map-strip--embedded .rv-timeline-lane--sections,
+.rv-track-map-strip--embedded .rv-timeline-lane--cues {
   overflow: visible;
-  --drm-help-overlay-top: -8px;
-  --drm-help-overlay-right: -8px;
-  --drm-help-overlay-z: 12;
 }
 
 .rv-timeline-detail-overview {
@@ -7322,7 +7151,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-card-label,
-.rv-shell > .vz-transport-dock--collapsed .vz-dock-help-region > .drm-help-info-trigger,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-track-row,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-reset-btn,
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-analyzed-label,
@@ -13246,7 +13074,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-pix-grid-reactivity-workspace > [data-testid] > .rv-ctrl-collapsible:first-child,
-.rv-pix-grid-reactivity-workspace > [data-testid] > .rv-pix-grid-route-section-help:first-child > .rv-ctrl-collapsible {
+.rv-pix-grid-reactivity-workspace > [data-testid] > .rv-pix-grid-route-section:first-child > .rv-ctrl-collapsible {
   margin-top: 0;
 }
 
@@ -13867,7 +13695,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.12);
 }
 
-/* Initial contextual-help integration for the Sound Drawing authored-show controls. */
+/* A row label and its optional accessory share one line. */
 .rv-ctrl-label-cluster {
   display: inline-flex;
   align-items: center;
@@ -21958,7 +21786,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-color: transparent;
 }
 
-.rv-shell > .vz-transport-dock .vz-dock-help-region + .vz-dock-help-region::before {
+.rv-shell > .vz-transport-dock .vz-dock-region + .vz-dock-region::before {
   content: '';
   position: absolute;
   z-index: 1;

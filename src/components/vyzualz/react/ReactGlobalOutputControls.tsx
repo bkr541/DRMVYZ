@@ -105,7 +105,7 @@ export function ReactGlobalOutputControls() {
   }
 
   return (
-    <div className="rv-header-output-help drm-help-overlay-anchor">
+    <div className="rv-header-output">
       <div className="rv-global-output" aria-label="Global performance output">
         <button
           type="button"

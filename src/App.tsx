@@ -11,7 +11,6 @@ import { productionOutputController } from './components/vyzualz/react/output/Pr
 import { startPixGridDeckCompilerRuntime } from './components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import { useMediaStore } from './stores/mediaStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
-import { useContextualHelpStore } from './features/contextualHelp/contextualHelpStore'
 import './stores/mediaDeletionGuardBootstrap'
 
 const VyzualzView = lazy(() =>
@@ -57,7 +56,6 @@ export default function App() {
       setAuthGate('authenticated')
       void useBrandKitStore.getState().initializeForUser(userId)
       void useAppearanceStore.getState().initializeForUser(userId)
-      void useContextualHelpStore.getState().initializeForUser(userId)
     }
 
     function deactivateUser() {
@@ -65,7 +63,6 @@ export default function App() {
       setAuthGate('signed-out')
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
-      useContextualHelpStore.getState().clearForSignedOut()
     }
 
     // Unconfigured environments get an explicit configuration gate. Authentication
@@ -73,7 +70,6 @@ export default function App() {
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
-      useContextualHelpStore.getState().clearForSignedOut()
       useMediaStore.getState().clear()
       setAuthGate('configuration-required')
       return

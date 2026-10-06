@@ -102,15 +102,13 @@ export function ReactFxPanel() {
     <>
       {showMasterIntensity && (
         isLaserDmx ? (
-          <div className="rv-laser-design-control-help drm-help-overlay-anchor">
-            <SliderRow
-              label="Preview Output Trim"
-              value={reactIntensity}
-              onChange={setReactIntensity}
-              color="#4ac7db"
-              description="Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output."
-            />
-          </div>
+          <SliderRow
+            label="Preview Output Trim"
+            value={reactIntensity}
+            onChange={setReactIntensity}
+            color="#4ac7db"
+            description="Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output."
+          />
         ) : (
           <SliderRow
             label={isPixGrid ? 'Authored Performance Trim' : 'Intensity'}
@@ -146,15 +144,13 @@ export function ReactFxPanel() {
       )}
       {showMasterGlow && (
         isLaserDmx ? (
-          <div className="rv-laser-design-control-help drm-help-overlay-anchor">
-            <SliderRow
-              label="Preview Glow Trim"
-              value={reactGlow}
-              onChange={setReactGlow}
-              color="#b84fc9"
-              description="Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it."
-            />
-          </div>
+          <SliderRow
+            label="Preview Glow Trim"
+            value={reactGlow}
+            onChange={setReactGlow}
+            color="#b84fc9"
+            description="Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it."
+          />
         ) : (
           <SliderRow
             label={isPixGrid ? 'Halo Radius' : 'Glow'}

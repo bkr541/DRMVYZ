@@ -101,7 +101,6 @@ import {
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
   type ReactLeftTab,
-  type ReactLowerSurface,
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
@@ -174,12 +173,6 @@ function StageFocusIcon() {
       <path d="M12 7.5v1.25M12 15.25v1.25M7.5 12h1.25M15.25 12h1.25" />
     </svg>
   )
-}
-
-function getLowerSurfaceHelpId(surface: ReactLowerSurface) {
-  if (surface === 'trackMap') return 'react.shared.trackMap.overview' as const
-  if (surface === 'performancePads') return 'react.shared.performancePads.overview' as const
-  return null
 }
 
 // Four top-level destinations keep the right rail compact and role-based.
@@ -870,13 +863,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               <header className="rv-context-workspace-header">
                 <ReactEngineBrowser presetName={activeEnginePresetName} />
               </header>
-              <div className={activeReactEngineId === 'oscilloscope'
-                ? 'rv-sound-drawing-workspace-tabs-help drm-help-overlay-anchor'
-                : activeReactEngineId === 'pixGrid'
-                  ? 'rv-pix-grid-workspace-tabs-help drm-help-overlay-anchor'
-                  : activeReactEngineId === 'canvas'
-                    ? 'rv-canvas-workspace-tabs-help drm-help-overlay-anchor'
-                  : 'rv-workspace-tabs-wrap'}>
+              <div className="rv-workspace-tabs-wrap">
                 <RailTabs
                   tabs={leftTabs}
                   activeTab={leftTab}
@@ -1094,9 +1081,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   onClick={() => setLowerWorkspaceCollapsed((value) => !value)}
                 />
                 <div className="rv-lower-workspace-tabs dv-underline-tabs" role="tablist" aria-label="Timeline surfaces">
-                  {lowerSurfaces.map((surface) => {
-                    const helpId = getLowerSurfaceHelpId(surface)
-                    const tab = (
+                  {lowerSurfaces.map((surface) => (
+                    <span key={surface} className="rv-lower-workspace-tab-wrap">
                       <button
                         type="button"
                         role="tab"
@@ -1109,23 +1095,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       >
                         {getReactLowerSurfaceLabel(surface)}
                       </button>
-                    )
-
-                    if (!helpId) return <span key={surface} className="rv-lower-workspace-tab-wrap">{tab}</span>
-
-                    return (
-                      <span
-                        key={surface}
-                        className="rv-lower-workspace-tab-wrap drm-help-overlay-anchor"
-                        role="presentation"
-                      >
-                        {tab}
-                      </span>
-                    )
-                  })}
+                    </span>
+                  ))}
                 </div>
                 <div className="rv-lower-workspace-actions">
-                  <div className="rv-lower-workspace-output-actions drm-help-overlay-anchor">
+                  <div className="rv-lower-workspace-output-actions">
                     <OutputCastControl canvas={outputCanvas} capability={outputCapability} />
                     <button
                       type="button"

@@ -699,7 +699,7 @@ export function VyzualzAudioDock({
     >
 
       {/* ── LEFT: sidebar + left-inspector footprint ─────────────────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-left vz-dock-card">
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
         {/* The play button sits where the track cover used to. */}
@@ -772,7 +772,7 @@ export function VyzualzAudioDock({
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-center vz-dock-card">
         <div className="vz-dock-waveform-wrap">
           <PeaksWaveformView
@@ -798,7 +798,7 @@ export function VyzualzAudioDock({
       </div>
 
       {/* ── RIGHT: BPM + TAP / CUE / SYNC ───────────────────────────── */}
-      <div className="vz-dock-help-region drm-help-overlay-anchor">
+      <div className="vz-dock-region">
       <div className="vz-dock-right vz-dock-card">
         <div className="vz-dock-right-main">
         {/* Column wrapper so the stale banner sits below the BPM block */}

@@ -22,7 +22,6 @@ import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { isSelectableReactEngineId } from '../reactEngineCatalog'
 import { useReactStore } from '../../../../stores/reactStore'
-import { useContextualHelpStore } from '../../../../features/contextualHelp/contextualHelpStore'
 import { useShaderPanelStore } from '../shaders/ui/shaderPanelStore'
 import { DEFAULT_SHADER_SCENE_ID } from '../shaders/scenes'
 
@@ -30,7 +29,6 @@ let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
 beforeEach(() => {
-  useContextualHelpStore.setState({ infoEnabled: true })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -130,7 +128,6 @@ describe('React right-rail groups', () => {
     expect(modGroups).toContain('Audio Reactivity▾')
     expect(modGroups).toContain('Frequency Response▾')
 
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 
   it('renders the two active LaserDMX React Master trims', async () => {
@@ -140,7 +137,6 @@ describe('React right-rail groups', () => {
 
     const labels = [...container.querySelectorAll('.rv-ctrl-label')].map(node => node.textContent?.trim())
     expect(labels).toEqual(expect.arrayContaining(['Preview Output Trim', 'Preview Glow Trim']))
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 
@@ -153,7 +149,6 @@ describe('LaserDMX Beam Matrix accessibility', () => {
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Select all beams"]')).not.toBeNull()
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Reset Beam Matrix"]')).not.toBeNull()
 
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 
@@ -192,7 +187,6 @@ describe('LaserDMX preset library', () => {
 
     await act(async () => root.render(<ReactPresetsPanel />))
 
-    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 

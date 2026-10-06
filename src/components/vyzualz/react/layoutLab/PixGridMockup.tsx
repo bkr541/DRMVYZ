@@ -1,7 +1,6 @@
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
-import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import { PIX_GRID_BUILT_IN_ASSETS } from '../pixGrid/PixGridArtwork'
 import type { ReactEngineId } from '../ReactTypes'
 import { MockEngineDropdown } from './MockEngineDropdown'
@@ -23,28 +22,19 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
 
   return (
     <div className="rv-pix-grid-authoring-panel" data-layout-lab-pix-grid="setup">
-      <div className="rv-pix-grid-authoring-control-help drm-help-overlay-anchor">
-        <button
-          type="button"
-          className={state.editOpen ? 'rv-pix-grid-edit-toggle is-active' : 'rv-pix-grid-edit-toggle'}
-          aria-pressed={state.editOpen}
-          onClick={() => state.setEditOpen(!state.editOpen)}
-        >
-          {state.editOpen ? 'Close PixGrid Edit' : 'Edit PixGrid'}
-        </button>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.editOverlay"
-          currentValue={state.editOpen ? 'Open' : 'Closed'}
-          currentValueLabel="Status"
-          currentValueTone={state.editOpen ? 'accent' : 'default'}
-          placement="right"
-        />
-      </div>
+      <button
+        type="button"
+        className={state.editOpen ? 'rv-pix-grid-edit-toggle is-active' : 'rv-pix-grid-edit-toggle'}
+        aria-pressed={state.editOpen}
+        onClick={() => state.setEditOpen(!state.editOpen)}
+      >
+        {state.editOpen ? 'Close PixGrid Edit' : 'Edit PixGrid'}
+      </button>
       <div className="rv-ctrl-info rv-pix-grid-authoring-hint rv-control-helper-copy">
         Edit on the center canvas. Changes save automatically.
       </div>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid scenes">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid scenes">
         <header><strong>SCENES</strong><span>{state.scenes.length}</span></header>
         <div className="rv-pix-grid-scene-list">
           {state.scenes.map(scene => (
@@ -76,15 +66,9 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
           <button type="button" onClick={state.duplicateScene}>Duplicate</button>
           <button type="button" disabled={state.scenes.length <= 1} onClick={state.deleteScene}>Delete</button>
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.scenes"
-          currentValue={`${state.activeScene.name} · ${state.scenes.length} scene${state.scenes.length === 1 ? '' : 's'}`}
-          currentValueTone="accent"
-          placement="right"
-        />
       </section>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid layers">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid layers">
         <header><strong>LAYERS</strong><span>{state.activeLayers.length}</span></header>
         <div className="rv-pix-grid-layer-list">
           {state.activeLayers.map((layer, index) => (
@@ -111,17 +95,9 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
           ))}
           {state.activeLayers.length === 0 && <p>No layers in this scene.</p>}
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.layers"
-          currentValue={state.selectedLayer
-            ? `${state.selectedLayer.name} selected · ${state.activeLayers.length} layer${state.activeLayers.length === 1 ? '' : 's'}`
-            : `${state.activeLayers.length} layer${state.activeLayers.length === 1 ? '' : 's'} · none selected`}
-          currentValueTone={state.selectedLayer ? 'accent' : 'default'}
-          placement="right"
-        />
       </section>
 
-      <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid built-in artwork">
+      <section className="rv-pix-grid-browser-section" aria-label="PixGrid built-in artwork">
         <header><strong>BUILT-INS</strong><span>{PIX_GRID_BUILT_IN_ASSETS.length}</span></header>
         <div className="rv-pix-grid-built-in-grid">
           {PIX_GRID_BUILT_IN_ASSETS.map(asset => (
@@ -131,11 +107,6 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
             </button>
           ))}
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.builtIns"
-          currentValue={`${PIX_GRID_BUILT_IN_ASSETS.length} built-in artwork source${PIX_GRID_BUILT_IN_ASSETS.length === 1 ? '' : 's'}`}
-          placement="right"
-        />
       </section>
 
       <div className="rv-ctrl-info rv-control-helper-copy">
@@ -282,18 +253,13 @@ export function PixGridMockup({
         <header className="rv-context-workspace-header">
           <MockEngineDropdown engineId={engineId} onSelect={onSelectEngine} />
         </header>
-        <div className="rv-pix-grid-workspace-tabs-help drm-help-overlay-anchor">
+        <div className="rv-workspace-tabs-wrap">
           <RailTabs
             tabs={composition.leftTabs}
             activeTab={leftTab}
             onChange={setLeftTab}
             ariaLabel="PixGrid workspace tabs"
             className="rv-context-workspace-tabs"
-          />
-          <HelpInfoTrigger
-            helpId="react.pixGrid.workspace.tabs"
-            currentValue={composition.leftTabs.find(tab => tab.id === leftTab)?.label ?? 'Setup'}
-            placement="right"
           />
         </div>
         <div className="rv-left-tab-body">

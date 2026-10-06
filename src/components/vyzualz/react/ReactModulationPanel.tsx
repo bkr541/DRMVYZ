@@ -738,24 +738,20 @@ export function ReactModulationPanel() {
       {showAudioReactivity && (
         <DualRailCollapsible label="Audio Reactivity" defaultOpen>
           {soundDrawingCapabilities.audioDisplaceMode && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <div className="rv-ctrl-row">
-                <Dropdown
-                  id="sound-drawing-displace-mode"
-                  label="Displace Mode"
-                  menuLabel="Displace Modes"
-                  value={osc.audioDisplaceMode}
-                  onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
-                  options={SOUND_DRAWING_DISPLACE_MODE_OPTIONS}
-                  size="compact"
-                />
-              </div>
+            <div className="rv-ctrl-row">
+              <Dropdown
+                id="sound-drawing-displace-mode"
+                label="Displace Mode"
+                menuLabel="Displace Modes"
+                value={osc.audioDisplaceMode}
+                onChange={v => set({ audioDisplaceMode: v as OscillatorAudioDisplaceMode })}
+                options={SOUND_DRAWING_DISPLACE_MODE_OPTIONS}
+                size="compact"
+              />
             </div>
           )}
           {soundDrawingCapabilities.audioDisplacement && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
-            </div>
+            <SliderRow label="Displacement" value={osc.audioDisplacement} onChange={v => set({ audioDisplacement: v })} color="#4ac7db" />
           )}
         </DualRailCollapsible>
       )}
@@ -811,34 +807,24 @@ export function ReactModulationPanel() {
       {showFrequencyResponse && (
         <DualRailCollapsible label="Frequency Response" defaultOpen>
           {soundDrawingCapabilities.bassScale && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
-            </div>
+            <SliderRow label="Bass → Scale" value={osc.bassScale} onChange={v => set({ bassScale: v })} color="#d8b95a" />
           )}
           {soundDrawingCapabilities.midTwist && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <SliderRow label="Mid → Twist" value={osc.midTwist} onChange={v => set({ midTwist: v })} color="#61d6aa" />
-            </div>
+            <SliderRow label="Mid → Twist" value={osc.midTwist} onChange={v => set({ midTwist: v })} color="#61d6aa" />
           )}
           {soundDrawingCapabilities.altTwist && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <ToggleRow
-                label="Alternate"
-                value={osc.altTwist}
-                onChange={v => set({ altTwist: v })}
-                title="Randomly alternate twist direction on each beat"
-              />
-            </div>
+            <ToggleRow
+              label="Alternate"
+              value={osc.altTwist}
+              onChange={v => set({ altTwist: v })}
+              title="Randomly alternate twist direction on each beat"
+            />
           )}
           {soundDrawingCapabilities.highJitter && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
-            </div>
+            <SliderRow label="High → Jitter" value={osc.highJitter} onChange={v => set({ highJitter: v })} color="#b84fc9" />
           )}
           {soundDrawingCapabilities.beatBloom && (
-            <div className="rv-sound-drawing-react-control-help drm-help-overlay-anchor">
-              <SliderRow label="Beat → Bloom" value={osc.beatBloom} onChange={v => set({ beatBloom: v })} color="#c0314a" />
-            </div>
+            <SliderRow label="Beat → Bloom" value={osc.beatBloom} onChange={v => set({ beatBloom: v })} color="#c0314a" />
           )}
         </DualRailCollapsible>
       )}

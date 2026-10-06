@@ -6,5 +6,3 @@ export type {
   InfoPopoverSection,
   InfoPopoverTone,
 } from './InfoPopover'
-export { HelpInfoTrigger, HelpLabel } from './HelpInfoTrigger'
-export type { HelpInfoTriggerProps, HelpLabelProps } from './HelpInfoTrigger'
