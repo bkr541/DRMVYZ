@@ -759,6 +759,7 @@
 .lyric-cue-list__empty { padding: 22px; text-align: center; color: rgba(196,207,211,0.4); }
 
 .lyric-cue-inspector { padding: 10px; }
+.lmv-inspector-pane > .lyric-cue-inspector { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .lyric-cue-inspector__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .lyric-cue-inspector__wide { grid-column: 1 / -1; }
 .lyric-cue-inspector__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -2495,14 +2496,6 @@
   letter-spacing: 0.04em;
 }
 
-.lmv-preview-note {
-  min-width: 0;
-  overflow: hidden;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ── Track Timeline window (center column) ───────────────────────────── */
 
 .lmv-track-timeline-window,
@@ -2619,7 +2612,8 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 14px 20px;
+  /* 12px here + the group's own 12px puts the first heading 24px under the tabs, as in the other rails. */
+  padding: 12px 14px 20px;
   display: flex;
   flex-direction: column;
   /* Groups space themselves (each .drc-group reserves 12px above its heading). */
@@ -3028,31 +3022,25 @@
 
 .lmv-review-summary {
   flex: 0 0 auto;
-  padding: 10px 14px 12px;
+  padding: 0 14px 12px;
   border-top: 1px solid rgba(126,218,232,0.12);
   background: rgba(8,15,18,0.6);
 }
 
-.lmv-review-summary__title {
-  margin-bottom: 6px;
-  color: rgba(232,244,248,0.85);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
+/* Rows follow the Versions list: flat, hairline-separated, edge to edge. */
 .lmv-review-summary__row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 14px;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid rgba(126,218,232,0.1);
-  border-radius: 5px;
-  background: rgba(255,255,255,0.02);
+  width: calc(100% + 28px);
+  min-height: 36px;
+  margin: 0 -14px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: rgba(196,207,211,0.75);
   font-family: inherit;
   font-size: 10px;
@@ -3060,10 +3048,20 @@
   text-align: left;
   text-transform: uppercase;
   cursor: pointer;
+  transition: background 0.15s;
 }
 
-.lmv-review-summary__row + .lmv-review-summary__row { margin-top: 5px; }
-.lmv-review-summary__row:hover { border-color: rgba(74,199,219,0.4); background: rgba(74,199,219,0.07); }
+.lmv-review-summary__row::after {
+  content: '';
+  position: absolute;
+  right: 24px;
+  bottom: 0;
+  left: 24px;
+  height: 1px;
+  background: rgba(154,178,188,0.14);
+  pointer-events: none;
+}
+.lmv-review-summary__row:hover { background: rgba(255,255,255,0.03); }
 .lmv-review-summary__row strong { font-size: 13px; font-variant-numeric: tabular-nums; }
 .lmv-review-summary__row--error strong { color: #e05a5a; }
 .lmv-review-summary__row--warn strong { color: #d8b95a; }

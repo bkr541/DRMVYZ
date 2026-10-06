@@ -1821,6 +1821,7 @@ export function LyricManagerView({
     trackId: runtimeTrackId,
     trackUrl: runtimeTrackUrl,
     decodedBuffer,
+    savedPeaks: selectedTrack?.waveformPeaks ?? null,
     durationMs: editorDurationMs,
     currentTimeMs: selectedTrackLoaded ? currentAudioTimeMs : null,
     getCurrentTimeMs: getCurrentAudioTimeMs,

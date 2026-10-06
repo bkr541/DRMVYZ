@@ -142,6 +142,7 @@ export async function loadLyricManagerTrackById(
     activeLyricDocumentName: active?.title ?? null,
     needsReview: versions.some(version => !['reviewed', 'corrected'].includes((version.documentReviewStatus ?? '').toLowerCase())),
     analysisPayload: analysis,
+    waveformPeaks: analysesResult.error ? null : (analysesResult.rows[0]?.waveform_peaks ?? null),
   }
 }
 
@@ -160,12 +161,14 @@ export async function loadLyricManagerTrackPage(
   ])
   const versionsByTrack = new Map<string, LyricDocumentVersion[]>()
   const analysisByTrack = new Map<string, TrackIntelligenceAnalysis | null>()
+  const peaksByTrack = new Map<string, number[] | null>()
 
   if (analysesResult.error) {
     console.warn('[LyricManager] track analysis hydration failed:', analysesResult.error)
   } else {
     for (const row of analysesResult.rows) {
       analysisByTrack.set(row.track_id, normalizeTrackAnalysisPayload(row.analysis_payload))
+      peaksByTrack.set(row.track_id, row.waveform_peaks ?? null)
     }
   }
 
@@ -188,6 +191,7 @@ export async function loadLyricManagerTrackPage(
         activeLyricDocumentName: active?.title ?? null,
         needsReview: trackVersions.some(version => !['reviewed', 'corrected'].includes((version.documentReviewStatus ?? '').toLowerCase())),
         analysisPayload: analysisByTrack.get(track.dbId) ?? null,
+        waveformPeaks: peaksByTrack.get(track.dbId) ?? null,
       }
     }),
   }

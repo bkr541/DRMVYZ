@@ -12,6 +12,7 @@ import {
 import type { AudioTrack } from '../types/database'
 import type { PreparedTranscriptionAudioManifest } from '../types/audio'
 import { getFilenameWithoutExtension } from '../utils/audioUtils'
+import { persistUploadedTrackAnalysis } from '../audio/persistUploadedTrackAnalysis'
 import type { AudioFileAnalysis } from '../utils/analyzeAudioFile'
 import { runtimeIdForAudioTrack } from '../audio/runtimeTrack'
 import { deleteAudioTrackCanonical, retryPendingAudioCleanup } from '../lib/audioTrackDeletion'
@@ -228,6 +229,10 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
           band_air:         null,
         }).catch(e => console.warn('[audioStore] track_analyses insert:', e))
       }
+
+      // Full analysis + waveform peaks run in the background so the upload itself isn't held up.
+      void persistUploadedTrackAnalysis(dbId, file)
+        .catch(e => console.warn('[audioStore] upload analysis persist:', e))
 
       const saved: SavedAudioTrack = {
         id:           runtimeIdForAudioTrack(dbId),

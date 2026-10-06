@@ -15,6 +15,8 @@ export interface LyricManagerTrack extends SavedAudioTrack {
   needsReview?: boolean
   /** Hydrated full MI analysis, when available from track_analyses.analysis_payload. */
   analysisPayload?: TrackIntelligenceAnalysis | null
+  /** Stored waveform peaks (track_analyses.waveform_peaks) so the timeline can draw an unloaded track. */
+  waveformPeaks?: number[] | null
 }
 
 export interface LyricManagerTrackPage {

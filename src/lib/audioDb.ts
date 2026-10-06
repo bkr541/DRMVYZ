@@ -140,6 +140,7 @@ export async function createTrackAnalysis(insert: TrackAnalysisInsert): Promise<
 export async function upsertTrackAnalysisPayload(
   trackId: string,
   analysis: TrackIntelligenceAnalysis,
+  waveformPeaks?: number[] | null,
 ): Promise<DbMutateResult> {
   if (!supabaseConfigured) return { error: 'Supabase not configured' }
   const { error } = await db
@@ -157,7 +158,8 @@ export async function upsertTrackAnalysisPayload(
       dynamic_range:     null,
       stereo_width:      null,
       phase_correlation: null,
-      waveform_peaks:    null,
+      // Omitted unless provided so re-analysis on load never wipes the stored peaks.
+      ...(waveformPeaks ? { waveform_peaks: waveformPeaks } : {}),
       spectrum_avg:      null,
       band_bass:         null,
       band_low_mid:      null,
@@ -173,15 +175,15 @@ export async function upsertTrackAnalysisPayload(
 
 export async function listTrackAnalysisPayloads(
   trackIds: string[],
-): Promise<DbListResult<Pick<TrackAnalysisRow, 'track_id' | 'analysis_payload' | 'bpm' | 'bpm_confidence'>>> {
+): Promise<DbListResult<Pick<TrackAnalysisRow, 'track_id' | 'analysis_payload' | 'waveform_peaks' | 'bpm' | 'bpm_confidence'>>> {
   const ids = Array.from(new Set(trackIds.filter(Boolean)))
   if (!ids.length) return { rows: [], error: null }
   const { data, error } = await db
     .from('track_analyses')
-    .select('track_id,analysis_payload,bpm,bpm_confidence')
+    .select('track_id,analysis_payload,waveform_peaks,bpm,bpm_confidence')
     .in('track_id', ids)
   return {
-    rows: (data as Pick<TrackAnalysisRow, 'track_id' | 'analysis_payload' | 'bpm' | 'bpm_confidence'>[] | null) ?? [],
+    rows: (data as Pick<TrackAnalysisRow, 'track_id' | 'analysis_payload' | 'waveform_peaks' | 'bpm' | 'bpm_confidence'>[] | null) ?? [],
     error: error?.message ?? null,
   }
 }

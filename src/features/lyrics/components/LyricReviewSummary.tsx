@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { getLyricReviewSummary } from '../utils/lyricReviewSummary'
 import type { LyricCue } from '../../../types/lyrics'
 
@@ -19,7 +20,7 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
 
   return (
     <section className="lmv-review-summary" aria-label="Review and validation summary">
-      <div className="lmv-review-summary__title">Review &amp; Validation</div>
+      <Collapsible label="Review & Validation">
       {rows.map(row => (
         <button
           key={row.id}
@@ -33,6 +34,7 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
           <span aria-hidden="true">›</span>
         </button>
       ))}
+      </Collapsible>
     </section>
   )
 }

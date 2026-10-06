@@ -39,6 +39,8 @@ export interface UseLyricCueEditorParams {
   trackId: string | null
   trackUrl: string | null
   decodedBuffer?: AudioBuffer | null
+  /** Stored peaks used until the track is loaded and decoded. */
+  savedPeaks?: number[] | null
   durationMs: number
   currentTimeMs: number | null
   getCurrentTimeMs?: () => number | null
@@ -85,6 +87,7 @@ export function useLyricCueEditor({
   trackId,
   trackUrl,
   decodedBuffer,
+  savedPeaks,
   durationMs,
   currentTimeMs,
   getCurrentTimeMs,
@@ -144,7 +147,8 @@ export function useLyricCueEditor({
   const orderedCues = useMemo(() => sortLyricCues(cues), [cues])
   const selectedIndex = selectedCue ? orderedCues.findIndex(cue => cue.id === selectedCue.id) : -1
   const wordBoundaryMs = useMemo(() => cueWordBoundaries(selectedCue), [selectedCue])
-  const { peaks, loading } = useWaveformPeaks(trackId, decodedBuffer, trackUrl)
+  const { peaks: livePeaks, loading } = useWaveformPeaks(trackId, decodedBuffer, trackUrl)
+  const peaks = livePeaks ?? savedPeaks ?? null
   const overlaySource = useMemo(
     () => buildTimelineOverlaySource(analysis, timelineSections),
     [analysis, timelineSections],

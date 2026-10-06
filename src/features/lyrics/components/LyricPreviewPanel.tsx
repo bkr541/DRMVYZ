@@ -176,7 +176,6 @@ export function LyricLivePreviewPanel({
   const previewCue = isPlaying && activeCue ? activeCue : selectedCue ?? activeCue
   const selectedIndex = previewCue ? cues.findIndex(cue => cue.id === previewCue.id) : -1
   const progressPercent = calculateLyricCueProgress(currentAudioTimeMs, previewCue, globalOffsetMs)
-  const previewNote = `Auditions this version in ${previewDestination}. It does not become Active.`
 
   return (
     <div className="lmv-live-preview-body">
@@ -197,8 +196,7 @@ export function LyricLivePreviewPanel({
           className="lmv-preview-viz-btn"
           onClick={onPreviewLyrics}
           disabled={!hasTimedCues}
-          aria-describedby="lmv-preview-note"
-          title={hasTimedCues ? `Preview Lyrics — ${previewNote}` : 'No cues to preview. Import or create lyric cues first.'}
+          title={hasTimedCues ? `Preview Lyrics — auditions this version in ${previewDestination}. It does not become Active.` : 'No cues to preview. Import or create lyric cues first.'}
           aria-label="Preview Lyrics"
           icon={<ViewIcon size={14} color="currentColor" />}
         />
@@ -208,7 +206,6 @@ export function LyricLivePreviewPanel({
               ? `${isPlaying && activeCue?.id === previewCue.id ? 'Playing cue' : 'Cue'} ${selectedIndex + 1} / ${cues.length} · ${formatMsCompact(toEffectiveLyricTimeMs(previewCue.startMs, globalOffsetMs))} – ${formatMsCompact(toEffectiveLyricTimeMs(previewCue.endMs, globalOffsetMs))}`
               : ''}
           </span>
-          <span id="lmv-preview-note" className="lmv-preview-note">{previewNote}</span>
         </div>
         <div
           className="lmv-preview-progress"
