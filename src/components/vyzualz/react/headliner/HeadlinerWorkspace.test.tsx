@@ -396,6 +396,25 @@ describe('Headliner production workspace controls', () => {
     expect(useReactStore.getState().headlinerSettings.presetId).toBe('ghost-trails')
   })
 
+  it('falls back to Clean Playback when the active preset is clicked again, and Design shows no controls', async () => {
+    await act(async () => root.render(<HeadlinerPresetsPanel />))
+    const card = () => container.querySelector<HTMLElement>('[data-headliner-preset-id="motion-echo"]')
+    expect(useReactStore.getState().headlinerSettings.presetId).toBe('motion-echo')
+
+    await act(async () => card()?.click())
+    expect(useReactStore.getState().headlinerSettings.presetId).toBeNull()
+
+    await act(async () => root.render(<HeadlinerDesignPanel />))
+    expect(container.querySelector('[data-headliner-design-preset="clean-playback"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('Master Intensity')
+    expect(container.querySelectorAll('.rv-ctrl-info')).toHaveLength(4)
+
+    // Picking a preset again loads it.
+    await act(async () => root.render(<HeadlinerPresetsPanel />))
+    await act(async () => card()?.click())
+    expect(useReactStore.getState().headlinerSettings.presetId).toBe('motion-echo')
+  })
+
   it('fills the four Design groups from the active preset, with Master Intensity and BPM Sync in Master Controls', async () => {
     await act(async () => root.render(<HeadlinerDesignPanel />))
     const groups = container.querySelector('[data-headliner-design-groups]')

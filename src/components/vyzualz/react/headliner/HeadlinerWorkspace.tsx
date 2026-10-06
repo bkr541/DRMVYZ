@@ -26,6 +26,7 @@ import {
   HEADLINER_GROUP_LABELS,
   HEADLINER_GROUP_ORDER,
   HEADLINER_PRESETS,
+  resolveHeadlinerPresetClick,
   getHeadlinerBoolean,
   getHeadlinerPreset,
   isHeadlinerParameterVisible,
@@ -152,8 +153,13 @@ export function HeadlinerSurface({
         const current = runtime.getSnapshot()
         const source = runtime.getFrameSource()
         let effect = null
-        if (source) {
-          const { presetId: activePresetId, parameterOverrides: overrides, audio: audioInput } = effectInputRef.current
+        const { presetId: activePresetId, parameterOverrides: overrides, audio: audioInput } = effectInputRef.current
+        if (activePresetId === null && effectRef.current) {
+          // Clean Playback: drop the previous preset's buffers and show the plain camera.
+          effectRef.current.processor.dispose()
+          effectRef.current = null
+        }
+        if (source && activePresetId !== null) {
           if (effectRef.current?.presetId !== activePresetId) {
             effectRef.current?.processor.dispose()
             effectRef.current = { presetId: activePresetId, processor: createHeadlinerEffectProcessor(getHeadlinerPreset(activePresetId).id) }
@@ -320,7 +326,7 @@ export function HeadlinerPresetsPanel() {
             palette={[{ color: preset.tone }]}
             isActive={preset.id === activePresetId}
             activateLabel={`Load ${preset.name}`}
-            onActivate={() => setHeadlinerSettings({ presetId: preset.id })}
+            onActivate={() => setHeadlinerSettings({ presetId: resolveHeadlinerPresetClick(preset.id, activePresetId) })}
             dataAttributes={{ 'data-headliner-preset-id': preset.id }}
           />
         ))}
@@ -406,32 +412,34 @@ function HeadlinerParameterControl({
   }
 }
 
-/** The standard four Design groups, filled from the active preset's parameters. */
+/** The standard four Design groups, filled from the active preset's parameters (empty on Clean Playback). */
 export function HeadlinerDesignPanel() {
   const presetId = useReactStore(state => state.headlinerSettings.presetId)
   const overrides = useReactStore(state => state.headlinerSettings.parameters)
   const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
-  const preset = getHeadlinerPreset(presetId)
-  const values: HeadlinerParameterValues = resolveHeadlinerParameters(preset.id, overrides[preset.id])
-  const hasOverrides = Object.keys(overrides[preset.id] ?? {}).length > 0
+  const preset = presetId === null ? null : getHeadlinerPreset(presetId)
+  const values: HeadlinerParameterValues = preset ? resolveHeadlinerParameters(preset.id, overrides[preset.id]) : {}
+  const hasOverrides = preset !== null && Object.keys(overrides[preset.id] ?? {}).length > 0
 
   const setValue = (id: string, value: HeadlinerParameterValue) => {
+    if (!preset) return
     setHeadlinerSettings({
       parameters: { ...overrides, [preset.id]: { ...(overrides[preset.id] ?? {}), [id]: value } },
     })
   }
   const resetParameters = () => {
+    if (!preset) return
     const { [preset.id]: _removed, ...rest } = overrides
     setHeadlinerSettings({ parameters: rest })
   }
 
   return (
-    <div className="rv-workspace-panel rv-headliner-workspace-panel" data-headliner-design-preset={preset.id}>
+    <div className="rv-workspace-panel rv-headliner-workspace-panel" data-headliner-design-preset={preset?.id ?? 'clean-playback'}>
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-group" data-headliner-design-groups="master-controls design effects palette">
             {HEADLINER_GROUP_ORDER.map(group => {
-              const controls = preset.parameters.filter(definition => (
+              const controls = (preset?.parameters ?? []).filter(definition => (
                 definition.group === group && isHeadlinerParameterVisible(definition, values)
               ))
               return (
@@ -440,7 +448,7 @@ export function HeadlinerDesignPanel() {
                     <div className="rv-ctrl-info">No controls yet.</div>
                   ) : controls.map(definition => (
                     <HeadlinerParameterControl
-                      key={`${preset.id}:${definition.id}`}
+                      key={`${preset?.id}:${definition.id}`}
                       definition={definition}
                       value={values[definition.id]}
                       onChange={value => setValue(definition.id, value)}

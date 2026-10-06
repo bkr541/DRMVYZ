@@ -6,8 +6,22 @@ import {
   isHeadlinerParameterVisible,
   normalizeHeadlinerParameterOverrides,
   resolveHeadlinerParameters,
+  resolveHeadlinerPresetClick,
 } from './HeadlinerEffectCatalog'
 import { DEFAULT_HEADLINER_SETTINGS, normalizeHeadlinerSettings } from './HeadlinerSettings'
+
+describe('Headliner Clean Playback', () => {
+  it('toggles the active preset off to Clean Playback and otherwise selects the clicked preset', () => {
+    expect(resolveHeadlinerPresetClick('motion-echo', 'motion-echo')).toBeNull()
+    expect(resolveHeadlinerPresetClick('ghost-trails', 'motion-echo')).toBe('ghost-trails')
+    expect(resolveHeadlinerPresetClick('velocity-smear', null)).toBe('velocity-smear')
+  })
+
+  it('keeps Clean Playback (null) through settings normalization, and still rejects unknown ids', () => {
+    expect(normalizeHeadlinerSettings({ presetId: null }).presetId).toBeNull()
+    expect(normalizeHeadlinerSettings({ presetId: 'nope' }).presetId).toBe(DEFAULT_HEADLINER_SETTINGS.presetId)
+  })
+})
 
 describe('Headliner effect catalog', () => {
   it('ships the first three effects of the POV effects document, in priority order', () => {

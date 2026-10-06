@@ -22320,3 +22320,207 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lldl-c6 { display: grid; grid-template-rows: 28px 32px; row-gap: 12px; }
 .lldl-c6-strip { display: grid; grid-template-columns: 32px 36px minmax(0, 1fr); align-items: center; column-gap: 12px; }
 .lldl-c6-strip .lldl-play { justify-self: center; }
+
+/* ── Dock Right Group Style Gallery (Layout Lab / Template, middle section) ── */
+/* Six concepts for the audio dock's rightmost card, each at the same 314 × 96 footprint (288 × 70 inside the 12px inset) as the
+   left-group concepts. Reuses the .lldl-card / .lldl-stage / .lldl-grid scaffold; every concept sits on a 4px grid with 6–12px gutters. */
+
+.lldr-label {
+  flex: none;
+  color: var(--lldl-ink-dim);
+  font: 700 9.5px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.lldr-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--lldl-cyan-bright);
+  font: 800 22px/1 var(--az-font, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lldr-readout { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.lldr-readout--large .lldr-value { font-size: 28px; }
+.lldr-readout--center { justify-content: center; }
+.lldr-reset {
+  align-self: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--lldl-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--lldl-ink-dim);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lldr-reset:hover { border-color: rgba(74, 199, 219, 0.55); color: var(--lldl-cyan-bright); }
+
+/* BPM scrub bar */
+.lldr-scrub {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 999px;
+  outline: none;
+  cursor: ew-resize;
+  background: linear-gradient(to right,
+    rgba(74, 199, 219, 0.5) 0%,
+    var(--lldl-cyan) var(--pct, 0%),
+    rgba(255, 255, 255, 0.1) var(--pct, 0%),
+    rgba(255, 255, 255, 0.1) 100%);
+}
+.lldr-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #eaf9fc;
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.28);
+}
+.lldr-scrub:disabled { cursor: default; opacity: 0.4; }
+.lldr-scrub:disabled::-webkit-slider-thumb { opacity: 0; }
+
+/* Action keys: each fills the grid cell its concept gives it. */
+.lldr-key {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--lldl-line);
+  border-radius: 9px;
+  background: var(--lldl-fill);
+  color: var(--lldl-ink-dim);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.lldr-key:hover:not(:disabled) { border-color: rgba(74, 199, 219, 0.55); background: rgba(74, 199, 219, 0.1); color: var(--lldl-cyan-bright); }
+.lldr-key:disabled { opacity: 0.32; cursor: default; }
+.lldr-key.is-on { border-color: rgba(74, 199, 219, 0.55); background: rgba(74, 199, 219, 0.14); color: var(--lldl-cyan-bright); }
+.lldr-key.is-pulse { border-color: rgba(103, 247, 255, 0.7); background: rgba(74, 199, 219, 0.3); color: #eaf9fc; box-shadow: 0 0 14px rgba(74, 199, 219, 0.35); }
+.lldr-key-text {
+  font: 800 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.lldr-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #67f7ff;
+  box-shadow: 0 0 6px rgba(103, 247, 255, 0.8);
+}
+.lldr-ghost { border: 1px dashed rgba(154, 178, 188, 0.22); border-radius: 9px; }
+
+/* 01 · Key Matrix */
+.lldr-c1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 32px);
+  grid-template-rows: 32px 32px;
+  column-gap: 8px;
+  row-gap: 6px;
+}
+.lldr-c1-bpm { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; padding-right: 4px; }
+
+/* 02 · Scrub Rail */
+.lldr-c2 { display: grid; grid-template-rows: 32px 26px; row-gap: 12px; }
+.lldr-c2-top { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 28px); align-items: center; column-gap: 8px; }
+.lldr-c2-top .lldr-key { height: 28px; }
+.lldr-c2-rail { display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.lldr-ends { display: flex; justify-content: space-between; color: var(--lldl-ink-dim); font: 600 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); font-variant-numeric: tabular-nums; }
+
+/* 03 · Labelled Keys */
+.lldr-c3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, 68px);
+  grid-template-rows: 32px 32px;
+  column-gap: 8px;
+  row-gap: 6px;
+}
+.lldr-c3-bpm { grid-column: 1; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; gap: 8px; min-width: 0; padding-right: 4px; }
+.lldr-c3 .lldr-readout { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+/* 04 · Segmented Toolbar */
+.lldr-c4 { display: grid; grid-template-rows: 22px 5px 28px; row-gap: 7px; align-content: center; }
+.lldr-c4-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.lldr-c4 .lldr-readout { align-items: center; }
+.lldr-c4 .lldr-value { font-size: 20px; }
+.lldr-chip {
+  flex: none;
+  padding: 3px 8px;
+  border: 1px solid var(--lldl-line);
+  border-radius: 999px;
+  color: var(--lldl-ink-dim);
+  font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.lldr-chip.is-override { border-color: rgba(216, 185, 90, 0.5); color: #d8b95a; }
+.lldr-c4-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--lldl-line);
+  border-radius: 9px;
+  background: var(--lldl-fill);
+}
+.lldr-c4-bar .lldr-key { border: 0; border-left: 1px solid var(--lldl-line); border-radius: 0; background: transparent; }
+.lldr-c4-bar .lldr-key:first-child { border-left: 0; }
+.lldr-c4-bar .lldr-key.is-on { background: rgba(74, 199, 219, 0.16); }
+
+/* 05 · Sync Hero */
+.lldr-c5 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  grid-template-rows: 32px 32px;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 6px;
+}
+.lldr-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--lldl-line);
+  border-radius: 10px;
+  background: var(--lldl-fill);
+  color: var(--lldl-ink-dim);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.lldr-hero:hover { border-color: rgba(74, 199, 219, 0.55); color: var(--lldl-cyan-bright); }
+.lldr-hero.is-on { border-color: rgba(74, 199, 219, 0.6); background: rgba(74, 199, 219, 0.16); color: var(--lldl-cyan-bright); box-shadow: 0 0 14px rgba(74, 199, 219, 0.16); }
+.lldr-hero-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.lldr-hero-text strong { font: 800 11px/1 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.1em; text-transform: uppercase; }
+.lldr-hero-text em { font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); font-style: normal; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+.lldr-c5-keys { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 6px; height: 100%; }
+
+/* 06 · Centered Readout */
+.lldr-c6 { display: grid; grid-template-rows: 26px 4px 26px; row-gap: 7px; align-content: center; }
+.lldr-c6 .lldr-readout { align-items: center; }
+.lldr-c6 .lldr-scrub { height: 4px; }
+.lldr-c6-strip { display: grid; grid-template-columns: repeat(4, 44px); justify-content: center; column-gap: 12px; }

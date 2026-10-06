@@ -343,6 +343,14 @@ export function isHeadlinerPresetId(value: unknown): value is HeadlinerPresetId 
   return HEADLINER_PRESETS.some(preset => preset.id === value)
 }
 
+/**
+ * Clean Playback is the plain camera with no effect, shown in settings as a null preset. A click on the
+ * active preset toggles it off to Clean Playback; any other click selects that preset (same rule as CANVAS).
+ */
+export function resolveHeadlinerPresetClick(clickedId: HeadlinerPresetId, activeId: HeadlinerPresetId | null): HeadlinerPresetId | null {
+  return clickedId === activeId ? null : clickedId
+}
+
 // ── Values ─────────────────────────────────────────────────────────────────────
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/

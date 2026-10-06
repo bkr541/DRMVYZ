@@ -14,8 +14,8 @@ export type HeadlinerInputSourceId = string
 export interface HeadlinerSettings {
   mode: HeadlinerEngineModeId
   inputSourceId: HeadlinerInputSourceId
-  /** The active effect preset. */
-  presetId: HeadlinerPresetId
+  /** The active effect preset, or null for Clean Playback (the plain camera). */
+  presetId: HeadlinerPresetId | null
   /** Design-tab values that differ from the preset's defaults, keyed by preset id then parameter id. */
   parameters: Readonly<Record<string, Readonly<Record<string, HeadlinerParameterValue>>>>
 }
@@ -45,7 +45,7 @@ export function normalizeHeadlinerSettings(value: unknown): HeadlinerSettings {
   return {
     mode: normalizeHeadlinerEngineMode(record.mode),
     inputSourceId: normalizeHeadlinerInputSource(record.inputSourceId),
-    presetId: isHeadlinerPresetId(record.presetId) ? record.presetId : DEFAULT_HEADLINER_SETTINGS.presetId,
+    presetId: record.presetId === null || isHeadlinerPresetId(record.presetId) ? record.presetId : DEFAULT_HEADLINER_SETTINGS.presetId,
     parameters: normalizeHeadlinerParameterOverrides(record.parameters),
   }
 }

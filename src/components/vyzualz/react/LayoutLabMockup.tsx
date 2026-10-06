@@ -19,6 +19,7 @@ import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConce
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
+import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
@@ -280,6 +281,8 @@ export function LayoutLabMockup() {
             {engineId === 'template' && (
               <div className="llcm-stage-gallery">
                 <DockLeftGroupStyleGallery />
+                <div className="llcm-stage-section-hdr">Audio dock · right group</div>
+                <DockRightGroupStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (
