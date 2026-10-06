@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNotificationAttention, usePageNotificationEntries } from '../../../stores/notificationStore'
+import { useNotificationAttention, useNotificationStore, usePageNotificationEntries, usePageNotificationEvents } from '../../../stores/notificationStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
 import { NotificationBellIcon, NotificationDrawer } from './NotificationDrawer'
 
@@ -14,11 +14,14 @@ const RING_MS = 1400
 export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
   const entries = usePageNotificationEntries(page)
   const attention = useNotificationAttention(page)
+  const events = usePageNotificationEvents(page)
+  const markEventsRead = useNotificationStore(state => state.markEventsRead)
+  const unreadCount = events.filter(event => event.unread).length
   const [open, setOpen] = useState(false)
   const [ringing, setRinging] = useState(false)
   const close = useCallback(() => setOpen(false), [])
 
-  const attentionCount = entries.filter(entry => entry.tone === 'warning' || entry.tone === 'error').length
+  const attentionCount = entries.filter(entry => entry.tone === 'warning' || entry.tone === 'error').length + unreadCount
   const previousAttentionCount = useRef(attentionCount)
   useEffect(() => {
     const increased = attentionCount > previousAttentionCount.current
@@ -29,14 +32,21 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
     return () => window.clearTimeout(timer)
   }, [attentionCount])
 
-  const label = entries.length === 0 ? 'Notifications' : `Notifications (${entries.length})`
+  // Messages that arrive while the drawer is open are already being read.
+  useEffect(() => {
+    if (open && unreadCount > 0) markEventsRead(page)
+  }, [open, unreadCount, markEventsRead, page])
+
+  const total = entries.length + events.length
+  const label = total === 0 ? 'Notifications' : `Notifications (${total})`
+  const unreadTone = events.find(event => event.unread)?.tone
 
   return (
     <>
       <button
         type="button"
         className="vsm-settings-btn vz-header-status-chip vz-header-chip vz-header-chip--square vz-header-notifications"
-        data-attention={attention ?? undefined}
+        data-attention={attention ?? (unreadCount > 0 ? 'unread' : undefined)}
         data-ringing={ringing ? 'true' : undefined}
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
@@ -45,7 +55,7 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
         title={label}
       >
         <NotificationBellIcon />
-        {attention && <span className="vz-header-notifications-dot" data-tone={attention} aria-hidden="true" />}
+        {(attention || unreadCount > 0) && <span className="vz-header-notifications-dot" data-tone={attention ?? unreadTone ?? 'info'} aria-hidden="true" />}
       </button>
       {open && <NotificationDrawer page={page} scope="viewport" onClose={close} />}
     </>

@@ -14,6 +14,7 @@ import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { MediaDeleteConfirmDialog } from './MediaDeleteConfirmDialog'
+import { notify } from '../../../stores/notificationStore'
 import { MediaEditPanel } from './MediaEditPanel'
 import {
   MEDIA_ROLE_LABELS,
@@ -153,7 +154,8 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
     const deleted = await removeItem(media.id)
     setDeleting(false)
     setConfirmingDelete(false)
-    if (!deleted) setError('Could not delete this media item. Try again.')
+    if (deleted) notify('media-manager', { tone: 'success', title: 'Media deleted', message: `"${media.title ?? media.name}" was deleted from your media library.` })
+    else setError('Could not delete this media item. Try again.')
   }
 
   useHeaderActions(

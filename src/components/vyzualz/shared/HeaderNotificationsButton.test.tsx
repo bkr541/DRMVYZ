@@ -4,7 +4,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NotificationPageProvider, useNotificationStore } from '../../../stores/notificationStore'
+import { NotificationPageProvider, notify, useNotificationStore } from '../../../stores/notificationStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
 import { DrawerNotice } from './DrawerNotice'
 import { HeaderNotificationsButton } from './HeaderNotificationsButton'
@@ -18,7 +18,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  useNotificationStore.setState({ pages: EMPTY_PAGES, slots: {} })
+  useNotificationStore.setState({ pages: EMPTY_PAGES, slots: {}, events: EMPTY_PAGES })
 })
 
 afterEach(async () => {
@@ -144,5 +144,31 @@ describe('header Notifications bell', () => {
     await act(async () => bell().click())
     await act(async () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) })
     await finishClosing()
+  })
+})
+
+describe('notify()', () => {
+  it('lists a one-off message in the page drawer, flags the bell until opened, and can be dismissed', async () => {
+    await act(async () => root.render(<Page page="media-manager"><div /></Page>))
+    expect(bell().getAttribute('aria-label')).toBe('Notifications')
+
+    await act(async () => { notify('media-manager', { tone: 'success', title: 'Media deleted', message: 'Gone.' }) })
+    expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
+    expect(bell().querySelector('.vz-header-notifications-dot')?.getAttribute('data-tone')).toBe('success')
+
+    await act(async () => bell().click())
+    expect(drawerTitles()).toEqual(['Media deleted'])
+    expect(drawer()?.textContent).toContain('Gone.')
+    expect(bell().querySelector('.vz-header-notifications-dot')).toBeNull()
+
+    await act(async () => { drawer()?.querySelector<HTMLButtonElement>('.dv-notice button')?.click() })
+    expect(drawerTitles()).toEqual([])
+    expect(bell().getAttribute('aria-label')).toBe('Notifications')
+  })
+
+  it('keeps messages on the page they were sent to', async () => {
+    await act(async () => root.render(<Page page="media-manager"><div /></Page>))
+    await act(async () => { notify('lyric-manager', { title: 'Elsewhere', message: 'Not here.' }) })
+    expect(bell().getAttribute('aria-label')).toBe('Notifications')
   })
 })

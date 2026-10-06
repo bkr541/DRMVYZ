@@ -40,6 +40,7 @@ import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { MediaAddToSubmenu } from './MediaAddToMenu'
 import { AudioTrackCard } from './AudioTrackCard'
 import { trackInitials } from './trackInitials'
+import { notify } from '../../../stores/notificationStore'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 
@@ -1092,8 +1093,22 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const handleConfirmBulkDelete = useCallback(async (ids: string[]) => {
     setBulkDeleting(true)
-    for (const id of ids) await removeItem(id)
+    let deletedCount = 0
+    for (const id of ids) if (await removeItem(id)) deletedCount += 1
     setBulkDeleting(false)
+    if (deletedCount === ids.length) {
+      notify('media-manager', {
+        tone: 'success',
+        title: deletedCount === 1 ? 'Media deleted' : 'Media items deleted',
+        message: deletedCount === 1 ? 'The media item was deleted from your media library.' : `${deletedCount} media items were deleted from your media library.`,
+      })
+    } else {
+      notify('media-manager', {
+        tone: 'error',
+        title: 'Media delete incomplete',
+        message: `${deletedCount} of ${ids.length} media items were deleted. Try deleting the rest again.`,
+      })
+    }
     setDeleteConfirm(null)
     setSelectedForBulk(prev => {
       const next = new Set(prev)

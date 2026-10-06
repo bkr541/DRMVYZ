@@ -5887,6 +5887,8 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   box-shadow: 0 0 0 2px rgba(12, 16, 19, 0.92);
 }
 .vz-header-notifications-dot[data-tone='error'] { background: #f87171; }
+.vz-header-notifications-dot[data-tone='success'] { background: #61d6aa; }
+.vz-header-notifications-dot[data-tone='info'] { background: #67f7ff; }
 /* Attention: the dot pulses a ring outward, and the bell rings (swings from its top) once whenever a new warning or error appears. */
 .vz-header-notifications-dot::after {
   content: '';
@@ -5899,6 +5901,8 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   animation: vz-header-notify-pulse 1.6s ease-out infinite;
 }
 .vz-header-notifications-dot[data-tone='error']::after { color: #f87171; }
+.vz-header-notifications-dot[data-tone='success']::after { color: #61d6aa; }
+.vz-header-notifications-dot[data-tone='info']::after { color: #67f7ff; }
 @keyframes vz-header-notify-pulse {
   0% { transform: scale(0.6); opacity: 0.9; }
   100% { transform: scale(2.4); opacity: 0; }

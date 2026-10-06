@@ -67,6 +67,7 @@ import type { LyricSnapMode } from './editor/lyricCueEditorModel'
 import { getRecentLyricTranscriptionJobs, isActiveLyricTranscriptionJob } from './services/lyricExtraction'
 import { validateLyricCues, type LyricValidationIssue } from './utils/lyricValidation'
 import { toEffectiveLyricTimeMs } from './runtime/lyricPlaybackResolver'
+import { notify } from '../../stores/notificationStore'
 import {
   cleanupObsoleteLyricRecoveries,
   createLyricRecoveryRecord,
@@ -1343,6 +1344,11 @@ export function LyricManagerView({
       showStatus(cleanupPending
         ? 'Track removed. Storage cleanup is pending and will retry automatically.'
         : 'Track and all lyric versions deleted')
+      notify('lyric-manager', {
+        tone: 'success',
+        title: 'Track deleted',
+        message: `"${trackDeleteTarget.title ?? trackDeleteTarget.fileName}" and all of its lyric versions were deleted.`,
+      })
     } catch (deleteError) {
       setError(
         deleteError instanceof Error

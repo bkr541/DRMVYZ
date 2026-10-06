@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { NoticeCard } from '../react/controls/NoticeCard'
-import { useNotificationStore, usePageNotificationEntries } from '../../../stores/notificationStore'
+import { useNotificationStore, usePageNotificationEntries, usePageNotificationEvents } from '../../../stores/notificationStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
 import './notificationDrawer.css'
 
@@ -57,6 +57,9 @@ function NotificationSlot({ entryKey, index }: { entryKey: string; index: number
 export function NotificationDrawer({ cards = [], page, onClose, scope = 'container', portalTarget }: NotificationDrawerProps) {
   const entries = usePageNotificationEntries(page ?? 'react')
   const registered = page ? entries : []
+  const events = usePageNotificationEvents(page ?? 'react')
+  const pageEvents = page ? events : []
+  const dismissEvent = useNotificationStore(state => state.dismissEvent)
   const [closing, setClosing] = useState(false)
   const requestClose = useCallback(() => setClosing(true), [])
 
@@ -92,13 +95,25 @@ export function NotificationDrawer({ cards = [], page, onClose, scope = 'contain
           <button type="button" className="vz-notifications-close" onClick={requestClose} aria-label="Close notifications">×</button>
         </header>
         <div className="vz-notifications-list">
-          {cards.length + registered.length === 0 && <p className="vz-notifications-empty">Nothing needs your attention.</p>}
+          {cards.length + registered.length + pageEvents.length === 0 && <p className="vz-notifications-empty">Nothing needs your attention.</p>}
           {cards.map((card, index) => (
             <div key={card.id} className="vz-notifications-card" style={{ '--vz-notif-index': index } as CSSProperties}>
               <NoticeCard tone={card.tone} role={card.role ?? 'status'} title={card.title} onDismiss={card.onDismiss}>{card.body}</NoticeCard>
             </div>
           ))}
           {registered.map((entry, index) => <NotificationSlot key={entry.key} entryKey={entry.key} index={cards.length + index} />)}
+          {pageEvents.map((event, index) => (
+            <div key={event.id} className="vz-notifications-card" style={{ '--vz-notif-index': cards.length + registered.length + index } as CSSProperties}>
+              <NoticeCard
+                tone={event.tone}
+                role={event.tone === 'error' ? 'alert' : 'status'}
+                title={event.title}
+                onDismiss={() => dismissEvent(page as AppPageId, event.id)}
+              >
+                {event.message}
+              </NoticeCard>
+            </div>
+          ))}
         </div>
       </aside>
     </div>
