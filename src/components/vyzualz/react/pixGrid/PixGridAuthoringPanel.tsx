@@ -1,7 +1,6 @@
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { HelpInfoTrigger } from '../../../shared/InfoPopover'
 import { PIX_GRID_BUILT_IN_ASSETS } from './PixGridArtwork'
 import {
   addPixGridBuiltInLayer,
@@ -25,7 +24,6 @@ export function PixGridAuthoringPanel() {
   const setOverlay = useReactStore(store => store.setPixGridAuthoringOverlayVisible)
   const scene = getPixGridActiveScene(state)
   const layers = getPixGridActiveLayers(state)
-  const selectedLayer = layers.find(candidate => candidate.id === state.editor.selectedLayerId) ?? null
   const [sceneName, setSceneName] = useState(scene.name)
 
   useEffect(() => setSceneName(scene.name), [scene.id, scene.name])
@@ -43,13 +41,6 @@ export function PixGridAuthoringPanel() {
         >
           {state.authoringOverlayVisible ? 'Close PixGrid Edit' : 'Edit PixGrid'}
         </button>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.editOverlay"
-          currentValue={state.authoringOverlayVisible ? 'Open' : 'Closed'}
-          currentValueLabel="Status"
-          currentValueTone={state.authoringOverlayVisible ? 'accent' : 'default'}
-          placement="right"
-        />
       </div>
       <div className="rv-ctrl-info rv-pix-grid-authoring-hint rv-control-helper-copy">Edit on the center canvas. Changes save automatically.</div>
 
@@ -85,12 +76,6 @@ export function PixGridAuthoringPanel() {
           <button type="button" onClick={() => applyState(duplicatePixGridScene(state))}>Duplicate</button>
           <button type="button" disabled={state.scenes.length <= 1} onClick={() => applyState(deletePixGridScene(state))}>Delete</button>
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.scenes"
-          currentValue={`${scene.name} · ${state.scenes.length} scene${state.scenes.length === 1 ? '' : 's'}`}
-          currentValueTone="accent"
-          placement="right"
-        />
       </section>
 
       <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid layers">
@@ -120,14 +105,6 @@ export function PixGridAuthoringPanel() {
           ))}
           {layers.length === 0 && <p>No layers in this scene.</p>}
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.layers"
-          currentValue={selectedLayer
-            ? `${selectedLayer.name} selected · ${layers.length} layer${layers.length === 1 ? '' : 's'}`
-            : `${layers.length} layer${layers.length === 1 ? '' : 's'} · none selected`}
-          currentValueTone={selectedLayer ? 'accent' : 'default'}
-          placement="right"
-        />
       </section>
 
       <section className="rv-pix-grid-browser-section rv-pix-grid-authoring-section-help drm-help-overlay-anchor" aria-label="PixGrid built-in artwork">
@@ -140,11 +117,6 @@ export function PixGridAuthoringPanel() {
             </button>
           ))}
         </div>
-        <HelpInfoTrigger
-          helpId="react.pixGrid.authoring.builtIns"
-          currentValue={`${PIX_GRID_BUILT_IN_ASSETS.length} built-in artwork source${PIX_GRID_BUILT_IN_ASSETS.length === 1 ? '' : 's'}`}
-          placement="right"
-        />
       </section>
 
       <div className="rv-ctrl-info rv-control-helper-copy">Use the MEDIA tab to add PNG, JPEG, static WebP, or SVG artwork as a layer. Upload remains in the shared Media Library.</div>

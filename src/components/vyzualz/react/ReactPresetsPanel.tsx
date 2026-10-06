@@ -56,7 +56,6 @@ import {
   sanitizeReactPresetFavorites,
   writeReactPresetFavorites,
 } from './reactPresetLibraryState'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import type { PresetScopeTab } from '../../../features/presetCatalog/presetScope'
 
@@ -532,7 +531,6 @@ export function ReactPresetsPanel() {
     reactPresets,
     activeReactPresetId,
     activeReactEngineId,
-    selectedCanvasPresetId,
     laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId,
     reactIntensity,
@@ -548,7 +546,6 @@ export function ReactPresetsPanel() {
     reactPresets: state.reactPresets,
     activeReactPresetId: state.activeReactPresetId,
     activeReactEngineId: state.activeReactEngineId,
-    selectedCanvasPresetId: state.selectedCanvasPresetId,
     laserDmxBeamMatrixAuthoringMode: state.laserDmxBeamMatrixAuthoringMode,
     cinematicConfigsByPresetId: state.cinematicConfigsByPresetId,
     reactIntensity: state.reactIntensity,
@@ -645,13 +642,6 @@ export function ReactPresetsPanel() {
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
   const isLaserDmxCurrentLibrary = activeReactEngineId === 'laserDmx'
   const isCanvasCurrentLibrary = activeReactEngineId === 'canvas'
-  const selectedCanvasPreset = CANVAS_VISIBLE_PRESETS.find(preset => preset.id === selectedCanvasPresetId) ?? null
-  const laserDmxPresetCount = laserDmxBeamMatrixAuthoringMode === 'showDirector'
-    ? LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length + LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length
-    : LASER_DMX_BEAM_MATRIX_PRESETS.length
-  const laserDmxPresetScopeLabel = laserDmxBeamMatrixAuthoringMode === 'showDirector'
-    ? `${LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.length} Performance Shows · ${LASER_DMX_SHOW_DIRECTOR_TEMPLATES.length} Rig Layouts`
-    : `${laserDmxPresetCount} Beam Matrix preset${laserDmxPresetCount === 1 ? '' : 's'}`
   const thumbnailGenerationKey = useMemo(
     () => `${activeReactEngineId}:${visiblePresets.map(preset => preset.id).join('|')}`,
     [activeReactEngineId, visiblePresets],
@@ -721,42 +711,18 @@ export function ReactPresetsPanel() {
       {activeReactEngineId === 'oscilloscope' ? (
         <div className="rv-sound-drawing-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
-          <HelpInfoTrigger
-            helpId="react.soundDrawing.presetLibrary"
-            currentValue={`${active?.name ?? 'No preset selected'} · ${visiblePresets.length} shown`}
-            currentValueTone={active ? 'accent' : 'default'}
-            placement="left"
-          />
         </div>
       ) : activeReactEngineId === 'laserDmx' ? (
         <div className="rv-laser-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
-          <HelpInfoTrigger
-            helpId="react.laserDmx.presetLibrary"
-            currentValue={`${laserDmxBeamMatrixAuthoringMode === 'showDirector' ? 'Show Director' : 'Matrix'} · ${laserDmxPresetScopeLabel}`}
-            currentValueTone="accent"
-            placement="left"
-          />
         </div>
       ) : activeReactEngineId === 'pixGrid' ? (
         <div className="rv-pix-grid-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
-          <HelpInfoTrigger
-            helpId="react.pixGrid.presetLibrary"
-            currentValue={`${active?.engine === 'pixGrid' ? active.name : 'No PixGrid preset selected'} · ${visiblePresets.length} shown`}
-            currentValueTone={active?.engine === 'pixGrid' ? 'accent' : 'default'}
-            placement="left"
-          />
         </div>
       ) : activeReactEngineId === 'canvas' ? (
         <div className="rv-canvas-presets-help drm-help-overlay-anchor">
           {presetLibraryContent}
-          <HelpInfoTrigger
-            helpId="react.canvas.presetLibrary"
-            currentValue={selectedCanvasPreset ? `${selectedCanvasPreset.name} · ${CANVAS_TAB_PRESETS.length} CANVAS presets` : `${CANVAS_TAB_PRESETS.length} CANVAS presets`}
-            currentValueTone={selectedCanvasPreset ? 'accent' : 'default'}
-            placement="left"
-          />
         </div>
       ) : presetLibraryContent}
     </div>

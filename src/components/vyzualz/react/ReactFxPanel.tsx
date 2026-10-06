@@ -19,7 +19,6 @@ import { CinematicWorldsDesignControls, CinematicWorldsFxControls } from './Cine
 import { CanvasEngineFxPanel } from './ReactCanvasEngineShell'
 import { resolveSoundDrawingOwnership, soundDrawingOwnershipTooltip } from './soundDrawing/SoundDrawingOwnership'
 import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 // ── FX panel ──────────────────────────────────────────────────────────────────
 // Styles the currently active visual engine.
@@ -111,11 +110,6 @@ export function ReactFxPanel() {
               color="#4ac7db"
               description="Preview-only trim applied consistently to WebGL and Canvas2D. It never changes production hardware output."
             />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.design.previewOutputTrim"
-              currentValue={`${Math.round(reactIntensity * 100)}%`}
-              placement="left"
-            />
           </div>
         ) : (
           <SliderRow
@@ -159,11 +153,6 @@ export function ReactFxPanel() {
               onChange={setReactGlow}
               color="#b84fc9"
               description="Preview-only glow trim applied after Authored Show Glow. Production hardware output never inherits it."
-            />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.design.previewGlowTrim"
-              currentValue={`${Math.round(reactGlow * 100)}%`}
-              placement="left"
             />
           </div>
         ) : (

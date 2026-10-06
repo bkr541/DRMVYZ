@@ -92,7 +92,7 @@ vi.mock('../../../features/rekordboxImport/nativeBridge', () => ({
   guessNativeUsbRootFromFile: () => null,
   scanNativeRekordboxUsbRoot: vi.fn(),
 }))
-vi.mock('../../shared/InfoPopover', () => ({ HelpInfoTrigger: () => null }))
+vi.mock('../../shared/InfoPopover', () => ({ InfoPopover: () => null }))
 
 vi.mock('../VyzualzSidebar', () => ({
   VyzualzSidebar: () => <nav aria-label="Mock VYZUALZ sidebar" />,

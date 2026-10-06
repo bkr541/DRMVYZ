@@ -1,7 +1,6 @@
 import { useReactStore } from '../../../stores/reactStore'
 import { LaserDmxBeamMatrixPanel } from './LaserDmxBeamMatrixPanel'
 import { LaserDmxShowDirector } from './LaserDmxShowDirector'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { UnderlineTabs } from './controls/UnderlineTabs'
 
 type LaserDmxRigSurface = 'workspace' | 'showDirector'
@@ -29,12 +28,6 @@ export function LaserDmxEnginePanel() {
           onChange={handleSurfaceChange}
           ariaLabel="LaserDMX Beam Matrix surfaces"
           className="rv-laser-rig-surfaces"
-        />
-        <HelpInfoTrigger
-          helpId="react.laserDmx.workspace.overview"
-          currentValue={surface === 'showDirector' ? 'Show Director' : 'Matrix'}
-          currentValueTone="accent"
-          placement="right"
         />
       </div>
 

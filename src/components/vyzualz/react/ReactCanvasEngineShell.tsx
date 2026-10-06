@@ -15,7 +15,6 @@ import { buildSharedPerformanceContext, createSharedPerformanceDiagnostics, type
 import type { FeatureCurve, MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible, ColorRow, NumberInputRow, SelectRow as CanvasSelectRow, SliderRow, ToggleRow } from './ReactControlRows'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
-import { HelpInfoTrigger, type HelpInfoTriggerProps } from '../../shared/InfoPopover'
 import { clearSharedPerformanceDiagnostics, publishSharedPerformanceDiagnostics } from './SharedPerformanceDiagnosticsStore'
 import { MediaLibraryBrowser, type MediaLibraryCardActionAnchor } from '../media/MediaLibraryBrowser'
 import { ContextActionMenu } from '../context-menu/ContextActionMenu'
@@ -175,34 +174,18 @@ type CanvasMediaLoadState = { mediaId: string | null; message: string | null }
 const EMPTY_CANVAS_MEDIA_LOAD_STATE: CanvasMediaLoadState = { mediaId: null, message: null }
 
 interface CanvasHelpControlProps {
-  helpId: HelpInfoTriggerProps['helpId']
-  currentValue?: ReactNode
-  currentValueLabel?: HelpInfoTriggerProps['currentValueLabel']
-  currentValueTone?: HelpInfoTriggerProps['currentValueTone']
-  placement?: HelpInfoTriggerProps['placement']
   className?: string
   children: ReactNode
 }
 
+// Wrapper kept for the layout of the CANVAS control rows (the contextual-help icon it used to host is gone).
 function CanvasHelpControl({
-  helpId,
-  currentValue,
-  currentValueLabel,
-  currentValueTone,
-  placement = 'left',
   className = 'rv-canvas-control-help',
   children,
 }: CanvasHelpControlProps) {
   return (
     <div className={`${className} drm-help-overlay-anchor`}>
       {children}
-      <HelpInfoTrigger
-        helpId={helpId}
-        currentValue={currentValue}
-        currentValueLabel={currentValueLabel}
-        currentValueTone={currentValueTone}
-        placement={placement}
-      />
     </div>
   )
 }
@@ -2872,15 +2855,14 @@ const CANVAS_FRACTURE_QUALITY_OPTIONS: Array<{ value: CanvasFractureQualityMode;
 const CANVAS_FRACTURE_EFFECT_ROLE_OPTIONS: ReadonlyArray<{
   value: CanvasFractureEffectRole
   label: string
-  helpId: HelpInfoTriggerProps['helpId']
 }> = [
-  { value: 'clean', label: 'Clean Role', helpId: 'react.canvas.fractures.effects.roleWeight.clean' },
-  { value: 'glow', label: 'Glow Role', helpId: 'react.canvas.fractures.effects.roleWeight.glow' },
-  { value: 'outline', label: 'Outline Role', helpId: 'react.canvas.fractures.effects.roleWeight.outline' },
-  { value: 'glitch', label: 'Glitch Role', helpId: 'react.canvas.fractures.effects.roleWeight.glitch' },
-  { value: 'luma', label: 'Luma Role', helpId: 'react.canvas.fractures.effects.roleWeight.luma' },
-  { value: 'displacement', label: 'Displacement Role', helpId: 'react.canvas.fractures.effects.roleWeight.displacement' },
-  { value: 'texture', label: 'Texture Role', helpId: 'react.canvas.fractures.effects.roleWeight.texture' },
+  { value: 'clean', label: 'Clean Role' },
+  { value: 'glow', label: 'Glow Role' },
+  { value: 'outline', label: 'Outline Role' },
+  { value: 'glitch', label: 'Glitch Role' },
+  { value: 'luma', label: 'Luma Role' },
+  { value: 'displacement', label: 'Displacement Role' },
+  { value: 'texture', label: 'Texture Role' },
 ]
 
 function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): control is CanvasPresetSliderControlKey {
@@ -3049,36 +3031,6 @@ export function resolveCanvasPresetControlGroups(
     .filter(group => group.controls.length > 0)
 }
 
-const CANVAS_REACT_CONTROL_HELP_IDS: Record<CanvasPresetControlKey, HelpInfoTriggerProps['helpId']> = {
-  drySourceMix: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
-  sourceVisibility: 'react.canvas.reactControls.sourceAndReactivity.drySourceMix',
-  intensity: 'react.canvas.reactControls.sourceAndReactivity.visualIntensity',
-  bassReactivity: 'react.canvas.reactControls.sourceAndReactivity.bassReactivity',
-  beatPulse: 'react.canvas.reactControls.sourceAndReactivity.beatPulse',
-  glow: 'react.canvas.reactControls.fx.glowAmount',
-  trailAmount: 'react.canvas.reactControls.fx.trailAmount',
-  rgbSplit: 'react.canvas.reactControls.fx.rgbSplit',
-  glitchAmount: 'react.canvas.reactControls.fx.glitchAmount',
-  stutterRate: 'react.canvas.reactControls.fx.stutterRate',
-  lumaThreshold: 'react.canvas.reactControls.fx.lumaThreshold',
-  motionAmount: 'react.canvas.reactControls.motionAndParticles.motionAmount',
-  turbulence: 'react.canvas.reactControls.motionAndParticles.turbulence',
-  particleDensity: 'react.canvas.reactControls.motionAndParticles.particleDensity',
-  particleSize: 'react.canvas.reactControls.motionAndParticles.particleSize',
-  particleColorMode: 'react.canvas.reactControls.motionAndParticles.particleColorMode',
-  particleQuality: 'react.canvas.reactControls.motionAndParticles.particleQuality',
-}
-
-function formatCanvasPercentage(value: number): string {
-  return `${Math.round(value * 100)}%`
-}
-
-function formatCanvasReactControlValue(control: CanvasPresetControlKey, value: number): string {
-  if (control === 'stutterRate') return value <= 0 ? 'Off' : `${Math.round(value)} holds/sec`
-  if (control === 'particleSize') return `${value.toFixed(2)}×`
-  return formatCanvasPercentage(value)
-}
-
 
 function CanvasAutoSelectControl() {
   const engine = useSharedAudio()
@@ -3147,10 +3099,6 @@ function CanvasAutoSelectControl() {
   return (
     <div className="rv-canvas-auto-select-block">
       <CanvasHelpControl
-        helpId="react.canvas.sourceAndDisplay.sourceLink.autoSelect"
-        currentValue={settings.autoSelectEnabled ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={settings.autoSelectEnabled ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Auto Select"
@@ -3248,9 +3196,6 @@ function CanvasTimingControls() {
     <Collapsible label="Video Timing" defaultOpen>
       <div className="rv-canvas-engine-note">{timingDescription}</div>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.triggerOn"
-        currentValue={CANVAS_TRIGGER_OPTIONS.find(option => option.value === timing.triggerOn)?.label ?? 'Manual Only'}
-        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
       >
         <CanvasSelectRow
           label="Trigger On"
@@ -3262,9 +3207,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.clipStartSeconds"
-        currentValue={formatCanvasTimingSeconds(timing.clipStartSec)}
-        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
       >
         <NumberInputRow
           label="Clip Start Time"
@@ -3278,9 +3220,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.clipEndSeconds"
-        currentValue={timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'Video end'}
-        currentValueTone={hasActiveVideo ? 'accent' : 'default'}
       >
         <NumberInputRow
           label="Clip End Time"
@@ -3297,10 +3236,6 @@ function CanvasTimingControls() {
         End time 0 uses the full video. Active range: {formatCanvasTimingSeconds(timing.clipStartSec)} → {timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'video end'}.
       </div>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.loopClipRange"
-        currentValue={timing.loopClipRange ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={timing.loopClipRange ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Loop Clip Range"
@@ -3311,10 +3246,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.loopFullVideo"
-        currentValue={settings.loopVideo ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={settings.loopVideo ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Loop Full Video"
@@ -3325,10 +3256,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.restartOnDrop"
-        currentValue={timing.restartOnDrop ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={timing.restartOnDrop ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Restart on Drop"
@@ -3339,10 +3266,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.restartOnSectionChange"
-        currentValue={timing.restartOnSectionChange ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={timing.restartOnSectionChange ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Restart on Section Change"
@@ -3353,10 +3276,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.restartOnManualPresetChange"
-        currentValue={timing.restartOnManualPresetChange ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={timing.restartOnManualPresetChange ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Restart on Manual Preset Change"
@@ -3367,14 +3286,6 @@ function CanvasTimingControls() {
         />
       </CanvasHelpControl>
       <CanvasHelpControl
-        helpId="react.canvas.videoTiming.sectionTriggerMapping.overview"
-        currentValue={timing.sectionTriggerTypes.length > 0
-          ? CANVAS_SECTION_TRIGGER_OPTIONS
-              .filter(option => timing.sectionTriggerTypes.includes(option.value))
-              .map(option => option.label)
-              .join(', ')
-          : 'No mapped sections'}
-        currentValueTone={timing.sectionTriggerTypes.length > 0 ? 'accent' : 'default'}
         className="rv-canvas-section-trigger-help"
       >
         <div className="rv-canvas-section-trigger-block" aria-label="CANVAS section trigger mapping">
@@ -3471,11 +3382,6 @@ function CanvasCompositionControls() {
       </div>
       {selectedShow.supportsCompositionPreference && (
         <CanvasHelpControl
-          helpId="react.canvas.performanceOrchestration.composition"
-          currentValue={settings.compositionPreference === 'auto'
-            ? 'Auto · Section Aware'
-            : CANVAS_COMPOSITION_TEMPLATE_OPTIONS.find(option => option.value === settings.compositionPreference)?.label ?? settings.compositionPreference}
-          currentValueTone="accent"
         >
           <CanvasSelectRow
             label="Composition"
@@ -3554,10 +3460,6 @@ export function CanvasPerformanceAutomationControls() {
       <CanvasAutoSelectControl />
 
       <CanvasHelpControl
-        helpId="react.canvas.performanceOrchestration.autoPerformance"
-        currentValue={autoPerformanceActive ? 'On' : 'Off'}
-        currentValueLabel="Status"
-        currentValueTone={autoPerformanceActive ? 'accent' : 'default'}
       >
         <ToggleRow
           label="Auto Performance"
@@ -3600,9 +3502,6 @@ export function CanvasPerformanceAutomationControls() {
         <DrawerNotice tone="warning" role="status" title="Performance pool is empty">Select media in the left SOURCE panel to build the performance pool.</DrawerNotice>
       )}
       <CanvasHelpControl
-        helpId="react.canvas.performanceOrchestration.performanceShow"
-        currentValue={selectedShow.label}
-        currentValueTone="accent"
       >
         <CanvasSelectRow
           label="Performance Show"
@@ -3613,19 +3512,19 @@ export function CanvasPerformanceAutomationControls() {
           disabled={!autoPerformanceActive}
         />
       </CanvasHelpControl>
-      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.layerComplexity" currentValue={formatCanvasPercentage(settings.complexity)}>
+      <CanvasHelpControl>
         <SliderRow label="Layer Complexity" value={settings.complexity} onChange={complexity => setSettings({ complexity })} min={0} max={1} step={0.01} color="#61d6aa" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
-      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.transitionDensity" currentValue={formatCanvasPercentage(settings.transitionDensity)}>
+      <CanvasHelpControl>
         <SliderRow label="Transition Density" value={settings.transitionDensity} onChange={transitionDensity => setSettings({ transitionDensity })} min={0} max={1} step={0.01} color="#4ac7db" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
-      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.effectIntensity" currentValue={formatCanvasPercentage(settings.effectIntensity)}>
+      <CanvasHelpControl>
         <SliderRow label="Effect Intensity" value={settings.effectIntensity} onChange={effectIntensity => setSettings({ effectIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
-      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.motionIntensity" currentValue={formatCanvasPercentage(settings.motionIntensity)}>
+      <CanvasHelpControl>
         <SliderRow label="Motion Intensity" value={settings.motionIntensity} onChange={motionIntensity => setSettings({ motionIntensity })} min={0} max={1} step={0.01} color="#d8b95a" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
-      <CanvasHelpControl helpId="react.canvas.performanceOrchestration.cutDensity" currentValue={formatCanvasPercentage(settings.cutDensity)}>
+      <CanvasHelpControl>
         <SliderRow label="Cut Density" value={settings.cutDensity} onChange={cutDensity => setSettings({ cutDensity })} min={0} max={1} step={0.01} color="#f09c5a" disabled={!autoPerformanceActive} />
       </CanvasHelpControl>
     </Collapsible>
@@ -3859,24 +3758,16 @@ export function CanvasLayersPanel() {
 }
 
 function CanvasFracturesActionControl({
-  helpId,
   label,
-  value,
   description,
   onClick,
 }: {
-  helpId: HelpInfoTriggerProps['helpId']
   label: string
-  value: number
   description: string
   onClick: () => void
 }) {
   return (
-    <CanvasHelpControl
-      helpId={helpId}
-      currentValue={`Revision ${value}`}
-      className="rv-canvas-react-control-help"
-    >
+    <CanvasHelpControl className="rv-canvas-react-control-help">
       <div className="rv-ctrl-toggle-row">
         <div className="rv-ctrl-toggle-line">
           <span className="rv-ctrl-label">{label}</span>
@@ -3924,34 +3815,34 @@ function FracturesDesignControls({
       </div>
 
       <Collapsible label="Structure" defaultOpen>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.intensity" currentValue={formatCanvasPercentage(settings.fractureIntensity)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Fracture Intensity" value={settings.fractureIntensity} onChange={fractureIntensity => setSettings({ fractureIntensity })} min={0} max={1} step={0.01} color="#8de7ff" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.mode" currentValue={CANVAS_FRACTURE_MODE_OPTIONS.find(option => option.value === settings.fractureMode)?.label ?? 'Mixed'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Fracture Mode" value={settings.fractureMode} onChange={value => setSettings({ fractureMode: value as CanvasFractureMode })} options={CANVAS_FRACTURE_MODE_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.anchorMode" currentValue={CANVAS_FRACTURE_ANCHOR_OPTIONS.find(option => option.value === settings.fractureAnchorMode)?.label ?? 'Always Visible'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Anchor Mode" value={settings.fractureAnchorMode} onChange={value => setSettings({ fractureAnchorMode: value as CanvasFractureAnchorMode })} options={CANVAS_FRACTURE_ANCHOR_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusProtection" currentValue={formatCanvasPercentage(settings.fractureFocusProtection)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Focus Protection" value={settings.fractureFocusProtection} onChange={fractureFocusProtection => setSettings({ fractureFocusProtection })} min={0} max={1} step={0.01} color="#61d6aa" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusX" currentValue={formatCanvasPercentage(settings.fractureFocusX)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Focus X" value={settings.fractureFocusX} onChange={fractureFocusX => setSettings({ fractureFocusX })} min={0} max={1} step={0.01} color="#4ac7db" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.focusY" currentValue={formatCanvasPercentage(settings.fractureFocusY)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Focus Y" value={settings.fractureFocusY} onChange={fractureFocusY => setSettings({ fractureFocusY })} min={0} max={1} step={0.01} color="#4ac7db" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.composition" currentValue={formatCanvasPercentage(settings.fractureComposition)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Composition" value={settings.fractureComposition} onChange={fractureComposition => setSettings({ fractureComposition })} min={0} max={1} step={0.01} color="#d8b95a" description="0% is editorial and restrained; 100% is chaotic." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.placementMode" currentValue={CANVAS_FRACTURE_PLACEMENT_OPTIONS.find(option => option.value === settings.fracturePlacementMode)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Placement Mode" value={settings.fracturePlacementMode} onChange={value => setSettings({ fracturePlacementMode: value as CanvasFracturePlacementMode })} options={CANVAS_FRACTURE_PLACEMENT_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.variationSeed" currentValue={settings.fractureVariationSeed} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <NumberInputRow label="Variation Seed" value={settings.fractureVariationSeed} onChange={fractureVariationSeed => setSettings({ fractureVariationSeed })} min={0} max={999999} step={1} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.quality" currentValue={CANVAS_FRACTURE_QUALITY_OPTIONS.find(option => option.value === settings.fractureQuality)?.label ?? 'Balanced'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Quality" value={settings.fractureQuality} onChange={value => setSettings({ fractureQuality: value as CanvasFractureQualityMode })} options={CANVAS_FRACTURE_QUALITY_OPTIONS} />
         </CanvasHelpControl>
       </Collapsible>
@@ -3983,13 +3874,13 @@ export function FracturesReactControls() {
   return (
     <Collapsible label="Fractures Controls" defaultOpen>
       <Collapsible label="Motion / Evolution" defaultOpen>
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.amount" currentValue={formatCanvasPercentage(settings.fractureMotionAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Motion" value={settings.fractureMotionAmount} onChange={fractureMotionAmount => setSettings({ fractureMotionAmount })} min={0} max={1} step={0.01} color="#61d6aa" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.transition" currentValue={CANVAS_FRACTURE_TRANSITION_OPTIONS.find(option => option.value === settings.fractureTransitionMode)?.label ?? 'Staggered Assembly'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Transition" value={settings.fractureTransitionMode} onChange={value => setSettings({ fractureTransitionMode: value as CanvasFractureTransitionMode })} options={CANVAS_FRACTURE_TRANSITION_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.transitionSpeed" currentValue={formatCanvasPercentage(settings.fractureTransitionSpeed)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Transition Speed" value={settings.fractureTransitionSpeed} onChange={fractureTransitionSpeed => setSettings({ fractureTransitionSpeed })} min={0} max={1} step={0.01} color="#4ac7db" />
         </CanvasHelpControl>
         <ToggleRow
@@ -3998,22 +3889,20 @@ export function FracturesReactControls() {
           onChange={fractureBpmSync => setSettings({ fractureBpmSync })}
           description="Locks Fractures transition timing to the canonical musical BPM while preserving deterministic seek and loop reconstruction."
         />
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.stagger" currentValue={formatCanvasPercentage(settings.fractureStaggerAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Stagger" value={settings.fractureStaggerAmount} onChange={fractureStaggerAmount => setSettings({ fractureStaggerAmount })} min={0} max={1} step={0.01} color="#d8b95a" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.zoom" currentValue={formatCanvasPercentage(settings.fractureZoomAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Zoom" value={settings.fractureZoomAmount} onChange={fractureZoomAmount => setSettings({ fractureZoomAmount })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.topologyInterval" currentValue={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS.find(option => option.value === settings.fractureTopologyInterval)?.label ?? 'Every 4 Bars'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Topology Change" value={settings.fractureTopologyInterval} onChange={value => setSettings({ fractureTopologyInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_TOPOLOGY_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.structure.layoutInterval" currentValue={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS.find(option => option.value === settings.fractureLayoutInterval)?.label ?? 'Every Bar'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Layout Change" value={settings.fractureLayoutInterval} onChange={value => setSettings({ fractureLayoutInterval: value as CanvasFractureQuantizeInterval })} options={CANVAS_FRACTURE_LAYOUT_INTERVAL_OPTIONS} />
         </CanvasHelpControl>
         <CanvasFracturesActionControl
-          helpId="react.canvas.fractures.motion.refracture"
           label="Refracture"
-          value={settings.fractureTopologyRevision}
           description="Creates a new deterministic topology and establishes a matching layout."
           onClick={() => setSettings({
             fractureTopologyRevision: settings.fractureTopologyRevision + 1,
@@ -4024,9 +3913,7 @@ export function FracturesReactControls() {
           })}
         />
         <CanvasFracturesActionControl
-          helpId="react.canvas.fractures.motion.shuffleLayout"
           label="Shuffle Layout"
-          value={settings.fractureLayoutRevision}
           description="Creates a new deterministic placement plan while preserving every source crop."
           onClick={() => setSettings({
             fractureLayoutRevision: settings.fractureLayoutRevision + 1,
@@ -4035,7 +3922,7 @@ export function FracturesReactControls() {
             fractureManualTransitionPositionSec: getActionPositionSec(),
           })}
         />
-        <CanvasHelpControl helpId="react.canvas.fractures.motion.freezeLayout" currentValue={settings.fractureFreezeLayout ? 'On' : 'Off'} currentValueLabel="Status" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <ToggleRow
             label="Freeze Layout"
             value={settings.fractureFreezeLayout}
@@ -4052,9 +3939,7 @@ export function FracturesReactControls() {
           />
         </CanvasHelpControl>
         <CanvasFracturesActionControl
-          helpId="react.canvas.fractures.motion.returnToAnchor"
           label="Return to Anchor"
-          value={settings.fractureLayoutRevision}
           description="Resolves an anchor-oriented target layout without replacing the current topology."
           onClick={() => setSettings({
             fractureLayoutRevision: settings.fractureLayoutRevision + 1,
@@ -4066,39 +3951,39 @@ export function FracturesReactControls() {
       </Collapsible>
 
       <Collapsible label="Fractures FX" defaultOpen={false}>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.intensity" currentValue={formatCanvasPercentage(settings.fractureEffectsIntensity)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Effects Intensity" value={settings.fractureEffectsIntensity} onChange={fractureEffectsIntensity => setSettings({ fractureEffectsIntensity })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.glow" currentValue={formatCanvasPercentage(settings.fractureGlowAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Glow" value={settings.fractureGlowAmount} onChange={fractureGlowAmount => setSettings({ fractureGlowAmount })} min={0} max={1} step={0.01} color="#8de7ff" description="Controls neon outlines and bloom without exposing individual pass coefficients." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.glitch" currentValue={formatCanvasPercentage(settings.fractureGlitchAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Glitch" value={settings.fractureGlitchAmount} onChange={fractureGlitchAmount => setSettings({ fractureGlitchAmount })} min={0} max={1} step={0.01} color="#ff4fd8" description="Controls RGB separation, slice displacement, dissolve, and transition flash readiness." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.texture" currentValue={formatCanvasPercentage(settings.fractureTextureAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Texture" value={settings.fractureTextureAmount} onChange={fractureTextureAmount => setSettings({ fractureTextureAmount })} min={0} max={1} step={0.01} color="#d8b95a" description="Controls pixelation, posterization, scanlines, noise, blur, and sharpening." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.trails" currentValue={formatCanvasPercentage(settings.fractureTrailsAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Trails" value={settings.fractureTrailsAmount} onChange={fractureTrailsAmount => setSettings({ fractureTrailsAmount })} min={0} max={1} step={0.01} color="#9ddcff" description="Controls bounded prior-frame feedback persistence and opacity." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.depth" currentValue={formatCanvasPercentage(settings.fractureDepthAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Depth" value={settings.fractureDepthAmount} onChange={fractureDepthAmount => setSettings({ fractureDepthAmount })} min={0} max={1} step={0.01} color="#61d6aa" description="Controls shadows, parallax bias, and restrained fragment depth scaling." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.duplication" currentValue={formatCanvasPercentage(settings.fractureDuplicationAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Duplication" value={settings.fractureDuplicationAmount} onChange={fractureDuplicationAmount => setSettings({ fractureDuplicationAmount })} min={0} max={1} step={0.01} color="#4ac7db" description="Controls deterministic secondary copies and echo offsets within the quality budget." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.colorTreatment" currentValue={formatCanvasPercentage(settings.fractureColorTreatmentAmount)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Color Treatment" value={settings.fractureColorTreatmentAmount} onChange={fractureColorTreatmentAmount => setSettings({ fractureColorTreatmentAmount })} min={0} max={1} step={0.01} color="#b84fc9" description="Controls hue rotation, duotone mapping, and palette-driven color strength." />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.effects.colorSource" currentValue={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS.find(option => option.value === settings.fractureColorSourceMode)?.label ?? 'Image Sampled'} currentValueTone="accent" className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <CanvasSelectRow label="Color Source" value={settings.fractureColorSourceMode} onChange={value => setSettings({ fractureColorSourceMode: value as CanvasFractureColorSourceMode })} options={CANVAS_FRACTURE_COLOR_SOURCE_OPTIONS} />
         </CanvasHelpControl>
         {manualColorsEnabled && (
           <>
-            <CanvasHelpControl helpId="react.canvas.fractures.effects.manualPrimaryColor" currentValue={settings.fractureManualPrimaryColor} className="rv-canvas-react-control-help">
+            <CanvasHelpControl className="rv-canvas-react-control-help">
               <ColorRow label="Manual Primary Color" value={settings.fractureManualPrimaryColor} onChange={fractureManualPrimaryColor => setSettings({ fractureManualPrimaryColor })} />
             </CanvasHelpControl>
-            <CanvasHelpControl helpId="react.canvas.fractures.effects.manualSupportingColor" currentValue={settings.fractureManualSupportingColor} className="rv-canvas-react-control-help">
+            <CanvasHelpControl className="rv-canvas-react-control-help">
               <ColorRow label="Manual Supporting Color" value={settings.fractureManualSupportingColor} onChange={fractureManualSupportingColor => setSettings({ fractureManualSupportingColor })} />
             </CanvasHelpControl>
           </>
@@ -4106,8 +3991,6 @@ export function FracturesReactControls() {
         {CANVAS_FRACTURE_EFFECT_ROLE_OPTIONS.map(role => (
           <CanvasHelpControl
             key={role.value}
-            helpId={role.helpId}
-            currentValue={formatCanvasPercentage(settings.fractureEffectRoleWeights[role.value])}
             className="rv-canvas-react-control-help"
           >
             <SliderRow
@@ -4130,16 +4013,16 @@ export function FracturesReactControls() {
       </Collapsible>
 
       <Collapsible label="Audio Reactivity" defaultOpen={false}>
-        <CanvasHelpControl helpId="react.canvas.fractures.audio.response" currentValue={formatCanvasPercentage(settings.fractureAudioResponse)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Audio Response" value={settings.fractureAudioResponse} onChange={fractureAudioResponse => setSettings({ fractureAudioResponse })} min={0} max={1} step={0.01} color="#d8b95a" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.audio.bassMotion" currentValue={formatCanvasPercentage(settings.fractureBassMotion)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Bass Motion" value={settings.fractureBassMotion} onChange={fractureBassMotion => setSettings({ fractureBassMotion })} min={0} max={1} step={0.01} color="#61d6aa" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.audio.transientGlitch" currentValue={formatCanvasPercentage(settings.fractureTransientGlitch)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Transient Glitch" value={settings.fractureTransientGlitch} onChange={fractureTransientGlitch => setSettings({ fractureTransientGlitch })} min={0} max={1} step={0.01} color="#ff4fd8" />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.fractures.audio.structuralResponse" currentValue={formatCanvasPercentage(settings.fractureStructuralResponse)} className="rv-canvas-react-control-help">
+        <CanvasHelpControl className="rv-canvas-react-control-help">
           <SliderRow label="Structural Response" value={settings.fractureStructuralResponse} onChange={fractureStructuralResponse => setSettings({ fractureStructuralResponse })} min={0} max={1} step={0.01} color="#4ac7db" />
         </CanvasHelpControl>
       </Collapsible>
@@ -4799,9 +4682,6 @@ function renderCanvasPresetControl(
     return (
       <CanvasHelpControl
         key={control}
-        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-        currentValue={CANVAS_PARTICLE_COLOR_MODE_OPTIONS.find(option => option.value === canvasPresetSettings.particleColorMode)?.label ?? 'Original'}
-        currentValueTone="accent"
         className="rv-canvas-react-control-help"
       >
         <CanvasSelectRow
@@ -4819,9 +4699,6 @@ function renderCanvasPresetControl(
     return (
       <CanvasHelpControl
         key={control}
-        helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-        currentValue={CANVAS_PARTICLE_QUALITY_OPTIONS.find(option => option.value === canvasPresetSettings.particleQuality)?.label ?? 'Balanced'}
-        currentValueTone="accent"
         className="rv-canvas-react-control-help"
       >
         <CanvasSelectRow
@@ -4840,8 +4717,6 @@ function renderCanvasPresetControl(
   return (
     <CanvasHelpControl
       key={control}
-      helpId={CANVAS_REACT_CONTROL_HELP_IDS[control]}
-      currentValue={formatCanvasReactControlValue(control, canvasPresetSettings[control])}
       className="rv-canvas-react-control-help"
     >
       <SliderRow
@@ -4992,17 +4867,10 @@ export function CanvasPresetParticleControls() {
 
 
 export function CanvasEnginePanel() {
-  const mediaItems = useCanvasRuntimeMediaItems()
-  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
-  const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
   return (
     <>
       <div className="rv-canvas-engine-panel">
         <CanvasHelpControl
-          helpId="react.canvas.source.mediaLibrary"
-          currentValue={activeItem ? `${activeItem.name} · ${TYPE_LABELS[activeItem.type]}` : 'No active media'}
-          currentValueTone={activeItem ? 'accent' : 'default'}
-          placement="right"
           className="rv-canvas-source-help"
         >
           <CanvasMediaLibrary compact />
@@ -5071,9 +4939,6 @@ export function CanvasEngineFxPanel() {
     <div className="rv-ctrl-group">
       <Collapsible label="Display" defaultOpen>
         <CanvasHelpControl
-          helpId="react.canvas.sourceAndDisplay.display.fitMode"
-          currentValue={settings.fitMode === 'contain' ? 'Contain' : settings.fitMode === 'cover' ? 'Cover' : 'Stretch'}
-          currentValueTone="accent"
         >
           <CanvasSelectRow
             label="Fit Mode"
@@ -5086,7 +4951,7 @@ export function CanvasEngineFxPanel() {
             ]}
           />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.scale" currentValue={`${settings.scale.toFixed(2)}×`}>
+        <CanvasHelpControl>
           <SliderRow
             label="Scale"
             value={settings.scale}
@@ -5098,7 +4963,7 @@ export function CanvasEngineFxPanel() {
             resetValue={1}
           />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionX" currentValue={`${Math.round(settings.positionX)}%`}>
+        <CanvasHelpControl>
           <SliderRow
             label="Position X"
             value={settings.positionX}
@@ -5110,7 +4975,7 @@ export function CanvasEngineFxPanel() {
             resetValue={0}
           />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.positionY" currentValue={`${Math.round(settings.positionY)}%`}>
+        <CanvasHelpControl>
           <SliderRow
             label="Position Y"
             value={settings.positionY}
@@ -5122,7 +4987,7 @@ export function CanvasEngineFxPanel() {
             resetValue={0}
           />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.rotation" currentValue={`${Math.round(settings.rotation)}°`}>
+        <CanvasHelpControl>
           <SliderRow
             label="Rotation"
             value={settings.rotation}
@@ -5134,7 +4999,7 @@ export function CanvasEngineFxPanel() {
             resetValue={0}
           />
         </CanvasHelpControl>
-        <CanvasHelpControl helpId="react.canvas.sourceAndDisplay.display.outputOpacity" currentValue={formatCanvasPercentage(settings.opacity)}>
+        <CanvasHelpControl>
           <SliderRow
             label="Canvas Output Opacity"
             value={settings.opacity}

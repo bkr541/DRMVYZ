@@ -12,7 +12,6 @@ import {
   type LaserDmxShowDirectorWebGLQuality,
 } from './ReactTypes'
 import type { LaserDmxShowDirectorPerformanceFallbackBehavior } from './LaserDmxShowDirectorPerformanceProgram'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 const GRID_PRESETS = [
   { label: '10 × 6', value: '10x6', columns: 10, rows: 6 },
@@ -257,13 +256,6 @@ function PerformanceProgramControls() {
           disabled={!program}
           description="Disabling reveals the immutable authored rig without deleting the program."
         />
-        <HelpInfoTrigger
-          helpId="react.laserDmx.showDirector.performanceProgram.enabled"
-          currentValue={performance.enabled ? 'On' : 'Off'}
-          currentValueLabel="Status"
-          currentValueTone={performance.enabled ? 'accent' : 'default'}
-          placement="left"
-        />
       </div>
       <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
         <SliderRow
@@ -274,11 +266,6 @@ function PerformanceProgramControls() {
           max={2}
           step={0.05}
           disabled={!program}
-        />
-        <HelpInfoTrigger
-          helpId="react.laserDmx.showDirector.performanceProgram.programIntensity"
-          currentValue={`${performance.tuning.intensity.toFixed(2)}×`}
-          placement="left"
         />
       </div>
       <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
@@ -291,11 +278,6 @@ function PerformanceProgramControls() {
           step={0.05}
           disabled={!program || !supportsVariation}
         />
-        <HelpInfoTrigger
-          helpId="react.laserDmx.showDirector.performanceProgram.variationAmount"
-          currentValue={`${performance.tuning.variation.toFixed(2)}×`}
-          placement="left"
-        />
       </div>
       <div className="rv-laser-performance-control-help drm-help-overlay-anchor">
         <ToggleRow
@@ -303,13 +285,6 @@ function PerformanceProgramControls() {
           value={performance.audioIntelligenceEnabled}
           onChange={setAudioIntelligenceEnabled}
           disabled={!program}
-        />
-        <HelpInfoTrigger
-          helpId="react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse"
-          currentValue={performance.audioIntelligenceEnabled ? 'On' : 'Off'}
-          currentValueLabel="Status"
-          currentValueTone={performance.audioIntelligenceEnabled ? 'accent' : 'default'}
-          placement="left"
         />
       </div>
       <NumberInputRow

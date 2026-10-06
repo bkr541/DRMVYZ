@@ -19,7 +19,6 @@ import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible
 import { DualRailCollapsible } from './DualRailCollapsible'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import { getSvgVisualCacheVersion, getSvgVisualEntry, subscribeSvgVisualCache } from './renderers/svgVisualCache'
 import {
   buildUnifiedSvgStatus,
@@ -72,18 +71,6 @@ const SOUND_DRAWING_SOURCE_OPTIONS: Array<{
   { value: 'text', label: 'Text' },
   { value: 'svg', label: 'SVG' },
 ]
-
-function getSoundDrawingSourceLabel(value: SoundDrawingSourceChoice): string {
-  return SOUND_DRAWING_SOURCE_OPTIONS.find((option) => option.value === value)?.label ?? 'Classic Scope'
-}
-
-function getClassicScopeModeLabel(value: ClassicScopeMode): string {
-  if (value === 'monoDelayXY') return 'Mono Delay Portrait'
-  if (value === 'radialScope') return 'Radial Scope'
-  if (value === 'spiralScope') return 'Spiral Scope'
-  if (value === 'professionalScope') return 'Pro Scope'
-  return 'Waveform'
-}
 
 function SoundDrawingSourceIcon({ source }: { source: SoundDrawingSourceChoice }) {
   if (source === 'classic') {
@@ -567,13 +554,6 @@ export function ReactEnginePanel({
                 ? 'Select a Performance Show preset first. Until then, the base Classic Scope, Built-in Shape, Text, or SVG source remains active.'
                 : 'Adds section-aware choreography to the selected show. Turn it off to keep the same show loaded in its stable base-design state.'}
             />
-            <HelpInfoTrigger
-              helpId="react.soundDrawing.authoredPerformance.autoPerformance"
-              currentValue={soundDrawingPerformanceSettings.autoPerformance ? 'On' : 'Off'}
-              currentValueLabel="Status"
-              currentValueTone={soundDrawingPerformanceSettings.autoPerformance ? 'accent' : 'default'}
-              placement="right"
-            />
           </div>
           <div className="rv-sound-drawing-control-help drm-help-overlay-anchor">
             <div className="rv-ctrl-row">
@@ -606,12 +586,6 @@ export function ReactEnginePanel({
                 Selecting a Performance Show loads its base visual design without enabling Auto Performance. Auto Performance separately controls section choreography.
               </span>
             </div>
-            <HelpInfoTrigger
-              helpId="react.soundDrawing.authoredPerformance.performanceShow"
-              currentValue={selectedSoundDrawingShow?.name ?? 'No show selected'}
-              currentValueTone={selectedSoundDrawingShow ? 'accent' : 'default'}
-              placement="right"
-            />
           </div>
           <div
             className="rv-ctrl-info rv-control-helper-copy"
@@ -824,13 +798,6 @@ export function ReactEnginePanel({
               disabled={!soundDrawingOwnership.domains.source.editable}
               description={soundDrawingOwnership.domains.source.ariaDescription}
             />
-            <HelpInfoTrigger
-              helpId="react.soundDrawing.engineMode.overview"
-              currentValue={getSoundDrawingSourceLabel(
-                osc.sourceType === 'svgGlyph' || osc.sourceType === 'svgVisual' ? 'svg' : osc.sourceType,
-              )}
-              placement="right"
-            />
           </div>
 
           {soundDrawingCapabilities.visualSize && (
@@ -844,11 +811,6 @@ export function ReactEnginePanel({
                 step={0.01}
                 disabled={!soundDrawingOwnership.domains.geometry.editable}
                 description={`Sets the base size for the selected manual Engine Mode. ${soundDrawingOwnership.domains.geometry.ariaDescription}`}
-              />
-              <HelpInfoTrigger
-                helpId="react.soundDrawing.engineMode.visualSize"
-                currentValue={`${osc.pathScale.toFixed(2)}×`}
-                placement="right"
               />
             </div>
           )}
@@ -869,13 +831,6 @@ export function ReactEnginePanel({
                       value={osc.autoSectionMode}
                       onChange={(v) => set({ autoSectionMode: v })}
                       description="Automatically changes the manual Classic Scope topology from the analyzed section at the playhead."
-                    />
-                    <HelpInfoTrigger
-                      helpId="react.soundDrawing.engineMode.followTrackSections"
-                      currentValue={osc.autoSectionMode ? 'On' : 'Off'}
-                      currentValueLabel="Status"
-                      currentValueTone={osc.autoSectionMode ? 'accent' : 'default'}
-                      placement="right"
                     />
                   </div>
                   {osc.autoSectionMode && (
@@ -903,13 +858,6 @@ export function ReactEnginePanel({
                       { value: 'spiralScope',       label: 'Spiral Scope' },
                       { value: 'professionalScope', label: 'Pro Scope' },
                     ]}
-                  />
-                  <HelpInfoTrigger
-                    helpId="react.soundDrawing.engineMode.classicMode"
-                    currentValue={getClassicScopeModeLabel(
-                      osc.classicMode === 'sectionAuto' ? 'waveform' : osc.classicMode,
-                    )}
-                    placement="right"
                   />
                 </div>
               )}

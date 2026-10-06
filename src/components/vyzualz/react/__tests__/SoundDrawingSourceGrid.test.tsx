@@ -207,7 +207,6 @@ describe('Sound Drawing size controls', () => {
     expect(controls).toHaveLength(1)
     expect(controls[0].max).toBe('2.5')
     expect(controls[0].min).toBe('0.1')
-    expect(container.querySelector('[data-help-id="react.soundDrawing.engineMode.visualSize"]')).not.toBeNull()
   }
 
   it('shows Visual Size only for manual runtime branches that consume pathScale', async () => {
@@ -263,7 +262,7 @@ describe('Sound Drawing size controls', () => {
 })
 
 describe('Sound Drawing contextual help clean reset', () => {
-  it('renders explicit authored-performance overlay help without restoring automatic injection', async () => {
+  it('renders the authored-performance controls without any contextual-help icon or automatic injection', async () => {
     useReactStore.getState().setSoundDrawingPerformanceSettings({
       selectedShowId: 'phaseOrbit',
       autoPerformance: true,
@@ -274,25 +273,22 @@ describe('Sound Drawing contextual help clean reset', () => {
     expect(container.textContent).toContain('Performance Show')
     expect(container.textContent).toContain('Auto Performance')
     expect(container.textContent).toContain('Complexity')
-    expect(container.querySelector('[data-help-id="react.soundDrawing.authoredPerformance.autoPerformance"]')).not.toBeNull()
-    expect(container.querySelector('[data-help-id="react.soundDrawing.authoredPerformance.performanceShow"]')).not.toBeNull()
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
     expect(container.querySelector('.drm-priority-help-slot')).toBeNull()
     expect(document.body.querySelector('.drm-info-popover')).toBeNull()
   })
 
-  it('keeps the Auto Performance toggle disabled until a show is selected while its overlay help remains available', async () => {
+  it('keeps the Auto Performance toggle disabled until a show is selected', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
 
     const label = Array.from(container.querySelectorAll('.rv-ctrl-label'))
       .find(element => element.textContent === 'Auto Performance')
     const row = label?.closest('.rv-ctrl-toggle-row')
     const toggle = row?.querySelector<HTMLButtonElement>('.rv-ctrl-toggle')
-    const helpAnchor = row?.parentElement
 
     expect(toggle?.disabled).toBe(true)
     expect(row?.classList.contains('rv-ctrl-toggle-row--interactive-accessory')).toBe(false)
     expect(row?.querySelector('button[aria-haspopup="dialog"]')).toBeNull()
-    expect(helpAnchor?.classList.contains('drm-help-overlay-anchor')).toBe(true)
-    expect(helpAnchor?.querySelector('[data-help-id="react.soundDrawing.authoredPerformance.autoPerformance"]')).not.toBeNull()
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })

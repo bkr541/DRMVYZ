@@ -115,7 +115,6 @@ import {
 import { resolveBrandedReactPreset } from '../../../features/personalization/resolveBrandedReactPreset'
 import { subscribePixGridWorkspace } from './pixGrid/PixGridWorkspaceNavigation'
 import '../../../styles/reactView.css'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import {
   CANVAS_OUTPUT_AVAILABLE,
   isCanvasOutputAvailable,
@@ -886,27 +885,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   className="rv-context-workspace-tabs"
                   variant="underline"
                 />
-                {activeReactEngineId === 'oscilloscope' && (
-                  <HelpInfoTrigger
-                    helpId="react.soundDrawing.workspace.tabs"
-                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Source'}
-                    placement="right"
-                  />
-                )}
-                {activeReactEngineId === 'pixGrid' && (
-                  <HelpInfoTrigger
-                    helpId="react.pixGrid.workspace.tabs"
-                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Setup'}
-                    placement="right"
-                  />
-                )}
-                {activeReactEngineId === 'canvas' && (
-                  <HelpInfoTrigger
-                    helpId="react.canvas.workspace.tabs"
-                    currentValue={leftTabs.find((tab) => tab.id === leftTab)?.label ?? 'Source'}
-                    placement="right"
-                  />
-                )}
               </div>
               <div className="rv-left-tab-body">
                 <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
@@ -1142,7 +1120,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                         role="presentation"
                       >
                         {tab}
-                        <HelpInfoTrigger helpId={helpId} />
                       </span>
                     )
                   })}
@@ -1160,7 +1137,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                     >
                       <StageFocusIcon />
                     </button>
-                    <HelpInfoTrigger helpId="react.shared.lowerWorkspace.outputActions" placement="left" />
                   </div>
                   <span className="rv-lower-workspace-chevron" aria-hidden="true">
                     <LowerWorkspaceChevron expanded={!lowerWorkspaceCollapsed} />

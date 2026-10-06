@@ -26,7 +26,7 @@ import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { cueMarkerBelongsToTrack } from '../../../types/cue'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
-import { HelpInfoTrigger, InfoPopover } from '../../shared/InfoPopover'
+import { InfoPopover } from '../../shared/InfoPopover'
 import { DrawerNotice } from './DrawerNotice'
 import {
   getAudioSourcePolicySnapshot,
@@ -769,11 +769,6 @@ export function VyzualzAudioDock({
         </label>
 
       </div>
-      <HelpInfoTrigger
-        helpId="visualizer.audioDeck.trackPlayer"
-        currentValue={title}
-        placement="above"
-      />
       </div>
 
       {/* ── CENTER: waveform + zoom buttons side by side ─────────────── */}
@@ -800,11 +795,6 @@ export function VyzualzAudioDock({
           <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={liveInputSelected || waveformZoom <= 1} title={liveInputSelected ? trackSourceLockTitle : 'Zoom out'}>−</button>
         </div>
       </div>
-      <HelpInfoTrigger
-        helpId="visualizer.audioDeck.waveform"
-        currentValue={`${waveformZoom}× zoom`}
-        placement="above"
-      />
       </div>
 
       {/* ── RIGHT: BPM + TAP / CUE / SYNC ───────────────────────────── */}
@@ -1063,13 +1053,6 @@ export function VyzualzAudioDock({
           </div>
         </div>
       </div>
-      <HelpInfoTrigger
-        helpId="visualizer.audioDeck.tempoAndSync"
-        currentValue={bpmState.kind === 'value'
-          ? `${bpmState.bpm.toFixed(2)} BPM · Sync ${bpmSync ? 'on' : 'off'}`
-          : `BPM ${bpmState.kind} · Sync ${bpmSync ? 'on' : 'off'}`}
-        placement="above"
-      />
       </div>
 
       {showSourceLockMessage && (

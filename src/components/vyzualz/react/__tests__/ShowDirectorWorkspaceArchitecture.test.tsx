@@ -39,10 +39,11 @@ describe('LaserDMX workspace architecture', () => {
     vi.unstubAllGlobals()
   })
 
-  it('anchors workspace help to the Matrix and Show Director surface switch', async () => {
+  it('renders the Matrix and Show Director surface switch without a contextual-help icon', async () => {
     await render(<LaserDmxEnginePanel />)
 
-    expect(container.querySelector('[data-help-id="react.laserDmx.workspace.overview"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="LaserDMX Beam Matrix surfaces"]')).not.toBeNull()
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 
   it('places stage-wide design controls below Lighting Components in the left palette', async () => {
@@ -85,13 +86,6 @@ describe('LaserDMX workspace architecture', () => {
     expect(container.textContent).not.toContain('Snap to Grid')
     expect(container.textContent).not.toContain('Show Beams')
 
-    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(helpIds).toEqual([
-      'react.laserDmx.showDirector.performanceProgram.enabled',
-      'react.laserDmx.showDirector.performanceProgram.programIntensity',
-      'react.laserDmx.showDirector.performanceProgram.variationAmount',
-      'react.laserDmx.showDirector.performanceProgram.audioIntelligenceResponse',
-    ])
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })

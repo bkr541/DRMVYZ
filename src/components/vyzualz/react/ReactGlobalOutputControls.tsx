@@ -2,7 +2,6 @@ import { useRef, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { productionOutputController } from './output/ProductionOutput'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 
 export function OutputArmIcon() {
@@ -146,17 +145,6 @@ export function ReactGlobalOutputControls() {
           <span className="rv-global-output-label">Blackout</span>
         </button>
       </div>
-      <HelpInfoTrigger
-        helpId="react.shared.header.productionOutput"
-        currentValue={statusLabel}
-        currentValueLabel="Status"
-        currentValueTone={isLaserDmx && (blackout || unavailable)
-          ? 'warning'
-          : isLaserDmx && snapshot.status.armed
-            ? 'success'
-            : 'default'}
-        placement="below"
-      />
     </div>
   )
 }

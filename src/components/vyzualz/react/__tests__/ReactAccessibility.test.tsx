@@ -130,30 +130,17 @@ describe('React right-rail groups', () => {
     expect(modGroups).toContain('Audio Reactivity▾')
     expect(modGroups).toContain('Frequency Response▾')
 
-    const soundDrawingHelpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(soundDrawingHelpIds).toEqual([
-      'react.soundDrawing.audioReactivity.displaceMode',
-      'react.soundDrawing.audioReactivity.displacement',
-      'react.soundDrawing.audioReactivity.bassScale',
-      'react.soundDrawing.audioReactivity.midTwist',
-      'react.soundDrawing.audioReactivity.alternate',
-      'react.soundDrawing.audioReactivity.highJitter',
-      'react.soundDrawing.audioReactivity.beatBloom',
-    ])
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 
-  it('renders LaserDMX preview help beside the two active React Master trims', async () => {
+  it('renders the two active LaserDMX React Master trims', async () => {
     useReactStore.setState({ activeReactEngineId: 'laserDmx' })
 
     await act(async () => root.render(<ReactFxPanel />))
 
-    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(helpIds).toEqual([
-      'react.laserDmx.design.previewOutputTrim',
-      'react.laserDmx.design.previewGlowTrim',
-    ])
+    const labels = [...container.querySelectorAll('.rv-ctrl-label')].map(node => node.textContent?.trim())
+    expect(labels).toEqual(expect.arrayContaining(['Preview Output Trim', 'Preview Glow Trim']))
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 
@@ -166,19 +153,7 @@ describe('LaserDMX Beam Matrix accessibility', () => {
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Select all beams"]')).not.toBeNull()
     expect(container.querySelector<HTMLButtonElement>('button[aria-label="Reset Beam Matrix"]')).not.toBeNull()
 
-    const helpIds = [...container.querySelectorAll<HTMLButtonElement>('.drm-help-info-trigger')]
-      .map(button => button.dataset.helpId)
-    expect(helpIds).toEqual([
-      'react.laserDmx.beamMatrix.programAndCanvas.program.overview',
-      'react.laserDmx.beamMatrix.programAndCanvas.design.overview',
-      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamEditor',
-      'react.laserDmx.beamMatrix.programAndCanvas.canvas.snapToGrid',
-      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showGrid',
-      'react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamPaths',
-      'react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan',
-      'react.laserDmx.beamMatrix.programAndCanvas.reactionGroups.overview',
-      'react.laserDmx.beamMatrix.programAndCanvas.cueList.overview',
-    ])
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 
@@ -208,8 +183,8 @@ describe('React preset accessibility', () => {
   })
 })
 
-describe('LaserDMX preset contextual help', () => {
-  it('anchors one preset-library popover to the active LaserDMX collection', async () => {
+describe('LaserDMX preset library', () => {
+  it('renders the active LaserDMX collection without a contextual-help icon', async () => {
     useReactStore.setState({
       activeReactEngineId: 'laserDmx',
       laserDmxBeamMatrixAuthoringMode: 'manual',
@@ -217,7 +192,7 @@ describe('LaserDMX preset contextual help', () => {
 
     await act(async () => root.render(<ReactPresetsPanel />))
 
-    expect(container.querySelector('[data-help-id="react.laserDmx.presetLibrary"]')).not.toBeNull()
+    expect(container.querySelector('.drm-help-info-trigger')).toBeNull()
   })
 })
 

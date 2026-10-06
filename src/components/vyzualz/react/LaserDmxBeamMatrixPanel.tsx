@@ -6,7 +6,6 @@ import { IconChipButton } from './controls/IconChipButton'
 import { ConfirmDialog } from './controls/ConfirmDialog'
 import { LaserDmxReactionGroupInspector } from './LaserDmxReactionGroupInspector'
 import { LASER_DMX_MATRIX_MAX_BEAMS } from './ReactTypes'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 
 export function LaserDmxBeamMatrixPanel() {
   const {
@@ -120,24 +119,12 @@ export function LaserDmxBeamMatrixPanel() {
             </IconChipButton>
           )}
         </Collapsible>
-        <HelpInfoTrigger
-          helpId="react.laserDmx.beamMatrix.programAndCanvas.program.overview"
-          currentValue={`${beamCount} beam${beamCount === 1 ? '' : 's'} · ${groupCount} group${groupCount === 1 ? '' : 's'}${selCount > 0 ? ` · ${selCount} selected` : ''}`}
-          currentValueTone={beamCount > 0 ? 'accent' : 'default'}
-          placement="right"
-        />
       </div>
 
       {/* ── Stage-wide visualizer guides ────────────────────────────────── */}
       <div className="rv-show-director-design-panel rv-laser-global-controls">
         <div className="rv-laser-section-heading-help drm-help-overlay-anchor">
           <CtrlSection label="Beam Matrix Design" />
-          <HelpInfoTrigger
-            helpId="react.laserDmx.beamMatrix.programAndCanvas.design.overview"
-            currentValue={editor.beamEditorVisible ? 'Beam editor visible' : 'Beam editor hidden'}
-            currentValueTone={editor.beamEditorVisible ? 'accent' : 'default'}
-            placement="right"
-          />
         </div>
         <Collapsible label="Canvas" defaultOpen>
           <div className="rv-laser-control-help drm-help-overlay-anchor">
@@ -147,26 +134,12 @@ export function LaserDmxBeamMatrixPanel() {
               onChange={beamEditorVisible => setLaserDmxBeamMatrixEditorSettings({ beamEditorVisible })}
               title="Show editing handles and Beam Matrix guides without affecting live laser output."
             />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamEditor"
-              currentValue={editor.beamEditorVisible ? 'On' : 'Off'}
-              currentValueLabel="Status"
-              currentValueTone={editor.beamEditorVisible ? 'accent' : 'default'}
-              placement="right"
-            />
           </div>
           <div className="rv-laser-control-help drm-help-overlay-anchor">
             <ToggleRow
               label="Snap to Grid"
               value={editor.snapEnabled}
               onChange={snapEnabled => setLaserDmxBeamMatrixEditorSettings({ snapEnabled })}
-            />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.beamMatrix.programAndCanvas.canvas.snapToGrid"
-              currentValue={editor.snapEnabled ? 'On' : 'Off'}
-              currentValueLabel="Status"
-              currentValueTone={editor.snapEnabled ? 'accent' : 'default'}
-              placement="right"
             />
           </div>
           <div className="rv-laser-control-help drm-help-overlay-anchor">
@@ -176,13 +149,6 @@ export function LaserDmxBeamMatrixPanel() {
               onChange={guidesVisible => setLaserDmxBeamMatrixEditorSettings({ guidesVisible })}
               disabled={!editor.beamEditorVisible}
             />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.beamMatrix.programAndCanvas.canvas.showGrid"
-              currentValue={editor.guidesVisible ? 'On' : 'Off'}
-              currentValueLabel="Status"
-              currentValueTone={editor.guidesVisible ? 'accent' : 'default'}
-              placement="right"
-            />
           </div>
           <div className="rv-laser-control-help drm-help-overlay-anchor">
             <ToggleRow
@@ -191,13 +157,6 @@ export function LaserDmxBeamMatrixPanel() {
               onChange={beamPathsVisible => setLaserDmxBeamMatrixEditorSettings({ beamPathsVisible })}
               disabled={!editor.beamEditorVisible}
               title="Show origin-to-target path lines in the editor."
-            />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.beamMatrix.programAndCanvas.canvas.showBeamPaths"
-              currentValue={editor.beamPathsVisible ? 'On' : 'Off'}
-              currentValueLabel="Status"
-              currentValueTone={editor.beamPathsVisible ? 'accent' : 'default'}
-              placement="right"
             />
           </div>
           <div className="rv-laser-control-help drm-help-overlay-anchor">
@@ -210,11 +169,6 @@ export function LaserDmxBeamMatrixPanel() {
               step={0.01}
               color="#d8b95a"
             />
-            <HelpInfoTrigger
-              helpId="react.laserDmx.beamMatrix.programAndCanvas.canvas.overscan"
-              currentValue={editor.overscanAmount.toFixed(2)}
-              placement="right"
-            />
           </div>
         </Collapsible>
       </div>
@@ -224,12 +178,6 @@ export function LaserDmxBeamMatrixPanel() {
         <Collapsible label="Reaction Groups" defaultOpen>
           <LaserDmxReactionGroupInspector />
         </Collapsible>
-        <HelpInfoTrigger
-          helpId="react.laserDmx.beamMatrix.programAndCanvas.reactionGroups.overview"
-          currentValue={`${groupCount} group${groupCount === 1 ? '' : 's'}`}
-          currentValueTone={groupCount > 0 ? 'accent' : 'default'}
-          placement="right"
-        />
       </div>
 
       {/* ── Cue list ────────────────────────────────────────────────────── */}
@@ -237,11 +185,6 @@ export function LaserDmxBeamMatrixPanel() {
         <Collapsible label="Cue List" defaultOpen={false}>
           <div className="rv-ctrl-info rv-control-helper-copy">Cue list controls appear here when authored timeline cues are available.</div>
         </Collapsible>
-        <HelpInfoTrigger
-          helpId="react.laserDmx.beamMatrix.programAndCanvas.cueList.overview"
-          currentValue="No authored cues available"
-          placement="right"
-        />
       </div>
 
       {confirmDeleteSelected && (

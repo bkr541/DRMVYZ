@@ -51,7 +51,6 @@ import { cueMarkerBelongsToTrack, type VzCueMarker } from '../../../types/cue'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
 import { CuePointContextMenu, type CuePointContextMenuTarget } from '../transport/CuePointContextMenu'
-import { HelpInfoTrigger } from '../../shared/InfoPopover'
 import {
   captureTrackSectionUndoSnapshot,
   restoreTrackSectionUndoSnapshot,
@@ -2428,13 +2427,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         title={`Beat Grid: ${beatGridEnabled ? 'On' : 'Off'}`}
                       />
                     </div>
-                    <HelpInfoTrigger
-                      helpId="react.shared.trackMap.beatGridLane"
-                      currentValue={beatGridEnabled ? 'On' : 'Off'}
-                      currentValueLabel="Status"
-                      currentValueTone={beatGridEnabled ? 'accent' : 'default'}
-                      placement="left"
-                    />
                   </div>
 
                   <div
@@ -2504,11 +2496,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         disabled={!activeTrackId}
                       >{editorMode === 'create' ? '−' : '+'}</button>
                     </div>
-                    <HelpInfoTrigger
-                      helpId="react.shared.trackMap.sectionsLane"
-                      currentValue={`${resolvedSections.length} section${resolvedSections.length === 1 ? '' : 's'}`}
-                      placement="left"
-                    />
                   </div>
 
                   {SHOW_ENERGY_LANE && (
@@ -2616,11 +2603,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     >
                       {trackPixGridCues.length > 0 ? `P${trackPixGridCues.length} · ${timelineCueItems.length}` : timelineCueItems.length}
                     </div>
-                    <HelpInfoTrigger
-                      helpId="react.shared.trackMap.cuesLane"
-                      currentValue={`${timelineCueItems.length} marker${timelineCueItems.length === 1 ? '' : 's'}`}
-                      placement="left"
-                    />
                   </div>
 
                   <div
