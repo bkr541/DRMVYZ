@@ -16,6 +16,7 @@ import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntell
 import { getNativeCameraBridge } from '../../../../native/cameraAccessBridge'
 import { describeHeadlinerCameraStatus, HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
 import { buildHeadlinerCameraOptions, useHeadlinerCameraDevices } from './HeadlinerCameraDevices'
+import { isHeadlinerCameraWanted } from './HeadlinerCameraSession'
 import { publishHeadlinerCameraRuntime, useHeadlinerCameraStatus } from './HeadlinerCameraStatus'
 import {
   createHeadlinerFullscreenProgram,
@@ -194,7 +195,10 @@ export function HeadlinerSurface({
     onLiveFps?.(0)
     compositor.start()
     publishHeadlinerCameraRuntime(runtime)
-    void runtime.start(video, inputSourceRef.current)
+    // A fresh launch never opens the camera by itself; it comes on when the user connects it, and then
+    // stays on across engine switches for the rest of the session.
+    if (isHeadlinerCameraWanted()) void runtime.start(video, inputSourceRef.current)
+    else runtime.holdOff(video, inputSourceRef.current)
 
     return () => {
       compositor.stop()

@@ -2,6 +2,7 @@ import { createLogger } from '../../../../lib/logger'
 import { getNativeCameraBridge, type NativeCameraAccessStatus } from '../../../../native/cameraAccessBridge'
 import { HEADLINER_DEFAULT_CAMERA_SOURCE_ID, type HeadlinerInputSourceId } from './HeadlinerSettings'
 import { describeHeadlinerCameraDevices } from './HeadlinerCameraDevices'
+import { setHeadlinerCameraWanted } from './HeadlinerCameraSession'
 
 export type HeadlinerCameraSlotId = 'camera-1' | 'camera-2' | 'camera-3' | 'camera-4'
 export type HeadlinerCameraRuntimeStatus = 'idle' | 'requesting' | 'live' | 'error' | 'disconnected'
@@ -114,7 +115,7 @@ export function describeHeadlinerCameraStatus(
   snapshot: Pick<HeadlinerCameraRuntimeSnapshot, 'status' | 'errorCode' | 'message'> & { userDisconnected?: boolean },
 ): { title: string; detail: string | null } {
   if (snapshot.userDisconnected) {
-    return { title: 'Camera Disconnected', detail: 'The camera is turned off. Connect it again to resume.' }
+    return { title: 'Camera Disconnected', detail: 'The camera is off. Choose Connect Camera in the setup panel to turn it on.' }
   }
   switch (snapshot.status) {
     case 'requesting':
@@ -255,8 +256,20 @@ export class HeadlinerCameraRuntime {
     this.reopen()
   }
 
+  /**
+   * Mounts the surface with the camera off and no permission prompt, ready for connect(). Used when the
+   * app has just launched and the user has not asked for the camera yet.
+   */
+  holdOff(video: HTMLVideoElement, sourceId: HeadlinerInputSourceId = this.sourceId): void {
+    this.video = video
+    this.sourceId = sourceId
+    this.userDisconnected = true
+    this.setSnapshot({ status: 'idle', errorCode: null, message: null })
+  }
+
   /** Turns the camera off at the user's request: releases the device and stays off until connect(). */
   disconnect(): void {
+    setHeadlinerCameraWanted(false)
     if (this.userDisconnected) return
     const video = this.video
     this.stop()
@@ -267,6 +280,7 @@ export class HeadlinerCameraRuntime {
 
   /** Reopens a camera that disconnect() turned off. */
   connect(): void {
+    setHeadlinerCameraWanted(true)
     if (!this.userDisconnected) return
     this.userDisconnected = false
     if (!this.video) return

@@ -8,8 +8,10 @@ import type { Recorder } from '../../../../hooks/useRecorder'
 import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEnginePanel } from '../ReactEnginePanel'
 import { ReactOutputWorkspacePanel } from '../panels/ReactWorkspacePanels'
+import { setHeadlinerCameraWanted } from './HeadlinerCameraSession'
 import {
   HeadlinerDesignPanel,
+  HeadlinerEnginePanel,
   HeadlinerPresetsPanel,
   HeadlinerReactivityPanel,
   HeadlinerSurface,
@@ -138,6 +140,8 @@ beforeEach(() => {
     }
   })
 
+  // The camera is only on automatically once the user has connected it this session.
+  setHeadlinerCameraWanted(true)
   useReactStore.getState().resetReactView()
   useReactStore.getState().selectReactEngine('headliner')
   container = document.createElement('div')
@@ -357,6 +361,29 @@ describe('Headliner production workspace controls', () => {
     expect(canvas?.dataset.headlinerOutputRendered).toBe('true')
     expect(canvas?.dataset.headlinerOutputState).toBe('neutral')
     expect(fillText).toHaveBeenCalledWith('Camera Permission Required', 320, 320, 524.8)
+  })
+
+  it('does not open the camera on a fresh launch, and opens it when the user connects, then keeps it across engine switches', async () => {
+    setHeadlinerCameraWanted(false)
+    const track = new FakeHeadlinerTrack()
+    const getUserMedia = installHeadlinerCamera(new FakeHeadlinerStream(track) as unknown as MediaStream)
+
+    await act(async () => root.render(<><HeadlinerSurface /><HeadlinerEnginePanel /></>))
+    await act(async () => { await Promise.resolve() })
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-headliner-surface="camera"]')?.getAttribute('data-headliner-camera-status')).toBe('idle')
+    const connect = () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Connect Camera')
+    expect(connect()).toBeDefined()
+
+    await act(async () => connect()?.click())
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+
+    // Leaving Headliner and coming back in the same session reopens the camera by itself.
+    await act(async () => root.render(<div />))
+    await act(async () => root.render(<HeadlinerSurface />))
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
   })
 
   it('lists the three effect presets and loads the one that is picked', async () => {
