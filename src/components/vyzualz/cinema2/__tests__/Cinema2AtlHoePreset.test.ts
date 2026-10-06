@@ -33,12 +33,30 @@ describe('ATL HOE preset', () => {
     expect(cinema2NativePresetRegistry.get(CINEMA2_ATL_HOE_PRESET_ID)).not.toBeNull()
   })
 
-  it('renders the shipped 3D sign, sky, skyline silhouettes and foliage without the window, crown or road parts', () => {
+  it('renders the shipped 3D sign, sky, skyline silhouettes and foliage without the road parts', () => {
     expect(module.typeId).toBe('three-scene')
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
       'stars',
+      'bofaGlass',
+      'bofaStone',
+      'bofaGlow',
+      'truistBody',
+      'truistCrown',
+      'truistWindows',
+      'warmWindows',
+      'glassWindows',
+      'cyanWindows',
+      'crownCool',
+      'crown',
+      'crownWhite',
+      'beacon',
+      'gpStone',
+      'gpStoneB',
+      'gpStoneC',
+      'gpLedge',
+      'gpSlot',
       'landmarkDark',
       'landmarkGlass',
       'distantBuildings',
@@ -52,17 +70,14 @@ describe('ATL HOE preset', () => {
       'foliage',
     ]))
     expect(module.config?.parts).not.toEqual(expect.arrayContaining([
-      'warmWindows',
-      'cyanWindows',
-      'crown',
       'road',
       'roadGlow',
     ]))
     expect(module.parameters).toMatchObject({
       'signGlow.emissiveIntensity': 1.25,
-      'crown.emissiveIntensity': 3.1,
+      'crown.emissiveIntensity': 2.2,
       'warmWindows.emissiveIntensity': 1.45,
-      'cyanWindows.emissiveIntensity': 2.1,
+      'beacon.emissiveIntensity': 3,
     })
   })
 

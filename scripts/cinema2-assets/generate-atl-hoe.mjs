@@ -22,9 +22,25 @@ const MATERIALS = {
   midBuildings: { baseColorFactor: [0.045, 0.068, 0.085, 1], metallicFactor: 0.38, roughnessFactor: 0.76 },
   nearBuildings: { baseColorFactor: [0.06, 0.078, 0.09, 1], metallicFactor: 0.42, roughnessFactor: 0.68 },
   landmarkDark: { baseColorFactor: [0.075, 0.1, 0.118, 1], metallicFactor: 0.5, roughnessFactor: 0.58 },
-  landmarkGlass: { baseColorFactor: [0.025, 0.065, 0.085, 1], metallicFactor: 0.72, roughnessFactor: 0.22 },
+  landmarkGlass: { baseColorFactor: [0.085, 0.12, 0.165, 1], metallicFactor: 0.72, roughnessFactor: 0.22 },
+  // The model's tower is pale concrete with glass, so at night its stone catches the moon: a mid grey-blue body and a lighter crown and piers.
+  bofaGlass: { baseColorFactor: [0.14, 0.06, 0.045, 1], metallicFactor: 0.35, roughnessFactor: 0.45 },
+  bofaStone: { baseColorFactor: [0.26, 0.12, 0.085, 1], metallicFactor: 0.15, roughnessFactor: 0.7 },
+  bofaGlow: { baseColorFactor: [0.5, 0.2, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.6, emissiveFactor: [1, 0.45, 0.12] },
+  truistBody: { baseColorFactor: [0.075, 0.09, 0.115, 1], metallicFactor: 0.3, roughnessFactor: 0.6 },
+  truistCrown: { baseColorFactor: [0.2, 0.215, 0.24, 1], metallicFactor: 0.2, roughnessFactor: 0.7 },
+  truistWindows: { baseColorFactor: [0.02, 0.35, 0.4, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.15, 0.9, 0.9] },
+  glassWindows: { baseColorFactor: [0.04, 0.07, 0.1, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.22, 0.33, 0.46] },
+  crownCool: { baseColorFactor: [0.5, 0.7, 0.75, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.6, 0.9, 1] },
   warmWindows: { baseColorFactor: [0.7, 0.32, 0.045, 1], metallicFactor: 0, roughnessFactor: 0.46, emissiveFactor: [1, 0.43, 0.055] },
   cyanWindows: { baseColorFactor: [0.02, 0.42, 0.56, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [0.02, 0.65, 0.9] },
+  gpStone: { baseColorFactor: [0.075, 0.07, 0.062, 1], metallicFactor: 0.1, roughnessFactor: 0.85 },
+  gpStoneB: { baseColorFactor: [0.1, 0.093, 0.083, 1], metallicFactor: 0.1, roughnessFactor: 0.85 },
+  gpStoneC: { baseColorFactor: [0.13, 0.12, 0.106, 1], metallicFactor: 0.1, roughnessFactor: 0.85 },
+  gpLedge: { baseColorFactor: [0.22, 0.2, 0.17, 1], metallicFactor: 0.2, roughnessFactor: 0.6 },
+  gpSlot: { baseColorFactor: [0.012, 0.013, 0.016, 1], metallicFactor: 0.2, roughnessFactor: 0.7 },
+  crownWhite: { baseColorFactor: [0.9, 0.85, 0.7, 1], metallicFactor: 0, roughnessFactor: 0.4, emissiveFactor: [1, 0.92, 0.72] },
+  beacon: { baseColorFactor: [0.5, 0.02, 0.02, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.05, 0.03] },
   crown: { baseColorFactor: [0.92, 0.46, 0.035, 1], metallicFactor: 0.18, roughnessFactor: 0.3, emissiveFactor: [1, 0.48, 0.045] },
   // The night sign: near-black painted steel (cabinet, base rail and legs = signMetal; cell frames = signBorder; the faint edge rails and
   // rivets that catch a cool rim light = signTrim), a flat, bright yellow face in each cell (signGlow) and flat black letters (signLetters).
@@ -222,36 +238,132 @@ function refRound(part, u0, u1, vTop, vBottom, z, name, segments = 40) {
 const LANDMARK_Z = -16
 const FAR_Z = -28, MID_Z = -21, NEAR_Z = -12
 
-// Bank of America Plaza: a tall ribbed shaft capped by a pyramid roof and a thin spire.
-refBlock('landmarkDark', 872, 1018, 238, LANDMARK_Z, 3.4, 'boa-shaft')
-refBand('landmarkDark', 866, 1024, 232, 262, LANDMARK_Z, 3.6, 'boa-shoulder')
+// Bank of America Plaza, from an owner-supplied model: a very slender rose-granite shaft with dark glass between vertical piers, one
+// setback partway up (a wider lower shaft, a narrower upper one), a small platform, then a tall gold lattice pyramid and a gold spire. It is
+// the tallest building in the scene. Model x 836.5 = reference u 945; model y 15 (spire tip) = v 40; one model pixel = 0.985 reference pixels, so the tower keeps the model's proportions (about 4.3 tall for every 1 wide) from spire tip to a ground line near the frame's bottom.
+const boaU = x => 945 + (x - 836.5) * 0.985
+const boaV = y => 40 + (y - 15) * 0.985
+const BOA_LOWER = [735, 938], BOA_UPPER = [757, 918], BOA_SETBACK_Y = 440, BOA_PLATFORM_Y = 235, BOA_APEX_Y = 72
+refBlock('bofaGlass', boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1]), boaV(BOA_SETBACK_Y), LANDMARK_Z, 3.4, 'boa-lower-shaft')
+refBlock('bofaGlass', boaU(BOA_UPPER[0]), boaU(BOA_UPPER[1]), boaV(BOA_PLATFORM_Y), LANDMARK_Z, 3.3, 'boa-upper-shaft')
+// Vertical granite piers (lit along one edge, so the night view shows the tower's copper-orange lines), then a granite ledge at the setback.
+for (const [i, [x0, x1, yTop]] of [[735, 752, BOA_SETBACK_Y], [818, 838, BOA_SETBACK_Y], [858, 876, BOA_SETBACK_Y], [920, 938, BOA_SETBACK_Y],
+  [757, 773, BOA_PLATFORM_Y], [826, 846, BOA_PLATFORM_Y], [902, 918, BOA_PLATFORM_Y]].entries()) {
+  refBlock('bofaStone', boaU(x0), boaU(x1), boaV(yTop), LANDMARK_Z, 3.55, `boa-pier-${i}`)
+  refBlock('bofaGlow', boaU(x1) - 2.4, boaU(x1), boaV(yTop), LANDMARK_Z, 3.62, `boa-pier-glow-${i}`)
+  refBlock('bofaGlow', boaU(x0), boaU(x0) + 1.2, boaV(yTop), LANDMARK_Z, 3.62, `boa-pier-glow-left-${i}`)
+}
+refBand('bofaStone', boaU(BOA_LOWER[0]), boaU(BOA_LOWER[1]), boaV(BOA_SETBACK_Y), boaV(BOA_SETBACK_Y) + 7, LANDMARK_Z, 3.7, 'boa-setback-ledge')
+refBand('bofaStone', boaU(752), boaU(923), boaV(BOA_PLATFORM_Y - 8), boaV(BOA_PLATFORM_Y + 6), LANDMARK_Z, 3.7, 'boa-platform')
 {
-  const [xl, yBase] = refPoint(886, 236, LANDMARK_Z)
-  const [xr, yApex] = refPoint(1002, 100, LANDMARK_Z)
+  const [xl, yBase] = refPoint(boaU(760), boaV(BOA_PLATFORM_Y - 8), LANDMARK_Z)
+  const [xr, yApex] = refPoint(boaU(913), boaV(BOA_APEX_Y), LANDMARK_Z)
   const baseWidth = xr - xl
-  addGeometry('landmarkDark', new THREE.ConeGeometry(1, 1, 4), {
+  addGeometry('crown', new THREE.ConeGeometry(1, 1, 4), {
     at: [(xl + xr) / 2, (yBase + yApex) / 2, LANDMARK_Z], size: [baseWidth / Math.SQRT2, yApex - yBase, baseWidth / Math.SQRT2], rotate: [0, Math.PI / 4, 0], name: 'boa-pyramid',
   })
-  refBand('landmarkDark', 941, 947, 100, 70, LANDMARK_Z, 0.12, 'boa-spire')
+  // Dark lattice across the glowing pyramid: five cross bands and a centre rib on the sloped face that looks at the camera, so it reads as a
+  // framed roof. At height t the face stands (baseWidth / 2)(1 - t) in front of the pyramid's axis.
+  const height = yApex - yBase, slope = Math.atan2(baseWidth / 2, height)
+  for (const [i, t] of [0.12, 0.3, 0.48, 0.66, 0.84].entries()) {
+    const halfWidth = (baseWidth / 2) * (1 - t)
+    box('truistCrown', [(xl + xr) / 2, yBase + height * t, LANDMARK_Z + halfWidth + 0.04], [halfWidth * 2 * 0.98, 0.1, 0.05], [-slope, 0, 0], `boa-lattice-${i}`)
+  }
+  box('truistCrown', [(xl + xr) / 2, yBase + height / 2, LANDMARK_Z + baseWidth / 4 + 0.04], [0.09, Math.hypot(height, baseWidth / 2), 0.05], [-slope, 0, 0], 'boa-rib')
+  refBand('crown', boaU(834.5), boaU(838.5), boaV(BOA_APEX_Y), boaV(15), LANDMARK_Z, 0.1, 'boa-spire')
 }
 
 // Westin Peachtree Plaza: a round glass tower with a wider ring crown and a mast.
-refRound('landmarkGlass', 1086, 1184, 335, REF_BASE_V, LANDMARK_Z, 'westin-shaft')
-refRound('landmarkDark', 1082, 1190, 298, 340, LANDMARK_Z, 'westin-crown-ring', 48)
-refBand('landmarkDark', 1132, 1138, 298, 218, LANDMARK_Z, 0.1, 'westin-mast')
+refRound('landmarkGlass', 1086, 1184, 340, REF_BASE_V, LANDMARK_Z, 'westin-shaft')
+// A thin pale rim over a deeper dark band, both a touch wider than the shaft, then a tall slender mast.
+refRound('crownCool', 1082, 1190, 298, 306, LANDMARK_Z, 'westin-crown-rim', 48)
+refRound('landmarkDark', 1082, 1190, 306, 346, LANDMARK_Z, 'westin-crown-band', 48)
+refBand('crownWhite', 1133, 1137, 298, 168, LANDMARK_Z, 0.08, 'westin-mast')
 
-// Truist Plaza: a straight shaft with five set-back crown tiers and a spike.
-refBlock('landmarkDark', 1228, 1372, 383, LANDMARK_Z, 3.2, 'truist-shaft')
-for (const [i, [u0, u1, vTop, vBottom]] of [[1236, 1364, 355, 385], [1252, 1348, 325, 356], [1266, 1334, 296, 326], [1280, 1320, 270, 297], [1292, 1308, 247, 271]].entries()) {
-  refBand('landmarkDark', u0, u1, vTop, vBottom, LANDMARK_Z, 3.0 - i * 0.25, `truist-tier-${i}`)
+// Truist Plaza: a near-black shaft in three bays split by dark piers, each floor a glowing cyan band; above it a blocky dark green-grey
+// crown that steps back in tiers (a little lopsided, as in the close-up) and ends in a small pale cap.
+// Everything below is read from a 3D model of the tower (1672 × 941 render): its shaft is seven vertical columns of different heights,
+// the tall central pylon rising into a stair-stepped crown; above that a narrow tower carries the TRUIST sign and a round drum and spire.
+// Model coordinates are scaled 0.3646 into the reference frame (model x 660 = u 1228; model y 20 = v 245).
+const tModelU = x => 1228 + (x - 660) * 0.3646
+const tModelV = y => 245 + (y - 20) * 0.3646
+// Shapes below are traced from a 2× enlargement of the model's top (enlarged x 40 = model x 660, so model = 640 + X / 2 and Y / 2).
+const fromEnlarged = ([x0, x1, y0, y1]) => [640 + x0 / 2, 640 + x1 / 2, y0 / 2, y1 / 2]
+const TRUIST_COLUMNS = [[40, 165, 655], [165, 250, 710], [250, 415, 585], [415, 500, 670], [500, 605, 745], [605, 700, 705], [700, 830, 648]]
+refBlock('truistBody', tModelU(660), tModelU(1055), tModelV(372), LANDMARK_Z, 3.1, 'truist-shaft')
+TRUIST_COLUMNS.forEach(([X0, X1, Y], i) => {
+  const [x0, x1, topY] = fromEnlarged([X0, X1, Y, Y])
+  const depth = i === 2 ? 3.7 : 3.3
+  refBlock('truistBody', tModelU(x0), tModelU(x1), tModelV(topY), LANDMARK_Z, depth, `truist-column-${i}`)
+  // A thin dark pier along the column's left edge, then a cyan band for every floor in the column.
+  refBlock('truistCrown', tModelU(x0) - 1.2, tModelU(x0) + 1.2, tModelV(topY), LANDMARK_Z, depth + 0.1, `truist-pier-${i}`)
+  const u0 = tModelU(x0) + 2.2, u1 = tModelU(x1) - 1.2, pitch = 14
+  for (let v = tModelV(topY) + 5, row = 0; v < 1000; v += pitch, row += 1) {
+    if (hash(`truist:${i}:${row}`) > 0.8) continue
+    const [xa, ya] = refPoint(u0, v, LANDMARK_Z), [xb] = refPoint(u1, v, LANDMARK_Z), [, yb] = refPoint(u0, v + pitch * 0.58, LANDMARK_Z)
+    addGeometry('truistWindows', new THREE.PlaneGeometry(1, 1), { at: [(xa + xb) / 2, (ya + yb) / 2, LANDMARK_Z + depth / 2 + 0.04], size: [Math.abs(xb - xa), Math.abs(ya - yb), 1], name: `truist-band-${i}-${row}` })
+  }
+})
+refBlock('truistCrown', 1212, 1232, 380, LANDMARK_Z, 2.8, 'truist-shoulder')
+// The crown: a wide stair-stepped pyramid of stacked blocks (wings on both sides stepping down, a broad sign band) carrying a TALL narrow
+// tower, then a cap, drum and spire. Listed bottom to top so higher blocks sit slightly nearer the camera.
+const TRUIST_CROWN = [
+  [140, 730, 555, 640], [140, 205, 565, 680], [600, 730, 555, 680], // lowest wide band and its two end wings
+  [188, 275, 458, 575], [600, 692, 455, 565], // second wings
+  [275, 600, 425, 600], // broad middle block
+  [258, 630, 355, 440], // sign band
+  [335, 555, 175, 362], // tall narrow tower
+  [370, 515, 150, 192], // cap base
+]
+TRUIST_CROWN.forEach((box_, i) => {
+  const [x0, x1, y0, y1] = fromEnlarged(box_)
+  const depth = 2.6 + i * 0.12
+  refBand('truistCrown', tModelU(x0), tModelU(x1), tModelV(y0), tModelV(y1), LANDMARK_Z, depth, `truist-crown-${i}`)
+  refBand('crownCool', tModelU(x0), tModelU(x1), tModelV(y0), tModelV(y0) + 1.5, LANDMARK_Z, depth + 0.05, `truist-crown-${i}-edge`)
+  if (i >= 3 && i <= 7) refWindows({ key: `truist-crown-${i}`, u0: tModelU(x0) + 3, u1: tModelU(x1) - 3, vTop: tModelV(y0) + 4, vBottom: tModelV(y1) - 1, z: LANDMARK_Z, depth, bayU: 8, bayV: 7, chance: 0.4, part: 'truistWindows' })
+})
+{
+  const [sx0, sx1, sy0, sy1] = fromEnlarged([380, 630, 395, 425])
+  refBand('crownWhite', tModelU(sx0), tModelU(sx1), tModelV(sy0), tModelV(sy1), LANDMARK_Z, 3.6, 'truist-sign')
+  const [dx0, dx1, dy0, dy1] = fromEnlarged([388, 503, 105, 150])
+  refRound('truistCrown', tModelU(dx0), tModelU(dx1), tModelV(dy0), tModelV(dy1), LANDMARK_Z, 'truist-drum', 28)
+  refRound('crownCool', tModelU(dx0 - 3), tModelU(dx1 + 3), tModelV(dy0), tModelV(dy0) + 3, LANDMARK_Z, 'truist-drum-rim', 28)
+  const [px0, px1, py0, py1] = fromEnlarged([445, 449, 45, 105])
+  refBand('crownWhite', tModelU(px0), tModelU(px1), tModelV(py0), tModelV(py1), LANDMARK_Z, 0.06, 'truist-spire')
 }
-refBand('landmarkDark', 1297, 1303, 247, 228, LANDMARK_Z, 0.1, 'truist-spike')
 
-// Georgia-Pacific Tower: a broad slab stepping down toward the right edge in set-backs.
-refBlock('landmarkDark', 1447, 1562, 228, LANDMARK_Z, 4.6, 'gp-slab-a')
-refBlock('landmarkDark', 1558, 1610, 276, LANDMARK_Z, 4.4, 'gp-slab-b')
-refBlock('landmarkDark', 1606, 1634, 332, LANDMARK_Z, 4.2, 'gp-slab-c')
-refBlock('landmarkDark', 1630, 1680, 560, LANDMARK_Z, 4.0, 'gp-slab-d')
+// Georgia-Pacific Tower: a windowless warm-grey stone tower. Its left face is one straight line; three stacked sections step outward to the
+// right as they descend, each split by a dark recessed vertical slot, and the crown is a few notched blocks (all read from a close-up).
+const GP_Z = LANDMARK_Z
+const GP_DEPTH = 4.6
+// Each step is wide (about 38 reference pixels), each section a slightly lighter stone than the one above, and a pale ledge line catches the
+// light along every step, so the stepped right side reads clearly. The tower sits far enough left that its steps stay inside the frame.
+const GP_LEFT = 1440
+// Five sections, each stepping out 16 reference pixels, from a slender 120-pixel top to a base only a little wider.
+const GP_SECTIONS = [
+  { part: 'gpStone', vTop: 236, vBottom: 372, right: 1560 },
+  { part: 'gpStoneB', vTop: 372, vBottom: 508, right: 1576 },
+  { part: 'gpStoneB', vTop: 508, vBottom: 644, right: 1592 },
+  { part: 'gpStoneC', vTop: 644, vBottom: 780, right: 1608 },
+  { part: 'gpStoneC', vTop: 780, vBottom: 1700, right: 1624 },
+]
+GP_SECTIONS.forEach(({ part, vTop, vBottom, right }, i) => {
+  refBand(part, GP_LEFT, right, vTop, vBottom, GP_Z, GP_DEPTH, `gp-section-${i}`)
+  if (vBottom > 1000) refBlock(part, GP_LEFT, right, vTop, GP_Z, GP_DEPTH, `gp-section-${i}-base`)
+  refBand('gpLedge', GP_LEFT, right, vTop, vTop + 5, GP_Z, GP_DEPTH + 0.1, `gp-ledge-${i}`)
+  const width = right - GP_LEFT
+  // The recessed slot sits about 55–77% across each face, with a thin seam a quarter of the way in, as on the real tower's panels.
+  for (const [label, f0, f1] of [['slot', 0.55, 0.77], ['seam', 0.25, 0.27]]) {
+    const u0 = GP_LEFT + width * f0, u1 = GP_LEFT + width * f1
+    const top = vTop + 5, bottom = Math.min(vBottom, 1700)
+    const [x0, yTop] = refPoint(u0, top, GP_Z), [x1] = refPoint(u1, top, GP_Z), [, yBottom] = refPoint(u0, bottom, GP_Z)
+    box('gpSlot', [(x0 + x1) / 2, (yTop + yBottom) / 2, GP_Z + GP_DEPTH / 2 + 0.06], [Math.abs(x1 - x0), yTop - yBottom, 0.05], [0, 0, 0], `gp-${label}-${i}`)
+  }
+})
+// The notched crown: three blocks, tallest on the left.
+refBand('gpStone', GP_LEFT, GP_LEFT + 56, 224, 240, GP_Z, GP_DEPTH, 'gp-crown-left')
+refBand('gpStone', GP_LEFT + 56, GP_LEFT + 86, 230, 240, GP_Z, GP_DEPTH, 'gp-crown-mid')
+refBand('gpStone', GP_LEFT + 86, GP_LEFT + 118, 236, 242, GP_Z, GP_DEPTH, 'gp-crown-right')
 
 // The angular glass building low between Westin and Truist (the reference's slanted-faced block).
 refBlock('landmarkGlass', 1150, 1222, 700, NEAR_Z - 3, 3.0, 'angular-glass')
@@ -266,6 +378,54 @@ for (const [part, band, z, depth] of [['distantBuildings', 'far', FAR_Z, 3], ['m
   FILL[band].forEach(([u0, u1, vTop], i) => refBlock(part, u0, u1, vTop, z, depth, `${band}-building-${i}`))
 }
 
+// ── Facades and emitters (Phase 4) ──────────────────────────────────────────────────────────────────────────────────────────
+// Windows are small emissive flat panels (two triangles each) on each building's front face, laid out on a grid read from the reference (about 12 × 14 reference
+// pixels a floor bay) with a deterministic share left dark, so floors look occupied rather than uniformly lit.
+function refWindows({ key, u0, u1, vTop, vBottom = 1000, z, depth, bayU = 12, bayV = 14, chance = 0.5, part = 'warmWindows' }) {
+  const cols = Math.max(1, Math.floor((u1 - u0) / bayU))
+  const rows = Math.max(1, Math.floor((vBottom - vTop) / bayV))
+  const du = (u1 - u0) / cols, dv = (vBottom - vTop) / rows
+  const [xa] = refPoint(u0, vTop, z), [xb] = refPoint(u0 + du, vTop, z)
+  const [, ya] = refPoint(u0, vTop, z), [, yb] = refPoint(u0, vTop + dv, z)
+  const width = Math.abs(xb - xa), height = Math.abs(ya - yb)
+  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
+    if (hash(`${key}:${row}:${col}`) > chance) continue
+    const [x, y] = refPoint(u0 + du * (col + 0.5), vTop + dv * (row + 0.5), z)
+    addGeometry(part, new THREE.PlaneGeometry(1, 1), { at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1] })
+  }
+}
+refWindows({ key: 'boa', u0: boaU(740), u1: boaU(933), vTop: boaV(BOA_SETBACK_Y) + 10, z: LANDMARK_Z, depth: 3.4, bayU: 9, bayV: 14, chance: 0.2 })
+refWindows({ key: 'boa-up', u0: boaU(762), u1: boaU(913), vTop: boaV(BOA_PLATFORM_Y) + 8, vBottom: boaV(BOA_SETBACK_Y), z: LANDMARK_Z, depth: 3.3, bayU: 9, bayV: 14, chance: 0.2 })
+// Westin: a fine grid of cool glass panels wraps the round shaft, with a bright cyan reflection running down its left-centre.
+{
+  const [xl] = refPoint(1086, 400, LANDMARK_Z), [xr] = refPoint(1184, 400, LANDMARK_Z)
+  const radius = Math.abs(xr - xl) / 2, centreX = (xl + xr) / 2
+  const columns = 30, rowsCount = 78, spanDeg = 150, topV = 352
+  for (let row = 0; row < rowsCount; row += 1) for (let col = 0; col < columns; col += 1) {
+    if (hash(`westin:${row}:${col}`) > 0.93) continue
+    const degrees = -spanDeg / 2 + (spanDeg * (col + 0.5)) / columns
+    const angle = degrees * (Math.PI / 180)
+    const v0 = topV + ((1000 - topV) * row) / rowsCount, v1 = topV + ((1000 - topV) * (row + 1)) / rowsCount
+    const [, y0] = refPoint(1135, v0, LANDMARK_Z), [, y1] = refPoint(1135, v1, LANDMARK_Z)
+    const reflection = degrees > -52 && degrees < -14
+    addGeometry(reflection ? 'cyanWindows' : 'glassWindows', new THREE.PlaneGeometry(1, 1), {
+      at: [centreX + Math.sin(angle) * (radius + 0.03), (y0 + y1) / 2, LANDMARK_Z + Math.cos(angle) * (radius + 0.03)],
+      size: [(2 * Math.PI * radius * (spanDeg / 360)) / columns * 0.86, Math.abs(y0 - y1) * 0.76, 1],
+      rotate: [0, angle, 0],
+      name: `westin-window-${row}-${col}`,
+    })
+  }
+}
+// Fill buildings: sparser, dimmer-looking occupancy toward the back.
+for (const [band, chance, z, depth] of [['far', 0.14, FAR_Z, 3], ['mid', 0.4, MID_Z, 3.4], ['near', 0.46, NEAR_Z, 3.2]]) {
+  FILL[band].forEach(([u0, u1, vTop], i) => refWindows({ key: `${band}-${i}`, u0: u0 + 4, u1: u1 - 4, vTop: vTop + 10, z, depth, bayU: 13, bayV: 16, chance }))
+}
+// Red aviation beacons on the tallest points.
+for (const [i, [u, v, z]] of [[945, 39, LANDMARK_Z], [1135, 166, LANDMARK_Z], [1228 + (863.5 - 660) * 0.3646, 245 + (22.5 - 20) * 0.3646 - 1, LANDMARK_Z], [74, 506, MID_Z], [1190, 508, MID_Z], [1012, 244, LANDMARK_Z]].entries()) {
+  const [x, y] = refPoint(u, v, z)
+  box('beacon', [x, y, z + 0.1], [0.16, 0.16, 0.16], [0, 0, 0], `beacon-${i}`)
+}
+
 // Wider Stages show more city than the reference frame, so the skyline keeps going past both edges (reference columns -1300 … 0 and
 // 1672 … 3000, enough for a 3:1 Stage) with the same three bands and varied widths and heights.
 for (const [part, band, z, depth, topMin, topMax] of [['distantBuildings', 'far', FAR_Z, 3, 600, 680], ['midBuildings', 'mid', MID_Z, 3.4, 520, 640], ['nearBuildings', 'near', NEAR_Z, 3.2, 660, 730]]) {
@@ -275,6 +435,7 @@ for (const [part, band, z, depth, topMin, topMax] of [['distantBuildings', 'far'
       const width = 80 + hash(`wide-${side}-${band}-w-${i}`) * 110
       const top = topMin + hash(`wide-${side}-${band}-t-${i}`) * (topMax - topMin)
       refBlock(part, u, u + width + 6, top, z, depth, `wide-${side}-${band}-${i}`)
+      refWindows({ key: `wide-${side}-${band}-${i}`, u0: u + 4, u1: u + width + 2, vTop: top + 10, z, depth, bayU: 13, bayV: 16, chance: band === 'far' ? 0.14 : band === 'mid' ? 0.4 : 0.46 })
       u += width
     }
   }
