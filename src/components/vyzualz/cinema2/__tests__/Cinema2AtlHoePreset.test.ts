@@ -38,8 +38,7 @@ describe('ATL HOE preset', () => {
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
-      'skyMid',
-      'skyHorizon',
+      'stars',
       'signMetal',
       'signGlow',
       'signBorder',

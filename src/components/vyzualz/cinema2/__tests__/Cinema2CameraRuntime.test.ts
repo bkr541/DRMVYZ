@@ -18,7 +18,7 @@ import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
-import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2CameraRuntime, cinema2MinAspectLensShift, fitCinema2FovToMinAspect } from '../spatial/Cinema2CameraRuntime'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 
 const CAMERA_ID = cinema2StableId<Cinema2CameraId>('main-camera')
@@ -225,5 +225,31 @@ describe('Cinema 2.0 Stage 12B final Camera Runtime', () => {
       expect.objectContaining({ code: 'CINEMA2_PRESET_CAMERA_RIG_INVALID' }),
       expect.objectContaining({ code: 'CINEMA2_PRESET_CAMERA_CONTROL_TYPE_MISMATCH' }),
     ]))
+  })
+})
+
+describe('minAspect anchor (taller Stage framing)', () => {
+  it('leaves the view centred without an anchor, at or above the composed aspect, or at anchor 0', () => {
+    expect(cinema2MinAspectLensShift(42, 1.2, 16 / 9, undefined)).toBe(0)
+    expect(cinema2MinAspectLensShift(42, 1.2, 16 / 9, 0)).toBe(0)
+    expect(cinema2MinAspectLensShift(42, 16 / 9, 16 / 9, 1)).toBe(0)
+    expect(cinema2MinAspectLensShift(42, 2.4, 16 / 9, 1)).toBe(0)
+  })
+
+  it('pins the composition bottom edge to the Stage bottom edge at anchor 1', () => {
+    const aspect = 1.14
+    const shift = cinema2MinAspectLensShift(42, aspect, 16 / 9, 1)
+    const base = Math.tan((42 * Math.PI) / 360)
+    const widened = Math.tan((fitCinema2FovToMinAspect(42, aspect, 16 / 9) * Math.PI) / 360)
+    expect(shift).toBeGreaterThan(0)
+    // The composition's bottom edge sits at -base/widened in the unshifted frame; shifting down by `shift` lands it on -1.
+    expect(-base / widened - shift).toBeCloseTo(-1, 10)
+  })
+
+  it('blends between centred and pinned, and ignores out-of-range anchors', () => {
+    const half = cinema2MinAspectLensShift(42, 1.14, 16 / 9, 0.5)
+    const full = cinema2MinAspectLensShift(42, 1.14, 16 / 9, 1)
+    expect(half).toBeCloseTo(full / 2, 10)
+    expect(cinema2MinAspectLensShift(42, 1.14, 16 / 9, 5)).toBeCloseTo(full, 10)
   })
 })

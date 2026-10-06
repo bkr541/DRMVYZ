@@ -763,6 +763,9 @@ function validateCameraDefinition(
   if (camera.minAspect != null && (!Number.isFinite(camera.minAspect) || camera.minAspect < 0.25 || camera.minAspect > 4)) {
     diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera minAspect must be a finite width / height ratio between 0.25 and 4.', `${path}.minAspect`))
   }
+  if (camera.minAspectAnchor != null && (!Number.isFinite(camera.minAspectAnchor) || camera.minAspectAnchor < 0 || camera.minAspectAnchor > 1)) {
+    diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Camera minAspectAnchor must be a finite number between 0 and 1.', `${path}.minAspectAnchor`))
+  }
   if (camera.orthographicHeight != null && (!Number.isFinite(camera.orthographicHeight) || camera.orthographicHeight <= 0)) {
     diagnostics.push(error('CINEMA2_PRESET_CAMERA_VALUE_INVALID', 'Orthographic height must be a positive finite number.', `${path}.orthographicHeight`))
   }

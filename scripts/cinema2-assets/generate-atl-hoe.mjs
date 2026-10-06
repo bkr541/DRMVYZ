@@ -14,9 +14,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/atl-hoe.glb')
 
 const MATERIALS = {
-  sky: { baseColorFactor: [0.045, 0.1, 0.18, 1], metallicFactor: 0, roughnessFactor: 1 },
-  skyMid: { baseColorFactor: [0.065, 0.14, 0.23, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.035, 0.085, 0.16] },
-  skyHorizon: { baseColorFactor: [0.08, 0.16, 0.23, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.045, 0.095, 0.15] },
+  // A dark backing plane closes the world behind the sky bands; the visible sky is the stack of skyBandNN strips built below.
+  sky: { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.02, 0.07, 0.17] },
   stars: { baseColorFactor: [0.5, 0.65, 0.8, 1], metallicFactor: 0, roughnessFactor: 0.7, emissiveFactor: [0.75, 0.9, 1] },
   buildings: { baseColorFactor: [0.05, 0.075, 0.092, 1], metallicFactor: 0.45, roughnessFactor: 0.72 },
   distantBuildings: { baseColorFactor: [0.026, 0.05, 0.072, 1], metallicFactor: 0.25, roughnessFactor: 0.9 },
@@ -78,16 +77,61 @@ function mergePart(part, list) {
   return { name: part, part, positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices), phases: new Float32Array(phases) }
 }
 
-// A deep blue plane closes the world behind the skyline. Small emissive cubes
-// float just in front of it so stars retain parallax and bloom without a texture.
-box('sky', [0, 10, -34], [140, 70, 0.25])
-box('skyMid', [0, 5.2, -33.78], [140, 10.5, 0.08])
-box('skyHorizon', [0, 1.35, -33.62], [140, 4.8, 0.08])
-for (let i = 0; i < 260; i += 1) {
-  const x = -34 + hash(`star-x-${i}`) * 68
-  const y = 1.5 + hash(`star-y-${i}`) * 22
-  const z = -33.7 + hash(`star-z-${i}`) * 0.08
-  const s = 0.03 + hash(`star-s-${i}`) ** 3 * 0.11
+// ── Sky ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// The GLB carries one flat material per part, so the night-sky gradient is a stack of thin horizontal strips (skyBand00 …), each its own
+// part with an emissive colour taken from the gradient below. The gradient is authored in the colours the *rendered* frame should show
+// (sRGB, sampled from the reference): a deep navy at the top that lightens and cools toward the horizon, then a faint warm-grey haze
+// just below the horizon line that the city will stand in, fading to a dark base. The strips are lit by emission alone, so the
+// emissive value is found by inverting the render pipeline's measured response (exposure, fog and finish) for each channel.
+const SKY_Z = -34
+const SKY_STOPS = [
+  [34, [8, 34, 72]], [28, [9, 36, 76]], [19, [11, 38, 79]], [15, [14, 40, 82]], [11, [19, 47, 93]], [7, [26, 54, 103]],
+  [3.2, [28, 58, 110]], [1, [31, 60, 106]], [-0.5, [40, 61, 94]], [-3, [38, 55, 80]], [-7, [30, 44, 68]], [-16, [20, 34, 56]],
+]
+// Approximate render response per channel: displayed = gain * emissive ^ exponent. The finish also darkens toward the frame's top and
+// bottom, so SKY_CORRECTION trims each strip's emissive by the ratio measured between its captured colour and its target at the 16:9
+// checkpoint. Re-measure it (capture, compare each strip with SKY_STOPS) whenever exposure, fog or the cinematic finish change.
+const SKY_RESPONSE = [{ gain: 1.05, exponent: 0.5 }, { gain: 1.05, exponent: 0.5 }, { gain: 1.05, exponent: 0.5 }]
+// SKY_CORRECTION_BEGIN
+const SKY_CORRECTION = [[7.2026,2.1114,1.1433],[7.2026,2.1114,1.1433],[7.2026,2.1114,1.1433],[7.2026,2.1114,1.1433],[6.1769,1.953,1.0859],[5.1926,1.885,1.0551],[4.7171,1.821,1.0067],[4.5924,1.7663,1.0],[3.6058,1.7321,0.9814],[3.2495,1.7024,0.9641],[3.3359,1.6619,0.9313],[3.1335,1.5776,0.9167],[2.9821,1.5517,0.9032],[2.9479,1.5515,0.9014],[2.7919,1.531,0.8897],[2.6722,1.4851,0.8928],[2.571,1.4694,0.8821],[2.4903,1.4736,0.872],[2.5217,1.4792,0.877],[2.5398,1.4585,0.8871],[2.6067,1.4582,0.8901],[2.6397,1.5047,0.886],[2.6414,1.4946,0.8956],[2.8004,1.5149,0.9164],[2.7778,1.5516,0.9301],[2.8179,1.5851,0.9466],[2.7895,1.6191,0.9645],[2.9098,1.6745,0.9974],[2.9588,1.7001,1.0305],[2.8098,1.7806,1.0818],[2.8452,1.8697,1.1229],[2.9889,2.0396,1.2005],[3.3085,2.1728,1.2739],[3.1828,2.1259,1.2545],[2.9863,2.0645,1.2347],[3.0283,2.0696,1.237],[3.0563,2.0399,1.2365],[3.0753,2.0883,1.2603],[3.1771,2.121,1.274],[3.2497,2.164,1.3384],[3.2967,2.2191,1.3715],[3.2967,2.2191,1.3715]]
+// SKY_CORRECTION_END
+function skyTargetAt(y) {
+  for (let i = 0; i < SKY_STOPS.length - 1; i += 1) {
+    const [y0, c0] = SKY_STOPS[i], [y1, c1] = SKY_STOPS[i + 1]
+    if (y <= y0 && y >= y1) { const t = (y0 - y) / (y0 - y1); return c0.map((v, k) => v + (c1[k] - v) * t) }
+  }
+  return (y > SKY_STOPS[0][0] ? SKY_STOPS[0][1] : SKY_STOPS.at(-1)[1])
+}
+const skyEmissiveFor = (display, index) => display.map((value, channel) => {
+  const { gain, exponent } = SKY_RESPONSE[channel]
+  return Math.min(1, (value / 255 / gain) ** (1 / exponent) * (SKY_CORRECTION[index]?.[channel] ?? 1))
+})
+// Strip edges, from the top of the frame down: coarse where the gradient is slow, fine around the horizon where it turns.
+const skyEdges = []
+for (let y = 34; y > 14; y -= 2) skyEdges.push(y)
+for (let y = 14; y > 5 + 1e-9; y -= 0.9) skyEdges.push(y)
+for (let y = 5; y > -3 + 1e-9; y -= 0.5) skyEdges.push(y)
+for (let y = -3; y >= -16; y -= 2) skyEdges.push(y)
+box('sky', [0, 10, SKY_Z - 0.6], [140, 70, 0.25])
+for (let i = 0; i < skyEdges.length - 1; i += 1) {
+  const top = skyEdges[i], bottom = skyEdges[i + 1]
+  const part = `skyBand${String(i).padStart(2, '0')}`
+  MATERIALS[part] = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: skyEmissiveFor(skyTargetAt((top + bottom) / 2), i) }
+  box(part, [0, (top + bottom) / 2, SKY_Z], [140, top - bottom, 0.1])
+}
+// The tall embedded Stage preview opens far more sky above and below the 16:9 frame, so two caps continue the gradient's end colours
+// (using their neighbouring strip's correction) well past the visible range instead of letting the backing plane show.
+const skyStripCount = skyEdges.length - 1
+MATERIALS.skyCapTop = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: skyEmissiveFor(skyTargetAt(skyEdges[0] + 1), 0) }
+box('skyCapTop', [0, (skyEdges[0] + 140) / 2, SKY_Z], [140, 140 - skyEdges[0], 0.1])
+MATERIALS.skyCapBottom = { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: skyEmissiveFor(skyTargetAt(skyEdges.at(-1) - 1), skyStripCount - 1) }
+box('skyCapBottom', [0, (skyEdges.at(-1) - 100) / 2, SKY_Z], [140, skyEdges.at(-1) + 100, 0.1])
+// Stars: fewer and finer than before, thinning toward the horizon. They sit just in front of the bands so they keep parallax and bloom.
+for (let i = 0; i < 120; i += 1) {
+  const x = -36 + hash(`star-x-${i}`) * 72
+  const y = 6 + (1 - hash(`star-y-${i}`) ** 1.8) * 22
+  const z = SKY_Z + 0.25 + hash(`star-z-${i}`) * 0.08
+  const s = 0.024 + hash(`star-s-${i}`) ** 4 * 0.075
   box('stars', [x, y, z], [s, s, s * 0.35])
 }
 
@@ -389,7 +433,7 @@ const GLYPHS = {
   H: { width: 0.86, outline: [[0, 0], [0.35, 0], [0.35, 0.38], [0.65, 0.38], [0.65, 0], [1, 0], [1, 1], [0.65, 1], [0.65, 0.62], [0.35, 0.62], [0.35, 1], [0, 1]], xScale: 0.86 },
   O: { width: 0.96, outline: superEllipse(0.5, 0.5, 0.5, 0.5), holes: [superEllipse(0.5, 0.5, 0.17, 0.24, 2.2)], xScale: 0.96 },
   U: { width: 0.88, outline: [[0, 1], [0, 0.42], ...arc(0.5, 0.42, 0.5, 0.42, Math.PI, Math.PI * 2), [1, 1], [0.65, 1], [0.65, 0.42], ...arc(0.5, 0.42, 0.15, 0.15, Math.PI * 2, Math.PI).slice(0), [0.35, 1]], xScale: 0.88 },
-  S: { width: 0.78, strokeCentre: [[0.88, 0.78], [0.8, 0.9], [0.62, 0.955], [0.42, 0.965], [0.22, 0.925], [0.12, 0.82], [0.17, 0.69], [0.34, 0.585], [0.52, 0.5], [0.72, 0.42], [0.82, 0.31], [0.78, 0.17], [0.62, 0.065], [0.4, 0.035], [0.2, 0.08], [0.08, 0.2], [0.05, 0.3]], strokeWidth: 0.285, xScale: 0.8 },
+  S: { width: 0.78, strokeCentre: [[0.88, 0.78], [0.8, 0.9], [0.62, 0.955], [0.42, 0.965], [0.22, 0.925], [0.12, 0.82], [0.17, 0.69], [0.34, 0.585], [0.52, 0.5], [0.72, 0.42], [0.82, 0.31], [0.78, 0.17], [0.62, 0.065], [0.4, 0.035], [0.2, 0.08], [0.08, 0.2], [0.05, 0.3]], strokeWidth: 0.24, xScale: 0.8 },
 }
 // Heavy, flat letters: tall in the face, with only a token extrusion so they read as printed black blocks.
 const letterHeight = 1.04
@@ -399,7 +443,18 @@ function glyphShape(letter) {
   const glyph = GLYPHS[letter]
   let outline = glyph.outline
   let holes = glyph.holes ?? []
-  if (glyph.strokeCentre) outline = strokeOutline(glyph.strokeCentre, glyph.strokeWidth)
+  if (glyph.strokeCentre) {
+    // Fit the swept stroke inside the glyph box: pull the centre line in by half the stroke width so the S's outer edge lands on the
+    // same top, bottom and side lines as the other letters instead of overshooting the face.
+    const half = glyph.strokeWidth / 2
+    const xs = glyph.strokeCentre.map(point => point[0]), ys = glyph.strokeCentre.map(point => point[1])
+    const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+    const fitted = glyph.strokeCentre.map(([x, y]) => [
+      half + ((x - minX) / (maxX - minX)) * (1 - 2 * half),
+      half + ((y - minY) / (maxY - minY)) * (1 - 2 * half),
+    ])
+    outline = strokeOutline(fitted, glyph.strokeWidth)
+  }
   const widthScale = (glyph.unit ? glyph.width : glyph.xScale) * letterHeight
   const toWorld = ([x, y]) => new THREE.Vector2((x - 0.5) * widthScale, (y - 0.5) * letterHeight)
   const shape = new THREE.Shape(outline.map(toWorld))

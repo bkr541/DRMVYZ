@@ -468,6 +468,12 @@ export interface Cinema2CameraManifest {
    * unaffected (the vertical FOV holds). Omit for the plain vertical FOV at every aspect.
    */
   minAspect?: number
+  /**
+   * Perspective only, with `minAspect`: how much of the extra height a narrower Stage reveals is added above the composition instead of
+   * split evenly. 0 (default) keeps the composition centred; 1 pins the bottom of the `minAspect` composition to the bottom of the Stage,
+   * so the scene sits low and all the extra view is above it. Values in between blend. A lens shift, so there is no parallax change.
+   */
+  minAspectAnchor?: number
   /** Vertical orthographic world span; ignored by perspective cameras. */
   orthographicHeight?: number
   near?: number

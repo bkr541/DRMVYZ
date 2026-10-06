@@ -208,7 +208,13 @@ export class Cinema2CameraRuntime {
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
     const fovDegrees = fitCinema2FovToMinAspect(finalSafety.pose.fovDegrees, aspect, camera.minAspect)
     const projectionMatrix = camera.projection === 'perspective'
-      ? createPerspectiveMatrix(fovDegrees, aspect, finalSafety.pose.near, finalSafety.pose.far)
+      ? createPerspectiveMatrix(
+        fovDegrees,
+        aspect,
+        finalSafety.pose.near,
+        finalSafety.pose.far,
+        cinema2MinAspectLensShift(finalSafety.pose.fovDegrees, aspect, camera.minAspect, camera.minAspectAnchor),
+      )
       : createOrthographicMatrix(finalSafety.pose.orthographicHeight, aspect, finalSafety.pose.near, finalSafety.pose.far)
 
     this.currentFrame = Object.freeze({
@@ -758,14 +764,26 @@ export function fitCinema2FovToMinAspect(fovDegrees: number, aspect: number, min
   return Math.min(150, (Math.atan(halfTan) * 2 * 180) / Math.PI)
 }
 
-function createPerspectiveMatrix(fovDegrees: number, aspect: number, near: number, far: number): Cinema2Matrix4 {
+/**
+ * The vertical lens shift (in NDC, positive moves the picture down) for a Stage narrower than `minAspect`. Fit-to-width widens the vertical
+ * view around the centre; `anchor` 1 moves the picture down by exactly enough that the `minAspect` composition's bottom edge stays on the
+ * Stage's bottom edge, so the extra height is all added above it. 0 (or no anchor) leaves the view centred.
+ */
+export function cinema2MinAspectLensShift(fovDegrees: number, aspect: number, minAspect: number | undefined, anchor: number | undefined): number {
+  if (!anchor || minAspect == null || !Number.isFinite(minAspect) || minAspect <= 0 || !(aspect > 0) || aspect >= minAspect) return 0
+  const fitted = fitCinema2FovToMinAspect(fovDegrees, aspect, minAspect)
+  const ratio = Math.tan(degreesToRadians(fovDegrees) / 2) / Math.tan(degreesToRadians(fitted) / 2)
+  return Math.min(1, Math.max(0, anchor)) * (1 - ratio)
+}
+
+function createPerspectiveMatrix(fovDegrees: number, aspect: number, near: number, far: number, lensShiftY = 0): Cinema2Matrix4 {
   const safeNear = Math.max(EPSILON, near)
   const safeFar = Math.max(safeNear + EPSILON, far)
   const f = 1 / Math.tan(degreesToRadians(clamp(fovDegrees, 1, 179)) / 2)
   return Object.freeze([
     f / safeAspect(aspect, 1), 0, 0, 0,
     0, f, 0, 0,
-    0, 0, (safeFar + safeNear) / (safeNear - safeFar), -1,
+    0, lensShiftY, (safeFar + safeNear) / (safeNear - safeFar), -1,
     0, 0, (2 * safeFar * safeNear) / (safeNear - safeFar), 0,
   ]) as Cinema2Matrix4
 }

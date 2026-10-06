@@ -136,16 +136,6 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     enabled: true,
     parameters: Object.freeze({
       environmentIntensity: 0.38,
-      'sky.color': color(0.065, 0.15, 0.27),
-      'sky.emissive': color(0.058, 0.145, 0.275),
-      'sky.emissiveIntensity': 1.3,
-      'sky.roughness': 1,
-      'skyMid.color': color(0.068, 0.155, 0.275),
-      'skyMid.emissive': color(0.06, 0.148, 0.278),
-      'skyMid.emissiveIntensity': 1.32,
-      'skyHorizon.color': color(0.072, 0.16, 0.28),
-      'skyHorizon.emissive': color(0.062, 0.152, 0.282),
-      'skyHorizon.emissiveIntensity': 1.34,
       'stars.emissive': color(0.58, 0.72, 0.92),
       'stars.emissiveIntensity': 3,
       'warmWindows.emissive': color(1, 0.36, 0.035),
@@ -184,7 +174,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     config: Object.freeze({
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATL_HOE_ASSET_ID, node: MODEL_NODE_ID })]),
       hdr: true,
-      parts: Object.freeze(['sky', 'skyMid', 'skyHorizon', 'stars', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage']),
+      parts: Object.freeze(['stars', 'signMetal', 'signTrim', 'signGlow', 'signBorder', 'signLetters', 'foliageBack', 'foliage']),
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),
@@ -210,6 +200,9 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     // The embedded Stage is close to square; this keeps the authored width
     // without opening the vertical frame so far that the skyline sinks.
     minAspect: 16 / 9,
+    // On a taller Stage, half of the extra height goes above the composition so the sign and trees sit lower than dead centre.
+    // 0 keeps the view centred; 1 pins the 16:9 composition to the bottom edge.
+    minAspectAnchor: 0.5,
     near: 0.1,
     far: 90,
     transform: Object.freeze({ position: vec3(0, 5.9, 20) }),
