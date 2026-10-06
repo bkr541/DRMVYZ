@@ -42,6 +42,7 @@ function audioTrack(id: string, title = `Track ${id}`): AudioTrack {
     transcription_assets: null,
     lifecycle_status: 'complete',
     deletion_requested_at: null,
+    is_rekordbox: false,
     artist: 'DVYDRM',
     genre: 'Melodic Bass',
     bpm: 150,

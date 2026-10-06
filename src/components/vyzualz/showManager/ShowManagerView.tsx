@@ -11,6 +11,7 @@ import { adaptMIAnalysis } from '../../../features/trackIntelligence/trackMapAda
 import { resolveSectionAtTime } from '../../../features/trackIntelligence/authoritativeTimeline'
 import type { BeatMarkerMI } from '../../../features/musicIntelligence/types'
 import { useReactStore } from '../../../stores/reactStore'
+import { notify } from '../../../stores/notificationStore'
 import { useAudioStore, type SavedAudioTrack } from '../../../stores/audioStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore, type UploadedMedia } from '../../../stores/mediaStore'
@@ -284,7 +285,10 @@ function ShowBrowserDialog({
     try {
       const result = await onDelete(show.id)
       if (!result.ok) setActionError(result.error ?? 'The Show could not be deleted.')
-      else if (selectedShowId === show.id) setSelectedShowId(null)
+      else {
+        notify('show-manager', { tone: 'success', title: 'Show Deleted', message: `"${show.name}" was deleted. Linked media and audio remain in the library.` })
+        if (selectedShowId === show.id) setSelectedShowId(null)
+      }
     } finally {
       busyRef.current = false
       setBusyShowId(null)
@@ -1722,7 +1726,8 @@ export function ShowManagerView() {
     setDeletingCanvasShow(true)
     try {
       const deleted = await deleteShowManagerShow(show.id)
-      if (!deleted) setCanvasAuthoringError('The Show could not be deleted. Its Show data and linked media were left unchanged.')
+      if (deleted) notify('show-manager', { tone: 'success', title: 'Show Deleted', message: `"${show.name}" was deleted. Linked media and audio remain in the library.` })
+      else setCanvasAuthoringError('The Show could not be deleted. Its Show data and linked media were left unchanged.')
     } finally {
       setDeletingCanvasShow(false)
     }
@@ -1737,6 +1742,7 @@ export function ShowManagerView() {
       setUploadState(current => ({ ...current, error: result.error.message }))
       return
     }
+    notify('show-manager', { tone: 'success', title: 'Deck Deleted', message: 'The Deck and its generated Preset were deleted.' })
     exitDeckBuilder()
   }
 

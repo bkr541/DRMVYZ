@@ -26,6 +26,7 @@ import { suggestMediaRole, isAudioFile, isSvgFile, roleImpliesAlpha } from '../l
 import type { MediaRole, MediaEnergy } from '../lib/mediaRoles'
 import { useAudioStore } from './audioStore'
 import { analyzeAudioFile } from '../utils/analyzeAudioFile'
+import { fileHasRekordboxMatch, type RekordboxScanCache } from '../features/rekordboxImport/detectRekordboxMatch'
 import { useVisualStore } from './visualStore'
 import { generateThumbnail, clearMediaGenerationCaches, clearFilmstripCache } from '../components/vyzualz/media/generateThumbnail'
 import { MediaSigningCoordinator } from '../lib/mediaSigning'
@@ -1650,6 +1651,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       return { total, succeeded: 0, failures }
     }
 
+    const rekordboxScans: RekordboxScanCache = new Map()
     let completed = 0
     let succeeded = 0
     for (const queueItem of uploadQueue) {
@@ -1673,6 +1675,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
 
       if (queueItem.isAudio) {
         const analysis = await analyzeAudioFile(queueItem.file).catch(() => null)
+        const isRekordbox = await fileHasRekordboxMatch(queueItem.file, rekordboxScans)
         const saved = await useAudioStore.getState().uploadAndSaveTrack({
           file: queueItem.file,
           title: draft.title,
@@ -1682,6 +1685,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           musicalKey: draft.audioMusicalKey,
           userId,
           analysis,
+          isRekordbox,
         })
         completed += 1
         if (!saved) {

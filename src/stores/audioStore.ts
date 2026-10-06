@@ -57,6 +57,8 @@ export interface AudioUploadParams {
   musicalKey: string
   userId: string
   analysis: AudioFileAnalysis | null
+  /** Whether a matching Rekordbox library entry was found for the file. Flag only. */
+  isRekordbox?: boolean
 }
 
 function rowToSaved(row: AudioTrack): SavedAudioTrack {
@@ -146,7 +148,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
   },
 
   async uploadAndSaveTrack(params) {
-    const { file, title, artist, genre, bpmInput, musicalKey, userId, analysis } = params
+    const { file, title, artist, genre, bpmInput, musicalKey, userId, analysis, isRekordbox = false } = params
     let uploadedStoragePath: string | null = null
     let databaseTrackCreated = false
 
@@ -188,6 +190,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         file_size:    file.size,
         mime_type:    file.type || null,
         source_type:  'file',
+        is_rekordbox: isRekordbox,
         transcription_assets: null,
         artist:       artist.trim()   || null,
         genre:        genre.trim()    || null,

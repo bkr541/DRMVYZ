@@ -150,11 +150,14 @@ export interface AudioTrack {
   // Added in migration 0027
   lifecycle_status: 'complete' | 'deletion_pending'
   deletion_requested_at: string | null
+  // Added in migration 0037
+  is_rekordbox: boolean
   created_at: string
   updated_at: string
 }
 
-export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets' | 'external_source' | 'external_track_id' | 'external_metadata' | 'lifecycle_status' | 'deletion_requested_at'> & {
+export type AudioTrackInsert = Omit<AudioTrack, 'id' | 'created_at' | 'updated_at' | 'transcription_assets' | 'external_source' | 'external_track_id' | 'external_metadata' | 'lifecycle_status' | 'deletion_requested_at' | 'is_rekordbox'> & {
+  is_rekordbox?: boolean
   transcription_assets?: PreparedTranscriptionAudioManifest | null
   external_source?: string | null
   external_track_id?: string | null
