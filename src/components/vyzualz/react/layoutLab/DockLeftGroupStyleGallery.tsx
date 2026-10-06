@@ -114,17 +114,6 @@ function Volume({ state, className = '', showDb = true, showIcon = true }: {
   )
 }
 
-/** The elapsed / total readout with a thin progress line, used by the concepts that have the room for it. */
-function Progress({ state }: { state: DockState }) {
-  return (
-    <div className="lldl-progress" aria-label="Track position">
-      <span>{state.loaded ? '1:26' : '0:00'}</span>
-      <span className="lldl-progress-bar" style={{ '--pct': `${state.loaded ? PROGRESS * 100 : 0}%` } as CSSProperties} />
-      <span>{state.loaded ? '3:48' : '0:00'}</span>
-    </div>
-  )
-}
-
 /** A progress ring drawn around the play tile in concept 03. */
 function ProgressRing({ loaded }: { loaded: boolean }) {
   const radius = 29
@@ -193,30 +182,87 @@ function ProgressTile({ state }: { state: DockState }) {
   )
 }
 
-/** 04 — a strict 2 × 2 grid: play and Add are matching square keys in the first column, info and volume align to their rows. */
-function SplitKeys({ state }: { state: DockState }) {
+/** Four animated bars beside the title: they dance while the track plays and rest low when it is paused or empty. */
+function Equalizer({ active }: { active: boolean }) {
+  return (
+    <span className={`lldl-eq${active ? ' is-active' : ''}`} aria-hidden="true">
+      <i /><i /><i /><i />
+    </span>
+  )
+}
+
+/**
+ * 04 — a record-player take on the progress tile: a glowing conic progress arc around a spinning grooved platter with the play
+ * button as its centre label and the load button on the rim. The platter turns only while the track plays.
+ */
+function VinylOrbit({ state }: { state: DockState }) {
   return (
     <div className="lldl-card lldl-c4">
-      <PlayButton state={state} className="lldl-play--key" size={16} />
-      <TrackInfo state={state} />
-      <AddButton state={state} />
-      <Volume state={state} />
+      <div className="lldl-overlay-host lldl-c4-disc" data-playing={state.playing ? 'true' : 'false'}>
+        <span className="lldl-c4-arc" style={{ '--pct': `${state.loaded ? PROGRESS * 100 : 0}%` } as CSSProperties} aria-hidden="true" />
+        <span className="lldl-c4-platter" aria-hidden="true" />
+        <PlayButton state={state} className="lldl-play--label" size={14} />
+        <AddButton state={state} className="lldl-badge" size={11} />
+      </div>
+      <div className="lldl-c4-body">
+        <div className="lldl-c4-head">
+          <TrackInfo state={state} />
+          <Equalizer active={state.playing} />
+        </div>
+        <Volume state={state} />
+      </div>
     </div>
   )
 }
 
-/** 05 — one compact transport line with a divider, plus a position line underneath. */
-function CompactLine({ state }: { state: DockState }) {
+/** The dial's tick marks: one per step around the circle, lit up to the current position, the leading one drawn longer. */
+const DIAL_TICKS = 40
+function TickRing({ loaded }: { loaded: boolean }) {
+  const lit = loaded ? Math.round(PROGRESS * DIAL_TICKS) : 0
   return (
-    <div className="lldl-card lldl-c5">
-      <div className="lldl-c5-line">
-        <PlayButton state={state} className="lldl-play--solid" size={18} />
-        <TrackInfo state={state} />
-        <span className="lldl-divider" aria-hidden="true" />
-        <Volume state={state} showDb={false} />
-        <AddButton state={state} />
+    <svg className="lldl-dial" viewBox="0 0 72 72" aria-hidden="true">
+      {Array.from({ length: DIAL_TICKS }, (_, index) => {
+        const angle = (index / DIAL_TICKS) * Math.PI * 2 - Math.PI / 2
+        const head = index === lit - 1
+        const inner = head ? 25 : 28.5
+        return (
+          <line
+            key={index}
+            className={`lldl-dial-tick${index < lit ? ' is-lit' : ''}${head ? ' is-head' : ''}`}
+            x1={36 + Math.cos(angle) * inner}
+            y1={36 + Math.sin(angle) * inner}
+            x2={36 + Math.cos(angle) * 34}
+            y2={36 + Math.sin(angle) * 34}
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+/**
+ * 05 — a tick dial: forty marks around a glowing play button light up as the track progresses; the elapsed time sits beside
+ * the volume and the load key tucks into the top-right corner.
+ */
+function TickDial({ state }: { state: DockState }) {
+  return (
+    <div className="lldl-card lldl-c5" data-playing={state.playing ? 'true' : 'false'}>
+      <div className="lldl-c5-dial">
+        <TickRing loaded={state.loaded} />
+        <PlayButton state={state} className="lldl-play--orb" size={16} />
       </div>
-      <Progress state={state} />
+      <div className="lldl-c5-body">
+        <div className="lldl-c5-top">
+          <TrackInfo state={state} />
+          <AddButton state={state} />
+        </div>
+        <div className="lldl-c5-bottom">
+          <Volume state={state} showDb={false} />
+          <span className="lldl-c5-time" aria-label="Track position">
+            {state.loaded ? '1:26' : '0:00'}<em>/ {state.loaded ? '3:48' : '0:00'}</em>
+          </span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -239,12 +285,12 @@ const CONCEPTS = [
   { id: 'cover-slot', title: '01 · Cover Slot', blurb: 'Round play ring with the load button overlapping its rim; title over volume on the right.', Concept: CoverSlot },
   { id: 'transport-rail', title: '02 · Transport Rail', blurb: 'Two full-width rows: play, track info and the load key above; volume with its dB readout below.', Concept: TransportRail },
   { id: 'progress-tile', title: '03 · Progress Tile', blurb: 'A rounded play tile in a progress ring, with the load button overlapping its lower-right.', Concept: ProgressTile },
-  { id: 'split-keys', title: '04 · Split Keys', blurb: 'A strict 2 × 2 grid: play and load are matching keys, info and volume align to their rows.', Concept: SplitKeys },
-  { id: 'compact-line', title: '05 · Compact Line', blurb: 'One transport line with a divider, and a position line with elapsed and total time beneath.', Concept: CompactLine },
+  { id: 'vinyl-orbit', title: '04 · Vinyl Orbit', blurb: 'A spinning grooved platter inside a glowing progress arc, play as its centre label and load on the rim; title with a live equaliser over volume.', Concept: VinylOrbit },
+  { id: 'tick-dial', title: '05 · Tick Dial', blurb: 'Forty tick marks around a glowing play orb light up with the track; load key in the corner, volume beside the elapsed time.', Concept: TickDial },
   { id: 'centered-strip', title: '06 · Centered Strip', blurb: 'Centred title over an evenly spaced strip: load key, play, volume.', Concept: CenteredStrip },
 ] as const
 
-function Segmented({ label, value, options, onChange }: {
+export function Segmented({ label, value, options, onChange }: {
   label: string
   value: string
   options: ReadonlyArray<{ id: string; label: string }>

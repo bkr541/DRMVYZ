@@ -34,8 +34,8 @@ describe('DockLeftGroupStyleGallery', () => {
       'dock-left-concept-cover-slot',
       'dock-left-concept-transport-rail',
       'dock-left-concept-progress-tile',
-      'dock-left-concept-split-keys',
-      'dock-left-concept-compact-line',
+      'dock-left-concept-vinyl-orbit',
+      'dock-left-concept-tick-dial',
       'dock-left-concept-centered-strip',
     ])
     for (const concept of concepts()) {

@@ -19,6 +19,7 @@ import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConce
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
+import { DockWaveformGroupStyleGallery } from './layoutLab/DockWaveformGroupStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -279,15 +280,19 @@ export function LayoutLabMockup() {
               </div>
             )}
             {engineId === 'template' && (
-              <div className="llcm-stage-gallery llcm-stage-columns">
-                <div className="llcm-stage-column">
-                  <div className="llcm-stage-section-hdr">Audio dock · left group</div>
-                  <DockLeftGroupStyleGallery />
+              <div className="llcm-stage-gallery">
+                <div className="llcm-stage-columns">
+                  <div className="llcm-stage-column">
+                    <div className="llcm-stage-section-hdr">Audio dock · left group</div>
+                    <DockLeftGroupStyleGallery />
+                  </div>
+                  <div className="llcm-stage-column">
+                    <div className="llcm-stage-section-hdr">Audio dock · right group</div>
+                    <DockRightGroupStyleGallery />
+                  </div>
                 </div>
-                <div className="llcm-stage-column">
-                  <div className="llcm-stage-section-hdr">Audio dock · right group</div>
-                  <DockRightGroupStyleGallery />
-                </div>
+                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Audio dock · waveform group</div>
+                <DockWaveformGroupStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (
