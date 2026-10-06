@@ -53,4 +53,24 @@ describe('Headliner timing', () => {
     expect(headlinerReactiveGain({ energy: 1, kick: 0 }, 0, 0)).toBe(1)
     expect(headlinerReactiveGain({ energy: 0.5, kick: 1 }, 0, 1)).toBeGreaterThan(1)
   })
+
+  it('reports each kick, snare and downbeat once, on the frame it starts', () => {
+    const tracker = new HeadlinerTimingTracker()
+    expect(tracker.update(1, trackContext({ downbeat: false }), true).kickHit).toBe(false)
+    const first = tracker.update(1.016, trackContext({ kick: true, snare: true, downbeat: true }), true)
+    expect(first).toMatchObject({ kickHit: true, snareHit: true, downbeatHit: true })
+    // Still flagged on the next frame: not a new hit.
+    const held = tracker.update(1.032, trackContext({ kick: true, snare: true, downbeat: true }), true)
+    expect(held).toMatchObject({ kickHit: false, snareHit: false, downbeatHit: false })
+    tracker.update(1.048, trackContext({ kick: false, snare: false, downbeat: false }), true)
+    expect(tracker.update(1.064, trackContext({ kick: true }), true).kickHit).toBe(true)
+  })
+
+  it('counts a bar as four beats of the steady tempo when there is no grid, and carries the build-up', () => {
+    const tracker = new HeadlinerTimingTracker()
+    expect(tracker.update(0.1, null, true).downbeatHit).toBe(false)
+    expect(tracker.update(1.9, null, true).downbeatHit).toBe(false)
+    expect(tracker.update(2.1, null, true).downbeatHit).toBe(true)
+    expect(tracker.update(2.2, trackContext({ bpm: 0, buildProgress: 0.4 }), true).build).toBeCloseTo(0.4)
+  })
 })

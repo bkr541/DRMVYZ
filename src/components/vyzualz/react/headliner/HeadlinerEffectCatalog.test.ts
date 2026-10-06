@@ -24,8 +24,25 @@ describe('Headliner Clean Playback', () => {
 })
 
 describe('Headliner effect catalog', () => {
-  it('ships the first three effects of the POV effects document, in priority order', () => {
-    expect(HEADLINER_PRESETS.map(preset => preset.name)).toEqual(['Motion Echo', 'Ghost Trails', 'Velocity Smear'])
+  it('ships the first seven effects of the POV effects document, in priority order', () => {
+    expect(HEADLINER_PRESETS.map(preset => preset.name)).toEqual([
+      'Motion Echo', 'Ghost Trails', 'Velocity Smear', 'Motion Melt', 'Freeze Ghost', 'Strobe Clone', 'Clone Spread',
+    ])
+  })
+
+  it('keeps one-shot buttons out of the stored values and shows the isolation controls only when they apply', () => {
+    const freeze = getHeadlinerPreset('freeze-ghost')
+    const byId = (id: string) => freeze.parameters.find(parameter => parameter.id === id)!
+    expect(byId('capturePose')).toMatchObject({ kind: 'button', trigger: 'capture-pose' })
+    expect(resolveHeadlinerParameters('freeze-ghost', { capturePose: true })).not.toHaveProperty('capturePose')
+    expect(normalizeHeadlinerParameterOverrides({ 'freeze-ghost': { capturePose: true, maxGhosts: 2 } })).toEqual({ 'freeze-ghost': { maxGhosts: 2 } })
+
+    const off = resolveHeadlinerParameters('freeze-ghost', {})
+    const background = resolveHeadlinerParameters('freeze-ghost', { isolation: 'background' })
+    expect(isHeadlinerParameterVisible(byId('isolationStrength'), off)).toBe(false)
+    expect(isHeadlinerParameterVisible(byId('isolationStrength'), background)).toBe(true)
+    expect(isHeadlinerParameterVisible(byId('relearnBackground'), off)).toBe(false)
+    expect(isHeadlinerParameterVisible(byId('relearnBackground'), background)).toBe(true)
   })
 
   it.each(HEADLINER_PRESETS.map(preset => [preset.name, preset] as const))('%s has the standard Master Controls and fills every Design group', (_name, preset) => {
@@ -45,6 +62,7 @@ describe('Headliner effect catalog', () => {
         expect(parameter.default).toBeGreaterThanOrEqual(parameter.min)
         expect(parameter.default).toBeLessThanOrEqual(parameter.max)
       }
+      if (parameter.kind === 'button') continue
       if (parameter.kind === 'select') expect(parameter.options.some(option => option.value === parameter.default)).toBe(true)
       if (parameter.visibleWhen) expect(ids).toContain(parameter.visibleWhen.parameter)
     }

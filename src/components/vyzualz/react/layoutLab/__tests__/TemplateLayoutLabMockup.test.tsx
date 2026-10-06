@@ -46,6 +46,17 @@ describe('Template Layout Lab workspace', () => {
     expect(stage?.querySelectorAll('[data-testid^="dock-left-concept-"]')).toHaveLength(6)
   })
 
+  it('lays the dock mockups out in two columns: left group on the left, right group on the right', async () => {
+    await selectEngine('Template')
+
+    const columns = container.querySelectorAll('.llcm-stage-columns > .llcm-stage-column')
+    expect(columns).toHaveLength(2)
+    expect(columns[0]?.querySelector('[aria-label="Audio dock left group concepts"]')).not.toBeNull()
+    expect(columns[0]?.querySelector('[aria-label="Audio dock right group concepts"]')).toBeNull()
+    expect(columns[1]?.querySelector('[aria-label="Audio dock right group concepts"]')).not.toBeNull()
+    expect(columns[1]?.querySelectorAll('[data-testid^="dock-right-concept-"]')).toHaveLength(6)
+  })
+
   it('adds a Layout Lab-only Template engine with blank rails and no lower workspace', async () => {
     await selectEngine('Template')
 

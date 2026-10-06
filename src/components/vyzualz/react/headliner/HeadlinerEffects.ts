@@ -1,172 +1,38 @@
-// The Headliner effect processors (Motion Echo, Ghost Trails, Velocity Smear). Each one draws the live
-// camera picture first and then layers its effect on top, so Master Intensity 0 is always the clean
-// camera. They work on reduced-size surfaces (capped at WORK_MAX_WIDTH) to keep history and feedback
-// buffers cheap, and read every setting from the Design-tab values passed in per frame.
+// The Headliner effect processors (Motion Echo, Ghost Trails, Velocity Smear, Motion Melt, Freeze Ghost, Strobe
+// Clone, Clone Spread). Each one draws the live camera picture first and then layers its effect on top, so Master
+// Intensity 0 is always the clean camera. They work on reduced-size surfaces (capped at WORK_MAX_WIDTH) to keep
+// history and feedback buffers cheap, and read every setting from the Design-tab values passed in per frame.
 
 import {
-  HEADLINER_BLEND_OPERATIONS,
   getHeadlinerBoolean,
   getHeadlinerNumber,
   getHeadlinerString,
-  type HeadlinerParameterValues,
   type HeadlinerPresetId,
 } from './HeadlinerEffectCatalog'
-import type { HeadlinerSourceRect } from './HeadlinerCompositor'
+import { createCloneSpreadProcessor, createFreezeGhostProcessor, createStrobeCloneProcessor } from './HeadlinerCloneEffects'
+import {
+  HEADLINER_MAX_ECHOES,
+  HEADLINER_SMEAR_DRAW_BUDGET,
+  WorkSurface,
+  applyMask,
+  clamp01,
+  compositeLayer,
+  drawLive,
+  drawVideoInto,
+  effectStrength,
+  lerp,
+  mixRgb,
+  readPalette,
+  resolveHeadlinerWorkSize,
+  rgba,
+  tintSurface,
+  type HeadlinerEffectProcessor,
+  type HeadlinerEffectRenderArgs,
+} from './HeadlinerEffectKit'
 import { HeadlinerMotionAnalyzer } from './HeadlinerMotion'
-import { headlinerReactiveGain, type HeadlinerEffectTiming } from './HeadlinerTiming'
 
-export interface HeadlinerEffectRenderArgs {
-  context: CanvasRenderingContext2D
-  canvas: HTMLCanvasElement
-  video: HTMLVideoElement
-  sourceRect: HeadlinerSourceRect
-  parameters: HeadlinerParameterValues
-  timing: HeadlinerEffectTiming
-}
-
-export interface HeadlinerEffectProcessor {
-  readonly presetId: HeadlinerPresetId
-  /** Draws the finished frame (live picture plus effect) onto `args.canvas`. */
-  render(args: HeadlinerEffectRenderArgs): void
-  dispose(): void
-}
-
-export const HEADLINER_WORK_MAX_WIDTH = 720
-export const HEADLINER_MAX_ECHOES = 12
-/** Upper bound on drawImage calls one Velocity Smear frame may issue. */
-export const HEADLINER_SMEAR_DRAW_BUDGET = 3600
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
-const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount
-
-export function hexToRgb(hex: string): [number, number, number] {
-  const value = /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : '#ffffff'
-  return [parseInt(value.slice(1, 3), 16), parseInt(value.slice(3, 5), 16), parseInt(value.slice(5, 7), 16)]
-}
-
-function rgba([r, g, b]: readonly number[], alpha: number): string {
-  return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${clamp01(alpha)})`
-}
-
-function mixRgb(a: readonly number[], b: readonly number[], amount: number): [number, number, number] {
-  return [lerp(a[0], b[0], amount), lerp(a[1], b[1], amount), lerp(a[2], b[2], amount)]
-}
-
-export function resolveHeadlinerWorkSize(width: number, height: number): { width: number; height: number } {
-  if (width <= 0 || height <= 0) return { width: 1, height: 1 }
-  const scale = Math.min(1, HEADLINER_WORK_MAX_WIDTH / width)
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
-}
-
-class WorkSurface {
-  readonly canvas: HTMLCanvasElement | null
-  readonly context: CanvasRenderingContext2D | null
-
-  constructor() {
-    this.canvas = typeof document === 'undefined' ? null : document.createElement('canvas')
-    this.context = this.canvas?.getContext('2d') ?? null
-  }
-
-  /** Returns true when the size changed (which also clears the surface). */
-  resize(width: number, height: number): boolean {
-    if (!this.canvas || (this.canvas.width === width && this.canvas.height === height)) return false
-    this.canvas.width = width
-    this.canvas.height = height
-    return true
-  }
-
-  clear(): void {
-    if (this.canvas) this.context?.clearRect(0, 0, this.canvas.width, this.canvas.height)
-  }
-
-  dispose(): void {
-    if (this.canvas) {
-      this.canvas.width = 0
-      this.canvas.height = 0
-    }
-  }
-}
-
-function drawLive({ context, canvas, video, sourceRect }: HeadlinerEffectRenderArgs): void {
-  context.globalAlpha = 1
-  context.globalCompositeOperation = 'source-over'
-  context.drawImage(video, sourceRect.sx, sourceRect.sy, sourceRect.sw, sourceRect.sh, 0, 0, canvas.width, canvas.height)
-}
-
-function drawVideoInto(surface: WorkSurface, { video, sourceRect }: HeadlinerEffectRenderArgs): boolean {
-  const target = surface.context
-  if (!target || !surface.canvas) return false
-  target.globalAlpha = 1
-  target.globalCompositeOperation = 'source-over'
-  target.drawImage(video, sourceRect.sx, sourceRect.sy, sourceRect.sw, sourceRect.sh, 0, 0, surface.canvas.width, surface.canvas.height)
-  return true
-}
-
-/** Strength shared by all three effects: Master Intensity times the music and kick reactions. */
-function effectStrength(parameters: HeadlinerParameterValues, timing: HeadlinerEffectTiming): number {
-  return getHeadlinerNumber(parameters, 'masterIntensity', 1) * headlinerReactiveGain(
-    timing,
-    getHeadlinerNumber(parameters, 'musicReactivity', 0),
-    getHeadlinerNumber(parameters, 'kickReactivity', 0),
-  )
-}
-
-interface HeadlinerPalette {
-  mode: string
-  primary: [number, number, number]
-  secondary: [number, number, number]
-  amount: number
-}
-
-function readPalette(parameters: HeadlinerParameterValues): HeadlinerPalette {
-  return {
-    mode: getHeadlinerString(parameters, 'colorMode', 'original'),
-    primary: hexToRgb(getHeadlinerString(parameters, 'primaryColor', '#67f7ff')),
-    secondary: hexToRgb(getHeadlinerString(parameters, 'secondaryColor', '#ff4fd8')),
-    amount: getHeadlinerNumber(parameters, 'tintAmount', 0.7),
-  }
-}
-
-/** Recolours what is already drawn on a surface toward `color`, leaving transparent areas alone. */
-function tintSurface(surface: WorkSurface, color: readonly number[], amount: number): void {
-  const target = surface.context
-  if (!target || !surface.canvas || amount <= 0) return
-  target.save()
-  target.globalCompositeOperation = 'source-atop'
-  target.globalAlpha = 1
-  target.fillStyle = rgba(color, amount)
-  target.fillRect(0, 0, surface.canvas.width, surface.canvas.height)
-  target.restore()
-}
-
-function compositeLayer(
-  args: HeadlinerEffectRenderArgs,
-  layer: WorkSurface,
-  alpha: number,
-  blend: string,
-  blurPx = 0,
-): void {
-  if (!layer.canvas || alpha <= 0) return
-  const { context, canvas } = args
-  context.save()
-  context.globalAlpha = clamp01(alpha)
-  context.globalCompositeOperation = HEADLINER_BLEND_OPERATIONS[blend] ?? 'source-over'
-  if (blurPx > 0.25) context.filter = `blur(${blurPx.toFixed(2)}px)`
-  context.drawImage(layer.canvas, 0, 0, layer.canvas.width, layer.canvas.height, 0, 0, canvas.width, canvas.height)
-  context.restore()
-}
-
-/** Keeps only the part of `layer` where the mask is opaque. */
-function applyMask(layer: WorkSurface, mask: HTMLCanvasElement | null, blurPx: number): void {
-  const target = layer.context
-  if (!target || !layer.canvas || !mask) return
-  target.save()
-  target.globalCompositeOperation = 'destination-in'
-  target.globalAlpha = 1
-  if (blurPx > 0.25) target.filter = `blur(${blurPx.toFixed(2)}px)`
-  target.drawImage(mask, 0, 0, mask.width, mask.height, 0, 0, layer.canvas.width, layer.canvas.height)
-  target.restore()
-}
+export { HEADLINER_MAX_ECHOES, HEADLINER_SMEAR_DRAW_BUDGET, HEADLINER_WORK_MAX_WIDTH, hexToRgb, resolveHeadlinerWorkSize } from './HeadlinerEffectKit'
+export type { HeadlinerEffectProcessor, HeadlinerEffectRenderArgs } from './HeadlinerEffectKit'
 
 // ── Motion Echo ────────────────────────────────────────────────────────────────
 
@@ -481,12 +347,173 @@ class VelocitySmearProcessor implements HeadlinerEffectProcessor {
   }
 }
 
+// ── Motion Melt ────────────────────────────────────────────────────────────────
+
+/**
+ * One step of the melt's displacement field (x,y per flow cell, in work pixels): movement adds to it, drip
+ * pulls it down, it spreads into neighbouring cells like a liquid, and it settles back over time.
+ */
+export function stepMeltField(
+  field: Float32Array,
+  scratch: Float32Array,
+  flow: Float32Array,
+  cols: number,
+  rows: number,
+  options: { pixelsPerFlow: number; threshold: number; gain: number; drip: number; settle: number; limit: number },
+): void {
+  const { pixelsPerFlow, threshold, gain, drip, settle, limit } = options
+  for (let cell = 0; cell < cols * rows; cell += 1) {
+    const slot = cell * 2
+    const vx = flow[slot]
+    const vy = flow[slot + 1]
+    const magnitude = Math.hypot(vx, vy)
+    if (magnitude > threshold) {
+      const weight = clamp01((magnitude - threshold) / 3)
+      field[slot] += vx * pixelsPerFlow * gain
+      field[slot + 1] += vy * pixelsPerFlow * gain + drip * weight * pixelsPerFlow * 1.6
+    }
+  }
+  // Viscous spreading: each cell leans toward the average of its four neighbours.
+  scratch.set(field)
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const slot = (row * cols + col) * 2
+      for (let axis = 0; axis < 2; axis += 1) {
+        let sum = 0
+        let neighbours = 0
+        if (col > 0) { sum += scratch[slot - 2 + axis]; neighbours += 1 }
+        if (col < cols - 1) { sum += scratch[slot + 2 + axis]; neighbours += 1 }
+        if (row > 0) { sum += scratch[slot - cols * 2 + axis]; neighbours += 1 }
+        if (row < rows - 1) { sum += scratch[slot + cols * 2 + axis]; neighbours += 1 }
+        const spread = neighbours > 0 ? sum / neighbours : scratch[slot + axis]
+        const blended = scratch[slot + axis] * 0.7 + spread * 0.3
+        field[slot + axis] = Math.max(-limit, Math.min(limit, blended * settle))
+      }
+    }
+  }
+}
+
+class MotionMeltProcessor implements HeadlinerEffectProcessor {
+  readonly presetId = 'motion-melt' as const
+  private readonly picture = new WorkSurface()
+  private readonly layer = new WorkSurface()
+  private readonly analyzer = new HeadlinerMotionAnalyzer()
+  private field = new Float32Array(0)
+  private scratch = new Float32Array(0)
+
+  render(args: HeadlinerEffectRenderArgs): void {
+    drawLive(args)
+    const { parameters, timing, canvas, video, sourceRect } = args
+    const strength = effectStrength(parameters, timing)
+    if (strength <= 0.001 || !this.layer.context || !this.picture.context) {
+      this.field.fill(0)
+      return
+    }
+
+    const frame = this.analyzer.update(video, sourceRect, true)
+    if (!frame?.flow) return
+    const work = resolveHeadlinerWorkSize(canvas.width, canvas.height)
+    this.picture.resize(work.width, work.height)
+    this.layer.resize(work.width, work.height)
+    if (this.field.length !== frame.cols * frame.rows * 2) {
+      this.field = new Float32Array(frame.cols * frame.rows * 2)
+      this.scratch = new Float32Array(this.field.length)
+    }
+
+    const amount = getHeadlinerNumber(parameters, 'meltAmount', 0.6)
+    const beatFraction = timing.beat - Math.floor(timing.beat)
+    const surge = 1 + getHeadlinerNumber(parameters, 'beatSurge', 0) * 1.5 * Math.exp(-4 * beatFraction)
+    const viscosity = getHeadlinerNumber(parameters, 'viscosity', 0.5)
+    const cellWidth = work.width / frame.cols
+    const cellHeight = work.height / frame.rows
+    stepMeltField(this.field, this.scratch, frame.flow, frame.cols, frame.rows, {
+      pixelsPerFlow: work.width / frame.width,
+      threshold: getHeadlinerNumber(parameters, 'motionThreshold', 0.2) * 3,
+      gain: amount * 5 * surge * Math.min(1.5, strength),
+      drip: getHeadlinerNumber(parameters, 'drip', 0.35),
+      // Per-frame retention, scaled so settling takes the same time at any frame rate.
+      settle: Math.pow(lerp(0.8, 0.985, viscosity), timing.dtSec * 60),
+      limit: work.width * 0.18 * (0.5 + amount),
+    })
+
+    if (!drawVideoInto(this.picture, args) || !this.picture.canvas) return
+    const layer = this.layer.context
+    if (!layer) return
+    this.layer.clear()
+    const dripStretch = getHeadlinerNumber(parameters, 'drip', 0.35)
+    let drawn = 0
+    for (let row = 0; row < frame.rows; row += 1) {
+      for (let col = 0; col < frame.cols; col += 1) {
+        const slot = (row * frame.cols + col) * 2
+        const dx = this.field[slot]
+        const dy = this.field[slot + 1]
+        const magnitude = Math.hypot(dx, dy)
+        if (magnitude < 0.6) continue
+        // The cell shows the picture from where the melt has pushed it from: content is dragged along.
+        const padX = cellWidth * 0.5
+        const padY = cellHeight * 0.5
+        const destX = col * cellWidth - padX
+        const destY = row * cellHeight - padY
+        const destW = cellWidth + padX * 2
+        const destH = (cellHeight + padY * 2) * (1 + dripStretch * clamp01(Math.abs(dy) / (cellHeight * 2)) * 0.8)
+        const sourceX = Math.max(0, Math.min(work.width - destW, destX - dx))
+        const sourceY = Math.max(0, Math.min(work.height - cellHeight - padY * 2, destY - dy))
+        layer.globalAlpha = clamp01(magnitude / (cellHeight * 0.6))
+        layer.drawImage(
+          this.picture.canvas,
+          sourceX, sourceY, Math.min(destW, work.width - sourceX), Math.min(cellHeight + padY * 2, work.height - sourceY),
+          destX, destY, destW, destH,
+        )
+        drawn += 1
+      }
+    }
+    layer.globalAlpha = 1
+    if (drawn === 0) return
+
+    const palette = readPalette(parameters)
+    if (palette.mode === 'tint') {
+      tintSurface(this.layer, palette.primary, palette.amount)
+    } else if (palette.mode === 'gradient') {
+      layer.save()
+      layer.globalCompositeOperation = 'source-atop'
+      const gradient = layer.createLinearGradient(0, 0, 0, work.height)
+      gradient.addColorStop(0, rgba(palette.primary, palette.amount))
+      gradient.addColorStop(1, rgba(palette.secondary, palette.amount))
+      layer.fillStyle = gradient
+      layer.fillRect(0, 0, work.width, work.height)
+      layer.restore()
+    }
+
+    compositeLayer(
+      args,
+      this.layer,
+      Math.min(1, strength),
+      getHeadlinerString(parameters, 'blendMode', 'normal'),
+      getHeadlinerNumber(parameters, 'fluidity', 0.5) * 5 * (canvas.width / 1280),
+    )
+  }
+
+  dispose(): void {
+    this.picture.dispose()
+    this.layer.dispose()
+    this.analyzer.dispose()
+  }
+}
+
 export function createHeadlinerEffectProcessor(presetId: HeadlinerPresetId): HeadlinerEffectProcessor {
   switch (presetId) {
     case 'ghost-trails':
       return new GhostTrailsProcessor()
     case 'velocity-smear':
       return new VelocitySmearProcessor()
+    case 'motion-melt':
+      return new MotionMeltProcessor()
+    case 'freeze-ghost':
+      return createFreezeGhostProcessor()
+    case 'strobe-clone':
+      return createStrobeCloneProcessor()
+    case 'clone-spread':
+      return createCloneSpreadProcessor()
     case 'motion-echo':
     default:
       return new MotionEchoProcessor()

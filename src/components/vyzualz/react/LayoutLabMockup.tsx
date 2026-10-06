@@ -279,10 +279,15 @@ export function LayoutLabMockup() {
               </div>
             )}
             {engineId === 'template' && (
-              <div className="llcm-stage-gallery">
-                <DockLeftGroupStyleGallery />
-                <div className="llcm-stage-section-hdr">Audio dock · right group</div>
-                <DockRightGroupStyleGallery />
+              <div className="llcm-stage-gallery llcm-stage-columns">
+                <div className="llcm-stage-column">
+                  <div className="llcm-stage-section-hdr">Audio dock · left group</div>
+                  <DockLeftGroupStyleGallery />
+                </div>
+                <div className="llcm-stage-column">
+                  <div className="llcm-stage-section-hdr">Audio dock · right group</div>
+                  <DockRightGroupStyleGallery />
+                </div>
               </div>
             )}
             {engineId === 'lyricManager' && (

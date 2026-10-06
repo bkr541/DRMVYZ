@@ -8,6 +8,9 @@ import {
   type HeadlinerEffectRenderArgs,
 } from './HeadlinerEffects'
 import { HEADLINER_IDLE_TIMING, type HeadlinerEffectTiming } from './HeadlinerTiming'
+import { placeCloneSpreadCopies } from './HeadlinerCloneEffects'
+import { stepMeltField } from './HeadlinerEffects'
+import { fireHeadlinerTrigger } from './HeadlinerTriggers'
 
 interface Draw {
   canvas: HTMLCanvasElement
@@ -99,7 +102,7 @@ describe('Headliner effect processors', () => {
     expect(resolveHeadlinerWorkSize(400, 300)).toEqual({ width: 400, height: 300 })
   })
 
-  it.each(['motion-echo', 'ghost-trails', 'velocity-smear'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
+  it.each(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
     const processor = createHeadlinerEffectProcessor(presetId)
     const output = makeOutput()
     setSquare(30)
@@ -181,3 +184,196 @@ describe('Headliner effect processors', () => {
     processor.dispose()
   })
 })
+
+describe('Motion Melt', () => {
+  it('melts only moving cells and leaves a still picture untouched', () => {
+    const processor = createHeadlinerEffectProcessor('motion-melt')
+    const output = makeOutput()
+    setSquare(30)
+    processor.render(renderArgs(output, {}, 'motion-melt', { timeSec: 0, dtSec: 0.016 }))
+    draws = []
+    processor.render(renderArgs(output, {}, 'motion-melt', { timeSec: 0.016, dtSec: 0.016 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+
+    draws = []
+    for (const x of [34, 38, 42]) {
+      setSquare(x)
+      processor.render(renderArgs(output, {}, 'motion-melt', { timeSec: 0.05, dtSec: 0.016 }))
+    }
+    const composite = drawsOnto(output.canvas)
+    expect(composite.length).toBeGreaterThan(3)
+    expect(composite[composite.length - 1].filter).toContain('blur')
+    processor.dispose()
+  })
+
+  it('accumulates movement into the field, drips it down, spreads it to neighbours and settles it back', () => {
+    const cols = 4
+    const rows = 3
+    const field = new Float32Array(cols * rows * 2)
+    const scratch = new Float32Array(field.length)
+    const flow = new Float32Array(field.length)
+    flow[(1 * cols + 1) * 2] = 4
+    const options = { pixelsPerFlow: 5, threshold: 0.3, gain: 1, drip: 0.5, settle: 0.9, limit: 200 }
+    stepMeltField(field, scratch, flow, cols, rows, options)
+    const centre = (1 * cols + 1) * 2
+    expect(field[centre]).toBeGreaterThan(5)
+    expect(field[centre + 1]).toBeGreaterThan(0)
+    // The neighbour picked some of it up.
+    expect(field[(1 * cols + 2) * 2]).toBeGreaterThan(0)
+    const afterOne = field[centre]
+    flow.fill(0)
+    for (let step = 0; step < 60; step += 1) stepMeltField(field, scratch, flow, cols, rows, options)
+    expect(field[centre]).toBeLessThan(afterOne * 0.05)
+    // Limited to the cap.
+    flow[centre] = 4000
+    stepMeltField(field, scratch, flow, cols, rows, options)
+    expect(Math.max(...field)).toBeLessThanOrEqual(200)
+  })
+})
+
+describe('Freeze Ghost', () => {
+  it('shows nothing until a pose is captured, keeps it while you move, and clears on demand', () => {
+    const processor = createHeadlinerEffectProcessor('freeze-ghost')
+    const output = makeOutput()
+    setSquare(30)
+    draws = []
+    processor.render(renderArgs(output, {}, 'freeze-ghost', { beat: 0 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+
+    fireHeadlinerTrigger('capture-pose')
+    draws = []
+    processor.render(renderArgs(output, {}, 'freeze-ghost', { beat: 0.1 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+
+    // The ghost stays on later frames without another press.
+    draws = []
+    setSquare(60)
+    processor.render(renderArgs(output, {}, 'freeze-ghost', { beat: 0.2 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+
+    fireHeadlinerTrigger('clear-ghosts')
+    draws = []
+    processor.render(renderArgs(output, {}, 'freeze-ghost', { beat: 0.3 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+    processor.dispose()
+  })
+
+  it('captures on the chosen beat interval and drops the oldest ghost beyond Max Ghosts', () => {
+    const processor = createHeadlinerEffectProcessor('freeze-ghost')
+    const output = makeOutput()
+    const layerDrawsAt = (beat: number) => {
+      draws = []
+      processor.render(renderArgs(output, { autoCapture: '1', maxGhosts: 2 }, 'freeze-ghost', { beat }))
+      return draws.filter(draw => draw.canvas !== output.canvas && draw.canvas.width === 720 && draw.alpha < 1).length
+    }
+    layerDrawsAt(0.2)
+    expect(layerDrawsAt(1.1)).toBe(1)
+    expect(layerDrawsAt(2.1)).toBe(2)
+    // A third capture still shows only two ghosts.
+    expect(layerDrawsAt(3.1)).toBe(2)
+    processor.dispose()
+  })
+})
+
+describe('Strobe Clone', () => {
+  const layerClones = (output: ReturnType<typeof makeOutput>) => draws.filter(draw => draw.canvas !== output.canvas && draw.canvas.width === 720 && draw.alpha < 1).length
+
+  it('captures a clone only on a kick, not between kicks', () => {
+    const processor = createHeadlinerEffectProcessor('strobe-clone')
+    const output = makeOutput()
+    draws = []
+    processor.render(renderArgs(output, {}, 'strobe-clone', { beat: 0.1 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+    draws = []
+    processor.render(renderArgs(output, {}, 'strobe-clone', { beat: 0.2, kickHit: true }))
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+    processor.render(renderArgs(output, {}, 'strobe-clone', { beat: 0.3 }))
+    draws = []
+    processor.render(renderArgs(output, {}, 'strobe-clone', { beat: 0.4 }))
+    expect(layerClones(output)).toBe(1)
+    processor.dispose()
+  })
+
+  it('adds an alternate-style clone on a snare, and ignores snares when Snare Clones is off', () => {
+    const count = (overrides: Record<string, number | boolean | string>) => {
+      const processor = createHeadlinerEffectProcessor('strobe-clone')
+      const output = makeOutput()
+      processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 0.1 }))
+      draws = []
+      processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 0.2, snareHit: true }))
+      const clones = layerClones(output)
+      processor.dispose()
+      return clones
+    }
+    expect(count({ altStyle: 'mirror' })).toBe(1)
+    expect(count({ snareClones: false })).toBe(0)
+  })
+
+  it('clears every clone on the downbeat of the chosen bar', () => {
+    const processor = createHeadlinerEffectProcessor('strobe-clone')
+    const output = makeOutput()
+    const overrides = { resetEvery: '2' }
+    processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 0.1, kickHit: true }))
+    processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 1, downbeatHit: true }))
+    draws = []
+    processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 1.1 }))
+    expect(layerClones(output)).toBe(1)
+    // The second downbeat is the 2-bar mark.
+    processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 5, downbeatHit: true }))
+    draws = []
+    processor.render(renderArgs(output, overrides, 'strobe-clone', { beat: 5.1 }))
+    expect(layerClones(output)).toBe(0)
+    processor.dispose()
+  })
+
+  it('captures faster as a build-up progresses', () => {
+    const captures = (build: number) => {
+      const processor = createHeadlinerEffectProcessor('strobe-clone')
+      const output = makeOutput()
+      for (let step = 0; step <= 8; step += 1) {
+        processor.render(renderArgs(output, { maxClones: 10, cloneLife: '0', buildAcceleration: 1 }, 'strobe-clone', { beat: step * 0.25, build }))
+      }
+      draws = []
+      processor.render(renderArgs(output, { maxClones: 10, cloneLife: '0', buildAcceleration: 1 }, 'strobe-clone', { beat: 2.1, build }))
+      const clones = layerClones(output)
+      processor.dispose()
+      return clones
+    }
+    expect(captures(0)).toBe(0)
+    expect(captures(1)).toBeGreaterThan(captures(0))
+  })
+})
+
+describe('Clone Spread', () => {
+  it('places copies alternately left and right, above and below, around a ring, or mirrored', () => {
+    const horizontal = placeCloneSpreadCopies('horizontal', 4, 100, 0, 0.6)
+    expect(horizontal.map(placement => placement.x)).toEqual([100, -100, 200, -200])
+    expect(horizontal.every(placement => placement.y === 0 && !placement.flip)).toBe(true)
+
+    const vertical = placeCloneSpreadCopies('vertical', 2, 100, 0, 0.5)
+    expect(vertical.map(placement => placement.y)).toEqual([50, -50])
+
+    const ring = placeCloneSpreadCopies('radial', 4, 100, 0, 1)
+    expect(ring.every(placement => Math.abs(Math.hypot(placement.x, placement.y) - 100) < 1e-6)).toBe(true)
+    // One shift turns the ring by one place.
+    const shifted = placeCloneSpreadCopies('radial', 4, 100, 1, 1)
+    expect(shifted[0].x).toBeCloseTo(ring[1].x)
+    expect(shifted[0].y).toBeCloseTo(ring[1].y)
+
+    expect(placeCloneSpreadCopies('mirror', 2, 100, 0, 1).map(placement => placement.flip)).toEqual([false, true])
+    // A shift swaps the linear layouts to the other side.
+    expect(placeCloneSpreadCopies('horizontal', 1, 100, 1, 1)[0].x).toBeCloseTo(-100)
+  })
+
+  it('draws one copy per Copies setting over the live picture', () => {
+    const processor = createHeadlinerEffectProcessor('clone-spread')
+    const output = makeOutput()
+    draws = []
+    processor.render(renderArgs(output, { copies: 5, spreadMotion: 'static' }, 'clone-spread', { beat: 1 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+    const copies = draws.filter(draw => draw.canvas !== output.canvas && draw.canvas.width === 720 && draw.alpha < 1)
+    expect(copies).toHaveLength(5)
+    processor.dispose()
+  })
+})
+

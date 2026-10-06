@@ -37,6 +37,7 @@ import {
 } from './HeadlinerEffectCatalog'
 import { createHeadlinerEffectProcessor, type HeadlinerEffectProcessor } from './HeadlinerEffects'
 import { HeadlinerTimingTracker } from './HeadlinerTiming'
+import { fireHeadlinerTrigger } from './HeadlinerTriggers'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -361,6 +362,12 @@ function HeadlinerParameterControl({
 }) {
   const id = `headliner-parameter-${definition.id}`
   switch (definition.kind) {
+    case 'button':
+      return (
+        <div className="rv-headliner-trigger-row" title={definition.description}>
+          <IconChipButton id={id} onClick={() => fireHeadlinerTrigger(definition.trigger)}>{definition.label}</IconChipButton>
+        </div>
+      )
     case 'slider':
       return (
         <SliderRow

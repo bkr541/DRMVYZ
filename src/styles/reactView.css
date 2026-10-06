@@ -16345,6 +16345,28 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow-y: auto;
 }
 
+/* Template engine: left-group mockups in the left column, right-group mockups in the right, each a single stack. */
+.llcm-stage-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  column-gap: 8px;
+}
+
+.llcm-stage-column {
+  min-width: 0;
+}
+
+.llcm-stage-columns .llcm-stage-section-hdr {
+  margin: 20px 20px 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.llcm-stage-columns .lldl-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .llcm-gallery {
   padding: 20px 20px 40px;
 }
@@ -22352,3 +22374,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lldr-c6 .lldr-readout { align-items: center; }
 .lldr-c6 .lldr-scrub { height: 4px; }
 .lldr-c6-strip { display: grid; grid-template-columns: repeat(4, 44px); justify-content: center; column-gap: 12px; }
+
+/* Headliner Design tab: one-shot action buttons (Capture Pose, Clear Ghosts, Relearn Background) sit on their own row. */
+.rv-headliner-trigger-row {
+  display: flex;
+  padding: 4px 0;
+}
