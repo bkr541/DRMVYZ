@@ -359,15 +359,49 @@ describe('Headliner production workspace controls', () => {
     expect(fillText).toHaveBeenCalledWith('Camera Permission Required', 320, 320, 524.8)
   })
 
-  it('keeps Presets, Design, and React restrained while shared Output uses the compositor canvas', async () => {
+  it('lists the three effect presets and loads the one that is picked', async () => {
     await act(async () => root.render(<HeadlinerPresetsPanel />))
-    expect(container.textContent).toContain('Headliner presets coming later')
-    expect(container.querySelector('input[type="range"]')).toBeNull()
+    const ids = [...container.querySelectorAll<HTMLElement>('[data-headliner-preset-id]')].map(card => card.dataset.headlinerPresetId)
+    expect(ids).toEqual(['motion-echo', 'ghost-trails', 'velocity-smear'])
+    expect(useReactStore.getState().headlinerSettings.presetId).toBe('motion-echo')
 
+    await act(async () => container.querySelector<HTMLElement>('[data-headliner-preset-id="ghost-trails"]')?.click())
+    expect(useReactStore.getState().headlinerSettings.presetId).toBe('ghost-trails')
+  })
+
+  it('fills the four Design groups from the active preset, with Master Intensity and BPM Sync in Master Controls', async () => {
     await act(async () => root.render(<HeadlinerDesignPanel />))
-    expect(container.textContent).not.toContain('Camera design controls are not available yet')
-    expect(container.querySelector('input[type="range"]')).toBeNull()
+    const groups = container.querySelector('[data-headliner-design-groups]')
+    const text = groups?.textContent ?? ''
+    const order = ['Master Controls', 'Design', 'Effects', 'Palette'].map(label => text.indexOf(label))
+    expect(order.every(index => index >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    // Master Controls comes first and holds the two standard controls.
+    const master = text.slice(order[0], order[1])
+    expect(master).toContain('Master Intensity')
+    expect(master).toContain('BPM Sync')
+    expect(text).toContain('Echo Count')
+    expect(container.querySelectorAll('input[type="range"]').length).toBeGreaterThan(5)
+  })
 
+  it('swaps Echo Spacing for Echo Delay when BPM Sync is turned off, and resets to the preset defaults', async () => {
+    await act(async () => root.render(<HeadlinerDesignPanel />))
+    expect(container.textContent).toContain('Echo Spacing')
+    expect(container.textContent).not.toContain('Echo Delay')
+
+    const sync = container.querySelector<HTMLElement>('#headliner-parameter-bpmSync')
+    await act(async () => sync?.click())
+    expect(useReactStore.getState().headlinerSettings.parameters['motion-echo']).toMatchObject({ bpmSync: false })
+    expect(container.textContent).toContain('Echo Delay')
+    expect(container.textContent).not.toContain('Echo Spacing')
+
+    const reset = [...container.querySelectorAll('button')].find(button => button.textContent === 'Reset Parameters')
+    await act(async () => reset?.click())
+    expect(useReactStore.getState().headlinerSettings.parameters['motion-echo']).toBeUndefined()
+    expect(container.textContent).toContain('Echo Spacing')
+  })
+
+  it('keeps React restrained while shared Output uses the compositor canvas', async () => {
     await act(async () => root.render(<HeadlinerReactivityPanel />))
     expect(container.textContent).toContain('Headliner-specific reactions are not authored yet')
     expect(container.querySelector('[data-headliner-shared-analysis="true"]')).not.toBeNull()

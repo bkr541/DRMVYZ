@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
-import { CtrlSection, SelectRow } from '../ReactControlRows'
+import { Collapsible, CtrlSection, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ConfirmDialog } from '../controls/ConfirmDialog'
 import { IconChipButton } from '../controls/IconChipButton'
+import { PresetSearchRow } from '../controls/PresetSearchRow'
+import { PanelSubtabs } from '../PanelSubtabs'
+import { ReactPresetCard } from '../ReactPresetCard'
 import { DrawerNotice } from '../../shared/DrawerNotice'
+import { usePresetScopeFilter } from '../../../../features/presetCatalog/presetCatalogStore'
+import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
+import type { ReactTrackSection } from '../ReactTypes'
+import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import { getNativeCameraBridge } from '../../../../native/cameraAccessBridge'
 import { describeHeadlinerCameraStatus, HeadlinerCameraRuntime } from './HeadlinerCameraRuntime'
 import { buildHeadlinerCameraOptions, useHeadlinerCameraDevices } from './HeadlinerCameraDevices'
@@ -13,6 +21,20 @@ import {
   createHeadlinerFullscreenProgram,
   HeadlinerFullscreenCompositor,
 } from './HeadlinerCompositor'
+import {
+  HEADLINER_GROUP_LABELS,
+  HEADLINER_GROUP_ORDER,
+  HEADLINER_PRESETS,
+  getHeadlinerBoolean,
+  getHeadlinerPreset,
+  isHeadlinerParameterVisible,
+  resolveHeadlinerParameters,
+  type HeadlinerParameterDefinition,
+  type HeadlinerParameterValue,
+  type HeadlinerParameterValues,
+} from './HeadlinerEffectCatalog'
+import { createHeadlinerEffectProcessor, type HeadlinerEffectProcessor } from './HeadlinerEffects'
+import { HeadlinerTimingTracker } from './HeadlinerTiming'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -83,12 +105,22 @@ export function HeadlinerEnginePanel() {
   )
 }
 
+export interface HeadlinerAudioInput {
+  /** Fresh audio-clock time in seconds. */
+  getAudioTime?: () => number
+  trackAnalysis?: TrackIntelligenceAnalysis | null
+  trackSections?: ReactTrackSection[]
+  trackIdentity?: string | null
+}
+
 export function HeadlinerSurface({
   onCanvasReady,
   onLiveFps,
+  audio,
 }: {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
+  audio?: HeadlinerAudioInput
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -100,20 +132,59 @@ export function HeadlinerSurface({
   const inputSourceRef = useRef(inputSourceId)
   inputSourceRef.current = inputSourceId
   const status = describeHeadlinerCameraStatus(snapshot)
+  const presetId = useReactStore(state => state.headlinerSettings.presetId)
+  const parameterOverrides = useReactStore(state => state.headlinerSettings.parameters)
+  const effectRef = useRef<{ presetId: string; processor: HeadlinerEffectProcessor } | null>(null)
+  const effectInputRef = useRef({ presetId, parameterOverrides, audio })
+  effectInputRef.current = { presetId, parameterOverrides, audio }
 
   useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
 
+    const timingTracker = new HeadlinerTimingTracker()
+    let previousContext: SharedPerformanceContext | null = null
     const compositor = new HeadlinerFullscreenCompositor({
       canvas,
       getProgramInput: () => {
         const current = runtime.getSnapshot()
+        const source = runtime.getFrameSource()
+        let effect = null
+        if (source) {
+          const { presetId: activePresetId, parameterOverrides: overrides, audio: audioInput } = effectInputRef.current
+          if (effectRef.current?.presetId !== activePresetId) {
+            effectRef.current?.processor.dispose()
+            effectRef.current = { presetId: activePresetId, processor: createHeadlinerEffectProcessor(getHeadlinerPreset(activePresetId).id) }
+          }
+          const parameters = resolveHeadlinerParameters(activePresetId, overrides[activePresetId])
+          const audioTimeSec = audioInput?.getAudioTime?.() ?? AudioFeatureBus.getFrame().timeSec
+          const identity = audioInput?.trackIdentity ?? 'headliner:unloaded-track'
+          previousContext = buildSharedPerformanceContext({
+            audioTimeSec: Number.isFinite(audioTimeSec) && audioTimeSec >= 0 ? audioTimeSec : 0,
+            frame: AudioFeatureBus.getFrame(),
+            analysis: audioInput?.trackAnalysis ?? null,
+            resolvedSections: audioInput?.trackSections ?? [],
+            trackIdentity: identity,
+            trackChangeIdentity: `track:${identity}`,
+            previous: previousContext,
+          })
+          effect = {
+            processor: effectRef.current.processor,
+            parameters,
+            timing: timingTracker.update(
+              performance.now() / 1000,
+              previousContext,
+              getHeadlinerBoolean(parameters, 'bpmSync', true),
+              previousContext.audioTimeSec,
+            ),
+          }
+        }
         return createHeadlinerFullscreenProgram(
-          runtime.getFrameSource(),
+          source,
           current.status,
           describeHeadlinerCameraStatus(current).title,
+          effect,
         )
       },
       onLiveFps,
@@ -127,6 +198,9 @@ export function HeadlinerSurface({
 
     return () => {
       compositor.stop()
+      effectRef.current?.processor.dispose()
+      effectRef.current = null
+      timingTracker.reset()
       publishHeadlinerCameraRuntime(null)
       runtime.stop()
       onCanvasReady?.(null)
@@ -212,36 +286,170 @@ export function HeadlinerSurface({
   )
 }
 
-function HeadlinerEmptyWorkspacePanel({ title, body }: { title: string; body: string }) {
+export function HeadlinerPresetsPanel() {
+  const activePresetId = useReactStore(state => state.headlinerSettings.presetId)
+  const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<'system' | 'user'>('system')
+  const needle = query.trim().toLowerCase()
+  const inScope = usePresetScopeFilter('headliner', scope)
+  const presets = HEADLINER_PRESETS.filter(preset => (
+    inScope(preset.id) && `${preset.name} ${preset.description}`.toLowerCase().includes(needle)
+  ))
+
   return (
-    <div className="rv-workspace-panel rv-headliner-workspace-panel">
+    <section className="rv-cinema-panel-list" aria-label="Headliner presets" data-preset-scope={scope}>
+      <PanelSubtabs
+        value={scope}
+        options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}
+        onChange={setScope}
+        ariaLabel="Preset scope"
+      />
+      <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel="Search Headliner presets" />
+      <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-headliner-preset-grid="true">
+        {presets.map(preset => (
+          <ReactPresetCard
+            key={preset.id}
+            id={preset.id}
+            title={preset.name}
+            description={preset.description}
+            palette={[{ color: preset.tone }]}
+            isActive={preset.id === activePresetId}
+            activateLabel={`Load ${preset.name}`}
+            onActivate={() => setHeadlinerSettings({ presetId: preset.id })}
+            dataAttributes={{ 'data-headliner-preset-id': preset.id }}
+          />
+        ))}
+        {presets.length === 0 && (
+          <div className="rv-ctrl-info">
+            {needle ? `No Headliner presets match \u201c${query}\u201d.` : scope === 'user' ? 'No user presets yet.' : 'No Headliner presets.'}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function formatHeadlinerValue(definition: Extract<HeadlinerParameterDefinition, { kind: 'slider' }>): ((value: number) => string) | undefined {
+  switch (definition.format) {
+    case 'ms': return value => `${Math.round(value)} ms`
+    case 'seconds': return value => `${value.toFixed(2)} s`
+    case 'degrees': return value => `${Math.round(value)}\u00b0`
+    case 'number': return definition.step >= 1 ? value => `${Math.round(value)}` : value => value.toFixed(2)
+    default: return undefined
+  }
+}
+
+function HeadlinerParameterControl({
+  definition,
+  value,
+  onChange,
+}: {
+  definition: HeadlinerParameterDefinition
+  value: HeadlinerParameterValue
+  onChange: (value: HeadlinerParameterValue) => void
+}) {
+  const id = `headliner-parameter-${definition.id}`
+  switch (definition.kind) {
+    case 'slider':
+      return (
+        <SliderRow
+          id={id}
+          label={definition.label}
+          value={typeof value === 'number' ? value : definition.default}
+          min={definition.min}
+          max={definition.max}
+          step={definition.step}
+          resetValue={definition.default}
+          description={definition.description}
+          formatValue={formatHeadlinerValue(definition) ?? (definition.format === 'percent'
+            ? (amount: number) => `${Math.round(amount * 100)}%`
+            : undefined)}
+          onChange={onChange}
+        />
+      )
+    case 'toggle':
+      return (
+        <ToggleRow
+          id={id}
+          label={definition.label}
+          value={typeof value === 'boolean' ? value : definition.default}
+          description={definition.description}
+          onChange={onChange}
+        />
+      )
+    case 'select':
+      return (
+        <SelectRow
+          id={id}
+          label={definition.label}
+          value={typeof value === 'string' ? value : definition.default}
+          options={definition.options.map(option => ({ value: option.value, label: option.label }))}
+          description={definition.description}
+          onChange={onChange}
+        />
+      )
+    case 'color':
+      return (
+        <PaletteColorRow
+          id={id}
+          label={definition.label}
+          value={typeof value === 'string' ? value : definition.default}
+          description={definition.description}
+          onChange={onChange}
+        />
+      )
+  }
+}
+
+/** The standard four Design groups, filled from the active preset's parameters. */
+export function HeadlinerDesignPanel() {
+  const presetId = useReactStore(state => state.headlinerSettings.presetId)
+  const overrides = useReactStore(state => state.headlinerSettings.parameters)
+  const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
+  const preset = getHeadlinerPreset(presetId)
+  const values: HeadlinerParameterValues = resolveHeadlinerParameters(preset.id, overrides[preset.id])
+  const hasOverrides = Object.keys(overrides[preset.id] ?? {}).length > 0
+
+  const setValue = (id: string, value: HeadlinerParameterValue) => {
+    setHeadlinerSettings({
+      parameters: { ...overrides, [preset.id]: { ...(overrides[preset.id] ?? {}), [id]: value } },
+    })
+  }
+  const resetParameters = () => {
+    const { [preset.id]: _removed, ...rest } = overrides
+    setHeadlinerSettings({ parameters: rest })
+  }
+
+  return (
+    <div className="rv-workspace-panel rv-headliner-workspace-panel" data-headliner-design-preset={preset.id}>
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
-          <div className="rv-headliner-empty-state">
-            <strong>{title}</strong>
-            <span>{body}</span>
+          <div className="rv-ctrl-group" data-headliner-design-groups="master-controls design effects palette">
+            {HEADLINER_GROUP_ORDER.map(group => {
+              const controls = preset.parameters.filter(definition => (
+                definition.group === group && isHeadlinerParameterVisible(definition, values)
+              ))
+              return (
+                <Collapsible key={group} label={HEADLINER_GROUP_LABELS[group]}>
+                  {controls.length === 0 ? (
+                    <div className="rv-ctrl-info">No controls yet.</div>
+                  ) : controls.map(definition => (
+                    <HeadlinerParameterControl
+                      key={`${preset.id}:${definition.id}`}
+                      definition={definition}
+                      value={values[definition.id]}
+                      onChange={value => setValue(definition.id, value)}
+                    />
+                  ))}
+                </Collapsible>
+              )
+            })}
+          </div>
+          <div className="rv-ctrl-group" data-headliner-inspector-actions="true">
+            <IconChipButton onClick={resetParameters} disabled={!hasOverrides}>Reset Parameters</IconChipButton>
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-export function HeadlinerPresetsPanel() {
-  return (
-    <HeadlinerEmptyWorkspacePanel
-      title="Headliner presets coming later"
-      body="This foundation does not invent preset recipes before the camera and effect model exists."
-    />
-  )
-}
-
-/** Headliner has no design controls yet; the tab stays so the inspector layout matches the other engines. */
-export function HeadlinerDesignPanel() {
-  return (
-    <div className="rv-workspace-panel rv-headliner-workspace-panel">
-      <div className="rv-workspace-panel-body">
-        <div className="rv-inspector rv-inspector-scroll" />
       </div>
     </div>
   )

@@ -9,6 +9,9 @@ import type {
   HeadlinerCameraSlotId,
 } from './HeadlinerCameraRuntime'
 import type { HeadlinerInputSourceId } from './HeadlinerSettings'
+import type { HeadlinerEffectProcessor } from './HeadlinerEffects'
+import type { HeadlinerParameterValues } from './HeadlinerEffectCatalog'
+import type { HeadlinerEffectTiming } from './HeadlinerTiming'
 
 export const HEADLINER_MAX_CAMERA_LAYERS = 4
 export const HEADLINER_MAX_BACKING_PIXELS = 1920 * 1080
@@ -39,6 +42,13 @@ export interface HeadlinerCameraLayerInput {
   effectIds: readonly string[]
 }
 
+/** The active preset's processor with this frame's Design values and timing; absent shows the plain camera. */
+export interface HeadlinerEffectFrame {
+  processor: HeadlinerEffectProcessor
+  parameters: HeadlinerParameterValues
+  timing: HeadlinerEffectTiming
+}
+
 export interface HeadlinerProgramInput {
   mode: 'fullscreen'
   cameraStatus: HeadlinerCameraRuntimeStatus
@@ -46,6 +56,7 @@ export interface HeadlinerProgramInput {
   statusLabel?: string
   layers: readonly HeadlinerCameraLayerInput[]
   masterEffectIds: readonly string[]
+  effect?: HeadlinerEffectFrame | null
 }
 
 export interface HeadlinerAdaptiveQualityState {
@@ -73,6 +84,7 @@ export function createHeadlinerFullscreenProgram(
   source: HeadlinerCameraFrameSource | null,
   cameraStatus: HeadlinerCameraRuntimeStatus = source ? 'live' : 'idle',
   statusLabel?: string,
+  effect: HeadlinerEffectFrame | null = null,
 ): HeadlinerProgramInput {
   if (!source) {
     return {
@@ -99,6 +111,7 @@ export function createHeadlinerFullscreenProgram(
       effectIds: [],
     }],
     masterEffectIds: [],
+    ...(effect ? { effect } : {}),
   }
 }
 
@@ -338,18 +351,22 @@ export class HeadlinerFullscreenCompositor {
       if (sourceRect) {
         context.globalAlpha = layer?.opacity ?? 1
         try {
-          context.drawImage(
-            video,
-            sourceRect.sx,
-            sourceRect.sy,
-            sourceRect.sw,
-            sourceRect.sh,
-            0,
-            0,
-            this.canvas.width,
-            this.canvas.height,
-          )
+          if (!this.drawEffectFrame(program, video, sourceRect)) {
+            context.drawImage(
+              video,
+              sourceRect.sx,
+              sourceRect.sy,
+              sourceRect.sw,
+              sourceRect.sh,
+              0,
+              0,
+              this.canvas.width,
+              this.canvas.height,
+            )
+          }
           context.globalAlpha = 1
+          context.globalCompositeOperation = 'source-over'
+          context.filter = 'none'
           this.markOutputRendered('live')
           return 'live'
         } catch {
@@ -385,6 +402,32 @@ export class HeadlinerFullscreenCompositor {
     this.drawNeutralSurface(neutralLabel)
     this.markOutputRendered('neutral')
     return 'neutral'
+  }
+
+  /**
+   * Lets the active preset draw the finished frame. Returns false when there is no preset or it failed,
+   * so the caller falls back to the plain camera picture and the program never goes blank.
+   */
+  private drawEffectFrame(program: HeadlinerProgramInput, video: HTMLVideoElement, sourceRect: HeadlinerSourceRect): boolean {
+    const effect = program.effect
+    const context = this.context
+    if (!effect || !context) return false
+    try {
+      effect.processor.render({
+        context,
+        canvas: this.canvas,
+        video,
+        sourceRect,
+        parameters: effect.parameters,
+        timing: effect.timing,
+      })
+      return true
+    } catch {
+      context.globalAlpha = 1
+      context.globalCompositeOperation = 'source-over'
+      context.filter = 'none'
+      return false
+    }
   }
 
   private captureLastGoodFrame(): void {

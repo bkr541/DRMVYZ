@@ -1014,7 +1014,16 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 onLiveFps={setLiveFps}
               />
             ) : activeReactEngineId === 'headliner' ? (
-              <HeadlinerSurface onCanvasReady={setOutputCanvas} onLiveFps={setLiveFps} />
+              <HeadlinerSurface
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+                audio={{
+                  getAudioTime: engine.getCurrentTime,
+                  trackAnalysis: effectiveTrackAnalysis,
+                  trackSections: resolvedTrackSections,
+                  trackIdentity: engine.currentAudioTrackId ?? engine.currentTrackId,
+                }}
+              />
             ) : (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
