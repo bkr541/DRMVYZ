@@ -33,12 +33,15 @@ describe('ATL HOE preset', () => {
     expect(cinema2NativePresetRegistry.get(CINEMA2_ATL_HOE_PRESET_ID)).not.toBeNull()
   })
 
-  it('renders the shipped 3D sign, sky, skyline silhouettes and foliage without the road parts', () => {
+  it('renders the shipped 3D sign, sky, skyline silhouettes and foliage with the road and lamps', () => {
     expect(module.typeId).toBe('three-scene')
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
       'stars',
+      'road',
+      'roadPole',
+      'roadGlow',
       'bofaGlass',
       'bofaStone',
       'bofaGlow',
@@ -68,10 +71,6 @@ describe('ATL HOE preset', () => {
       'signLetters',
       'foliageBack',
       'foliage',
-    ]))
-    expect(module.config?.parts).not.toEqual(expect.arrayContaining([
-      'road',
-      'roadGlow',
     ]))
     expect(module.parameters).toMatchObject({
       'signGlow.emissiveIntensity': 1.25,

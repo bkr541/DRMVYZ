@@ -49,7 +49,9 @@ const MATERIALS = {
   signGlow: { baseColorFactor: [1, 0.78, 0, 1], metallicFactor: 0, roughnessFactor: 0.5, emissiveFactor: [1, 0.65, 0.01] },
   signBorder: { baseColorFactor: [0.006, 0.007, 0.009, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.001, 0.002, 0.004] },
   signLetters: { baseColorFactor: [0.004, 0.004, 0.004, 1], metallicFactor: 0, roughnessFactor: 0.82 },
-  road: { baseColorFactor: [0.018, 0.024, 0.026, 1], metallicFactor: 0.35, roughnessFactor: 0.8 },
+  roadPole: { baseColorFactor: [0.09, 0.09, 0.1, 1], metallicFactor: 0.4, roughnessFactor: 0.5 },
+  // Matte near-black so the warm city light does not blaze off the decks' top faces, which the camera sees from above.
+  road: { baseColorFactor: [0.01, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
   roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
   foliageBack: { baseColorFactor: [0.012, 0.035, 0.04, 1], metallicFactor: 0, roughnessFactor: 1 },
   foliage: { baseColorFactor: [0.02, 0.055, 0.05, 1], metallicFactor: 0, roughnessFactor: 1 },
@@ -206,28 +208,28 @@ function refPoint(u, v, z) {
   const t = (z - position[2]) / ray[2]
   return [position[0] + ray[0] * t, position[1] + ray[1] * t]
 }
+// A block's rows are read at its middle column (clamped to the frame): the camera is yawed a little, so a row's world height drifts with
+// the column, and reading the two ends would tilt or thicken a very wide band such as the road.
+const refUy = (u0, u1) => Math.min(REF_W, Math.max(0, (u0 + u1) / 2))
 // Buildings run well below the frame so the tall Stage preview never shows a floating base.
 const REF_BASE_V = 1700
 /** A block between reference columns u0..u1, from reference row vTop down to the base, `depth` deep, centred on plane z. */
 function refBlock(part, u0, u1, vTop, z, depth, name) {
   // Both edges are read on the same row: the camera is yawed a little, so x drifts with the row and reading the base row would skew a tall block.
-  const [x0, yTop] = refPoint(u0, vTop, z)
-  const [x1] = refPoint(u1, vTop, z)
-  const [, yBase] = refPoint(u1, REF_BASE_V, z)
+  const [x0] = refPoint(u0, vTop, z), [x1] = refPoint(u1, vTop, z)
+  const [, yTop] = refPoint(refUy(u0, u1), vTop, z), [, yBase] = refPoint(refUy(u0, u1), REF_BASE_V, z)
   box(part, [(x0 + x1) / 2, (yTop + yBase) / 2, z], [Math.abs(x1 - x0), yTop - yBase, depth], [0, 0, 0], name)
 }
 /** A block floating between two reference rows (a crown tier, a ring). */
 function refBand(part, u0, u1, vTop, vBottom, z, depth, name) {
-  const [x0, yTop] = refPoint(u0, vTop, z)
-  const [x1] = refPoint(u1, vTop, z)
-  const [, yBottom] = refPoint(u1, vBottom, z)
+  const [x0] = refPoint(u0, vTop, z), [x1] = refPoint(u1, vTop, z)
+  const [, yTop] = refPoint(refUy(u0, u1), vTop, z), [, yBottom] = refPoint(refUy(u0, u1), vBottom, z)
   box(part, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], [Math.abs(x1 - x0), yTop - yBottom, depth], [0, 0, 0], name)
 }
 /** A round tube (tower, ring, mast) between reference columns u0..u1 and rows vTop..vBottom. */
 function refRound(part, u0, u1, vTop, vBottom, z, name, segments = 40) {
-  const [x0, yTop] = refPoint(u0, vTop, z)
-  const [x1] = refPoint(u1, vTop, z)
-  const [, yBottom] = refPoint(u1, vBottom, z)
+  const [x0] = refPoint(u0, vTop, z), [x1] = refPoint(u1, vTop, z)
+  const [, yTop] = refPoint(refUy(u0, u1), vTop, z), [, yBottom] = refPoint(refUy(u0, u1), vBottom, z)
   const radius = Math.abs(x1 - x0) / 2
   cylinder(part, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], radius, yTop - yBottom, segments, [0, 0, 0], name)
   return radius
@@ -441,33 +443,28 @@ for (const [part, band, z, depth, topMin, topMax] of [['distantBuildings', 'far'
   }
 }
 
-// The elevated road is switched off until Phase 5.
-const includeRoad = false
-if (includeRoad) {
-// Layered downtown freeway: two decks, edge barriers, underside beams, a
-// rising ramp, and staggered columns. Warm pools are localized beneath lamps.
-box('road', [0, 0.76, -8.35], [34, 0.46, 3.05], [0, 0.035, -0.006], 'freeway-near-deck')
-box('road', [-1.4, 1.62, -10.85], [31, 0.38, 2.35], [0, -0.025, 0.008], 'freeway-rear-deck')
-box('road', [0, -1.48, -7.05], [32, 0.14, 2.55], [0, 0.018, 0], 'freeway-service-deck')
-box('road', [0, 1.12, -6.83], [34.1, 0.42, 0.16], [0, 0.035, -0.006], 'freeway-near-barrier')
-box('road', [-1.4, 1.94, -9.67], [31.1, 0.35, 0.14], [0, -0.025, 0.008], 'freeway-rear-barrier')
-box('road', [-8.7, 1.18, -7.25], [10.2, 0.3, 1.65], [0, -0.08, 0.075], 'freeway-ramp')
-for (let x = -15.5; x <= 15.5; x += 2.55) {
-  box('road', [x, 0.43, -8.3], [0.18, 0.34, 3.2], [0, 0.035, 0], 'freeway-crossbeam')
-}
-for (let i = 0; i < 10; i += 1) {
-  const x = -14.2 + i * 3.15
-  const z = -8.65 + (i % 2) * 0.42
-  box('road', [x, -0.55, z], [0.34, 2.1, 0.52], [0, 0.03, 0], 'freeway-column')
-  if (i % 2 === 0) box('road', [x, 0.33, z], [1.05, 0.24, 0.65], [0, 0.03, 0], 'freeway-cap')
-}
-for (const [i, x] of [-11.8, -5.4, 1.2, 8.1, 13.2].entries()) {
-  box('roadGlow', [x, 0.47, -6.78], [0.16, 0.13, 0.1], [0, 0, 0], `road-lamp-${i}`)
-  addGeometry('roadGlow', new THREE.CylinderGeometry(1, 1, 0.035, 24), {
-    at: [x, -1.39, -7.05], size: [0.72, 1, 0.38], name: `road-pool-${i}`,
-  })
-}
-}
+// ── Elevated road and street lamps (Phase 5) ────────────────────────────────────────────────────────────────────────────────
+// Two decks run low across the frame (a far deck behind a nearer one, read from the reference), with a thin sodium-lit edge along each,
+// a dark mass beneath, and orange street lamps on poles. Everything is placed in reference pixels, runs far past both edges for wide
+// Stages, and stands in front of the near buildings and behind the sign and foliage.
+const ROAD_Z = -8
+const ROAD_FROM = -1300, ROAD_TO = 3000
+refBand('road', ROAD_FROM, ROAD_TO, 846, 872, ROAD_Z, 3.0, 'road-deck-far')
+// The lit edges are thin strips on each deck's front face; a deck-deep box would show its whole top face from the camera's height.
+refBand('roadGlow', ROAD_FROM, ROAD_TO, 846, 847.4, ROAD_Z + 1.5, 0.08, 'road-deck-far-edge')
+refBand('road', ROAD_FROM, ROAD_TO, 884, 912, ROAD_Z + 0.8, 3.2, 'road-deck-near')
+refBand('roadGlow', ROAD_FROM, ROAD_TO, 884, 885.4, ROAD_Z + 0.8 + 1.6, 0.08, 'road-deck-near-edge')
+refBlock('road', ROAD_FROM, ROAD_TO, 912, ROAD_Z + 0.8, 3.2, 'road-understructure')
+// Pale underside beams catch a little of the lamp light so the deck has thickness.
+for (let u = ROAD_FROM; u < ROAD_TO; u += 90) refBand('road', u, u + 5, 872, 884, ROAD_Z + 0.4, 2.8, `road-beam-${u}`)
+// Lamps: the reference's five, then a steady run in both directions with a little deterministic spread.
+const LAMPS = [[478, 790], [635, 818], [787, 828], [975, 800], [1075, 848], [1400, 845], [1560, 830], [1650, 845]]
+for (let u = 330, i = 0; u > ROAD_FROM; u -= 150 + hash(`lamp-l-${i}`) * 50, i += 1) LAMPS.push([u, 820 + hash(`lamp-lv-${i}`) * 25])
+for (let u = 1740, i = 0; u < ROAD_TO; u += 150 + hash(`lamp-r-${i}`) * 50, i += 1) LAMPS.push([u, 820 + hash(`lamp-rv-${i}`) * 25])
+LAMPS.forEach(([u, v], i) => {
+  refBand('roadPole', u - 1.8, u + 1.8, v, 884, ROAD_Z + 0.4, 0.3, `road-lamp-pole-${i}`)
+  refBand('roadGlow', u - 4, u + 4, v - 6, v + 2, ROAD_Z + 0.4, 0.5, `road-lamp-${i}`)
+})
 
 // The Waffle House sign, modeled on the real roadside sign: a near-black cabinet in two rows (six cells over five cells offset by half a
 // cell, the lower cabinet standing proud of the upper), each cell a thin black frame around a flat, bright yellow face carrying one heavy,

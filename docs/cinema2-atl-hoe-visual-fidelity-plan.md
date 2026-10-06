@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status (revision 2):** Phases 1 (sign) and 2 (sky and atmosphere base) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
+**Status (revision 2):** Phases 1 (sign), 2 (sky and atmosphere base), 3 (skyline), 4 (facades and emitters) and 5 (road and street lamps) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
 
 ## Goal
 
@@ -169,6 +169,8 @@ The city generator is currently switched off because its earlier output did not 
 - No landmark is identifiable solely by its window color.
 
 ## Phase 5 — Roadway and street lamps
+
+**Status:** Implemented. Two dark matte decks (a far deck behind a nearer one) run low across the frame and far past both edges, each with a thin sodium-orange lit edge, a dark understructure, and small beams. About 30 street lamps (the reference's eight, then a steady run in both directions) stand on dark poles with orange orbs. The decks' top faces blazed orange under the warm city light until the road material was made matte and near-black; wide bands also drifted thick because a row's world height varies with the column, so block rows are now read at the middle column (`refUy`). Remaining for Phase 7: the lamps are small and do not yet cast localized light pools on the decks, and the foliage in Phase 6 will cover part of the road at both ends.
 
 ### Implementation
 
