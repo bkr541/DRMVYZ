@@ -169,131 +169,120 @@ function floorBands({ x, y0, z, width, floors, spacing, depth = 0.08 }) {
   for (let floor = 0; floor <= floors; floor += 1) box('signTrim', [x, y0 + floor * spacing, z], [width, 0.035, depth])
 }
 
-// The city and road layer is intentionally disabled while its replacement is
-// redesigned. The sign, sky, stars, and foreground foliage remain generated.
-const includeCityAndRoad = false
-if (includeCityAndRoad) {
-// Three overlapping city bands close the horizon while retaining lower contrast
-// with distance. Roofline and window rhythms vary deterministically by building.
-const cityBands = [
-  { part: 'distantBuildings', prefix: 'far', warmChance: 0.14, blocks: [
-    [-20, 2.8, 4.5, -28, 2.4], [-17.5, 2.1, 6.1, -27.2, 2.2], [-15.2, 2.7, 5.2, -28.5, 2.5], [-12.5, 2.3, 7.0, -26.8, 2.4],
-    [-9.9, 2.8, 5.8, -28.1, 2.7], [-7.1, 2.2, 7.8, -26.4, 2.3], [-4.6, 2.7, 5.4, -27.6, 2.6], [-2.0, 2.1, 6.6, -28.4, 2.2],
-    [0.4, 2.8, 5.0, -27.1, 2.5], [3.0, 2.0, 7.2, -28.2, 2.2], [5.4, 2.7, 5.7, -26.7, 2.6], [8.0, 2.1, 6.8, -28.5, 2.3],
-    [10.5, 2.8, 5.3, -27.4, 2.5], [13.2, 2.2, 7.4, -28.2, 2.4], [15.8, 2.9, 5.8, -26.9, 2.7], [18.5, 2.4, 6.5, -28.3, 2.5], [21.2, 2.8, 5.5, -27.1, 2.6],
-  ] },
-  { part: 'midBuildings', prefix: 'mid', warmChance: 0.31, blocks: [
-    [-17.8, 2.6, 6.8, -22.5, 2.7], [-15.1, 2.2, 8.5, -21.2, 2.5], [-12.7, 2.5, 5.9, -23.1, 2.6], [-10.1, 2.9, 9.1, -21.7, 2.9],
-    [-7.2, 2.3, 6.7, -22.8, 2.5], [-4.8, 2.1, 8.0, -20.9, 2.4], [-2.5, 2.7, 5.6, -23.0, 2.8], [0.1, 2.0, 7.2, -21.8, 2.4],
-    [5.6, 2.1, 6.3, -22.6, 2.5], [9.5, 2.4, 7.6, -21.5, 2.6], [13.8, 2.7, 6.5, -22.8, 2.8], [16.6, 2.3, 8.2, -21.4, 2.5], [19.4, 2.8, 6.9, -22.4, 2.7],
-  ] },
-  { part: 'nearBuildings', prefix: 'near', warmChance: 0.46, blocks: [
-    [-16.5, 2.8, 5.4, -14.8, 2.8], [-13.7, 2.3, 7.1, -13.5, 2.5], [-11.2, 2.7, 5.8, -15.4, 2.7], [-8.4, 2.5, 7.8, -14.1, 2.6],
-    [-5.8, 2.2, 5.2, -13.2, 2.4], [-3.5, 2.4, 6.8, -15.0, 2.6], [1.0, 2.2, 5.0, -13.7, 2.5], [5.8, 2.1, 5.9, -14.7, 2.4],
-    [9.2, 2.5, 5.3, -13.4, 2.6], [12.3, 2.4, 6.4, -14.8, 2.5], [15.1, 2.8, 5.6, -13.6, 2.8], [18.2, 2.7, 7.0, -14.5, 2.7], [21.0, 2.5, 5.2, -13.2, 2.5],
-  ] },
-]
-for (const band of cityBands) for (let i = 0; i < band.blocks.length; i += 1) {
-  const [x, width, height, z, depth] = band.blocks[i]
-  const key = `${band.prefix}-${i}`
-  box(band.part, [x, height / 2, z], [width, height, depth])
-  const steppedRoof = i % 3 === 1
-  if (steppedRoof) box(band.part, [x, height + 0.28, z], [width * 0.62, 0.56, depth * 0.72])
-  if (i % 5 === 2) box(band.part, [x + width * 0.18, height + (steppedRoof ? 0.7 : 0.35), z], [0.08, 0.7, 0.08])
-  windowsOnFront({ key, x, y: height * 0.52, z: z + depth / 2 + 0.03, width: width * 0.82, height: height * 0.8, cols: Math.max(3, Math.round(width * 2.1)), rows: Math.max(5, Math.round(height * 1.25)), warmChance: band.warmChance, cyanEvery: band.prefix === 'near' && i % 4 === 0 ? 9 : 0, sizeVariation: 0.3 })
-  if (band.prefix !== 'far' && i % 2 === 0) windowsOnSide({ key, x: x + width / 2 + 0.025, y: height * 0.52, z, depth: depth * 0.8, height: height * 0.78, cols: 3, rows: Math.max(5, Math.round(height)), warmChance: band.warmChance * 0.55 })
+// ── Skyline (Phase 3: silhouettes only) ─────────────────────────────────────────────────────────────────────────────────────
+// Every building is placed from the reference frame (1672 × 941): `refPoint(u, v, z)` finds the world x / y that the preset camera sees at
+// reference pixel (u, v) on the plane z, so each shape below is written in the pixels of the picture it copies and keeps that position
+// whatever depth it stands at. The camera numbers mirror Cinema2AtlHoePreset (position, target, 42° vertical FOV, 16:9).
+const REF_W = 1672, REF_H = 941
+const REF_CAMERA = { position: [0, 5.9, 20], target: [-0.4, 6.55, -8.4], fov: 42, aspect: 16 / 9 }
+function refPoint(u, v, z) {
+  const { position, target, fov, aspect } = REF_CAMERA
+  const d = target.map((value, i) => value - position[i])
+  const dn = Math.hypot(...d)
+  const f = d.map(value => value / dn)
+  const rightRaw = [-f[2], 0, f[0]]
+  const rn = Math.hypot(...rightRaw)
+  const right = rightRaw.map(value => value / rn)
+  const up = [right[1] * f[2] - right[2] * f[1], right[2] * f[0] - right[0] * f[2], right[0] * f[1] - right[1] * f[0]]
+  const th = Math.tan(THREE.MathUtils.degToRad(fov / 2))
+  const nx = (u / REF_W) * 2 - 1, ny = 1 - (v / REF_H) * 2
+  const ray = f.map((value, i) => value + right[i] * nx * th * aspect + up[i] * ny * th)
+  const t = (z - position[2]) / ray[2]
+  return [position[0] + ray[0] * t, position[1] + ray[1] * t]
+}
+// Buildings run well below the frame so the tall Stage preview never shows a floating base.
+const REF_BASE_V = 1700
+/** A block between reference columns u0..u1, from reference row vTop down to the base, `depth` deep, centred on plane z. */
+function refBlock(part, u0, u1, vTop, z, depth, name) {
+  // Both edges are read on the same row: the camera is yawed a little, so x drifts with the row and reading the base row would skew a tall block.
+  const [x0, yTop] = refPoint(u0, vTop, z)
+  const [x1] = refPoint(u1, vTop, z)
+  const [, yBase] = refPoint(u1, REF_BASE_V, z)
+  box(part, [(x0 + x1) / 2, (yTop + yBase) / 2, z], [Math.abs(x1 - x0), yTop - yBase, depth], [0, 0, 0], name)
+}
+/** A block floating between two reference rows (a crown tier, a ring). */
+function refBand(part, u0, u1, vTop, vBottom, z, depth, name) {
+  const [x0, yTop] = refPoint(u0, vTop, z)
+  const [x1] = refPoint(u1, vTop, z)
+  const [, yBottom] = refPoint(u1, vBottom, z)
+  box(part, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], [Math.abs(x1 - x0), yTop - yBottom, depth], [0, 0, 0], name)
+}
+/** A round tube (tower, ring, mast) between reference columns u0..u1 and rows vTop..vBottom. */
+function refRound(part, u0, u1, vTop, vBottom, z, name, segments = 40) {
+  const [x0, yTop] = refPoint(u0, vTop, z)
+  const [x1] = refPoint(u1, vTop, z)
+  const [, yBottom] = refPoint(u1, vBottom, z)
+  const radius = Math.abs(x1 - x0) / 2
+  cylinder(part, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], radius, yTop - yBottom, segments, [0, 0, 0], name)
+  return radius
 }
 
-// Westin Peachtree Plaza: a segmented cylindrical glass tower with continuous
-// floor rings, vertical mullions, the Sun Dial crown, and a thin rooftop mast.
-const westinX = 2.8, westinZ = -15.4
-cylinder('landmarkGlass', [westinX, 6.35, westinZ], 1.08, 12.7, 40, [0, 0, 0], 'westin-body')
-for (let floor = 1; floor < 21; floor += 1) cylinder('landmarkDark', [westinX, 0.25 + floor * 0.59, westinZ], 1.095, 0.035, 40)
-for (let segment = 0; segment < 24; segment += 1) {
-  const angle = (segment / 24) * Math.PI * 2
-  box('signTrim', [westinX + Math.sin(angle) * 1.09, 6.38, westinZ + Math.cos(angle) * 1.09], [0.035, 12.35, 0.05], [0, angle, 0])
+// Landmarks stand on one plane. Fill buildings sit in three bands: far (low contrast), mid (behind the landmarks) and near (in front of
+// their bases, as in the reference).
+const LANDMARK_Z = -16
+const FAR_Z = -28, MID_Z = -21, NEAR_Z = -12
+
+// Bank of America Plaza: a tall ribbed shaft capped by a pyramid roof and a thin spire.
+refBlock('landmarkDark', 872, 1018, 238, LANDMARK_Z, 3.4, 'boa-shaft')
+refBand('landmarkDark', 866, 1024, 232, 262, LANDMARK_Z, 3.6, 'boa-shoulder')
+{
+  const [xl, yBase] = refPoint(886, 236, LANDMARK_Z)
+  const [xr, yApex] = refPoint(1002, 100, LANDMARK_Z)
+  const baseWidth = xr - xl
+  addGeometry('landmarkDark', new THREE.ConeGeometry(1, 1, 4), {
+    at: [(xl + xr) / 2, (yBase + yApex) / 2, LANDMARK_Z], size: [baseWidth / Math.SQRT2, yApex - yBase, baseWidth / Math.SQRT2], rotate: [0, Math.PI / 4, 0], name: 'boa-pyramid',
+  })
+  refBand('landmarkDark', 941, 947, 100, 70, LANDMARK_Z, 0.12, 'boa-spire')
 }
-for (let row = 0; row < 19; row += 1) {
-  const y = 0.65 + row * 0.61
-  for (let segment = 0; segment < 24; segment += 1) {
-    if (hash(`westin-${row}-${segment}`) > 0.52) continue
-    const angle = (segment / 24) * Math.PI * 2
-    if (Math.sin(angle) < -0.25) continue
-    const x = westinX + Math.sin(angle) * 1.086
-    const z = westinZ + Math.cos(angle) * 1.086
-    box('warmWindows', [x, y, z], [0.15, 0.25, 0.025], [0, angle, 0])
+
+// Westin Peachtree Plaza: a round glass tower with a wider ring crown and a mast.
+refRound('landmarkGlass', 1086, 1184, 335, REF_BASE_V, LANDMARK_Z, 'westin-shaft')
+refRound('landmarkDark', 1082, 1190, 298, 340, LANDMARK_Z, 'westin-crown-ring', 48)
+refBand('landmarkDark', 1132, 1138, 298, 218, LANDMARK_Z, 0.1, 'westin-mast')
+
+// Truist Plaza: a straight shaft with five set-back crown tiers and a spike.
+refBlock('landmarkDark', 1228, 1372, 383, LANDMARK_Z, 3.2, 'truist-shaft')
+for (const [i, [u0, u1, vTop, vBottom]] of [[1236, 1364, 355, 385], [1252, 1348, 325, 356], [1266, 1334, 296, 326], [1280, 1320, 270, 297], [1292, 1308, 247, 271]].entries()) {
+  refBand('landmarkDark', u0, u1, vTop, vBottom, LANDMARK_Z, 3.0 - i * 0.25, `truist-tier-${i}`)
+}
+refBand('landmarkDark', 1297, 1303, 247, 228, LANDMARK_Z, 0.1, 'truist-spike')
+
+// Georgia-Pacific Tower: a broad slab stepping down toward the right edge in set-backs.
+refBlock('landmarkDark', 1447, 1562, 228, LANDMARK_Z, 4.6, 'gp-slab-a')
+refBlock('landmarkDark', 1558, 1610, 276, LANDMARK_Z, 4.4, 'gp-slab-b')
+refBlock('landmarkDark', 1606, 1634, 332, LANDMARK_Z, 4.2, 'gp-slab-c')
+refBlock('landmarkDark', 1630, 1680, 560, LANDMARK_Z, 4.0, 'gp-slab-d')
+
+// The angular glass building low between Westin and Truist (the reference's slanted-faced block).
+refBlock('landmarkGlass', 1150, 1222, 700, NEAR_Z - 3, 3.0, 'angular-glass')
+
+// Fill buildings: [u0, u1, top row] per band, read from the reference.
+const FILL = {
+  far: [[500, 640, 640], [640, 760, 625], [730, 860, 610], [1040, 1100, 560], [1100, 1190, 600], [1370, 1450, 560], [1520, 1600, 650]],
+  mid: [[0, 68, 530], [70, 175, 507], [175, 270, 600], [1008, 1062, 520], [1182, 1228, 510], [1378, 1442, 520], [1410, 1522, 618], [1015, 1062, 548]],
+  near: [[210, 330, 655], [300, 440, 692], [430, 530, 702], [530, 705, 708], [612, 735, 716], [945, 1088, 720], [1146, 1366, 706], [1522, 1562, 690]],
+}
+for (const [part, band, z, depth] of [['distantBuildings', 'far', FAR_Z, 3], ['midBuildings', 'mid', MID_Z, 3.4], ['nearBuildings', 'near', NEAR_Z, 3.2]]) {
+  FILL[band].forEach(([u0, u1, vTop], i) => refBlock(part, u0, u1, vTop, z, depth, `${band}-building-${i}`))
+}
+
+// Wider Stages show more city than the reference frame, so the skyline keeps going past both edges (reference columns -1300 … 0 and
+// 1672 … 3000, enough for a 3:1 Stage) with the same three bands and varied widths and heights.
+for (const [part, band, z, depth, topMin, topMax] of [['distantBuildings', 'far', FAR_Z, 3, 600, 680], ['midBuildings', 'mid', MID_Z, 3.4, 520, 640], ['nearBuildings', 'near', NEAR_Z, 3.2, 660, 730]]) {
+  for (const [side, start, end] of [['left', -1300, 0], ['right', 1672, 3000]]) {
+    let u = start
+    for (let i = 0; u < end; i += 1) {
+      const width = 80 + hash(`wide-${side}-${band}-w-${i}`) * 110
+      const top = topMin + hash(`wide-${side}-${band}-t-${i}`) * (topMax - topMin)
+      refBlock(part, u, u + width + 6, top, z, depth, `wide-${side}-${band}-${i}`)
+      u += width
+    }
   }
 }
-cylinder('signTrim', [westinX, 12.78, westinZ], 1.17, 0.18, 40)
-cylinder('crown', [westinX, 13.02, westinZ], 1.16, 0.38, 40)
-cylinder('signTrim', [westinX, 13.26, westinZ], 0.98, 0.11, 40)
-cylinder('signTrim', [westinX, 14.35, westinZ], 0.035, 2.15, 10)
 
-// Truist Plaza: deep recessed bays, full-height vertical ribs, a heavier base,
-// and a gold stepped crown whose dark ledges remain visible through bloom.
-const truistX = 9.2, truistZ = -17.8
-box('landmarkDark', [truistX, 7.05, truistZ], [2.65, 14.1, 2.5], [0, 0, 0], 'truist-body')
-box('landmarkDark', [truistX, 1.2, truistZ + 0.08], [2.88, 2.4, 2.68], [0, 0, 0], 'truist-base')
-windowsOnFront({ key: 'truist', x: truistX, y: 7.1, z: truistZ + 1.27, width: 2.25, height: 12.8, cols: 7, rows: 22, warmChance: 0.43 })
-frontRibs({ x: truistX, y: 7.2, z: truistZ + 1.34, width: 2.34, height: 13.45, count: 8 })
-floorBands({ x: truistX, y0: 0.62, z: truistZ + 1.33, width: 2.36, floors: 20, spacing: 0.62, depth: 0.07 })
-box('signTrim', [truistX - 1.34, 7.1, truistZ], [0.085, 14.1, 2.45])
-box('signTrim', [truistX + 1.34, 7.1, truistZ], [0.085, 14.1, 2.45])
-const crownLevels = [[2.75, 0.55], [2.35, 0.5], [1.88, 0.5], [1.45, 0.47], [1.04, 0.42], [0.68, 0.36], [0.36, 0.3]]
-let crownY = 14.1
-for (const [width, height] of crownLevels) {
-  const depth = 2.2 * (width / 2.75)
-  box('signTrim', [truistX, crownY + height / 2, truistZ], [width + 0.12, height + 0.06, depth + 0.12])
-  box('crown', [truistX, crownY + height / 2, truistZ + depth / 2 + 0.07], [width - 0.1, height * 0.66, 0.08])
-  crownY += height * 0.88
-}
-box('crown', [truistX, crownY + 0.35, truistZ], [0.08, 0.9, 0.08])
-
-// Promenade II: a slender reflective shaft with pronounced ziggurat setbacks,
-// stainless vertical fins, and restrained turquoise lighting between dark bays.
-const promenadeX = 14.0, promenadeZ = -18.6
-box('landmarkGlass', [promenadeX, 5.85, promenadeZ], [2.08, 11.7, 2.0], [0, 0, 0], 'promenade-body')
-box('landmarkDark', [promenadeX - 0.94, 5.7, promenadeZ + 0.02], [0.22, 11.4, 2.08])
-box('landmarkDark', [promenadeX + 0.94, 5.7, promenadeZ + 0.02], [0.22, 11.4, 2.08])
-for (let row = 0; row < 18; row += 1) {
-  const y = 0.7 + row * 0.58
-  const cyan = row % 4 === 1 || row % 7 === 0
-  for (let col = 0; col < 5; col += 1) {
-    if (!cyan && hash(`promenade-${row}-${col}`) > 0.43) continue
-    box(cyan ? 'cyanWindows' : 'warmWindows', [promenadeX - 0.78 + col * 0.39, y, promenadeZ + 1.02], [0.21, 0.18, 0.035])
-  }
-}
-frontRibs({ x: promenadeX, y: 5.9, z: promenadeZ + 1.04, width: 1.72, height: 11.45, count: 6 })
-floorBands({ x: promenadeX, y0: 0.55, z: promenadeZ + 1.035, width: 1.8, floors: 18, spacing: 0.59, depth: 0.065 })
-const promenadeTiers = [[1.78, 0.72, 1.82], [1.4, 0.68, 1.54], [1.0, 0.62, 1.18], [0.62, 0.52, 0.78]]
-let promenadeY = 11.7
-for (let tier = 0; tier < promenadeTiers.length; tier += 1) {
-  const [width, height, depth] = promenadeTiers[tier]
-  box('landmarkGlass', [promenadeX, promenadeY + height / 2, promenadeZ], [width, height, depth])
-  box('signTrim', [promenadeX, promenadeY + 0.06, promenadeZ + depth / 2 + 0.04], [width + 0.1, 0.08, 0.07])
-  if (tier < 3) box('cyanWindows', [promenadeX, promenadeY + height * 0.56, promenadeZ + depth / 2 + 0.045], [width * 0.72, 0.1, 0.04])
-  promenadeY += height * 0.82
-}
-box('signTrim', [promenadeX, promenadeY + 0.48, promenadeZ], [0.06, 1.05, 0.06])
-
-// Georgia-Pacific Tower: broad offset granite-like slabs, a split upper mass,
-// deep vertical piers, and sparse warm offices keep it darker than its neighbors.
-const gpX = 20.0, gpZ = -17.2
-const gpFront = gpZ + 1.38
-box('landmarkDark', [gpX, 5.35, gpZ], [2.7, 10.7, 2.76], [0, 0, 0], 'georgia-pacific-body')
-box('landmarkDark', [gpX - 0.55, 7.05, gpZ + 0.08], [1.5, 14.1, 2.6])
-box('landmarkDark', [gpX - 0.76, 7.42, gpZ + 0.14], [1.02, 14.84, 2.48])
-box('landmarkDark', [gpX + 0.78, 4.45, gpZ + 0.12], [1.18, 8.9, 2.52])
-box('landmarkDark', [gpX + 1.2, 3.2, gpZ + 0.2], [0.58, 6.4, 2.36])
-windowsOnFront({ key: 'gp-main', x: gpX, y: 5.2, z: gpFront + 0.035, width: 2.35, height: 9.65, cols: 6, rows: 16, warmChance: 0.28 })
-for (let row = 0; row < 6; row += 1) for (let col = 0; col < 3; col += 1) {
-  if (hash(`gp-upper-${row}-${col}`) > 0.25) continue
-  box('warmWindows', [gpX - 0.98 + col * 0.34, 10.75 + row * 0.58, gpFront + 0.04], [0.2, 0.16, 0.035])
-}
-frontRibs({ x: gpX, y: 5.35, z: gpFront + 0.06, width: 2.58, height: 10.7, count: 7 })
-box('signTrim', [gpX - 1.31, 7.0, gpZ + 0.1], [0.09, 14.0, 2.5])
-box('signTrim', [gpX + 1.31, 5.25, gpZ + 0.1], [0.09, 10.5, 2.5])
-
+// The elevated road is switched off until Phase 5.
+const includeRoad = false
+if (includeRoad) {
 // Layered downtown freeway: two decks, edge barriers, underside beams, a
 // rising ramp, and staggered columns. Warm pools are localized beneath lamps.
 box('road', [0, 0.76, -8.35], [34, 0.46, 3.05], [0, 0.035, -0.006], 'freeway-near-deck')
@@ -333,7 +322,7 @@ const signPivot = new THREE.Vector3(-5.2, 6.65, signZ)
 // enough past it to expose the left cabinet walls and recede toward the right.
 // The roll tips the whole assembly clockwise so the top edge drops steeply to the right, as in the reference.
 const SIGN_YAW_DEG = 47
-const SIGN_ROLL_DEG = -8.5
+const SIGN_ROLL_DEG = -2.5
 const signRotation = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, THREE.MathUtils.degToRad(SIGN_YAW_DEG), THREE.MathUtils.degToRad(SIGN_ROLL_DEG)))
 const signTransform = new THREE.Matrix4()
   .makeTranslation(signPivot.x + 2.38, signPivot.y + 0.19, signPivot.z + 5.7)

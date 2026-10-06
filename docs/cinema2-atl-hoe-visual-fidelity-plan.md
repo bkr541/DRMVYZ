@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status (revision 2):** Phase 1 (sign) is implemented and awaiting owner approval. The sky, stars, and foreground canopy are still the earlier versions and do not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
+**Status (revision 2):** Phases 1 (sign) and 2 (sky and atmosphere base) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
 
 ## Goal
 
@@ -106,6 +106,12 @@ The sign is the hero asset. It is self-contained, so it is done first and can be
 
 ## Phase 2 — Sky and atmosphere base
 
+**Status:** Implemented. The sky is a stack of about 40 thin emissive strips plus top and bottom caps, authored in the colours the rendered frame should show (sampled from the reference): deep navy at the top lightening to a cool blue near the horizon, then a faint warm-grey haze just below it. At 16:9 the rendered sky matches the reference gradient to within about 2 levels per channel. Stars are fewer (120), finer, and thin out toward the horizon. The strips' emissive values were fitted against measured captures; `SKY_CORRECTION` in the generator holds that fit and must be re-measured if exposure, fog, or the cinematic finish change. The old `sky`/`skyMid`/`skyHorizon` step bands and their preset parameters are gone.
+
+Also added: a generic camera setting, `minAspectAnchor` (0 to 1), that decides how much of the extra height a taller Stage reveals goes above the composition. ATL HOE uses 0.5 so the sign and trees sit lower in the tall preview. 0 keeps the view centred; 1 pins the 16:9 composition to the bottom edge.
+
+Remaining for later phases: the low haze band is only a hint until the city stands in it (Phases 3 and 7).
+
 Needed before the skyline so buildings have something to silhouette against.
 
 ### Implementation
@@ -121,6 +127,8 @@ Needed before the skyline so buildings have something to silhouette against.
 - A horizon band exists to separate distant silhouettes.
 
 ## Phase 3 — Skyline massing
+
+**Status:** Implemented (silhouettes only). The four landmarks, named by the owner as Bank of America Plaza (pyramid-roofed shaft, left), Westin Peachtree Plaza (round tower with ring crown and mast), Truist Plaza (five-tier crown) and Georgia-Pacific Tower (stepped slab, right edge), plus an angular glass block and three bands of fill buildings (far, mid, near), are authored in reference-image pixels through `refPoint`/`refBlock` helpers in the generator, so they register with the reference regardless of depth. A 50% overlay of the new reference confirms the outlines line up. They use plain dark materials; windows, glowing crowns and beacons are Phase 4, and the warm city light currently tints the walls orange until Phase 7. The road remains off until Phase 5.
 
 The city generator is currently switched off because its earlier output did not match the reference. This phase is a rewrite, not a re-enable.
 
@@ -282,7 +290,7 @@ The sign goes first because it is self-contained and the most visible gap. The s
 
 ## Open decisions
 
-1. **Building identities.** The previous plan named four landmarks (Westin Peachtree Plaza, Truist Plaza, Promenade II, Georgia-Pacific Tower). Identifying real buildings from the image alone is unreliable, so this plan models the silhouettes shown in the reference. Confirm if specific real buildings should be matched instead, and which silhouette is which.
+1. **Building identities (resolved).** The owner named the four landmarks (Bank of America Plaza, Westin Peachtree Plaza, Truist Plaza, Georgia-Pacific Tower) and they are modelled from the reference. The previous plan named four landmarks (Westin Peachtree Plaza, Truist Plaza, Promenade II, Georgia-Pacific Tower). Identifying real buildings from the image alone is unreliable, so this plan models the silhouettes shown in the reference. Confirm if specific real buildings should be matched instead, and which silhouette is which.
 2. **Starting phase.** Phase 1 (sign) is recommended first. Phases 3 to 5 are the largest piece of work.
 
 ## Prior implementation history

@@ -25,6 +25,7 @@ if (!Number.isFinite(referenceOpacity) || referenceOpacity < 0 || referenceOpaci
 const checkpoints = [
   { checkpoint: 'before-primary-16x9-high', width: 1920, height: 1080, quality: 'high', purpose: 'Primary authored composition' },
   { checkpoint: 'before-embedded-stage-tall-high', width: 1000, height: 1200, quality: 'high', purpose: 'Embedded Stage tall/narrow framing' },
+  { checkpoint: 'before-wide-2x1-high', width: 2160, height: 1080, quality: 'high', purpose: 'Wider-than-16:9 Stage: the skyline must run past both reference edges' },
   { checkpoint: 'before-primary-16x9-medium', width: 1920, height: 1080, quality: 'medium', purpose: 'Lower-quality degradation review' },
 ]
 const selected = onlyArgument ? new Set(onlyArgument.slice('--only='.length).split(',').filter(Boolean)) : null

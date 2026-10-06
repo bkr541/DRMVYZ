@@ -33,12 +33,17 @@ describe('ATL HOE preset', () => {
     expect(cinema2NativePresetRegistry.get(CINEMA2_ATL_HOE_PRESET_ID)).not.toBeNull()
   })
 
-  it('renders the shipped 3D sign, sky, and foliage without the removed city or road parts', () => {
+  it('renders the shipped 3D sign, sky, skyline silhouettes and foliage without the window, crown or road parts', () => {
     expect(module.typeId).toBe('three-scene')
     expect(module.config?.instances).toEqual([{ asset: CINEMA2_ATL_HOE_ASSET_ID, node: 'atl-hoe-model' }])
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATL_HOE_ASSET_ID)).toBe(true)
     expect(module.config?.parts).toEqual(expect.arrayContaining([
       'stars',
+      'landmarkDark',
+      'landmarkGlass',
+      'distantBuildings',
+      'midBuildings',
+      'nearBuildings',
       'signMetal',
       'signGlow',
       'signBorder',
@@ -47,11 +52,6 @@ describe('ATL HOE preset', () => {
       'foliage',
     ]))
     expect(module.config?.parts).not.toEqual(expect.arrayContaining([
-      'landmarkDark',
-      'landmarkGlass',
-      'distantBuildings',
-      'midBuildings',
-      'nearBuildings',
       'warmWindows',
       'cyanWindows',
       'crown',
