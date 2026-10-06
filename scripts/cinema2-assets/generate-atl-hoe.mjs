@@ -55,8 +55,11 @@ const MATERIALS = {
   // Matte near-black so the warm city light does not blaze off the decks' top faces, which the camera sees from above.
   road: { baseColorFactor: [0.01, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
   roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
-  foliageBack: { baseColorFactor: [0.012, 0.035, 0.04, 1], metallicFactor: 0, roughnessFactor: 1 },
-  foliage: { baseColorFactor: [0.02, 0.055, 0.05, 1], metallicFactor: 0, roughnessFactor: 1 },
+  // Near-black leaves with only a trace of blue-green; the warm city light picks out their city-facing edges.
+  foliageBack: { baseColorFactor: [0.006, 0.012, 0.016, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliageMid: { baseColorFactor: [0.016, 0.034, 0.042, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliage: { baseColorFactor: [0.03, 0.06, 0.07, 1], metallicFactor: 0, roughnessFactor: 1 },
+  foliageLit: { baseColorFactor: [0.4, 0.2, 0.05, 1], metallicFactor: 0, roughnessFactor: 0.8, emissiveFactor: [1, 0.5, 0.1] },
 }
 
 const byPart = new Map()
@@ -726,28 +729,71 @@ signTube('signMetal', [signCenterX - 2.7, legTop], [footX, legBottom], legThickn
 signTube('signMetal', [signCenterX + 2.7, legTop], [footX, legBottom], legThickness, legZ, 'leg-right')
 signTube('signMetal', [signCenterX, legTop], [footX, legBottom], legThickness, legZ - 0.04, 'leg-center')
 
-// Layered lower-right canopy. A muted back layer establishes breadth, visible
-// branches break up the base, and larger near clusters form an irregular edge.
-for (let i = 0; i < 104; i += 1) {
-  const x = 4.6 + hash(`tree-back-x-${i}`) * 13.8
-  const y = -0.1 + hash(`tree-back-y-${i}`) * 4.15
-  const z = -0.4 + hash(`tree-back-z-${i}`) * 2.2
-  const r = 0.3 + hash(`tree-back-r-${i}`) * 0.62
-  addGeometry('foliageBack', new THREE.IcosahedronGeometry(1, 1), { at: [x, y, z], size: [r * 1.28, r, r * 0.7] })
+// ── Foliage (Phase 6) ───────────────────────────────────────────────────────────────────────────────────────────────────────
+// Dark leafy masses placed from the reference, as in the skyline: each mass is a filled body under a top contour (reference pixels) with
+// rows of small faceted leaf puffs along the contour so the edge reads as leaves, and a few dim amber flecks where city light catches them.
+// Four masses: the lower-left and the larger lower-right (both in front of the road, behind the sign's legs), a tree line behind the road
+// that closes the gap above it, and low clumps along the bottom edge. Contours run far past both edges for wide Stages.
+const pxAt = z => Math.abs(refPoint(1, 600, z)[0] - refPoint(0, 600, z)[0])
+function contourV(contour, u) {
+  if (u <= contour[0][0]) return contour[0][1]
+  for (let i = 0; i < contour.length - 1; i += 1) {
+    const [u0, v0] = contour[i], [u1, v1] = contour[i + 1]
+    if (u <= u1) return v0 + ((v1 - v0) * (u - u0)) / (u1 - u0)
+  }
+  return contour.at(-1)[1]
 }
-for (let i = 0; i < 14; i += 1) {
-  const x = 6.0 + hash(`branch-x-${i}`) * 9.5
-  const y = -0.45 + hash(`branch-y-${i}`) * 1.5
-  const angle = -0.55 + hash(`branch-angle-${i}`) * 1.1
-  cylinder('foliage', [x, y, 3.2 + hash(`branch-z-${i}`) * 1.2], 0.11 + hash(`branch-r-${i}`) * 0.11, 2.0 + hash(`branch-h-${i}`) * 2.6, 8, [0, 0, angle], `tree-branch-${i}`)
+function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, rows = 3, bodyPart = 'foliageBack', puffPart = 'foliage', flecks = 0, depth = 3.2 }) {
+  const px = pxAt(z)
+  // The body under the contour, one slab per contour segment, sunk a little below the edge so the puffs carry the silhouette.
+  for (let i = 0; i < contour.length - 1; i += 1) {
+    const [u0, v0] = contour[i], [u1, v1] = contour[i + 1]
+    const top = Math.min(v0, v1) + 14
+    const [x0] = refPoint(u0, top, z), [x1] = refPoint(u1, top, z)
+    const [, yTop] = refPoint(refUy(u0, u1), top, z), [, yBottom] = refPoint(refUy(u0, u1), fillTo, z)
+    box(bodyPart, [(x0 + x1) / 2, (yTop + yBottom) / 2, z], [Math.abs(x1 - x0) + 0.02, yTop - yBottom, depth], [0, 0, 0], `${key}-body-${i}`)
+  }
+  const uStart = contour[0][0], uEnd = contour.at(-1)[0]
+  let count = 0
+  for (let row = 0; row < rows; row += 1) {
+    // Past the reference frame's edges (only seen on wide Stages) the puffs are spaced wider to keep the model small.
+    for (let u = uStart, i = 0; u <= uEnd; u += step * (u < -60 || u > 1730 ? 3 : 1) * (0.8 + hash(`${key}:step:${row}:${i}`) * 0.5), i += 1) {
+      const r = rMin + hash(`${key}:r:${row}:${i}`) * (rMax - rMin)
+      const v = contourV(contour, u) + r * (0.55 + row * 0.8) + (hash(`${key}:v:${row}:${i}`) - 0.5) * r * 0.5
+      const [x, y] = refPoint(u, v, z + (hash(`${key}:z:${row}:${i}`) - 0.5) * 1.2)
+      addGeometry(row === 0 ? puffPart : row === 1 ? 'foliageMid' : bodyPart, new THREE.IcosahedronGeometry(1, 0), {
+        at: [x, y, z + (hash(`${key}:z:${row}:${i}`) - 0.5) * 1.2 + 0.4],
+        size: [r * px * (1.0 + hash(`${key}:w:${row}:${i}`) * 0.4), r * px, r * px * 0.8],
+        rotate: [hash(`${key}:rx:${row}:${i}`) * 3, hash(`${key}:ry:${row}:${i}`) * 3, hash(`${key}:rz:${row}:${i}`) * 3],
+        name: `${key}-puff-${row}-${i}`,
+      })
+      count += 1
+    }
+  }
+  for (let i = 0; i < flecks; i += 1) {
+    const u = uStart + hash(`${key}:fleck-u:${i}`) * (uEnd - uStart)
+    const v = contourV(contour, u) + 2 + hash(`${key}:fleck-v:${i}`) * 60
+    const [x, y] = refPoint(u, v, z + 1.0)
+    addGeometry('foliageLit', new THREE.OctahedronGeometry(1, 0), { at: [x, y, z + 1.0], size: [px * 2.6, px * 2, px * 1.5], name: `${key}-fleck-${i}` })
+  }
+  return count
 }
-for (let i = 0; i < 132; i += 1) {
-  const x = 5.1 + hash(`tree-front-x-${i}`) * 12.9
-  const y = -0.45 + hash(`tree-front-y-${i}`) * 4.3
-  const z = 2.1 + hash(`tree-front-z-${i}`) * 3.8
-  const r = 0.34 + hash(`tree-front-r-${i}`) * 0.68
-  addGeometry('foliage', new THREE.IcosahedronGeometry(1, 1), { at: [x, y, z], size: [r * (1.08 + hash(`tree-wide-${i}`) * 0.35), r, r * 0.74] })
-}
+treeMass({
+  key: 'tree-left', z: 4, fillTo: 1700, radius: [8, 17], step: 10, flecks: 200,
+  contour: [[-1300, 700], [-900, 688], [-500, 706], [-200, 690], [0, 676], [60, 684], [110, 698], [170, 716], [230, 744], [290, 774], [335, 802], [370, 840], [395, 960]],
+})
+treeMass({
+  key: 'tree-right', z: 4.4, fillTo: 1700, radius: [8, 18], step: 10, flecks: 300,
+  contour: [[1085, 960], [1100, 905], [1130, 880], [1180, 858], [1240, 838], [1300, 822], [1350, 805], [1400, 770], [1450, 725], [1500, 690], [1550, 650], [1600, 610], [1672, 556], [2200, 548], [2800, 566], [3000, 572]],
+})
+treeMass({
+  key: 'tree-line', z: -10, fillTo: 905, radius: [6, 12], step: 8, depth: 2.4, flecks: 60,
+  contour: [[330, 802], [420, 786], [520, 792], [620, 773], [700, 786], [780, 801], [870, 791], [960, 776], [1050, 769], [1130, 783], [1200, 802]],
+})
+treeMass({
+  key: 'tree-bottom', z: 6.5, fillTo: 1700, radius: [11, 22], step: 14, flecks: 40,
+  contour: [[380, 960], [500, 938], [620, 924], [740, 908], [860, 912], [980, 924], [1090, 932]],
+})
 
 mkdirSync(dirname(outputPath), { recursive: true })
 const meshes = [...byPart.entries()].map(([part, list]) => mergePart(part, list))

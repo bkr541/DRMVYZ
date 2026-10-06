@@ -72,7 +72,9 @@ describe('ATL HOE preset', () => {
       'signBorder',
       'signLetters',
       'foliageBack',
+      'foliageMid',
       'foliage',
+      'foliageLit',
     ]))
     expect(module.parameters).toMatchObject({
       'signGlow.emissiveIntensity': 1.25,

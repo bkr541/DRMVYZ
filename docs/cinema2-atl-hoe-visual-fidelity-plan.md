@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status (revision 2):** Phases 1 (sign), 2 (sky and atmosphere base), 3 (skyline), 4 (facades and emitters) and 5 (road and street lamps) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
+**Status (revision 2):** Phases 1 (sign), 2 (sky and atmosphere base), 3 (skyline), 4 (facades and emitters) and 5 (road and street lamps) and 6 (foliage, with the shortfall noted) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
 
 ## Goal
 
@@ -183,6 +183,8 @@ The city generator is currently switched off because its earlier output did not 
 - Lamps read as glowing sodium sources and pools of light, not flat dots.
 
 ## Phase 6 — Foliage
+
+**Status:** Implemented, with a known shortfall. The old right-side-only blobs are replaced by four masses placed from reference contours: a lower-left mass and a lower-right mass (both in front of the road, behind the sign's legs), a tree line behind the road, and low clumps along the bottom edge. Each is a filled body under a contour with three rows of small faceted leaf puffs (`foliageBack`, `foliageMid`, `foliage`) and sparse dim amber flecks (`foliageLit`) for the city-light rim; the masses run far past both edges for wide Stages and down past the frame bottom for the tall Stage. Shortfall: the leaves are flat faceted polygons in near-black blue-green, so the masses read as dark hills with a bumpy edge rather than the reference's detailed leaf clusters, and the contrast with the dark buildings behind them is low until Phase 7 lights those buildings. A true leafy outline would need leaf-card geometry or a texture, which the single-colour-per-part model cannot carry.
 
 ### Implementation
 
