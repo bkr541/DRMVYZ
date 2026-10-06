@@ -160,40 +160,6 @@ for (let i = 0; i < 120; i += 1) {
   box('stars', [x, y, z], [s, s, s * 0.35])
 }
 
-function windowsOnFront({ key, x, y, z, width, height, cols, rows, cyanEvery = 0, warmChance = 0.58, sizeVariation = 0 }) {
-  const dx = width / cols, dy = height / rows
-  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
-    if (hash(`${key}:${row}:${col}`) > warmChance) continue
-    const part = cyanEvery > 0 && (row + col * 3) % cyanEvery === 0 ? 'cyanWindows' : 'warmWindows'
-    const jitter = 1 - sizeVariation * hash(`${key}:size:${row}:${col}`)
-    box(part, [x - width / 2 + dx * (col + 0.5), y - height / 2 + dy * (row + 0.5), z], [dx * 0.52 * jitter, dy * 0.42 * jitter, 0.035])
-  }
-}
-
-function windowsOnSide({ key, x, y, z, depth, height, cols, rows, warmChance = 0.34 }) {
-  const dz = depth / cols, dy = height / rows
-  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
-    if (hash(`${key}:side:${row}:${col}`) > warmChance) continue
-    box('warmWindows', [x, y - height / 2 + dy * (row + 0.5), z - depth / 2 + dz * (col + 0.5)], [0.035, dy * 0.36, dz * 0.45])
-  }
-}
-
-function blockBuilding(key, x, width, height, z, depth, options = {}) {
-  box(options.part ?? 'buildings', [x, height / 2, z], [width, height, depth])
-  windowsOnFront({ key, x, y: height * 0.52, z: z + depth / 2 + 0.03, width: width * 0.84, height: height * 0.83, cols: options.cols ?? Math.max(3, Math.round(width * 2.2)), rows: options.rows ?? Math.max(5, Math.round(height * 1.45)), cyanEvery: options.cyanEvery ?? 0, warmChance: options.warmChance ?? 0.52 })
-}
-
-function frontRibs({ x, y, z, width, height, count, depth = 0.09, inset = 0 }) {
-  for (let i = 0; i < count; i += 1) {
-    const ribX = x - width / 2 + inset + ((width - inset * 2) * i) / (count - 1)
-    box('signTrim', [ribX, y, z], [0.045, height, depth])
-  }
-}
-
-function floorBands({ x, y0, z, width, floors, spacing, depth = 0.08 }) {
-  for (let floor = 0; floor <= floors; floor += 1) box('signTrim', [x, y0 + floor * spacing, z], [width, 0.035, depth])
-}
-
 // ── Skyline (Phase 3: silhouettes only) ─────────────────────────────────────────────────────────────────────────────────────
 // Every building is placed from the reference frame (1672 × 941): `refPoint(u, v, z)` finds the world x / y that the preset camera sees at
 // reference pixel (u, v) on the plane z, so each shape below is written in the pixels of the picture it copies and keeps that position
@@ -600,7 +566,6 @@ function signTube(part, from, to, thickness, z, name) {
 
 const cabinetDepth = 0.72
 const cabinetFront = signZ + cabinetDepth / 2
-const bezelWidth = 0.085
 const bezelDepth = 0.07
 const face = panel - 0.17
 // The yellow face sits just proud of the cabinet front (never coplanar with it) and just behind the bezel's front edge.

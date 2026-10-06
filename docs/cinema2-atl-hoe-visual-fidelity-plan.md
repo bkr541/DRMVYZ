@@ -1,6 +1,6 @@
 # ATL HOE: visual-fidelity implementation plan
 
-**Status (revision 2):** Phases 1 (sign), 2 (sky and atmosphere base), 3 (skyline), 4 (facades and emitters) and 5 (road and street lamps) and 6 (foliage, with the shortfall noted) are implemented. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
+**Status (revision 2):** Phases 1 (sign), 2 (sky and atmosphere base), 3 (skyline), 4 (facades and emitters) and 5 (road and street lamps), 6 (foliage), 7 (light and finish) and 8 (quality, performance and checks) are implemented; the static frame awaits owner approval before Phase 9. The foreground canopy is still the earlier version and does not yet match the reference. The skyline and the road/bridge layer are switched off in the generator (`includeCityAndRoad = false`) and must be rebuilt in Phases 3 to 5. This revision replaces the earlier phase list (see [Prior implementation history](#prior-implementation-history)) with a gap analysis against the current reference and eight new phases.
 
 ## Goal
 
@@ -219,6 +219,10 @@ The city generator is currently switched off because its earlier output did not 
 - No visible aliasing on the sign at final output.
 
 ## Phase 8 — Quality tiers, performance, and final static approval
+
+**Status:** Implemented, awaiting owner approval of the static frame. Measured on the final model: 70,441 triangles, 4.06 MB file, 3.98 MB of shipped-asset GPU memory (the low-tier asset budget is 20 MB and the per-asset triangle limit 150k), so no separate medium or low model is needed; the quality tiers differ in render scale (1.0 / 0.82 / 0.67) only. The full capture set (16:9 high, medium and low, the tall Stage, and a 2:1 wide Stage) renders with zero failed or degraded modules, one active resource lease, CPU frame time about 2–3.5 ms (GPU timing is unsupported in the harness), and 9–11 MB estimated module GPU memory. A low-quality checkpoint was added to the capture script, the generator's unused helpers were removed (ESLint is clean), and the asset description was refreshed. Not produced: a no-bloom diagnostic frame (the harness cannot switch effects off) and a separate unlit-silhouette frame (the Phase 3 silhouette check was done during Phase 3 and the model has not changed shape since).
+
+Remaining deviations from the owner reference, recorded honestly rather than masked: the sign sits lower and a little flatter than the reference (the owner asked for the flatter tilt); the Truist crown and Georgia-Pacific tower follow owner-supplied models rather than the reference render, so they differ from it; the reference's city is denser and brighter on the left and between the towers; the foliage reads as dark rosette clusters but without the reference's soft warm rim glow; the lamp pools are flat ovals; the warm haze low in the frame barely shows; and the tall Stage's bottom third is flat black foliage.
 
 ### Implementation
 
