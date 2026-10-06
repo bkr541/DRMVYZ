@@ -162,9 +162,11 @@ describe('Headliner production workspace controls', () => {
     expect(container.textContent).toContain('Input Source')
     expect(container.textContent).toContain('Default Front Camera')
 
+    // Fullscreen is the only working mode; the other three cells of the 2x2 grid are inert placeholders.
     const modeButtons = container.querySelectorAll<HTMLButtonElement>('[aria-label="Headliner engine modes"] .rv-sound-source-card')
-    expect(modeButtons).toHaveLength(1)
+    expect(modeButtons).toHaveLength(4)
     expect(modeButtons[0].getAttribute('aria-pressed')).toBe('true')
+    expect([...modeButtons].slice(1).every(button => button.disabled)).toBe(true)
 
     const cameraTrigger = container.querySelector<HTMLButtonElement>('#headliner-input-source')
     expect(cameraTrigger).not.toBeNull()
@@ -344,8 +346,12 @@ describe('Headliner production workspace controls', () => {
 
     const surface = container.querySelector<HTMLElement>('[data-headliner-surface="camera"]')
     expect(surface?.dataset.headlinerCameraStatus).toBe('error')
-    expect(container.textContent).toContain('Camera Permission Required')
-    expect(container.textContent).toContain('Camera access was blocked')
+    // Permission problems raise a dialog (not a notification card) that offers a retry.
+    const dialog = container.querySelector('[role="alertdialog"]')
+    expect(dialog?.textContent).toContain('Camera Access Needed')
+    expect(dialog?.textContent).toContain('Camera access was blocked')
+    expect(dialog?.textContent).toContain('Try again')
+    expect(container.querySelector('.dv-notice')).toBeNull()
     act(() => runNextFrame(16))
     const canvas = container.querySelector<HTMLCanvasElement>('[data-headliner-output-canvas="true"]')
     expect(canvas?.dataset.headlinerOutputRendered).toBe('true')
@@ -359,7 +365,7 @@ describe('Headliner production workspace controls', () => {
     expect(container.querySelector('input[type="range"]')).toBeNull()
 
     await act(async () => root.render(<HeadlinerDesignPanel />))
-    expect(container.textContent).toContain('Camera design controls are not available yet')
+    expect(container.textContent).not.toContain('Camera design controls are not available yet')
     expect(container.querySelector('input[type="range"]')).toBeNull()
 
     await act(async () => root.render(<HeadlinerReactivityPanel />))
@@ -375,13 +381,10 @@ describe('Headliner production workspace controls', () => {
         liveFps={60}
         hasActiveProgramAudio={false}
         onStartRecording={vi.fn()}
-        showCastControl
       />,
     ))
-    expect(container.textContent).toContain('Fullscreen program output')
-    expect(container.textContent).toContain('shared recording and casting source')
-    expect(container.querySelector('button[aria-label="Cast visual output"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('Fullscreen program output')
     expect(container.textContent).toContain('RECORDING')
-    expect(container.querySelector<HTMLButtonElement>('.vz-rec-start-btn')?.disabled).toBe(false)
+    expect([...container.querySelectorAll<HTMLButtonElement>('[data-recording-panel] button')].find(button => button.textContent?.includes('Start Recording'))?.disabled).toBe(false)
   })
 })

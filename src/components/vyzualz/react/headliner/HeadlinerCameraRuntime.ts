@@ -21,6 +21,8 @@ export interface HeadlinerCameraRuntimeSnapshot {
   cameraLabel: string | null
   /** The OS-level camera permission seen at the last preflight; null outside the desktop app. */
   osAccess: NativeCameraAccessStatus | null
+  /** True while the user has turned the camera off with Disconnect; only connect() reopens it. */
+  userDisconnected: boolean
 }
 
 export interface HeadlinerCameraFrameSource {
@@ -62,6 +64,7 @@ const IDLE_SNAPSHOT: HeadlinerCameraRuntimeSnapshot = Object.freeze({
   message: null,
   cameraLabel: null,
   osAccess: null,
+  userDisconnected: false,
 })
 
 const log = createLogger('react', 'headliner-camera')
@@ -108,8 +111,11 @@ export function headlinerCameraErrorMessage(
 }
 
 export function describeHeadlinerCameraStatus(
-  snapshot: Pick<HeadlinerCameraRuntimeSnapshot, 'status' | 'errorCode' | 'message'>,
+  snapshot: Pick<HeadlinerCameraRuntimeSnapshot, 'status' | 'errorCode' | 'message'> & { userDisconnected?: boolean },
 ): { title: string; detail: string | null } {
+  if (snapshot.userDisconnected) {
+    return { title: 'Camera Disconnected', detail: 'The camera is turned off. Connect it again to resume.' }
+  }
   switch (snapshot.status) {
     case 'requesting':
       return { title: 'Starting Camera', detail: 'Allow camera access if your system asks.' }
@@ -184,6 +190,7 @@ export class HeadlinerCameraRuntime {
   private sourceId: HeadlinerInputSourceId = HEADLINER_DEFAULT_CAMERA_SOURCE_ID
   private cameraLabel: string | null = null
   private osAccess: NativeCameraAccessStatus | null = null
+  private userDisconnected = false
   /** Bumped whenever a request is superseded so a late-resolving stream is closed instead of adopted. */
   private requestToken = 0
 
@@ -210,8 +217,13 @@ export class HeadlinerCameraRuntime {
   }
 
   start(video: HTMLVideoElement, sourceId: HeadlinerInputSourceId = this.sourceId): Promise<void> {
-    this.desiredActive = true
     this.video = video
+    // A remounted effect must not quietly turn a camera the user switched off back on.
+    if (this.userDisconnected) {
+      this.sourceId = sourceId
+      return Promise.resolve()
+    }
+    this.desiredActive = true
     this.observeMediaDevices()
     if (sourceId !== this.sourceId) {
       this.sourceId = sourceId
@@ -241,6 +253,24 @@ export class HeadlinerCameraRuntime {
   /** Drops whatever the camera is doing and tries again from scratch — the manual "Try again" path. */
   retry(): void {
     this.reopen()
+  }
+
+  /** Turns the camera off at the user's request: releases the device and stays off until connect(). */
+  disconnect(): void {
+    if (this.userDisconnected) return
+    const video = this.video
+    this.stop()
+    this.video = video
+    this.userDisconnected = true
+    this.setSnapshot({ status: 'idle', errorCode: null, message: null })
+  }
+
+  /** Reopens a camera that disconnect() turned off. */
+  connect(): void {
+    if (!this.userDisconnected) return
+    this.userDisconnected = false
+    if (!this.video) return
+    void this.start(this.video, this.sourceId)
   }
 
   private reopen(): void {
@@ -567,6 +597,7 @@ export class HeadlinerCameraRuntime {
       ...patch,
       cameraLabel: this.cameraLabel,
       osAccess: this.osAccess,
+      userDisconnected: this.userDisconnected,
     }
     if (
       next.status === this.snapshot.status
@@ -574,6 +605,7 @@ export class HeadlinerCameraRuntime {
       && next.message === this.snapshot.message
       && next.cameraLabel === this.snapshot.cameraLabel
       && next.osAccess === this.snapshot.osAccess
+      && next.userDisconnected === this.snapshot.userDisconnected
     ) return
     this.snapshot = next
     this.listeners.forEach(listener => listener())

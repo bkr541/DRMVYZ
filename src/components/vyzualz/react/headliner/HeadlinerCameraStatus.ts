@@ -20,14 +20,19 @@ const getActive = () => activeRuntime
 const noopSubscribe = () => () => {}
 
 /** The mounted Headliner surface's camera state, or null while no surface is mounted. */
-export function useHeadlinerCameraStatus(): { snapshot: HeadlinerCameraRuntimeSnapshot | null; retry: () => void } {
+export function useHeadlinerCameraStatus(): {
+  snapshot: HeadlinerCameraRuntimeSnapshot | null
+  retry: () => void
+  disconnect: () => void
+  connect: () => void
+} {
   const runtime = useSyncExternalStore(subscribeActive, getActive, getActive)
   const snapshot = useSyncExternalStore(
     runtime ? runtime.subscribe : noopSubscribe,
     runtime ? runtime.getSnapshot : getNull,
     runtime ? runtime.getSnapshot : getNull,
   )
-  return { snapshot, retry: () => runtime?.retry() }
+  return { snapshot, retry: () => runtime?.retry(), disconnect: () => runtime?.disconnect(), connect: () => runtime?.connect() }
 }
 
 const getNull = () => null

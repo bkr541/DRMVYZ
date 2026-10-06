@@ -1258,7 +1258,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
                 cinema2Runtime={activeReactEngineId === 'cinema2' ? cinema2Runtime : null}
                 cinema2RuntimeSnapshot={activeReactEngineId === 'cinema2' ? cinema2RuntimeSnapshot : null}
-                showCastControl={activeReactEngineId === 'headliner'}
               />
             )}
           </div>

@@ -799,7 +799,7 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(state()?.dataset.capability).toBe('available')
     expect(state()?.dataset.canvasReady).toBe('true')
     expect(host?.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.vz-rec-start-btn')?.disabled).toBe(false)
+    expect([...(host?.querySelectorAll<HTMLButtonElement>('[data-recording-panel] button') ?? [])].find(button => button.textContent?.includes('Start Recording'))?.disabled).toBe(false)
     expect(host?.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')?.disabled).toBe(false)
 
     await updateRoutingState({
@@ -822,7 +822,7 @@ describe('CanvasEngineSurface Performance Show routing', () => {
     expect(state()?.dataset.capability).toBe('available')
     expect(state()?.dataset.canvasReady).toBe('true')
     expect(host?.querySelector('[aria-label="Fractures recording unavailable"]')).toBeNull()
-    expect(host?.querySelector<HTMLButtonElement>('.vz-rec-start-btn')?.disabled).toBe(false)
+    expect([...(host?.querySelectorAll<HTMLButtonElement>('[data-recording-panel] button') ?? [])].find(button => button.textContent?.includes('Start Recording'))?.disabled).toBe(false)
   })
 
 })

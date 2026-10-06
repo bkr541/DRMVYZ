@@ -17,7 +17,6 @@ import { isCinemaBuiltInComposition, useCinemaStore, type CinemaRuntimeSnapshot 
 import type { Cinema2Runtime, Cinema2RuntimeSnapshot } from '../../cinema2'
 import { LaserDmxShowDirectorControls } from '../LaserDmxShowDirectorControls'
 import { ProductionOutputPanel } from '../output/ProductionOutputPanel'
-import { OutputCastControl } from '../output/OutputCastControl'
 import { PixGridDesignPanel } from '../pixGrid/PixGridDesignPanel'
 import { PixGridReactivityWorkspace, type PixGridReactivitySurface } from '../pixGrid/PixGridReactivityWorkspace'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -229,7 +228,6 @@ interface ReactOutputWorkspacePanelProps {
   cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
   cinema2Runtime?: Cinema2Runtime | null
   cinema2RuntimeSnapshot?: Cinema2RuntimeSnapshot | null
-  showCastControl?: boolean
 }
 
 export function ReactOutputWorkspacePanel({
@@ -243,7 +241,6 @@ export function ReactOutputWorkspacePanel({
   cinemaRuntimeSnapshot = null,
   cinema2Runtime = null,
   cinema2RuntimeSnapshot = null,
-  showCastControl = false,
 }: ReactOutputWorkspacePanelProps) {
   const activeReactEngineId = useReactStore(state => state.activeReactEngineId)
   const isLaserDmx = activeReactEngineId === 'laserDmx'
@@ -280,15 +277,6 @@ export function ReactOutputWorkspacePanel({
               runtime={cinema2Runtime}
               snapshot={cinema2RuntimeSnapshot}
             />
-          )}
-          {showCastControl && (
-            <div className="rv-headliner-program-output">
-              <div>
-                <strong>Fullscreen program output</strong>
-                <span>The Headliner compositor canvas is the shared recording and casting source.</span>
-              </div>
-              <OutputCastControl canvas={canvas} capability={outputCapability} />
-            </div>
           )}
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>

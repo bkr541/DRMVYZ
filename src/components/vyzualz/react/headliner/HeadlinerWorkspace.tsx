@@ -1,7 +1,8 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { CtrlSection, SelectRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
+import { ConfirmDialog } from '../controls/ConfirmDialog'
 import { IconChipButton } from '../controls/IconChipButton'
 import { DrawerNotice } from '../../shared/DrawerNotice'
 import { getNativeCameraBridge } from '../../../../native/cameraAccessBridge'
@@ -25,7 +26,7 @@ function HeadlinerFullscreenIcon() {
 export function HeadlinerEnginePanel() {
   const settings = useReactStore(state => state.headlinerSettings)
   const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
-  const { snapshot } = useHeadlinerCameraStatus()
+  const { snapshot, disconnect, connect } = useHeadlinerCameraStatus()
   // Camera names are hidden by the browser until access has been granted, so re-read once the camera goes live.
   const { devices } = useHeadlinerCameraDevices(snapshot?.status === 'live')
   const liveCameraLabel = snapshot?.status === 'live' ? snapshot.cameraLabel : null
@@ -49,6 +50,15 @@ export function HeadlinerEnginePanel() {
           <span className="rv-sound-source-card-icon"><HeadlinerFullscreenIcon /></span>
           <span className="rv-sound-source-card-label">Fullscreen</span>
         </button>
+        {[1, 2, 3].map(slot => (
+          <button
+            key={slot}
+            type="button"
+            className="rv-sound-source-card rv-headliner-mode-placeholder"
+            aria-label={`Engine mode slot ${slot + 1}, not available yet`}
+            disabled
+          />
+        ))}
       </div>
 
       <CtrlSection label="Input Source" />
@@ -60,6 +70,15 @@ export function HeadlinerEnginePanel() {
         options={options}
         description={description}
       />
+      <div className="rv-ctrl-action-row">
+        {snapshot?.userDisconnected ? (
+          <IconChipButton onClick={connect}>Connect Camera</IconChipButton>
+        ) : (
+          <IconChipButton onClick={disconnect} disabled={!snapshot || snapshot.status === 'idle'}>
+            Disconnect Camera
+          </IconChipButton>
+        )}
+      </div>
     </section>
   )
 }
@@ -123,10 +142,20 @@ export function HeadlinerSurface({
   const statusBody = snapshot.status === 'requesting'
     ? 'Allow camera access to show the camera in Headliner.'
     : status.detail ?? 'Fullscreen workspace is preparing the camera.'
-  const showNotice = snapshot.status === 'error'
-    || (snapshot.status === 'disconnected' && snapshot.errorCode !== null)
-  const canOpenSettings = snapshot.errorCode === 'permission-denied'
-    && typeof getNativeCameraBridge()?.openSettings === 'function'
+  const permissionBlocked = snapshot.status === 'error' && snapshot.errorCode === 'permission-denied'
+  const showNotice = !permissionBlocked && (snapshot.status === 'error'
+    || (snapshot.status === 'disconnected' && snapshot.errorCode !== null))
+  const canOpenSettings = permissionBlocked && typeof getNativeCameraBridge()?.openSettings === 'function'
+  // The permission prompt is a dialog, shown each time the camera is blocked. "Not now" hides it for
+  // this attempt only; the next failed attempt (Try again, another camera) raises it again.
+  const [permissionDismissed, setPermissionDismissed] = useState(false)
+  useEffect(() => {
+    if (snapshot.status !== 'error') setPermissionDismissed(false)
+  }, [snapshot.status])
+  const retryCamera = () => {
+    setPermissionDismissed(false)
+    runtime.retry()
+  }
 
   return (
     <section
@@ -148,16 +177,28 @@ export function HeadlinerSurface({
         muted
         playsInline
       />
+      {permissionBlocked && !permissionDismissed && (
+        <ConfirmDialog
+          title="Camera Access Needed"
+          message={status.detail}
+          iconTone="neutral"
+          danger={false}
+          confirmTone="primary"
+          cancelLabel="Not now"
+          confirmLabel={canOpenSettings ? 'Open Camera Settings' : 'Try again'}
+          secondary={canOpenSettings ? { label: 'Try again', onClick: retryCamera } : undefined}
+          onCancel={() => setPermissionDismissed(true)}
+          onConfirm={() => {
+            if (canOpenSettings) void getNativeCameraBridge()?.openSettings?.()
+            else retryCamera()
+          }}
+        />
+      )}
       {showNotice && (
         <DrawerNotice tone="warning" role="alert" title={status.title}>
           <div>{status.detail}</div>
           <div className="rv-ctrl-action-row">
             <IconChipButton onClick={() => runtime.retry()}>Try again</IconChipButton>
-            {canOpenSettings && (
-              <IconChipButton onClick={() => { void getNativeCameraBridge()?.openSettings?.() }}>
-                Open camera settings
-              </IconChipButton>
-            )}
           </div>
         </DrawerNotice>
       )}
@@ -195,12 +236,14 @@ export function HeadlinerPresetsPanel() {
   )
 }
 
+/** Headliner has no design controls yet; the tab stays so the inspector layout matches the other engines. */
 export function HeadlinerDesignPanel() {
   return (
-    <HeadlinerEmptyWorkspacePanel
-      title="Camera design controls are not available yet"
-      body="Per-camera and master-output design controls are intentionally deferred until the Headliner effect model is defined."
-    />
+    <div className="rv-workspace-panel rv-headliner-workspace-panel">
+      <div className="rv-workspace-panel-body">
+        <div className="rv-inspector rv-inspector-scroll" />
+      </div>
+    </div>
   )
 }
 

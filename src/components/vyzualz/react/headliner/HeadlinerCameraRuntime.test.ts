@@ -418,6 +418,37 @@ describe('HeadlinerCameraRuntime', () => {
     runtime.stop()
   })
 
+  it('disconnect() releases the camera and keeps it off until connect()', async () => {
+    const first = new FakeTrack()
+    const second = new FakeTrack()
+    const tracks = [first, second]
+    installMediaDevices(async () => new FakeStream(tracks.shift() as FakeTrack) as unknown as MediaStream)
+    const runtime = new HeadlinerCameraRuntime()
+    const video = makeVideo()
+    await runtime.start(video)
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(runtime.getSnapshot().status).toBe('live')
+
+    runtime.disconnect()
+    expect(first.stop).toHaveBeenCalledTimes(1)
+    expect(runtime.getSnapshot()).toMatchObject({ status: 'idle', userDisconnected: true })
+    expect(runtime.getFrameSource()).toBeNull()
+    expect(describeHeadlinerCameraStatus(runtime.getSnapshot()).title).toBe('Camera Disconnected')
+    // Neither a restart of the surface nor a camera change may reopen it.
+    await runtime.start(video)
+    runtime.setSource('another-camera')
+    await Promise.resolve()
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(1)
+
+    runtime.connect()
+    await Promise.resolve()
+    await Promise.resolve()
+    video.dispatchEvent(new Event('loadeddata'))
+    expect(runtime.getSnapshot()).toMatchObject({ status: 'live', userDisconnected: false })
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2)
+    runtime.stop()
+  })
+
   it('reports "detected but no video" only after the full startup window', async () => {
     vi.useFakeTimers()
     try {

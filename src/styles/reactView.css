@@ -18726,12 +18726,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ── Headliner workspace + fullscreen CPU program compositor ───────────────── */
-.rv-headliner-mode-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .rv-headliner-mode-grid .rv-sound-source-card {
   width: 100%;
+}
+
+/* Empty slots held for future Headliner modes: same footprint as a mode card, inert. */
+.rv-headliner-mode-placeholder,
+.rv-headliner-mode-placeholder:hover {
+  border-style: dashed;
+  color: rgba(232, 244, 248, 0.5);
+  border-color: rgba(232, 244, 248, 0.1);
+  background: rgba(255, 255, 255, 0.012);
+  cursor: default;
+  transform: none;
 }
 
 .rv-headliner-surface {
@@ -18837,37 +18844,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-headliner-surface[data-headliner-camera-status] .rv-headliner-surface-placeholder {
   position: relative;
   z-index: 1;
-}
-
-.rv-headliner-program-output {
-  margin: 8px 10px 10px;
-  padding: 9px 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid rgba(232, 244, 248, 0.08);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.018);
-}
-
-.rv-headliner-program-output > div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.rv-headliner-program-output strong {
-  color: #e8f4f8;
-  font: 800 9px/1.2 var(--az-font);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.rv-headliner-program-output span {
-  color: rgba(232, 244, 248, 0.58);
-  font-size: 8.5px;
-  line-height: 1.4;
 }
 
 /* Concept-group body: transparent to layout (display: contents), so the
