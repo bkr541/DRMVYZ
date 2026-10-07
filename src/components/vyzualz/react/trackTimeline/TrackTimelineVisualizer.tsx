@@ -503,8 +503,8 @@ function TrackTimelineRail({
         type="button"
         className="ttv-rail-btn"
         onClick={onSettings}
-        aria-label="Analysis settings and track information"
-        title="Analysis settings and track information"
+        aria-label="Track analysis and information"
+        title="Track analysis and information"
       >
         <RailIcon name="settings" />
       </button>
@@ -778,6 +778,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const appShellRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLElement>(null)
+  const analysisRef = useRef<HTMLElement>(null)
   const playheadTimeRef = useRef<HTMLSpanElement>(null)
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
@@ -796,7 +797,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   ), [model.bars, model.meta.bpm, model.meta.timeSignature])
   const minimumViewportDuration = Math.min(model.durationSec || 1, Math.max(1, barDuration * 4))
   const [activeZoom, setActiveZoom] = useState<TrackTimelineZoomPreset | 'custom'>(32)
-  const [analysisPanelOpen, setAnalysisPanelOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [viewport, setViewport] = useState<TrackTimelineViewport>(() => createTrackTimelineViewport(
     model.durationSec,
@@ -901,11 +901,27 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       })),
   ]
 
+  // The Track Analysis column sticks just under the sticky overview, so it needs the overview's live height.
+  useEffect(() => {
+    const overview = overviewRef.current
+    const shell = appShellRef.current
+    if (!overview || !shell || typeof ResizeObserver === 'undefined') return
+    const apply = () => shell.style.setProperty('--ttv-overview-h', `${overview.getBoundingClientRect().height}px`)
+    apply()
+    const observer = new ResizeObserver(apply)
+    observer.observe(overview)
+    return () => observer.disconnect()
+  }, [])
+
   const openNotifications = useCallback(() => setNotificationsOpen(true), [])
   const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
 
   const scrollToOverview = useCallback(() => {
     overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
+  const scrollToAnalysis = useCallback(() => {
+    analysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
   const scrollToDetail = useCallback(() => {
@@ -930,6 +946,20 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
         <div className="ttv-view-header-title-group">
           <span className="ttv-view-header-title">Track Timeline Visualizer</span>
         </div>
+        <div className="ttv-view-header-actions">
+          <button
+            type="button"
+            className="ttv-icon-btn ttv-notifications-trigger"
+            onClick={openNotifications}
+            aria-haspopup="dialog"
+            aria-expanded={notificationsOpen}
+            aria-label="Open notifications"
+            title="Notifications"
+          >
+            <NotificationBellIcon />
+            {analysisHasWarning && <span className="ttv-notifications-dot" aria-hidden="true" />}
+          </button>
+        </div>
       </header>
 
       <div className="ttv-body">
@@ -939,7 +969,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
           onExpand={() => setAllCollapsed(false)}
           onCollapse={() => setAllCollapsed(true)}
           onCenter={centerDetailOnPlayhead}
-          onSettings={() => setAnalysisPanelOpen(value => !value)}
+          onSettings={scrollToAnalysis}
         />
 
         <section className="ttv-visualization-shell">
@@ -951,27 +981,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   <small>Drag the cyan viewport or its handles to change the detail range.</small>
                 </div>
                 <div className="ttv-overview-actions">
-                  <button
-                    type="button"
-                    className="ttv-icon-btn ttv-notifications-trigger"
-                    onClick={openNotifications}
-                    aria-haspopup="dialog"
-                    aria-expanded={notificationsOpen}
-                    aria-label="Open notifications"
-                    title="Notifications"
-                  >
-                    <NotificationBellIcon />
-                    {analysisHasWarning && <span className="ttv-notifications-dot" aria-hidden="true" />}
-                  </button>
-                  <button
-                    type="button"
-                    className="ttv-icon-btn"
-                    onClick={() => setAnalysisPanelOpen(value => !value)}
-                    aria-label="Open analysis settings"
-                    title="Open analysis settings"
-                  >
-                    <RailIcon name="settings" />
-                  </button>
                   <details className="ttv-overflow-menu">
                     <summary className="ttv-icon-btn" aria-label="Open track information menu" title="Track information">•••</summary>
                     <div className="ttv-overflow-popover ttv-overflow-popover--overview">
@@ -1073,36 +1082,26 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   />
                 ))}
               </section>
+              <aside ref={analysisRef} className="ttv-analysis-panel" aria-label="Track analysis details">
+                <header className="ttv-analysis-panel-header">
+                  <div>
+                    <span>TRACK ANALYSIS</span>
+                    <strong title={model.meta.filename}>{model.meta.filename}</strong>
+                  </div>
+                </header>
+                <div className="ttv-analysis-panel-body">
+                  <div className="ttv-info-rail-pills">
+                    {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
+                    <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
+                      {formatTime(0)} / {formatTime(model.durationSec)}
+                    </span>
+                  </div>
+                  <MusicIntelligenceDiagnosticsPanel />
+                </div>
+              </aside>
             </main>
           </div>
 
-          {analysisPanelOpen && (
-            <aside className="ttv-analysis-panel" aria-label="Track analysis details">
-              <header className="ttv-analysis-panel-header">
-                <div>
-                  <span>TRACK ANALYSIS</span>
-                  <strong title={model.meta.filename}>{model.meta.filename}</strong>
-                </div>
-                <button
-                  type="button"
-                  className="ttv-icon-btn"
-                  onClick={() => setAnalysisPanelOpen(false)}
-                  aria-label="Close track analysis details"
-                >
-                  ×
-                </button>
-              </header>
-              <div className="ttv-analysis-panel-body">
-                <div className="ttv-info-rail-pills">
-                  {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
-                  <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
-                    {formatTime(0)} / {formatTime(model.durationSec)}
-                  </span>
-                </div>
-                <MusicIntelligenceDiagnosticsPanel />
-              </div>
-            </aside>
-          )}
         </section>
       </div>
 

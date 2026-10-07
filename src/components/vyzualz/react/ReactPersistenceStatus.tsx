@@ -19,11 +19,13 @@ export function ReactPersistenceStatus() {
 
   if (phase === 'idle') return null
 
+  const chipClass = 'rv-persistence-status vsm-settings-btn vz-header-status-chip vz-header-chip vz-header-chip--save-state'
+
   if (phase === 'error') {
     return (
-      <div className="rv-persistence-status rv-persistence-status--error" role="alert">
-        <span className="rv-persistence-status-dot" aria-hidden="true" />
-        <span title={error ?? undefined}>Changes not safely stored</span>
+      <div className={`${chipClass} rv-persistence-status--error`} data-save-tone="error" role="alert">
+        <span className="vz-header-state-label" aria-hidden="true">Save</span>
+        <span className="vz-header-state-value" title={error ?? undefined}>Changes not safely stored</span>
         <button type="button" onClick={() => { void retry() }} disabled={retryPending}>
           {retryPending ? 'Retrying…' : 'Retry'}
         </button>
@@ -31,18 +33,19 @@ export function ReactPersistenceStatus() {
     )
   }
 
-  const label = phase === 'dirty'
+  // Like the CPU chip: a dim label and a value in the state's colour. Saved reads "SAVED 7:38 AM".
+  const label = phase === 'saved' ? 'Saved' : 'Save'
+  const value = phase === 'dirty'
     ? 'Unsaved changes'
     : phase === 'saving'
       ? 'Saving…'
       : savedTime
-        ? `Saved ${savedTime}`
-        : 'Saved'
+  const tone = phase === 'dirty' ? 'unsaved' : phase === 'saving' ? 'saving' : 'saved'
 
   return (
-    <div className={`rv-persistence-status rv-persistence-status--${phase}`} role="status" aria-live="polite">
-      <span className="rv-persistence-status-dot" aria-hidden="true" />
-      <span>{label}</span>
+    <div className={`${chipClass} rv-persistence-status--${phase}`} data-save-tone={tone} role="status" aria-live="polite">
+      <span className="vz-header-state-label">{label}</span>
+      {value && <span className="vz-header-state-value">{value}</span>}
     </div>
   )
 }

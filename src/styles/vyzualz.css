@@ -5851,6 +5851,17 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 }
 .vz-header-chip--saved[data-save-tone='saving'] .vz-header-save-dot { animation: vz-header-activity-pulse 1s ease-in-out infinite; }
 
+.vz-header-chip--save-state {
+  --vz-save-tone: #61d6aa;
+  font-variant-numeric: tabular-nums;
+}
+.vz-header-chip--save-state[data-save-tone='saving'] { --vz-save-tone: #67f7ff; }
+.vz-header-chip--save-state[data-save-tone='unsaved'] { --vz-save-tone: #e0b95a; }
+.vz-header-chip--save-state[data-save-tone='error'] { --vz-save-tone: #f87171; }
+.vz-header-state-label { opacity: 0.7; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+.vz-header-state-value { color: var(--vz-save-tone); }
+.vz-header-chip--save-state[data-save-tone='saving'] .vz-header-state-value { animation: vz-header-activity-pulse 1s ease-in-out infinite; }
+
 .vz-header-cpu { font-variant-numeric: tabular-nums; --vz-cpu-tone: currentColor; }
 .vz-header-cpu[data-cpu-level='low'] { --vz-cpu-tone: #61d6aa; }
 .vz-header-cpu[data-cpu-level='medium'] { --vz-cpu-tone: #e0b95a; }
