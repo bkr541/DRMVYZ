@@ -19,7 +19,7 @@ import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConce
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
-import { DockWaveformGroupStyleGallery } from './layoutLab/DockWaveformGroupStyleGallery'
+import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
@@ -291,8 +291,8 @@ export function LayoutLabMockup() {
                     <DockRightGroupStyleGallery />
                   </div>
                 </div>
-                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Audio dock · waveform group</div>
-                <DockWaveformGroupStyleGallery />
+                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Track Map · marker rows</div>
+                <TrackMapMarkerStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (

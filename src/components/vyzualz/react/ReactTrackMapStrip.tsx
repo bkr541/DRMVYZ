@@ -492,6 +492,14 @@ export function computeTimelineCueLayout(
   }
 }
 
+/** The Track Map's marker lane is split into one row per kind of marker, top to bottom. */
+const CUE_ROWS: ReadonlyArray<{ id: string; label: string; kinds: readonly TimelineCueItem['kind'][] }> = [
+  { id: 'cues', label: 'Cues', kinds: ['cue'] },
+  { id: 'phrases', label: 'Phrases', kinds: ['phrase'] },
+  { id: 'moments', label: 'Moments', kinds: ['moment'] },
+  { id: 'actions', label: 'Actions', kinds: ['preset', 'pixgrid'] },
+]
+
 function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineViewport): void {
   container.querySelectorAll<HTMLElement>('[data-timeline-cue]').forEach(marker => {
     const timeSec = Number(marker.dataset.cueTime)
@@ -2545,63 +2553,77 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       }}
                       title="Right-click empty space to add a PixGrid action cue"
                     >
-                      {timelineCueItems.map(cue => {
-                        const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
-                        return (
-                          <button
-                            key={cue.id}
-                            type="button"
-                            data-timeline-cue
-                            data-cue-time={cue.timeSec}
-                            className={`rv-timeline-cue rv-timeline-cue--${cue.kind}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
-                            style={{
-                              display: layout.visible ? undefined : 'none',
-                              left: `${layout.leftPct}%`,
-                              '--cue-color': cue.color,
-                            } as React.CSSProperties}
-                            onPointerDown={cue.pixGridCue ? event => handlePixGridCuePointerDown(event, cue.pixGridCue!) : undefined}
-                            onClick={cue.pixGridCue ? undefined : () => engine.seek(cue.timeSec)}
-                            onDoubleClick={cue.pixGridCue ? event => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              setPixGridCueEditor({ cue: cue.pixGridCue!, isNew: false })
-                            } : undefined}
-                            onContextMenu={event => {
-                              if (cue.pixGridCue) {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                setPixGridCueEditor({ cue: cue.pixGridCue, isNew: false })
-                                return
-                              }
-                              if (!cue.cueMarker) return
-                              event.preventDefault()
-                              event.stopPropagation()
-                              setCueContextMenu({
-                                x: event.clientX,
-                                y: event.clientY,
-                                authoredTimeSec: cue.cueMarker.time,
-                                cueMarker: cue.cueMarker,
-                                cueEditable: cue.cueMarker.source !== 'rekordbox' && editableCueMarkerIds.has(cue.cueMarker.id),
-                              })
-                            }}
-                            aria-label={`${cue.label}, ${cue.kind === 'pixgrid' ? 'PixGrid action cue' : `${cue.kind} cue`}, ${formatTimePrecise(cue.timeSec)}${cue.enabled ? '' : ', disabled'}`}
-                            title={cue.title ?? `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
-                          >
-                            <span className="rv-timeline-cue-diamond" aria-hidden="true" />
-                            <span className="rv-timeline-cue-label">{cue.label}</span>
-                          </button>
-                        )
-                      })}
+                      {CUE_ROWS.map(row => (
+                        <div key={row.id} className={`rv-timeline-cue-row rv-timeline-cue-row--${row.id}`} data-cue-row={row.id}>
+                          {timelineCueItems.filter(cue => row.kinds.includes(cue.kind)).map(cue => {
+                              const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
+                              return (
+                                <button
+                                  key={cue.id}
+                                  type="button"
+                                  data-timeline-cue
+                                  data-cue-time={cue.timeSec}
+                                  className={`rv-timeline-cue rv-timeline-cue--${cue.kind}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
+                                  style={{
+                                    display: layout.visible ? undefined : 'none',
+                                    left: `${layout.leftPct}%`,
+                                    '--cue-color': cue.color,
+                                  } as React.CSSProperties}
+                                  onPointerDown={cue.pixGridCue ? event => handlePixGridCuePointerDown(event, cue.pixGridCue!) : undefined}
+                                  onClick={cue.pixGridCue ? undefined : () => engine.seek(cue.timeSec)}
+                                  onDoubleClick={cue.pixGridCue ? event => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    setPixGridCueEditor({ cue: cue.pixGridCue!, isNew: false })
+                                  } : undefined}
+                                  onContextMenu={event => {
+                                    if (cue.pixGridCue) {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      setPixGridCueEditor({ cue: cue.pixGridCue, isNew: false })
+                                      return
+                                    }
+                                    if (!cue.cueMarker) return
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    setCueContextMenu({
+                                      x: event.clientX,
+                                      y: event.clientY,
+                                      authoredTimeSec: cue.cueMarker.time,
+                                      cueMarker: cue.cueMarker,
+                                      cueEditable: cue.cueMarker.source !== 'rekordbox' && editableCueMarkerIds.has(cue.cueMarker.id),
+                                    })
+                                  }}
+                                  aria-label={`${cue.label}, ${cue.kind === 'pixgrid' ? 'PixGrid action cue' : `${cue.kind} cue`}, ${formatTimePrecise(cue.timeSec)}${cue.enabled ? '' : ', disabled'}`}
+                                  title={cue.title ?? `${cue.label} · ${formatTimePrecise(cue.timeSec)}`}
+                                >
+                                  <span className="rv-timeline-cue-diamond" aria-hidden="true" />
+                                  <span className="rv-timeline-cue-label">{cue.label}</span>
+                                </button>
+                              )
+                      
+                          })}
+                        </div>
+                      ))}
                       {timelineCueItems.length === 0 && (
                         <span className="rv-timeline-lane-empty">No cue or preset markers</span>
                       )}
                     </div>
-                    <div
-                      className="rv-timeline-lane-tools rv-timeline-lane-state"
-                      title={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
-                      aria-label={`${timelineCueItems.length} cue or preset marker${timelineCueItems.length === 1 ? '' : 's'}`}
-                    >
-                      {trackPixGridCues.length > 0 ? `P${trackPixGridCues.length} · ${timelineCueItems.length}` : timelineCueItems.length}
+                    <div className="rv-timeline-lane-tools rv-timeline-cue-row-tools">
+                      {CUE_ROWS.map(row => {
+                        const count = timelineCueItems.filter(cue => row.kinds.includes(cue.kind)).length
+                        return (
+                          <div
+                            key={row.id}
+                            className="rv-timeline-lane-state rv-timeline-cue-row-state"
+                            title={`${count} ${row.label.toLowerCase()} marker${count === 1 ? '' : 's'}`}
+                            aria-label={`${count} ${row.label.toLowerCase()} marker${count === 1 ? '' : 's'}`}
+                          >
+                            <span>{row.label}</span>
+                            <strong>{count}</strong>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 

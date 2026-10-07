@@ -56,11 +56,12 @@ describe('Template Layout Lab workspace', () => {
     expect(columns[1]?.querySelector('[aria-label="Audio dock right group concepts"]')).not.toBeNull()
     expect(columns[1]?.querySelectorAll('[data-testid^="dock-right-concept-"]')).toHaveLength(6)
 
-    // The waveform group sits under both columns, across the full width.
+    // The Track Map marker concepts sit under both columns, across the full width.
     const stage = container.querySelector('.rv-canvas-wrap > .llcm-stage-gallery')
-    const waveform = stage?.querySelector(':scope > .llwf-gallery')
-    expect(waveform).not.toBeNull()
-    expect(waveform?.querySelectorAll('[data-testid^="dock-waveform-concept-"]')).toHaveLength(5)
+    const markers = stage?.querySelector(':scope > .lltm-gallery')
+    expect(markers).not.toBeNull()
+    expect(markers?.querySelectorAll('[data-testid^="track-map-marker-concept-"]')).toHaveLength(6)
+    expect(stage?.querySelector('.llwf-gallery')).toBeNull()
   })
 
   it('adds a Layout Lab-only Template engine with blank rails and no lower workspace', async () => {

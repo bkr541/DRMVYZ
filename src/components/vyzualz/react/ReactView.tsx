@@ -188,7 +188,7 @@ export interface ReactViewProps {
   onOpenLyricManager?: (intent: import('../../../features/lyrics/lyricNavigation').LyricManagerNavigationIntent) => void
 }
 
-const DEFAULT_LOWER_SURFACE_HEIGHT = 205
+const DEFAULT_LOWER_SURFACE_HEIGHT = 263
 const MIN_LOWER_SURFACE_HEIGHT = 96
 const MAX_LOWER_SURFACE_HEIGHT = 640
 const MIN_STAGE_HEIGHT = 180

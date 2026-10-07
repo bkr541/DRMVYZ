@@ -192,9 +192,9 @@
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
   --vz-dock-left-col: max(calc(var(--vz-left-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
-  /* The two side cards are the same width: the right card (BPM + four icon keys) takes the left card's, so the waveform between
-     them is centred in the dock. */
-  --vz-dock-right-col: var(--vz-dock-left-col);
+  /* Each side card is as wide as the rail above it, so the waveform's left edge lands on the left rail's right border and its right
+     edge on the right rail's left border (the Track Map's column). */
+  --vz-dock-right-col: max(calc(var(--vz-right-width) - var(--vz-dock-inline-pad) - var(--vz-dock-gap)), var(--vz-dock-side-min));
 }
 
 /* Collapsing or expanding a rail never resizes the dock: its side cards always keep the expanded rail widths set above,
@@ -6251,8 +6251,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-track-map-strip--embedded .rv-timeline-lanes {
   position: relative;
   display: grid;
-  grid-template-rows: 32px 44px 38px 24px;
-  min-height: 138px;
+  grid-template-rows: 32px 44px 96px 24px;
+  min-height: 196px;
   padding: 0 var(--rv-timeline-inline-pad);
   overflow: visible;
   isolation: isolate;
@@ -21729,10 +21729,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .llp4-wall .llp4-chips { padding: 0 2px; }
 
 /* ── Track Map follows the timeline workspace's height ───────────────────────
-   Dragging the timeline workspace higher gives the Track Map surface more height. The lanes grow into it (the ruler keeps its 24px), and what
-   sits inside each lane follows: the section strip fills its lane with the name centred above the colour bar, the cue markers fill theirs,
-   and the beat ticks are drawn longer (ReactTrackMapStrip). At the default height every number below equals the fixed value it replaces:
-   lanes 32 / 44 / 38 / 24 = 138px, section strip 32px in a 44px lane (5px above and below), cue markers 27px in a 38px lane. */
+   Dragging the timeline workspace higher gives the Track Map surface more height. The beat grid (32px), the sections (44px, strip 32px
+   with 5px above and below) and the ruler (24px) stay the same height; the marker lane (four rows, 96px minimum) takes everything else,
+   so only its rows grow. */
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
   display: flex;
   flex-direction: column;
@@ -21744,7 +21743,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   /* Basis 0, not auto: the lanes take whatever height is left (never less than their 138px minimum), so their rows are not sized by what the
      canvases inside would like to be. */
   flex: 1 1 0;
-  grid-template-rows: minmax(32px, 1fr) minmax(44px, 1.375fr) minmax(38px, 1.1875fr) 24px;
+  /* Beat grid (32px), sections (44px) and the ruler (24px) keep their height however tall the surface is dragged; the marker lane takes all
+     the extra, so its four rows grow. */
+  grid-template-rows: 32px 44px minmax(96px, 1fr) 24px;
 }
 
 .rv-lower-workspace-surface--track-map .rv-timeline-lane-content .rv-section-timeline {
@@ -22427,201 +22428,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   padding: 4px 0;
 }
 
-/* ── Dock Waveform Group Style Gallery (Layout Lab / Template, middle section) ── */
-/* Five concepts for the audio dock's centre card: 156px tall (the 176px dock less its 10px padding), full width, with the dock's
-   own zoom buttons. The card chrome is the production .vz-dock-card. */
-
-.llwf-list { display: flex; flex-direction: column; gap: 24px; }
-.llwf-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  width: 100%;
-  height: 156px;
-  padding: 10px;
-  overflow: hidden;
-}
-.llwf-wave { position: relative; flex: 1 1 0; min-width: 0; height: 100%; }
-.llwf-surface {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 8px;
-  background: #070c12;
-  cursor: crosshair;
-}
-.llwf-surface svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.llwf-empty {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(7, 12, 18, 0.55);
-  color: rgba(196, 207, 211, 0.55);
-  font: 600 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.04em;
-  pointer-events: none;
-}
-
-.llwf-playhead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
-  pointer-events: none;
-  z-index: 3;
-}
-.llwf-playhead em {
-  position: absolute;
-  top: 4px;
-  left: 6px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: rgba(7, 13, 20, 0.85);
-  border: 1px solid rgba(103, 247, 255, 0.5);
-  color: #67f7ff;
-  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.llwf-cue {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: rgba(216, 185, 90, 0.75);
-  box-shadow: 0 0 6px rgba(216, 185, 90, 0.4);
-  pointer-events: none;
-  z-index: 2;
-}
-.llwf-cue b {
-  position: absolute;
-  top: 0;
-  left: 2px;
-  padding: 1px 4px;
-  border-radius: 0 0 4px 0;
-  background: rgba(216, 185, 90, 0.9);
-  color: #1a1405;
-  font: 800 8px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
-}
-.llwf-chip {
-  position: absolute;
-  padding: 3px 8px;
-  border: 1px solid rgba(154, 178, 188, 0.2);
-  border-radius: 999px;
-  background: rgba(7, 13, 20, 0.78);
-  color: rgba(240, 246, 248, 0.94);
-  font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
-  font-variant-numeric: tabular-nums;
-  pointer-events: none;
-  z-index: 4;
-}
-.llwf-chip small { color: rgba(196, 207, 211, 0.55); font-size: 9px; font-weight: 600; }
-.llwf-chip--tl { top: 8px; left: 8px; }
-.llwf-chip--tr { top: 8px; right: 8px; }
-.llwf-chip--br { bottom: 8px; right: 8px; }
-.llwf-legend {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: rgba(196, 207, 211, 0.6);
-  font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  pointer-events: none;
-  z-index: 4;
-}
-.llwf-legend b { width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; }
-.llwf-legend b:first-child { margin-left: 0; }
-
-/* Beat / bar grid */
-.llwf-grid-strip { position: absolute; left: 0; right: 0; bottom: 0; height: 16px; border-top: 1px solid rgba(255, 255, 255, 0.07); pointer-events: none; }
-.llwf-grid-strip i { position: absolute; bottom: 0; width: 1px; height: 5px; background: rgba(255, 255, 255, 0.22); }
-.llwf-grid-strip i.is-bar { height: 10px; background: rgba(255, 255, 255, 0.5); }
-.llwf-grid-lines { position: absolute; inset: 0; pointer-events: none; }
-.llwf-grid-lines i { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.09); }
-.llwf-grid-lines i.is-bar { background: rgba(255, 255, 255, 0.28); }
-.llwf-grid-lines b { position: absolute; bottom: 3px; left: 4px; color: rgba(196, 207, 211, 0.7); font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
-
-/* 01 · RGB Bands */
-.llwf-c1 svg { inset: 6px 0 20px; height: calc(100% - 26px); }
-
-/* 02 · Section Strip */
-.llwf-ribbon { position: absolute; top: 0; left: 0; right: 0; height: 24px; pointer-events: none; }
-.llwf-ribbon-seg {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  box-sizing: border-box;
-  overflow: hidden;
-  padding: 5px 6px 0;
-  border-top: 2px solid var(--tone);
-  border-right: 1px solid rgba(7, 12, 18, 0.9);
-  background: color-mix(in srgb, var(--tone) 18%, transparent);
-  transition: background 160ms ease;
-}
-.llwf-ribbon-seg.is-current { background: color-mix(in srgb, var(--tone) 42%, transparent); }
-.llwf-ribbon-seg b { color: rgba(240, 246, 248, 0.88); font: 800 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
-.llwf-c2-wave { inset: 28px 0 4px; height: calc(100% - 32px); }
-.llwf-c2 .llwf-cue b { top: 26px; }
-
-/* 03 · Overview + Window */
-.llwf-c3 { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 6px; }
-.llwf-c3-overview {
-  position: relative;
-  flex: 0 0 30px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 6px;
-  background: #070c12;
-  cursor: pointer;
-}
-.llwf-c3-window {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  box-sizing: border-box;
-  border: 1.5px solid #67f7ff;
-  border-radius: 4px;
-  background: rgba(103, 247, 255, 0.12);
-  box-shadow: 0 0 8px rgba(103, 247, 255, 0.35);
-  pointer-events: none;
-}
-.llwf-c3-needle { position: absolute; top: 0; bottom: 0; width: 1px; background: #fff; pointer-events: none; }
-.llwf-c3 .llwf-surface { position: relative; inset: auto; flex: 1 1 0; min-height: 0; }
-
-/* 04 · Pulse Ribbon */
-.llwf-c4 svg { inset: 6px 0; height: calc(100% - 12px); }
-.llwf-c4-edge { filter: drop-shadow(0 0 3px rgba(103, 247, 255, 0.9)); }
-.llwf-c4-lit { filter: drop-shadow(0 0 6px rgba(122, 107, 255, 0.55)); }
-.llwf-c4-dot {
-  position: absolute;
-  width: 11px;
-  height: 11px;
-  margin: -5.5px 0 0 -5.5px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(103, 247, 255, 0.4), 0 0 14px rgba(103, 247, 255, 0.95);
-  pointer-events: none;
-  z-index: 4;
-}
-
-/* 05 · LED Matrix */
-.llwf-c5 svg { inset: 6px 8px 20px; width: calc(100% - 16px); height: calc(100% - 26px); }
-.llwf-c5-bars { position: absolute; left: 8px; right: 8px; bottom: 0; height: 18px; pointer-events: none; }
-.llwf-c5-bars span { position: absolute; bottom: 0; width: 1px; height: 8px; background: rgba(255, 255, 255, 0.35); }
-.llwf-c5-bars b { position: absolute; bottom: 8px; left: 3px; color: rgba(196, 207, 211, 0.7); font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
-
 /* ── Audio dock groups restyled from Layout Lab / Template concepts ─────────────────────────────────────────────────────────────
    Expanded dock only; the collapsed deck keeps its single-row layout above.
    Left card = "06 · Centered Strip": a centred title over one strip of load key | play | volume (the dB readout is dropped, as in
@@ -22883,3 +22689,289 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-radius: 9px;
   background: transparent;
 }
+
+/* Canvas Design panel: Clip Start / Clip End Time share one row; Reset Authored State and Restart Clip sit at the very bottom, outside any group. */
+.rv-canvas-engine-row-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.rv-canvas-footer-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+/* Every footer button is the same size: one equal column each, one shared height, label centred and allowed to wrap. */
+.rv-canvas-footer-actions .rv-canvas-footer-btn {
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  padding: 0 6px;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.15;
+}
+
+/* Track Map marker lane: one row per kind of marker (Cues, Phrases, Moments, Actions), each with its own count at the right. */
+.rv-timeline-cue-lane { display: flex; flex-direction: column; }
+.rv-timeline-cue-row {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  border-top: 1px solid rgba(74, 199, 219, 0.07);
+}
+.rv-timeline-cue-row:first-child { border-top: 0; }
+.rv-lower-workspace-surface--track-map .rv-timeline-cue-row .rv-timeline-cue:not(.rv-timeline-cue--cue),
+.rv-timeline-cue-row .rv-timeline-cue:not(.rv-timeline-cue--cue) {
+  top: 2px;
+  bottom: 2px;
+  height: auto;
+}
+.rv-timeline-cue-lane > .rv-timeline-lane-empty {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rv-timeline-cue-row-tools {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0;
+  padding: 0;
+}
+.rv-timeline-cue-row-state {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 8px;
+  border-top: 1px solid rgba(74, 199, 219, 0.07);
+}
+.rv-timeline-cue-row-state:first-child { border-top: 0; }
+.rv-timeline-cue-row-state span { opacity: 0.7; font-size: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
+.rv-timeline-cue-row-state strong { font-size: 8px; font-variant-numeric: tabular-nums; }
+
+/* ── Track Map Marker Style Gallery (Layout Lab / Template, middle section) ── */
+/* Six concepts for the Track Map's Cues / Phrases / Moments / Actions rows. Each draws the same four rows (the production lane + a 72px
+   count column) at the full width of the middle section; positions are percentages of the lane, so a concept's labels follow its width. */
+
+.lltm-list { display: flex; flex-direction: column; gap: 24px; }
+.lltm-board {
+  --lltm-ink: rgba(232, 244, 248, 0.9);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(74, 199, 219, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #071018;
+}
+.lltm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  height: var(--lltm-row, 32px);
+  border-top: 1px solid rgba(74, 199, 219, 0.08);
+}
+.lltm-row:first-child { border-top: 0; }
+.lltm-lane {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(90deg, rgba(74, 199, 219, 0.045) 0 1px, transparent 1px calc(100% / 16)),
+    rgba(5, 11, 17, 0.76);
+}
+.lltm-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 8px;
+  border-left: 1px solid rgba(74, 199, 219, 0.08);
+  background: linear-gradient(270deg, rgba(8, 17, 25, 0.97), rgba(8, 17, 25, 0.76));
+  color: rgba(74, 199, 219, 0.62);
+}
+.lltm-tools span { opacity: 0.7; font: 700 7px/1 var(--az-font, sans-serif); letter-spacing: 0.08em; text-transform: uppercase; }
+.lltm-tools strong { font: 700 8px/1 var(--az-font, sans-serif); font-variant-numeric: tabular-nums; }
+
+/* 01 · Solid Tags */
+.lltm-c1-tag {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 6px;
+  overflow: hidden;
+  max-width: 150px;
+  border-radius: 3px;
+  background: var(--c);
+  color: #06101a;
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 02 · Stem Flags */
+.lltm-c2-flag {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--lltm-ink);
+  font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+}
+.lltm-c2-flag i {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  width: 2px;
+  background: var(--c);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.lltm-c2-flag i::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.lltm-c2-flag span { overflow: hidden; text-overflow: ellipsis; }
+
+/* 03 · Dots on Select */
+.lltm-c3-dot {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.lltm-c3-dot span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin: 3px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--c) 55%, transparent);
+}
+.lltm-c3-dot.is-active { z-index: 3; }
+.lltm-c3-dot.is-active span { box-shadow: 0 0 0 2px #071018, 0 0 0 3.5px var(--c); }
+.lltm-c3-card {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  padding: 3px 7px;
+  border: 1px solid var(--c);
+  border-radius: 4px;
+  background: #0c1722;
+  color: #fff;
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  font-style: normal;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* 04 · Range Bars */
+.lltm-c4-span {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-right: 1px solid #071018;
+  background: rgba(91, 141, 239, 0.28);
+  color: rgba(232, 244, 248, 0.95);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+.lltm-c4-span.is-alt { background: rgba(91, 141, 239, 0.16); }
+.lltm-c4-pill {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  padding: 0 6px 0 5px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+  max-width: 150px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 22%, #071018);
+  color: rgba(244, 249, 250, 0.96);
+  font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lltm-c4-pill i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--c); }
+
+/* 05 · Glyph Codes */
+.lltm-c5-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 150px;
+  overflow: hidden;
+  color: var(--c);
+  white-space: nowrap;
+}
+.lltm-c5-mark svg { flex: none; width: 11px; height: 10px; }
+.lltm-c5-mark b { overflow: hidden; color: var(--lltm-ink); font: 700 9px/1 'SF Mono', 'Menlo', monospace; letter-spacing: 0.04em; text-overflow: ellipsis; }
+
+/* 06 · Staggered Levels */
+.lltm-c6-tag {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 17px;
+  padding: 0 6px;
+  max-width: 130px;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--c) 70%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 18%, #071018);
+  color: #fff;
+  font: 700 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+}
+.lltm-c6-tag span { overflow: hidden; text-overflow: ellipsis; }
+.lltm-c6-tag.is-high { top: 3px; }
+.lltm-c6-tag.is-low { bottom: 3px; }
+.lltm-c6-tag::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  width: 2px;
+  background: var(--c);
+}
+.lltm-c6-tag.is-high::before { top: 100%; height: 10px; }
+.lltm-c6-tag.is-low::before { bottom: 100%; height: 10px; }

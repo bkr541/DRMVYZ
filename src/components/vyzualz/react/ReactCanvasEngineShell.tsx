@@ -66,8 +66,6 @@ import {
 import {
   buildCanvasPreloadRequests,
   CANVAS_COMPOSITION_TEMPLATE_OPTIONS,
-  CANVAS_MEDIA_ROLES,
-  CANVAS_MEDIA_ROLE_LABELS,
   CANVAS_PERFORMANCE_SHOW_OPTIONS,
   CANVAS_POOL_AUTOMATION_TRIGGER_OPTIONS,
   CANVAS_TRANSITIONS,
@@ -94,7 +92,6 @@ import {
   resolveCanvasEnabledAuthoredLayers,
   resolveCanvasLayerEffectiveEngineSettings,
   resolveCanvasPrimaryLayer,
-  resolveCanvasMediaRoles,
   resolveCanvasPerformanceFrame,
   resolveCanvasPoolAutomationRuntime,
   hasAnyCanvasLayerEngineOverrides,
@@ -103,7 +100,6 @@ import {
   type CanvasLayerEffectId,
   type CanvasLayerEngineBaseline,
   type CanvasLayerRole,
-  type CanvasMediaRole,
   type CanvasPerformanceShowId,
   type CanvasPoolAutomationRuntimeState,
   type CanvasPoolAutomationTrigger,
@@ -157,14 +153,6 @@ const CANVAS_TRIGGER_OPTIONS: Array<{ value: CanvasTriggerOn; label: string }> =
   { value: 'drop', label: 'Drop' },
   { value: 'every8Bars', label: 'Every 8 Bars' },
   { value: 'every16Bars', label: 'Every 16 Bars' },
-]
-
-const CANVAS_SECTION_TRIGGER_OPTIONS: Array<{ value: CanvasSectionTriggerType; label: string }> = [
-  { value: 'intro', label: 'Intro' },
-  { value: 'build', label: 'Build' },
-  { value: 'drop', label: 'Drop' },
-  { value: 'breakdown', label: 'Breakdown' },
-  { value: 'outro', label: 'Outro' },
 ]
 
 const CANVAS_TIMING_MAX_SECONDS = 60 * 60 * 6
@@ -354,15 +342,12 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
   const ensureMediaSigned = useMediaStore(s => s.ensureMediaSigned)
   const orchestration = useReactStore(s => s.canvasOrchestrationSettings)
   const addCanvasAuthoredLayer = useReactStore(s => s.addCanvasAuthoredLayer)
-  const setCanvasMediaRoles = useReactStore(s => s.setCanvasMediaRoles)
   const mediaItems = useCanvasRuntimeMediaItems()
   const [actionMenu, setActionMenu] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
   const [duplicateConfirmation, setDuplicateConfirmation] = useState<({ mediaId: string } & MediaLibraryCardActionAnchor) | null>(null)
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [, setLayerEligibilityRevision] = useState(0)
   const activeItem = mediaItems.find(item => item.id === activeCanvasMediaId) ?? null
-  const roleResolution = activeItem ? resolveCanvasMediaRoles(activeItem, orchestration) : null
-  const explicitRoles = activeItem ? orchestration.mediaRolesById[activeItem.id] ?? [] : []
   const actionMedia = actionMenu ? mediaItems.find(item => item.id === actionMenu.mediaId) ?? null : null
   const confirmationMedia = duplicateConfirmation
     ? mediaItems.find(item => item.id === duplicateConfirmation.mediaId) ?? null
@@ -374,14 +359,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     renderMode: orchestration.renderMode,
     activeCanvasMediaId,
   }) : null
-
-  const toggleRole = (role: CanvasMediaRole) => {
-    if (!activeItem) return
-    const roles = explicitRoles.includes(role)
-      ? explicitRoles.filter(candidate => candidate !== role)
-      : [...explicitRoles, role]
-    setCanvasMediaRoles(activeItem.id, roles)
-  }
 
   const openMediaActions = (mediaId: string, anchor: MediaLibraryCardActionAnchor) => {
     setActionFeedback(null)
@@ -533,32 +510,6 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
             },
           ]}
         />
-      )}
-      {activeItem && orchestration.mediaPoolIds.includes(activeItem.id) && (
-        <div className="rv-canvas-role-editor" aria-label={`Performance roles for ${activeItem.name}`}>
-          <div className="rv-canvas-pool__head">
-            <span>Roles · {activeItem.name}</span>
-            {explicitRoles.length === 0 && roleResolution && <em>Auto: {roleResolution.automatic.map(role => CANVAS_MEDIA_ROLE_LABELS[role]).join(', ')}</em>}
-          </div>
-          <div className="rv-canvas-role-grid">
-            {CANVAS_MEDIA_ROLES.map(role => {
-              const explicit = explicitRoles.includes(role)
-              const effective = roleResolution?.effective.includes(role) ?? false
-              return (
-                <button
-                  key={role}
-                  type="button"
-                  className={`rv-canvas-role-chip${explicit ? ' rv-canvas-role-chip--active' : effective ? ' rv-canvas-role-chip--auto' : ''}`}
-                  onClick={() => toggleRole(role)}
-                  aria-pressed={explicit}
-                  title={explicit ? 'Assigned by user' : effective ? 'Assigned automatically' : 'Assign role'}
-                >
-                  {CANVAS_MEDIA_ROLE_LABELS[role]}
-                </button>
-              )
-            })}
-          </div>
-        </div>
       )}
       <CanvasLegacySessionMedia compact={compact} />
     </div>
@@ -1468,11 +1419,6 @@ function resolveCanvasTimingSection({
   const publishedSection = frameMatchesTrack ? frame.currentResolvedSection : null
   const authoredSection = findCanvasSectionAt(trackSections, audioTime)
   return publishedSection?.type ?? authoredSection?.type ?? (frameMatchesTrack ? frame.section.type : null) ?? null
-}
-
-function formatCanvasTimingSeconds(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return '0.0s'
-  return `${value.toFixed(value >= 10 ? 1 : 2)}s`
 }
 
 function getCanvasMediaLoadErrorMessage(item: CanvasMediaItem): string {
@@ -3112,60 +3058,18 @@ function CanvasAutoSelectControl() {
 }
 
 function CanvasTimingControls() {
-  const engine = useSharedAudio()
   const settings = useReactStore(s => s.canvasEngineSettings)
-  const manualTrackSectionsByTrackId = useReactStore(s => s.manualTrackSectionsByTrackId)
-  const suppressedAutoSectionsByTrackId = useReactStore(s => s.suppressedAutoSectionsByTrackId)
   const setCanvasEngineSettings = useReactStore(s => s.setCanvasEngineSettings)
   const setCanvasMediaTiming = useReactStore(s => s.setCanvasMediaTiming)
-  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
   const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
   const mediaItems = useCanvasRuntimeMediaItems()
   const activeItem = useMemo(() => mediaItems.find(item => item.id === activeCanvasMediaId) ?? null, [activeCanvasMediaId, mediaItems])
   const hasActiveVideo = activeItem?.type === 'video'
   const timing = activeItem?.timing ?? DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS
-  const detectedSectionLabels = useMemo(() => {
-    const labels = new Set<string>()
-    const trackId = engine.currentTrackId
-    const analyzedSections = engine.currentAnalysis ? adaptMIAnalysis(engine.currentAnalysis) : []
-    const sections = resolveTrackSections({
-      analyzedSections,
-      manualSections: trackId ? (manualTrackSectionsByTrackId[trackId] ?? []) : [],
-      suppressedIds: trackId ? (suppressedAutoSectionsByTrackId[trackId] ?? []) : [],
-      durationSec: Math.max(engine.duration, engine.currentAnalysis?.durationMs ? engine.currentAnalysis.durationMs / 1000 : 0),
-    })
-    sections.forEach(section => {
-      if (section.provenance?.authority === 'fallback') return
-      const mapped = normalizeCanvasTimingSectionType(section.type)
-      const option = CANVAS_SECTION_TRIGGER_OPTIONS.find(entry => entry.value === mapped)
-      if (option) labels.add(option.label)
-    })
-    return Array.from(labels)
-  }, [engine.currentAnalysis, engine.currentTrackId, engine.duration, manualTrackSectionsByTrackId, suppressedAutoSectionsByTrackId])
-
   const setTiming = (patch: Partial<CanvasVideoTimingSettings>) => {
     if (!activeItem || activeItem.type !== 'video') return
     setCanvasMediaTiming(activeItem.id, patch)
   }
-
-  const toggleSectionTrigger = (sectionType: CanvasSectionTriggerType) => {
-    if (!hasActiveVideo) return
-    const current = timing.sectionTriggerTypes.length > 0
-      ? timing.sectionTriggerTypes
-      : DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS.sectionTriggerTypes
-    const next = current.includes(sectionType)
-      ? current.filter(value => value !== sectionType)
-      : [...current, sectionType]
-    setTiming({ sectionTriggerTypes: next.length > 0 ? next : current })
-  }
-
-  const timingDescription = hasActiveVideo
-    ? 'These controls affect saved library video playback inside CANVAS. Clip audio stays muted so the loaded track remains in charge.'
-    : 'CANVAS timing controls are video-only. Select a saved video to enable clip starts, ranges, loops, and musical triggers.'
-
-  const sectionDescription = detectedSectionLabels.length > 0
-    ? `Audio Intelligence sections detected: ${detectedSectionLabels.join(', ')}.`
-    : 'Map section-trigger restarts to Audio Intelligence sections after a track has been loaded and analyzed.'
 
   // Video Timing only has meaning for an active video media item -- with no
   // active video there is nothing to time, so hide the group rather than
@@ -3174,7 +3078,6 @@ function CanvasTimingControls() {
 
   return (
     <Collapsible label="Video Timing" defaultOpen>
-      <div className="rv-canvas-engine-note">{timingDescription}</div>
       <CanvasSelectRow
         label="Trigger On"
         value={timing.triggerOn}
@@ -3183,28 +3086,25 @@ function CanvasTimingControls() {
         options={CANVAS_TRIGGER_OPTIONS}
         description="Choose the musical moment that restarts the active CANVAS video clip."
       />
-      <NumberInputRow
-        label="Clip Start Time"
-        value={timing.clipStartSec}
-        onChange={value => setTiming({ clipStartSec: value })}
-        min={0}
-        max={CANVAS_TIMING_MAX_SECONDS}
-        step={0.1}
-        unit="sec"
-        disabled={!hasActiveVideo}
-      />
-      <NumberInputRow
-        label="Clip End Time"
-        value={timing.clipEndSec}
-        onChange={value => setTiming({ clipEndSec: value })}
-        min={0}
-        max={CANVAS_TIMING_MAX_SECONDS}
-        step={0.1}
-        unit="sec"
-        disabled={!hasActiveVideo}
-      />
-      <div className="rv-canvas-engine-note">
-        End time 0 uses the full video. Active range: {formatCanvasTimingSeconds(timing.clipStartSec)} → {timing.clipEndSec > 0 ? formatCanvasTimingSeconds(timing.clipEndSec) : 'video end'}.
+      <div className="rv-canvas-engine-row-pair">
+        <NumberInputRow
+          label="Clip Start Time"
+          value={timing.clipStartSec}
+          onChange={value => setTiming({ clipStartSec: value })}
+          min={0}
+          max={CANVAS_TIMING_MAX_SECONDS}
+          step={0.1}
+          disabled={!hasActiveVideo}
+        />
+        <NumberInputRow
+          label="Clip End Time"
+          value={timing.clipEndSec}
+          onChange={value => setTiming({ clipEndSec: value })}
+          min={0}
+          max={CANVAS_TIMING_MAX_SECONDS}
+          step={0.1}
+          disabled={!hasActiveVideo}
+        />
       </div>
       <ToggleRow
         label="Loop Clip Range"
@@ -3232,7 +3132,7 @@ function CanvasTimingControls() {
         value={timing.restartOnSectionChange}
         onChange={value => setTiming({ restartOnSectionChange: value })}
         disabled={!hasActiveVideo}
-        description="Restarts when the current Audio Intelligence section changes into one of the mapped section types below."
+        description="Restarts when the current Audio Intelligence section changes."
       />
       <ToggleRow
         label="Restart on Manual Preset Change"
@@ -3241,36 +3141,6 @@ function CanvasTimingControls() {
         disabled={!hasActiveVideo}
         description="Restarts the clip when the user manually changes the CANVAS preset."
       />
-      <div className="rv-canvas-section-trigger-block" aria-label="CANVAS section trigger mapping">
-        <div className="rv-canvas-section-trigger-head">
-          <span>Section Trigger Mapping</span>
-          <em>{sectionDescription}</em>
-        </div>
-        <div className="rv-canvas-section-trigger-grid">
-          {CANVAS_SECTION_TRIGGER_OPTIONS.map(option => {
-            const active = timing.sectionTriggerTypes.includes(option.value)
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={`rv-canvas-section-trigger-chip${active ? ' rv-canvas-section-trigger-chip--active' : ''}`}
-                onClick={() => toggleSectionTrigger(option.value)}
-                disabled={!hasActiveVideo}
-                aria-pressed={active}
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-      <IconChipButton
-        className="rv-canvas-restart-btn"
-        onClick={restartCanvasVideo}
-        disabled={!hasActiveVideo}
-      >
-        Restart Clip
-      </IconChipButton>
     </Collapsible>
   )
 }
@@ -3304,7 +3174,6 @@ function CanvasCompositionControls() {
   const setCanvasLayerLock = useReactStore(s => s.setCanvasLayerLock)
   const setCanvasMediaLock = useReactStore(s => s.setCanvasMediaLock)
   const setCanvasOrchestrationLock = useReactStore(s => s.setCanvasOrchestrationLock)
-  const resetCanvasOrchestration = useReactStore(s => s.resetCanvasOrchestration)
   const mediaItems = useCanvasRuntimeMediaItems()
   const lockLayerRole = useReactStore(s => s.canvasOrchestrationEditingLayerRole)
   const setLockLayerRole = useReactStore(s => s.setCanvasOrchestrationEditingLayerRole)
@@ -3371,7 +3240,6 @@ function CanvasCompositionControls() {
           ]}
         />
       </Collapsible>
-      <IconChipButton className="rv-canvas-restart-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>
     </Collapsible>
   )
 }
@@ -4624,20 +4492,6 @@ function CanvasPresetControls() {
 
   return (
     <>
-      <div className="rv-ctrl-toggle-row rv-canvas-recipe-status">
-        <div className="rv-ctrl-toggle-line">
-          <span className="rv-ctrl-label">{selectedPreset.name}</span>
-          <button
-            type="button"
-            className="rv-ctrl-toggle rv-canvas-recipe-reset"
-            onClick={resetCanvasPresetSettings}
-            aria-label={`Reset ${selectedPreset.name} recipe`}
-          >
-            Reset
-          </button>
-        </div>
-        {customized && <span className="rv-ctrl-description">Customized recipe active.</span>}
-      </div>
       {designControlGroups.map(group => (
         <Collapsible key={group.title} label={group.title} defaultOpen>
           {group.controls.map(control => renderCanvasPresetControl(control, canvasPresetSettings, setCanvasPresetSettings))}
@@ -4757,6 +4611,45 @@ export function useCanvasScopedEngineSettings(): {
   }
 }
 
+/**
+ * Actions at the very bottom of the Canvas Design panel, outside any group, in one row of equal buttons: Reset (the active
+ * preset's recipe, for presets using the generic recipe controls), Reset Authored State (with the Auto Role group, so not in
+ * layer scope) and Restart Clip (while the active media is a video).
+ */
+function CanvasPanelFooterActions({ showReset }: { showReset: boolean }) {
+  const resetCanvasOrchestration = useReactStore(s => s.resetCanvasOrchestration)
+  const restartCanvasVideo = useReactStore(s => s.restartCanvasVideo)
+  const activeCanvasMediaId = useReactStore(s => s.activeCanvasMediaId)
+  const selectedCanvasPresetId = useReactStore(s => s.selectedCanvasPresetId)
+  const canvasPresetOverride = useReactStore(s => s.canvasPresetOverride)
+  const resetCanvasPresetSettings = useReactStore(s => s.resetCanvasPresetSettings)
+  const mediaItems = useCanvasRuntimeMediaItems()
+  const hasActiveVideo = mediaItems.find(item => item.id === activeCanvasMediaId)?.type === 'video'
+  const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
+  const customized = canvasPresetOverride?.source === 'manual' && canvasPresetOverride.label === 'User-adjusted preset'
+  const showRecipeReset = showReset
+    && !isCanvasLegacyEffectPresetId(selectedCanvasPresetId)
+    && selectedPreset.rendererKind !== 'fragmentCollage'
+    && selectedPreset.rendererKind !== 'laserImageFx'
+  if (!showRecipeReset && !showReset && !hasActiveVideo) return null
+  return (
+    <div className="rv-canvas-footer-actions">
+      {showRecipeReset && (
+        <IconChipButton
+          className="rv-canvas-footer-btn"
+          onClick={resetCanvasPresetSettings}
+          aria-label={`Reset ${selectedPreset.name} recipe`}
+          title={customized ? `Reset ${selectedPreset.name} recipe (customized)` : `Reset ${selectedPreset.name} recipe`}
+        >
+          Reset
+        </IconChipButton>
+      )}
+      {showReset && <IconChipButton className="rv-canvas-footer-btn" onClick={resetCanvasOrchestration}>Reset Authored State</IconChipButton>}
+      {hasActiveVideo && <IconChipButton className="rv-canvas-footer-btn" onClick={restartCanvasVideo}>Restart Clip</IconChipButton>}
+    </div>
+  )
+}
+
 export function CanvasEngineFxPanel() {
   const { settings, updateSettings, scope } = useCanvasScopedEngineSettings()
   const layerScopeActive = scope.kind === 'layer'
@@ -4853,6 +4746,8 @@ export function CanvasEngineFxPanel() {
       {!layerScopeActive && <CanvasPresetControls />}
 
       <CanvasTimingControls />
+
+      <CanvasPanelFooterActions showReset={!layerScopeActive} />
     </div>
   )
 }
