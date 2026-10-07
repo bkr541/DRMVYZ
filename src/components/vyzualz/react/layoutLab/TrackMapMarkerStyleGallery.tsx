@@ -196,7 +196,7 @@ function GlyphCodes() {
   )
 }
 
-/** 06 — neighbours alternate between an upper and a lower level with a leader line down to the row's baseline, so each label gets twice the room. */
+/** 06 — neighbours alternate between two levels, with a strong color-coded left edge marking each label's start. */
 function Staggered() {
   return (
     <Board rowHeight={46}>

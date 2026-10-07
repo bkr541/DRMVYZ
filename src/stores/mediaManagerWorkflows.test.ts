@@ -494,6 +494,29 @@ describe('Media Manager canonical workflows', () => {
     expect(useMediaStore.getState().uploadQueue.map(item => item.file.name)).toEqual(['two.wav'])
   })
 
+  it('auto-populates BPM and musical key in each audio upload draft', async () => {
+    const file = new File(['audio'], 'detected.wav', { type: 'audio/wav' })
+    runtimeMocks.analyzeAudioFile.mockResolvedValueOnce({
+      durationSec: 180,
+      sampleRate: 44_100,
+      channels: 2,
+      bpm: 128,
+      musicalKey: 'C#m/Dbm',
+      keyNote: 'C#',
+      keyMode: 'minor',
+      keyConfidence: 0.91,
+    })
+
+    expect(useMediaStore.getState().addFilesToUploadQueue([file])).toBe(1)
+    const queued = useMediaStore.getState().uploadQueue[0]!
+    await vi.waitFor(() => {
+      expect(useMediaStore.getState().uploadDrafts[queued.tempId]).toMatchObject({
+        audioBpm: '128',
+        audioMusicalKey: 'C#m/Dbm',
+      })
+    })
+  })
+
   it('exposes the canonical visual upload/finalization path for Deck ingestion without a second uploader', async () => {
     const file = new File(['png'], 'deck-source.png', { type: 'image/png' })
     const result = await useMediaStore.getState().uploadCanonicalVisualFile(file, {

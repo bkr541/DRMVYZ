@@ -177,6 +177,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
       }
 
       const bpmValue = bpmInput ? (parseFloat(bpmInput) || null) : (analysis?.bpm ?? null)
+      const musicalKeyValue = musicalKey.trim() || analysis?.musicalKey || null
 
       const { id: dbId, error: dbErr } = await createAudioTrack({
         user_id:     userId,
@@ -195,7 +196,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         artist:       artist.trim()   || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
-        musical_key:  musicalKey.trim() || null,
+        musical_key:  musicalKeyValue,
       })
 
       if (dbErr || !dbId) {
@@ -213,8 +214,8 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
           track_id:         dbId,
           bpm:              analysis.bpm,
           bpm_confidence:   null,
-          key_note:         null,
-          key_mode:         null,
+          key_note:         analysis.keyNote,
+          key_mode:         analysis.keyMode,
           lufs_integrated:  null,
           lufs_short:       null,
           lufs_momentary:   null,
@@ -252,7 +253,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         artist:       artist.trim()   || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
-        musicalKey:   musicalKey.trim() || null,
+        musicalKey:   musicalKeyValue,
         createdAt:    new Date().toISOString(),
       }
 

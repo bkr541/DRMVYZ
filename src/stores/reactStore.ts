@@ -8067,18 +8067,24 @@ export const useReactStore = create<ReactStoreState>()(
         }),
       })),
 
-      setCanvasEngineSettings: (patch) => set((state) => ({
-        ...repairCanvasRuntimeState({
-          ...state,
-          canvasEngineSettings: normalizeCanvasEngineSettings({
-            ...state.canvasEngineSettings,
-            ...patch,
-          }),
-        }),
-        canvasPresetOverride: patch.autoSelectEnabled === false && state.canvasPresetOverride?.source === 'auto'
-          ? null
-          : state.canvasPresetOverride,
-      })),
+      setCanvasEngineSettings: (patch) => set((state) => {
+        const canvasEngineSettings = normalizeCanvasEngineSettings({
+          ...state.canvasEngineSettings,
+          ...patch,
+        })
+        const patchesMediaIdentity = 'selectedMediaId' in patch
+          || 'mediaIds' in patch
+          || 'manualMediaOverrideId' in patch
+
+        return {
+          ...(patchesMediaIdentity
+            ? repairCanvasRuntimeState({ ...state, canvasEngineSettings })
+            : { canvasEngineSettings }),
+          canvasPresetOverride: patch.autoSelectEnabled === false && state.canvasPresetOverride?.source === 'auto'
+            ? null
+            : state.canvasPresetOverride,
+        }
+      }),
 
       resetCanvasEngineSettings: () => set((state) => {
         revokeCanvasMediaObjectUrls(state.canvasMediaItems)

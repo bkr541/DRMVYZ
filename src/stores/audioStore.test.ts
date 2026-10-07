@@ -94,6 +94,41 @@ describe('audioStore persistence safety', () => {
     expect(useAudioStore.getState().loadError).toContain('database unavailable')
   })
 
+  it('persists an automatically detected musical key when the upload field is blank', async () => {
+    audioDbMocks.createAudioTrack.mockResolvedValue({ id: 'track-detected-key', error: null })
+    audioDbMocks.createTrackAnalysis.mockResolvedValue({ error: null })
+
+    const result = await useAudioStore.getState().uploadAndSaveTrack({
+      file: new File(['audio'], 'detected-key.wav', { type: 'audio/wav' }),
+      title: 'Detected Key',
+      artist: '',
+      genre: '',
+      bpmInput: '',
+      musicalKey: '',
+      userId: 'user-1',
+      analysis: {
+        durationSec: 180,
+        sampleRate: 44_100,
+        channels: 2,
+        bpm: 128,
+        musicalKey: 'C#m/Dbm',
+        keyNote: 'C#',
+        keyMode: 'minor',
+        keyConfidence: 0.91,
+      },
+    })
+
+    expect(audioDbMocks.createAudioTrack).toHaveBeenCalledWith(expect.objectContaining({
+      bpm: 128,
+      musical_key: 'C#m/Dbm',
+    }))
+    expect(audioDbMocks.createTrackAnalysis).toHaveBeenCalledWith(expect.objectContaining({
+      key_note: 'C#',
+      key_mode: 'minor',
+    }))
+    expect(result).toMatchObject({ bpm: 128, musicalKey: 'C#m/Dbm' })
+  })
+
   it('keeps the track visible and its storage intact when database deletion fails', async () => {
     const track = savedTrack()
     useAudioStore.setState({ savedTracks: [track] })

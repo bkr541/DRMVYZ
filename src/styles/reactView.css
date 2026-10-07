@@ -6251,8 +6251,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-track-map-strip--embedded .rv-timeline-lanes {
   position: relative;
   display: grid;
-  grid-template-rows: 32px 44px 96px 24px;
-  min-height: 196px;
+  grid-template-rows: 32px 44px 184px 24px;
+  min-height: 284px;
   padding: 0 var(--rv-timeline-inline-pad);
   overflow: visible;
   isolation: isolate;
@@ -21730,7 +21730,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Track Map follows the timeline workspace's height ───────────────────────
    Dragging the timeline workspace higher gives the Track Map surface more height. The beat grid (32px), the sections (44px, strip 32px
-   with 5px above and below) and the ruler (24px) stay the same height; the marker lane (four rows, 96px minimum) takes everything else,
+   with 5px above and below) and the ruler (24px) stay the same height; the marker lane (four 46px rows, 184px minimum) takes everything else,
    so only its rows grow. */
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
   display: flex;
@@ -21740,12 +21740,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded .rv-timeline-lanes {
-  /* Basis 0, not auto: the lanes take whatever height is left (never less than their 138px minimum), so their rows are not sized by what the
+  /* Basis 0, not auto: the lanes take whatever height is left (never less than their 284px minimum), so their rows are not sized by what the
      canvases inside would like to be. */
   flex: 1 1 0;
   /* Beat grid (32px), sections (44px) and the ruler (24px) keep their height however tall the surface is dragged; the marker lane takes all
      the extra, so its four rows grow. */
-  grid-template-rows: 32px 44px minmax(96px, 1fr) 24px;
+  grid-template-rows: 32px 44px minmax(184px, 1fr) 24px;
 }
 
 .rv-lower-workspace-surface--track-map .rv-timeline-lane-content .rv-section-timeline {
@@ -21774,8 +21774,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── Audio dock: one flat strip ─────────────────────────────────────────────
    Colour and surface styling only; no sizes change. The three dock sections read as a single continuous slate surface
    (the same #1c2026 as the lower tier of the rail window headers) with hairline dividers between them, not as three raised dark cards. The
-   waveform's own bordered box is the visible edge of the middle section, so the center card drops its inline padding and
-   the box lines up exactly with the Track Map above it. */
+   waveform remains borderless and uses a small internal plot inset within the middle section. */
 .rv-shell > .az-dock.vz-transport-dock {
   /* The lower tier of the rail window headers (RailWindowHeader.css), so the dock reads as part of the same chrome. */
   background: #1c2026;
@@ -21806,7 +21805,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   pointer-events: none;
 }
 
-/* Waveform: no second outline from the canvas inside it. */
+/* The canvas draws its own 6px plot inset so waveform timing and markers share it. */
 .rv-shell > .vz-transport-dock .vz-dock-center {
   padding-inline: 0;
 }
@@ -22458,15 +22457,26 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-row {
   grid-column: 1 / -1;
   grid-row: 1;
-  align-items: center;
+  align-items: flex-start;
   padding-right: 0;
-  text-align: center;
+  text-align: left;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-title,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-artist {
   display: block;
-  text-align: center;
+  text-align: left;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn img {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-zoom-btn {
+  background: var(--dock-fill);
+  border-color: var(--dock-line);
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn {
@@ -22716,20 +22726,72 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   line-height: 1.15;
 }
 
-/* Track Map marker lane: one row per kind of marker (Cues, Phrases, Moments, Actions), each with its own count at the right. */
-.rv-timeline-cue-lane { display: flex; flex-direction: column; }
+/* Track Map marker lane: Layout Lab's 06 · Staggered Levels treatment. */
+.rv-timeline-cue-lane {
+  display: flex;
+  flex-direction: column;
+  background:
+    repeating-linear-gradient(90deg, rgba(74, 199, 219, 0.045) 0 1px, transparent 1px calc(100% / 16)),
+    rgba(5, 11, 17, 0.76);
+}
 .rv-timeline-cue-row {
   position: relative;
   flex: 1 1 0;
-  min-height: 0;
-  border-top: 1px solid rgba(74, 199, 219, 0.07);
+  min-height: 46px;
+  border-top: 1px solid rgba(74, 199, 219, 0.08);
 }
 .rv-timeline-cue-row:first-child { border-top: 0; }
-.rv-lower-workspace-surface--track-map .rv-timeline-cue-row .rv-timeline-cue:not(.rv-timeline-cue--cue),
-.rv-timeline-cue-row .rv-timeline-cue:not(.rv-timeline-cue--cue) {
-  top: 2px;
-  bottom: 2px;
-  height: auto;
+.rv-timeline-cue-row .rv-timeline-cue {
+  top: auto;
+  bottom: auto;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 17px;
+  padding: 0 6px;
+  gap: 0;
+  max-width: 130px;
+  transform: none;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--cue-color, #4ac7db) 70%, transparent);
+  border-left: 6px solid var(--cue-color, #4ac7db);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--cue-color, #4ac7db) 18%, #071018);
+  color: #fff;
+  font: 700 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+  opacity: 1;
+  z-index: 2;
+}
+.rv-timeline-cue-row .rv-timeline-cue--disabled { opacity: 0.35; }
+.rv-timeline-cue-row .rv-timeline-cue.is-high { top: 3px; }
+.rv-timeline-cue-row .rv-timeline-cue.is-low { bottom: 3px; }
+.rv-timeline-cue-row .rv-timeline-cue::before,
+.rv-timeline-cue-row .rv-timeline-cue::after { content: none; }
+.rv-timeline-cue-row .rv-timeline-cue:hover {
+  border-color: color-mix(in srgb, var(--cue-color, #4ac7db) 82%, transparent);
+  border-left-color: var(--cue-color, #4ac7db);
+  background: color-mix(in srgb, var(--cue-color, #4ac7db) 24%, #071018);
+}
+.rv-timeline-cue-row .rv-timeline-cue-diamond { display: none; }
+.rv-timeline-cue-row .rv-timeline-cue-label {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: normal;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
 }
 .rv-timeline-cue-lane > .rv-timeline-lane-empty {
   position: absolute;
@@ -22751,7 +22813,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   justify-content: space-between;
   gap: 4px;
   padding: 0 8px;
-  border-top: 1px solid rgba(74, 199, 219, 0.07);
+  border-top: 1px solid rgba(74, 199, 219, 0.08);
 }
 .rv-timeline-cue-row-state:first-child { border-top: 0; }
 .rv-timeline-cue-row-state span { opacity: 0.7; font-size: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -22957,6 +23019,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   max-width: 130px;
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--c) 70%, transparent);
+  border-left: 6px solid var(--c);
   border-radius: 3px;
   background: color-mix(in srgb, var(--c) 18%, #071018);
   color: #fff;
@@ -22966,12 +23029,3 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lltm-c6-tag span { overflow: hidden; text-overflow: ellipsis; }
 .lltm-c6-tag.is-high { top: 3px; }
 .lltm-c6-tag.is-low { bottom: 3px; }
-.lltm-c6-tag::before {
-  content: '';
-  position: absolute;
-  left: -1px;
-  width: 2px;
-  background: var(--c);
-}
-.lltm-c6-tag.is-high::before { top: 100%; height: 10px; }
-.lltm-c6-tag.is-low::before { bottom: 100%; height: 10px; }

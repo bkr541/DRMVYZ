@@ -18,9 +18,27 @@ interface RgbWaveformCanvasProps {
   showCueMarkerLines?: boolean
 }
 
-const PLAYHEAD_COLOR = '#4ac7db'
+const PLAYHEAD_COLOR = 'rgba(248, 251, 252, 0.96)'
+const PLAYHEAD_TOP_INSET = 1
+const PLAYHEAD_HEAD_HALF_WIDTH = 5
+const DECK_HORIZONTAL_PADDING = 6
 const PAD            = 12
 const N_GRAD_STOPS   = 48  // horizontal gradient color samples
+
+export function resolvePlayheadHeadBounds(progressX: number, canvasWidth: number): { left: number; right: number } {
+  const headWidth = PLAYHEAD_HEAD_HALF_WIDTH * 2
+  if (canvasWidth <= headWidth) return { left: 0, right: canvasWidth }
+  if (progressX < PLAYHEAD_HEAD_HALF_WIDTH) return { left: progressX, right: progressX + headWidth }
+  if (progressX > canvasWidth - PLAYHEAD_HEAD_HALF_WIDTH) return { left: progressX - headWidth, right: progressX }
+  return { left: progressX - PLAYHEAD_HEAD_HALF_WIDTH, right: progressX + PLAYHEAD_HEAD_HALF_WIDTH }
+}
+
+export function resolveDeckWaveformPlot(canvasWidth: number): { left: number; width: number } {
+  return {
+    left: DECK_HORIZONTAL_PADDING,
+    width: Math.max(1, canvasWidth - DECK_HORIZONTAL_PADDING * 2),
+  }
+}
 
 // Per-frame draw buffers — allocated once per canvas size change to avoid GC pressure.
 interface DrawBuffers {
@@ -88,8 +106,8 @@ export function RgbWaveformCanvas({
     const { startSec: winStart, endSec: winEnd } = computeWaveformViewport(safe, ct, zm)
     const winLen = Math.max(0.001, winEnd - winStart)
 
-    // Monochrome (the React / Show Manager dock): a transparent canvas, so the cyan waveform and playhead sit directly on the
-    // dock's own gray, with no dark fill and no grid lines behind them.
+    // Monochrome (the React / Show Manager dock): a transparent canvas, so the cyan waveform and light playhead sit directly
+    // on the dock's own gray, with no dark fill and no grid lines behind them.
     if (mono) {
       ctx.clearRect(0, 0, cssW, cssH)
     } else {
@@ -100,7 +118,10 @@ export function RgbWaveformCanvas({
     const availH  = cssH - PAD * 2
     const centerY = PAD + availH / 2
     const halfH   = availH / 2
-    const timeToX = (t: number) => ((t - winStart) / winLen) * cssW
+    const plot = mono ? resolveDeckWaveformPlot(cssW) : { left: 0, width: cssW }
+    const plotLeft = plot.left
+    const plotWidth = plot.width
+    const timeToX = (t: number) => plotLeft + ((t - winStart) / winLen) * plotWidth
     const progressX = timeToX(ct)
 
     if (ana && mono) {
@@ -112,7 +133,7 @@ export function RgbWaveformCanvas({
       const visibleBins = Math.max(1, bi1 - bi0 + 1)
       const pitch = 4
       const barWidth = 2
-      const barCount = Math.max(1, Math.floor(cssW / pitch))
+      const barCount = Math.max(1, Math.floor(plotWidth / pitch))
 
       ctx.save()
       ctx.shadowColor = 'rgba(58, 219, 247, 0.45)'
@@ -127,7 +148,7 @@ export function RgbWaveformCanvas({
           amp = Math.max(amp, rms[b], positivePeaks[b] * 0.78, negativePeaks[b] * 0.78)
         }
         const barH = Math.max(2, Math.min(availH, amp * availH * 0.96))
-        const x = i * pitch + Math.max(0, (pitch - barWidth) / 2)
+        const x = plotLeft + i * pitch + Math.max(0, (pitch - barWidth) / 2)
         const y = centerY - barH / 2
         const barTime = winStart + ((i + 0.5) / barCount) * winLen
         ctx.fillStyle = barTime <= ct
@@ -219,7 +240,7 @@ export function RgbWaveformCanvas({
       const si  = Math.max(0,       Math.floor(sfrac * pk.length))
       const ei  = Math.min(pk.length, Math.ceil(efrac * pk.length))
       const vis = pk.slice(si, ei)
-      const bw  = vis.length > 0 ? cssW / vis.length : 1
+      const bw  = vis.length > 0 ? plotWidth / vis.length : 1
 
       for (let i = 0; i < vis.length; i++) {
         const peakT = winStart + ((si + i) / pk.length) * safe
@@ -228,7 +249,7 @@ export function RgbWaveformCanvas({
         ctx.fillStyle = mono
           ? (peakT < ct ? 'rgba(72,230,255,0.96)' : 'rgba(48,198,225,0.66)')
           : (peakT < ct ? 'rgba(74,199,219,0.75)' : 'rgba(255,255,255,0.16)')
-        ctx.fillRect(i * bw, y, Math.max(1, bw - 0.5), barH)
+        ctx.fillRect(plotLeft + i * bw, y, Math.max(1, bw - 0.5), barH)
       }
 
       if (progressX > 1 && !mono) {
@@ -241,13 +262,13 @@ export function RgbWaveformCanvas({
 
     } else {
       // ── Placeholder ───────────────────────────────────────────────────────
-      const bars  = mono ? Math.max(80, Math.floor(cssW / 4)) : 80
-      const barW  = cssW / bars
+      const bars  = mono ? Math.max(80, Math.floor(plotWidth / 4)) : 80
+      const barW  = plotWidth / bars
       for (let i = 0; i < bars; i++) {
         const h = (Math.sin(i * 0.38) * 0.26 + 0.13) * availH
         const y = PAD + (availH - h) / 2
         ctx.fillStyle = mono ? 'rgba(48,198,225,0.18)' : 'rgba(255,255,255,0.05)'
-        ctx.fillRect(i * barW + 0.5, y, Math.max(1, barW - (mono ? 2 : 1)), h)
+        ctx.fillRect(plotLeft + i * barW + 0.5, y, Math.max(1, barW - (mono ? 2 : 1)), h)
       }
     }
 
@@ -270,14 +291,16 @@ export function RgbWaveformCanvas({
       ctx.restore()
     }
 
-    // Playhead
+    // Bars, cues, and the playhead share the same inset plot coordinates in
+    // deck mode, so the centered head remains visible without leaving its beat.
     if (progressX >= 0 && progressX <= cssW) {
+      const head = resolvePlayheadHeadBounds(progressX, cssW)
       ctx.fillStyle = PLAYHEAD_COLOR
-      ctx.fillRect(progressX - 1, 0, 2, cssH)
+      ctx.fillRect(progressX - 1, PLAYHEAD_TOP_INSET, 2, cssH - PLAYHEAD_TOP_INSET)
       ctx.beginPath()
-      ctx.moveTo(progressX - 5, 0)
-      ctx.lineTo(progressX + 5, 0)
-      ctx.lineTo(progressX,     7)
+      ctx.moveTo(head.left, PLAYHEAD_TOP_INSET)
+      ctx.lineTo(head.right, PLAYHEAD_TOP_INSET)
+      ctx.lineTo(progressX, PLAYHEAD_TOP_INSET + 7)
       ctx.closePath()
       ctx.fillStyle = PLAYHEAD_COLOR
       ctx.fill()
@@ -311,7 +334,15 @@ export function RgbWaveformCanvas({
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const viewport = computeWaveformViewport(dur, ct, zm)
-    onSeek(clientXToTimelineTime(e.clientX, rect, viewport, dur))
+    const plot = propsRef.current.monochrome
+      ? resolveDeckWaveformPlot(rect.width)
+      : { left: 0, width: rect.width }
+    onSeek(clientXToTimelineTime(
+      e.clientX,
+      { left: rect.left + plot.left, width: plot.width },
+      viewport,
+      dur,
+    ))
   }, [onSeek])
 
   return (

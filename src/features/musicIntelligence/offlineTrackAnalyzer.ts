@@ -299,6 +299,56 @@ function detectOfflineKey(chromaAcc: Float32Array): {
   }
 }
 
+export interface AudioBufferMusicalKeyDetection {
+  key: string | null
+  mode: 'major' | 'minor' | null
+  confidence: number
+}
+
+/**
+ * Runs the same chroma/key model as full track analysis without paying for
+ * structural, beat-grid, curve, or semantic analysis. Upload metadata uses
+ * this focused pass so Key can appear alongside BPM before the file is saved.
+ */
+export async function detectAudioBufferMusicalKey(
+  audioBuffer: AudioBuffer,
+  options: { fftSize?: number; maxFrames?: number; signal?: AbortSignal } = {},
+): Promise<AudioBufferMusicalKeyDetection> {
+  const fftSize = options.fftSize ?? 2048
+  const maxFrames = Math.max(1, options.maxFrames ?? 1200)
+  const { samples } = await mixDownToMono(audioBuffer, options.signal)
+  if (samples.length === 0) return { key: null, mode: null, confidence: 0 }
+
+  const hopSize = Math.max(1, fftSize)
+  const availableFrames = Math.max(1, Math.floor(Math.max(0, samples.length - fftSize) / hopSize) + 1)
+  const frameStride = Math.max(1, Math.ceil(availableFrames / maxFrames))
+  const chromaAcc = new Float32Array(12)
+  let processedFrames = 0
+
+  for (let frame = 0; frame < availableFrames; frame += frameStride) {
+    throwIfAnalysisAborted(options.signal)
+    const sampleOffset = Math.min(Math.max(0, samples.length - 1), frame * hopSize)
+    accumulateChroma(
+      fftMagnitudes(samples, fftSize, sampleOffset),
+      chromaAcc,
+      audioBuffer.sampleRate,
+      fftSize,
+      1,
+    )
+    processedFrames++
+    if (processedFrames % ANALYSIS_TUNING.performance.cooperativeYieldEveryFrames === 0) {
+      await cooperativeAnalysisYield(options.signal)
+    }
+  }
+
+  const detected = detectOfflineKey(chromaAcc)
+  return {
+    key: detected.dominantKey,
+    mode: detected.dominantMode,
+    confidence: detected.keyConfidence,
+  }
+}
+
 function frameRms(samples: Float32Array, start: number, length: number): number {
   let sumSquares = 0
   let count = 0

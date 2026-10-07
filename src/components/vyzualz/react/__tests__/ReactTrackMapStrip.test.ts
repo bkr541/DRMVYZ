@@ -8,6 +8,7 @@ import {
   drawEnergyCanvas,
   drawTimelineRuler,
   computeTimelineCueLayout,
+  computeStaggeredTimelineCueLayout,
   computeBeatStride,
   ENERGY_CURVE_OPTIONS,
   TRACK_MAP_DOWNBEAT_COLOR,
@@ -218,6 +219,14 @@ describe('unified timeline helpers', () => {
   it('hides cues outside the shared viewport', () => {
     expect(computeTimelineCueLayout(10, { startSec: 30, endSec: 90 }).visible).toBe(false)
     expect(computeTimelineCueLayout(100, { startSec: 30, endSec: 90 }).visible).toBe(false)
+  })
+
+  it('sizes staggered cues to the next marker on the same level', () => {
+    const layout = computeStaggeredTimelineCueLayout(40, 70, { startSec: 30, endSec: 90 })
+
+    expect(layout.visible).toBe(true)
+    expect(layout.leftPct).toBeCloseTo(16.6667, 4)
+    expect(layout.widthPct).toBeCloseTo(49.75, 4)
   })
 })
 

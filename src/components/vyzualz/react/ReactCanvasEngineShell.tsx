@@ -1544,6 +1544,10 @@ export function CanvasEngineSurface({
     canvasOutputOpacity: settings.opacity,
     presetSettings: canvasPresetSettings,
   }), [canvasPresetSettings, settings.opacity])
+  const liveSettingsRef = useRef(settings)
+  const liveOutputContractRef = useRef(outputContract)
+  liveSettingsRef.current = settings
+  liveOutputContractRef.current = outputContract
   const particleReconstructionActive = rendererKind === 'particleAura'
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
@@ -1678,6 +1682,7 @@ export function CanvasEngineSurface({
           })
         : null
       if (poolAutomation) poolAutomationRuntimeRef.current = poolAutomation.state
+      const liveSettings = liveSettingsRef.current
 
       const nextFrame = runtimeCanvasShow
         ? resolveCanvasShowRuntimeFrame({
@@ -1702,12 +1707,12 @@ export function CanvasEngineSurface({
                   authoredLayers: authoredRuntimeLayers,
                 },
                 mediaItems,
-                fitMode: settings.fitMode,
-                scale: settings.scale,
-                positionX: settings.positionX,
-                positionY: settings.positionY,
-                rotation: settings.rotation,
-                opacity: settings.opacity,
+                fitMode: liveSettings.fitMode,
+                scale: liveSettings.scale,
+                positionX: liveSettings.positionX,
+                positionY: liveSettings.positionY,
+                rotation: liveSettings.rotation,
+                opacity: liveSettings.opacity,
                 isMediaReady: mediaId => orchestrationPreloadManager.isReady(mediaId),
                 getMediaError: mediaId => {
                   const readiness = orchestrationPreloadManager.getReadiness(mediaId)
@@ -1825,7 +1830,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, settings.fitMode, settings.scale, settings.positionX, settings.positionY, settings.rotation, settings.opacity, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
+  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1918,6 +1923,8 @@ export function CanvasEngineSurface({
     let fpsLastAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
 
     const drawSource = () => {
+      const liveSettings = liveSettingsRef.current
+      const liveOutputContract = liveOutputContractRef.current
       const visibleRect = outputRef.current?.getBoundingClientRect()
       const cssWidth = Math.max(1, Math.round(visibleRect?.width || 1280))
       const cssHeight = Math.max(1, Math.round(visibleRect?.height || 720))
@@ -1972,21 +1979,21 @@ export function CanvasEngineSurface({
       const canvasAspect = cssWidth / Math.max(1, cssHeight)
       let drawWidth = cssWidth
       let drawHeight = cssHeight
-      if (settings.fitMode === 'contain') {
+      if (liveSettings.fitMode === 'contain') {
         if (sourceAspect > canvasAspect) drawHeight = cssWidth / sourceAspect
         else drawWidth = cssHeight * sourceAspect
-      } else if (settings.fitMode === 'cover') {
+      } else if (liveSettings.fitMode === 'cover') {
         if (sourceAspect > canvasAspect) drawWidth = cssHeight * sourceAspect
         else drawHeight = cssWidth / sourceAspect
       }
 
-      const drySourceAlpha = outputContract.drySourceMix
-      const processedAlpha = outputContract.sourceMixMode === 'legacyComposite'
-        ? outputContract.drySourceMix
+      const drySourceAlpha = liveOutputContract.drySourceMix
+      const processedAlpha = liveOutputContract.sourceMixMode === 'legacyComposite'
+        ? liveOutputContract.drySourceMix
         : 1
-      const baseTranslateX = cssWidth * 0.5 + cssWidth * 0.5 * (settings.positionX / 100)
-      const baseTranslateY = cssHeight * 0.5 + cssHeight * 0.5 * (settings.positionY / 100)
-      const liveScale = settings.scale
+      const baseTranslateX = cssWidth * 0.5 + cssWidth * 0.5 * (liveSettings.positionX / 100)
+      const baseTranslateY = cssHeight * 0.5 + cssHeight * 0.5 * (liveSettings.positionY / 100)
+      const liveScale = liveSettings.scale
         + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.16
         + beat * canvasPresetSettings.beatPulse * canvasPresetSettings.intensity * 0.045
       const shake = (beat * 9 + high * 4 + 0.8) * canvasPresetSettings.glitchAmount * canvasPresetSettings.intensity
@@ -2011,8 +2018,8 @@ export function CanvasEngineSurface({
           baseTranslateX + (reactive ? Math.sin(now * 48) * shake + motionDriftX : 0),
           baseTranslateY + (reactive ? Math.cos(now * 41) * shake + motionDriftY : 0),
         )
-        context.rotate((settings.rotation + (reactive ? shake * 0.16 : 0)) * Math.PI / 180)
-        context.scale(reactive ? liveScale : settings.scale, reactive ? liveScale : settings.scale)
+        context.rotate((liveSettings.rotation + (reactive ? shake * 0.16 : 0)) * Math.PI / 180)
+        context.scale(reactive ? liveScale : liveSettings.scale, reactive ? liveScale : liveSettings.scale)
         context.filter = filter
         try {
           context.drawImage(source, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight)
@@ -2076,7 +2083,7 @@ export function CanvasEngineSurface({
       captureContext.setTransform(1, 0, 0, 1, 0, 0)
       captureContext.clearRect(0, 0, targetWidth, targetHeight)
       captureContext.globalCompositeOperation = 'source-over'
-      captureContext.globalAlpha = outputContract.canvasOutputOpacity
+      captureContext.globalAlpha = liveOutputContract.canvasOutputOpacity
       captureContext.filter = 'none'
       captureContext.drawImage(compositionCanvas, 0, 0)
       captureContext.globalAlpha = 1
@@ -2099,7 +2106,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, onLiveFps, orchestrationRenderable, outputContract, particleReconstructionActive, particleSourceRef, reactivityActive, settings])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)

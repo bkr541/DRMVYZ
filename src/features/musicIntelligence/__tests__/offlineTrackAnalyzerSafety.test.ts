@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeTrackBuffer } from '../offlineTrackAnalyzer'
+import { analyzeTrackBuffer, detectAudioBufferMusicalKey } from '../offlineTrackAnalyzer'
 
 function makeBuffer(durationSec: number, sampleRate = 8_000): AudioBuffer {
   const length = Math.max(1, Math.round(durationSec * sampleRate))
@@ -17,6 +17,33 @@ function makeBuffer(durationSec: number, sampleRate = 8_000): AudioBuffer {
 }
 
 describe('offline loaded-audio analysis performance safety', () => {
+  it('detects a focused upload-time musical key without full structural analysis', async () => {
+    const sampleRate = 8_000
+    const durationSec = 4
+    const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
+    const profileTotal = majorProfile.reduce((sum, weight) => sum + weight, 0)
+    const channel = new Float32Array(sampleRate * durationSec)
+    for (let index = 0; index < channel.length; index++) {
+      channel[index] = majorProfile.reduce(
+        (sum, weight, pitchClass) => sum
+          + Math.sin(2 * Math.PI * (261.63 * 2 ** (pitchClass / 12)) * index / sampleRate) * weight / profileTotal,
+        0,
+      )
+    }
+    const buffer = {
+      duration: durationSec,
+      sampleRate,
+      length: channel.length,
+      numberOfChannels: 1,
+      getChannelData: () => channel,
+    } as unknown as AudioBuffer
+
+    await expect(detectAudioBufferMusicalKey(buffer, { fftSize: 1024 })).resolves.toMatchObject({
+      key: 'C',
+      mode: 'major',
+    })
+  })
+
   it('cooperatively aborts during the CPU feature pass', async () => {
     const controller = new AbortController()
     const pending = analyzeTrackBuffer(makeBuffer(16), {

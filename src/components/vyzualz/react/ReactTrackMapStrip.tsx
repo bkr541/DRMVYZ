@@ -492,6 +492,27 @@ export function computeTimelineCueLayout(
   }
 }
 
+export interface StaggeredTimelineCueLayout extends TimelineCueLayout {
+  widthPct: number
+}
+
+/** Matches Layout Lab's staggered width: stop just before the next marker on the same level. */
+export function computeStaggeredTimelineCueLayout(
+  timeSec: number,
+  nextSameLevelTimeSec: number | null,
+  viewport: TimelineViewport,
+): StaggeredTimelineCueLayout {
+  const layout = computeTimelineCueLayout(timeSec, viewport)
+  const nextLeftPct = nextSameLevelTimeSec == null
+    ? 100
+    : Math.min(100, computeTimelineCueLayout(nextSameLevelTimeSec, viewport).leftPct)
+
+  return {
+    ...layout,
+    widthPct: Math.max(0, nextLeftPct - layout.leftPct - 0.25),
+  }
+}
+
 /** The Track Map's marker lane is split into one row per kind of marker, top to bottom. */
 const CUE_ROWS: ReadonlyArray<{ id: string; label: string; kinds: readonly TimelineCueItem['kind'][] }> = [
   { id: 'cues', label: 'Cues', kinds: ['cue'] },
@@ -503,9 +524,14 @@ const CUE_ROWS: ReadonlyArray<{ id: string; label: string; kinds: readonly Timel
 function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineViewport): void {
   container.querySelectorAll<HTMLElement>('[data-timeline-cue]').forEach(marker => {
     const timeSec = Number(marker.dataset.cueTime)
-    const layout = computeTimelineCueLayout(timeSec, viewport)
+    const nextTimeValue = marker.dataset.cueNextTime
+    const nextSameLevelTimeSec = nextTimeValue == null ? null : Number(nextTimeValue)
+    const layout = computeStaggeredTimelineCueLayout(timeSec, nextSameLevelTimeSec, viewport)
     marker.style.display = layout.visible ? '' : 'none'
-    if (layout.visible) marker.style.left = `${layout.leftPct}%`
+    if (layout.visible) {
+      marker.style.left = `${layout.leftPct}%`
+      marker.style.width = `${layout.widthPct}%`
+    }
   })
 }
 
@@ -2553,20 +2579,33 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       }}
                       title="Right-click empty space to add a PixGrid action cue"
                     >
-                      {CUE_ROWS.map(row => (
-                        <div key={row.id} className={`rv-timeline-cue-row rv-timeline-cue-row--${row.id}`} data-cue-row={row.id}>
-                          {timelineCueItems.filter(cue => row.kinds.includes(cue.kind)).map(cue => {
-                              const layout = computeTimelineCueLayout(cue.timeSec, viewportRef.current)
+                      {CUE_ROWS.map(row => {
+                        const rowCueItems = timelineCueItems
+                          .filter(cue => row.kinds.includes(cue.kind))
+                          .slice()
+                          .sort((a, b) => a.timeSec - b.timeSec)
+
+                        return (
+                          <div key={row.id} className={`rv-timeline-cue-row rv-timeline-cue-row--${row.id}`} data-cue-row={row.id}>
+                            {rowCueItems.map((cue, index) => {
+                              const nextSameLevelCue = rowCueItems[index + 2] ?? null
+                              const layout = computeStaggeredTimelineCueLayout(
+                                cue.timeSec,
+                                nextSameLevelCue?.timeSec ?? null,
+                                viewportRef.current,
+                              )
                               return (
                                 <button
                                   key={cue.id}
                                   type="button"
                                   data-timeline-cue
                                   data-cue-time={cue.timeSec}
-                                  className={`rv-timeline-cue rv-timeline-cue--${cue.kind}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
+                                  data-cue-next-time={nextSameLevelCue?.timeSec}
+                                  className={`rv-timeline-cue rv-timeline-cue--${cue.kind} ${index % 2 ? 'is-low' : 'is-high'}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
                                   style={{
                                     display: layout.visible ? undefined : 'none',
                                     left: `${layout.leftPct}%`,
+                                    width: `${layout.widthPct}%`,
                                     '--cue-color': cue.color,
                                   } as React.CSSProperties}
                                   onPointerDown={cue.pixGridCue ? event => handlePixGridCuePointerDown(event, cue.pixGridCue!) : undefined}
@@ -2602,9 +2641,10 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                                 </button>
                               )
                       
-                          })}
-                        </div>
-                      ))}
+                            })}
+                          </div>
+                        )
+                      })}
                       {timelineCueItems.length === 0 && (
                         <span className="rv-timeline-lane-empty">No cue or preset markers</span>
                       )}
