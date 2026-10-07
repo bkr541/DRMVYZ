@@ -22644,3 +22644,265 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .llwf-c5-bars { position: absolute; left: 8px; right: 8px; bottom: 0; height: 18px; pointer-events: none; }
 .llwf-c5-bars span { position: absolute; bottom: 0; width: 1px; height: 8px; background: rgba(255, 255, 255, 0.35); }
 .llwf-c5-bars b { position: absolute; bottom: 8px; left: 3px; color: rgba(196, 207, 211, 0.7); font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
+
+/* ── Audio dock groups restyled from Layout Lab / Template concepts ─────────────────────────────────────────────────────────────
+   Expanded dock only; the collapsed deck keeps its single-row layout above.
+   Left card = "06 · Centered Strip": a centred title over one strip of load key | play | volume (the dB readout is dropped, as in
+   the concept). Right card = "01 · Key Matrix": BPM readout and scrub bar on the left spanning both rows, a column of two dashed
+   reserved slots, then the Tap / Cue and Sync / Source keys on a fixed 32px grid. Both mirror the .lldl-* / .lldr-* concept rules. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) {
+  --dock-cyan: #4ac7db;
+  --dock-cyan-bright: #67f7ff;
+  --dock-ink-dim: rgba(196, 207, 211, 0.58);
+  --dock-line: rgba(154, 178, 188, 0.18);
+  --dock-fill: rgba(255, 255, 255, 0.045);
+}
+
+/* Left card */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
+  grid-template-columns: 32px 36px minmax(0, 1fr);
+  grid-template-rows: auto 36px;
+  align-content: center;
+  column-gap: 12px;
+  row-gap: 12px;
+  padding-block: 12px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left-body {
+  display: contents;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-row {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  align-items: center;
+  padding-right: 0;
+  text-align: center;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-title,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-artist {
+  display: block;
+  text-align: center;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn {
+  position: static;
+  grid-column: 1;
+  grid-row: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  transform: none;
+  border: 1px solid var(--dock-line);
+  border-radius: 10px;
+  background: var(--dock-fill);
+  color: var(--dock-ink-dim);
+  box-shadow: none;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn:hover:not([aria-disabled='true']) {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: rgba(74, 199, 219, 0.1);
+  color: var(--dock-cyan-bright);
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot {
+  grid-column: 2;
+  grid-row: 2;
+  width: 36px;
+  height: 36px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
+  width: 36px;
+  height: 36px;
+  border: 0 !important;
+  background: linear-gradient(180deg, #67f7ff, #3aa9bd);
+  color: #04141a !important;
+  box-shadow: 0 4px 12px rgba(74, 199, 219, 0.3) !important;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #67f7ff, #3aa9bd);
+  box-shadow: 0 4px 18px rgba(103, 247, 255, 0.5) !important;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:disabled {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--dock-ink-dim) !important;
+  box-shadow: none !important;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row {
+  grid-column: 3;
+  grid-row: 2;
+  gap: 8px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row .vz-dock-vol-db {
+  display: none;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row .az-dock-vol-slider {
+  height: 4px;
+  border-radius: 2px;
+}
+
+/* The concept's handle is always visible, not only on hover. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row .az-dock-vol-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  background: #eaf9fc;
+  box-shadow: 0 0 0 3px rgba(74, 199, 219, 0.28);
+}
+
+/* Right card */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-right {
+  grid-template-columns: minmax(0, 1fr) repeat(3, 32px);
+  grid-template-rows: repeat(2, 32px);
+  align-content: center;
+  align-items: stretch;
+  column-gap: 8px;
+  row-gap: 6px;
+  padding-block: 12px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-wrap {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  justify-content: center;
+  padding-right: 4px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block {
+  gap: 10px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-top {
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-label {
+  color: var(--dock-ink-dim);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-val:not(.vz-dock-bpm-analyzing):not(.vz-dock-bpm-failed):not(.vz-dock-bpm-none[title]) {
+  color: var(--dock-cyan-bright);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-reset-btn {
+  align-self: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--dock-line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dock-ink-dim);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-reset-btn:hover {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: transparent;
+  color: var(--dock-cyan-bright);
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-bar {
+  height: 5px;
+  margin-top: 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-fill {
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.5), var(--dock-cyan));
+}
+
+/* Keys: Tap / Cue in column 3, Sync / Source in column 4, all one slate treatment. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--dock-line);
+  border-radius: 9px;
+  background: var(--dock-fill);
+  color: var(--dock-ink-dim);
+  box-shadow: none;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn {
+  grid-row: auto;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn { grid-row: 1; }
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn { grid-row: 2; }
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn { grid-row: 1; }
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-tap-btn:hover:not(:disabled),
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn:hover:not(:disabled),
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn:hover:not(:disabled),
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger:hover {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: rgba(74, 199, 219, 0.1);
+  color: var(--dock-cyan-bright);
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn--on,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger[aria-expanded='true'] {
+  border-color: rgba(74, 199, 219, 0.55);
+  background: rgba(74, 199, 219, 0.14);
+  color: var(--dock-cyan-bright);
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dock-cyan-bright);
+  box-shadow: 0 0 6px rgba(103, 247, 255, 0.8);
+}
+
+/* Reserved slots: a dashed outline, two rows on the same 32px / 6px grid as the keys. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group {
+  grid-template-rows: repeat(2, 32px);
+  row-gap: 6px;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-btn {
+  border: 1px dashed rgba(154, 178, 188, 0.22);
+  border-radius: 9px;
+  background: transparent;
+}

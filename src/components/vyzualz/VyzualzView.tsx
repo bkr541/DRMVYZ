@@ -6,6 +6,7 @@ import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/Unsa
 import { UnsavedMediaChangesDialog } from './media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { VyzualzSidebar } from './VyzualzSidebar'
+import { WorkspaceLoader } from './shared/WorkspaceLoader'
 import {
   DEFAULT_PERFORMANCE_VIEW,
   isPerformanceAppView,
@@ -27,14 +28,6 @@ const MediaManagerView = lazy(() =>
 const LyricManagerView = lazy(() =>
   import('../../features/lyrics/LyricManagerView').then(module => ({ default: module.LyricManagerView })),
 )
-
-function WorkspaceLoading({ label }: { label: string }) {
-  return (
-    <div className="rv-lazy-fallback" role="status" aria-live="polite">
-      Loading {label}…
-    </div>
-  )
-}
 
 function ManagedWorkspaceShell({
   appView,
@@ -110,7 +103,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <Suspense fallback={<WorkspaceLoading label="React View" />}>
+            <Suspense fallback={<WorkspaceLoader label="React View" />}>
               <NotificationPageProvider value="react">
                 <ReactView
                   onOpenMediaManager={() => requestAppViewChange('media')}
@@ -130,7 +123,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <Suspense fallback={<WorkspaceLoading label="Show Manager" />}>
+            <Suspense fallback={<WorkspaceLoader label="Show Manager" />}>
               <NotificationPageProvider value="show-manager">
                 <ShowManagerView />
               </NotificationPageProvider>
@@ -145,7 +138,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     return (
       <>
         <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-          <Suspense fallback={<WorkspaceLoading label="Media Manager" />}>
+          <Suspense fallback={<WorkspaceLoader label="Media Manager" />}>
             <NotificationPageProvider value="media-manager">
               <MediaManagerView
                 onOpenLyricManager={openLyricManager}
@@ -165,7 +158,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   return (
     <>
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
-        <Suspense fallback={<WorkspaceLoading label="Lyric Manager" />}>
+        <Suspense fallback={<WorkspaceLoader label="Lyric Manager" />}>
           <NotificationPageProvider value="lyric-manager">
             <LyricManagerView
               returnView={originatingPerformanceView}
