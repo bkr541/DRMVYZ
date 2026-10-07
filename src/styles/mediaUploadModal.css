@@ -38,7 +38,7 @@
 /* ── Header ───────────────────────────────────────────────────────────── */
 .mum-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   padding: 20px 24px 14px;
   border-bottom: 1px solid rgba(103, 247, 255, 0.16);
@@ -62,12 +62,6 @@
   flex-shrink: 0;
   color: #19bff2;
   overflow: visible;
-}
-.mum-subtitle {
-  font-size: 11px;
-  color: rgba(196, 212, 220, 0.66);
-  font-family: var(--az-font);
-  margin-top: 3px;
 }
 .mum-close {
   background: none;

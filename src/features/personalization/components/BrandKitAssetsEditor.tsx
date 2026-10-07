@@ -10,6 +10,7 @@ import { BRAND_ASSET_BLEND_MODES, BRAND_ASSET_GLOW_MODES, BRAND_ASSET_PLACEMENTS
 import { DEFAULT_BRAND_ASSET_PRESENTATION } from '../brandKitNormalization'
 import { useBrandKitStore } from '../brandKitStore'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { DialogTitleIcon } from '../../../components/shared/DialogTitleIcon'
 
 const ROLE_LABELS: Record<BrandAssetRole, string> = {
   primaryLogo: 'Primary logo',
@@ -116,8 +117,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
       <div className="bk-picker" role="dialog" aria-modal="true" aria-labelledby="bk-picker-title" onMouseDown={event => event.stopPropagation()}>
         <div className="bk-picker-header">
           <div>
-            <h3 id="bk-picker-title">Choose {ROLE_LABELS[role]}</h3>
-            <p>Generic SVG media can be used as a logo, wordmark, or other brand role.</p>
+            <h3 id="bk-picker-title"><DialogTitleIcon name="image" />Choose {ROLE_LABELS[role]}</h3>
           </div>
           <button type="button" className="bk-icon-button" onClick={onClose} aria-label="Close asset picker">×</button>
         </div>

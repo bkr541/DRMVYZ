@@ -3,6 +3,7 @@ import { IconChipButton } from '../react/controls/IconChipButton'
 import { useEffect, useState } from 'react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaCollection } from '../../../stores/mediaStore'
+import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
 
 export function CollectionEditorModal({ collection, onClose }: { collection?: MediaCollection; onClose: () => void }) {
   const createCollection = useMediaStore(state => state.createCollection)
@@ -46,8 +47,7 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
       <div className="mmv-editor-modal" role="dialog" aria-modal="true" aria-labelledby="collection-editor-title">
         <div className="mmv-editor-header">
           <div>
-            <h2 id="collection-editor-title">{collection ? 'Edit Collection' : 'New Collection'}</h2>
-            <p>Organize visual assets without moving or duplicating files.</p>
+            <h2 id="collection-editor-title"><DialogTitleIcon name="folder" />{collection ? 'Edit Collection' : 'New Collection'}</h2>
           </div>
           <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close collection editor">×</button>
         </div>

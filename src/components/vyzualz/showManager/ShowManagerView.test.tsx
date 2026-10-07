@@ -793,7 +793,8 @@ describe('ShowManagerView production shell', () => {
       fileActions?.querySelector<HTMLButtonElement>('button[aria-label="New Show"]')?.click()
       await Promise.resolve()
     })
-    expect(container.querySelector('[role="dialog"]')?.textContent).toContain('Every Show requires a unique name and a linked Audio Library track.')
+    expect(container.querySelector('[role="dialog"] h2')?.textContent).toBe('New Show')
+    expect(container.querySelector('[role="dialog"]')?.textContent).not.toContain('Every Show requires a unique name')
   })
 
   it('uses one audio-bound New Show dialog for Canvas with required audio and optional metadata', async () => {

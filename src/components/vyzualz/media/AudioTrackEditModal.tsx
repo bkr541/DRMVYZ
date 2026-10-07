@@ -5,6 +5,7 @@ import { MUSICAL_KEYS } from '../../../lib/mediaRoles'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
 
 export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack; onClose: () => void }) {
   const updateSavedTrackMetadata = useAudioStore(state => state.updateSavedTrackMetadata)
@@ -62,8 +63,7 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
       <div className="mmv-editor-modal" role="dialog" aria-modal="true" aria-labelledby="audio-editor-title">
         <div className="mmv-editor-header">
           <div>
-            <h2 id="audio-editor-title">Edit Audio Metadata</h2>
-            <p>{track.fileName}</p>
+            <h2 id="audio-editor-title"><DialogTitleIcon name="edit" />Edit Audio Metadata</h2>
           </div>
           <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close audio editor">×</button>
         </div>

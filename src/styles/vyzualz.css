@@ -6317,7 +6317,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .bk-palette-editor--compact .bk-palette-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bk-picker-backdrop { position: fixed; inset: 0; z-index: 1040; display: grid; place-items: center; padding: 20px; background: rgba(0,0,0,.78); backdrop-filter: blur(5px); }
 .bk-picker { width: min(860px, 100%); max-height: min(720px, 90vh); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(74,199,219,.2); border-radius: 10px; background: #09111d; color: rgba(245,248,250,.82); box-shadow: 0 28px 90px rgba(0,0,0,.75); font-family: var(--az-font-data); }
-.bk-picker-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
+.bk-picker-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .bk-picker-header h3 { font-size: 14px; }
 .bk-picker-header p { margin-top: 3px; color: rgba(245,248,250,.4); font-size: 10px; }
 .bk-picker-toolbar { display: flex; gap: 8px; padding: 11px 14px 7px; }
@@ -6753,3 +6753,18 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   text-overflow: ellipsis;
 }
 .vz-pool-text__edit { flex: 1; min-width: 0; }
+
+/* Dialog heading icon (DialogTitleIcon): the Media Upload header's icon — 20px, brand cyan — beside the heading text. */
+.dlg-title-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: #19bff2;
+}
+.mmv-editor-header h2,
+.bk-picker-header h3,
+.sm-canvas-dialog h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

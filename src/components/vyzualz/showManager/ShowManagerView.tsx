@@ -128,6 +128,7 @@ import {
   type ShowManagerShowRecord,
 } from './ShowManagerDomain'
 import '../../../styles/showManager.css'
+import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
 
 const COMPONENTS = [
   ['▦', 'Pixel Grid', '12'],
@@ -677,10 +678,7 @@ function NewShowDialog({ copySource = null, onClose }: NewShowDialogProps) {
             void commit()
           }}
         >
-          <h2 id={headingId}>{copyMode ? 'Copy Show' : 'New Show'}</h2>
-          <p>{copyMode
-            ? 'The complete authored Show will be duplicated. Only Show Name, Tags, and Group can be changed.'
-            : 'Every Show requires a unique name and a linked Audio Library track.'}</p>
+          <h2 id={headingId}><DialogTitleIcon name={copyMode ? 'copy' : 'plus'} />{copyMode ? 'Copy Show' : 'New Show'}</h2>
 
           <TextInputRow
             id="show-manager-new-show-name"

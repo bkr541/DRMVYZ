@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
 
 export function AudioTrackPreviewModal({ track, onClose }: { track: SavedAudioTrack; onClose: () => void }) {
   const getSignedUrl = useAudioStore(state => state.getSignedUrl)
@@ -31,8 +32,7 @@ export function AudioTrackPreviewModal({ track, onClose }: { track: SavedAudioTr
       <div className="mmv-editor-modal mmv-audio-preview" role="dialog" aria-modal="true" aria-labelledby="audio-preview-title">
         <div className="mmv-editor-header">
           <div>
-            <h2 id="audio-preview-title">{track.title}</h2>
-            <p>{[track.artist, track.genre].filter(Boolean).join(' · ') || track.fileName}</p>
+            <h2 id="audio-preview-title"><DialogTitleIcon name="play" />{track.title}</h2>
           </div>
           <button type="button" className="mpm-close" onClick={onClose} aria-label="Close audio preview">×</button>
         </div>

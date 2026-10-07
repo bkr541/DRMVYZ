@@ -790,13 +790,6 @@ export function MediaUploadModal({
               </svg>
               {isEdit ? 'EDIT MEDIA' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
-            <div className="mum-subtitle">
-              {isEdit
-                ? 'Update metadata for this media item.'
-                : isAudioQueue
-                  ? 'Upload audio tracks to your library.'
-                  : 'Upload media and organize with roles, tags, and collections.'}
-            </div>
           </div>
           <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close">×</button>
         </div>

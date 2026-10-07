@@ -974,7 +974,6 @@ export function VyzualzAudioDock({
                   <circle cx="12" cy="17" r="2" />
                 </svg>
               )}
-              description="Select the input and Rekordbox tools."
               className="vz-dock-source-popover"
               placement="above"
               align="start"
