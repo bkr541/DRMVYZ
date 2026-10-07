@@ -21810,6 +21810,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: none;
 }
 
+/* The left navigation bar shares the dock's surface (#1c2026) so the two read as one frame around the workspace. */
+[data-theme] .az-root .az-sidebar {
+  background: #1c2026;
+}
+
 .rv-shell > .vz-transport-dock .vz-dock-card {
   background: none;
   box-shadow: none;
