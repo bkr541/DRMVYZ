@@ -133,10 +133,17 @@
   justify-content: flex-start;
 }
 
-.mms-stage .mms-media-area { flex: 3 1 0; }
+.mms-stage .mms-media-area { flex: 0 1 auto; min-height: 30cqh; }
+
+/* The visualizer is only as tall as the picture it holds (capped at 60% of the stage, so the group always keeps at least the
+   rest); the group below takes everything that is left, so it rises up to meet the picture instead of leaving empty stage
+   between them. */
+.mms-stage { container-type: size; }
+.mms-stage .mms-video,
+.mms-stage .mms-image { max-height: calc(60cqh - 48px); }
 
 .mms-group {
-  flex: 2 1 0;
+  flex: 1 1 0;
   min-height: 180px;
   margin: 0 16px 16px;
   box-sizing: border-box;
@@ -150,7 +157,10 @@
 }
 
 /* The group already has its own frame and padding. */
-.mms-group .mmt-timeline { padding: 14px; }
+.mms-group .mmt-timeline { padding: 0; }
+
+/* A video's group holds the timeline and the Drop Point settings; when both are open and the window is short, the group scrolls (collapse the timeline to see the settings in full). */
+.mms-group { overflow-y: auto; }
 
 .mms-empty {
   flex: 1;
@@ -481,7 +491,17 @@
 }
 
 /* ── Audio track hero + waveform ─────────────────────────────────────────── */
-.mms-stage--audio { justify-content: center; gap: 18px; padding: 24px; }
+/* An audio track's stage: the track hero and player above, then the same group as a video's (timeline + settings). */
+.mms-stage--audio { justify-content: flex-start; }
+.mms-audio-top {
+  flex: 0 1 auto;
+  min-height: 30cqh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+}
 
 .mms-track-hero {
   display: flex;
@@ -965,3 +985,84 @@
   width: auto;
   flex: 1 1 0;
 }
+
+/* ── Drop Point preview (Media Manager video stage) ─────────────────────────────────────────────────────────────────────────── */
+
+/* Marker on the video timeline: a warm flag on the ruler and a line through the frames, distinct from the cyan playhead. */
+.mmt-dropmark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  --mmt-drop: #f2b84b;
+}
+.mmt-dropmark::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 2px;
+  background: var(--mmt-drop);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.mmt-dropmark.is-selected::after { opacity: 1; box-shadow: 0 0 6px rgba(242, 184, 75, 0.7); }
+.mmt-dropmark-flag {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: -6px;
+  width: 13px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: var(--mmt-drop);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 50% 100%, 0 62%);
+  cursor: pointer;
+}
+.mmt-dropmark-flag:focus-visible { outline: 1px solid #fff; }
+
+.mms-dp {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(154, 178, 188, 0.1);
+}
+.mms-dp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px 6px 0; flex-shrink: 0; }
+.mms-dp-tabs { padding: 0 14px; flex-shrink: 0; }
+.mms-dp-body {
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mms-dp-chips { display: flex; flex: 1 1 0; min-width: 0; gap: 6px; overflow-x: auto; padding: 2px 0; scrollbar-width: none; }
+.mms-dp-chip { flex: none; }
+.mms-dp-chip {
+  padding: 4px 9px;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(196, 207, 211, 0.7);
+  font: 600 10px/1 var(--az-font, Inter, system-ui, sans-serif);
+  cursor: pointer;
+}
+.mms-dp-chip span { margin-left: 4px; color: rgba(242, 184, 75, 0.9); font-variant-numeric: tabular-nums; }
+.mms-dp-chip.is-active { border-color: rgba(242, 184, 75, 0.6); background: rgba(242, 184, 75, 0.1); color: #f6f9fa; }
+.mms-dp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 16px; align-items: end; }
+.mms-dp-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+@media (max-width: 900px) { .mms-dp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.mms-dp-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.mms-dp-body:empty { display: none; }
+
+/* The Video Timeline group header sits in from the group's left and right edges, in line with the timeline below it. */
+.mms-group .drc-header.mms-vt-header { padding-left: 16px; padding-right: 16px; }
+
+/* Audio timeline: the waveform takes the filmstrip's place, and Trigger Drop Point markers use a different hue from video Drop Points. */
+.mmt-strip--wave { padding: 0; }
+.mmt-wave { display: block; width: 100%; height: 100%; }
+.mmt-dropmark--trigger { --mmt-drop: #c46bd8; }
+.mms-dp-chip--trigger span { color: rgba(196, 107, 216, 0.95); }
+.mms-dp-chip--trigger.is-active { border-color: rgba(196, 107, 216, 0.6); background: rgba(196, 107, 216, 0.1); }
+.mms-dp-actions--row { grid-column: -2 / -1; }

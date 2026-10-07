@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent } from 'react'
 import { generateVideoFilmstrip, MAX_FILMSTRIP_FRAMES } from './generateThumbnail'
 import {
   TRACK_MAP_BEAT_COLOR,
@@ -9,6 +9,7 @@ import {
   TRACK_MAP_DOWNBEAT_TICK_HEIGHT,
 } from '../react/ReactTrackMapStrip'
 import { clampSec, fmtTimelineLabel, rulerTickInterval } from '../timeline/tlHelpers'
+import type { DropPoint } from '../../../stores/dropPointPreviewStore'
 
 // A full-length timeline for one video in Media Manager: a Track Map-style
 // ruler (0:00 → duration; its ticks and numbers are the Track Map's beat-marker and ruler styling, read from the
@@ -23,11 +24,17 @@ interface MediaVideoTimelineProps {
   duration: number
   currentTime: number
   onSeek: (timeSec: number) => void
+  /** Drop Points to mark on the timeline (preview only). */
+  dropPoints?: readonly DropPoint[]
+  selectedDropPointId?: string | null
+  onSelectDropPoint?: (id: string) => void
+  /** Right-click: the time under the pointer, and the Drop Point it landed on (if any). */
+  onRequestMenu?: (request: { x: number; y: number; timeSec: number; dropPointId: string | null }) => void
 }
 
 const SEEK_STEP_SEC = 1
 
-export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek }: MediaVideoTimelineProps) {
+export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek, dropPoints = [], selectedDropPointId = null, onSelectDropPoint, onRequestMenu }: MediaVideoTimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const laneRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
@@ -57,20 +64,7 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
   }, [mediaId, src, total])
 
   const pxPerSec = total > 0 && width > 0 ? width / total : 0
-  const interval = pxPerSec > 0 ? rulerTickInterval(total, pxPerSec) : 0
-  const ticks: number[] = []
-  if (interval > 0) {
-    for (let t = 0; t <= total + 1e-6; t += interval) ticks.push(t)
-    // The last labelled tick sits on the very end of the video (the right edge of the timeline) instead of a
-    // rounded second short of it, so the strip never appears to run on past the final tick.
-    while (ticks.length > 1 && (total - ticks[ticks.length - 1]!) * pxPerSec < 48) ticks.pop()
-    ticks.push(total)
-  }
-  const minorInterval = interval / 4
-  const minorTicks: number[] = []
-  if (interval > 0 && minorInterval * pxPerSec >= 6) {
-    for (let t = 0; t <= total + 1e-6; t += minorInterval) if (Math.abs(t / interval - Math.round(t / interval)) > 1e-6) minorTicks.push(t)
-  }
+  const { ticks, minorTicks } = buildRulerTicks(total, pxPerSec)
 
   const percent = (t: number) => (total > 0 ? `${(clampSec(t, 0, total) / total) * 100}%` : '0%')
 
@@ -78,6 +72,17 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
     const rect = laneRef.current?.getBoundingClientRect()
     if (!rect || rect.width <= 0 || total <= 0) return
     onSeek(clampSec(((event.clientX - rect.left) / rect.width) * total, 0, total))
+  }
+
+  const openMenu = (event: ReactMouseEvent<HTMLElement>, dropPointId: string | null) => {
+    if (!onRequestMenu) return
+    event.preventDefault()
+    event.stopPropagation()
+    const rect = laneRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0 || total <= 0) return
+    const point = dropPointId ? dropPoints.find(candidate => candidate.id === dropPointId) : null
+    const timeSec = point ? point.timeSec : clampSec(((event.clientX - rect.left) / rect.width) * total, 0, total)
+    onRequestMenu({ x: event.clientX, y: event.clientY, timeSec, dropPointId })
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -104,6 +109,7 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
         aria-valuenow={Math.round(clampSec(currentTime, 0, total || currentTime) * 100) / 100}
         aria-valuetext={`${fmtTimelineLabel(currentTime)} of ${fmtTimelineLabel(total)}`}
         onKeyDown={handleKeyDown}
+        onContextMenu={event => openMenu(event, null)}
         onPointerDown={event => {
           if (event.button !== 0) return
           draggingRef.current = true
@@ -142,6 +148,23 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
             ))}
             {ticks.map(t => <span key={`g${t}`} className="mmt-gridline" style={{ left: percent(t) }} />)}
           </div>
+          {dropPoints.map(point => (
+            <span
+              key={point.id}
+              className={`mmt-dropmark${point.id === selectedDropPointId ? ' is-selected' : ''}`}
+              style={{ left: percent(point.timeSec) }}
+            >
+              <button
+                type="button"
+                className="mmt-dropmark-flag"
+                aria-label={`${point.name} at ${fmtTimelineLabel(point.timeSec)}`}
+                title={point.name}
+                onPointerDown={event => event.stopPropagation()}
+                onClick={event => { event.stopPropagation(); onSelectDropPoint?.(point.id); onSeek(point.timeSec) }}
+                onContextMenu={event => openMenu(event, point.id)}
+              />
+            </span>
+          ))}
           <span className="mmt-playhead" style={{ left: percent(currentTime) }} aria-hidden="true" />
         </div>
       </div>
@@ -149,15 +172,34 @@ export function MediaVideoTimeline({ mediaId, src, duration, currentTime, onSeek
   )
 }
 
+/** Whole-number ruler ticks (labelled) and the quarter divisions between them, for a timeline `total` seconds long drawn at `pxPerSec`. */
+export function buildRulerTicks(total: number, pxPerSec: number): { ticks: number[]; minorTicks: number[] } {
+  const interval = pxPerSec > 0 ? rulerTickInterval(total, pxPerSec) : 0
+  const ticks: number[] = []
+  if (interval > 0) {
+    for (let t = 0; t <= total + 1e-6; t += interval) ticks.push(t)
+    // The last labelled tick sits on the very end of the media (the right edge of the timeline) instead of a
+    // rounded second short of it, so the strip never appears to run on past the final tick.
+    while (ticks.length > 1 && (total - ticks[ticks.length - 1]!) * pxPerSec < 48) ticks.pop()
+    ticks.push(total)
+  }
+  const minorInterval = interval / 4
+  const minorTicks: number[] = []
+  if (interval > 0 && minorInterval * pxPerSec >= 6) {
+    for (let t = 0; t <= total + 1e-6; t += minorInterval) if (Math.abs(t / interval - Math.round(t / interval)) > 1e-6) minorTicks.push(t)
+  }
+  return { ticks, minorTicks }
+}
+
 /** 0:00 style ruler labels (the shared helper switches to "5s" below a minute, which reads oddly next to 0:00). */
-function formatRulerLabel(sec: number): string {
+export function formatRulerLabel(sec: number): string {
   const m = Math.floor(sec / 60)
   const s = Math.floor(sec % 60)
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
 /** The end of the video is rarely a whole second, so its label carries a tenth (0:05.9) rather than repeating the last whole-second tick. */
-function formatEndLabel(sec: number): string {
+export function formatEndLabel(sec: number): string {
   const tenths = Math.round(sec * 10) / 10
   return Number.isInteger(tenths) ? formatRulerLabel(tenths) : `${formatRulerLabel(Math.floor(tenths))}.${Math.round((tenths % 1) * 10)}`
 }

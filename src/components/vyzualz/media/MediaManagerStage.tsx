@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { MusicNote01Icon, PauseIcon, PlayIcon } from 'hugeicons-react'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { VzMiniWaveform } from '../transport/VzMiniWaveform'
 import { MediaVideoTimeline } from './MediaVideoTimeline'
+import { Collapsible } from '../react/ReactControlRows'
+import { DropPointPanel, formatDropTime } from './DropPointPanel'
+import { MediaAudioTimeline } from './MediaAudioTimeline'
+import { TriggerDropPointPanel } from './TriggerDropPointPanel'
+import { useTriggerDropPointPreviewStore, type TriggerDropPoint } from '../../../stores/triggerDropPointPreviewStore'
+import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
+import { useDropPointPreviewStore, type DropPoint } from '../../../stores/dropPointPreviewStore'
 import { useWaveformPeaks } from '../hooks/useWaveformPeaks'
 import { MediaEditPreview } from './MediaEditPreview'
 import { MediaEditCropOverlay } from './MediaEditCropOverlay'
@@ -72,6 +79,9 @@ function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTog
   )
 }
 
+const NO_DROP_POINTS: readonly DropPoint[] = []
+const NO_TRIGGERS: readonly TriggerDropPoint[] = []
+
 function VisualMediaStage({ media }: { media: UploadedMedia }) {
   const retryMediaAsset = useMediaStore(state => state.retryMediaAsset)
   const markMediaAssetLoaded = useMediaStore(state => state.markMediaAssetLoaded)
@@ -84,6 +94,11 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const imageRef = useRef<HTMLImageElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Drop Points: a session-only preview of the workflow (not saved, linked or played).
+  const dropPoints = useDropPointPreviewStore(state => state.byMedia[media.id]) ?? NO_DROP_POINTS
+  const selectedDropPointId = useDropPointPreviewStore(state => state.selectedId)
+  const [dropMenu, setDropMenu] = useState<{ x: number; y: number; timeSec: number; dropPointId: string | null } | null>(null)
 
   // The edit session is the single source of truth; the stage only reads it.
   const sessionMediaId = useMediaEditStore(state => state.mediaId)
@@ -146,6 +161,21 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
     const video = videoRef.current
     if (video && isFinite(video.duration)) video.currentTime = timeSec
   }
+
+  const dropMenuItems = useMemo<ContextActionMenuItem[]>(() => {
+    if (!dropMenu) return []
+    const store = useDropPointPreviewStore.getState()
+    if (dropMenu.dropPointId) {
+      const id = dropMenu.dropPointId
+      return [
+        { id: 'select', label: 'Edit Drop Point', onSelect: () => store.select(id) },
+        { id: 'move', label: 'Move to Playhead', onSelect: () => store.update(media.id, id, { timeSec: currentTime }) },
+        { id: 'delete', label: 'Delete Drop Point', danger: true, dividerBefore: true, onSelect: () => store.remove(media.id, id) },
+      ]
+    }
+    const timeSec = dropMenu.timeSec
+    return [{ id: 'set', label: `Set Drop Point Here (${formatDropTime(timeSec)})`, onSelect: () => { store.add(media.id, timeSec) } }]
+  }, [dropMenu, media.id, currentTime])
 
   return (
     <div className={`mms-stage${isVideo && src && !videoError ? ' mms-stage--video' : ''}${src && (isVideo ? !videoError : !imageError) ? ' mms-stage--top' : ''}`}>
@@ -237,7 +267,31 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
           timeline lives inside it. */}
       <section className="mms-group" aria-label="Media group">
         {isVideo && src && !videoError && (
-          <MediaVideoTimeline mediaId={media.id} src={src} duration={duration} currentTime={currentTime} onSeek={seekTo} />
+          <Collapsible label="Video Timeline" defaultOpen headerClassName="mms-vt-header">
+            <MediaVideoTimeline
+              mediaId={media.id}
+              src={src}
+              duration={duration}
+              currentTime={currentTime}
+              onSeek={seekTo}
+              dropPoints={dropPoints}
+              selectedDropPointId={selectedDropPointId}
+              onSelectDropPoint={id => useDropPointPreviewStore.getState().select(id)}
+              onRequestMenu={setDropMenu}
+            />
+          </Collapsible>
+        )}
+        {isVideo && src && !videoError && (
+          <DropPointPanel mediaId={media.id} duration={duration} currentTime={currentTime} dropPoints={dropPoints} onSeek={seekTo} />
+        )}
+        {dropMenu && (
+          <ContextActionMenu
+            x={dropMenu.x}
+            y={dropMenu.y}
+            ariaLabel="Drop Point actions"
+            onClose={() => setDropMenu(null)}
+            items={dropMenuItems}
+          />
         )}
       </section>
     </div>
@@ -267,6 +321,26 @@ function AudioTrackStage({ track }: { track: SavedAudioTrack }) {
 
   const { peaks } = useWaveformPeaks(track.id, null, signedUrl)
 
+  // Trigger Drop Points: a session-only preview of the workflow (not saved, linked or played).
+  const triggers = useTriggerDropPointPreviewStore(state => state.byTrack[track.id]) ?? NO_TRIGGERS
+  const selectedTriggerId = useTriggerDropPointPreviewStore(state => state.selectedId)
+  const [triggerMenu, setTriggerMenu] = useState<{ x: number; y: number; timeSec: number; triggerId: string | null } | null>(null)
+  const triggerMenuItems = useMemo<ContextActionMenuItem[]>(() => {
+    if (!triggerMenu) return []
+    const store = useTriggerDropPointPreviewStore.getState()
+    if (triggerMenu.triggerId) {
+      const id = triggerMenu.triggerId
+      return [
+        { id: 'select', label: 'Edit Trigger Drop Point', onSelect: () => store.select(id) },
+        { id: 'move', label: 'Move to Playhead', onSelect: () => store.update(track.id, id, { timeSec: currentTime }) },
+        { id: 'delete', label: 'Delete Trigger Drop Point', danger: true, dividerBefore: true, onSelect: () => store.remove(track.id, id) },
+      ]
+    }
+    const timeSec = triggerMenu.timeSec
+    return [{ id: 'set', label: `Set Trigger Drop Point Here (${formatDropTime(timeSec)})`, onSelect: () => { store.add(track.id, timeSec) } }]
+  }, [triggerMenu, track.id, currentTime])
+  const seekAudio = (time: number) => { const audio = audioRef.current; if (audio) audio.currentTime = time }
+
   const togglePlay = () => {
     const audio = audioRef.current
     if (!audio) return
@@ -276,34 +350,61 @@ function AudioTrackStage({ track }: { track: SavedAudioTrack }) {
 
   return (
     <div className="mms-stage mms-stage--audio">
-      <div className="mms-track-hero">
-        <div className="mms-track-hero-art" aria-hidden="true">
-          <MusicNote01Icon size={28} color="currentColor" />
-        </div>
-        <div className="mms-track-hero-info">
-          <div className="mms-track-hero-title">{track.title}</div>
-          <div className="mms-track-hero-artist">{track.artist || 'Unknown artist'}</div>
-          <div className="mms-track-hero-meta">
-            {track.musicalKey && <span>{track.musicalKey}</span>}
-            {track.bpm && <span>{track.bpm} BPM</span>}
+      <div className="mms-audio-top">
+        <div className="mms-track-hero">
+          <div className="mms-track-hero-art" aria-hidden="true">
+            <MusicNote01Icon size={28} color="currentColor" />
           </div>
+          <div className="mms-track-hero-info">
+            <div className="mms-track-hero-title">{track.title}</div>
+            <div className="mms-track-hero-artist">{track.artist || 'Unknown artist'}</div>
+            <div className="mms-track-hero-meta">
+              {track.musicalKey && <span>{track.musicalKey}</span>}
+              {track.bpm && <span>{track.bpm} BPM</span>}
+            </div>
+          </div>
+        </div>
+
+        <div className="mms-controls">
+          <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} disabled={!signedUrl}>
+            {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+          </button>
+          <div className="mms-waveform-wrap">
+            <VzMiniWaveform
+              duration={duration}
+              currentTime={currentTime}
+              peaks={peaks}
+              onSeek={time => { const audio = audioRef.current; if (audio) audio.currentTime = time }}
+            />
+          </div>
+          <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
         </div>
       </div>
 
-      <div className="mms-controls">
-        <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} disabled={!signedUrl}>
-          {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
-        </button>
-        <div className="mms-waveform-wrap">
-          <VzMiniWaveform
+      <section className="mms-group" aria-label="Audio track group">
+        <Collapsible label="Audio Timeline" defaultOpen headerClassName="mms-vt-header">
+          <MediaAudioTimeline
             duration={duration}
             currentTime={currentTime}
             peaks={peaks}
-            onSeek={time => { const audio = audioRef.current; if (audio) audio.currentTime = time }}
+            onSeek={seekAudio}
+            triggers={triggers}
+            selectedTriggerId={selectedTriggerId}
+            onSelectTrigger={id => useTriggerDropPointPreviewStore.getState().select(id)}
+            onRequestMenu={setTriggerMenu}
           />
-        </div>
-        <span className="mms-time">{formatTime(currentTime)} / {formatTime(duration)}</span>
-      </div>
+        </Collapsible>
+        <TriggerDropPointPanel trackId={track.id} duration={duration} currentTime={currentTime} triggers={triggers} onSeek={seekAudio} />
+        {triggerMenu && (
+          <ContextActionMenu
+            x={triggerMenu.x}
+            y={triggerMenu.y}
+            ariaLabel="Trigger Drop Point actions"
+            onClose={() => setTriggerMenu(null)}
+            items={triggerMenuItems}
+          />
+        )}
+      </section>
 
       {signedUrl && (
         <audio
