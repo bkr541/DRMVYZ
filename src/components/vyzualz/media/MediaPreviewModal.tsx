@@ -2,6 +2,7 @@ import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { PlayIcon, PauseIcon } from 'hugeicons-react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
@@ -103,7 +104,10 @@ export function MediaPreviewModal({
     video.currentTime = parseFloat(event.target.value)
   }, [])
 
-  return (
+  // Rendered on document.body, not where the card lives: the Canvas Media Library sits inside the clipped left rail, and a
+  // fixed-position backdrop there is cropped to the rail. On the body it overlays the whole window, above the visualizer, and
+  // as DOM it is never part of the canvas that cast and recording capture.
+  return createPortal(
     <div className="mum-backdrop" role="presentation">
       <div
         className="mpm-modal"
@@ -185,6 +189,7 @@ export function MediaPreviewModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
