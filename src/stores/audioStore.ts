@@ -38,6 +38,7 @@ export interface SavedAudioTrack {
   bpm: number | null
   musicalKey: string | null
   createdAt: string
+  isRekordbox?: boolean
 }
 
 export interface SavedAudioMetadataPatch {
@@ -79,6 +80,7 @@ function rowToSaved(row: AudioTrack): SavedAudioTrack {
     bpm:          row.bpm ?? null,
     musicalKey:   row.musical_key ?? null,
     createdAt:    row.created_at,
+    isRekordbox:  row.is_rekordbox,
   }
 }
 
@@ -193,7 +195,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         source_type:  'file',
         is_rekordbox: isRekordbox,
         transcription_assets: null,
-        artist:       artist.trim()   || null,
+        artist:       artist.trim()   || analysis?.artist || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
         musical_key:  musicalKeyValue,
@@ -250,7 +252,7 @@ export const useAudioStore = create<AudioStoreState>((set, get) => ({
         fileSizeByte: file.size,
         mimeType:     file.type || null,
         transcriptionAssets: null,
-        artist:       artist.trim()   || null,
+        artist:       artist.trim()   || analysis?.artist || null,
         genre:        genre.trim()    || null,
         bpm:          bpmValue,
         musicalKey:   musicalKeyValue,

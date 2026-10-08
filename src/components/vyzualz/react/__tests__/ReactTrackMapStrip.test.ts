@@ -227,6 +227,16 @@ describe('unified timeline helpers', () => {
     expect(layout.visible).toBe(true)
     expect(layout.leftPct).toBeCloseTo(16.6667, 4)
     expect(layout.widthPct).toBeCloseTo(49.75, 4)
+    expect(layout.hoverReveal).toBe(false)
+  })
+
+  it('marks a viewport-end marker for hover reveal', () => {
+    expect(computeStaggeredTimelineCueLayout(90, null, { startSec: 30, endSec: 90 })).toEqual({
+      visible: true,
+      leftPct: 100,
+      widthPct: 0,
+      hoverReveal: true,
+    })
   })
 })
 

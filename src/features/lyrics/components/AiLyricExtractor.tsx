@@ -33,6 +33,7 @@ import {
 } from '../services/localAudioPreparation'
 import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
+import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 
 const CUE_STYLE_OPTIONS: Array<{ value: LyricCueStyle; description: string }> = [
   { value: 'hip-hop', description: 'Short rhythmic phrases' },
@@ -168,7 +169,6 @@ export function chooseRecoveredJob(jobs: LyricTranscriptionJob[]): LyricTranscri
 export function AiLyricExtractor({
   selectedTrack,
   existingDocumentCount,
-  activeVersionId,
   onCompletedDraftResolved,
   onOpenCompletedDraft,
   onActivateCompletedDraft,
@@ -819,12 +819,12 @@ export function AiLyricExtractor({
   const trackMapAvailable = Boolean(selectedTrack.analysisPayload)
 
   return (
-    <div className="lmv-workflow-content">
+    <div className="lmv-workflow-content lmv-ai-extract">
       <DrawerNotice className="lmv-ai-notice" tone="info" role="status" title="Private transcription processing">
         Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
       </DrawerNotice>
 
-      <div className="lmv-section-label">STORED TRACK</div>
+      <div className="lmv-section-label lmv-section-label--first">STORED TRACK</div>
       <div className="lmv-ai-track-card">
         <div>
           <strong>{selectedTrack.title}</strong>
@@ -836,16 +836,11 @@ export function AiLyricExtractor({
           <span>{existingDocumentCount} lyric version{existingDocumentCount === 1 ? '' : 's'}</span>
         </div>
       </div>
-      <div className="lmv-parse-next-hint">
-        {activeVersionId
-          ? 'Extraction creates a new inactive draft version. It will not overwrite or automatically replace the active lyrics.'
-          : 'The first successful extraction will become active automatically. Later extractions remain inactive drafts until you choose to activate them.'}
-      </div>
 
-      <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SOURCE</div>
-      <div className="lmv-grid2">
-        <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-source-mode">SOURCE MODE</label>
+      <Collapsible label="Extraction Source" defaultOpen bodyClassName="lmv-ai-group-body">
+        <div className="lmv-grid2 lmv-ai-source-grid">
+        <div className="lmv-field lmv-field--wide">
+          <label className="lmv-field-label" htmlFor="lyric-extraction-source-mode">Source Mode</label>
           <UnderlineDropdown
             triggerId="lyric-extraction-source-mode"
             value={extractionSourceMode}
@@ -875,7 +870,7 @@ export function AiLyricExtractor({
         </div>
         {extractionSourceMode === 'vocal_reference' && (
           <div className="lmv-field">
-            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-track">SAVED VOCAL TRACK</label>
+            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-track">Saved Vocal Track</label>
             <UnderlineDropdown
               triggerId="lyric-vocal-reference-track"
               value={vocalReferenceTrackId ?? ''}
@@ -898,7 +893,7 @@ export function AiLyricExtractor({
         )}
         {extractionSourceMode === 'vocal_reference' && (
           <div className="lmv-field">
-            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-offset">VOCAL REFERENCE OFFSET (SECONDS)</label>
+            <label className="lmv-field-label" htmlFor="lyric-vocal-reference-offset">Vocal Reference Offset (seconds)</label>
             <input
               id="lyric-vocal-reference-offset"
               className="lmv-num"
@@ -918,7 +913,7 @@ export function AiLyricExtractor({
         )}
         {extractionSourceMode === 'vocal_reference' && onRequestVocalReferenceUpload && (
           <div className="lmv-field">
-            <label className="lmv-field-label">ADD VOCAL TRACK</label>
+            <label className="lmv-field-label">Add Vocal Track</label>
             <IconChipButton disabled={active} onClick={onRequestVocalReferenceUpload}>
               Upload through User Media
             </IconChipButton>
@@ -971,11 +966,12 @@ export function AiLyricExtractor({
           <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available' : 'Not available'}</span></div>
         </div>
       )}
+      </Collapsible>
 
-      <div className="lmv-section-label" style={{ marginTop: 16 }}>EXTRACTION SETTINGS</div>
-      <div className="lmv-grid2">
+      <Collapsible label="Extraction Settings" defaultOpen bodyClassName="lmv-ai-group-body">
+        <div className="lmv-grid2 lmv-ai-settings-grid">
         <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-language">LANGUAGE</label>
+          <label className="lmv-field-label" htmlFor="lyric-extraction-language">Language</label>
           <UnderlineDropdown
             triggerId="lyric-extraction-language"
             value={options.language}
@@ -992,7 +988,7 @@ export function AiLyricExtractor({
           />
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-timing">TIMING DETAIL</label>
+          <label className="lmv-field-label" htmlFor="lyric-extraction-timing">Timing Detail</label>
           <UnderlineDropdown
             triggerId="lyric-extraction-timing"
             value={options.timingDetail}
@@ -1002,7 +998,7 @@ export function AiLyricExtractor({
           />
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-cue-style">CUE STYLE</label>
+          <label className="lmv-field-label" htmlFor="lyric-extraction-cue-style">Cue Style</label>
           <UnderlineDropdown
             triggerId="lyric-extraction-cue-style"
             value={options.cueStyle ?? 'balanced'}
@@ -1013,13 +1009,13 @@ export function AiLyricExtractor({
           />
         </div>
         <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-offset">GLOBAL OFFSET MS</label>
+          <label className="lmv-field-label" htmlFor="lyric-extraction-offset">Global Offset ms</label>
           <input id="lyric-extraction-offset" className="lmv-num" type="number" step={50} value={options.globalOffsetMs ?? 0}
             disabled={active}
             onChange={event => setOptions(current => ({ ...current, globalOffsetMs: Number.parseInt(event.target.value, 10) || 0 }))} />
         </div>
-        <div className="lmv-field">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-confidence">CONFIDENCE THRESHOLD</label>
+        <div className="lmv-field lmv-field--wide">
+          <label className="lmv-field-label" htmlFor="lyric-extraction-confidence">Confidence Threshold</label>
           <div className="lmv-slider-row">
             <BubbleRevealSlider id="lyric-extraction-confidence" type="range" className="lmv-slider" min={0} max={1} step={0.05}
               disabled={active}
@@ -1029,6 +1025,7 @@ export function AiLyricExtractor({
           </div>
         </div>
       </div>
+      </Collapsible>
 
       {!active && (!job || job.status === 'completed') && (
         <IconChipButton tone="primary" className="lmv-extract-btn" disabled={loading || actionBusy || !browserOnline || sourceSelectionInvalid} onClick={() => { void handleStart() }}>
@@ -1088,11 +1085,11 @@ export function AiLyricExtractor({
       )}
 
       {job && (
+        <Collapsible label="Extraction Progress" defaultOpen bodyClassName="lmv-ai-group-body lmv-ai-progress-group-body">
         <div className={`lmv-job-card lmv-job-card--${job.status}`}>
           <div className="lmv-job-header">
             <div>
               <span className="lmv-job-status">{jobStatusLabel(job)}</span>
-              <span className="lmv-job-provider">{lyricTranscriptionProviderLabel(job.provider)}</span>
               {stageLabel && <span className="lmv-job-stage">{stageLabel}</span>}
             </div>
             <span className="lmv-job-progress-label">{progressPercent}%</span>
@@ -1100,11 +1097,10 @@ export function AiLyricExtractor({
           <div className="lmv-job-progress" role="progressbar" aria-label="Transcription progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
             <div style={{ width: `${progressPercent}%` }} />
           </div>
-          {jobMetadataBadges.length > 0 && (
-            <div className="lmv-job-meta-strip">
-              {jobMetadataBadges.map(badge => <span key={badge}>{badge}</span>)}
-            </div>
-          )}
+          <div className="lmv-job-meta-strip">
+            <span>{lyricTranscriptionProviderLabel(job.provider)}</span>
+            {jobMetadataBadges.map(badge => <span key={badge}>{badge}</span>)}
+          </div>
           {showChunkProgress && (
             <div className="lmv-job-chunk-progress">
               Chunk {chunksCompleted} of {chunksTotal}
@@ -1146,6 +1142,7 @@ export function AiLyricExtractor({
             <div className="lmv-job-fn-version" aria-hidden="true">fn v{fnVersion}</div>
           )}
         </div>
+        </Collapsible>
       )}
 
       {notice && <DrawerNotice tone="warning" role="status" title="Extraction warning">{notice}</DrawerNotice>}

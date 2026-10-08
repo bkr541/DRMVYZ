@@ -29,6 +29,7 @@ import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { InfoPopover } from '../../shared/InfoPopover'
 import { DrawerNotice } from './DrawerNotice'
 import loadTrackIconUrl from '../../../assets/load_track.svg'
+import rekordboxLogoUrl from '../../../assets/rekordbox_logo.svg'
 import {
   getAudioSourcePolicySnapshot,
   getLastAudioSourcePolicyMessage,
@@ -256,6 +257,17 @@ export function VyzualzAudioDock({
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
+  const hasRekordboxData = Boolean(
+    track?.isRekordbox
+    || track?.externalMetadata?.source.startsWith('rekordbox')
+    || track?.importedAnalysisSeed,
+  )
+  const hasRekordboxCues = (track?.importedCueMarkers?.length ?? 0) > 0
+  const hasRekordboxSections = Boolean(
+    (track?.importedRekordboxPhrases?.length ?? 0) > 0
+    || (track?.importedAnalysisSeed?.rekordboxPhrases?.length ?? 0) > 0
+    || (engine.currentAnalysis?.rekordboxSourceData?.phrases.length ?? 0) > 0,
+  )
   const transportReady = isShowManagerTransportReady(engine.currentAudioTrackId)
 
   useEffect(() => {
@@ -900,6 +912,23 @@ export function VyzualzAudioDock({
           {bpmState.kind === 'value' && bpmState.analyzed !== null && (
             <span className="vz-dock-bpm-analyzed-label">
               analyzed {bpmState.analyzed.toFixed(2)}
+            </span>
+          )}
+
+          {hasRekordboxData && (
+            <span
+              className="vz-dock-rekordbox-badge"
+              title="Rekordbox data loaded"
+              aria-label={`Rekordbox data loaded${hasRekordboxCues ? ', cues' : ''}${hasRekordboxSections ? ', sections' : ''}`}
+            >
+              <i className="vz-dock-rekordbox-badge-dot" aria-hidden="true" />
+              <img src={rekordboxLogoUrl} alt="" aria-hidden="true" />
+              {(hasRekordboxCues || hasRekordboxSections) && (
+                <span className="vz-dock-rekordbox-features" aria-hidden="true">
+                  {hasRekordboxCues && <span>Cues</span>}
+                  {hasRekordboxSections && <span>Sections</span>}
+                </span>
+              )}
             </span>
           )}
         </div>

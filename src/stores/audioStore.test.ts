@@ -94,7 +94,7 @@ describe('audioStore persistence safety', () => {
     expect(useAudioStore.getState().loadError).toContain('database unavailable')
   })
 
-  it('persists an automatically detected musical key when the upload field is blank', async () => {
+  it('persists automatically detected artist and musical key values when the upload fields are blank', async () => {
     audioDbMocks.createAudioTrack.mockResolvedValue({ id: 'track-detected-key', error: null })
     audioDbMocks.createTrackAnalysis.mockResolvedValue({ error: null })
 
@@ -110,6 +110,7 @@ describe('audioStore persistence safety', () => {
         durationSec: 180,
         sampleRate: 44_100,
         channels: 2,
+        artist: 'Detected Artist',
         bpm: 128,
         musicalKey: 'C#m/Dbm',
         keyNote: 'C#',
@@ -119,6 +120,7 @@ describe('audioStore persistence safety', () => {
     })
 
     expect(audioDbMocks.createAudioTrack).toHaveBeenCalledWith(expect.objectContaining({
+      artist: 'Detected Artist',
       bpm: 128,
       musical_key: 'C#m/Dbm',
     }))

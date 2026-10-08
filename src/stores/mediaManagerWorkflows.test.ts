@@ -494,12 +494,13 @@ describe('Media Manager canonical workflows', () => {
     expect(useMediaStore.getState().uploadQueue.map(item => item.file.name)).toEqual(['two.wav'])
   })
 
-  it('auto-populates BPM and musical key in each audio upload draft', async () => {
+  it('auto-populates artist, BPM, and musical key in each audio upload draft', async () => {
     const file = new File(['audio'], 'detected.wav', { type: 'audio/wav' })
     runtimeMocks.analyzeAudioFile.mockResolvedValueOnce({
       durationSec: 180,
       sampleRate: 44_100,
       channels: 2,
+      artist: 'Detected Artist',
       bpm: 128,
       musicalKey: 'C#m/Dbm',
       keyNote: 'C#',
@@ -511,6 +512,7 @@ describe('Media Manager canonical workflows', () => {
     const queued = useMediaStore.getState().uploadQueue[0]!
     await vi.waitFor(() => {
       expect(useMediaStore.getState().uploadDrafts[queued.tempId]).toMatchObject({
+        audioArtist: 'Detected Artist',
         audioBpm: '128',
         audioMusicalKey: 'C#m/Dbm',
       })

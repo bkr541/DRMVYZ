@@ -117,6 +117,7 @@ export function buildSavedTrackRuntimeInput(
     dbId: track.dbId,
     storagePath: track.storagePath,
     duration: track.durationSec,
+    isRekordbox: track.isRekordbox,
     persistedMetadata: {
       bpm: track.bpm,
       musicalKey: track.musicalKey,

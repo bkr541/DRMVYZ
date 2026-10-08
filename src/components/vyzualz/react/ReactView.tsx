@@ -175,6 +175,17 @@ function StageFocusIcon() {
   )
 }
 
+function TrackMapLaneIconsToggleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 4v16M9 6h10M9 12h10M9 18h10" />
+      <circle cx="5" cy="6" r="1.25" />
+      <rect x="3.75" y="10.75" width="2.5" height="2.5" rx="0.45" />
+      <path d="m5 16.5 1.5 1.5L5 19.5 3.5 18 5 16.5Z" />
+    </svg>
+  )
+}
+
 // Four top-level destinations keep the right rail compact and role-based.
 const REACT_RIGHT_BASE_TABS: Omit<RailTabOption<ReactRightPanel>, 'disabled'>[] = [
   { id: 'presets', label: 'PRESETS' },
@@ -373,6 +384,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     : (lowerSurfaces[0] ?? 'trackMap')
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
+  const [trackMapLaneIconsExpanded, setTrackMapLaneIconsExpanded] = useState(false)
   const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
@@ -1100,6 +1112,19 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 </div>
                 <div className="rv-lower-workspace-actions">
                   <div className="rv-lower-workspace-output-actions">
+                    {activeLowerSurface === 'trackMap' && (
+                      <button
+                        type="button"
+                        className={`rv-track-map-lane-icons-toggle${trackMapLaneIconsExpanded ? ' is-active' : ''}`}
+                        aria-label={trackMapLaneIconsExpanded ? 'Collapse Track Map row icons' : 'Expand Track Map row icons'}
+                        aria-expanded={trackMapLaneIconsExpanded}
+                        aria-pressed={trackMapLaneIconsExpanded}
+                        onClick={() => setTrackMapLaneIconsExpanded(value => !value)}
+                        title={trackMapLaneIconsExpanded ? 'Hide Track Map row icons' : 'Show Track Map row icons'}
+                      >
+                        <TrackMapLaneIconsToggleIcon />
+                      </button>
+                    )}
                     <OutputCastControl canvas={outputCanvas} capability={outputCapability} />
                     <button
                       type="button"
@@ -1124,7 +1149,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               >
                 {workspaceComposition.showTrackMap && (
                   <Suspense fallback={<LazyWorkspaceFallback label="Track Map" />}>
-                    <ReactTrackMapStrip audioDurationSec={audioDurationSec} embedded />
+                    <ReactTrackMapStrip
+                      audioDurationSec={audioDurationSec}
+                      embedded
+                      laneIconsExpanded={trackMapLaneIconsExpanded}
+                    />
                   </Suspense>
                 )}
               </div>

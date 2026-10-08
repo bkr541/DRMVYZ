@@ -179,6 +179,7 @@ describe('Mainframe Stage 5 preset', () => {
     expect(dark.overrides.parts.board?.roughness).toBeGreaterThan(0.7)
     const bright = resolveCinema2MainframeStaticFrame(reader({ masterIntensity: 1 }))
     expect(bright.overrides.parts.logoCore?.emissiveIntensity).toBeGreaterThan(bright.overrides.parts.circuitCores?.emissiveIntensity as number)
+    expect(bright.overrides.parts.circuitCores?.emissiveIntensity).toBeLessThan(0.2)
   })
 
   it('keeps logo, circuits and indicators independently recolorable and finishes with HDR bloom plus filmic grading', () => {
@@ -192,7 +193,7 @@ describe('Mainframe Stage 5 preset', () => {
     expect(frame.overrides.parts.indicatorCores?.emissive).toEqual([1, 1, 0])
     expect(frame.overrides.parts.radarCores?.emissive).toEqual([1, 1, 0])
     expect(manifest.effects?.map(effect => effect.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
-    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.4, levels: 7 })
+    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.65, intensity: 0.92, levels: 7 })
     expect(manifest.effects?.[1]?.parameters).toMatchObject({ toneMap: 1, aberration: 0.003 })
   })
 

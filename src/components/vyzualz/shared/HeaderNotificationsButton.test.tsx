@@ -42,6 +42,16 @@ function Page({ page, children }: { page: AppPageId; children: React.ReactNode }
 }
 
 describe('DrawerNotice', () => {
+  it('uses a labeled status chip in the React header only', async () => {
+    await act(async () => root.render(<Page page="react"><span /></Page>))
+    expect(bell().textContent).toContain('Notifications')
+    expect(bell().classList.contains('vz-header-chip--labeled')).toBe(true)
+
+    await act(async () => root.render(<Page page="media-manager"><span /></Page>))
+    expect(bell().textContent).not.toContain('Notifications')
+    expect(bell().classList.contains('vz-header-chip--square')).toBe(true)
+  })
+
   it('draws its NoticeCard inline when there is no page around it', async () => {
     await act(async () => root.render(<DrawerNotice tone="warning" title="Standalone">Body</DrawerNotice>))
     expect(container.querySelector('.dv-notice-title')?.textContent).toBe('Standalone')

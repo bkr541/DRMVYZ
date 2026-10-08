@@ -523,15 +523,10 @@ for (const contour of logoContours(contract.logo.master.outerRail)) {
   add('logoCore', closedStrokeMesh(contour, 14 * WORLD_SCALE, 0.61, 0.05, 0.009), { ...outerMetadata, phase: 0.35 })
 }
 
-// The body is the sole filled even-odd logo shape. Its seven authored contours
-// retain the negative spaces, while the matching rail path restores every
-// internal swirl/circuit line as separately reactive geometry.
+// The logo body is contour hardware only. The owner-approved construction has
+// no cloud-shaped backing plate: the mainframe board remains visible through
+// every space between the seven authored internal rails.
 const bodyMetadata = { system: SYSTEM.logoBody }
-const bodyContours = contoursOfAdaptive(contract.logo.master.bodyHousing, 1.25)
-const bodyShapes = nestedShapes(bodyContours, logoToWorld)
-add('logoHousing', moved(buildExtrusion(bodyShapes, {
-  depth: 0.22, bevel: 0.026, creaseAngle: CREASE, bevelSegments: 3, offset: -0.026,
-}), [0, 0, 0.43]), bodyMetadata)
 for (const contour of logoContours(contract.logo.master.bodyHousing)) {
   add('logoHousing', closedStrokeMesh(contour, 18 * WORLD_SCALE, 0.535, 0.075, 0.012), bodyMetadata)
 }

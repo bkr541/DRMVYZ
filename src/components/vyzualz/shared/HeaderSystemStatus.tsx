@@ -58,13 +58,14 @@ export function HeaderSystemStatus({ page }: { page: AppPageId }) {
         <span className="vz-header-cpu-value" aria-hidden="true">{cpuText}</span>
       </span>
       <span
-        className="vsm-settings-btn vz-header-status-chip vz-header-chip vz-header-chip--square vz-header-activity"
+        className={`vsm-settings-btn vz-header-status-chip vz-header-chip ${page === 'react' ? 'vz-header-chip--labeled' : 'vz-header-chip--square'} vz-header-activity`}
         data-busy={busy ? 'true' : 'false'}
         role="status"
         aria-live="polite"
         aria-label={busy ? `Loading: ${activity.join(', ')}` : 'Nothing loading'}
         title={busy ? `Loading: ${activity.join(', ')}` : 'Nothing loading'}
       >
+        {page === 'react' && <span className="vz-header-state-label">Loading</span>}
         <ActivitySpinner busy={busy} />
       </span>
       <HeaderNotificationsButton page={page} />

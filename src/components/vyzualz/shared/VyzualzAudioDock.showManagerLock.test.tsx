@@ -264,4 +264,27 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(fixture.visualState.toggleBpmSync).toHaveBeenCalledTimes(1)
   })
 
+  it('shows the Rekordbox badge only for a loaded Rekordbox track', async () => {
+    fixture.engine.tracks = [{ id: 'rekordbox-track' }] as unknown as AudioEngine['tracks']
+    fixture.engine.currentTrack = {
+      id: 'rekordbox-track',
+      url: 'blob:rekordbox-track',
+      isRekordbox: true,
+      importedCueMarkers: [{}],
+      importedRekordboxPhrases: [{}],
+      analysisRuntime: {
+        analysisKey: 'rekordbox-track-key',
+        gridStale: false,
+      },
+    } as AudioEngine['currentTrack']
+
+    await renderView('react')
+
+    expect(container?.querySelector('.vz-dock-rekordbox-badge img')).not.toBeNull()
+    expect(container?.querySelector('.vz-dock-rekordbox-badge')?.getAttribute('aria-label')).toBe('Rekordbox data loaded, cues, sections')
+    expect(container?.querySelector('.vz-dock-rekordbox-badge-dot')).not.toBeNull()
+    expect(container?.querySelector('.vz-dock-rekordbox-features')?.textContent).toContain('Cues')
+    expect(container?.querySelector('.vz-dock-rekordbox-features')?.textContent).toContain('Sections')
+  })
+
 })

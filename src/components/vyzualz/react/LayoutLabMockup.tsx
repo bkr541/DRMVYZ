@@ -18,6 +18,7 @@ import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
+import { RekordboxBadgeStyleGallery } from './layoutLab/RekordboxBadgeStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
 import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
@@ -389,7 +390,12 @@ export function LayoutLabMockup() {
                     <PresetTwoColumnStyleGallery />
                   </div>
                 )}
-                {/* Design and Output are intentionally blank in the Template engine. */}
+                {templateRightTab === 'design' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <RekordboxBadgeStyleGallery />
+                  </div>
+                )}
+                {/* Output is intentionally blank in the Template engine. */}
               </div>
             </>
           ) : engineId === 'oscilloscope' ? (

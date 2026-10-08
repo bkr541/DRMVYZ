@@ -64,20 +64,17 @@ describe('Template Layout Lab workspace', () => {
     expect(stage?.querySelector('.llwf-gallery')).toBeNull()
   })
 
-  it('adds a Layout Lab-only Template engine with blank rails and no lower workspace', async () => {
+  it('adds a Layout Lab-only Template engine with a Design gallery and no lower workspace', async () => {
     await selectEngine('Template')
 
     expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
 
     const leftRail = container.querySelector('[aria-label="Layout Lab left rail"]')
     expect(leftRail?.querySelector('.rv-engine-dropdown-trigger')).not.toBeNull()
-    expect(leftRail?.querySelector('[role="tablist"]')).toBeNull()
-    expect(leftRail?.querySelector('.rv-context-workspace-body, .rv-left-tab-body')).toBeNull()
 
     const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')
     expect(tabLabels('Layout Lab inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    expect(rightRail?.querySelector('.vz-panel-body')).toBeNull()
-    expect(rightRail?.querySelectorAll(':scope > .vz-inspector-inner > *')).toHaveLength(1)
+    expect(rightRail?.querySelector('[aria-label="Rekordbox badge style concepts"]')).not.toBeNull()
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
@@ -115,6 +112,15 @@ describe('Template Layout Lab workspace', () => {
     expect(container.querySelector('.llpc-gallery')).not.toBeNull()
     await act(async () => gallery?.querySelectorAll<HTMLButtonElement>('.llp4-block')[4]?.click())
     expect(gallery?.querySelectorAll('.is-active, .rv-preset-spotlight-card--active')).toHaveLength(4)
+  })
+
+  it('shows five Rekordbox badge concepts in the DESIGN tab', async () => {
+    await selectEngine('Template')
+
+    const gallery = container.querySelector('[aria-label="Rekordbox badge style concepts"]')
+    expect(gallery).not.toBeNull()
+    expect(gallery?.querySelectorAll('[data-testid^="rekordbox-badge-concept-"]')).toHaveLength(5)
+    expect(gallery?.querySelectorAll('img[alt="Rekordbox"]')).toHaveLength(5)
   })
 
   it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {

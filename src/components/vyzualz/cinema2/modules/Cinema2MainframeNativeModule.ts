@@ -193,11 +193,12 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
     radarHardware: part('radarHardware', [0.14, 0.16, 0.145], { roughness: 0.24, metalness: 0.96, clearcoat: 0.16, clearcoatRoughness: 0.14, environmentIntensity: 0.52 }),
     chipHardware: part('chipHardware', [0.065, 0.075, 0.07], { roughness: 0.38, metalness: 0.7, clearcoat: 0.2, clearcoatRoughness: 0.2, environmentIntensity: 0.48 }),
     logoHousing: part('logoHousing', [0.3, 0.34, 0.31], { roughness: 0.22, metalness: 1, clearcoat: 0.28, clearcoatRoughness: 0.12, environmentIntensity: 0.68 }),
-    circuitCores: part('circuitCores', scaled(circuits, 0.1), { emissive: circuits, emissiveIntensity: 2.8 * intensity, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.12 }),
-    indicatorCores: part('indicatorCores', scaled(indicators, 0.12), { emissive: indicators, emissiveIntensity: 2.3 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.12 }),
-    radarCores: part('radarCores', scaled(indicators, 0.12), { emissive: indicators, emissiveIntensity: 2.5 * intensity, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.12 }),
-    chipCores: part('chipCores', scaled(indicators, 0.12), { emissive: indicators, emissiveIntensity: 2.5 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.12 }),
-    logoCore: part('logoCore', scaled(logo, 0.13), { emissive: logo, emissiveIntensity: 3.4 * intensity, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.18 }),
+    // These values are the no-audio/static fallback. During playback the semantic shader replaces them with a much wider dark-to-hot range.
+    circuitCores: part('circuitCores', scaled(circuits, 0.035), { emissive: circuits, emissiveIntensity: 0.18 * intensity, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.08 }),
+    indicatorCores: part('indicatorCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    radarCores: part('radarCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    chipCores: part('chipCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    logoCore: part('logoCore', scaled(logo, 0.055), { emissive: logo, emissiveIntensity: 0.32 * intensity, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.12 }),
   }
 
   return Object.freeze({

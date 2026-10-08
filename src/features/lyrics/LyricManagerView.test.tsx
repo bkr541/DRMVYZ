@@ -954,6 +954,7 @@ describe('LyricManagerView track-first workflow', () => {
     const aiTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(button => button.textContent?.includes('AI Extract'))
     expect(aiTab?.getAttribute('aria-selected')).toBe('true')
+    expect(container.querySelector('.lmv-workspace-tab-panel')?.classList.contains('lmv-workspace-tab-panel--scrollable')).toBe(true)
     expect(onNavigationIntentConsumed).toHaveBeenCalledWith('intent-ai-track-a')
   })
 

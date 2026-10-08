@@ -13,8 +13,6 @@
   width: 100%;
   overflow: hidden;
   background: #060d10;
-  --rv-timeline-tool-width: 72px;
-  --rv-timeline-column-gap: 8px;
   --rv-timeline-inline-pad: 10px;
   --ui-control-height: 30px;
   --ui-control-radius: 6px;
@@ -6058,6 +6056,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-lower-workspace-tabs button,
+.rv-track-map-lane-icons-toggle,
 .rv-stage-focus-btn {
   min-height: 26px;
   padding: 4px 11px;
@@ -6073,6 +6072,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-lower-workspace-tabs button:hover,
+.rv-track-map-lane-icons-toggle:hover,
 .rv-stage-focus-btn:hover {
   color: rgba(232, 244, 248, 0.84);
   border-color: rgba(74, 199, 219, 0.3);
@@ -6164,6 +6164,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: none;
 }
 
+.rv-track-map-lane-icons-toggle,
 .rv-stage-focus-btn {
   width: 30px;
   min-width: 30px;
@@ -6175,6 +6176,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-color: rgba(74, 199, 219, 0.22);
 }
 
+.rv-track-map-lane-icons-toggle svg,
 .rv-stage-focus-btn svg {
   width: 18px;
   height: 18px;
@@ -6186,6 +6188,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   filter: drop-shadow(0 0 5px rgba(74, 199, 219, 0.16));
 }
 
+.rv-track-map-lane-icons-toggle.is-active,
 .rv-stage-focus-btn.is-active {
   color: #061014;
   border-color: #67f7ff;
@@ -6251,8 +6254,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-track-map-strip--embedded .rv-timeline-lanes {
   position: relative;
   display: grid;
-  grid-template-rows: 32px 44px 184px 24px;
-  min-height: 284px;
+  grid-template-rows: 26px 36px 184px 24px;
+  min-height: 270px;
   padding: 0 var(--rv-timeline-inline-pad);
   overflow: visible;
   isolation: isolate;
@@ -6399,10 +6402,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-timeline-lane {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    var(--rv-timeline-tool-width);
-  column-gap: var(--rv-timeline-column-gap);
+  grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   min-width: 0;
   min-height: 0;
@@ -6410,10 +6410,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   border-top: 1px solid rgba(74, 199, 219, 0.09);
 }
 
+.rv-timeline-lanes--icons-expanded .rv-timeline-lane {
+  grid-template-columns: 72px minmax(0, 1fr);
+}
+
 .rv-timeline-lane:first-child { border-top: 0; }
 
 .rv-timeline-lane-content {
   position: relative;
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -6422,6 +6428,74 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
     linear-gradient(to right, rgba(74, 199, 219, 0.055) 1px, transparent 1px),
     linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
   background-size: 16.6667% 100%, 4.1667% 100%;
+}
+
+.rv-timeline-lanes--icons-expanded .rv-timeline-lane-content {
+  grid-column: 2;
+}
+
+.rv-timeline-lane-icon {
+  display: none;
+  grid-column: 1;
+  grid-row: 1;
+  width: 72px;
+  min-width: 72px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 7px;
+  overflow: hidden;
+  border-right: 1px solid rgba(74, 199, 219, 0.12);
+  background: rgba(8, 17, 25, 0.94);
+  color: rgba(103, 247, 255, 0.64);
+  box-sizing: border-box;
+}
+
+.rv-timeline-lanes--icons-expanded .rv-timeline-lane-icon {
+  display: grid;
+}
+
+.rv-timeline-lane-icon svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rv-timeline-lane-icon > span,
+.rv-timeline-lane-icon--cue-rows > span > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.62);
+  font: 750 7px/1 var(--az-font, sans-serif);
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rv-timeline-lane-icon--cue-rows {
+  grid-template-rows: repeat(4, 46px);
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.rv-timeline-lane-icon--cue-rows > span {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 0;
+  padding: 0 7px;
+  border-top: 1px solid rgba(74, 199, 219, 0.09);
+}
+
+.rv-timeline-lane-icon--cue-rows > span:first-child {
+  border-top: 0;
 }
 
 .rv-timeline-ruler-content {
@@ -6462,72 +6536,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   letter-spacing: 0.025em;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rv-timeline-lane-tools {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 3px 1px;
-  overflow: hidden;
-  border-left: 1px solid rgba(74, 199, 219, 0.08);
-  background: linear-gradient(270deg, rgba(8, 17, 25, 0.97), rgba(8, 17, 25, 0.76));
-}
-
-.rv-timeline-tool-btn {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 1px solid rgba(232, 244, 248, 0.11);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.025);
-  color: rgba(232, 244, 248, 0.52);
-  font: 700 10px/1 var(--az-font, sans-serif);
-  cursor: pointer;
-}
-
-.rv-timeline-tool-btn:hover:not(:disabled) {
-  border-color: rgba(74, 199, 219, 0.38);
-  background: rgba(74, 199, 219, 0.08);
-  color: #4ac7db;
-}
-
-.rv-timeline-tool-btn--accent { color: #4ac7db; }
-.rv-timeline-tool-btn--danger { color: rgba(224, 95, 112, 0.72); }
-.rv-timeline-tool-btn:disabled { opacity: 0.25; cursor: default; }
-
-.rv-timeline-lane-select {
-  width: 66px;
-  min-width: 0;
-  height: 22px;
-  padding: 0 3px;
-  border: 1px solid rgba(74, 199, 219, 0.17);
-  border-radius: 4px;
-  outline: 0;
-  background: rgba(5, 11, 17, 0.92);
-  color: rgba(232, 244, 248, 0.58);
-  font: 600 7.5px/1 var(--az-font, sans-serif);
-  letter-spacing: 0.015em;
-}
-
-.rv-timeline-zoom-readout,
-.rv-timeline-lane-state {
-  color: rgba(74, 199, 219, 0.62);
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.rv-ctrl-toggle.rv-timeline-beat-grid-toggle {
-  width: 54px;
-  min-width: 54px;
-  min-height: 22px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 4px;
-  font-size: 8px;
 }
 
 .rv-timeline-cue-lane { overflow: hidden; }
@@ -6578,12 +6586,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-timeline-playhead-layer {
   position: absolute;
   top: 0;
-  right: calc(var(--rv-timeline-inline-pad) + var(--rv-timeline-tool-width) + var(--rv-timeline-column-gap));
+  right: var(--rv-timeline-inline-pad);
   bottom: 0;
   left: var(--rv-timeline-inline-pad);
   overflow: hidden;
   pointer-events: none;
   z-index: 6;
+}
+
+.rv-timeline-lanes--icons-expanded .rv-timeline-playhead-layer {
+  left: calc(var(--rv-timeline-inline-pad) + 72px);
 }
 
 .rv-timeline-shared-playhead {
@@ -10110,6 +10122,18 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-show-director-context-menu button.rv-show-director-context-menu__danger:focus-visible {
   background: rgba(255, 82, 115, 0.14);
   color: #fff;
+}
+
+.rv-track-section-context-menu { min-width: 232px; }
+
+.rv-track-section-context-menu button:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.rv-track-section-context-menu button:disabled:hover {
+  background: transparent;
+  color: inherit;
 }
 
 .rv-show-director-fixture--multi-selected {
@@ -16905,6 +16929,201 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── Badge Style Gallery (Layout Lab / Template) ──────────────────────────── */
 
+/* Rekordbox badge concepts shown in Template → Design. Each option is placed
+   under the same compact BPM readout so its production legibility is easy to
+   compare rather than judging the logo on a generic swatch. */
+.llrb-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 18px 16px 32px;
+}
+
+.llrb-row { gap: 10px; }
+
+.llrb-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 92px;
+  padding: 13px 14px;
+  border: 1px solid rgba(154, 178, 188, 0.13);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(31, 39, 44, 0.96), rgba(19, 25, 29, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.llrb-bpm-context {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(100%, 180px);
+}
+
+.llrb-bpm-context div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.llrb-bpm-context span {
+  color: rgba(196, 207, 211, 0.58);
+  font: 700 8px/1 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+}
+
+.llrb-bpm-context strong {
+  color: #67f7ff;
+  font: 800 18px/1 var(--az-font, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+}
+
+.llrb-bpm-context i {
+  display: block;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(74, 199, 219, 0.5) 0 34%, #4ac7db 34% 48%, rgba(255, 255, 255, 0.1) 48%);
+}
+
+.llrb-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 22px;
+}
+
+.llrb-badge img {
+  display: block;
+  width: 68px;
+  height: auto;
+}
+
+.llrb-provider-mark {
+  display: block;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+}
+
+.llrb-provider-mark img {
+  display: block;
+  width: auto;
+  max-width: none;
+  height: 24px;
+}
+
+.llrb-account-chip {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: min(100%, 206px);
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.llrb-account-chip > .llrb-provider-mark {
+  box-sizing: border-box;
+  width: 34px;
+  height: 34px;
+  padding: 5px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.llrb-account-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.llrb-account-copy > img { width: 70px; height: auto; }
+.llrb-account-copy small { display: flex; align-items: center; gap: 5px; color: rgba(232, 244, 248, 0.52); font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; }
+.llrb-account-copy small i { width: 5px; height: 5px; border-radius: 50%; background: #61d6aa; box-shadow: 0 0 6px rgba(97, 214, 170, 0.55); }
+.llrb-account-chevron { color: rgba(232, 244, 248, 0.28); font: 400 20px/1 sans-serif; }
+
+.llrb-bridge-card {
+  display: grid;
+  grid-template-columns: 32px 50px 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  width: min(100%, 246px);
+}
+
+.llrb-bridge-node {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+.llrb-bridge-node--drm { border: 1px solid rgba(74, 199, 219, 0.42); background: rgba(74, 199, 219, 0.1); color: #67f7ff; font: 900 9px/1 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: -0.04em; }
+.llrb-bridge-node--rb { background: rgba(255, 255, 255, 0.94); }
+.llrb-bridge-node--rb .llrb-provider-mark { width: 23px; height: 23px; }
+.llrb-bridge-line { position: relative; display: block; height: 1px; background: linear-gradient(90deg, #4ac7db, #c7154b); }
+.llrb-bridge-line::before, .llrb-bridge-line::after { content: ''; position: absolute; top: -2px; width: 5px; height: 5px; border-radius: 50%; }
+.llrb-bridge-line::before { left: 0; background: #4ac7db; }
+.llrb-bridge-line::after { right: 0; background: #c7154b; }
+.llrb-bridge-line i { position: absolute; top: -5px; left: calc(50% - 5px); width: 10px; height: 10px; border: 1px solid rgba(232, 244, 248, 0.28); border-radius: 50%; background: #172026; }
+.llrb-bridge-line i::after { content: '✓'; position: absolute; inset: 0; color: #61d6aa; font: 800 7px/9px sans-serif; text-align: center; }
+.llrb-bridge-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.llrb-bridge-copy > img { width: 58px; height: auto; }
+.llrb-bridge-copy strong { color: rgba(232, 244, 248, 0.86); font: 750 8px/1 var(--az-font, Inter, system-ui, sans-serif); white-space: nowrap; }
+.llrb-bridge-copy small { color: rgba(232, 244, 248, 0.4); font: 650 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); white-space: nowrap; }
+
+.llrb-receipt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px 10px;
+  padding: 7px 9px;
+  border-left: 2px solid #c7154b;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 4px), rgba(255, 255, 255, 0.025);
+}
+.llrb-receipt-label { color: rgba(232, 244, 248, 0.4); font: 750 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.12em; text-transform: uppercase; }
+.llrb-receipt > img { grid-column: 1; width: 74px; height: auto; }
+.llrb-receipt-meta { grid-column: 2; grid-row: 1 / span 2; padding-left: 9px; border-left: 1px dashed rgba(255, 255, 255, 0.14); color: rgba(232, 244, 248, 0.52); font: 650 7px/1.35 var(--az-font-data, Inter, system-ui, sans-serif); }
+
+.llrb-coverage-card {
+  box-sizing: border-box;
+  width: min(100%, 220px);
+  overflow: hidden;
+  border: 1px solid rgba(199, 21, 75, 0.24);
+  border-radius: 8px;
+  background: rgba(8, 12, 15, 0.5);
+}
+.llrb-coverage-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 8px 6px; }
+.llrb-coverage-head > img { width: 68px; height: auto; }
+.llrb-coverage-head > span { display: flex; align-items: center; gap: 5px; color: rgba(232, 244, 248, 0.5); font: 750 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+.llrb-coverage-head i { width: 5px; height: 5px; border-radius: 50%; background: #61d6aa; }
+.llrb-coverage-fields { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.llrb-coverage-fields span { padding: 5px 4px; border-left: 1px solid rgba(255, 255, 255, 0.06); color: rgba(232, 244, 248, 0.58); font: 750 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.06em; text-align: center; text-transform: uppercase; }
+.llrb-coverage-fields span:first-child { border-left: 0; }
+
+.llrb-badge--linked {
+  gap: 8px;
+  padding: 5px 7px 5px 8px;
+  border: 1px solid rgba(199, 21, 75, 0.48);
+  border-left-width: 3px;
+  border-radius: 3px 7px 7px 3px;
+  background: rgba(8, 12, 15, 0.58);
+}
+
+.llrb-linked-label {
+  padding-left: 7px;
+  border-left: 1px solid rgba(199, 21, 75, 0.36);
+  color: rgba(232, 244, 248, 0.58);
+  font: 800 7px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .llbd-gallery {
   display: flex;
   flex-direction: column;
@@ -21728,10 +21947,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .llp4-wall .llp4-chips { padding: 0 2px; }
 
-/* ── Track Map follows the timeline workspace's height ───────────────────────
-   Dragging the timeline workspace higher gives the Track Map surface more height. The beat grid (32px), the sections (44px, strip 32px
-   with 5px above and below) and the ruler (24px) stay the same height; the marker lane (four 46px rows, 184px minimum) takes everything else,
-   so only its rows grow. */
+/* ── Fixed Track Map lane geometry ──────────────────────────────────────────
+   The staggered marker treatment depends on four exact 46px rows. Extra workspace height remains outside the lane stack rather than
+   stretching the high/low levels apart. */
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded {
   display: flex;
   flex-direction: column;
@@ -21740,35 +21958,27 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-lower-workspace-surface--track-map .rv-track-map-strip--embedded .rv-timeline-lanes {
-  /* Basis 0, not auto: the lanes take whatever height is left (never less than their 284px minimum), so their rows are not sized by what the
-     canvases inside would like to be. */
-  flex: 1 1 0;
-  /* Beat grid (32px), sections (44px) and the ruler (24px) keep their height however tall the surface is dragged; the marker lane takes all
-     the extra, so its four rows grow. */
-  grid-template-rows: 32px 44px minmax(184px, 1fr) 24px;
+  flex: 0 0 270px;
+  grid-template-rows: 26px 36px 184px 24px;
 }
 
 .rv-lower-workspace-surface--track-map .rv-timeline-lane-content .rv-section-timeline {
-  /* Pinned 5px from the top and 6px from the bottom of its lane, which is 32px in the default 44px lane (a percentage height would not resolve inside the lane's auto row). */
+  /* Compact the section row while preserving room for labels and resize handles. */
   position: absolute;
-  inset: 5px 0 6px;
+  inset: 4px 0 5px;
   height: auto;
   margin: 0;
 }
 
 .rv-lower-workspace-surface--track-map .rv-section-header {
-  bottom: 13px;
-  height: auto;
+  top: 0;
+  bottom: auto;
+  height: 14px;
 }
 
 .rv-lower-workspace-surface--track-map .rv-section-color-bar {
-  top: auto;
-  bottom: 2px;
-}
-
-.rv-lower-workspace-surface--track-map .rv-timeline-cue:not(.rv-timeline-cue--cue) {
-  bottom: 6px;
-  height: auto;
+  top: 18px;
+  bottom: auto;
 }
 
 /* ── Audio dock: one flat strip ─────────────────────────────────────────────
@@ -22579,7 +22789,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block {
-  gap: 10px;
+  gap: 6px;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-top {
@@ -22596,7 +22806,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block-val:not(.vz-dock-bpm-analyzing):not(.vz-dock-bpm-failed):not(.vz-dock-bpm-none[title]) {
   color: var(--dock-cyan-bright);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 800;
 }
 
@@ -22628,6 +22838,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-track-fill {
   background: linear-gradient(90deg, rgba(74, 199, 219, 0.5), var(--dock-cyan));
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-badge {
+  height: 12px;
+  margin-top: 4px;
+  padding: 0;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-rekordbox-badge img {
+  width: 59px;
+  height: 10px;
 }
 
 /* Keys: Tap / Cue in column 3, Sync / Source in column 4, all one slate treatment. */
@@ -22736,7 +22957,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 .rv-timeline-cue-row {
   position: relative;
-  flex: 1 1 0;
+  flex: 0 0 46px;
+  height: 46px;
   min-height: 46px;
   border-top: 1px solid rgba(74, 199, 219, 0.08);
 }
@@ -22766,12 +22988,36 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-timeline-cue-row .rv-timeline-cue--disabled { opacity: 0.35; }
 .rv-timeline-cue-row .rv-timeline-cue.is-high { top: 3px; }
 .rv-timeline-cue-row .rv-timeline-cue.is-low { bottom: 3px; }
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal {
+  width: 6px !important;
+  transform: translateX(-100%);
+  padding: 0;
+  border-left: 0;
+  border-right: 6px solid var(--cue-color, #4ac7db);
+  background: transparent;
+}
 .rv-timeline-cue-row .rv-timeline-cue::before,
 .rv-timeline-cue-row .rv-timeline-cue::after { content: none; }
 .rv-timeline-cue-row .rv-timeline-cue:hover {
   border-color: color-mix(in srgb, var(--cue-color, #4ac7db) 82%, transparent);
   border-left-color: var(--cue-color, #4ac7db);
   background: color-mix(in srgb, var(--cue-color, #4ac7db) 24%, #071018);
+}
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal:hover,
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal:focus-visible {
+  width: 130px !important;
+  max-width: calc(100% - 6px);
+  padding: 0 7px;
+  border-left: 1px solid color-mix(in srgb, var(--cue-color, #4ac7db) 82%, transparent);
+  border-right-color: var(--cue-color, #4ac7db);
+  background: color-mix(in srgb, var(--cue-color, #4ac7db) 24%, #071018);
+}
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal .rv-timeline-cue-label {
+  display: none;
+}
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal:hover .rv-timeline-cue-label,
+.rv-timeline-cue-row .rv-timeline-cue.is-hover-reveal:focus-visible .rv-timeline-cue-label {
+  display: block;
 }
 .rv-timeline-cue-row .rv-timeline-cue-diamond { display: none; }
 .rv-timeline-cue-row .rv-timeline-cue-label {
@@ -22798,27 +23044,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   inset: 0;
   pointer-events: none;
 }
-.rv-timeline-cue-row-tools {
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
-  gap: 0;
-  padding: 0;
-}
-.rv-timeline-cue-row-state {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 0 8px;
-  border-top: 1px solid rgba(74, 199, 219, 0.08);
-}
-.rv-timeline-cue-row-state:first-child { border-top: 0; }
-.rv-timeline-cue-row-state span { opacity: 0.7; font-size: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
-.rv-timeline-cue-row-state strong { font-size: 8px; font-variant-numeric: tabular-nums; }
-
 /* ── Track Map Marker Style Gallery (Layout Lab / Template, middle section) ── */
 /* Six concepts for the Track Map's Cues / Phrases / Moments / Actions rows. Each draws the same four rows (the production lane + a 72px
    count column) at the full width of the middle section; positions are percentages of the lane, so a concept's labels follow its width. */

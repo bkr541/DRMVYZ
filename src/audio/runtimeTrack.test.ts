@@ -29,6 +29,7 @@ describe('runtime track identity', () => {
       dbId: '11111111-2222-3333-4444-555555555555',
       storagePath: 'user/tracks/source-file.wav',
       duration: 245.5,
+      isRekordbox: true,
       persistedMetadata: {
         bpm: 150,
         musicalKey: 'Bb major',
@@ -44,6 +45,7 @@ describe('runtime track identity', () => {
     expect(track.displayName).toBe('Saved Title')
     expect(track.artist).toBe('Saved Artist')
     expect(track.duration).toBe(245.5)
+    expect(track.isRekordbox).toBe(true)
     expect(track.persistedMetadata?.bpm).toBe(150)
     expect(getTrackAudioTrackId(track)).toBe(track.dbId)
     expect(isPersistedTrack(track)).toBe(true)

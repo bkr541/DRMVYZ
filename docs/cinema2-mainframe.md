@@ -32,9 +32,11 @@ The staged design and implementation history remains in `docs/cinema2-mainframe-
 
 Pattern evaluation is deterministic for the runtime seed and musical position. Seek, source replacement, context replacement, trigger edits, and manual pattern changes reset transient state so stale events cannot fire.
 
+Mainframe uses a deliberately high-contrast emissive response: inactive routes retain only a dark locator glow, ordinary band energy stays below the bloom threshold, and authored hits drive white-hot HDR pulses brighter than Conduit's emitters. This separation keeps circuit travel legible instead of presenting as a uniformly green wall.
+
 ## Source and regeneration contract
 
-The immutable owner-authored sources live in `scripts/cinema2-assets/sources/mainframe/`. Their SHA-256 values are enforced by `mainframe-source-contract.mjs`; generation never depends on a Downloads directory. `logo-master.svg` is authoritative for the center logo's two stroked outline contours, filled even-odd body, seven body rails, star, and the 60 center routes.
+The immutable owner-authored sources live in `scripts/cinema2-assets/sources/mainframe/`. Their SHA-256 values are enforced by `mainframe-source-contract.mjs`; generation never depends on a Downloads directory. `logo-master.svg` is authoritative for the center logo's two stroked outline contours, seven body rails, star, and the 60 center routes. Its body path supplies contour topology only: production intentionally leaves the space between those rails open so the continuous mainframe surface remains visible beneath the logo.
 
 Regenerate and verify from the repository root:
 
@@ -46,7 +48,7 @@ node --test scripts/cinema2-assets/mainframe-source-contract.test.mjs scripts/ci
 npm run assets:check
 ```
 
-The generated `public/cinema2/models/mainframe.glb` is 141,644 triangles and 7.73 MiB. It remains one shared model because its 13 merged semantic parts are already below the asset limits; duplicating the geometry for tier-specific files would increase installer cost without improving the composition.
+The generated `public/cinema2/models/mainframe.glb` is 133,450 triangles and 7.45 MiB. It remains one shared model because its 13 merged semantic parts are already below the asset limits; duplicating the geometry for tier-specific files would increase installer cost without improving the composition.
 
 ## Model and shader attributes
 
@@ -82,7 +84,7 @@ Run the deterministic production gate with:
 npm run visual:mainframe:production
 ```
 
-The gate captures rest plus all six patterns at 1920×1080 and 2048×1041, medium/low checkpoints, a 120-frame high-tier profile, resize, forced context recovery, and intercepted asset failure. The final 2026-10-08 run completed without module/effect degradation: 3.66 ms average CPU frame time, 13.84 ms GPU frame time, 16.65 ms presented-frame interval, 15,444,208 estimated module GPU bytes, successful context generation 1 → 2 recovery, and the expected `CINEMA2_MAINFRAME_ASSET_LOAD_FAILED` diagnostic for a missing GLB.
+The gate captures rest plus all six patterns at 1920×1080 and 2048×1041, medium/low checkpoints, a 120-frame high-tier profile, resize, forced context recovery, and intercepted asset failure. The final open-logo run on 2026-10-08 completed without module/effect degradation: 3.40 ms average CPU frame time, 2.20 ms GPU frame time, 16.65 ms presented-frame interval, 15,150,740 estimated module GPU bytes, successful context generation 1 → 2 recovery, and the expected `CINEMA2_MAINFRAME_ASSET_LOAD_FAILED` diagnostic for a missing GLB.
 
 ## Known limits
 

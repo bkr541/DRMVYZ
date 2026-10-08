@@ -424,7 +424,7 @@ describe('AI lyric extractor refresh recovery', () => {
     mocks.getFullLyricDocument.mockResolvedValueOnce({ document: lyricDocument(), cues: [cue()] })
     await renderExtractor(selectedTrack(), 'doc-existing-active')
 
-    expect(container!.textContent).toContain('new inactive draft version')
+    expect(container!.textContent).not.toContain('Extraction creates a new inactive draft version')
     expect(container!.textContent).toContain('Inactive draft')
     expect([...container!.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Activate This Version')).toBe(true)
   })

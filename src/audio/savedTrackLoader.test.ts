@@ -82,7 +82,7 @@ describe('savedTrackLoader', () => {
     const audio = engine()
     const getSignedUrl = vi.fn().mockResolvedValue('https://signed.test/reverie.wav')
 
-    const result = await loadSavedTrackIntoEngine(audio, savedTrack(), { getSignedUrl })
+    const result = await loadSavedTrackIntoEngine(audio, savedTrack({ isRekordbox: true }), { getSignedUrl })
 
     expect(getSignedUrl).toHaveBeenCalledWith('user/track-a/reverie.wav')
     expect(audio.addTrackUrls).toHaveBeenCalledWith([
@@ -92,6 +92,7 @@ describe('savedTrackLoader', () => {
         title: 'Reverie',
         artist: 'DVYDRM',
         duration: 193.5,
+        isRekordbox: true,
         persistedMetadata: {
           bpm: 150,
           musicalKey: 'Bb Major',

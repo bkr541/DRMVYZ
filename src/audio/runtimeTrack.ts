@@ -27,6 +27,7 @@ export interface RuntimeTrackUrlInput {
   duration?: number | null
   persistedMetadata?: PersistedTrackMetadata
   analysisRuntime?: TrackAnalysisRuntime
+  isRekordbox?: boolean
 }
 
 export function runtimeIdForAudioTrack(dbId: string): string {
@@ -142,6 +143,7 @@ export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackInte
     importedCueRegions: imported?.cueRegions ?? [],
     importedRekordboxPhrases: imported?.rekordboxPhrases ?? [],
     importedAnalysisSeed: imported?.analysisSeed,
+    isRekordbox:          Boolean(imported),
     sourceKind:         'file',
     sourceFile:         file,
     analysisRuntime,
@@ -168,6 +170,7 @@ export function createRemoteRuntimeTrack(input: RuntimeTrackUrlInput): Track {
     persistedMetadata: input.persistedMetadata,
     importedRekordboxPhrases: importedAnalysisSeed?.rekordboxPhrases ?? [],
     importedAnalysisSeed,
+    isRekordbox:       input.isRekordbox ?? Boolean(importedAnalysisSeed),
     sourceKind:        'remote',
     analysisRuntime:   buildAnalysisRuntime(
       { sourceKind: 'remote', url: input.url, importedAnalysisSeed },

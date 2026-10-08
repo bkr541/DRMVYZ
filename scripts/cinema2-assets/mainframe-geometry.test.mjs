@@ -61,7 +61,7 @@ test('Mainframe ships the intended independently addressable hard-surface materi
 
 test('Mainframe stays inside the shared model file and triangle budgets', () => {
   const triangles = [...meshByName.keys()].reduce((sum, name) => sum + mesh(name).indices.spec.count / 3, 0)
-  assert.equal(triangles, 141644)
+  assert.equal(triangles, 133450)
   assert.ok(triangles <= DEFAULT_BUDGETS.maxTrianglesPerAsset)
   assert.ok(bytes.length <= DEFAULT_BUDGETS.maxFileBytes)
 })

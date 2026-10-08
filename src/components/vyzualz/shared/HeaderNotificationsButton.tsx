@@ -45,7 +45,7 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
     <>
       <button
         type="button"
-        className="vsm-settings-btn vz-header-status-chip vz-header-chip vz-header-chip--square vz-header-notifications"
+        className={`vsm-settings-btn vz-header-status-chip vz-header-chip ${page === 'react' ? 'vz-header-chip--labeled' : 'vz-header-chip--square'} vz-header-notifications`}
         data-attention={attention ?? (unreadCount > 0 ? 'unread' : undefined)}
         data-ringing={ringing ? 'true' : undefined}
         onClick={() => setOpen(true)}
@@ -54,6 +54,7 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
         aria-label={label}
         title={label}
       >
+        {page === 'react' && <span className="vz-header-state-label">Notifications</span>}
         <NotificationBellIcon />
         {(attention || unreadCount > 0) && <span className="vz-header-notifications-dot" data-tone={attention ?? unreadTone ?? 'info'} aria-hidden="true" />}
       </button>

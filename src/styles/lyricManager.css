@@ -838,6 +838,183 @@
   white-space: nowrap;
 }
 
+/* AI Extract uses the same canonical underline controls and field rhythm as
+   the rest of the app. Its track and source summaries are intentionally flat
+   information rows rather than cards nested inside the workflow panel. */
+.lmv-workflow-content.lmv-ai-extract {
+  padding: 7px 11px 10px;
+  gap: 0;
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+}
+
+.lmv-ai-extract .lmv-section-label {
+  margin: 22px 0 10px;
+  color: rgba(196, 207, 211, 0.46);
+  font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.12em;
+}
+
+.lmv-ai-extract .lmv-section-label--first { margin-top: 0; }
+
+.lmv-ai-extract > .rv-ctrl-collapsible {
+  margin: 24px 0 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.lmv-ai-extract > .rv-ctrl-collapsible > .rv-ctrl-collapsible-hdr {
+  padding: 10px 11px 9px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.2);
+  background: transparent;
+  color: rgba(232, 238, 240, 0.92);
+  font: 800 12px/1.25 var(--az-font, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+}
+
+.lmv-ai-extract > .rv-ctrl-collapsible > .rv-ctrl-collapsible-hdr:hover {
+  background: transparent;
+  color: #fff;
+}
+
+.lmv-ai-extract > .rv-ctrl-collapsible > .lmv-ai-group-body {
+  margin-top: 12px;
+  padding: 10px 11px 12px;
+  gap: 18px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(11, 20, 24, 0.56);
+}
+
+.lmv-ai-extract .lmv-ai-progress-group-body {
+  min-width: 0;
+}
+
+.lmv-ai-extract .lmv-ai-progress-group-body .lmv-job-card {
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lmv-ai-extract .lmv-job-card .lmv-import-actions {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.lmv-ai-extract .lmv-ai-track-card {
+  margin: 0;
+  padding: 2px 0 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.12);
+  border-radius: 0;
+  background: transparent;
+}
+
+.lmv-ai-extract .lmv-ai-track-card strong {
+  font: 700 13px/1.25 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lmv-ai-extract .lmv-ai-track-card span {
+  font: 600 10px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lmv-ai-extract .lmv-ai-track-meta { gap: 5px 12px; }
+
+.lmv-ai-extract .lmv-ai-track-meta span {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lmv-ai-extract .lmv-grid2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+}
+
+.lmv-ai-extract .lmv-field {
+  min-width: 0;
+  gap: 8px;
+}
+
+.lmv-ai-extract .lmv-field--wide { grid-column: 1 / -1; }
+
+.lmv-ai-extract .lmv-field-label {
+  color: rgba(196, 207, 211, 0.58);
+  font: 650 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
+.lmv-ai-extract .dv-underline-dropdown { width: 100%; }
+
+.lmv-ai-extract .lmv-num {
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 4px 2px 8px;
+  border: 0;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.22);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(232, 238, 240, 0.94);
+  font: 700 13px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lmv-ai-extract .lmv-num:hover:not(:disabled),
+.lmv-ai-extract .lmv-num:focus {
+  border-bottom-color: #4ac7db;
+}
+
+.lmv-ai-extract .lmv-slider-row {
+  min-height: 30px;
+  gap: 12px;
+}
+
+.lmv-ai-extract .lmv-field--wide .lmv-slider { width: 100%; }
+
+.lmv-ai-extract .lmv-slider-val {
+  color: rgba(232, 238, 240, 0.7);
+  font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
+}
+
+.lmv-ai-extract .lmv-validation-box {
+  margin: 14px 0 0 !important;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lmv-ai-extract .lmv-validation-row {
+  min-height: 30px;
+  padding: 5px 0;
+  gap: 16px;
+}
+
+.lmv-ai-extract .lmv-val-label {
+  color: rgba(196, 207, 211, 0.46);
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.08em;
+}
+
+.lmv-ai-extract .lmv-val-value {
+  color: rgba(232, 238, 240, 0.84);
+  font: 650 11px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  text-align: right;
+}
+
+.lmv-ai-extract .lmv-extract-btn {
+  min-height: 34px;
+  margin-top: 24px;
+}
+
 .lmv-ai-offline-hint {
   margin-top: 8px;
   padding: 8px 10px;
@@ -850,8 +1027,13 @@
 }
 
 .lmv-job-card {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 12px;
   padding: 12px;
+  overflow: hidden;
   border-radius: 7px;
   border: 1px solid rgba(154,178,188,0.14);
   background: rgba(20,27,31,0.76);
@@ -860,15 +1042,17 @@
 .lmv-job-card--failed { border-color: rgba(224,90,90,0.28); }
 .lmv-job-card--cancelled { border-color: rgba(196,207,211,0.16); }
 .lmv-job-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
 }
 .lmv-job-header > div {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .lmv-job-status {
   color: rgba(232,238,240,0.88);
@@ -882,6 +1066,14 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
+}
+.lmv-job-progress-label { flex-shrink: 0; }
+.lmv-job-stage {
+  max-width: 100%;
+  color: rgba(196, 207, 211, 0.62);
+  font-size: 10px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 .lmv-job-progress {
   height: 5px;
@@ -905,6 +1097,8 @@
   margin-top: 9px;
 }
 .lmv-job-meta-strip span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 2px 6px;
   border-radius: 999px;
   border: 1px solid rgba(126,218,232,0.13);
@@ -913,6 +1107,14 @@
   font-size: 9px;
   line-height: 1.25;
 }
+.lmv-job-chunk-progress,
+.lmv-job-fn-version {
+  margin-top: 9px;
+  color: rgba(196, 207, 211, 0.46);
+  font: 600 9px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: 0.04em;
+}
+.lmv-job-fn-version { overflow-wrap: anywhere; }
 .lmv-job-warning-list {
   display: flex;
   flex-direction: column;
@@ -2168,6 +2370,28 @@
    and .lmv-left-rail .vz-inspector-inner above). */
 .lmv-workspace-tab-panel {
   padding: 0 24px;
+}
+
+.lmv-workspace-tab-panel--scrollable {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(74, 199, 219, 0.34) transparent;
+}
+
+.lmv-workspace-tab-panel--scrollable::-webkit-scrollbar { width: 7px; }
+.lmv-workspace-tab-panel--scrollable::-webkit-scrollbar-track { background: transparent; }
+.lmv-workspace-tab-panel--scrollable::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(74, 199, 219, 0.34);
+  background-clip: padding-box;
+}
+.lmv-workspace-tab-panel--scrollable::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 199, 219, 0.56);
+  background-clip: padding-box;
 }
 
 /* Keep the "Track Library" group header on the same left edge as the tabs and

@@ -173,6 +173,8 @@ export interface Track {
   importedRekordboxPhrases?: RekordboxPhrase[]
   /** External analysis seed to pass into the offline analyzer for BPM/key/section hydration. */
   importedAnalysisSeed?: RekordboxAnalysisSeed
+  /** True when the track was matched to/imported from a Rekordbox library. */
+  isRekordbox?: boolean
   sourceKind:      'file' | 'remote'
   sourceFile?:     File
   analysisRuntime: TrackAnalysisRuntime

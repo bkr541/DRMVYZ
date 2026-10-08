@@ -1,9 +1,9 @@
-import { IconMorphToggle } from './controls/IconMorphToggle'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
 import { Collapsible, NumberInputRow, SelectRow, SliderRow, TextInputRow } from './ReactControlRows'
-import { forwardRef, useState, useCallback, useRef, useEffect, useId, useImperativeHandle, useMemo, type MutableRefObject } from 'react'
+import { forwardRef, useState, useCallback, useRef, useEffect, useLayoutEffect, useId, useImperativeHandle, useMemo, type MutableRefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
@@ -61,6 +61,98 @@ import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 // ── Engine display labels ─────────────────────────────────────────────────────
 
 const MAX_TRACK_SECTION_UNDO_DEPTH = 50
+
+interface TrackSectionContextMenuTarget {
+  x: number
+  y: number
+  sectionId: string | null
+  sectionLabel: string | null
+}
+
+interface TrackSectionContextMenuProps extends TrackSectionContextMenuTarget {
+  canAdd: boolean
+  canDelete: boolean
+  canUndo: boolean
+  onAdd: () => void
+  onDelete: () => void
+  onUndo: () => void
+  onClose: () => void
+}
+
+function TrackSectionContextMenu({
+  x,
+  y,
+  sectionId,
+  sectionLabel,
+  canAdd,
+  canDelete,
+  canUndo,
+  onAdd,
+  onDelete,
+  onUndo,
+  onClose,
+}: TrackSectionContextMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ x, y })
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current
+    if (!menu || typeof window === 'undefined') return
+    const rect = menu.getBoundingClientRect()
+    const margin = 12
+    setPosition({
+      x: Math.max(margin, Math.min(x, window.innerWidth - rect.width - margin)),
+      y: Math.max(margin, Math.min(y, window.innerHeight - rect.height - margin)),
+    })
+  }, [x, y])
+
+  useEffect(() => {
+    const closeOnPointerDown = (event: globalThis.PointerEvent) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return
+      onClose()
+    }
+    const closeOnKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('pointerdown', closeOnPointerDown)
+    window.addEventListener('keydown', closeOnKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnPointerDown)
+      window.removeEventListener('keydown', closeOnKeyDown)
+    }
+  }, [onClose])
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal((
+    <div
+      ref={menuRef}
+      className="rv-show-director-context-menu rv-track-section-context-menu"
+      style={{ left: position.x, top: position.y }}
+      role="menu"
+      aria-label="Track Section actions"
+      onContextMenu={event => event.preventDefault()}
+      onPointerDown={event => event.stopPropagation()}
+    >
+      <button type="button" role="menuitem" disabled={!canAdd} onClick={onAdd}>
+        Add Track Section
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="rv-show-director-context-menu__danger"
+        disabled={!canDelete}
+        onClick={onDelete}
+      >
+        {sectionId ? `Delete ${sectionLabel || 'Track Section'}` : 'Delete All Track Sections'}
+      </button>
+      <span className="rv-show-director-context-menu__divider" role="separator" />
+      <button type="button" role="menuitem" disabled={!canUndo} onClick={onUndo}>
+        Undo Last Track Section Change
+      </button>
+    </div>
+  ), document.body)
+}
 
 // ── Preset-cue helpers (exported for tests) ───────────────────────────────────
 
@@ -246,8 +338,8 @@ export const TRACK_MAP_FOUR_BAR_COLOR         = 'rgba(192,49,74,0.96)'
 export const TRACK_MAP_BEAT_TICK_HEIGHT       = 5    // CSS px
 export const TRACK_MAP_DOWNBEAT_TICK_HEIGHT   = 13   // CSS px
 export const TRACK_MAP_FOUR_BAR_TICK_HEIGHT   = 20   // CSS px
-/** The beat lane's default height. In a taller lane (the timeline workspace dragged higher) the ticks grow by the same ratio. */
-export const TRACK_MAP_BEAT_LANE_BASE_HEIGHT  = 32   // CSS px
+/** The compact beat lane's fixed display height. */
+export const TRACK_MAP_BEAT_LANE_BASE_HEIGHT  = 26   // CSS px
 export const TRACK_MAP_BEAT_LINE_WIDTH        = 1    // px
 export const TRACK_MAP_DOWNBEAT_LINE_WIDTH    = 2    // px
 export const TRACK_MAP_FOUR_BAR_LINE_WIDTH    = 2    // px
@@ -494,6 +586,7 @@ export function computeTimelineCueLayout(
 
 export interface StaggeredTimelineCueLayout extends TimelineCueLayout {
   widthPct: number
+  hoverReveal: boolean
 }
 
 /** Matches Layout Lab's staggered width: stop just before the next marker on the same level. */
@@ -506,20 +599,86 @@ export function computeStaggeredTimelineCueLayout(
   const nextLeftPct = nextSameLevelTimeSec == null
     ? 100
     : Math.min(100, computeTimelineCueLayout(nextSameLevelTimeSec, viewport).leftPct)
+  const widthPct = Math.max(0, nextLeftPct - layout.leftPct - 0.25)
 
   return {
     ...layout,
-    widthPct: Math.max(0, nextLeftPct - layout.leftPct - 0.25),
+    hoverReveal: layout.visible && layout.leftPct > 92 && widthPct < 8,
+    widthPct,
   }
 }
 
 /** The Track Map's marker lane is split into one row per kind of marker, top to bottom. */
-const CUE_ROWS: ReadonlyArray<{ id: string; label: string; kinds: readonly TimelineCueItem['kind'][] }> = [
+type TimelineCueRowId = 'cues' | 'phrases' | 'moments' | 'actions'
+
+const CUE_ROWS: ReadonlyArray<{ id: TimelineCueRowId; label: string; kinds: readonly TimelineCueItem['kind'][] }> = [
   { id: 'cues', label: 'Cues', kinds: ['cue'] },
   { id: 'phrases', label: 'Phrases', kinds: ['phrase'] },
   { id: 'moments', label: 'Moments', kinds: ['moment'] },
   { id: 'actions', label: 'Actions', kinds: ['preset', 'pixgrid'] },
 ]
+
+type TrackMapLaneIconKind = 'beats' | 'sections' | 'energy' | 'ruler'
+
+function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: string }) {
+  return (
+    <span className="rv-timeline-lane-icon" title={label}>
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        {kind === 'beats' && (
+          <>
+            <path d="M2.5 4v8M6.2 6v6M9.8 3v9M13.5 7v5" />
+            <path d="M1.5 12.5h13" />
+          </>
+        )}
+        {kind === 'sections' && (
+          <>
+            <rect x="2" y="4" width="5" height="8" rx="1" />
+            <rect x="8" y="4" width="6" height="8" rx="1" />
+          </>
+        )}
+        {kind === 'energy' && <path d="M1.5 9h2l1.4-4 2.2 7 2-8 1.7 5h3.7" />}
+        {kind === 'ruler' && (
+          <>
+            <path d="M2 4.5h12v7H2zM5 4.5v3M8 4.5v2M11 4.5v3" />
+          </>
+        )}
+      </svg>
+      <span>{label}</span>
+    </span>
+  )
+}
+
+function TrackMapCueLaneIcons() {
+  return (
+    <span className="rv-timeline-lane-icon rv-timeline-lane-icon--cue-rows" role="group" aria-label="Track markers">
+      <span role="img" aria-label="Cues" title="Cues">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M8 14s4-3.5 4-7.5a4 4 0 1 0-8 0C4 10.5 8 14 8 14Z" />
+          <circle cx="8" cy="6.5" r="1.25" />
+        </svg>
+        <span>Cues</span>
+      </span>
+      <span role="img" aria-label="Phrases" title="Phrases">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M3 4.5h10M5 8h8M3 11.5h10" />
+        </svg>
+        <span>Phrases</span>
+      </span>
+      <span role="img" aria-label="Moments" title="Moments">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m8 2 1.25 3.75L13 7l-3.75 1.25L8 12 6.75 8.25 3 7l3.75-1.25L8 2Z" />
+        </svg>
+        <span>Moments</span>
+      </span>
+      <span role="img" aria-label="Actions" title="Actions">
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="m9 1.5-5 8h4l-1 5 5-8H8l1-5Z" />
+        </svg>
+        <span>Actions</span>
+      </span>
+    </span>
+  )
+}
 
 function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineViewport): void {
   container.querySelectorAll<HTMLElement>('[data-timeline-cue]').forEach(marker => {
@@ -528,6 +687,7 @@ function applyTimelineCueViewport(container: HTMLDivElement, viewport: TimelineV
     const nextSameLevelTimeSec = nextTimeValue == null ? null : Number(nextTimeValue)
     const layout = computeStaggeredTimelineCueLayout(timeSec, nextSameLevelTimeSec, viewport)
     marker.style.display = layout.visible ? '' : 'none'
+    marker.classList.toggle('is-hover-reveal', layout.hoverReveal)
     if (layout.visible) {
       marker.style.left = `${layout.leftPct}%`
       marker.style.width = `${layout.widthPct}%`
@@ -1284,6 +1444,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
           <div
             key={orig.id}
             data-section-region
+            data-section-id={orig.id}
             data-start-sec={section.startSec}
             data-end-sec={section.endSec}
             className={[
@@ -1422,9 +1583,11 @@ interface ReactTrackMapStripProps {
   audioDurationSec?: number
   /** Hides the legacy strip header when mounted inside the unified lower workspace. */
   embedded?: boolean
+  /** Reveals the compact icon legend at the leading edge of each timeline lane. */
+  laneIconsExpanded?: boolean
 }
 
-export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }: ReactTrackMapStripProps) {
+export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, laneIconsExpanded = false }: ReactTrackMapStripProps) {
   const engine = useSharedAudio()
   const {
     source,
@@ -1494,8 +1657,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
 
   const {
     waveformZoom,
-    beatGridEnabled,
-    setBeatGridEnabled,
     cueMarkers,
     addCueMarker,
     removeCueMarker,
@@ -1503,8 +1664,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   } = useVisualStore(
     useShallow(s => ({
       waveformZoom: s.waveformZoom,
-      beatGridEnabled: s.beatGridEnabled,
-      setBeatGridEnabled: s.setBeatGridEnabled,
       cueMarkers: s.cueMarkers,
       addCueMarker: s.addCueMarker,
       removeCueMarker: s.removeCueMarker,
@@ -1516,8 +1675,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const [editorMode,     setEditorMode]     = useState<SectionEditorMode>('none')
   const [dragPreview,    setDragPreview]    = useState<{ sectionId: string; start: number; end: number } | null>(null)
   const [snapMode,       setSnapMode]       = useState<SectionBoundarySnapMode>('free')
-  const [energyCurveKey, setEnergyCurveKey] = useState<EnergyCurveKey>('shortTerm')
+  const [energyCurveKey] = useState<EnergyCurveKey>('shortTerm')
   const [cueContextMenu, setCueContextMenu] = useState<CuePointContextMenuTarget | null>(null)
+  const [sectionContextMenu, setSectionContextMenu] = useState<TrackSectionContextMenuTarget | null>(null)
   const [pixGridCueEditor, setPixGridCueEditor] = useState<{ cue: PixGridActionCue; isNew: boolean } | null>(null)
   const [sectionUndoDepth, setSectionUndoDepth] = useState(0)
   const [drawTick,       setDrawTick]       = useState(0)
@@ -1547,7 +1707,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   const currentAnalysisRef          = useRef(currentAnalysis)
   const energyCurveKeyRef           = useRef(energyCurveKey)
   const currentEffectiveBeatGridRef = useRef(currentEffectiveBeatGrid)
-  const beatGridEnabledRef          = useRef(beatGridEnabled)
   const sectionUndoByTrackRef       = useRef<Record<string, TrackSectionUndoSnapshot[]>>({})
 
   // Active track ID — used as the per-track sections key
@@ -1584,6 +1743,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
 
   useEffect(() => {
     setCueContextMenu(null)
+    setSectionContextMenu(null)
     setPixGridCueEditor(null)
   }, [activeTrackId])
 
@@ -1709,7 +1869,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   currentAnalysisRef.current          = currentAnalysis
   energyCurveKeyRef.current           = energyCurveKey
   currentEffectiveBeatGridRef.current = currentEffectiveBeatGrid
-  beatGridEnabledRef.current          = beatGridEnabled
 
   // A complete analysis is only "valid" if it returned usable data.
   const hasValidData = isComplete && currentAnalysis != null && (
@@ -1785,7 +1944,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
   useEffect(() => {
     const canvas = beatCanvasRef.current
     if (!canvas) return
-    if (!isComplete || !currentAnalysis || !beatGridEnabled) {
+    if (!isComplete || !currentAnalysis) {
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height)
       return
     }
@@ -1793,7 +1952,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       ? { beatGrid: currentEffectiveBeatGrid }
       : undefined
     drawBeatCanvas(canvas, currentAnalysis, effective, viewportRef.current)
-  }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed, beatGridEnabled, waveformZoom])
+  }, [isComplete, currentAnalysis, currentEffectiveBeatGrid, drawTick, collapsed, waveformZoom])
 
   // Energy canvas — redraws when analysis, zoom, curve selection, or status changes.
   // Guard against missing/malformed curve data from old or partial cached analyses.
@@ -1850,13 +2009,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
         const analysis = currentAnalysisRef.current
         if (analysis) {
           const beatCanvas = beatCanvasRef.current
-          if (beatCanvas && beatGridEnabledRef.current) {
+          if (beatCanvas) {
             const eff = currentEffectiveBeatGridRef.current
               ? { beatGrid: currentEffectiveBeatGridRef.current }
               : undefined
             drawBeatCanvas(beatCanvas, analysis, eff, vp)
-          } else if (beatCanvas) {
-            beatCanvas.getContext('2d')?.clearRect(0, 0, beatCanvas.width, beatCanvas.height)
           }
 
           const energyCanvas = energyCanvasRef.current
@@ -2016,12 +2173,34 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     removePresetAutomationCue(activeTrackId, buildPresetCueId(sectionId))
   }, [activeTrackId, removePresetAutomationCue])
 
-  const handleRemove = useCallback((id: string) => {
+  const openSectionContextMenu = useCallback((event: React.MouseEvent, sectionId: string | null) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setCueContextMenu(null)
+    const section = sectionId ? resolvedSections.find(candidate => candidate.id === sectionId) : null
+    setSectionContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      sectionId,
+      sectionLabel: section?.label ?? null,
+    })
+  }, [resolvedSections])
+
+  const handleDeleteContextSection = useCallback((sectionId: string) => {
     if (!activeTrackId) return
+    const section = resolvedSections.find(candidate => candidate.id === sectionId)
+    if (!section) return
     recordSectionUndoSnapshot()
-    removeManualSection(activeTrackId, id)
-    removeCueForSection(id)
-  }, [activeTrackId, recordSectionUndoSnapshot, removeManualSection, removeCueForSection])
+    if (section.source === 'auto' || section.source === 'user-edited-auto') {
+      suppressAutoSection(activeTrackId, sectionId)
+    } else {
+      removeManualSection(activeTrackId, sectionId)
+    }
+    removeCueForSection(sectionId)
+    if (selectedSectionId === sectionId) setSelectedSectionIdForTrack(activeTrackId, null)
+    setDragPreview(null)
+    setEditorMode('none')
+  }, [activeTrackId, resolvedSections, recordSectionUndoSnapshot, suppressAutoSection, removeManualSection, removeCueForSection, selectedSectionId, setSelectedSectionIdForTrack])
 
   // Opens the edit panel for the clicked section.
   const handleSelectSection = useCallback((id: string) => {
@@ -2086,24 +2265,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
     // Keep the section selected — it now shows as 'auto' source in the editor.
   }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, restoreAutoSection])
 
-  // Suppresses a pure auto section (hides it from the timeline) and removes its linked cue.
-  const handleSuppressSection = useCallback(() => {
-    if (!activeTrackId || !selectedSectionId) return
-    recordSectionUndoSnapshot()
-    suppressAutoSection(activeTrackId, selectedSectionId)
-    removeCueForSection(selectedSectionId)
-    setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, suppressAutoSection, removeCueForSection])
-
-  // Permanently removes a user-created/manual section and its linked cue.
-  const handleDeleteSection = useCallback(() => {
-    if (!activeTrackId || !selectedSectionId) return
-    recordSectionUndoSnapshot()
-    removeManualSection(activeTrackId, selectedSectionId)
-    removeCueForSection(selectedSectionId)
-    setEditorMode('none')
-  }, [activeTrackId, selectedSectionId, recordSectionUndoSnapshot, removeManualSection, removeCueForSection])
-
   // Creates, updates, or removes a preset automation cue linked to the selected section.
   const handleAssignPreset = useCallback((presetId: string | null) => {
     if (!activeTrackId || !selectedSectionId) return
@@ -2151,7 +2312,8 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
       }
     }
     setEditorMode('none')
-  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, recordSectionUndoSnapshot, removeManualSection, suppressAutoSection, removeCueForSection])
+    setSelectedSectionIdForTrack(activeTrackId, null)
+  }, [activeTrackId, manualTrackSections, autoSections, suppressedIds, recordSectionUndoSnapshot, removeManualSection, suppressAutoSection, removeCueForSection, setSelectedSectionIdForTrack])
 
   const openNewPixGridCue = useCallback((authoredTimeSec: number) => {
     if (!activeTrackId) return
@@ -2443,23 +2605,18 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     </div>
                   </div>
                 ) : (
-                <div className="rv-timeline-lanes" aria-label="Expandable Track Map timeline lanes">
+                <div
+                  className={`rv-timeline-lanes${laneIconsExpanded ? ' rv-timeline-lanes--icons-expanded' : ''}`}
+                  aria-label="Expandable Track Map timeline lanes"
+                >
                   <div
                     className="rv-timeline-lane rv-timeline-lane--beats"
                     role="group"
                     aria-label="Beat Grid"
                   >
+                    <TrackMapLaneIcon kind="beats" label="Beats" />
                     <div className="rv-timeline-lane-content rv-beat-canvas-wrap">
                       <canvas ref={beatCanvasRef} className="rv-beat-canvas" aria-hidden="true" />
-                    </div>
-                    <div className="rv-timeline-lane-tools">
-                      <IconMorphToggle
-                        checked={beatGridEnabled}
-                        onCheckedChange={setBeatGridEnabled}
-                        className={`rv-ctrl-toggle rv-timeline-beat-grid-toggle${beatGridEnabled ? ' rv-ctrl-toggle--on' : ''}`}
-                        aria-label={`Turn Beat Grid ${beatGridEnabled ? 'off' : 'on'}`}
-                        title={`Beat Grid: ${beatGridEnabled ? 'On' : 'Off'}`}
-                      />
                     </div>
                   </div>
 
@@ -2467,7 +2624,13 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     className="rv-timeline-lane rv-timeline-lane--sections"
                     role="group"
                     aria-label="Sections"
+                    onContextMenu={event => {
+                      const region = (event.target as HTMLElement).closest<HTMLElement>('[data-section-region]')
+                      openSectionContextMenu(event, region?.dataset.sectionId ?? null)
+                    }}
+                    title="Right-click to add, delete, or undo a Track Section"
                   >
+                    <TrackMapLaneIcon kind="sections" label="Sections" />
                     <div className="rv-timeline-lane-content">
                       {resolvedSections.length > 0 ? (
                         <SectionTimeline
@@ -2481,54 +2644,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           snapMode={snapMode}
                           selectedId={selectedSectionId}
                           onSelect={handleSelectSection}
-                          onRemove={activeTrackId ? handleRemove : undefined}
+                          onContextMenu={(event, sectionId) => openSectionContextMenu(event, sectionId)}
                           onCommitBoundary={handleCommitBoundary}
                           onDragPreview={handleDragPreview}
                           presetAssignedSectionIds={assignedSectionIds}
                         />
                       ) : (
                         <div className="rv-timeline-lane-empty">
-                          No sections yet. Use + to create one.
+                          No sections yet. Right-click to create one.
                         </div>
                       )}
-                    </div>
-                    <div className="rv-timeline-lane-tools">
-                      <button
-                        type="button"
-                        className="rv-timeline-tool-btn"
-                        onPointerDown={event => event.stopPropagation()}
-                        onClick={event => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          handleUndoSectionEdit()
-                        }}
-                        title="Undo most recent Track Section change"
-                        aria-label="Undo most recent Track Section change"
-                        disabled={sectionUndoDepth === 0}
-                      >↶</button>
-                      <button
-                        type="button"
-                        className="rv-timeline-tool-btn rv-timeline-tool-btn--danger"
-                        onClick={handleDeleteAllSections}
-                        title="Clear all sections"
-                        aria-label="Clear all sections"
-                        disabled={resolvedSections.length === 0}
-                      >✕</button>
-                      <button
-                        type="button"
-                        className="rv-timeline-tool-btn rv-timeline-tool-btn--accent"
-                        onClick={() => {
-                          if (editorMode === 'create') {
-                            setEditorMode('none')
-                          } else {
-                            if (activeTrackId) setSelectedSectionIdForTrack(activeTrackId, null)
-                            setEditorMode('create')
-                          }
-                        }}
-                        title="Add a manual section"
-                        aria-label="Add a manual section"
-                        disabled={!activeTrackId}
-                      >{editorMode === 'create' ? '−' : '+'}</button>
                     </div>
                   </div>
 
@@ -2538,21 +2663,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                       role="group"
                       aria-label="Energy Intensity"
                     >
+                      <TrackMapLaneIcon kind="energy" label="Energy" />
                       <div className="rv-timeline-lane-content">
                         <canvas ref={energyCanvasRef} className="rv-energy-canvas" aria-hidden="true" />
-                      </div>
-                      <div className="rv-timeline-lane-tools">
-                        <DropdownSelect
-                          className="rv-timeline-lane-select"
-                          value={energyCurveKey}
-                          onChange={e => setEnergyCurveKey(e.target.value as EnergyCurveKey)}
-                          title="Energy curve"
-                          aria-label="Energy curve"
-                        >
-                          {ENERGY_CURVE_OPTIONS.map(o => (
-                            <option key={o.key} value={o.key}>{o.label}</option>
-                          ))}
-                        </DropdownSelect>
                       </div>
                     </div>
                   )}
@@ -2562,6 +2675,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     role="group"
                     aria-label="Cues and Presets"
                   >
+                    <TrackMapCueLaneIcons />
                     <div
                       ref={cueTimelineRef}
                       className="rv-timeline-lane-content rv-timeline-cue-lane"
@@ -2601,7 +2715,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                                   data-timeline-cue
                                   data-cue-time={cue.timeSec}
                                   data-cue-next-time={nextSameLevelCue?.timeSec}
-                                  className={`rv-timeline-cue rv-timeline-cue--${cue.kind} ${index % 2 ? 'is-low' : 'is-high'}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
+                                  className={`rv-timeline-cue rv-timeline-cue--${cue.kind} ${index % 2 ? 'is-low' : 'is-high'}${layout.hoverReveal ? ' is-hover-reveal' : ''}${cue.enabled ? '' : ' rv-timeline-cue--disabled'}`}
                                   style={{
                                     display: layout.visible ? undefined : 'none',
                                     left: `${layout.leftPct}%`,
@@ -2649,22 +2763,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                         <span className="rv-timeline-lane-empty">No cue or preset markers</span>
                       )}
                     </div>
-                    <div className="rv-timeline-lane-tools rv-timeline-cue-row-tools">
-                      {CUE_ROWS.map(row => {
-                        const count = timelineCueItems.filter(cue => row.kinds.includes(cue.kind)).length
-                        return (
-                          <div
-                            key={row.id}
-                            className="rv-timeline-lane-state rv-timeline-cue-row-state"
-                            title={`${count} ${row.label.toLowerCase()} marker${count === 1 ? '' : 's'}`}
-                            aria-label={`${count} ${row.label.toLowerCase()} marker${count === 1 ? '' : 's'}`}
-                          >
-                            <span>{row.label}</span>
-                            <strong>{count}</strong>
-                          </div>
-                        )
-                      })}
-                    </div>
                   </div>
 
                   <div
@@ -2672,11 +2770,9 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     role="group"
                     aria-label="Visible Range"
                   >
+                    <TrackMapLaneIcon kind="ruler" label="Time" />
                     <div className="rv-timeline-lane-content rv-timeline-ruler-content">
                       <canvas ref={rulerCanvasRef} className="rv-timeline-ruler-canvas" aria-hidden="true" />
-                    </div>
-                    <div className="rv-timeline-lane-tools rv-timeline-zoom-readout" title="Waveform zoom">
-                      {waveformZoom}×
                     </div>
                   </div>
 
@@ -2718,9 +2814,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                     )}
                     {editorMode === 'edit' && selectedSection && (() => {
                       const src = selectedSection.source
-                      const isAuto = src === 'auto'
                       const isEdited = src === 'user-edited-auto'
-                      const isUser = !isAuto && !isEdited
                       return (
                         <EditSectionForm
                           section={selectedSection}
@@ -2734,9 +2828,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
                           onSnapBoundary={handleSnapSelectedBoundary}
                           onSave={handleSaveSection}
                           onCancel={closeSectionEditor}
-                          onDelete={isUser ? handleDeleteSection : undefined}
                           onRestore={isEdited ? handleRestoreSection : undefined}
-                          onSuppress={isAuto ? handleSuppressSection : undefined}
                           reactPresets={reactPresets}
                           assignedPresetId={
                             trackCues.find(c => c.id === buildPresetCueId(selectedSection.id))?.presetId ?? null
@@ -2762,6 +2854,31 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false }:
           onUpdateCuePoint={activeTrackId ? updateCueMarker : undefined}
           onDeleteCuePoint={activeTrackId ? removeCueMarker : undefined}
           ariaLabel="Track Map cue point menu"
+        />
+      )}
+      {sectionContextMenu && (
+        <TrackSectionContextMenu
+          {...sectionContextMenu}
+          canAdd={Boolean(activeTrackId)}
+          canDelete={sectionContextMenu.sectionId != null || resolvedSections.length > 0}
+          canUndo={sectionUndoDepth > 0}
+          onClose={() => setSectionContextMenu(null)}
+          onAdd={() => {
+            setSectionContextMenu(null)
+            if (!activeTrackId) return
+            setSelectedSectionIdForTrack(activeTrackId, null)
+            setEditorMode('create')
+          }}
+          onDelete={() => {
+            const sectionId = sectionContextMenu.sectionId
+            setSectionContextMenu(null)
+            if (sectionId) handleDeleteContextSection(sectionId)
+            else handleDeleteAllSections()
+          }}
+          onUndo={() => {
+            setSectionContextMenu(null)
+            handleUndoSectionEdit()
+          }}
         />
       )}
     </div>

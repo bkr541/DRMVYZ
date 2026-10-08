@@ -81,6 +81,8 @@ describe('HeaderSystemStatus activity ring', () => {
   it('rests idle, spins while this page has loading work, and lists what is loading', async () => {
     await render('react')
     expect(ring().dataset.busy).toBe('false')
+    expect(ring().textContent).toContain('Loading')
+    expect(ring().classList.contains('vz-header-chip--labeled')).toBe(true)
     expect(container.querySelector('.vz-header-activity-arc--spinning')).toBeNull()
     expect(ring().title).toBe('Nothing loading')
 
@@ -95,6 +97,8 @@ describe('HeaderSystemStatus activity ring', () => {
 
   it('only reacts to its own page', async () => {
     await render('lyric-manager')
+    expect(ring().textContent).not.toContain('Loading')
+    expect(ring().classList.contains('vz-header-chip--square')).toBe(true)
     await act(async () => usePageActivityStore.getState().replaceOwnerSources('media-manager', 'test', { a: 'Uploading media' }))
     expect(ring().dataset.busy).toBe('false')
   })

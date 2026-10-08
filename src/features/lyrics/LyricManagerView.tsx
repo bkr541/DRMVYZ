@@ -1987,7 +1987,11 @@ export function LyricManagerView({
               variant="underline"
             />
 
-            <div className="lmv-workspace-tab-panel" role="tabpanel" aria-label="Tracks panel">
+            <div
+              className={`lmv-workspace-tab-panel${workspaceTabForWorkflow(activeTab) === 'aiExtract' ? ' lmv-workspace-tab-panel--scrollable' : ''}`}
+              role="tabpanel"
+              aria-label="Tracks panel"
+            >
             {workspaceTabForWorkflow(activeTab) === 'tracks' && (
           <LyricTrackBrowser
             tracks={tracks}

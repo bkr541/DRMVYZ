@@ -382,7 +382,8 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 0,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, threshold: 1.4, knee: 0.35, intensity: 0.48, spread: 0.5, levels: 7, clampMax: 32, tint: color(0.78, 1, 0.7) }),
+      // A high threshold keeps dormant green routes crisp; hot audio peaks carry the stronger-than-Conduit halo.
+      parameters: Object.freeze({ mix: 1, threshold: 1.65, knee: 0.28, intensity: 0.92, spread: 0.58, levels: 7, clampMax: 32, tint: color(0.78, 1, 0.7) }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,

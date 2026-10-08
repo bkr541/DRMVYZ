@@ -1362,7 +1362,7 @@ export const useMediaStore = create<MediaState>((set, get) => ({
       }
     })
 
-    // Background BPM and musical-key detection per audio file — writes directly to that
+    // Background artist, BPM, and musical-key detection per audio file — writes directly to that
     // file's own draft (which may no longer be the active selection by the
     // time analysis resolves) without clobbering values the user already entered.
     for (const item of items) {
@@ -1373,13 +1373,14 @@ export const useMediaStore = create<MediaState>((set, get) => ({
           set(state => {
             const current = state.uploadDrafts[item.tempId]
             if (!current) return {}
+            const audioArtist = current.audioArtist || result.artist || ''
             const audioBpm = current.audioBpm || (result.bpm === null ? '' : String(result.bpm))
             const audioMusicalKey = current.audioMusicalKey || result.musicalKey || ''
-            if (audioBpm === current.audioBpm && audioMusicalKey === current.audioMusicalKey) return {}
+            if (audioArtist === current.audioArtist && audioBpm === current.audioBpm && audioMusicalKey === current.audioMusicalKey) return {}
             return {
               uploadDrafts: {
                 ...state.uploadDrafts,
-                [item.tempId]: { ...current, audioBpm, audioMusicalKey },
+                [item.tempId]: { ...current, audioArtist, audioBpm, audioMusicalKey },
               },
             }
           })
