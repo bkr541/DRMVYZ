@@ -1,5 +1,6 @@
 import type { Cinema2AudioIntelligenceFrame, Cinema2AudioSignal } from '../../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
+import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './Cinema2MainframeAudioDelivery'
 import {
   CINEMA2_MAINFRAME_IMPULSES,
   CINEMA2_MAINFRAME_IMPULSE_IDS,
@@ -169,62 +170,82 @@ export class Cinema2MainframeReactivityEngine {
     return [id, new ImpulseEnvelope(spec.attackMs, spec.releaseMs)]
   })) as Record<Cinema2MainframeImpulseId, ImpulseEnvelope>
   private previousTimeSec: number | null = null
-  private trackId: string | null | undefined
+  private sourceIdentity: string | null = null
+  private transportTrackId: string | null | undefined
   private contextGeneration: number | null = null
+  private previousTimestampMs: number | null = null
   private lastFrame = evaluateCinema2MainframePattern({ pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0): Readonly<Cinema2MainframeLightingFrame> {
-    const timeSec = resolveCinema2MainframeTimeSec(frame)
-    const reset = Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
+    const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
+    const playback = resolveCinema2MainframePlaybackState(frame, audio)
+    const acceptedFrame = audio === frame.audio ? frame : { ...frame, audio }
+    const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
+    // Pausing may disable analysis publication. Keep the held visual state unless
+    // the actual transport identity changed while paused.
+    const identity = playback === 'paused' && !audio && this.sourceIdentity != null
+      && frame.transport?.trackId === this.transportTrackId
+      ? this.sourceIdentity : resolveCinema2MainframeSourceIdentity(frame, audio)
+    const reset = Boolean(audio?.discontinuity.occurred && audio.discontinuity.reason !== 'activation')
       || (this.previousTimeSec != null && timeSec < this.previousTimeSec - 1e-6)
-      || (this.trackId !== undefined && frame.transport?.trackId !== this.trackId)
+      || (this.sourceIdentity != null && identity !== this.sourceIdentity)
       || (this.contextGeneration != null && frame.contextGeneration !== this.contextGeneration)
     if (reset) this.reset()
 
-    const paused = frame.transport?.sourcePresent === true && frame.transport.paused === true
-    if (paused) {
-      this.remember(frame, timeSec)
+    if (playback === 'paused') {
+      this.remember(frame, timeSec, identity)
       return this.lastFrame
     }
-    const active = frame.transport?.sourcePresent === true
-      && frame.transport.playing !== false
-      && frame.transport.animationActive !== false
-    if (!active) {
+    if (playback !== 'playing') {
+      this.reset() // Stopping must discard impulses even if the same track is loaded again.
       this.lastFrame = evaluateCinema2MainframePattern({ pattern, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
-      this.remember(frame, timeSec)
+      this.remember(frame, timeSec, identity)
       return this.lastFrame
     }
 
-    const deltaSec = Math.min(0.1, Math.max(0, Number.isFinite(frame.deltaTimeSec) ? frame.deltaTimeSec : 0))
-    const events = resolveEvents(frame.audio, this.previousTimeSec, timeSec)
+    // The host can freeze visual delta while analysisActive is false even if audio and
+    // transport are actually playing. Only Mainframe's real audio envelopes use this fallback.
+    const timestampDelta = this.previousTimestampMs == null || !Number.isFinite(frame.timestampMs)
+      ? 0 : (frame.timestampMs - this.previousTimestampMs) / 1000
+    const transportDelta = this.previousTimeSec == null ? 0 : timeSec - this.previousTimeSec
+    const deltaSec = Math.min(0.1, Math.max(0, frame.deltaTimeSec > 0 && Number.isFinite(frame.deltaTimeSec)
+      ? frame.deltaTimeSec : timestampDelta > 0 ? timestampDelta : transportDelta))
+    const events = reset ? null : resolveEvents(audio, this.previousTimeSec, timeSec)
     const impulseValues = {} as Record<Cinema2MainframeImpulseId, number>
-    for (const id of CINEMA2_MAINFRAME_IMPULSE_IDS) impulseValues[id] = this.envelopes[id].update(deltaSec, events[id])
+    for (const id of CINEMA2_MAINFRAME_IMPULSE_IDS) impulseValues[id] = this.envelopes[id].update(deltaSec, events?.[id] ?? null)
     this.lastFrame = evaluateCinema2MainframePattern({
       pattern,
-      beats: Math.max(0, resolveCinema2MainframeBeatClock(frame, bpmSync) - Math.max(0, patternStartBeat)),
-      signals: resolveSignals(frame.audio),
+      beats: Math.max(0, resolveCinema2MainframeBeatClock(acceptedFrame, bpmSync) - Math.max(0, patternStartBeat)),
+      signals: resolveSignals(audio),
       impulses: Object.freeze(impulseValues),
       active: true,
     })
-    this.remember(frame, timeSec)
+    this.remember(frame, timeSec, identity)
     return this.lastFrame
   }
 
   reset(): void {
     for (const envelope of Object.values(this.envelopes)) envelope.reset()
     this.previousTimeSec = null
+    this.previousTimestampMs = null
+    this.sourceIdentity = null
+    this.transportTrackId = undefined
+    this.contextGeneration = null
+    this.lastFrame = evaluateCinema2MainframePattern({ pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
   }
 
-  private remember(frame: Readonly<Cinema2ModuleFrameReadContext>, timeSec: number): void {
+  private remember(frame: Readonly<Cinema2ModuleFrameReadContext>, timeSec: number, identity: string): void {
     this.previousTimeSec = timeSec
-    this.trackId = frame.transport?.trackId
+    this.previousTimestampMs = Number.isFinite(frame.timestampMs) ? frame.timestampMs : null
+    this.sourceIdentity = identity
+    this.transportTrackId = frame.transport?.trackId
     this.contextGeneration = frame.contextGeneration
   }
 }
 
 export function resolveCinema2MainframeBeatClock(frame: Readonly<Cinema2ModuleFrameReadContext>, bpmSync: boolean): number {
   if (bpmSync) {
-    const rhythm = frame.audio?.rhythm
+    const rhythm = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)?.rhythm
     const phase = finiteSignalNumber(rhythm?.beatPhase)
     if (phase != null) {
       const fraction = Math.min(0.999, phase)
@@ -255,16 +276,16 @@ function resolveSignals(audio: Readonly<Cinema2AudioIntelligenceFrame> | null): 
 function resolveEvents(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, previousTimeSec: number | null, timeSec: number): Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null> {
   const rhythm = audio?.rhythm
   const event = (value: Readonly<{ id: string; strength: number }> | null | undefined) => value ? { id: value.id, strength: value.strength } : null
-  const phrase = crossed(audio?.structure.analyzedPhrases.value ?? [], previousTimeSec, timeSec)
-  const drop = crossed((audio?.structure.semanticMoments.value ?? []).filter(item => item.type === 'drop' || item.type === 'drop_impact'), previousTimeSec, timeSec)
+  const phrase = crossed(audio?.structure.analyzedPhrases.available ? audio.structure.analyzedPhrases.value ?? [] : [], previousTimeSec, timeSec)
+  const drop = crossed((audio?.structure.semanticMoments.available ? audio.structure.semanticMoments.value ?? [] : []).filter(item => item.type === 'drop' || item.type === 'drop_impact'), previousTimeSec, timeSec)
   return {
     kick: event(rhythm?.kick),
     snare: event(rhythm?.snare),
     beat: event(rhythm?.beat),
     downbeat: event(rhythm?.downbeat),
-    fourBeat: event(rhythm?.fixedClocks[4].boundary),
-    eightBeat: event(rhythm?.fixedClocks[8].boundary),
-    phrase: phrase ? { id: phrase, strength: 1 } : event(rhythm?.fixedClocks[16].boundary),
+    fourBeat: event(rhythm?.fixedClocks?.[4]?.boundary),
+    eightBeat: event(rhythm?.fixedClocks?.[8]?.boundary),
+    phrase: phrase ? { id: phrase, strength: 1 } : event(rhythm?.fixedClocks?.[16]?.boundary),
     drop: drop ? { id: drop, strength: 1 } : null,
   }
 }
@@ -272,7 +293,7 @@ function resolveEvents(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, pr
 function crossed(items: readonly Readonly<{ id: string; timeSec: number }>[], previousTimeSec: number | null, currentTimeSec: number): string | null {
   if (previousTimeSec == null || currentTimeSec <= previousTimeSec) return null
   let latest: Readonly<{ id: string; timeSec: number }> | null = null
-  for (const item of items) if (item.timeSec > previousTimeSec && item.timeSec <= currentTimeSec + 1e-6 && (!latest || item.timeSec > latest.timeSec)) latest = item
+  for (const item of items) if (Number.isFinite(item.timeSec) && item.timeSec > previousTimeSec && item.timeSec <= currentTimeSec + 1e-6 && (!latest || item.timeSec > latest.timeSec)) latest = item
   return latest?.id ?? null
 }
 
@@ -286,9 +307,14 @@ function normalizedSignalNumber(signal: Readonly<Cinema2AudioSignal<number>> | u
 }
 
 export function resolveCinema2MainframeTimeSec(frame: Readonly<Cinema2ModuleFrameReadContext>): number {
-  const audioMatchesTransport = frame.audio != null && (
-    frame.transport?.trackId == null || frame.audio.upstream.trackId === frame.transport.trackId
-  )
-  const value = audioMatchesTransport ? frame.audio!.upstream.timeSec : frame.transport?.timeSec ?? frame.elapsedTimeSec
-  return Number.isFinite(value) ? Math.max(0, value) : 0
+  const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
+  const audioTime = audio?.upstream.timeSec
+  const transportTime = frame.transport?.timeSec
+  // A missing/zero upstream timestamp must not pin a moving real transport at zero.
+  if (typeof audioTime === 'number' && Number.isFinite(audioTime) && audioTime >= 0
+    && (audioTime > 0 || !Number.isFinite(transportTime) || transportTime === 0)
+    && (!Number.isFinite(transportTime) || Math.abs(audioTime - transportTime!) <= 0.75)) return audioTime
+  if (typeof transportTime === 'number' && Number.isFinite(transportTime)) return Math.max(0, transportTime)
+  return typeof audioTime === 'number' && Number.isFinite(audioTime) ? Math.max(0, audioTime)
+    : Number.isFinite(frame.elapsedTimeSec) ? Math.max(0, frame.elapsedTimeSec) : 0
 }

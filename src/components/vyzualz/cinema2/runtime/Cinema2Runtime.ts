@@ -7,6 +7,8 @@ import {
   type Cinema2AudioIntelligenceFrame,
 } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
+import { CINEMA2_MAINFRAME_PRESET_ID } from '../presets/Cinema2MainframePreset'
+import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import {
   Cinema2ChoreographyRuntime,
   type Cinema2ChoreographyRuntimeSnapshot,
@@ -888,7 +890,13 @@ export class Cinema2Runtime {
       this.lastTransportState = transport
 
       this.audioIntelligenceFrame = this.audioIntelligenceBridge.capture(visualFrameId)
-      const frameAudio = transport.analysisActive ? this.audioIntelligenceFrame : null
+      // Mainframe may have real upstream music while the transport's analysis flag
+      // temporarily disagrees with playback. Only this preset opts into the
+      // independently validated snapshot; every other preset keeps its host gate.
+      const frameAudio = this.compiledPresetPlan.presetId === CINEMA2_MAINFRAME_PRESET_ID
+        ? (transport.playing || transport.analysisActive || transport.paused
+          ? selectCinema2MainframeAudio(this.audioIntelligenceFrame, transport.trackId) : null)
+        : (transport.analysisActive ? this.audioIntelligenceFrame : null)
       this.visualDirectorFrame = frameAudio ? this.visualDirector.capture(frameAudio) : null
       if (frameAudio?.discontinuity.occurred && frameAudio.discontinuity.reason !== 'activation') {
         this.historyService.resetAll('discontinuity')

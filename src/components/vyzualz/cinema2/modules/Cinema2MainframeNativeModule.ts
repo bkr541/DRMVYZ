@@ -51,6 +51,7 @@ import {
   createCinema2MainframeLightingDiagnosticFrame,
   parseCinema2MainframeLightingDiagnosticFamily,
 } from './mainframe/Cinema2MainframeLightingDiagnostic'
+import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
 
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('mainframe-native-render')
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION = 1 as const
@@ -255,6 +256,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let selection: Readonly<Cinema2MainframePatternSelection> = Object.freeze({ activePattern: frame.pattern, patternStartBeat: 0, changed: false })
     let lighting: Readonly<Cinema2MainframeLightingFrame> | null = null
     let triggerPreviousTimeSec: number | null = null
+    let triggerSourceIdentity: string | null = null
     let triggerTrackId: string | null | undefined
     let triggerContextGeneration: number | null = null
     let reportedBytes = -1
@@ -355,24 +357,30 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       lifecycle: {
         update: ({ parameters, frame: updateFrame }: Cinema2ModuleUpdateContext) => {
           frame = resolveCinema2MainframeStaticFrame(parameters)
-          const timeSec = resolveCinema2MainframeTimeSec(updateFrame)
-          const triggerReset = Boolean(updateFrame.audio?.discontinuity.occurred && updateFrame.audio.discontinuity.reason !== 'activation')
+          const audio = selectCinema2MainframeAudio(updateFrame.audio, updateFrame.transport?.trackId)
+          const acceptedFrame = audio === updateFrame.audio ? updateFrame : { ...updateFrame, audio }
+          const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
+          const sourceIdentity = updateFrame.transport?.paused && !audio && triggerSourceIdentity != null
+            && updateFrame.transport.trackId === triggerTrackId
+            ? triggerSourceIdentity : resolveCinema2MainframeSourceIdentity(updateFrame, audio)
+          const triggerReset = Boolean(audio?.discontinuity.occurred && audio.discontinuity.reason !== 'activation')
             || (triggerPreviousTimeSec != null && timeSec < triggerPreviousTimeSec - 1e-6)
-            || (triggerTrackId !== undefined && updateFrame.transport?.trackId !== triggerTrackId)
+            || (triggerSourceIdentity != null && sourceIdentity !== triggerSourceIdentity)
             || (triggerContextGeneration != null && updateFrame.contextGeneration !== triggerContextGeneration)
           const triggerEventId = triggerReset
             ? null
-            : resolveCinema2MainframeTriggerEventIdentity(updateFrame, frame.trigger, triggerPreviousTimeSec)
+            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec)
           selection = patternController.update({
             authoredPattern: frame.pattern,
             patternChange: frame.patternChange,
             trigger: frame.trigger,
             triggerEventId,
-            absoluteBeat: resolveCinema2MainframeBeatClock(updateFrame, frame.bpmSync),
+            absoluteBeat: resolveCinema2MainframeBeatClock(acceptedFrame, frame.bpmSync),
             reset: triggerReset,
           })
           lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat)
           triggerPreviousTimeSec = timeSec
+          triggerSourceIdentity = sourceIdentity
           triggerTrackId = updateFrame.transport?.trackId
           triggerContextGeneration = updateFrame.contextGeneration
         },

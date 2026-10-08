@@ -4,6 +4,7 @@ import {
   type Cinema2AfterhoursTriggerId,
 } from '../Cinema2AfterhoursNativeModule'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
+import { resolveCinema2MainframePlaybackState, selectCinema2MainframeAudio } from './Cinema2MainframeAudioDelivery'
 import {
   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
   CINEMA2_MAINFRAME_PATTERN_IDS,
@@ -118,5 +119,10 @@ export function resolveCinema2MainframeTriggerEventIdentity(
   trigger: Cinema2MainframeTriggerId,
   previousTimeSec: number | null,
 ): string | null {
-  return resolveCinema2AfterhoursTriggerEventIdentity(frame, trigger, previousTimeSec)
+  const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
+  if (resolveCinema2MainframePlaybackState(frame, audio) !== 'playing') return null
+  // The shared Afterhours trigger contract checks sourcePresent; that hint must
+  // not veto a genuinely playing, validated Mainframe audio frame.
+  const accepted = { ...frame, audio, transport: frame.transport ? { ...frame.transport, sourcePresent: true, playing: true } : undefined }
+  return resolveCinema2AfterhoursTriggerEventIdentity(accepted, trigger, previousTimeSec)
 }
