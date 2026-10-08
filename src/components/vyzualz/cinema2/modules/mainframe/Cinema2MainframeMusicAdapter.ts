@@ -2,6 +2,7 @@ import type { Cinema2AudioEvent, Cinema2AudioIntelligenceFrame, Cinema2AudioSign
 import type { Cinema2VisualDirectorFrame } from '../../director/Cinema2VisualDirector'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
 import type { Cinema2MainframeImpulseId } from './Cinema2MainframeReactivity'
+import type { Cinema2MainframePlaybackState } from './Cinema2MainframeAudioDelivery'
 
 /** These are *delivered* by the engine-owned choreography runtime, not detected here. */
 export type Cinema2MainframeMusicalCueKind = Exclude<Cinema2MainframeImpulseId, 'eightBeat'>
@@ -131,6 +132,67 @@ export function resolveCinema2MainframeMusicalEvents(
   const eight = audio.rhythm.fixedClocks[8].boundary
   if (eight) make('eightBeat', eight.id, eight.timeSec, eight.strength, eight.confidence, eight.source, eight.upstreamIdentity)
   return Object.freeze(events)
+}
+
+/** One transport/bridge discontinuity decision for the pattern and drop consumers. */
+export function shouldResetCinema2MainframeDropState(
+  frame: Readonly<Cinema2ModuleFrameReadContext>,
+  current: Readonly<{ timeSec: number; sourceIdentity: string; playback: Cinema2MainframePlaybackState }>,
+  previous: Readonly<{ timeSec: number | null; sourceIdentity: string | null; contextGeneration: number | null; playback: Cinema2MainframePlaybackState | null }>,
+): boolean {
+  return Boolean(frame.audio?.discontinuity.occurred && frame.audio.discontinuity.reason !== 'activation')
+    || (previous.timeSec != null && current.timeSec < previous.timeSec - 1e-6)
+    || (previous.sourceIdentity != null && current.sourceIdentity !== previous.sourceIdentity)
+    || (previous.contextGeneration != null && frame.contextGeneration !== previous.contextGeneration)
+    || (previous.playback != null && previous.playback !== current.playback && (previous.playback === 'stopped' || current.playback === 'stopped'))
+}
+
+/**
+ * Mainframe's single drop-consumption point. Choreography (the same runtime used
+ * by Electric Storm) has already selected the events; this only coalesces
+ * duplicate representations of one impact and shares the result with lighting
+ * and the optional drop-based pattern trigger. No audio detection happens here.
+ */
+export class Cinema2MainframeDropCoordinator {
+  private readonly seenIds = new Set<string>()
+  private readonly seenOrder: string[] = []
+  private lastImpactTimeSec: number | null = null
+
+  update(
+    frame: Readonly<Cinema2ModuleFrameReadContext>,
+    events: readonly Readonly<Cinema2MainframeMusicalEvent>[],
+  ): Readonly<{ events: readonly Readonly<Cinema2MainframeMusicalEvent>[]; dropEventId: string | null }> {
+    const accepted: Cinema2MainframeMusicalEvent[] = events.filter(event => event.kind !== 'drop')
+    // A published marker wins over a simultaneous section fallback. Both come
+    // from the canonical choreography selection, not from a second detector.
+    const markers = frame.audio?.structure.semanticMoments.available
+      ? new Set(frame.audio.structure.semanticMoments.value?.map(moment => moment.id) ?? []) : new Set<string>()
+    const candidates = events.filter(event => event.kind === 'drop')
+      .sort((a, b) => Number(markers.has(b.id)) - Number(markers.has(a.id)))
+    let dropEventId: string | null = null
+    for (const event of candidates) {
+      if (this.seenIds.has(event.id)) continue
+      this.seenIds.add(event.id)
+      this.seenOrder.push(event.id)
+      if (this.seenOrder.length > 512) this.seenIds.delete(this.seenOrder.shift()!)
+
+      // A marker and a section-change report of the same downbeat may arrive
+      // on adjacent frames with different upstream IDs. Keep only one impact.
+      if (this.lastImpactTimeSec != null && Math.abs(event.timeSec - this.lastImpactTimeSec) <= 1.25) continue
+      this.lastImpactTimeSec = event.timeSec
+      if (dropEventId == null) {
+        accepted.push(event)
+        dropEventId = event.id
+      }
+    }
+    return Object.freeze({ events: Object.freeze(accepted), dropEventId })
+  }
+
+  reset(): void {
+    this.seenIds.clear()
+    this.seenOrder.length = 0
+    this.lastImpactTimeSec = null
+  }
 }
 
 /** Called only with the selected canonical bridge frame; this does not publish audio. */

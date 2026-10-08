@@ -51,9 +51,11 @@ import {
   createCinema2MainframeLightingDiagnosticFrame,
   parseCinema2MainframeLightingDiagnosticFamily,
 } from './mainframe/Cinema2MainframeLightingDiagnostic'
-import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
+import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
 import {
+  Cinema2MainframeDropCoordinator,
   resolveCinema2MainframeMusicalEvents,
+  shouldResetCinema2MainframeDropState,
   type Cinema2MainframeMusicalCue,
   type Cinema2MainframeMusicalCueKind,
 } from './mainframe/Cinema2MainframeMusicAdapter'
@@ -256,6 +258,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let bridgeCreateFailed = false
     let frame = resolveCinema2MainframeStaticFrame(context.parameters)
     const reactivity = new Cinema2MainframeReactivityEngine()
+    const dropCoordinator = new Cinema2MainframeDropCoordinator()
     // Populated solely by the engine-owned choreography dispatcher before module.update.
     // A bounded local queue avoids subscribing to the Audio Feature Bus a second time.
     const musicalCues: Cinema2MainframeMusicalCue[] = []
@@ -269,6 +272,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let triggerSourceIdentity: string | null = null
     let triggerTrackId: string | null | undefined
     let triggerContextGeneration: number | null = null
+    let previousPlayback: ReturnType<typeof resolveCinema2MainframePlaybackState> | null = null
     let reportedBytes = -1
     let qualityProfile: Readonly<Cinema2MainframeQualityProfile> = resolveCinema2MainframeQualityProfile('high')
     // Vite removes this override from production builds. In dev, visit
@@ -369,17 +373,22 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           frame = resolveCinema2MainframeStaticFrame(parameters)
           const audio = selectCinema2MainframeAudio(updateFrame.audio, updateFrame.transport?.trackId)
           const acceptedFrame = audio === updateFrame.audio ? updateFrame : { ...updateFrame, audio }
+          const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
           const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
           const sourceIdentity = updateFrame.transport?.paused && !audio && triggerSourceIdentity != null
             && updateFrame.transport.trackId === triggerTrackId
             ? triggerSourceIdentity : resolveCinema2MainframeSourceIdentity(updateFrame, audio)
-          const triggerReset = Boolean(audio?.discontinuity.occurred && audio.discontinuity.reason !== 'activation')
-            || (triggerPreviousTimeSec != null && timeSec < triggerPreviousTimeSec - 1e-6)
-            || (triggerSourceIdentity != null && sourceIdentity !== triggerSourceIdentity)
-            || (triggerContextGeneration != null && updateFrame.contextGeneration !== triggerContextGeneration)
+          const triggerReset = shouldResetCinema2MainframeDropState(acceptedFrame,
+            { timeSec, sourceIdentity, playback },
+            { timeSec: triggerPreviousTimeSec, sourceIdentity: triggerSourceIdentity, contextGeneration: triggerContextGeneration, playback: previousPlayback })
+          if (triggerReset) dropCoordinator.reset()
+          const cues = musicalCues.splice(0)
+          const dispatched = triggerReset || playback !== 'playing'
+            ? [] : resolveCinema2MainframeMusicalEvents(acceptedFrame, cues)
+          const coordinated = dropCoordinator.update(acceptedFrame, dispatched)
           const triggerEventId = triggerReset
             ? null
-            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec)
+            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec, coordinated.dropEventId)
           selection = patternController.update({
             authoredPattern: frame.pattern,
             patternChange: frame.patternChange,
@@ -388,18 +397,17 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             absoluteBeat: resolveCinema2MainframeBeatClock(acceptedFrame, frame.bpmSync),
             reset: triggerReset,
           })
-          const cues = musicalCues.splice(0)
-          const delivered = triggerReset || !audio || updateFrame.transport?.playing === false || updateFrame.transport?.paused
-            ? [] : resolveCinema2MainframeMusicalEvents(acceptedFrame, cues)
-          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, delivered)
+          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events)
           triggerPreviousTimeSec = timeSec
           triggerSourceIdentity = sourceIdentity
           triggerTrackId = updateFrame.transport?.trackId
           triggerContextGeneration = updateFrame.contextGeneration
+          previousPlayback = playback
         },
         dispose: () => {
           disposed = true
           musicalCues.splice(0)
+          dropCoordinator.reset()
           reactivity.reset()
           patternController.reset()
           if (!bridge && held) { assets.release(held); held = null }

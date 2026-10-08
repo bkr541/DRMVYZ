@@ -118,9 +118,12 @@ export function resolveCinema2MainframeTriggerEventIdentity(
   frame: Readonly<Cinema2ModuleFrameReadContext>,
   trigger: Cinema2MainframeTriggerId,
   previousTimeSec: number | null,
+  /** Drop identity has already been coalesced with the lighting event. */
+  sharedDropEventId: string | null = null,
 ): string | null {
   const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
   if (resolveCinema2MainframePlaybackState(frame, audio) !== 'playing') return null
+  if (trigger === 'drop') return sharedDropEventId
   // The shared Afterhours trigger contract checks sourcePresent; that hint must
   // not veto a genuinely playing, validated Mainframe audio frame.
   const accepted = { ...frame, audio, transport: frame.transport ? { ...frame.transport, sourcePresent: true, playing: true } : undefined }

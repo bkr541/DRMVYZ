@@ -369,7 +369,9 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   choreography: Object.freeze({ rules: Object.freeze(MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
     id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind}-event`),
     priority: 30 + index,
-    source: Object.freeze({ signal, capability }),
+    // Section-only drop intelligence is authoritative even when the bridge has
+    // no explicit drop-confidence signal or semantic marker capability.
+    source: Object.freeze({ signal, ...(kind === 'drop' ? {} : { capability }) }),
     actions: Object.freeze([Object.freeze({
       id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind}-cue`),
       target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_MAINFRAME_MUSICAL_CUE_ID) }),
