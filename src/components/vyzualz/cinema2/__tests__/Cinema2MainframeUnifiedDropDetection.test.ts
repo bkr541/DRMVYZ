@@ -37,7 +37,7 @@ function music(frameId: number, timeSec: number, section: 'verse' | 'drop', mark
     section: {
       ...DEFAULT_MI_FRAME.section, type: section, label: section,
       startSec: section === 'drop' ? 10 : 0, endSec: 30,
-      intensity: section === 'drop' ? 0.96 : 0.45, confidence: 0.95, source: 'offline_analysis',
+      intensity: section === 'drop' ? 0.96 : 0.45, confidence: 0.95, source: 'analysis',
     },
     semanticMoments: markers,
     analysisCapabilities: { ...DEFAULT_MI_FRAME.analysisCapabilities!, semanticMoments: markers.length > 0 },
@@ -103,7 +103,7 @@ function consume(controller: Cinema2MainframePatternController, coordinator: Cin
 describe('Mainframe P0-06 unified choreography drop delivery', () => {
   it('uses one dispatched marker for both the surge and an enabled drop-based pattern change', () => {
     const shared = runner()
-    shared.render(music(1, 9, 'verse'))
+    shared.render(music(1, 9.8, 'verse'))
     const { frame, delivered } = shared.render(music(2, 10.05, 'drop', [
       { id: 'drop-1', timeSec: 10, type: 'drop_impact', confidence: 0.97, source: 'structural_analysis' },
     ]))
@@ -112,7 +112,7 @@ describe('Mainframe P0-06 unified choreography drop delivery', () => {
     controller.update({ ...patternInput, triggerEventId: null })
     const { result, selection } = consume(controller, coordinator, frame, [...delivered])
     expect(result.events.filter(event => event.kind === 'drop')).toHaveLength(1)
-    expect(result.dropEventId).toBe('drop-1')
+    expect(result.dropEventId).toBe(frame.audio!.structure.semanticMoments.value![0]!.id)
     expect(selection).toMatchObject({ changed: true, activePattern: 'system-surge' })
     const engine = new Cinema2MainframeReactivityEngine()
     engine.update(context(frame.audio!, frame.director!), 'outward-bus', true, 0, [])
@@ -125,10 +125,10 @@ describe('Mainframe P0-06 unified choreography drop delivery', () => {
 
   it('honors shared director section transitions without any explicit semantic marker', () => {
     const shared = runner()
-    shared.render(music(1, 9, 'verse'))
+    shared.render(music(1, 9.8, 'verse'))
     const { frame, delivered } = shared.render(music(2, 10, 'drop'))
     const dropEvent = delivered.find(event => event.kind === 'drop')
-    expect(dropEvent).toMatchObject({ kind: 'drop', source: 'offline_analysis' })
+    expect(dropEvent).toMatchObject({ kind: 'drop', source: 'analysis' })
     expect(dropEvent?.id).toBe(frame.director?.context.transition.eventId)
     const result = new Cinema2MainframeDropCoordinator().update(frame, delivered)
     expect(result.dropEventId).toBe(dropEvent?.id)

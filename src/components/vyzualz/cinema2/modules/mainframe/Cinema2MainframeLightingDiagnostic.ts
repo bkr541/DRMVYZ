@@ -1,5 +1,6 @@
 import {
   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+  CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES,
   type Cinema2MainframeLightingFrame,
 } from './Cinema2MainframePatternEngine'
 import {
@@ -50,6 +51,12 @@ export function createCinema2MainframeLightingDiagnosticFrame(family: Cinema2Mai
     circuitPulse: 0,
     bankWeights: Object.freeze([0, 0, 0, 0] as const),
     regionWeights: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0] as const),
+    routePulses: CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES,
+    sectionMode: 0,
+    sectionProgress: 0,
+    sectionConfidence: 0,
+    phraseProgress: 0,
+    buildCharge: 0,
     systemGains: Object.freeze(gains as unknown as Cinema2MainframeLightingFrame['systemGains']),
     signals: CINEMA2_MAINFRAME_ZERO_SIGNALS,
     impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,

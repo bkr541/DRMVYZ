@@ -193,8 +193,8 @@ describe('Mainframe Stage 5 preset', () => {
     expect(frame.overrides.parts.indicatorCores?.emissive).toEqual([1, 1, 0])
     expect(frame.overrides.parts.radarCores?.emissive).toEqual([1, 1, 0])
     expect(manifest.effects?.map(effect => effect.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
-    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.65, intensity: 0.92, levels: 7 })
-    expect(manifest.effects?.[1]?.parameters).toMatchObject({ toneMap: 1, aberration: 0.003 })
+    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.8, intensity: 0.78, clampMax: 24, levels: 7 })
+    expect(manifest.effects?.[1]?.parameters).toMatchObject({ toneMap: 1, exposure: 0.82, aberration: 0.003 })
   })
 
   it('uses a static front camera, neutral PBR light rig and real shadow casting', () => {

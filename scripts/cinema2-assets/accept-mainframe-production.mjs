@@ -82,6 +82,15 @@ try {
     }
   }
 
+  // A static board previously passed this harness because it never published
+  // Audio Intelligence. With the production audio fixture active, every 16:9
+  // pattern must produce a distinct rendered program.
+  const patternNames = new Set(patterns.map(pattern => `16x9-${pattern.id}`))
+  const patternHashes = captures.filter(capture => patternNames.has(capture.name)).map(capture => capture.sha256)
+  if (patternHashes.length !== patterns.length || new Set(patternHashes).size !== patterns.length) {
+    throw new Error('Mainframe audio-reactive pattern validation produced duplicate static frames.')
+  }
+
   const validationPage = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
   await validationPage.goto(`${baseUrl}?quality=high&timeSec=1.25`, { waitUntil: 'domcontentloaded' })
   await validationPage.waitForFunction(() => Boolean(globalThis.__mainframeProduction), undefined, { timeout: 30_000 })

@@ -190,17 +190,20 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       expect(shader.fragmentShader).toContain('uCinema2MainframeHardware')
       // The shared State0.y level must be used in the visible emissive path,
       // not just uploaded to a dead uniform.
-      expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y')
+      expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y')
       expect(shader.fragmentShader).toContain('cinema2MFLight ) * cinema2MFEnergyLift')
       expect(shader.fragmentShader).toContain('pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y')
       expect(shader.fragmentShader).toContain('float radarWave = hwSweep')
+      expect(shader.fragmentShader).toContain('uCinema2MainframePulseFront')
+      expect(shader.fragmentShader).toContain('uCinema2MainframeHardwareDetails')
+      expect(shader.fragmentShader).toContain('uCinema2MainframeSection')
       expect(shader.fragmentShader).toContain('float chipScan =')
       expect(shader.fragmentShader).toContain('cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015')
       expect(shader.fragmentShader).toContain('vCinema2MainframePhase')
       expect(shader.uniforms.uCinema2MainframeRole?.value).toBe(
         ['circuit', 'indicator', 'radar', 'chip', 'logo', 'circuitHousing', 'radarHousing', 'chipHousing'].indexOf(role),
       )
-      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(0)
+      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(part === 'circuitHousings' ? 0 : 0.6)
       bridge.draw(execution('high'), overrides(), 0, null, null, null, {
         circuitColor: [0.24, 1, 0.12], indicatorColor: [0.4, 1, 0.22], logoColor: [0.3, 1, 0.18],
         strength: 1, frame: createCinema2MainframeLightingDiagnosticFrame('circuits'),

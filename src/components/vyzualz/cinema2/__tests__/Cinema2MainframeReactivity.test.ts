@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
-import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2MainframeMusicAdapter'
+import {
+  Cinema2MainframeDropCoordinator,
+  readCinema2MainframeContinuous,
+  resolveCinema2MainframeEventVisualStrength,
+  type Cinema2MainframeMusicalEvent,
+} from '../modules/mainframe/Cinema2MainframeMusicAdapter'
+import { resolveCinema2MainframeComponentLighting } from '../modules/mainframe/Cinema2MainframeHardwareLighting'
 import { resolveCinema2MainframeTriggerEventIdentity } from '../modules/mainframe/Cinema2MainframePatternController'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import {
   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
   CINEMA2_MAINFRAME_PATTERN_IDS,
+  Cinema2MainframeBeatClockResolver,
   Cinema2MainframeReactivityEngine,
   evaluateCinema2MainframePattern,
   resolveCinema2MainframeBeatClock,
@@ -67,8 +74,8 @@ describe('Mainframe Stage 4 reactivity', () => {
     expect(CINEMA2_MAINFRAME_BANKS).toEqual(['A', 'B', 'C', 'D'])
     expect(CINEMA2_MAINFRAME_REGIONS).toEqual(['bottom-center', 'left-branch', 'left-major', 'left-minor', 'right-branch', 'right-major', 'right-minor', 'top-center'])
     expect(CINEMA2_MAINFRAME_SIGNAL_IDS).toHaveLength(7)
-    expect(CINEMA2_MAINFRAME_IMPULSES.kick).toMatchObject({ attackMs: 18, releaseMs: 130, targets: ['terminals'] })
-    expect(CINEMA2_MAINFRAME_IMPULSES.drop).toMatchObject({ attackMs: 10, releaseMs: 850 })
+    expect(CINEMA2_MAINFRAME_IMPULSES.kick).toMatchObject({ attackMs: 12, holdMs: 24, releaseMs: 145, targets: ['circuits', 'terminals'] })
+    expect(CINEMA2_MAINFRAME_IMPULSES.drop).toMatchObject({ attackMs: 9, holdMs: 140, releaseMs: 1050 })
   })
 
   it('produces six deterministic and materially distinct lighting programs', () => {
@@ -359,5 +366,159 @@ describe('P0-07 Mainframe overall energy reactivity', () => {
     expect(withDrop.circuitPulse).toBeGreaterThan(withoutDrop.circuitPulse)
     expect(withDrop.systemGains[6]).toBeGreaterThan(withoutDrop.systemGains[6])
     expect(withDrop.systemGains[8]).toBeGreaterThan(withoutDrop.systemGains[8])
+  })
+})
+
+describe('P1 Mainframe musical intelligence and component choreography', () => {
+  const musicalEvent = (
+    kind: Cinema2MainframeMusicalEvent['kind'],
+    id: string,
+    timeSec: number,
+    strength = 1,
+    confidence: number | null = 0.95,
+  ): Cinema2MainframeMusicalEvent => ({
+    kind, id, timeSec, strength,
+    visualStrength: resolveCinema2MainframeEventVisualStrength(kind, strength, confidence, 'shared-test'),
+    confidence, source: 'shared-test', upstreamIdentity: id,
+    trackId: 'track', sourceId: 'test', analysisRevision: null, timelineRevision: null,
+  })
+
+  it('keeps buildup occurrence, confidence, progress and intensity separate', () => {
+    const base = frame({ time: 4 })
+    const buildFrame = {
+      ...base,
+      audio: {
+        ...base.audio!,
+        features: { ...base.audio!.features, buildProgress: available(0.12), overallEnergy: available(0.7), tension: available(0.82) },
+        structure: {
+          ...base.audio!.structure,
+          buildConfidence: available(0.98),
+          section: {
+            available: true, confidence: 0.94, source: 'test', provenance: null,
+            value: { id: 'build-a', label: 'Build', type: 'build', startSec: 0, endSec: 16, progress: 0.12, intensity: 0.82, confidence: 0.94, source: 'test', authority: 'analysis', dropConfidence: 0.2 },
+          },
+        },
+      },
+    } as unknown as Cinema2ModuleFrameReadContext
+    const early = readCinema2MainframeContinuous(buildFrame.audio, null)
+    expect(early).toMatchObject({ section: 'buildup', buildProgress: 0.12, buildConfidence: 0.98, build: 0.12 })
+    expect(early.buildIntensity).toBeGreaterThan(0.8)
+    const earlyLighting = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals: early, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
+    const lateSignals = { ...early, buildProgress: 0.9, build: 0.9, sectionProgress: 0.9 }
+    const lateLighting = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals: lateSignals, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
+    expect(earlyLighting.buildCharge).toBeLessThan(0.2)
+    expect(lateLighting.buildCharge).toBeGreaterThan(0.7)
+    expect(lateLighting.chaseFront).toBeGreaterThan(earlyLighting.chaseFront)
+    const falseBuild = evaluateCinema2MainframePattern({
+      pattern: 'system-surge', beats: 15.9,
+      signals: { ...CINEMA2_MAINFRAME_ZERO_SIGNALS, buildProgress: 0, buildConfidence: 1, buildIntensity: 1, build: 0 },
+      impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,
+    })
+    expect(falseBuild.buildCharge).toBe(0)
+    expect(falseBuild.chaseFront).toBe(0)
+  })
+
+  it('gives verse, buildup, breakdown and drop distinct pattern-complementary behavior', () => {
+    const base = { ...CINEMA2_MAINFRAME_ZERO_SIGNALS, overall: 0.65, bass: 0.62, mid: 0.5, high: 0.4, sectionConfidence: 0.95 }
+    const render = (section: 'verse' | 'buildup' | 'breakdown' | 'drop') => evaluateCinema2MainframePattern({
+      pattern: 'quadrant-relay', beats: 6.25,
+      signals: { ...base, section, sectionProgress: 0.65, phraseProgress: 0.4, buildProgress: section === 'buildup' ? 0.65 : 0, buildConfidence: 0.95, buildIntensity: 0.8, build: section === 'buildup' ? 0.65 : 0 },
+      impulses: section === 'drop' ? { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, drop: 0.9 } : CINEMA2_MAINFRAME_ZERO_IMPULSES,
+    })
+    const verse = render('verse'), buildup = render('buildup'), breakdown = render('breakdown'), drop = render('drop')
+    expect([verse.sectionMode, buildup.sectionMode, breakdown.sectionMode, drop.sectionMode]).toEqual([1, 2, 3, 4])
+    expect(breakdown.circuitEnergy).toBeLessThan(verse.circuitEnergy)
+    expect(buildup.buildCharge).toBeGreaterThan(0.5)
+    expect(drop.circuitAccent).toBeGreaterThan(buildup.circuitAccent)
+    expect([verse, buildup, breakdown, drop].every(value => value.pattern === 'quadrant-relay')).toBe(true)
+  })
+
+  it('maps kick, snare, transient and downbeat to distinguishable hardware families', () => {
+    const render = (kind: keyof typeof CINEMA2_MAINFRAME_ZERO_IMPULSES) => resolveCinema2MainframeComponentLighting(
+      evaluateCinema2MainframePattern({
+        pattern: 'outward-bus', beats: 2,
+        signals: CINEMA2_MAINFRAME_ZERO_SIGNALS,
+        impulses: { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, [kind]: 1 },
+      }),
+    )
+    const kick = render('kick'), snare = render('snare'), transient = render('transient'), downbeat = render('downbeat')
+    expect(kick.terminals).toBeGreaterThan(kick.indicators)
+    expect(snare.chipPins).toBeGreaterThan(snare.terminals)
+    expect(snare.logoDetails).toBeGreaterThan(0.5)
+    expect(transient.indicators).toBeGreaterThan(transient.radarRings)
+    expect(downbeat.radarNodes).toBeGreaterThan(0.4)
+    expect(new Set([kick.terminals, snare.terminals, transient.terminals, downbeat.terminals]).size).toBeGreaterThan(2)
+  })
+
+  it('runs four bounded timestamp-synchronized route pulses and preserves them across section changes', () => {
+    const engine = new Cinema2MainframeReactivityEngine()
+    engine.update(frame({ time: 1 }), 'outward-bus', true, 0, [])
+    const events = [
+      musicalEvent('downbeat', 'down-1', 1.02),
+      musicalEvent('kick', 'kick-1', 1.02),
+      musicalEvent('snare', 'snare-1', 1.02),
+      musicalEvent('transient', 'transient-1', 1.02),
+    ]
+    const impact = engine.update(frame({ time: 1.04, delta: 0.02 }), 'outward-bus', true, 0, events)
+    expect(impact.routePulses.filter(pulse => pulse.gain > 0)).toHaveLength(4)
+    expect(impact.routePulses.reduce((sum, pulse) => sum + pulse.gain, 0)).toBeLessThanOrEqual(1.800001)
+    expect(new Set(impact.routePulses.map(pulse => pulse.routeGroup)).size).toBeGreaterThan(1)
+    const laterBase = frame({ time: 1.12, delta: 0.08 })
+    const later = engine.update({
+      ...laterBase,
+      audio: { ...laterBase.audio!, structure: { ...laterBase.audio!.structure, section: {
+        available: true, confidence: 0.9, source: 'test', provenance: null,
+        value: { id: 'verse-b', label: 'Verse', type: 'verse', startSec: 1.1, endSec: 20, progress: 0.01, intensity: 0.5, source: 'test', authority: 'analysis', dropConfidence: 0 },
+      } } },
+    } as never, 'outward-bus', true, 0, [])
+    expect(later.routePulses[1].front).toBeGreaterThan(impact.routePulses[1].front)
+    expect(later.routePulses.some(pulse => pulse.gain > 0)).toBe(true)
+  })
+
+  it('suppresses uncertain structural impacts while retaining scaled authoritative rhythm hits', () => {
+    expect(resolveCinema2MainframeEventVisualStrength('drop', 1, 0.2, 'analysis')).toBe(0)
+    expect(resolveCinema2MainframeEventVisualStrength('section', 1, 0.4, 'analysis')).toBe(0)
+    expect(resolveCinema2MainframeEventVisualStrength('phrase', 1, 0.2, 'analysis')).toBe(0)
+    expect(resolveCinema2MainframeEventVisualStrength('drop', 1, 0.96, 'analysis')).toBeGreaterThan(0.9)
+    expect(resolveCinema2MainframeEventVisualStrength('kick', 1, 0.25, 'live')).toBeGreaterThan(0.5)
+    const coordinator = new Cinema2MainframeDropCoordinator()
+    expect(coordinator.update({ audio: null } as Cinema2ModuleFrameReadContext, [musicalEvent('drop', 'uncertain', 2, 1, 0.2)]).dropEventId).toBeNull()
+  })
+
+  it('uses grid, analyzed BPM, transport BPM and explicit fallback without phase jumps', () => {
+    const resolver = new Cinema2MainframeBeatClockResolver()
+    const withoutGrid = (time: number, bpm: number | null, transportBpm: number | null, paused = false, discontinuity = false) => {
+      const base = frame({ time, paused, discontinuity })
+      return {
+        ...base,
+        transport: { ...base.transport!, bpm: transportBpm },
+        audio: { ...base.audio!, rhythm: {
+          ...base.audio!.rhythm,
+          bpm: bpm == null ? unavailable() : available(bpm),
+          beatPhase: unavailable(), beatIndex: unavailable(), beatInBar: unavailable(), barIndex: unavailable(),
+        } },
+      } as unknown as Cinema2ModuleFrameReadContext
+    }
+    const analyzed = resolver.resolve(withoutGrid(2, 150, 90), true)
+    expect(analyzed).toMatchObject({ source: 'analyzed-bpm', bpm: 150, confirmedGrid: false, beats: 5 })
+    expect(resolver.resolve(withoutGrid(2.2, 150, 90), true).beats).toBeCloseTo(5.5)
+    const tempoChange = resolver.resolve(withoutGrid(2.4, 180, 90), true)
+    expect(tempoChange.beats).toBeCloseTo(6.1)
+    const held = resolver.resolve(withoutGrid(3, 180, 90, true), true)
+    expect(held.beats).toBeCloseTo(tempoChange.beats)
+    resolver.reset()
+    expect(resolver.resolve(withoutGrid(2, null, 90), true)).toMatchObject({ source: 'transport-bpm', bpm: 90, beats: 3 })
+    resolver.reset()
+    expect(resolver.resolve(withoutGrid(2, null, null), true)).toMatchObject({ source: 'visual-fallback-120', bpm: 120, beats: 4, confirmedGrid: false })
+    expect(resolveCinema2MainframeTriggerEventIdentity(withoutGrid(2.1, null, 120), 'bar', 2, null, {
+      previousBeat: 3.9,
+      current: { beats: 4.2, bpm: 120, source: 'transport-bpm', confirmedGrid: false },
+    })).toBe('mainframe-timing:transport-bpm:4:1')
+    expect(resolveCinema2MainframeTriggerEventIdentity(withoutGrid(2.1, null, 120), 'kick', 2, null, {
+      previousBeat: 3.9,
+      current: { beats: 4.2, bpm: 120, source: 'transport-bpm', confirmedGrid: false },
+    })).toBeNull()
+    resolver.reset()
+    expect(resolver.resolve(frame({ time: 10, beatIndex: 9, beatPhase: 0.5 }), true)).toMatchObject({ source: 'analyzed-beat-grid', beats: 9.5, confirmedGrid: true })
   })
 })

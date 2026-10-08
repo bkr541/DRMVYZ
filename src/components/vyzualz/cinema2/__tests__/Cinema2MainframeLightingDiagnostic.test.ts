@@ -31,7 +31,8 @@ describe('Mainframe P0-01 dev-only semantic lighting probe', () => {
       expect(frame.bankWeights).toEqual([0, 0, 0, 0])
       expect(frame.regionWeights).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
       expect(Object.values(frame.impulses).every(value => value === 0)).toBe(true)
-      expect(Object.values(frame.signals).every(value => value === 0)).toBe(true)
+      expect(Object.values(frame.signals).filter((value): value is number => typeof value === 'number').every(value => value === 0)).toBe(true)
+      expect(frame.signals.section).toBe('unknown')
     }
   })
 })

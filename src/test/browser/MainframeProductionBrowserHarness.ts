@@ -2,6 +2,8 @@
 import type { Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { CINEMA2_MAINFRAME_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2MainframePreset'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
+import { AudioFeatureBus } from '../../features/musicIntelligence/AudioFeatureBus'
+import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
 
 interface ControlledFrameClock {
   requestAnimationFrame: typeof requestAnimationFrame
@@ -24,13 +26,14 @@ declare global {
   }
 }
 
-function controlledClock(): ControlledFrameClock {
+function controlledClock(beforeFrame?: (timestampMs: number) => void): ControlledFrameClock {
   let timestampMs = 0
   let targetTimestampMs = 0
   return {
     requestAnimationFrame(callback) {
       return window.requestAnimationFrame(() => {
         timestampMs = Math.min(targetTimestampMs, timestampMs + 100)
+        beforeFrame?.(timestampMs)
         callback(timestampMs)
       })
     },
@@ -50,7 +53,101 @@ const requestedTimeSec = Number(query.get('timeSec') ?? 1)
 const captureTimeSec = Number.isFinite(requestedTimeSec) ? Math.max(0, requestedTimeSec) : 1
 // Diagnostic capture deliberately runs with no track and no audio analysis.
 const noAudio = import.meta.env.DEV && query.get('mainframeNoAudio') === '1'
-const clock = controlledClock()
+let publishedAudioFrameId = 0
+let publishedBeatIndex = -1
+const publishMainframeAudioFrame = (timestampMs: number) => {
+  const timeSec = Math.max(0, timestampMs / 1000)
+  const beatPosition = timeSec * 2
+  const beatIndex = Math.floor(beatPosition)
+  const beatInBar = beatIndex % 4
+  const beatChanged = beatIndex !== publishedBeatIndex
+  const pulse = 0.5 + 0.5 * Math.sin(timeSec * Math.PI * 4)
+  publishedBeatIndex = beatIndex
+  publishedAudioFrameId += 1
+  AudioFeatureBus.setFrame({
+    ...DEFAULT_MI_FRAME,
+    timeSec,
+    frameId: publishedAudioFrameId,
+    sourceId: 'mainframe-stage-3-static',
+    trackId: 'mainframe-stage-3-static',
+    bands: {
+      ...DEFAULT_MI_FRAME.bands,
+      sub: 0.56, bass: 0.72, lowMid: 0.48, mid: 0.6, high: 0.52, air: 0.38, volume: 0.68,
+      normalizedSub: 0.56, normalizedBass: 0.72, normalizedLowMid: 0.48,
+      normalizedMid: 0.6, normalizedHigh: 0.52, normalizedAir: 0.38,
+    },
+    rhythm: {
+      ...DEFAULT_MI_FRAME.rhythm,
+      bpm: 120,
+      bpmConfidence: 0.96,
+      bpmSource: 'offline_analysis',
+      beatPhase: beatPosition - beatIndex,
+      beatHit: beatChanged,
+      beatIndex,
+      beatEventId: beatIndex,
+      beatEventTimeSec: beatIndex / 2,
+      beatInBar,
+      barIndex: Math.floor(beatIndex / 4),
+      downbeatHit: beatChanged && beatInBar === 0,
+      phrase4Progress: (beatIndex % 4 + beatPosition - beatIndex) / 4,
+      phrase8Progress: (beatIndex % 8 + beatPosition - beatIndex) / 8,
+      phrase16Progress: (beatIndex % 16 + beatPosition - beatIndex) / 16,
+      phrase32Progress: (beatIndex % 32 + beatPosition - beatIndex) / 32,
+      phrase4Hit: beatChanged && beatIndex > 0 && beatIndex % 4 === 0,
+      phrase8Hit: beatChanged && beatIndex > 0 && beatIndex % 8 === 0,
+      phrase16Hit: beatChanged && beatIndex > 0 && beatIndex % 16 === 0,
+      phrase32Hit: beatChanged && beatIndex > 0 && beatIndex % 32 === 0,
+      kickHit: beatChanged && beatInBar % 2 === 0,
+      kickStrength: beatChanged && beatInBar % 2 === 0 ? 0.94 : 0,
+      snareHit: beatChanged && beatInBar % 2 === 1,
+      snareStrength: beatChanged && beatInBar % 2 === 1 ? 0.82 : 0,
+      transient: beatChanged ? 0.76 : 0.12 * pulse,
+      transientConfidence: 0.91,
+    },
+    energy: {
+      ...DEFAULT_MI_FRAME.energy,
+      instant: 0.62 + 0.2 * pulse,
+      shortTerm: 0.66,
+      longTerm: 0.58,
+      peak: 0.9,
+      rms: 0.64,
+      spectralFlux: beatChanged ? 0.78 : 0.18,
+      buildProgress: 0.68,
+      tension: 0.62,
+      complexity: 0.56,
+    },
+    section: {
+      ...DEFAULT_MI_FRAME.section,
+      type: 'buildup',
+      label: 'Buildup',
+      startSec: 0,
+      endSec: 8,
+      progress: Math.min(1, timeSec / 8),
+      intensity: 0.72,
+      confidence: 0.9,
+      source: 'analysis',
+    },
+    semantics: { ...DEFAULT_MI_FRAME.semantics, buildConfidence: 0.9 },
+    capabilities: {
+      liveBands: true,
+      rhythmEvents: true,
+      beatGrid: true,
+      sections: true,
+      trackEnergyCurve: true,
+      stemCurves: false,
+      lyrics: false,
+    },
+    analysisSource: 'bar_self_similarity',
+    analysisRevision: 'mainframe-browser-reactivity-v1',
+    timelineRevision: 'mainframe-browser-timeline-v1',
+    confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.92, rhythm: 0.96, section: 0.9 },
+  }, 'mainframe-production-harness')
+}
+AudioFeatureBus.reset()
+if (!noAudio) publishMainframeAudioFrame(0)
+const clock = controlledClock(timestampMs => {
+  if (!noAudio) publishMainframeAudioFrame(timestampMs)
+})
 const created = Cinema2Runtime.create(canvas, {
   presetId: CINEMA2_MAINFRAME_PRESET_ID,
   renderQuality: quality,

@@ -17,7 +17,7 @@ import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
 import type { Cinema2MainframeLightingFrame } from '../mainframe/Cinema2MainframePatternEngine'
-import { resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
+import { resolveCinema2MainframeHardwareDetails, resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
 
 /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
 export interface Cinema2ThreePartOverrides {
@@ -300,6 +300,13 @@ export class Cinema2ThreeSceneBridge {
       uCinema2MainframeState1: { value: new THREE.Vector4(0, 1, 0, 0) },
       uCinema2MainframeCircuitResponse: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeHardware: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeHardwareDetails: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframePulseFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
+      uCinema2MainframePulseWidth: { value: new THREE.Vector4(0.08, 0.08, 0.08, 0.08) },
+      uCinema2MainframePulseGain: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframePulseDirection: { value: new THREE.Vector4(1, 1, 1, 1) },
+      uCinema2MainframePulseGroup: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeSection: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeBanks: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeRegions0: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeRegions1: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -673,6 +680,14 @@ export class Cinema2ThreeSceneBridge {
           : frame.pattern === 'system-surge' ? 4 : 0
     uniforms.uCinema2MainframeCircuitResponse.value.set(frame.circuitEnergy, frame.circuitAccent, frame.circuitPulse, circuitMode)
     uniforms.uCinema2MainframeHardware.value.set(...resolveCinema2MainframeHardwareLighting(frame))
+    uniforms.uCinema2MainframeHardwareDetails.value.set(...resolveCinema2MainframeHardwareDetails(frame))
+    const pulses = frame.routePulses
+    uniforms.uCinema2MainframePulseFront.value.set(pulses[0].front, pulses[1].front, pulses[2].front, pulses[3].front)
+    uniforms.uCinema2MainframePulseWidth.value.set(pulses[0].width, pulses[1].width, pulses[2].width, pulses[3].width)
+    uniforms.uCinema2MainframePulseGain.value.set(pulses[0].gain, pulses[1].gain, pulses[2].gain, pulses[3].gain)
+    uniforms.uCinema2MainframePulseDirection.value.set(pulses[0].direction, pulses[1].direction, pulses[2].direction, pulses[3].direction)
+    uniforms.uCinema2MainframePulseGroup.value.set(pulses[0].routeGroup, pulses[1].routeGroup, pulses[2].routeGroup, pulses[3].routeGroup)
+    uniforms.uCinema2MainframeSection.value.set(frame.sectionMode, frame.sectionProgress, frame.sectionConfidence, frame.phraseProgress)
     uniforms.uCinema2MainframeBanks.value.set(...frame.bankWeights)
     uniforms.uCinema2MainframeRegions0.value.set(frame.regionWeights[0], frame.regionWeights[1], frame.regionWeights[2], frame.regionWeights[3])
     uniforms.uCinema2MainframeRegions1.value.set(frame.regionWeights[4], frame.regionWeights[5], frame.regionWeights[6], frame.regionWeights[7])
@@ -1008,6 +1023,13 @@ interface MainframeUniforms {
   uCinema2MainframeState1: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeCircuitResponse: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeHardware: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeHardwareDetails: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframePulseFront: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframePulseWidth: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframePulseGain: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframePulseDirection: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframePulseGroup: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeSection: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeBanks: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeRegions0: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeRegions1: { value: ThreeNamespace.Vector4 }
@@ -1058,6 +1080,13 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       'uniform vec4 uCinema2MainframeState1;',
       'uniform vec4 uCinema2MainframeCircuitResponse;',
       'uniform vec4 uCinema2MainframeHardware;',
+      'uniform vec4 uCinema2MainframeHardwareDetails;',
+      'uniform vec4 uCinema2MainframePulseFront;',
+      'uniform vec4 uCinema2MainframePulseWidth;',
+      'uniform vec4 uCinema2MainframePulseGain;',
+      'uniform vec4 uCinema2MainframePulseDirection;',
+      'uniform vec4 uCinema2MainframePulseGroup;',
+      'uniform vec4 uCinema2MainframeSection;',
       'uniform vec4 uCinema2MainframeBanks;',
       'uniform vec4 uCinema2MainframeRegions0;',
       'uniform vec4 uCinema2MainframeRegions1;',
@@ -1111,6 +1140,21 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '  else if ( mode > 3.5 ) selection = 0.12 + 0.88 * cinema2MFRegionLight;',
       // Radar Sweep emphasizes the radar rather than accidentally powering all routes.
       '  else if ( mode > 2.5 ) selection = 0.36;',
+      // Musical sections adjust route density without replacing the selected
+      // six-pattern program. Confidence controls authority; progress controls
+      // how many route groups join a buildup.
+      '  float sectionMode = uCinema2MainframeSection.x;',
+      '  float sectionAuthority = smoothstep( 0.35, 0.78, uCinema2MainframeSection.z );',
+      '  float sectionGroup = mod( floor( max( 0.0, cinema2MFRoute ) ), 4.0 );',
+      '  float phraseGroup = floor( clamp( uCinema2MainframeSection.w, 0.0, 0.999 ) * 4.0 );',
+      '  float localGroup = 1.0 - step( 0.5, abs( sectionGroup - phraseGroup ) );',
+      '  float sectionSelection = 1.0;',
+      '  if ( sectionMode > 0.5 && sectionMode < 1.5 ) sectionSelection = 0.32 + 0.68 * localGroup;',
+      '  else if ( sectionMode > 1.5 && sectionMode < 2.5 ) {',
+      '    float activeGroups = 1.0 + floor( clamp( uCinema2MainframeSection.y, 0.0, 0.999 ) * 4.0 );',
+      '    sectionSelection = sectionGroup < activeGroups ? 1.0 : 0.2;',
+      '  } else if ( sectionMode > 2.5 && sectionMode < 3.5 ) sectionSelection = 0.14 + 0.86 * localGroup;',
+      '  selection *= mix( 1.0, sectionSelection, sectionAuthority );',
       '  float energy = uCinema2MainframeCircuitResponse.x;',
       '  float accent = uCinema2MainframeCircuitResponse.y;',
       '  float pulse = uCinema2MainframeCircuitResponse.z;',
@@ -1119,10 +1163,30 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '  float tailDistance = ( cinema2MFTravel - ( uCinema2MainframeState0.z - uCinema2MainframeState0.w * 1.3 ) )',
       '    / max( 0.045, uCinema2MainframeState0.w * 2.5 );',
       '  float trail = exp( -tailDistance * tailDistance );',
+      // Four timestamped pulse slots address stable modulo-eight route groups.
+      // Neighbor groups receive a small propagation tail; the pulse always
+      // follows the authored arc-length phase through bends and branches.
+      '  float independentPulse = 0.0;',
+      '  for ( int pulseIndex = 0; pulseIndex < 4; pulseIndex ++ ) {',
+      '    float pulseFront = cinema2MainframePick4( uCinema2MainframePulseFront, float( pulseIndex ) );',
+      '    float pulseWidth = cinema2MainframePick4( uCinema2MainframePulseWidth, float( pulseIndex ) );',
+      '    float pulseGain = cinema2MainframePick4( uCinema2MainframePulseGain, float( pulseIndex ) );',
+      '    float pulseDirection = cinema2MainframePick4( uCinema2MainframePulseDirection, float( pulseIndex ) );',
+      '    float pulseGroup = cinema2MainframePick4( uCinema2MainframePulseGroup, float( pulseIndex ) );',
+      '    float pulseTravel = pulseDirection > 0.0 ? vCinema2MainframePhase : 1.0 - vCinema2MainframePhase;',
+      '    float pulseDistance = ( pulseTravel - pulseFront ) / max( 0.025, pulseWidth );',
+      '    float routeModulo = mod( floor( max( 0.0, cinema2MFRoute ) ), 8.0 );',
+      '    float groupDistance = abs( routeModulo - pulseGroup );',
+      '    groupDistance = min( groupDistance, 8.0 - groupDistance );',
+      '    float routeGate = pulseGroup < -0.5 ? 0.72 + 0.28 * step( 0.5, cinema2MFSystemLight )',
+      '      : ( groupDistance < 0.5 ? 1.0 : ( groupDistance < 1.5 ? 0.2 : 0.0 ) );',
+      '    independentPulse += exp( -pulseDistance * pulseDistance ) * pulseGain * routeGate;',
+      '  }',
       '  float movingLight = ( 5.0 * exp( -cinema2MFDistance * cinema2MFDistance ) + 1.1 * trail )',
       // Music energy increases chase *activity*; the existing pulse/selection
       // remain authoritative, including during low-energy drops.
       '    * uCinema2MainframeState1.x * pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) ) );',
+      '  movingLight += 5.2 * independentPulse * selection;',
       '  float poweredLight = ( 0.08 + 2.2 * energy + 1.1 * accent + 0.65 * cinema2MFSystemLight ) * selection;',
       '  float coreLight = 0.035 + poweredLight + movingLight;',
       '  cinema2MFLight = uCinema2MainframeRole > 4.5 ? 0.12 * poweredLight : coreLight;',
@@ -1149,13 +1213,14 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '    float hwRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 1.5 ? 0.32 + 0.68 * hwSweep : 1.0;',
       '    cinema2MFLight = 0.035 + 5.4 * ( uCinema2MainframeHardware.y + 0.19 * cinema2MFSystemLight ) * hwRing;',
       '  } else if ( cinema2MFSystem < 4.5 ) {',
-      '    float radarPower = min( 1.0, 1.5 * uCinema2MainframeHardware.z + 0.45 * cinema2MFSystemLight );',
+      '    float radarPower = min( 1.0, 1.3 * uCinema2MainframeHardware.z + 0.45 * cinema2MFSystemLight );',
       '    float radarRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 2.5 ? 1.0 : 0.0;',
       '    float radarHub = cinema2MFRoute > 2.5 && cinema2MFRoute < 3.5 ? 1.0 : 0.0;',
       '    float radarNode = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
       '    float radarWave = hwSweep * ( 0.5 + 0.5 * uCinema2MainframeState1.x );',
-      '    cinema2MFLight = 0.035 + radarPower * ( radarRing * ( 1.6 + 4.7 * radarWave )',
-      '      + radarHub * 2.5 + radarNode * ( 1.5 + 1.0 * uCinema2MainframeHardware.y ) );',
+      '    cinema2MFLight = 0.035 + radarPower * ( radarRing * uCinema2MainframeHardwareDetails.x * ( 1.6 + 4.7 * radarWave )',
+      '      + radarHub * ( 1.4 + 1.4 * uCinema2MainframeHardwareDetails.x )',
+      '      + radarNode * ( 1.2 + 2.2 * uCinema2MainframeHardwareDetails.y ) );',
       '    // Existing metal concentric bands can pick up a faint reflected edge;',
       '    // the full opaque backing disc (detail 0) stays unpowered.',
       '    if ( uCinema2MainframeRole > 5.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015;',
@@ -1167,8 +1232,8 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '    float chipRing = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
       '    float chipScan = 0.5 + 0.5 * hwSweep;',
       '    cinema2MFLight = 0.04 + chipFace * chipPower * 2.3',
-      '      + chipPins * chipPower * ( 1.3 + 3.5 * chipScan )',
-      '      + chipLed * ( chipPower * 1.6 + uCinema2MainframeHardware.y * 3.1 )',
+      '      + chipPins * uCinema2MainframeHardwareDetails.z * ( 1.3 + 3.5 * chipScan )',
+      '      + chipLed * ( chipPower * 1.2 + uCinema2MainframeHardwareDetails.w * 3.4 )',
       '      + chipRing * chipPower * ( 1.3 + 3.3 * hwSweep );',
       '    // Top die, heat-sink fins and existing metal borders only, not chip bases.',
       '    if ( uCinema2MainframeRole > 6.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.14 : 0.015;',
@@ -1177,6 +1242,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '}',
       'float cinema2MFNoise = sin( uCinema2MainframeState0.x * 5.7 + cinema2MFRoute * 17.3 + vCinema2MainframePhase * 31.0 );',
       'cinema2MFLight *= 1.0 + cinema2MFNoise * uCinema2MainframeState1.z * 0.16;',
+      'cinema2MFLight = min( 10.0, max( 0.0, cinema2MFLight ) );',
       'vec3 cinema2MFColor = uCinema2MainframeRole < 0.5 || ( uCinema2MainframeRole > 4.5 && uCinema2MainframeRole < 5.5 ) ? uCinema2MainframeCircuit',
       '  : ( uCinema2MainframeRole > 3.5 && uCinema2MainframeRole < 4.5 ? uCinema2MainframeLogo : uCinema2MainframeIndicator );',
       'float cinema2MFFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
@@ -1186,7 +1252,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       // frequency/impulse channels and stronger drops retain their separation.
       // Keep the existing green-to-hot mix independent of the energy gain to
       // avoid sustained loudness bleaching all the cores white.
-      'float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
+      'float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
       'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.78 )',
       '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) * cinema2MFEnergyLift );',
       'vec3 cinema2MFFinal = mix( 1.0 - exp( - cinema2MFEmission ), cinema2MFEmission, uCinema2MainframeHdr );',

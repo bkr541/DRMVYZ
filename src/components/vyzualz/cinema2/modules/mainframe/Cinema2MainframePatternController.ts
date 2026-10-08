@@ -8,6 +8,7 @@ import { resolveCinema2MainframePlaybackState, selectCinema2MainframeAudio } fro
 import {
   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
   CINEMA2_MAINFRAME_PATTERN_IDS,
+  type Cinema2MainframeBeatClockFrame,
   type Cinema2MainframePatternId,
 } from './Cinema2MainframePatternEngine'
 
@@ -120,6 +121,7 @@ export function resolveCinema2MainframeTriggerEventIdentity(
   previousTimeSec: number | null,
   /** Drop identity has already been coalesced with the lighting event. */
   sharedDropEventId: string | null = null,
+  timing?: Readonly<{ previousBeat: number | null; current: Cinema2MainframeBeatClockFrame }>,
 ): string | null {
   const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
   if (resolveCinema2MainframePlaybackState(frame, audio) !== 'playing') return null
@@ -127,5 +129,17 @@ export function resolveCinema2MainframeTriggerEventIdentity(
   // The shared Afterhours trigger contract checks sourcePresent; that hint must
   // not veto a genuinely playing, validated Mainframe audio frame.
   const accepted = { ...frame, audio, transport: frame.transport ? { ...frame.transport, sourcePresent: true, playing: true } : undefined }
-  return resolveCinema2AfterhoursTriggerEventIdentity(accepted, trigger, previousTimeSec)
+  const canonical = resolveCinema2AfterhoursTriggerEventIdentity(accepted, trigger, previousTimeSec)
+  if (canonical || !timing || timing.current.confirmedGrid || timing.previousBeat == null) return canonical
+  // This is a pattern-selection clock only; it never enters Mainframe's musical
+  // event/envelope stream and never masquerades as confirmed beat-grid data.
+  const interval = trigger === 'beat' ? 1 : trigger === 'beat2' ? 2 : trigger === 'beat4' ? 4
+    : trigger === 'bar' ? 4 : trigger === 'bar4' ? 16 : trigger === 'bar8' ? 32
+      : trigger === 'phrase' ? 16 : null
+  if (interval == null || timing.current.beats <= timing.previousBeat) return null
+  const previousBoundary = Math.floor((timing.previousBeat + 1e-6) / interval)
+  const currentBoundary = Math.floor((timing.current.beats + 1e-6) / interval)
+  return currentBoundary > previousBoundary
+    ? `mainframe-timing:${timing.current.source}:${interval}:${currentBoundary}`
+    : null
 }

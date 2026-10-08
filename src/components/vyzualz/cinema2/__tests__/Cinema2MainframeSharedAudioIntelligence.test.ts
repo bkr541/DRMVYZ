@@ -78,7 +78,7 @@ const upstreamId = (dispatchedId: string) => dispatchedId.slice(0, dispatchedId.
 
 describe('Mainframe and Electric Storm shared Audio Intelligence / choreography', () => {
   it('routes identical upstream event IDs via the same bridge, Visual Director and choreography runtime', () => {
-    let upstream = music(1, 10, false)
+    let upstream = music(1, 10.8, false)
     const bridge = new Cinema2AudioIntelligenceBridge({
       getFrame: () => upstream,
       getPublicationMeta: () => ({ sequence: upstream.frameId, publishedAtMs: upstream.timeSec * 1000, publisherId: 'shared-test', kind: 'frame' as const }),
@@ -130,7 +130,7 @@ describe('Mainframe and Electric Storm shared Audio Intelligence / choreography'
     // Repeated publication/event ID never fires the same cue twice.
     mainframe.choreography.update(next)
     storm.choreography.update(next)
-    expect(mainframe.dispatched).toHaveLength(cues.length)
+    for (const cue of cues) expect(mainframe.dispatched.filter(event => event.eventId === cue.dispatchedEventId)).toHaveLength(1)
     expect(storm.choreography.getSnapshot().deduplicatedEventCount).toBeGreaterThan(0)
     mainframe.choreography.dispose()
     storm.choreography.dispose()

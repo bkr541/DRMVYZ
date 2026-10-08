@@ -941,6 +941,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 isPlaying={engine.isPlaying}
                 analysisActive={engine.analysisActive}
                 isPaused={transportPaused}
+                audioIntelligenceTrackId={engine.currentTrackId}
                 activeAudioTrackId={engine.currentAudioTrackId ?? engine.currentTrackId}
                 bpmSync={engine.source !== 'microphone' && bpmSync}
                 bpm={engine.currentEffectiveBpm}

@@ -914,8 +914,19 @@ function eventSignalSample(signal: Cinema2ChoreographySourceManifest['signal'], 
   if (signal === 'transient') return eventSample(audio.rhythm.transient, audio.capabilities.rhythmEvents)
   if (signal === 'bar') return eventSample(audio.rhythm.fixedClocks[4].boundary, audio.capabilities.beatGrid)
   if (signal === 'phrase') return { available: audio.capabilities.analyzedPhrases || audio.capabilities.beatGrid, value: 1, confidence: audio.rhythm.bpm.confidence }
-  if (signal === 'section-change') return directorAuthority(frame.director?.authority.variation)
-  if (signal === 'drop') return sampleSignal(audio.structure.dropConfidence)
+  if (signal === 'section-change') {
+    const transition = frame.director?.context.transition
+    return transition?.available
+      ? { available: true, value: transition.occurred ? transition.authority : 0, confidence: transition.confidence }
+      : directorAuthority(frame.director?.authority.variation)
+  }
+  if (signal === 'drop') {
+    const confidence = sampleSignal(audio.structure.dropConfidence)
+    // A semantic marker stream is authoritative discrete evidence even when
+    // the optional continuous drop-confidence feature is unavailable.
+    return confidence.available ? confidence
+      : { available: audio.capabilities.semanticMoments, value: audio.capabilities.semanticMoments ? 1 : null, confidence: null }
+  }
   if (signal === 'lyric-line' || signal === 'lyric-word') return { available: audio.capabilities.lyrics, value: 1, confidence: audio.lyrics.confidence }
   return unavailableSample()
 }

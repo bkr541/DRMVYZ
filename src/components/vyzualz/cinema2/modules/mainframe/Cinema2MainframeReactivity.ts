@@ -26,22 +26,25 @@ export type Cinema2MainframeImpulseId = typeof CINEMA2_MAINFRAME_IMPULSE_IDS[num
 
 export interface Cinema2MainframeImpulseSpec {
   readonly attackMs: number
+  readonly holdMs: number
   readonly releaseMs: number
   readonly targets: readonly Cinema2MainframeSystem[]
 }
 
 export const CINEMA2_MAINFRAME_IMPULSES: Readonly<Record<Cinema2MainframeImpulseId, Readonly<Cinema2MainframeImpulseSpec>>> = Object.freeze({
-  kick: Object.freeze({ attackMs: 18, releaseMs: 130, targets: Object.freeze(['terminals'] as const) }),
-  snare: Object.freeze({ attackMs: 24, releaseMs: 180, targets: Object.freeze(['logoOuter'] as const) }),
-  beat: Object.freeze({ attackMs: 20, releaseMs: 160, targets: Object.freeze(['circuits'] as const) }),
-  downbeat: Object.freeze({ attackMs: 20, releaseMs: 220, targets: Object.freeze(['logoStar', 'circuits'] as const) }),
-  fourBeat: Object.freeze({ attackMs: 40, releaseMs: 320, targets: Object.freeze(['radar'] as const) }),
-  eightBeat: Object.freeze({ attackMs: 50, releaseMs: 420, targets: Object.freeze(['logoBody'] as const) }),
-  phrase: Object.freeze({ attackMs: 80, releaseMs: 650, targets: Object.freeze(['circuits', 'chip'] as const) }),
-  drop: Object.freeze({ attackMs: 10, releaseMs: 850, targets: Object.freeze(['circuits', 'terminals', 'radar', 'chip', 'logoOuter', 'logoBody', 'logoStar'] as const) }),
-  transient: Object.freeze({ attackMs: 14, releaseMs: 120, targets: Object.freeze(['vias', 'terminals'] as const) }),
-  section: Object.freeze({ attackMs: 55, releaseMs: 720, targets: Object.freeze(['circuits', 'radar', 'chip'] as const) }),
+  kick: Object.freeze({ attackMs: 12, holdMs: 24, releaseMs: 145, targets: Object.freeze(['circuits', 'terminals'] as const) }),
+  snare: Object.freeze({ attackMs: 22, holdMs: 42, releaseMs: 245, targets: Object.freeze(['logoOuter', 'chip'] as const) }),
+  beat: Object.freeze({ attackMs: 28, holdMs: 18, releaseMs: 175, targets: Object.freeze(['circuits'] as const) }),
+  downbeat: Object.freeze({ attackMs: 16, holdMs: 70, releaseMs: 390, targets: Object.freeze(['logoStar', 'circuits', 'radar'] as const) }),
+  fourBeat: Object.freeze({ attackMs: 46, holdMs: 90, releaseMs: 430, targets: Object.freeze(['radar'] as const) }),
+  eightBeat: Object.freeze({ attackMs: 58, holdMs: 110, releaseMs: 520, targets: Object.freeze(['logoBody'] as const) }),
+  phrase: Object.freeze({ attackMs: 90, holdMs: 160, releaseMs: 820, targets: Object.freeze(['circuits', 'chip', 'radar'] as const) }),
+  drop: Object.freeze({ attackMs: 9, holdMs: 140, releaseMs: 1050, targets: Object.freeze(['circuits', 'terminals', 'radar', 'chip', 'logoOuter', 'logoBody', 'logoStar'] as const) }),
+  transient: Object.freeze({ attackMs: 8, holdMs: 12, releaseMs: 95, targets: Object.freeze(['vias', 'terminals'] as const) }),
+  section: Object.freeze({ attackMs: 70, holdMs: 120, releaseMs: 760, targets: Object.freeze(['circuits', 'radar', 'chip'] as const) }),
 })
+
+export type Cinema2MainframeSectionKind = 'verse' | 'buildup' | 'breakdown' | 'drop' | 'other' | 'unknown'
 
 export interface Cinema2MainframeSignals {
   readonly sub: number
@@ -50,6 +53,13 @@ export interface Cinema2MainframeSignals {
   readonly high: number
   readonly flux: number
   readonly vocal: number
+  /** Actual normalized musical progress through the current buildup. */
+  readonly buildProgress?: number
+  /** Classification confidence; deliberately never substituted for progress. */
+  readonly buildConfidence?: number
+  /** Energy/tension of the buildup, independent of progress and confidence. */
+  readonly buildIntensity?: number
+  /** Legacy progress alias retained for compatibility with existing pattern consumers. */
   readonly build: number
   /** Shared normalized energy feeding Mainframe’s global lighting bus; not an eighth authored Pass 3 signal. */
   readonly overall: number
@@ -58,12 +68,19 @@ export interface Cinema2MainframeSignals {
   readonly momentum?: number
   readonly impact?: number
   readonly variation?: number
+  readonly section?: Cinema2MainframeSectionKind
+  readonly sectionProgress?: number
+  readonly sectionIntensity?: number
+  readonly sectionConfidence?: number
+  readonly phraseProgress?: number
 }
 
 export type Cinema2MainframeImpulses = Readonly<Record<Cinema2MainframeImpulseId, number>>
 
 export const CINEMA2_MAINFRAME_ZERO_SIGNALS: Readonly<Cinema2MainframeSignals> = Object.freeze({
-  sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0, build: 0, overall: 0,
+  sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0,
+  buildProgress: 0, buildConfidence: 0, buildIntensity: 0, build: 0, overall: 0,
+  section: 'unknown', sectionProgress: 0, sectionIntensity: 0, sectionConfidence: 0, phraseProgress: 0,
 })
 
 export const CINEMA2_MAINFRAME_ZERO_IMPULSES: Cinema2MainframeImpulses = Object.freeze({

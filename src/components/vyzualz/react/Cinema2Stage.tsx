@@ -17,6 +17,9 @@ export interface Cinema2StageProps {
   isPlaying?: boolean
   analysisActive?: boolean
   isPaused?: boolean
+  /** Identity published by AudioFeatureBus (the runtime playlist/source id). */
+  audioIntelligenceTrackId?: string | null
+  /** Persisted audio-record id used by transport/storage integrations. */
   activeAudioTrackId?: string | null
   bpmSync?: boolean
   bpm?: number | null
@@ -44,6 +47,7 @@ export function Cinema2Stage({
   isPlaying,
   analysisActive,
   isPaused,
+  audioIntelligenceTrackId,
   activeAudioTrackId,
   bpmSync,
   bpm,
@@ -62,7 +66,7 @@ export function Cinema2Stage({
     isPlaying: isPlaying ?? true,
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
-    activeAudioTrackId: activeAudioTrackId ?? null,
+    activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
     bpmSync: bpmSync === true,
     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
     getAudioTime,
@@ -72,7 +76,7 @@ export function Cinema2Stage({
     isPlaying: isPlaying ?? true,
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
-    activeAudioTrackId: activeAudioTrackId ?? null,
+    activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
     bpmSync: bpmSync === true,
     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
     getAudioTime,
@@ -256,4 +260,16 @@ export function Cinema2Stage({
       )}
     </section>
   )
+}
+
+/**
+ * Cinema 2.0 consumes AudioFeatureBus frames, so its transport identity must use
+ * the bus/source identity when it differs from the persisted database id. The
+ * persisted id remains a fallback for hosts that do not expose a bus identity.
+ */
+export function resolveCinema2StageTransportTrackId(
+  audioIntelligenceTrackId: string | null | undefined,
+  activeAudioTrackId: string | null | undefined,
+): string | null {
+  return audioIntelligenceTrackId ?? activeAudioTrackId ?? null
 }

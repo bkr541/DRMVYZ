@@ -1,0 +1,1709 @@
+diff --git a/scripts/cinema2-assets/accept-mainframe-production.mjs b/scripts/cinema2-assets/accept-mainframe-production.mjs
+index fc4deeb5..197a6d1e 100644
+--- a/scripts/cinema2-assets/accept-mainframe-production.mjs
++++ b/scripts/cinema2-assets/accept-mainframe-production.mjs
+@@ -82,6 +82,15 @@ try {
+     }
+   }
+ 
++  // A static board previously passed this harness because it never published
++  // Audio Intelligence. With the production audio fixture active, every 16:9
++  // pattern must produce a distinct rendered program.
++  const patternNames = new Set(patterns.map(pattern => `16x9-${pattern.id}`))
++  const patternHashes = captures.filter(capture => patternNames.has(capture.name)).map(capture => capture.sha256)
++  if (patternHashes.length !== patterns.length || new Set(patternHashes).size !== patterns.length) {
++    throw new Error('Mainframe audio-reactive pattern validation produced duplicate static frames.')
++  }
++
+   const validationPage = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 })
+   await validationPage.goto(`${baseUrl}?quality=high&timeSec=1.25`, { waitUntil: 'domcontentloaded' })
+   await validationPage.waitForFunction(() => Boolean(globalThis.__mainframeProduction), undefined, { timeout: 30_000 })
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeLightingDiagnostic.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeLightingDiagnostic.test.ts
+index 6d9511f5..4ff19bf9 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeLightingDiagnostic.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeLightingDiagnostic.test.ts
+@@ -31,7 +31,8 @@ describe('Mainframe P0-01 dev-only semantic lighting probe', () => {
+       expect(frame.bankWeights).toEqual([0, 0, 0, 0])
+       expect(frame.regionWeights).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
+       expect(Object.values(frame.impulses).every(value => value === 0)).toBe(true)
+-      expect(Object.values(frame.signals).every(value => value === 0)).toBe(true)
++      expect(Object.values(frame.signals).filter((value): value is number => typeof value === 'number').every(value => value === 0)).toBe(true)
++      expect(frame.signals.section).toBe('unknown')
+     }
+   })
+ })
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframePreset.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframePreset.test.ts
+index d810332c..09692be6 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframePreset.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframePreset.test.ts
+@@ -193,8 +193,8 @@ describe('Mainframe Stage 5 preset', () => {
+     expect(frame.overrides.parts.indicatorCores?.emissive).toEqual([1, 1, 0])
+     expect(frame.overrides.parts.radarCores?.emissive).toEqual([1, 1, 0])
+     expect(manifest.effects?.map(effect => effect.typeId)).toEqual(['hdr-bloom', 'cinematic-finish'])
+-    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.65, intensity: 0.92, levels: 7 })
+-    expect(manifest.effects?.[1]?.parameters).toMatchObject({ toneMap: 1, aberration: 0.003 })
++    expect(manifest.effects?.[0]?.parameters).toMatchObject({ threshold: 1.8, intensity: 0.78, clampMax: 24, levels: 7 })
++    expect(manifest.effects?.[1]?.parameters).toMatchObject({ toneMap: 1, exposure: 0.82, aberration: 0.003 })
+   })
+ 
+   it('uses a static front camera, neutral PBR light rig and real shadow casting', () => {
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeReactivity.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeReactivity.test.ts
+index ec0b9780..b59adb2a 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeReactivity.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeReactivity.test.ts
+@@ -1,11 +1,18 @@
+ import { describe, expect, it } from 'vitest'
+ import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
+-import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2MainframeMusicAdapter'
++import {
++  Cinema2MainframeDropCoordinator,
++  readCinema2MainframeContinuous,
++  resolveCinema2MainframeEventVisualStrength,
++  type Cinema2MainframeMusicalEvent,
++} from '../modules/mainframe/Cinema2MainframeMusicAdapter'
++import { resolveCinema2MainframeComponentLighting } from '../modules/mainframe/Cinema2MainframeHardwareLighting'
+ import { resolveCinema2MainframeTriggerEventIdentity } from '../modules/mainframe/Cinema2MainframePatternController'
+ import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+ import {
+   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+   CINEMA2_MAINFRAME_PATTERN_IDS,
++  Cinema2MainframeBeatClockResolver,
+   Cinema2MainframeReactivityEngine,
+   evaluateCinema2MainframePattern,
+   resolveCinema2MainframeBeatClock,
+@@ -67,8 +74,8 @@ describe('Mainframe Stage 4 reactivity', () => {
+     expect(CINEMA2_MAINFRAME_BANKS).toEqual(['A', 'B', 'C', 'D'])
+     expect(CINEMA2_MAINFRAME_REGIONS).toEqual(['bottom-center', 'left-branch', 'left-major', 'left-minor', 'right-branch', 'right-major', 'right-minor', 'top-center'])
+     expect(CINEMA2_MAINFRAME_SIGNAL_IDS).toHaveLength(7)
+-    expect(CINEMA2_MAINFRAME_IMPULSES.kick).toMatchObject({ attackMs: 18, releaseMs: 130, targets: ['terminals'] })
+-    expect(CINEMA2_MAINFRAME_IMPULSES.drop).toMatchObject({ attackMs: 10, releaseMs: 850 })
++    expect(CINEMA2_MAINFRAME_IMPULSES.kick).toMatchObject({ attackMs: 12, holdMs: 24, releaseMs: 145, targets: ['circuits', 'terminals'] })
++    expect(CINEMA2_MAINFRAME_IMPULSES.drop).toMatchObject({ attackMs: 9, holdMs: 140, releaseMs: 1050 })
+   })
+ 
+   it('produces six deterministic and materially distinct lighting programs', () => {
+@@ -361,3 +368,157 @@ describe('P0-07 Mainframe overall energy reactivity', () => {
+     expect(withDrop.systemGains[8]).toBeGreaterThan(withoutDrop.systemGains[8])
+   })
+ })
++
++describe('P1 Mainframe musical intelligence and component choreography', () => {
++  const musicalEvent = (
++    kind: Cinema2MainframeMusicalEvent['kind'],
++    id: string,
++    timeSec: number,
++    strength = 1,
++    confidence: number | null = 0.95,
++  ): Cinema2MainframeMusicalEvent => ({
++    kind, id, timeSec, strength,
++    visualStrength: resolveCinema2MainframeEventVisualStrength(kind, strength, confidence, 'shared-test'),
++    confidence, source: 'shared-test', upstreamIdentity: id,
++    trackId: 'track', sourceId: 'test', analysisRevision: null, timelineRevision: null,
++  })
++
++  it('keeps buildup occurrence, confidence, progress and intensity separate', () => {
++    const base = frame({ time: 4 })
++    const buildFrame = {
++      ...base,
++      audio: {
++        ...base.audio!,
++        features: { ...base.audio!.features, buildProgress: available(0.12), overallEnergy: available(0.7), tension: available(0.82) },
++        structure: {
++          ...base.audio!.structure,
++          buildConfidence: available(0.98),
++          section: {
++            available: true, confidence: 0.94, source: 'test', provenance: null,
++            value: { id: 'build-a', label: 'Build', type: 'build', startSec: 0, endSec: 16, progress: 0.12, intensity: 0.82, confidence: 0.94, source: 'test', authority: 'analysis', dropConfidence: 0.2 },
++          },
++        },
++      },
++    } as unknown as Cinema2ModuleFrameReadContext
++    const early = readCinema2MainframeContinuous(buildFrame.audio, null)
++    expect(early).toMatchObject({ section: 'buildup', buildProgress: 0.12, buildConfidence: 0.98, build: 0.12 })
++    expect(early.buildIntensity).toBeGreaterThan(0.8)
++    const earlyLighting = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals: early, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
++    const lateSignals = { ...early, buildProgress: 0.9, build: 0.9, sectionProgress: 0.9 }
++    const lateLighting = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals: lateSignals, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
++    expect(earlyLighting.buildCharge).toBeLessThan(0.2)
++    expect(lateLighting.buildCharge).toBeGreaterThan(0.7)
++    expect(lateLighting.chaseFront).toBeGreaterThan(earlyLighting.chaseFront)
++    const falseBuild = evaluateCinema2MainframePattern({
++      pattern: 'system-surge', beats: 15.9,
++      signals: { ...CINEMA2_MAINFRAME_ZERO_SIGNALS, buildProgress: 0, buildConfidence: 1, buildIntensity: 1, build: 0 },
++      impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,
++    })
++    expect(falseBuild.buildCharge).toBe(0)
++    expect(falseBuild.chaseFront).toBe(0)
++  })
++
++  it('gives verse, buildup, breakdown and drop distinct pattern-complementary behavior', () => {
++    const base = { ...CINEMA2_MAINFRAME_ZERO_SIGNALS, overall: 0.65, bass: 0.62, mid: 0.5, high: 0.4, sectionConfidence: 0.95 }
++    const render = (section: 'verse' | 'buildup' | 'breakdown' | 'drop') => evaluateCinema2MainframePattern({
++      pattern: 'quadrant-relay', beats: 6.25,
++      signals: { ...base, section, sectionProgress: 0.65, phraseProgress: 0.4, buildProgress: section === 'buildup' ? 0.65 : 0, buildConfidence: 0.95, buildIntensity: 0.8, build: section === 'buildup' ? 0.65 : 0 },
++      impulses: section === 'drop' ? { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, drop: 0.9 } : CINEMA2_MAINFRAME_ZERO_IMPULSES,
++    })
++    const verse = render('verse'), buildup = render('buildup'), breakdown = render('breakdown'), drop = render('drop')
++    expect([verse.sectionMode, buildup.sectionMode, breakdown.sectionMode, drop.sectionMode]).toEqual([1, 2, 3, 4])
++    expect(breakdown.circuitEnergy).toBeLessThan(verse.circuitEnergy)
++    expect(buildup.buildCharge).toBeGreaterThan(0.5)
++    expect(drop.circuitAccent).toBeGreaterThan(buildup.circuitAccent)
++    expect([verse, buildup, breakdown, drop].every(value => value.pattern === 'quadrant-relay')).toBe(true)
++  })
++
++  it('maps kick, snare, transient and downbeat to distinguishable hardware families', () => {
++    const render = (kind: keyof typeof CINEMA2_MAINFRAME_ZERO_IMPULSES) => resolveCinema2MainframeComponentLighting(
++      evaluateCinema2MainframePattern({
++        pattern: 'outward-bus', beats: 2,
++        signals: CINEMA2_MAINFRAME_ZERO_SIGNALS,
++        impulses: { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, [kind]: 1 },
++      }),
++    )
++    const kick = render('kick'), snare = render('snare'), transient = render('transient'), downbeat = render('downbeat')
++    expect(kick.terminals).toBeGreaterThan(kick.indicators)
++    expect(snare.chipPins).toBeGreaterThan(snare.terminals)
++    expect(snare.logoDetails).toBeGreaterThan(0.5)
++    expect(transient.indicators).toBeGreaterThan(transient.radarRings)
++    expect(downbeat.radarNodes).toBeGreaterThan(0.4)
++    expect(new Set([kick.terminals, snare.terminals, transient.terminals, downbeat.terminals]).size).toBeGreaterThan(2)
++  })
++
++  it('runs four bounded timestamp-synchronized route pulses and preserves them across section changes', () => {
++    const engine = new Cinema2MainframeReactivityEngine()
++    engine.update(frame({ time: 1 }), 'outward-bus', true, 0, [])
++    const events = [
++      musicalEvent('downbeat', 'down-1', 1.02),
++      musicalEvent('kick', 'kick-1', 1.02),
++      musicalEvent('snare', 'snare-1', 1.02),
++      musicalEvent('transient', 'transient-1', 1.02),
++    ]
++    const impact = engine.update(frame({ time: 1.04, delta: 0.02 }), 'outward-bus', true, 0, events)
++    expect(impact.routePulses.filter(pulse => pulse.gain > 0)).toHaveLength(4)
++    expect(impact.routePulses.reduce((sum, pulse) => sum + pulse.gain, 0)).toBeLessThanOrEqual(1.800001)
++    expect(new Set(impact.routePulses.map(pulse => pulse.routeGroup)).size).toBeGreaterThan(1)
++    const laterBase = frame({ time: 1.12, delta: 0.08 })
++    const later = engine.update({
++      ...laterBase,
++      audio: { ...laterBase.audio!, structure: { ...laterBase.audio!.structure, section: {
++        available: true, confidence: 0.9, source: 'test', provenance: null,
++        value: { id: 'verse-b', label: 'Verse', type: 'verse', startSec: 1.1, endSec: 20, progress: 0.01, intensity: 0.5, source: 'test', authority: 'analysis', dropConfidence: 0 },
++      } } },
++    } as never, 'outward-bus', true, 0, [])
++    expect(later.routePulses[1].front).toBeGreaterThan(impact.routePulses[1].front)
++    expect(later.routePulses.some(pulse => pulse.gain > 0)).toBe(true)
++  })
++
++  it('suppresses uncertain structural impacts while retaining scaled authoritative rhythm hits', () => {
++    expect(resolveCinema2MainframeEventVisualStrength('drop', 1, 0.2, 'analysis')).toBe(0)
++    expect(resolveCinema2MainframeEventVisualStrength('section', 1, 0.4, 'analysis')).toBe(0)
++    expect(resolveCinema2MainframeEventVisualStrength('phrase', 1, 0.2, 'analysis')).toBe(0)
++    expect(resolveCinema2MainframeEventVisualStrength('drop', 1, 0.96, 'analysis')).toBeGreaterThan(0.9)
++    expect(resolveCinema2MainframeEventVisualStrength('kick', 1, 0.25, 'live')).toBeGreaterThan(0.5)
++    const coordinator = new Cinema2MainframeDropCoordinator()
++    expect(coordinator.update({ audio: null } as Cinema2ModuleFrameReadContext, [musicalEvent('drop', 'uncertain', 2, 1, 0.2)]).dropEventId).toBeNull()
++  })
++
++  it('uses grid, analyzed BPM, transport BPM and explicit fallback without phase jumps', () => {
++    const resolver = new Cinema2MainframeBeatClockResolver()
++    const withoutGrid = (time: number, bpm: number | null, transportBpm: number | null, paused = false, discontinuity = false) => {
++      const base = frame({ time, paused, discontinuity })
++      return {
++        ...base,
++        transport: { ...base.transport!, bpm: transportBpm },
++        audio: { ...base.audio!, rhythm: {
++          ...base.audio!.rhythm,
++          bpm: bpm == null ? unavailable() : available(bpm),
++          beatPhase: unavailable(), beatIndex: unavailable(), beatInBar: unavailable(), barIndex: unavailable(),
++        } },
++      } as unknown as Cinema2ModuleFrameReadContext
++    }
++    const analyzed = resolver.resolve(withoutGrid(2, 150, 90), true)
++    expect(analyzed).toMatchObject({ source: 'analyzed-bpm', bpm: 150, confirmedGrid: false, beats: 5 })
++    expect(resolver.resolve(withoutGrid(2.2, 150, 90), true).beats).toBeCloseTo(5.5)
++    const tempoChange = resolver.resolve(withoutGrid(2.4, 180, 90), true)
++    expect(tempoChange.beats).toBeCloseTo(6.1)
++    const held = resolver.resolve(withoutGrid(3, 180, 90, true), true)
++    expect(held.beats).toBeCloseTo(tempoChange.beats)
++    resolver.reset()
++    expect(resolver.resolve(withoutGrid(2, null, 90), true)).toMatchObject({ source: 'transport-bpm', bpm: 90, beats: 3 })
++    resolver.reset()
++    expect(resolver.resolve(withoutGrid(2, null, null), true)).toMatchObject({ source: 'visual-fallback-120', bpm: 120, beats: 4, confirmedGrid: false })
++    expect(resolveCinema2MainframeTriggerEventIdentity(withoutGrid(2.1, null, 120), 'bar', 2, null, {
++      previousBeat: 3.9,
++      current: { beats: 4.2, bpm: 120, source: 'transport-bpm', confirmedGrid: false },
++    })).toBe('mainframe-timing:transport-bpm:4:1')
++    expect(resolveCinema2MainframeTriggerEventIdentity(withoutGrid(2.1, null, 120), 'kick', 2, null, {
++      previousBeat: 3.9,
++      current: { beats: 4.2, bpm: 120, source: 'transport-bpm', confirmedGrid: false },
++    })).toBeNull()
++    resolver.reset()
++    expect(resolver.resolve(frame({ time: 10, beatIndex: 9, beatPhase: 0.5 }), true)).toMatchObject({ source: 'analyzed-beat-grid', beats: 9.5, confirmedGrid: true })
++  })
++})
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeSharedAudioIntelligence.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeSharedAudioIntelligence.test.ts
+index 5dc5adc7..2e9c0f41 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeSharedAudioIntelligence.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeSharedAudioIntelligence.test.ts
+@@ -78,7 +78,7 @@ const upstreamId = (dispatchedId: string) => dispatchedId.slice(0, dispatchedId.
+ 
+ describe('Mainframe and Electric Storm shared Audio Intelligence / choreography', () => {
+   it('routes identical upstream event IDs via the same bridge, Visual Director and choreography runtime', () => {
+-    let upstream = music(1, 10, false)
++    let upstream = music(1, 10.8, false)
+     const bridge = new Cinema2AudioIntelligenceBridge({
+       getFrame: () => upstream,
+       getPublicationMeta: () => ({ sequence: upstream.frameId, publishedAtMs: upstream.timeSec * 1000, publisherId: 'shared-test', kind: 'frame' as const }),
+@@ -130,7 +130,7 @@ describe('Mainframe and Electric Storm shared Audio Intelligence / choreography'
+     // Repeated publication/event ID never fires the same cue twice.
+     mainframe.choreography.update(next)
+     storm.choreography.update(next)
+-    expect(mainframe.dispatched).toHaveLength(cues.length)
++    for (const cue of cues) expect(mainframe.dispatched.filter(event => event.eventId === cue.dispatchedEventId)).toHaveLength(1)
+     expect(storm.choreography.getSnapshot().deduplicatedEventCount).toBeGreaterThan(0)
+     mainframe.choreography.dispose()
+     storm.choreography.dispose()
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeUnifiedDropDetection.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeUnifiedDropDetection.test.ts
+index 674cb3d9..313781a5 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeUnifiedDropDetection.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2MainframeUnifiedDropDetection.test.ts
+@@ -37,7 +37,7 @@ function music(frameId: number, timeSec: number, section: 'verse' | 'drop', mark
+     section: {
+       ...DEFAULT_MI_FRAME.section, type: section, label: section,
+       startSec: section === 'drop' ? 10 : 0, endSec: 30,
+-      intensity: section === 'drop' ? 0.96 : 0.45, confidence: 0.95, source: 'offline_analysis',
++      intensity: section === 'drop' ? 0.96 : 0.45, confidence: 0.95, source: 'analysis',
+     },
+     semanticMoments: markers,
+     analysisCapabilities: { ...DEFAULT_MI_FRAME.analysisCapabilities!, semanticMoments: markers.length > 0 },
+@@ -103,7 +103,7 @@ function consume(controller: Cinema2MainframePatternController, coordinator: Cin
+ describe('Mainframe P0-06 unified choreography drop delivery', () => {
+   it('uses one dispatched marker for both the surge and an enabled drop-based pattern change', () => {
+     const shared = runner()
+-    shared.render(music(1, 9, 'verse'))
++    shared.render(music(1, 9.8, 'verse'))
+     const { frame, delivered } = shared.render(music(2, 10.05, 'drop', [
+       { id: 'drop-1', timeSec: 10, type: 'drop_impact', confidence: 0.97, source: 'structural_analysis' },
+     ]))
+@@ -112,7 +112,7 @@ describe('Mainframe P0-06 unified choreography drop delivery', () => {
+     controller.update({ ...patternInput, triggerEventId: null })
+     const { result, selection } = consume(controller, coordinator, frame, [...delivered])
+     expect(result.events.filter(event => event.kind === 'drop')).toHaveLength(1)
+-    expect(result.dropEventId).toBe('drop-1')
++    expect(result.dropEventId).toBe(frame.audio!.structure.semanticMoments.value![0]!.id)
+     expect(selection).toMatchObject({ changed: true, activePattern: 'system-surge' })
+     const engine = new Cinema2MainframeReactivityEngine()
+     engine.update(context(frame.audio!, frame.director!), 'outward-bus', true, 0, [])
+@@ -125,10 +125,10 @@ describe('Mainframe P0-06 unified choreography drop delivery', () => {
+ 
+   it('honors shared director section transitions without any explicit semantic marker', () => {
+     const shared = runner()
+-    shared.render(music(1, 9, 'verse'))
++    shared.render(music(1, 9.8, 'verse'))
+     const { frame, delivered } = shared.render(music(2, 10, 'drop'))
+     const dropEvent = delivered.find(event => event.kind === 'drop')
+-    expect(dropEvent).toMatchObject({ kind: 'drop', source: 'offline_analysis' })
++    expect(dropEvent).toMatchObject({ kind: 'drop', source: 'analysis' })
+     expect(dropEvent?.id).toBe(frame.director?.context.transition.eventId)
+     const result = new Cinema2MainframeDropCoordinator().update(frame, delivered)
+     expect(result.dropEventId).toBe(dropEvent?.id)
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2ThreePbr.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2ThreePbr.test.ts
+index 82ef1d72..a9aba4f6 100644
+--- a/src/components/vyzualz/cinema2/__tests__/Cinema2ThreePbr.test.ts
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2ThreePbr.test.ts
+@@ -190,17 +190,20 @@ describe('Cinema 2.0 Three bridge PBR', () => {
+       expect(shader.fragmentShader).toContain('uCinema2MainframeHardware')
+       // The shared State0.y level must be used in the visible emissive path,
+       // not just uploaded to a dead uniform.
+-      expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y')
++      expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y')
+       expect(shader.fragmentShader).toContain('cinema2MFLight ) * cinema2MFEnergyLift')
+       expect(shader.fragmentShader).toContain('pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y')
+       expect(shader.fragmentShader).toContain('float radarWave = hwSweep')
++      expect(shader.fragmentShader).toContain('uCinema2MainframePulseFront')
++      expect(shader.fragmentShader).toContain('uCinema2MainframeHardwareDetails')
++      expect(shader.fragmentShader).toContain('uCinema2MainframeSection')
+       expect(shader.fragmentShader).toContain('float chipScan =')
+       expect(shader.fragmentShader).toContain('cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015')
+       expect(shader.fragmentShader).toContain('vCinema2MainframePhase')
+       expect(shader.uniforms.uCinema2MainframeRole?.value).toBe(
+         ['circuit', 'indicator', 'radar', 'chip', 'logo', 'circuitHousing', 'radarHousing', 'chipHousing'].indexOf(role),
+       )
+-      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(0)
++      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(part === 'circuitHousings' ? 0 : 0.6)
+       bridge.draw(execution('high'), overrides(), 0, null, null, null, {
+         circuitColor: [0.24, 1, 0.12], indicatorColor: [0.4, 1, 0.22], logoColor: [0.3, 1, 0.18],
+         strength: 1, frame: createCinema2MainframeLightingDiagnosticFrame('circuits'),
+diff --git a/src/components/vyzualz/cinema2/choreography/Cinema2ChoreographyRuntime.ts b/src/components/vyzualz/cinema2/choreography/Cinema2ChoreographyRuntime.ts
+index 03466ae1..20ad1de9 100644
+--- a/src/components/vyzualz/cinema2/choreography/Cinema2ChoreographyRuntime.ts
++++ b/src/components/vyzualz/cinema2/choreography/Cinema2ChoreographyRuntime.ts
+@@ -914,8 +914,19 @@ function eventSignalSample(signal: Cinema2ChoreographySourceManifest['signal'],
+   if (signal === 'transient') return eventSample(audio.rhythm.transient, audio.capabilities.rhythmEvents)
+   if (signal === 'bar') return eventSample(audio.rhythm.fixedClocks[4].boundary, audio.capabilities.beatGrid)
+   if (signal === 'phrase') return { available: audio.capabilities.analyzedPhrases || audio.capabilities.beatGrid, value: 1, confidence: audio.rhythm.bpm.confidence }
+-  if (signal === 'section-change') return directorAuthority(frame.director?.authority.variation)
+-  if (signal === 'drop') return sampleSignal(audio.structure.dropConfidence)
++  if (signal === 'section-change') {
++    const transition = frame.director?.context.transition
++    return transition?.available
++      ? { available: true, value: transition.occurred ? transition.authority : 0, confidence: transition.confidence }
++      : directorAuthority(frame.director?.authority.variation)
++  }
++  if (signal === 'drop') {
++    const confidence = sampleSignal(audio.structure.dropConfidence)
++    // A semantic marker stream is authoritative discrete evidence even when
++    // the optional continuous drop-confidence feature is unavailable.
++    return confidence.available ? confidence
++      : { available: audio.capabilities.semanticMoments, value: audio.capabilities.semanticMoments ? 1 : null, confidence: null }
++  }
+   if (signal === 'lyric-line' || signal === 'lyric-word') return { available: audio.capabilities.lyrics, value: 1, confidence: audio.lyrics.confidence }
+   return unavailableSample()
+ }
+diff --git a/src/components/vyzualz/cinema2/modules/Cinema2MainframeNativeModule.ts b/src/components/vyzualz/cinema2/modules/Cinema2MainframeNativeModule.ts
+index c806934f..c47916e9 100644
+--- a/src/components/vyzualz/cinema2/modules/Cinema2MainframeNativeModule.ts
++++ b/src/components/vyzualz/cinema2/modules/Cinema2MainframeNativeModule.ts
+@@ -29,8 +29,8 @@ import {
+ import {
+   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+   CINEMA2_MAINFRAME_PATTERN_IDS,
++  Cinema2MainframeBeatClockResolver,
+   Cinema2MainframeReactivityEngine,
+-  resolveCinema2MainframeBeatClock,
+   resolveCinema2MainframeTimeSec,
+   type Cinema2MainframeLightingFrame,
+   type Cinema2MainframePatternId,
+@@ -258,6 +258,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
+     let bridgeCreateFailed = false
+     let frame = resolveCinema2MainframeStaticFrame(context.parameters)
+     const reactivity = new Cinema2MainframeReactivityEngine()
++    const beatClock = new Cinema2MainframeBeatClockResolver()
+     const dropCoordinator = new Cinema2MainframeDropCoordinator()
+     // Populated solely by the engine-owned choreography dispatcher before module.update.
+     // A bounded local queue avoids subscribing to the Audio Feature Bus a second time.
+@@ -269,6 +270,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
+     let selection: Readonly<Cinema2MainframePatternSelection> = Object.freeze({ activePattern: frame.pattern, patternStartBeat: 0, changed: false })
+     let lighting: Readonly<Cinema2MainframeLightingFrame> | null = null
+     let triggerPreviousTimeSec: number | null = null
++    let triggerPreviousBeat: number | null = null
+     let triggerSourceIdentity: string | null = null
+     let triggerTrackId: string | null | undefined
+     let triggerContextGeneration: number | null = null
+@@ -386,19 +388,25 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
+           const dispatched = triggerReset || playback !== 'playing'
+             ? [] : resolveCinema2MainframeMusicalEvents(acceptedFrame, cues)
+           const coordinated = dropCoordinator.update(acceptedFrame, dispatched)
++          if (triggerReset) beatClock.reset()
++          const timing = beatClock.resolve(acceptedFrame, frame.bpmSync)
+           const triggerEventId = triggerReset
+             ? null
+-            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec, coordinated.dropEventId)
++            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec, coordinated.dropEventId, {
++              previousBeat: triggerPreviousBeat,
++              current: timing,
++            })
+           selection = patternController.update({
+             authoredPattern: frame.pattern,
+             patternChange: frame.patternChange,
+             trigger: frame.trigger,
+             triggerEventId,
+-            absoluteBeat: resolveCinema2MainframeBeatClock(acceptedFrame, frame.bpmSync),
++            absoluteBeat: timing.beats,
+             reset: triggerReset,
+           })
+-          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events)
++          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+           triggerPreviousTimeSec = timeSec
++          triggerPreviousBeat = timing.beats
+           triggerSourceIdentity = sourceIdentity
+           triggerTrackId = updateFrame.transport?.trackId
+           triggerContextGeneration = updateFrame.contextGeneration
+@@ -408,6 +416,8 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
+           disposed = true
+           musicalCues.splice(0)
+           dropCoordinator.reset()
++          beatClock.reset()
++          triggerPreviousBeat = null
+           reactivity.reset()
+           patternController.reset()
+           if (!bridge && held) { assets.release(held); held = null }
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeHardwareLighting.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeHardwareLighting.ts
+index 45614326..b087131e 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeHardwareLighting.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeHardwareLighting.ts
+@@ -1,17 +1,54 @@
+ import type { Cinema2MainframeLightingFrame } from './Cinema2MainframePatternEngine'
+ 
++export interface Cinema2MainframeComponentLighting {
++  readonly terminals: number
++  readonly indicators: number
++  readonly radarRings: number
++  readonly radarNodes: number
++  readonly chipBody: number
++  readonly chipPins: number
++  readonly chipIndicators: number
++  readonly logoDetails: number
++}
++
++const clamp = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
++
++/** One centralized mapping from shared intelligence to Mainframe's real mesh families. */
++export function resolveCinema2MainframeComponentLighting(frame: Readonly<Cinema2MainframeLightingFrame>): Readonly<Cinema2MainframeComponentLighting> {
++  if (!frame.active) return Object.freeze({
++    terminals: 0, indicators: 0, radarRings: 0, radarNodes: 0,
++    chipBody: 0, chipPins: 0, chipIndicators: 0, logoDetails: 0,
++  })
++  const { signals: s, impulses: e } = frame
++  const build = frame.buildCharge
++  return Object.freeze({
++    terminals: clamp(0.13 * s.bass + 0.76 * e.kick + 0.22 * e.transient + 0.3 * e.downbeat + 0.54 * e.drop),
++    indicators: clamp(0.4 * s.high + 0.28 * s.flux + 0.56 * e.transient + 0.1 * e.beat + 0.28 * e.drop),
++    radarRings: clamp(0.34 * s.mid + 0.5 * e.fourBeat + 0.34 * e.downbeat + 0.28 * e.phrase + 0.24 * build + 0.48 * e.drop),
++    radarNodes: clamp(0.2 * s.mid + 0.3 * s.high + 0.34 * e.transient + 0.42 * e.downbeat + 0.18 * build + 0.42 * e.drop),
++    chipBody: clamp(0.48 * s.mid + 0.14 * s.high + 0.44 * e.phrase + 0.34 * e.snare + 0.2 * e.section + 0.22 * build + 0.52 * e.drop),
++    chipPins: clamp(0.28 * s.mid + 0.3 * s.high + 0.52 * e.snare + 0.32 * e.phrase + 0.24 * build + 0.44 * e.drop),
++    chipIndicators: clamp(0.32 * s.high + 0.24 * s.flux + 0.5 * e.transient + 0.34 * e.snare + 0.38 * e.drop),
++    logoDetails: clamp(0.22 * s.sub + 0.22 * s.vocal + 0.56 * e.snare + 0.48 * e.downbeat + 0.36 * e.phrase + 0.72 * e.drop),
++  })
++}
++
+ /** Four independent, clamped responses for the *existing* hardware meshes.
+  * No timers or generated beats: only the shared Mainframe audio envelopes can
+  * excite these channels. The authored pattern's system gains remain in control.
+  */
+ export function resolveCinema2MainframeHardwareLighting(frame: Readonly<Cinema2MainframeLightingFrame>): readonly [number, number, number, number] {
+-  if (!frame.active) return [0, 0, 0, 0]
+-  const { signals: s, impulses: e } = frame
+-  const clamp = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
++  const components = resolveCinema2MainframeComponentLighting(frame)
+   return [
+-    clamp(0.12 * s.bass + 0.76 * e.kick + 0.3 * e.transient + 0.28 * e.downbeat + 0.55 * e.drop),
+-    clamp(0.42 * s.high + 0.3 * s.flux + 0.42 * e.transient + 0.2 * e.beat + 0.32 * e.drop),
+-    clamp(0.36 * s.mid + 0.18 * s.high + 0.52 * e.fourBeat + 0.3 * e.downbeat + 0.4 * e.phrase + 0.56 * e.drop),
+-    clamp(0.6 * s.mid + 0.12 * s.high + 0.38 * e.phrase + 0.25 * e.section + 0.3 * e.downbeat + 0.58 * e.drop),
++    components.terminals,
++    components.indicators,
++    Math.max(components.radarRings, components.radarNodes),
++    Math.max(components.chipBody, components.chipPins, components.chipIndicators),
+   ]
+ }
++
++/** radar rings, radar nodes, chip pins/traces, chip indicators */
++export function resolveCinema2MainframeHardwareDetails(frame: Readonly<Cinema2MainframeLightingFrame>): readonly [number, number, number, number] {
++  const components = resolveCinema2MainframeComponentLighting(frame)
++  return [components.radarRings, components.radarNodes, components.chipPins, components.chipIndicators]
++}
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeLightingDiagnostic.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeLightingDiagnostic.ts
+index 5026712b..75cfae40 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeLightingDiagnostic.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeLightingDiagnostic.ts
+@@ -1,5 +1,6 @@
+ import {
+   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
++  CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES,
+   type Cinema2MainframeLightingFrame,
+ } from './Cinema2MainframePatternEngine'
+ import {
+@@ -50,6 +51,12 @@ export function createCinema2MainframeLightingDiagnosticFrame(family: Cinema2Mai
+     circuitPulse: 0,
+     bankWeights: Object.freeze([0, 0, 0, 0] as const),
+     regionWeights: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0] as const),
++    routePulses: CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES,
++    sectionMode: 0,
++    sectionProgress: 0,
++    sectionConfidence: 0,
++    phraseProgress: 0,
++    buildCharge: 0,
+     systemGains: Object.freeze(gains as unknown as Cinema2MainframeLightingFrame['systemGains']),
+     signals: CINEMA2_MAINFRAME_ZERO_SIGNALS,
+     impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeMusicAdapter.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeMusicAdapter.ts
+index f2a48a4a..50b2f61f 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeMusicAdapter.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeMusicAdapter.ts
+@@ -1,7 +1,7 @@
+ import type { Cinema2AudioEvent, Cinema2AudioIntelligenceFrame, Cinema2AudioSignal } from '../../audio/Cinema2AudioIntelligenceBridge'
+ import type { Cinema2VisualDirectorFrame } from '../../director/Cinema2VisualDirector'
+ import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
+-import type { Cinema2MainframeImpulseId } from './Cinema2MainframeReactivity'
++import type { Cinema2MainframeImpulseId, Cinema2MainframeSectionKind } from './Cinema2MainframeReactivity'
+ import type { Cinema2MainframePlaybackState } from './Cinema2MainframeAudioDelivery'
+ 
+ /** These are *delivered* by the engine-owned choreography runtime, not detected here. */
+@@ -17,6 +17,8 @@ export interface Cinema2MainframeMusicalEvent {
+   readonly id: string
+   readonly timeSec: number
+   readonly strength: number
++  /** Confidence-aware Mainframe emphasis. `strength` remains the untouched upstream value. */
++  readonly visualStrength?: number
+   readonly confidence: number | null
+   readonly source: string | null
+   readonly upstreamIdentity: string | null
+@@ -41,6 +43,40 @@ const number = (signal: Readonly<Cinema2AudioSignal<number>> | undefined): numbe
+   signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value) ? clamp01(signal.value) : null
+ const directorNumber = (signal: { available: boolean; value: number | null } | undefined): number | null =>
+   signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value) ? clamp01(signal.value) : null
++const smoothstep = (edge0: number, edge1: number, value: number) => {
++  const t = clamp01((value - edge0) / Math.max(1e-6, edge1 - edge0))
++  return t * t * (3 - 2 * t)
++}
++
++export function classifyCinema2MainframeSection(value: string | null | undefined): Cinema2MainframeSectionKind {
++  const normalized = value?.trim().toLowerCase().replace(/[\s_-]+/g, '') ?? ''
++  if (normalized.includes('verse')) return 'verse'
++  if (normalized.includes('build') || normalized.includes('predrop') || normalized.includes('riser')) return 'buildup'
++  if (normalized.includes('break') || normalized.includes('ambient') || normalized.includes('intro') || normalized.includes('outro')) return 'breakdown'
++  if (normalized.includes('drop') || normalized.includes('chorus') || normalized.includes('peak')) return 'drop'
++  return normalized ? 'other' : 'unknown'
++}
++
++/** Event-specific confidence policy. Rhythm hits remain useful at middling confidence;
++ * uncertain structural claims cannot trigger full-board choreography or auto-pattern changes. */
++export function resolveCinema2MainframeEventVisualStrength(
++  kind: Cinema2MainframeImpulseId,
++  strength: number,
++  confidence: number | null,
++  source: string | null,
++): number {
++  const raw = clamp01(strength)
++  const fallback = source ? 0.78 : 0.62
++  const c = confidence == null ? fallback : clamp01(confidence)
++  if (kind === 'drop') return c < 0.45 ? 0 : raw * (0.32 + 0.68 * smoothstep(0.45, 0.86, c))
++  if (kind === 'section') return c < 0.5 ? 0 : raw * (0.28 + 0.72 * smoothstep(0.5, 0.88, c))
++  if (kind === 'phrase') return c < 0.32 ? 0 : raw * (0.35 + 0.65 * smoothstep(0.32, 0.82, c))
++  if (kind === 'fourBeat' || kind === 'eightBeat') return raw * (0.5 + 0.5 * c)
++  if (kind === 'downbeat') return raw * (0.52 + 0.48 * c)
++  // Kicks, snares, beats and transients are immediate authoritative rhythm
++  // events; confidence scales them but does not turn a bass-heavy passage off.
++  return raw * (0.4 + 0.6 * c)
++}
+ 
+ /** Preserve director availability instead of converting absent authority into a synthetic impact. */
+ export function readCinema2MainframeDirector(director: Readonly<Cinema2VisualDirectorFrame> | null): Readonly<Cinema2MainframeDirectorSignals> {
+@@ -79,8 +115,11 @@ export function resolveCinema2MainframeMusicalEvents(
+   ) => {
+     if (!id || !Number.isFinite(timeSec) || seen.has(`${kind}\u0000${id}`)) return
+     seen.add(`${kind}\u0000${id}`)
++    const rawStrength = clamp01(strength)
++    const visualStrength = resolveCinema2MainframeEventVisualStrength(kind, rawStrength, confidence, source)
++    if (visualStrength <= 0) return
+     events.push(Object.freeze({
+-      kind, id, timeSec, strength: clamp01(strength), confidence, source, upstreamIdentity,
++      kind, id, timeSec, strength: rawStrength, visualStrength, confidence, source, upstreamIdentity,
+       trackId: audio.upstream.trackId, sourceId: audio.upstream.sourceId,
+       analysisRevision: audio.upstream.analysisRevision, timelineRevision: audio.upstream.timelineRevision,
+     }))
+@@ -95,7 +134,7 @@ export function resolveCinema2MainframeMusicalEvents(
+   }
+   for (const cue of cues) {
+     // The dispatch runtime owns this suffix convention; strip only its final action ID.
+-    const suffix = `:mainframe-${cue.kind}-cue`
++    const suffix = `:mainframe-${cue.kind === 'fourBeat' ? 'four-beat' : cue.kind}-cue`
+     if (!cue.dispatchedEventId.endsWith(suffix)) continue
+     const id = cue.dispatchedEventId.slice(0, -suffix.length)
+     if (cue.kind === 'phrase' && audio.structure.analyzedPhrases.available) {
+@@ -167,7 +206,8 @@ export class Cinema2MainframeDropCoordinator {
+     // from the canonical choreography selection, not from a second detector.
+     const markers = frame.audio?.structure.semanticMoments.available
+       ? new Set(frame.audio.structure.semanticMoments.value?.map(moment => moment.id) ?? []) : new Set<string>()
+-    const candidates = events.filter(event => event.kind === 'drop')
++    const candidates = events.filter(event => event.kind === 'drop'
++      && (event.visualStrength ?? resolveCinema2MainframeEventVisualStrength('drop', event.strength, event.confidence, event.source)) > 0)
+       .sort((a, b) => Number(markers.has(b.id)) - Number(markers.has(a.id)))
+     let dropEventId: string | null = null
+     for (const event of candidates) {
+@@ -198,7 +238,29 @@ export class Cinema2MainframeDropCoordinator {
+ /** Called only with the selected canonical bridge frame; this does not publish audio. */
+ export function readCinema2MainframeContinuous(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, director: Readonly<Cinema2VisualDirectorFrame> | null) {
+   const d = readCinema2MainframeDirector(director)
+-  if (!audio) return Object.freeze({ sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0, build: 0, overall: 0, significance: 0, momentum: 0, impact: 0, variation: 0 })
++  if (!audio) return Object.freeze({
++    sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0,
++    buildProgress: 0, buildConfidence: 0, buildIntensity: 0, build: 0,
++    overall: 0, significance: 0, momentum: 0, impact: 0, variation: 0,
++    section: 'unknown' as const, sectionProgress: 0, sectionIntensity: 0, sectionConfidence: 0, phraseProgress: 0,
++  })
++  const sectionSignal = audio.structure.section
++  const sectionValue = sectionSignal.available ? sectionSignal.value : null
++  const section = classifyCinema2MainframeSection(sectionValue?.type ?? sectionValue?.label ?? d.sectionType)
++  const buildProgress = number(audio.features.buildProgress)
++    ?? (section === 'buildup' ? clamp01(sectionValue?.progress ?? 0) : 0)
++  const explicitBuildConfidence = number(audio.structure.buildConfidence)
++  const sectionConfidence = sectionSignal.available
++    ? clamp01(sectionSignal.confidence ?? 0.65) : 0
++  const buildConfidence = explicitBuildConfidence
++    ?? (section === 'buildup' ? (sectionConfidence || 0.72) : 0)
++  const overall = number(audio.features.overallEnergy) ?? number(audio.features.trackEnergy) ?? 0
++  const buildIntensity = clamp01(Math.max(
++    section === 'buildup' ? sectionValue?.intensity ?? 0 : 0,
++    number(audio.features.tension) ?? 0,
++    d.build ?? 0,
++    0.65 * overall,
++  ))
+   return Object.freeze({
+     sub: number(audio.bands.sub) ?? 0,
+     bass: number(audio.bands.bass) ?? 0,
+@@ -206,13 +268,21 @@ export function readCinema2MainframeContinuous(audio: Readonly<Cinema2AudioIntel
+     high: Math.max(number(audio.bands.high) ?? 0, number(audio.bands.air) ?? 0),
+     flux: Math.max(number(audio.features.spectralFlux) ?? 0, number(audio.features.transientEnergy) ?? 0),
+     vocal: number(audio.features.vocalPresence) ?? 0,
+-    build: Math.max(number(audio.features.buildProgress) ?? 0, number(audio.structure.buildConfidence) ?? 0, d.build ?? 0),
++    buildProgress,
++    buildConfidence,
++    buildIntensity,
++    build: buildProgress,
+     // The live, normalized frame energy must win over the broader offline track curve.
+     // Taking max() held quiet passages at the track-level energy and erased dynamics.
+-    overall: number(audio.features.overallEnergy) ?? number(audio.features.trackEnergy) ?? 0,
++    overall,
+     significance: d.intensity ?? 0,
+     momentum: d.momentum ?? 0,
+     impact: d.impact ?? 0,
+     variation: d.variation ?? 0,
++    section,
++    sectionProgress: clamp01(sectionValue?.progress ?? 0),
++    sectionIntensity: clamp01(sectionValue?.intensity ?? overall),
++    sectionConfidence,
++    phraseProgress: clamp01(audio.rhythm.fixedClocks[16]?.progress ?? 0),
+   })
+ }
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController.ts
+index 015a4d18..8a0bb93a 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternController.ts
+@@ -8,6 +8,7 @@ import { resolveCinema2MainframePlaybackState, selectCinema2MainframeAudio } fro
+ import {
+   CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+   CINEMA2_MAINFRAME_PATTERN_IDS,
++  type Cinema2MainframeBeatClockFrame,
+   type Cinema2MainframePatternId,
+ } from './Cinema2MainframePatternEngine'
+ 
+@@ -120,6 +121,7 @@ export function resolveCinema2MainframeTriggerEventIdentity(
+   previousTimeSec: number | null,
+   /** Drop identity has already been coalesced with the lighting event. */
+   sharedDropEventId: string | null = null,
++  timing?: Readonly<{ previousBeat: number | null; current: Cinema2MainframeBeatClockFrame }>,
+ ): string | null {
+   const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
+   if (resolveCinema2MainframePlaybackState(frame, audio) !== 'playing') return null
+@@ -127,5 +129,17 @@ export function resolveCinema2MainframeTriggerEventIdentity(
+   // The shared Afterhours trigger contract checks sourcePresent; that hint must
+   // not veto a genuinely playing, validated Mainframe audio frame.
+   const accepted = { ...frame, audio, transport: frame.transport ? { ...frame.transport, sourcePresent: true, playing: true } : undefined }
+-  return resolveCinema2AfterhoursTriggerEventIdentity(accepted, trigger, previousTimeSec)
++  const canonical = resolveCinema2AfterhoursTriggerEventIdentity(accepted, trigger, previousTimeSec)
++  if (canonical || !timing || timing.current.confirmedGrid || timing.previousBeat == null) return canonical
++  // This is a pattern-selection clock only; it never enters Mainframe's musical
++  // event/envelope stream and never masquerades as confirmed beat-grid data.
++  const interval = trigger === 'beat' ? 1 : trigger === 'beat2' ? 2 : trigger === 'beat4' ? 4
++    : trigger === 'bar' ? 4 : trigger === 'bar4' ? 16 : trigger === 'bar8' ? 32
++      : trigger === 'phrase' ? 16 : null
++  if (interval == null || timing.current.beats <= timing.previousBeat) return null
++  const previousBoundary = Math.floor((timing.previousBeat + 1e-6) / interval)
++  const currentBoundary = Math.floor((timing.current.beats + 1e-6) / interval)
++  return currentBoundary > previousBoundary
++    ? `mainframe-timing:${timing.current.source}:${interval}:${currentBoundary}`
++    : null
+ }
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternEngine.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternEngine.ts
+index 99537f1a..f21407d2 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternEngine.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternEngine.ts
+@@ -19,6 +19,25 @@ export const CINEMA2_MAINFRAME_PATTERN_IDS = Object.freeze([
+ export type Cinema2MainframePatternId = typeof CINEMA2_MAINFRAME_PATTERN_IDS[number]
+ export const CINEMA2_MAINFRAME_DEFAULT_PATTERN: Cinema2MainframePatternId = 'outward-bus'
+ export const CINEMA2_MAINFRAME_FREE_RUN_BPM = 120
++export const CINEMA2_MAINFRAME_ROUTE_PULSE_COUNT = 4 as const
++
++export type Cinema2MainframeBeatClockSource = 'analyzed-beat-grid' | 'analyzed-bpm' | 'transport-bpm' | 'visual-fallback-120'
++export interface Cinema2MainframeBeatClockFrame {
++  readonly beats: number
++  readonly bpm: number
++  readonly source: Cinema2MainframeBeatClockSource
++  /** True only for an explicit shared beat position, never for a tempo-derived estimate. */
++  readonly confirmedGrid: boolean
++}
++
++export interface Cinema2MainframeRoutePulse {
++  readonly front: number
++  readonly width: number
++  readonly gain: number
++  readonly direction: 1 | -1
++  /** Stable modulo-eight route group; -1 means the structured major-impact group. */
++  readonly routeGroup: number
++}
+ 
+ export interface Cinema2MainframeLightingFrame {
+   readonly active: boolean
+@@ -36,6 +55,13 @@ export interface Cinema2MainframeLightingFrame {
+   readonly circuitPulse: number
+   readonly bankWeights: readonly [number, number, number, number]
+   readonly regionWeights: readonly [number, number, number, number, number, number, number, number]
++  /** Four persistent, event-timestamped GPU route pulses. */
++  readonly routePulses: readonly [Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse]
++  readonly sectionMode: 0 | 1 | 2 | 3 | 4
++  readonly sectionProgress: number
++  readonly sectionConfidence: number
++  readonly phraseProgress: number
++  readonly buildCharge: number
+   /** board, circuits, terminals, vias, radar, chip, logo outer, logo body, logo star. */
+   readonly systemGains: readonly [number, number, number, number, number, number, number, number, number]
+   readonly signals: Readonly<Cinema2MainframeSignals>
+@@ -52,6 +78,7 @@ export interface Cinema2MainframePatternInput {
+   readonly beats: number
+   readonly signals: Readonly<Cinema2MainframeSignals>
+   readonly impulses: Cinema2MainframeImpulses
++  readonly routePulses?: Cinema2MainframeLightingFrame['routePulses']
+   readonly active?: boolean
+ }
+ 
+@@ -59,46 +86,68 @@ const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value
+ const fract = (value: number) => value - Math.floor(value)
+ const weights4 = (a = 0, b = 0, c = 0, d = 0) => Object.freeze([a, b, c, d] as const)
+ const weights8 = (...values: number[]) => Object.freeze(Array.from({ length: 8 }, (_, index) => clamp01(values[index] ?? 0)) as unknown as [number, number, number, number, number, number, number, number])
++const EMPTY_ROUTE_PULSE: Readonly<Cinema2MainframeRoutePulse> = Object.freeze({ front: -10, width: 0.08, gain: 0, direction: 1, routeGroup: 0 })
++export const CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES = Object.freeze([
++  EMPTY_ROUTE_PULSE, EMPTY_ROUTE_PULSE, EMPTY_ROUTE_PULSE, EMPTY_ROUTE_PULSE,
++] as const)
++
++function combineImpulses(...values: readonly number[]): number {
++  const sorted = values.map(clamp01).sort((a, b) => b - a)
++  return clamp01((sorted[0] ?? 0) + 0.38 * (sorted[1] ?? 0) + 0.16 * (sorted[2] ?? 0))
++}
+ 
+ /** Pure deterministic choreography planner. No random or wall-clock state is read here. */
+ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2MainframePatternInput>): Readonly<Cinema2MainframeLightingFrame> {
+   const { signals: s, impulses: e } = input
+   const beats = Number.isFinite(input.beats) ? Math.max(0, input.beats) : 0
+   const active = input.active !== false
++  const sectionMode: Cinema2MainframeLightingFrame['sectionMode'] = s.section === 'verse' ? 1
++    : s.section === 'buildup' ? 2 : s.section === 'breakdown' ? 3 : s.section === 'drop' ? 4 : 0
++  const sectionConfidence = clamp01(s.sectionConfidence ?? 0)
++  const sectionProgress = clamp01(s.sectionProgress ?? 0)
++  const phraseProgress = clamp01(s.phraseProgress ?? fract(beats / 16))
++  const buildProgress = clamp01(s.buildProgress ?? s.build)
++  const buildConfidence = clamp01(s.buildConfidence ?? 0)
++  const buildIntensity = clamp01(s.buildIntensity ?? s.overall)
++  const buildGate = sectionMode === 2 || buildConfidence >= 0.5
++    ? clamp01((buildConfidence - 0.32) / 0.46) : 0
++  const buildCharge = clamp01(buildProgress * buildGate * (0.72 + 0.28 * buildIntensity))
++  const sectionActivity = sectionMode === 1 ? 0.78 : sectionMode === 3 ? 0.46
++    : sectionMode === 2 ? 0.82 + 0.18 * buildCharge : 1
+   // Frame-level energy is the primary global intensity signal; the existing bands
+   // and Director significance contribute without overriding quieter passages.
+   const level = clamp01(0.45 * s.overall + 0.17 * s.bass + 0.13 * s.mid + 0.10 * s.high + 0.09 * s.flux + 0.06 * (s.significance ?? 0))
+   // A continuously visible green core must not depend on catching a one-frame
+   // event. Events add distinct attacks, while actual energy powers the bus.
+   // Keep these values independent of the other eight semantic lighting systems.
+-  const circuitEnergy = clamp01(
++  const circuitEnergy = clamp01(sectionActivity * (
+     0.42 * s.bass + 0.22 * s.sub + 0.16 * s.overall + 0.10 * s.mid
+-    + 0.10 * (s.significance ?? 0),
+-  )
+-  const circuitAccent = clamp01(
+-    0.35 * e.kick + 0.23 * e.snare + 0.43 * e.beat + 0.54 * e.downbeat
+-    + 0.42 * e.phrase + 0.32 * e.section + 0.9 * e.drop,
++    + 0.10 * (s.significance ?? 0)
++  ))
++  const circuitAccent = combineImpulses(
++    0.58 * e.kick, 0.32 * e.snare, 0.2 * e.beat, 0.68 * e.downbeat,
++    0.5 * e.phrase, 0.36 * e.section, 0.96 * e.drop, 0.26 * e.transient,
+   )
+-  const circuitPulse = clamp01(
+-    0.45 * circuitEnergy + 0.62 * circuitAccent + 0.16 * s.flux + 0.14 * s.build,
++  const circuitPulse = combineImpulses(
++    0.5 * circuitEnergy, 0.72 * circuitAccent, 0.18 * s.flux, 0.32 * buildCharge,
+   )
+   const common = [
+     0,
+-    0.05 + 0.2 * s.bass + 0.1 * s.high + 0.2 * e.beat + 0.38 * e.phrase,
+-    0.04 + 0.2 * s.bass + 0.68 * e.kick,
+-    0.03 + 0.25 * s.high + 0.55 * s.flux + 0.4 * e.transient,
+-    0.04 + 0.28 * s.mid + 0.62 * e.fourBeat + 0.3 * e.section + 0.12 * (s.variation ?? 0),
+-    0.04 + 0.25 * s.mid + 0.16 * s.high + 0.62 * e.phrase + 0.35 * e.section,
+-    0.05 + 0.25 * s.sub + 0.72 * e.snare,
+-    0.05 + 0.32 * s.vocal + 0.65 * e.eightBeat,
+-    0.04 + 0.34 * s.flux + 0.5 * e.downbeat,
++    sectionActivity * (0.035 + 0.22 * s.bass + 0.08 * s.high) + 0.1 * e.beat + 0.42 * e.phrase + 0.28 * e.kick,
++    sectionActivity * (0.025 + 0.22 * s.bass) + 0.74 * e.kick + 0.25 * e.transient,
++    sectionActivity * (0.02 + 0.29 * s.high + 0.46 * s.flux) + 0.58 * e.transient + 0.1 * e.beat,
++    sectionActivity * (0.025 + 0.3 * s.mid) + 0.6 * e.fourBeat + 0.38 * e.downbeat + 0.24 * e.section + 0.12 * (s.variation ?? 0),
++    sectionActivity * (0.025 + 0.3 * s.mid + 0.12 * s.high) + 0.52 * e.phrase + 0.42 * e.snare + 0.28 * e.section,
++    sectionActivity * (0.03 + 0.24 * s.sub) + 0.76 * e.snare + 0.28 * e.downbeat,
++    sectionActivity * (0.03 + 0.31 * s.vocal) + 0.56 * e.eightBeat + 0.22 * e.snare,
++    sectionActivity * (0.025 + 0.3 * s.flux) + 0.62 * e.downbeat + 0.18 * e.transient,
+   ]
+   const dropLift = 0.72 * e.drop + 0.18 * (s.impact ?? 0)
+   for (let index = 1; index < common.length; index += 1) common[index] = clamp01(common[index]! + dropLift * (index >= 6 ? 1 : 0.72))
+ 
+   let chaseFront = fract(beats / 4) * 1.18
+   let chaseWidth = 0.09
+-  let chaseGain = 0.68 + 0.35 * e.phrase + 0.2 * e.section
++  let chaseGain = (0.62 + 0.35 * e.phrase + 0.2 * e.section) * sectionActivity
+   let chaseDirection: 1 | -1 = 1
+   let flicker = 0.08 * s.high + 0.2 * s.flux + 0.12 * e.transient + 0.08 * (s.momentum ?? 0)
+   let bankWeights: readonly [number, number, number, number] = weights4()
+@@ -115,7 +164,7 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
+     bankWeights = weights4(even ? 1 : 0.08, even ? 0.08 : 1, 0.28 + 0.5 * (1 - Math.abs(fract(beats) - 0.5) * 2), 0.2 + 0.75 * e.snare)
+     chaseGain = 0.16
+     chaseWidth = 0.13
+-    flicker += 0.15 * e.beat
++    flicker += 0.1 * e.beat
+   } else if (input.pattern === 'quadrant-relay') {
+     const step = Math.floor(beats) % 4
+     // Region encoding: bottom, left-branch, left-major, left-minor, right-branch, right-major, right-minor, top.
+@@ -136,12 +185,14 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
+     common[3] = clamp01(common[3]! + 0.18 * s.high)
+     flicker += 0.2 * s.flux
+   } else if (input.pattern === 'system-surge') {
+-    const charge = clamp01(Math.max(s.build, fract(beats / 8)))
++    // Confidence enables the behavior; actual progress determines the charge.
++    // No beat-clock fallback is allowed to manufacture a repeating buildup.
++    const charge = buildCharge
+     regionWeights = weights8(0.7 * charge, 0.08, 0.12, 0.08, 0.08, 0.12, 0.08, 0.7 * charge)
+     chaseFront = charge * 1.08
+     chaseWidth = 0.12
+-    chaseGain = 0.32 + 0.75 * e.drop
+-    for (let index = 1; index < common.length; index += 1) common[index] = clamp01(common[index]! + 0.22 * charge + 0.35 * e.downbeat)
++    chaseGain = 0.18 + 0.48 * charge + 0.75 * e.drop
++    for (let index = 1; index < common.length; index += 1) common[index] = clamp01(common[index]! + 0.2 * charge + 0.28 * e.downbeat)
+   } else {
+     // Outward Bus: logo ignition leads the route front and component systems resolve the phrase.
+     common[8] = clamp01(common[8]! + 0.35 * (1 - Math.min(1, chaseFront * 2)))
+@@ -164,6 +215,12 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
+     circuitPulse,
+     bankWeights,
+     regionWeights,
++    routePulses: input.routePulses ?? CINEMA2_MAINFRAME_EMPTY_ROUTE_PULSES,
++    sectionMode,
++    sectionProgress,
++    sectionConfidence,
++    phraseProgress,
++    buildCharge,
+     systemGains: Object.freeze(common as [number, number, number, number, number, number, number, number, number]),
+     signals: s,
+     impulses: e,
+@@ -173,31 +230,152 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
+ class ImpulseEnvelope {
+   private value = 0
+   private target = 0
++  private holdRemainingSec = 0
+   private lastId: string | null = null
+ 
+-  constructor(private readonly attackMs: number, private readonly releaseMs: number) {}
++  constructor(private readonly attackMs: number, private readonly holdMs: number, private readonly releaseMs: number) {}
+ 
+   update(deltaSec: number, event: Readonly<{ id: string; strength: number }> | null): number {
+     if (event && event.id !== this.lastId) {
+       this.lastId = event.id
+       this.target = Math.max(this.target, clamp01(event.strength))
++      this.holdRemainingSec = this.holdMs / 1000
+     }
+-    if (this.target > this.value) {
++    if (this.target > this.value + 1e-6) {
+       this.value = Math.min(this.target, this.value + deltaSec / Math.max(0.001, this.attackMs / 1000))
+-      if (this.value >= this.target - 1e-6) this.target = 0
++    } else if (this.target > 0 && this.holdRemainingSec > 0) {
++      this.value = Math.max(this.value, this.target)
++      this.holdRemainingSec = Math.max(0, this.holdRemainingSec - deltaSec)
+     } else {
++      this.target = 0
+       this.value = Math.max(0, this.value - deltaSec / Math.max(0.001, this.releaseMs / 1000))
+     }
+     return clamp01(this.value)
+   }
+ 
+-  reset(): void { this.value = 0; this.target = 0; this.lastId = null }
++  reset(): void { this.value = 0; this.target = 0; this.holdRemainingSec = 0; this.lastId = null }
++}
++
++interface ActiveRoutePulse {
++  id: string
++  kind: Cinema2MainframeImpulseId
++  startTimeSec: number
++  strength: number
++  travelSec: number
++  durationSec: number
++  width: number
++  direction: 1 | -1
++  routeGroup: number
++  priority: number
++}
++
++const ROUTE_SLOT: Readonly<Record<Cinema2MainframeImpulseId, number>> = Object.freeze({
++  drop: 0, downbeat: 0, section: 0,
++  kick: 1, beat: 1,
++  snare: 2, phrase: 2, eightBeat: 2,
++  transient: 3, fourBeat: 3,
++})
++
++const ROUTE_PRIORITY: Readonly<Record<Cinema2MainframeImpulseId, number>> = Object.freeze({
++  drop: 10, downbeat: 8, section: 7, phrase: 7, kick: 6, snare: 5,
++  transient: 4, eightBeat: 4, fourBeat: 3, beat: 2,
++})
++
++function hashString(value: string): number {
++  let hash = 0x811c9dc5
++  for (let index = 0; index < value.length; index += 1) {
++    hash ^= value.charCodeAt(index)
++    hash = Math.imul(hash, 0x01000193)
++  }
++  return hash >>> 0
++}
++
++function routePulseProfile(kind: Cinema2MainframeImpulseId): Readonly<{ travel: number; duration: number; width: number; gain: number }> {
++  if (kind === 'drop') return { travel: 1.35, duration: 2.05, width: 0.18, gain: 1 }
++  if (kind === 'downbeat') return { travel: 0.78, duration: 1.18, width: 0.13, gain: 0.78 }
++  if (kind === 'phrase' || kind === 'section') return { travel: 1.08, duration: 1.62, width: 0.14, gain: 0.64 }
++  if (kind === 'kick') return { travel: 0.34, duration: 0.48, width: 0.072, gain: 0.88 }
++  if (kind === 'snare') return { travel: 0.52, duration: 0.76, width: 0.095, gain: 0.66 }
++  if (kind === 'transient') return { travel: 0.22, duration: 0.3, width: 0.05, gain: 0.58 }
++  if (kind === 'beat') return { travel: 0.42, duration: 0.56, width: 0.065, gain: 0.28 }
++  return { travel: 0.72, duration: 1.02, width: 0.1, gain: 0.46 }
++}
++
++/** Bounded persistent route scheduler. Event timestamps, not render-frame arrival,
++ * establish phase, and fixed slots intentionally combine simultaneous event families. */
++class MainframeRoutePulseScheduler {
++  private readonly slots: Array<ActiveRoutePulse | null> = [null, null, null, null]
++  private readonly consumed = new Set<string>()
++  private readonly consumedOrder: string[] = []
++
++  update(timeSec: number, events: readonly Readonly<Cinema2MainframeMusicalEvent>[]): Cinema2MainframeLightingFrame['routePulses'] {
++    for (const event of events) {
++      const key = `${event.kind}\u0000${event.id}`
++      if (this.consumed.has(key)) continue
++      this.consumed.add(key)
++      this.consumedOrder.push(key)
++      if (this.consumedOrder.length > 512) this.consumed.delete(this.consumedOrder.shift()!)
++      const profile = routePulseProfile(event.kind)
++      const slot = ROUTE_SLOT[event.kind]
++      const hash = hashString(key)
++      const existing = this.slots[slot]
++      const age = existing ? Math.max(0, timeSec - existing.startTimeSec) : Infinity
++      if (existing && age < 0.045 && existing.priority > ROUTE_PRIORITY[event.kind]) continue
++      this.slots[slot] = {
++        id: key,
++        kind: event.kind,
++        startTimeSec: event.timeSec,
++        strength: clamp01(event.visualStrength ?? event.strength) * profile.gain,
++        travelSec: profile.travel,
++        durationSec: profile.duration,
++        width: profile.width,
++        direction: (hash & 1) === 0 ? 1 : -1,
++        routeGroup: event.kind === 'drop' ? -1 : hash % 8,
++        priority: ROUTE_PRIORITY[event.kind],
++      }
++    }
++
++    const output: Cinema2MainframeRoutePulse[] = []
++    for (let index = 0; index < CINEMA2_MAINFRAME_ROUTE_PULSE_COUNT; index += 1) {
++      const pulse = this.slots[index]
++      if (!pulse) { output.push(EMPTY_ROUTE_PULSE); continue }
++      const age = Math.max(0, timeSec - pulse.startTimeSec)
++      if (age > pulse.durationSec) {
++        this.slots[index] = null
++        output.push(EMPTY_ROUTE_PULSE)
++        continue
++      }
++      const spec = CINEMA2_MAINFRAME_IMPULSES[pulse.kind]
++      const attackSec = spec.attackMs / 1000
++      const holdEnd = attackSec + spec.holdMs / 1000
++      const envelope = age < attackSec ? age / Math.max(0.001, attackSec)
++        : age <= holdEnd ? 1
++          : clamp01(1 - (age - holdEnd) / Math.max(0.001, pulse.durationSec - holdEnd))
++      const gain = pulse.strength * envelope
++      output.push({
++        front: clamp01(age / pulse.travelSec) * 1.12,
++        width: pulse.width,
++        gain,
++        direction: pulse.direction,
++        routeGroup: pulse.routeGroup,
++      })
++    }
++    const totalGain = output.reduce((sum, pulse) => sum + pulse.gain, 0)
++    const gainScale = totalGain > 1.8 ? 1.8 / totalGain : 1
++    return Object.freeze(output.map(pulse => Object.freeze({ ...pulse, gain: pulse.gain * gainScale })) as [Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse, Cinema2MainframeRoutePulse])
++  }
++
++  reset(): void {
++    this.slots.fill(null)
++    this.consumed.clear()
++    this.consumedOrder.length = 0
++  }
+ }
+ 
+ export class Cinema2MainframeReactivityEngine {
+   private readonly envelopes = Object.fromEntries(CINEMA2_MAINFRAME_IMPULSE_IDS.map(id => {
+     const spec = CINEMA2_MAINFRAME_IMPULSES[id]
+-    return [id, new ImpulseEnvelope(spec.attackMs, spec.releaseMs)]
++    return [id, new ImpulseEnvelope(spec.attackMs, spec.holdMs, spec.releaseMs)]
+   })) as Record<Cinema2MainframeImpulseId, ImpulseEnvelope>
+   private previousTimeSec: number | null = null
+   private sourceIdentity: string | null = null
+@@ -206,9 +384,11 @@ export class Cinema2MainframeReactivityEngine {
+   private previousTimestampMs: number | null = null
+   private smoothedLevel = 0
+   private hasEnergySample = false
++  private readonly routePulses = new MainframeRoutePulseScheduler()
++  private readonly beatClock = new Cinema2MainframeBeatClockResolver()
+   private lastFrame = evaluateCinema2MainframePattern({ pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
+ 
+-  update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0, musicalEvents?: readonly Readonly<Cinema2MainframeMusicalEvent>[]): Readonly<Cinema2MainframeLightingFrame> {
++  update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0, musicalEvents?: readonly Readonly<Cinema2MainframeMusicalEvent>[], absoluteBeat?: number): Readonly<Cinema2MainframeLightingFrame> {
+     const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
+     const playback = resolveCinema2MainframePlaybackState(frame, audio)
+     const acceptedFrame = audio === frame.audio ? frame : { ...frame, audio }
+@@ -246,14 +426,16 @@ export class Cinema2MainframeReactivityEngine {
+     // the legacy isolated-engine test/host compatibility path only.
+     const events = reset ? null : musicalEvents === undefined
+       ? resolveEvents(audio, this.previousTimeSec, timeSec)
+-      : Object.fromEntries(musicalEvents.map(event => [event.kind, { id: event.id, strength: event.strength }])) as Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null>
++      : Object.fromEntries(musicalEvents.map(event => [event.kind, { id: event.id, strength: event.visualStrength ?? event.strength }])) as Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null>
+     const impulseValues = {} as Record<Cinema2MainframeImpulseId, number>
+     for (const id of CINEMA2_MAINFRAME_IMPULSE_IDS) impulseValues[id] = this.envelopes[id].update(deltaSec, events?.[id] ?? null)
++    const deliveredEvents = musicalEvents ?? []
+     const evaluated = evaluateCinema2MainframePattern({
+       pattern,
+-      beats: Math.max(0, resolveCinema2MainframeBeatClock(acceptedFrame, bpmSync) - Math.max(0, patternStartBeat)),
++      beats: Math.max(0, (absoluteBeat ?? this.beatClock.resolve(acceptedFrame, bpmSync).beats) - Math.max(0, patternStartBeat)),
+       signals: readCinema2MainframeContinuous(audio, audio ? frame.director : null),
+       impulses: Object.freeze(impulseValues),
++      routePulses: this.routePulses.update(timeSec, deliveredEvents),
+       active: true,
+     })
+     // Apply Mainframe-only attack/release to the GLOBAL energy bus, not to the
+@@ -283,6 +465,8 @@ export class Cinema2MainframeReactivityEngine {
+     this.previousTimestampMs = null
+     this.smoothedLevel = 0
+     this.hasEnergySample = false
++    this.routePulses.reset()
++    this.beatClock.reset()
+     this.sourceIdentity = null
+     this.transportTrackId = undefined
+     this.contextGeneration = null
+@@ -298,20 +482,112 @@ export class Cinema2MainframeReactivityEngine {
+   }
+ }
+ 
+-export function resolveCinema2MainframeBeatClock(frame: Readonly<Cinema2ModuleFrameReadContext>, bpmSync: boolean): number {
++const MIN_VALID_BPM = 20
++const MAX_VALID_BPM = 400
++const validBpm = (value: number | null | undefined): value is number =>
++  typeof value === 'number' && Number.isFinite(value) && value >= MIN_VALID_BPM && value <= MAX_VALID_BPM
++
++function resolveRawCinema2MainframeBeatClock(
++  frame: Readonly<Cinema2ModuleFrameReadContext>,
++  bpmSync: boolean,
++): Readonly<Cinema2MainframeBeatClockFrame> {
++  const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
++  const rhythm = audio?.rhythm
++  const analyzedBpm = finiteSignalNumber(rhythm?.bpm)
+   if (bpmSync) {
+-    const rhythm = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)?.rhythm
+     const phase = finiteSignalNumber(rhythm?.beatPhase)
+     if (phase != null) {
+-      const fraction = Math.min(0.999, phase)
++      const fraction = Math.min(0.999, Math.max(0, phase))
+       const bar = finiteSignalNumber(rhythm?.barIndex)
+       const beatInBar = finiteSignalNumber(rhythm?.beatInBar)
+-      if (bar != null && beatInBar != null) return Math.max(0, Math.floor(bar) * 4 + Math.floor(beatInBar) + fraction)
+       const beat = finiteSignalNumber(rhythm?.beatIndex)
+-      if (beat != null) return Math.max(0, Math.floor(beat) + fraction)
++      const position = bar != null && beatInBar != null
++        ? Math.floor(bar) * 4 + Math.floor(beatInBar) + fraction
++        : beat != null ? Math.floor(beat) + fraction : null
++      if (position != null) return Object.freeze({
++        beats: Math.max(0, position),
++        bpm: validBpm(analyzedBpm) ? analyzedBpm : validBpm(frame.transport?.bpm) ? frame.transport!.bpm! : CINEMA2_MAINFRAME_FREE_RUN_BPM,
++        source: 'analyzed-beat-grid' as const,
++        confirmedGrid: true,
++      })
++    }
++    const timeSec = resolveCinema2MainframeTimeSec(frame)
++    if (validBpm(analyzedBpm)) return Object.freeze({
++      beats: Math.max(0, timeSec * analyzedBpm / 60), bpm: analyzedBpm,
++      source: 'analyzed-bpm' as const, confirmedGrid: false,
++    })
++    const transportBpm = frame.transport?.bpm
++    if (validBpm(transportBpm)) return Object.freeze({
++      beats: Math.max(0, timeSec * transportBpm / 60), bpm: transportBpm,
++      source: 'transport-bpm' as const, confirmedGrid: false,
++    })
++  }
++  return Object.freeze({
++    beats: Math.max(0, resolveCinema2MainframeTimeSec(frame) * CINEMA2_MAINFRAME_FREE_RUN_BPM / 60),
++    bpm: CINEMA2_MAINFRAME_FREE_RUN_BPM, source: 'visual-fallback-120' as const, confirmedGrid: false,
++  })
++}
++
++/** Stateless snapshot retained for isolated callers and diagnostics. Estimated
++ * tempo clocks are explicitly distinguishable from confirmed beat-grid data. */
++export function resolveCinema2MainframeBeatClock(frame: Readonly<Cinema2ModuleFrameReadContext>, bpmSync: boolean): number {
++  return resolveRawCinema2MainframeBeatClock(frame, bpmSync).beats
++}
++
++/** Mainframe-only continuity resolver shared by pattern selection and lighting. */
++export class Cinema2MainframeBeatClockResolver {
++  private initialized = false
++  private beats = 0
++  private offset = 0
++  private lastTimeSec: number | null = null
++  private lastSource: Cinema2MainframeBeatClockSource | null = null
++  private lastIdentity: string | null = null
++  private lastContextGeneration: number | null = null
++
++  resolve(frame: Readonly<Cinema2ModuleFrameReadContext>, bpmSync: boolean): Readonly<Cinema2MainframeBeatClockFrame> {
++    const raw = resolveRawCinema2MainframeBeatClock(frame, bpmSync)
++    const timeSec = resolveCinema2MainframeTimeSec(frame)
++    const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
++    const identity = resolveCinema2MainframeSourceIdentity(frame, audio)
++    const reset = !this.initialized
++      || (this.lastIdentity != null && identity !== this.lastIdentity)
++      || (this.lastContextGeneration != null && frame.contextGeneration !== this.lastContextGeneration)
++      || (this.lastTimeSec != null && timeSec < this.lastTimeSec - 1e-6)
++      || Boolean(audio?.discontinuity.occurred && audio.discontinuity.reason !== 'activation')
++    const playing = resolveCinema2MainframePlaybackState(frame, audio) === 'playing'
++    if (reset) {
++      this.beats = raw.beats
++      this.offset = 0
++      this.initialized = true
++    } else if (playing) {
++      const delta = Math.min(0.25, Math.max(0, timeSec - (this.lastTimeSec ?? timeSec)))
++      if (raw.confirmedGrid) {
++        if (this.lastSource !== raw.source || Math.abs(raw.beats + this.offset - this.beats) > 0.75) this.offset = this.beats - raw.beats
++        const correction = Math.min(Math.abs(this.offset), delta * Math.max(1, raw.bpm / 60))
++        this.offset -= Math.sign(this.offset) * correction
++        this.beats = Math.max(0, raw.beats + this.offset)
++      } else {
++        // BPM-only timing is an estimate: advance continuously instead of
++        // reprojecting absolute time whenever a tempo estimate changes.
++        this.beats = Math.max(0, this.beats + delta * raw.bpm / 60)
++      }
+     }
++    this.lastTimeSec = timeSec
++    this.lastSource = raw.source
++    this.lastIdentity = identity
++    this.lastContextGeneration = frame.contextGeneration
++    return Object.freeze({ ...raw, beats: this.beats })
++  }
++
++  reset(): void {
++    this.initialized = false
++    this.beats = 0
++    this.offset = 0
++    this.lastTimeSec = null
++    this.lastSource = null
++    this.lastIdentity = null
++    this.lastContextGeneration = null
+   }
+-  return Math.max(0, resolveCinema2MainframeTimeSec(frame) * CINEMA2_MAINFRAME_FREE_RUN_BPM / 60)
+ }
+ 
+ function resolveEvents(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, previousTimeSec: number | null, timeSec: number): Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null> {
+diff --git a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeReactivity.ts b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeReactivity.ts
+index 936b92d5..ea935ba5 100644
+--- a/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeReactivity.ts
++++ b/src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeReactivity.ts
+@@ -26,23 +26,26 @@ export type Cinema2MainframeImpulseId = typeof CINEMA2_MAINFRAME_IMPULSE_IDS[num
+ 
+ export interface Cinema2MainframeImpulseSpec {
+   readonly attackMs: number
++  readonly holdMs: number
+   readonly releaseMs: number
+   readonly targets: readonly Cinema2MainframeSystem[]
+ }
+ 
+ export const CINEMA2_MAINFRAME_IMPULSES: Readonly<Record<Cinema2MainframeImpulseId, Readonly<Cinema2MainframeImpulseSpec>>> = Object.freeze({
+-  kick: Object.freeze({ attackMs: 18, releaseMs: 130, targets: Object.freeze(['terminals'] as const) }),
+-  snare: Object.freeze({ attackMs: 24, releaseMs: 180, targets: Object.freeze(['logoOuter'] as const) }),
+-  beat: Object.freeze({ attackMs: 20, releaseMs: 160, targets: Object.freeze(['circuits'] as const) }),
+-  downbeat: Object.freeze({ attackMs: 20, releaseMs: 220, targets: Object.freeze(['logoStar', 'circuits'] as const) }),
+-  fourBeat: Object.freeze({ attackMs: 40, releaseMs: 320, targets: Object.freeze(['radar'] as const) }),
+-  eightBeat: Object.freeze({ attackMs: 50, releaseMs: 420, targets: Object.freeze(['logoBody'] as const) }),
+-  phrase: Object.freeze({ attackMs: 80, releaseMs: 650, targets: Object.freeze(['circuits', 'chip'] as const) }),
+-  drop: Object.freeze({ attackMs: 10, releaseMs: 850, targets: Object.freeze(['circuits', 'terminals', 'radar', 'chip', 'logoOuter', 'logoBody', 'logoStar'] as const) }),
+-  transient: Object.freeze({ attackMs: 14, releaseMs: 120, targets: Object.freeze(['vias', 'terminals'] as const) }),
+-  section: Object.freeze({ attackMs: 55, releaseMs: 720, targets: Object.freeze(['circuits', 'radar', 'chip'] as const) }),
++  kick: Object.freeze({ attackMs: 12, holdMs: 24, releaseMs: 145, targets: Object.freeze(['circuits', 'terminals'] as const) }),
++  snare: Object.freeze({ attackMs: 22, holdMs: 42, releaseMs: 245, targets: Object.freeze(['logoOuter', 'chip'] as const) }),
++  beat: Object.freeze({ attackMs: 28, holdMs: 18, releaseMs: 175, targets: Object.freeze(['circuits'] as const) }),
++  downbeat: Object.freeze({ attackMs: 16, holdMs: 70, releaseMs: 390, targets: Object.freeze(['logoStar', 'circuits', 'radar'] as const) }),
++  fourBeat: Object.freeze({ attackMs: 46, holdMs: 90, releaseMs: 430, targets: Object.freeze(['radar'] as const) }),
++  eightBeat: Object.freeze({ attackMs: 58, holdMs: 110, releaseMs: 520, targets: Object.freeze(['logoBody'] as const) }),
++  phrase: Object.freeze({ attackMs: 90, holdMs: 160, releaseMs: 820, targets: Object.freeze(['circuits', 'chip', 'radar'] as const) }),
++  drop: Object.freeze({ attackMs: 9, holdMs: 140, releaseMs: 1050, targets: Object.freeze(['circuits', 'terminals', 'radar', 'chip', 'logoOuter', 'logoBody', 'logoStar'] as const) }),
++  transient: Object.freeze({ attackMs: 8, holdMs: 12, releaseMs: 95, targets: Object.freeze(['vias', 'terminals'] as const) }),
++  section: Object.freeze({ attackMs: 70, holdMs: 120, releaseMs: 760, targets: Object.freeze(['circuits', 'radar', 'chip'] as const) }),
+ })
+ 
++export type Cinema2MainframeSectionKind = 'verse' | 'buildup' | 'breakdown' | 'drop' | 'other' | 'unknown'
++
+ export interface Cinema2MainframeSignals {
+   readonly sub: number
+   readonly bass: number
+@@ -50,6 +53,13 @@ export interface Cinema2MainframeSignals {
+   readonly high: number
+   readonly flux: number
+   readonly vocal: number
++  /** Actual normalized musical progress through the current buildup. */
++  readonly buildProgress?: number
++  /** Classification confidence; deliberately never substituted for progress. */
++  readonly buildConfidence?: number
++  /** Energy/tension of the buildup, independent of progress and confidence. */
++  readonly buildIntensity?: number
++  /** Legacy progress alias retained for compatibility with existing pattern consumers. */
+   readonly build: number
+   /** Shared normalized energy feeding Mainframe’s global lighting bus; not an eighth authored Pass 3 signal. */
+   readonly overall: number
+@@ -58,12 +68,19 @@ export interface Cinema2MainframeSignals {
+   readonly momentum?: number
+   readonly impact?: number
+   readonly variation?: number
++  readonly section?: Cinema2MainframeSectionKind
++  readonly sectionProgress?: number
++  readonly sectionIntensity?: number
++  readonly sectionConfidence?: number
++  readonly phraseProgress?: number
+ }
+ 
+ export type Cinema2MainframeImpulses = Readonly<Record<Cinema2MainframeImpulseId, number>>
+ 
+ export const CINEMA2_MAINFRAME_ZERO_SIGNALS: Readonly<Cinema2MainframeSignals> = Object.freeze({
+-  sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0, build: 0, overall: 0,
++  sub: 0, bass: 0, mid: 0, high: 0, flux: 0, vocal: 0,
++  buildProgress: 0, buildConfidence: 0, buildIntensity: 0, build: 0, overall: 0,
++  section: 'unknown', sectionProgress: 0, sectionIntensity: 0, sectionConfidence: 0, phraseProgress: 0,
+ })
+ 
+ export const CINEMA2_MAINFRAME_ZERO_IMPULSES: Cinema2MainframeImpulses = Object.freeze({
+diff --git a/src/components/vyzualz/cinema2/modules/three/Cinema2ThreeSceneBridge.ts b/src/components/vyzualz/cinema2/modules/three/Cinema2ThreeSceneBridge.ts
+index aaf0c074..7d1523e4 100644
+--- a/src/components/vyzualz/cinema2/modules/three/Cinema2ThreeSceneBridge.ts
++++ b/src/components/vyzualz/cinema2/modules/three/Cinema2ThreeSceneBridge.ts
+@@ -17,7 +17,7 @@ import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
+ import { measureObject } from './Cinema2ThreeAssetCache'
+ import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
+ import type { Cinema2MainframeLightingFrame } from '../mainframe/Cinema2MainframePatternEngine'
+-import { resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
++import { resolveCinema2MainframeHardwareDetails, resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
+ 
+ /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
+ export interface Cinema2ThreePartOverrides {
+@@ -300,6 +300,13 @@ export class Cinema2ThreeSceneBridge {
+       uCinema2MainframeState1: { value: new THREE.Vector4(0, 1, 0, 0) },
+       uCinema2MainframeCircuitResponse: { value: new THREE.Vector4(0, 0, 0, 0) },
+       uCinema2MainframeHardware: { value: new THREE.Vector4(0, 0, 0, 0) },
++      uCinema2MainframeHardwareDetails: { value: new THREE.Vector4(0, 0, 0, 0) },
++      uCinema2MainframePulseFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
++      uCinema2MainframePulseWidth: { value: new THREE.Vector4(0.08, 0.08, 0.08, 0.08) },
++      uCinema2MainframePulseGain: { value: new THREE.Vector4(0, 0, 0, 0) },
++      uCinema2MainframePulseDirection: { value: new THREE.Vector4(1, 1, 1, 1) },
++      uCinema2MainframePulseGroup: { value: new THREE.Vector4(0, 0, 0, 0) },
++      uCinema2MainframeSection: { value: new THREE.Vector4(0, 0, 0, 0) },
+       uCinema2MainframeBanks: { value: new THREE.Vector4(0, 0, 0, 0) },
+       uCinema2MainframeRegions0: { value: new THREE.Vector4(0, 0, 0, 0) },
+       uCinema2MainframeRegions1: { value: new THREE.Vector4(0, 0, 0, 0) },
+@@ -673,6 +680,14 @@ export class Cinema2ThreeSceneBridge {
+           : frame.pattern === 'system-surge' ? 4 : 0
+     uniforms.uCinema2MainframeCircuitResponse.value.set(frame.circuitEnergy, frame.circuitAccent, frame.circuitPulse, circuitMode)
+     uniforms.uCinema2MainframeHardware.value.set(...resolveCinema2MainframeHardwareLighting(frame))
++    uniforms.uCinema2MainframeHardwareDetails.value.set(...resolveCinema2MainframeHardwareDetails(frame))
++    const pulses = frame.routePulses
++    uniforms.uCinema2MainframePulseFront.value.set(pulses[0].front, pulses[1].front, pulses[2].front, pulses[3].front)
++    uniforms.uCinema2MainframePulseWidth.value.set(pulses[0].width, pulses[1].width, pulses[2].width, pulses[3].width)
++    uniforms.uCinema2MainframePulseGain.value.set(pulses[0].gain, pulses[1].gain, pulses[2].gain, pulses[3].gain)
++    uniforms.uCinema2MainframePulseDirection.value.set(pulses[0].direction, pulses[1].direction, pulses[2].direction, pulses[3].direction)
++    uniforms.uCinema2MainframePulseGroup.value.set(pulses[0].routeGroup, pulses[1].routeGroup, pulses[2].routeGroup, pulses[3].routeGroup)
++    uniforms.uCinema2MainframeSection.value.set(frame.sectionMode, frame.sectionProgress, frame.sectionConfidence, frame.phraseProgress)
+     uniforms.uCinema2MainframeBanks.value.set(...frame.bankWeights)
+     uniforms.uCinema2MainframeRegions0.value.set(frame.regionWeights[0], frame.regionWeights[1], frame.regionWeights[2], frame.regionWeights[3])
+     uniforms.uCinema2MainframeRegions1.value.set(frame.regionWeights[4], frame.regionWeights[5], frame.regionWeights[6], frame.regionWeights[7])
+@@ -1008,6 +1023,13 @@ interface MainframeUniforms {
+   uCinema2MainframeState1: { value: ThreeNamespace.Vector4 }
+   uCinema2MainframeCircuitResponse: { value: ThreeNamespace.Vector4 }
+   uCinema2MainframeHardware: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframeHardwareDetails: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframePulseFront: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframePulseWidth: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframePulseGain: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframePulseDirection: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframePulseGroup: { value: ThreeNamespace.Vector4 }
++  uCinema2MainframeSection: { value: ThreeNamespace.Vector4 }
+   uCinema2MainframeBanks: { value: ThreeNamespace.Vector4 }
+   uCinema2MainframeRegions0: { value: ThreeNamespace.Vector4 }
+   uCinema2MainframeRegions1: { value: ThreeNamespace.Vector4 }
+@@ -1058,6 +1080,13 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       'uniform vec4 uCinema2MainframeState1;',
+       'uniform vec4 uCinema2MainframeCircuitResponse;',
+       'uniform vec4 uCinema2MainframeHardware;',
++      'uniform vec4 uCinema2MainframeHardwareDetails;',
++      'uniform vec4 uCinema2MainframePulseFront;',
++      'uniform vec4 uCinema2MainframePulseWidth;',
++      'uniform vec4 uCinema2MainframePulseGain;',
++      'uniform vec4 uCinema2MainframePulseDirection;',
++      'uniform vec4 uCinema2MainframePulseGroup;',
++      'uniform vec4 uCinema2MainframeSection;',
+       'uniform vec4 uCinema2MainframeBanks;',
+       'uniform vec4 uCinema2MainframeRegions0;',
+       'uniform vec4 uCinema2MainframeRegions1;',
+@@ -1111,6 +1140,21 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       '  else if ( mode > 3.5 ) selection = 0.12 + 0.88 * cinema2MFRegionLight;',
+       // Radar Sweep emphasizes the radar rather than accidentally powering all routes.
+       '  else if ( mode > 2.5 ) selection = 0.36;',
++      // Musical sections adjust route density without replacing the selected
++      // six-pattern program. Confidence controls authority; progress controls
++      // how many route groups join a buildup.
++      '  float sectionMode = uCinema2MainframeSection.x;',
++      '  float sectionAuthority = smoothstep( 0.35, 0.78, uCinema2MainframeSection.z );',
++      '  float sectionGroup = mod( floor( max( 0.0, cinema2MFRoute ) ), 4.0 );',
++      '  float phraseGroup = floor( clamp( uCinema2MainframeSection.w, 0.0, 0.999 ) * 4.0 );',
++      '  float localGroup = 1.0 - step( 0.5, abs( sectionGroup - phraseGroup ) );',
++      '  float sectionSelection = 1.0;',
++      '  if ( sectionMode > 0.5 && sectionMode < 1.5 ) sectionSelection = 0.32 + 0.68 * localGroup;',
++      '  else if ( sectionMode > 1.5 && sectionMode < 2.5 ) {',
++      '    float activeGroups = 1.0 + floor( clamp( uCinema2MainframeSection.y, 0.0, 0.999 ) * 4.0 );',
++      '    sectionSelection = sectionGroup < activeGroups ? 1.0 : 0.2;',
++      '  } else if ( sectionMode > 2.5 && sectionMode < 3.5 ) sectionSelection = 0.14 + 0.86 * localGroup;',
++      '  selection *= mix( 1.0, sectionSelection, sectionAuthority );',
+       '  float energy = uCinema2MainframeCircuitResponse.x;',
+       '  float accent = uCinema2MainframeCircuitResponse.y;',
+       '  float pulse = uCinema2MainframeCircuitResponse.z;',
+@@ -1119,10 +1163,30 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       '  float tailDistance = ( cinema2MFTravel - ( uCinema2MainframeState0.z - uCinema2MainframeState0.w * 1.3 ) )',
+       '    / max( 0.045, uCinema2MainframeState0.w * 2.5 );',
+       '  float trail = exp( -tailDistance * tailDistance );',
++      // Four timestamped pulse slots address stable modulo-eight route groups.
++      // Neighbor groups receive a small propagation tail; the pulse always
++      // follows the authored arc-length phase through bends and branches.
++      '  float independentPulse = 0.0;',
++      '  for ( int pulseIndex = 0; pulseIndex < 4; pulseIndex ++ ) {',
++      '    float pulseFront = cinema2MainframePick4( uCinema2MainframePulseFront, float( pulseIndex ) );',
++      '    float pulseWidth = cinema2MainframePick4( uCinema2MainframePulseWidth, float( pulseIndex ) );',
++      '    float pulseGain = cinema2MainframePick4( uCinema2MainframePulseGain, float( pulseIndex ) );',
++      '    float pulseDirection = cinema2MainframePick4( uCinema2MainframePulseDirection, float( pulseIndex ) );',
++      '    float pulseGroup = cinema2MainframePick4( uCinema2MainframePulseGroup, float( pulseIndex ) );',
++      '    float pulseTravel = pulseDirection > 0.0 ? vCinema2MainframePhase : 1.0 - vCinema2MainframePhase;',
++      '    float pulseDistance = ( pulseTravel - pulseFront ) / max( 0.025, pulseWidth );',
++      '    float routeModulo = mod( floor( max( 0.0, cinema2MFRoute ) ), 8.0 );',
++      '    float groupDistance = abs( routeModulo - pulseGroup );',
++      '    groupDistance = min( groupDistance, 8.0 - groupDistance );',
++      '    float routeGate = pulseGroup < -0.5 ? 0.72 + 0.28 * step( 0.5, cinema2MFSystemLight )',
++      '      : ( groupDistance < 0.5 ? 1.0 : ( groupDistance < 1.5 ? 0.2 : 0.0 ) );',
++      '    independentPulse += exp( -pulseDistance * pulseDistance ) * pulseGain * routeGate;',
++      '  }',
+       '  float movingLight = ( 5.0 * exp( -cinema2MFDistance * cinema2MFDistance ) + 1.1 * trail )',
+       // Music energy increases chase *activity*; the existing pulse/selection
+       // remain authoritative, including during low-energy drops.
+       '    * uCinema2MainframeState1.x * pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) ) );',
++      '  movingLight += 5.2 * independentPulse * selection;',
+       '  float poweredLight = ( 0.08 + 2.2 * energy + 1.1 * accent + 0.65 * cinema2MFSystemLight ) * selection;',
+       '  float coreLight = 0.035 + poweredLight + movingLight;',
+       '  cinema2MFLight = uCinema2MainframeRole > 4.5 ? 0.12 * poweredLight : coreLight;',
+@@ -1149,13 +1213,14 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       '    float hwRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 1.5 ? 0.32 + 0.68 * hwSweep : 1.0;',
+       '    cinema2MFLight = 0.035 + 5.4 * ( uCinema2MainframeHardware.y + 0.19 * cinema2MFSystemLight ) * hwRing;',
+       '  } else if ( cinema2MFSystem < 4.5 ) {',
+-      '    float radarPower = min( 1.0, 1.5 * uCinema2MainframeHardware.z + 0.45 * cinema2MFSystemLight );',
++      '    float radarPower = min( 1.0, 1.3 * uCinema2MainframeHardware.z + 0.45 * cinema2MFSystemLight );',
+       '    float radarRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 2.5 ? 1.0 : 0.0;',
+       '    float radarHub = cinema2MFRoute > 2.5 && cinema2MFRoute < 3.5 ? 1.0 : 0.0;',
+       '    float radarNode = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
+       '    float radarWave = hwSweep * ( 0.5 + 0.5 * uCinema2MainframeState1.x );',
+-      '    cinema2MFLight = 0.035 + radarPower * ( radarRing * ( 1.6 + 4.7 * radarWave )',
+-      '      + radarHub * 2.5 + radarNode * ( 1.5 + 1.0 * uCinema2MainframeHardware.y ) );',
++      '    cinema2MFLight = 0.035 + radarPower * ( radarRing * uCinema2MainframeHardwareDetails.x * ( 1.6 + 4.7 * radarWave )',
++      '      + radarHub * ( 1.4 + 1.4 * uCinema2MainframeHardwareDetails.x )',
++      '      + radarNode * ( 1.2 + 2.2 * uCinema2MainframeHardwareDetails.y ) );',
+       '    // Existing metal concentric bands can pick up a faint reflected edge;',
+       '    // the full opaque backing disc (detail 0) stays unpowered.',
+       '    if ( uCinema2MainframeRole > 5.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015;',
+@@ -1167,8 +1232,8 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       '    float chipRing = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
+       '    float chipScan = 0.5 + 0.5 * hwSweep;',
+       '    cinema2MFLight = 0.04 + chipFace * chipPower * 2.3',
+-      '      + chipPins * chipPower * ( 1.3 + 3.5 * chipScan )',
+-      '      + chipLed * ( chipPower * 1.6 + uCinema2MainframeHardware.y * 3.1 )',
++      '      + chipPins * uCinema2MainframeHardwareDetails.z * ( 1.3 + 3.5 * chipScan )',
++      '      + chipLed * ( chipPower * 1.2 + uCinema2MainframeHardwareDetails.w * 3.4 )',
+       '      + chipRing * chipPower * ( 1.3 + 3.3 * hwSweep );',
+       '    // Top die, heat-sink fins and existing metal borders only, not chip bases.',
+       '    if ( uCinema2MainframeRole > 6.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.14 : 0.015;',
+@@ -1177,6 +1242,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       '}',
+       'float cinema2MFNoise = sin( uCinema2MainframeState0.x * 5.7 + cinema2MFRoute * 17.3 + vCinema2MainframePhase * 31.0 );',
+       'cinema2MFLight *= 1.0 + cinema2MFNoise * uCinema2MainframeState1.z * 0.16;',
++      'cinema2MFLight = min( 10.0, max( 0.0, cinema2MFLight ) );',
+       'vec3 cinema2MFColor = uCinema2MainframeRole < 0.5 || ( uCinema2MainframeRole > 4.5 && uCinema2MainframeRole < 5.5 ) ? uCinema2MainframeCircuit',
+       '  : ( uCinema2MainframeRole > 3.5 && uCinema2MainframeRole < 4.5 ? uCinema2MainframeLogo : uCinema2MainframeIndicator );',
+       'float cinema2MFFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
+@@ -1186,7 +1252,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
+       // frequency/impulse channels and stronger drops retain their separation.
+       // Keep the existing green-to-hot mix independent of the energy gain to
+       // avoid sustained loudness bleaching all the cores white.
+-      'float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
++      'float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
+       'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.78 )',
+       '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) * cinema2MFEnergyLift );',
+       'vec3 cinema2MFFinal = mix( 1.0 - exp( - cinema2MFEmission ), cinema2MFEmission, uCinema2MainframeHdr );',
+diff --git a/src/components/vyzualz/cinema2/presets/Cinema2MainframePreset.ts b/src/components/vyzualz/cinema2/presets/Cinema2MainframePreset.ts
+index 3b203334..de73f165 100644
+--- a/src/components/vyzualz/cinema2/presets/Cinema2MainframePreset.ts
++++ b/src/components/vyzualz/cinema2/presets/Cinema2MainframePreset.ts
+@@ -367,13 +367,13 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
+   // Event selection, phrase/drop fallbacks, section changes and deduplication
+   // are all owned by the exact same choreography runtime used by Electric Storm.
+   choreography: Object.freeze({ rules: Object.freeze(MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
+-    id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind}-event`),
++    id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-event`),
+     priority: 30 + index,
+-    // Section-only drop intelligence is authoritative even when the bridge has
+-    // no explicit drop-confidence signal or semantic marker capability.
+-    source: Object.freeze({ signal, ...(kind === 'drop' ? {} : { capability }) }),
++    // The choreography runtime owns the section-transition fallback, while
++    // the declared capability keeps the rule contract valid and explicit.
++    source: Object.freeze({ signal, capability }),
+     actions: Object.freeze([Object.freeze({
+-      id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind}-cue`),
++      id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-cue`),
+       target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_MAINFRAME_MUSICAL_CUE_ID) }),
+       operation: 'spawn' as const,
+       value: Object.freeze({ kind }),
+@@ -425,7 +425,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
+       order: 0,
+       scope: 'output' as const,
+       // A high threshold keeps dormant green routes crisp; hot audio peaks carry the stronger-than-Conduit halo.
+-      parameters: Object.freeze({ mix: 1, threshold: 1.65, knee: 0.28, intensity: 0.92, spread: 0.58, levels: 7, clampMax: 32, tint: color(0.78, 1, 0.7) }),
++      parameters: Object.freeze({ mix: 1, threshold: 1.8, knee: 0.24, intensity: 0.78, spread: 0.52, levels: 7, clampMax: 24, tint: color(0.78, 1, 0.7) }),
+     }),
+     Object.freeze({
+       id: FINISH_EFFECT_ID,
+@@ -434,7 +434,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
+       enabled: true,
+       order: 1,
+       scope: 'output' as const,
+-      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.74, temperature: -0.02, tint: 0, vignette: 0.2, vignetteSoftness: 0.72, grain: 0.018, grainSize: 1.3, aberration: 0.003, contrast: 1.14, saturation: 1.03 }),
++      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.82, temperature: -0.02, tint: 0, vignette: 0.2, vignetteSoftness: 0.72, grain: 0.018, grainSize: 1.3, aberration: 0.003, contrast: 1.14, saturation: 1.03 }),
+     }),
+   ]),
+   render: Object.freeze({
+diff --git a/src/components/vyzualz/react/Cinema2Stage.tsx b/src/components/vyzualz/react/Cinema2Stage.tsx
+index e9b624ed..ab2bae1d 100644
+--- a/src/components/vyzualz/react/Cinema2Stage.tsx
++++ b/src/components/vyzualz/react/Cinema2Stage.tsx
+@@ -17,6 +17,9 @@ export interface Cinema2StageProps {
+   isPlaying?: boolean
+   analysisActive?: boolean
+   isPaused?: boolean
++  /** Identity published by AudioFeatureBus (the runtime playlist/source id). */
++  audioIntelligenceTrackId?: string | null
++  /** Persisted audio-record id used by transport/storage integrations. */
+   activeAudioTrackId?: string | null
+   bpmSync?: boolean
+   bpm?: number | null
+@@ -44,6 +47,7 @@ export function Cinema2Stage({
+   isPlaying,
+   analysisActive,
+   isPaused,
++  audioIntelligenceTrackId,
+   activeAudioTrackId,
+   bpmSync,
+   bpm,
+@@ -62,7 +66,7 @@ export function Cinema2Stage({
+     isPlaying: isPlaying ?? true,
+     analysisActive: analysisActive ?? true,
+     isPaused: isPaused ?? false,
+-    activeAudioTrackId: activeAudioTrackId ?? null,
++    activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
+     bpmSync: bpmSync === true,
+     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
+     getAudioTime,
+@@ -72,7 +76,7 @@ export function Cinema2Stage({
+     isPlaying: isPlaying ?? true,
+     analysisActive: analysisActive ?? true,
+     isPaused: isPaused ?? false,
+-    activeAudioTrackId: activeAudioTrackId ?? null,
++    activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
+     bpmSync: bpmSync === true,
+     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
+     getAudioTime,
+@@ -257,3 +261,15 @@ export function Cinema2Stage({
+     </section>
+   )
+ }
++
++/**
++ * Cinema 2.0 consumes AudioFeatureBus frames, so its transport identity must use
++ * the bus/source identity when it differs from the persisted database id. The
++ * persisted id remains a fallback for hosts that do not expose a bus identity.
++ */
++export function resolveCinema2StageTransportTrackId(
++  audioIntelligenceTrackId: string | null | undefined,
++  activeAudioTrackId: string | null | undefined,
++): string | null {
++  return audioIntelligenceTrackId ?? activeAudioTrackId ?? null
++}
+diff --git a/src/components/vyzualz/react/ReactView.tsx b/src/components/vyzualz/react/ReactView.tsx
+index 7e1eab7d..75690da8 100644
+--- a/src/components/vyzualz/react/ReactView.tsx
++++ b/src/components/vyzualz/react/ReactView.tsx
+@@ -941,6 +941,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
+                 isPlaying={engine.isPlaying}
+                 analysisActive={engine.analysisActive}
+                 isPaused={transportPaused}
++                audioIntelligenceTrackId={engine.currentTrackId}
+                 activeAudioTrackId={engine.currentAudioTrackId ?? engine.currentTrackId}
+                 bpmSync={engine.source !== 'microphone' && bpmSync}
+                 bpm={engine.currentEffectiveBpm}
+diff --git a/src/test/browser/MainframeProductionBrowserHarness.ts b/src/test/browser/MainframeProductionBrowserHarness.ts
+index 04ec2235..325512fd 100644
+--- a/src/test/browser/MainframeProductionBrowserHarness.ts
++++ b/src/test/browser/MainframeProductionBrowserHarness.ts
+@@ -2,6 +2,8 @@
+ import type { Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
+ import { CINEMA2_MAINFRAME_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2MainframePreset'
+ import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
++import { AudioFeatureBus } from '../../features/musicIntelligence/AudioFeatureBus'
++import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
+ 
+ interface ControlledFrameClock {
+   requestAnimationFrame: typeof requestAnimationFrame
+@@ -24,13 +26,14 @@ declare global {
+   }
+ }
+ 
+-function controlledClock(): ControlledFrameClock {
++function controlledClock(beforeFrame?: (timestampMs: number) => void): ControlledFrameClock {
+   let timestampMs = 0
+   let targetTimestampMs = 0
+   return {
+     requestAnimationFrame(callback) {
+       return window.requestAnimationFrame(() => {
+         timestampMs = Math.min(targetTimestampMs, timestampMs + 100)
++        beforeFrame?.(timestampMs)
+         callback(timestampMs)
+       })
+     },
+@@ -50,7 +53,101 @@ const requestedTimeSec = Number(query.get('timeSec') ?? 1)
+ const captureTimeSec = Number.isFinite(requestedTimeSec) ? Math.max(0, requestedTimeSec) : 1
+ // Diagnostic capture deliberately runs with no track and no audio analysis.
+ const noAudio = import.meta.env.DEV && query.get('mainframeNoAudio') === '1'
+-const clock = controlledClock()
++let publishedAudioFrameId = 0
++let publishedBeatIndex = -1
++const publishMainframeAudioFrame = (timestampMs: number) => {
++  const timeSec = Math.max(0, timestampMs / 1000)
++  const beatPosition = timeSec * 2
++  const beatIndex = Math.floor(beatPosition)
++  const beatInBar = beatIndex % 4
++  const beatChanged = beatIndex !== publishedBeatIndex
++  const pulse = 0.5 + 0.5 * Math.sin(timeSec * Math.PI * 4)
++  publishedBeatIndex = beatIndex
++  publishedAudioFrameId += 1
++  AudioFeatureBus.setFrame({
++    ...DEFAULT_MI_FRAME,
++    timeSec,
++    frameId: publishedAudioFrameId,
++    sourceId: 'mainframe-stage-3-static',
++    trackId: 'mainframe-stage-3-static',
++    bands: {
++      ...DEFAULT_MI_FRAME.bands,
++      sub: 0.56, bass: 0.72, lowMid: 0.48, mid: 0.6, high: 0.52, air: 0.38, volume: 0.68,
++      normalizedSub: 0.56, normalizedBass: 0.72, normalizedLowMid: 0.48,
++      normalizedMid: 0.6, normalizedHigh: 0.52, normalizedAir: 0.38,
++    },
++    rhythm: {
++      ...DEFAULT_MI_FRAME.rhythm,
++      bpm: 120,
++      bpmConfidence: 0.96,
++      bpmSource: 'offline_analysis',
++      beatPhase: beatPosition - beatIndex,
++      beatHit: beatChanged,
++      beatIndex,
++      beatEventId: beatIndex,
++      beatEventTimeSec: beatIndex / 2,
++      beatInBar,
++      barIndex: Math.floor(beatIndex / 4),
++      downbeatHit: beatChanged && beatInBar === 0,
++      phrase4Progress: (beatIndex % 4 + beatPosition - beatIndex) / 4,
++      phrase8Progress: (beatIndex % 8 + beatPosition - beatIndex) / 8,
++      phrase16Progress: (beatIndex % 16 + beatPosition - beatIndex) / 16,
++      phrase32Progress: (beatIndex % 32 + beatPosition - beatIndex) / 32,
++      phrase4Hit: beatChanged && beatIndex > 0 && beatIndex % 4 === 0,
++      phrase8Hit: beatChanged && beatIndex > 0 && beatIndex % 8 === 0,
++      phrase16Hit: beatChanged && beatIndex > 0 && beatIndex % 16 === 0,
++      phrase32Hit: beatChanged && beatIndex > 0 && beatIndex % 32 === 0,
++      kickHit: beatChanged && beatInBar % 2 === 0,
++      kickStrength: beatChanged && beatInBar % 2 === 0 ? 0.94 : 0,
++      snareHit: beatChanged && beatInBar % 2 === 1,
++      snareStrength: beatChanged && beatInBar % 2 === 1 ? 0.82 : 0,
++      transient: beatChanged ? 0.76 : 0.12 * pulse,
++      transientConfidence: 0.91,
++    },
++    energy: {
++      ...DEFAULT_MI_FRAME.energy,
++      instant: 0.62 + 0.2 * pulse,
++      shortTerm: 0.66,
++      longTerm: 0.58,
++      peak: 0.9,
++      rms: 0.64,
++      spectralFlux: beatChanged ? 0.78 : 0.18,
++      buildProgress: 0.68,
++      tension: 0.62,
++      complexity: 0.56,
++    },
++    section: {
++      ...DEFAULT_MI_FRAME.section,
++      type: 'buildup',
++      label: 'Buildup',
++      startSec: 0,
++      endSec: 8,
++      progress: Math.min(1, timeSec / 8),
++      intensity: 0.72,
++      confidence: 0.9,
++      source: 'analysis',
++    },
++    semantics: { ...DEFAULT_MI_FRAME.semantics, buildConfidence: 0.9 },
++    capabilities: {
++      liveBands: true,
++      rhythmEvents: true,
++      beatGrid: true,
++      sections: true,
++      trackEnergyCurve: true,
++      stemCurves: false,
++      lyrics: false,
++    },
++    analysisSource: 'bar_self_similarity',
++    analysisRevision: 'mainframe-browser-reactivity-v1',
++    timelineRevision: 'mainframe-browser-timeline-v1',
++    confidence: { ...DEFAULT_MI_FRAME.confidence, overall: 0.92, rhythm: 0.96, section: 0.9 },
++  }, 'mainframe-production-harness')
++}
++AudioFeatureBus.reset()
++if (!noAudio) publishMainframeAudioFrame(0)
++const clock = controlledClock(timestampMs => {
++  if (!noAudio) publishMainframeAudioFrame(timestampMs)
++})
+ const created = Cinema2Runtime.create(canvas, {
+   presetId: CINEMA2_MAINFRAME_PRESET_ID,
+   renderQuality: quality,
+diff --git a/src/components/vyzualz/cinema2/__tests__/Cinema2StageTransportIdentity.test.ts b/src/components/vyzualz/cinema2/__tests__/Cinema2StageTransportIdentity.test.ts
+new file mode 100644
+index 00000000..1b70516c
+--- /dev/null
++++ b/src/components/vyzualz/cinema2/__tests__/Cinema2StageTransportIdentity.test.ts
+@@ -0,0 +1,13 @@
++import { describe, expect, it } from 'vitest'
++import { resolveCinema2StageTransportTrackId } from '../../react/Cinema2Stage'
++
++describe('Cinema2Stage transport identity', () => {
++  it('uses the Audio Intelligence source identity when a persisted track has a different database id', () => {
++    expect(resolveCinema2StageTransportTrackId('runtime-track-id', 'persisted-audio-id')).toBe('runtime-track-id')
++  })
++
++  it('retains the persisted identity fallback for hosts without an Audio Intelligence identity', () => {
++    expect(resolveCinema2StageTransportTrackId(null, 'persisted-audio-id')).toBe('persisted-audio-id')
++    expect(resolveCinema2StageTransportTrackId(undefined, undefined)).toBeNull()
++  })
++})

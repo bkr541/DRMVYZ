@@ -367,13 +367,13 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   // Event selection, phrase/drop fallbacks, section changes and deduplication
   // are all owned by the exact same choreography runtime used by Electric Storm.
   choreography: Object.freeze({ rules: Object.freeze(MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
-    id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind}-event`),
+    id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-event`),
     priority: 30 + index,
-    // Section-only drop intelligence is authoritative even when the bridge has
-    // no explicit drop-confidence signal or semantic marker capability.
-    source: Object.freeze({ signal, ...(kind === 'drop' ? {} : { capability }) }),
+    // The choreography runtime owns the section-transition fallback, while
+    // the declared capability keeps the rule contract valid and explicit.
+    source: Object.freeze({ signal, capability }),
     actions: Object.freeze([Object.freeze({
-      id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind}-cue`),
+      id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-cue`),
       target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_MAINFRAME_MUSICAL_CUE_ID) }),
       operation: 'spawn' as const,
       value: Object.freeze({ kind }),
@@ -425,7 +425,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       order: 0,
       scope: 'output' as const,
       // A high threshold keeps dormant green routes crisp; hot audio peaks carry the stronger-than-Conduit halo.
-      parameters: Object.freeze({ mix: 1, threshold: 1.65, knee: 0.28, intensity: 0.92, spread: 0.58, levels: 7, clampMax: 32, tint: color(0.78, 1, 0.7) }),
+      parameters: Object.freeze({ mix: 1, threshold: 1.8, knee: 0.24, intensity: 0.78, spread: 0.52, levels: 7, clampMax: 24, tint: color(0.78, 1, 0.7) }),
     }),
     Object.freeze({
       id: FINISH_EFFECT_ID,
@@ -434,7 +434,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       enabled: true,
       order: 1,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.74, temperature: -0.02, tint: 0, vignette: 0.2, vignetteSoftness: 0.72, grain: 0.018, grainSize: 1.3, aberration: 0.003, contrast: 1.14, saturation: 1.03 }),
+      parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.82, temperature: -0.02, tint: 0, vignette: 0.2, vignetteSoftness: 0.72, grain: 0.018, grainSize: 1.3, aberration: 0.003, contrast: 1.14, saturation: 1.03 }),
     }),
   ]),
   render: Object.freeze({
