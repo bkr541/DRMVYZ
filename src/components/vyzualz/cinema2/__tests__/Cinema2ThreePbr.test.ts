@@ -152,7 +152,7 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
 describe('Cinema 2.0 Three bridge PBR', () => {
   it('binds each Mainframe lighting role and its shader uniforms to the intended mesh, even without audio', () => {
     const scene = new THREE.Group()
-    const roles = { circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar', chipCores: 'chip', logoCore: 'logo' } as const
+    const roles = { circuitHousings: 'circuitHousing', circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar', chipCores: 'chip', logoCore: 'logo' } as const
     for (const part of Object.keys(roles)) {
       const geometry = new THREE.BoxGeometry(1, 1, 1)
       const count = geometry.getAttribute('position').count
@@ -183,7 +183,13 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       expect(shader.vertexShader).toContain('vCinema2MainframeMeta = vec4( _mainframe_route, _mainframe_bank, _mainframe_region, _mainframe_system )')
       expect(shader.fragmentShader).toContain('totalEmissiveRadiance = mix( totalEmissiveRadiance, cinema2MFFinal')
       expect(shader.fragmentShader).toContain('pow( clamp( cinema2MFSystemLight, 0.0, 1.0 ), 1.25 )')
-      expect(shader.uniforms.uCinema2MainframeRole?.value).toBe(['circuit', 'indicator', 'radar', 'chip', 'logo'].indexOf(role))
+      expect(shader.fragmentShader).toContain('float movingLight =')
+      expect(shader.fragmentShader).toContain('float selection = 1.0;')
+      expect(shader.fragmentShader).toContain('uCinema2MainframeCircuitResponse')
+      expect(shader.fragmentShader).toContain('vCinema2MainframePhase')
+      expect(shader.uniforms.uCinema2MainframeRole?.value).toBe(
+        role === 'circuitHousing' ? 5 : ['circuit', 'indicator', 'radar', 'chip', 'logo'].indexOf(role),
+      )
       expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(0)
       bridge.draw(execution('high'), overrides(), 0, null, null, null, {
         circuitColor: [0.24, 1, 0.12], indicatorColor: [0.4, 1, 0.22], logoColor: [0.3, 1, 0.18],
@@ -191,6 +197,7 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       })
       expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(1)
       expect((shader.uniforms.uCinema2MainframeSystems0?.value as THREE.Vector4).y).toBe(1)
+      expect((shader.uniforms.uCinema2MainframeCircuitResponse?.value as THREE.Vector4).x).toBe(1)
       expect((shader.uniforms.uCinema2MainframeSystems1?.value as THREE.Vector4).x).toBe(0)
     }
   })

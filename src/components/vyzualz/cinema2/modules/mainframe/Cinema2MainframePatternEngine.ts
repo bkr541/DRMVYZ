@@ -30,6 +30,10 @@ export interface Cinema2MainframeLightingFrame {
   readonly chaseGain: number
   readonly chaseDirection: 1 | -1
   readonly flicker: number
+  /** Circuit-only continuous energy, musical accents and traveling-pulse excitation (0..1). */
+  readonly circuitEnergy: number
+  readonly circuitAccent: number
+  readonly circuitPulse: number
   readonly bankWeights: readonly [number, number, number, number]
   readonly regionWeights: readonly [number, number, number, number, number, number, number, number]
   /** board, circuits, terminals, vias, radar, chip, logo outer, logo body, logo star. */
@@ -62,6 +66,20 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
   const beats = Number.isFinite(input.beats) ? Math.max(0, input.beats) : 0
   const active = input.active !== false
   const level = clamp01(0.23 * s.overall + 0.23 * s.bass + 0.18 * s.mid + 0.14 * s.high + 0.13 * s.flux + 0.09 * (s.significance ?? 0))
+  // A continuously visible green core must not depend on catching a one-frame
+  // event. Events add distinct attacks, while actual energy powers the bus.
+  // Keep these values independent of the other eight semantic lighting systems.
+  const circuitEnergy = clamp01(
+    0.42 * s.bass + 0.22 * s.sub + 0.16 * s.overall + 0.10 * s.mid
+    + 0.10 * (s.significance ?? 0),
+  )
+  const circuitAccent = clamp01(
+    0.35 * e.kick + 0.23 * e.snare + 0.43 * e.beat + 0.54 * e.downbeat
+    + 0.42 * e.phrase + 0.32 * e.section + 0.9 * e.drop,
+  )
+  const circuitPulse = clamp01(
+    0.45 * circuitEnergy + 0.62 * circuitAccent + 0.16 * s.flux + 0.14 * s.build,
+  )
   const common = [
     0,
     0.05 + 0.2 * s.bass + 0.1 * s.high + 0.2 * e.beat + 0.38 * e.phrase,
@@ -139,6 +157,9 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
     chaseGain,
     chaseDirection,
     flicker: clamp01(flicker),
+    circuitEnergy,
+    circuitAccent,
+    circuitPulse,
     bankWeights,
     regionWeights,
     systemGains: Object.freeze(common as [number, number, number, number, number, number, number, number, number]),

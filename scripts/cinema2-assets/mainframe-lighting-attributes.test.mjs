@@ -47,3 +47,36 @@ test('Mainframe semantic route and phase attributes retain finite values', () =>
     }
   }
 })
+
+test('all 60 central and 356 extended circuit routes have a full, independently animated path', () => {
+  const mesh = asset.meshes.find(item => item.name === 'circuitCores')
+  assert.ok(mesh)
+  const attributes = mesh.primitives[0].attributes
+  const routes = floatValues(attributes._MAINFRAME_ROUTE)
+  const phases = floatValues(attributes._GLOW_PHASE)
+  const banks = floatValues(attributes._MAINFRAME_BANK)
+  const regions = floatValues(attributes._MAINFRAME_REGION)
+  const groups = new Map()
+  for (let index = 0; index < routes.length; index += 1) {
+    const id = routes[index]
+    assert.ok(Number.isInteger(id) && id >= 0 && id < 416, `Invalid circuit route ${id}`)
+    assert.ok(phases[index] >= -0.001 && phases[index] <= 1.001, `Route ${id} has an out-of-bounds arc phase`)
+    assert.ok(banks[index] >= 0 && banks[index] <= 3, `Route ${id} has no pattern bank`)
+    assert.ok(regions[index] >= 0 && regions[index] <= 7, `Route ${id} has no pattern region`)
+    const group = groups.get(id) ?? { min: Infinity, max: -Infinity, bank: banks[index], region: regions[index] }
+    assert.equal(group.bank, banks[index], `Route ${id} changes bank mid-path`)
+    assert.equal(group.region, regions[index], `Route ${id} changes region mid-path`)
+    group.min = Math.min(group.min, phases[index])
+    group.max = Math.max(group.max, phases[index])
+    groups.set(id, group)
+  }
+  assert.equal(groups.size, 416)
+  for (let id = 0; id < 416; id += 1) {
+    const group = groups.get(id)
+    assert.ok(group, `Missing ${id < 60 ? 'central' : 'outer'} circuit route ${id}`)
+    assert.ok(group.min <= 0.002 && group.max >= 0.998, `Route ${id} cannot carry a pulse end-to-end`)
+  }
+  const housing = asset.meshes.find(item => item.name === 'circuitHousings')
+  const housingRoutes = new Set(floatValues(housing.primitives[0].attributes._MAINFRAME_ROUTE))
+  assert.deepEqual(housingRoutes, new Set(groups.keys()), 'Every animated core needs its matching glow housing')
+})

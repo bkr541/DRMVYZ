@@ -321,7 +321,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
               receive: Object.freeze(['board', 'plates', 'recesses', 'circuitHousings', 'logoHousing']),
             },
             mainframe: Object.freeze({
-              circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar',
+              circuitHousings: 'circuitHousing', circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar',
               chipCores: 'chip', logoCore: 'logo',
             }),
           }),

@@ -43,6 +43,11 @@ export function createCinema2MainframeLightingDiagnosticFrame(family: Cinema2Mai
     chaseGain: 0,
     chaseDirection: 1 as const,
     flicker: 0,
+    // The circuit shader uses its dedicated energy/attack controls instead of
+    // applying generic system gain to every route. Keep the audio-free probe lit.
+    circuitEnergy: family === 'circuits' ? 1 : 0,
+    circuitAccent: 0,
+    circuitPulse: 0,
     bankWeights: Object.freeze([0, 0, 0, 0] as const),
     regionWeights: Object.freeze([0, 0, 0, 0, 0, 0, 0, 0] as const),
     systemGains: Object.freeze(gains as unknown as Cinema2MainframeLightingFrame['systemGains']),

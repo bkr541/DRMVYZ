@@ -83,6 +83,37 @@ describe('Mainframe Stage 4 reactivity', () => {
     expect(outwardAcrossTwoBars[3]?.chaseFront).toBeGreaterThan(outwardAcrossTwoBars[1]?.chaseFront as number)
   })
 
+  it('powers circuits from real music, accents distinct hits and stays quiet without audio energy', () => {
+    const quiet = evaluateCinema2MainframePattern({
+      pattern: 'outward-bus', beats: 1.5,
+      signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,
+    })
+    expect(quiet).toMatchObject({ circuitEnergy: 0, circuitAccent: 0, circuitPulse: 0 })
+    const signals = { ...CINEMA2_MAINFRAME_ZERO_SIGNALS, bass: 0.7, sub: 0.55, overall: 0.5 }
+    const powered = evaluateCinema2MainframePattern({
+      pattern: 'outward-bus', beats: 1.5, signals, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES,
+    })
+    expect(powered.circuitEnergy).toBeGreaterThan(0.4)
+    expect(powered.circuitPulse).toBeGreaterThan(0)
+    for (const kind of ['kick', 'snare', 'beat', 'downbeat', 'phrase', 'drop'] as const) {
+      const hit = evaluateCinema2MainframePattern({
+        pattern: 'outward-bus', beats: 1.5, signals,
+        impulses: { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, [kind]: 1 },
+      })
+      expect(hit.circuitAccent, `${kind} accent`).toBeGreaterThan(powered.circuitAccent)
+      expect(hit.circuitPulse, `${kind} pulse`).toBeGreaterThan(powered.circuitPulse)
+    }
+    for (const pattern of CINEMA2_MAINFRAME_PATTERN_IDS) {
+      const value = evaluateCinema2MainframePattern({
+        pattern, beats: 1.5, signals,
+        impulses: { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, drop: 1 },
+      })
+      expect(value.circuitPulse).toBeGreaterThan(powered.circuitPulse)
+      expect(value.pattern).toBe(pattern)
+      expect(value.chaseWidth).toBeGreaterThan(0)
+    }
+  })
+
   it('routes continuous bands and every authored impulse across all reactive systems', () => {
     const oneSignals = Object.fromEntries(Object.keys(CINEMA2_MAINFRAME_ZERO_SIGNALS).map(key => [key, 1])) as never
     const oneImpulses = Object.fromEntries(Object.keys(CINEMA2_MAINFRAME_ZERO_IMPULSES).map(key => [key, 1])) as never
