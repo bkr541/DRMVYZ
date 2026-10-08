@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
+import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2MainframeMusicAdapter'
 import { resolveCinema2MainframeTriggerEventIdentity } from '../modules/mainframe/Cinema2MainframePatternController'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import {
@@ -288,5 +289,75 @@ describe('P0-02 Mainframe audio delivery and transport transitions', () => {
       audio: { ...frame({ time: 0.22, event: { kind: 'beat', id: 'fresh-beat' } }).audio!, upstream: { ...frame({ time: 0.22 }).audio!.upstream, sourceId: 'rekordbox-usb' } },
     })
     expect(engine.update(next, 'outward-bus', true).impulses.beat).toBeGreaterThan(0)
+  })
+})
+
+
+describe('P0-07 Mainframe overall energy reactivity', () => {
+  const withEnergy = (time: number, energy: number, trackEnergy = 0.9): Readonly<Cinema2ModuleFrameReadContext> => {
+    const base = frame({ time, delta: 0.02 })
+    return {
+      ...base,
+      audio: {
+        ...base.audio!,
+        // Isolate overallEnergy: component-specific channels remain unchanged.
+        bands: Object.fromEntries(Object.keys(base.audio!.bands).map(band => [band, available(0)])) as never,
+        features: {
+          ...base.audio!.features, overallEnergy: available(energy), trackEnergy: available(trackEnergy),
+          spectralFlux: available(0), transientEnergy: available(0),
+        },
+      },
+    }
+  }
+
+  it('prefers the live shared energy over the broader offline track energy, including silence', () => {
+    const silent = withEnergy(0, 0, 1)
+    const loud = withEnergy(0, 1, 1)
+    const fromSilence = readCinema2MainframeContinuous(silent.audio, null)
+    const fromLoud = readCinema2MainframeContinuous(loud.audio, null)
+    expect(fromSilence.overall).toBe(0)
+    expect(fromLoud.overall).toBe(1)
+    const quietLighting = evaluateCinema2MainframePattern({ pattern: 'outward-bus', beats: 3, signals: fromSilence, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
+    const loudLighting = evaluateCinema2MainframePattern({ pattern: 'outward-bus', beats: 3, signals: fromLoud, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
+    expect(loudLighting.level - quietLighting.level).toBeGreaterThan(0.4)
+    // The global bus does not replace the individual authored component events.
+    expect(loudLighting.systemGains).toEqual(quietLighting.systemGains)
+    expect(loudLighting.impulses).toEqual(quietLighting.impulses)
+  })
+
+  it('attacks quickly, releases gradually, holds on pause and resets on stop or seek', () => {
+    const engine = new Cinema2MainframeReactivityEngine()
+    const quiet = engine.update(withEnergy(0, 0.04), 'outward-bus', true)
+    const firstAttack = engine.update(withEnergy(0.02, 0.95), 'outward-bus', true)
+    expect(firstAttack.level).toBeGreaterThan(quiet.level)
+    expect(firstAttack.level).toBeLessThan(0.45 * 0.95)
+    let sustained = firstAttack
+    for (let i = 2; i <= 22; i++) sustained = engine.update(withEnergy(i * 0.02, 0.95), 'outward-bus', true)
+    expect(sustained.level).toBeGreaterThan(firstAttack.level)
+    expect(sustained.level).toBeLessThanOrEqual(1)
+
+    const firstRelease = engine.update(withEnergy(0.46, 0.04), 'outward-bus', true)
+    expect(firstRelease.level).toBeLessThan(sustained.level)
+    expect(firstRelease.level).toBeGreaterThan(quiet.level)
+    const paused = withEnergy(0.46, 0.04)
+    const held = engine.update({ ...paused, transport: { ...paused.transport!, playing: false, paused: true } }, 'outward-bus', true)
+    expect(held).toBe(firstRelease)
+    const stopped = withEnergy(0.5, 0.04)
+    expect(engine.update({ ...stopped, audio: null, transport: { ...stopped.transport!, playing: false, paused: false, sourcePresent: false } }, 'outward-bus', true).level).toBe(0)
+    expect(engine.update(withEnergy(0.02, 0.04), 'outward-bus', true).level).toBeCloseTo(quiet.level)
+    expect(engine.update({ ...withEnergy(12, 0.95), audio: {
+      ...withEnergy(12, 0.95).audio!,
+      discontinuity: { occurred: true, id: 'seek', reason: 'seek', generation: 2 },
+    } }, 'outward-bus', true).level).toBeCloseTo(0.45 * 0.95)
+  })
+
+  it('keeps a major drop above sustained loudness in its independent component and circuit channels', () => {
+    const signals = readCinema2MainframeContinuous(withEnergy(2, 0.95).audio, null)
+    const withoutDrop = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES })
+    const withDrop = evaluateCinema2MainframePattern({ pattern: 'system-surge', beats: 8, signals, impulses: { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, drop: 1 } })
+    expect(withDrop.level).toBe(withoutDrop.level)
+    expect(withDrop.circuitPulse).toBeGreaterThan(withoutDrop.circuitPulse)
+    expect(withDrop.systemGains[6]).toBeGreaterThan(withoutDrop.systemGains[6])
+    expect(withDrop.systemGains[8]).toBeGreaterThan(withoutDrop.systemGains[8])
   })
 })

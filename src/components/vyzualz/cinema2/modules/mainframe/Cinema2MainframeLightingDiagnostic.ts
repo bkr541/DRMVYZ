@@ -37,7 +37,7 @@ export function createCinema2MainframeLightingDiagnosticFrame(family: Cinema2Mai
     active: true,
     pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN,
     beats: 0,
-    level: 0,
+    level: 1, // Diagnostics deliberately bypass audio and force the selected family to full power.
     chaseFront: -10,
     chaseWidth: 0.1,
     chaseGain: 0,

@@ -1120,7 +1120,9 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '    / max( 0.045, uCinema2MainframeState0.w * 2.5 );',
       '  float trail = exp( -tailDistance * tailDistance );',
       '  float movingLight = ( 5.0 * exp( -cinema2MFDistance * cinema2MFDistance ) + 1.1 * trail )',
-      '    * uCinema2MainframeState1.x * pulse * selection;',
+      // Music energy increases chase *activity*; the existing pulse/selection
+      // remain authoritative, including during low-energy drops.
+      '    * uCinema2MainframeState1.x * pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) ) );',
       '  float poweredLight = ( 0.08 + 2.2 * energy + 1.1 * accent + 0.65 * cinema2MFSystemLight ) * selection;',
       '  float coreLight = 0.035 + poweredLight + movingLight;',
       '  cinema2MFLight = uCinema2MainframeRole > 4.5 ? 0.12 * poweredLight : coreLight;',
@@ -1179,8 +1181,14 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '  : ( uCinema2MainframeRole > 3.5 && uCinema2MainframeRole < 4.5 ? uCinema2MainframeLogo : uCinema2MainframeIndicator );',
       'float cinema2MFFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
       'float cinema2MFHot = pow( cinema2MFFacing, 5.0 ) * smoothstep( 0.65, 3.5, cinema2MFLight );',
+      // Global level previously arrived in State0.y but never affected pixels.
+      // Modulate each family's final output AFTER its local choreography so
+      // frequency/impulse channels and stronger drops retain their separation.
+      // Keep the existing green-to-hot mix independent of the energy gain to
+      // avoid sustained loudness bleaching all the cores white.
+      'float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
       'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.78 )',
-      '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) );',
+      '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) * cinema2MFEnergyLift );',
       'vec3 cinema2MFFinal = mix( 1.0 - exp( - cinema2MFEmission ), cinema2MFEmission, uCinema2MainframeHdr );',
       // Static/no-source rendering retains the approved Stage 3 material. During playback the semantic shader owns emission so its dark-to-hot
       // range remains visible instead of adding a small modulation on top of an already-bright material.

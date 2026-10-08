@@ -65,7 +65,9 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
   const { signals: s, impulses: e } = input
   const beats = Number.isFinite(input.beats) ? Math.max(0, input.beats) : 0
   const active = input.active !== false
-  const level = clamp01(0.23 * s.overall + 0.23 * s.bass + 0.18 * s.mid + 0.14 * s.high + 0.13 * s.flux + 0.09 * (s.significance ?? 0))
+  // Frame-level energy is the primary global intensity signal; the existing bands
+  // and Director significance contribute without overriding quieter passages.
+  const level = clamp01(0.45 * s.overall + 0.17 * s.bass + 0.13 * s.mid + 0.10 * s.high + 0.09 * s.flux + 0.06 * (s.significance ?? 0))
   // A continuously visible green core must not depend on catching a one-frame
   // event. Events add distinct attacks, while actual energy powers the bus.
   // Keep these values independent of the other eight semantic lighting systems.
@@ -202,6 +204,8 @@ export class Cinema2MainframeReactivityEngine {
   private transportTrackId: string | null | undefined
   private contextGeneration: number | null = null
   private previousTimestampMs: number | null = null
+  private smoothedLevel = 0
+  private hasEnergySample = false
   private lastFrame = evaluateCinema2MainframePattern({ pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
 
   update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0, musicalEvents?: readonly Readonly<Cinema2MainframeMusicalEvent>[]): Readonly<Cinema2MainframeLightingFrame> {
@@ -245,13 +249,24 @@ export class Cinema2MainframeReactivityEngine {
       : Object.fromEntries(musicalEvents.map(event => [event.kind, { id: event.id, strength: event.strength }])) as Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null>
     const impulseValues = {} as Record<Cinema2MainframeImpulseId, number>
     for (const id of CINEMA2_MAINFRAME_IMPULSE_IDS) impulseValues[id] = this.envelopes[id].update(deltaSec, events?.[id] ?? null)
-    this.lastFrame = evaluateCinema2MainframePattern({
+    const evaluated = evaluateCinema2MainframePattern({
       pattern,
       beats: Math.max(0, resolveCinema2MainframeBeatClock(acceptedFrame, bpmSync) - Math.max(0, patternStartBeat)),
       signals: readCinema2MainframeContinuous(audio, audio ? frame.director : null),
       impulses: Object.freeze(impulseValues),
       active: true,
     })
+    // Apply Mainframe-only attack/release to the GLOBAL energy bus, not to the
+    // individual signals or the kick/phrase/drop envelopes. First frame and
+    // transport resets take the fresh source level immediately, never stale light.
+    if (!this.hasEnergySample) {
+      this.smoothedLevel = evaluated.level
+      this.hasEnergySample = true
+    } else {
+      const timeConstant = evaluated.level > this.smoothedLevel ? 0.09 : 0.48
+      this.smoothedLevel += (evaluated.level - this.smoothedLevel) * (1 - Math.exp(-deltaSec / timeConstant))
+    }
+    this.lastFrame = Object.freeze({ ...evaluated, level: clamp01(this.smoothedLevel) })
     if (musicalEvents) this.lastFrame = Object.freeze({
       ...this.lastFrame,
       musicalEvents: Object.freeze([...musicalEvents]),
@@ -266,6 +281,8 @@ export class Cinema2MainframeReactivityEngine {
     for (const envelope of Object.values(this.envelopes)) envelope.reset()
     this.previousTimeSec = null
     this.previousTimestampMs = null
+    this.smoothedLevel = 0
+    this.hasEnergySample = false
     this.sourceIdentity = null
     this.transportTrackId = undefined
     this.contextGeneration = null

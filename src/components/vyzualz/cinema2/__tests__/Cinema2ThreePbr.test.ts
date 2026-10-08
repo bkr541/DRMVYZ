@@ -188,6 +188,11 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       expect(shader.fragmentShader).toContain('float selection = 1.0;')
       expect(shader.fragmentShader).toContain('uCinema2MainframeCircuitResponse')
       expect(shader.fragmentShader).toContain('uCinema2MainframeHardware')
+      // The shared State0.y level must be used in the visible emissive path,
+      // not just uploaded to a dead uniform.
+      expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.42 + 0.93 * sqrt( clamp( uCinema2MainframeState0.y')
+      expect(shader.fragmentShader).toContain('cinema2MFLight ) * cinema2MFEnergyLift')
+      expect(shader.fragmentShader).toContain('pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y')
       expect(shader.fragmentShader).toContain('float radarWave = hwSweep')
       expect(shader.fragmentShader).toContain('float chipScan =')
       expect(shader.fragmentShader).toContain('cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015')
@@ -205,6 +210,14 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       expect((shader.uniforms.uCinema2MainframeCircuitResponse?.value as THREE.Vector4).x).toBe(1)
       expect((shader.uniforms.uCinema2MainframeHardware?.value as THREE.Vector4).toArray()).toEqual([0, 0, 0, 0])
       expect((shader.uniforms.uCinema2MainframeSystems1?.value as THREE.Vector4).x).toBe(0)
+      expect((shader.uniforms.uCinema2MainframeState0?.value as THREE.Vector4).y).toBe(1)
+      const dim = { ...createCinema2MainframeLightingDiagnosticFrame('circuits'), level: 0.12 }
+      bridge.draw(execution('high'), overrides(), 0, null, null, null, {
+        circuitColor: [0.24, 1, 0.12], indicatorColor: [0.4, 1, 0.22], logoColor: [0.3, 1, 0.18],
+        strength: 0.6, frame: dim,
+      })
+      expect((shader.uniforms.uCinema2MainframeState0?.value as THREE.Vector4).y).toBeCloseTo(0.12)
+      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(0.6)
     }
   })
 

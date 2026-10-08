@@ -207,7 +207,9 @@ export function readCinema2MainframeContinuous(audio: Readonly<Cinema2AudioIntel
     flux: Math.max(number(audio.features.spectralFlux) ?? 0, number(audio.features.transientEnergy) ?? 0),
     vocal: number(audio.features.vocalPresence) ?? 0,
     build: Math.max(number(audio.features.buildProgress) ?? 0, number(audio.structure.buildConfidence) ?? 0, d.build ?? 0),
-    overall: Math.max(number(audio.features.overallEnergy) ?? 0, number(audio.features.trackEnergy) ?? 0),
+    // The live, normalized frame energy must win over the broader offline track curve.
+    // Taking max() held quiet passages at the track-level energy and erased dynamics.
+    overall: number(audio.features.overallEnergy) ?? number(audio.features.trackEnergy) ?? 0,
     significance: d.intensity ?? 0,
     momentum: d.momentum ?? 0,
     impact: d.impact ?? 0,

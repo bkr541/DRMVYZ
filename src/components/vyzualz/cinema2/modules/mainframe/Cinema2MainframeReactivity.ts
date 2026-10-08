@@ -51,7 +51,7 @@ export interface Cinema2MainframeSignals {
   readonly flux: number
   readonly vocal: number
   readonly build: number
-  /** Derived runtime energy used only to normalize the combined response; not an eighth authored Pass 3 signal. */
+  /** Shared normalized energy feeding Mainframe’s global lighting bus; not an eighth authored Pass 3 signal. */
   readonly overall: number
   /** Generic Visual Director signals, separate from the seven authored bands/features. */
   readonly significance?: number
