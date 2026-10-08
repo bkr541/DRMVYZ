@@ -48,6 +48,8 @@ const requestedQuality = query.get('quality')
 const quality: Cinema2RenderQualityLevel = requestedQuality === 'low' || requestedQuality === 'medium' ? requestedQuality : 'high'
 const requestedTimeSec = Number(query.get('timeSec') ?? 1)
 const captureTimeSec = Number.isFinite(requestedTimeSec) ? Math.max(0, requestedTimeSec) : 1
+// Diagnostic capture deliberately runs with no track and no audio analysis.
+const noAudio = import.meta.env.DEV && query.get('mainframeNoAudio') === '1'
 const clock = controlledClock()
 const created = Cinema2Runtime.create(canvas, {
   presetId: CINEMA2_MAINFRAME_PRESET_ID,
@@ -58,11 +60,11 @@ const created = Cinema2Runtime.create(canvas, {
   randomness: { mode: 'deterministic', seed: 'mainframe-stage-3' },
   transportSource: {
     getState: () => ({
-      sourcePresent: true,
-      playing: true,
-      analysisActive: true,
+      sourcePresent: !noAudio,
+      playing: !noAudio,
+      analysisActive: !noAudio,
       paused: false,
-      trackId: 'mainframe-stage-3-static',
+      trackId: noAudio ? null : 'mainframe-stage-3-static',
       timeSec: clock.getTimestamp() / 1000,
     }),
   },

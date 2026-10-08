@@ -19,6 +19,7 @@ import {
   type Cinema2ThreePanelSpec,
 } from '../modules/three/Cinema2ThreeSceneBridge'
 import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from '../presets/Cinema2ThreeModelReferencePreset'
+import { createCinema2MainframeLightingDiagnosticFrame } from '../modules/mainframe/Cinema2MainframeLightingDiagnostic'
 
 // The bridge talks to a real (shared) Three renderer; for these tests it gets a stand-in host so real Three scene objects can be inspected without a GPU.
 const host = vi.hoisted(() => ({
@@ -149,6 +150,90 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
 })
 
 describe('Cinema 2.0 Three bridge PBR', () => {
+  it('binds each Mainframe lighting role and its shader uniforms to the intended mesh, even without audio', () => {
+    const scene = new THREE.Group()
+    const roles = { circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar', chipCores: 'chip', logoCore: 'logo' } as const
+    for (const part of Object.keys(roles)) {
+      const geometry = new THREE.BoxGeometry(1, 1, 1)
+      const count = geometry.getAttribute('position').count
+      for (const name of ['_glow_phase', '_mainframe_route', '_mainframe_bank', '_mainframe_region', '_mainframe_system']) {
+        geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(count), 1))
+      }
+      const material = new THREE.MeshStandardMaterial()
+      material.name = part
+      const mesh = new THREE.Mesh(geometry, material)
+      mesh.name = part
+      scene.add(mesh)
+    }
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'mainframe', scene, triangleCount: 60, gpuBytes: 100 } as never, node: null },
+    ], { hdr: true, mainframe: roles })
+    const ownedScene = (bridge as unknown as { scene: THREE.Scene }).scene
+    for (const [part, role] of Object.entries(roles)) {
+      const mesh = ownedScene.getObjectByName(part) as THREE.Mesh
+      const material = mesh.material as THREE.MeshStandardMaterial
+      expect(material.customProgramCacheKey()).toContain('-mainframe')
+      const shader = {
+        vertexShader: '#include <common>\n#include <begin_vertex>',
+        fragmentShader: '#include <common>\n#include <emissivemap_fragment>',
+        uniforms: {} as Record<string, { value: unknown }>,
+      }
+      material.onBeforeCompile(shader as never, undefined as never)
+      expect(shader.vertexShader).toContain('#include <begin_vertex>')
+      expect(shader.vertexShader).toContain('vCinema2MainframeMeta = vec4( _mainframe_route, _mainframe_bank, _mainframe_region, _mainframe_system )')
+      expect(shader.fragmentShader).toContain('totalEmissiveRadiance = mix( totalEmissiveRadiance, cinema2MFFinal')
+      expect(shader.fragmentShader).toContain('pow( clamp( cinema2MFSystemLight, 0.0, 1.0 ), 1.25 )')
+      expect(shader.uniforms.uCinema2MainframeRole?.value).toBe(['circuit', 'indicator', 'radar', 'chip', 'logo'].indexOf(role))
+      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(0)
+      bridge.draw(execution('high'), overrides(), 0, null, null, null, {
+        circuitColor: [0.24, 1, 0.12], indicatorColor: [0.4, 1, 0.22], logoColor: [0.3, 1, 0.18],
+        strength: 1, frame: createCinema2MainframeLightingDiagnosticFrame('circuits'),
+      })
+      expect(shader.uniforms.uCinema2MainframeStrength?.value).toBe(1)
+      expect((shader.uniforms.uCinema2MainframeSystems0?.value as THREE.Vector4).y).toBe(1)
+      expect((shader.uniforms.uCinema2MainframeSystems1?.value as THREE.Vector4).x).toBe(0)
+    }
+  })
+
+  it('rejects incomplete Mainframe geometry rather than silently losing its emissive shader', () => {
+    const scene = new THREE.Group()
+    const material = new THREE.MeshStandardMaterial()
+    material.name = 'circuitCores'
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material)
+    mesh.name = 'circuitCores'
+    scene.add(mesh)
+    expect(() => new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'broken-mainframe', scene, triangleCount: 12, gpuBytes: 100 } as never, node: null },
+    ], { mainframe: { circuitCores: 'circuit' } })).toThrow(/requires a per-vertex _mainframe_system/)
+  })
+
+  it('does not report Mainframe ready if asynchronous shader compilation fails', async () => {
+    const scene = new THREE.Group()
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const count = geometry.getAttribute('position').count
+    for (const name of ['_glow_phase', '_mainframe_route', '_mainframe_bank', '_mainframe_region', '_mainframe_system']) {
+      geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(count), 1))
+    }
+    const material = new THREE.MeshStandardMaterial()
+    material.name = 'circuitCores'
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.name = 'circuitCores'
+    scene.add(mesh)
+    host.renderer.compileAsync.mockRejectedValueOnce(new Error('invalid semantic shader'))
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'mainframe-compile', scene, triangleCount: 12, gpuBytes: 100 } as never, node: null },
+    ], { mainframe: { circuitCores: 'circuit' } })
+    for (let index = 0; index < 5; index++) {
+      bridge.draw(execution('high'), overrides())
+      await Promise.resolve()
+    }
+    expect(bridge.ready).toBe(false)
+    expect(bridge.getDiagnostics()).toEqual([expect.objectContaining({
+      code: 'CINEMA2_THREE_MAINFRAME_SHADER_COMPILE_FAILED',
+      message: expect.stringContaining('invalid semantic shader'),
+    })])
+  })
+
   it('keeps a fixed pool of panel lights, shows 0 / 2 / 4 by tier, scales them by panelIntensity and initialises the area-light tables once', async () => {
     const counts: Record<string, number> = {}
     for (const quality of ['low', 'medium', 'high'] as const) {

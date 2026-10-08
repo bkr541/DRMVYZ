@@ -47,6 +47,10 @@ import {
   resolveCinema2MainframeQualityProfile,
   type Cinema2MainframeQualityProfile,
 } from './mainframe/Cinema2MainframeQuality'
+import {
+  createCinema2MainframeLightingDiagnosticFrame,
+  parseCinema2MainframeLightingDiagnosticFamily,
+} from './mainframe/Cinema2MainframeLightingDiagnostic'
 
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('mainframe-native-render')
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION = 1 as const
@@ -255,6 +259,13 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let triggerContextGeneration: number | null = null
     let reportedBytes = -1
     let qualityProfile: Readonly<Cinema2MainframeQualityProfile> = resolveCinema2MainframeQualityProfile('high')
+    // Vite removes this override from production builds. In dev, visit
+    // ?mainframeLightingDiagnostic=circuits|radars|chips|terminals|indicators|logo
+    // to force one semantic family ON, even with no audio source attached.
+    const diagnosticFamily = import.meta.env.DEV && typeof window !== 'undefined'
+      ? parseCinema2MainframeLightingDiagnosticFamily(new URLSearchParams(window.location.search).get('mainframeLightingDiagnostic'))
+      : null
+    const diagnosticLighting = diagnosticFamily ? createCinema2MainframeLightingDiagnosticFrame(diagnosticFamily) : null
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const environmentId = typeof context.module.config?.environment === 'string'
       ? context.module.config.environment
@@ -323,15 +334,16 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         if (state === 'idle') startLoading(quality)
         if (state === 'building' && !bridge && !bridgeCreateFailed) buildBridge()
         if (!bridge || state === 'loading' || state === 'failed') return
+        const renderedLighting = diagnosticLighting ?? lighting
         bridge.draw(execution, frame.overrides, 0, null, null, {
           scale: resolveCinema2MainframeCoverScale(execution.width, execution.height, frame.scale),
           parts: frame.visibility,
-        }, lighting ? {
+        }, renderedLighting ? {
           circuitColor: frame.colors.circuits,
           indicatorColor: frame.colors.indicators,
           logoColor: frame.colors.logo,
-          strength: frame.intensity,
-          frame: lighting,
+          strength: diagnosticLighting ? 1 : frame.intensity,
+          frame: renderedLighting,
         } : null)
         if (bridge.ready) state = 'ready'
         const bytes = bridge.estimateGpuBytes()
@@ -389,6 +401,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         visibility: frame.visibility,
         qualityProfile,
         lighting,
+        ...(diagnosticFamily ? { lightingDiagnosticFamily: diagnosticFamily } : {}),
       }),
     }
   },

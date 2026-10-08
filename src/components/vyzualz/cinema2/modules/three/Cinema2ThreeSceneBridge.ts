@@ -205,7 +205,7 @@ interface ExternalFramebufferRenderer {
   setRenderTargetFramebuffer(target: ThreeNamespace.WebGLRenderTarget, framebuffer: WebGLFramebuffer): void
 }
 
-type WarmStage = 'environment' | 'textures' | 'compile' | 'ready'
+type WarmStage = 'environment' | 'textures' | 'compile' | 'ready' | 'failed'
 
 /**
  * Everything one `three-scene` module owns on the GPU side: a Three scene of its instances, the light rig, the camera, and the
@@ -567,14 +567,18 @@ export class Cinema2ThreeSceneBridge {
 
   private mainframeRoleOf(owned: Readonly<OwnedMaterial>): Cinema2ThreeMainframeRole | null {
     const role = this.options.mainframe?.[owned.part] ?? this.options.mainframe?.[owned.materialName]
+    if (!role) return null
     const geometry = owned.slot.mesh.geometry
-    return role && geometry.getAttribute(CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE)
-      && geometry.getAttribute(CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE)
-      && geometry.getAttribute(CINEMA2_MAINFRAME_BANK_ATTRIBUTE)
-      && geometry.getAttribute(CINEMA2_MAINFRAME_REGION_ATTRIBUTE)
-      && geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)
-      ? role
-      : null
+    // Missing semantic attributes must not silently downgrade a whole emitter family
+    // to the dim static glTF material. This contract is Mainframe-only.
+    for (const name of [CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE, CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE,
+      CINEMA2_MAINFRAME_BANK_ATTRIBUTE, CINEMA2_MAINFRAME_REGION_ATTRIBUTE, CINEMA2_GLOW_PHASE_ATTRIBUTE]) {
+      const attribute = geometry.getAttribute(name)
+      if (!attribute || attribute.itemSize !== 1 || attribute.count !== geometry.getAttribute('position')?.count) {
+        throw new Error(`Mainframe ${owned.part} (${role}) requires a per-vertex ${name} attribute.`)
+      }
+    }
+    return role
   }
 
   private decorate(owned: OwnedMaterial): void {
@@ -772,7 +776,18 @@ export class Cinema2ThreeSceneBridge {
       this.compiling = true
       renderer.compileAsync(this.scene, this.camera).then(
         () => { this.compiling = false; if (!this.disposed) this.stage = 'ready' },
-        () => { this.compiling = false; if (!this.disposed) this.stage = 'ready' },
+        error => {
+          this.compiling = false
+          if (this.disposed) return
+          // Do not mask Mainframe shader failures as a successfully prepared render.
+          // Other Three presets keep the pre-existing warm-up behavior.
+          if (!this.options.mainframe) { this.stage = 'ready'; return }
+          this.stage = 'failed'
+          this.diagnostics.push({
+            code: 'CINEMA2_THREE_MAINFRAME_SHADER_COMPILE_FAILED',
+            message: `Mainframe shader compilation failed: ${error instanceof Error ? error.message : String(error)}`,
+          })
+        },
       )
     }
   }
@@ -1055,8 +1070,10 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       // ignite above Conduit's peak emitters instead of modulating an already-green wall.
       'float cinema2MFBase = uCinema2MainframeRole < 0.5 ? 0.035 : ( uCinema2MainframeRole < 3.5 ? 0.05 : 0.065 );',
       'float cinema2MFSystemLight = cinema2MainframeSystem( cinema2MFSystem );',
-      // Compress ordinary band energy toward black while preserving full-strength authored hits.
-      'cinema2MFSystemLight *= cinema2MFSystemLight;',
+      // The previous squared response made ordinary track energy almost invisible
+      // (e.g. a 0.2 system gain became 0.04). Keep idle signals dim, but let
+      // authored midrange gains reach visible pixels without changing their timing.
+      'cinema2MFSystemLight = pow( clamp( cinema2MFSystemLight, 0.0, 1.0 ), 1.25 );',
       'float cinema2MFSystemPeak = uCinema2MainframeRole < 0.5 ? 6.5 : ( uCinema2MainframeRole < 3.5 ? 9.0 : 12.0 );',
       'float cinema2MFLight = cinema2MFBase + cinema2MFSystemPeak * cinema2MFSystemLight;',
       'if ( cinema2MFSystem > 0.5 && cinema2MFSystem < 1.5 ) cinema2MFLight += 1.1 * cinema2MFBankLight + 1.2 * cinema2MFRegionLight + 14.0 * cinema2MFWave;',
