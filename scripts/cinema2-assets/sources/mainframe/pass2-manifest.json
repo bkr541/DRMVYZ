@@ -1,0 +1,50 @@
+{
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "aspect": "16:9"
+  },
+  "logo": {
+    "source": "DVYDRM_Logo_Clean_Master_Download(4).svg",
+    "transform": "translate(529.800 269.640) scale(0.72)",
+    "scale": 0.72,
+    "source_geometry_preserved": true
+  },
+  "layers": [
+    "BOARD",
+    "BOARD_DETAILS",
+    "BOARD_PLATES",
+    "CIRCUIT_SHADOWS",
+    "CIRCUIT_HOUSINGS",
+    "CIRCUIT_RECESSES",
+    "CIRCUIT_CORES",
+    "CIRCUIT_HIGHLIGHTS",
+    "VIA_CLUSTERS",
+    "RADAR_COMPONENTS",
+    "COMPUTER_CHIPS",
+    "TERMINAL_SHADOWS",
+    "TERMINALS",
+    "LOGO_SHADOW",
+    "LOGO"
+  ],
+  "circuit_style": {
+    "shadow_width": 30,
+    "housing_width": 26,
+    "recess_width": 15,
+    "emissive_core_width": 8.5,
+    "highlight_width": 1.8
+  },
+  "logo_style": {
+    "outer_housing_width": 36,
+    "outer_core_width": 10,
+    "body_housing_width": 28,
+    "body_core_width": 8,
+    "elevation_shadow_offset_y": 12
+  },
+  "components": {
+    "radar_modules": 4,
+    "computer_chips": 2,
+    "native_terminal_circles": 46
+  },
+  "resting_state": "Restrained lime emission with headroom reserved for visualizer audio reactivity."
+}

@@ -12,6 +12,7 @@ import { cinema2ThresholdNativeModuleDefinition } from './Cinema2ThresholdNative
 import { cinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModule'
 import { cinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { cinema2DepthNativeModuleDefinition } from './Cinema2DepthNativeModule'
+import { cinema2MainframeNativeModuleDefinition } from './Cinema2MainframeNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -129,6 +130,10 @@ if (!sayItRegistration.ok) {
 const depthRegistration = cinema2NativeModuleRegistry.register(cinema2DepthNativeModuleDefinition)
 if (!depthRegistration.ok) {
   throw new Error(`Cinema 2.0 Depth native module registration failed: ${depthRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const mainframeRegistration = cinema2NativeModuleRegistry.register(cinema2MainframeNativeModuleDefinition)
+if (!mainframeRegistration.ok) {
+  throw new Error(`Cinema 2.0 Mainframe native module registration failed: ${mainframeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

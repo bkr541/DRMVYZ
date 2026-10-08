@@ -18,6 +18,8 @@ export const CINEMA2_CONDUIT_TUBES_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-t
 export const CINEMA2_CONDUIT_CHAMBER_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-chamber'
 /** ATL HOE's complete modeled night scene: Waffle House sign, Atlanta landmark skyline, freeway, stars and foreground canopy. */
 export const CINEMA2_ATL_HOE_ASSET_ID: Cinema2AssetId = 'cinema2-atl-hoe'
+/** MAINFRAME's complete shallow hard-surface circuit wall with independently addressable hardware and emissive systems. */
+export const CINEMA2_MAINFRAME_ASSET_ID: Cinema2AssetId = 'cinema2-mainframe'
 /** SAY IT production glyph package: independently addressable bevelled meshes for printable Basic Latin U+0021-U+007E. */
 export const CINEMA2_SAY_IT_GLYPH_ASSET_ID: Cinema2AssetId = 'cinema2-say-it-glyphs'
 

@@ -160,7 +160,7 @@ const COLOR_MODE_OPTIONS = Object.freeze([
   Object.freeze({ value: 'auto', label: 'Auto' }),
 ])
 
-const TRIGGER_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number], string>> = Object.freeze({
+export const CINEMA2_AFTERHOURS_TRIGGER_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number], string>> = Object.freeze({
   beat: 'Beat',
   kick: 'Kick',
   snare: 'Snare',
@@ -184,7 +184,7 @@ const PATTERN_CHANGE_LABELS: Readonly<Record<(typeof CINEMA2_AFTERHOURS_PATTERN_
 })
 
 const PATTERN_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_PATTERNS.map(pattern => Object.freeze({ value: pattern.id, label: pattern.label })))
-const TRIGGER_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_TRIGGER_IDS.map(value => Object.freeze({ value, label: TRIGGER_LABELS[value] })))
+export const CINEMA2_AFTERHOURS_TRIGGER_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_TRIGGER_IDS.map(value => Object.freeze({ value, label: CINEMA2_AFTERHOURS_TRIGGER_LABELS[value] })))
 const PATTERN_CHANGE_OPTIONS = Object.freeze(CINEMA2_AFTERHOURS_PATTERN_CHANGE_IDS.map(value => Object.freeze({ value, label: PATTERN_CHANGE_LABELS[value] })))
 
 const PRIMARY_COLOR = Object.freeze([0.455, 0.961, 1, 1] as const)
@@ -338,7 +338,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     }),
     Object.freeze({
       id: CINEMA2_AFTERHOURS_TRIGGER_ID,
-      label: 'Trigger', type: 'enum' as const, defaultValue: 'beat', options: TRIGGER_OPTIONS,
+      label: 'Trigger', type: 'enum' as const, defaultValue: 'beat', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
       section: 'Design', group: 'Reactivity', designParentGroup: 'effects' as const, order: 101,
       exposure: 'primary' as const, persistence: 'preset' as const, reset: 'authored-default' as const,
     }),

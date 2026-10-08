@@ -1,0 +1,637 @@
+{
+  "asset": {
+    "name": "DVYDRM Circuit Cloud",
+    "pass": 3,
+    "version": "3.0",
+    "canvas": {
+      "width": 1920,
+      "height": 1080,
+      "aspect": "16:9"
+    },
+    "pure_vector": true,
+    "raster_images_embedded": false
+  },
+  "geometry_contract": {
+    "source_pass": "DVYDRM_Circuit_Cloud_Production_Pass2_Depth_Master.svg",
+    "cloud_source": "DVYDRM_Logo_Clean_Master_Download(4).svg",
+    "cloud_path_data_preserved": true,
+    "coordinate_system": "0 0 1920 1080",
+    "normalized_circuit_path_length": 1
+  },
+  "systems": {
+    "static_board": "#STATIC_BOARD",
+    "circuits": "#CIRCUIT_SYSTEM",
+    "components": "#COMPONENT_SYSTEM",
+    "terminals": "#TERMINAL_SYSTEM",
+    "logo": "#LOGO_SYSTEM",
+    "fx": "#FX_SYSTEM"
+  },
+  "circuit_banks": {
+    "A": [
+      "#L01-core",
+      "#L03-core",
+      "#L05-core",
+      "#L07-core",
+      "#L09-core",
+      "#R01-core",
+      "#R03-core",
+      "#R05-core",
+      "#R07-core",
+      "#R09-core",
+      "#T01-core",
+      "#T03-core",
+      "#T05-core",
+      "#B01-core",
+      "#B03-core",
+      "#B05-core"
+    ],
+    "B": [
+      "#L02-core",
+      "#L04-core",
+      "#L06-core",
+      "#L08-core",
+      "#L10-core",
+      "#R02-core",
+      "#R04-core",
+      "#R06-core",
+      "#R08-core",
+      "#R10-core",
+      "#T02-core",
+      "#T04-core",
+      "#T06-core",
+      "#B02-core",
+      "#B04-core",
+      "#B06-core"
+    ],
+    "C": [
+      "#LM01-core",
+      "#LM02-core",
+      "#LM03-core",
+      "#LM04-core",
+      "#LM05-core",
+      "#LM06-core",
+      "#RM01-core",
+      "#RM02-core",
+      "#RM03-core",
+      "#RM04-core",
+      "#RM05-core",
+      "#RM06-core",
+      "#BL01-core",
+      "#BL03-core",
+      "#BL05-core",
+      "#BL07-core",
+      "#BR01-core",
+      "#BR03-core",
+      "#BR05-core",
+      "#BR07-core"
+    ],
+    "D": [
+      "#BL02-core",
+      "#BL04-core",
+      "#BL06-core",
+      "#BL08-core",
+      "#BR02-core",
+      "#BR04-core",
+      "#BR06-core",
+      "#BR08-core"
+    ]
+  },
+  "circuit_regions": {
+    "left-major": [
+      "#L01-core",
+      "#L02-core",
+      "#L03-core",
+      "#L04-core",
+      "#L05-core",
+      "#L06-core",
+      "#L07-core",
+      "#L08-core",
+      "#L09-core",
+      "#L10-core"
+    ],
+    "right-major": [
+      "#R01-core",
+      "#R02-core",
+      "#R03-core",
+      "#R04-core",
+      "#R05-core",
+      "#R06-core",
+      "#R07-core",
+      "#R08-core",
+      "#R09-core",
+      "#R10-core"
+    ],
+    "left-minor": [
+      "#LM01-core",
+      "#LM02-core",
+      "#LM03-core",
+      "#LM04-core",
+      "#LM05-core",
+      "#LM06-core"
+    ],
+    "right-minor": [
+      "#RM01-core",
+      "#RM02-core",
+      "#RM03-core",
+      "#RM04-core",
+      "#RM05-core",
+      "#RM06-core"
+    ],
+    "top-center": [
+      "#T01-core",
+      "#T02-core",
+      "#T03-core",
+      "#T04-core",
+      "#T05-core",
+      "#T06-core"
+    ],
+    "bottom-center": [
+      "#B01-core",
+      "#B02-core",
+      "#B03-core",
+      "#B04-core",
+      "#B05-core",
+      "#B06-core"
+    ],
+    "left-branch": [
+      "#BL01-core",
+      "#BL02-core",
+      "#BL03-core",
+      "#BL04-core",
+      "#BL05-core",
+      "#BL06-core",
+      "#BL07-core",
+      "#BL08-core"
+    ],
+    "right-branch": [
+      "#BR01-core",
+      "#BR02-core",
+      "#BR03-core",
+      "#BR04-core",
+      "#BR05-core",
+      "#BR06-core",
+      "#BR07-core",
+      "#BR08-core"
+    ]
+  },
+  "components": {
+    "radars": {
+      "radar-tl": [
+        "#radar-tl-ring-outer",
+        "#radar-tl-ring-mid",
+        "#radar-tl-ring-inner",
+        "#radar-tl-center",
+        "#radar-tl-spoke-east",
+        "#radar-tl-node-east",
+        "#radar-tl-spoke-south",
+        "#radar-tl-node-south",
+        "#radar-tl-spoke-west",
+        "#radar-tl-node-west",
+        "#radar-tl-spoke-north",
+        "#radar-tl-node-north"
+      ],
+      "radar-tr": [
+        "#radar-tr-ring-outer",
+        "#radar-tr-ring-mid",
+        "#radar-tr-ring-inner",
+        "#radar-tr-center",
+        "#radar-tr-spoke-east",
+        "#radar-tr-node-east",
+        "#radar-tr-spoke-south",
+        "#radar-tr-node-south",
+        "#radar-tr-spoke-west",
+        "#radar-tr-node-west",
+        "#radar-tr-spoke-north",
+        "#radar-tr-node-north"
+      ],
+      "radar-bl": [
+        "#radar-bl-ring-outer",
+        "#radar-bl-ring-mid",
+        "#radar-bl-ring-inner",
+        "#radar-bl-center",
+        "#radar-bl-spoke-east",
+        "#radar-bl-node-east",
+        "#radar-bl-spoke-south",
+        "#radar-bl-node-south",
+        "#radar-bl-spoke-west",
+        "#radar-bl-node-west",
+        "#radar-bl-spoke-north",
+        "#radar-bl-node-north"
+      ],
+      "radar-br": [
+        "#radar-br-ring-outer",
+        "#radar-br-ring-mid",
+        "#radar-br-ring-inner",
+        "#radar-br-center",
+        "#radar-br-spoke-east",
+        "#radar-br-node-east",
+        "#radar-br-spoke-south",
+        "#radar-br-node-south",
+        "#radar-br-spoke-west",
+        "#radar-br-node-west",
+        "#radar-br-spoke-north",
+        "#radar-br-node-north"
+      ]
+    },
+    "chips": {
+      "chip-left": [
+        "#chip-left-die",
+        "#chip-left-pin-01",
+        "#chip-left-pin-02",
+        "#chip-left-pin-03",
+        "#chip-left-pin-04",
+        "#chip-left-pin-05",
+        "#chip-left-pin-06",
+        "#chip-left-pin-07",
+        "#chip-left-pin-08",
+        "#chip-left-pin-09",
+        "#chip-left-pin-10",
+        "#chip-left-pin-11",
+        "#chip-left-pin-12",
+        "#chip-left-pin-13",
+        "#chip-left-pin-14",
+        "#chip-left-pin-15",
+        "#chip-left-pin-16",
+        "#chip-left-pin-17",
+        "#chip-left-pin-18",
+        "#chip-left-pin-19",
+        "#chip-left-pin-20",
+        "#chip-left-pin-21",
+        "#chip-left-pin-22",
+        "#chip-left-pin-23",
+        "#chip-left-pin-24",
+        "#chip-left-orientation-dot"
+      ],
+      "chip-right": [
+        "#chip-right-die",
+        "#chip-right-pin-01",
+        "#chip-right-pin-02",
+        "#chip-right-pin-03",
+        "#chip-right-pin-04",
+        "#chip-right-pin-05",
+        "#chip-right-pin-06",
+        "#chip-right-pin-07",
+        "#chip-right-pin-08",
+        "#chip-right-pin-09",
+        "#chip-right-pin-10",
+        "#chip-right-pin-11",
+        "#chip-right-pin-12",
+        "#chip-right-pin-13",
+        "#chip-right-pin-14",
+        "#chip-right-pin-15",
+        "#chip-right-pin-16",
+        "#chip-right-pin-17",
+        "#chip-right-pin-18",
+        "#chip-right-pin-19",
+        "#chip-right-pin-20",
+        "#chip-right-pin-21",
+        "#chip-right-pin-22",
+        "#chip-right-pin-23",
+        "#chip-right-pin-24",
+        "#chip-right-orientation-dot"
+      ]
+    },
+    "vias": [
+      "#via-01-ring",
+      "#via-01-core",
+      "#via-02-ring",
+      "#via-02-core",
+      "#via-03-ring",
+      "#via-03-core",
+      "#via-04-ring",
+      "#via-04-core",
+      "#via-05-ring",
+      "#via-05-core",
+      "#via-06-ring",
+      "#via-06-core",
+      "#via-07-ring",
+      "#via-07-core",
+      "#via-08-ring",
+      "#via-08-core",
+      "#via-09-ring",
+      "#via-09-core",
+      "#via-10-ring",
+      "#via-10-core",
+      "#via-11-ring",
+      "#via-11-core",
+      "#via-12-ring",
+      "#via-12-core",
+      "#via-13-ring",
+      "#via-13-core",
+      "#via-14-ring",
+      "#via-14-core",
+      "#via-15-ring",
+      "#via-15-core",
+      "#via-16-ring",
+      "#via-16-core",
+      "#via-17-ring",
+      "#via-17-core",
+      "#via-18-ring",
+      "#via-18-core",
+      "#via-19-ring",
+      "#via-19-core",
+      "#via-20-ring",
+      "#via-20-core",
+      "#via-21-ring",
+      "#via-21-core",
+      "#via-22-ring",
+      "#via-22-core",
+      "#via-23-ring",
+      "#via-23-core",
+      "#via-24-ring",
+      "#via-24-core",
+      "#via-25-ring",
+      "#via-25-core",
+      "#via-26-ring",
+      "#via-26-core",
+      "#via-27-ring",
+      "#via-27-core",
+      "#via-28-ring",
+      "#via-28-core",
+      "#via-29-ring",
+      "#via-29-core",
+      "#via-30-ring",
+      "#via-30-core",
+      "#via-31-ring",
+      "#via-31-core",
+      "#via-32-ring",
+      "#via-32-core",
+      "#via-33-ring",
+      "#via-33-core",
+      "#via-34-ring",
+      "#via-34-core",
+      "#via-35-ring",
+      "#via-35-core",
+      "#via-36-ring",
+      "#via-36-core"
+    ],
+    "terminals": [
+      "#term-L-01-core",
+      "#term-L-01-dot",
+      "#term-R-01-core",
+      "#term-R-01-dot",
+      "#term-L-02-core",
+      "#term-L-02-dot",
+      "#term-R-02-core",
+      "#term-R-02-dot",
+      "#term-L-03-core",
+      "#term-L-03-dot",
+      "#term-R-03-core",
+      "#term-R-03-dot",
+      "#term-L-04-core",
+      "#term-L-04-dot",
+      "#term-R-04-core",
+      "#term-R-04-dot",
+      "#term-L-05-core",
+      "#term-L-05-dot",
+      "#term-R-05-core",
+      "#term-R-05-dot",
+      "#term-L-06-core",
+      "#term-L-06-dot",
+      "#term-R-06-core",
+      "#term-R-06-dot",
+      "#term-L-07-core",
+      "#term-L-07-dot",
+      "#term-R-07-core",
+      "#term-R-07-dot",
+      "#term-L-08-core",
+      "#term-L-08-dot",
+      "#term-R-08-core",
+      "#term-R-08-dot",
+      "#term-L-09-core",
+      "#term-L-09-dot",
+      "#term-R-09-core",
+      "#term-R-09-dot",
+      "#term-L-10-core",
+      "#term-L-10-dot",
+      "#term-R-10-core",
+      "#term-R-10-dot",
+      "#term-L-11-core",
+      "#term-L-11-dot",
+      "#term-R-11-core",
+      "#term-R-11-dot",
+      "#term-L-12-core",
+      "#term-L-12-dot",
+      "#term-R-12-core",
+      "#term-R-12-dot",
+      "#term-L-13-core",
+      "#term-L-13-dot",
+      "#term-R-13-core",
+      "#term-R-13-dot",
+      "#term-L-14-core",
+      "#term-L-14-dot",
+      "#term-R-14-core",
+      "#term-R-14-dot",
+      "#term-L-15-core",
+      "#term-L-15-dot",
+      "#term-R-15-core",
+      "#term-R-15-dot",
+      "#term-L-16-core",
+      "#term-L-16-dot",
+      "#term-R-16-core",
+      "#term-R-16-dot",
+      "#term-L-17-core",
+      "#term-L-17-dot",
+      "#term-R-17-core",
+      "#term-R-17-dot",
+      "#term-L-18-core",
+      "#term-L-18-dot",
+      "#term-R-18-core",
+      "#term-R-18-dot",
+      "#term-L-19-core",
+      "#term-L-19-dot",
+      "#term-R-19-core",
+      "#term-R-19-dot",
+      "#term-T1-core",
+      "#term-T1-dot",
+      "#term-T2-core",
+      "#term-T2-dot",
+      "#term-T3-core",
+      "#term-T3-dot",
+      "#term-T4-core",
+      "#term-T4-dot",
+      "#term-B1-core",
+      "#term-B1-dot",
+      "#term-B2-core",
+      "#term-B2-dot",
+      "#term-B3-core",
+      "#term-B3-dot",
+      "#term-B4-core",
+      "#term-B4-dot"
+    ],
+    "logo": {
+      "outer-core": "#logo-outer-core",
+      "body-core": "#logo-body-core",
+      "star-core": "#logo-star-core"
+    }
+  },
+  "signals": {
+    "sub_energy": {
+      "targets": [
+        "#logo-outer-core"
+      ],
+      "recommended_range": [
+        0.35,
+        1.0
+      ],
+      "use": "logo outer emission / low-frequency weight"
+    },
+    "bass_energy": {
+      "targets": [
+        "#CIRCUIT_CORES [data-signal=\"bass_energy\"]",
+        "#TERMINALS [data-role=\"core\"]"
+      ],
+      "recommended_range": [
+        0.35,
+        1.0
+      ],
+      "use": "major circuit cores and terminal ring intensity"
+    },
+    "mid_energy": {
+      "targets": [
+        "#RADAR_COMPONENTS [data-reactive=\"true\"]",
+        "#COMPUTER_CHIPS [data-role=\"die\"]"
+      ],
+      "recommended_range": [
+        0.35,
+        1.0
+      ],
+      "use": "circular modules and chip die response"
+    },
+    "high_energy": {
+      "targets": [
+        "#VIA_CLUSTERS [data-role=\"via-ring\"]",
+        "#COMPUTER_CHIPS [data-role=\"pin\"]",
+        "#CIRCUIT_CORES [data-signal=\"high_energy\"]"
+      ],
+      "recommended_range": [
+        0.25,
+        1.0
+      ],
+      "use": "small details, chip pins, minor traces"
+    },
+    "spectral_flux": {
+      "targets": [
+        "#VIA_CLUSTERS [data-role=\"via-core\"]",
+        "#TERMINALS [data-role=\"dot\"]",
+        "#logo-star-core",
+        "#CIRCUIT_CORES [data-signal=\"spectral_flux\"]"
+      ],
+      "recommended_range": [
+        0.2,
+        1.0
+      ],
+      "use": "transient flashes and micro accents"
+    },
+    "vocal_presence": {
+      "targets": [
+        "#logo-body-core"
+      ],
+      "recommended_range": [
+        0.35,
+        1.0
+      ],
+      "use": "center cloud body / spiral presence"
+    },
+    "build_progress": {
+      "targets": [
+        "#CIRCUIT_CORES [data-region=\"top-center\"]",
+        "#CIRCUIT_CORES [data-region=\"bottom-center\"]"
+      ],
+      "recommended_range": [
+        0.25,
+        1.0
+      ],
+      "use": "progressive center-feed activation"
+    }
+  },
+  "impulses": {
+    "kick": {
+      "targets": [
+        "#TERMINALS [data-role=\"core\"]",
+        "#TERMINALS [data-role=\"dot\"]"
+      ],
+      "attack_ms": 18,
+      "release_ms": 130,
+      "effect": "opacity / subtle scale / emission pulse"
+    },
+    "snare": {
+      "targets": [
+        "#logo-outer-core"
+      ],
+      "attack_ms": 24,
+      "release_ms": 180,
+      "effect": "outer contour bloom pulse"
+    },
+    "beat": {
+      "targets": [
+        "#CIRCUIT_CORES [data-bank=\"A\"]",
+        "#CIRCUIT_CORES [data-bank=\"B\"]"
+      ],
+      "attack_ms": 20,
+      "release_ms": 160,
+      "effect": "alternate bank brightness"
+    },
+    "4-beat": {
+      "targets": [
+        "#RADAR_COMPONENTS [data-role^=\"ring\"]"
+      ],
+      "attack_ms": 40,
+      "release_ms": 320,
+      "effect": "concentric circular module pulse"
+    },
+    "8-beat": {
+      "targets": [
+        "#logo-body-core"
+      ],
+      "attack_ms": 50,
+      "release_ms": 420,
+      "effect": "cloud body / spiral illumination"
+    },
+    "phrase": {
+      "targets": [
+        "#CIRCUIT_CORES path",
+        "#COMPUTER_CHIPS [data-role=\"pin\"]"
+      ],
+      "attack_ms": 80,
+      "release_ms": 650,
+      "effect": "full-board chase / chip activation"
+    },
+    "drop": {
+      "targets": [
+        "#CIRCUIT_CORES path",
+        "#TERMINALS [data-reactive=\"true\"]",
+        "#RADAR_COMPONENTS [data-reactive=\"true\"]",
+        "#COMPUTER_CHIPS [data-reactive=\"true\"]",
+        "#LOGO [data-reactive=\"true\"]"
+      ],
+      "attack_ms": 10,
+      "release_ms": 850,
+      "effect": "global energy jump with logo priority"
+    }
+  },
+  "chase_contract": {
+    "targets": "#CIRCUIT_CORES path",
+    "pathLength": 1,
+    "recommended_dasharray": "0.10 0.90",
+    "recommended_dashoffset_range": [
+      0,
+      -1
+    ],
+    "note": "Apply dash styling only during chase events, then restore stroke-dasharray:none."
+  },
+  "runtime_guidance": {
+    "idle_emission": "Keep most reactive layers between roughly 0.35 and 0.60 effective intensity so drop events retain headroom.",
+    "performance": "Prefer opacity, stroke-dashoffset, and group-level transform changes. Avoid changing Gaussian blur radius on dozens of elements every animation frame.",
+    "selectors": "All reactive elements include data-reactive=true and stable IDs. Circuit cores additionally expose data-route, data-bank, data-region, and data-signal.",
+    "symmetry": "A/B banks are intentionally balanced across left/right geometry; C contains minor routes; D emphasizes branches."
+  },
+  "counts": {
+    "circuit_core_routes": 60,
+    "radar_modules": 4,
+    "computer_chips": 2,
+    "via_vector_elements": 72,
+    "reactive_terminal_elements": 92,
+    "logo_reactive_parts": 3
+  }
+}

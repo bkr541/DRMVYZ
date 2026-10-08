@@ -16,6 +16,7 @@ import { Cinema2ThreeParticleField, type Cinema2ThreeParticleSpec } from './Cine
 import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
+import type { Cinema2MainframeLightingFrame } from '../mainframe/Cinema2MainframePatternEngine'
 
 /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
 export interface Cinema2ThreePartOverrides {
@@ -91,6 +92,8 @@ export interface Cinema2ThreeSceneOptions {
    * Cinema2ThreeSegmentLighting), replacing the material's own emissive. Needs the `_SEGMENT` and `_GLOW_PHASE` vertex attributes.
    */
   segments?: Readonly<Record<string, Cinema2ThreeSegmentRole>>
+  /** Mainframe-only semantic emissive roles. Parts must carry the generated Mainframe system/bank/region/route attributes. */
+  mainframe?: Readonly<Record<string, Cinema2ThreeMainframeRole>>
   /**
    * The engine target is a float target and the preset tone-maps later (`config.hdr`): segment light is emitted unrolled, above 1. Ignored
    * where the GPU cannot render to float textures (the preset's targets then fall back to 8-bit).
@@ -119,6 +122,24 @@ export interface Cinema2ThreeSegmentDraw {
    */
   core?: number
   frame: Readonly<Cinema2ThreeSegmentFrame>
+}
+
+export type Cinema2ThreeMainframeRole = 'circuit' | 'indicator' | 'radar' | 'chip' | 'logo'
+
+export interface Cinema2ThreeMainframeDraw {
+  readonly circuitColor: readonly [number, number, number]
+  readonly indicatorColor: readonly [number, number, number]
+  readonly logoColor: readonly [number, number, number]
+  readonly strength: number
+  readonly frame: Readonly<Cinema2MainframeLightingFrame>
+}
+
+/** Optional per-draw placement used by dedicated native modules that share the Three bridge. */
+export interface Cinema2ThreeDrawPlacement {
+  /** Uniform scale about the model origin. The Scene Graph placement is still applied first. */
+  scale?: number
+  /** Visibility by mesh or material name. Unlisted parts remain visible. */
+  parts?: Readonly<Record<string, boolean>>
 }
 
 export interface Cinema2ThreeBridgeDiagnostic {
@@ -204,6 +225,7 @@ export class Cinema2ThreeSceneBridge {
   private readonly lightRig: Cinema2ThreeLightRig
   private readonly placed: PlacedInstance[] = []
   private readonly spinMatrix: ThreeNamespace.Matrix4
+  private readonly scaleMatrix: ThreeNamespace.Matrix4
   private readonly pendingTextures: ThreeNamespace.Texture[] = []
   private readonly guard: Cinema2GlStateGuard
   private stage: WarmStage = 'environment'
@@ -222,6 +244,8 @@ export class Cinema2ThreeSceneBridge {
   private readonly glowUniforms: GlowUniforms
   /** Shared by every segment-lit material. */
   private readonly segmentUniforms: SegmentUniforms
+  /** Shared by the five independently colored Mainframe emissive material families. */
+  private readonly mainframeUniforms: MainframeUniforms
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -238,6 +262,7 @@ export class Cinema2ThreeSceneBridge {
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera()
     this.spinMatrix = new THREE.Matrix4()
+    this.scaleMatrix = new THREE.Matrix4()
     this.lightRig = new Cinema2ThreeLightRig(THREE, this.scene)
     // A render target that only points at the engine's framebuffer: Three allocates nothing for it. Flagged like an XR target
     // so Three encodes display-referred sRGB itself (the engine's targets are plain RGBA8 with no hardware sRGB write).
@@ -264,6 +289,21 @@ export class Cinema2ThreeSceneBridge {
       uCinema2SegGain: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2SegCore: { value: 0 },
       uCinema2SegHdr: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') != null ? 1 : 0 },
+    }
+    this.mainframeUniforms = {
+      uCinema2MainframeCircuit: { value: new THREE.Color(0.24, 1, 0.12) },
+      uCinema2MainframeIndicator: { value: new THREE.Color(0.4, 1, 0.22) },
+      uCinema2MainframeLogo: { value: new THREE.Color(0.3, 1, 0.18) },
+      uCinema2MainframeStrength: { value: 0 },
+      uCinema2MainframeState0: { value: new THREE.Vector4(0, 0, -10, 0.1) },
+      uCinema2MainframeState1: { value: new THREE.Vector4(0, 1, 0, 0) },
+      uCinema2MainframeBanks: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeRegions0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeRegions1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeSystems0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeSystems1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeSystems2: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeHdr: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') != null ? 1 : 0 },
     }
 
     for (const instance of instances) {
@@ -358,6 +398,8 @@ export class Cinema2ThreeSceneBridge {
     spinRadians = 0,
     glow: Readonly<Cinema2ThreeGlowDraw> | null = null,
     segments: Readonly<Cinema2ThreeSegmentDraw> | null = null,
+    placement: Readonly<Cinema2ThreeDrawPlacement> | null = null,
+    mainframe: Readonly<Cinema2ThreeMainframeDraw> | null = null,
   ): void {
     if (this.disposed) return
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
@@ -374,7 +416,9 @@ export class Cinema2ThreeSceneBridge {
       this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
       this.applyGlow(glow)
       this.applySegments(segments)
-      this.place(exec, spinRadians)
+      this.applyMainframe(mainframe)
+      this.applyPartVisibility(placement?.parts ?? null)
+      this.place(exec, spinRadians, placement?.scale ?? 1)
       applyCinema2CameraFrame(this.camera, camera)
       if (this.particleFields.length > 0) {
         const scale = (exec.height * this.camera.projectionMatrix.elements[5]!) / 2
@@ -422,8 +466,9 @@ export class Cinema2ThreeSceneBridge {
     return this.scene.environment != null
   }
 
-  private place(exec: Cinema2ModuleRenderExecutionContext, spinRadians: number): void {
+  private place(exec: Cinema2ModuleRenderExecutionContext, spinRadians: number, scale: number): void {
     const nodes = exec.spatialNodes ?? []
+    const resolvedScale = Number.isFinite(scale) ? Math.max(0.01, scale) : 1
     for (const placed of this.placed) {
       const node = placed.node ? nodes.find(candidate => candidate.id === placed.node) : null
       if (placed.node && !node) { placed.root.visible = false; continue }
@@ -432,7 +477,17 @@ export class Cinema2ThreeSceneBridge {
       else placed.root.matrix.identity()
       // A turntable spin: about the instance's own vertical axis, applied after the node's placement.
       if (placed.spin && spinRadians !== 0) placed.root.matrix.multiply(this.spinMatrix.makeRotationY(spinRadians))
+      if (resolvedScale !== 1) placed.root.matrix.multiply(this.scaleMatrix.makeScale(resolvedScale, resolvedScale, resolvedScale))
       placed.root.matrixWorldNeedsUpdate = true
+    }
+  }
+
+  private applyPartVisibility(parts: Readonly<Record<string, boolean>> | null): void {
+    for (const { materials } of this.placed) {
+      for (const owned of materials) {
+        const requested = parts?.[owned.part] ?? parts?.[owned.materialName]
+        owned.slot.mesh.visible = requested ?? true
+      }
     }
   }
 
@@ -510,6 +565,18 @@ export class Cinema2ThreeSceneBridge {
     return role && geometry.getAttribute(CINEMA2_SEGMENT_ATTRIBUTE) && geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE) ? role : null
   }
 
+  private mainframeRoleOf(owned: Readonly<OwnedMaterial>): Cinema2ThreeMainframeRole | null {
+    const role = this.options.mainframe?.[owned.part] ?? this.options.mainframe?.[owned.materialName]
+    const geometry = owned.slot.mesh.geometry
+    return role && geometry.getAttribute(CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE)
+      && geometry.getAttribute(CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE)
+      && geometry.getAttribute(CINEMA2_MAINFRAME_BANK_ATTRIBUTE)
+      && geometry.getAttribute(CINEMA2_MAINFRAME_REGION_ATTRIBUTE)
+      && geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)
+      ? role
+      : null
+  }
+
   private decorate(owned: OwnedMaterial): void {
     const material = owned.material
     const geometry = owned.slot.mesh.geometry
@@ -524,6 +591,18 @@ export class Cinema2ThreeSceneBridge {
         addSegmentLighting(shader, segmentShared, roleUniform)
       }
       material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-segments`
+      material.needsUpdate = true
+      return
+    }
+    const mainframeRole = this.mainframeRoleOf(owned)
+    if (mainframeRole) {
+      const roleUniform = { value: cinema2MainframeRoleCode(mainframeRole) }
+      const mainframeShared = this.mainframeUniforms
+      material.onBeforeCompile = shader => {
+        if (film) addVertexFilmThickness(shader)
+        addMainframeLighting(shader, mainframeShared, roleUniform)
+      }
+      material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-mainframe`
       material.needsUpdate = true
       return
     }
@@ -567,6 +646,24 @@ export class Cinema2ThreeSceneBridge {
     const f = frame.fronts, g = frame.gains
     uniforms.uCinema2SegFront.value.set(f[0] ?? -10, f[1] ?? -10, f[2] ?? -10, f[3] ?? -10)
     uniforms.uCinema2SegGain.value.set(g[0] ?? 0, g[1] ?? 0, g[2] ?? 0, g[3] ?? 0)
+  }
+
+  private applyMainframe(draw: Readonly<Cinema2ThreeMainframeDraw> | null): void {
+    const uniforms = this.mainframeUniforms
+    if (!draw || !draw.frame.active) { uniforms.uCinema2MainframeStrength.value = 0; return }
+    const { frame } = draw
+    uniforms.uCinema2MainframeCircuit.value.setRGB(draw.circuitColor[0], draw.circuitColor[1], draw.circuitColor[2], this.library.THREE.SRGBColorSpace)
+    uniforms.uCinema2MainframeIndicator.value.setRGB(draw.indicatorColor[0], draw.indicatorColor[1], draw.indicatorColor[2], this.library.THREE.SRGBColorSpace)
+    uniforms.uCinema2MainframeLogo.value.setRGB(draw.logoColor[0], draw.logoColor[1], draw.logoColor[2], this.library.THREE.SRGBColorSpace)
+    uniforms.uCinema2MainframeStrength.value = Math.max(0, draw.strength)
+    uniforms.uCinema2MainframeState0.value.set(frame.beats % 4096, frame.level, frame.chaseFront, frame.chaseWidth)
+    uniforms.uCinema2MainframeState1.value.set(frame.chaseGain, frame.chaseDirection, frame.flicker, 1)
+    uniforms.uCinema2MainframeBanks.value.set(...frame.bankWeights)
+    uniforms.uCinema2MainframeRegions0.value.set(frame.regionWeights[0], frame.regionWeights[1], frame.regionWeights[2], frame.regionWeights[3])
+    uniforms.uCinema2MainframeRegions1.value.set(frame.regionWeights[4], frame.regionWeights[5], frame.regionWeights[6], frame.regionWeights[7])
+    uniforms.uCinema2MainframeSystems0.value.set(frame.systemGains[0], frame.systemGains[1], frame.systemGains[2], frame.systemGains[3])
+    uniforms.uCinema2MainframeSystems1.value.set(frame.systemGains[4], frame.systemGains[5], frame.systemGains[6], frame.systemGains[7])
+    uniforms.uCinema2MainframeSystems2.value.set(frame.systemGains[8], 0, 0, 0)
   }
 
   private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
@@ -870,6 +967,108 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
 
 // The shader loop unrolls over the wave count; keep the two modules agreeing.
 if (CINEMA2_THREE_SEGMENT_WAVE_COUNT !== 4) throw new Error('Cinema 2.0 segment lighting packs its waves into vec4 uniforms.')
+
+export const CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE = '_mainframe_route'
+export const CINEMA2_MAINFRAME_BANK_ATTRIBUTE = '_mainframe_bank'
+export const CINEMA2_MAINFRAME_REGION_ATTRIBUTE = '_mainframe_region'
+export const CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE = '_mainframe_system'
+
+interface MainframeUniforms {
+  uCinema2MainframeCircuit: { value: ThreeNamespace.Color }
+  uCinema2MainframeIndicator: { value: ThreeNamespace.Color }
+  uCinema2MainframeLogo: { value: ThreeNamespace.Color }
+  uCinema2MainframeStrength: { value: number }
+  uCinema2MainframeState0: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeState1: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeBanks: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeRegions0: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeRegions1: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeSystems0: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeSystems1: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeSystems2: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeHdr: { value: number }
+}
+
+function cinema2MainframeRoleCode(role: Cinema2ThreeMainframeRole): number {
+  return role === 'circuit' ? 0 : role === 'indicator' ? 1 : role === 'radar' ? 2 : role === 'chip' ? 3 : 4
+}
+
+function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, role: { value: number }): void {
+  Object.assign(shader.uniforms, shared, { uCinema2MainframeRole: role })
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', [
+      '#include <common>',
+      `attribute float ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+      `attribute float ${CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE};`,
+      `attribute float ${CINEMA2_MAINFRAME_BANK_ATTRIBUTE};`,
+      `attribute float ${CINEMA2_MAINFRAME_REGION_ATTRIBUTE};`,
+      `attribute float ${CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE};`,
+      'varying vec4 vCinema2MainframeMeta;',
+      'varying float vCinema2MainframePhase;',
+    ].join('\n'))
+    .replace('#include <begin_vertex>', [
+      '#include <begin_vertex>',
+      `vCinema2MainframeMeta = vec4( ${CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE}, ${CINEMA2_MAINFRAME_BANK_ATTRIBUTE}, ${CINEMA2_MAINFRAME_REGION_ATTRIBUTE}, ${CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE} );`,
+      `vCinema2MainframePhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+    ].join('\n'))
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', [
+      '#include <common>',
+      'uniform vec3 uCinema2MainframeCircuit;',
+      'uniform vec3 uCinema2MainframeIndicator;',
+      'uniform vec3 uCinema2MainframeLogo;',
+      'uniform float uCinema2MainframeStrength;',
+      'uniform float uCinema2MainframeRole;',
+      'uniform float uCinema2MainframeHdr;',
+      'uniform vec4 uCinema2MainframeState0;',
+      'uniform vec4 uCinema2MainframeState1;',
+      'uniform vec4 uCinema2MainframeBanks;',
+      'uniform vec4 uCinema2MainframeRegions0;',
+      'uniform vec4 uCinema2MainframeRegions1;',
+      'uniform vec4 uCinema2MainframeSystems0;',
+      'uniform vec4 uCinema2MainframeSystems1;',
+      'uniform vec4 uCinema2MainframeSystems2;',
+      'varying vec4 vCinema2MainframeMeta;',
+      'varying float vCinema2MainframePhase;',
+      'float cinema2MainframePick4( vec4 values, float index ) {',
+      '  return index < 0.5 ? values.x : ( index < 1.5 ? values.y : ( index < 2.5 ? values.z : values.w ) );',
+      '}',
+      'float cinema2MainframeSystem( float index ) {',
+      '  return index < 3.5 ? cinema2MainframePick4( uCinema2MainframeSystems0, index )',
+      '    : ( index < 7.5 ? cinema2MainframePick4( uCinema2MainframeSystems1, index - 4.0 ) : uCinema2MainframeSystems2.x );',
+      '}',
+    ].join('\n'))
+    .replace('#include <emissivemap_fragment>', [
+      '#include <emissivemap_fragment>',
+      'float cinema2MFRoute = vCinema2MainframeMeta.x;',
+      'float cinema2MFBank = vCinema2MainframeMeta.y;',
+      'float cinema2MFRegion = vCinema2MainframeMeta.z;',
+      'float cinema2MFSystem = vCinema2MainframeMeta.w;',
+      'float cinema2MFBankLight = cinema2MFBank < -0.5 ? 0.0 : cinema2MainframePick4( uCinema2MainframeBanks, cinema2MFBank );',
+      'float cinema2MFRegionLight = cinema2MFRegion < -0.5 ? 0.0 : ( cinema2MFRegion < 3.5',
+      '  ? cinema2MainframePick4( uCinema2MainframeRegions0, cinema2MFRegion )',
+      '  : cinema2MainframePick4( uCinema2MainframeRegions1, cinema2MFRegion - 4.0 ) );',
+      'float cinema2MFTravel = uCinema2MainframeState1.y > 0.0 ? vCinema2MainframePhase : 1.0 - vCinema2MainframePhase;',
+      'float cinema2MFDistance = ( cinema2MFTravel - uCinema2MainframeState0.z ) / max( 0.025, uCinema2MainframeState0.w );',
+      'float cinema2MFWave = exp( - cinema2MFDistance * cinema2MFDistance ) * uCinema2MainframeState1.x;',
+      'float cinema2MFBase = uCinema2MainframeRole < 0.5 ? 1.55 : ( uCinema2MainframeRole < 3.5 ? 1.35 : 2.0 );',
+      'float cinema2MFLight = cinema2MFBase + cinema2MainframeSystem( cinema2MFSystem );',
+      'if ( cinema2MFSystem > 0.5 && cinema2MFSystem < 1.5 ) cinema2MFLight += 0.48 * cinema2MFBankLight + 0.52 * cinema2MFRegionLight + 2.2 * cinema2MFWave;',
+      'else if ( cinema2MFSystem > 3.5 && cinema2MFSystem < 5.5 ) cinema2MFLight += 0.85 * cinema2MFWave;',
+      'float cinema2MFNoise = sin( uCinema2MainframeState0.x * 5.7 + cinema2MFRoute * 17.3 + vCinema2MainframePhase * 31.0 );',
+      'cinema2MFLight *= 1.0 + cinema2MFNoise * uCinema2MainframeState1.z * 0.16;',
+      'vec3 cinema2MFColor = uCinema2MainframeRole < 0.5 ? uCinema2MainframeCircuit',
+      '  : ( uCinema2MainframeRole < 3.5 ? uCinema2MainframeIndicator : uCinema2MainframeLogo );',
+      'float cinema2MFFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
+      'float cinema2MFHot = pow( cinema2MFFacing, 6.0 ) * smoothstep( 0.18, 0.8, cinema2MFLight );',
+      'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.55 )',
+      '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) );',
+      'vec3 cinema2MFFinal = mix( 1.0 - exp( - cinema2MFEmission ), cinema2MFEmission, uCinema2MainframeHdr );',
+      // Static/no-source rendering retains the approved Stage 3 material. During playback the semantic shader owns emission so its dark-to-hot
+      // range remains visible instead of adding a small modulation on top of an already-bright material.
+      'totalEmissiveRadiance = mix( totalEmissiveRadiance, cinema2MFFinal, step( 0.0001, uCinema2MainframeStrength ) );',
+    ].join('\n'))
+}
 
 const initializedAreaLightTables = new WeakSet<object>()
 

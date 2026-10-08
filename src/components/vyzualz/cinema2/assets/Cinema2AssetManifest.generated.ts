@@ -136,6 +136,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-mainframe",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/mainframe.glb",
+        "bytes": 8190252,
+        "triangles": 149932
+      }
+    },
+    "gpuBytes": {
+      "high": 8169064,
+      "medium": 8169064,
+      "low": 8169064
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

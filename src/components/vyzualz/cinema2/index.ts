@@ -512,6 +512,7 @@ export {
   type Cinema2ThreeSceneModuleState,
 } from './modules/Cinema2ThreeSceneModule'
 export {
+  CINEMA2_MAINFRAME_ASSET_ID,
   CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID,
   CINEMA2_SAY_IT_GLYPH_ASSET_ID,
   cinema2ThreeAssetRegistry,
@@ -648,6 +649,30 @@ export {
   CINEMA2_CONDUIT_PRESET_ID,
   CINEMA2_CONDUIT_PRESET_MANIFEST,
 } from './presets/Cinema2ConduitPreset'
+export {
+  CINEMA2_MAINFRAME_BACKGROUND_ID,
+  CINEMA2_MAINFRAME_BPM_SYNC_ID,
+  CINEMA2_MAINFRAME_CAMERA_ID,
+  CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID,
+  CINEMA2_MAINFRAME_DEFAULT_BACKGROUND,
+  CINEMA2_MAINFRAME_DEFAULT_CIRCUITS,
+  CINEMA2_MAINFRAME_DEFAULT_INDICATORS,
+  CINEMA2_MAINFRAME_DEFAULT_LOGO,
+  CINEMA2_MAINFRAME_ENABLE_CHIP_ID,
+  CINEMA2_MAINFRAME_ENABLE_RADAR_ID,
+  CINEMA2_MAINFRAME_INDICATORS_COLOR_ID,
+  CINEMA2_MAINFRAME_LOGO_COLOR_ID,
+  CINEMA2_MAINFRAME_MASTER_INTENSITY_ID,
+  CINEMA2_MAINFRAME_MODULE_ID,
+  CINEMA2_MAINFRAME_PATTERN_CHANGE_ID,
+  CINEMA2_MAINFRAME_PATTERN_ID,
+  CINEMA2_MAINFRAME_PATTERN_LABELS,
+  CINEMA2_MAINFRAME_PATTERN_OPTIONS,
+  CINEMA2_MAINFRAME_PRESET_ID,
+  CINEMA2_MAINFRAME_PRESET_MANIFEST,
+  CINEMA2_MAINFRAME_SCALE_ID,
+  CINEMA2_MAINFRAME_TRIGGER_ID,
+} from './presets/Cinema2MainframePreset'
 export {
   CINEMA2_THRESHOLD_ACCENT_COLOR_ID,
   CINEMA2_THRESHOLD_ATMOSPHERE_COLOR_ID,
@@ -798,6 +823,8 @@ export {
   CINEMA2_AFTERHOURS_SYMMETRY_ID,
   CINEMA2_AFTERHOURS_TOP_LASERS_ID,
   CINEMA2_AFTERHOURS_TRIGGER_ID,
+  CINEMA2_AFTERHOURS_TRIGGER_LABELS,
+  CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
 } from './presets/Cinema2AfterhoursPreset'
 
 export {
@@ -945,6 +972,62 @@ export {
   createCinema2DepthNativeModuleDefinition,
   type Cinema2DepthModuleInspection,
 } from './modules/Cinema2DepthNativeModule'
+
+export {
+  CINEMA2_MAINFRAME_COMPOSITION_ASPECT,
+  CINEMA2_MAINFRAME_COVER_OVERSCAN,
+  CINEMA2_MAINFRAME_MAX_SCALE,
+  CINEMA2_MAINFRAME_MIN_SCALE,
+  CINEMA2_MAINFRAME_MODEL_EXTENT_MULTIPLIER,
+  CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION,
+  CINEMA2_MAINFRAME_PARTS,
+  cinema2MainframeNativeModuleDefinition,
+  resolveCinema2MainframeCoverScale,
+  resolveCinema2MainframeStaticFrame,
+  type Cinema2MainframeModuleState,
+  type Cinema2MainframeStaticFrame,
+} from './modules/Cinema2MainframeNativeModule'
+
+export {
+  CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+  CINEMA2_MAINFRAME_FREE_RUN_BPM,
+  CINEMA2_MAINFRAME_PATTERN_IDS,
+  Cinema2MainframeReactivityEngine,
+  evaluateCinema2MainframePattern,
+  resolveCinema2MainframeBeatClock,
+  resolveCinema2MainframeTimeSec,
+  type Cinema2MainframeLightingFrame,
+  type Cinema2MainframePatternId,
+  type Cinema2MainframePatternInput,
+} from './modules/mainframe/Cinema2MainframePatternEngine'
+
+export {
+  CINEMA2_MAINFRAME_TRIGGER_IDS,
+  Cinema2MainframePatternController,
+  createCinema2MainframePatternCycle,
+  nextCinema2MainframePattern,
+  resolveCinema2MainframeTriggerEventIdentity,
+  type Cinema2MainframePatternControllerInput,
+  type Cinema2MainframePatternSelection,
+  type Cinema2MainframeTriggerId,
+} from './modules/mainframe/Cinema2MainframePatternController'
+
+export {
+  CINEMA2_MAINFRAME_BANKS,
+  CINEMA2_MAINFRAME_IMPULSES,
+  CINEMA2_MAINFRAME_IMPULSE_IDS,
+  CINEMA2_MAINFRAME_REGIONS,
+  CINEMA2_MAINFRAME_SIGNAL_IDS,
+  CINEMA2_MAINFRAME_SYSTEMS,
+  type Cinema2MainframeBank,
+  type Cinema2MainframeImpulseId,
+  type Cinema2MainframeImpulses,
+  type Cinema2MainframeRegion,
+  type Cinema2MainframeSignalId,
+  type Cinema2MainframeSignals,
+  type Cinema2MainframeSystem,
+} from './modules/mainframe/Cinema2MainframeReactivity'
 
 export {
   CINEMA2_DEPTH_INSTANCE_FLOATS,
