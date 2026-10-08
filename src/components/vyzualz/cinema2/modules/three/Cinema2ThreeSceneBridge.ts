@@ -17,6 +17,7 @@ import type { Cinema2ThreeLoadedAsset } from './Cinema2ThreeAssetCache'
 import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
 import type { Cinema2MainframeLightingFrame } from '../mainframe/Cinema2MainframePatternEngine'
+import { resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
 
 /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
 export interface Cinema2ThreePartOverrides {
@@ -124,7 +125,7 @@ export interface Cinema2ThreeSegmentDraw {
   frame: Readonly<Cinema2ThreeSegmentFrame>
 }
 
-export type Cinema2ThreeMainframeRole = 'circuit' | 'circuitHousing' | 'indicator' | 'radar' | 'chip' | 'logo'
+export type Cinema2ThreeMainframeRole = 'circuit' | 'circuitHousing' | 'indicator' | 'radar' | 'chip' | 'logo' | 'radarHousing' | 'chipHousing'
 
 export interface Cinema2ThreeMainframeDraw {
   readonly circuitColor: readonly [number, number, number]
@@ -298,6 +299,7 @@ export class Cinema2ThreeSceneBridge {
       uCinema2MainframeState0: { value: new THREE.Vector4(0, 0, -10, 0.1) },
       uCinema2MainframeState1: { value: new THREE.Vector4(0, 1, 0, 0) },
       uCinema2MainframeCircuitResponse: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2MainframeHardware: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeBanks: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeRegions0: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeRegions1: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -670,6 +672,7 @@ export class Cinema2ThreeSceneBridge {
         : frame.pattern === 'radar-sweep' ? 3
           : frame.pattern === 'system-surge' ? 4 : 0
     uniforms.uCinema2MainframeCircuitResponse.value.set(frame.circuitEnergy, frame.circuitAccent, frame.circuitPulse, circuitMode)
+    uniforms.uCinema2MainframeHardware.value.set(...resolveCinema2MainframeHardwareLighting(frame))
     uniforms.uCinema2MainframeBanks.value.set(...frame.bankWeights)
     uniforms.uCinema2MainframeRegions0.value.set(frame.regionWeights[0], frame.regionWeights[1], frame.regionWeights[2], frame.regionWeights[3])
     uniforms.uCinema2MainframeRegions1.value.set(frame.regionWeights[4], frame.regionWeights[5], frame.regionWeights[6], frame.regionWeights[7])
@@ -1004,6 +1007,7 @@ interface MainframeUniforms {
   uCinema2MainframeState0: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeState1: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeCircuitResponse: { value: ThreeNamespace.Vector4 }
+  uCinema2MainframeHardware: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeBanks: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeRegions0: { value: ThreeNamespace.Vector4 }
   uCinema2MainframeRegions1: { value: ThreeNamespace.Vector4 }
@@ -1014,7 +1018,8 @@ interface MainframeUniforms {
 }
 
 function cinema2MainframeRoleCode(role: Cinema2ThreeMainframeRole): number {
-  return role === 'circuit' ? 0 : role === 'indicator' ? 1 : role === 'radar' ? 2 : role === 'chip' ? 3 : role === 'logo' ? 4 : 5
+  return role === 'circuit' ? 0 : role === 'indicator' ? 1 : role === 'radar' ? 2 : role === 'chip' ? 3 : role === 'logo' ? 4
+    : role === 'circuitHousing' ? 5 : role === 'radarHousing' ? 6 : 7
 }
 
 function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, role: { value: number }): void {
@@ -1029,11 +1034,16 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       `attribute float ${CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE};`,
       'varying vec4 vCinema2MainframeMeta;',
       'varying float vCinema2MainframePhase;',
+      'varying vec2 vCinema2MainframeCycle;',
     ].join('\n'))
     .replace('#include <begin_vertex>', [
       '#include <begin_vertex>',
       `vCinema2MainframeMeta = vec4( ${CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE}, ${CINEMA2_MAINFRAME_BANK_ATTRIBUTE}, ${CINEMA2_MAINFRAME_REGION_ATTRIBUTE}, ${CINEMA2_MAINFRAME_SYSTEM_ATTRIBUTE} );`,
       `vCinema2MainframePhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+      // Carry a periodic unit vector as well as the raw phase: the shipped
+      // rings have a 0/1 seam. Interpolating raw phase across it makes a
+      // visible backwards streak; interpolating (cos,sin) does not.
+      `vCinema2MainframeCycle = vec2( cos( ${CINEMA2_GLOW_PHASE_ATTRIBUTE} * 6.2831853 ), sin( ${CINEMA2_GLOW_PHASE_ATTRIBUTE} * 6.2831853 ) );`,
     ].join('\n'))
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', [
@@ -1047,6 +1057,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       'uniform vec4 uCinema2MainframeState0;',
       'uniform vec4 uCinema2MainframeState1;',
       'uniform vec4 uCinema2MainframeCircuitResponse;',
+      'uniform vec4 uCinema2MainframeHardware;',
       'uniform vec4 uCinema2MainframeBanks;',
       'uniform vec4 uCinema2MainframeRegions0;',
       'uniform vec4 uCinema2MainframeRegions1;',
@@ -1055,6 +1066,7 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       'uniform vec4 uCinema2MainframeSystems2;',
       'varying vec4 vCinema2MainframeMeta;',
       'varying float vCinema2MainframePhase;',
+      'varying vec2 vCinema2MainframeCycle;',
       'float cinema2MainframePick4( vec4 values, float index ) {',
       '  return index < 0.5 ? values.x : ( index < 1.5 ? values.y : ( index < 2.5 ? values.z : values.w ) );',
       '}',
@@ -1112,11 +1124,59 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       '  float poweredLight = ( 0.08 + 2.2 * energy + 1.1 * accent + 0.65 * cinema2MFSystemLight ) * selection;',
       '  float coreLight = 0.035 + poweredLight + movingLight;',
       '  cinema2MFLight = uCinema2MainframeRole > 4.5 ? 0.12 * poweredLight : coreLight;',
-      '} else if ( cinema2MFSystem > 3.5 && cinema2MFSystem < 5.5 ) cinema2MFLight += 5.0 * cinema2MFWave;',
+      // Terminals, vias, radars and chips use separate, audio-driven channels.
+      // _MAINFRAME_ROUTE is a *component detail* ID on hardware, never a circuit
+      // route ID. No geometry is created by this shader.
+      '} else if ( cinema2MFSystem > 1.5 && cinema2MFSystem < 5.5 ) {',
+      '  float hwSelection = 1.0;',
+      '  float hwMode = uCinema2MainframeCircuitResponse.w;',
+      '  if ( hwMode > 0.5 && hwMode < 1.5 && cinema2MFBank > -0.5 ) hwSelection = 0.32 + 0.68 * cinema2MFBankLight;',
+      '  else if ( hwMode > 1.5 && hwMode < 2.5 && cinema2MFRegion > -0.5 ) hwSelection = 0.32 + 0.68 * cinema2MFRegionLight;',
+      '  else if ( hwMode > 3.5 && cinema2MFRegion > -0.5 ) hwSelection = 0.42 + 0.58 * cinema2MFRegionLight;',
+      '  float hwPhase = fract( atan( vCinema2MainframeCycle.y, vCinema2MainframeCycle.x ) / 6.2831853 + 1.0',
+      '    + ( cinema2MFRoute > 1.5 && cinema2MFRoute < 2.5 ? 0.24 : 0.0 ) );',
+      '  float hwFront = fract( uCinema2MainframeState0.z );',
+      '  float hwDelta = abs( hwPhase - hwFront );',
+      '  hwDelta = min( hwDelta, 1.0 - hwDelta );',
+      '  float hwSweep = exp( -pow( hwDelta / max( 0.045, uCinema2MainframeState0.w ), 2.0 ) );',
+      '  if ( cinema2MFSystem < 2.5 ) {',
+      '    // Short kick/transient-driven flashes, never a continuously lit terminal bank.',
+      '    cinema2MFLight = 0.035 + 6.0 * ( uCinema2MainframeHardware.x + 0.20 * cinema2MFSystemLight );',
+      '  } else if ( cinema2MFSystem < 3.5 ) {',
+      '    // High-frequency LED/via activity; outer power-node rings also carry a sweep.',
+      '    float hwRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 1.5 ? 0.32 + 0.68 * hwSweep : 1.0;',
+      '    cinema2MFLight = 0.035 + 5.4 * ( uCinema2MainframeHardware.y + 0.19 * cinema2MFSystemLight ) * hwRing;',
+      '  } else if ( cinema2MFSystem < 4.5 ) {',
+      '    float radarPower = min( 1.0, 1.5 * uCinema2MainframeHardware.z + 0.45 * cinema2MFSystemLight );',
+      '    float radarRing = cinema2MFRoute > 0.5 && cinema2MFRoute < 2.5 ? 1.0 : 0.0;',
+      '    float radarHub = cinema2MFRoute > 2.5 && cinema2MFRoute < 3.5 ? 1.0 : 0.0;',
+      '    float radarNode = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
+      '    float radarWave = hwSweep * ( 0.5 + 0.5 * uCinema2MainframeState1.x );',
+      '    cinema2MFLight = 0.035 + radarPower * ( radarRing * ( 1.6 + 4.7 * radarWave )',
+      '      + radarHub * 2.5 + radarNode * ( 1.5 + 1.0 * uCinema2MainframeHardware.y ) );',
+      '    // Existing metal concentric bands can pick up a faint reflected edge;',
+      '    // the full opaque backing disc (detail 0) stays unpowered.',
+      '    if ( uCinema2MainframeRole > 5.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.17 : 0.015;',
+      '  } else {',
+      '    float chipPower = min( 1.0, 1.5 * uCinema2MainframeHardware.w + 0.32 * cinema2MFSystemLight );',
+      '    float chipFace = cinema2MFRoute > 0.5 && cinema2MFRoute < 1.5 ? 1.0 : 0.0;',
+      '    float chipPins = cinema2MFRoute > 1.5 && cinema2MFRoute < 2.5 ? 1.0 : 0.0;',
+      '    float chipLed = cinema2MFRoute > 2.5 && cinema2MFRoute < 3.5 ? 1.0 : 0.0;',
+      '    float chipRing = cinema2MFRoute > 3.5 && cinema2MFRoute < 4.5 ? 1.0 : 0.0;',
+      '    float chipScan = 0.5 + 0.5 * hwSweep;',
+      '    cinema2MFLight = 0.04 + chipFace * chipPower * 2.3',
+      '      + chipPins * chipPower * ( 1.3 + 3.5 * chipScan )',
+      '      + chipLed * ( chipPower * 1.6 + uCinema2MainframeHardware.y * 3.1 )',
+      '      + chipRing * chipPower * ( 1.3 + 3.3 * hwSweep );',
+      '    // Top die, heat-sink fins and existing metal borders only, not chip bases.',
+      '    if ( uCinema2MainframeRole > 6.5 ) cinema2MFLight *= cinema2MFRoute > 0.5 ? 0.14 : 0.015;',
+      '  }',
+      '  cinema2MFLight = min( 6.0, cinema2MFLight * hwSelection );',
+      '}',
       'float cinema2MFNoise = sin( uCinema2MainframeState0.x * 5.7 + cinema2MFRoute * 17.3 + vCinema2MainframePhase * 31.0 );',
       'cinema2MFLight *= 1.0 + cinema2MFNoise * uCinema2MainframeState1.z * 0.16;',
-      'vec3 cinema2MFColor = uCinema2MainframeRole < 0.5 || uCinema2MainframeRole > 4.5 ? uCinema2MainframeCircuit',
-      '  : ( uCinema2MainframeRole < 3.5 ? uCinema2MainframeIndicator : uCinema2MainframeLogo );',
+      'vec3 cinema2MFColor = uCinema2MainframeRole < 0.5 || ( uCinema2MainframeRole > 4.5 && uCinema2MainframeRole < 5.5 ) ? uCinema2MainframeCircuit',
+      '  : ( uCinema2MainframeRole > 3.5 && uCinema2MainframeRole < 4.5 ? uCinema2MainframeLogo : uCinema2MainframeIndicator );',
       'float cinema2MFFacing = saturate( dot( normal, normalize( vViewPosition ) ) );',
       'float cinema2MFHot = pow( cinema2MFFacing, 5.0 ) * smoothstep( 0.65, 3.5, cinema2MFLight );',
       'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.78 )',

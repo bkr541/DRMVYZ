@@ -60,7 +60,7 @@ function decorate(mesh, { phase = 0, route = -1, bank = -1, region = -1, system 
     : source)
   return {
     ...mesh,
-    phases: values(phase),
+    phases: phase === 'ring' && mesh.ringPhases ? mesh.ringPhases : values(phase),
     routeValues: values(route),
     bankValues: values(bank),
     regionValues: values(region),
@@ -115,7 +115,10 @@ function disc(radius, depth, segments, at) {
 function ring(radius, tube, at, segments = 48) {
   const geometry = new THREE.TorusGeometry(radius, tube, 8, segments)
   geometry.translate(...at)
-  return fromGeometry(geometry, CREASE)
+  // Three's torus has separate 0/1 UV-seam vertices; retain these so the
+  // original circular surface can also carry a continuous angular phase.
+  const mesh = fromGeometry(geometry, null)
+  return { ...mesh, ringPhases: Float32Array.from({ length: mesh.positions.length / 3 }, (_, index) => (index % (segments + 1)) / segments) }
 }
 
 function flatDisc(radius, at, segments = 8) {
@@ -131,7 +134,9 @@ function flatDisc(radius, at, segments = 8) {
 
 function flatRing(radius, width, at, segments = 12) {
   const positions = [], normals = [], indices = [], inner = Math.max(0, radius - width)
-  for (let index = 0; index < segments; index += 1) {
+  // Preserve the exact ring silhouette, but duplicate the seam so the GPU can
+  // interpolate angular lighting phase from 0 to 1 without a backwards jump.
+  for (let index = 0; index <= segments; index += 1) {
     const angle = index / segments * Math.PI * 2
     for (const value of [radius, inner]) {
       positions.push(at[0] + Math.cos(angle) * value, at[1] + Math.sin(angle) * value, at[2])
@@ -139,10 +144,21 @@ function flatRing(radius, width, at, segments = 12) {
     }
   }
   for (let index = 0; index < segments; index += 1) {
-    const next = (index + 1) % segments
+    const next = index + 1
     indices.push(index * 2, next * 2, index * 2 + 1, next * 2, next * 2 + 1, index * 2 + 1)
   }
-  return { positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices) }
+  return { positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices),
+    ringPhases: Float32Array.from({ length: positions.length / 3 }, (_, index) => Math.floor(index / 2) / segments) }
+}
+
+// Hardware phase is local to each *existing* ring, not a circuit route.
+// Ring endpoints deliberately retain matching positions but phases of 0 and 1.
+
+function hardwareMetadata(system, index, x, y) {
+  const region = Math.abs(x) < 1.5 ? (y >= 0 ? REGION['top-center'] : REGION['bottom-center'])
+    : x < 0 ? (y > 2 ? REGION['left-minor'] : y < -2 ? REGION['left-branch'] : REGION['left-major'])
+      : (y > 2 ? REGION['right-minor'] : y < -2 ? REGION['right-branch'] : REGION['right-major'])
+  return { system, bank: index % 4, region }
 }
 
 // The 2× master contains hundreds of small outer routes and indicators. Thin
@@ -362,24 +378,24 @@ for (const terminal of contract.extension.terminals) {
 }
 
 // ── Four radar assemblies ────────────────────────────────────────────────────
-for (const radar of contract.components.radars) {
+for (const [index, radar] of contract.components.radars.entries()) {
   const [x, y] = worldPoint([radar.cx, radar.cy])
-  const metadata = { system: SYSTEM.radar }
+  const metadata = hardwareMetadata(SYSTEM.radar, index, x, y)
   const radius = radar.outer_radius * WORLD_SCALE
-  add('radarHardware', disc(radius * 1.08, 0.2, 48, [x, y, 0.24]), metadata)
+  add('radarHardware', disc(radius * 1.08, 0.2, 48, [x, y, 0.24]), { ...metadata, route: 0 })
   add('recesses', disc(radius * 0.86, 0.215, 48, [x, y, 0.265]), metadata)
-  add('radarHardware', ring(radius * 0.72, 0.045, [x, y, 0.39]), metadata)
-  add('radarCores', ring(radius * 0.64, 0.025, [x, y, 0.415]), { ...metadata, phase: 0.35 })
-  add('radarHardware', ring(radius * 0.46, 0.04, [x, y, 0.395]), metadata)
-  add('radarCores', ring(radius * 0.38, 0.023, [x, y, 0.42]), { ...metadata, phase: 0.58 })
-  add('radarHardware', ring(radius * 0.25, 0.035, [x, y, 0.4]), metadata)
-  add('radarCores', disc(radius * 0.12, 0.12, 24, [x, y, 0.41]), { ...metadata, phase: 0.82 })
+  add('radarHardware', ring(radius * 0.72, 0.045, [x, y, 0.39]), { ...metadata, route: 1, phase: 'ring' })
+  add('radarCores', ring(radius * 0.64, 0.025, [x, y, 0.415]), { ...metadata, route: 1, phase: 'ring' })
+  add('radarHardware', ring(radius * 0.46, 0.04, [x, y, 0.395]), { ...metadata, route: 2, phase: 'ring' })
+  add('radarCores', ring(radius * 0.38, 0.023, [x, y, 0.42]), { ...metadata, route: 2, phase: 'ring' })
+  add('radarHardware', ring(radius * 0.25, 0.035, [x, y, 0.4]), { ...metadata, route: 3, phase: 'ring' })
+  add('radarCores', disc(radius * 0.12, 0.12, 24, [x, y, 0.41]), { ...metadata, route: 3, phase: 0.82 })
   for (let spoke = 0; spoke < 4; spoke += 1) {
     const angle = spoke * Math.PI / 2
     const a = [x + Math.cos(angle) * radius * 0.79, y + Math.sin(angle) * radius * 0.79]
     const b = [x + Math.cos(angle) * radius * 1.16, y + Math.sin(angle) * radius * 1.16]
-    barBetween('radarHardware', a, b, 0.055, 0.08, 0.34, metadata)
-    add('radarCores', disc(0.045, 0.095, 18, [b[0], b[1], 0.37]), { ...metadata, phase: 1 })
+    barBetween('radarHardware', a, b, 0.055, 0.08, 0.34, { ...metadata, route: 4 })
+    add('radarCores', disc(0.045, 0.095, 18, [b[0], b[1], 0.37]), { ...metadata, route: 4, phase: 1 })
   }
   for (let bolt = 0; bolt < 8; bolt += 1) {
     const angle = (bolt / 8) * Math.PI * 2 + Math.PI / 8
@@ -388,52 +404,52 @@ for (const radar of contract.components.radars) {
 }
 
 // Sixteen additional radar assemblies are positioned exactly from the 2× SVG.
-for (const radar of contract.extension.radars) {
+for (const [index, radar] of contract.extension.radars.entries()) {
   const [x, y] = worldPoint([radar.cx, radar.cy])
   const radius = radar.radius * WORLD_SCALE
-  const metadata = { system: SYSTEM.radar }
-  add('radarHardware', flatDisc(radius * 1.04, [x, y, 0.23], 12), metadata)
-  add('radarCores', flatRing(radius * 0.72, radius * 0.1, [x, y, 0.275], 12), { ...metadata, phase: 0.38 })
-  add('radarCores', flatRing(radius * 0.43, radius * 0.08, [x, y, 0.278], 10), { ...metadata, phase: 0.68 })
-  add('radarCores', flatDisc(radius * 0.15, [x, y, 0.282], 8), { ...metadata, phase: 1 })
+  const metadata = hardwareMetadata(SYSTEM.radar, index + contract.components.radars.length, x, y)
+  add('radarHardware', flatDisc(radius * 1.04, [x, y, 0.23], 12), { ...metadata, route: 0 })
+  add('radarCores', flatRing(radius * 0.72, radius * 0.1, [x, y, 0.275], 12), { ...metadata, route: 1, phase: 'ring' })
+  add('radarCores', flatRing(radius * 0.43, radius * 0.08, [x, y, 0.278], 10), { ...metadata, route: 2, phase: 'ring' })
+  add('radarCores', flatDisc(radius * 0.15, [x, y, 0.282], 8), { ...metadata, route: 3, phase: 1 })
 }
 
 // ── Two chip assemblies ──────────────────────────────────────────────────────
-for (const chip of contract.components.chips) {
+for (const [index, chip] of contract.components.chips.entries()) {
   const [left, top] = worldPoint([chip.x, chip.y])
   const [right, bottom] = worldPoint([chip.x + chip.width, chip.y + chip.height])
   const cx = (left + right) / 2, cy = (top + bottom) / 2
   const width = Math.abs(right - left), height = Math.abs(top - bottom)
-  const metadata = { system: SYSTEM.chip }
-  box('chipHardware', [cx, cy, 0.31], [width, height, 0.24], 0.08, metadata)
+  const metadata = hardwareMetadata(SYSTEM.chip, index, cx, cy)
+  box('chipHardware', [cx, cy, 0.31], [width, height, 0.24], 0.08, { ...metadata, route: 0 })
   box('recesses', [cx, cy, 0.445], [width * 0.78, height * 0.78, 0.07], 0.045, metadata)
-  box('chipHardware', [cx, cy, 0.49], [width * 0.64, height * 0.64, 0.055], 0.035, metadata)
-  box('chipCores', [cx, cy, 0.525], [width * 0.5, height * 0.5, 0.035], 0.025, { ...metadata, phase: 0.65 })
+  box('chipHardware', [cx, cy, 0.49], [width * 0.64, height * 0.64, 0.055], 0.035, { ...metadata, route: 1 })
+  box('chipCores', [cx, cy, 0.525], [width * 0.5, height * 0.5, 0.035], 0.025, { ...metadata, route: 1, phase: 0.65 })
   for (let pin = 0; pin < 6; pin += 1) {
     const t = (pin + 0.5) / 6 - 0.5
     for (const side of [-1, 1]) {
-      plainBox('chipCores', [cx + side * width * 0.57, cy + t * height * 0.78, 0.4], [0.14, 0.045, 0.045], { ...metadata, phase: pin / 5 })
-      plainBox('chipCores', [cx + t * width * 0.78, cy + side * height * 0.57, 0.4], [0.045, 0.14, 0.045], { ...metadata, phase: pin / 5 })
+      plainBox('chipCores', [cx + side * width * 0.57, cy + t * height * 0.78, 0.4], [0.14, 0.045, 0.045], { ...metadata, route: 2, phase: pin / 5 })
+      plainBox('chipCores', [cx + t * width * 0.78, cy + side * height * 0.57, 0.4], [0.045, 0.14, 0.045], { ...metadata, route: 2, phase: pin / 5 })
     }
   }
-  add('chipCores', disc(0.045, 0.045, 18, [cx - width * 0.23, cy + height * 0.23, 0.57]), { ...metadata, phase: 1 })
+  add('chipCores', disc(0.045, 0.045, 18, [cx - width * 0.23, cy + height * 0.23, 0.57]), { ...metadata, route: 3, phase: 1 })
 }
 
 // Eight additional chips retain the supplied master positions and the same
 // toggle/reactivity system as the two central chip assemblies.
-for (const chip of contract.extension.chips) {
+for (const [index, chip] of contract.extension.chips.entries()) {
   const [left, top] = worldPoint([chip.x, chip.y])
   const [right, bottom] = worldPoint([chip.x + chip.width, chip.y + chip.height])
   const cx = (left + right) / 2, cy = (top + bottom) / 2
   const width = Math.abs(right - left), height = Math.abs(top - bottom)
-  const metadata = { system: SYSTEM.chip }
-  plainBox('chipHardware', [cx, cy, 0.25], [width, height, 0.12], metadata)
-  plainBox('chipCores', [cx, cy, 0.32], [width * 0.58, height * 0.58, 0.025], { ...metadata, phase: 0.65 })
+  const metadata = hardwareMetadata(SYSTEM.chip, index + contract.components.chips.length, cx, cy)
+  plainBox('chipHardware', [cx, cy, 0.25], [width, height, 0.12], { ...metadata, route: 0 })
+  plainBox('chipCores', [cx, cy, 0.32], [width * 0.58, height * 0.58, 0.025], { ...metadata, route: 1, phase: 0.65 })
   for (let pin = 0; pin < 8; pin += 1) {
     const t = (pin + 0.5) / 8 - 0.5
     for (const side of [-1, 1]) {
-      add('chipCores', flatRibbon([[cx + side * width * 0.5, cy + t * height * 0.8], [cx + side * width * 0.64, cy + t * height * 0.8]], 0.026, 0.305), { ...metadata, phase: pin / 7 })
-      add('chipCores', flatRibbon([[cx + t * width * 0.8, cy + side * height * 0.5], [cx + t * width * 0.8, cy + side * height * 0.64]], 0.026, 0.305), { ...metadata, phase: pin / 7 })
+      add('chipCores', flatRibbon([[cx + side * width * 0.5, cy + t * height * 0.8], [cx + side * width * 0.64, cy + t * height * 0.8]], 0.026, 0.305), { ...metadata, route: 2, phase: pin / 7 })
+      add('chipCores', flatRibbon([[cx + t * width * 0.8, cy + side * height * 0.5], [cx + t * width * 0.8, cy + side * height * 0.64]], 0.026, 0.305), { ...metadata, route: 2, phase: pin / 7 })
     }
   }
 }
@@ -445,37 +461,37 @@ for (const chip of contract.extension.chips) {
 const bayCentre = (x, y) => worldPoint([x, y])
 for (const side of [-1, 1]) {
   const [cx, cy] = bayCentre(side < 0 ? 80 : 1840, -380)
-  const metadata = { system: SYSTEM.chip }
-  plainBox('chipHardware', [cx, cy, 0.235], [1.46, 0.62, 0.11], metadata)
-  plainBox('chipHardware', [cx, cy, 0.315], [0.68, 0.4, 0.07], metadata)
-  plainBox('chipCores', [cx, cy, 0.36], [0.46, 0.26, 0.025], { ...metadata, phase: 0.58 })
-  for (let fin = -3; fin <= 3; fin += 1) plainBox('chipHardware', [cx + fin * 0.085, cy, 0.4], [0.032, 0.43, 0.075], metadata)
+  const metadata = hardwareMetadata(SYSTEM.chip, 10 + (side + 1) / 2, cx, cy)
+  plainBox('chipHardware', [cx, cy, 0.235], [1.46, 0.62, 0.11], { ...metadata, route: 0 })
+  plainBox('chipHardware', [cx, cy, 0.315], [0.68, 0.4, 0.07], { ...metadata, route: 1 })
+  plainBox('chipCores', [cx, cy, 0.36], [0.46, 0.26, 0.025], { ...metadata, route: 1, phase: 0.58 })
+  for (let fin = -3; fin <= 3; fin += 1) plainBox('chipHardware', [cx + fin * 0.085, cy, 0.4], [0.032, 0.43, 0.075], { ...metadata, route: 2 })
   for (const edge of [-1, 1]) {
-    plainBox('chipHardware', [cx + edge * 0.56, cy, 0.335], [0.17, 0.36, 0.065], metadata)
+    plainBox('chipHardware', [cx + edge * 0.56, cy, 0.335], [0.17, 0.36, 0.065], { ...metadata, route: 0 })
     for (let pin = -2; pin <= 2; pin += 1) {
-      add('chipCores', flatRibbon([[cx + edge * 0.64, cy + pin * 0.075], [cx + edge * 0.8, cy + pin * 0.075]], 0.025, 0.345), { ...metadata, phase: (pin + 2) / 4 })
+      add('chipCores', flatRibbon([[cx + edge * 0.64, cy + pin * 0.075], [cx + edge * 0.8, cy + pin * 0.075]], 0.025, 0.345), { ...metadata, route: 2, phase: (pin + 2) / 4 })
     }
   }
-  for (let led = -1; led <= 1; led += 1) add('chipCores', flatDisc(0.035, [cx + led * 0.14, cy - 0.24, 0.385], 6), { ...metadata, phase: (led + 1) / 2 })
+  for (let led = -1; led <= 1; led += 1) add('chipCores', flatDisc(0.035, [cx + led * 0.14, cy - 0.24, 0.385], 6), { ...metadata, route: 3, phase: (led + 1) / 2 })
 }
 
 for (const side of [-1, 1]) {
   const [cx, cy] = bayCentre(side < 0 ? 80 : 1840, 1440)
-  const metadata = { system: SYSTEM.chip }
-  plainBox('chipHardware', [cx, cy, 0.235], [1.46, 0.62, 0.11], metadata)
+  const metadata = hardwareMetadata(SYSTEM.chip, 12 + (side + 1) / 2, cx, cy)
+  plainBox('chipHardware', [cx, cy, 0.235], [1.46, 0.62, 0.11], { ...metadata, route: 0 })
   for (const xOffset of [-0.42, 0.42]) {
-    plainBox('chipHardware', [cx + xOffset, cy, 0.33], [0.34, 0.4, 0.12], metadata)
-    add('chipCores', flatRing(0.12, 0.025, [cx + xOffset, cy, 0.398], 10), { ...metadata, phase: xOffset < 0 ? 0.42 : 0.78 })
+    plainBox('chipHardware', [cx + xOffset, cy, 0.33], [0.34, 0.4, 0.12], { ...metadata, route: 1 })
+    add('chipCores', flatRing(0.12, 0.025, [cx + xOffset, cy, 0.398], 10), { ...metadata, route: 4, phase: 'ring' })
   }
   for (let capacitor = 0; capacitor < 6; capacitor += 1) {
     const column = capacitor % 3 - 1
     const row = Math.floor(capacitor / 3) - 0.5
-    add('chipHardware', disc(0.075, 0.13, 8, [cx + column * 0.19, cy + row * 0.2, 0.36]), metadata)
+    add('chipHardware', disc(0.075, 0.13, 8, [cx + column * 0.19, cy + row * 0.2, 0.36]), { ...metadata, route: 2 })
   }
   for (const edge of [-1, 1]) for (let pin = -2; pin <= 2; pin += 1) {
-    add('chipCores', flatRibbon([[cx + edge * 0.62, cy + pin * 0.075], [cx + edge * 0.8, cy + pin * 0.075]], 0.025, 0.345), { ...metadata, phase: (pin + 2) / 4 })
+    add('chipCores', flatRibbon([[cx + edge * 0.62, cy + pin * 0.075], [cx + edge * 0.8, cy + pin * 0.075]], 0.025, 0.345), { ...metadata, route: 2, phase: (pin + 2) / 4 })
   }
-  for (let led = -1.5; led <= 1.5; led += 1) add('chipCores', flatDisc(0.032, [cx + led * 0.12, cy - 0.24, 0.385], 6), { ...metadata, phase: (led + 1.5) / 3 })
+  for (let led = -1.5; led <= 1.5; led += 1) add('chipCores', flatDisc(0.032, [cx + led * 0.12, cy - 0.24, 0.385], 6), { ...metadata, route: 3, phase: (led + 1.5) / 3 })
 }
 
 // Four large symmetric power-regulation nodes fill the inner extension bays.
@@ -488,7 +504,7 @@ for (const [svgX, svgY] of [[380, -120], [1540, -120], [380, 1200], [1540, 1200]
   add('hardware', flatRing(0.43 * INNER_POWER_NODE_SCALE, 0.045 * INNER_POWER_NODE_SCALE, [cx, cy, 0.292], 12), { system: SYSTEM.vias })
   add('hardware', disc(0.35 * INNER_POWER_NODE_SCALE, 0.13, 12, [cx, cy, 0.33]), { system: SYSTEM.vias })
   add('recesses', flatDisc(0.27 * INNER_POWER_NODE_SCALE, [cx, cy, 0.405], 12), { system: SYSTEM.vias })
-  add('indicatorCores', flatRing(0.235 * INNER_POWER_NODE_SCALE, 0.045 * INNER_POWER_NODE_SCALE, [cx, cy, 0.414], 12), { system: SYSTEM.vias, phase: 0.64 })
+  add('indicatorCores', flatRing(0.235 * INNER_POWER_NODE_SCALE, 0.045 * INNER_POWER_NODE_SCALE, [cx, cy, 0.414], 12), { system: SYSTEM.vias, route: 1, phase: 'ring' })
   for (const [dx, dy, phase] of [[-0.5, -0.3, 0.15], [0.5, -0.3, 0.4], [-0.5, 0.3, 0.7], [0.5, 0.3, 1]]) {
     add('indicatorCores', flatDisc(0.048 * INNER_POWER_NODE_SCALE, [cx + dx * INNER_POWER_NODE_SCALE, cy + dy * INNER_POWER_NODE_SCALE, 0.3], 6), { system: SYSTEM.terminals, phase })
   }

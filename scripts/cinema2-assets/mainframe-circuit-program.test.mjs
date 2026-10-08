@@ -32,6 +32,7 @@ function load(relativePath) {
 const { evaluateCinema2MainframePattern, CINEMA2_MAINFRAME_PATTERN_IDS } = load('src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframePatternEngine.ts')
 const { CINEMA2_MAINFRAME_ZERO_SIGNALS: silent, CINEMA2_MAINFRAME_ZERO_IMPULSES: empty } = load('src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeReactivity.ts')
 const { createCinema2MainframeLightingDiagnosticFrame } = load('src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeLightingDiagnostic.ts')
+const { resolveCinema2MainframeHardwareLighting } = load('src/components/vyzualz/cinema2/modules/mainframe/Cinema2MainframeHardwareLighting.ts')
 
 const evaluate = (signals, impulses = empty, pattern = 'outward-bus') => evaluateCinema2MainframePattern({
   signals, impulses, pattern, beats: 1.625,
@@ -108,4 +109,36 @@ test('the production shader drives the narrow core by path phase and gates the s
   assert.match(shader.fragmentShader, /exp\( -cinema2MFDistance \* cinema2MFDistance \)/)
   assert.match(shader.fragmentShader, /uCinema2MainframeRole > 4\.5 \? 0\.12 \* poweredLight : coreLight/)
   assert.doesNotMatch(shader.fragmentShader, /gl_FragCoord/, 'Chase must not use screen-space motion')
+})
+
+
+test('hardware lighting uses independent shared audio envelopes without inventing events', () => {
+  assert.deepEqual(resolveCinema2MainframeHardwareLighting(evaluate(silent)), [0, 0, 0, 0])
+  assert.deepEqual(resolveCinema2MainframeHardwareLighting(evaluate(silent, { ...empty, kick: 1 })), [0.76, 0, 0, 0])
+  const withMids = resolveCinema2MainframeHardwareLighting(evaluate({ ...silent, mid: 0.8 }))
+  assert.ok(withMids[2] > 0 && withMids[3] > withMids[2])
+  assert.equal(withMids[0], 0)
+  assert.equal(withMids[1], 0)
+  const withHighs = resolveCinema2MainframeHardwareLighting(evaluate({ ...silent, high: 0.8 }))
+  assert.ok(withHighs[1] > withHighs[3])
+  assert.equal(withHighs[0], 0)
+  const accents = resolveCinema2MainframeHardwareLighting(evaluate(silent, { ...empty, phrase: 1, downbeat: 1 }))
+  assert.ok(accents[2] > 0 && accents[3] > 0)
+  assert.deepEqual(resolveCinema2MainframeHardwareLighting(evaluate({ ...silent, mid: 4, high: 9 }, { ...empty, drop: 4 })), [1, 1, 1, 1])
+  const stopped = evaluateCinema2MainframePattern({ signals: { ...silent, mid: 1 }, impulses: { ...empty, drop: 1 },
+    pattern: 'radar-sweep', beats: 4, active: false })
+  assert.deepEqual(resolveCinema2MainframeHardwareLighting(stopped), [0, 0, 0, 0])
+})
+
+test('hardware shader can address discrete ring and chip details without leaking into circuits', () => {
+  const source = readFileSync(resolve(root, 'src/components/vyzualz/cinema2/modules/three/Cinema2ThreeSceneBridge.ts'), 'utf8')
+  assert.match(source, /radarHardware.*radarHousing|radarHousing.*chipHousing/s)
+  assert.match(source, /vCinema2MainframeCycle = vec2\( cos\(/)
+  assert.match(source, /float radarWave = hwSweep/)
+  assert.match(source, /float chipPins = cinema2MFRoute/)
+  assert.match(source, /uCinema2MainframeHardware\.x/)
+  assert.match(source, /uCinema2MainframeHardware\.y/)
+  assert.match(source, /uCinema2MainframeHardware\.z/)
+  assert.match(source, /uCinema2MainframeHardware\.w/)
+  assert.doesNotMatch(source.slice(source.indexOf('function addMainframeLighting('), source.indexOf('const initializedAreaLightTables')), /gl_FragCoord/)
 })

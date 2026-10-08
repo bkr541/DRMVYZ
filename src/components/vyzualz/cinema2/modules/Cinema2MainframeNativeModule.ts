@@ -322,7 +322,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             },
             mainframe: Object.freeze({
               circuitHousings: 'circuitHousing', circuitCores: 'circuit', indicatorCores: 'indicator', radarCores: 'radar',
-              chipCores: 'chip', logoCore: 'logo',
+              radarHardware: 'radarHousing', chipHardware: 'chipHousing', chipCores: 'chip', logoCore: 'logo',
             }),
           }),
           value => { value.dispose(); assets.release(asset) },
