@@ -31,9 +31,11 @@ interface TextRow {
 
 export interface MusicIntelligenceDiagnosticsPanelProps {
   liveInputActive?: boolean
+  /** Optional row rendered at the top of the group, above Audio Bands (e.g. loaded-track info pills). */
+  headerRow?: React.ReactNode
 }
 
-export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: MusicIntelligenceDiagnosticsPanelProps = {}) {
+export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, headerRow }: MusicIntelligenceDiagnosticsPanelProps = {}) {
   const animRef = useRef<number>(0)
 
   // Live Input: compact operator view. Values update through DOM refs so the
@@ -280,6 +282,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false }: M
   return (
     <div className="vz-mi-panel">
       <Collapsible label="Audio Intelligence" defaultOpen>
+        {headerRow}
         {liveInputActive && (
           <MiSection title="Live Input">
             <div className="vz-mi-kv-row">

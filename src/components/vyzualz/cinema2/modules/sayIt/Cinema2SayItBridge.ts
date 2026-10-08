@@ -7,6 +7,7 @@ import { Cinema2GlStateGuard } from '../three/Cinema2GlStateGuard'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { getCinema2ThreeRenderer } from '../three/Cinema2ThreeRendererHost'
 import type { Cinema2SayItGlyphPose } from './Cinema2SayItMotion'
+import type { Cinema2SayItPatternId } from './Cinema2SayItPatternController'
 import type { Cinema2SayItQualityProfile } from './Cinema2SayItQuality'
 
 interface ExternalFramebufferRenderer {
@@ -16,6 +17,11 @@ interface ExternalFramebufferRenderer {
 export interface Cinema2SayItDrawState {
   poses: readonly Readonly<Cinema2SayItGlyphPose>[]
   color: readonly [number, number, number]
+  ledOutlineEnabled: boolean
+  outlineColor: readonly [number, number, number]
+  pattern: Cinema2SayItPatternId
+  patternPhaseBeats: number
+  ledMusicIntensity: number
   roughness: number
   environmentIntensity: number
   environmentRotationRadians: number
@@ -29,8 +35,10 @@ interface GlyphInstance {
   id: string
   meshName: string
   mesh: ThreeNamespace.Mesh
+  ledMesh: ThreeNamespace.Mesh
   root: ThreeNamespace.Group
   material: ThreeNamespace.MeshStandardMaterial
+  ledMaterial: ThreeNamespace.MeshStandardMaterial
 }
 
 /**
@@ -80,7 +88,11 @@ export class Cinema2SayItBridge {
       const mesh = object as ThreeNamespace.Mesh
       if (mesh.isMesh) this.sourceMeshes.set(mesh.name, mesh)
     })
-    if (this.sourceMeshes.size < 94) throw new Error('The SAY IT production asset does not contain the complete printable Basic Latin glyph set.')
+    const baseGlyphCount = [...this.sourceMeshes.keys()].filter(name => !name.endsWith('-led')).length
+    const ledGlyphCount = [...this.sourceMeshes.keys()].filter(name => name.endsWith('-led')).length
+    if (baseGlyphCount < 94 || ledGlyphCount < 94) {
+      throw new Error('The SAY IT production asset does not contain the complete printable Basic Latin glyph and LED contour sets.')
+    }
   }
 
   estimateGpuBytes(): number {
@@ -101,7 +113,7 @@ export class Cinema2SayItBridge {
   ): boolean {
     if (this.disposed) return false
     this.validateExecution(exec)
-    const requestedSignature = `${state.poses.map(pose => `${pose.id}:${pose.mesh}`).join('|')}@${profile.quality}`
+    const requestedSignature = `${state.poses.map(pose => `${pose.id}:${pose.mesh}`).join('|')}@${profile.quality}:led${state.ledOutlineEnabled ? 1 : 0}`
     if (requestedSignature === this.warmedSignature) return true
 
     this.guard.capture()
@@ -153,6 +165,7 @@ export class Cinema2SayItBridge {
     for (const glyph of this.glyphs) {
       this.assembly.remove(glyph.root)
       glyph.material.dispose()
+      glyph.ledMaterial.dispose()
     }
     this.glyphs.length = 0
     this.glyphSignature = ''
@@ -190,6 +203,9 @@ export class Cinema2SayItBridge {
       glyph.root.scale.setScalar(pose.scale)
       glyph.mesh.castShadow = profile.castShadows
       glyph.mesh.receiveShadow = profile.castShadows
+      glyph.ledMesh.castShadow = false
+      glyph.ledMesh.receiveShadow = false
+      glyph.ledMesh.visible = state.ledOutlineEnabled
       glyph.material.color.setRGB(state.color[0], state.color[1], state.color[2], THREE.SRGBColorSpace)
       glyph.material.emissive.setRGB(0, 0, 0)
       glyph.material.emissiveIntensity = 0
@@ -207,6 +223,31 @@ export class Cinema2SayItBridge {
       } else {
         glyph.material.metalness = 1
         glyph.material.roughness = Math.min(1, Math.max(profile.roughnessFloor, state.roughness))
+      }
+      glyph.ledMaterial.color.setRGB(
+        state.outlineColor[0] * 0.025,
+        state.outlineColor[1] * 0.025,
+        state.outlineColor[2] * 0.025,
+        THREE.SRGBColorSpace,
+      )
+      glyph.ledMaterial.emissive.setRGB(
+        state.outlineColor[0],
+        state.outlineColor[1],
+        state.outlineColor[2],
+        THREE.SRGBColorSpace,
+      )
+      const ledDrive = resolveLedPatternIntensity(state.pattern, state.patternPhaseBeats, index, this.glyphs.length)
+        * state.ledMusicIntensity
+      glyph.ledMaterial.emissiveIntensity = state.ledOutlineEnabled
+        ? 5.5 * ledDrive
+        : 0
+      glyph.ledMaterial.metalness = 0.05
+      glyph.ledMaterial.roughness = 0.3
+      if (state.ledOutlineEnabled && state.materialStyle !== 'neon') {
+        glyph.material.emissive.setRGB(
+          state.outlineColor[0], state.outlineColor[1], state.outlineColor[2], THREE.SRGBColorSpace,
+        )
+        glyph.material.emissiveIntensity = 0.07 * ledDrive
       }
     }
 
@@ -232,27 +273,62 @@ export class Cinema2SayItBridge {
     for (const glyph of this.glyphs) {
       this.assembly.remove(glyph.root)
       glyph.material.dispose()
+      glyph.ledMaterial.dispose()
     }
     this.glyphs.length = 0
     this.warmedSignature = ''
     for (const pose of poses) {
       const source = this.sourceMeshes.get(pose.mesh)
       if (!source) throw new Error(`The SAY IT glyph package is missing mesh "${pose.mesh}".`)
+      const ledSourceName = `${pose.mesh}-led`
+      const ledSource = this.sourceMeshes.get(ledSourceName)
+      if (!ledSource) throw new Error(`The SAY IT glyph package is missing LED contour mesh "${ledSourceName}".`)
       const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material
+      const ledSourceMaterial = Array.isArray(ledSource.material) ? ledSource.material[0] : ledSource.material
       if (!sourceMaterial || !(sourceMaterial as ThreeNamespace.MeshStandardMaterial).isMeshStandardMaterial) {
         throw new Error(`The SAY IT mesh "${pose.mesh}" does not use a standard PBR material.`)
       }
+      if (!ledSourceMaterial || !(ledSourceMaterial as ThreeNamespace.MeshStandardMaterial).isMeshStandardMaterial) {
+        throw new Error(`The SAY IT LED contour "${ledSourceName}" does not use a standard PBR material.`)
+      }
       const material = (sourceMaterial as ThreeNamespace.MeshStandardMaterial).clone()
+      const ledMaterial = (ledSourceMaterial as ThreeNamespace.MeshStandardMaterial).clone()
       const mesh = new THREE.Mesh(source.geometry, material)
+      const ledMesh = new THREE.Mesh(ledSource.geometry, ledMaterial)
       mesh.name = pose.mesh
+      ledMesh.name = ledSourceName
       mesh.castShadow = true
       mesh.receiveShadow = true
+      ledMesh.castShadow = false
+      ledMesh.receiveShadow = false
       const root = new THREE.Group()
       root.name = pose.id
-      root.add(mesh)
+      root.add(mesh, ledMesh)
       this.assembly.add(root)
-      this.glyphs.push({ id: pose.id, meshName: pose.mesh, mesh, root, material })
+      this.glyphs.push({ id: pose.id, meshName: pose.mesh, mesh, ledMesh, root, material, ledMaterial })
     }
     this.glyphSignature = signature
   }
+}
+
+function resolveLedPatternIntensity(
+  pattern: Cinema2SayItPatternId,
+  phaseBeats: number,
+  glyphIndex: number,
+  glyphCount: number,
+): number {
+  const phase = Math.max(0, phaseBeats)
+  if (pattern === 'pulse') return 0.48 + 0.52 * (0.5 + 0.5 * Math.cos(phase * Math.PI * 2))
+  if (pattern === 'letter-chase') {
+    const head = phase * 2 % Math.max(1, glyphCount)
+    const distance = Math.min(Math.abs(glyphIndex - head), Math.max(1, glyphCount) - Math.abs(glyphIndex - head))
+    return 0.18 + 0.82 * Math.exp(-distance * 1.7)
+  }
+  if (pattern === 'alternate') return glyphIndex % 2 === Math.floor(phase * 2) % 2 ? 1 : 0.2
+  if (pattern === 'center-wave') {
+    const centerDistance = Math.abs(glyphIndex - (glyphCount - 1) / 2)
+    return 0.2 + 0.8 * Math.pow(0.5 + 0.5 * Math.cos(phase * Math.PI * 2 - centerDistance * 1.15), 3)
+  }
+  if (pattern === 'strobe') return phase * 4 % 1 < 0.32 ? 1 : 0.12
+  return 1
 }

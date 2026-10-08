@@ -1,7 +1,8 @@
 // Production printable-Basic-Latin glyph package for Cinema 2.0 SAY IT.
 // The source font is Anton Regular, vendored with its SIL Open Font License.
-// Each non-space code point becomes one centered, bevelled GLB mesh. A separate
-// generated metrics file keeps layout, kerning and mesh lookup deterministic.
+// Each non-space code point becomes a centered, bevelled GLB mesh plus an
+// emissive tube that follows every outer glyph contour. A separate generated
+// metrics file keeps layout, kerning and mesh lookup deterministic.
 //
 //   node scripts/cinema2-assets/generate-say-it-glyphs.mjs [out.glb] [out.metrics.json]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -28,9 +29,19 @@ const FONT_SIZE = 2
 const DEPTH = 0.3
 const BEVEL = 0.045
 const CREASE_ANGLE = (36 * Math.PI) / 180
+const LED_RADIUS = 0.052
+const LED_Z = DEPTH / 2 + 0.012
+const LED_RADIAL_SEGMENTS = 6
+const LED_SAMPLES_PER_UNIT = 14
 
 const MATERIALS = {
   chrome: { baseColorFactor: [0.78, 0.8, 0.84, 1], metallicFactor: 1, roughnessFactor: 0.17 },
+  led: {
+    baseColorFactor: [0.12, 0.12, 0.12, 1],
+    metallicFactor: 0.05,
+    roughnessFactor: 0.2,
+    emissiveFactor: [1, 1, 1],
+  },
 }
 
 const fontBytes = readFileSync(fontPath)
@@ -39,6 +50,10 @@ const scale = FONT_SIZE / font.unitsPerEm
 
 function meshName(codePoint) {
   return `glyph-u${codePoint.toString(16).padStart(4, '0').toUpperCase()}`
+}
+
+function ledMeshName(codePoint) {
+  return `${meshName(codePoint)}-led`
 }
 
 function shapePathForGlyph(glyph) {
@@ -54,6 +69,63 @@ function shapePathForGlyph(glyph) {
     }
   }
   return result
+}
+
+function buildLedGeometry(shapes, centerX, centerY) {
+  const positions = []
+  const normals = []
+  const indices = []
+
+  for (const shape of shapes) {
+    const divisions = Math.max(18, Math.min(128, Math.ceil(shape.getLength() * LED_SAMPLES_PER_UNIT)))
+    const sampled = shape.getSpacedPoints(divisions)
+    if (sampled.length > 1 && sampled[0].distanceToSquared(sampled.at(-1)) < 1e-10) sampled.pop()
+    if (sampled.length < 3) continue
+
+    const ringStart = positions.length / 3
+    for (let pointIndex = 0; pointIndex < sampled.length; pointIndex += 1) {
+      const point = sampled[pointIndex]
+      const previous = sampled[(pointIndex - 1 + sampled.length) % sampled.length]
+      const next = sampled[(pointIndex + 1) % sampled.length]
+      const tangentX = next.x - previous.x
+      const tangentY = next.y - previous.y
+      const tangentLength = Math.hypot(tangentX, tangentY) || 1
+      const normalX = -tangentY / tangentLength
+      const normalY = tangentX / tangentLength
+
+      for (let radialIndex = 0; radialIndex < LED_RADIAL_SEGMENTS; radialIndex += 1) {
+        const angle = radialIndex / LED_RADIAL_SEGMENTS * Math.PI * 2
+        const planar = Math.cos(angle)
+        const depth = Math.sin(angle)
+        positions.push(
+          point.x - centerX + normalX * planar * LED_RADIUS,
+          point.y - centerY + normalY * planar * LED_RADIUS,
+          LED_Z + depth * LED_RADIUS,
+        )
+        normals.push(normalX * planar, normalY * planar, depth)
+      }
+    }
+
+    for (let pointIndex = 0; pointIndex < sampled.length; pointIndex += 1) {
+      const nextPoint = (pointIndex + 1) % sampled.length
+      for (let radialIndex = 0; radialIndex < LED_RADIAL_SEGMENTS; radialIndex += 1) {
+        const nextRadial = (radialIndex + 1) % LED_RADIAL_SEGMENTS
+        const a = ringStart + pointIndex * LED_RADIAL_SEGMENTS + radialIndex
+        const b = ringStart + nextPoint * LED_RADIAL_SEGMENTS + radialIndex
+        const c = ringStart + nextPoint * LED_RADIAL_SEGMENTS + nextRadial
+        const d = ringStart + pointIndex * LED_RADIAL_SEGMENTS + nextRadial
+        indices.push(a, b, d, b, c, d)
+      }
+    }
+  }
+
+  if (positions.length === 0) throw new Error('Glyph did not produce an outer LED contour.')
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices),
+    phases: new Float32Array(positions.length / 3),
+  }
 }
 
 function buildGlyph(codePoint) {
@@ -95,9 +167,11 @@ function buildGlyph(codePoint) {
   const indices = new Uint32Array(geometry.getIndex().array)
   const phases = new Float32Array(positions.length / 3)
   geometry.dispose()
+  const led = buildLedGeometry(shapes, centerX, centerY)
   return {
     metric,
     mesh: { name: metric.mesh, part: 'chrome', positions, normals, indices, phases },
+    ledMesh: { name: ledMeshName(codePoint), part: 'led', ...led },
   }
 }
 
@@ -112,7 +186,7 @@ for (let codePoint = FIRST_CODE_POINT; codePoint <= LAST_CODE_POINT; codePoint +
   }
   const built = buildGlyph(codePoint)
   glyphMetrics[String(codePoint)] = built.metric
-  meshes.push(built.mesh)
+  meshes.push(built.mesh, built.ledMesh)
 }
 
 const kerning = {}
@@ -153,5 +227,5 @@ writeFileSync(metricsPath, `${JSON.stringify(metrics, null, 2)}\n`)
 
 console.log(`Wrote ${outputPath}`)
 console.log(`Wrote ${metricsPath}`)
-console.log(`  ${meshes.length} drawable glyphs + space, ${Object.keys(kerning).length} kerning pairs`)
+console.log(`  ${meshes.length / 2} drawable glyphs with LED contours + space, ${Object.keys(kerning).length} kerning pairs`)
 console.log(`  total ${result.triangles} triangles, ${(result.byteLength / 1024).toFixed(0)} KB`)

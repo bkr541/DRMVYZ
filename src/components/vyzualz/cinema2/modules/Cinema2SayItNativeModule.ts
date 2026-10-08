@@ -12,6 +12,11 @@ import type {
 } from './Cinema2ModuleContracts'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import {
+  CINEMA2_AFTERHOURS_TRIGGER_IDS,
+  resolveCinema2AfterhoursTriggerEventIdentity,
+  type Cinema2AfterhoursTriggerId,
+} from './Cinema2AfterhoursNativeModule'
+import {
   CINEMA2_SAY_IT_MATERIAL_STYLES,
   Cinema2SayItBridge,
   type Cinema2SayItDrawState,
@@ -31,6 +36,12 @@ import {
   resolveCinema2SayItQualityProfile,
   type Cinema2SayItQualityProfile,
 } from './sayIt/Cinema2SayItQuality'
+import {
+  CINEMA2_SAY_IT_DEFAULT_PATTERN,
+  Cinema2SayItPatternController,
+  createCinema2SayItPatternCycle,
+  isCinema2SayItPattern,
+} from './sayIt/Cinema2SayItPatternController'
 import {
   CINEMA2_SAY_IT_DEFAULT_TEXT,
   resolveCinema2SayItTextLayout,
@@ -135,9 +146,23 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         alignment: 'center', lineMode: 'two', tracking: 0.06, lineSpacing: 0.7, glyphScale: 1,
       })
       let layoutKey = ''
+      const patternController = new Cinema2SayItPatternController(
+        createCinema2SayItPatternCycle(index => typeof context.randomness.sample === 'function'
+          ? context.randomness.sample('say-it-pattern-cycle', index)
+          : ((index + 1) * 0.38196601125) % 1),
+      )
+      let triggerPreviousTimeSec: number | null = null
+      let triggerPreviousBeat: number | null = null
+      let triggerSourceIdentity: string | null = null
+      let triggerContextGeneration: number | null = null
       let drawState: Readonly<Cinema2SayItDrawState> = Object.freeze({
         poses: resolveCinema2SayItGlyphPoses(0, { cycleSeconds: 8, motionAmount: 1, spread: 1, program: motionProgram }, layout.glyphs),
         color: Object.freeze([0.82, 0.84, 0.88] as const),
+        ledOutlineEnabled: true,
+        outlineColor: Object.freeze([0.16, 0.92, 1] as const),
+        pattern: CINEMA2_SAY_IT_DEFAULT_PATTERN,
+        patternPhaseBeats: 0,
+        ledMusicIntensity: 1,
         roughness: 0.16,
         environmentIntensity: 1.25,
         environmentRotationRadians: 0,
@@ -272,6 +297,20 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         lifecycle: {
           update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
             const sync = parameters.get('bpmSync') !== false
+            const triggerTimeSec = frame.audio?.upstream.timeSec ?? Math.max(0, frame.elapsedTimeSec)
+            const sourceIdentity = [
+              frame.transport?.trackId ?? frame.audio?.upstream.trackId ?? '',
+              frame.audio?.upstream.sourceId ?? '',
+              frame.audio?.upstream.publisherId ?? '',
+            ].join(':')
+            const discontinuity = triggerPreviousTimeSec != null && (
+              triggerTimeSec < triggerPreviousTimeSec - 0.05
+              || triggerTimeSec - triggerPreviousTimeSec > Math.max(1, frame.deltaTimeSec * 6)
+            )
+            const triggerReset = (triggerSourceIdentity != null && sourceIdentity !== triggerSourceIdentity)
+              || (triggerContextGeneration != null && frame.contextGeneration !== triggerContextGeneration)
+              || discontinuity
+            if (triggerReset) beatClock.reset()
             const beatState = beatClock.update(frame, sync)
             // At the 120-BPM reference, two beats are one second. With Sync on,
             // the same authored cycle follows the detected track tempo.
@@ -294,6 +333,11 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             const phraseAccent = readNumber(parameters.get('phraseAccent'), 0, 1) ?? 0
             const buildAmount = readNumber(parameters.get('buildAmount'), 0, 1) ?? 0
             const dropAccent = readNumber(parameters.get('dropAccent'), 0, 1) ?? 0
+            const ledKick = readNumber(parameters.get('ledKick'), 0, 1) ?? 0
+            const ledSnare = readNumber(parameters.get('ledSnare'), 0, 1) ?? 0
+            const ledTransient = readNumber(parameters.get('ledTransient'), 0, 1) ?? 0
+            const overallEnergy = readAudioSignal(frame.audio?.features.overallEnergy)
+            const bassEnergy = readAudioSignal(frame.audio?.bands.bass)
             const performanceDrive = 1 + beatAccent * 0.08 + downbeatAccent * 0.14 + phraseAccent * 0.1 + buildAmount * 0.18 + dropAccent * 0.32
             const motionAmount = Math.min(1, authoredMotionAmount * performanceDrive)
             const spread = Math.min(3, authoredSpread * (1 + buildAmount * 0.12 + dropAccent * 0.24))
@@ -325,6 +369,24 @@ export function createCinema2SayItNativeModuleDefinition(options: {
               })
             }
             const color = readColor(parameters.get('color')) ?? [0.82, 0.84, 0.88]
+            const ledOutlineEnabled = parameters.get('ledOutline') !== false
+            const outlineColor = readColor(parameters.get('outlineColor')) ?? [0.16, 0.92, 1]
+            const authoredPatternValue = parameters.get('pattern')
+            const authoredPattern = isCinema2SayItPattern(authoredPatternValue) ? authoredPatternValue : CINEMA2_SAY_IT_DEFAULT_PATTERN
+            const patternChange = parameters.get('patternChange') === true
+            const triggerValue = parameters.get('trigger')
+            const trigger = isSayItTrigger(triggerValue) ? triggerValue : 'bar4'
+            const triggerEventId = triggerReset ? null : resolveSayItTriggerEventIdentity(
+              frame, trigger, triggerPreviousTimeSec, triggerPreviousBeat, beatState.beats,
+            )
+            const patternSelection = patternController.update({
+              authoredPattern,
+              patternChange,
+              trigger,
+              triggerEventId,
+              absoluteBeat: beatState.beats,
+              reset: triggerReset,
+            })
             const roughness = readNumber(parameters.get('roughness'), 0.04, 1) ?? 0.16
             const environmentIntensity = readNumber(parameters.get('environmentIntensity'), 0, 4) ?? 1.25
             const highlightSweep = readNumber(parameters.get('highlightSweep'), 0, 2) ?? 0.65
@@ -342,11 +404,24 @@ export function createCinema2SayItNativeModuleDefinition(options: {
                 safety: motionSafety,
               }, layout.glyphs),
               color: Object.freeze(color),
+              ledOutlineEnabled,
+              outlineColor: Object.freeze(outlineColor),
+              pattern: patternSelection.activePattern,
+              patternPhaseBeats: Math.max(0, beatState.beats - patternSelection.patternStartBeat),
+              ledMusicIntensity: Math.min(3, 1
+                + overallEnergy * 0.65 + bassEnergy * 0.35
+                + beatAccent * 0.28 + downbeatAccent * 0.5 + phraseAccent * 0.35
+                + buildAmount * 0.45 + dropAccent * 0.9
+                + ledKick * 0.72 + ledSnare * 0.5 + ledTransient * 0.38),
               roughness,
               environmentIntensity,
               environmentRotationRadians: timeSeconds * highlightSweep * 0.7,
               materialStyle,
             })
+            triggerPreviousTimeSec = triggerTimeSec
+            triggerPreviousBeat = beatState.beats
+            triggerSourceIdentity = sourceIdentity
+            triggerContextGeneration = frame.contextGeneration
           },
           dispose: () => {
             disposed = true
@@ -394,6 +469,29 @@ export function createCinema2SayItNativeModuleDefinition(options: {
   })
 }
 
+function isSayItTrigger(value: unknown): value is Cinema2AfterhoursTriggerId {
+  return typeof value === 'string' && CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(value as Cinema2AfterhoursTriggerId)
+}
+
+function resolveSayItTriggerEventIdentity(
+  frame: Readonly<Cinema2ModuleUpdateContext['frame']>,
+  trigger: Cinema2AfterhoursTriggerId,
+  previousTimeSec: number | null,
+  previousBeat: number | null,
+  currentBeat: number,
+): string | null {
+  const canonical = resolveCinema2AfterhoursTriggerEventIdentity(frame, trigger, previousTimeSec)
+  if (canonical || !frame.audio || previousBeat == null || currentBeat <= previousBeat
+    || frame.transport?.sourcePresent === false || frame.transport?.paused === true || frame.transport?.playing === false) return canonical
+  const interval = trigger === 'beat' ? 1 : trigger === 'beat2' ? 2 : trigger === 'beat4' ? 4
+    : trigger === 'bar' ? 4 : trigger === 'bar4' ? 16 : trigger === 'bar8' ? 32
+      : trigger === 'phrase' ? 16 : null
+  if (interval == null) return null
+  const previousBoundary = Math.floor((previousBeat + 1e-6) / interval)
+  const currentBoundary = Math.floor((currentBeat + 1e-6) / interval)
+  return currentBoundary > previousBoundary ? `say-it-timing:${interval}:${currentBoundary}` : null
+}
+
 export const cinema2SayItNativeModuleDefinition = createCinema2SayItNativeModuleDefinition()
 
 function readNumber(value: unknown, min: number, max: number): number | null {
@@ -404,6 +502,11 @@ function readColor(value: unknown): readonly [number, number, number] | null {
   return Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(component => typeof component === 'number' && Number.isFinite(component))
     ? [value[0] as number, value[1] as number, value[2] as number]
     : null
+}
+
+function readAudioSignal(signal: Readonly<{ available: boolean; value: number | null }> | undefined): number {
+  return signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value)
+    ? Math.min(1, Math.max(0, signal.value)) : 0
 }
 
 function readAlignment(value: unknown): Cinema2SayItAlignment {

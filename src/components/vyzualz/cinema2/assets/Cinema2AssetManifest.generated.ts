@@ -201,14 +201,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/say-it-glyphs-v1.glb",
-        "bytes": 1963748,
-        "triangles": 57482
+        "bytes": 4302168,
+        "triangles": 144326
       }
     },
     "gpuBytes": {
-      "high": 1887064,
-      "medium": 1887064,
-      "low": 1887064
+      "high": 4145008,
+      "medium": 4145008,
+      "low": 4145008
     }
   },
   {

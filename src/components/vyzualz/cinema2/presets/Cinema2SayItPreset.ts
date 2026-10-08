@@ -26,13 +26,20 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID } from '../effects/Cinema2BuiltinEffects'
 import { CINEMA2_DEPTH_OF_FIELD_EFFECT_TYPE_ID } from '../effects/Cinema2DepthOfFieldEffect'
+import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_SAY_IT_MODULE_TYPE_ID } from '../modules/Cinema2SayItNativeModule'
+import {
+  CINEMA2_SAY_IT_DEFAULT_PATTERN,
+  CINEMA2_SAY_IT_PATTERN_IDS,
+  type Cinema2SayItPatternId,
+} from '../modules/sayIt/Cinema2SayItPatternController'
 import {
   CINEMA2_SAY_IT_CAMERA_DISTANCE,
   CINEMA2_SAY_IT_CAMERA_FOV_DEGREES,
   CINEMA2_SAY_IT_COMPOSED_MIN_ASPECT,
 } from '../modules/sayIt/Cinema2SayItQuality'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
 
 export const CINEMA2_SAY_IT_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.say-it')
 export const CINEMA2_SAY_IT_MODULE_ID = cinema2StableId<Cinema2ModuleId>('say-it-glyphs')
@@ -71,6 +78,11 @@ export const CINEMA2_SAY_IT_BLOOM_ID = parameterId('bloom')
 export const CINEMA2_SAY_IT_FINISH_ID = parameterId('finish')
 export const CINEMA2_SAY_IT_BACKGROUND_ID = parameterId('background')
 export const CINEMA2_SAY_IT_CHROME_ID = parameterId('chrome')
+export const CINEMA2_SAY_IT_LED_OUTLINE_ID = parameterId('led-outline')
+export const CINEMA2_SAY_IT_OUTLINE_COLOR_ID = parameterId('outline-color')
+export const CINEMA2_SAY_IT_PATTERN_ID = parameterId('pattern')
+export const CINEMA2_SAY_IT_PATTERN_CHANGE_ID = parameterId('pattern-change')
+export const CINEMA2_SAY_IT_TRIGGER_ID = parameterId('trigger')
 
 export const CINEMA2_SAY_IT_CAMERA_ID = cinema2StableId<Cinema2CameraId>('say-it-camera')
 const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('say-it-world-root')
@@ -81,7 +93,6 @@ const KEY_LIGHT_ID = cinema2StableId<Cinema2LightId>('say-it-key')
 const RIM_LIGHT_ID = cinema2StableId<Cinema2LightId>('say-it-rim')
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('say-it-ambient')
 
-const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
 const FINISH_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('cinematic-finish')
 const TRAILS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('say-it-trails-effect')
 const FOCUS_EFFECT_ID = cinema2StableId<Cinema2EffectId>('say-it-focus-effect')
@@ -113,6 +124,17 @@ function color(r: number, g: number, b: number, a = 1): Cinema2Color { return Ob
 
 const DEFAULT_BACKGROUND = color(0.002, 0.003, 0.005)
 const DEFAULT_CHROME = color(0.82, 0.84, 0.88)
+const DEFAULT_OUTLINE = color(0.16, 0.92, 1)
+
+const PATTERN_LABELS: Readonly<Record<Cinema2SayItPatternId, string>> = Object.freeze({
+  solid: 'Solid Glow',
+  pulse: 'Pulse',
+  'letter-chase': 'Letter Chase',
+  alternate: 'Alternate',
+  'center-wave': 'Center Wave',
+  strobe: 'Strobe',
+})
+const PATTERN_OPTIONS = Object.freeze(CINEMA2_SAY_IT_PATTERN_IDS.map(value => Object.freeze({ value, label: PATTERN_LABELS[value] })))
 
 function base(
   id: Cinema2ParameterId,
@@ -206,7 +228,7 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_SAY_IT_PRESET_ID,
-  revision: 5,
+  revision: 8,
   metadata: Object.freeze({
     name: 'SAY IT',
     description: 'Type one or two short lines of bevelled chrome text. Every character breaks apart through independent 3D rotations, then resolves precisely.',
@@ -219,6 +241,7 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'A shared perspective camera frames the complete wordmark.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'PBR chrome needs authored key, rim and ambient lighting.' }),
     Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'BPM Sync can pace the deterministic motion cycle from the track beat grid.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Shared kick, snare and transient events drive short LED impacts.' }),
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeats add a bounded motion accent.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase boundaries add a broader kinetic and camera accent.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drops add the strongest bounded motion, trail and camera accent.' }),
@@ -329,14 +352,33 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
     }),
     floatParameter(CINEMA2_SAY_IT_ROUGHNESS_ID, 'Surface Roughness', 'Surface finish from mirror-like to softly diffused.', 'design', 16, 'Material', 0.16, 0.04, 1, 0.01),
     floatParameter(CINEMA2_SAY_IT_REFLECTION_ID, 'Environment Reflection', 'Strength of the studio environment reflected by the letters.', 'design', 17, 'Material', 1.25, 0, 4, 0.05),
-    floatParameter(CINEMA2_SAY_IT_SWEEP_ID, 'Highlight Sweep', 'Speed of the reflected studio light moving across the letter faces.', 'design', 18, 'Lighting', 0.65, 0, 2, 0.05),
-    floatParameter(CINEMA2_SAY_IT_CAMERA_MOTION_ID, 'Camera Motion', 'Maximum authority for build, phrase and drop camera accents.', 'design', 19, 'Camera', 0.35, 0, 1, 0.01),
+    Object.freeze({
+      ...base(CINEMA2_SAY_IT_LED_OUTLINE_ID, 'LED Outline', 'Turn the emissive LED tube around each letter on or off.', 'design', 18, 'Lighting'),
+      type: 'boolean' as const,
+      defaultValue: true,
+    }),
+    floatParameter(CINEMA2_SAY_IT_SWEEP_ID, 'Highlight Sweep', 'Speed of the reflected studio light moving across the letter faces.', 'design', 19, 'Lighting', 0.65, 0, 2, 0.05),
+    floatParameter(CINEMA2_SAY_IT_CAMERA_MOTION_ID, 'Camera Motion', 'Maximum authority for build, phrase and drop camera accents.', 'design', 20, 'Camera', 0.35, 0, 1, 0.01),
     floatParameter(CINEMA2_SAY_IT_TRAILS_ID, 'Trails', 'Restrained temporal echoes behind moving letters.', 'effects', 1, 'Post', 0.08, 0, 1, 0.01),
     floatParameter(CINEMA2_SAY_IT_FOCUS_ID, 'Depth of Field', 'Depth-based focus blur; low quality automatically passes through.', 'effects', 2, 'Post', 0.12, 0, 1, 0.01),
-    floatParameter(CINEMA2_SAY_IT_BLOOM_ID, 'Bloom', 'Glow around the brightest chrome highlights.', 'effects', 3, 'Post', 0.35, 0, 2, 0.05),
+    floatParameter(CINEMA2_SAY_IT_BLOOM_ID, 'Bloom', 'HDR glow produced by the illuminated LED tubes.', 'effects', 3, 'Post', 0.8, 0, 2, 0.05),
     floatParameter(CINEMA2_SAY_IT_FINISH_ID, 'Cinematic Finish', 'Filmic contrast, tone curve, vignette and subtle grain.', 'effects', 4, 'Post', 0.75, 0, 1, 0.05),
+    Object.freeze({
+      ...base(CINEMA2_SAY_IT_PATTERN_ID, 'Pattern', 'Selects the active LED outline animation and restarts it from a deterministic boundary.', 'effects', 1, 'Pattern'),
+      type: 'enum' as const, defaultValue: CINEMA2_SAY_IT_DEFAULT_PATTERN, options: PATTERN_OPTIONS,
+    }),
+    Object.freeze({
+      ...base(CINEMA2_SAY_IT_PATTERN_CHANGE_ID, 'Pattern Change', 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.', 'effects', 2, 'Pattern'),
+      type: 'boolean' as const, defaultValue: false,
+    }),
+    Object.freeze({
+      ...base(CINEMA2_SAY_IT_TRIGGER_ID, 'Trigger', 'Chooses the musical event that advances to the next LED pattern while Pattern Change is enabled.', 'effects', 3, 'Pattern'),
+      type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
+      visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_SAY_IT_PATTERN_CHANGE_ID, value: true })]),
+    }),
     Object.freeze({ ...base(CINEMA2_SAY_IT_BACKGROUND_ID, 'Background', 'The seamless void behind the letters.', 'palette', 1, 'Color'), type: 'color' as const, defaultValue: DEFAULT_BACKGROUND }),
     Object.freeze({ ...base(CINEMA2_SAY_IT_CHROME_ID, 'Chrome Tint', 'Base tint of the reflective metal letters.', 'palette', 2, 'Color'), type: 'color' as const, defaultValue: DEFAULT_CHROME }),
+    Object.freeze({ ...base(CINEMA2_SAY_IT_OUTLINE_COLOR_ID, 'Outline', 'Color of the emissive LED tube around each letter.', 'palette', 3, 'Color'), type: 'color' as const, defaultValue: DEFAULT_OUTLINE }),
   ]),
   modules: Object.freeze([
     Object.freeze({
@@ -349,7 +391,10 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
         motionAmount: 1, motionProgram: 'tumble', motionDirection: 'alternate', motionSafety: 'full', glyphDelay: 0.004,
         axisX: 1, axisY: 1, axisZ: 1, randomSeed: 7, bpmSync: true, cycleSeconds: 8, spread: 1,
         beatAccent: 0, downbeatAccent: 0, phraseAccent: 0, buildAmount: 0, dropAccent: 0,
+        ledKick: 0, ledSnare: 0, ledTransient: 0,
         materialStyle: 'chrome', roughness: 0.16, environmentIntensity: 1.25, highlightSweep: 0.65, color: DEFAULT_CHROME,
+        ledOutline: true, outlineColor: DEFAULT_OUTLINE,
+        pattern: CINEMA2_SAY_IT_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
       }),
       parameterBindings: Object.freeze({
         line1Text: cinema2Ref(CINEMA2_SAY_IT_LINE_ONE_TEXT_ID),
@@ -376,6 +421,11 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
         environmentIntensity: cinema2Ref(CINEMA2_SAY_IT_REFLECTION_ID),
         highlightSweep: cinema2Ref(CINEMA2_SAY_IT_SWEEP_ID),
         color: cinema2Ref(CINEMA2_SAY_IT_CHROME_ID),
+        ledOutline: cinema2Ref(CINEMA2_SAY_IT_LED_OUTLINE_ID),
+        outlineColor: cinema2Ref(CINEMA2_SAY_IT_OUTLINE_COLOR_ID),
+        pattern: cinema2Ref(CINEMA2_SAY_IT_PATTERN_ID),
+        patternChange: cinema2Ref(CINEMA2_SAY_IT_PATTERN_CHANGE_ID),
+        trigger: cinema2Ref(CINEMA2_SAY_IT_TRIGGER_ID),
       }),
     }),
   ]),
@@ -423,6 +473,27 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
         enabledParameter: cinema2Ref(CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
         actions: Object.freeze([moduleEnvelopeAction('say-it-beat-accent', 'beatAccent', 0.02, 0.18)]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('say-it-kick-led'),
+        priority: 22,
+        enabledParameter: cinema2Ref(CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'kick' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('say-it-kick-led-accent', 'ledKick', 0.025, 0.2)]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('say-it-snare-led'),
+        priority: 23,
+        enabledParameter: cinema2Ref(CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'snare' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('say-it-snare-led-accent', 'ledSnare', 0.035, 0.28)]),
+      }),
+      Object.freeze({
+        id: choreographyRuleId('say-it-transient-led'),
+        priority: 21,
+        enabledParameter: cinema2Ref(CINEMA2_SAY_IT_AUTO_PERFORMANCE_ID),
+        source: Object.freeze({ signal: 'transient' as const, capability: 'music.rhythm-events' as const }),
+        actions: Object.freeze([moduleEnvelopeAction('say-it-transient-led-accent', 'ledTransient', 0.01, 0.12)]),
       }),
       Object.freeze({
         id: choreographyRuleId('say-it-downbeat-motion'),
@@ -558,12 +629,12 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
     }),
     Object.freeze({
       id: BLOOM_EFFECT_ID,
-      typeId: BLOOM_EFFECT_TYPE_ID,
+      typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID,
       version: 1,
       enabled: true,
       order: 2,
       scope: 'output' as const,
-      parameters: Object.freeze({ mix: 0.4, threshold: 0.62, radius: 1.8, intensity: 0.35 }),
+      parameters: Object.freeze({ mix: 1, threshold: 1.15, knee: 0.35, intensity: 0.8, spread: 0.62, levels: 7, clampMax: 24, tint: color(1, 1, 1) }),
       parameterBindings: Object.freeze({ intensity: cinema2Ref(CINEMA2_SAY_IT_BLOOM_ID) }),
     }),
     Object.freeze({
@@ -581,22 +652,22 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
     targets: Object.freeze([
       Object.freeze({
         id: SCENE_TARGET_ID,
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, depthFormat: 'depth24' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const, depthFormat: 'depth24' as const }),
         ownership: 'transient' as const,
       }),
       Object.freeze({
         id: TRAILS_TARGET_ID,
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const }),
         ownership: 'transient' as const,
       }),
       Object.freeze({
         id: FOCUS_TARGET_ID,
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const }),
         ownership: 'transient' as const,
       }),
       Object.freeze({
         id: BLOOM_TARGET_ID,
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, fallbackColorFormat: 'rgba8' as const }),
         ownership: 'transient' as const,
       }),
     ]),

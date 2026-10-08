@@ -29,14 +29,15 @@ test('SAY IT production package covers printable Basic Latin with pinned license
   const jsonLength = glb.readUInt32LE(12)
   const manifest = JSON.parse(glb.subarray(20, 20 + jsonLength).toString('utf8').trimEnd())
   const nodeNames = new Set(manifest.nodes.map(node => node.name))
-  assert.equal(nodeNames.size, 94)
+  assert.equal(nodeNames.size, 188)
   let triangles = 0
   for (let codePoint = 33; codePoint <= 126; codePoint += 1) {
     const name = `glyph-u${codePoint.toString(16).padStart(4, '0').toUpperCase()}`
     assert.ok(nodeNames.has(name), `missing ${name}`)
+    assert.ok(nodeNames.has(`${name}-led`), `missing ${name}-led`)
   }
   for (const mesh of manifest.meshes) {
     for (const primitive of mesh.primitives) triangles += manifest.accessors[primitive.indices].count / 3
   }
-  assert.equal(triangles, 57482)
+  assert.equal(triangles, 144326)
 })

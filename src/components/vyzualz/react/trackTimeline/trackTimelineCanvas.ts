@@ -494,15 +494,8 @@ function drawDetailRuler(draw: DrawContext) {
   drawBackground(draw)
   drawSectionContext(draw)
 
-  // React Track Map ruler treatment: faint cyan hairlines + 10px system font.
-  const dividerY = Math.round(height * 0.54) + 0.5
-  ctx.strokeStyle = TRACK_MAP_RULER_LINE
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(0, dividerY)
-  ctx.lineTo(width, dividerY)
-  ctx.stroke()
-
+  // One combined row: bar-start ticks run the full height with the bar number
+  // beside them; beat ticks rise from the bottom edge underneath.
   if (!model.bars.length) {
     drawTimeLabels(draw, 8)
     drawCenteredMessage(draw, 'Bar ruler unavailable')
@@ -516,7 +509,18 @@ function drawDetailRuler(draw: DrawContext) {
   ctx.font = TRACK_MAP_RULER_FONT
   ctx.textBaseline = 'top'
 
-  // BARS row: a bar-start tick at every bar, red where a four-bar block begins.
+  // Beat ticks first so the bar ticks draw over the downbeats.
+  model.beats.forEach(beat => {
+    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
+    const x = Math.floor(timeToX(beat.time, width, viewport)) + 0.5
+    ctx.strokeStyle = beat.isDownbeat ? TRACK_MAP_DOWNBEAT_COLOR : TRACK_MAP_BEAT_COLOR
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x, height)
+    ctx.lineTo(x, Math.max(0, height - TRACK_MAP_BEAT_TICK_H - 3))
+    ctx.stroke()
+  })
+
   visibleBars.forEach(bar => {
     const x1 = timeToX(bar.start, width, viewport)
     const x2 = timeToX(bar.end, width, viewport)
@@ -524,32 +528,12 @@ function drawDetailRuler(draw: DrawContext) {
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(Math.floor(x1) + 0.5, 0)
-    ctx.lineTo(Math.floor(x1) + 0.5, dividerY)
+    ctx.lineTo(Math.floor(x1) + 0.5, height)
     ctx.stroke()
 
     if (x2 - x1 > 20) {
       ctx.fillStyle = TRACK_MAP_RULER_TEXT
-      ctx.fillText(String(bar.barNumber), x1 + 6, 7)
-    }
-  })
-
-  // BEATS row: short cyan beat ticks, taller green downbeats, tallest red four-bar boundaries.
-  let lastBeatLabelX = -20
-  model.beats.forEach(beat => {
-    if (beat.time < viewport.startSec || beat.time > viewport.endSec) return
-    const x = Math.floor(timeToX(beat.time, width, viewport)) + 0.5
-    const fourBar = beat.isDownbeat && isFourBarStart(beat.time)
-    ctx.strokeStyle = fourBar ? TRACK_MAP_FOUR_BAR_COLOR : beat.isDownbeat ? TRACK_MAP_DOWNBEAT_COLOR : TRACK_MAP_BEAT_COLOR
-    ctx.lineWidth = beat.isDownbeat ? 2 : 1
-    ctx.beginPath()
-    ctx.moveTo(x, dividerY)
-    ctx.lineTo(x, Math.min(height, dividerY + (fourBar ? TRACK_MAP_FOUR_BAR_TICK_H : beat.isDownbeat ? TRACK_MAP_DOWNBEAT_TICK_H : TRACK_MAP_BEAT_TICK_H + 3)))
-    ctx.stroke()
-
-    if (x - lastBeatLabelX > 14) {
-      lastBeatLabelX = x
-      ctx.fillStyle = TRACK_MAP_RULER_TEXT
-      ctx.fillText(String(beat.beatWithinBar + 1), x + 3, dividerY + 7)
+      ctx.fillText(String(bar.barNumber), x1 + 6, 4)
     }
   })
 

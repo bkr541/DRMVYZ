@@ -3,6 +3,7 @@ import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
 import { cinema2SayItNativeModuleDefinition, createCinema2SayItNativeModuleDefinition, type Cinema2SayItModuleInspection } from '../modules/Cinema2SayItNativeModule'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import { CINEMA2_SAY_IT_PRESET_MANIFEST } from '../presets/Cinema2SayItPreset'
+import { Cinema2SayItPatternController } from '../modules/sayIt/Cinema2SayItPatternController'
 
 const frame: Readonly<Cinema2ModuleFrameReadContext> = Object.freeze({
   frameId: 1,
@@ -74,6 +75,9 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
     }
     values.set('line1Text', 'ABCDEFGHIJKL')
     values.set('line2Text', '12345678')
+    values.set('ledOutline', false)
+    values.set('outlineColor', [1, 0.25, 0.1, 1])
+    values.set('pattern', 'center-wave')
 
     const release = vi.fn()
     const disposeBridge = vi.fn()
@@ -119,6 +123,12 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
     instance.render!.providers[0]!.execute(lowExecution)
     expect(draw).toHaveBeenCalledTimes(1)
     expect(draw.mock.calls[0]?.[1].poses).toHaveLength(20)
+    expect(draw.mock.calls[0]?.[1]).toMatchObject({
+      ledOutlineEnabled: false,
+      outlineColor: [1, 0.25, 0.1],
+      pattern: 'center-wave',
+      ledMusicIntensity: 1,
+    })
     expect(instance.inspect()).toMatchObject({
       state: 'ready', quality: 'low', visibleGlyphCount: 20, renderedGlyphCount: 20,
       performance: { drawSampleCount: 1, estimatedGpuBytes: 6 * 1024 * 1024 },
@@ -133,6 +143,19 @@ describe('Cinema 2.0 SAY IT native module text updates', () => {
     disposeLease!()
     expect(disposeBridge).toHaveBeenCalledOnce()
     expect(release).toHaveBeenCalledWith(asset)
+  })
+
+  it('advances patterns once per trigger without consuming toggle or trigger edits', () => {
+    const controller = new Cinema2SayItPatternController(['solid', 'pulse', 'letter-chase'])
+    const update = (overrides: Partial<Parameters<typeof controller.update>[0]> = {}) => controller.update({
+      authoredPattern: 'solid', patternChange: true, trigger: 'bar4', triggerEventId: null, absoluteBeat: 0, ...overrides,
+    })
+    expect(update().activePattern).toBe('solid')
+    expect(update({ triggerEventId: 'bar:1', absoluteBeat: 16 })).toMatchObject({ activePattern: 'pulse', changed: true, patternStartBeat: 16 })
+    expect(update({ triggerEventId: 'bar:1', absoluteBeat: 16.5 }).activePattern).toBe('pulse')
+    expect(update({ trigger: 'phrase', triggerEventId: 'phrase:1', absoluteBeat: 17 })).toMatchObject({ activePattern: 'pulse', changed: false })
+    expect(update({ trigger: 'phrase', triggerEventId: 'phrase:2', absoluteBeat: 32 }).activePattern).toBe('letter-chase')
+    expect(update({ patternChange: false, trigger: 'phrase', triggerEventId: 'phrase:2', absoluteBeat: 33 }).activePattern).toBe('solid')
   })
 
   it('fails gracefully with a stable diagnostic when the glyph asset cannot load', async () => {

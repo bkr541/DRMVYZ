@@ -145,7 +145,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     const points = curvePoints(model, key)
     return points.length ? [{
       label,
-      height: 72,
+      height: 60,
       count: points.length,
       spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, fill: true },
     }] : []
@@ -159,7 +159,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     const points = curvePoints(model, key)
     return points.length ? [{
       label,
-      height: 72,
+      height: 60,
       count: points.length,
       spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, fill: false },
     }] : []
@@ -172,7 +172,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     ['RMS Loudness', 'rms', 'teal'],
   ].map(([label, metric, color]) => ({
     label,
-    height: 48,
+    height: 36,
     count: model.waveform.length,
     spec: {
       kind: 'heat' as const,
@@ -185,7 +185,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
   const semanticByType = groupByType(model.semanticMoments)
   const semanticRows = Object.keys(semanticByType).sort().map(type => ({
     label: titleCase(type),
-    height: 46,
+    height: 34,
     count: semanticByType[type]!.length,
     spec: {
       kind: 'events' as const,
@@ -203,7 +203,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
   })
   const timelineRows = timelineTypes.map(type => ({
     label: titleCase(type),
-    height: 44,
+    height: 32,
     count: timelineByType[type]!.length,
     spec: {
       kind: 'events' as const,
@@ -218,7 +218,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     if (!points.length || name.startsWith('barFeatures.')) return
     extremaRows.push({
       label: titleCase(name.replace(/^.*\./, '')),
-      height: 56,
+      height: 44,
       count: points.length,
       spec: {
         kind: 'extrema',
@@ -242,7 +242,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     if (!model.waveform.length) return
     extremaRows.push({
       label,
-      height: 54,
+      height: 42,
       count: model.waveform.length,
       spec: {
         kind: 'extrema',
@@ -259,7 +259,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
     if (!points.length) return
     extremaRows.push({
       label: titleCase(metric),
-      height: 54,
+      height: 42,
       count: points.length,
       spec: {
         kind: 'extrema',
@@ -402,6 +402,9 @@ function OverviewTimelineRow({
   )
 }
 
+/** Bars and beats share one ruler row. */
+const DETAIL_RULER_HEIGHT = 34
+
 function DetailRuler({ model, viewport }: {
   model: TrackTimelineModel
   viewport: TrackTimelineViewport
@@ -409,14 +412,13 @@ function DetailRuler({ model, viewport }: {
   return (
     <div className="ttv-detail-ruler-row">
       <div className="ttv-detail-ruler-label" aria-hidden="true">
-        <span>BARS</span>
-        <span>BEATS</span>
+        <span>BARS · BEATS</span>
       </div>
       <div className="ttv-canvas-wrap">
         <TrackTimelineCanvas
           model={model}
           spec={{ kind: 'detailRuler', viewport }}
-          height={58}
+          height={DETAIL_RULER_HEIGHT}
         />
       </div>
     </div>
@@ -746,7 +748,7 @@ function TimelineGroup({ group, model, collapsed, viewport, onToggle }: {
         <span className="ttv-group-title">
           <span className="ttv-chevron">⌄</span>
           <span>{group.title}</span>
-          <span className="ttv-group-toggle-mark" aria-hidden="true">{collapsed ? '+' : '−'}</span>
+          <span className="ttv-group-toggle-mark" aria-hidden="true">▾</span>
         </span>
         <span className="ttv-group-track" aria-hidden="true" />
       </button>
@@ -1089,14 +1091,29 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                     <strong title={model.meta.filename}>{model.meta.filename}</strong>
                   </div>
                 </header>
-                <div className="ttv-analysis-panel-body">
-                  <div className="ttv-info-rail-pills">
-                    {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
-                    <span ref={playheadTimeRef} className="ttv-meta-pill ttv-playhead-time">
-                      {formatTime(0)} / {formatTime(model.durationSec)}
-                    </span>
-                  </div>
-                  <MusicIntelligenceDiagnosticsPanel />
+                <div
+                  className="ttv-analysis-panel-body"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Scrollable Audio Intelligence details"
+                >
+                  <MusicIntelligenceDiagnosticsPanel
+                    headerRow={(
+                      <div className="vz-mi-section">
+                        <div className="vz-mi-section-title">Track</div>
+                        <div className="vz-mi-section--kv-grid">
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Length</span><span className="vz-mi-kv-val">{formatTime(model.durationSec)}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">BPM</span><span className="vz-mi-kv-val">{model.meta.bpm ? Math.round(model.meta.bpm) : '—'}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Time Signature</span><span className="vz-mi-kv-val">{model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Key</span><span className="vz-mi-kv-val">{model.meta.dominantKey || '—'}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Beats</span><span className="vz-mi-kv-val">{model.beats.length.toLocaleString()}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Sections</span><span className="vz-mi-kv-val">{model.sections.length}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Sample Rate</span><span className="vz-mi-kv-val">{model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : '—'}</span></div>
+                          <div className="vz-mi-kv-row"><span className="vz-mi-kv-label">Position</span><span ref={playheadTimeRef} className="vz-mi-kv-val">{formatTime(0)} / {formatTime(model.durationSec)}</span></div>
+                        </div>
+                      </div>
+                    )}
+                  />
                 </div>
               </aside>
             </main>
