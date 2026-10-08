@@ -203,7 +203,9 @@ describe('Mainframe Stage 5 preset', () => {
     expect(manifest.lighting?.lights).toHaveLength(4)
     expect(manifest.lighting?.lights[0]?.config).toMatchObject({ threeShadow: true })
     expect(manifest.environment).toMatchObject({ exposure: 1 })
-    expect(manifest.choreography).toBeUndefined()
+    expect(manifest.choreography?.rules.map(rule => rule.source.signal)).toEqual([
+      'kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop',
+    ])
   })
 
   it('cover-fits every Stage aspect with intentional crop and motion overscan', () => {

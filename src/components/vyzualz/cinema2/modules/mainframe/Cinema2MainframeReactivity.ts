@@ -20,7 +20,7 @@ export const CINEMA2_MAINFRAME_SIGNAL_IDS = Object.freeze([
 export type Cinema2MainframeSignalId = typeof CINEMA2_MAINFRAME_SIGNAL_IDS[number]
 
 export const CINEMA2_MAINFRAME_IMPULSE_IDS = Object.freeze([
-  'kick', 'snare', 'beat', 'downbeat', 'fourBeat', 'eightBeat', 'phrase', 'drop',
+  'kick', 'snare', 'beat', 'downbeat', 'fourBeat', 'eightBeat', 'phrase', 'drop', 'transient', 'section',
 ] as const)
 export type Cinema2MainframeImpulseId = typeof CINEMA2_MAINFRAME_IMPULSE_IDS[number]
 
@@ -39,6 +39,8 @@ export const CINEMA2_MAINFRAME_IMPULSES: Readonly<Record<Cinema2MainframeImpulse
   eightBeat: Object.freeze({ attackMs: 50, releaseMs: 420, targets: Object.freeze(['logoBody'] as const) }),
   phrase: Object.freeze({ attackMs: 80, releaseMs: 650, targets: Object.freeze(['circuits', 'chip'] as const) }),
   drop: Object.freeze({ attackMs: 10, releaseMs: 850, targets: Object.freeze(['circuits', 'terminals', 'radar', 'chip', 'logoOuter', 'logoBody', 'logoStar'] as const) }),
+  transient: Object.freeze({ attackMs: 14, releaseMs: 120, targets: Object.freeze(['vias', 'terminals'] as const) }),
+  section: Object.freeze({ attackMs: 55, releaseMs: 720, targets: Object.freeze(['circuits', 'radar', 'chip'] as const) }),
 })
 
 export interface Cinema2MainframeSignals {
@@ -51,6 +53,11 @@ export interface Cinema2MainframeSignals {
   readonly build: number
   /** Derived runtime energy used only to normalize the combined response; not an eighth authored Pass 3 signal. */
   readonly overall: number
+  /** Generic Visual Director signals, separate from the seven authored bands/features. */
+  readonly significance?: number
+  readonly momentum?: number
+  readonly impact?: number
+  readonly variation?: number
 }
 
 export type Cinema2MainframeImpulses = Readonly<Record<Cinema2MainframeImpulseId, number>>
@@ -60,5 +67,5 @@ export const CINEMA2_MAINFRAME_ZERO_SIGNALS: Readonly<Cinema2MainframeSignals> =
 })
 
 export const CINEMA2_MAINFRAME_ZERO_IMPULSES: Cinema2MainframeImpulses = Object.freeze({
-  kick: 0, snare: 0, beat: 0, downbeat: 0, fourBeat: 0, eightBeat: 0, phrase: 0, drop: 0,
+  kick: 0, snare: 0, beat: 0, downbeat: 0, fourBeat: 0, eightBeat: 0, phrase: 0, drop: 0, transient: 0, section: 0,
 })

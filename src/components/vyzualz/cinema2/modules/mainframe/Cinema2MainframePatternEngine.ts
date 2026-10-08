@@ -1,6 +1,8 @@
 import type { Cinema2AudioIntelligenceFrame, Cinema2AudioSignal } from '../../audio/Cinema2AudioIntelligenceBridge'
+import type { Cinema2VisualDirectorFrame } from '../../director/Cinema2VisualDirector'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
 import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './Cinema2MainframeAudioDelivery'
+import { readCinema2MainframeContinuous, type Cinema2MainframeMusicalEvent } from './Cinema2MainframeMusicAdapter'
 import {
   CINEMA2_MAINFRAME_IMPULSES,
   CINEMA2_MAINFRAME_IMPULSE_IDS,
@@ -34,6 +36,11 @@ export interface Cinema2MainframeLightingFrame {
   readonly systemGains: readonly [number, number, number, number, number, number, number, number, number]
   readonly signals: Readonly<Cinema2MainframeSignals>
   readonly impulses: Cinema2MainframeImpulses
+  /** Canonical choreography deliveries including upstream time, confidence and provenance. */
+  readonly musicalEvents?: readonly Readonly<Cinema2MainframeMusicalEvent>[]
+  /** Unmodified shared context, including confidence/evidence/section metadata. */
+  readonly audioIntelligence?: Readonly<Cinema2AudioIntelligenceFrame> | null
+  readonly visualDirector?: Readonly<Cinema2VisualDirectorFrame> | null
 }
 
 export interface Cinema2MainframePatternInput {
@@ -54,26 +61,26 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
   const { signals: s, impulses: e } = input
   const beats = Number.isFinite(input.beats) ? Math.max(0, input.beats) : 0
   const active = input.active !== false
-  const level = clamp01(0.26 * s.overall + 0.25 * s.bass + 0.19 * s.mid + 0.15 * s.high + 0.15 * s.flux)
+  const level = clamp01(0.23 * s.overall + 0.23 * s.bass + 0.18 * s.mid + 0.14 * s.high + 0.13 * s.flux + 0.09 * (s.significance ?? 0))
   const common = [
     0,
     0.05 + 0.2 * s.bass + 0.1 * s.high + 0.2 * e.beat + 0.38 * e.phrase,
     0.04 + 0.2 * s.bass + 0.68 * e.kick,
-    0.03 + 0.25 * s.high + 0.55 * s.flux,
-    0.04 + 0.28 * s.mid + 0.62 * e.fourBeat,
-    0.04 + 0.25 * s.mid + 0.16 * s.high + 0.62 * e.phrase,
+    0.03 + 0.25 * s.high + 0.55 * s.flux + 0.4 * e.transient,
+    0.04 + 0.28 * s.mid + 0.62 * e.fourBeat + 0.3 * e.section + 0.12 * (s.variation ?? 0),
+    0.04 + 0.25 * s.mid + 0.16 * s.high + 0.62 * e.phrase + 0.35 * e.section,
     0.05 + 0.25 * s.sub + 0.72 * e.snare,
     0.05 + 0.32 * s.vocal + 0.65 * e.eightBeat,
     0.04 + 0.34 * s.flux + 0.5 * e.downbeat,
   ]
-  const dropLift = 0.72 * e.drop
+  const dropLift = 0.72 * e.drop + 0.18 * (s.impact ?? 0)
   for (let index = 1; index < common.length; index += 1) common[index] = clamp01(common[index]! + dropLift * (index >= 6 ? 1 : 0.72))
 
   let chaseFront = fract(beats / 4) * 1.18
   let chaseWidth = 0.09
-  let chaseGain = 0.68 + 0.35 * e.phrase
+  let chaseGain = 0.68 + 0.35 * e.phrase + 0.2 * e.section
   let chaseDirection: 1 | -1 = 1
-  let flicker = 0.08 * s.high + 0.2 * s.flux
+  let flicker = 0.08 * s.high + 0.2 * s.flux + 0.12 * e.transient + 0.08 * (s.momentum ?? 0)
   let bankWeights: readonly [number, number, number, number] = weights4()
   let regionWeights: readonly [number, number, number, number, number, number, number, number] = weights8()
 
@@ -176,7 +183,7 @@ export class Cinema2MainframeReactivityEngine {
   private previousTimestampMs: number | null = null
   private lastFrame = evaluateCinema2MainframePattern({ pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN, beats: 0, signals: CINEMA2_MAINFRAME_ZERO_SIGNALS, impulses: CINEMA2_MAINFRAME_ZERO_IMPULSES, active: false })
 
-  update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0): Readonly<Cinema2MainframeLightingFrame> {
+  update(frame: Readonly<Cinema2ModuleFrameReadContext>, pattern: Cinema2MainframePatternId, bpmSync: boolean, patternStartBeat = 0, musicalEvents?: readonly Readonly<Cinema2MainframeMusicalEvent>[]): Readonly<Cinema2MainframeLightingFrame> {
     const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
     const playback = resolveCinema2MainframePlaybackState(frame, audio)
     const acceptedFrame = audio === frame.audio ? frame : { ...frame, audio }
@@ -210,15 +217,25 @@ export class Cinema2MainframeReactivityEngine {
     const transportDelta = this.previousTimeSec == null ? 0 : timeSec - this.previousTimeSec
     const deltaSec = Math.min(0.1, Math.max(0, frame.deltaTimeSec > 0 && Number.isFinite(frame.deltaTimeSec)
       ? frame.deltaTimeSec : timestampDelta > 0 ? timestampDelta : transportDelta))
-    const events = reset ? null : resolveEvents(audio, this.previousTimeSec, timeSec)
+    // Production supplies choreography-delivered events. Omitted events retain
+    // the legacy isolated-engine test/host compatibility path only.
+    const events = reset ? null : musicalEvents === undefined
+      ? resolveEvents(audio, this.previousTimeSec, timeSec)
+      : Object.fromEntries(musicalEvents.map(event => [event.kind, { id: event.id, strength: event.strength }])) as Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null>
     const impulseValues = {} as Record<Cinema2MainframeImpulseId, number>
     for (const id of CINEMA2_MAINFRAME_IMPULSE_IDS) impulseValues[id] = this.envelopes[id].update(deltaSec, events?.[id] ?? null)
     this.lastFrame = evaluateCinema2MainframePattern({
       pattern,
       beats: Math.max(0, resolveCinema2MainframeBeatClock(acceptedFrame, bpmSync) - Math.max(0, patternStartBeat)),
-      signals: resolveSignals(audio),
+      signals: readCinema2MainframeContinuous(audio, audio ? frame.director : null),
       impulses: Object.freeze(impulseValues),
       active: true,
+    })
+    if (musicalEvents) this.lastFrame = Object.freeze({
+      ...this.lastFrame,
+      musicalEvents: Object.freeze([...musicalEvents]),
+      audioIntelligence: audio,
+      visualDirector: audio ? frame.director : null,
     })
     this.remember(frame, timeSec, identity)
     return this.lastFrame
@@ -259,20 +276,6 @@ export function resolveCinema2MainframeBeatClock(frame: Readonly<Cinema2ModuleFr
   return Math.max(0, resolveCinema2MainframeTimeSec(frame) * CINEMA2_MAINFRAME_FREE_RUN_BPM / 60)
 }
 
-function resolveSignals(audio: Readonly<Cinema2AudioIntelligenceFrame> | null): Readonly<Cinema2MainframeSignals> {
-  if (!audio) return CINEMA2_MAINFRAME_ZERO_SIGNALS
-  return Object.freeze({
-    sub: normalizedSignalNumber(audio.bands.sub) ?? 0,
-    bass: normalizedSignalNumber(audio.bands.bass) ?? 0,
-    mid: Math.max(normalizedSignalNumber(audio.bands.lowMid) ?? 0, normalizedSignalNumber(audio.bands.mid) ?? 0),
-    high: Math.max(normalizedSignalNumber(audio.bands.high) ?? 0, normalizedSignalNumber(audio.bands.air) ?? 0),
-    flux: normalizedSignalNumber(audio.features.spectralFlux) ?? 0,
-    vocal: normalizedSignalNumber(audio.features.vocalPresence) ?? 0,
-    build: Math.max(normalizedSignalNumber(audio.features.buildProgress) ?? 0, normalizedSignalNumber(audio.structure.buildConfidence) ?? 0),
-    overall: normalizedSignalNumber(audio.features.overallEnergy) ?? 0,
-  })
-}
-
 function resolveEvents(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, previousTimeSec: number | null, timeSec: number): Record<Cinema2MainframeImpulseId, Readonly<{ id: string; strength: number }> | null> {
   const rhythm = audio?.rhythm
   const event = (value: Readonly<{ id: string; strength: number }> | null | undefined) => value ? { id: value.id, strength: value.strength } : null
@@ -283,6 +286,8 @@ function resolveEvents(audio: Readonly<Cinema2AudioIntelligenceFrame> | null, pr
     snare: event(rhythm?.snare),
     beat: event(rhythm?.beat),
     downbeat: event(rhythm?.downbeat),
+    transient: event(rhythm?.transient),
+    section: null,
     fourBeat: event(rhythm?.fixedClocks?.[4]?.boundary),
     eightBeat: event(rhythm?.fixedClocks?.[8]?.boundary),
     phrase: phrase ? { id: phrase, strength: 1 } : event(rhythm?.fixedClocks?.[16]?.boundary),
@@ -299,11 +304,6 @@ function crossed(items: readonly Readonly<{ id: string; timeSec: number }>[], pr
 
 function finiteSignalNumber(signal: Readonly<Cinema2AudioSignal<number>> | undefined): number | null {
   return signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value) ? signal.value : null
-}
-
-function normalizedSignalNumber(signal: Readonly<Cinema2AudioSignal<number>> | undefined): number | null {
-  const value = finiteSignalNumber(signal)
-  return value == null ? null : clamp01(value)
 }
 
 export function resolveCinema2MainframeTimeSec(frame: Readonly<Cinema2ModuleFrameReadContext>): number {

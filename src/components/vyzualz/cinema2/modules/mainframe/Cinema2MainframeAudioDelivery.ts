@@ -22,13 +22,14 @@ export function selectCinema2MainframeAudio(
   const signals = [
     audio.bands?.sub, audio.bands?.bass, audio.bands?.lowMid, audio.bands?.mid, audio.bands?.high, audio.bands?.air,
     audio.features?.overallEnergy, audio.features?.spectralFlux, audio.features?.vocalPresence, audio.features?.buildProgress,
-    audio.structure?.buildConfidence,
+    audio.structure?.buildConfidence, audio.structure?.dropConfidence,
     audio.rhythm?.beatPhase, audio.rhythm?.beatIndex,
   ]
-  const events = audio.rhythm && (audio.rhythm.beat || audio.rhythm.kick || audio.rhythm.snare || audio.rhythm.downbeat
+  const events = audio.rhythm && (audio.rhythm.beat || audio.rhythm.kick || audio.rhythm.snare || audio.rhythm.downbeat || audio.rhythm.transient
     || audio.rhythm.fixedClocks?.[4]?.boundary || audio.rhythm.fixedClocks?.[8]?.boundary || audio.rhythm.fixedClocks?.[16]?.boundary)
   const structure = (audio.structure?.analyzedPhrases?.available && audio.structure.analyzedPhrases.value?.length)
     || (audio.structure?.semanticMoments?.available && audio.structure.semanticMoments.value?.length)
+    || (audio.structure?.section?.available && audio.structure.section.value != null)
   return signals.some(numeric) || events || structure ? audio : null
 }
 

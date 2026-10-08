@@ -52,6 +52,13 @@ import {
   parseCinema2MainframeLightingDiagnosticFamily,
 } from './mainframe/Cinema2MainframeLightingDiagnostic'
 import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
+import {
+  resolveCinema2MainframeMusicalEvents,
+  type Cinema2MainframeMusicalCue,
+  type Cinema2MainframeMusicalCueKind,
+} from './mainframe/Cinema2MainframeMusicAdapter'
+import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
+import { CINEMA2_MAINFRAME_IMPULSE_IDS } from './mainframe/Cinema2MainframeReactivity'
 
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('mainframe-native-render')
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION = 1 as const
@@ -249,6 +256,9 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let bridgeCreateFailed = false
     let frame = resolveCinema2MainframeStaticFrame(context.parameters)
     const reactivity = new Cinema2MainframeReactivityEngine()
+    // Populated solely by the engine-owned choreography dispatcher before module.update.
+    // A bounded local queue avoids subscribing to the Audio Feature Bus a second time.
+    const musicalCues: Cinema2MainframeMusicalCue[] = []
     const patternController = new Cinema2MainframePatternController(
       createCinema2MainframePatternCycle(index => context.randomness.sample('mainframe-pattern-cycle', index)),
       frame.pattern,
@@ -378,7 +388,10 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             absoluteBeat: resolveCinema2MainframeBeatClock(acceptedFrame, frame.bpmSync),
             reset: triggerReset,
           })
-          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat)
+          const cues = musicalCues.splice(0)
+          const delivered = triggerReset || !audio || updateFrame.transport?.playing === false || updateFrame.transport?.paused
+            ? [] : resolveCinema2MainframeMusicalEvents(acceptedFrame, cues)
+          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, delivered)
           triggerPreviousTimeSec = timeSec
           triggerSourceIdentity = sourceIdentity
           triggerTrackId = updateFrame.transport?.trackId
@@ -386,10 +399,19 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         },
         dispose: () => {
           disposed = true
+          musicalCues.splice(0)
           reactivity.reset()
           patternController.reset()
           if (!bridge && held) { assets.release(held); held = null }
         },
+      },
+      handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+        if (action !== 'musicalCue' || disposed || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
+        const kind = (event.payload as { kind?: unknown }).kind
+        if (typeof kind !== 'string' || kind === 'eightBeat' || !CINEMA2_MAINFRAME_IMPULSE_IDS.includes(kind as Cinema2MainframeMusicalCueKind)) return
+        if (musicalCues.some(cue => cue.dispatchedEventId === event.eventId)) return
+        if (musicalCues.length >= 128) musicalCues.shift()
+        musicalCues.push({ kind: kind as Cinema2MainframeMusicalCueKind, dispatchedEventId: event.eventId })
       },
       render: { providers: Object.freeze([provider]) },
       getDiagnostics: () => Object.freeze([

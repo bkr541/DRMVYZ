@@ -5,6 +5,10 @@ import {
   cinema2Ref,
   cinema2StableId,
   type Cinema2CameraId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
+  type Cinema2ChoreographySignal,
+  type Cinema2CapabilityId,
   type Cinema2Color,
   type Cinema2EffectId,
   type Cinema2LayerId,
@@ -53,6 +57,20 @@ export const CINEMA2_MAINFRAME_BACKGROUND_ID = cinema2StableId<Cinema2ParameterI
 export const CINEMA2_MAINFRAME_LOGO_COLOR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-logo-color')
 export const CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-circuits-color')
 export const CINEMA2_MAINFRAME_INDICATORS_COLOR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-indicators-color')
+/** Internal event-only parameter, never an Inspector control. */
+export const CINEMA2_MAINFRAME_MUSICAL_CUE_ID = cinema2StableId<Cinema2ParameterId>('mainframe-musical-cue')
+
+const MUSIC_CUES = Object.freeze([
+  ['kick', 'kick', 'music.rhythm-events'],
+  ['snare', 'snare', 'music.rhythm-events'],
+  ['transient', 'transient', 'music.rhythm-events'],
+  ['beat', 'beat', 'music.beat'],
+  ['downbeat', 'downbeat', 'music.downbeat'],
+  ['fourBeat', 'bar', 'music.bar'],
+  ['phrase', 'phrase', 'music.phrase'],
+  ['section', 'section-change', 'music.section'],
+  ['drop', 'drop', 'music.drop'],
+] as const satisfies readonly (readonly [string, Cinema2ChoreographySignal, Cinema2CapabilityId])[])
 
 const ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('mainframe-root')
 const MODEL_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('mainframe-model')
@@ -300,8 +318,16 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Vocal presence animates the logo body and spirals.' }),
     Object.freeze({ id: 'music.build' as const, requirement: 'optional' as const, purpose: 'Build progress charges the top and bottom centre feeds.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drops produce the bounded global surge with logo priority.' }),
+    Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Canonical bar accents from the shared choreography runtime.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Shared director-authored section transitions.' }),
+    Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Shared intensity, momentum, build and impact authority.' }),
   ]),
-  parameters: PARAMETERS,
+  parameters: Object.freeze([...PARAMETERS, Object.freeze({
+    id: CINEMA2_MAINFRAME_MUSICAL_CUE_ID,
+    label: 'Musical Cue', type: 'trigger' as const,
+    section: 'React', group: 'Runtime', order: 999,
+    exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
+  })]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_MAINFRAME_MODULE_ID,
     typeId: CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID,
@@ -335,8 +361,22 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       circuitsColor: cinema2Ref(CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID),
       indicatorsColor: cinema2Ref(CINEMA2_MAINFRAME_INDICATORS_COLOR_ID),
     }),
+    actionBindings: Object.freeze({ musicalCue: cinema2Ref(CINEMA2_MAINFRAME_MUSICAL_CUE_ID) }),
     config: Object.freeze({ asset: CINEMA2_MAINFRAME_ASSET_ID, environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID }),
   })]),
+  // Event selection, phrase/drop fallbacks, section changes and deduplication
+  // are all owned by the exact same choreography runtime used by Electric Storm.
+  choreography: Object.freeze({ rules: Object.freeze(MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
+    id: cinema2StableId<Cinema2ChoreographyRuleId>(`mainframe-${kind}-event`),
+    priority: 30 + index,
+    source: Object.freeze({ signal, capability }),
+    actions: Object.freeze([Object.freeze({
+      id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind}-cue`),
+      target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_MAINFRAME_MUSICAL_CUE_ID) }),
+      operation: 'spawn' as const,
+      value: Object.freeze({ kind }),
+    })]),
+  }))) }),
   scene: Object.freeze({
     nodes: Object.freeze([
       Object.freeze({ id: ROOT_NODE_ID, kind: 'group' as const, coordinateSpace: 'world' as const }),
