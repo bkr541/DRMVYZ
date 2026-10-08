@@ -557,6 +557,46 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(callbacks.size).toBe(1)
   })
 
+  it('publishes the shared analyser into AudioFeatureBus before Cinema 2.0 captures its frame', async () => {
+    const audioDiagnosticsBefore = getCinema2AudioIntelligenceBridgeDiagnostics()
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextRaf = 1
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      const id = nextRaf++
+      callbacks.set(id, callback)
+      return id
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => callbacks.delete(id)))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((kind: string) => (
+      kind === 'webgl2' ? createCinemaMockWebGL() as unknown as RenderingContext : null
+    ))
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 960, height: 540, top: 0, left: 0, right: 960, bottom: 540, x: 0, y: 0, toJSON: () => ({}),
+    })
+    const analyser = {
+      frequencyBinCount: 1024,
+      fftSize: 2048,
+      context: { sampleRate: 48_000 },
+      getByteFrequencyData: (data: Uint8Array) => data.fill(96),
+      getByteTimeDomainData: (data: Uint8Array) => data.fill(128),
+    } as unknown as AnalyserNode
+
+    await act(async () => root?.render(
+      <Cinema2Stage analyser={analyser} isPlaying analysisActive getAudioTime={() => 12.5} />,
+    ))
+    const scheduled = [...callbacks.entries()][0]
+    expect(scheduled).toBeDefined()
+    callbacks.delete(scheduled![0])
+    await act(async () => scheduled![1](16.67))
+
+    expect(AudioFeatureBus.getFramePublicationMeta()).toMatchObject({ publisherId: 'react:cinema2', kind: 'frame' })
+    expect(AudioFeatureBus.getFrame()).toMatchObject({ timeSec: 12.5 })
+    expect(getCinema2AudioIntelligenceBridgeDiagnostics()).toMatchObject({
+      captureCount: audioDiagnosticsBefore.captureCount + 1,
+      lastCapturedSourceFrameId: AudioFeatureBus.getFrame().frameId,
+    })
+  })
+
   it('reconstructs persistent Cinema 2.0 state after navigating away from and back to the engine', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())

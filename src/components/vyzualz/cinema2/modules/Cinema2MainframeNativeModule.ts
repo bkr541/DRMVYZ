@@ -51,7 +51,7 @@ import {
   createCinema2MainframeLightingDiagnosticFrame,
   parseCinema2MainframeLightingDiagnosticFamily,
 } from './mainframe/Cinema2MainframeLightingDiagnostic'
-import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
+import { diagnoseCinema2MainframeAudio, resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
 import {
   Cinema2MainframeDropCoordinator,
   resolveCinema2MainframeMusicalEvents,
@@ -181,6 +181,67 @@ function part(partName: string, target: Rgb, values: Partial<Cinema2ThreePartOve
   return Object.freeze({ ...EMPTY_PART, color: colorMultiplier(partName, target), ...values })
 }
 
+interface MainframeDebugRecord {
+  readonly sequence: number
+  readonly at: string
+  readonly type: string
+  readonly payload: unknown
+}
+
+interface MainframeDebugHandle {
+  readonly enabled: true
+  getReport(): string
+  clear(): void
+  copyReport(): Promise<void>
+}
+
+function createMainframeDebugRecorder(): Readonly<{
+  enabled: boolean
+  record(type: string, payload: unknown, severity?: 'info' | 'warn' | 'error'): void
+  summary(timestampMs: number, payload: unknown): void
+  dispose(): void
+}> {
+  if (typeof window === 'undefined') return Object.freeze({ enabled: false, record() {}, summary() {}, dispose() {} })
+  let enabled = false
+  try {
+    const query = new URLSearchParams(window.location.search).get('mainframeDebug')
+    enabled = query === '1' || query === 'true' || window.localStorage.getItem('drmvyz:mainframe-debug') === '1'
+  } catch { /* Diagnostics must never affect preset startup. */ }
+  if (!enabled) return Object.freeze({ enabled: false, record() {}, summary() {}, dispose() {} })
+
+  const records: MainframeDebugRecord[] = []
+  let sequence = 0
+  let lastSummaryMs = Number.NEGATIVE_INFINITY
+  const host = window as unknown as { __DRMVYZ_MAINFRAME_DEBUG__?: MainframeDebugHandle }
+  const handle: MainframeDebugHandle = Object.freeze({
+    enabled: true,
+    getReport: () => JSON.stringify(records, null, 2),
+    clear: () => { records.splice(0); sequence = 0; lastSummaryMs = Number.NEGATIVE_INFINITY },
+    copyReport: async () => { await navigator.clipboard.writeText(JSON.stringify(records, null, 2)) },
+  })
+  host.__DRMVYZ_MAINFRAME_DEBUG__ = handle
+  const record = (type: string, payload: unknown, severity: 'info' | 'warn' | 'error' = 'info') => {
+    const entry: MainframeDebugRecord = Object.freeze({ sequence: ++sequence, at: new Date().toISOString(), type, payload })
+    records.push(entry)
+    if (records.length > 240) records.shift()
+    console[severity](`[MainframeDebug] ${type}`, payload)
+  }
+  record('enabled', { reportCommand: '__DRMVYZ_MAINFRAME_DEBUG__.copyReport()', maxRecords: 240 })
+  return Object.freeze({
+    enabled: true,
+    record,
+    summary(timestampMs: number, payload: unknown) {
+      if (timestampMs >= lastSummaryMs && timestampMs - lastSummaryMs < 1000) return
+      lastSummaryMs = timestampMs
+      record('pipeline-summary', payload)
+    },
+    dispose() {
+      record('disposed', {})
+      if (host.__DRMVYZ_MAINFRAME_DEBUG__ === handle) delete host.__DRMVYZ_MAINFRAME_DEBUG__
+    },
+  })
+}
+
 /** Resolves the persistent PBR look; Stage 4 lighting is layered separately through semantic GPU attributes. */
 export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModuleParameterReadFacet): Readonly<Cinema2MainframeStaticFrame> {
   const intensity = readNumber(parameters, 'masterIntensity', 0.8, 0, 1)
@@ -208,11 +269,11 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
     chipHardware: part('chipHardware', [0.065, 0.075, 0.07], { roughness: 0.38, metalness: 0.7, clearcoat: 0.2, clearcoatRoughness: 0.2, environmentIntensity: 0.48 }),
     logoHousing: part('logoHousing', [0.3, 0.34, 0.31], { roughness: 0.22, metalness: 1, clearcoat: 0.28, clearcoatRoughness: 0.12, environmentIntensity: 0.68 }),
     // These values are the no-audio/static fallback. During playback the semantic shader replaces them with a much wider dark-to-hot range.
-    circuitCores: part('circuitCores', scaled(circuits, 0.035), { emissive: circuits, emissiveIntensity: 0.18 * intensity, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.08 }),
-    indicatorCores: part('indicatorCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    radarCores: part('radarCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    chipCores: part('chipCores', scaled(indicators, 0.05), { emissive: indicators, emissiveIntensity: 0.25 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    logoCore: part('logoCore', scaled(logo, 0.055), { emissive: logo, emissiveIntensity: 0.32 * intensity, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.12 }),
+    circuitCores: part('circuitCores', scaled(circuits, 0.055), { emissive: circuits, emissiveIntensity: 0.3 * intensity, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.08 }),
+    indicatorCores: part('indicatorCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    radarCores: part('radarCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    chipCores: part('chipCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    logoCore: part('logoCore', scaled(logo, 0.075), { emissive: logo, emissiveIntensity: 0.52 * intensity, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.12 }),
   }
 
   return Object.freeze({
@@ -250,6 +311,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
   version: CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION,
   validate: (module: Readonly<Cinema2ModuleManifest>) => validateConfig(module.config),
   create(context: Cinema2ModuleCreateContext) {
+    const debug = createMainframeDebugRecorder()
     let state: Cinema2MainframeModuleState = 'idle'
     let disposed = false
     let library: Cinema2ThreeLibrary | null = null
@@ -275,6 +337,8 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let triggerTrackId: string | null | undefined
     let triggerContextGeneration: number | null = null
     let previousPlayback: ReturnType<typeof resolveCinema2MainframePlaybackState> | null = null
+    let debugPreviousSelectionReason: string | null = null
+    let debugRenderFingerprint = ''
     let reportedBytes = -1
     let qualityProfile: Readonly<Cinema2MainframeQualityProfile> = resolveCinema2MainframeQualityProfile('high')
     // Vite removes this override from production builds. In dev, visit
@@ -293,8 +357,23 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       if (!diagnostics.some(existing => existing.code === code && existing.message === message)) diagnostics.push({ code, message, path })
     }
 
+    const reportDebugRenderState = () => {
+      if (!debug.enabled) return
+      const bridgeDiagnostics = bridge?.getDiagnostics() ?? []
+      const fingerprint = JSON.stringify([state, bridge?.ready ?? false, bridgeDiagnostics.map(item => item.code)])
+      if (fingerprint === debugRenderFingerprint) return
+      debugRenderFingerprint = fingerprint
+      debug.record('renderer-state', {
+        moduleState: state,
+        bridgeCreated: bridge != null,
+        bridgeReady: bridge?.ready ?? false,
+        diagnostics: bridgeDiagnostics,
+      }, state === 'failed' || bridgeDiagnostics.length > 0 ? 'error' : 'info')
+    }
+
     const startLoading = (quality: Cinema2RenderQualityLevel) => {
       state = 'loading'
+      debug.record('asset-load-started', { quality, assetId: CINEMA2_MAINFRAME_ASSET_ID, environmentId })
       void (async () => {
         try {
           const loadedLibrary = await loadCinema2ThreeLibrary()
@@ -303,10 +382,13 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           library = loadedLibrary
           held = asset
           state = 'building'
+          debug.record('asset-loaded', { quality, triangleCount: asset.triangleCount, gpuBytes: asset.gpuBytes })
         } catch (error) {
           if (!disposed) {
             state = 'failed'
-            report('CINEMA2_MAINFRAME_ASSET_LOAD_FAILED', `Mainframe could not load its production model: ${error instanceof Error ? error.message : String(error)}`, '$.config.asset')
+            const message = error instanceof Error ? error.message : String(error)
+            report('CINEMA2_MAINFRAME_ASSET_LOAD_FAILED', `Mainframe could not load its production model: ${message}`, '$.config.asset')
+            debug.record('asset-load-failed', { message }, 'error')
           }
         }
       })()
@@ -333,12 +415,15 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           }),
           value => { value.dispose(); assets.release(asset) },
         )
+        debug.record('renderer-created', { hdr: true, environmentId })
       } catch (error) {
         bridgeCreateFailed = true
         state = 'failed'
         assets.release(held)
         held = null
-        report('CINEMA2_MAINFRAME_SCENE_BUILD_FAILED', `Mainframe could not build its production scene: ${error instanceof Error ? error.message : String(error)}`, '$.config')
+        const message = error instanceof Error ? error.message : String(error)
+        report('CINEMA2_MAINFRAME_SCENE_BUILD_FAILED', `Mainframe could not build its production scene: ${message}`, '$.config')
+        debug.record('renderer-create-failed', { message }, 'error')
       }
     }
 
@@ -351,19 +436,25 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         qualityProfile = resolveCinema2MainframeQualityProfile(quality)
         if (state === 'idle') startLoading(quality)
         if (state === 'building' && !bridge && !bridgeCreateFailed) buildBridge()
-        if (!bridge || state === 'loading' || state === 'failed') return
+        if (!bridge || state === 'loading' || state === 'failed') { reportDebugRenderState(); return }
         const renderedLighting = diagnosticLighting ?? lighting
-        bridge.draw(execution, frame.overrides, 0, null, null, {
-          scale: resolveCinema2MainframeCoverScale(execution.width, execution.height, frame.scale),
-          parts: frame.visibility,
-        }, renderedLighting ? {
-          circuitColor: frame.colors.circuits,
-          indicatorColor: frame.colors.indicators,
-          logoColor: frame.colors.logo,
-          strength: diagnosticLighting ? 1 : frame.intensity,
-          frame: renderedLighting,
-        } : null)
+        try {
+          bridge.draw(execution, frame.overrides, 0, null, null, {
+            scale: resolveCinema2MainframeCoverScale(execution.width, execution.height, frame.scale),
+            parts: frame.visibility,
+          }, renderedLighting ? {
+            circuitColor: frame.colors.circuits,
+            indicatorColor: frame.colors.indicators,
+            logoColor: frame.colors.logo,
+            strength: diagnosticLighting ? 1 : frame.intensity,
+            frame: renderedLighting,
+          } : null)
+        } catch (error) {
+          debug.record('render-failed', { message: error instanceof Error ? error.message : String(error) }, 'error')
+          throw error
+        }
         if (bridge.ready) state = 'ready'
+        reportDebugRenderState()
         const bytes = bridge.estimateGpuBytes()
         if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
       },
@@ -373,6 +464,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       lifecycle: {
         update: ({ parameters, frame: updateFrame }: Cinema2ModuleUpdateContext) => {
           frame = resolveCinema2MainframeStaticFrame(parameters)
+          const audioSelection = diagnoseCinema2MainframeAudio(updateFrame.audio, updateFrame.transport?.trackId)
           const audio = selectCinema2MainframeAudio(updateFrame.audio, updateFrame.transport?.trackId)
           const acceptedFrame = audio === updateFrame.audio ? updateFrame : { ...updateFrame, audio }
           const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
@@ -405,6 +497,56 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             reset: triggerReset,
           })
           lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+          if (audioSelection.reason !== debugPreviousSelectionReason) {
+            debugPreviousSelectionReason = audioSelection.reason
+            debug.record('audio-selection', {
+              accepted: audioSelection.accepted,
+              reason: audioSelection.reason,
+              transportTrackId: updateFrame.transport?.trackId ?? null,
+              audioTrackId: updateFrame.audio?.upstream.trackId ?? null,
+              audioSourceId: updateFrame.audio?.upstream.sourceId ?? null,
+              publisherId: updateFrame.audio?.upstream.publisherId ?? null,
+            }, audioSelection.accepted ? 'info' : 'warn')
+          }
+          if (triggerReset) debug.record('timeline-reset', {
+            playback, sourceIdentity, contextGeneration: updateFrame.contextGeneration, timeSec,
+          })
+          if (cues.length > 0) debug.record('cues-consumed', cues)
+          if (coordinated.events.length > 0) debug.record('musical-events', coordinated.events.map(event => ({
+            kind: event.kind, id: event.id, timeSec: event.timeSec, strength: event.strength,
+            visualStrength: event.visualStrength, confidence: event.confidence, source: event.source,
+          })))
+          debug.summary(updateFrame.timestampMs, {
+            module: { state, bridgeReady: bridge?.ready ?? false, masterIntensity: frame.intensity },
+            transport: updateFrame.transport ?? null,
+            audio: updateFrame.audio ? {
+              accepted: audioSelection.accepted,
+              rejectionReason: audioSelection.accepted ? null : audioSelection.reason,
+              frameId: updateFrame.audio.upstream.frameId,
+              publicationKind: updateFrame.audio.upstream.publicationKind,
+              publicationSequence: updateFrame.audio.upstream.publicationSequence,
+              trackId: updateFrame.audio.upstream.trackId,
+              sourceId: updateFrame.audio.upstream.sourceId,
+              overallEnergy: updateFrame.audio.features?.overallEnergy?.value ?? null,
+              bass: updateFrame.audio.bands?.bass?.value ?? null,
+              beat: updateFrame.audio.rhythm?.beat?.id ?? null,
+              kick: updateFrame.audio.rhythm?.kick?.id ?? null,
+              snare: updateFrame.audio.rhythm?.snare?.id ?? null,
+              transient: updateFrame.audio.rhythm?.transient?.id ?? null,
+            } : null,
+            processing: {
+              playback, triggerReset, queuedCuesConsumed: cues.length, emittedEvents: coordinated.events.length,
+              timing, pattern: selection.activePattern, patternChanged: selection.changed,
+            },
+            output: lighting ? {
+              active: lighting.active, level: lighting.level, circuitEnergy: lighting.circuitEnergy,
+              circuitAccent: lighting.circuitAccent, circuitPulse: lighting.circuitPulse,
+              systems: lighting.systemGains,
+              impulses: lighting.impulses,
+              activeRoutePulses: lighting.routePulses.filter(pulse => pulse.gain > 0.001).length,
+            } : null,
+            rendererDiagnostics: bridge?.getDiagnostics() ?? [],
+          })
           triggerPreviousTimeSec = timeSec
           triggerPreviousBeat = timing.beats
           triggerSourceIdentity = sourceIdentity
@@ -421,6 +563,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           reactivity.reset()
           patternController.reset()
           if (!bridge && held) { assets.release(held); held = null }
+          debug.dispose()
         },
       },
       handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
@@ -430,6 +573,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         if (musicalCues.some(cue => cue.dispatchedEventId === event.eventId)) return
         if (musicalCues.length >= 128) musicalCues.shift()
         musicalCues.push({ kind: kind as Cinema2MainframeMusicalCueKind, dispatchedEventId: event.eventId })
+        debug.record('cue-received', { kind, eventId: event.eventId, queued: musicalCues.length })
       },
       render: { providers: Object.freeze([provider]) },
       getDiagnostics: () => Object.freeze([

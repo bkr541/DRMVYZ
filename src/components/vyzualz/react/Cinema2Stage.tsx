@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MusicIntelligenceAnalyserFramePump } from '../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
 import {
   Cinema2Runtime,
   captureCinema2WorkspacePresetState,
@@ -17,6 +18,8 @@ export interface Cinema2StageProps {
   isPlaying?: boolean
   analysisActive?: boolean
   isPaused?: boolean
+  /** Shared Web Audio analyser sampled by the Cinema 2.0 render clock. */
+  analyser?: AnalyserNode | null
   /** Identity published by AudioFeatureBus (the runtime playlist/source id). */
   audioIntelligenceTrackId?: string | null
   /** Persisted audio-record id used by transport/storage integrations. */
@@ -47,6 +50,7 @@ export function Cinema2Stage({
   isPlaying,
   analysisActive,
   isPaused,
+  analyser,
   audioIntelligenceTrackId,
   activeAudioTrackId,
   bpmSync,
@@ -66,6 +70,7 @@ export function Cinema2Stage({
     isPlaying: isPlaying ?? true,
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
+    analyser: analyser ?? null,
     activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
     bpmSync: bpmSync === true,
     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
@@ -76,6 +81,7 @@ export function Cinema2Stage({
     isPlaying: isPlaying ?? true,
     analysisActive: analysisActive ?? true,
     isPaused: isPaused ?? false,
+    analyser: analyser ?? null,
     activeAudioTrackId: resolveCinema2StageTransportTrackId(audioIntelligenceTrackId, activeAudioTrackId),
     bpmSync: bpmSync === true,
     bpm: typeof bpm === 'number' && Number.isFinite(bpm) && bpm > 0 ? bpm : null,
@@ -94,6 +100,7 @@ export function Cinema2Stage({
     let resizeObserver: ResizeObserver | null = null
     let lastResolution: CanvasResolution | null = null
     let retired = false
+    const analyserFramePump = new MusicIntelligenceAnalyserFramePump({ publisherId: 'react:cinema2' })
 
     const reportSnapshot = (snapshot: Cinema2RuntimeSnapshot) => {
       if (retired) return
@@ -135,6 +142,7 @@ export function Cinema2Stage({
       onRuntimeSnapshotRef.current?.(null)
       runtime?.dispose()
       runtime = null
+      analyserFramePump.dispose()
       onCanvasReadyRef.current?.(null)
     }
 
@@ -152,13 +160,22 @@ export function Cinema2Stage({
         getState: () => {
           const transport = transportRef.current
           const timeSec = transport.getAudioTime?.() ?? 0
+          const safeTimeSec = Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0
+          if (transport.analysisActive && transport.analyser) {
+            analyserFramePump.sample({
+              analyser: transport.analyser,
+              audioTime: safeTimeSec,
+              isPlaying: transport.isPlaying && !transport.isPaused,
+              trackIdentity: transport.activeAudioTrackId,
+            })
+          }
           return {
             sourcePresent: transport.analysisActive || transport.activeAudioTrackId != null,
             playing: transport.isPlaying,
             analysisActive: transport.analysisActive,
             paused: transport.isPaused,
             trackId: transport.activeAudioTrackId,
-            timeSec: Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0,
+            timeSec: safeTimeSec,
             bpmSync: transport.bpmSync,
             bpm: transport.bpm,
           }

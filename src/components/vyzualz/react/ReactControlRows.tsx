@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
+import { useId, useRef, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphToggle } from './controls/IconMorphToggle'
@@ -374,8 +374,8 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
 // Background / Primary / Secondary / Accent / Foreground / Highlight). A
 // collapsed row is a single line — swatch dot, label filling the remaining
 // space, caret — with no hex readout. Clicking it expands the row in place,
-// accordion-style, to reveal a saturation/lightness gradient square, a hue
-// strip, and a hex field — no popover, everything stays in document flow, so
+// accordion-style, to reveal a hue/saturation gradient square (full spectrum
+// left to right), a lightness slider, and a hex field — no popover, everything stays in document flow, so
 // there's no portal or viewport-clamped positioning to own.
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -441,8 +441,23 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
   const generatedId = useId()
   const inputId = id ?? generatedId
   const [open, setOpen] = useState(false)
-  const [h, s, l] = hexToHsl(value)
-  const setHsl = (nextH: number, nextS: number, nextL: number) => onChange(hslToHex(nextH, nextS, nextL))
+  // Hue and saturation are kept locally: a hex value can't carry them at the
+  // lightness extremes (black/white/gray), so deriving them from `value` alone
+  // would snap the thumb back to red whenever the lightness slider hits an end.
+  const [derivedH, derivedS, derivedL] = hexToHsl(value)
+  const [hsl, setHslState] = useState<[number, number, number]>([derivedH, derivedS, derivedL])
+  const lastEmitted = useRef(value.toLowerCase())
+  if (value.toLowerCase() !== lastEmitted.current) {
+    lastEmitted.current = value.toLowerCase()
+    setHslState([derivedH, derivedS, derivedL])
+  }
+  const [h, s, l] = hsl
+  const setHsl = (nextH: number, nextS: number, nextL: number) => {
+    const hex = hslToHex(nextH, nextS, nextL)
+    lastEmitted.current = hex.toLowerCase()
+    setHslState([nextH, nextS, nextL])
+    onChange(hex)
+  }
 
   return (
     <div className={`rv-ctrl-palette-row${open ? ' is-open' : ''}`}>
@@ -464,13 +479,13 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
         <div className="rv-ctrl-palette-body">
           <div
             className="rv-ctrl-palette-gradient-square"
-            style={{ background: `linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(${h} 100% 50%))` }}
+            style={{ background: `linear-gradient(to bottom, transparent, hsl(0 0% ${l}%)), linear-gradient(to right, ${[0, 60, 120, 180, 240, 300, 360].map(stop => `hsl(${stop} 100% ${l}%)`).join(', ')})` }}
             onPointerDown={event => {
               const rect = event.currentTarget.getBoundingClientRect()
               const move = (clientX: number, clientY: number) => {
                 const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
                 const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
-                setHsl(h, x * 100, (1 - y) * 100)
+                setHsl(x * 360, (1 - y) * 100, l)
               }
               move(event.clientX, event.clientY)
               // The drag target's own window — matters when this row is
@@ -483,13 +498,13 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
               ownerWindow.addEventListener('pointerup', onUp, { once: true })
             }}
           >
-            <span className="rv-ctrl-palette-gradient-thumb" style={{ left: `${s}%`, top: `${100 - l}%` }} aria-hidden="true" />
+            <span className="rv-ctrl-palette-gradient-thumb" style={{ left: `${(h / 360) * 100}%`, top: `${100 - s}%` }} aria-hidden="true" />
           </div>
           <BubbleRevealSlider
             className="rv-ctrl-palette-hue-slider"
-            min={0} max={360} step={1} value={h}
-            aria-label="Hue"
-            onChange={event => setHsl(Number(event.target.value), s, l)}
+            min={0} max={100} step={1} value={l}
+            aria-label="Lightness"
+            onChange={event => setHsl(h, s, Number(event.target.value))}
           />
           <DreamVizTextInput
             className="rv-ctrl-palette-hex-input"

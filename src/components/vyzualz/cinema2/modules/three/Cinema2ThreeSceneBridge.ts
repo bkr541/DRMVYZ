@@ -1253,8 +1253,16 @@ function addMainframeLighting(shader: ShaderSource, shared: MainframeUniforms, r
       // Keep the existing green-to-hot mix independent of the energy gain to
       // avoid sustained loudness bleaching all the cores white.
       'float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y, 0.0, 1.0 ) );',
+      // Family-specific visibility lift. Circuit cores, indicator-colored
+      // electronics and the logo remain independently readable without
+      // raising the board, global exposure or bloom. Master Intensity stays
+      // authoritative because this gain remains inside its multiplication.
+      'float cinema2MFFamilyGain = uCinema2MainframeRole < 0.5 ? 1.4',
+      '  : ( uCinema2MainframeRole < 3.5 ? 1.45',
+      '  : ( uCinema2MainframeRole < 4.5 ? 1.55',
+      '  : ( uCinema2MainframeRole < 5.5 ? 1.22 : 1.0 ) ) );',
       'vec3 cinema2MFEmission = mix( cinema2MFColor, vec3( 1.0 ), cinema2MFHot * 0.78 )',
-      '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) * cinema2MFEnergyLift );',
+      '  * ( uCinema2MainframeStrength * max( 0.0, cinema2MFLight ) * cinema2MFEnergyLift * cinema2MFFamilyGain );',
       'vec3 cinema2MFFinal = mix( 1.0 - exp( - cinema2MFEmission ), cinema2MFEmission, uCinema2MainframeHdr );',
       // Static/no-source rendering retains the approved Stage 3 material. During playback the semantic shader owns emission so its dark-to-hot
       // range remains visible instead of adding a small modulation on top of an already-bright material.

@@ -170,7 +170,7 @@ describe('Mainframe Stage 5 preset', () => {
     expect(Object.values(on.visibility)).toEqual([true, true, true, true])
   })
 
-  it('keeps hardware lit at zero Master Intensity while disabling every emissive family', () => {
+  it('keeps hardware visible at zero Master Intensity and provides distinct bright emissive families', () => {
     const dark = resolveCinema2MainframeStaticFrame(reader({ masterIntensity: 0 }))
     for (const name of ['circuitCores', 'indicatorCores', 'radarCores', 'chipCores', 'logoCore']) {
       expect(dark.overrides.parts[name]?.emissiveIntensity).toBe(0)
@@ -178,8 +178,9 @@ describe('Mainframe Stage 5 preset', () => {
     expect(dark.overrides.parts.logoHousing?.metalness).toBe(1)
     expect(dark.overrides.parts.board?.roughness).toBeGreaterThan(0.7)
     const bright = resolveCinema2MainframeStaticFrame(reader({ masterIntensity: 1 }))
-    expect(bright.overrides.parts.logoCore?.emissiveIntensity).toBeGreaterThan(bright.overrides.parts.circuitCores?.emissiveIntensity as number)
-    expect(bright.overrides.parts.circuitCores?.emissiveIntensity).toBeLessThan(0.2)
+    expect(bright.overrides.parts.circuitCores?.emissiveIntensity).toBeCloseTo(0.3)
+    expect(bright.overrides.parts.indicatorCores?.emissiveIntensity).toBeCloseTo(0.4)
+    expect(bright.overrides.parts.logoCore?.emissiveIntensity).toBeCloseTo(0.52)
   })
 
   it('keeps logo, circuits and indicators independently recolorable and finishes with HDR bloom plus filmic grading', () => {

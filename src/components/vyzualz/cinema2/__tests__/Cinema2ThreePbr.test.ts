@@ -191,7 +191,8 @@ describe('Cinema 2.0 Three bridge PBR', () => {
       // The shared State0.y level must be used in the visible emissive path,
       // not just uploaded to a dead uniform.
       expect(shader.fragmentShader).toContain('float cinema2MFEnergyLift = 0.48 + 1.02 * sqrt( clamp( uCinema2MainframeState0.y')
-      expect(shader.fragmentShader).toContain('cinema2MFLight ) * cinema2MFEnergyLift')
+      expect(shader.fragmentShader).toContain('float cinema2MFFamilyGain = uCinema2MainframeRole < 0.5 ? 1.4')
+      expect(shader.fragmentShader).toContain('cinema2MFLight ) * cinema2MFEnergyLift * cinema2MFFamilyGain')
       expect(shader.fragmentShader).toContain('pulse * selection * ( 0.75 + 0.5 * sqrt( clamp( uCinema2MainframeState0.y')
       expect(shader.fragmentShader).toContain('float radarWave = hwSweep')
       expect(shader.fragmentShader).toContain('uCinema2MainframePulseFront')

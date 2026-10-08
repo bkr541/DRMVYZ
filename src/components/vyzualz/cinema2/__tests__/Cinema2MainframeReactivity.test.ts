@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
+import { diagnoseCinema2MainframeAudio, selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import {
   Cinema2MainframeDropCoordinator,
   readCinema2MainframeContinuous,
@@ -215,6 +215,9 @@ describe('P0-02 Mainframe audio delivery and transport transitions', () => {
     expect(engine.update(unavailable, 'radar-sweep', true).active).toBe(false)
     const truncated = altered(frame({ time: 3.1 }), { audio: { ...frame({ time: 3.1 }).audio!, rhythm: {} as never } })
     expect(engine.update(truncated, 'radar-sweep', true).active).toBe(false)
+    expect(diagnoseCinema2MainframeAudio(null, 'track').reason).toBe('missing-frame')
+    expect(diagnoseCinema2MainframeAudio(resetFrame.audio, 'track').reason).toBe('reset-publication')
+    expect(diagnoseCinema2MainframeAudio(truncated.audio, 'track').reason).toBe('incomplete-fixed-clocks')
   })
 
   it('holds during pause, responds to newly published music after resume, and clears on stop', () => {
@@ -245,6 +248,7 @@ describe('P0-02 Mainframe audio delivery and transport transitions', () => {
       transport: { trackId: 'new-track' },
     })
     expect(selectCinema2MainframeAudio(stale.audio, 'new-track')).toBeNull()
+    expect(diagnoseCinema2MainframeAudio(stale.audio, 'new-track').reason).toBe('track-identity-mismatch')
     expect(engine.update(stale, 'outward-bus', true).active).toBe(false)
     expect(engine.update(altered(stale, { transport: { trackId: 'new-track', playing: false, paused: true } }), 'outward-bus', true).active).toBe(false)
     const fresh = altered(frame({ time: 0.3, event: { kind: 'kick', id: 'old' } }), {
