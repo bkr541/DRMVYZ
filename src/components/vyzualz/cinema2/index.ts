@@ -1014,6 +1014,12 @@ export {
 } from './modules/mainframe/Cinema2MainframePatternController'
 
 export {
+  CINEMA2_MAINFRAME_QUALITY_PROFILES,
+  resolveCinema2MainframeQualityProfile,
+  type Cinema2MainframeQualityProfile,
+} from './modules/mainframe/Cinema2MainframeQuality'
+
+export {
   CINEMA2_MAINFRAME_BANKS,
   CINEMA2_MAINFRAME_IMPULSES,
   CINEMA2_MAINFRAME_IMPULSE_IDS,

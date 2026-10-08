@@ -12,6 +12,9 @@ interface ControlledFrameClock {
 
 interface MainframeProductionApi {
   prepare(): Promise<unknown>
+  profile(sampleFrames?: number): Promise<unknown>
+  recoverContext(): Promise<unknown>
+  resize(width: number, height: number): Promise<unknown>
   status(): unknown
 }
 
@@ -37,8 +40,9 @@ function controlledClock(): ControlledFrameClock {
   }
 }
 
-const canvas = document.querySelector<HTMLCanvasElement>('#mainframe-production')
-if (!canvas) throw new Error('The Mainframe production canvas is missing.')
+const canvasElement = document.querySelector<HTMLCanvasElement>('#mainframe-production')
+if (!canvasElement) throw new Error('The Mainframe production canvas is missing.')
+const canvas: HTMLCanvasElement = canvasElement
 const query = new URLSearchParams(location.search)
 const requestedQuality = query.get('quality')
 const quality: Cinema2RenderQualityLevel = requestedQuality === 'low' || requestedQuality === 'medium' ? requestedQuality : 'high'
@@ -82,6 +86,18 @@ let prepared = false
 let pending: Promise<unknown> | null = null
 const browserFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
 
+async function settleFrames(count: number): Promise<void> {
+  const target = runtime.getSnapshot().frameCount + Math.max(1, Math.round(count))
+  while (runtime.getSnapshot().frameCount < target) await browserFrame()
+}
+
+function assetFailureMessage(): string | null {
+  const diagnostic = runtime.getModuleRuntimeSnapshot().modules
+    .flatMap(module => module.diagnostics)
+    .find(entry => entry.code === 'CINEMA2_MAINFRAME_ASSET_LOAD_FAILED')
+  return diagnostic?.message ?? null
+}
+
 function status() {
   return Object.freeze({
     prepared,
@@ -104,13 +120,14 @@ async function prepare(): Promise<unknown> {
       await browserFrame()
       const modules = runtime.getModuleRuntimeSnapshot()
       if (modules.failedModuleCount > 0) throw new Error('The Mainframe native module failed during production-path preparation.')
+      const assetFailure = assetFailureMessage()
+      if (assetFailure) throw new Error(assetFailure)
       if (modules.activeModuleCount > 0 && modules.estimatedGpuBytes > 0) { resident = true; break }
     }
     if (!resident) throw new Error('The Mainframe model did not become GPU-resident within the capture timeout.')
     clock.setTargetTimestamp(captureTimeSec * 1000)
     while (runtime.getVisualElapsedTimeSec() < captureTimeSec - 1e-6) await browserFrame()
-    const settleFrame = runtime.getSnapshot().frameCount + 30
-    while (runtime.getSnapshot().frameCount < settleFrame) await browserFrame()
+    await settleFrames(30)
     if (runtime.getPerformanceSnapshot().resolvedQuality !== quality) throw new Error(`Expected ${quality} quality.`)
     prepared = true
     return status()
@@ -118,5 +135,54 @@ async function prepare(): Promise<unknown> {
   return pending
 }
 
-window.__mainframeProduction = Object.freeze({ prepare, status })
+async function profile(sampleFrames = 120): Promise<unknown> {
+  await prepare()
+  const count = Math.min(600, Math.max(30, Math.round(sampleFrames)))
+  const started = performance.now()
+  await settleFrames(count)
+  const elapsedMs = performance.now() - started
+  return Object.freeze({
+    sampleFrames: count,
+    elapsedMs,
+    wallFrameTimeAverageMs: elapsedMs / count,
+    runtime: status(),
+  })
+}
+
+async function resize(width: number, height: number): Promise<unknown> {
+  await prepare()
+  runtime.resize({ width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)), dpr: 1 })
+  await settleFrames(24)
+  const snapshot = runtime.getSnapshot()
+  if (snapshot.phase !== 'running' || runtime.getModuleRuntimeSnapshot().failedModuleCount > 0) throw new Error('Mainframe failed to render after resize.')
+  return status()
+}
+
+async function recoverContext(): Promise<unknown> {
+  await prepare()
+  const gl = canvas.getContext('webgl2')
+  const extension = gl?.getExtension('WEBGL_lose_context')
+  if (!extension) throw new Error('WEBGL_lose_context is unavailable; Mainframe recovery was not exercised.')
+  const generation = runtime.getSnapshot().contextGeneration
+  extension.loseContext()
+  for (let attempt = 0; attempt < 180 && runtime.getSnapshot().phase !== 'context-lost'; attempt += 1) await browserFrame()
+  if (runtime.getSnapshot().phase !== 'context-lost') throw new Error('Mainframe did not enter the context-lost phase.')
+  extension.restoreContext()
+  for (let attempt = 0; attempt < 360; attempt += 1) {
+    await browserFrame()
+    const snapshot = runtime.getSnapshot()
+    const modules = runtime.getModuleRuntimeSnapshot()
+    const assetFailure = assetFailureMessage()
+    if (assetFailure) throw new Error(assetFailure)
+    if (modules.failedModuleCount > 0) throw new Error('Mainframe module failed after WebGL context recovery.')
+    if (snapshot.phase === 'running' && snapshot.contextGeneration > generation && modules.estimatedGpuBytes > 0) {
+      await settleFrames(30)
+      if (runtime.getSnapshot().phase !== 'running') throw new Error('Mainframe did not present a frame after WebGL context recovery.')
+      return status()
+    }
+  }
+  throw new Error('Mainframe did not recover its GPU resources after WebGL context restoration.')
+}
+
+window.__mainframeProduction = Object.freeze({ prepare, profile, recoverContext, resize, status })
 addEventListener('beforeunload', () => runtime.dispose(), { once: true })

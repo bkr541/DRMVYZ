@@ -18,6 +18,9 @@ import {
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
 import { CINEMA2_MAINFRAME_ASSET_ID, cinema2ThreeAssetRegistry } from '../modules/three/Cinema2ThreeAssetManifest'
 import {
+  CINEMA2_MAINFRAME_QUALITY_PROFILES,
+} from '../modules/mainframe/Cinema2MainframeQuality'
+import {
   CINEMA2_MAINFRAME_BACKGROUND_ID,
   CINEMA2_MAINFRAME_BPM_SYNC_ID,
   CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID,
@@ -210,5 +213,13 @@ describe('Mainframe Stage 5 preset', () => {
     const deepestPortraitZoom = resolveCinema2MainframeCoverScale(1000, 1200, CINEMA2_MAINFRAME_MIN_SCALE)
     expect(deepestPortraitZoom * CINEMA2_MAINFRAME_MODEL_EXTENT_MULTIPLIER).toBeGreaterThan(1)
     expect(resolveCinema2MainframeCoverScale(1000, 1200, 0)).toBe(deepestPortraitZoom)
+  })
+
+  it('degrades deliberately across the three production quality tiers', () => {
+    expect(CINEMA2_MAINFRAME_QUALITY_PROFILES).toMatchObject({
+      low: { meshVariant: 'full', smallComponentDetail: 'full', renderTargetScale: 0.67, shadowLightLimit: 0, shadowMapSize: 0, bloomLevels: 5, normalAoDetail: false, visiblePartCount: 13 },
+      medium: { meshVariant: 'full', smallComponentDetail: 'full', renderTargetScale: 0.82, shadowLightLimit: 2, shadowMapSize: 512, bloomLevels: 6, normalAoDetail: true, visiblePartCount: 13 },
+      high: { meshVariant: 'full', smallComponentDetail: 'full', renderTargetScale: 1, shadowLightLimit: 2, shadowMapSize: 1024, bloomLevels: 7, normalAoDetail: true, visiblePartCount: 13 },
+    })
   })
 })

@@ -61,7 +61,7 @@ test('Mainframe ships the intended independently addressable hard-surface materi
 
 test('Mainframe stays inside the shared model file and triangle budgets', () => {
   const triangles = [...meshByName.keys()].reduce((sum, name) => sum + mesh(name).indices.spec.count / 3, 0)
-  assert.equal(triangles, 149932)
+  assert.equal(triangles, 141644)
   assert.ok(triangles <= DEFAULT_BUDGETS.maxTrianglesPerAsset)
   assert.ok(bytes.length <= DEFAULT_BUDGETS.maxFileBytes)
 })
@@ -87,7 +87,7 @@ test('every mesh is finite, indexed, bounded, and carries the Stage 2 custom att
   }
   assert.ok(bounds.min[0] <= -16.27 && bounds.max[0] >= 16.27, `width ${bounds.min[0]}..${bounds.max[0]}`)
   assert.ok(bounds.min[1] <= -9.39 && bounds.max[1] >= 9.39, `height ${bounds.min[1]}..${bounds.max[1]}`)
-  assert.ok(bounds.min[2] <= -0.37 && bounds.max[2] >= 0.66, `depth ${bounds.min[2]}..${bounds.max[2]}`)
+  assert.ok(bounds.min[2] <= -0.37 && bounds.max[2] >= 0.64, `depth ${bounds.min[2]}..${bounds.max[2]}`)
 })
 
 test('the circuit core retains all central and extended route, bank, region, and centre-out phase identities', () => {

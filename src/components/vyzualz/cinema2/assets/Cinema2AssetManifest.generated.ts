@@ -144,14 +144,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/mainframe.glb",
-        "bytes": 8190252,
-        "triangles": 149932
+        "bytes": 8104396,
+        "triangles": 141644
       }
     },
     "gpuBytes": {
-      "high": 8169064,
-      "medium": 8169064,
-      "low": 8169064
+      "high": 8083204,
+      "medium": 8083204,
+      "low": 8083204
     }
   },
   {

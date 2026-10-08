@@ -42,6 +42,7 @@ test('all 60 routes preserve coordinates and complete bank/region/signal metadat
     assert.deepEqual(route.svg.pass1, route.points, `${route.id} Pass 1 geometry`)
     assert.deepEqual(route.svg.pass2, route.points, `${route.id} Pass 2 geometry`)
     assert.deepEqual(route.svg.pass3, route.points, `${route.id} Pass 3 geometry`)
+    assert.deepEqual(route.svg.logoMaster, route.points, `${route.id} logo-master geometry`)
     assert.equal(route.pass3.route, route.id)
     assert.equal(route.pass3.bank, route.bank)
     assert.equal(route.pass3.region, route.region)
@@ -62,6 +63,9 @@ test('component counts and the exact three-part logo geometry remain production 
     assert.equal(paths.pass3, paths.pass1)
   }
   assert.deepEqual(contract.logo.bounds, { minX: 529.8, minY: 269.64, maxX: 1390.2, maxY: 810.36 })
+  assert.equal(contract.logo.master.outerRail, contract.logo.master.outerHousing)
+  assert.equal(contract.logo.master.bodyRail, contract.logo.master.bodyHousing)
+  assert.equal(contract.logo.master.star, contract.logo.paths.star.pass1)
 })
 
 test('the owner-supplied 2x master preserves the centre and exposes authored outer hardware', () => {
@@ -88,4 +92,5 @@ test('the Stage 1 audit exposes deterministic IDs, bounds, banks, regions, and l
   assert.equal(audit.regions['left-major'].count, 10)
   assert.deepEqual(audit.bounds.routes, { minX: 0, minY: 0, maxX: 1920, maxY: 1080 })
   assert.deepEqual(Object.keys(audit.logo.pathSha256), ['outer', 'body', 'star'])
+  assert.deepEqual(Object.keys(audit.logo.masterPathSha256), ['outerHousing', 'outerRail', 'bodyHousing', 'bodyRail', 'star'])
 })

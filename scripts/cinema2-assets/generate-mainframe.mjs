@@ -199,6 +199,44 @@ function strokeMesh(points, width, centerZ, depth, bevel) {
   return moved(mesh, [0, 0, centerZ])
 }
 
+function signedArea(points) {
+  let area = 0
+  for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
+    area += points[previous][0] * points[index][1] - points[index][0] * points[previous][1]
+  }
+  return area / 2
+}
+
+// Offset a closed authored contour with mitered joins. Unlike strokeMesh,
+// this preserves the closing cubic and produces a true shallow 3D rail rather
+// than treating a pair of logo contour lines as one filled region.
+function offsetClosedLoop(points, distance) {
+  return points.map((point, index) => {
+    const previous = points[(index - 1 + points.length) % points.length]
+    const next = points[(index + 1) % points.length]
+    const beforeLength = Math.hypot(point[0] - previous[0], point[1] - previous[1])
+    const afterLength = Math.hypot(next[0] - point[0], next[1] - point[1])
+    const before = [(point[0] - previous[0]) / beforeLength, (point[1] - previous[1]) / beforeLength]
+    const after = [(next[0] - point[0]) / afterLength, (next[1] - point[1]) / afterLength]
+    const n0 = [-before[1], before[0]], n1 = [-after[1], after[0]]
+    const mx = n0[0] + n1[0], my = n0[1] + n1[1]
+    const miterLength = Math.hypot(mx, my)
+    if (miterLength < 1e-8) return [point[0] + n1[0] * distance, point[1] + n1[1] * distance]
+    const ux = mx / miterLength, uy = my / miterLength
+    const scale = Math.min(Math.abs(distance) * 3, Math.abs(distance / Math.max(0.34, Math.abs(ux * n1[0] + uy * n1[1])))) * Math.sign(distance)
+    return [point[0] + ux * scale, point[1] + uy * scale]
+  })
+}
+
+function closedStrokeMesh(points, width, centerZ, depth, bevel) {
+  const left = offsetClosedLoop(points, width / 2)
+  const right = offsetClosedLoop(points, -width / 2)
+  const [outer, hole] = Math.abs(signedArea(left)) > Math.abs(signedArea(right)) ? [left, right] : [right, left]
+  return moved(buildExtrusion([{ outer, holes: [hole] }], {
+    depth, bevel, creaseAngle: CREASE, bevelSegments: 2, offset: -bevel,
+  }), [0, 0, centerZ])
+}
+
 function phaseAlong(points) {
   const lengths = [0]
   for (let index = 1; index < points.length; index += 1) lengths.push(lengths.at(-1) + Math.hypot(points[index][0] - points[index - 1][0], points[index][1] - points[index - 1][1]))
@@ -465,20 +503,52 @@ for (const [svgX, svgY] of [[380, -120], [1540, -120], [380, 1200], [1540, 1200]
   }
 }
 
-// ── Exact three-part DVYDRM logo with inset emissive edge ────────────────────
+// ── Exact three-part DVYDRM logo with authored contour rails ─────────────────
 const transformMatch = contract.logo.transform.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)
 if (!transformMatch) throw new Error(`Unsupported logo transform: ${contract.logo.transform}`)
 const logoTx = Number(transformMatch[1]), logoTy = Number(transformMatch[2]), logoScale = Number(transformMatch[3])
 const logoToWorld = contour => contour.map(([x, y]) => worldPoint([logoTx + x * logoScale, logoTy + y * logoScale]))
-for (const [part, ids] of Object.entries({ outer: SYSTEM.logoOuter, body: SYSTEM.logoBody, star: SYSTEM.logoStar })) {
-  const contours = contoursOfAdaptive(contract.logo.paths[part].pass1, 0.55)
-  const shapes = nestedShapes(contours, logoToWorld)
-  const metadata = { system: ids }
-  add('logoHousing', moved(buildExtrusion(shapes, { depth: 0.28, bevel: 0.045, creaseAngle: CREASE, bevelSegments: 3, offset: -0.045 }), [0, 0, 0.39]), metadata)
-  add('logoCore', moved(buildExtrusion(shapes, { depth: 0.14, bevel: 0.025, creaseAngle: CREASE, bevelSegments: 3, offset: -0.025 }), [0, 0, 0.53]), { ...metadata, phase: part === 'outer' ? 0.35 : part === 'body' ? 0.7 : 1 })
-  // A smaller polished face leaves the emissive layer visible as a narrow inset perimeter.
-  add('logoHousing', moved(buildExtrusion(shapes, { depth: 0.09, bevel: 0.018, creaseAngle: CREASE, bevelSegments: 2, offset: -0.075 }), [0, 0, 0.625]), metadata)
+// 1.25 source pixels keeps the cubic silhouette sub-pixel smooth at the Stage
+// while avoiding duplicate high-density tessellation across housing/rail pairs.
+const logoContours = path => contoursOfAdaptive(path, 1.25).map(logoToWorld)
+
+// The outer master is two independent stroked contours. Filling between them
+// created the previous swollen cloud silhouette, so each contour now becomes
+// its own housing and inset light rail at the SVG's non-scaling stroke widths.
+const outerMetadata = { system: SYSTEM.logoOuter }
+for (const contour of logoContours(contract.logo.master.outerHousing)) {
+  add('logoHousing', closedStrokeMesh(contour, 22 * WORLD_SCALE, 0.475, 0.24, 0.026), outerMetadata)
 }
+for (const contour of logoContours(contract.logo.master.outerRail)) {
+  add('logoCore', closedStrokeMesh(contour, 14 * WORLD_SCALE, 0.61, 0.05, 0.009), { ...outerMetadata, phase: 0.35 })
+}
+
+// The body is the sole filled even-odd logo shape. Its seven authored contours
+// retain the negative spaces, while the matching rail path restores every
+// internal swirl/circuit line as separately reactive geometry.
+const bodyMetadata = { system: SYSTEM.logoBody }
+const bodyContours = contoursOfAdaptive(contract.logo.master.bodyHousing, 1.25)
+const bodyShapes = nestedShapes(bodyContours, logoToWorld)
+add('logoHousing', moved(buildExtrusion(bodyShapes, {
+  depth: 0.22, bevel: 0.026, creaseAngle: CREASE, bevelSegments: 3, offset: -0.026,
+}), [0, 0, 0.43]), bodyMetadata)
+for (const contour of logoContours(contract.logo.master.bodyHousing)) {
+  add('logoHousing', closedStrokeMesh(contour, 18 * WORLD_SCALE, 0.535, 0.075, 0.012), bodyMetadata)
+}
+for (const contour of logoContours(contract.logo.master.bodyRail)) {
+  add('logoCore', closedStrokeMesh(contour, 8 * WORLD_SCALE, 0.59, 0.045, 0.008), { ...bodyMetadata, phase: 0.7 })
+}
+
+// The lower diamond remains a discrete beat-reactive logo zone with a narrow
+// machined bezel, matching the master's final compositing order.
+const starMetadata = { system: SYSTEM.logoStar }
+const starShapes = nestedShapes(contoursOfAdaptive(contract.logo.master.star, 0.75), logoToWorld)
+add('logoHousing', moved(buildExtrusion(starShapes, {
+  depth: 0.18, bevel: 0.025, creaseAngle: CREASE, bevelSegments: 3, offset: 0.006,
+}), [0, 0, 0.46]), starMetadata)
+add('logoCore', moved(buildExtrusion(starShapes, {
+  depth: 0.055, bevel: 0.009, creaseAngle: CREASE, bevelSegments: 2, offset: -0.009,
+}), [0, 0, 0.59]), { ...starMetadata, phase: 1 })
 
 mkdirSync(dirname(outputPath), { recursive: true })
 const meshes = [...byPart.entries()].map(([part, list]) => mergePart(part, list))

@@ -43,6 +43,10 @@ import {
   type Cinema2MainframePatternSelection,
   type Cinema2MainframeTriggerId,
 } from './mainframe/Cinema2MainframePatternController'
+import {
+  resolveCinema2MainframeQualityProfile,
+  type Cinema2MainframeQualityProfile,
+} from './mainframe/Cinema2MainframeQuality'
 
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('mainframe-native-render')
 export const CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION = 1 as const
@@ -249,6 +253,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     let triggerTrackId: string | null | undefined
     let triggerContextGeneration: number | null = null
     let reportedBytes = -1
+    let qualityProfile: Readonly<Cinema2MainframeQualityProfile> = resolveCinema2MainframeQualityProfile('high')
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const environmentId = typeof context.module.config?.environment === 'string'
       ? context.module.config.environment
@@ -313,6 +318,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       intent: 'world' as const,
       execute(execution: Cinema2ModuleRenderExecutionContext) {
         const quality = execution.lightingEnvironment?.quality ?? 'high'
+        qualityProfile = resolveCinema2MainframeQualityProfile(quality)
         if (state === 'idle') startLoading(quality)
         if (state === 'building' && !bridge && !bridgeCreateFailed) buildBridge()
         if (!bridge || state === 'loading' || state === 'failed') return
@@ -369,7 +375,20 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         ...diagnostics,
         ...(bridge?.getDiagnostics().map(diagnostic => ({ ...diagnostic, path: '$.config.environment' })) ?? []),
       ]),
-      inspect: () => Object.freeze({ state, authoredPattern: frame.pattern, activePattern: selection.activePattern, patternChange: frame.patternChange, trigger: frame.trigger, patternStartBeat: selection.patternStartBeat, scale: frame.scale, intensity: frame.intensity, bpmSync: frame.bpmSync, visibility: frame.visibility, lighting }),
+      inspect: () => Object.freeze({
+        state,
+        authoredPattern: frame.pattern,
+        activePattern: selection.activePattern,
+        patternChange: frame.patternChange,
+        trigger: frame.trigger,
+        patternStartBeat: selection.patternStartBeat,
+        scale: frame.scale,
+        intensity: frame.intensity,
+        bpmSync: frame.bpmSync,
+        visibility: frame.visibility,
+        qualityProfile,
+        lighting,
+      }),
     }
   },
 })

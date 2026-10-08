@@ -1,0 +1,3 @@
+# Preserve the owner-supplied Mainframe master byte-for-byte; its immutable
+# SHA-256 is part of the production source contract.
+scripts/cinema2-assets/sources/mainframe/logo-master.svg -whitespace

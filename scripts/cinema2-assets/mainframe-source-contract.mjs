@@ -32,6 +32,7 @@ export const MAINFRAME_SOURCE_FILES = Object.freeze({
   pass3Reactivity: 'pass3-reactivity.json',
   conceptReference: 'concept-reference.png',
   extendedSvg: 'extended-circuitboard.svg',
+  logoMasterSvg: 'logo-master.svg',
 })
 
 export const MAINFRAME_SOURCE_SHA256 = Object.freeze({
@@ -43,6 +44,7 @@ export const MAINFRAME_SOURCE_SHA256 = Object.freeze({
   pass3Reactivity: 'fd569073423b87e2d8702b6627ec43ad49b5e228a6e4451c81dc9323b25e16f0',
   conceptReference: '9cca0af0f6ec0ccb32c6922ff4535019e094f7c263ba1d1c22a4606f326068eb',
   extendedSvg: 'd2842448642446133d7c25bc211964382ecdd438eb17ebaab1abcec06bc0d1fb',
+  logoMasterSvg: 'a0992d97ebe153105a81b98e42cd2a0173222f00aac349c8b5a2f75228bc7d7f',
 })
 
 const EXPECTED_PASS2_LAYERS = Object.freeze([
@@ -61,6 +63,7 @@ const LOGO_IDS = Object.freeze({
   body: Object.freeze({ pass1: 'logo-body-housing', pass2: 'logo-body-housing', pass3: 'logo-body-housing' }),
   star: Object.freeze({ pass1: 'logo-star', pass2: 'logo-star-housing', pass3: 'logo-star-housing' }),
 })
+const LOGO_MASTER_GROUPS = Object.freeze(['logo-circuits', 'logo-indicators', 'logo-outline', 'logo-body', 'logo-star'])
 
 const sha256 = value => createHash('sha256').update(value).digest('hex')
 const json = value => JSON.parse(value.toString('utf8'))
@@ -77,6 +80,11 @@ function element(svg, id) {
   return svg.match(new RegExp(`<[^>]+\\bid=["']${escaped}["'][^>]*>`, 'm'))?.[0] ?? null
 }
 
+function pathElement(svg, id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return svg.match(new RegExp(`<path\\b[^>]*\\bid=["']${escaped}["'][^>]*>`, 'm'))?.[0] ?? null
+}
+
 function attribute(markup, name) {
   if (!markup) return null
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -89,7 +97,7 @@ function numericAttribute(markup, name) {
 }
 
 function pathData(svg, id) {
-  return attribute(element(svg, id), 'd')
+  return attribute(pathElement(svg, id), 'd')
 }
 
 function groupContents(svg, id) {
@@ -182,6 +190,7 @@ export function loadMainframeSourceContract(sourceDirectory = MAINFRAME_SOURCE_D
   const pass2Svg = buffers.pass2Svg.toString('utf8')
   const pass3Svg = buffers.pass3Svg.toString('utf8')
   const extendedSvg = buffers.extendedSvg.toString('utf8')
+  const logoMasterSvg = buffers.logoMasterSvg.toString('utf8')
   const pass1Manifest = json(buffers.pass1Manifest)
   const pass2Manifest = json(buffers.pass2Manifest)
   const pass3Reactivity = json(buffers.pass3Reactivity)
@@ -202,6 +211,7 @@ export function loadMainframeSourceContract(sourceDirectory = MAINFRAME_SOURCE_D
         pass1: parseLinePath(pathData(pass1Svg, `${id}-core`)),
         pass2: parseLinePath(pathData(pass2Svg, `${id}-core`)),
         pass3: parseLinePath(pathData(pass3Svg, `${id}-core`)),
+        logoMaster: parseLinePath(pathData(logoMasterSvg, `${id}-core`)),
       }),
       pass3: Object.freeze({
         route: attribute(core, 'data-route'),
@@ -226,6 +236,14 @@ export function loadMainframeSourceContract(sourceDirectory = MAINFRAME_SOURCE_D
   const logoPaths = Object.fromEntries(Object.entries(LOGO_IDS).map(([part, ids]) => [part, Object.freeze({
     pass1: pathData(pass1Svg, ids.pass1), pass2: pathData(pass2Svg, ids.pass2), pass3: pathData(pass3Svg, ids.pass3),
   })]))
+  const logoMasterPaths = Object.freeze({
+    outerHousing: pathData(logoMasterSvg, 'logo-outer-housing'),
+    outerRail: pathData(logoMasterSvg, 'logo-outer-rail'),
+    bodyHousing: pathData(logoMasterSvg, 'logo-body-housing'),
+    bodyRail: pathData(logoMasterSvg, 'logo-body-rail'),
+    star: pathData(logoMasterSvg, 'logo-star'),
+  })
+  const logoMasterTransform = attribute(element(logoMasterSvg, 'logo-outline'), 'transform')
   const vias = Object.freeze(pass3Reactivity.components.vias.filter(selector => selector.endsWith('-ring')).map(selector => {
     const id = selector.slice(1, -'-ring'.length)
     const ring = element(pass3Svg, `${id}-ring`)
@@ -276,7 +294,7 @@ export function loadMainframeSourceContract(sourceDirectory = MAINFRAME_SOURCE_D
     pass1Manifest,
     pass2Manifest,
     pass3Reactivity,
-    svgs: Object.freeze({ pass1: pass1Svg, pass2: pass2Svg, pass3: pass3Svg, extended: extendedSvg }),
+    svgs: Object.freeze({ pass1: pass1Svg, pass2: pass2Svg, pass3: pass3Svg, extended: extendedSvg, logoMaster: logoMasterSvg }),
     routes,
     banks: Object.freeze(routeGroups(routes, 'bank')),
     regions: Object.freeze(routeGroups(routes, 'region')),
@@ -295,7 +313,12 @@ export function loadMainframeSourceContract(sourceDirectory = MAINFRAME_SOURCE_D
       terminals: extensionTerminals,
       bounds: boundsOfPoints(extensionRoutes.flatMap(route => route.points)),
     }),
-    logo: Object.freeze({ transform: pass1Manifest.logo.transform, bounds: logoBounds, paths: Object.freeze(logoPaths) }),
+    logo: Object.freeze({
+      transform: logoMasterTransform,
+      bounds: logoBounds,
+      paths: Object.freeze(logoPaths),
+      master: logoMasterPaths,
+    }),
     bounds: Object.freeze({
       routes: boundsOfPoints(routes.flatMap(route => route.points)),
       terminals: boundsOfBoxes(terminalBoxes),
@@ -315,6 +338,7 @@ export function validateMainframeSourceContract(contract) {
   if (!canvasMatches(contract.pass2Manifest.canvas)) issue('Pass 2 canvas must remain 1920 × 1080 (16:9).')
   if (!canvasMatches(contract.pass3Reactivity.asset?.canvas)) issue('Pass 3 canvas must remain 1920 × 1080 (16:9).')
   if (attribute(contract.svgs.extended.match(/<svg\b[^>]*>/)?.[0], 'viewBox') !== '-960 -540 3840 2160') issue('Extended master must remain a centered 3840 × 2160 canvas.')
+  if (attribute(contract.svgs.logoMaster.match(/<svg\b[^>]*>/)?.[0], 'viewBox') !== '0 0 1920 1080') issue('Logo master must remain on the 1920 × 1080 canvas.')
   if (contract.pass3Reactivity.geometry_contract?.coordinate_system !== '0 0 1920 1080') issue('Pass 3 coordinate system changed.')
   if (!same(contract.pass2Manifest.layers, EXPECTED_PASS2_LAYERS)) issue('Pass 2 layer order changed.')
   if (contract.routes.length !== MAINFRAME_EXPECTED_COUNTS.routes) issue(`Expected ${MAINFRAME_EXPECTED_COUNTS.routes} routes; found ${contract.routes.length}.`)
@@ -341,7 +365,7 @@ export function validateMainframeSourceContract(contract) {
 
   for (const route of contract.routes) {
     if (!route.bank || !route.region || !route.signal) issue(`${route.id} is missing bank, region, or signal metadata.`)
-    if (!same(route.points, route.svg.pass1) || !same(route.points, route.svg.pass2) || !same(route.points, route.svg.pass3)) issue(`${route.id} coordinates differ across the manifest/SVG passes.`)
+    if (!same(route.points, route.svg.pass1) || !same(route.points, route.svg.pass2) || !same(route.points, route.svg.pass3) || !same(route.points, route.svg.logoMaster)) issue(`${route.id} coordinates differ across the manifest/SVG passes.`)
     if (route.pass3.route !== route.id || route.pass3.bank !== route.bank || route.pass3.region !== route.region) issue(`${route.id} Pass 3 identity metadata differs from the reactivity map.`)
     if (route.pass3.reactive !== 'true' || route.pass3.role !== 'circuit-core' || route.pass3.pathLength !== '1') issue(`${route.id} lost its reactive normalized core contract.`)
     for (const [pass, suffixes] of Object.entries(ROUTE_LAYER_SUFFIXES)) for (const suffix of suffixes) {
@@ -357,11 +381,16 @@ export function validateMainframeSourceContract(contract) {
   if (!same(Object.keys(contract.banks), ['A', 'B', 'C', 'D'])) issue('Expected circuit banks A, B, C, and D.')
   if (Object.keys(contract.regions).length !== 8) issue('Expected eight circuit regions.')
   for (const system of EXPECTED_SYSTEMS) if (!element(contract.svgs.pass3, system)) issue(`Pass 3 system ${system} is missing.`)
-  if (/<image\b/i.test(contract.svgs.pass1) || /<image\b/i.test(contract.svgs.pass2) || /<image\b/i.test(contract.svgs.pass3)) issue('A source SVG unexpectedly embeds a raster image.')
+  if (/<image\b/i.test(contract.svgs.pass1) || /<image\b/i.test(contract.svgs.pass2) || /<image\b/i.test(contract.svgs.pass3) || /<image\b/i.test(contract.svgs.logoMaster)) issue('A source SVG unexpectedly embeds a raster image.')
 
   for (const [part, paths] of Object.entries(contract.logo.paths)) {
     if (!paths.pass1 || paths.pass1 !== paths.pass2 || paths.pass1 !== paths.pass3) issue(`Exact ${part} logo geometry differs across passes.`)
   }
+  for (const group of LOGO_MASTER_GROUPS) if (!element(contract.svgs.logoMaster, group)) issue(`Logo master group ${group} is missing.`)
+  if (contract.logo.transform !== contract.pass1Manifest.logo.transform) issue('Logo master transform differs from the accepted pass geometry.')
+  if (contract.logo.master.outerHousing !== contract.logo.paths.outer.pass1 || contract.logo.master.outerRail !== contract.logo.master.outerHousing) issue('Logo master outer housing/rail geometry differs from the accepted outline.')
+  if (contract.logo.master.bodyHousing !== contract.logo.paths.body.pass1 || contract.logo.master.bodyRail !== contract.logo.master.bodyHousing) issue('Logo master body housing/rail geometry differs from the accepted body.')
+  if (contract.logo.master.star !== contract.logo.paths.star.pass1) issue('Logo master star geometry differs from the accepted star.')
   for (const route of contract.routes) if (pathData(contract.svgs.extended, `${route.id}-core`) !== pathData(contract.svgs.pass3, `${route.id}-core`)) issue(`${route.id} changed inside the extended master's preserved 1920 × 1080 centre.`)
   for (const [part, ids] of Object.entries(LOGO_IDS)) if (pathData(contract.svgs.extended, ids.pass3) !== contract.logo.paths[part].pass3) issue(`The ${part} logo changed inside the extended master.`)
   if (!contract.logo.bounds || !same(contract.bounds.authored, { minX: 0, minY: 0, maxX: 1920, maxY: 1080 })) issue('Authored geometry must retain the full 1920 × 1080 bounds.')
@@ -408,6 +437,7 @@ export function createMainframeSourceAudit(contract) {
       transform: contract.logo.transform,
       bounds: contract.logo.bounds,
       pathSha256: Object.freeze(Object.fromEntries(Object.entries(contract.logo.paths).map(([part, paths]) => [part, sha256(paths.pass1)]))),
+      masterPathSha256: Object.freeze(Object.fromEntries(Object.entries(contract.logo.master).map(([part, path]) => [part, sha256(path)]))),
     }),
   })
 }

@@ -74,6 +74,7 @@
     "test:e2e:cinema2-atl-hoe": "node scripts/run-cinema2-atl-hoe-browser.mjs",
     "test:e2e:cinema2-interlock": "node scripts/run-cinema2-interlock-browser.mjs",
     "test:e2e:cinema2-humn": "node scripts/run-cinema2-humn-browser.mjs",
+    "visual:mainframe:production": "node scripts/cinema2-assets/accept-mainframe-production.mjs",
     "visual:afterhours:legacy": "node scripts/run-afterhours-visual-acceptance.mjs",
     "test:afterhours:legacy:perceptual": "node scripts/run-afterhours-visual-acceptance.mjs --perceptual-regression"
   },

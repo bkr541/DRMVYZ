@@ -36,6 +36,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema/07-webgl-runtime-and-render-target-pool.md` | Cinema single-owner WebGL runtime, target pool, texture handles, and context recovery |
 | `docs/cinema/stage-23-retire-legacy-engine-identities.md` | Current Cinema public-engine retirement, legacy restore aliases, and remaining adapter debt |
 | `docs/cinema2-say-it-preset-plan.md` | Current architecture, scope and staged implementation plan for the Cinema 2.0 SAY IT kinetic-type keeper preset |
+| `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |
 | `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |
 | `docs/canvas.md` | CANVAS media, authored composition, playback, effects, transitions, and limits |
 | `docs/pixgrid.md` | PixGrid state, canonical controls, media, groups, routing, choreography, rendering, diagnostics, and acceptance |

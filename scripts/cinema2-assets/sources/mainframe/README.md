@@ -12,6 +12,7 @@ These files are immutable source inputs for the Cinema 2.0 Mainframe preset. The
 | `pass3-reactivity.json` | `Mainframe_Pass3_Pass3_Reactivity_Map.json` | `fd569073423b87e2d8702b6627ec43ad49b5e228a6e4451c81dc9323b25e16f0` |
 | `concept-reference.png` | Owner-supplied target still | `9cca0af0f6ec0ccb32c6922ff4535019e094f7c263ba1d1c22a4606f326068eb` |
 | `extended-circuitboard.svg` | `Extended_circuitboard.svg` | `d2842448642446133d7c25bc211964382ecdd438eb17ebaab1abcec06bc0d1fb` |
+| `logo-master.svg` | `DVYDRM_Circuit_Cloud_Mainframe_Logo_Master.svg` | `a0992d97ebe153105a81b98e42cd2a0173222f00aac349c8b5a2f75228bc7d7f` |
 
 The SVG and JSON files are geometry/reactivity data, not executable instructions. `concept-reference.png` is a perceptual target only and must not be shipped as a rendered scene texture.
 
@@ -21,7 +22,7 @@ Run the Stage 1 audit with:
 node scripts/cinema2-assets/audit-mainframe-sources.mjs
 ```
 
-The audit verifies the immutable hashes, exact cross-pass logo geometry, route coordinates and metadata, authored component counts, and complete bank/region coverage. If the owner intentionally replaces a master, update the checksum only after reviewing the source diff and the resulting audit.
+The audit verifies the immutable hashes, exact cross-pass and dedicated logo-master geometry, route coordinates and metadata, authored component counts, and complete bank/region coverage. The dedicated logo master is authoritative for the outline/body/star layering and stroked rail semantics. If the owner intentionally replaces a master, update the checksum only after reviewing the source diff and the resulting audit.
 
 Generate and validate the Stage 2 model with:
 
@@ -38,7 +39,7 @@ Capture the neutral-light approval views with:
 node scripts/cinema2-assets/capture-mainframe-model.mjs
 ```
 
-The generator currently emits one shared high-tier model. Its 149,932 triangles and 7.81 MiB file fit the repository budgets, so Stage 2 does not add unmeasured medium/low variants. The model preserves the exact central master, imports the owner-authored 2× extension's 356 routes, 30 plates, 16 radar modules, eight chips, and 584 reactive terminal elements, and retains a 2.5× substrate for guaranteed coverage at the 0.45 Scale position. Four secondary daughterboards fill the north/south outer bays with distinct controller and power-distribution hardware while remaining governed by the Chip toggle. Four larger symmetric power-regulation nodes fill the inner extension bays, with independently reactive inductor rings, corner lamps, and connector pads; their face-plane dimensions are enlarged 80% from the initial layout. Its custom attributes retain system, route, bank, region, and centre-out phase identities for the native renderer.
+The generator currently emits one shared high-tier model. Its 141,644 triangles and 7.73 MiB file fit the repository budgets, so Stage 2 does not add unmeasured medium/low variants. The model preserves the exact central master, imports the owner-authored 2× extension's 356 routes, 30 plates, 16 radar modules, eight chips, and 584 reactive terminal elements, and retains a 2.5× substrate for guaranteed coverage at the 0.45 Scale position. The center logo follows the dedicated master's SVG semantics: the two outer contours are independent raised rails, the body is the sole filled even-odd shape, all seven internal body contours remain visible/reactive, and the lower diamond is discrete. Four secondary daughterboards fill the north/south outer bays with distinct controller and power-distribution hardware while remaining governed by the Chip toggle. Four larger symmetric power-regulation nodes fill the inner extension bays, with independently reactive inductor rings, corner lamps, and connector pads; their face-plane dimensions are enlarged 80% from the initial layout. Its custom attributes retain system, route, bank, region, and centre-out phase identities for the native renderer.
 
 Capture the production renderer at 16:9, embedded portrait, ultrawide, component-toggle, and deepest 0.45 Scale states with:
 
