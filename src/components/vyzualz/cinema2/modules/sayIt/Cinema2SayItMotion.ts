@@ -1,4 +1,4 @@
-import type { Cinema2SayItLayoutGlyph } from './Cinema2SayItTextLayout'
+import { cinema2SayItGlyphBoundingRadius, type Cinema2SayItLayoutGlyph } from './Cinema2SayItTextLayout'
 
 export const CINEMA2_SAY_IT_PROOF_TEXT = 'SAY IT'
 
@@ -64,7 +64,7 @@ export function resolveCinema2SayItGlyphPoses(
   const phase = positiveModulo(Number.isFinite(timeSeconds) ? timeSeconds / cycleSeconds : 0, 1)
   const delayOrder = resolveDelayOrder(glyphs.length, directionMode, randomSeed)
 
-  return Object.freeze(glyphs.map((glyph, index) => {
+  const rawPoses = glyphs.map((glyph, index) => {
     const stagger = Math.min(0.12, (delayOrder[index] ?? index) * glyphDelay)
     const release = smoothRange(0.16 + stagger, 0.32 + stagger, phase)
     const returnProgress = smoothRange(0.62 + stagger, 0.78 + stagger, phase)
@@ -132,8 +132,77 @@ export function resolveCinema2SayItGlyphPoses(
       rotationZ * amount * axisZ,
     ])
     const position: readonly [number, number, number] = Object.freeze([x, y, z])
-    return Object.freeze({ id: glyph.id, character: glyph.character, mesh: glyph.mesh, position, rotation, scale: glyph.scale })
-  }))
+    return { id: glyph.id, character: glyph.character, mesh: glyph.mesh, position, rotation, scale: glyph.scale }
+  })
+
+  const separated = separateGlyphs(rawPoses, glyphs)
+  return Object.freeze(rawPoses.map((pose, index) => Object.freeze({ ...pose, position: separated[index]! })))
+}
+
+const SEPARATION_ITERATIONS = 32
+
+/**
+ * Letters are solid: no two may occupy the same space. Each glyph is held inside a
+ * bounding sphere (it can turn to any orientation), and every pair is pushed apart
+ * until their spheres no longer overlap. The clearance a pair needs grows from its
+ * assembled spacing to the full sphere gap as either glyph leaves its authored
+ * pose, so a glyph that has not moved is never displaced and the assembled hold
+ * stays exact.
+ */
+function separateGlyphs(
+  poses: readonly { position: readonly [number, number, number]; rotation: readonly [number, number, number] }[],
+  glyphs: readonly Readonly<Cinema2SayItLayoutGlyph>[],
+): readonly (readonly [number, number, number])[] {
+  const count = poses.length
+  const positions = poses.map(pose => [...pose.position] as [number, number, number])
+  const radii = glyphs.map(glyph => cinema2SayItGlyphBoundingRadius(glyph.codePoint, glyph.scale))
+  const activity = poses.map((pose, index) => {
+    const origin = glyphs[index]!.position
+    const turned = Math.max(...pose.rotation.map(Math.abs)) / 0.6
+    const moved = Math.hypot(pose.position[0] - origin[0], pose.position[1] - origin[1], pose.position[2] - origin[2]) / (0.25 * glyphs[index]!.scale)
+    return clamp(Math.max(turned, moved), 0, 1)
+  })
+  const required = (a: number, b: number): number => {
+    const ao = glyphs[a]!.position
+    const bo = glyphs[b]!.position
+    const assembled = Math.hypot(ao[0] - bo[0], ao[1] - bo[1], ao[2] - bo[2])
+    const clearance = radii[a]! + radii[b]!
+    return assembled + Math.max(0, clearance - assembled) * Math.max(activity[a]!, activity[b]!)
+  }
+
+  for (let pass = 0; pass < SEPARATION_ITERATIONS; pass += 1) {
+    let moved = false
+    for (let a = 0; a < count; a += 1) {
+      for (let b = a + 1; b < count; b += 1) {
+        if (activity[a] === 0 && activity[b] === 0) continue
+        const pa = positions[a]!
+        const pb = positions[b]!
+        let dx = pb[0] - pa[0]
+        let dy = pb[1] - pa[1]
+        let dz = pb[2] - pa[2]
+        let distance = Math.hypot(dx, dy, dz)
+        const need = required(a, b)
+        if (distance >= need - 1e-6) continue
+        if (distance < 1e-6) {
+          // Exactly coincident: split along the authored left-to-right order.
+          dx = 1
+          dy = 0
+          dz = 0
+          distance = 1
+        }
+        const push = (need - distance) / 2 / distance
+        pa[0] -= dx * push
+        pa[1] -= dy * push
+        pa[2] -= dz * push
+        pb[0] += dx * push
+        pb[1] += dy * push
+        pb[2] += dz * push
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+  return positions.map(position => Object.freeze(position) as readonly [number, number, number])
 }
 
 export function cinema2SayItIsExactlyAssembled(

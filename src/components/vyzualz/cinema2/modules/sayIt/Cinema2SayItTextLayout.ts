@@ -139,6 +139,21 @@ export function resolveCinema2SayItTextLayout(
   })
 }
 
+/** Assumed extrusion depth of a glyph mesh, in layout units at scale 1. */
+const GLYPH_EXTRUSION_DEPTH = 0.3
+
+/**
+ * Radius of the smallest sphere, centred on the glyph's layout position, that holds
+ * the glyph at any orientation. Motion uses it to keep tumbling letters from
+ * passing through each other.
+ */
+export function cinema2SayItGlyphBoundingRadius(codePoint: number, scale: number): number {
+  const metric = glyphMetric(codePoint)
+  const width = Math.max(metric.maxX - metric.centerX, metric.centerX - metric.minX) * 2
+  const height = Math.max(metric.maxY - metric.centerY, metric.centerY - metric.minY) * 2
+  return 0.5 * Math.hypot(width, height, GLYPH_EXTRUSION_DEPTH) * scale
+}
+
 export function sanitizeCinema2SayItText(input: unknown, maximumLines: 1 | 2 = 2): Readonly<{
   lines: readonly string[]
   truncated: boolean

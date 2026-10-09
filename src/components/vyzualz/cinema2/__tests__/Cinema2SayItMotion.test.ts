@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { cinema2SayItGlyphBoundingRadius } from '../modules/sayIt/Cinema2SayItTextLayout'
 import {
+  CINEMA2_SAY_IT_MOTION_DIRECTIONS,
   CINEMA2_SAY_IT_MOTION_PROGRAMS,
   CINEMA2_SAY_IT_PROOF_TEXT,
   cinema2SayItIsExactlyAssembled,
@@ -70,5 +72,23 @@ describe('Cinema 2.0 SAY IT motion', () => {
     expect(maximumRotation(reduced)).toBeLessThan(maximumRotation(full))
     expect(maximumTravel(reduced)).toBeLessThan(maximumTravel(full))
     expect(cinema2SayItIsExactlyAssembled(resolveCinema2SayItGlyphPoses(4, { ...OPTIONS, safety: 'lockoff' }))).toBe(true)
+  })
+
+  it('keeps solid letters from overlapping while they tumble', () => {
+    const radii = [...'SAYIT'].map(character => cinema2SayItGlyphBoundingRadius(character.codePointAt(0)!, 1))
+    for (const program of CINEMA2_SAY_IT_MOTION_PROGRAMS) {
+      for (const direction of CINEMA2_SAY_IT_MOTION_DIRECTIONS) {
+        for (let time = 0; time <= 8; time += 0.1) {
+          const poses = resolveCinema2SayItGlyphPoses(time, { ...OPTIONS, program, direction, randomSeed: 7 })
+          poses.forEach((a, i) => poses.slice(i + 1).forEach((b, offset) => {
+            const j = i + 1 + offset
+            const turned = Math.max(...a.rotation.map(Math.abs), ...b.rotation.map(Math.abs)) > 0.6
+            if (!turned) return
+            const distance = Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1], a.position[2] - b.position[2])
+            expect(distance, `${program}/${direction} t=${time.toFixed(1)} ${a.character}${b.character}`).toBeGreaterThanOrEqual(radii[i]! + radii[j]! - 5e-3)
+          }))
+        }
+      }
+    }
   })
 })
