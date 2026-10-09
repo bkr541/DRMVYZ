@@ -249,10 +249,13 @@ export interface TextInputRowProps {
   autoComplete?: string
   disabled?: boolean
   description?: string
+  /** Display-only value (e.g. loaded-track info); keeps the standard field styling. */
+  readOnly?: boolean
+  inputRef?: React.Ref<HTMLInputElement>
 }
 
 export function TextInputRow({
-  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off', disabled = false, description,
+  label, value, onChange, maxLength = 32, placeholder = '', id, onBlur, inputMode, autoComplete = 'off', disabled = false, description, readOnly = false, inputRef,
 }: TextInputRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -265,6 +268,8 @@ export function TextInputRow({
         id={inputId}
         type="text"
         className="rv-ctrl-text-input"
+        ref={inputRef}
+        readOnly={readOnly}
         value={value}
         onChange={e => onChange(e.target.value)}
         onBlur={() => onBlur?.(value)}
