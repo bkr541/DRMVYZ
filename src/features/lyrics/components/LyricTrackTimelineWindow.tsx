@@ -51,8 +51,14 @@ function TrackSectionRow({ sections, viewport }: { sections: ReactTrackSection[]
             style={{ left: `${layout.leftPct}%`, width: `${layout.widthPct}%`, position: 'absolute', top: 0, bottom: 0, '--section-color': color } as React.CSSProperties}
             title={section.label}
           >
-            <span className="rv-section-color-bar" />
-            <span className="rv-section-label">{section.label.toUpperCase()}</span>
+            {/* Same header/bar structure as Track Map's section body; the clipping wrapper is what keeps a long
+                label inside its own section instead of running across the next one. */}
+            <div className="lmv-track-timeline-section-body">
+              <div className="rv-section-header">
+                <span className="rv-section-label">{section.label.toUpperCase()}</span>
+              </div>
+              <span className="rv-section-color-bar" aria-hidden="true" />
+            </div>
           </div>
         )
       })}
@@ -106,7 +112,7 @@ function TimingRow({ viewport }: { viewport: { startSec: number; endSec: number 
 }
 
 /**
- * "Track Timeline" window: Track Section / Waveform / Beat Grid / Timing
+ * "Track Timeline" window: Beat Grid / Timing / Track Section / Waveform
  * rows, visually mirroring Track Map's row heights/colors/fonts (see
  * lyricManager.css .lmv-track-timeline-* rules). All four rows share one
  * viewport computed the same way LyricCueTimeline/Track Map compute theirs,
@@ -142,7 +148,7 @@ export function LyricTrackTimelineWindow({
       ? 'Beat snapping is using a temporary BPM grid. Run analysis to replace it with detected beats.'
       : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
 
-  // Rows read top to bottom as in the reference: ruler, sections, audio, lyric lanes, beats. Each row has a
+  // Rows read top to bottom: time ruler, beat grid, sections, audio, lyric lanes. Each row has a
   // fixed label gutter and a content area; every content area measures its own width, so they stay aligned.
   const lane = (className: string, label: string | null, content: ReactNode) => (
     <div className={`lmv-track-timeline-lane ${className}`}>
@@ -156,6 +162,7 @@ export function LyricTrackTimelineWindow({
       <DualRailCollapsible label="Track Timeline" headerClassName="lmv-live-preview-header">
         <div className="lmv-track-timeline-lanes lmv-track-timeline-lanes--stacked">
           {lane('lmv-track-timeline-lane--timing', null, <TimingRow viewport={viewport} />)}
+          {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />)}
           {lane('lmv-track-timeline-lane--section', null, <TrackSectionRow sections={sections} viewport={viewport} />)}
           {lane('lmv-track-timeline-lane--waveform', 'Audio', (
             <LyricWaveformCanvas
@@ -167,7 +174,6 @@ export function LyricTrackTimelineWindow({
             />
           ))}
           {cueTimeline && <div className="lmv-track-timeline-cue-lanes">{cueTimeline}</div>}
-          {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />)}
         </div>
         {beatGridHint && (
           <div className="lmv-track-timeline-hint">

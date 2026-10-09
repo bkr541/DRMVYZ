@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { TimelineViewport } from '../../timeline/timelineViewport'
 import { timeToPixel } from '../../timeline/timelineViewport'
 
+/** Empty space above and below the waveform, in CSS pixels, so the loudest peak never touches the row edges. */
+const WAVEFORM_PADDING_PX = 10
+
 interface Props {
   peaks: number[] | null
   loading: boolean
@@ -52,19 +55,27 @@ export function LyricWaveformCanvas({
     }
 
     if (!values?.length) return
-    const startIndex = Math.max(0, Math.floor((visible.startSec / duration) * values.length))
-    const endIndex = Math.min(values.length, Math.ceil((visible.endSec / duration) * values.length))
-    const visibleCount = Math.max(1, endIndex - startIndex)
-    const barWidth = width / visibleCount
+    // Fractional peak positions for the visible window, so every pixel column samples exactly the peaks it covers.
+    const peaksPerSec = values.length / duration
+    const firstPeak = visible.startSec * peaksPerSec
+    const peaksAcross = Math.max(1e-6, (visible.endSec - visible.startSec) * peaksPerSec)
+    const dpr = Math.min(2, window.devicePixelRatio || 1)
+    const columnWidth = Math.max(1, Math.round(dpr * 2))
+    const columnStep = columnWidth + Math.max(1, Math.round(dpr))
+    const padding = Math.round(WAVEFORM_PADDING_PX * dpr)
+    const plotHeight = Math.max(2, height - padding * 2)
 
-    for (let visibleIndex = 0; visibleIndex < visibleCount; visibleIndex += 1) {
-      const sourceIndex = Math.min(values.length - 1, startIndex + visibleIndex)
-      const barTime = (sourceIndex / values.length) * duration
-      const barHeight = Math.max(1, values[sourceIndex] * (height - 4))
-      context.fillStyle = barTime < current
+    for (let x = 0; x < width; x += columnStep) {
+      const from = Math.max(0, Math.floor(firstPeak + (x / width) * peaksAcross))
+      const to = Math.min(values.length, Math.max(from + 1, Math.ceil(firstPeak + ((x + columnStep) / width) * peaksAcross)))
+      let peak = 0
+      for (let index = from; index < to; index += 1) peak = Math.max(peak, values[index] ?? 0)
+      const columnTime = (from / values.length) * duration
+      const barHeight = Math.max(2, Math.min(1, peak) * plotHeight)
+      context.fillStyle = columnTime < current
         ? 'rgba(97,214,170,0.78)'
         : 'rgba(183,223,231,0.20)'
-      context.fillRect(visibleIndex * barWidth, (height - barHeight) / 2, Math.max(1, barWidth - 0.4), barHeight)
+      context.fillRect(x, Math.round((height - barHeight) / 2), columnWidth, Math.round(barHeight))
     }
 
     const playheadX = timeToPixel(current, visible, width)

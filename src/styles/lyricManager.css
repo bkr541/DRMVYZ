@@ -2316,7 +2316,8 @@
 
 .lmv-track-timeline-window > .drc-group,
 .lmv-lyric-cues-window > .drc-group {
-  padding-top: 14px;
+  /* No extra gap above the header: the Live Preview body above it already ends with its own padding. */
+  padding-top: 0;
 }
 
 .lmv-track-timeline-window > .drc-group > .drc-body,
@@ -2672,7 +2673,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 14px 6px;
+  padding: 10px 14px 0;
 }
 
 .lmv-preview-stage {
@@ -2797,6 +2798,14 @@
   height: 100%;
 }
 
+/* Clips each section's label and bar to the section itself, so a long label cannot run across its neighbour. */
+.lmv-track-timeline-section-body {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* Track Section row reuses Track Map's own .rv-section-region/
    .rv-section-color-bar/.rv-section-label classes verbatim (already styled
    in reactView.css), so only the absolute-positioning host needs a rule
@@ -2877,7 +2886,7 @@
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--timing { height: 24px; flex: 0 0 24px; }
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--section { height: 30px; flex: 0 0 30px; }
 .lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--beatgrid { height: 26px; flex: 0 0 26px; }
-.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 110px; flex: 0 0 110px; }
+.lmv-track-timeline-lanes--stacked .lmv-track-timeline-lane--waveform { height: 72px; flex: 0 0 72px; }
 
 .lmv-track-timeline-cue-lanes {
   position: relative;
@@ -2908,6 +2917,29 @@
   color: #bdeeff;
   font-size: 10.5px;
   box-shadow: none;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block {
+  /* A cue's text never leaves its block: it starts at the left edge and is clipped with an ellipsis, so a narrow
+     cue shows the first words of its lyric (the full text is in the tooltip). The cue number and state mark are
+     left to the tooltip and the block's border, which keeps all of the width for the text. */
+  overflow: hidden;
+  gap: 0;
+  padding: 0 7px;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-handle {
+  width: 5px;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block__text {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block__number,
+.lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block__state {
+  display: none;
 }
 
 .lyric-cue-timeline__inner--stacked-lanes .lyric-cue-block--selected {

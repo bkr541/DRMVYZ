@@ -134,6 +134,20 @@ function isBackgroundTarget(
   );
 }
 
+/** Hover text for a cue: the full lyric (the block only has room for its first words), its time range and any warnings. */
+function cueTooltip(
+  text: string,
+  bounds: { startMs: number; endMs: number },
+  warnings: readonly string[],
+): string {
+  const lines = [
+    text.trim() || "Empty cue",
+    `${formatTimelineMs(bounds.startMs)} – ${formatTimelineMs(bounds.endMs)}`,
+    ...warnings.map((warning) => `⚠ ${warning}`),
+  ];
+  return lines.join("\n");
+}
+
 function cueStateLabel(
   cue: LyricCue,
   issues: number,
@@ -782,6 +796,7 @@ export function LyricCueTimeline({
             }}
             role="button"
             tabIndex={0}
+            title={cueTooltip(cue.text, bounds, issues.map((issue) => issue.message))}
             aria-pressed={selected}
             aria-current={active ? "time" : undefined}
             aria-label={`Cue ${index + 1}: ${cue.text || "empty text"}, ${formatTimelineMs(bounds.startMs)} to ${formatTimelineMs(bounds.endMs)}${cueStateLabel(cue, issues.length, active, selected)}`}
