@@ -635,13 +635,31 @@ Built as Headliner presets (Presets tab), each with its own Design tab (Master C
 | 1 | Motion Echo | Implemented |
 | 2 | Ghost Trails | Implemented |
 | 3 | Velocity Smear | Implemented |
+| 4 | Motion Melt | Implemented |
+| 5 | Freeze Ghost | Implemented |
+| 6 | Strobe Clone | Implemented |
+| 7 | Clone Spread | Implemented |
+| 8 | RGB Ghost | Implemented |
+| 9 | Face Warp | Implemented |
+| 10 | Face Echo | Implemented |
 
-How they work (all on the 2D program canvas, no segmentation or tracking model yet):
+This completes the recommended first-pass build set (effects 1–10).
+
+How they work (all on the 2D program canvas):
 
 - **Motion Echo** keeps a history of recent camera frames and layers them over the live picture. Clones are captured on a beat division (BPM Sync on) or a millisecond delay (off). Optional "Motion Only" masks the clones to what is moving.
 - **Ghost Trails** is a feedback buffer: only the moving parts of the picture are deposited, then the buffer fades, floats, blurs and can shift colour as it ages. Fast movement lengthens the trail; stillness stays clean.
 - **Velocity Smear** estimates a block-matching motion field on a 128x72 copy of the picture and stretches the moving cells along their motion vector, ahead of, behind, or both ways.
+- **Motion Melt** turns moving cells to liquid: movement accumulates into a field that drags, drips and spreads, then settles back at a rate set by Viscosity. Still areas stay intact.
+- **Freeze Ghost** captures the picture on a Capture Pose button press and keeps it in the scene while the live picture continues. Repeated captures build a group of ghosts; Clear Ghosts removes them.
+- **Strobe Clone** captures a clone only on musical events (kick, snare, downbeat, build, or a beat division). Kicks add clones, snares add an alternate-style clone, a downbeat of the chosen bar clears them, and a build-up makes captures more frequent.
+- **Clone Spread** duplicates the performer into several copies laid out horizontally, vertically, radially or mirrored, and spreads, collapses or shifts them with the music.
+- **RGB Ghost** rebuilds the picture one colour channel at a time from different moments: the first channel of the chosen order is live, the second lags one step and the third two. The step is a beat division (BPM Sync on) or milliseconds (off), grows with movement speed and Master Intensity, and the lagging channels can also drift in space. A still picture looks normal; whatever moves gets red, green and blue fringes. Custom Channels filters the three copies through colours of your choice instead. It keeps at most one second of history at 30 pictures per second.
+- **Face Warp** tracks the face and bends only an oval region around it, with the rest of the frame left exactly as the live camera. Styles: Bulge, Pinch, Twist, Stretch, Liquify, Prism and Wobble. It runs as a small WebGL pass over a patch around the face (at canvas resolution), so cost follows the size of the face. Beat Pulse swells the warp on every beat and kick; Palette tints the warped area. With no face found, or if WebGL is unavailable, it shows the plain camera.
+- **Face Echo** keeps the body untouched and cuts out only the head (an oval that follows the face outline and its tilt, with a soft edge). A head is captured on each beat division or millisecond delay, and the newest copies are drawn back as echoes. Spread 0% leaves each echo where the head was; higher values fan them out beside the live head, alternating right and left. Echoes can shrink or grow, be mirrored, be tinted, and the real head is drawn back on top by default so it is never hidden.
 
-Shared behaviour: every preset's Master Controls hold Master Intensity (0 is the clean camera), BPM Sync (the track's BPM and beat grid when on, a steady 120 BPM when off), Music Reactivity and Kick Reactivity. The shared code lives in `src/components/vyzualz/react/headliner/` (`HeadlinerEffectCatalog.ts` for the controls, `HeadlinerEffects.ts` for the renderers, `HeadlinerMotion.ts` for motion analysis, `HeadlinerTiming.ts` for the clock).
+Shared behaviour: every preset's Master Controls hold Master Intensity (0 is the clean camera), BPM Sync (the track's BPM and beat grid when on, a steady 120 BPM when off), Music Reactivity and Kick Reactivity. The shared code lives in `src/components/vyzualz/react/headliner/` (`HeadlinerEffectCatalog.ts` for the controls, `HeadlinerEffects.ts`, `HeadlinerCloneEffects.ts`, `HeadlinerTemporalEffects.ts` and `HeadlinerFaceEffects.ts` for the renderers, `HeadlinerMotion.ts` for motion analysis, `HeadlinerIsolation.ts` for the clone effects' performer isolation, `HeadlinerTiming.ts` for the clock).
 
-Effects 4–30 are not started. Those that need the body (Aura, Energy Outline, Portal Body, Particle Body and similar) will need a person-segmentation model that Headliner does not have yet.
+Face tracking (`HeadlinerFaceTracking.ts`, shared by Face Warp and Face Echo): a MediaPipe Face Landmarker (`@mediapipe/tasks-vision`) runs on the camera picture up to 30 times a second, GPU first with a CPU fallback, and is turned into one pose (centre, size, tilt). The pose is smoothed per effect (the Face Follow Smoothing control); a face that is lost is held for about a third of a second and then fades out. The model and the WebAssembly runtime ship in `public/mediapipe/` (about 17 MB, Apache-2.0, see `public/mediapipe/NOTICE.txt`), so tracking works offline. It loads the first time a face effect is active and is released when none is.
+
+Effects 11–30 are not started. Those that need the body (Aura, Energy Outline, Portal Body, Particle Body and similar) will need a person-segmentation model; MediaPipe, now in the project, also offers one (Image Segmenter) that could serve them.

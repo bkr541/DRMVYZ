@@ -1,4 +1,4 @@
-// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–7) and the Design-tab
+// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–10) and the Design-tab
 // parameters each one exposes. The catalog is data only: the Design panel renders it with the standard
 // rows and the effect processors read the resolved values, so a control cannot exist without a reader.
 
@@ -13,6 +13,9 @@ export type HeadlinerPresetId =
   | 'freeze-ghost'
   | 'strobe-clone'
   | 'clone-spread'
+  | 'rgb-ghost'
+  | 'face-warp'
+  | 'face-echo'
 
 /** The four standard Design parent groups. */
 export type HeadlinerParameterGroup = 'master' | 'design' | 'effects' | 'palette'
@@ -613,6 +616,200 @@ const CLONE_SPREAD: HeadlinerPresetDefinition = {
   ],
 }
 
+const CHANNEL_ORDER_OPTIONS = [
+  { value: 'rgb', label: 'Red → Green → Blue' },
+  { value: 'rbg', label: 'Red → Blue → Green' },
+  { value: 'grb', label: 'Green → Red → Blue' },
+  { value: 'gbr', label: 'Green → Blue → Red' },
+  { value: 'brg', label: 'Blue → Red → Green' },
+  { value: 'bgr', label: 'Blue → Green → Red' },
+] as const
+
+const RGB_GHOST: HeadlinerPresetDefinition = {
+  id: 'rgb-ghost',
+  name: 'RGB Ghost',
+  description: 'Splits you into red, green and blue copies that each show a different moment in time, so colour fringes trail whatever moves.',
+  tone: '#ff5a7a',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'delaySpacingBeats', kind: 'select', group: 'design', label: 'Channel Delay', default: '0.125',
+      options: SPACING_OPTIONS, visibleWhen: { parameter: 'bpmSync', equals: true },
+      description: 'How far each channel lags the one before it, as a fraction of a beat.',
+    },
+    {
+      id: 'delayMs', kind: 'slider', group: 'design', label: 'Channel Delay',
+      min: 20, max: 500, step: 5, default: 90, format: 'ms',
+      visibleWhen: { parameter: 'bpmSync', equals: false },
+      description: 'How far each channel lags the one before it.',
+    },
+    {
+      id: 'channelOrder', kind: 'select', group: 'design', label: 'Channel Order', default: 'rgb',
+      options: CHANNEL_ORDER_OPTIONS,
+      description: 'Which channel is live, which lags once, and which lags twice.',
+    },
+    {
+      id: 'ghostAmount', kind: 'slider', group: 'design', label: 'Ghost Amount',
+      min: 0, max: 1, step: 0.01, default: 1, format: 'percent',
+      description: 'How much of the split picture replaces the live one.',
+    },
+    blendMode('normal'),
+    {
+      id: 'speedBoost', kind: 'slider', group: 'effects', label: 'Speed Boost',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'Faster movement pushes the channels further apart in time.',
+    },
+    {
+      id: 'channelDrift', kind: 'slider', group: 'effects', label: 'Channel Drift',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      description: 'Also shifts each lagging channel in space, on top of the time delay.',
+    },
+    {
+      id: 'driftAngle', kind: 'slider', group: 'effects', label: 'Drift Direction',
+      min: 0, max: 360, step: 1, default: 0, format: 'degrees',
+      visibleWhen: { parameter: 'channelDrift', notEquals: 0 },
+      description: 'Direction of the drift (0° is to the right).',
+    },
+    {
+      id: 'colorMode', kind: 'select', group: 'palette', label: 'Color Mode', default: 'original',
+      options: [{ value: 'original', label: 'Red / Green / Blue' }, { value: 'custom', label: 'Custom Channels' }],
+      description: 'Red / Green / Blue splits the picture into its true colour channels, so a still picture looks normal. Custom Channels filters each copy through a colour of your choice.',
+    },
+    {
+      id: 'primaryColor', kind: 'color', group: 'palette', label: 'Live Channel Color', default: '#ff2a2a',
+      description: 'The colour of the live copy.',
+    },
+    {
+      id: 'secondaryColor', kind: 'color', group: 'palette', label: 'First Lag Color', default: '#2aff5a',
+      description: 'The colour of the copy that lags once.',
+    },
+    {
+      id: 'tertiaryColor', kind: 'color', group: 'palette', label: 'Second Lag Color', default: '#2a6bff',
+      description: 'The colour of the copy that lags twice.',
+    },
+  ],
+}
+
+const FACE_WARP_STYLE_OPTIONS = [
+  { value: 'bulge', label: 'Bulge' },
+  { value: 'pinch', label: 'Pinch' },
+  { value: 'twist', label: 'Twist' },
+  { value: 'stretch', label: 'Stretch' },
+  { value: 'liquify', label: 'Liquify' },
+  { value: 'prism', label: 'Prism' },
+  { value: 'wobble', label: 'Wobble' },
+] as const
+
+const faceSmoothingControl = (): HeadlinerParameterDefinition => ({
+  id: 'faceSmoothing', kind: 'slider', group: 'effects', label: 'Face Follow Smoothing',
+  min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+  description: 'How steadily the effect follows your head. Low sticks tightly to every movement; high glides.',
+})
+
+const FACE_WARP: HeadlinerPresetDefinition = {
+  id: 'face-warp',
+  name: 'Face Warp',
+  description: 'Tracks your face and bends only that part of the picture: bulge, pinch, twist, stretch, liquify, prism or wobble, with the rest of the frame left steady.',
+  tone: '#ff8ad8',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'warpStyle', kind: 'select', group: 'design', label: 'Warp Style', default: 'bulge',
+      options: FACE_WARP_STYLE_OPTIONS,
+      description: 'How the face is distorted.',
+    },
+    {
+      id: 'warpAmount', kind: 'slider', group: 'design', label: 'Warp Amount',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+      description: 'How far the face is distorted.',
+    },
+    {
+      id: 'regionSize', kind: 'slider', group: 'design', label: 'Region Size',
+      min: 0.8, max: 2.2, step: 0.05, default: 1.3, format: 'number',
+      description: 'Size of the warped area relative to your face. Larger takes in hair and shoulders.',
+    },
+    {
+      id: 'edgeSoftness', kind: 'slider', group: 'design', label: 'Edge Softness',
+      min: 0.1, max: 0.9, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How gradually the warp fades out toward the edge of the area.',
+    },
+    {
+      id: 'beatPulse', kind: 'slider', group: 'effects', label: 'Beat Pulse',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'Swells the warp on every beat and on kicks.',
+    },
+    {
+      id: 'warpSpeed', kind: 'slider', group: 'effects', label: 'Warp Speed',
+      min: 0.1, max: 3, step: 0.05, default: 1, format: 'number',
+      description: 'How fast the animated styles (Liquify, Wobble) move.',
+    },
+    faceSmoothingControl(),
+    ...paletteControls('warped area', 'blends from the start colour at the top of the face to the end colour at the bottom.'),
+  ],
+}
+
+const FACE_ECHO: HeadlinerPresetDefinition = {
+  id: 'face-echo',
+  name: 'Face Echo',
+  description: 'Keeps your body as it is but leaves delayed copies of just your head, following your movement with different time offsets.',
+  tone: '#b48cff',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'echoCount', kind: 'slider', group: 'design', label: 'Echo Count',
+      min: 1, max: 8, step: 1, default: 4, format: 'number',
+      description: 'How many delayed heads are shown.',
+    },
+    {
+      id: 'echoSpacingBeats', kind: 'select', group: 'design', label: 'Echo Spacing', default: '0.25',
+      options: SPACING_OPTIONS, visibleWhen: { parameter: 'bpmSync', equals: true },
+      description: 'Time between captured heads, as a fraction of a beat.',
+    },
+    {
+      id: 'echoDelayMs', kind: 'slider', group: 'design', label: 'Echo Delay',
+      min: 60, max: 800, step: 10, default: 250, format: 'ms',
+      visibleWhen: { parameter: 'bpmSync', equals: false },
+      description: 'Time between captured heads.',
+    },
+    {
+      id: 'echoOpacity', kind: 'slider', group: 'design', label: 'Echo Opacity',
+      min: 0, max: 1, step: 0.01, default: 0.55, format: 'percent',
+      description: 'Opacity of the newest echo.',
+    },
+    {
+      id: 'echoFalloff', kind: 'slider', group: 'design', label: 'Echo Falloff',
+      min: 0.3, max: 0.98, step: 0.01, default: 0.78, format: 'percent',
+      description: 'How much each older echo fades relative to the one before it.',
+    },
+    blendMode('normal'),
+    {
+      id: 'echoSpread', kind: 'slider', group: 'effects', label: 'Spread',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+      description: 'At 0% each echo stays where your head was. Higher fans the echoes out beside your live head.',
+    },
+    {
+      id: 'echoScale', kind: 'slider', group: 'effects', label: 'Echo Scale',
+      min: -0.15, max: 0.15, step: 0.005, default: 0, format: 'number',
+      description: 'Grows (positive) or shrinks (negative) each older echo.',
+    },
+    {
+      id: 'headSize', kind: 'slider', group: 'effects', label: 'Head Size',
+      min: 0.9, max: 2, step: 0.05, default: 1.15, format: 'number',
+      description: 'How much around your face each echo takes in. 1.0 follows the face outline; larger includes hair and neck.',
+    },
+    {
+      id: 'mirrorCopies', kind: 'toggle', group: 'effects', label: 'Mirror Echoes', default: false,
+      description: 'Flips every second echo left to right.',
+    },
+    {
+      id: 'liveHeadOnTop', kind: 'toggle', group: 'effects', label: 'Keep Live Head On Top', default: true,
+      description: 'Draws your real head over the echoes so it is never hidden behind them.',
+    },
+    faceSmoothingControl(),
+    ...paletteControls('echoes', 'blends from the start colour on the newest echo to the end colour on the oldest.'),
+  ],
+}
+
 export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.freeze([
   MOTION_ECHO,
   GHOST_TRAILS,
@@ -621,6 +818,9 @@ export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.fr
   FREEZE_GHOST,
   STROBE_CLONE,
   CLONE_SPREAD,
+  RGB_GHOST,
+  FACE_WARP,
+  FACE_ECHO,
 ])
 
 export function getHeadlinerPreset(id: unknown): HeadlinerPresetDefinition {

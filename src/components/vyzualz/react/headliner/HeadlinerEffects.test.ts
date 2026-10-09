@@ -11,6 +11,18 @@ import { HEADLINER_IDLE_TIMING, type HeadlinerEffectTiming } from './HeadlinerTi
 import { placeCloneSpreadCopies } from './HeadlinerCloneEffects'
 import { stepMeltField } from './HeadlinerEffects'
 import { fireHeadlinerTrigger } from './HeadlinerTriggers'
+import {
+  beatPulseEnvelope,
+  createFaceEchoProcessor,
+  createFaceWarpProcessor,
+  faceEchoSpreadOffset,
+  resolveFaceFollowSmoothing,
+  resolveHeadCrop,
+  scaleFaceBox,
+} from './HeadlinerFaceEffects'
+import type { HeadlinerFaceSample, HeadlinerFaceSource } from './HeadlinerFaceTracking'
+import type { HeadlinerFaceWarpFrame, HeadlinerFaceWarpRenderer } from './HeadlinerFaceWarpGL'
+import { pickRgbGhostFrame, resolveRgbGhostDelays, resolveRgbGhostOrder } from './HeadlinerTemporalEffects'
 
 interface Draw {
   canvas: HTMLCanvasElement
@@ -53,7 +65,9 @@ beforeEach(() => {
       save: vi.fn(),
       restore: vi.fn(),
       translate: vi.fn(),
+      rotate: vi.fn(),
       scale: vi.fn(),
+      createRadialGradient: () => ({ addColorStop: vi.fn() }),
       clearRect: vi.fn(),
       fillRect: vi.fn(),
       putImageData: vi.fn(),
@@ -102,7 +116,7 @@ describe('Headliner effect processors', () => {
     expect(resolveHeadlinerWorkSize(400, 300)).toEqual({ width: 400, height: 300 })
   })
 
-  it.each(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
+  it.each(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
     const processor = createHeadlinerEffectProcessor(presetId)
     const output = makeOutput()
     setSquare(30)
@@ -377,3 +391,198 @@ describe('Clone Spread', () => {
   })
 })
 
+describe('RGB Ghost', () => {
+  it('lags the channels in the chosen order: live first, then one step, then two', () => {
+    expect(resolveRgbGhostDelays('rgb', 0.1)).toEqual({ r: 0, g: 0.1, b: 0.2 })
+    expect(resolveRgbGhostDelays('bgr', 0.1)).toEqual({ b: 0, g: 0.1, r: 0.2 })
+    expect(resolveRgbGhostDelays('rgb', 0)).toEqual({ r: 0, g: 0, b: 0 })
+    // The oldest channel never lags more than a second, however large the step.
+    expect(resolveRgbGhostDelays('rgb', 5).b).toBe(1)
+    expect(resolveRgbGhostOrder('nonsense')).toEqual(['r', 'g', 'b'])
+    expect(resolveRgbGhostOrder('rrg')).toEqual(['r', 'g', 'b'])
+  })
+
+  it('picks the stored picture whose age is closest to the wanted delay', () => {
+    const ages = [0, 0.033, 0.066, 0.1, 0.133]
+    expect(pickRgbGhostFrame(ages, 0.1)).toBe(3)
+    expect(pickRgbGhostFrame(ages, 0.08)).toBe(2)
+    expect(pickRgbGhostFrame(ages, 9)).toBe(4)
+    expect(pickRgbGhostFrame([], 0.1)).toBe(-1)
+  })
+
+  it('rebuilds the picture channel by channel and adds the three together over the live picture', () => {
+    const processor = createHeadlinerEffectProcessor('rgb-ghost')
+    const output = makeOutput()
+    for (let frame = 0; frame < 6; frame += 1) {
+      draws = []
+      processor.render(renderArgs(output, { delayMs: 30 }, 'rgb-ghost', { beat: frame, timeSec: frame * 0.05 }))
+    }
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+    const added = draws.filter(draw => draw.canvas.width === 720 && draw.operation === 'lighter')
+    expect(added).toHaveLength(3)
+    processor.dispose()
+  })
+})
+
+// ── Face effects ───────────────────────────────────────────────────────────────
+
+const FACE_POSE = { cx: 0.5, cy: 0.4, width: 0.2, height: 0.3, roll: 0 }
+
+function fakeFaceSource(pose: HeadlinerFaceSample['pose'] = FACE_POSE) {
+  let sequence = 1
+  const source = {
+    acquire: vi.fn(),
+    release: vi.fn(),
+    sample: vi.fn((): HeadlinerFaceSample => ({ status: 'ready', pose, sequence })),
+    setPose(next: HeadlinerFaceSample['pose']) {
+      pose = next
+      sequence += 1
+    },
+  }
+  return source satisfies HeadlinerFaceSource & { setPose(next: HeadlinerFaceSample['pose']): void }
+}
+
+function faceArgs(
+  output: ReturnType<typeof makeOutput>,
+  overrides: Record<string, number | boolean | string>,
+  presetId: 'face-warp' | 'face-echo',
+  timing: Partial<HeadlinerEffectTiming> = {},
+): HeadlinerEffectRenderArgs {
+  const args = renderArgs(output, overrides, presetId, timing)
+  Object.defineProperty(args.video, 'videoWidth', { value: 1280 })
+  Object.defineProperty(args.video, 'videoHeight', { value: 720 })
+  return args
+}
+
+describe('Face effect helpers', () => {
+  it('maps the follow-smoothing setting onto a time constant, tightest at 0 and slowest at 1', () => {
+    expect(resolveFaceFollowSmoothing(0)).toBeCloseTo(0.02)
+    expect(resolveFaceFollowSmoothing(1)).toBeCloseTo(0.3)
+    expect(resolveFaceFollowSmoothing(9)).toBeCloseTo(0.3)
+  })
+
+  it('swells on the beat and fades through it, and fans echoes right then left, each a head further out', () => {
+    expect(beatPulseEnvelope(2)).toBe(1)
+    expect(beatPulseEnvelope(2.5)).toBeLessThan(beatPulseEnvelope(2.1))
+    expect([0, 1, 2, 3].map(index => Math.round(faceEchoSpreadOffset(index, 100) / 1.1))).toEqual([100, -100, 200, -200])
+  })
+
+  it('sizes the warp region from the face and boxes a tilted head by its extent', () => {
+    expect(scaleFaceBox({ cx: 10, cy: 20, width: 100, height: 150, roll: 0.3 }, 1.5)).toEqual({ cx: 10, cy: 20, width: 150, height: 225, roll: 0.3 })
+    const upright = resolveHeadCrop({ cx: 0, cy: 0, width: 100, height: 200, roll: 0 })
+    expect(upright.halfWidth).toBeCloseTo(50)
+    expect(upright.halfHeight).toBeCloseTo(100)
+    const turned = resolveHeadCrop({ cx: 0, cy: 0, width: 100, height: 200, roll: Math.PI / 2 })
+    expect(turned.halfWidth).toBeCloseTo(100)
+    expect(turned.halfHeight).toBeCloseTo(50)
+  })
+})
+
+describe('Face Warp', () => {
+  function warpRig(source: ReturnType<typeof fakeFaceSource>) {
+    const patch = document.createElement('canvas')
+    const frames: HeadlinerFaceWarpFrame[] = []
+    const renderer: HeadlinerFaceWarpRenderer = {
+      render: vi.fn(frame => {
+        frames.push(frame)
+        return { canvas: patch, x: 400, y: 100 }
+      }),
+      dispose: vi.fn(),
+    }
+    return { patch, frames, renderer, processor: createFaceWarpProcessor({ tracker: () => source, createWarpRenderer: () => renderer }) }
+  }
+
+  it('warps a region around the tracked face and draws the patch over the live picture', () => {
+    const source = fakeFaceSource()
+    const { processor, frames, renderer } = warpRig(source)
+    const output = makeOutput()
+    draws = []
+    processor.render(faceArgs(output, { warpStyle: 'twist', warpAmount: 0.5, regionSize: 2, beatPulse: 0 }, 'face-warp'))
+
+    expect(frames).toHaveLength(1)
+    // The face is 0.2 x 0.3 of the picture, i.e. 256 x 216 px on a 1280 x 720 canvas; the region doubles it.
+    expect(frames[0].face).toMatchObject({ cx: 640, cy: 288, width: 512, height: 432 })
+    expect(frames[0].params).toMatchObject({ style: 'twist' })
+    expect(frames[0].params.amount).toBeGreaterThan(0)
+    // The live camera, then the warped patch.
+    expect(drawsOnto(output.canvas)).toHaveLength(2)
+    processor.dispose()
+    expect(renderer.dispose).toHaveBeenCalled()
+  })
+
+  it('shows the plain camera while no face is found, and pulses the warp on the beat', () => {
+    const source = fakeFaceSource(null)
+    const { processor, frames, renderer } = warpRig(source)
+    const output = makeOutput()
+    processor.render(faceArgs(output, {}, 'face-warp'))
+    expect(renderer.render).not.toHaveBeenCalled()
+
+    source.setPose(FACE_POSE)
+    processor.render(faceArgs(output, { beatPulse: 1, kickReactivity: 0, musicReactivity: 0 }, 'face-warp', { beat: 4 }))
+    processor.render(faceArgs(output, { beatPulse: 1, kickReactivity: 0, musicReactivity: 0 }, 'face-warp', { beat: 4.5 }))
+    expect(frames[0].params.amount).toBeGreaterThan(frames[1].params.amount)
+    processor.dispose()
+  })
+
+  it('holds the tracker only while the effect is on', () => {
+    const source = fakeFaceSource()
+    const { processor } = warpRig(source)
+    const output = makeOutput()
+    processor.render(faceArgs(output, { masterIntensity: 0 }, 'face-warp'))
+    expect(source.acquire).not.toHaveBeenCalled()
+    processor.render(faceArgs(output, {}, 'face-warp'))
+    processor.render(faceArgs(output, {}, 'face-warp'))
+    expect(source.acquire).toHaveBeenCalledTimes(1)
+    processor.render(faceArgs(output, { masterIntensity: 0 }, 'face-warp'))
+    expect(source.release).toHaveBeenCalledTimes(1)
+    processor.dispose()
+    expect(source.release).toHaveBeenCalledTimes(1)
+  })
+
+  it('falls back to the live picture when the warp renderer cannot start', () => {
+    const processor = createFaceWarpProcessor({ tracker: () => fakeFaceSource(), createWarpRenderer: () => null })
+    const output = makeOutput()
+    draws = []
+    processor.render(faceArgs(output, {}, 'face-warp'))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+    processor.dispose()
+  })
+})
+
+describe('Face Echo', () => {
+  it('captures a head per beat division and layers the echoes, with the live head back on top', () => {
+    const source = fakeFaceSource()
+    const processor = createFaceEchoProcessor({ tracker: () => source })
+    const output = makeOutput()
+    const overrides = { echoCount: 3, echoSpacingBeats: '0.25' }
+    for (let frame = 0; frame < 5; frame += 1) {
+      draws = []
+      processor.render(faceArgs(output, overrides, 'face-echo', { beat: frame * 0.25, timeSec: frame * 0.1 }))
+    }
+    // The live camera, three echoes, then the live head again.
+    expect(drawsOnto(output.canvas)).toHaveLength(1 + 3 + 1)
+    const echoes = drawsOnto(output.canvas).slice(1, 4)
+    expect(echoes[0].alpha).toBeLessThan(echoes[2].alpha)
+
+    draws = []
+    processor.render(faceArgs(output, { ...overrides, liveHeadOnTop: false }, 'face-echo', { beat: 1.25, timeSec: 0.6 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1 + 3)
+    processor.dispose()
+  })
+
+  it('keeps the camera clean with no face, hides echoes when the face is gone, and releases the tracker', () => {
+    const source = fakeFaceSource(null)
+    const processor = createFaceEchoProcessor({ tracker: () => source })
+    const output = makeOutput()
+    draws = []
+    processor.render(faceArgs(output, {}, 'face-echo', { beat: 1 }))
+    expect(drawsOnto(output.canvas)).toHaveLength(1)
+    expect(source.acquire).toHaveBeenCalledTimes(1)
+
+    source.setPose(FACE_POSE)
+    processor.render(faceArgs(output, {}, 'face-echo', { beat: 2, timeSec: 0.5 }))
+    processor.render(faceArgs(output, { masterIntensity: 0 }, 'face-echo', { beat: 3, timeSec: 1 }))
+    expect(source.release).toHaveBeenCalledTimes(1)
+    processor.dispose()
+  })
+})

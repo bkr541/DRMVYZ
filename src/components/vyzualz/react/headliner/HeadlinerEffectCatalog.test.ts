@@ -24,9 +24,9 @@ describe('Headliner Clean Playback', () => {
 })
 
 describe('Headliner effect catalog', () => {
-  it('ships the first seven effects of the POV effects document, in priority order', () => {
+  it('ships the first ten effects of the POV effects document, in priority order', () => {
     expect(HEADLINER_PRESETS.map(preset => preset.name)).toEqual([
-      'Motion Echo', 'Ghost Trails', 'Velocity Smear', 'Motion Melt', 'Freeze Ghost', 'Strobe Clone', 'Clone Spread',
+      'Motion Echo', 'Ghost Trails', 'Velocity Smear', 'Motion Melt', 'Freeze Ghost', 'Strobe Clone', 'Clone Spread', 'RGB Ghost', 'Face Warp', 'Face Echo',
     ])
   })
 

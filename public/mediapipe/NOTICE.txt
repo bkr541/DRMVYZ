@@ -1,0 +1,12 @@
+MediaPipe Tasks Vision (https://github.com/google-ai-edge/mediapipe)
+Copyright Google LLC, licensed under the Apache License 2.0.
+
+wasm/vision_wasm_internal.js and wasm/vision_wasm_internal.wasm come from the
+@mediapipe/tasks-vision 1.1.0 npm package (wasm/ folder).
+face_landmarker.task is Google's "Face Landmarker" model (float16, v1):
+https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
+
+Used by the Headliner engine's Face Warp and Face Echo effects, which load them
+from /mediapipe/ so face tracking works offline. The SIMD-less runtime
+(vision_wasm_nosimd_internal.*) is deliberately not shipped: Electron's Chromium
+always supports WebAssembly SIMD.

@@ -1,5 +1,5 @@
 // The Headliner effect processors (Motion Echo, Ghost Trails, Velocity Smear, Motion Melt, Freeze Ghost, Strobe
-// Clone, Clone Spread). Each one draws the live camera picture first and then layers its effect on top, so Master
+// Clone, Clone Spread, RGB Ghost, Face Warp, Face Echo). Each one draws the live camera picture first and then layers its effect on top, so Master
 // Intensity 0 is always the clean camera. They work on reduced-size surfaces (capped at WORK_MAX_WIDTH) to keep
 // history and feedback buffers cheap, and read every setting from the Design-tab values passed in per frame.
 
@@ -30,6 +30,8 @@ import {
   type HeadlinerEffectRenderArgs,
 } from './HeadlinerEffectKit'
 import { HeadlinerMotionAnalyzer } from './HeadlinerMotion'
+import { createFaceEchoProcessor, createFaceWarpProcessor } from './HeadlinerFaceEffects'
+import { createRgbGhostProcessor } from './HeadlinerTemporalEffects'
 
 export { HEADLINER_MAX_ECHOES, HEADLINER_SMEAR_DRAW_BUDGET, HEADLINER_WORK_MAX_WIDTH, hexToRgb, resolveHeadlinerWorkSize } from './HeadlinerEffectKit'
 export type { HeadlinerEffectProcessor, HeadlinerEffectRenderArgs } from './HeadlinerEffectKit'
@@ -514,6 +516,12 @@ export function createHeadlinerEffectProcessor(presetId: HeadlinerPresetId): Hea
       return createStrobeCloneProcessor()
     case 'clone-spread':
       return createCloneSpreadProcessor()
+    case 'rgb-ghost':
+      return createRgbGhostProcessor()
+    case 'face-warp':
+      return createFaceWarpProcessor()
+    case 'face-echo':
+      return createFaceEchoProcessor()
     case 'motion-echo':
     default:
       return new MotionEchoProcessor()
