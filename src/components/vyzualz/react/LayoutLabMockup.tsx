@@ -19,6 +19,7 @@ import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConce
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { AudioSourceIndicatorStyleGallery } from './layoutLab/AudioSourceIndicatorStyleGallery'
+import { NavIconStyleGallery } from './layoutLab/NavIconStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
 import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
@@ -396,6 +397,7 @@ export function LayoutLabMockup() {
                 {templateRightTab === 'design' && (
                   <div className="rv-inspector rv-inspector-scroll">
                     <AudioSourceIndicatorStyleGallery />
+                    <NavIconStyleGallery />
                   </div>
                 )}
                 {/* Output is intentionally blank in the Template engine. */}

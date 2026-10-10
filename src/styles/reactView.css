@@ -23485,9 +23485,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-sizing: border-box;
   padding: 0 9px;
   overflow: hidden;
-  border: 1px solid rgba(154, 178, 188, 0.1);
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.018);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-dot {
   width: 6px;
@@ -23936,3 +23936,42 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .lltm-c6-tag span { overflow: hidden; text-overflow: ellipsis; }
 .lltm-c6-tag.is-high { top: 3px; }
 .lltm-c6-tag.is-low { bottom: 3px; }
+
+/* Layout Lab · Template · Design: left navigation icon concepts. */
+.llni-gallery { display: flex; flex-direction: column; gap: 18px; padding: 18px 16px 32px; }
+.llni-concept { display: flex; flex-direction: column; gap: 9px; }
+.llni-copy { display: flex; flex-direction: column; gap: 4px; }
+.llni-copy > span { color: rgba(232, 244, 248, 0.82); font: 800 9px/1.2 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.04em; text-transform: uppercase; }
+.llni-copy > p { margin: 0; color: rgba(196, 207, 211, 0.42); font: 600 8px/1.45 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llni-stage {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  box-sizing: border-box;
+  padding: 10px 6px;
+  border: 1px solid rgba(154, 178, 188, 0.13);
+  border-radius: 9px;
+  background: #0b1012;
+}
+.llni-item {
+  --llni-accent: rgba(74, 199, 219, 0.78);
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 2px 8px;
+  border-radius: 6px;
+  color: rgba(154, 178, 188, 0.5);
+}
+.llni-item.is-active { --llni-accent: #b8fbff; color: var(--az-cyan, #4ac7db); }
+.llni-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 10px; transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease; }
+.llni-icon svg { width: 36px; height: 36px; overflow: visible; }
+.llni-accent { stroke: var(--llni-accent); }
+path.llni-accent[fill='currentColor'], circle.llni-accent[fill='currentColor'], rect.llni-accent[fill='currentColor'] { fill: var(--llni-accent); }
+.llni-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 6.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.1em; text-transform: uppercase; }
+.llni-item.is-active .llni-icon svg { filter: drop-shadow(0 0 6px rgba(74, 199, 219, 0.42)); }
+.llni-item.is-active::before { content: ''; position: absolute; left: -2px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--az-cyan, #4ac7db); box-shadow: 0 0 10px rgba(74, 199, 219, 0.6); }
+.llni-item:not(.is-active):hover { color: rgba(196, 207, 211, 0.78); }
+.llni-stage--hex-seal .llni-item.is-active .llni-icon { background: rgba(74, 199, 219, 0.1); box-shadow: 0 0 16px rgba(74, 199, 219, 0.16); }
