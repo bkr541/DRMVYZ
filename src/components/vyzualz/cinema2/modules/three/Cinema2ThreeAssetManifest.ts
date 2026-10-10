@@ -22,6 +22,8 @@ export const CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID: Cinema2AssetId = 'cinema2-at
 export const CINEMA2_ATL_HOE_ASSET_ID: Cinema2AssetId = 'cinema2-atl-hoe'
 /** MAINFRAME's complete shallow hard-surface circuit wall with independently addressable hardware and emissive systems. */
 export const CINEMA2_MAINFRAME_ASSET_ID: Cinema2AssetId = 'cinema2-mainframe'
+/** BACKSTREET's neon sign and brick wall: parts `tubeCores` (the lit neon; carries Mainframe's circuit attributes), `clips`, `wall`. */
+export const CINEMA2_BACKSTREET_ASSET_ID: Cinema2AssetId = 'cinema2-backstreet'
 /** SAY IT production glyph package: independently addressable bevelled meshes for printable Basic Latin U+0021-U+007E. */
 export const CINEMA2_SAY_IT_GLYPH_ASSET_ID: Cinema2AssetId = 'cinema2-say-it-glyphs'
 

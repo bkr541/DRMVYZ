@@ -46,6 +46,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-backstreet",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/backstreet.glb",
+        "bytes": 5798780,
+        "triangles": 60274
+      }
+    },
+    "gpuBytes": {
+      "high": 18861575,
+      "medium": 18861575,
+      "low": 18861575
+    }
+  },
+  {
     "id": "cinema2-conduit-chamber",
     "kind": "model",
     "compression": "none",

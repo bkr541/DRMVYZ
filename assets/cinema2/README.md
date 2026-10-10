@@ -24,7 +24,7 @@ Missing or unreadable `asset.json`; unknown kind/layout/compression; missing lic
 missing, invalid or shared files; a file over the per-file budget; a texture over the size limit (volumes: edge over 128 texels, or an image that is not a whole number of square slices; environments: not a 2:1 Radiance `.hdr`, or wider than 2048 px); a model over the triangle limit; an asset whose estimated GPU
 memory on any quality tier is over the asset budget; total shipped size over the installer budget; a stale generated manifest or attribution list.
 The limits live in `scripts/cinema2-assets/assets-core.mjs` (`DEFAULT_BUDGETS`) and can be overridden per project in `assets/cinema2/budgets.json`.
-The first-wave installer budget defaults to 50 MB; change it there once the owner decides.
+The first-wave installer budget defaults to 50 MB. `budgets.json` currently raises it to 60 MB (62914560 bytes) because the shipped assets reached 53.08 MB with Backstreet; the owner should confirm or reverse that.
 
 ## Adding an asset
 
