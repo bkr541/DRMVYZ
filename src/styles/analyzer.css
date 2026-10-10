@@ -196,6 +196,10 @@
   border-left-color: var(--az-cyan);
   text-shadow: 0 0 12px rgba(74,199,219,0.35);
 }
+.az-nav-item { --llni-accent: rgba(74, 199, 219, 0.78); }
+.az-nav-item--active { --llni-accent: #b8fbff; }
+.az-nav-item .llni-accent { stroke: var(--llni-accent); }
+.az-nav-item path.llni-accent[fill='currentColor'], .az-nav-item rect.llni-accent[fill='currentColor'], .az-nav-item circle.llni-accent[fill='currentColor'] { fill: var(--llni-accent); }
 .az-nav-item--active svg {
   filter: drop-shadow(0 0 6px rgba(74,199,219,0.4));
 }

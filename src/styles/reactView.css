@@ -12343,7 +12343,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-ctrl-palette-row {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.015);
-  overflow: hidden;
 }
 
 .rv-ctrl-palette-hdr {
@@ -12398,11 +12397,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   transform: rotate(180deg);
 }
 
-.rv-ctrl-palette-body {
+.rv-ctrl-palette-popover {
+  z-index: 12000;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 4px 9px 12px 34px;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(154, 178, 188, 0.28);
+  border-radius: 10px;
+  background: #151d22;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.4);
 }
 
 .rv-ctrl-palette-gradient-square {
@@ -12434,36 +12439,24 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Cinema's Palette group lays its PaletteColorRow items out in a 4-column
-   grid, matching the Full-Bleed Swatch winner's final Layout Lab layout. An
-   open row now expands in place rather than in a portaled popover, so it
-   needs to break out of its single grid cell and claim the full row width —
-   same rule Inline Expand's own 2-column gallery grid uses. */
+   grid, matching the Full-Bleed Swatch winner's final Layout Lab layout. The
+   picker opens in a popover, so a row never changes size. */
 .drc-body.rv-cinema-palette-body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px 12px;
 }
 
-.drc-body.rv-cinema-palette-body .rv-ctrl-palette-row.is-open {
-  grid-column: 1 / -1;
-}
-
 /* Cinema 2.0's Master Controls > Palette group (Cinema2InspectorPanel.tsx)
    lays its PaletteColorRow items out in the same 2-column grid Layout Lab's
    "01 · Inline Expand" gallery entry uses (.llpg-group--cols-2), matching
    its styling and functionality per that mockup — 4 color rows read as 2
-   rows of 2 instead of one long single-column stack. Same open-row
-   full-width break-out rule as Cinema's 4-column Palette group above. */
+   rows of 2 instead of one long single-column stack. */
 .drc-body.rv-cinema2-palette-body,
 .rv-palette-color-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 10px 12px;
-}
-
-.drc-body.rv-cinema2-palette-body .rv-ctrl-palette-row.is-open,
-.rv-palette-color-grid .rv-ctrl-palette-row.is-open {
-  grid-column: 1 / -1;
 }
 
 /* Engine Mode should sit flush like LaserDMX's Lighting Components group —

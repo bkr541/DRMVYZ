@@ -1,4 +1,5 @@
-import { useId, useRef, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconMorphToggle } from './controls/IconMorphToggle'
@@ -379,9 +380,16 @@ export function ColorRow({ label, value, onChange, disabled = false, id, descrip
 // Background / Primary / Secondary / Accent / Foreground / Highlight). A
 // collapsed row is a single line — swatch dot, label filling the remaining
 // space, caret — with no hex readout. Clicking it expands the row in place,
-// accordion-style, to reveal a hue/saturation gradient square (full spectrum
-// left to right), a lightness slider, and a hex field — no popover, everything stays in document flow, so
-// there's no portal or viewport-clamped positioning to own.
+// a popover anchored to the row, holding a hue/saturation gradient square (full
+// spectrum left to right), a lightness slider, and a hex field. The popover is
+// portaled into the trigger's own document body (which is a foreign window when
+// Layout Lab is popped out) so it is never clipped by a group, and it is placed
+// from the viewport: below the row, flipped above when there is no room, and
+// clamped inside the window.
+
+const PALETTE_POPOVER_WIDTH = 264
+const PALETTE_POPOVER_GAP = 8
+const PALETTE_POPOVER_MARGIN = 12
 
 function hexToRgb(hex: string): [number, number, number] {
   const clean = hex.replace('#', '').trim()
@@ -446,6 +454,9 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
   const generatedId = useId()
   const inputId = id ?? generatedId
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number; width: number } | null>(null)
   // Hue and saturation are kept locally: a hex value can't carry them at the
   // lightness extremes (black/white/gray), so deriving them from `value` alone
   // would snap the thumb back to red whenever the lightness slider hits an end.
@@ -464,14 +475,73 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
     onChange(hex)
   }
 
+  const closePopover = (restoreFocus = false) => {
+    setOpen(false)
+    if (restoreFocus) triggerRef.current?.focus()
+  }
+
+  // Anchor the popover to the row; measured after render so its real height decides whether it flips above.
+  const placePopover = () => {
+    const trigger = triggerRef.current
+    const popover = popoverRef.current
+    const ownerWindow = trigger?.ownerDocument.defaultView
+    if (!trigger || !popover || !ownerWindow) return
+    const rect = trigger.getBoundingClientRect()
+    const width = Math.min(PALETTE_POPOVER_WIDTH, ownerWindow.innerWidth - PALETTE_POPOVER_MARGIN * 2)
+    const height = popover.getBoundingClientRect().height
+    const below = ownerWindow.innerHeight - rect.bottom - PALETTE_POPOVER_GAP - PALETTE_POPOVER_MARGIN
+    const above = rect.top - PALETTE_POPOVER_GAP - PALETTE_POPOVER_MARGIN
+    const placeBelow = below >= height || below >= above
+    const top = placeBelow ? rect.bottom + PALETTE_POPOVER_GAP : Math.max(PALETTE_POPOVER_MARGIN, rect.top - PALETTE_POPOVER_GAP - height)
+    const left = Math.max(PALETTE_POPOVER_MARGIN, Math.min(rect.left, ownerWindow.innerWidth - width - PALETTE_POPOVER_MARGIN))
+    setPosition(current => (current && current.left === left && current.top === top && current.width === width ? current : { left, top, width }))
+  }
+
+  useLayoutEffect(() => {
+    if (!open) { setPosition(null); return }
+    placePopover()
+    const ownerWindow = triggerRef.current?.ownerDocument.defaultView
+    if (!ownerWindow) return
+    ownerWindow.addEventListener('resize', placePopover)
+    ownerWindow.addEventListener('scroll', placePopover, true)
+    return () => {
+      ownerWindow.removeEventListener('resize', placePopover)
+      ownerWindow.removeEventListener('scroll', placePopover, true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Outside press and Escape close it; listeners are on the trigger's own document so they work in a popped-out window too.
+  useEffect(() => {
+    if (!open) return
+    const ownerDocument = triggerRef.current?.ownerDocument
+    if (!ownerDocument) return
+    const onPointerDown = (event: Event) => {
+      const target = event.target as Node | null
+      if (target && (popoverRef.current?.contains(target) || triggerRef.current?.contains(target))) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closePopover(true)
+    }
+    ownerDocument.addEventListener('pointerdown', onPointerDown, true)
+    ownerDocument.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      ownerDocument.removeEventListener('pointerdown', onPointerDown, true)
+      ownerDocument.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [open])
+
   return (
     <div className={`rv-ctrl-palette-row${open ? ' is-open' : ''}`}>
       <button
+        ref={triggerRef}
         id={inputId}
         type="button"
         className="rv-ctrl-palette-hdr"
         disabled={disabled}
         aria-expanded={open}
+        aria-haspopup="dialog"
         aria-describedby={description ? `${inputId}-description` : undefined}
         data-palette-row-label={label}
         onClick={() => setOpen(current => !current)}
@@ -480,8 +550,14 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
         <span className="rv-ctrl-palette-row-label">{label}</span>
         <span className="rv-ctrl-palette-caret" aria-hidden="true">▾</span>
       </button>
-      {open && !disabled && (
-        <div className="rv-ctrl-palette-body">
+      {open && !disabled && triggerRef.current && createPortal((
+        <div
+          ref={popoverRef}
+          className="rv-ctrl-palette-popover"
+          role="dialog"
+          aria-label={`${label} color`}
+          style={{ position: 'fixed', left: position?.left ?? 0, top: position?.top ?? 0, width: position?.width ?? PALETTE_POPOVER_WIDTH, visibility: position ? 'visible' : 'hidden' }}
+        >
           <div
             className="rv-ctrl-palette-gradient-square"
             style={{ background: `linear-gradient(to bottom, transparent, hsl(0 0% ${l}%)), linear-gradient(to right, ${[0, 60, 120, 180, 240, 300, 360].map(stop => `hsl(${stop} 100% ${l}%)`).join(', ')})` }}
@@ -517,7 +593,7 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
             onChange={event => { if (isValidHex(event.target.value)) onChange(event.target.value) }}
           />
         </div>
-      )}
+      ), triggerRef.current.ownerDocument.body)}
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )

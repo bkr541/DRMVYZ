@@ -366,7 +366,7 @@ describe('Cinema production engine registration', () => {
     const programsBeforeEdit = gl.__calls.createdPrograms
 
     await act(async () => background?.click())
-    const colorHex = host?.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
+    const colorHex = document.body.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
     expect(colorHex).not.toBeNull()
     await act(async () => {
       if (!colorHex) return
@@ -685,7 +685,7 @@ describe('Cinema production engine registration', () => {
     const swatch = host?.querySelector<HTMLButtonElement>('.rv-ctrl-palette-hdr')
     expect(swatch).not.toBeNull()
     await act(async () => swatch?.click())
-    const colorHex = host?.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
+    const colorHex = document.body.querySelector<HTMLInputElement>('.rv-ctrl-palette-hex-input')
     expect(colorHex).not.toBeNull()
     await act(async () => {
       if (!colorHex) return
