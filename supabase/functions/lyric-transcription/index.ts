@@ -1723,7 +1723,9 @@ async function processJob(
 
     const confidenceThreshold = finiteNumber(job.request_options.confidenceThreshold) ?? 0.6
     const normalizedUnits = providerResult.transcripts.map(({ unit, transcript }) =>
-      normalizeProviderTranscript(transcript, unit, confidenceThreshold))
+      normalizeProviderTranscript(transcript, unit, confidenceThreshold, {
+        language: typeof job.request_options.language === 'string' ? job.request_options.language : null,
+      }))
     const sourceTimelineTranscript = reconcileTranscriptUnits(normalizedUnits)
     const shifted = resolvedSource.mode === 'vocal_reference'
       ? shiftReconciledTranscriptToOwnerTimeline(

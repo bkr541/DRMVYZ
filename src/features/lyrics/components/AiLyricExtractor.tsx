@@ -221,7 +221,7 @@ export function AiLyricExtractor({
   }, [])
 
   const [options, setOptions] = useState<LyricTranscriptionOptions>({
-    language: 'auto',
+    language: 'en',
     timingDetail: 'line+word',
     confidenceThreshold: 0.6,
     globalOffsetMs: 0,

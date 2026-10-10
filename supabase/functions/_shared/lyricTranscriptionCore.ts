@@ -196,13 +196,74 @@ function averageConfidence(values: Array<number | undefined>): number | undefine
   return known.reduce((sum, value) => sum + value, 0) / known.length
 }
 
+/**
+ * Whisper-family models invent text over instrumental passages: subtitle credits copied from their training
+ * data ("优独播剧场", "Yo Yo Television Series Exclusive", "词曲 …"), or a whole line in another script when
+ * the language is auto-detected on music. These are never lyrics, so they are removed before cue building.
+ */
+const HALLUCINATION_PHRASES: readonly RegExp[] = [
+  /yo\s*yo\s+television/i,
+  /television\s+series\s+exclusive/i,
+  /优独播剧场|優獨播劇場|独播剧场/,
+  /(?:词|詞|作词|作詞)\s*[曲:：]|(?:曲|作曲)\s*[:：]|字幕\s*(?:by|志愿者|組|组)|李宗[盛胜]/,
+  /amara\.org|subtitles?\s+by|captions?\s+by|thanks?\s+for\s+watching|please\s+subscribe|like\s+and\s+subscribe/i,
+]
+
+const LATIN_SCRIPT_LANGUAGES = new Set(['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'sv', 'da', 'no'])
+
+function nonLatinLetterShare(text: string): number {
+  let letters = 0
+  let other = 0
+  for (const char of text) {
+    if (!/\p{L}/u.test(char)) continue
+    letters += 1
+    if (!/\p{Script=Latin}/u.test(char)) other += 1
+  }
+  return letters === 0 ? 0 : other / letters
+}
+
+export function isLikelyHallucinatedSegment(
+  segment: { text: string },
+  language: string | null | undefined,
+): boolean {
+  const text = segment.text ?? ''
+  if (HALLUCINATION_PHRASES.some(pattern => pattern.test(text))) return true
+  const requested = (language ?? '').toLowerCase().split('-')[0]
+  // Weak confidence alone is not enough to drop English text: mumbled rap is kept and flagged for review.
+  return LATIN_SCRIPT_LANGUAGES.has(requested) && nonLatinLetterShare(text) > 0.3
+}
+
 export function normalizeProviderTranscript(
   transcript: ProviderTranscript,
   unit: TranscriptionUnitPlan,
   confidenceThreshold = 0.6,
+  options: { language?: string | null } = {},
 ): NormalizedTranscriptUnit {
   const safeThreshold = clamp01(confidenceThreshold) ?? 0.6
   const warnings: string[] = []
+  // Segments that are hallucinated text over music are dropped together with the words timed inside them.
+  const hallucinatedRanges: Array<{ startSec: number; endSec: number }> = []
+  const keptProviderSegments = (Array.isArray(transcript.segments) ? transcript.segments : []).filter(segment => {
+    const hallucinated = isLikelyHallucinatedSegment(
+      { text: cleanText(segment.text) },
+      options.language,
+    )
+    if (hallucinated && Number.isFinite(segment.start) && Number.isFinite(segment.end)) hallucinatedRanges.push({ startSec: segment.start, endSec: segment.end })
+    return !hallucinated
+  })
+  if (keptProviderSegments.length !== (transcript.segments?.length ?? 0)) warnings.push('hallucination_filtered')
+  const insideHallucination = (word: ProviderWord) => {
+    const mid = (Number(word.start) + Number(word.end)) / 2
+    return hallucinatedRanges.some(range => mid >= range.startSec - 0.05 && mid <= range.endSec + 0.05)
+  }
+  transcript = {
+    ...transcript,
+    words: Array.isArray(transcript.words) ? transcript.words.filter(word => !insideHallucination(word)) : transcript.words,
+    segments: keptProviderSegments.map(segment => ({
+      ...segment,
+      words: Array.isArray(segment.words) ? segment.words.filter(word => !insideHallucination(word)) : segment.words,
+    })),
+  }
   const topLevelWords = Array.isArray(transcript.words) ? transcript.words : []
   const segmentWords = Array.isArray(transcript.segments)
     ? transcript.segments.flatMap(segment => Array.isArray(segment.words) ? segment.words : [])

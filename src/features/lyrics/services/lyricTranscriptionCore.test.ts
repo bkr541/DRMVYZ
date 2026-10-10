@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   FIVE_MINUTES_MS,
+  isLikelyHallucinatedSegment,
   groupWordsIntoReadableCues,
   normalizeProviderTranscript,
   planTranscriptionUnits,
@@ -417,5 +418,34 @@ describe('lyric transcription normalization core', () => {
       ],
     }, unit)])
     expect(selectUsefulCues(withWords)[0].text).toBe('Word timing')
+  })
+})
+
+describe('hallucination filtering over instrumental passages', () => {
+  const unit = { index: 0, startMs: 0, endMs: 60_000, timestampOffsetMs: 0 } as Parameters<typeof normalizeProviderTranscript>[1]
+  const w = (word: string, start: number) => ({ word, start, end: start + 0.3 })
+
+  it('recognises subtitle-credit text and wrong-script lines, and keeps real English lyrics', () => {
+    expect(isLikelyHallucinatedSegment({ text: '优独播剧场——Yo Yo Television Series Exclusive' }, 'en')).toBe(true)
+    expect(isLikelyHallucinatedSegment({ text: '词 曲 李宗盛' }, 'auto')).toBe(true)
+    expect(isLikelyHallucinatedSegment({ text: '字幕志愿者 杨茜茜' }, 'auto')).toBe(true)
+    expect(isLikelyHallucinatedSegment({ text: '作' }, 'en')).toBe(true)
+    expect(isLikelyHallucinatedSegment({ text: 'こんにちは' }, 'ja')).toBe(false)
+    expect(isLikelyHallucinatedSegment({ text: "i'll be on the radio" }, 'en')).toBe(false)
+    expect(isLikelyHallucinatedSegment({ text: 'mumbled line under the smoke' }, 'en')).toBe(false)
+  })
+
+  it('drops those segments and the words timed inside them, keeping the real lyric', () => {
+    const result = normalizeProviderTranscript({
+      language: 'en',
+      segments: [
+        { text: '词 曲 李宗盛', start: 1, end: 3, words: [w('词', 1), w('曲', 2)] },
+        { text: "i'll be on the radio", start: 10, end: 12, avg_logprob: -0.1, no_speech_prob: 0.02, words: [w("i'll", 10), w('be', 10.5), w('on', 11), w('the', 11.3), w('radio', 11.6)] },
+      ],
+      words: [w('词', 1), w('曲', 2), w("i'll", 10), w('be', 10.5), w('on', 11), w('the', 11.3), w('radio', 11.6)],
+    }, unit, 0.6, { language: 'en' })
+    expect(result.words.map(word => word.text)).toEqual(["i'll", 'be', 'on', 'the', 'radio'])
+    expect(result.segments.map(segment => segment.text)).toEqual(["i'll be on the radio"])
+    expect(result.warnings).toContain('hallucination_filtered')
   })
 })
