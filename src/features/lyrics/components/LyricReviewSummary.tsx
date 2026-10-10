@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
-import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
+import { CheckListIcon } from 'hugeicons-react'
+import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
 import { getLyricReviewSummary } from '../utils/lyricReviewSummary'
 import type { LyricCue } from '../../../types/lyrics'
 
@@ -20,7 +21,11 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
 
   return (
     <section className="lmv-review-summary" aria-label="Review and validation summary">
-      <Collapsible label="Review & Validation">
+      <RailWindowHeader
+        side="right"
+        icon={<CheckListIcon size={15} color="currentColor" aria-hidden="true" />}
+        label="Review & Validation"
+      />
       {rows.map(row => (
         <button
           key={row.id}
@@ -34,7 +39,6 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
           <span aria-hidden="true">›</span>
         </button>
       ))}
-      </Collapsible>
     </section>
   )
 }

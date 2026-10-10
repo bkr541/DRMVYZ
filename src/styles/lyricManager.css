@@ -3278,10 +3278,14 @@
 
 .lmv-review-summary {
   flex: 0 0 auto;
-  padding: 0 14px 12px;
-  border-top: 1px solid rgba(126,218,232,0.12);
+  padding: 0 14px 46px;
   background: rgba(8,15,18,0.6);
 }
+
+/* The shared RailWindowHeader runs edge to edge, like Document Workspace and Tracks. */
+.lmv-review-summary > .rw-window-header { margin: 0 -14px; }
+/* Same 14px above the rows as on the sides. */
+.lmv-review-summary > .rw-window-header + .lmv-review-summary__row { margin-top: 14px; }
 
 /* Rows follow the Versions list: flat, hairline-separated, edge to edge. */
 .lmv-review-summary__row {
