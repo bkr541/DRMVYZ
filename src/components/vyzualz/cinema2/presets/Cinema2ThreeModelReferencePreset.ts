@@ -9,7 +9,16 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
 import { CINEMA2_STUDIO_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
-import { CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID, CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST } from './Cinema2AtmosphereReferencePreset'
+import {
+  CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS,
+  CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES,
+  CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_PILLAR_SCENE,
+  CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
+} from './Cinema2AtmosphereReferencePreset'
 
 export const CINEMA2_THREE_MODEL_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.three-model-reference')
 export const CINEMA2_THREE_MODEL_REFERENCE_ROUGHNESS_ID = cinema2StableId<Cinema2ParameterId>('three-model-reference-roughness')
@@ -30,7 +39,16 @@ function floatParameter(id: Cinema2ParameterId, label: string, description: stri
   })
 }
 
-const NODES = ['left', 'center', 'right', 'back'].map(name => `atmosphere-reference-object-${name}`)
+/** The rig it shares with Atmosphere Reference minus the monoliths' own controls and beat rules, which address parts this model does not have. */
+const MONOLITH_PARAMETER_IDS = new Set<string>([
+  CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID,
+  CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID,
+  ...Object.values(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS),
+])
+const MONOLITH_RULE_PREFIX = 'atmosphere-reference-monolith-'
+
+const NODES = CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES.map(name => `atmosphere-reference-object-${name}`)
 
 /**
  * Reference preset for the `three-scene` module: the roadmap's #6 acceptance scene. It is tagged `internal` (hidden from the
@@ -45,8 +63,13 @@ export const CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nati
     description: 'Shipped glTF models lit by the shared Cinema 2.0 light rig, reflected in the wet floor and haze: the acceptance scene for the Three.js module.',
     tags: Object.freeze(['internal', 'reference', 'diagnostic', 'three']),
   }),
+  scene: CINEMA2_ATMOSPHERE_REFERENCE_PILLAR_SCENE,
+  choreography: Object.freeze({
+    ...base.choreography,
+    rules: Object.freeze((base.choreography?.rules ?? []).filter(rule => !String(rule.id).startsWith(MONOLITH_RULE_PREFIX))),
+  }),
   parameters: Object.freeze([
-    ...(base.parameters ?? []),
+    ...(base.parameters ?? []).filter(parameter => !MONOLITH_PARAMETER_IDS.has(parameter.id)),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_ROUGHNESS_ID, 'Model Roughness', 'How glossy the models are (0 = mirror, 1 = matte).', 0.28, 0, 1, 50),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_ENVIRONMENT_ID, 'Environment Reflection', 'Strength of the studio environment reflected in the models.', 0.5, 0, 2, 51),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_CLEARCOAT_ID, 'Clearcoat', 'A glossy lacquer layer over the models (0 = none, 1 = full).', 0.6, 0, 1, 52),

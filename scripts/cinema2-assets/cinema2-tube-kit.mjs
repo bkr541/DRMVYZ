@@ -203,7 +203,7 @@ export function encodePng(rgba, width, height = width) {
 
 export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
   const MATERIALS = materials
-  // Embedded PNG textures (a material's optional `textures`: { normal, metallicRoughness } PNG buffers, `normalScale`); a mesh with textures
+  // Embedded PNG textures (a material's optional `textures`: { baseColor, normal, metallicRoughness, emissive } PNG buffers, `normalScale`); a mesh with textures
   // needs `uvs` (TEXCOORD_0). Images are written once each and shared by a repeating sampler.
   const images = [], textures = []
   const textureIndexOf = new Map()
@@ -276,10 +276,13 @@ export function writeGlb(outputPath, meshes, materials, generator, sceneName) {
         name: mesh.part,
         pbrMetallicRoughness: {
           baseColorFactor: spec.baseColorFactor, metallicFactor: spec.metallicFactor, roughnessFactor: spec.roughnessFactor,
+          ...(spec.textures?.baseColor ? { baseColorTexture: { index: textureOf(spec.textures.baseColor) } } : {}),
           ...(spec.textures?.metallicRoughness ? { metallicRoughnessTexture: { index: textureOf(spec.textures.metallicRoughness) } } : {}),
         },
         ...(spec.textures?.normal ? { normalTexture: { index: textureOf(spec.textures.normal), scale: spec.textures.normalScale ?? 1 } } : {}),
+        ...(spec.textures?.emissive ? { emissiveTexture: { index: textureOf(spec.textures.emissive) } } : {}),
         ...(spec.emissiveFactor ? { emissiveFactor: spec.emissiveFactor } : {}),
+        ...(spec.alphaMode ? { alphaMode: spec.alphaMode } : {}),
       })
     }
     gltfMeshes.push({ name: mesh.name, primitives: [{ attributes: { POSITION: positionAccessor, NORMAL: normalAccessor, _GLOW_PHASE: phaseAccessor, ...extra }, indices: indexAccessor, material: materialIndexOf.get(mesh.part), mode: 4 }] })

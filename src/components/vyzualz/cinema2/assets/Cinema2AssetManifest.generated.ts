@@ -22,6 +22,30 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-atmosphere-monoliths",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/atmosphere-monoliths.glb",
+        "bytes": 3243740,
+        "triangles": 4818
+      },
+      "low": {
+        "url": "/cinema2/models/atmosphere-monoliths-512.glb",
+        "bytes": 1273428,
+        "triangles": 4818
+      }
+    },
+    "gpuBytes": {
+      "high": 22538484,
+      "medium": 22538484,
+      "low": 5761268
+    }
+  },
+  {
     "id": "cinema2-conduit-chamber",
     "kind": "model",
     "compression": "none",

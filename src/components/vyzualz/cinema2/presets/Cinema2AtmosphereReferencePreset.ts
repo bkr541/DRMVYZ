@@ -24,6 +24,7 @@ import {
   type Cinema2SceneNodeId,
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import {
@@ -34,7 +35,7 @@ import {
 } from './Cinema2LightRigAuthoring'
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.atmosphere-reference')
-const OBJECT3D_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('object3d')
+const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
@@ -50,6 +51,16 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID = cinema2StableId<Cinema2Para
 export const CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-floor')
 export const CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-camera-motion')
 export const CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-finish')
+export const CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-crack-glow')
+export const CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-crystal-clarity')
+export const CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID = cinema2StableId<Cinema2ParameterId>('atmosphere-reference-crystal-sparkle')
+/** Accent colour of each monolith's cracks, keyed by the model's part name. */
+export const CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS = Object.freeze({
+  left: cinema2StableId<Cinema2ParameterId>('atmosphere-reference-accent-left'),
+  violet: cinema2StableId<Cinema2ParameterId>('atmosphere-reference-accent-violet'),
+  right: cinema2StableId<Cinema2ParameterId>('atmosphere-reference-accent-right'),
+  back: cinema2StableId<Cinema2ParameterId>('atmosphere-reference-accent-back'),
+})
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID = cinema2StableId<Cinema2CameraId>('atmosphere-reference-camera')
 export const CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-left-spot')
@@ -63,8 +74,29 @@ const RIG_PEAK_INTENSITY = 2.6
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-ambient')
 
 const WORLD_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('atmosphere-reference-world-root')
+/** Places the monoliths model at the world origin (the model is authored in world coordinates). */
+const MONOLITHS_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('atmosphere-reference-monoliths')
 const FOCUS_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('atmosphere-reference-focus')
-const OBJECT_NODE_IDS = ['left', 'center', 'right', 'back'].map(name => cinema2StableId<Cinema2SceneNodeId>(`atmosphere-reference-object-${name}`))
+export const CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES = Object.freeze(['left', 'violet', 'right', 'back'] as const)
+const OBJECT_NODE_IDS = CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES.map(name => cinema2StableId<Cinema2SceneNodeId>(`atmosphere-reference-object-${name}`))
+/**
+ * The four stone monoliths around the centre crystal, in `OBJECT_NODE_IDS` order: where each stands (the spot lights aim at its middle), the accent
+ * colour of its cracks, and the crack part inside the crystal that glows the same colour (and flares on the same beat).
+ */
+const MONOLITHS = Object.freeze([
+  Object.freeze({ part: 'left' as const, crack: 'crackLeft' as const, centre: vec3(-2.6, -0.6, -0.2), accent: color(0.1, 0.75, 1) }),
+  Object.freeze({ part: 'violet' as const, crack: 'crackViolet' as const, centre: vec3(3.1, -0.15, -3.6), accent: color(0.62, 0.28, 1) }),
+  Object.freeze({ part: 'right' as const, crack: 'crackRight' as const, centre: vec3(2.75, -0.4, -0.65), accent: color(1, 0.2, 0.85) }),
+  Object.freeze({ part: 'back' as const, crack: 'crackBack' as const, centre: vec3(-1.55, 0.4, -4.1), accent: color(1, 0.6, 0.15) }),
+])
+/** The crystal's own parts: glass body, gold edge frame, and one crack part per monolith colour. */
+const CRYSTAL_PARTS = Object.freeze(['crystal', 'frame', ...MONOLITHS.map(monolith => monolith.crack)])
+/** Crack glow at rest, and how far each monolith's turn on the beat lifts it. */
+const CRACK_GLOW_REST = 3.2
+/** Clear-glass recipe for the crystal (the same family as RELIQUARY's cut crystal). */
+const CRYSTAL_CLARITY = 0.95
+const CRYSTAL_SPARKLE = 4
+const CRACK_GLOW_PULSE = 3
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID = cinema2StableId<Cinema2ModuleId>('atmosphere-reference-object3d')
 const WORLD_LAYER_ID = cinema2StableId<Cinema2LayerId>('atmosphere-reference-world-layer')
@@ -113,9 +145,6 @@ function dollyLoop() {
 function vec3(x: number, y: number, z: number): Cinema2Vector3 { return Object.freeze([x, y, z]) }
 function color(r: number, g: number, b: number, a = 1): Cinema2Color { return Object.freeze([r, g, b, a]) }
 
-// A plain rectangle: the current SVG extruder rejects the hexagon the Spatial Reference preset uses.
-const PILLAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="32" y="6" width="36" height="88"/></svg>'
-
 function spotLight(id: Cinema2LightId, lightColor: Cinema2Color, position: Cinema2Vector3, target: Cinema2SceneNodeId) {
   return Object.freeze({
     id,
@@ -139,6 +168,36 @@ function objectNode(id: Cinema2SceneNodeId, position: Cinema2Vector3, scale: num
   })
 }
 
+/** An empty marker at a monolith's middle: the spot lights aim at it. */
+function monolithMarker(id: Cinema2SceneNodeId, position: Cinema2Vector3) {
+  return Object.freeze({
+    id,
+    kind: 'primitive' as const,
+    parent: cinema2Ref(WORLD_ROOT_NODE_ID),
+    transform: Object.freeze({ position }),
+  })
+}
+
+/**
+ * The scene's original four pillar nodes (one `module` node per object, each placing a copy of the object module): the Three Model Reference
+ * preset still places one shipped model per node, so it keeps this layout rather than the monoliths' single model.
+ */
+export const CINEMA2_ATMOSPHERE_REFERENCE_PILLAR_SCENE = Object.freeze({
+  nodes: Object.freeze([
+    Object.freeze({ id: WORLD_ROOT_NODE_ID, kind: 'group' as const, coordinateSpace: 'world' as const }),
+    Object.freeze({
+      id: FOCUS_NODE_ID,
+      kind: 'primitive' as const,
+      parent: cinema2Ref(WORLD_ROOT_NODE_ID),
+      transform: Object.freeze({ position: vec3(0, -0.4, -1.2) }),
+    }),
+    objectNode(OBJECT_NODE_IDS[0], vec3(-2.1, -0.7, -0.4), 0.9, vec3(0.1, -0.35, 0.08)),
+    objectNode(OBJECT_NODE_IDS[1], vec3(0, -0.2, -1.4), 1.25, vec3(-0.06, 0.2, 0.03)),
+    objectNode(OBJECT_NODE_IDS[2], vec3(2.2, -0.6, -0.9), 1.05, vec3(0.14, 0.45, -0.1)),
+    objectNode(OBJECT_NODE_IDS[3], vec3(0.6, 0.3, -4.2), 1.9, vec3(0, 0.1, 0)),
+  ]),
+  roots: Object.freeze([cinema2Ref(WORLD_ROOT_NODE_ID)]),
+})
 function floatParameter(
   id: Cinema2ParameterId,
   label: string,
@@ -170,10 +229,31 @@ function floatParameter(
   })
 }
 
+function accentParameter(id: Cinema2ParameterId, label: string, description: string, defaultValue: Cinema2Color, order: number) {
+  return Object.freeze({
+    id,
+    label,
+    description,
+    type: 'color' as const,
+    defaultValue,
+    section: 'Design',
+    designParentGroup: 'palette' as const,
+    group: 'Monoliths',
+    order,
+    exposure: 'primary' as const,
+    persistence: 'preset' as const,
+    reset: 'authored-default' as const,
+    modulatable: false,
+    choreographable: false,
+    automatable: false,
+  })
+}
+
 /**
  * Neutral reference for the native Volumetric Atmosphere effect. Three colored
- * spot lights rake through haze around a few lit objects; the volumetric pass
- * reads the scene depth so the beams end at the objects, then bloom lifts them.
+ * spot lights rake through haze around four cracked rock monoliths (one shipped model,
+ * a glowing crack in a different accent colour on each); the volumetric pass
+ * reads the scene depth so the beams end at the monoliths, then bloom lifts them.
  * The downbeat swells the beams (Musical Event -> Choreography -> Visual Action),
  * and the effect's own `reactivity` follows the Visual Director's gated impact.
  */
@@ -208,17 +288,58 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID, 'Camera Motion', 'Scales the handheld drift and banking of the dolly camera (0 = locked off).', 1, 0, 1.5, 0.05, 40, 'Camera'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID, 'Bloom', 'Glow added around bright beams.', 0.9, 0, 3, 0.05, 30, 'Post'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 31, 'Post'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID, 'Crack Glow', 'Brightness of the glowing cracks in the monoliths and in the crystal between beats. Each colour flares above this in turn on the beat.', CRACK_GLOW_REST, 0, 6, 0.05, 14, 'Monoliths'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID, 'Crystal Clarity', 'How see-through the central crystal is (1 = clear glass; lower is milky). Quality settings below High draw it without refraction.', CRYSTAL_CLARITY, 0, 1, 0.05, 15, 'Monoliths'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID, 'Crystal Sparkle', 'How strongly the central crystal splits light into rainbow colours.', CRYSTAL_SPARKLE, 0, 10, 0.1, 16, 'Monoliths'),
+    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.left, 'Left Monolith', 'Colour of the cracks in the left monolith. The crystal in the middle carries the same colour in its own cracks.', MONOLITHS[0].accent, 1),
+    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.violet, 'Back-Right Monolith', 'Colour of the cracks in the back-right monolith.', MONOLITHS[1].accent, 2),
+    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.right, 'Right Monolith', 'Colour of the cracks in the right monolith.', MONOLITHS[2].accent, 3),
+    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.back, 'Back Monolith', 'Colour of the cracks in the tall monolith at the back.', MONOLITHS[3].accent, 4),
   ]),
   modules: Object.freeze([
     Object.freeze({
       id: CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
-      typeId: OBJECT3D_TYPE_ID,
+      typeId: THREE_SCENE_TYPE_ID,
       version: 1,
       enabled: true,
-      parameters: Object.freeze({ color: color(0.5, 0.56, 0.62), emissiveIntensity: 0.04 }),
+      // Dark stone lit by the spot rig, with only a faint studio reflection; every monolith's cracks glow in its own accent colour.
+      parameters: Object.freeze({
+        environmentIntensity: 0.18,
+        // The centre crystal: clear iridescent glass in a polished gold frame. Its cracks glow in the monoliths' colours, so each crack part is
+        // tinted by (and flares with) the monolith of the same colour.
+        'crystal.color': color(1, 1, 1),
+        'crystal.roughness': 0,
+        'crystal.metalness': 0,
+        'crystal.transmission': CRYSTAL_CLARITY,
+        'crystal.ior': 2,
+        'crystal.thickness': 0.6,
+        'crystal.dispersion': CRYSTAL_SPARKLE,
+        'crystal.iridescence': 0.9,
+        'crystal.iridescenceThicknessMin': 250,
+        'crystal.iridescenceThicknessMax': 650,
+        'crystal.environmentIntensity': 6,
+        // A faint cool inner light, so the glass keeps its brilliance between the spot lights' hits.
+        'crystal.emissive': color(0.75, 0.85, 1),
+        'crystal.emissiveIntensity': 0.1,
+        'frame.environmentIntensity': 4,
+        ...Object.fromEntries(MONOLITHS.flatMap(({ part, crack, accent }) => [
+          [`${part}.emissive`, accent], [`${part}.emissiveIntensity`, CRACK_GLOW_REST],
+          [`${crack}.emissive`, accent], [`${crack}.emissiveIntensity`, CRACK_GLOW_REST],
+        ])),
+      }),
+      parameterBindings: Object.freeze({
+        'crystal.transmission': cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID),
+        'crystal.dispersion': cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID),
+        ...Object.fromEntries(MONOLITHS.flatMap(({ part, crack }) => [
+          [`${part}.emissive`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS[part])],
+          [`${part}.emissiveIntensity`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)],
+          [`${crack}.emissive`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS[part])],
+          [`${crack}.emissiveIntensity`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)],
+        ])),
+      }),
       config: Object.freeze({
-        source: Object.freeze({ kind: 'svg', sourceId: 'cinema2-atmosphere-reference-pillar', revision: 1, rawSvg: PILLAR_SVG }),
-        material: Object.freeze({ color: color(0.5, 0.56, 0.62), emissiveIntensity: 0.04 }),
+        instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID, node: MONOLITHS_NODE_ID })]),
+        parts: Object.freeze([...MONOLITHS.map(({ part }) => part), ...CRYSTAL_PARTS]),
       }),
     }),
   ]),
@@ -231,10 +352,13 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         parent: cinema2Ref(WORLD_ROOT_NODE_ID),
         transform: Object.freeze({ position: vec3(0, -0.4, -1.2) }),
       }),
-      objectNode(OBJECT_NODE_IDS[0], vec3(-2.1, -0.7, -0.4), 0.9, vec3(0.1, -0.35, 0.08)),
-      objectNode(OBJECT_NODE_IDS[1], vec3(0, -0.2, -1.4), 1.25, vec3(-0.06, 0.2, 0.03)),
-      objectNode(OBJECT_NODE_IDS[2], vec3(2.2, -0.6, -0.9), 1.05, vec3(0.14, 0.45, -0.1)),
-      objectNode(OBJECT_NODE_IDS[3], vec3(0.6, 0.3, -4.2), 1.9, vec3(0, 0.1, 0)),
+      Object.freeze({
+        id: MONOLITHS_NODE_ID,
+        kind: 'module' as const,
+        parent: cinema2Ref(WORLD_ROOT_NODE_ID),
+        module: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID),
+      }),
+      ...MONOLITHS.map((monolith, index) => monolithMarker(OBJECT_NODE_IDS[index], monolith.centre)),
     ]),
     roots: Object.freeze([cinema2Ref(WORLD_ROOT_NODE_ID)]),
   }),
@@ -272,7 +396,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
       }),
     ]),
     lights: Object.freeze([
-      spotLight(CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID, color(1, 0.72, 0.28), vec3(0.2, 6.2, -2.6), OBJECT_NODE_IDS[1]),
+      spotLight(CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID, color(1, 0.72, 0.28), vec3(0.2, 6.2, -2.6), OBJECT_NODE_IDS[3]),
       spotLight(CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID, color(0.2, 0.85, 1), vec3(-3.4, 5.6, 1.2), OBJECT_NODE_IDS[0]),
       spotLight(CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID, color(1, 0.25, 0.75), vec3(3.6, 5.6, 0.6), OBJECT_NODE_IDS[2]),
       Object.freeze({
@@ -399,6 +523,24 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         priority: 30,
         strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
       }),
+      // Cracks: one colour flares per beat, in turn round a four-beat cycle, in its monolith and in the matching cracks of the centre crystal,
+      // then settles back to the Crack Glow level.
+      ...MONOLITHS.map((monolith, index) => Object.freeze({
+        id: cinema2StableId<Cinema2ChoreographyRuleId>(`atmosphere-reference-monolith-${monolith.part}`),
+        priority: 35,
+        source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
+        conditions: Object.freeze([Object.freeze({ kind: 'beat-interval' as const, every: 4, phase: index, unit: 'beat' as const })]),
+        actions: Object.freeze([[monolith.part, 'slab'], [monolith.crack, 'crystal']].map(([target, where]) => Object.freeze({
+          id: cinema2StableId<Cinema2ChoreographyActionId>(`atmosphere-reference-monolith-${monolith.part}-${where}-flare`),
+          target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID), property: `${target}.emissiveIntensity` }),
+          operation: 'envelope' as const,
+          composition: 'add' as const,
+          value: CRACK_GLOW_PULSE,
+          envelope: Object.freeze({ attack: 0, hold: 0.1, release: 1.6, unit: 'beats' as const }),
+          retrigger: 'restart' as const,
+        }))),
+      })),
       Object.freeze({
         id: DOWNBEAT_RULE_ID,
         priority: 30,

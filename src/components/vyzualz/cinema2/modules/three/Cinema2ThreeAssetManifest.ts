@@ -16,6 +16,8 @@ export const CINEMA2_CONDUIT_WORDMARK_ASSET_ID: Cinema2AssetId = 'cinema2-condui
 export const CINEMA2_CONDUIT_TUBES_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-tubes'
 /** CONDUIT's chamber: parts `shell`, `trim`, `floorTrim`, `segments` (95 emissive LED strips in 8 groups); vertices carry `_GLOW_PHASE` and `_SEGMENT`. */
 export const CINEMA2_CONDUIT_CHAMBER_ASSET_ID: Cinema2AssetId = 'cinema2-conduit-chamber'
+/** ATMOSPHERE REFERENCE's four cracked rock monoliths: parts (materials) `back`, `center`, `left`, `right`, placed in world coordinates on the preset's floor (y -1.2). */
+export const CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID: Cinema2AssetId = 'cinema2-atmosphere-monoliths'
 /** ATL HOE's complete modeled night scene: Waffle House sign, Atlanta landmark skyline, freeway, stars and foreground canopy. */
 export const CINEMA2_ATL_HOE_ASSET_ID: Cinema2AssetId = 'cinema2-atl-hoe'
 /** MAINFRAME's complete shallow hard-surface circuit wall with independently addressable hardware and emissive systems. */
