@@ -13,8 +13,9 @@
 //   `rim`      glowing bands on the plate round every letter edge and along the frame's inner edge, plus a visible band across the outer lip: the
 //              amber light in the owner's mockups. CONDUIT drives it from the music and from energy arriving through the tubes.
 //
-// Every vertex carries `_GLOW_PHASE` and `_SEGMENT` (group, along, side, random - see docs/cinema2-conduit-plan.md). For the glowing parts
-// (rim, walls) the phase is the glow's reach: 1 where the light sits, 0 where it has faded.
+// Every vertex carries `_GLOW_PHASE`, `_SEGMENT` (group, along, side, random), and the network attributes `_CONDUIT_SYSTEM`,
+// `_CONDUIT_ROUTE`, `_CONDUIT_REGION`, and `_CONDUIT_PHASE` (see docs/cinema2-conduit-plan.md). For the glowing parts (rim, walls) the phase
+// is the glow's reach: 1 where the light sits, 0 where it has faded.
 //
 // World coordinates shared by all CONDUIT assets: floor at y = 0, +Y up, +Z toward the camera. The wordmark is 4.8 units wide, centred on
 // (0, 2.09, 0), facing +Z. The generator also writes the tube attachment points on the frame to conduit-layout.json, which
@@ -97,12 +98,24 @@ function translated(mesh, dx, dy, dz) {
 function withGlow(mesh, phaseOf, segment) {
   const count = mesh.positions.length / 3
   const segments = new Float32Array(count * 4), phases = new Float32Array(count)
+  const systems = new Float32Array(count), routes = new Float32Array(count), regions = new Float32Array(count), networkPhases = new Float32Array(count)
   for (let i = 0; i < count; i += 1) {
     const x = mesh.positions[i * 3], y = mesh.positions[i * 3 + 1], z = mesh.positions[i * 3 + 2]
-    segments.set(segment(x, y), i * 4)
+    const semantic = segment(x, y)
+    segments.set(semantic, i * 4)
     phases[i] = phaseOf(x, y, z)
+    systems[i] = 1 // logo core
+    routes[i] = Math.max(0, Math.min(7, Math.floor(semantic[1] * 8)))
+    regions[i] = semantic[2] < -0.2 ? 2 : semantic[2] > 0.2 ? 5 : 4
+    networkPhases[i] = phases[i]
   }
-  return { ...mesh, phases, attributes: { _SEGMENT: { array: segments, type: 'VEC4' } } }
+  return { ...mesh, phases, attributes: {
+    _SEGMENT: { array: segments, type: 'VEC4' },
+    _CONDUIT_SYSTEM: { array: systems, type: 'SCALAR' },
+    _CONDUIT_ROUTE: { array: routes, type: 'SCALAR' },
+    _CONDUIT_REGION: { array: regions, type: 'SCALAR' },
+    _CONDUIT_PHASE: { array: networkPhases, type: 'SCALAR' },
+  } }
 }
 
 /** A bevelled extrusion placed from z = back to z = front. */

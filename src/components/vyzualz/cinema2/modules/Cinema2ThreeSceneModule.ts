@@ -12,6 +12,7 @@ import type {
   Cinema2ModuleTypeDefinition,
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
+import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 import { cinema2ThreeAssetRegistry } from './three/Cinema2ThreeAssetManifest'
 import { Cinema2ThreeAssetCache, Cinema2ThreeAssetError, type Cinema2ThreeLoadedAsset } from './three/Cinema2ThreeAssetCache'
 import type { Cinema2ThreeAssetRegistry } from './three/Cinema2ThreeAssetRegistry'
@@ -31,6 +32,8 @@ import {
   CINEMA2_THREE_SEGMENT_ROLES,
   Cinema2ThreeSegmentLighting,
   readCinema2ThreeSegmentPattern,
+  type Cinema2ConduitCueKind,
+  type Cinema2ConduitTriggerId,
   type Cinema2ThreeSegmentRole,
 } from './three/Cinema2ThreeSegmentLighting'
 import { parseCinema2ThreeParticleSpec, type Cinema2ThreeParticleSpec } from './three/Cinema2ThreeParticles'
@@ -77,8 +80,10 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * Segment lighting: `config.segments` maps part names to a role - `feed` (energy runs along it into the logo), `core` (flares when energy
  * arrives) or `field` (the lit wall) - and those parts are lit LED segment by LED segment from their `_SEGMENT` and `_GLOW_PHASE` vertex
  * attributes (see Cinema2ThreeSegmentLighting), replacing their own emissive. Parameters: `segmentPattern` (`energyFlow` | `ringChase` |
- * `split` | `pulse`), `segmentAuto` (true: the music picks the pattern), `segmentFlicker` (0-1), `segmentReactivity` (0-1), `segmentStrength` (overall brightness), `segmentCore` (0-1, how much each segment's light gathers into a hot centre where it faces the camera), `segmentColor` (the energy
- * color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
+ * `split` | `pulse` | `coreDischarge` | `routeRelay`), `segmentAuto` (true: the music picks the pattern), `segmentPatternChange`,
+ * `segmentTrigger`, `segmentRouteDensity`, `segmentPulseWidth`, `segmentDropIntensity`, `segmentFlicker` (0-1), `segmentReactivity` (0-1),
+ * `segmentStrength` (overall brightness), `segmentCore` (0-1, how much each segment's light gathers into a hot centre where it faces the camera),
+ * `segmentColor` (the energy color) and `segmentSync` (default true: locked to the beat grid; off: a steady 120 BPM).
  *
  * `config.particles`: `[{ count, center, size, pointSize, color, brightness, drift?, twinkle?, reactivity?, tint? }]` fields of glowing points
  * drifting through a box - embers, dust in a light shaft (see Cinema2ThreeParticles). `tint: 'glow'` takes the glow color; `reactivity` lets
@@ -103,6 +108,10 @@ export interface Cinema2ThreeSceneModuleOptions {
   registry?: Cinema2ThreeAssetRegistry
   assets?: Cinema2ThreeAssetCache
   loadLibrary?: () => Promise<Cinema2ThreeLibrary>
+  typeId?: Cinema2ModuleTypeId
+  version?: number
+  resourceKey?: string
+  acceptSegmentCues?: boolean
 }
 
 export interface Cinema2ThreeSceneModuleInspection {
@@ -118,10 +127,12 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
   const assets = options.assets ?? (registry === cinema2ThreeAssetRegistry ? defaultAssetCache : new Cinema2ThreeAssetCache(registry))
   const loadLibrary = options.loadLibrary ?? loadCinema2ThreeLibrary
   const environments = options.environments ?? cinema2ThreeEnvironmentRegistry
+  const typeId = options.typeId ?? CINEMA2_THREE_SCENE_MODULE_TYPE_ID
+  const version = options.version ?? CINEMA2_THREE_SCENE_MODULE_VERSION
 
   return Object.freeze({
-    typeId: CINEMA2_THREE_SCENE_MODULE_TYPE_ID,
-    version: CINEMA2_THREE_SCENE_MODULE_VERSION,
+    typeId,
+    version,
     validate(module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] {
       return Object.freeze(validateConfig(module, registry, environments))
     },
@@ -201,9 +212,9 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       const buildBridge = () => {
         try {
           bridge = context.resources.acquire(
-            'three-scene:bridge',
+            options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -254,6 +265,11 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
                 flicker: readNumber(parameters.get('segmentFlicker'), 0, 1) ?? 0,
                 reactivity: readNumber(parameters.get('segmentReactivity'), 0, 1) ?? 1,
                 auto: parameters.get('segmentAuto') === true,
+                patternChange: parameters.get('segmentPatternChange') === true,
+                trigger: parameters.get('segmentTrigger') as Cinema2ConduitTriggerId,
+                routeDensity: readNumber(parameters.get('segmentRouteDensity'), 0, 1) ?? 0.55,
+                pulseWidth: readNumber(parameters.get('segmentPulseWidth'), 0, 1) ?? 0.45,
+                dropIntensity: readNumber(parameters.get('segmentDropIntensity'), 0, 1) ?? 1,
               })
               segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, core: readNumber(parameters.get('segmentCore'), 0, 1) ?? 0, frame: segmentFrame }
             }
@@ -268,6 +284,13 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           },
         },
         render: { providers: Object.freeze([provider]) },
+        handleAction: options.acceptSegmentCues ? (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+          if (action !== 'musicalCue' || disposed || !segmentLighting || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
+          const kind = (event.payload as { kind?: unknown }).kind
+          if (typeof kind === 'string' && ['kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section', 'drop'].includes(kind)) {
+            segmentLighting.enqueueCue(kind as Cinema2ConduitCueKind, event.eventId)
+          }
+        } : undefined,
         getDiagnostics: () => (bridge ? [...diagnostics, ...bridge.getDiagnostics().map(entry => ({ ...entry, path: `module.${context.module.id}` }))] : diagnostics),
         inspect: (): Cinema2ThreeSceneModuleInspection => ({ state, loadedAssetCount: loaded.length, skippedInstanceCount: requested.length - loaded.length }),
       }
@@ -369,6 +392,9 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
   }
   if (module.config?.hdr !== undefined && typeof module.config.hdr !== 'boolean') {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_HDR_INVALID', path: '$.config.hdr', message: 'config.hdr must be true or false.' })
+  }
+  if (module.config?.conduitSemantics !== undefined && typeof module.config.conduitSemantics !== 'boolean') {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_CONDUIT_SEMANTICS_INVALID', path: '$.config.conduitSemantics', message: 'config.conduitSemantics must be true or false.' })
   }
   const rawPanels = module.config?.panels
   if (rawPanels !== undefined) {

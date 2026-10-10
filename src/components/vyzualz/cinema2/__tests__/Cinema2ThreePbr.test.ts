@@ -424,18 +424,25 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance = mix( 1.0 - exp( - cinema2SegLight ), cinema2SegLight, uCinema2SegHdr )')
     expect(shader.fragmentShader).toContain('smoothstep( 0.08, 0.45, cinema2SegBrightness )')
     expect(shader.fragmentShader).toContain('mix( uCinema2SegColor, cinema2SegWhite, cinema2SegHotCore )')
-    expect(shader.fragmentShader).toContain('cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 : 0.4 )')
+    expect(shader.fragmentShader).toContain('cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 + 0.88 * uCinema2SegDrop.y : 0.4 )')
     expect(shader.fragmentShader).toContain('min( 1.0, 1.3 * vCinema2SegPhase )')
     expect((shader.uniforms.uCinema2SegHdr as { value: number }).value).toBe(0)
     expect(shader.fragmentShader).not.toContain('uCinema2GlowColor')
     expect((shader.uniforms.uCinema2SegRole as { value: number }).value).toBe(0)
-    const frame = { pattern: 'ringChase' as const, beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1, flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0] }
+    const frame = {
+      pattern: 'ringChase' as const, beats: 9.5, level: 0.6, drop: 0.2, quiet: 0.1, chase: 0.25, splitSide: 1,
+      flicker: 0.3, reactivity: 0.9, weights: [0, 1, 0, 0, 0, 0] as const, fronts: [0.4, -10, -10, -10], gains: [1, 0, 0, 0],
+      routeDensity: 0.55, pulseWidth: 0.45, dropIntensity: 0.8, dropCharge: 0.25, dropCore: 0.5, dropDischarge: 0.1,
+      dropAfterglow: 0.2, accents: [0.7, 0.4, 0.2, 0.8] as const, relayGroup: 3,
+    }
     bridge.draw(execution('high'), overrides({}), 0, null, { color: [1, 0.5, 0], strength: 3, frame })
     expect((shader.uniforms.uCinema2SegStrength as { value: number }).value).toBe(3)
     expect((shader.uniforms.uCinema2Seg0 as { value: THREE.Vector4 }).value.toArray()).toEqual([9.5, 0.6, 0.2, 0.1])
     expect((shader.uniforms.uCinema2Seg1 as { value: THREE.Vector4 }).value.toArray()).toEqual([0.25, 1, 0.3, 0.9])
     expect((shader.uniforms.uCinema2SegWeights as { value: THREE.Vector4 }).value.y).toBe(1)
+    expect((shader.uniforms.uCinema2SegSpecialWeights as { value: THREE.Vector2 }).value.toArray()).toEqual([0, 0])
     expect((shader.uniforms.uCinema2SegFront as { value: THREE.Vector4 }).value.x).toBeCloseTo(0.4)
+    expect((shader.uniforms.uCinema2SegRoute as { value: THREE.Vector4 }).value.toArray()).toEqual([0.55, 0.45, 3, 0.8])
     bridge.draw(execution('high'), overrides({}))
     expect((shader.uniforms.uCinema2SegStrength as { value: number }).value).toBe(0)
   })

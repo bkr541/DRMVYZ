@@ -14,7 +14,8 @@
 // Parts (materials): `shell` brushed silver raised structure, `hull` the side walls and their ribs (lit apart from the back wall), `steel` darker recessed surfaces (the backplate and panel floors), `iris` the dark
 // layered centre disc behind the logo, `trim` near-black tracks, seams and gap lines, `bolts` small hardware, `floorTrim` the floor grooves,
 // `segments` the LED bars (emissive): domed diffusers lying in dark tracks, so their light gathers into a hot centre line. Every vertex carries `_GLOW_PHASE` (distance from the chamber axis, 0 at the centre to 1 at the outer arch; side
-// walls 1) and `_SEGMENT` (group, along, side, random - docs/cinema2-conduit-plan.md). Segment groups, in `_SEGMENT.x` order:
+// walls 1), `_SEGMENT` (group, along, side, random), and the scalar network attributes `_CONDUIT_SYSTEM`, `_CONDUIT_ROUTE`,
+// `_CONDUIT_REGION`, and `_CONDUIT_PHASE` (docs/cinema2-conduit-plan.md). Segment groups, in `_SEGMENT.x` order:
 //   0 inner LED ring (r 2.1), 1 second LED ring (r 2.65), 2 outer LED ring (r 3.56), 3 outer arch (r 6.55), 4 T-ribs, 5 radial bars (diagonal ribs and panel ticks),
 //   6 top pillar, 7 side-wall strips.
 // `along` is the angle clockwise from the top for rings (0-1), the distance out along a rib or pillar (0-1), or the height on a side wall.
@@ -398,10 +399,24 @@ const meshes = Object.entries(parts).map(([part, list]) => {
     positions.push(...mesh.positions); normals.push(...mesh.normals); phases.push(...mesh.phases); segments.push(...mesh.segments)
     for (const index of mesh.indices) indices.push(base + index)
   }
+  const count = phases.length
+  const systems = new Float32Array(count), routes = new Float32Array(count), regions = new Float32Array(count), networkPhases = new Float32Array(phases)
+  for (let i = 0; i < count; i += 1) {
+    const route = Math.max(0, Math.min(7, Math.round((segments[i * 4] ?? 0) * 7)))
+    systems[i] = route <= 2 ? 2 : route === 3 ? 5 : route <= 5 ? 4 : route === 6 ? 5 : 6
+    routes[i] = route
+    regions[i] = route
+  }
   return {
     name: part, part,
     positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices), phases: new Float32Array(phases),
-    attributes: { _SEGMENT: { array: new Float32Array(segments), type: 'VEC4' } },
+    attributes: {
+      _SEGMENT: { array: new Float32Array(segments), type: 'VEC4' },
+      _CONDUIT_SYSTEM: { array: systems, type: 'SCALAR' },
+      _CONDUIT_ROUTE: { array: routes, type: 'SCALAR' },
+      _CONDUIT_REGION: { array: regions, type: 'SCALAR' },
+      _CONDUIT_PHASE: { array: networkPhases, type: 'SCALAR' },
+    },
   }
 })
 const result = writeGlb(outputPath, meshes, MATERIALS, 'DRMVYZ scripts/cinema2-assets/generate-conduit-chamber.mjs', 'conduit-chamber')

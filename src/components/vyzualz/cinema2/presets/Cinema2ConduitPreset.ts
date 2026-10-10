@@ -8,6 +8,8 @@ import {
   type Cinema2ChoreographyActionId,
   type Cinema2ChoreographyRuleId,
   type Cinema2ChoreographyRuleManifest,
+  type Cinema2ChoreographySignal,
+  type Cinema2CapabilityId,
   type Cinema2Color,
   type Cinema2EffectId,
   type Cinema2EffectTypeId,
@@ -15,7 +17,6 @@ import {
   type Cinema2LightGroupId,
   type Cinema2LightId,
   type Cinema2ModuleId,
-  type Cinema2ModuleTypeId,
   type Cinema2NativePresetManifest,
   type Cinema2ParameterId,
   type Cinema2PresetId,
@@ -32,6 +33,9 @@ import {
 } from '../modules/three/Cinema2ThreeAssetManifest'
 import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_THREE_SEGMENT_PATTERNS, type Cinema2ThreeSegmentPattern } from '../modules/three/Cinema2ThreeSegmentLighting'
+import { CINEMA2_CONDUIT_TRIGGER_IDS } from '../modules/three/Cinema2ThreeSegmentLighting'
+import { CINEMA2_CONDUIT_NATIVE_MODULE_TYPE_ID, CINEMA2_CONDUIT_NATIVE_MODULE_VERSION } from '../modules/Cinema2ConduitNativeModule'
+import { CINEMA2_AFTERHOURS_TRIGGER_LABELS } from './Cinema2AfterhoursPreset'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
@@ -46,6 +50,8 @@ import { cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthor
  * - Ring Chase: comets chase round the rings, neighbouring rings in opposite directions, faster in loud sections.
  * - Split: the left and right halves trade on the beat or bar; a drop lights both.
  * - Pulse: the whole wall breathes with the music; quiet or vocal passages drop to the tubes and logo; a drop lights everything.
+ * - Core Discharge: four feeds charge inward, the logo compresses white hot, the chamber discharges outward, then the floor and haze decay.
+ * - Route Relay: kick, snare, transient and beat cues hand energy between semantic tube, logo and chamber route groups.
  *
  * Auto Performance lets the music choose the pattern. A few amber lights near the tubes and the floor swell with the downbeat and a build so
  * the energy spills warm light onto the metal; the reflective floor, a light haze, bloom and a filmic finish complete the look.
@@ -63,8 +69,14 @@ export const CINEMA2_CONDUIT_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('
 export const CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID = cinema2StableId<Cinema2ParameterId>('conduit-camera-movement')
 export const CINEMA2_CONDUIT_ZOOM_ON_KICK_ID = cinema2StableId<Cinema2ParameterId>('conduit-zoom-on-kick')
 export const CINEMA2_CONDUIT_PATTERN_ID = cinema2StableId<Cinema2ParameterId>('conduit-pattern')
+export const CINEMA2_CONDUIT_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('conduit-pattern-change')
+export const CINEMA2_CONDUIT_TRIGGER_ID = cinema2StableId<Cinema2ParameterId>('conduit-trigger')
+export const CINEMA2_CONDUIT_ROUTE_DENSITY_ID = cinema2StableId<Cinema2ParameterId>('conduit-route-density')
+export const CINEMA2_CONDUIT_PULSE_WIDTH_ID = cinema2StableId<Cinema2ParameterId>('conduit-pulse-width')
+export const CINEMA2_CONDUIT_DROP_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('conduit-drop-intensity')
 export const CINEMA2_CONDUIT_FLICKER_ID = cinema2StableId<Cinema2ParameterId>('conduit-flicker')
 export const CINEMA2_CONDUIT_ENERGY_COLOR_ID = cinema2StableId<Cinema2ParameterId>('conduit-energy-color')
+export const CINEMA2_CONDUIT_MUSICAL_CUE_ID = cinema2StableId<Cinema2ParameterId>('conduit-musical-cue')
 
 const CHAMBER_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-chamber-node')
 const TUBES_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('conduit-tubes-node')
@@ -87,7 +99,6 @@ const FLOOR_POOL_ID = cinema2StableId<Cinema2LightId>('conduit-floor-pool')
 const ENERGY_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('conduit-energy-lights')
 const WALL_GROUP_ID = cinema2StableId<Cinema2LightGroupId>('conduit-wall-lights')
 
-const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('hdr-bloom')
@@ -122,7 +133,26 @@ const PATTERN_LABELS: Readonly<Record<Cinema2ThreeSegmentPattern, string>> = Obj
   ringChase: 'Ring Chase',
   split: 'Split',
   pulse: 'Pulse',
+  coreDischarge: 'Core Discharge',
+  routeRelay: 'Route Relay',
 })
+
+export const CINEMA2_CONDUIT_TRIGGER_OPTIONS = Object.freeze(CINEMA2_CONDUIT_TRIGGER_IDS.map(value => Object.freeze({
+  value,
+  label: CINEMA2_AFTERHOURS_TRIGGER_LABELS[value],
+})))
+
+const MUSIC_CUES = Object.freeze([
+  ['kick', 'kick', 'music.rhythm-events'],
+  ['snare', 'snare', 'music.rhythm-events'],
+  ['transient', 'transient', 'music.rhythm-events'],
+  ['beat', 'beat', 'music.beat'],
+  ['downbeat', 'downbeat', 'music.downbeat'],
+  ['bar', 'bar', 'music.bar'],
+  ['phrase', 'phrase', 'music.phrase'],
+  ['section', 'section-change', 'music.section'],
+  ['drop', 'drop', 'music.drop'],
+] as const satisfies readonly (readonly [string, Cinema2ChoreographySignal, Cinema2CapabilityId])[])
 
 const baseParameter = {
   section: 'Design',
@@ -140,7 +170,7 @@ const PARAMETERS = Object.freeze([
     ...baseParameter,
     id: CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID,
     label: 'Auto Performance',
-    description: 'Lets the music choose the lighting pattern: Pulse on a drop and in quiet or vocal passages, Energy Flow through a build, and otherwise a rotation of Ring Chase, Split and Energy Flow every four bars. Choosing a Pattern turns it off.',
+    description: 'Lets the music choose the lighting pattern: Core Discharge on a drop, Pulse in quiet or vocal passages, Energy Flow through a build, and otherwise a rotation of Ring Chase, Split, Route Relay and Energy Flow every four bars. Choosing a Pattern turns it off.',
     type: 'boolean' as const,
     defaultValue: true,
     designParentGroup: 'master-controls' as const,
@@ -198,7 +228,7 @@ const PARAMETERS = Object.freeze([
     ...baseParameter,
     id: CINEMA2_CONDUIT_PATTERN_ID,
     label: 'Pattern',
-    description: 'How the LED segments light up with the music. Energy Flow: a pulse runs through the tubes into the logo, then ripples out across the wall. Ring Chase: lights chase round the rings. Split: the left and right halves trade. Pulse: everything breathes with the beat; quiet passages leave just the tubes and logo. Choosing a Pattern turns Auto Performance off.',
+    description: 'How the LED segments light up with the music. Energy Flow routes pulses through the rig; Ring Chase circles the chamber; Split trades left and right; Pulse breathes with the beat; Core Discharge charges the tubes into a white-hot logo before firing outward; Route Relay hands accents between like route groups. Choosing a Pattern turns Auto Performance off.',
     type: 'enum' as const,
     defaultValue: 'energyFlow',
     options: Object.freeze(CINEMA2_THREE_SEGMENT_PATTERNS.map(value => Object.freeze({ value, label: PATTERN_LABELS[value] }))),
@@ -206,6 +236,73 @@ const PARAMETERS = Object.freeze([
     designParentGroup: 'design' as const,
     group: 'Lighting',
     order: 1,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_PATTERN_CHANGE_ID,
+    label: 'Pattern Change',
+    description: 'Advances through all six lighting programs when the selected Trigger occurs. Enabling it turns Auto Performance off.',
+    type: 'boolean' as const,
+    defaultValue: false,
+    metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID]: false }) }),
+    designParentGroup: 'design' as const,
+    group: 'Lighting',
+    order: 2,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_TRIGGER_ID,
+    label: 'Trigger',
+    description: 'Chooses the musical event that advances the lighting program while Pattern Change is enabled.',
+    type: 'enum' as const,
+    defaultValue: 'bar4',
+    options: CINEMA2_CONDUIT_TRIGGER_OPTIONS,
+    visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_CONDUIT_PATTERN_CHANGE_ID, value: true })]),
+    designParentGroup: 'design' as const,
+    group: 'Lighting',
+    order: 3,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_ROUTE_DENSITY_ID,
+    label: 'Route Density',
+    description: 'Controls how many neighboring tubes, rings and chamber groups join each routed musical pulse.',
+    type: 'float' as const,
+    defaultValue: 0.55,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Energy Routing',
+    order: 1,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_PULSE_WIDTH_ID,
+    label: 'Pulse Width',
+    description: 'Sets the physical width of energy fronts traveling through the tubes and chamber routes.',
+    type: 'float' as const,
+    defaultValue: 0.45,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Energy Routing',
+    order: 2,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_CONDUIT_DROP_INTENSITY_ID,
+    label: 'Drop Intensity',
+    description: 'Scales the tube charge, white-hot logo compression, ring discharge and environmental afterglow of a drop.',
+    type: 'float' as const,
+    defaultValue: 1,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Energy Routing',
+    order: 3,
   }),
   Object.freeze({
     ...baseParameter,
@@ -219,7 +316,7 @@ const PARAMETERS = Object.freeze([
     step: 0.01,
     designParentGroup: 'effects' as const,
     group: 'LEDs',
-    order: 1,
+    order: 4,
   }),
   Object.freeze({
     ...baseParameter,
@@ -240,6 +337,18 @@ const ruleId = (value: string) => cinema2StableId<Cinema2ChoreographyRuleId>(val
 const actionId = (value: string) => cinema2StableId<Cinema2ChoreographyActionId>(value)
 
 const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.freeze([
+  // The shared runtime is the sole selector for Conduit's discrete musical cues.
+  ...MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
+    id: ruleId(`conduit-${kind}-event`),
+    priority: 70 + index,
+    source: Object.freeze({ signal, capability }),
+    actions: Object.freeze([Object.freeze({
+      id: actionId(`conduit-${kind}-cue`),
+      target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_CONDUIT_MUSICAL_CUE_ID) }),
+      operation: 'spawn' as const,
+      value: Object.freeze({ kind }),
+    })]),
+  })),
   // A warm swell on every downbeat, a lift through a build, and a bright two-beat hit on a drop.
   ...cinema2LightRigHit({ id: 'conduit-energy', group: ENERGY_GROUP_ID, signal: 'downbeat', peak: 0.3, attack: 0, hold: 0.05, release: 0.9, priority: 40, strengthParameter: master }),
   ...cinema2LightRigRamp({ id: 'conduit-energy', groups: [ENERGY_GROUP_ID], source: 'director.build', lift: 0.35, priority: 30, strengthParameter: master }),
@@ -259,6 +368,40 @@ const choreographyRules: readonly Cinema2ChoreographyRuleManifest[] = Object.fre
       composition: 'add' as const,
       value: 0.4,
       envelope: Object.freeze({ attack: 0, hold: 0.05, release: 0.9, unit: 'beats' as const }),
+      retrigger: 'restart' as const,
+    })]),
+  }),
+  // The visible room responds after the geometry completes its inward charge
+  // and core compression; long releases leave a floor/haze afterglow.
+  Object.freeze({
+    id: ruleId('conduit-drop-floor-afterglow'),
+    priority: 82,
+    strengthParameter: cinema2Ref(CINEMA2_CONDUIT_DROP_INTENSITY_ID),
+    source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
+    actions: Object.freeze([Object.freeze({
+      id: actionId('conduit-drop-floor-afterglow-envelope'),
+      target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(FLOOR_EFFECT_ID), property: 'poolIntensity' }),
+      operation: 'envelope' as const,
+      composition: 'add' as const,
+      value: 0.34,
+      delayBeats: 1.5,
+      envelope: Object.freeze({ attack: 0.15, hold: 0.5, release: 4, unit: 'beats' as const }),
+      retrigger: 'restart' as const,
+    })]),
+  }),
+  Object.freeze({
+    id: ruleId('conduit-drop-haze-afterglow'),
+    priority: 83,
+    strengthParameter: cinema2Ref(CINEMA2_CONDUIT_DROP_INTENSITY_ID),
+    source: Object.freeze({ signal: 'drop' as const, capability: 'music.drop' as const }),
+    actions: Object.freeze([Object.freeze({
+      id: actionId('conduit-drop-haze-afterglow-envelope'),
+      target: Object.freeze({ kind: 'effect' as const, ref: cinema2Ref(VOLUMETRIC_EFFECT_ID), property: 'beamIntensity' }),
+      operation: 'envelope' as const,
+      composition: 'add' as const,
+      value: 0.55,
+      delayBeats: 1.2,
+      envelope: Object.freeze({ attack: 0.1, hold: 0.4, release: 4.5, unit: 'beats' as const }),
       retrigger: 'restart' as const,
     })]),
   }),
@@ -345,7 +488,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   revision: 1,
   metadata: Object.freeze({
     name: 'CONDUIT',
-    description: 'The DVYDRM wordmark held in a silver sci-fi chamber by four chrome tubes that carry energy into it. LED segments in the tubes, the back wall and the logo rim flow, chase, split and pulse with the music.',
+    description: 'The DVYDRM wordmark held in a silver sci-fi chamber by four chrome tubes that carry energy into it. Semantic LED routes flow, chase, split, pulse, relay accents and stage a full feed-to-core-to-chamber discharge with the music.',
     tags: Object.freeze(['conduit', 'logo', 'wordmark', 'native', '3d', 'sci-fi', 'led', 'three', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -354,15 +497,29 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'The wordmark, the tubes and the chamber are real 3D models placed in the Scene Graph.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared world camera framing the wordmark in the chamber.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'Key light on the wordmark, a wash on the back wall, and warm energy lights near the tubes and the floor.' }),
+    Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Sub, bass, mid and high energy power different Conduit systems.' }),
+    Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Energy, flux, build and vocal presence shape route activity and negative space.' }),
+    Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Beat-grid timing launches and advances topology-aware route pulses.' }),
+    Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick, snare and transient events excite distinct tube, logo and chamber groups.' }),
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat swell of the energy lights and the haze.' }),
+    Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Bar boundaries can advance lighting programs and reset broad chamber movement.' }),
+    Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase boundaries complete full feed-to-core-to-field cycles.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section transitions reorganize the active energy network.' }),
+    Object.freeze({ id: 'music.build' as const, requirement: 'optional' as const, purpose: 'Build progress recruits progressively denser routes.' }),
+    Object.freeze({ id: 'music.vocal-presence' as const, requirement: 'optional' as const, purpose: 'Vocal passages preserve negative space around the logo and feeds.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'A bright hit of the energy lights on a drop.' }),
     Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'The energy lights lift through a build.' }),
   ]),
-  parameters: PARAMETERS,
+  parameters: Object.freeze([...PARAMETERS, Object.freeze({
+    id: CINEMA2_CONDUIT_MUSICAL_CUE_ID,
+    label: 'Musical Cue', type: 'trigger' as const,
+    section: 'React', group: 'Runtime', order: 999,
+    exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
+  })]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_CONDUIT_MODULE_ID,
-    typeId: THREE_SCENE_TYPE_ID,
-    version: 1,
+    typeId: CINEMA2_CONDUIT_NATIVE_MODULE_TYPE_ID,
+    version: CINEMA2_CONDUIT_NATIVE_MODULE_VERSION,
     enabled: true,
     parameters: Object.freeze({
       // Pearl faces carry the mark. A softer coat and less uniform studio reflection let the off-axis key model the faces without clipping them.
@@ -425,6 +582,11 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       environmentIntensity: 0.38,
       segmentPattern: 'energyFlow',
       segmentAuto: true,
+      segmentPatternChange: false,
+      segmentTrigger: 'bar4',
+      segmentRouteDensity: 0.55,
+      segmentPulseWidth: 0.45,
+      segmentDropIntensity: 1,
       segmentSync: true,
       segmentFlicker: 0.15,
       segmentReactivity: 1,
@@ -435,11 +597,17 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     parameterBindings: Object.freeze({
       segmentPattern: cinema2Ref(CINEMA2_CONDUIT_PATTERN_ID),
       segmentAuto: cinema2Ref(CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID),
+      segmentPatternChange: cinema2Ref(CINEMA2_CONDUIT_PATTERN_CHANGE_ID),
+      segmentTrigger: cinema2Ref(CINEMA2_CONDUIT_TRIGGER_ID),
+      segmentRouteDensity: cinema2Ref(CINEMA2_CONDUIT_ROUTE_DENSITY_ID),
+      segmentPulseWidth: cinema2Ref(CINEMA2_CONDUIT_PULSE_WIDTH_ID),
+      segmentDropIntensity: cinema2Ref(CINEMA2_CONDUIT_DROP_INTENSITY_ID),
       segmentSync: cinema2Ref(CINEMA2_CONDUIT_BPM_SYNC_ID),
       segmentFlicker: cinema2Ref(CINEMA2_CONDUIT_FLICKER_ID),
       segmentReactivity: master,
       segmentColor: cinema2Ref(CINEMA2_CONDUIT_ENERGY_COLOR_ID),
     }),
+    actionBindings: Object.freeze({ musicalCue: cinema2Ref(CINEMA2_CONDUIT_MUSICAL_CUE_ID) }),
     config: Object.freeze({
       instances: Object.freeze([
         Object.freeze({ asset: CINEMA2_CONDUIT_CHAMBER_ASSET_ID, node: CHAMBER_NODE_ID }),
@@ -448,6 +616,7 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       ]),
       // Rendered into float targets and tone-mapped by the finish, so the LEDs emit their full light.
       hdr: true,
+      conduitSemantics: true,
       parts: Object.freeze(['letters', 'walls', 'outline', 'base', 'plate', 'pipe', 'channel', 'flange', 'coupler', 'shell', 'hull', 'steel', 'iris', 'trim', 'bolts', 'segments', 'energy']),
       // Every LED segment is lit by the pattern: the tubes feed the logo, the logo's glow (the rim in the gaps and the walls it climbs) is the
       // core, the wall is the field.

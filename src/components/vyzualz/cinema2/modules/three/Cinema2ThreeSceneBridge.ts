@@ -93,6 +93,8 @@ export interface Cinema2ThreeSceneOptions {
    * Cinema2ThreeSegmentLighting), replacing the material's own emissive. Needs the `_SEGMENT` and `_GLOW_PHASE` vertex attributes.
    */
   segments?: Readonly<Record<string, Cinema2ThreeSegmentRole>>
+  /** Conduit assets require cross-asset system/route/region/phase semantics. */
+  conduitSemantics?: boolean
   /** Mainframe-only semantic emissive roles. Parts must carry the generated Mainframe system/bank/region/route attributes. */
   mainframe?: Readonly<Record<string, Cinema2ThreeMainframeRole>>
   /**
@@ -286,8 +288,12 @@ export class Cinema2ThreeSceneBridge {
       uCinema2Seg0: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2Seg1: { value: new THREE.Vector4(0, -1, 0, 1) },
       uCinema2SegWeights: { value: new THREE.Vector4(1, 0, 0, 0) },
+      uCinema2SegSpecialWeights: { value: new THREE.Vector2(0, 0) },
       uCinema2SegFront: { value: new THREE.Vector4(-10, -10, -10, -10) },
       uCinema2SegGain: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2SegDrop: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2SegAccents: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2SegRoute: { value: new THREE.Vector4(0.55, 0.45, 0, 0) },
       uCinema2SegCore: { value: 0 },
       uCinema2SegHdr: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') != null ? 1 : 0 },
     }
@@ -572,7 +578,17 @@ export class Cinema2ThreeSceneBridge {
   private segmentRoleOf(owned: Readonly<OwnedMaterial>): Cinema2ThreeSegmentRole | null {
     const role = this.options.segments?.[owned.part] ?? this.options.segments?.[owned.materialName]
     const geometry = owned.slot.mesh.geometry
-    return role && geometry.getAttribute(CINEMA2_SEGMENT_ATTRIBUTE) && geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE) ? role : null
+    if (!role || !geometry.getAttribute(CINEMA2_SEGMENT_ATTRIBUTE) || !geometry.getAttribute(CINEMA2_GLOW_PHASE_ATTRIBUTE)) return null
+    if (this.options.conduitSemantics) {
+      for (const name of [CINEMA2_CONDUIT_SYSTEM_ATTRIBUTE, CINEMA2_CONDUIT_ROUTE_ATTRIBUTE,
+        CINEMA2_CONDUIT_REGION_ATTRIBUTE, CINEMA2_CONDUIT_PHASE_ATTRIBUTE]) {
+        const attribute = geometry.getAttribute(name)
+        if (!attribute || attribute.itemSize !== 1 || attribute.count !== geometry.getAttribute('position')?.count) {
+          throw new Error(`Conduit ${owned.part} (${role}) requires a per-vertex ${name} attribute.`)
+        }
+      }
+    }
+    return role
   }
 
   private mainframeRoleOf(owned: Readonly<OwnedMaterial>): Cinema2ThreeMainframeRole | null {
@@ -602,9 +618,9 @@ export class Cinema2ThreeSceneBridge {
       const segmentShared = this.segmentUniforms
       material.onBeforeCompile = shader => {
         if (film) addVertexFilmThickness(shader)
-        addSegmentLighting(shader, segmentShared, roleUniform)
+        addSegmentLighting(shader, segmentShared, roleUniform, this.options.conduitSemantics === true)
       }
-      material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-segments`
+      material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-segments${this.options.conduitSemantics ? '-conduit' : ''}`
       material.needsUpdate = true
       return
     }
@@ -657,9 +673,13 @@ export class Cinema2ThreeSceneBridge {
     uniforms.uCinema2Seg0.value.set(Number.isFinite(frame.beats) ? frame.beats % 4096 : 0, frame.level, frame.drop, frame.quiet)
     uniforms.uCinema2Seg1.value.set(frame.chase, frame.splitSide, frame.flicker, frame.reactivity)
     uniforms.uCinema2SegWeights.value.set(frame.weights[0], frame.weights[1], frame.weights[2], frame.weights[3])
+    uniforms.uCinema2SegSpecialWeights.value.set(frame.weights[4], frame.weights[5])
     const f = frame.fronts, g = frame.gains
     uniforms.uCinema2SegFront.value.set(f[0] ?? -10, f[1] ?? -10, f[2] ?? -10, f[3] ?? -10)
     uniforms.uCinema2SegGain.value.set(g[0] ?? 0, g[1] ?? 0, g[2] ?? 0, g[3] ?? 0)
+    uniforms.uCinema2SegDrop.value.set(frame.dropCharge, frame.dropCore, frame.dropDischarge, frame.dropAfterglow)
+    uniforms.uCinema2SegAccents.value.set(frame.accents[0], frame.accents[1], frame.accents[2], frame.accents[3])
+    uniforms.uCinema2SegRoute.value.set(frame.routeDensity, frame.pulseWidth, frame.relayGroup, frame.dropIntensity)
   }
 
   private applyMainframe(draw: Readonly<Cinema2ThreeMainframeDraw> | null): void {
@@ -943,6 +963,10 @@ function addAudioGlow(shader: ShaderSource, shared: GlowUniforms, share: { value
  * segment. Read by the segment lighting of parts listed in `config.segments`.
  */
 export const CINEMA2_SEGMENT_ATTRIBUTE = '_segment'
+export const CINEMA2_CONDUIT_SYSTEM_ATTRIBUTE = '_conduit_system'
+export const CINEMA2_CONDUIT_ROUTE_ATTRIBUTE = '_conduit_route'
+export const CINEMA2_CONDUIT_REGION_ATTRIBUTE = '_conduit_region'
+export const CINEMA2_CONDUIT_PHASE_ATTRIBUTE = '_conduit_phase'
 
 interface SegmentUniforms {
   uCinema2SegColor: { value: ThreeNamespace.Color }
@@ -950,8 +974,12 @@ interface SegmentUniforms {
   uCinema2Seg0: { value: ThreeNamespace.Vector4 }
   uCinema2Seg1: { value: ThreeNamespace.Vector4 }
   uCinema2SegWeights: { value: ThreeNamespace.Vector4 }
+  uCinema2SegSpecialWeights: { value: ThreeNamespace.Vector2 }
   uCinema2SegFront: { value: ThreeNamespace.Vector4 }
   uCinema2SegGain: { value: ThreeNamespace.Vector4 }
+  uCinema2SegDrop: { value: ThreeNamespace.Vector4 }
+  uCinema2SegAccents: { value: ThreeNamespace.Vector4 }
+  uCinema2SegRoute: { value: ThreeNamespace.Vector4 }
   uCinema2SegCore: { value: number }
   /** 1: emit the full (HDR) light; 0: roll it off toward white for an 8-bit target. */
   uCinema2SegHdr: { value: number }
@@ -961,17 +989,31 @@ interface SegmentUniforms {
  * Replaces the material's emitted light with the segment pattern's brightness times the energy color: at full strength into a float target,
  * otherwise rolled off softly toward white.
  */
-export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms, role: { value: number }): void {
+export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms, role: { value: number }, conduitSemantics = false): void {
   Object.assign(shader.uniforms, shared, { uCinema2SegRole: role })
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', [
       '#include <common>',
       `attribute vec4 ${CINEMA2_SEGMENT_ATTRIBUTE};`,
       `attribute float ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+      ...(conduitSemantics ? [
+        `attribute float ${CINEMA2_CONDUIT_SYSTEM_ATTRIBUTE};`,
+        `attribute float ${CINEMA2_CONDUIT_ROUTE_ATTRIBUTE};`,
+        `attribute float ${CINEMA2_CONDUIT_REGION_ATTRIBUTE};`,
+        `attribute float ${CINEMA2_CONDUIT_PHASE_ATTRIBUTE};`,
+      ] : []),
       'varying vec4 vCinema2Segment;',
       'varying float vCinema2SegPhase;',
     ].join('\n'))
-    .replace('#include <begin_vertex>', `#include <begin_vertex>\nvCinema2Segment = ${CINEMA2_SEGMENT_ATTRIBUTE};\nvCinema2SegPhase = ${CINEMA2_GLOW_PHASE_ATTRIBUTE};`)
+    .replace('#include <begin_vertex>', [
+      '#include <begin_vertex>',
+      `vCinema2Segment = ${CINEMA2_SEGMENT_ATTRIBUTE};`,
+      `vCinema2SegPhase = ${conduitSemantics ? CINEMA2_CONDUIT_PHASE_ATTRIBUTE : CINEMA2_GLOW_PHASE_ATTRIBUTE};`,
+      ...(conduitSemantics ? [
+        `vCinema2Segment.x = ${CINEMA2_CONDUIT_ROUTE_ATTRIBUTE} / 7.0;`,
+        `vCinema2Segment.w = fract( vCinema2Segment.w * 0.45 + ${CINEMA2_CONDUIT_SYSTEM_ATTRIBUTE} * 0.19 + ${CINEMA2_CONDUIT_REGION_ATTRIBUTE} * 0.11 );`,
+      ] : []),
+    ].join('\n'))
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', [
       '#include <common>',
@@ -992,7 +1034,7 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
       'float cinema2SegCore = mix( 1.0, 0.1 + 0.9 * cinema2SegFacing * cinema2SegFacing * cinema2SegFacing, uCinema2SegCore );',
       'float cinema2SegBrightness = cinema2SegmentBrightness( uCinema2SegRole, vCinema2Segment, vCinema2SegPhase );',
       'float cinema2SegHotCore = pow( cinema2SegFacing, 6.0 ) * smoothstep( 0.08, 0.45, cinema2SegBrightness );',
-      'cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 : 0.4 );',
+      'cinema2SegHotCore *= uCinema2SegRole < 0.5 ? 0.72 : ( uCinema2SegRole < 1.5 ? 0.12 + 0.88 * uCinema2SegDrop.y : 0.4 );',
       // An amber Energy Color warms its white core; a blue Energy Color retains a neutral white core instead of inheriting an orange cast.
       'float cinema2SegWarmth = saturate( uCinema2SegColor.r - uCinema2SegColor.b );',
       'vec3 cinema2SegWhite = vec3( 1.0, 1.0 - 0.06 * cinema2SegWarmth, 1.0 - 0.25 * cinema2SegWarmth );',

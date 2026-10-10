@@ -1,4 +1,5 @@
 import type { Cinema2DepthInstance, Cinema2DepthProofLayout } from './Cinema2DepthLayout'
+import type { Cinema2DepthOrchestrationFrame } from './Cinema2DepthOrchestration'
 
 export const CINEMA2_DEPTH_LIGHT_PROGRAMS = Object.freeze([
   'architecturalSparse',
@@ -7,6 +8,8 @@ export const CINEMA2_DEPTH_LIGHT_PROGRAMS = Object.freeze([
   'gatePulse',
   'alternatingFrames',
   'fullPulse',
+  'depthDischarge',
+  'portalRelay',
 ] as const)
 
 export type Cinema2DepthLightProgram = (typeof CINEMA2_DEPTH_LIGHT_PROGRAMS)[number]
@@ -29,6 +32,7 @@ export interface Cinema2DepthLightControls {
   phraseAccent?: number
   buildAmount?: number
   dropAccent?: number
+  orchestration?: Readonly<Cinema2DepthOrchestrationFrame>
 }
 
 export interface Cinema2DepthLightFrame {
@@ -106,40 +110,65 @@ export function resolveCinema2DepthProgramEmission(
   const rate = clamp(finite(controls.rate, 1), 0, 8)
   const span = clamp(Math.round(finite(controls.activeSpan, 3)), 1, count)
   const time = finite(timeSeconds, 0)
+  const orchestration = controls.orchestration
+  const programTime = orchestration ? orchestration.beats * 0.5 : time
   const direction = controls.direction === 'reverse' ? -1 : 1
   const seed = Math.round(finite(controls.seed, 0))
   const seedPhase = hash01(seed) * count
-  const travel = positiveModulo(seedPhase + direction * time * rate, count)
+  const travel = positiveModulo(seedPhase + direction * programTime * rate, count)
   const depthDistance = circularDistance(portal, travel, count)
   const depthLevel = movingWindow(depthDistance, span)
 
-  let level: number
-  switch (controls.program) {
+  const evaluate = (program: Cinema2DepthLightProgram): number => {
+    let programLevel: number
+    switch (program) {
     case 'architecturalSparse': {
-      level = sparseArchitecturalLevel(portal, side, count, time, rate, span, direction, seed)
+      const requested = orchestration ? 3 + Math.round(orchestration.routeDensity * 3) : span
+      programLevel = sparseArchitecturalLevel(portal, side, count, programTime, rate, requested, direction, seed)
       break
     }
     case 'sideOrbit': {
-      const orbit = positiveModulo(hash01(seed + 101) * 4 + direction * time * rate * 0.9 + portal * 0.23, 4)
+      const depthPhase = orchestration ? portal * 0.72 : portal * 0.23
+      const orbit = positiveModulo(hash01(seed + 101) * 4 + direction * programTime * rate * 0.9 + depthPhase, 4)
       const sideDistance = circularDistance(side, orbit, 4)
-      const sideLevel = 1 - smoothstep(0.42, 1.12, sideDistance)
-      level = depthLevel * (0.06 + sideLevel * 0.94)
+      const sideWidth = orchestration ? 0.34 + orchestration.pulseWidth * 0.48 : 0.42
+      const sideLevel = 1 - smoothstep(sideWidth, sideWidth + 0.7, sideDistance)
+      programLevel = depthLevel * (0.04 + sideLevel * 0.96)
       break
     }
     case 'gatePulse': {
       const gatePulse = 0.54 + 0.46 * Math.cos(Math.min(1, depthDistance / Math.max(0.6, span * 0.5)) * Math.PI)
-      level = depthLevel * Math.max(0.08, gatePulse)
+      const kick = orchestration?.accents[0] ?? 0
+      programLevel = depthLevel * Math.max(0.08, gatePulse) * (0.62 + kick * 0.38)
       break
     }
     case 'alternatingFrames': {
-      const step = Math.floor(Math.abs(time) * rate + hash01(seed + 211) * 2)
+      // Eight subdivisions per four-beat bar keep the gates trading places
+      // throughout the bar instead of holding one block for multiple beats.
+      const step = orchestration
+        ? Math.floor(orchestration.beats * 2)
+        : Math.floor(Math.abs(programTime) * rate + hash01(seed + 211) * 2)
       const parity = positiveModulo(portal + step * direction, 2)
-      level = parity === 0 ? 1 : 0
+      const pair = orchestration ? positiveModulo(side + Math.floor(step / 2), 2) === 0 : true
+      programLevel = parity === 0 && pair ? 1 : 0
       break
     }
     case 'fullPulse': {
-      const phase = direction * time * rate * Math.PI * 2 + hash01(seed + 307) * Math.PI * 2
-      level = 0.16 + (0.5 + 0.5 * Math.sin(phase)) * 0.84
+      const phase = direction * programTime * rate * Math.PI * 2 + hash01(seed + 307) * Math.PI * 2
+      const quietCeiling = orchestration ? 1 - orchestration.quiet * 0.72 : 1
+      programLevel = (0.1 + (0.5 + 0.5 * Math.sin(phase)) * 0.9) * quietCeiling
+      break
+    }
+    case 'depthDischarge': {
+      programLevel = orchestration
+        ? depthDischargeLevel(portal, side, count, orchestration)
+        : movingWindow(circularDistance(portal, travel, count), span)
+      break
+    }
+    case 'portalRelay': {
+      programLevel = orchestration
+        ? portalRelayLevel(portal, side, count, orchestration)
+        : sparseArchitecturalLevel(portal, side, count, time, rate, span, direction, seed)
       break
     }
     case 'depthChase':
@@ -147,9 +176,20 @@ export function resolveCinema2DepthProgramEmission(
       // A slight side offset lets the chase articulate each face while the
       // four sides still read as one portal at normal playback speed.
       const sideTravel = positiveModulo(travel - direction * side * 0.11, count)
-      level = movingWindow(circularDistance(portal, sideTravel, count), span)
+      const laneGate = orchestration
+        ? side === positiveModulo(Math.floor(orchestration.beats / 2) + seed, 4) ? 1 : 0.06
+        : 1
+      programLevel = movingWindow(circularDistance(portal, sideTravel, count), span) * laneGate
       break
     }
+    }
+    return programLevel
+  }
+  let level = orchestration
+    ? CINEMA2_DEPTH_LIGHT_PROGRAMS.reduce((sum, program, index) => sum + evaluate(program) * (orchestration.weights[index] ?? 0), 0)
+    : evaluate(controls.program)
+  if (orchestration && !isDepthDischargeActive(orchestration)) {
+    level = applyDepthCounterpoint(level, portal, side, count, orchestration, seed)
   }
   const beat = clamp(controls.beatAccent ?? 0, 0, 1)
   const downbeat = clamp(controls.downbeatAccent ?? 0, 0, 1)
@@ -168,6 +208,110 @@ export function resolveCinema2DepthProgramEmission(
   if (segment === phraseSegment) level = Math.max(level, phrase * 0.56)
   if (segment === dropSegment) level = Math.max(level, drop * 0.92)
   return clamp(level, 0, 1)
+}
+
+function depthDischargeLevel(
+  portal: number,
+  side: number,
+  portalCount: number,
+  frame: Readonly<Cinema2DepthOrchestrationFrame>,
+): number {
+  if (frame.dropElapsed < 0.09) return 0
+  if (frame.dropDischarge > 0 && frame.dropDischarge < 1) {
+    const front = (portalCount - 1) * (1 - frame.dropDischarge)
+    const width = 0.38 + frame.pulseWidth * 1.55
+    const distance = Math.abs(portal - front)
+    const ring = Math.exp(-(distance * distance) / Math.max(0.08, width * width))
+    const groupedSide = side % 2 === Math.floor(frame.dropDischarge * 8) % 2 ? 1 : 0.72
+    return ring * groupedSide * frame.dropIntensity
+  }
+  if (frame.dropAfterglow > 0) {
+    const lane = side === positiveModulo(portal + Math.floor(frame.beats), 4) ? 1 : 0.12
+    return frame.dropAfterglow * lane * 0.36 * frame.dropIntensity
+  }
+  if (frame.build <= 0.01) return 0
+  const helicalSide = positiveModulo(side - portal, 4)
+  // Recruit alternating near/far gates first, then work toward the middle.
+  // Each helical side traverses the full depth before the next side joins.
+  const rank = helicalSide * portalCount + alternatingEdgeRank(portal, portalCount)
+  const recruited = Math.floor(frame.build * portalCount * 4)
+  let level = rank < recruited ? 0.28 + frame.build * 0.48 : 0
+  if (frame.countdown > 0) {
+      const countdownGate = clamp(portalCount - frame.countdown, 0, portalCount - 1)
+    if (portal === countdownGate) level = Math.max(level, 0.72 + (5 - frame.countdown) * 0.07)
+  }
+  return level
+}
+
+/**
+ * Adds bar-scale counterpoint to every musical program. Three of the eight
+ * subdivisions pair near and far gates with an intentionally dark middle;
+ * two invert that shape around the tunnel center; the others preserve the
+ * authored chase, orbit, or relay. Opposing faces at opposite depths prevent
+ * the selected portals from reading as one solid ring.
+ */
+function applyDepthCounterpoint(
+  authoredLevel: number,
+  portal: number,
+  side: number,
+  portalCount: number,
+  frame: Readonly<Cinema2DepthOrchestrationFrame>,
+  seed: number,
+): number {
+  const subdivision = positiveModulo(Math.floor(frame.beats * 2), 8)
+  const endsSubdivision = subdivision === 0 || subdivision === 2 || subdivision === 4
+  const middleSubdivision = subdivision === 3 || subdivision === 6
+  if (!endsSubdivision && !middleSubdivision) return authoredLevel
+
+  const edgeWidth = Math.max(1, Math.floor(portalCount / 4))
+  const middleLeft = Math.max(0, Math.floor((portalCount - 1) / 2))
+  const middleRight = Math.min(portalCount - 1, Math.ceil((portalCount - 1) / 2))
+  const atEnds = portal < edgeWidth || portal >= portalCount - edgeWidth
+  const atMiddle = portal === middleLeft || portal === middleRight
+  const selectedDepth = endsSubdivision ? atEnds : atMiddle
+  const lane = positiveModulo(seed + subdivision + Math.floor(frame.beats / 4), 4)
+  const targetSide = portal < portalCount / 2 ? lane : positiveModulo(lane + 2, 4)
+  const sideLevel = side === targetSide
+    ? 1
+    : side === positiveModulo(targetSide + 2, 4)
+      ? 0.3
+      : 0
+  const retained = authoredLevel * (selectedDepth ? 0.92 : 0.16)
+  if (!selectedDepth || sideLevel === 0) return retained
+  const accent = (0.46 + frame.level * 0.28 + frame.routeDensity * 0.12) * sideLevel
+  return Math.max(retained, accent)
+}
+
+function isDepthDischargeActive(frame: Readonly<Cinema2DepthOrchestrationFrame>): boolean {
+  return Number.isFinite(frame.dropElapsed) && frame.dropElapsed < 1.54
+}
+
+function alternatingEdgeRank(portal: number, portalCount: number): number {
+  const fromNear = portal
+  const fromFar = portalCount - 1 - portal
+  return fromNear <= fromFar ? fromNear * 2 : fromFar * 2 + 1
+}
+
+function portalRelayLevel(
+  portal: number,
+  side: number,
+  portalCount: number,
+  frame: Readonly<Cinema2DepthOrchestrationFrame>,
+): number {
+  const memberships = [
+    side,
+    4 + positiveModulo(portal, 2),
+    6 + (positiveModulo(side - portal, 4) === 0 || positiveModulo(side - portal, 4) === 2 ? positiveModulo(side - portal, 4) / 2 : -8),
+  ].filter(group => group >= 0 && group < 8)
+  const reach = Math.floor(frame.routeDensity * 2.5)
+  const active = memberships.some(group => circularDistance(group, frame.relayGroup, 8) <= reach)
+  if (!active) return 0
+  const pulseFront = positiveModulo(frame.beats * 2, portalCount)
+  const width = 0.45 + frame.pulseWidth * 2.2
+  const pulse = 1 - smoothstep(width, width + 0.8, circularDistance(portal, pulseFront, portalCount))
+  const [kick, snare, transient, downbeat] = frame.accents
+  const accent = Math.max(kick, snare * 0.88, transient * 0.72, downbeat)
+  return pulse * (0.5 + accent * 0.5)
 }
 
 /**

@@ -4,6 +4,7 @@ import type { Cinema2JsonValue } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import {
   CINEMA2_DEPTH_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_DEPTH_STRUCTURE_ROTATION_SECONDS,
   createCinema2DepthNativeModuleDefinition,
   type Cinema2DepthModuleInspection,
 } from '../modules/Cinema2DepthNativeModule'
@@ -13,6 +14,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { cinema2NativeEffectRegistry } from '../effects/Cinema2EffectRegistry'
 import {
+  CINEMA2_DEPTH_DEFAULT_CENTER_Z,
   CINEMA2_DEPTH_INSTANCE_FLOATS,
   CINEMA2_DEPTH_LAYOUT_CONFIG,
   CINEMA2_DEPTH_REPEAT_DISTANCE,
@@ -28,6 +30,11 @@ import {
   type Cinema2DepthLightControls,
 } from '../modules/depth/Cinema2DepthLightPrograms'
 import {
+  Cinema2DepthOrchestration,
+  type Cinema2DepthOrchestrationFrame,
+  type Cinema2DepthOrchestrationInputs,
+} from '../modules/depth/Cinema2DepthOrchestration'
+import {
   CINEMA2_DEPTH_CENTER_MATTE_COLOR,
   CINEMA2_DEPTH_STRIP_BOUNCE_GAIN,
   CINEMA2_DEPTH_STRIP_HDR_MULTIPLIER,
@@ -38,7 +45,7 @@ import {
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
-import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2CameraRuntime, type Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 import {
   CINEMA2_DEPTH_AUTO_PERFORMANCE_ID,
@@ -46,9 +53,76 @@ import {
   CINEMA2_DEPTH_LAP_DISTANCE,
   CINEMA2_DEPTH_LAP_SECONDS,
   CINEMA2_DEPTH_MOTION_SAFETY_ID,
+  CINEMA2_DEPTH_PATTERN_CHANGE_ID,
   CINEMA2_DEPTH_PRESET_ID,
   CINEMA2_DEPTH_PRESET_MANIFEST,
+  CINEMA2_DEPTH_TRIGGER_ID,
 } from '../presets/Cinema2DepthPreset'
+
+const DEPTH_DT = 1 / 60
+const available = (value: number) => ({ available: true, value })
+
+function depthMusicFrame(index: number, options: {
+  energy?: number
+  bass?: number
+  vocal?: number
+  build?: number
+  sectionType?: string
+  nextDropSec?: number
+} = {}): Cinema2ModuleFrameReadContext {
+  const time = index * DEPTH_DT
+  const beatIndex = Math.floor(time * 2)
+  const beatPhase = time * 2 - beatIndex
+  return {
+    frameId: index + 1,
+    timestampMs: time * 1000,
+    deltaTimeSec: DEPTH_DT,
+    elapsedTimeSec: time,
+    viewport: { width: 1200, height: 800, dpr: 1 },
+    contextGeneration: 1,
+    director: null,
+    transport: { sourcePresent: true, playing: true, analysisActive: true, paused: false, animationActive: true, trackId: 'depth-test', timeSec: time },
+    audio: {
+      upstream: { timeSec: time },
+      discontinuity: { occurred: false, reason: null },
+      bands: { bass: available(options.bass ?? 0.55), sub: available(0.2) },
+      features: {
+        overallEnergy: available(options.energy ?? 0.55),
+        buildProgress: available(options.build ?? 0),
+        vocalPresence: available(options.vocal ?? 0),
+      },
+      rhythm: {
+        bpm: available(120),
+        beatIndex: available(beatIndex),
+        beatPhase: available(beatPhase),
+        beat: null,
+        downbeat: null,
+        kick: null,
+        snare: null,
+        transient: null,
+      },
+      structure: {
+        section: { available: true, value: { id: 'depth-section', type: options.sectionType ?? 'verse' } },
+        semanticMoments: {
+          available: options.nextDropSec != null,
+          value: options.nextDropSec == null ? [] : [{ id: 'depth-drop', timeSec: options.nextDropSec, type: 'drop' }],
+        },
+      },
+    } as never,
+  }
+}
+
+const depthInputs = (overrides: Partial<Cinema2DepthOrchestrationInputs> = {}): Cinema2DepthOrchestrationInputs => ({
+  pattern: 'architecturalSparse',
+  auto: true,
+  patternChange: false,
+  trigger: 'bar4',
+  sync: true,
+  routeDensity: 0.36,
+  pulseWidth: 0.42,
+  dropIntensity: 0.9,
+  ...overrides,
+})
 
 describe('Cinema 2.0 Depth preset', () => {
   it('builds the fixed procedural proof tunnel deterministically', () => {
@@ -66,6 +140,7 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(first.instances.filter(instance => instance.kind === 'node')).toHaveLength(96)
     expect(first.instances.filter(instance => instance.kind === 'collar')).toHaveLength(288)
     expect(first.instances.filter(instance => instance.kind === 'center')).toHaveLength(1)
+    expect(first.instances.find(instance => instance.kind === 'center')).toMatchObject({ center: [0, 0, CINEMA2_DEPTH_DEFAULT_CENTER_Z] })
     expect(first.instances.filter(instance => instance.kind === 'strip' && instance.emission > 0)).toHaveLength(12)
     expect(first.instances.every(instance => instance.size.every(value => value > 0))).toBe(true)
 
@@ -134,7 +209,7 @@ describe('Cinema 2.0 Depth preset', () => {
   })
 
   it('authors a depth-aware HDR proof stack after the scene pass', () => {
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(10)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.revision).toBe(12)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish',
     ])
@@ -179,7 +254,7 @@ describe('Cinema 2.0 Depth preset', () => {
 
   it('bounds high-energy atmosphere and bloom accents', () => {
     const actions = CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions) ?? []
-    const values = new Map(actions.map(action => [action.id, action.value]))
+    const values = new Map<string, Cinema2JsonValue>(actions.map(action => [action.id, action.value]))
     expect(values.get('depth-beat-bloom-action')).toBe(0.025)
     expect(values.get('depth-downbeat-bloom-action')).toBe(0.05)
     expect(values.get('depth-phrase-atmosphere-action')).toBe(0.001)
@@ -187,30 +262,30 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(values.get('depth-drop-bloom-action')).toBe(0.08)
   })
 
-  it('authors a seamless fly rig, three motion-safety modes, and bounded optional choreography', () => {
+  it('authors a centered slow-forward fly rig, three motion-safety modes, and bounded optional choreography', () => {
     const camera = CINEMA2_DEPTH_PRESET_MANIFEST.cameras![0]!
     expect(camera.rig).toMatchObject({
       kind: 'fly', durationSeconds: CINEMA2_DEPTH_LAP_SECONDS, loop: true,
       repeatOffset: [0, 0, -CINEMA2_DEPTH_LAP_DISTANCE],
     })
-    expect(camera.motion).toMatchObject({ interpolation: 'spline', constantSpeed: true })
+    expect(camera.motion).toMatchObject({
+      interpolation: 'spline',
+      constantSpeed: true,
+      tempo: { flightSpeed: true, weave: 0, bob: 0, roll: 0, fov: 0, punch: 0 },
+    })
+    expect(camera.motion).not.toHaveProperty('drift')
+    expect(camera.motion).not.toHaveProperty('bank')
     expect(camera.motion).not.toHaveProperty('rollDegrees')
     if (!camera.rig || (camera.rig.kind !== 'fly' && camera.rig.kind !== 'path')) throw new Error('Depth must author a fly path.')
     const rig = camera.rig
     const points = rig.points
-    const xs = points.map(point => point.position[0])
-    const ys = points.map(point => point.position[1])
-    const rolls = points.map(point => point.rollDegrees ?? 0)
-    expect(Math.min(...xs)).toBeLessThan(-2.4)
-    expect(Math.max(...xs)).toBeGreaterThan(2.4)
-    expect(Math.min(...ys)).toBeLessThan(-2.2)
-    expect(Math.max(...ys)).toBeGreaterThan(2.2)
-    expect(Math.max(...rolls)).toBeGreaterThanOrEqual(38)
-    expect(Math.min(...rolls)).toBeLessThanOrEqual(-28)
-    expect(points.every(point => point.target && (Math.abs(point.target[0]) > 1 || Math.abs(point.target[1]) > 0.6))).toBe(true)
-    const nextLapStart = points[0]!.position.map((value, axis) => value + rig.repeatOffset![axis])
-    expect(Math.hypot(...points[points.length - 1]!.position.map((value, axis) => value - nextLapStart[axis]))).toBeLessThan(2)
-    expect(Math.abs((points[points.length - 1]!.rollDegrees ?? 0) - (points[0]!.rollDegrees ?? 0))).toBeLessThanOrEqual(2)
+    expect(points).toHaveLength(4)
+    expect(points.every(point => point.position[0] === 0 && point.position[1] === 0)).toBe(true)
+    expect(points.every(point => point.target?.[0] === 0 && point.target[1] === 0)).toBe(true)
+    expect(points.every(point => point.rollDegrees === 0 && point.fovDegrees === 59)).toBe(true)
+    expect(points.every(point => point.target && point.position[2] - point.target[2] === CINEMA2_DEPTH_REPEAT_ORIGIN_Z - CINEMA2_DEPTH_DEFAULT_CENTER_Z)).toBe(true)
+    expect(points[0]).toMatchObject({ position: [0, 0, CINEMA2_DEPTH_REPEAT_ORIGIN_Z], target: [0, 0, CINEMA2_DEPTH_DEFAULT_CENTER_Z], rollDegrees: 0 })
+    expect(points.map(point => point.position[2])).toEqual([12, 0, -12, -24])
     expect(camera.controls).toEqual({
       motionSafety: { $ref: CINEMA2_DEPTH_MOTION_SAFETY_ID },
       tempoSync: { $ref: CINEMA2_DEPTH_BPM_SYNC_ID },
@@ -220,18 +295,141 @@ describe('Cinema 2.0 Depth preset', () => {
       expect.objectContaining({ id: CINEMA2_DEPTH_MOTION_SAFETY_ID, type: 'enum', defaultValue: 'full' }),
     ]))
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.map(rule => rule.source.signal)).toEqual([
+      'kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop',
       'beat', 'downbeat', 'phrase', 'continuous', 'drop',
     ])
-    expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.every(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toBe(true)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.slice(9).every(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toBe(true)
     expect(new Set(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions.map(action => action.target.kind)))).toEqual(
-      new Set(['module', 'effect', 'camera']),
+      new Set(['parameter', 'module', 'effect']),
     )
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!.parameters).toMatchObject({
       beatAccent: 0, downbeatAccent: 0, phraseAccent: 0, buildAmount: 0, dropAccent: 0,
     })
   })
 
-  it('flies smoothly through multiple quadrants with changing perspective and strong authored roll', () => {
+  it('authors eight geometry-aware programs plus Pattern Change and Trigger controls', () => {
+    const program = CINEMA2_DEPTH_PRESET_MANIFEST.parameters!.find(parameter => parameter.id === 'depth-program')
+    expect(program).toMatchObject({
+      type: 'enum',
+      options: expect.arrayContaining([
+        expect.objectContaining({ value: 'depthDischarge', label: 'Depth Discharge' }),
+        expect.objectContaining({ value: 'portalRelay', label: 'Portal Relay' }),
+      ]),
+    })
+    expect(CINEMA2_DEPTH_LIGHT_PROGRAMS).toHaveLength(8)
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: CINEMA2_DEPTH_PATTERN_CHANGE_ID, defaultValue: false }),
+      expect.objectContaining({ id: CINEMA2_DEPTH_TRIGGER_ID, defaultValue: 'bar4' }),
+      expect.objectContaining({ id: 'depth-route-density', defaultValue: 0.36 }),
+      expect.objectContaining({ id: 'depth-pulse-width', defaultValue: 0.42 }),
+      expect.objectContaining({ id: 'depth-drop-intensity', defaultValue: 0.9 }),
+    ]))
+    expect(CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!.actionBindings).toEqual({ musicalCue: { $ref: 'depth-musical-cue' } })
+  })
+
+  it('uses shared musical context for the build countdown, drop discharge, pattern changes, and rotation direction', () => {
+    const buildRuntime = new Cinema2DepthOrchestration()
+    let buildFrame: Readonly<Cinema2DepthOrchestrationFrame> | null = null
+    for (let index = 0; index <= 90; index += 1) {
+      buildFrame = buildRuntime.update(depthMusicFrame(index, { energy: 0.78, bass: 0.72, build: 0.9, nextDropSec: 2.5 }), depthInputs(), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    }
+    expect(buildFrame).toMatchObject({ pattern: 'depthDischarge' })
+    expect(buildFrame!.countdown).toBeGreaterThanOrEqual(1)
+    expect(buildFrame!.countdown).toBeLessThanOrEqual(4)
+    expect(buildFrame!.rotationMultiplier).toBeGreaterThan(1.5)
+
+    buildRuntime.enqueueCue('drop', 'drop-cue')
+    let dropFrame = buildRuntime.update(depthMusicFrame(91, { energy: 1, bass: 1 }), depthInputs(), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    for (let index = 92; index <= 152; index += 1) {
+      dropFrame = buildRuntime.update(depthMusicFrame(index, { energy: 1, bass: 1 }), depthInputs(), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    }
+    expect(dropFrame.pattern).toBe('depthDischarge')
+    expect(dropFrame.dropDischarge).toBeGreaterThan(0)
+    expect(dropFrame.rotationMultiplier).toBeLessThan(0)
+
+    const quietRuntime = new Cinema2DepthOrchestration()
+    let quietFrame = quietRuntime.update(depthMusicFrame(0, { energy: 0.08, bass: 0.05, vocal: 0.8, sectionType: 'breakdown' }), depthInputs(), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    for (let index = 1; index <= 120; index += 1) {
+      quietFrame = quietRuntime.update(depthMusicFrame(index, { energy: 0.08, bass: 0.05, vocal: 0.8, sectionType: 'breakdown' }), depthInputs(), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    }
+    expect(quietFrame.pattern).toBe('fullPulse')
+    expect(quietFrame.rotationMultiplier).toBeLessThan(0.5)
+
+    const manualRuntime = new Cinema2DepthOrchestration()
+    manualRuntime.enqueueCue('kick', 'kick-cue')
+    const changed = manualRuntime.update(depthMusicFrame(0), depthInputs({ auto: false, patternChange: true, trigger: 'kick' }), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+    expect(changed.pattern).toBe('depthChase')
+  })
+
+  it('builds sparse helical segments, discharges rings toward the camera, and never modulates the matte center', () => {
+    const layout = buildCinema2DepthProofLayout()
+    const centerIndex = layout.instances.findIndex(instance => instance.kind === 'center')
+    const weights = CINEMA2_DEPTH_LIGHT_PROGRAMS.map(pattern => pattern === 'depthDischarge' ? 1 : 0)
+    const orchestration = (overrides: Partial<Cinema2DepthOrchestrationFrame>): Cinema2DepthOrchestrationFrame => ({
+      pattern: 'depthDischarge', weights, beats: 12, level: 0.8, quiet: 0, build: 0.72, countdown: 4,
+      dropElapsed: Number.POSITIVE_INFINITY, dropDischarge: 0, dropAfterglow: 0,
+      accents: [0, 0, 0, 0], relayGroup: 0, routeDensity: 0.36, pulseWidth: 0.42, dropIntensity: 0.9,
+      rotationMultiplier: 1,
+      ...overrides,
+    })
+    const controls = (frame: Cinema2DepthOrchestrationFrame): Cinema2DepthLightControls => ({
+      program: 'depthDischarge', direction: 'forward', rate: 1, activeSpan: 4, seed: 7,
+      centerEnabled: true, centerIntensity: 0.7, orchestration: frame,
+    })
+    const build = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+    updateCinema2DepthLightFrame(build, layout, 6, controls(orchestration({})))
+    const activeBuildSegments = [...build.segmentLevels].filter(value => value > 0.08).length
+    expect(activeBuildSegments).toBeGreaterThanOrEqual(8)
+    expect(activeBuildSegments).toBeLessThan(32)
+    expect(build.emissions[centerIndex]).toBeCloseTo(0.7)
+
+    const discharge = createCinema2DepthLightFrame(layout.instances.length, layout.portalCount)
+    updateCinema2DepthLightFrame(discharge, layout, 6, controls(orchestration({
+      build: 0, countdown: 0, dropElapsed: 0.8, dropDischarge: 0.49,
+    })))
+    const peakPortal = discharge.portalLevels.indexOf(Math.max(...discharge.portalLevels))
+    expect(peakPortal).toBeGreaterThanOrEqual(3)
+    expect(peakPortal).toBeLessThanOrEqual(4)
+    expect(discharge.emissions[centerIndex]).toBeCloseTo(0.7)
+  })
+
+  it('alternates distributed near/far and middle counterpoint throughout each bar', () => {
+    const pattern = 'alternatingFrames'
+    const weights = CINEMA2_DEPTH_LIGHT_PROGRAMS.map(candidate => candidate === pattern ? 1 : 0)
+    const frame = (beats: number): Cinema2DepthOrchestrationFrame => ({
+      pattern, weights, beats, level: 0.65, quiet: 0, build: 0, countdown: 0,
+      dropElapsed: Number.POSITIVE_INFINITY, dropDischarge: 0, dropAfterglow: 0,
+      accents: [0, 0, 0, 0], relayGroup: 0, routeDensity: 0.36, pulseWidth: 0.42, dropIntensity: 0.9,
+      rotationMultiplier: 1,
+    })
+    const portalTotals = (beats: number) => Array.from({ length: 8 }, (_, portal) => (
+      Array.from({ length: 4 }, (_, side) => resolveCinema2DepthProgramEmission(portal, side, 8, beats / 2, {
+        program: pattern, direction: 'forward', rate: 1, activeSpan: 4, seed: 7,
+        centerEnabled: true, centerIntensity: 0.7, orchestration: frame(beats),
+      })).reduce((sum, level) => sum + level, 0)
+    ))
+
+    const endsFrame = portalTotals(0)
+    const middleFrame = portalTotals(1.5)
+    const ends = endsFrame[0]! + endsFrame[1]! + endsFrame[6]! + endsFrame[7]!
+    const endsMiddle = endsFrame[3]! + endsFrame[4]!
+    const middle = middleFrame[3]! + middleFrame[4]!
+    const middleEnds = middleFrame[0]! + middleFrame[1]! + middleFrame[6]! + middleFrame[7]!
+    expect(ends).toBeGreaterThan(endsMiddle * 2)
+    expect(middle).toBeGreaterThan(middleEnds)
+    expect(endsFrame[0]).toBeGreaterThan(0)
+    expect(endsFrame[7]).toBeGreaterThan(0)
+
+    const signatures = Array.from({ length: 8 }, (_, subdivision) => Array.from({ length: 32 }, (_, segment) => (
+      resolveCinema2DepthProgramEmission(Math.floor(segment / 4), segment % 4, 8, subdivision / 4, {
+        program: pattern, direction: 'forward', rate: 1, activeSpan: 4, seed: 7,
+        centerEnabled: true, centerIntensity: 0.7, orchestration: frame(subdivision / 2),
+      }) > 0.3 ? '1' : '0'
+    )).join(''))
+    expect(new Set(signatures).size).toBeGreaterThanOrEqual(6)
+  })
+
+  it('progresses slowly and smoothly forward without leaving the tunnel centerline', () => {
     const compiled = compileCinema2NativePreset(CINEMA2_DEPTH_PRESET_MANIFEST)
     expect(compiled.ok).toBe(true)
     if (!compiled.ok) return
@@ -241,7 +439,7 @@ describe('Cinema 2.0 Depth preset', () => {
     })
     const spatial = new Cinema2SpatialRuntime(compiled.plan.scene, compiled.plan.targets.targets, resolver)
     const camera = new Cinema2CameraRuntime(compiled.plan, state, resolver, spatial)
-    const frames = []
+    const frames: Readonly<Cinema2CameraFrame>[] = []
     for (let step = 0; step <= CINEMA2_DEPTH_LAP_SECONDS * 60 + 2; step += 1) {
       const time = step / 60
       const frame: Cinema2ModuleFrameReadContext = {
@@ -250,31 +448,51 @@ describe('Cinema 2.0 Depth preset', () => {
       }
       frames.push(camera.update(frame))
     }
-    const xs = frames.map(frame => frame.position[0])
-    const ys = frames.map(frame => frame.position[1])
-    const rolls = frames.map(frame => frame.rollDegrees)
-    const lookXs = frames.map(frame => frame.target[0] - frame.position[0])
-    const lookYs = frames.map(frame => frame.target[1] - frame.position[1])
-    expect(Math.min(...xs)).toBeLessThan(-2.3)
-    expect(Math.max(...xs)).toBeGreaterThan(2.3)
-    expect(Math.min(...ys)).toBeLessThan(-2)
-    expect(Math.max(...ys)).toBeGreaterThan(2.1)
-    expect(Math.min(...lookXs)).toBeLessThan(-3)
-    expect(Math.max(...lookXs)).toBeGreaterThan(3)
-    expect(Math.min(...lookYs)).toBeLessThan(-2)
-    expect(Math.max(...lookYs)).toBeGreaterThan(2)
-    expect(Math.min(...rolls)).toBeLessThan(-27)
-    expect(Math.max(...rolls)).toBeGreaterThan(36)
+    expect(frames.every(frame => Math.abs(frame.position[0]) < 1e-8 && Math.abs(frame.position[1]) < 1e-8)).toBe(true)
+    expect(frames.every(frame => Math.abs(frame.target[0]) < 1e-8 && Math.abs(frame.target[1]) < 1e-8)).toBe(true)
+    expect(frames.every(frame => Math.abs(frame.rollDegrees) < 1e-8)).toBe(true)
+    expect(frames.every(frame => Math.abs((frame.position[2] - frame.target[2]) - (CINEMA2_DEPTH_REPEAT_ORIGIN_Z - CINEMA2_DEPTH_DEFAULT_CENTER_Z)) < 1e-6)).toBe(true)
+    expect(frames.every((frame, index) => index === 0 || frame.position[2] <= frames[index - 1]!.position[2])).toBe(true)
     const steps = frames.slice(1).map((frame, index) => Math.hypot(
       frame.position[0] - frames[index]!.position[0],
       frame.position[1] - frames[index]!.position[1],
       frame.position[2] - frames[index]!.position[2],
     ))
-    expect(Math.max(...steps)).toBeLessThan(0.2)
+    expect(Math.max(...steps)).toBeLessThan(0.03)
     const start = frames[0]!
+    const tenSeconds = frames[10 * 60]!
+    expect(start.position[2] - tenSeconds.position[2]).toBeGreaterThan(9)
+    expect(start.position[2] - tenSeconds.position[2]).toBeLessThan(11)
     const lap = frames[CINEMA2_DEPTH_LAP_SECONDS * 60]!
-    expect(Math.hypot(lap.position[0] - start.position[0], lap.position[1] - start.position[1])).toBeLessThan(0.5)
     expect(lap.position[2] - start.position[2]).toBeCloseTo(-CINEMA2_DEPTH_LAP_DISTANCE, 0)
+  })
+
+  it('keeps the moving camera aimed at the center object at the end of the tunnel', () => {
+    const compiled = compileCinema2NativePreset(CINEMA2_DEPTH_PRESET_MANIFEST)
+    expect(compiled.ok).toBe(true)
+    if (!compiled.ok) return
+    const state = new Cinema2ParameterState(compiled.plan.parameters)
+    const resolver = new Cinema2FinalValueResolver(compiled.plan.targets, {
+      resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : state.getValue(target.parameterId),
+    })
+    const spatial = new Cinema2SpatialRuntime(compiled.plan.scene, compiled.plan.targets.targets, resolver)
+    const camera = new Cinema2CameraRuntime(compiled.plan, state, resolver, spatial)
+    const at = (time: number): Cinema2ModuleFrameReadContext => ({
+      frameId: Math.round(time * 60) + 1, timestampMs: time * 1000, deltaTimeSec: 1 / 60, elapsedTimeSec: time,
+      viewport: { width: 1200, height: 800, dpr: 1 }, contextGeneration: 1, audio: null, director: null,
+    })
+    const first = camera.update(at(0))
+    let later = first
+    for (let step = 1; step <= 8 * 60; step += 1) later = camera.update(at(step / 60))
+    expect(first.position).toEqual([0, 0, CINEMA2_DEPTH_REPEAT_ORIGIN_Z])
+    expect(first.target).toEqual([0, 0, CINEMA2_DEPTH_DEFAULT_CENTER_Z])
+    expect(later.position[0]).toBe(0)
+    expect(later.position[1]).toBe(0)
+    expect(later.position[2]).toBeLessThan(first.position[2] - 7)
+    expect(later.target[0]).toBe(0)
+    expect(later.target[1]).toBe(0)
+    expect(later.position[2] - later.target[2]).toBeCloseTo(CINEMA2_DEPTH_REPEAT_ORIGIN_Z - CINEMA2_DEPTH_DEFAULT_CENTER_Z, 6)
+    expect(later.rollDegrees).toBe(0)
   })
 
   it('evaluates every light program deterministically with bounded per-side output', () => {
@@ -475,6 +693,7 @@ describe('Cinema 2.0 Depth preset', () => {
       repeatDistance: layout.repeatDistance,
       repeatOriginZ: CINEMA2_DEPTH_REPEAT_ORIGIN_Z,
       centerDistance: CINEMA2_DEPTH_REPEAT_ORIGIN_Z - layout.centerDepth,
+      structureRotationRadians: Math.PI / 2,
     })
     expect(vi.mocked(gl.bufferSubData)).toHaveBeenCalledOnce()
     expect(vi.mocked(gl.drawElementsInstanced)).toHaveBeenCalledTimes(2)
@@ -541,6 +760,7 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(draw.mock.calls[0]?.[0].emissions).toHaveLength(769)
     expect(draw.mock.calls[0]?.[0].spills).toHaveLength(769)
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ repeatDistance: 48, repeatOriginZ: 12 })
+    expect(draw.mock.calls[0]?.[0].structureRotationRadians).toBeCloseTo(2.25 / CINEMA2_DEPTH_STRUCTURE_ROTATION_SECONDS * Math.PI * 2, 8)
     expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 769, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 

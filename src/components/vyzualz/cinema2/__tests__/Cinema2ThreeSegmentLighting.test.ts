@@ -150,14 +150,14 @@ describe('three-scene segment lighting', () => {
     expect(last(building).pattern).toBe('energyFlow')
     const groove = run(40, { bass: 0.7, energy: 0.7 }, auto)
     const picks = new Set(groove.map(frame => frame.pattern))
-    expect(picks).toEqual(new Set(['ringChase', 'split', 'energyFlow']))
+    expect(picks).toEqual(new Set(['ringChase', 'split', 'routeRelay', 'energyFlow']))
     // Changes land on bar lines (a multiple of 4 beats).
     for (let i = 1; i < groove.length; i += 1) {
       if (groove[i]!.pattern !== groove[i - 1]!.pattern) expect(groove[i]!.beats % 4).toBeLessThan(0.1)
     }
     const dropped = run(4, t => (t < 3.3 ? { bass: 0.7, energy: 0.7 } : { bass: 0.9, energy: 0.8, section: 'b', sectionType: 'drop' }), auto)
     const dropFrame = dropped.find(frame => frame.drop === 1)!
-    expect(dropFrame.pattern).toBe('pulse')
+    expect(dropFrame.pattern).toBe('coreDischarge')
     // Off, the chosen pattern plays.
     expect(last(run(4, { bass: 0.1, energy: 0.1 }, { pattern: 'split' })).pattern).toBe('split')
   })
@@ -171,6 +171,50 @@ describe('three-scene segment lighting', () => {
     let settled = after
     for (let index = 61; index < 180; index += 1) settled = lighting.update(musicFrame(index, LOUD), { pattern: 'split', sync: true, flicker: 0, reactivity: 1 })
     expect(settled.weights[2]).toBeGreaterThan(0.99)
+  })
+
+  it('Core Discharge stages an inward feed, white-hot core, outward chamber front, then afterglow', () => {
+    const lighting = new Cinema2ThreeSegmentLighting()
+    const inputs = { pattern: 'coreDischarge' as const, sync: true, flicker: 0, reactivity: 1, dropIntensity: 1 }
+    for (let index = 0; index < 30; index += 1) lighting.update(musicFrame(index, LOUD), inputs)
+    lighting.enqueueCue('drop', 'drop:1')
+    const frames = Array.from({ length: 210 }, (_, offset) => lighting.update(musicFrame(30 + offset, LOUD), inputs))
+    const charge = frames.find(frame => frame.dropCharge > 0.35 && frame.dropCharge < 0.65)!
+    const core = frames.reduce((best, frame) => frame.dropCore > best.dropCore ? frame : best)
+    const discharge = frames.find(frame => frame.dropDischarge > 0.45 && frame.dropDischarge < 0.65)!
+    const afterglow = frames.find(frame => frame.dropAfterglow > 0.25 && frame.dropDischarge === 0)!
+    const feedNearFront = evaluateCinema2SegmentBrightness('feed', vertex({ phase: charge.dropCharge }), frameOf(charge, 'coreDischarge'))
+    const feedFar = evaluateCinema2SegmentBrightness('feed', vertex({ phase: 1 }), frameOf(charge, 'coreDischarge'))
+    expect(feedNearFront).toBeGreaterThan(feedFar)
+    expect(evaluateCinema2SegmentBrightness('core', vertex(), frameOf(core, 'coreDischarge'))).toBeGreaterThan(1.5)
+    const fieldNearFront = evaluateCinema2SegmentBrightness('field', vertex({ phase: discharge.dropDischarge }), frameOf(discharge, 'coreDischarge'))
+    const fieldFar = evaluateCinema2SegmentBrightness('field', vertex({ phase: 0 }), frameOf(discharge, 'coreDischarge'))
+    expect(fieldNearFront).toBeGreaterThan(fieldFar)
+    expect(evaluateCinema2SegmentBrightness('field', vertex(), frameOf(afterglow, 'coreDischarge'))).toBeGreaterThan(0.1)
+  })
+
+  it('Route Relay groups like routes and Route Density recruits neighboring groups', () => {
+    const base = last(run(1, LOUD, { pattern: 'routeRelay' }))
+    const relayed = frameOf(base, 'routeRelay', { relayGroup: 3, accents: [1, 0, 0, 0] })
+    const exact = evaluateCinema2SegmentBrightness('field', vertex({ group: 3 / 7 }), { ...relayed, routeDensity: 0 })
+    const neighborSparse = evaluateCinema2SegmentBrightness('field', vertex({ group: 4 / 7 }), { ...relayed, routeDensity: 0 })
+    const neighborDense = evaluateCinema2SegmentBrightness('field', vertex({ group: 4 / 7 }), { ...relayed, routeDensity: 1 })
+    expect(exact).toBeGreaterThan(neighborSparse)
+    expect(neighborDense).toBeGreaterThan(neighborSparse)
+  })
+
+  it('Pattern Change advances once for each selected canonical trigger', () => {
+    const lighting = new Cinema2ThreeSegmentLighting()
+    const inputs = { pattern: 'energyFlow' as const, sync: true, flicker: 0, reactivity: 1, patternChange: true, trigger: 'kick' as const }
+    expect(lighting.update(musicFrame(0, LOUD), inputs).pattern).toBe('energyFlow')
+    lighting.enqueueCue('snare', 'snare:1')
+    expect(lighting.update(musicFrame(1, LOUD), inputs).pattern).toBe('energyFlow')
+    lighting.enqueueCue('kick', 'kick:1')
+    expect(lighting.update(musicFrame(2, LOUD), inputs).pattern).toBe('ringChase')
+    lighting.enqueueCue('kick', 'kick:1')
+    expect(lighting.update(musicFrame(3, LOUD), inputs).pattern).toBe('ringChase')
+    lighting.enqueueCue('kick', 'kick:2')
+    expect(lighting.update(musicFrame(4, LOUD), inputs).pattern).toBe('split')
   })
 
   it('Flicker drops segments out on their own random beats; at zero nothing drops out', () => {
@@ -198,7 +242,7 @@ describe('three-scene segment lighting', () => {
   })
 
   it('keeps the GLSL twin in step with the TypeScript function (same terms and constants)', () => {
-    for (const term of ['0.12 : ( role < 1.5 ? 0.3 + 0.3 * level : 0.06 )', '/ 0.12', '/ 0.3', '/ 0.1', '* 43758.5453', '113.1', '7.3', '0.35 + ( brightness - 0.35 )', 'exp( - fract( beats ) * 4.0 )']) {
+    for (const term of ['0.12 : ( role < 1.5 ? 0.3 + 0.3 * level : 0.06 )', '/ routeWidth', '/ 0.3', '* 43758.5453', '113.1', '7.3', '0.35 + ( brightness - 0.35 )', 'exp( - fract( beats ) * 4.0 )', 'programDischarge', 'relayGate']) {
       expect(CINEMA2_THREE_SEGMENT_GLSL).toContain(term)
     }
   })

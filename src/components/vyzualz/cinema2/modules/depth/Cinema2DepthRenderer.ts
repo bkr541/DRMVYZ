@@ -27,6 +27,7 @@ uniform vec3 u_cameraPosition;
 uniform float u_repeatDistance;
 uniform float u_repeatOriginZ;
 uniform float u_centerDistance;
+uniform float u_structureRotation;
 out vec3 v_world;
 out vec3 v_normal;
 out vec3 v_local;
@@ -46,9 +47,17 @@ void main() {
   } else {
     world.z -= lap * u_repeatDistance;
   }
+  float rotationCos = cos(u_structureRotation);
+  float rotationSin = sin(u_structureRotation);
+  mat2 clockwiseRotation = mat2(rotationCos, -rotationSin, rotationSin, rotationCos);
+  vec3 worldNormal = a_normal;
+  if (!isCenter) {
+    world.xy = clockwiseRotation * world.xy;
+    worldNormal.xy = clockwiseRotation * worldNormal.xy;
+  }
   gl_Position = u_viewProjection * vec4(world, 1.0);
   v_world = world;
-  v_normal = a_normal;
+  v_normal = worldNormal;
   v_local = a_position;
   v_uv = a_uv;
   v_kind = i_sizeKindEmission.z;
@@ -120,6 +129,7 @@ export interface Cinema2DepthDrawState {
   repeatDistance: number
   repeatOriginZ: number
   centerDistance: number
+  structureRotationRadians: number
 }
 
 interface Cinema2DepthGeometryBatch {
@@ -144,7 +154,7 @@ export class Cinema2DepthRenderer {
       label: 'Cinema2/Depth/PortalTunnel',
       vertSrc: VERTEX_SOURCE,
       fragSrc: FRAGMENT_SOURCE,
-      requiredUniforms: ['u_viewProjection', 'u_centerScale', 'u_cameraPosition', 'u_repeatDistance', 'u_repeatOriginZ', 'u_centerDistance', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
+      requiredUniforms: ['u_viewProjection', 'u_centerScale', 'u_cameraPosition', 'u_repeatDistance', 'u_repeatOriginZ', 'u_centerDistance', 'u_structureRotation', 'u_lightColor', 'u_bodyColor', 'u_intensity', 'u_spillAmount'],
     })
     if (!result.program) throw new Error(`Shader compilation failed at ${result.error.stage} for "${result.error.label}": ${result.error.log}`)
     this.program = result.program
@@ -187,6 +197,7 @@ export class Cinema2DepthRenderer {
     program.setFloat('u_repeatDistance', state.repeatDistance)
     program.setFloat('u_repeatOriginZ', state.repeatOriginZ)
     program.setFloat('u_centerDistance', state.centerDistance)
+    program.setFloat('u_structureRotation', state.structureRotationRadians)
 
     this.updateLighting(state.emissions, state.spills)
 
@@ -256,7 +267,7 @@ export class Cinema2DepthRenderer {
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null)
   }
 
-  private createBuffer(target: number, data: Float32Array | Uint16Array, usage = this.gl.STATIC_DRAW): WebGLBuffer {
+  private createBuffer(target: number, data: Float32Array | Uint16Array, usage: number = this.gl.STATIC_DRAW): WebGLBuffer {
     const buffer = this.gl.createBuffer()
     if (!buffer) throw new Error('Cinema 2.0 Depth could not allocate a buffer.')
     this.gl.bindBuffer(target, buffer)

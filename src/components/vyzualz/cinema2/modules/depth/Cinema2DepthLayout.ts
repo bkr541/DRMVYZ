@@ -10,6 +10,9 @@ export const CINEMA2_DEPTH_PROOF_APERTURE = CINEMA2_DEPTH_LAYOUT_CONFIG.aperture
 export const CINEMA2_DEPTH_PROOF_SPACING = CINEMA2_DEPTH_LAYOUT_CONFIG.spacing
 export const CINEMA2_DEPTH_REPEAT_DISTANCE = CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount * CINEMA2_DEPTH_LAYOUT_CONFIG.spacing
 export const CINEMA2_DEPTH_REPEAT_ORIGIN_Z = CINEMA2_DEPTH_LAYOUT_CONFIG.spacing * 2
+/** The centered end-cap position immediately beyond the final authored portal. */
+export const CINEMA2_DEPTH_DEFAULT_CENTER_Z = -(CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount - 1) * CINEMA2_DEPTH_LAYOUT_CONFIG.spacing
+  - CINEMA2_DEPTH_LAYOUT_CONFIG.spacing * 1.8
 export const CINEMA2_DEPTH_INSTANCE_FLOATS = 12
 
 export type Cinema2DepthInstanceKind = 'frame' | 'strip' | 'connector' | 'node' | 'collar' | 'rail' | 'center'
@@ -130,7 +133,9 @@ export function buildCinema2DepthProofLayout(options: {
     }
   }
 
-  const centerDepth = -(portalCount - 1) * spacing - spacing * 1.8
+  const centerDepth = portalCount === CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount && spacing === CINEMA2_DEPTH_LAYOUT_CONFIG.spacing
+    ? CINEMA2_DEPTH_DEFAULT_CENTER_Z
+    : -(portalCount - 1) * spacing - spacing * 1.8
   push(spheres, 'center', portalCount, -1, [0, 0, centerDepth], [0.9, 0.9, 0.9], 0.7, 0)
 
   const repeatDistance = portalCount * spacing

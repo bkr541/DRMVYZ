@@ -14,6 +14,7 @@ import { cinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { cinema2DepthNativeModuleDefinition } from './Cinema2DepthNativeModule'
 import { cinema2BackstreetNativeModuleDefinition } from './Cinema2BackstreetNativeModule'
 import { cinema2MainframeNativeModuleDefinition } from './Cinema2MainframeNativeModule'
+import { cinema2ConduitNativeModuleDefinition } from './Cinema2ConduitNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -140,6 +141,11 @@ if (!mainframeRegistration.ok) {
 const backstreetRegistration = cinema2NativeModuleRegistry.register(cinema2BackstreetNativeModuleDefinition)
 if (!backstreetRegistration.ok) {
   throw new Error(`Cinema 2.0 Backstreet native module registration failed: ${backstreetRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const conduitRegistration = cinema2NativeModuleRegistry.register(cinema2ConduitNativeModuleDefinition)
+if (!conduitRegistration.ok) {
+  throw new Error(`Cinema 2.0 Conduit native module registration failed: ${conduitRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CINEMA2_DESIGN_PARENT_GROUP_IDS, CINEMA2_SHARED_LIGHT_LIMIT, type Cinema2ModuleManifest } from '../contracts/Cinema2NativePresetManifest'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
-import { cinema2ThreeSceneModuleDefinition } from '../modules/Cinema2ThreeSceneModule'
+import { cinema2ConduitNativeModuleDefinition, CINEMA2_CONDUIT_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2ConduitNativeModule'
 import {
   CINEMA2_CONDUIT_CHAMBER_ASSET_ID,
   CINEMA2_CONDUIT_TUBES_ASSET_ID,
@@ -18,6 +18,11 @@ import {
   CINEMA2_CONDUIT_FLICKER_ID,
   CINEMA2_CONDUIT_MASTER_INTENSITY_ID,
   CINEMA2_CONDUIT_PATTERN_ID,
+  CINEMA2_CONDUIT_PATTERN_CHANGE_ID,
+  CINEMA2_CONDUIT_TRIGGER_ID,
+  CINEMA2_CONDUIT_ROUTE_DENSITY_ID,
+  CINEMA2_CONDUIT_PULSE_WIDTH_ID,
+  CINEMA2_CONDUIT_DROP_INTENSITY_ID,
   CINEMA2_CONDUIT_PRESET_ID,
   CINEMA2_CONDUIT_PRESET_MANIFEST,
 } from '../presets/Cinema2ConduitPreset'
@@ -26,7 +31,7 @@ import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2Pre
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
 
-const CAPABILITIES = ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting', 'music.beat', 'music.bar', 'music.downbeat', 'music.drop', 'visual-director.significance'] as const
+const CAPABILITIES = ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting', 'audio.bands', 'audio.features', 'music.beat', 'music.rhythm-events', 'music.bar', 'music.downbeat', 'music.phrase', 'music.section', 'music.build', 'music.vocal-presence', 'music.drop', 'visual-director.significance'] as const
 const manifest = CINEMA2_CONDUIT_PRESET_MANIFEST
 const parameters = manifest.parameters ?? []
 const module = manifest.modules![0]! as Readonly<Cinema2ModuleManifest>
@@ -50,8 +55,8 @@ describe('CONDUIT preset', () => {
     for (const parameter of visible) expect(CINEMA2_DESIGN_PARENT_GROUP_IDS).toContain(parameter.designParentGroup)
     const inGroup = (group: string) => visible.filter(parameter => parameter.designParentGroup === group).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(parameter => parameter.label)
     expect(inGroup('master-controls')).toEqual(['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Zoom on Kick'])
-    expect(inGroup('design')).toEqual(['Pattern'])
-    expect(inGroup('effects')).toEqual(['Flicker'])
+    expect(inGroup('design')).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
+    expect(inGroup('effects')).toEqual(['Route Density', 'Pulse Width', 'Drop Intensity', 'Flicker'])
     expect(inGroup('palette')).toEqual(['Energy Color'])
     const byId = (id: string) => parameters.find(parameter => parameter.id === id)
     expect(byId(CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID)).toMatchObject({ type: 'boolean', defaultValue: true })
@@ -60,13 +65,18 @@ describe('CONDUIT preset', () => {
     expect(byId(CINEMA2_CONDUIT_CAMERA_MOVEMENT_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
     expect(byId(CINEMA2_CONDUIT_ZOOM_ON_KICK_ID)).toMatchObject({ type: 'boolean', defaultValue: true })
     expect(byId(CINEMA2_CONDUIT_FLICKER_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
+    expect(byId(CINEMA2_CONDUIT_PATTERN_CHANGE_ID)).toMatchObject({ type: 'boolean', defaultValue: false })
+    expect(byId(CINEMA2_CONDUIT_TRIGGER_ID)).toMatchObject({ type: 'enum', defaultValue: 'bar4' })
+    expect(byId(CINEMA2_CONDUIT_ROUTE_DENSITY_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
+    expect(byId(CINEMA2_CONDUIT_PULSE_WIDTH_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
+    expect(byId(CINEMA2_CONDUIT_DROP_INTENSITY_ID)).toMatchObject({ type: 'float', min: 0, max: 1 })
     expect(byId(CINEMA2_CONDUIT_ENERGY_COLOR_ID)).toMatchObject({ type: 'color' })
   })
 
-  it('Pattern lists Energy Flow, Ring Chase, Split and Pulse, and choosing one turns Auto Performance off', () => {
+  it('Pattern lists all six geometry programs, and choosing one turns Auto Performance off', () => {
     const pattern = parameters.find(parameter => parameter.id === CINEMA2_CONDUIT_PATTERN_ID) as unknown as { options: { value: string; label: string }[]; metadata: Record<string, unknown> }
     expect(pattern.options.map(option => option.value)).toEqual([...CINEMA2_THREE_SEGMENT_PATTERNS])
-    expect(pattern.options.map(option => option.label)).toEqual(['Energy Flow', 'Ring Chase', 'Split', 'Pulse'])
+    expect(pattern.options.map(option => option.label)).toEqual(['Energy Flow', 'Ring Chase', 'Split', 'Pulse', 'Core Discharge', 'Route Relay'])
     expect(pattern.metadata.userEditSetParameters).toEqual({ [CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID]: false })
   })
 
@@ -75,6 +85,11 @@ describe('CONDUIT preset', () => {
     expect(module.parameterBindings).toMatchObject({
       segmentPattern: ref(CINEMA2_CONDUIT_PATTERN_ID),
       segmentAuto: ref(CINEMA2_CONDUIT_AUTO_PERFORMANCE_ID),
+      segmentPatternChange: ref(CINEMA2_CONDUIT_PATTERN_CHANGE_ID),
+      segmentTrigger: ref(CINEMA2_CONDUIT_TRIGGER_ID),
+      segmentRouteDensity: ref(CINEMA2_CONDUIT_ROUTE_DENSITY_ID),
+      segmentPulseWidth: ref(CINEMA2_CONDUIT_PULSE_WIDTH_ID),
+      segmentDropIntensity: ref(CINEMA2_CONDUIT_DROP_INTENSITY_ID),
       segmentSync: ref(CINEMA2_CONDUIT_BPM_SYNC_ID),
       segmentFlicker: ref(CINEMA2_CONDUIT_FLICKER_ID),
       segmentReactivity: ref(CINEMA2_CONDUIT_MASTER_INTENSITY_ID),
@@ -92,9 +107,11 @@ describe('CONDUIT preset', () => {
   it('draws the three CONDUIT assets through a valid three-scene module', () => {
     const instances = (module.config?.instances as { asset: string }[]).map(instance => instance.asset)
     expect(instances).toEqual([CINEMA2_CONDUIT_CHAMBER_ASSET_ID, CINEMA2_CONDUIT_TUBES_ASSET_ID, CINEMA2_CONDUIT_WORDMARK_ASSET_ID])
+    expect(module.typeId).toBe(CINEMA2_CONDUIT_NATIVE_MODULE_TYPE_ID)
+    expect(module.config?.conduitSemantics).toBe(true)
     for (const asset of instances) expect(cinema2ThreeAssetRegistry.has(asset)).toBe(true)
     expect(cinema2NativeModuleRegistry.get(module.typeId, module.version)).not.toBeNull()
-    expect(cinema2ThreeSceneModuleDefinition.validate!(module)).toEqual([])
+    expect(cinema2ConduitNativeModuleDefinition.validate!(module)).toEqual([])
   })
 
   it('keeps the logo key and symmetric wall fill in the low-tier light budget, with paired washes and reactive energy lights at higher tiers', () => {
@@ -111,7 +128,11 @@ describe('CONDUIT preset', () => {
     const rules = manifest.choreography?.rules ?? []
     expect(rules.some(rule => rule.source.signal === 'downbeat' && rule.actions.some(action => action.target.kind === 'light-group'))).toBe(true)
     expect(rules.some(rule => rule.source.signal === 'drop')).toBe(true)
-    for (const rule of rules) expect(rule.strengthParameter).toEqual(ref(CINEMA2_CONDUIT_MASTER_INTENSITY_ID))
+    const lightingRules = rules.filter(rule => rule.actions.some(action => action.target.kind === 'light' || action.target.kind === 'light-group'))
+    for (const rule of lightingRules) expect(rule.strengthParameter).toEqual(ref(CINEMA2_CONDUIT_MASTER_INTENSITY_ID))
+    expect(rules.filter(rule => rule.actions.some(action => action.operation === 'spawn'))).toHaveLength(9)
+    expect(rules.some(rule => rule.id === 'conduit-drop-floor-afterglow')).toBe(true)
+    expect(rules.some(rule => rule.id === 'conduit-drop-haze-afterglow')).toBe(true)
   })
 
   it('keeps raised chamber metal above recessed metal, with controlled studio reflections and tube-housing highlights', () => {

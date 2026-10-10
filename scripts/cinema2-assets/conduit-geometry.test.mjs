@@ -43,16 +43,54 @@ function model(name) {
     const indexStart = binaryOffset + (indexView.byteOffset ?? 0) + (indexAccessor.byteOffset ?? 0)
     const indexBytes = indexAccessor.componentType === 5125 ? 4 : 2
     const phases = Array.from({ length: phaseAccessor.count }, (_, i) => bytes.readFloatLE(phaseStart + i * 4))
+    const scalarAttribute = attributeName => {
+      const attributeIndex = entry.primitives[0].attributes[attributeName]
+      assert.notEqual(attributeIndex, undefined, `Missing ${attributeName} on ${meshName} in ${name}`)
+      const attributeAccessor = gltf.accessors[attributeIndex]
+      assert.equal(attributeAccessor.type, 'SCALAR', `${attributeName} must be a scalar attribute`)
+      const attributeView = gltf.bufferViews[attributeAccessor.bufferView]
+      const attributeStart = binaryOffset + (attributeView.byteOffset ?? 0) + (attributeAccessor.byteOffset ?? 0)
+      return Array.from({ length: attributeAccessor.count }, (_, i) => bytes.readFloatLE(attributeStart + i * 4))
+    }
     return {
       bounds: accessor,
       positions: Array.from({ length: accessor.count }, (_, i) => [0, 1, 2].map(axis => bytes.readFloatLE(start + (i * 3 + axis) * 4))),
       indices: Array.from({ length: indexAccessor.count }, (_, i) => indexBytes === 4 ? bytes.readUInt32LE(indexStart + i * 4) : bytes.readUInt16LE(indexStart + i * 2)),
       phases,
       peak: Math.max(...phases),
+      semantics: {
+        systems: scalarAttribute('_CONDUIT_SYSTEM'),
+        routes: scalarAttribute('_CONDUIT_ROUTE'),
+        regions: scalarAttribute('_CONDUIT_REGION'),
+        phases: scalarAttribute('_CONDUIT_PHASE'),
+      },
     }
   }
   return { mesh, material: materialName => gltf.materials.find(candidate => candidate.name === materialName) }
 }
+
+test('every Conduit emitter carries system, route, region and network-phase semantics', () => {
+  const emitters = [
+    ['tubes', 'energy-left-upper', 0],
+    ['tubes', 'energy-left-lower', 0],
+    ['tubes', 'energy-right-upper', 0],
+    ['tubes', 'energy-right-lower', 0],
+    ['wordmark', 'rim', 1],
+    ['chamber', 'segments', null],
+  ]
+  for (const [asset, part, expectedSystem] of emitters) {
+    const mesh = model(asset).mesh(part)
+    const { systems, routes, regions, phases } = mesh.semantics
+    assert.equal(systems.length, mesh.positions.length)
+    assert.equal(routes.length, mesh.positions.length)
+    assert.equal(regions.length, mesh.positions.length)
+    assert.equal(phases.length, mesh.positions.length)
+    if (expectedSystem !== null) assert.ok(systems.every(value => value === expectedSystem), `${asset} ${part} has a wrong system id`)
+    assert.ok(routes.every(value => Number.isInteger(value) && value >= 0 && value <= 7), `${asset} ${part} has an invalid route id`)
+    assert.ok(regions.every(value => Number.isInteger(value) && value >= 0 && value <= 7), `${asset} ${part} has an invalid region id`)
+    assert.ok(phases.every(value => value >= 0 && value <= 1), `${asset} ${part} has an invalid route phase`)
+  }
+})
 
 test('the four narrow sockets reach the outer lip while broad collars remain behind the raised frame', () => {
   const tubes = model('tubes')

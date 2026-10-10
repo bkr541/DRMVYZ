@@ -13,8 +13,9 @@
 //              rings glowing in the coupler's gaps, and a ring in each flange's groove.
 //
 // Every vertex carries `_GLOW_PHASE` (0 at the wall flange, 1 where the tube meets the wordmark) and `_SEGMENT` (group = tube 0-1 in the order
-// upper-left, lower-left, upper-right, lower-right; along = the glow phase; side -1 left / 1 right; a random 0-1 per glowing piece) - see
-// docs/cinema2-conduit-plan.md. Only `energy` glows; the other parts carry the attributes so the whole asset shares one layout.
+// upper-left, lower-left, upper-right, lower-right; along = the glow phase; side -1 left / 1 right; a random 0-1 per glowing piece), plus
+// `_CONDUIT_SYSTEM`, `_CONDUIT_ROUTE`, `_CONDUIT_REGION`, and `_CONDUIT_PHASE` - see docs/cinema2-conduit-plan.md. Only `energy` glows;
+// the other parts carry the attributes so the whole asset shares one layout.
 //
 // World coordinates shared by all CONDUIT assets: floor y = 0, +Z toward the camera, the wordmark centred on (0, 2.09, 0). The attachment
 // points come from conduit-layout.json, written by generate-conduit-wordmark.mjs (the frame's outer edge nearest the mockup's tube ends), so
@@ -288,8 +289,22 @@ function buildLeftTube(spec) {
 function withGlow(mesh, group, side, randomOf = () => 0) {
   const count = mesh.positions.length / 3
   const phases = new Float32Array(mesh.phases), segments = new Float32Array(count * 4)
-  for (let i = 0; i < count; i += 1) segments.set([group, phases[i], side, randomOf(i)], i * 4)
-  return { ...mesh, phases, attributes: { _SEGMENT: { array: segments, type: 'VEC4' } } }
+  const systems = new Float32Array(count), routes = new Float32Array(count), regions = new Float32Array(count), networkPhases = new Float32Array(count)
+  const route = Math.round(group * 3)
+  for (let i = 0; i < count; i += 1) {
+    segments.set([group, phases[i], side, randomOf(i)], i * 4)
+    systems[i] = 0 // tube feed
+    routes[i] = route
+    regions[i] = route // upper-left, lower-left, upper-right, lower-right
+    networkPhases[i] = phases[i]
+  }
+  return { ...mesh, phases, attributes: {
+    _SEGMENT: { array: segments, type: 'VEC4' },
+    _CONDUIT_SYSTEM: { array: systems, type: 'SCALAR' },
+    _CONDUIT_ROUTE: { array: routes, type: 'SCALAR' },
+    _CONDUIT_REGION: { array: regions, type: 'SCALAR' },
+    _CONDUIT_PHASE: { array: networkPhases, type: 'SCALAR' },
+  } }
 }
 
 const meshes = []
