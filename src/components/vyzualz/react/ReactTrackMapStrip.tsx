@@ -663,12 +663,15 @@ function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: 
   )
 }
 
-function TrackMapCueLaneIcons({ rowHeights }: { rowHeights: readonly number[] }) {
-  const rowGrid = rowHeights.map(height => `${height}px`).join(' ')
-  const rowStyle = (index: number) => ({
-    height: `${rowHeights[index] ?? POPULATED_CUE_ROW_HEIGHT}px`,
-    minHeight: `${rowHeights[index] ?? POPULATED_CUE_ROW_HEIGHT}px`,
-  })
+const CUE_ROW_ICON_PATHS: Readonly<Record<TimelineCueRowId, { label: string; paths: React.ReactNode }>> = {
+  cues: { label: 'Cues', paths: (<><path d="M8 14s4-3.5 4-7.5a4 4 0 1 0-8 0C4 10.5 8 14 8 14Z" /><circle cx="8" cy="6.5" r="1.25" /></>) },
+  phrases: { label: 'Phrases', paths: (<path d="M3 4.5h10M5 8h8M3 11.5h10" />) },
+  moments: { label: 'Moments', paths: (<path d="m8 2 1.25 3.75L13 7l-3.75 1.25L8 12 6.75 8.25 3 7l3.75-1.25L8 2Z" />) },
+  actions: { label: 'Actions', paths: (<path d="m9 1.5-5 8h4l-1 5 5-8H8l1-5Z" />) },
+}
+
+function TrackMapCueLaneIcons({ rows }: { rows: ReadonlyArray<{ id: TimelineCueRowId; heightPx: number }> }) {
+  const rowGrid = rows.map(row => `${row.heightPx}px`).join(' ')
 
   return (
     <span
@@ -677,31 +680,19 @@ function TrackMapCueLaneIcons({ rowHeights }: { rowHeights: readonly number[] })
       aria-label="Track markers"
       style={{ gridTemplateRows: rowGrid }}
     >
-      <span role="img" aria-label="Cues" title="Cues" data-cue-label-row="cues" style={rowStyle(0)}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 14s4-3.5 4-7.5a4 4 0 1 0-8 0C4 10.5 8 14 8 14Z" />
-          <circle cx="8" cy="6.5" r="1.25" />
-        </svg>
-        <span>Cues</span>
-      </span>
-      <span role="img" aria-label="Phrases" title="Phrases" data-cue-label-row="phrases" style={rowStyle(1)}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M3 4.5h10M5 8h8M3 11.5h10" />
-        </svg>
-        <span>Phrases</span>
-      </span>
-      <span role="img" aria-label="Moments" title="Moments" data-cue-label-row="moments" style={rowStyle(2)}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="m8 2 1.25 3.75L13 7l-3.75 1.25L8 12 6.75 8.25 3 7l3.75-1.25L8 2Z" />
-        </svg>
-        <span>Moments</span>
-      </span>
-      <span role="img" aria-label="Actions" title="Actions" data-cue-label-row="actions" style={rowStyle(3)}>
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="m9 1.5-5 8h4l-1 5 5-8H8l1-5Z" />
-        </svg>
-        <span>Actions</span>
-      </span>
+      {rows.map(row => (
+        <span
+          key={row.id}
+          role="img"
+          aria-label={CUE_ROW_ICON_PATHS[row.id].label}
+          title={CUE_ROW_ICON_PATHS[row.id].label}
+          data-cue-label-row={row.id}
+          style={{ height: `${row.heightPx}px`, minHeight: `${row.heightPx}px` }}
+        >
+          <svg viewBox="0 0 16 16" aria-hidden="true">{CUE_ROW_ICON_PATHS[row.id].paths}</svg>
+          <span>{CUE_ROW_ICON_PATHS[row.id].label}</span>
+        </span>
+      ))}
     </span>
   )
 }
@@ -1879,13 +1870,17 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
   ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, currentAnalysis?.phrases, currentAnalysis?.semanticMoments, reactPresets, trackCues, trackPixGridCues])
   const timelineCueRows = useMemo(() => {
     const rowLayout = buildTimelineCueRowLayout(timelineCueItems.map(cue => cue.kind))
-    return rowLayout.map(row => ({
+    const rows = rowLayout.map(row => ({
       ...row,
       items: timelineCueItems
         .filter(cue => row.kinds.includes(cue.kind))
         .slice()
         .sort((a, b) => a.timeSec - b.timeSec),
     }))
+    // A kind of marker the track has none of gets no row at all. If the track has no markers whatsoever, one blank Actions row stays, because
+    // right-clicking the lane is how a PixGrid action cue is added.
+    const populated = rows.filter(row => !row.empty)
+    return populated.length > 0 ? populated : rows.filter(row => row.id === 'actions')
   }, [timelineCueItems])
   const cueLaneHeight = timelineCueRows.reduce((height, row) => height + row.heightPx, 0)
   const timelineLanesHeight = 26 + 36 + cueLaneHeight + 24
@@ -2718,7 +2713,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                     role="group"
                     aria-label="Cues and Presets"
                   >
-                    <TrackMapCueLaneIcons rowHeights={timelineCueRows.map(row => row.heightPx)} />
+                    <TrackMapCueLaneIcons rows={timelineCueRows} />
                     <div
                       ref={cueTimelineRef}
                       className="rv-timeline-lane-content rv-timeline-cue-lane"
@@ -2796,9 +2791,6 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                                 </button>
                             )
                           })}
-                          {row.empty && (
-                            <span className="rv-timeline-cue-row-empty">{row.emptyLabel}</span>
-                          )}
                         </div>
                       ))}
                     </div>
