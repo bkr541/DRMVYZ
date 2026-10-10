@@ -10,6 +10,7 @@ import {
   type ProviderWord,
   type TranscriptionUnitPlan,
 } from '../_shared/lyricTranscriptionCore.ts'
+import { refineTranscriptTiming } from '../_shared/voicedRegions.ts'
 import { normalizeLyricCueStyle, segmentationProvenance, type MusicalSegmentationStructure } from '../_shared/lyricCueSegmentation.ts'
 import {
   assessVocalReferenceCompatibility,
@@ -1206,6 +1207,21 @@ function wavChunkMetadata(plan: WavChunkPlan, descriptor: WavChunkDescriptor, tr
   }
 }
 
+function languageOption(options: Record<string, unknown>): string | null {
+  return typeof options.language === 'string' ? options.language : null
+}
+
+/** Corrects word timing against where the audio actually has sound (WAV only; other formats are left as the provider gave them). */
+async function refineWithAudio(transcript: ProviderTranscript, blob: Blob, options: Record<string, unknown>): Promise<ProviderTranscript> {
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    if (!isRiffWave(bytes)) return transcript
+    return refineTranscriptTiming(transcript, bytes, languageOption(options))
+  } catch {
+    return transcript
+  }
+}
+
 async function runGroqProvider(
   blob: Blob,
   track: AudioTrackRow,
@@ -1232,7 +1248,7 @@ async function runGroqProvider(
       timeoutMs,
     )
     if (assertCurrent) await assertCurrent()
-    const transcript = providerTranscript(result.payload)
+    const transcript = await refineWithAudio(providerTranscript(result.payload), blob, options)
     const storedDurationMs = track.duration_sec && track.duration_sec > 0
       ? Math.round(track.duration_sec * 1000)
       : 0
@@ -1276,7 +1292,7 @@ async function runGroqProvider(
       timeoutMs,
     )
     if (assertCurrent) await assertCurrent()
-    const transcript = providerTranscript(result.payload)
+    const transcript = refineTranscriptTiming(providerTranscript(result.payload), chunkBytes, languageOption(options))
     chunksCompleted++
     if (onChunkProgress) await onChunkProgress(chunksCompleted, plan.chunks.length)
     return { unit: descriptor.unit, transcript, model: result.model, metadata: wavChunkMetadata(plan, descriptor, transcript, result.model) }
@@ -1339,7 +1355,7 @@ async function runPreparedAudioProvider(
       timeoutMs,
     )
     if (assertCurrent) await assertCurrent()
-    const transcript = providerTranscript(result.payload)
+    const transcript = refineTranscriptTiming(providerTranscript(result.payload), bytes, languageOption(options))
     chunksCompleted += 1
     if (onChunkProgress) await onChunkProgress(chunksCompleted, manifest.chunks.length)
     return {

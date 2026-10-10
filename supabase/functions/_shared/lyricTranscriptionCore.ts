@@ -233,6 +233,36 @@ export function isLikelyHallucinatedSegment(
   return LATIN_SCRIPT_LANGUAGES.has(requested) && nonLatinLetterShare(text) > 0.3
 }
 
+/** Drops hallucinated segments and the words timed inside them (idempotent). */
+export function removeHallucinatedText(
+  transcript: ProviderTranscript,
+  language: string | null | undefined,
+): { transcript: ProviderTranscript; filtered: boolean } {
+  const hallucinatedRanges: Array<{ startSec: number; endSec: number }> = []
+  const providerSegments = Array.isArray(transcript.segments) ? transcript.segments : []
+  const keptProviderSegments = providerSegments.filter(segment => {
+    const hallucinated = isLikelyHallucinatedSegment({ text: cleanText(segment.text) }, language)
+    if (hallucinated && Number.isFinite(segment.start) && Number.isFinite(segment.end)) hallucinatedRanges.push({ startSec: segment.start, endSec: segment.end })
+    return !hallucinated
+  })
+  if (keptProviderSegments.length === providerSegments.length) return { transcript, filtered: false }
+  const insideHallucination = (word: ProviderWord) => {
+    const mid = (Number(word.start) + Number(word.end)) / 2
+    return hallucinatedRanges.some(range => mid >= range.startSec - 0.05 && mid <= range.endSec + 0.05)
+  }
+  return {
+    filtered: true,
+    transcript: {
+      ...transcript,
+      words: Array.isArray(transcript.words) ? transcript.words.filter(word => !insideHallucination(word)) : transcript.words,
+      segments: keptProviderSegments.map(segment => ({
+        ...segment,
+        words: Array.isArray(segment.words) ? segment.words.filter(word => !insideHallucination(word)) : segment.words,
+      })),
+    },
+  }
+}
+
 export function normalizeProviderTranscript(
   transcript: ProviderTranscript,
   unit: TranscriptionUnitPlan,
@@ -241,29 +271,9 @@ export function normalizeProviderTranscript(
 ): NormalizedTranscriptUnit {
   const safeThreshold = clamp01(confidenceThreshold) ?? 0.6
   const warnings: string[] = []
-  // Segments that are hallucinated text over music are dropped together with the words timed inside them.
-  const hallucinatedRanges: Array<{ startSec: number; endSec: number }> = []
-  const keptProviderSegments = (Array.isArray(transcript.segments) ? transcript.segments : []).filter(segment => {
-    const hallucinated = isLikelyHallucinatedSegment(
-      { text: cleanText(segment.text) },
-      options.language,
-    )
-    if (hallucinated && Number.isFinite(segment.start) && Number.isFinite(segment.end)) hallucinatedRanges.push({ startSec: segment.start, endSec: segment.end })
-    return !hallucinated
-  })
-  if (keptProviderSegments.length !== (transcript.segments?.length ?? 0)) warnings.push('hallucination_filtered')
-  const insideHallucination = (word: ProviderWord) => {
-    const mid = (Number(word.start) + Number(word.end)) / 2
-    return hallucinatedRanges.some(range => mid >= range.startSec - 0.05 && mid <= range.endSec + 0.05)
-  }
-  transcript = {
-    ...transcript,
-    words: Array.isArray(transcript.words) ? transcript.words.filter(word => !insideHallucination(word)) : transcript.words,
-    segments: keptProviderSegments.map(segment => ({
-      ...segment,
-      words: Array.isArray(segment.words) ? segment.words.filter(word => !insideHallucination(word)) : segment.words,
-    })),
-  }
+  const cleaned = removeHallucinatedText(transcript, options.language)
+  transcript = cleaned.transcript
+  if (cleaned.filtered) warnings.push('hallucination_filtered')
   const topLevelWords = Array.isArray(transcript.words) ? transcript.words : []
   const segmentWords = Array.isArray(transcript.segments)
     ? transcript.segments.flatMap(segment => Array.isArray(segment.words) ? segment.words : [])
