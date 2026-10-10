@@ -207,9 +207,9 @@ describe('LyricCueTimeline', () => {
       const { timeline } = await renderTimeline({ ...stacked, cues: CUES })
       expect(laneLabels()).toEqual(['Lyrics 1', 'Lyrics 2'])
       expect(timeline.style.height).toBe('72px')
-      // Alternating, non-overlapping cues stay together in the first lane.
+      // Non-overlapping cues still alternate between the two lanes so each has room for its text.
       expect(top('cue-1')).toBe('4px')
-      expect(top('cue-2')).toBe('4px')
+      expect(top('cue-2')).toBe('40px')
     })
 
     it('places an overlapping cue in the second lane without changing any cue timing', async () => {

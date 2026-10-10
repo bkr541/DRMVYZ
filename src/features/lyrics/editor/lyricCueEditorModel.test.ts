@@ -275,6 +275,17 @@ describe('lyric cue timing model', () => {
     ]))
   })
 
+  it('alternates back-to-back cues between lanes when asked, and only opens another lane for a real overlap', () => {
+    const run = [cue('a', 0, 500), cue('b', 500, 1_000), cue('c', 1_000, 1_500), cue('d', 1_500, 2_000)]
+    const lanes = (cues: ReturnType<typeof cue>[]) => assignCueOverlapLanes(cues, { alternateLanes: 2 }).assignments.map(item => item.lane)
+    expect(lanes(run)).toEqual([0, 1, 0, 1])
+    expect(assignCueOverlapLanes(run, { alternateLanes: 2 }).laneCount).toBe(2)
+    // Without the option the same cues all share the first lane.
+    expect(assignCueOverlapLanes(run).assignments.map(item => item.lane)).toEqual([0, 0, 0, 0])
+    // b overlaps a, so it still takes the free lane; c overlaps both and needs a third.
+    expect(lanes([cue('a', 0, 3_000), cue('b', 500, 3_000), cue('c', 1_000, 3_000)])).toEqual([0, 1, 2])
+  })
+
   it('keeps intentional doubles visible without destructive overlap warnings', () => {
     const lead = cue('lead', 0, 2_000)
     const double = { ...cue('double', 500, 1_500), analysisMetadata: { vocalRole: 'double' } }

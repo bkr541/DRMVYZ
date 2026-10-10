@@ -716,9 +716,10 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
-    await act(async () => buttonWithText('Load deck').click())
-    await waitFor(() => expect(buttonWithText('Loading…')).toBeTruthy())
+    // Opening a track in the editor puts it on the deck by itself; track A's signing is still pending.
+    await waitFor(() => expect(mocks.getSignedUrl).toHaveBeenCalledTimes(1))
 
+    // Track B has no lyric editor open, so it is loaded by hand from the Load deck button.
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
     await act(async () => buttonWithText('Load deck').click())
@@ -746,7 +747,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
-    await act(async () => buttonWithText('Load deck').click())
+    await waitFor(() => expect(mocks.getSignedUrl).toHaveBeenCalledTimes(1))
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
 
@@ -765,7 +766,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
-    await act(async () => buttonWithText('Load deck').click())
+    await waitFor(() => expect(mocks.getSignedUrl).toHaveBeenCalledTimes(1))
     await act(async () => root.unmount())
 
     signedUrl.resolve('signed-after-unmount')
@@ -776,7 +777,7 @@ describe('LyricManagerView track-first workflow', () => {
     root = createRoot(container)
   })
 
-  it('uses truthful timestamp and transport semantics while Snap controls the editor state', async () => {
+  it('uses truthful timestamp and transport semantics, with no Snap controls', async () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
@@ -791,15 +792,11 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('[aria-label="Previous unavailable"]')).toBeNull()
     expect(container.querySelector('[aria-label="Next unavailable"]')).toBeNull()
 
-    // One authoritative Snap control (in the timeline toolbar); the old footer chip is gone.
-    expect(container.querySelector('.lmv-transport-bar')).toBeNull()
-    const snapChips = [...container.querySelectorAll<HTMLButtonElement>('button')].filter(button => /Snap:/.test(button.textContent ?? ''))
-    expect(snapChips).toHaveLength(1)
-    expect(snapChips[0].disabled).toBe(false)
-    await act(async () => snapChips[0].click())
-    expect(snapChips[0].getAttribute('aria-pressed')).toBe('true')
-    const resolution = container.querySelector<HTMLElement>('[aria-label="Snap resolution"]')
-    expect(resolution?.textContent).toMatch(/Beat|10 ms grid/)
+    // Snap and Overlays are not offered; Add cue / Undo / Redo are icon-only in their own row.
+    expect(container.textContent).not.toMatch(/Snap|Overlays/)
+    expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
+    const editActions = container.querySelector('[aria-label="Cue editing"]')
+    expect(editActions?.querySelectorAll('button')).toHaveLength(3)
   })
 
   it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {

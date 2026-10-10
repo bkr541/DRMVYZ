@@ -3326,3 +3326,41 @@
 
 .lmv-timeline-toolbar__field--zoom { flex: 1 1 150px; max-width: 240px; }
 .lmv-timeline-toolbar__field--zoom input { width: 100%; }
+
+/* Track Timeline: the reference lanes (ruler, beats, sections, audio) scrub on click/drag, and one playhead
+   crosses every lane, including the lyric lanes. */
+.lmv-track-timeline-lanes--stacked { position: relative; }
+
+.lmv-track-timeline-reference-lanes {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.lmv-track-timeline-playhead-layer {
+  position: absolute;
+  z-index: 9;
+  top: 0;
+  bottom: 0;
+  left: var(--lmv-lane-gutter, 0px);
+  right: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lmv-track-timeline-playhead-layer .lyric-cue-timeline__playhead { left: 0; will-change: transform; }
+
+/* Cue editing: icon-only actions, right-aligned in their own row beneath the heading. */
+.lmv-timeline-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lmv-icon-only-chip { width: 30px; min-width: 30px; padding: 0; justify-content: center; }
+.lmv-icon-only-chip .dv-icon-chip__icon { margin: 0; }
+
+.lmv-timeline-toolbar { padding-top: 12px; }

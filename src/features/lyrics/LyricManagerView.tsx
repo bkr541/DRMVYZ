@@ -53,9 +53,10 @@ import type { ReactTrackSection } from '../../components/vyzualz/react/ReactType
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
 import { useMountTransition } from '../../hooks/useMountTransition'
 import { useLyricCueEditor } from './editor/useLyricCueEditor'
+import { isKeyboardInputTarget } from '../../utils/keyboardTargets'
 import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
 import { handleLyricUndoRedoKey, LyricCuesWindow, LyricCueStackedTimeline } from './components/LyricCuesWindow'
-import { LyricTimelineToolbar } from './components/LyricTimelineToolbar'
+import { LyricTimelineEditActions, LyricTimelineToolbar } from './components/LyricTimelineToolbar'
 import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPanel'
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspector } from './editor/LyricCueInspector'
@@ -1466,6 +1467,7 @@ export function LyricManagerView({
   const handleLoadTrack = useCallback(async (
     requestedTrack: LyricManagerTrack,
     autoplay = false,
+    { silent = false }: { silent?: boolean } = {},
   ) => {
     const { data } = await supabase.auth.getUser()
     const requestedAccountId = data.user?.id ?? null
@@ -1505,7 +1507,7 @@ export function LyricManagerView({
         ...current,
         [requestedTrack.dbId]: { status: 'ready', error: null },
       }))
-      showStatus(autoplay ? 'Track loaded and playback started' : 'Track loaded without starting playback')
+      if (!silent) showStatus(autoplay ? 'Track loaded and playback started' : 'Track loaded without starting playback')
       return true
     } catch (loadError) {
       if (loadError instanceof SavedTrackLoadCancelledError) return false
@@ -1581,6 +1583,35 @@ export function LyricManagerView({
     }
     if (engine.isPlaying) engine.pause()
     else engine.play()
+  }, [engine, selectedTrack, showStatus])
+
+  // Space starts and stops the deck preview from anywhere in Lyric Manager except while typing or when the
+  // focused control already uses Space (buttons, cues, menus). Range sliders are allowed through.
+  const togglePlaybackRef = useRef(handleTogglePlayback)
+  togglePlaybackRef.current = handleTogglePlayback
+  useEffect(() => {
+    const onSpace = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || event.defaultPrevented) return
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+      const root = rootRef.current
+      if (!root || !root.isConnected || root.offsetParent === null) return
+      const target = event.target
+      const isRange = target instanceof HTMLInputElement && target.type === 'range'
+      if (!isRange && isKeyboardInputTarget(target)) return
+      if (target instanceof Element && target.closest('button, a[href], [role="button"], [role="menuitem"], [role="tab"]')) return
+      event.preventDefault()
+      togglePlaybackRef.current()
+    }
+    window.addEventListener('keydown', onSpace)
+    return () => window.removeEventListener('keydown', onSpace)
+  }, [])
+
+  const handleTimelineSeek = useCallback((timeMs: number) => {
+    if (!selectedTrack || engine.currentAudioTrackId !== selectedTrack.dbId) {
+      showStatus('Load the selected track to the deck before seeking.')
+      return
+    }
+    engine.seek(timeMs / 1000)
   }, [engine, selectedTrack, showStatus])
 
   const handleOpenActiveLyrics = useCallback((track: LyricManagerTrack) => {
@@ -1853,6 +1884,31 @@ export function LyricManagerView({
       ? { ...track, analysisPayload: analysis }
       : track))
   }, [engine.currentAnalysis, engine.currentAnalysisStatus, selectedTrack, selectedTrackLoaded])
+
+  // The Track Timeline needs the waveform, beat grid and sections, which exist only once the track is on the deck
+  // and analysed. Do both as soon as a track is opened in the editor, once per track, so nobody has to press
+  // "Load & Analyze Track". A track that is currently playing on the deck is never replaced.
+  const autoPreparedTrackIdRef = useRef<string | null>(null)
+  const selectedTrackDbId = selectedTrack?.dbId ?? null
+  const signedInAccountId = useLyricsStore(state => state.operationAccountId)
+  const hasEditorTarget = Boolean(selectedTrack && (editorDocumentId || editorDocument))
+  useEffect(() => {
+    if (!selectedTrack || !hasEditorTarget || selectedTrackLoaded || !signedInAccountId) return
+    if (autoPreparedTrackIdRef.current === selectedTrack.dbId) return
+    if (engineRef.current.isPlaying) return
+    autoPreparedTrackIdRef.current = selectedTrack.dbId
+    void handleLoadTrack(selectedTrack, false, { silent: true })
+  }, [handleLoadTrack, hasEditorTarget, selectedTrack, selectedTrackLoaded, signedInAccountId])
+  const autoAnalyzedTrackIdRef = useRef<string | null>(null)
+  const loadedAnalysisStatus = engine.currentAnalysisStatus
+  useEffect(() => {
+    if (!selectedTrackDbId || !selectedTrackLoaded || !runtimeTrackId) return
+    if (autoAnalyzedTrackIdRef.current === selectedTrackDbId) return
+    if (loadedAnalysisStatus !== 'not_analyzed') return
+    if (savedAnalysis) return
+    autoAnalyzedTrackIdRef.current = selectedTrackDbId
+    engineRef.current.retryAnalysis(runtimeTrackId)
+  }, [loadedAnalysisStatus, runtimeTrackId, savedAnalysis, selectedTrackDbId, selectedTrackLoaded])
 
   const hasMore = tracks.length < trackTotal
 
@@ -2186,6 +2242,9 @@ export function LyricManagerView({
                 onAnalyzeTrack={handleAnalyzeSelectedTrack}
                 analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
                 onKeyDown={event => handleLyricUndoRedoKey(event, cueEditor)}
+                onSeek={handleTimelineSeek}
+                onZoomChange={cueEditor.setWaveformZoom}
+                actions={<LyricTimelineEditActions editor={cueEditor} />}
                 toolbar={
                   <LyricTimelineToolbar
                     editor={cueEditor}
@@ -2203,13 +2262,7 @@ export function LyricManagerView({
                     editor={cueEditor}
                     durationMs={editorDurationMs}
                     currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-                    onSeek={(timeMs) => {
-                      if (!selectedTrackLoaded) {
-                        showStatus('Load the selected track to the deck before seeking.')
-                        return
-                      }
-                      engine.seek(timeMs / 1000)
-                    }}
+                    onSeek={handleTimelineSeek}
                   />
                 }
               />

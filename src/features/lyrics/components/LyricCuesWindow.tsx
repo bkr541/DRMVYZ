@@ -49,6 +49,7 @@ export function LyricCueStackedTimeline({ editor, durationMs, currentTimeMs, onS
       showWaveform={false}
       showOverlays={false}
       showWordLane={false}
+      showPlayhead={false}
       stackedLanes
       inactiveCueIds={editor.inactiveCueIds}
       onSelectCue={editor.selectCue}

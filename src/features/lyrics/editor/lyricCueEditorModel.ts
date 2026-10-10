@@ -509,18 +509,39 @@ export interface CueLaneLayout {
  * Greedy interval partitioning yields the minimum lane count for interval cues.
  * Stable sort keys make the layout deterministic across renders and saves.
  */
-export function assignCueOverlapLanes(cues: readonly LyricCue[]): CueLaneLayout {
+export function assignCueOverlapLanes(
+  cues: readonly LyricCue[],
+  options: { alternateLanes?: number } = {},
+): CueLaneLayout {
   const ordered = sortLyricCues(cues)
   const laneEndMs: number[] = []
   const assignments: CueLaneAssignment[] = []
+  // With `alternateLanes` (>= 2), consecutive cues step through that many lanes in turn, so a run of
+  // back-to-back cues spreads over the rows (each gets room for its text) instead of queuing in lane 0.
+  // A cue whose preferred lane is still busy takes the next free lane, or opens a new one.
+  const alternate = Math.max(1, Math.floor(options.alternateLanes ?? 1))
+  let previousLane = -1
   for (const cue of ordered) {
-    let lane = laneEndMs.findIndex(endMs => endMs <= cue.startMs)
+    let lane = -1
+    if (alternate > 1) {
+      const preferred = (previousLane + 1) % alternate
+      const free = (candidate: number) => candidate >= laneEndMs.length || laneEndMs[candidate]! <= cue.startMs
+      lane = free(preferred) ? preferred : laneEndMs.findIndex(endMs => endMs <= cue.startMs)
+      if (lane < 0) lane = laneEndMs.length
+      while (laneEndMs.length < lane) laneEndMs.push(0)
+      laneEndMs[lane] = cue.endMs
+      previousLane = lane
+      assignments.push({ cueId: cue.id, lane })
+      continue
+    }
+    lane = laneEndMs.findIndex(endMs => endMs <= cue.startMs)
     if (lane < 0) {
       lane = laneEndMs.length
       laneEndMs.push(cue.endMs)
     } else {
       laneEndMs[lane] = cue.endMs
     }
+    previousLane = lane
     assignments.push({ cueId: cue.id, lane })
   }
   return { assignments, laneCount: laneEndMs.length }

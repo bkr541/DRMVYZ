@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricCue } from '../../../types/lyrics'
 import type { LyricSnapMode } from '../editor/lyricCueEditorModel'
 import { LyricCuesWindow } from './LyricCuesWindow'
-import { LyricTimelineToolbar } from './LyricTimelineToolbar'
+import { LyricTimelineEditActions, LyricTimelineToolbar } from './LyricTimelineToolbar'
 
 type Toolbar = React.ComponentProps<typeof LyricTimelineToolbar>
 type Editor = Toolbar['editor']
@@ -42,20 +42,22 @@ function fakeEditor(snapMode: LyricSnapMode, setSnapMode: (mode: LyricSnapMode) 
   } as unknown as Editor
 }
 
-/** The real owner (LyricManagerView) keeps snap mode in state; mirror that so toggling round-trips. */
 function Harness({ playing = false, loaded = true }: { playing?: boolean; loaded?: boolean }) {
-  const [snapMode, setSnapMode] = useState<LyricSnapMode>('none')
+  const editor = fakeEditor('none', mode => { spies.snapChanges.push(mode) })
   return (
-    <LyricTimelineToolbar
-      editor={fakeEditor(snapMode, mode => { spies.snapChanges.push(mode); setSnapMode(mode) })}
-      selectedTrackLoaded={loaded}
-      selectedTrackPlaying={playing}
-      currentTimeMs={6_000}
-      durationMs={193_000}
-      volume={0.8}
-      onTogglePlayback={spies.onTogglePlayback}
-      onVolumeChange={spies.onVolumeChange}
-    />
+    <>
+      <LyricTimelineEditActions editor={editor} />
+      <LyricTimelineToolbar
+        editor={editor}
+        selectedTrackLoaded={loaded}
+        selectedTrackPlaying={playing}
+        currentTimeMs={6_000}
+        durationMs={193_000}
+        volume={0.8}
+        onTogglePlayback={spies.onTogglePlayback}
+        onVolumeChange={spies.onVolumeChange}
+      />
+    </>
   )
 }
 
@@ -80,57 +82,32 @@ const button = (label: string | RegExp) =>
     typeof label === 'string' ? item.textContent?.trim() === label || item.getAttribute('aria-label') === label : label.test(item.textContent ?? ''))!
 
 describe('LyricTimelineToolbar', () => {
-  it('keeps transport, time, add/undo/redo, snap, zoom and volume in one toolbar', async () => {
+  it('keeps transport, time, zoom and volume (in that order) in the toolbar, with no snap or overlay controls', async () => {
     await act(async () => root.render(<Harness />))
 
-    const toolbar = container.querySelector('[role="toolbar"]')!
-    expect(toolbar.getAttribute('aria-label')).toBe('Timeline controls')
+    const toolbar = container.querySelector('[aria-label="Timeline controls"]')!
     expect(toolbar.querySelector('[aria-label="Play lyric preview"]')).not.toBeNull()
     expect(toolbar.querySelector('[aria-label="Playback position"]')?.textContent).toContain('3:13')
-    expect(button('+ Add cue')).toBeTruthy()
-    expect(toolbar.querySelector('[aria-label="Undo lyric edit"]')).not.toBeNull()
-    expect(toolbar.querySelector('[aria-label="Redo lyric edit"]')).not.toBeNull()
-    expect(toolbar.querySelector('[aria-label="Shared waveform zoom"]')).not.toBeNull()
-    expect(toolbar.querySelector('[aria-label="Preview volume"]')).not.toBeNull()
+    const zoom = toolbar.querySelector('[aria-label="Shared waveform zoom"]')!
+    const volume = toolbar.querySelector('[aria-label="Preview volume"]')!
+    expect(zoom.compareDocumentPosition(volume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.textContent).not.toMatch(/Snap|Overlays/)
+    expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
   })
 
-  it('wires play/pause, add cue, undo and redo to the owner handlers', async () => {
+  it('offers icon-only Add cue, Undo and Redo in their own row, wired to the owner handlers', async () => {
     await act(async () => root.render(<Harness playing />))
 
+    const actions = container.querySelector('[aria-label="Cue editing"]')!
+    expect(actions.closest('[aria-label="Timeline controls"]')).toBeNull()
+    for (const item of actions.querySelectorAll('button')) expect(item.textContent?.trim()).toBe('')
     await act(async () => button('Pause lyric preview').click())
-    await act(async () => button('+ Add cue').click())
+    await act(async () => button('Add cue').click())
     await act(async () => button('Undo lyric edit').click())
     expect(spies.onTogglePlayback).toHaveBeenCalledOnce()
     expect(spies.addAtPlayhead).toHaveBeenCalledOnce()
     expect(spies.undoCueEdit).toHaveBeenCalledOnce()
     expect(button('Redo lyric edit').disabled).toBe(true)
-  })
-
-  it('has a single Snap control: the toggle and the resolution picker drive the same state', async () => {
-    await act(async () => root.render(<Harness />))
-
-    const snapChips = [...container.querySelectorAll('button')].filter(item => /Snap:/.test(item.textContent ?? ''))
-    expect(snapChips).toHaveLength(1)
-    expect(snapChips[0].getAttribute('aria-pressed')).toBe('false')
-
-    // Off -> On restores a usable resolution (beat, because a beat grid exists).
-    await act(async () => snapChips[0].click())
-    expect(spies.snapChanges).toEqual(['beat'])
-    expect(snapChips[0].getAttribute('aria-pressed')).toBe('true')
-    expect(snapChips[0].textContent).toContain('On')
-
-    // Choosing a different resolution changes the same mode.
-    const resolution = container.querySelector<HTMLElement>('[aria-label="Snap resolution"]')!
-    await act(async () => resolution.click())
-    const half = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(option => option.textContent === 'Half beat')!
-    await act(async () => half.click())
-    expect(spies.snapChanges[spies.snapChanges.length - 1]).toBe('half-beat')
-
-    // On -> Off -> On returns to the resolution last used, not the default.
-    await act(async () => snapChips[0].click())
-    expect(spies.snapChanges[spies.snapChanges.length - 1]).toBe('none')
-    await act(async () => snapChips[0].click())
-    expect(spies.snapChanges[spies.snapChanges.length - 1]).toBe('half-beat')
   })
 
   it('disables playback until the selected track is loaded', async () => {

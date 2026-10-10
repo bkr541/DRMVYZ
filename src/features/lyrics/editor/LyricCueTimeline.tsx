@@ -246,7 +246,10 @@ export function LyricCueTimeline({
       new Map(cues.map((cue) => [cue.id, getCueIssues(cue, cues, durationMs)])),
     [cues, durationMs],
   );
-  const laneLayout = useMemo(() => assignCueOverlapLanes(cues), [cues]);
+  const laneLayout = useMemo(
+    () => assignCueOverlapLanes(cues, stackedLanes ? { alternateLanes: 2 } : {}),
+    [cues, stackedLanes],
+  );
   const laneByCue = useMemo(
     () =>
       new Map(laneLayout.assignments.map((item) => [item.cueId, item.lane])),
