@@ -18,11 +18,12 @@ import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
-import { RekordboxBadgeStyleGallery } from './layoutLab/RekordboxBadgeStyleGallery'
+import { AudioSourceIndicatorStyleGallery } from './layoutLab/AudioSourceIndicatorStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
 import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
 import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
+import { LyricManagerToolbarStyleGallery } from './layoutLab/LyricManagerToolbarStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { CanvasMockup } from './layoutLab/CanvasMockup'
 import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
@@ -294,6 +295,8 @@ export function LayoutLabMockup() {
                 </div>
                 <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Track Map · marker rows</div>
                 <TrackMapMarkerStyleGallery />
+                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Lyric Manager · timeline controls</div>
+                <LyricManagerToolbarStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (
@@ -392,7 +395,7 @@ export function LayoutLabMockup() {
                 )}
                 {templateRightTab === 'design' && (
                   <div className="rv-inspector rv-inspector-scroll">
-                    <RekordboxBadgeStyleGallery />
+                    <AudioSourceIndicatorStyleGallery />
                   </div>
                 )}
                 {/* Output is intentionally blank in the Template engine. */}

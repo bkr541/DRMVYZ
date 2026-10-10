@@ -16,6 +16,14 @@ const spies = {
   addAtPlayhead: vi.fn(),
   undoCueEdit: vi.fn(),
   redoCueEdit: vi.fn(),
+  setStartToPlayhead: vi.fn(),
+  setEndToPlayhead: vi.fn(),
+  moveToPlayhead: vi.fn(),
+  duplicate: vi.fn(),
+  split: vi.fn(),
+  mergePrevious: vi.fn(),
+  mergeNext: vi.fn(),
+  delete: vi.fn(),
   setWaveformZoom: vi.fn(),
   setOverlayVisibility: vi.fn(),
   onTogglePlayback: vi.fn(),
@@ -30,6 +38,24 @@ function fakeEditor(snapMode: LyricSnapMode, setSnapMode: (mode: LyricSnapMode) 
     undoCueEdit: spies.undoCueEdit,
     redoCueEdit: spies.redoCueEdit,
     addAtPlayhead: spies.addAtPlayhead,
+    selectedCue: { id: 'cue-a', startMs: 1_000, endMs: 4_000, text: 'First line' },
+    canonicalPlayheadMs: 2_000,
+    selectedIndex: 0,
+    orderedCues: [
+      { id: 'cue-a', startMs: 1_000, endMs: 4_000, text: 'First line' },
+      { id: 'cue-b', startMs: 5_000, endMs: 7_000, text: 'Second line' },
+    ],
+    actions: {
+      setStartToPlayhead: spies.setStartToPlayhead,
+      setEndToPlayhead: spies.setEndToPlayhead,
+      moveToPlayhead: spies.moveToPlayhead,
+      addAtPlayhead: spies.addAtPlayhead,
+      duplicate: spies.duplicate,
+      split: spies.split,
+      mergePrevious: spies.mergePrevious,
+      mergeNext: spies.mergeNext,
+      delete: spies.delete,
+    },
     snapMode,
     setSnapMode,
     beatGridMs: [0, 500, 1_000],
@@ -95,19 +121,30 @@ describe('LyricTimelineToolbar', () => {
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
   })
 
-  it('offers icon-only Add cue, Undo and Redo in their own row, wired to the owner handlers', async () => {
+  it('offers every cue action in one icon-only row with tooltip text, wired to the owner handlers', async () => {
     await act(async () => root.render(<Harness playing />))
 
     const actions = container.querySelector('[aria-label="Cue editing"]')!
     expect(actions.closest('[aria-label="Timeline controls"]')).toBeNull()
-    for (const item of actions.querySelectorAll('button')) expect(item.textContent?.trim()).toBe('')
+    expect(actions.querySelectorAll('button')).toHaveLength(11)
+    for (const item of actions.querySelectorAll('button')) {
+      expect(item.textContent?.trim()).toBe('')
+      expect(item.getAttribute('title')).not.toBe('')
+      expect(item.classList.contains('lmv-icon-only-chip')).toBe(true)
+    }
     await act(async () => button('Pause lyric preview').click())
     await act(async () => button('Add cue').click())
     await act(async () => button('Undo lyric edit').click())
+    await act(async () => button('Set start to playhead').click())
+    await act(async () => button('Duplicate cue').click())
     expect(spies.onTogglePlayback).toHaveBeenCalledOnce()
     expect(spies.addAtPlayhead).toHaveBeenCalledOnce()
     expect(spies.undoCueEdit).toHaveBeenCalledOnce()
+    expect(spies.setStartToPlayhead).toHaveBeenCalledOnce()
+    expect(spies.duplicate).toHaveBeenCalledOnce()
     expect(button('Redo lyric edit').disabled).toBe(true)
+    expect(button('Merge previous cue').disabled).toBe(true)
+    expect(button('Merge next cue').disabled).toBe(false)
   })
 
   it('disables playback until the selected track is loaded', async () => {
@@ -138,9 +175,7 @@ describe('LyricCuesWindow cue list', () => {
       redoCueEdit: vi.fn(),
     } as unknown as React.ComponentProps<typeof LyricCuesWindow>['editor']
     await act(async () => root.render(<LyricCuesWindow editor={editor} />))
-    // The list is collapsed by default.
-    const toggle = [...container.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.includes('Cue list'))!
-    await act(async () => toggle.click())
+    expect(container.querySelector<HTMLButtonElement>('.drc-header')?.getAttribute('aria-expanded')).toBe('true')
     return selectCue
   }
 

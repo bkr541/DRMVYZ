@@ -2312,12 +2312,8 @@ export function LyricManagerView({
               <LyricCueInspector
                 cue={cueEditor.selectedCue}
                 cues={cueEditor.cues}
-                currentTimeMs={cueEditor.canonicalPlayheadMs}
                 durationMs={editorDurationMs}
                 sections={sectionOptions}
-                actions={cueEditor.actions}
-                canMergePrevious={cueEditor.selectedIndex > 0}
-                canMergeNext={cueEditor.selectedIndex >= 0 && cueEditor.selectedIndex < cueEditor.orderedCues.length - 1}
                 onUpdateCue={cueEditor.commitCuePatch}
                 onUpdateWord={cueEditor.updateCueWord}
                 focusWordId={navigationTarget?.cueId === cueEditor.selectedCue.id ? navigationTarget.wordId : null}

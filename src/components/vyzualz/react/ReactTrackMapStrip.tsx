@@ -618,6 +618,21 @@ const CUE_ROWS: ReadonlyArray<{ id: TimelineCueRowId; label: string; kinds: read
   { id: 'actions', label: 'Actions', kinds: ['preset', 'pixgrid'] },
 ]
 
+const POPULATED_CUE_ROW_HEIGHT = 46
+const EMPTY_CUE_ROW_HEIGHT = 26
+
+export function buildTimelineCueRowLayout(cueKinds: readonly TimelineCueItem['kind'][]) {
+  return CUE_ROWS.map(row => {
+    const empty = !cueKinds.some(kind => row.kinds.includes(kind))
+    return {
+      ...row,
+      empty,
+      emptyLabel: `No ${row.label} Found`,
+      heightPx: empty ? EMPTY_CUE_ROW_HEIGHT : POPULATED_CUE_ROW_HEIGHT,
+    }
+  })
+}
+
 type TrackMapLaneIconKind = 'beats' | 'sections' | 'energy' | 'ruler'
 
 function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: string }) {
@@ -648,29 +663,40 @@ function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: 
   )
 }
 
-function TrackMapCueLaneIcons() {
+function TrackMapCueLaneIcons({ rowHeights }: { rowHeights: readonly number[] }) {
+  const rowGrid = rowHeights.map(height => `${height}px`).join(' ')
+  const rowStyle = (index: number) => ({
+    height: `${rowHeights[index] ?? POPULATED_CUE_ROW_HEIGHT}px`,
+    minHeight: `${rowHeights[index] ?? POPULATED_CUE_ROW_HEIGHT}px`,
+  })
+
   return (
-    <span className="rv-timeline-lane-icon rv-timeline-lane-icon--cue-rows" role="group" aria-label="Track markers">
-      <span role="img" aria-label="Cues" title="Cues">
+    <span
+      className="rv-timeline-lane-icon rv-timeline-lane-icon--cue-rows"
+      role="group"
+      aria-label="Track markers"
+      style={{ gridTemplateRows: rowGrid }}
+    >
+      <span role="img" aria-label="Cues" title="Cues" data-cue-label-row="cues" style={rowStyle(0)}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M8 14s4-3.5 4-7.5a4 4 0 1 0-8 0C4 10.5 8 14 8 14Z" />
           <circle cx="8" cy="6.5" r="1.25" />
         </svg>
         <span>Cues</span>
       </span>
-      <span role="img" aria-label="Phrases" title="Phrases">
+      <span role="img" aria-label="Phrases" title="Phrases" data-cue-label-row="phrases" style={rowStyle(1)}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="M3 4.5h10M5 8h8M3 11.5h10" />
         </svg>
         <span>Phrases</span>
       </span>
-      <span role="img" aria-label="Moments" title="Moments">
+      <span role="img" aria-label="Moments" title="Moments" data-cue-label-row="moments" style={rowStyle(2)}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m8 2 1.25 3.75L13 7l-3.75 1.25L8 12 6.75 8.25 3 7l3.75-1.25L8 2Z" />
         </svg>
         <span>Moments</span>
       </span>
-      <span role="img" aria-label="Actions" title="Actions">
+      <span role="img" aria-label="Actions" title="Actions" data-cue-label-row="actions" style={rowStyle(3)}>
         <svg viewBox="0 0 16 16" aria-hidden="true">
           <path d="m9 1.5-5 8h4l-1 5 5-8H8l1-5Z" />
         </svg>
@@ -1851,6 +1877,18 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
         title: `${moment.label ?? moment.type.replace(/_/g, ' ')} · ${Math.round(moment.confidence * 100)}% confidence${moment.supportingSignals?.length ? ` · ${moment.supportingSignals.slice(0, 3).join(', ')}` : ''}`,
       })),
   ].filter(cue => Number.isFinite(cue.timeSec)), [activeCueMarkers, currentAnalysis?.phrases, currentAnalysis?.semanticMoments, reactPresets, trackCues, trackPixGridCues])
+  const timelineCueRows = useMemo(() => {
+    const rowLayout = buildTimelineCueRowLayout(timelineCueItems.map(cue => cue.kind))
+    return rowLayout.map(row => ({
+      ...row,
+      items: timelineCueItems
+        .filter(cue => row.kinds.includes(cue.kind))
+        .slice()
+        .sort((a, b) => a.timeSec - b.timeSec),
+    }))
+  }, [timelineCueItems])
+  const cueLaneHeight = timelineCueRows.reduce((height, row) => height + row.heightPx, 0)
+  const timelineLanesHeight = 26 + 36 + cueLaneHeight + 24
 
   // Derived
   const hasTrack    = currentTrack != null
@@ -2608,6 +2646,11 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                 <div
                   className={`rv-timeline-lanes${laneIconsExpanded ? ' rv-timeline-lanes--icons-expanded' : ''}`}
                   aria-label="Expandable Track Map timeline lanes"
+                  style={{
+                    '--rv-cue-row-grid': timelineCueRows.map(row => `${row.heightPx}px`).join(' '),
+                    '--rv-cue-lane-height': `${cueLaneHeight}px`,
+                    '--rv-timeline-lanes-height': `${timelineLanesHeight}px`,
+                  } as React.CSSProperties}
                 >
                   <div
                     className="rv-timeline-lane rv-timeline-lane--beats"
@@ -2675,7 +2718,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                     role="group"
                     aria-label="Cues and Presets"
                   >
-                    <TrackMapCueLaneIcons />
+                    <TrackMapCueLaneIcons rowHeights={timelineCueRows.map(row => row.heightPx)} />
                     <div
                       ref={cueTimelineRef}
                       className="rv-timeline-lane-content rv-timeline-cue-lane"
@@ -2693,22 +2736,20 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                       }}
                       title="Right-click empty space to add a PixGrid action cue"
                     >
-                      {CUE_ROWS.map(row => {
-                        const rowCueItems = timelineCueItems
-                          .filter(cue => row.kinds.includes(cue.kind))
-                          .slice()
-                          .sort((a, b) => a.timeSec - b.timeSec)
-
-                        return (
-                          <div key={row.id} className={`rv-timeline-cue-row rv-timeline-cue-row--${row.id}`} data-cue-row={row.id}>
-                            {rowCueItems.map((cue, index) => {
-                              const nextSameLevelCue = rowCueItems[index + 2] ?? null
-                              const layout = computeStaggeredTimelineCueLayout(
-                                cue.timeSec,
-                                nextSameLevelCue?.timeSec ?? null,
-                                viewportRef.current,
-                              )
-                              return (
+                      {timelineCueRows.map(row => (
+                        <div
+                          key={row.id}
+                          className={`rv-timeline-cue-row rv-timeline-cue-row--${row.id}${row.empty ? ' rv-timeline-cue-row--empty' : ''}`}
+                          data-cue-row={row.id}
+                        >
+                          {row.items.map((cue, index) => {
+                            const nextSameLevelCue = row.items[index + 2] ?? null
+                            const layout = computeStaggeredTimelineCueLayout(
+                              cue.timeSec,
+                              nextSameLevelCue?.timeSec ?? null,
+                              viewportRef.current,
+                            )
+                            return (
                                 <button
                                   key={cue.id}
                                   type="button"
@@ -2753,15 +2794,13 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                                   <span className="rv-timeline-cue-diamond" aria-hidden="true" />
                                   <span className="rv-timeline-cue-label">{cue.label}</span>
                                 </button>
-                              )
-                      
-                            })}
-                          </div>
-                        )
-                      })}
-                      {timelineCueItems.length === 0 && (
-                        <span className="rv-timeline-lane-empty">No cue or preset markers</span>
-                      )}
+                            )
+                          })}
+                          {row.empty && (
+                            <span className="rv-timeline-cue-row-empty">{row.emptyLabel}</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
 

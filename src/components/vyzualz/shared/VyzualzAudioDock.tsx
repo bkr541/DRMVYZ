@@ -257,17 +257,57 @@ export function VyzualzAudioDock({
 
   const track    = engine.currentTrack
   const hasTrack = engine.tracks.length > 0
-  const hasRekordboxData = Boolean(
-    track?.isRekordbox
-    || track?.externalMetadata?.source.startsWith('rekordbox')
-    || track?.importedAnalysisSeed,
-  )
   const hasRekordboxCues = (track?.importedCueMarkers?.length ?? 0) > 0
   const hasRekordboxSections = Boolean(
     (track?.importedRekordboxPhrases?.length ?? 0) > 0
     || (track?.importedAnalysisSeed?.rekordboxPhrases?.length ?? 0) > 0
     || (engine.currentAnalysis?.rekordboxSourceData?.phrases.length ?? 0) > 0,
   )
+  const hasRekordboxMetadata = Boolean(track?.externalMetadata && [
+    track.externalMetadata.sourceTrackId,
+    track.externalMetadata.title,
+    track.externalMetadata.artist,
+    track.externalMetadata.album,
+    track.externalMetadata.genre,
+    track.externalMetadata.label,
+    track.externalMetadata.bpm,
+    track.externalMetadata.musicalKey,
+    track.externalMetadata.durationSec,
+  ].some(value => value != null && value !== ''))
+  const rekordboxSeed = track?.importedAnalysisSeed
+  const hasRekordboxAnalysisData = Boolean(
+    rekordboxSeed && (
+      rekordboxSeed.bpm != null
+      || rekordboxSeed.key != null
+      || (rekordboxSeed.beatGrid?.length ?? 0) > 0
+      || (rekordboxSeed.downbeats?.length ?? 0) > 0
+      || Object.values(rekordboxSeed.featureAvailability ?? {}).some(Boolean)
+    ),
+  )
+  const hasRekordboxData = hasRekordboxCues
+    || hasRekordboxSections
+    || hasRekordboxMetadata
+    || hasRekordboxAnalysisData
+  const sourceIndicator = liveInputSelected
+    ? { kind: 'live', name: 'Live Input', tag: 'ACTIVE', description: 'Live Input active' }
+    : hasRekordboxData
+      ? {
+          kind: 'rekordbox',
+          name: 'Rekordbox',
+          tag: hasRekordboxCues && hasRekordboxSections
+            ? 'CUES · SECTIONS'
+            : hasRekordboxCues
+              ? 'CUES'
+              : hasRekordboxSections
+                ? 'SECTIONS'
+                : 'DATA',
+          description: `Rekordbox data loaded${hasRekordboxCues ? ', cues' : ''}${hasRekordboxSections ? ', sections' : ''}`,
+        }
+      : track
+        ? { kind: 'file', name: 'Audio Track', tag: 'FILE', description: 'Audio track loaded without Rekordbox data' }
+        : engine.source === 'demo'
+          ? { kind: 'demo', name: 'Demo Audio', tag: 'DEMO', description: 'Demo audio source active' }
+          : { kind: 'none', name: 'No Source', tag: 'OFFLINE', description: 'No audio source loaded' }
   const transportReady = isShowManagerTransportReady(engine.currentAudioTrackId)
 
   useEffect(() => {
@@ -915,22 +955,18 @@ export function VyzualzAudioDock({
             </span>
           )}
 
-          {hasRekordboxData && (
-            <span
-              className="vz-dock-rekordbox-badge"
-              title="Rekordbox data loaded"
-              aria-label={`Rekordbox data loaded${hasRekordboxCues ? ', cues' : ''}${hasRekordboxSections ? ', sections' : ''}`}
-            >
-              <i className="vz-dock-rekordbox-badge-dot" aria-hidden="true" />
-              <img src={rekordboxLogoUrl} alt="" aria-hidden="true" />
-              {(hasRekordboxCues || hasRekordboxSections) && (
-                <span className="vz-dock-rekordbox-features" aria-hidden="true">
-                  {hasRekordboxCues && <span>Cues</span>}
-                  {hasRekordboxSections && <span>Sections</span>}
-                </span>
-              )}
-            </span>
-          )}
+          <span
+            className={`vz-dock-source-inline vz-dock-source-inline--${sourceIndicator.kind}`}
+            title={sourceIndicator.description}
+            aria-label={sourceIndicator.description}
+            data-audio-source-kind={sourceIndicator.kind}
+          >
+            <i className="vz-dock-source-inline-dot" aria-hidden="true" />
+            {sourceIndicator.kind === 'rekordbox'
+              ? <img src={rekordboxLogoUrl} alt="" aria-hidden="true" />
+              : <strong className="vz-dock-source-inline-name">{sourceIndicator.name}</strong>}
+            <span className="vz-dock-source-inline-tag" aria-hidden="true">{sourceIndicator.tag}</span>
+          </span>
         </div>
 
         {/* ── Stale-analysis banner ─────────────────────────────────── */}

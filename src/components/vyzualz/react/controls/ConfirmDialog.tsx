@@ -23,13 +23,18 @@ export interface ConfirmDialogProps {
   /** Optional extra content (e.g. a text field) between the message and the notice. */
   children?: ReactNode
   /** A third action between Cancel and the confirm button (e.g. "Discard Changes"). */
-  secondary?: { label: string; onClick: () => void; danger?: boolean }
+  secondary?: { label: string; onClick: () => void; danger?: boolean; pressed?: boolean }
   /** 'primary' fills the confirm button with the accent tone instead of using danger red. */
   confirmTone?: 'primary' | 'default'
   /** Disables just the confirm button, e.g. while a form field is invalid. */
   confirmDisabled?: boolean
   /** Keeps Cancel usable while `busy` (the work continues in the background). */
   allowCancelWhileBusy?: boolean
+  /** Prevents backdrop clicks and Escape from invoking `onCancel`. Useful when
+   * the first action is consequential rather than a safe dismissal. */
+  dismissible?: boolean
+  /** Applies the canonical destructive treatment to the first action. */
+  cancelDanger?: boolean
   /** 'neutral' swaps the red icon badge for the accent tone on non-destructive dialogs. */
   iconTone?: 'danger' | 'neutral'
   onCancel: () => void
@@ -71,6 +76,8 @@ export function ConfirmDialog({
   confirmTone = 'default',
   confirmDisabled = false,
   allowCancelWhileBusy = false,
+  dismissible = true,
+  cancelDanger = false,
   iconTone = 'danger',
   onCancel,
   onConfirm,
@@ -81,7 +88,7 @@ export function ConfirmDialog({
       className="dv-confirm-backdrop"
       role="presentation"
       onMouseDown={event => {
-        if (event.target === event.currentTarget && (!busy || allowCancelWhileBusy)) onCancel()
+        if (dismissible && event.target === event.currentTarget && (!busy || allowCancelWhileBusy)) onCancel()
       }}
     >
       <div
@@ -90,7 +97,7 @@ export function ConfirmDialog({
         aria-modal="true"
         aria-labelledby={headingId}
         onKeyDown={event => {
-          if (event.key === 'Escape' && (!busy || allowCancelWhileBusy)) onCancel()
+          if (dismissible && event.key === 'Escape' && (!busy || allowCancelWhileBusy)) onCancel()
         }}
       >
         <span className={`dv-confirm-icon${iconTone === 'neutral' ? ' dv-confirm-icon--neutral' : ''}`} aria-hidden="true"><ConfirmDialogIcon /></span>
@@ -103,13 +110,14 @@ export function ConfirmDialog({
           </NoticeCard>
         )}
         <div className="dv-confirm-actions">
-          <IconChipButton type="button" onClick={onCancel} disabled={busy && !allowCancelWhileBusy}>{cancelLabel}</IconChipButton>
+          <IconChipButton type="button" className={cancelDanger ? 'dv-icon-chip--danger' : undefined} onClick={onCancel} disabled={busy && !allowCancelWhileBusy}>{cancelLabel}</IconChipButton>
           {secondary && (
             <IconChipButton
               type="button"
               className={secondary.danger ? 'dv-icon-chip--danger' : undefined}
               onClick={secondary.onClick}
               disabled={busy}
+              aria-pressed={secondary.pressed}
             >
               {secondary.label}
             </IconChipButton>

@@ -762,10 +762,6 @@
 .lmv-inspector-pane > .lyric-cue-inspector { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .lyric-cue-inspector__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .lyric-cue-inspector__wide { grid-column: 1 / -1; }
-.lyric-cue-inspector__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-.lyric-cue-inspector__actions > * { min-width: 0; justify-content: center; }
-.lyric-cue-inspector__delete { grid-column: 1 / -1; }
-
 .lyric-word-editor { display: grid; gap: 8px; }
 .lyric-word-editor__rows { display: grid; gap: 5px; max-height: 220px; overflow: auto; }
 .lyric-word-editor__row { display: grid; grid-template-columns: 24px minmax(90px, 1fr) 78px 78px 45px 24px; align-items: center; gap: 4px; padding: 4px; border-radius: 4px; background: rgba(255,255,255,0.025); }
@@ -1750,7 +1746,9 @@
 
 /* Lyric draft recovery and truthful transport semantics ---------------------- */
 .lmv-recovery-review {
-  margin: 0 0 18px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 2px 0;
   padding: 10px 12px;
   border: 1px solid rgba(216,185,90,0.2);
   border-radius: 6px;
@@ -1758,6 +1756,7 @@
   color: rgba(232,244,248,0.78);
   font-size: 10px;
   line-height: 1.5;
+  text-align: left;
 }
 
 .lmv-recovery-review strong {
@@ -2730,6 +2729,10 @@
   border-bottom: 1px solid rgba(126,218,232,0.1);
 }
 
+.lmv-track-timeline-window {
+  border-bottom: 0;
+}
+
 .lmv-track-timeline-hint {
   margin: 8px 0 0;
   display: flex;
@@ -3356,15 +3359,24 @@
 }
 .lmv-track-timeline-playhead-layer .lyric-cue-timeline__playhead { left: 0; will-change: transform; }
 
-/* Cue editing: icon-only actions, right-aligned in their own row beneath the heading. */
+/* Cue editing: one icon-only row beneath the heading. */
 .lmv-timeline-edit-actions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
   margin-top: 10px;
+  overflow-x: auto;
 }
-.lmv-icon-only-chip { width: 30px; min-width: 30px; padding: 0; justify-content: center; }
+.lmv-icon-only-chip {
+  box-sizing: border-box;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  justify-content: center;
+}
 .lmv-icon-only-chip .dv-icon-chip__icon { margin: 0; }
 
 .lmv-timeline-toolbar { padding-top: 12px; }

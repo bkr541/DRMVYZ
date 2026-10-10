@@ -47,12 +47,8 @@ export interface LyricCueActionHandlers {
 interface Props {
   cue: LyricCue
   cues: LyricCue[]
-  currentTimeMs: number | null
   durationMs: number
   sections?: LyricSectionOption[]
-  actions: LyricCueActionHandlers
-  canMergePrevious: boolean
-  canMergeNext: boolean
   onUpdateCue: (cueId: string, patch: Partial<Omit<LyricCue, 'id'>>) => void
   onUpdateWord: (cueId: string, wordId: string, patch: Partial<Omit<LyricWord, 'id'>>) => void
   focusWordId?: string | null
@@ -228,12 +224,8 @@ function WordTimingEditor({
 export function LyricCueInspector({
   cue,
   cues,
-  currentTimeMs,
   durationMs,
   sections = [],
-  actions,
-  canMergePrevious,
-  canMergeNext,
   onUpdateCue,
   onUpdateWord,
   focusWordId = null,
@@ -383,20 +375,6 @@ export function LyricCueInspector({
             onBlur={applyConfidence}
             onKeyDown={event => event.key === 'Enter' && applyConfidence()}
           />
-        </div>
-      </Collapsible>
-
-      <Collapsible label="Cue Actions">
-        <div className="lyric-cue-inspector__actions" role="group" aria-label="Cue timing actions">
-          <IconChipButton disabled={currentTimeMs === null} onClick={actions.setStartToPlayhead}>Set start to playhead</IconChipButton>
-          <IconChipButton disabled={currentTimeMs === null} onClick={actions.setEndToPlayhead}>Set end to playhead</IconChipButton>
-          <IconChipButton disabled={currentTimeMs === null} onClick={actions.moveToPlayhead}>Move to playhead</IconChipButton>
-          <IconChipButton disabled={currentTimeMs === null} onClick={actions.addAtPlayhead}>Add at playhead</IconChipButton>
-          <IconChipButton onClick={actions.duplicate}>Duplicate</IconChipButton>
-          <IconChipButton disabled={currentTimeMs === null || currentTimeMs <= cue.startMs || currentTimeMs >= cue.endMs} onClick={actions.split}>Split at playhead</IconChipButton>
-          <IconChipButton disabled={!canMergePrevious} onClick={actions.mergePrevious}>Merge previous</IconChipButton>
-          <IconChipButton disabled={!canMergeNext} onClick={actions.mergeNext}>Merge next</IconChipButton>
-          <IconChipButton className="lyric-cue-inspector__delete" onClick={actions.delete}>Delete cue</IconChipButton>
         </div>
       </Collapsible>
 

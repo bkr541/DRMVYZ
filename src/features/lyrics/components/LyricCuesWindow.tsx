@@ -92,7 +92,7 @@ export function LyricCuesWindow({ editor }: Props) {
       aria-label="Lyric Cues"
       onKeyDown={event => handleLyricUndoRedoKey(event, editor)}
     >
-      <DualRailCollapsible label="Cue list" defaultOpen={false} headerClassName="lmv-live-preview-header" bodyClassName="lyric-cue-list-body">
+      <DualRailCollapsible label="Cue list" defaultOpen headerClassName="lmv-live-preview-header" bodyClassName="lyric-cue-list-body">
         <section className="lyric-cue-list" aria-label="Lyric cue list">
           <div className="lyric-cue-list__controls">
             <strong>{filteredCues.length} of {cues.length} cues</strong>

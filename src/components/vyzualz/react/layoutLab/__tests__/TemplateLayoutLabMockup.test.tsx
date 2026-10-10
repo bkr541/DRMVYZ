@@ -62,9 +62,14 @@ describe('Template Layout Lab workspace', () => {
     expect(markers).not.toBeNull()
     expect(markers?.querySelectorAll('[data-testid^="track-map-marker-concept-"]')).toHaveLength(6)
     expect(stage?.querySelector('.llwf-gallery')).toBeNull()
+
+    // The Lyric Manager transport replacements are the final gallery in the middle column.
+    const toolbarGallery = stage?.querySelector('[aria-label="Lyric Manager timeline control row concepts"]')
+    expect(toolbarGallery?.querySelectorAll('[data-testid^="lyric-toolbar-concept-"]')).toHaveLength(3)
+    expect(stage?.lastElementChild).toBe(toolbarGallery)
   })
 
-  it('adds a Layout Lab-only Template engine with a Design gallery and no lower workspace', async () => {
+  it('adds a Layout Lab-only Template engine with a source indicator Design gallery and no lower workspace', async () => {
     await selectEngine('Template')
 
     expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
@@ -74,7 +79,7 @@ describe('Template Layout Lab workspace', () => {
 
     const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')
     expect(tabLabels('Layout Lab inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    expect(rightRail?.querySelector('[aria-label="Rekordbox badge style concepts"]')).not.toBeNull()
+    expect(rightRail?.querySelector('[aria-label="Audio source indicator concepts"]')).not.toBeNull()
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
@@ -114,13 +119,23 @@ describe('Template Layout Lab workspace', () => {
     expect(gallery?.querySelectorAll('.is-active, .rv-preset-spotlight-card--active')).toHaveLength(4)
   })
 
-  it('shows five Rekordbox badge concepts in the DESIGN tab', async () => {
+  it('shows ten audio source concepts and previews every concept in the selected mode', async () => {
     await selectEngine('Template')
 
-    const gallery = container.querySelector('[aria-label="Rekordbox badge style concepts"]')
-    expect(gallery).not.toBeNull()
-    expect(gallery?.querySelectorAll('[data-testid^="rekordbox-badge-concept-"]')).toHaveLength(5)
-    expect(gallery?.querySelectorAll('img[alt="Rekordbox"]')).toHaveLength(5)
+    const gallery = container.querySelector('[aria-label="Audio source indicator concepts"]')
+    expect(gallery?.querySelectorAll('[data-testid^="audio-source-concept-"]')).toHaveLength(10)
+    expect(gallery?.querySelectorAll('[data-mockup-height="32"]')).toHaveLength(10)
+    expect(gallery?.querySelectorAll('[role="tab"]')).toHaveLength(5)
+    expect(gallery?.getAttribute('data-source-mode')).toBe('rekordbox')
+
+    const liveTab = [...(gallery?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])]
+      .find(button => button.textContent?.trim() === 'LIVE')
+    await act(async () => liveTab?.click())
+
+    expect(gallery?.getAttribute('data-source-mode')).toBe('live')
+    expect(liveTab?.getAttribute('aria-selected')).toBe('true')
+    expect(gallery?.textContent).toContain('Live Input')
+    expect(gallery?.querySelector('img[alt="Rekordbox"]')).toBeNull()
   })
 
   it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {

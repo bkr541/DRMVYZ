@@ -1,4 +1,16 @@
-import { Add01Icon, Redo02Icon, Undo02Icon } from 'hugeicons-react'
+import {
+  Add01Icon,
+  AlignLeftIcon,
+  AlignRightIcon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Copy01Icon,
+  Delete02Icon,
+  MoveIcon,
+  Redo02Icon,
+  Scissor01Icon,
+  Undo02Icon,
+} from 'hugeicons-react'
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { useLyricCueEditor } from '../editor/useLyricCueEditor'
@@ -17,8 +29,63 @@ interface Props {
   onVolumeChange: (volume: number) => void
 }
 
-/** Add cue / Undo / Redo: icon-only, right-aligned in their own row beneath the Track Timeline heading. */
-export function LyricTimelineEditActions({ editor }: { editor: Pick<Editor, 'cueHistoryPast' | 'cueHistoryFuture' | 'undoCueEdit' | 'redoCueEdit' | 'addAtPlayhead'> }) {
+/** All cue-editing commands live together in one icon-only row beneath the Track Timeline heading. */
+export function LyricTimelineEditActions({ editor }: { editor: Editor }) {
+  const cue = editor.selectedCue
+  const actions = editor.actions
+  const playheadUnavailable = editor.canonicalPlayheadMs === null
+  const actionButtons = [
+    {
+      label: 'Set start to playhead',
+      icon: <AlignLeftIcon size={14} color="currentColor" />,
+      disabled: !actions || playheadUnavailable,
+      onClick: actions?.setStartToPlayhead,
+    },
+    {
+      label: 'Set end to playhead',
+      icon: <AlignRightIcon size={14} color="currentColor" />,
+      disabled: !actions || playheadUnavailable,
+      onClick: actions?.setEndToPlayhead,
+    },
+    {
+      label: 'Move to playhead',
+      icon: <MoveIcon size={14} color="currentColor" />,
+      disabled: !actions || playheadUnavailable,
+      onClick: actions?.moveToPlayhead,
+    },
+    {
+      label: 'Duplicate cue',
+      icon: <Copy01Icon size={14} color="currentColor" />,
+      disabled: !actions,
+      onClick: actions?.duplicate,
+    },
+    {
+      label: 'Split at playhead',
+      icon: <Scissor01Icon size={14} color="currentColor" />,
+      disabled: !actions || playheadUnavailable || !cue || editor.canonicalPlayheadMs! <= cue.startMs || editor.canonicalPlayheadMs! >= cue.endMs,
+      onClick: actions?.split,
+    },
+    {
+      label: 'Merge previous cue',
+      icon: <ArrowLeft01Icon size={14} color="currentColor" />,
+      disabled: !actions || editor.selectedIndex <= 0,
+      onClick: actions?.mergePrevious,
+    },
+    {
+      label: 'Merge next cue',
+      icon: <ArrowRight01Icon size={14} color="currentColor" />,
+      disabled: !actions || editor.selectedIndex < 0 || editor.selectedIndex >= editor.orderedCues.length - 1,
+      onClick: actions?.mergeNext,
+    },
+    {
+      label: 'Delete cue',
+      icon: <Delete02Icon size={14} color="currentColor" />,
+      disabled: !actions,
+      onClick: actions?.delete,
+      danger: true,
+    },
+  ]
+
   return (
     <div className="lmv-timeline-edit-actions" role="toolbar" aria-label="Cue editing">
       <IconChipButton
@@ -44,6 +111,17 @@ export function LyricTimelineEditActions({ editor }: { editor: Pick<Editor, 'cue
         disabled={editor.cueHistoryFuture.length === 0}
         onClick={editor.redoCueEdit}
       />
+      {actionButtons.map(action => (
+        <IconChipButton
+          key={action.label}
+          className={`lmv-icon-only-chip${action.danger ? ' dv-icon-chip--danger' : ''}`}
+          icon={action.icon}
+          title={action.label}
+          aria-label={action.label}
+          disabled={action.disabled}
+          onClick={action.onClick}
+        />
+      ))}
     </div>
   )
 }

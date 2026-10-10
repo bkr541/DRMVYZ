@@ -247,7 +247,7 @@ export function LyricTrackTimelineWindow({
           >
             {lane('lmv-track-timeline-lane--timing', null, <TimingRow viewport={viewport} />)}
             {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />)}
-            {lane('lmv-track-timeline-lane--section', null, <TrackSectionRow sections={sections} viewport={viewport} />)}
+            {lane('lmv-track-timeline-lane--section', 'Sections', <TrackSectionRow sections={sections} viewport={viewport} />)}
             {lane('lmv-track-timeline-lane--waveform', 'Audio', (
               <LyricWaveformCanvas
                 peaks={waveformPeaks}

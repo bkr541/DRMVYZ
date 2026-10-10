@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   formatTime,
   isActivelyWorking,
@@ -22,6 +23,7 @@ import {
   buildPresetCueLabel,
   buildTimelineCueTitle,
   buildSectionConfidenceDisplayData,
+  buildTimelineCueRowLayout,
 } from '../ReactTrackMapStrip'
 import { adaptMIAnalysis } from '../../../../features/trackIntelligence/trackMapAdapter'
 import type { TrackIntelligenceAnalysis, FeatureCurve, TrackAnalysisStatus, BeatMarkerMI } from '../../../../features/musicIntelligence/types'
@@ -50,6 +52,34 @@ describe('cue marker labels', () => {
       beatOffsetSec: 0,
       snappedToBeat: true,
     })).toBe('CUE 2 · 01:00.000 · Bar 30 · Beat 4 · Snapped to beat grid')
+  })
+})
+
+describe('Track Map empty marker rows', () => {
+  it('provides a compact, named empty state for every marker row without data', () => {
+    expect(buildTimelineCueRowLayout([])).toEqual([
+      expect.objectContaining({ id: 'cues', empty: true, emptyLabel: 'No Cues Found', heightPx: 26 }),
+      expect.objectContaining({ id: 'phrases', empty: true, emptyLabel: 'No Phrases Found', heightPx: 26 }),
+      expect.objectContaining({ id: 'moments', empty: true, emptyLabel: 'No Moments Found', heightPx: 26 }),
+      expect.objectContaining({ id: 'actions', empty: true, emptyLabel: 'No Actions Found', heightPx: 26 }),
+    ])
+  })
+
+  it('retains the full row height only for marker rows containing data', () => {
+    const rows = buildTimelineCueRowLayout(['cue', 'pixgrid'])
+
+    expect(rows.find(row => row.id === 'cues')).toMatchObject({ empty: false, heightPx: 46 })
+    expect(rows.find(row => row.id === 'actions')).toMatchObject({ empty: false, heightPx: 46 })
+    expect(rows.find(row => row.id === 'phrases')).toMatchObject({ empty: true, heightPx: 26 })
+    expect(rows.find(row => row.id === 'moments')).toMatchObject({ empty: true, heightPx: 26 })
+  })
+})
+
+describe('Track Map marker label column', () => {
+  it('constrains each label cell to its matching marker row', () => {
+    const css = readFileSync(new URL('../../../../styles/reactView.css', import.meta.url), 'utf8')
+
+    expect(css).toMatch(/\.rv-timeline-lane-icon--cue-rows > span\s*{[^}]*height:\s*auto;/)
   })
 })
 

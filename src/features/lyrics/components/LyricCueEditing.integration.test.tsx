@@ -30,7 +30,7 @@ import { useVisualStore } from '../../../stores/visualStore'
 import { useLyricCueEditor, type UseLyricCueEditorParams } from '../editor/useLyricCueEditor'
 import { LyricCueInspector } from '../editor/LyricCueInspector'
 import { LyricCuesWindow, LyricCueStackedTimeline } from './LyricCuesWindow'
-import { LyricTimelineToolbar } from './LyricTimelineToolbar'
+import { LyricTimelineEditActions, LyricTimelineToolbar } from './LyricTimelineToolbar'
 import { LyricTrackTimelineWindow } from './LyricTrackTimelineWindow'
 
 const CUES: LyricCue[] = [
@@ -72,6 +72,7 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
         beatGridStatus={overrides.beatGridStatus ?? 'missing'}
         beatGridStatusMessage={overrides.beatGridStatusMessage ?? null}
         onAnalyzeTrack={onAnalyzeTrack}
+        actions={<LyricTimelineEditActions editor={editor} />}
         toolbar={(
           <LyricTimelineToolbar
             editor={editor}
@@ -91,11 +92,7 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
         <LyricCueInspector
           cue={selectedCue}
           cues={editor.cues}
-          currentTimeMs={editor.canonicalPlayheadMs}
           durationMs={durationMs}
-          actions={actions}
-          canMergePrevious={editor.selectedIndex > 0}
-          canMergeNext={editor.selectedIndex >= 0 && editor.selectedIndex < editor.orderedCues.length - 1}
           onUpdateCue={editor.commitCuePatch}
           onUpdateWord={editor.updateCueWord}
           focusWordId={navigationTarget?.cueId === selectedCue.id ? navigationTarget.wordId : null}
@@ -138,9 +135,6 @@ afterEach(async () => {
 
 async function renderWorkspace(props: WorkspaceProps = {}) {
   await act(async () => { root.render(<Workspace {...props} />) })
-  // The cue list is a collapsed group by default.
-  const toggle = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('Cue list'))
-  if (toggle) await act(async () => toggle.click())
 }
 
 const setValue = (input: HTMLInputElement, value: string) =>
@@ -234,8 +228,7 @@ describe('Lyric Manager cue editing workspace', () => {
     })
     await renderWorkspace({ currentTimeMs: 3_000 })
 
-    const moveButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.trim() === 'Move to playhead')!
+    const moveButton = container.querySelector<HTMLButtonElement>('[aria-label="Move to playhead"]')!
     await act(async () => moveButton.click())
 
     expect(useLyricsStore.getState().cues[0]).toMatchObject({

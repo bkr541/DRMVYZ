@@ -24,8 +24,6 @@ const cueB: LyricCue = {
   words: [{ id: 'word-b1', text: 'Second', startMs: 100, endMs: 300 }],
 }
 
-const actions = new Proxy({}, { get: () => () => undefined }) as never
-
 interface HarnessProps {
   onUpdateCue: (cueId: string, patch: Partial<LyricCue>) => void
   onUpdateDefaultStyle: (patch: Partial<LyricStyle>) => void
@@ -51,11 +49,7 @@ function Harness({ onUpdateCue, onUpdateDefaultStyle, onNavigateToIssue, onTitle
             key={selected.id}
             cue={selected}
             cues={cues}
-            currentTimeMs={0}
             durationMs={10_000}
-            actions={actions}
-            canMergePrevious={false}
-            canMergeNext={false}
             onUpdateCue={onUpdateCue}
             onUpdateWord={() => undefined}
           />
@@ -162,7 +156,7 @@ describe('LyricInspector tabs', () => {
 
   it('builds every Cue and Document control from the standard groups and rows, with no bespoke headings or fields', () => {
     expect(groupTitles('cue')).toEqual([
-      'Cue', 'Cue Actions', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
+      'Cue', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
     ])
     for (const id of ['cue', 'document'] as const) {
       const scope = pane(id)

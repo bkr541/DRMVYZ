@@ -230,6 +230,8 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(container?.querySelector('.vz-dock-addtrack-btn')?.textContent).toContain('Live Input Active')
     expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-disabled')).toBe('true')
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(true)
+    expect(container?.querySelector('.vz-dock-source-inline')?.getAttribute('data-audio-source-kind')).toBe('live')
+    expect(container?.querySelector('.vz-dock-source-inline')?.textContent).toContain('Live Input')
     expect(container?.querySelector('[role="alert"]')).toBeNull()
     const drawer = await drawerText('react')
     expect(drawer).toContain('Live Input active')
@@ -264,7 +266,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(fixture.visualState.toggleBpmSync).toHaveBeenCalledTimes(1)
   })
 
-  it('shows the Rekordbox badge only for a loaded Rekordbox track', async () => {
+  it('shows Dock Inline with Rekordbox provenance for a loaded Rekordbox track', async () => {
     fixture.engine.tracks = [{ id: 'rekordbox-track' }] as unknown as AudioEngine['tracks']
     fixture.engine.currentTrack = {
       id: 'rekordbox-track',
@@ -280,11 +282,33 @@ describe('Show Manager Audio Dock source lock integration', () => {
 
     await renderView('react')
 
-    expect(container?.querySelector('.vz-dock-rekordbox-badge img')).not.toBeNull()
-    expect(container?.querySelector('.vz-dock-rekordbox-badge')?.getAttribute('aria-label')).toBe('Rekordbox data loaded, cues, sections')
-    expect(container?.querySelector('.vz-dock-rekordbox-badge-dot')).not.toBeNull()
-    expect(container?.querySelector('.vz-dock-rekordbox-features')?.textContent).toContain('Cues')
-    expect(container?.querySelector('.vz-dock-rekordbox-features')?.textContent).toContain('Sections')
+    const indicator = container?.querySelector('.vz-dock-source-inline')
+    expect(indicator?.querySelector('img')).not.toBeNull()
+    expect(indicator?.getAttribute('aria-label')).toBe('Rekordbox data loaded, cues, sections')
+    expect(indicator?.getAttribute('data-audio-source-kind')).toBe('rekordbox')
+    expect(indicator?.querySelector('.vz-dock-source-inline-dot')).not.toBeNull()
+    expect(indicator?.querySelector('.vz-dock-source-inline-tag')?.textContent).toBe('CUES · SECTIONS')
+  })
+
+  it('does not show the Rekordbox logo for a track with only an empty Rekordbox provenance marker', async () => {
+    fixture.engine.tracks = [{ id: 'file-track' }] as unknown as AudioEngine['tracks']
+    fixture.engine.currentTrack = {
+      id: 'file-track',
+      url: 'blob:file-track',
+      isRekordbox: true,
+      importedAnalysisSeed: { source: 'rekordbox_usb' },
+      analysisRuntime: {
+        analysisKey: 'file-track-key',
+        gridStale: false,
+      },
+    } as AudioEngine['currentTrack']
+
+    await renderView('react')
+
+    const indicator = container?.querySelector('.vz-dock-source-inline')
+    expect(indicator?.getAttribute('data-audio-source-kind')).toBe('file')
+    expect(indicator?.textContent).toContain('Audio Track')
+    expect(indicator?.querySelector('.vz-dock-source-inline-tag')?.textContent).toBe('FILE')
   })
 
 })

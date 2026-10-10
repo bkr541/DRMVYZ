@@ -792,11 +792,12 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('[aria-label="Previous unavailable"]')).toBeNull()
     expect(container.querySelector('[aria-label="Next unavailable"]')).toBeNull()
 
-    // Snap and Overlays are not offered; Add cue / Undo / Redo are icon-only in their own row.
+    // Snap and Overlays are not offered; all cue-editing commands share one icon-only row.
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
     const editActions = container.querySelector('[aria-label="Cue editing"]')
-    expect(editActions?.querySelectorAll('button')).toHaveLength(3)
+    expect(editActions?.querySelectorAll('button')).toHaveLength(11)
+    expect(container.querySelector('[aria-label="Cue timing actions"]')).toBeNull()
   })
 
   it('autosaves dirty lyric edits to the user-scoped recovery repository', async () => {
@@ -854,6 +855,10 @@ describe('LyricManagerView track-first workflow', () => {
 
     // Scoped to the dialog: the right inspector also has a "Review" tab.
     const recoveryDialog = container.querySelector<HTMLElement>('[role="alertdialog"]')!
+    expect(recoveryDialog.classList.contains('dv-confirm-dialog')).toBe(true)
+    expect(recoveryDialog.querySelector('.dv-confirm-icon')).not.toBeNull()
+    expect(recoveryDialog.querySelector('.dv-notice')).toBeNull()
+    expect(recoveryDialog.querySelector('h2')?.textContent).toBe('Recovered lyric draft conflicts with the server')
     await act(async () => buttonWithText('Review', recoveryDialog).click())
     expect(container.textContent).toContain('Cue timing, text, or metadata changed')
     await act(async () => buttonWithText('Restore as Unsaved', recoveryDialog).click())
