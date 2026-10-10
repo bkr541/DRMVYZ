@@ -3164,6 +3164,9 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   opacity: 0.5;
   pointer-events: none;
 }
+.vz-dock-bpm-track-bar--placeholder {
+  visibility: hidden;
+}
 .vz-dock-bpm-track-fill {
   position: absolute;
   inset: 0;

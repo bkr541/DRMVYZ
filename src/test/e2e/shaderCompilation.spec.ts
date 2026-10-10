@@ -11,6 +11,7 @@ import { shaderRegistry } from '../../components/vyzualz/react/shaders/registry'
 import { getShaderSourceUnits } from '../../components/vyzualz/react/shaders/registry/ShaderSourceValidator'
 import { getLaserDmxWebGLShaderProgramSources } from '../../components/vyzualz/react/renderers/laserDmx/LaserDmxWebGLShaderSources'
 import { getPixGridGpuShaderProgramSources } from '../../components/vyzualz/react/renderers/pixGrid/PixGridGpuShaderSources'
+import { getCinema2EchoformShaderProgramSources } from '../../components/vyzualz/cinema2/modules/echoform/Cinema2EchoformRenderer'
 
 const systemChromium = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
 
@@ -51,6 +52,11 @@ test('all registered Shader scenes compile and link in WebGL2', async ({ page })
     ...getPixGridGpuShaderProgramSources().map(program => ({
       sceneId: 'pix-grid-gpu',
       sceneName: 'PixGrid GPU LED Renderer',
+      ...program,
+    })),
+    ...getCinema2EchoformShaderProgramSources().map(program => ({
+      sceneId: 'cinema2-echoform',
+      sceneName: 'Cinema 2.0 Echoform',
       ...program,
     })),
   ]

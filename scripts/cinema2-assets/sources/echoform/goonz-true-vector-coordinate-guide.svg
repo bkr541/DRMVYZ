@@ -1,0 +1,291 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="800" height="800" viewBox="0 0 800 800" version="1.1" role="img" aria-label="GOONZ bulldog wearing headphones, clean editable Bézier vector logo">
+  <title>GOONZ | Clean Bézier Master Logo | 800 × 800</title>
+  <desc>Hand-rebuilt editable logo with semantic vector components, smooth cubic Bézier paths and native SVG gradients. Transparent canvas; origin upper-left. Not an embedded image, pixel trace, or raster filter.</desc>
+  <metadata id="goonz-coordinates-json">{"viewBox": [0, 0, 800, 800], "axis": "top-left origin; +x right; +y down; unit 1 = original image pixel", "mirror_axis_x": 400, "anchors": {"left_ear_tip": [247, 105], "right_ear_tip": [553, 105], "left_eye_center": [309, 350], "right_eye_center": [491, 350], "nose_center": [400, 400], "mouth_center": [400, 484], "chin_lowest": [400, 585], "left_headphone_center": [201, 395], "right_headphone_center": [599, 395]}}</metadata>
+  <rect id="guide-black-background" width="800" height="800" fill="#050505" />
+  <defs>
+    <linearGradient id="silver-border" x1="0" y1="0" x2=".18" y2="1" objectBoundingBox="true">
+      <stop offset="0" stop-color="#efefed" />
+      <stop offset=".3" stop-color="#bebebe" />
+      <stop offset=".62" stop-color="#898989" />
+      <stop offset="1" stop-color="#626262" />
+    </linearGradient>
+    <linearGradient id="silver-face" x1="0" y1="0" x2=".42" y2="1">
+      <stop offset="0" stop-color="#adadad" />
+      <stop offset=".42" stop-color="#949494" />
+      <stop offset="1" stop-color="#626262" />
+    </linearGradient>
+    <linearGradient id="steel-pad" x1="0" y1="0" x2=".7" y2="1">
+      <stop offset="0" stop-color="#c9c9c9" />
+      <stop offset=".35" stop-color="#919191" />
+      <stop offset=".65" stop-color="#5b5b5b" />
+      <stop offset="1" stop-color="#313131" />
+    </linearGradient>
+    <linearGradient id="steel-side" x1="0" y1="0" x2="1" y2=".18">
+      <stop offset="0" stop-color="#a2a2a2" />
+      <stop offset=".5" stop-color="#676767" />
+      <stop offset="1" stop-color="#252525" />
+    </linearGradient>
+    <linearGradient id="ear-gloss" x1="0" y1="0" x2=".7" y2="1">
+      <stop offset="0" stop-color="#e2e2e2" />
+      <stop offset=".55" stop-color="#969696" />
+      <stop offset="1" stop-color="#595959" />
+    </linearGradient>
+    <linearGradient id="muzzle-steel" x1="0" y1="0" x2=".45" y2="1">
+      <stop offset="0" stop-color="#bcbcbc" />
+      <stop offset=".5" stop-color="#8b8b8b" />
+      <stop offset="1" stop-color="#696969" />
+    </linearGradient>
+    <linearGradient id="blue-iris" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#009bd6" />
+      <stop offset=".44" stop-color="#05e1ef" />
+      <stop offset=".77" stop-color="#03c0d2" />
+      <stop offset="1" stop-color="#0360ac" />
+    </linearGradient>
+    <radialGradient id="blue-pupil" cx=".47" cy=".33" r=".69">
+      <stop offset="0" stop-color="#080f20" />
+      <stop offset=".28" stop-color="#043b80" />
+      <stop offset=".58" stop-color="#0476d6" />
+      <stop offset="1" stop-color="#09c7e4" />
+    </radialGradient>
+    <linearGradient id="band-black" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#242424" />
+      <stop offset="1" stop-color="#050505" />
+    </linearGradient>
+  </defs>
+  <g id="logo" inkscape:label="GOONZ clean master">
+    <g id="01-headphone-headband" inkscape:label="Headband, behind ears">
+      <path id="band-silver-outline" fill="url(#silver-border)" d="M286 151 C352 115 446 115 511 151 L503 173 C443 140 357 140 297 173 Z" />
+      <path id="band-inner" fill="#111111" d="M301 153 C360 126 440 126 499 153 L490 166 C431 142 369 142 310 166 Z" />
+      <path id="band-inner-sheen" fill="#646464" d="M314 160 C360 139 444 139 486 161 C436 147 365 147 320 167 Z" />
+      <path id="band-bottom-shadow" fill="url(#band-black)" d="M311 174 C365 152 437 150 487 174 L464 228 C421 212 379 212 337 228 Z" />
+      <path id="band-bottom-rim" fill="url(#silver-border)" d="M331 229 C376 208 428 208 469 229 L464 242 C425 224 375 224 335 242 Z" />
+    </g>
+    <g id="02-headphone-shells" inkscape:label="Headphone shells">
+      <g id="headphone-left" inkscape:label="Headphone left">
+        <path id="left-rear-fork-rim" fill="url(#silver-border)" d="M204 220 C181 241 165 278 166 311 C150 327 143 353 143 394 C143 438 163 474 195 484 C207 495 232 501 253 486 L255 338 C244 284 231 248 204 220 Z" />
+        <path id="left-rear-fork-fill" fill="#090909" d="M204 236 C184 261 175 294 177 314 L191 307 C178 302 189 270 198 252 L199 281 C191 295 204 309 207 313 L250 350 L245 474 C227 486 207 478 197 471 C169 461 154 430 154 392 C154 353 160 333 179 317 C178 287 192 252 204 236 Z" />
+        <path id="left-cup-outer" fill="#111111" stroke="url(#silver-border)" stroke-width="8" stroke-linejoin="round" d="M207 310 C170 304 150 328 148 371 L148 413 C152 460 175 484 211 484 L228 480 C243 470 252 449 253 416 L253 363 C251 330 232 314 207 310 Z" />
+        <path id="left-cup-metal-front" fill="url(#steel-pad)" d="M197 321 C173 319 164 340 164 379 L164 385 L194 385 L194 378 C194 349 195 335 205 322 Z" />
+        <path id="left-cup-metal-low" fill="url(#steel-side)" d="M164 391 L194 391 L194 432 C174 430 164 412 164 391 Z" />
+        <path id="left-cup-center-bar" fill="url(#silver-border)" d="M210 316 C195 314 192 327 192 354 L192 422 C193 451 198 457 214 457 L229 451 L227 324 C221 316 217 314 210 316 Z" />
+        <path id="left-cup-center-pad" fill="url(#steel-side)" d="M214 323 C205 321 202 333 202 356 L202 416 C202 438 209 444 223 446 C220 413 222 350 225 332 C220 324 218 323 214 323 Z" />
+        <path id="left-cup-near-black-pad" fill="#161616" d="M231 311 C246 319 256 341 256 371 L256 421 C255 449 247 475 232 472 C223 461 221 433 221 394 L221 353 C222 328 226 318 231 311 Z" />
+        <path id="left-cup-parting-line" fill="#d9d9d9" d="M164 382 C175 379 181 379 193 381 L193 387 L164 387 Z" />
+      </g>
+      <g id="headphone-right" inkscape:label="Headphone right">
+        <path id="right-rear-fork-rim" fill="url(#silver-border)" d="M 596 220 C 619 241 635 278 634 311 C 650 327 657 353 657 394 C 657 438 637 474 605 484 C 593 495 568 501 547 486 L 545 338 C 556 284 569 248 596 220 Z" inkscape:label="right-rear-fork-rim" />
+        <path id="right-rear-fork-fill" fill="#090909" d="M 596 236 C 616 261 625 294 623 314 L 609 307 C 622 302 611 270 602 252 L 601 281 C 609 295 596 309 593 313 L 550 350 L 555 474 C 573 486 593 478 603 471 C 631 461 646 430 646 392 C 646 353 640 333 621 317 C 622 287 608 252 596 236 Z" inkscape:label="right-rear-fork-fill" />
+        <path id="right-cup-outer" fill="#111111" stroke="url(#silver-border)" stroke-width="8" stroke-linejoin="round" d="M 593 310 C 630 304 650 328 652 371 L 652 413 C 648 460 625 484 589 484 L 572 480 C 557 470 548 449 547 416 L 547 363 C 549 330 568 314 593 310 Z" inkscape:label="right-cup-outer" />
+        <path id="right-cup-metal-front" fill="url(#steel-pad)" d="M 603 321 C 627 319 636 340 636 379 L 636 385 L 606 385 L 606 378 C 606 349 605 335 595 322 Z" inkscape:label="right-cup-metal-front" />
+        <path id="right-cup-metal-low" fill="url(#steel-side)" d="M 636 391 L 606 391 L 606 432 C 626 430 636 412 636 391 Z" inkscape:label="right-cup-metal-low" />
+        <path id="right-cup-center-bar" fill="url(#silver-border)" d="M 590 316 C 605 314 608 327 608 354 L 608 422 C 607 451 602 457 586 457 L 571 451 L 573 324 C 579 316 583 314 590 316 Z" inkscape:label="right-cup-center-bar" />
+        <path id="right-cup-center-pad" fill="url(#steel-side)" d="M 586 323 C 595 321 598 333 598 356 L 598 416 C 598 438 591 444 577 446 C 580 413 578 350 575 332 C 580 324 582 323 586 323 Z" inkscape:label="right-cup-center-pad" />
+        <path id="right-cup-near-black-pad" fill="#161616" d="M 569 311 C 554 319 544 341 544 371 L 544 421 C 545 449 553 475 568 472 C 577 461 579 433 579 394 L 579 353 C 578 328 574 318 569 311 Z" inkscape:label="right-cup-near-black-pad" />
+        <path id="right-cup-parting-line" fill="#d9d9d9" d="M 636 382 C 625 379 619 379 607 381 L 607 387 L 636 387 Z" inkscape:label="right-cup-parting-line" />
+      </g>
+    </g>
+    <g id="03-dog-base" inkscape:label="Bulldog head silhouette and jaw outline">
+      <path id="jaw-outer-contour" fill="url(#silver-border)" d="M400 226 C335 219 290 241 270 287 C251 313 244 344 242 380 C235 418 244 461 254 492 C270 527 298 549 346 568 C369 578 383 585 400 585 C417 585 431 578 454 568 C502 549 530 527 546 492 C556 461 565 418 558 380 C556 344 549 313 530 287 C510 241 465 219 400 226 Z" />
+      <path id="jaw-black-interior" fill="#0b0b0b" d="M400 234 C337 229 294 249 276 293 C259 322 251 347 250 387 C245 429 255 473 264 492 C283 530 317 546 352 560 C373 572 383 577 400 577 C417 577 427 572 448 560 C483 546 517 530 536 492 C545 473 555 429 550 387 C549 347 541 322 524 293 C506 249 463 229 400 234 Z" />
+    </g>
+    <g id="04-ears" inkscape:label="Ear shells, interiors, and highlights">
+      <g id="left-ear" inkscape:label="Left upright ear">
+        <path id="left-ear-silver-shape" fill="url(#silver-border)" d="M247 105 C214 104 196 140 198 191 C195 228 205 274 210 308 C223 326 251 332 271 317 C284 303 315 278 338 267 C326 221 299 164 278 131 C268 115 256 107 247 105 Z" />
+        <path id="left-ear-black-center" fill="#0a0a0a" d="M247 115 C222 112 204 146 206 192 C204 238 213 278 220 294 C233 314 248 314 258 301 C278 278 310 265 328 260 C315 225 289 166 269 136 C258 121 254 116 247 115 Z" />
+        <path id="left-ear-long-inner-shine" fill="url(#ear-gloss)" d="M265 147 C296 174 309 211 294 240 C286 254 277 260 272 264 C288 239 290 212 284 194 C280 179 272 160 265 147 Z" />
+        <path id="left-ear-short-inner-shine" fill="url(#ear-gloss)" d="M222 219 C233 244 236 267 236 282 C241 294 247 287 256 269 C251 286 241 302 233 292 C223 283 222 246 222 219 Z" />
+        <path id="left-ear-base-shadow" fill="#0c0c0c" d="M208 278 C216 308 231 315 255 316 C266 311 274 301 278 287 L265 334 C239 349 216 337 206 319 Z" />
+      </g>
+      <g id="right-ear" inkscape:label="Right upright ear">
+        <path id="right-ear-silver-shape" fill="url(#silver-border)" d="M 553 105 C 586 104 604 140 602 191 C 605 228 595 274 590 308 C 577 326 549 332 529 317 C 516 303 485 278 462 267 C 474 221 501 164 522 131 C 532 115 544 107 553 105 Z" inkscape:label="right-ear-silver-shape" />
+        <path id="right-ear-black-center" fill="#0a0a0a" d="M 553 115 C 578 112 596 146 594 192 C 596 238 587 278 580 294 C 567 314 552 314 542 301 C 522 278 490 265 472 260 C 485 225 511 166 531 136 C 542 121 546 116 553 115 Z" inkscape:label="right-ear-black-center" />
+        <path id="right-ear-long-inner-shine" fill="url(#ear-gloss)" d="M 535 147 C 504 174 491 211 506 240 C 514 254 523 260 528 264 C 512 239 510 212 516 194 C 520 179 528 160 535 147 Z" inkscape:label="right-ear-long-inner-shine" />
+        <path id="right-ear-short-inner-shine" fill="url(#ear-gloss)" d="M 578 219 C 567 244 564 267 564 282 C 559 294 553 287 544 269 C 549 286 559 302 567 292 C 577 283 578 246 578 219 Z" inkscape:label="right-ear-short-inner-shine" />
+        <path id="right-ear-base-shadow" fill="#0c0c0c" d="M 592 278 C 584 308 569 315 545 316 C 534 311 526 301 522 287 L 535 334 C 561 349 584 337 594 319 Z" inkscape:label="right-ear-base-shadow" />
+      </g>
+    </g>
+    <g id="05-forehead-and-eyebrows" inkscape:label="Brow plate and furrowed expression">
+      <path id="forehead-upper-highlight" fill="url(#silver-border)" d="M282 294 C295 261 323 235 361 230 C381 227 392 233 400 246 C408 233 419 227 439 230 C477 235 505 261 518 294 C494 267 463 249 434 246 C418 244 405 242 400 260 C395 242 382 244 366 246 C337 249 306 267 282 294 Z" />
+      <path id="brow-plate-body" fill="url(#silver-face)" d="M400 250 C389 239 378 237 358 240 C316 246 280 277 267 313 C261 330 269 331 281 322 C299 306 319 310 337 324 C354 344 371 353 382 335 C398 310 375 279 358 272 C384 266 396 294 400 316 C404 294 416 266 442 272 C425 279 402 310 418 335 C429 353 446 344 463 324 C481 310 501 306 519 322 C531 331 539 330 533 313 C520 277 484 246 442 240 C422 237 411 239 400 250 Z" />
+      <g id="left-forehead-wrinkles">
+        <path id="left-forehead-central-crease" fill="#111111" d="M359 272 C382 274 396 298 384 327 C380 337 372 343 361 343 C378 330 378 303 369 286 C366 280 363 276 359 272 Z" />
+        <path id="left-brow-inner-fold" fill="#111111" d="M318 296 C343 292 365 313 366 336 C357 345 349 336 345 327 C340 314 330 303 318 296 Z" />
+        <path id="left-brow-inner-reflection" fill="#c9c9c9" d="M317 297 C339 302 347 312 349 327 C340 315 329 303 317 297 Z" />
+        <path id="left-brow-rim" fill="#151515" d="M270 325 C291 303 307 305 322 311 C339 316 349 326 353 342 C343 336 335 324 318 321 C299 315 286 321 269 333 Z" />
+        <path id="left-brow-silver-leading-edge" fill="#858585" d="M272 320 C293 305 313 304 329 314 C307 309 291 313 273 327 Z" />
+      </g>
+      <g id="right-forehead-wrinkles">
+        <path id="right-forehead-central-crease" fill="#111111" d="M 441 272 C 418 274 404 298 416 327 C 420 337 428 343 439 343 C 422 330 422 303 431 286 C 434 280 437 276 441 272 Z" inkscape:label="right-forehead-central-crease" />
+        <path id="right-brow-inner-fold" fill="#111111" d="M 482 296 C 457 292 435 313 434 336 C 443 345 451 336 455 327 C 460 314 470 303 482 296 Z" inkscape:label="right-brow-inner-fold" />
+        <path id="right-brow-inner-reflection" fill="#c9c9c9" d="M 483 297 C 461 302 453 312 451 327 C 460 315 471 303 483 297 Z" inkscape:label="right-brow-inner-reflection" />
+        <path id="right-brow-rim" fill="#151515" d="M 530 325 C 509 303 493 305 478 311 C 461 316 451 326 447 342 C 457 336 465 324 482 321 C 501 315 514 321 531 333 Z" inkscape:label="right-brow-rim" />
+        <path id="right-brow-silver-leading-edge" fill="#858585" d="M 528 320 C 507 305 487 304 471 314 C 493 309 509 313 527 327 Z" inkscape:label="right-brow-silver-leading-edge" />
+      </g>
+      <path id="central-brow-valley" fill="#0b0b0b" d="M390 316 C394 335 396 340 400 346 C404 340 406 335 410 316 L414 344 C408 352 404 353 400 353 C396 353 392 352 386 344 Z" />
+    </g>
+    <g id="06-eyes" inkscape:label="Independently editable eyes, turquoise irises and catchlights">
+      <g id="left-eye" inkscape:label="Left eye - center 309,350">
+        <path id="left-eye-socket" fill="#070b0e" d="M269 348 C279 325 300 320 319 326 C338 331 353 349 358 357 C350 379 330 388 309 386 C288 384 269 368 269 348 Z" />
+        <path id="left-eye-shadow-ring" fill="#182024" d="M280 348 C288 337 299 330 313 332 C326 335 337 343 340 352 C337 369 325 375 309 375 C291 375 280 364 280 348 Z" />
+        <path id="left-iris-border" fill="#062738" d="M288 339 C296 333 304 332 313 335 C327 338 333 348 335 352 C333 362 327 370 316 373 C304 377 291 370 288 358 C286 351 287 344 288 339 Z" />
+        <path id="left-iris-cyan" fill="url(#blue-iris)" d="M291 341 C298 337 307 336 312 339 C322 341 329 347 330 353 C329 364 321 369 313 370 C303 370 294 365 292 355 C290 351 290 346 291 341 Z" />
+        <path id="left-iris-inner-blue" fill="url(#blue-pupil)" d="M299 339 C307 333 319 338 322 346 C325 356 319 361 311 362 C302 362 296 355 297 347 C297 343 298 341 299 339 Z" />
+        <path id="left-pupil" fill="#061120" d="M303 339 C308 336 317 339 318 345 C320 351 317 355 312 356 C305 356 301 353 301 348 C301 345 301 342 303 339 Z" />
+        <path id="left-eye-glint" fill="#f4ffff" d="M308 339 C311 339 313 341 313 344 C313 347 311 349 309 348 C306 348 304 346 305 343 C305 341 306 340 308 339 Z" />
+        <path id="left-iris-low-reflection" fill="#00e5ed" d="M293 352 C297 366 316 370 326 358 C319 376 294 373 293 352 Z" />
+        <path id="left-upper-eyelid" fill="#060606" d="M268 345 C279 332 292 324 305 324 C324 323 339 337 348 353 C336 345 321 331 308 334 C290 334 278 345 269 352 Z" />
+        <path id="left-under-eye-crease" fill="#202020" d="M273 360 C282 375 300 380 316 378 C329 376 341 367 346 358 C343 380 326 385 310 386 C292 385 279 377 273 360 Z" />
+      </g>
+      <g id="right-eye" inkscape:label="Right eye - center 491,350">
+        <path id="right-eye-socket" fill="#070b0e" d="M 531 348 C 521 325 500 320 481 326 C 462 331 447 349 442 357 C 450 379 470 388 491 386 C 512 384 531 368 531 348 Z" inkscape:label="right-eye-socket" />
+        <path id="right-eye-shadow-ring" fill="#182024" d="M 520 348 C 512 337 501 330 487 332 C 474 335 463 343 460 352 C 463 369 475 375 491 375 C 509 375 520 364 520 348 Z" inkscape:label="right-eye-shadow-ring" />
+        <path id="right-iris-border" fill="#062738" d="M 512 339 C 504 333 496 332 487 335 C 473 338 467 348 465 352 C 467 362 473 370 484 373 C 496 377 509 370 512 358 C 514 351 513 344 512 339 Z" inkscape:label="right-iris-border" />
+        <path id="right-iris-cyan" fill="url(#blue-iris)" d="M 509 341 C 502 337 493 336 488 339 C 478 341 471 347 470 353 C 471 364 479 369 487 370 C 497 370 506 365 508 355 C 510 351 510 346 509 341 Z" inkscape:label="right-iris-cyan" />
+        <path id="right-iris-inner-blue" fill="url(#blue-pupil)" d="M 501 339 C 493 333 481 338 478 346 C 475 356 481 361 489 362 C 498 362 504 355 503 347 C 503 343 502 341 501 339 Z" inkscape:label="right-iris-inner-blue" />
+        <path id="right-pupil" fill="#061120" d="M 497 339 C 492 336 483 339 482 345 C 480 351 483 355 488 356 C 495 356 499 353 499 348 C 499 345 499 342 497 339 Z" inkscape:label="right-pupil" />
+        <path id="right-eye-glint" fill="#f4ffff" d="M 492 339 C 489 339 487 341 487 344 C 487 347 489 349 491 348 C 494 348 496 346 495 343 C 495 341 494 340 492 339 Z" inkscape:label="right-eye-glint" />
+        <path id="right-iris-low-reflection" fill="#00e5ed" d="M 507 352 C 503 366 484 370 474 358 C 481 376 506 373 507 352 Z" inkscape:label="right-iris-low-reflection" />
+        <path id="right-upper-eyelid" fill="#060606" d="M 532 345 C 521 332 508 324 495 324 C 476 323 461 337 452 353 C 464 345 479 331 492 334 C 510 334 522 345 531 352 Z" inkscape:label="right-upper-eyelid" />
+        <path id="right-under-eye-crease" fill="#202020" d="M 527 360 C 518 375 500 380 484 378 C 471 376 459 367 454 358 C 457 380 474 385 490 386 C 508 385 521 377 527 360 Z" inkscape:label="right-under-eye-crease" />
+      </g>
+    </g>
+    <g id="07-facial-markings" inkscape:label="Temple and cheek shadows">
+      <g id="left-facial-markings">
+        <path id="left-upper-cheek-silver" fill="url(#steel-pad)" d="M270 354 C276 377 295 400 294 416 C288 408 282 392 274 379 C271 373 269 362 270 354 Z" />
+        <path id="left-cheek-bottom-silver" fill="url(#silver-face)" d="M253 401 C248 433 258 454 273 474 C274 467 267 448 265 432 Z" />
+        <path id="left-cheek-slope" fill="#0b0b0b" d="M283 383 C302 405 307 420 302 445 C296 437 294 421 285 407 Z" />
+        <path id="left-jaw-side-silver" fill="#747474" d="M257 454 C262 479 276 501 294 511 C281 505 263 483 257 454 Z" />
+      </g>
+      <g id="right-facial-markings">
+        <path id="right-upper-cheek-silver" fill="url(#steel-pad)" d="M 530 354 C 524 377 505 400 506 416 C 512 408 518 392 526 379 C 529 373 531 362 530 354 Z" inkscape:label="right-upper-cheek-silver" />
+        <path id="right-cheek-bottom-silver" fill="url(#silver-face)" d="M 547 401 C 552 433 542 454 527 474 C 526 467 533 448 535 432 Z" inkscape:label="right-cheek-bottom-silver" />
+        <path id="right-cheek-slope" fill="#0b0b0b" d="M 517 383 C 498 405 493 420 498 445 C 504 437 506 421 515 407 Z" inkscape:label="right-cheek-slope" />
+        <path id="right-jaw-side-silver" fill="#747474" d="M 543 454 C 538 479 524 501 506 511 C 519 505 537 483 543 454 Z" inkscape:label="right-jaw-side-silver" />
+      </g>
+    </g>
+    <g id="08-nose-bridge" inkscape:label="Muzzle arch and nose bridge">
+      <path id="nose-bridge-dark-base" fill="#060606" d="M310 422 C321 385 359 351 400 351 C441 351 479 385 490 422 L482 454 C458 413 434 377 400 376 C366 377 342 413 318 454 Z" />
+      <path id="nose-bridge-silver-outer" fill="url(#silver-border)" d="M315 422 C324 388 361 352 400 352 C439 352 476 388 485 422 L485 434 C470 405 440 366 400 365 C360 366 330 405 315 434 Z" />
+      <path id="nose-bridge-black-inner" fill="#080808" d="M321 423 C337 387 368 359 400 359 C432 359 463 387 479 423 C459 389 434 369 400 370 C366 369 341 389 321 423 Z" />
+      <path id="nose-glint" fill="#dadada" d="M364 373 C382 361 417 362 436 375 C410 369 389 368 364 373 Z" />
+    </g>
+    <g id="09-nose" inkscape:label="Nose leather and curved nostrils">
+      <path id="nose-shadow-back" fill="#090909" d="M400 368 C376 365 359 382 355 394 C353 407 362 420 380 423 C391 427 393 436 400 437 C407 436 409 427 420 423 C438 420 447 407 445 394 C441 382 424 365 400 368 Z" />
+      <path id="nose-metal-top" fill="url(#muzzle-steel)" d="M400 374 C380 371 366 384 362 394 C360 403 368 410 375 410 C387 412 393 398 391 391 C384 391 378 399 374 401 C371 396 380 383 392 383 C399 383 401 386 400 392 C399 385 403 383 409 383 C421 383 429 396 426 401 C422 399 416 391 409 391 C407 398 413 412 425 410 C432 410 440 403 438 394 C434 384 420 371 400 374 Z" />
+      <path id="left-nostril-upper" fill="#3b3b3b" d="M376 397 C380 387 391 382 395 390 C393 400 385 414 376 410 C371 407 372 400 376 397 Z" />
+      <path id="right-nostril-upper" fill="#3b3b3b" d="M424 397 C420 387 409 382 405 390 C407 400 415 414 424 410 C429 407 428 400 424 397 Z" />
+      <path id="nose-center-left" fill="#8a8a8a" d="M393 405 C391 416 388 422 397 426 C399 422 400 416 400 414 C399 420 395 419 393 405 Z" />
+      <path id="nose-center-right" fill="#858585" d="M407 405 C409 416 412 422 403 426 C401 422 400 416 400 414 C401 420 405 419 407 405 Z" />
+      <path id="nose-underside" fill="#0b0b0b" d="M376 411 C390 415 392 410 400 401 C408 410 410 415 424 411 C417 430 411 428 400 423 C389 428 383 430 376 411 Z" />
+    </g>
+    <g id="10-mouth-and-jowls" inkscape:label="Loose muzzle, lip creases and chin">
+      <path id="left-jowl-black-outline" fill="#090909" d="M361 402 C329 396 305 416 297 443 C291 461 286 490 298 504 C315 524 330 506 345 485 C361 465 378 449 401 440 C395 419 380 408 361 402 Z" />
+      <path id="left-jowl-steel-fill" fill="url(#muzzle-steel)" d="M358 407 C331 403 312 419 305 440 C297 458 292 485 302 497 C315 513 331 490 349 469 C366 448 379 440 391 438 C378 423 369 409 358 407 Z" />
+      <path id="left-jowl-inner-shadow" fill="#393939" d="M319 428 C329 414 342 412 354 416 C340 416 326 425 319 443 Z" />
+      <path id="left-mouth-wrinkle-top" fill="#252525" d="M323 437 C328 431 336 427 345 429 C335 431 329 439 321 450 Z" />
+      <path id="left-mouth-wrinkle-middle" fill="#292929" d="M326 460 C334 453 342 449 351 450 C340 454 333 461 322 476 Z" />
+      <path id="left-mouth-wrinkle-low" fill="#292929" d="M327 481 C335 472 343 468 349 466 C339 477 329 486 324 489 Z" />
+      <path id="left-jowl-edge-glint" fill="#c6c6c6" d="M299 460 C300 437 315 420 328 417 C316 429 309 444 304 461 C299 486 305 494 312 500 C301 497 295 481 299 460 Z" />
+      <g id="right-jowl">
+        <path id="right-jowl-black-outline" fill="#090909" d="M 439 402 C 471 396 495 416 503 443 C 509 461 514 490 502 504 C 485 524 470 506 455 485 C 439 465 422 449 399 440 C 405 419 420 408 439 402 Z" inkscape:label="right-jowl-black-outline" />
+        <path id="right-jowl-steel-fill" fill="url(#muzzle-steel)" d="M 442 407 C 469 403 488 419 495 440 C 503 458 508 485 498 497 C 485 513 469 490 451 469 C 434 448 421 440 409 438 C 422 423 431 409 442 407 Z" inkscape:label="right-jowl-steel-fill" />
+        <path id="right-jowl-inner-shadow" fill="#393939" d="M 481 428 C 471 414 458 412 446 416 C 460 416 474 425 481 443 Z" inkscape:label="right-jowl-inner-shadow" />
+        <path id="right-mouth-wrinkle-top" fill="#252525" d="M 477 437 C 472 431 464 427 455 429 C 465 431 471 439 479 450 Z" inkscape:label="right-mouth-wrinkle-top" />
+        <path id="right-mouth-wrinkle-middle" fill="#292929" d="M 474 460 C 466 453 458 449 449 450 C 460 454 467 461 478 476 Z" inkscape:label="right-mouth-wrinkle-middle" />
+        <path id="right-mouth-wrinkle-low" fill="#292929" d="M 473 481 C 465 472 457 468 451 466 C 461 477 471 486 476 489 Z" inkscape:label="right-mouth-wrinkle-low" />
+        <path id="right-jowl-edge-glint" fill="#c6c6c6" d="M 501 460 C 500 437 485 420 472 417 C 484 429 491 444 496 461 C 501 486 495 494 488 500 C 499 497 505 481 501 460 Z" inkscape:label="right-jowl-edge-glint" />
+      </g>
+      <path id="center-lip-stem" fill="#080808" d="M390 425 C391 439 388 445 376 456 C390 450 398 450 400 453 C402 450 410 450 424 456 C412 445 409 439 410 425 C409 435 406 439 400 440 C394 439 391 435 390 425 Z" />
+      <path id="mouth-inner-black" fill="#080808" d="M353 512 C352 490 371 471 400 470 C429 471 448 490 447 512 C436 496 423 486 400 486 C377 486 364 496 353 512 Z" />
+      <path id="lower-lip-silver-arc" fill="url(#muzzle-steel)" d="M360 514 C359 489 380 470 400 471 C420 470 441 489 440 514 C431 489 417 484 400 484 C383 484 369 489 360 514 Z" />
+      <path id="chin-silver-crescent" fill="#868686" d="M343 537 C361 548 380 553 400 554 C420 553 439 548 457 537 C444 556 418 565 400 565 C382 565 356 556 343 537 Z" />
+      <path id="chin-lower-highlight" fill="#3d3d3d" d="M352 558 C373 568 427 568 448 558 C428 573 370 573 352 558 Z" />
+    </g>
+  </g>
+  <g id="coordinate-landmarks-hidden" style="display:none" fill="none" stroke="#ffba4a" stroke-width="1" aria-label="Toggle visible for coordinate anchors">
+    <path id="vertical-centerline-x400" d="M400 0 V800" />
+    <circle id="anchor-left-ear" cx="247" cy="105" r="4" />
+    <circle id="anchor-right-ear" cx="553" cy="105" r="4" />
+    <circle id="anchor-left-eye" cx="309" cy="350" r="4" />
+    <circle id="anchor-right-eye" cx="491" cy="350" r="4" />
+    <circle id="anchor-nose" cx="400" cy="400" r="4" />
+    <circle id="anchor-chin" cx="400" cy="585" r="4" />
+  </g>
+  <g id="guide-visible-coordinate-grid" fill="none" stroke="#76bac7" stroke-width="0.6" opacity="0.25">
+    <path d="M0 0 V800 M0 0 H800" />
+    <path d="M50 0 V800 M0 50 H800" />
+    <path d="M100 0 V800 M0 100 H800" />
+    <path d="M150 0 V800 M0 150 H800" />
+    <path d="M200 0 V800 M0 200 H800" />
+    <path d="M250 0 V800 M0 250 H800" />
+    <path d="M300 0 V800 M0 300 H800" />
+    <path d="M350 0 V800 M0 350 H800" />
+    <path d="M400 0 V800 M0 400 H800" />
+    <path d="M450 0 V800 M0 450 H800" />
+    <path d="M500 0 V800 M0 500 H800" />
+    <path d="M550 0 V800 M0 550 H800" />
+    <path d="M600 0 V800 M0 600 H800" />
+    <path d="M650 0 V800 M0 650 H800" />
+    <path d="M700 0 V800 M0 700 H800" />
+    <path d="M750 0 V800 M0 750 H800" />
+    <path d="M800 0 V800 M0 800 H800" />
+  </g>
+  <g id="anchor-point-labels" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold">
+    <g id="label-l-ear">
+      <circle cx="247" cy="105" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M236 105 H258 M247 94 V116" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M247 105 L155 80" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="155" y="77" fill="#f2ca7d" font-size="12">L EAR (247, 105)</text>
+    </g>
+    <g id="label-r-ear">
+      <circle cx="553" cy="105" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M542 105 H564 M553 94 V116" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M553 105 L582 80" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="582" y="77" fill="#f2ca7d" font-size="12">R EAR (553, 105)</text>
+    </g>
+    <g id="label-l-eye">
+      <circle cx="309" cy="350" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M298 350 H320 M309 339 V361" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M309 350 L208 330" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="208" y="327" fill="#f2ca7d" font-size="12">L EYE (309, 350)</text>
+    </g>
+    <g id="label-r-eye">
+      <circle cx="491" cy="350" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M480 350 H502 M491 339 V361" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M491 350 L534 330" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="534" y="327" fill="#f2ca7d" font-size="12">R EYE (491, 350)</text>
+    </g>
+    <g id="label-nose">
+      <circle cx="400" cy="400" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M389 400 H411 M400 389 V411" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M400 400 L448 378" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="448" y="375" fill="#f2ca7d" font-size="12">NOSE (400, 400)</text>
+    </g>
+    <g id="label-l-cup">
+      <circle cx="201" cy="395" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M190 395 H212 M201 384 V406" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M201 395 L130 475" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="130" y="472" fill="#f2ca7d" font-size="12">L CUP (201, 395)</text>
+    </g>
+    <g id="label-r-cup">
+      <circle cx="599" cy="395" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M588 395 H610 M599 384 V406" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M599 395 L621 475" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="621" y="472" fill="#f2ca7d" font-size="12">R CUP (599, 395)</text>
+    </g>
+    <g id="label-mouth">
+      <circle cx="400" cy="484" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M389 484 H411 M400 473 V495" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M400 484 L452 494" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="452" y="491" fill="#f2ca7d" font-size="12">MOUTH (400, 484)</text>
+    </g>
+    <g id="label-chin">
+      <circle cx="400" cy="585" r="5" stroke="#ffa545" stroke-width="1.6" fill="none" />
+      <path d="M389 585 H411 M400 574 V596" stroke="#ffa545" stroke-width="1.15" fill="none" />
+      <path d="M400 585 L425 617" stroke="#ffa545" stroke-width="1.0" fill="none" />
+      <text x="425" y="614" fill="#f2ca7d" font-size="12">CHIN (400, 585)</text>
+    </g>
+  </g>
+</svg>

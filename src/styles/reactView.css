@@ -23279,7 +23279,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Left card */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
-  grid-template-columns: 32px 36px minmax(0, 1fr);
+  grid-template-columns: 36px 36px minmax(0, 1fr);
   grid-template-rows: auto 36px;
   align-content: center;
   column-gap: 12px;
@@ -23305,7 +23305,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-align: left;
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn img {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn svg {
   display: block;
   width: 18px;
   height: 18px;
@@ -23325,21 +23325,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   justify-content: center;
   align-self: center;
   box-sizing: border-box;
-  width: 32px;
-  height: 32px;
   transform: none;
-  border: 1px solid var(--dock-line);
-  border-radius: 10px;
-  background: var(--dock-fill);
-  color: var(--dock-ink-dim);
-  box-shadow: none;
-  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
-}
-
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn:hover:not([aria-disabled='true']) {
-  border-color: rgba(74, 199, 219, 0.55);
-  background: rgba(74, 199, 219, 0.1);
-  color: var(--dock-cyan-bright);
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot {
@@ -23349,29 +23335,37 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   height: 36px;
 }
 
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
   width: 36px;
   height: 36px;
   border: 0 !important;
+  border-radius: 50%;
   background: linear-gradient(180deg, #67f7ff, #3aa9bd);
   color: #04141a !important;
   box-shadow: 0 4px 12px rgba(74, 199, 219, 0.3) !important;
+  transition: all 0.15s;
 }
 
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn svg,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn svg {
   width: 18px;
   height: 18px;
 }
 
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn:hover:not([aria-disabled='true']),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:hover:not(:disabled) {
   background: linear-gradient(180deg, #67f7ff, #3aa9bd);
   box-shadow: 0 4px 18px rgba(103, 247, 255, 0.5) !important;
 }
 
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn[aria-disabled='true'],
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:disabled {
   background: rgba(255, 255, 255, 0.12);
   color: var(--dock-ink-dim) !important;
   box-shadow: none !important;
+  opacity: 0.28;
+  cursor: default;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-volume-row {

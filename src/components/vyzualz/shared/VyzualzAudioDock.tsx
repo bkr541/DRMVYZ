@@ -28,7 +28,6 @@ import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { InfoPopover } from '../../shared/InfoPopover'
 import { DrawerNotice } from './DrawerNotice'
-import loadTrackIconUrl from '../../../assets/load_track.svg'
 import rekordboxLogoUrl from '../../../assets/rekordbox_logo.svg'
 import {
   getAudioSourcePolicySnapshot,
@@ -808,6 +807,7 @@ export function VyzualzAudioDock({
           className="vz-dock-addtrack-btn"
           htmlFor={trackSourceLocked ? undefined : fileInputId}
           aria-disabled={trackSourceLocked}
+          aria-label={sourceSelectionLocked ? 'Track Locked' : liveInputSelected ? 'Live Input Active' : hasTrack ? 'Replace Track' : 'Add Track'}
           title={trackSourceLocked ? trackSourceLockTitle : hasTrack ? `Replace: ${title}` : 'Add Track'}
           onClick={event => {
             if (!trackSourceLocked) return
@@ -815,7 +815,9 @@ export function VyzualzAudioDock({
             if (sourceSelectionLocked) requestAudioSourceMutation()
           }}
         >
-          <img src={loadTrackIconUrl} width="18" height="18" alt="" aria-hidden="true" />
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
           <span>{sourceSelectionLocked ? 'Track Locked' : liveInputSelected ? 'Live Input Active' : hasTrack ? 'Replace Track' : 'Add Track'}</span>
         </label>
 
@@ -946,6 +948,12 @@ export function VyzualzAudioDock({
                 style={{ width: `${Math.min(100, Math.max(0, ((bpmState.bpm - 40) / (300 - 40)) * 100))}%` }}
               />
             </div>
+          )}
+          {bpmState.kind !== 'value' && (
+            <div
+              className="vz-dock-bpm-track-bar vz-dock-bpm-track-bar--placeholder is-disabled"
+              aria-hidden="true"
+            />
           )}
 
           {/* Secondary line: analyzed BPM when override is active */}

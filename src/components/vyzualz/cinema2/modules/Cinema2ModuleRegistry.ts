@@ -15,6 +15,8 @@ import { cinema2DepthNativeModuleDefinition } from './Cinema2DepthNativeModule'
 import { cinema2BackstreetNativeModuleDefinition } from './Cinema2BackstreetNativeModule'
 import { cinema2MainframeNativeModuleDefinition } from './Cinema2MainframeNativeModule'
 import { cinema2ConduitNativeModuleDefinition } from './Cinema2ConduitNativeModule'
+import { cinema2EchoformNativeModuleDefinition } from './Cinema2EchoformNativeModule'
+import { cinema2EchowaveNativeModuleDefinition } from './Cinema2EchowaveNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -146,6 +148,16 @@ if (!backstreetRegistration.ok) {
 const conduitRegistration = cinema2NativeModuleRegistry.register(cinema2ConduitNativeModuleDefinition)
 if (!conduitRegistration.ok) {
   throw new Error(`Cinema 2.0 Conduit native module registration failed: ${conduitRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const echoformRegistration = cinema2NativeModuleRegistry.register(cinema2EchoformNativeModuleDefinition)
+if (!echoformRegistration.ok) {
+  throw new Error(`Cinema 2.0 Echoform native module registration failed: ${echoformRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const echowaveRegistration = cinema2NativeModuleRegistry.register(cinema2EchowaveNativeModuleDefinition)
+if (!echowaveRegistration.ok) {
+  throw new Error(`Cinema 2.0 Echowave native module registration failed: ${echowaveRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

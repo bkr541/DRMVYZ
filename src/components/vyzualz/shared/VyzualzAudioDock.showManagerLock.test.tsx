@@ -247,7 +247,11 @@ describe('Show Manager Audio Dock source lock integration', () => {
   it('preserves normal real Audio Dock file loading in the React workspace', async () => {
     await renderView('react')
 
-    expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-disabled')).toBe('false')
+    const addTrack = container?.querySelector('.vz-dock-addtrack-btn')
+    expect(addTrack?.getAttribute('aria-disabled')).toBe('false')
+    expect(addTrack?.getAttribute('aria-label')).toBe('Add Track')
+    expect(addTrack?.querySelector('img')).toBeNull()
+    expect(addTrack?.querySelector('svg path')?.getAttribute('d')).toBe('M12 5v14M5 12h14')
     await dispatchAudioFile('outside-show-manager.wav')
 
     expect(fixture.engine.addPreparedTracks).toHaveBeenCalledWith(
@@ -264,6 +268,15 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(sync?.getAttribute('aria-label')).toBe('BPM Sync: OFF')
     await act(async () => sync?.click())
     expect(fixture.visualState.toggleBpmSync).toHaveBeenCalledTimes(1)
+  })
+
+  it('reserves the loaded BPM scrub-bar space when no track is loaded', async () => {
+    await renderView('react')
+
+    const placeholder = container?.querySelector('.vz-dock-bpm-track-bar--placeholder')
+    expect(placeholder).not.toBeNull()
+    expect(placeholder?.getAttribute('aria-hidden')).toBe('true')
+    expect(container?.querySelector('.vz-dock-bpm-block')?.contains(placeholder ?? null)).toBe(true)
   })
 
   it('shows Dock Inline with Rekordbox provenance for a loaded Rekordbox track', async () => {
