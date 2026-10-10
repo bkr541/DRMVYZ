@@ -1370,9 +1370,22 @@ export function LyricManagerView({
     trackDeleteTarget,
   ])
 
-  const handleCompletedDraftResolved = useCallback(async () => {
+  const handleCompletedDraftResolved = useCallback(async (draft?: { id: string; audioTrackId?: string | null }) => {
     if (!selectedTrack) return
     await refreshDocuments(selectedTrack)
+    // A finished extraction opens in the empty editor by itself, so its cues show on the timeline and in the
+    // cue list. An open version, or any unsaved edit, is never replaced; it stays one click away in the AI panel.
+    const editorState = useLyricsStore.getState()
+    if (draft?.id
+      && (draft.audioTrackId ?? selectedTrack.dbId) === selectedTrack.dbId
+      && selectedTrackIdRef.current === selectedTrack.dbId
+      && !editorState.editorDocumentId
+      && !editorState.editorDocument
+      && !editorState.editorDirty
+      && editorState.cues.length === 0) {
+      selectedDocumentIntentRef.current += 1
+      await loadLyricDocument(draft.id)
+    }
     const request = ++transcriptionJobRequestRef.current
     setTranscriptionJobLoading(true)
     try {
@@ -1384,7 +1397,7 @@ export function LyricManagerView({
     } finally {
       if (mountedRef.current && request === transcriptionJobRequestRef.current) setTranscriptionJobLoading(false)
     }
-  }, [refreshDocuments, selectedTrack])
+  }, [loadLyricDocument, refreshDocuments, selectedTrack])
 
   const handleOpenCompletedDraft = useCallback(
     (documentId: string) => {
@@ -1891,7 +1904,8 @@ export function LyricManagerView({
   const autoPreparedTrackIdRef = useRef<string | null>(null)
   const selectedTrackDbId = selectedTrack?.dbId ?? null
   const signedInAccountId = useLyricsStore(state => state.operationAccountId)
-  const hasEditorTarget = Boolean(selectedTrack && (editorDocumentId || editorDocument))
+  // The timeline is on screen whenever the track has any lyric version, even before one is opened in the editor.
+  const hasEditorTarget = Boolean(selectedTrack && (editorDocumentId || editorDocument || documents.length > 0))
   useEffect(() => {
     if (!selectedTrack || !hasEditorTarget || selectedTrackLoaded || !signedInAccountId) return
     if (autoPreparedTrackIdRef.current === selectedTrack.dbId) return

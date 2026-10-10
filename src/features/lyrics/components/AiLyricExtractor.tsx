@@ -1,24 +1,20 @@
-import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
-import { getFullLyricDocument, saveLyricDocumentAtomic } from '../../../lib/lyricsDb'
-import { createLyricCueInputFromCue, hasUsableLyricWordTiming } from '../../../types/lyrics'
-import { LYRIC_CUE_STYLE_LABELS, segmentTimedWords, segmentationProvenance, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
+import { getFullLyricDocument } from '../../../lib/lyricsDb'
+import { LYRIC_CUE_STYLE_LABELS, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
 import {
   assessVocalReferenceCompatibility,
   normalizeVocalReferenceOffsetMs,
   type LyricExtractionSourceMode,
 } from '../../../../supabase/functions/_shared/vocalReference'
-import { formatMs } from '../../../lib/lyricsImport'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import {
   cancelLyricTranscription,
   getRecentLyricTranscriptionJobs,
   isActiveLyricTranscriptionJob,
-  lyricTranscriptionProviderLabel,
   refreshLyricTranscriptionJob,
   retryLyricTranscription,
   startLyricTranscription,
@@ -33,7 +29,7 @@ import {
 } from '../services/localAudioPreparation'
 import { getAudioPreparationOperation } from '../../../lib/audioPreparationDb'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
-import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 const CUE_STYLE_OPTIONS: Array<{ value: LyricCueStyle; description: string }> = [
   { value: 'hip-hop', description: 'Short rhythmic phrases' },
@@ -108,13 +104,6 @@ export function lyricJobPollDelayMs(attempt: number, random = Math.random): numb
   return Math.round(base * (0.85 + random() * 0.3))
 }
 
-const PROCESSING_MODE_LABELS: Record<string, string> = {
-  direct: 'Direct mode',
-  'wav-chunking': 'WAV chunking',
-  'prepared-audio': 'Browser-prepared audio',
-  'long-audio-worker': 'Custom long-audio fallback',
-}
-
 function browserReportsOnline(): boolean {
   if (typeof navigator === 'undefined') return true
   return navigator.onLine !== false
@@ -170,7 +159,6 @@ export function AiLyricExtractor({
   selectedTrack,
   existingDocumentCount,
   onCompletedDraftResolved,
-  onOpenCompletedDraft,
   onActivateCompletedDraft,
   availableTracks = [],
   uploadedVocalReferenceTrack = null,
@@ -239,8 +227,6 @@ export function AiLyricExtractor({
     globalOffsetMs: 0,
     cueStyle: 'balanced',
   })
-  const [reformatStyle, setReformatStyle] = useState<LyricCueStyle>('balanced')
-  const [reformatPreview, setReformatPreview] = useState<LyricCue[] | null>(null)
   const [extractionSourceMode, setExtractionSourceMode] = useState<LyricExtractionSourceMode>('full_mix')
   const [vocalReferenceTrackId, setVocalReferenceTrackId] = useState<string | null>(null)
   const [vocalReferenceOffsetMs, setVocalReferenceOffsetMs] = useState(0)
@@ -735,39 +721,6 @@ export function AiLyricExtractor({
     }
   }, [beginOwnedOperation, job, selectedTrack, vocalReferenceCandidates])
 
-  const previewReformat = useCallback(() => {
-    if (!document) return
-    const words = cues.flatMap(cue => cue.words ?? []).filter(hasUsableLyricWordTiming)
-    const segmented = segmentTimedWords(words, reformatStyle, selectedTrack?.analysisPayload ?? null).map((cue, index): LyricCue => ({
-      id: `reformat-preview-${index}`, startMs: cue.startMs, endMs: cue.endMs, text: cue.text, words: cue.words,
-      source: 'transcription', reviewStatus: 'unreviewed', analysisMetadata: { boundaryReason: cue.boundaryReason },
-      ...(cue.sectionId ? { sectionId: cue.sectionId } : {}),
-    }))
-    setReformatPreview(segmented)
-  }, [cues, document, reformatStyle, selectedTrack?.analysisPayload])
-
-  const saveReformat = useCallback(async () => {
-    if (!document || !selectedTrack || !reformatPreview?.length) return
-    setActionBusy(true); setError(null)
-    try {
-      const label = LYRIC_CUE_STYLE_LABELS[reformatStyle].replace(' / Rap', '')
-      const result = await saveLyricDocumentAtomic({
-        activate: false,
-        document: {
-          title: `${selectedTrack.title} AI Draft · ${label}`, artist: document.artist, audioTrackId: selectedTrack.dbId, visualSessionId: document.visualSessionId ?? null,
-          sourceType: document.sourceType, sourceFormat: document.sourceFormat, rawSourceText: document.rawSourceText ?? null,
-          defaultStyle: document.defaultStyle, defaultAnimation: document.defaultAnimation, defaultEffects: document.defaultEffects, globalOffsetMs: document.globalOffsetMs,
-          metadata: { ...document.metadata, ...segmentationProvenance(reformatStyle, selectedTrack.analysisPayload ?? null, document.id), trackAnalysisVersion: selectedTrack.analysisPayload?.analysisVersion ?? null, trackAnalysisUpdatedAt: selectedTrack.analysisPayload?.lastGridRebuiltAt ?? selectedTrack.analysisPayload?.createdAt ?? null },
-        },
-        cues: reformatPreview.map((cue, index) => createLyricCueInputFromCue(cue, '', index)),
-      })
-      if (!result.ok) throw new Error(result.message)
-      setNotice(`Saved ${result.cues.length} cues as a new inactive lyric version.`); setReformatPreview(null)
-      await onCompletedDraftResolved?.(result.document)
-    } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Failed to save reformatted cues.') }
-    finally { setActionBusy(false) }
-  }, [document, onCompletedDraftResolved, reformatPreview, reformatStyle, selectedTrack])
-
   if (!selectedTrack) {
     return (
       <div className="lmv-workflow-content">
@@ -785,17 +738,7 @@ export function AiLyricExtractor({
   const stageLabel = job ? processingStageLabel(job) : null
   const chunksCompleted = metadataNumber(job?.providerMetadata, 'chunksCompleted')
   const chunksTotal = metadataNumber(job?.providerMetadata, 'chunksTotal')
-  const unitCount = metadataNumber(job?.providerMetadata, 'unitCount')
   const showChunkProgress = active && chunksTotal !== null && chunksTotal > 1 && chunksCompleted !== null
-  const modelLabel = metadataString(job?.providerMetadata, 'model')
-  const rawProcessingMode = metadataString(job?.providerMetadata, 'processingMode')
-  const processingModeLabel = rawProcessingMode ? (PROCESSING_MODE_LABELS[rawProcessingMode] ?? rawProcessingMode) : null
-  const displayedChunkCount = chunksTotal && chunksTotal > 1 ? chunksTotal : unitCount && unitCount > 1 ? unitCount : null
-  const jobMetadataBadges = [
-    modelLabel,
-    processingModeLabel,
-    displayedChunkCount ? `${displayedChunkCount} chunks` : null,
-  ].filter((value): value is string => Boolean(value))
 
   const preparationRecoverable = isPreparationRecoverableError(job)
   const canRetry = job?.status === 'failed' || job?.status === 'cancelled'
@@ -807,9 +750,6 @@ export function AiLyricExtractor({
   const effectiveSourceTrack = effectiveSourceMode === 'vocal_reference'
     ? vocalReferenceCandidates.find(track => track.dbId === jobSourceTrackId) ?? vocalReferenceTrack
     : selectedTrack
-  const effectiveSourceTitle = effectiveSourceTrack?.title
-    ?? metadataString(document?.metadata, 'transcriptionSourceTitle')
-    ?? (effectiveSourceMode === 'full_mix' ? selectedTrack.title : 'Source unavailable')
   const effectiveTimingOffsetMs = job?.timingOffsetMs ?? vocalReferenceOffsetMs
   const effectiveCompatibility = effectiveSourceMode === 'vocal_reference'
     ? assessVocalReferenceCompatibility(selectedTrack.durationSec, effectiveSourceTrack?.durationSec ?? null, effectiveTimingOffsetMs)
@@ -829,11 +769,6 @@ export function AiLyricExtractor({
         <div>
           <strong>{selectedTrack.title}</strong>
           <span>{selectedTrack.artist || 'Unknown artist'}</span>
-        </div>
-        <div className="lmv-ai-track-meta">
-          <span>{selectedTrack.durationSec ? `${Math.floor(selectedTrack.durationSec / 60)}:${String(Math.round(selectedTrack.durationSec % 60)).padStart(2, '0')}` : 'Duration pending'}</span>
-          <span>{selectedTrack.mimeType || selectedTrack.fileName.split('.').pop()?.toUpperCase()}</span>
-          <span>{existingDocumentCount} lyric version{existingDocumentCount === 1 ? '' : 's'}</span>
         </div>
       </div>
 
@@ -922,53 +857,6 @@ export function AiLyricExtractor({
         )}
       </div>
 
-      {extractionSourceMode === 'vocal_reference' && (
-        <div className="lmv-validation-box" style={{ marginTop: 10 }}>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{vocalReferenceTrack?.title ?? 'Not selected'}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Compatibility</span><span className="lmv-val-value">{vocalReferenceTrack ? sourceCompatibility.label : 'Choose a source'}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Duration difference</span><span className="lmv-val-value">{vocalReferenceTrack ? formatDurationDifference(sourceCompatibility.durationDifferenceMs) : 'Unknown'}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Timing offset</span><span className="lmv-val-value">{formatOffsetSeconds(vocalReferenceOffsetMs)} s</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[options.cueStyle ?? 'balanced']}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available from full mix' : 'Not available'}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Source format</span><span className="lmv-val-value">{vocalReferenceTrack ? `${vocalReferenceTrack.sampleRate ? `${vocalReferenceTrack.sampleRate} Hz` : 'sample rate unknown'} · ${vocalReferenceTrack.channels ? `${vocalReferenceTrack.channels} ch` : 'channels unknown'}` : 'Unknown'}</span></div>
-          {vocalReferenceTrack && vocalReferenceOffsetMs !== 0 && (
-            <DrawerNotice tone="warning" role="status" title="Vocal source offset">
-              Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.
-            </DrawerNotice>
-          )}
-          {vocalReferenceTrack && (
-            <DrawerNotice
-              tone={sourceCompatibility.blocked ? 'error' : sourceCompatibility.status === 'significant_mismatch' ? 'warning' : 'info'}
-              role="status"
-              title={sourceCompatibility.blocked ? 'Source incompatible' : sourceCompatibility.status === 'significant_mismatch' ? 'Source compatibility warning' : 'Source compatibility'}
-            >
-              {sourceCompatibility.reason}
-            </DrawerNotice>
-          )}
-          {sourceCompatibility.requiresConfirmation && vocalReferenceTrack && (
-            <label className="lmv-checkbox-row">
-              <IconMorphCheckbox
-                checked={significantMismatchConfirmed}
-                disabled={active}
-                onChange={event => setSignificantMismatchConfirmed(event.target.checked)}
-              />
-              <span>I reviewed the arrangement and confirm this vocal reference belongs to the selected full mix.</span>
-            </label>
-          )}
-        </div>
-      )}
-      {extractionSourceMode === 'full_mix' && (
-        <div className="lmv-validation-box" style={{ marginTop: 10 }}>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[options.cueStyle ?? 'balanced']}</span></div>
-          <div className="lmv-validation-row"><span className="lmv-val-label">Track Map analysis</span><span className="lmv-val-value">{selectedTrack.analysisPayload ? 'Available' : 'Not available'}</span></div>
-        </div>
-      )}
-      </Collapsible>
-
-      <Collapsible label="Extraction Settings" defaultOpen bodyClassName="lmv-ai-group-body">
         <div className="lmv-grid2 lmv-ai-settings-grid">
         <div className="lmv-field">
           <label className="lmv-field-label" htmlFor="lyric-extraction-language">Language</label>
@@ -1015,16 +903,52 @@ export function AiLyricExtractor({
             onChange={event => setOptions(current => ({ ...current, globalOffsetMs: Number.parseInt(event.target.value, 10) || 0 }))} />
         </div>
         <div className="lmv-field lmv-field--wide">
-          <label className="lmv-field-label" htmlFor="lyric-extraction-confidence">Confidence Threshold</label>
-          <div className="lmv-slider-row">
-            <BubbleRevealSlider id="lyric-extraction-confidence" type="range" className="lmv-slider" min={0} max={1} step={0.05}
-              disabled={active}
-              value={options.confidenceThreshold ?? 0.6}
-              onChange={event => setOptions(current => ({ ...current, confidenceThreshold: Number.parseFloat(event.target.value) }))} />
-            <span className="lmv-slider-val">{(options.confidenceThreshold ?? 0.6).toFixed(2)}</span>
-          </div>
+          <SliderRow
+            id="lyric-extraction-confidence"
+            label="Confidence Threshold"
+            min={0}
+            max={1}
+            step={0.05}
+            disabled={active}
+            value={options.confidenceThreshold ?? 0.6}
+            formatValue={value => value.toFixed(2)}
+            onChange={value => setOptions(current => ({ ...current, confidenceThreshold: value }))}
+          />
         </div>
       </div>
+
+      {extractionSourceMode === 'vocal_reference' && (
+        <div className="lmv-validation-box" style={{ marginTop: 10 }}>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Compatibility</span><span className="lmv-val-value">{vocalReferenceTrack ? sourceCompatibility.label : 'Choose a source'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Duration difference</span><span className="lmv-val-value">{vocalReferenceTrack ? formatDurationDifference(sourceCompatibility.durationDifferenceMs) : 'Unknown'}</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Timing offset</span><span className="lmv-val-value">{formatOffsetSeconds(vocalReferenceOffsetMs)} s</span></div>
+          <div className="lmv-validation-row"><span className="lmv-val-label">Source format</span><span className="lmv-val-value">{vocalReferenceTrack ? `${vocalReferenceTrack.sampleRate ? `${vocalReferenceTrack.sampleRate} Hz` : 'sample rate unknown'} · ${vocalReferenceTrack.channels ? `${vocalReferenceTrack.channels} ch` : 'channels unknown'}` : 'Unknown'}</span></div>
+          {vocalReferenceTrack && vocalReferenceOffsetMs !== 0 && (
+            <DrawerNotice tone="warning" role="status" title="Vocal source offset">
+              Source begins with an offset. Provider timestamps will be shifted once into the full-mix timeline.
+            </DrawerNotice>
+          )}
+          {vocalReferenceTrack && (
+            <DrawerNotice
+              tone={sourceCompatibility.blocked ? 'error' : sourceCompatibility.status === 'significant_mismatch' ? 'warning' : 'info'}
+              role="status"
+              title={sourceCompatibility.blocked ? 'Source incompatible' : sourceCompatibility.status === 'significant_mismatch' ? 'Source compatibility warning' : 'Source compatibility'}
+            >
+              {sourceCompatibility.reason}
+            </DrawerNotice>
+          )}
+          {sourceCompatibility.requiresConfirmation && vocalReferenceTrack && (
+            <label className="lmv-checkbox-row">
+              <IconMorphCheckbox
+                checked={significantMismatchConfirmed}
+                disabled={active}
+                onChange={event => setSignificantMismatchConfirmed(event.target.checked)}
+              />
+              <span>I reviewed the arrangement and confirm this vocal reference belongs to the selected full mix.</span>
+            </label>
+          )}
+        </div>
+      )}
       </Collapsible>
 
       {!active && (!job || job.status === 'completed') && (
@@ -1036,24 +960,6 @@ export function AiLyricExtractor({
       )}
       {!browserOnline && (
         <div className="lmv-ai-offline-hint" role="status" aria-live="polite">{OFFLINE_LYRIC_EXTRACTION_MESSAGE}</div>
-      )}
-
-      {document && cues.some(cue => (cue.words?.length ?? 0) > 0) && (
-        <div className="lmv-job-card">
-          <div className="lmv-section-label">REFORMAT CUES</div>
-          <div className="lmv-grid2">
-            <UnderlineDropdown
-              ariaLabel="Reformat cue style"
-              value={reformatStyle}
-              options={CUE_STYLE_OPTIONS.map(option => ({ value: option.value, label: LYRIC_CUE_STYLE_LABELS[option.value] }))}
-              onChange={value => { setReformatStyle(value as LyricCueStyle); setReformatPreview(null) }}
-            />
-            <IconChipButton onClick={previewReformat}>Preview Reformat</IconChipButton>
-          </div>
-          {reformatPreview && <div className="lmv-parse-next-hint">Current: {cues.length} cues · Proposed: {reformatPreview.length} cues
-            <div><IconChipButton tone="primary" disabled={actionBusy} onClick={() => void saveReformat()}>Save New Inactive Version</IconChipButton> <IconChipButton onClick={() => setReformatPreview(null)}>Cancel</IconChipButton></div>
-          </div>}
-        </div>
       )}
 
       {localPreparation && (
@@ -1096,10 +1002,6 @@ export function AiLyricExtractor({
           </div>
           <div className="lmv-job-progress" role="progressbar" aria-label="Transcription progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
             <div style={{ width: `${progressPercent}%` }} />
-          </div>
-          <div className="lmv-job-meta-strip">
-            <span>{lyricTranscriptionProviderLabel(job.provider)}</span>
-            {jobMetadataBadges.map(badge => <span key={badge}>{badge}</span>)}
           </div>
           {showChunkProgress && (
             <div className="lmv-job-chunk-progress">
@@ -1153,7 +1055,6 @@ export function AiLyricExtractor({
           <div className="lmv-section-label" style={{ marginTop: 18 }}>ALIGNMENT SUMMARY</div>
           <div className="lmv-validation-box">
             <div className="lmv-validation-row"><span className="lmv-val-label">Lyrics belong to</span><span className="lmv-val-value">{selectedTrack.title}</span></div>
-            <div className="lmv-validation-row"><span className="lmv-val-label">Transcription source</span><span className="lmv-val-value">{effectiveSourceTitle}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Duration difference</span><span className="lmv-val-value">{effectiveSourceMode === 'vocal_reference' ? formatDurationDifference(effectiveDurationDifferenceMs) : '0.00 s'}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Timing offset</span><span className="lmv-val-value">{formatOffsetSeconds(effectiveTimingOffsetMs)} s</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Cue Style</span><span className="lmv-val-value">{LYRIC_CUE_STYLE_LABELS[(job.requestOptions.cueStyle as LyricCueStyle | undefined) ?? options.cueStyle ?? 'balanced']}</span></div>
@@ -1161,7 +1062,7 @@ export function AiLyricExtractor({
           </div>
 
           <div className="lmv-section-label" style={{ marginTop: 18 }}>REVIEW SUMMARY</div>
-          <div className="lmv-validation-box">
+          <div className="lmv-validation-box lmv-validation-box--two-col">
             <div className="lmv-validation-row"><span className="lmv-val-label">Draft</span><span className="lmv-val-value">{document.title}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Cues</span><span className="lmv-val-value">{review.total}</span></div>
             <div className="lmv-validation-row"><span className="lmv-val-label">Unreviewed</span><span className="lmv-val-value">{review.unreviewed}</span></div>
@@ -1176,19 +1077,7 @@ export function AiLyricExtractor({
             </DrawerNotice>
           )}
 
-          <div className="lmv-cue-preview-list" style={{ marginTop: 8 }}>
-            {cues.slice(0, 8).map(cue => (
-              <div key={cue.id} className="lmv-cue-preview-row">
-                <span className="lmv-cue-ts">{formatMs(cue.startMs)} → {formatMs(cue.endMs)}</span>
-                <span className="lmv-cue-text">{cue.text}</span>
-                {cue.confidence !== undefined && <span className="lmv-cue-badge">{Math.round(cue.confidence * 100)}%</span>}
-              </div>
-            ))}
-            {cues.length > 8 && <div className="lmv-cue-more">+{cues.length - 8} more cues</div>}
-          </div>
-
           <div className="lmv-import-actions">
-            <IconChipButton tone="primary" onClick={() => { void onOpenCompletedDraft(document.id) }}>Open in Cue Editor</IconChipButton>
             {!document.isActive && (
               <IconChipButton onClick={() => { void onActivateCompletedDraft(document.id) }}>Activate This Version</IconChipButton>
             )}

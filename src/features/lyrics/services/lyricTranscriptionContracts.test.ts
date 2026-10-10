@@ -91,7 +91,6 @@ describe('secure lyric transcription contracts', () => {
     expect(clientSource).toContain("case 'groq': return 'Groq Whisper'")
     expect(clientSource).toContain("case 'openai': return 'Legacy OpenAI'")
     expect(clientSource).toContain("case 'custom': return 'Custom provider'")
-    expect(extractorSource).toContain('lyricTranscriptionProviderLabel(job.provider)')
   })
 
   it('uses audio_tracks.id and private storage access without exposing provider credentials', () => {

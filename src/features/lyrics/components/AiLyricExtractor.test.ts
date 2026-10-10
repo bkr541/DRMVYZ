@@ -397,9 +397,10 @@ describe('AI lyric extractor refresh recovery', () => {
 
     expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-completed')
     expect(container!.textContent).toContain('Draft ready')
-    expect(container!.textContent).toContain('Groq Whisper')
-    expect(container!.textContent).toContain('whisper-large-v3-turbo')
-    expect(container!.textContent).toContain('Direct mode')
+    // Provider, model and processing-mode badges are no longer shown in the progress card.
+    expect(container!.textContent).not.toContain('Groq Whisper')
+    expect(container!.textContent).not.toContain('whisper-large-v3-turbo')
+    expect(container!.textContent).not.toContain('Direct mode')
     expect(container!.textContent).toContain('Warning: chunk boundary uncertain')
     expect(container!.textContent).toContain('Recovered AI Draft')
   })
@@ -449,7 +450,7 @@ describe('AI lyric extractor refresh recovery', () => {
     expect(mocks.functionsInvoke).toHaveBeenCalledWith('lyric-transcription', { body: { action: 'status', jobId: 'processing' } })
     expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-completed')
     expect(container!.textContent).toContain('Draft ready')
-    expect(container!.textContent).toContain('Browser-prepared audio')
+    expect(container!.textContent).not.toContain('Browser-prepared audio')
   })
 })
 
@@ -562,7 +563,7 @@ describe('AI lyric vocal-reference source selection', () => {
     await selectDropdownOption('lyric-extraction-source-mode', 'Vocal Reference')
     await selectDropdownOption('lyric-vocal-reference-track', 'Reverie Vocals · DVYDRM · 03:00')
 
-    expect(container!.textContent).toContain('Lyrics belong to')
+    expect(container!.textContent).not.toContain('Lyrics belong to')
     expect(container!.textContent).toContain('Reverie Vocals')
     expect(container!.textContent).toContain('Compatible duration')
 

@@ -3368,3 +3368,10 @@
 .lmv-icon-only-chip .dv-icon-chip__icon { margin: 0; }
 
 .lmv-timeline-toolbar { padding-top: 12px; }
+
+/* AI Extract review summary: two columns of label/value rows. */
+.lmv-ai-extract .lmv-validation-box--two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+}
