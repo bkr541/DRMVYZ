@@ -54,6 +54,8 @@ interface TrackTimelineVisualizerProps {
   analysis: TrackIntelligenceAnalysis
   rgbWaveform: RgbWaveformAnalysis
   filename: string
+  trackTitle?: string | null
+  artistName?: string | null
   channels?: number | null
 }
 
@@ -762,17 +764,18 @@ function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
 }
 
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
+  const { analysis, rgbWaveform, filename, channels, trackTitle, artistName } = props
   const appShellRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
   const playheadTimeRef = useRef<HTMLSpanElement>(null)
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
   engineRef.current = engine
-  const model = useMemo(() => buildTrackTimelineModel(props), [
-    props.analysis,
-    props.channels,
-    props.filename,
-    props.rgbWaveform,
+  const model = useMemo(() => buildTrackTimelineModel({ analysis, rgbWaveform, filename, channels }), [
+    analysis,
+    channels,
+    filename,
+    rgbWaveform,
   ])
   const groups = useMemo(() => buildGroups(model), [model])
   const barDuration = useMemo(() => estimateTrackTimelineBarDuration(
@@ -1036,6 +1039,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                     headerRowLabel="Track"
                     headerRow={(
                       <div className="ttv-track-info-grid">
+                        <TrackInfoRow label="Track Title" value={trackTitle?.trim() || model.meta.filename} />
+                        <TrackInfoRow label="Artist Name" value={artistName?.trim() || '—'} />
                         <TrackInfoRow label="Length" value={formatTime(model.durationSec)} />
                         <TrackInfoRow label="BPM" value={model.meta.bpm ? String(Math.round(model.meta.bpm)) : '—'} />
                         <TrackInfoRow label="Time Signature" value={model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'} />

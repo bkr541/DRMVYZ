@@ -2105,6 +2105,42 @@
   letter-spacing: 0.05em;
 }
 
+.vz-mi-rhythm-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.vz-mi-summary-metric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.vz-mi-rhythm-bars {
+  margin-top: 12px;
+}
+.vz-mi-section-type {
+  margin-bottom: 12px;
+}
+.vz-mi-harmonic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.vz-mi-harmonic-bar {
+  margin-top: 12px;
+}
+.vz-mi-semantic-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.vz-mi-rhythm-events {
+  margin-top: 12px;
+}
+
 /* Boolean event dots */
 .vz-mi-dots-row {
   display: flex;
@@ -2164,21 +2200,18 @@
   box-shadow: 0 0 5px #61d6aa88;
 }
 
-/* Lyric text rows */
-.vz-mi-lyric-line {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 3px;
-  min-height: 14px;
+/* Lyric summary mirrors the Track group's two-column label/value layout. */
+.vz-mi-lyrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 12px;
 }
 .vz-mi-lyric-text {
-  font-size: 10px;
-  color: rgba(255,255,255,0.55);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
+  min-width: 0;
+  color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
+  font: 700 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow-wrap: break-word;
 }
 
 /* Shared legacy range primitives retained for Stage 4 layer-management UI. */

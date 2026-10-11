@@ -123,8 +123,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
   const sectionConfBar  = useRef<BarRow>({ label: 'Confidence', barEl: null, valEl: null, color: '#b84fc9' })
 
   // Harmonic
-  const keyRef      = useRef<HTMLSpanElement | null>(null)
-  const modeRef     = useRef<HTMLSpanElement | null>(null)
+  const keyModeRef  = useRef<HTMLSpanElement | null>(null)
   const chordRef    = useRef<HTMLSpanElement | null>(null)
   const pitchRef    = useRef<HTMLSpanElement | null>(null)
   const contourRef  = useRef<HTMLSpanElement | null>(null)
@@ -255,8 +254,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
       updateBar(sectionConfBar.current, sc.confidence)
 
       // Harmonic
-      if (keyRef.current)     keyRef.current.textContent     = h.key    ?? '—'
-      if (modeRef.current)    modeRef.current.textContent    = h.mode   ?? '—'
+      if (keyModeRef.current) keyModeRef.current.textContent = [h.key, h.mode].filter(Boolean).join(' ') || '—'
       if (chordRef.current)   chordRef.current.textContent   = h.chord  ?? '—'
       if (pitchRef.current)   pitchRef.current.textContent   = h.pitchHz != null ? `${h.pitchHz.toFixed(0)} Hz` : '—'
       if (contourRef.current) contourRef.current.textContent = h.melodyContour ?? '—'
@@ -381,18 +379,26 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
         {/* ── Rhythm ───────────────────────────────────────────────────────── */}
         <MiSection title="Rhythm">
-          <div className="vz-mi-kv-row">
-            <span className="vz-mi-kv-label">BPM</span>
-            <span ref={bpmRef} className="vz-mi-kv-val">—</span>
-            <span className="vz-mi-kv-label">Beat</span>
-            <span ref={beatInBarRef} className="vz-mi-kv-val">1</span>
-            <span className="vz-mi-kv-label">Bar</span>
-            <span ref={barIdxRef} className="vz-mi-kv-val">0</span>
+          <div className="vz-mi-rhythm-grid">
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">BPM</span>
+              <span ref={bpmRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Beat</span>
+              <span ref={beatInBarRef} className="vz-mi-kv-val">1</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Bar</span>
+              <span ref={barIdxRef} className="vz-mi-kv-val">0</span>
+            </div>
           </div>
-          <MiBar row={phaseBar.current}    barRowRefs={barRowRefs} />
-          <MiBar row={ph16Bar.current}     barRowRefs={barRowRefs} />
-          <MiBar row={transientBar.current} barRowRefs={barRowRefs} />
-          <div className="vz-mi-dots-row">
+          <div className="vz-mi-rhythm-bars">
+            <MiBar row={phaseBar.current} barRowRefs={barRowRefs} />
+            <MiBar row={ph16Bar.current} barRowRefs={barRowRefs} />
+            <MiBar row={transientBar.current} barRowRefs={barRowRefs} />
+          </div>
+          <div className="vz-mi-dots-row vz-mi-rhythm-events">
             {rhythmDots.current.map(row => {
               const r = dotRowRefs(row)
               return (
@@ -414,9 +420,9 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
         {/* ── Section ──────────────────────────────────────────────────────── */}
         <MiSection title="Section">
-          <div className="vz-mi-kv-row">
+          <div className="vz-mi-summary-metric vz-mi-section-type">
             <span className="vz-mi-kv-label">Type</span>
-            <span ref={sectionTypeRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
+            <span ref={sectionTypeRef} className="vz-mi-kv-val">—</span>
           </div>
           <MiBar row={sectionProgBar.current}  barRowRefs={barRowRefs} />
           <MiBar row={sectionIntBar.current}   barRowRefs={barRowRefs} />
@@ -425,23 +431,27 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
         {/* ── Harmonic ─────────────────────────────────────────────────────── */}
         <MiSection title="Harmonic">
-          <div className="vz-mi-kv-row">
-            <span className="vz-mi-kv-label">Key</span>
-            <span ref={keyRef} className="vz-mi-kv-val">—</span>
-            <span className="vz-mi-kv-label">Mode</span>
-            <span ref={modeRef} className="vz-mi-kv-val">—</span>
+          <div className="vz-mi-harmonic-grid">
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Key &amp; Mode</span>
+              <span ref={keyModeRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Chord</span>
+              <span ref={chordRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Pitch</span>
+              <span ref={pitchRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Contour</span>
+              <span ref={contourRef} className="vz-mi-kv-val">—</span>
+            </div>
           </div>
-          <div className="vz-mi-kv-row">
-            <span className="vz-mi-kv-label">Chord</span>
-            <span ref={chordRef} className="vz-mi-kv-val">—</span>
+          <div className="vz-mi-harmonic-bar">
+            <MiBar row={keyConfBar.current} barRowRefs={barRowRefs} />
           </div>
-          <div className="vz-mi-kv-row">
-            <span className="vz-mi-kv-label">Pitch</span>
-            <span ref={pitchRef} className="vz-mi-kv-val">—</span>
-            <span className="vz-mi-kv-label">Contour</span>
-            <span ref={contourRef} className="vz-mi-kv-val">—</span>
-          </div>
-          <MiBar row={keyConfBar.current} barRowRefs={barRowRefs} />
         </MiSection>
 
         {/* ── Stems ────────────────────────────────────────────────────────── */}
@@ -465,13 +475,15 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
         {/* ── Lyrics ───────────────────────────────────────────────────────── */}
         <MiSection title="Lyrics">
           <MiBar row={vocalActBar.current} barRowRefs={barRowRefs} />
-          <div className="vz-mi-lyric-line">
-            <span className="vz-mi-kv-label">Line</span>
-            <span ref={activeLineRef} className="vz-mi-lyric-text">—</span>
-          </div>
-          <div className="vz-mi-lyric-line">
-            <span className="vz-mi-kv-label">Word</span>
-            <span ref={activeWordRef} className="vz-mi-lyric-text">—</span>
+          <div className="vz-mi-lyrics-grid">
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Line</span>
+              <span ref={activeLineRef} className="vz-mi-lyric-text">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Word</span>
+              <span ref={activeWordRef} className="vz-mi-lyric-text">—</span>
+            </div>
           </div>
         </MiSection>
 
@@ -480,11 +492,15 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
           {semanticBars.current.map(row => (
             <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
           ))}
-          <div className="vz-mi-kv-row">
-            <span className="vz-mi-kv-label">Mood</span>
-            <span ref={moodRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
-            <span className="vz-mi-kv-label">Texture</span>
-            <span ref={textureRef} className="vz-mi-kv-val vz-mi-kv-val--tag">—</span>
+          <div className="vz-mi-semantic-grid">
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Mood</span>
+              <span ref={moodRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Texture</span>
+              <span ref={textureRef} className="vz-mi-kv-val">—</span>
+            </div>
           </div>
         </MiSection>
         </>}

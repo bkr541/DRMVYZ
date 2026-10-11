@@ -25,12 +25,16 @@ export function TrackTimelineModal({
   analysis,
   rgbWaveform,
   filename,
+  trackTitle,
+  artistName,
   channels,
 }: {
   onClose: () => void
   analysis: TrackIntelligenceAnalysis
   rgbWaveform: RgbWaveformAnalysis
   filename: string
+  trackTitle?: string | null
+  artistName?: string | null
   channels?: number | null
 }) {
   const [container, setContainer] = useState<HTMLElement | null>(null)
@@ -84,6 +88,8 @@ export function TrackTimelineModal({
       analysis={analysis}
       rgbWaveform={rgbWaveform}
       filename={filename}
+      trackTitle={trackTitle}
+      artistName={artistName}
       channels={channels}
     />,
     container,

@@ -829,6 +829,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               analysis={effectiveTrackAnalysis}
               rgbWaveform={trackTimelineWaveformEntry.analysis}
               filename={engine.currentTrack?.displayName ?? engine.currentTrack?.name ?? 'Track'}
+              trackTitle={engine.currentTrack?.title ?? engine.currentTrack?.displayName ?? engine.currentTrack?.name ?? null}
+              artistName={engine.currentTrack?.artist ?? engine.currentTrack?.externalMetadata?.artist ?? null}
               channels={engine.currentTrack
                 ? engine.getDecodedBuffer(engine.currentTrack.id)?.numberOfChannels
                   ?? engine.currentTrack.persistedMetadata?.channels
