@@ -807,17 +807,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         <span className="az-spacer" />
         <button
           type="button"
-          className="vsm-settings-btn vsm-settings-btn--track-timeline"
-          data-state={trackTimelineAvailability.state}
-          title={trackTimelineAvailability.title}
-          aria-label={trackTimelineAvailability.title}
-          disabled={!trackTimelineAvailability.enabled}
-          onClick={() => setTrackTimelineOpen(true)}
-        >
-          <TrackTimelineIcon />
-        </button>
-        <button
-          type="button"
           className="vsm-settings-btn"
           title="Layout Lab"
           aria-label="Layout Lab"
@@ -1265,6 +1254,19 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         }
         waveformAppearance="deck"
         showAudioSourceControl
+        lowerReservedAction={(
+          <button
+            type="button"
+            className="vz-dock-track-timeline-btn"
+            data-state={trackTimelineAvailability.state}
+            title={trackTimelineAvailability.title}
+            aria-label={trackTimelineAvailability.title}
+            disabled={!trackTimelineAvailability.enabled}
+            onClick={() => setTrackTimelineOpen(true)}
+          >
+            <TrackTimelineIcon />
+          </button>
+        )}
       />
     </div>
   )

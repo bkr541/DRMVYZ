@@ -1,6 +1,6 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { isDockBlankSpace } from './dockBlankSpace'
-import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useShallow } from 'zustand/react/shallow'
 import { useVisualStore, DEFAULT_PRESETS } from '../../../stores/visualStore'
@@ -29,6 +29,7 @@ import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { InfoPopover } from '../../shared/InfoPopover'
 import { DrawerNotice } from './DrawerNotice'
 import rekordboxLogoUrl from '../../../assets/rekordbox_logo.svg'
+import cueMarkerIconSvg from '../../../assets/cue_marker.svg?raw'
 import {
   getAudioSourcePolicySnapshot,
   getLastAudioSourcePolicyMessage,
@@ -176,6 +177,8 @@ export interface VyzualzAudioDockProps {
    *  Callers that render their own Input dropdown elsewhere (e.g. the
    *  React view header) should stop doing so once this is enabled. */
   showAudioSourceControl?: boolean
+  /** Optional action rendered in the lower reserved key immediately left of Cue. */
+  lowerReservedAction?: ReactNode
 }
 
 export function VyzualzAudioDock({
@@ -186,6 +189,7 @@ export function VyzualzAudioDock({
   waveformAppearance = 'rgb',
   rekordboxMenuPortalTarget = null,
   showAudioSourceControl = false,
+  lowerReservedAction,
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
@@ -1101,9 +1105,11 @@ export function VyzualzAudioDock({
             disabled={!hasTrack || !transportReady || liveInputSelected}
             aria-label={engine.isPlaying ? 'Set cue point here' : `Jump to cue (${fmtPlayTime(cuePoint)})`}
           >
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 21V4m0 1h11l-2.5 3L16 11H5"/>
-            </svg>
+            <span
+              className="vz-dock-action-icon vz-dock-cue-icon"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: cueMarkerIconSvg }}
+            />
           </button>
           <button
             className={`vz-dock-sync-master-btn${bpmSync ? ' vz-dock-sync-master-btn--on' : ''}`}
@@ -1117,10 +1123,10 @@ export function VyzualzAudioDock({
               <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
             </svg>
           </button>
-          {/* Two blank placeholder keys beside BPM, reserved for future dock actions. */}
-          <div className="vz-dock-blank-group" aria-hidden="true">
+          {/* Reserved keys beside BPM. React uses the lower slot for Track Timeline. */}
+          <div className="vz-dock-blank-group" aria-hidden={lowerReservedAction ? undefined : true}>
             <div className="vz-dock-blank-btn" />
-            <div className="vz-dock-blank-btn" />
+            {lowerReservedAction ?? <div className="vz-dock-blank-btn" />}
           </div>
         </div>
       </div>
