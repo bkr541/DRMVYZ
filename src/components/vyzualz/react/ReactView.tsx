@@ -1258,9 +1258,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           <button
             type="button"
             className="vz-dock-track-timeline-btn"
-            data-state={trackTimelineAvailability.state}
+            data-state={trackTimelineOpen ? 'active' : trackTimelineAvailability.state}
             title={trackTimelineAvailability.title}
             aria-label={trackTimelineAvailability.title}
+            aria-pressed={trackTimelineOpen}
             disabled={!trackTimelineAvailability.enabled}
             onClick={() => setTrackTimelineOpen(true)}
           >

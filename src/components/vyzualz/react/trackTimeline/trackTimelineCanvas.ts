@@ -24,7 +24,7 @@ export type TrackTimelineCanvasSpec =
   | WithViewport<{ kind: 'timeRuler' }>
   | WithViewport<{ kind: 'detailRuler' }>
   | WithViewport<{ kind: 'sections'; sections: TrackTimelineSection[] }>
-  | WithViewport<{ kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; fill: boolean }>
+  | WithViewport<{ kind: 'line'; points: TrackTimelinePoint[]; color: PaletteKey; curveName: string; label: string; fill: boolean }>
   | WithViewport<{ kind: 'heat'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string }>
   | WithViewport<{ kind: 'events'; events: TrackTimelineEvent[]; eventType: string; color: PaletteKey }>
   | WithViewport<{ kind: 'extrema'; points: TrackTimelinePoint[]; color: PaletteKey; metric: string; style: 'line' | 'heat' }>
@@ -285,6 +285,41 @@ function pointsInViewport(points: TrackTimelinePoint[], viewport: TrackTimelineV
   const start = Math.max(0, firstVisible - 1)
   const end = Math.min(points.length, lastVisible + 1)
   return points.slice(start, end)
+}
+
+export interface TrackTimelineLineHoverValue {
+  time: number
+  value: number
+  x: number
+  y: number
+}
+
+/** Resolve the interpolated curve value only when the pointer is close to the rendered line. */
+export function resolveTrackTimelineLineHoverValue(input: {
+  points: TrackTimelinePoint[]
+  viewport: TrackTimelineViewport
+  width: number
+  height: number
+  x: number
+  y: number
+  tolerance?: number
+}): TrackTimelineLineHoverValue | null {
+  const { points, viewport, width, height, x, y, tolerance = 8 } = input
+  if (width <= 0 || height <= 0 || x < 0 || x > width || y < 0 || y > height) return null
+
+  const visiblePoints = pointsInViewport(points, viewport)
+  if (!visiblePoints.length) return null
+  const time = viewport.startSec + (x / width) * (viewport.endSec - viewport.startSec)
+  let rightIndex = visiblePoints.findIndex(point => point.time >= time)
+  if (rightIndex === -1) rightIndex = visiblePoints.length - 1
+  const right = visiblePoints[rightIndex]!
+  const left = visiblePoints[Math.max(0, rightIndex - 1)] ?? right
+  const span = right.time - left.time
+  const ratio = span > 0 ? clamp((time - left.time) / span, 0, 1) : 0
+  const value = left.value + (right.value - left.value) * ratio
+  const lineY = valueToY(value, valueRange(visiblePoints), 8, height - 10)
+  if (Math.abs(y - lineY) > tolerance) return null
+  return { time, value, x, y: lineY }
 }
 
 function drawSectionContext(draw: DrawContext) {
@@ -681,7 +716,7 @@ function drawSections(draw: DrawContext, sections: TrackTimelineSection[]) {
       x2,
       y1: 0,
       y2: height,
-      text: `${section.label}\n${formatTime(section.start)} → ${formatTime(section.end)}\nType: ${section.type} · Intensity: ${formatValue(section.intensity)}${section.confidence !== null ? ` · Confidence: ${formatValue(section.confidence)}` : ''}`,
+      text: `${section.label}\n${formatTime(section.start)} → ${formatTime(section.end)}\nType: ${section.type} · Intensity: ${formatTrackTimelineValue(section.intensity)}${section.confidence !== null ? ` · Confidence: ${formatTrackTimelineValue(section.confidence)}` : ''}`,
     })
   })
   ctx.textAlign = 'start'
@@ -851,7 +886,7 @@ function drawEventRow(draw: DrawContext, spec: Extract<TrackTimelineCanvasSpec, 
       x2: Math.max(x + 6, x2),
       y1: 0,
       y2: height,
-      text: `${item.label}\n${formatTime(item.time)}${item.duration ? ` · duration ${item.duration.toFixed(3)}s` : ''}${item.confidence !== null ? `\nConfidence: ${formatValue(item.confidence)}` : ''}${item.value !== null && item.value !== undefined ? `\nValue: ${formatValue(item.value)}` : ''}`,
+      text: `${item.label}\n${formatTime(item.time)}${item.duration ? ` · duration ${item.duration.toFixed(3)}s` : ''}${item.confidence !== null ? `\nConfidence: ${formatTrackTimelineValue(item.confidence)}` : ''}${item.value !== null && item.value !== undefined ? `\nValue: ${formatTrackTimelineValue(item.value)}` : ''}`,
     })
   })
 }
@@ -901,7 +936,7 @@ function drawExtremaBadge(
   const { ctx, width, height, palette, fonts, hits, viewport } = draw
   const x = timeToX(point.time, width, viewport)
   const color = palette[colorKey]
-  const text = `${label} ${formatValue(point.value)}`
+  const text = `${label} ${formatTrackTimelineValue(point.value)}`
   ctx.font = `700 9px ${fonts.data}`
   const badgeWidth = ctx.measureText(text).width + 10
   const badgeX = clamp(x - badgeWidth / 2, 2, width - badgeWidth - 2)
@@ -925,7 +960,7 @@ function drawExtremaBadge(
     x2: badgeX + badgeWidth,
     y1: y,
     y2: y + 16,
-    text: `${label} · ${formatValue(point.value)}\n${formatTime(point.time)}`,
+    text: `${label} · ${formatTrackTimelineValue(point.value)}\n${formatTime(point.time)}`,
   })
 }
 
@@ -993,7 +1028,7 @@ function drawRangeLabels(draw: DrawContext, range: { min: number; max: number })
   ctx.font = `700 10.5px ${fonts.data}`
   ctx.textBaseline = 'middle'
   const drawLabel = (value: number, y: number) => {
-    const text = formatValue(value)
+    const text = formatTrackTimelineValue(value)
     const plateWidth = ctx.measureText(text).width + 10
     roundedRect(ctx, 3, y - 8, plateWidth, 16, 4)
     ctx.fillStyle = rgba(palette.background, 0.82)
@@ -1013,7 +1048,7 @@ function addPointHit(draw: DrawContext, point: TrackTimelinePoint, label: string
     x2: x + 7,
     y1: 0,
     y2: draw.height,
-    text: `${label}\n${formatTime(point.time)} · ${formatValue(point.value)}`,
+    text: `${label}\n${formatTime(point.time)} · ${formatTrackTimelineValue(point.value)}`,
   })
 }
 
@@ -1052,7 +1087,7 @@ export function formatTime(seconds: number, milliseconds = true): string {
   return `${String(minutes).padStart(2, '0')}:${String(wholeSeconds).padStart(2, '0')}${milliseconds ? `.${String(ms).padStart(3, '0')}` : ''}`
 }
 
-function formatValue(value: number | null | undefined): string {
+export function formatTrackTimelineValue(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return 'n/a'
   if (Math.abs(value) >= 100) return value.toFixed(1)
   if (Math.abs(value) >= 10) return value.toFixed(2)

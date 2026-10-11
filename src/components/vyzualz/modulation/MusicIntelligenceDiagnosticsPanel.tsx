@@ -2,7 +2,7 @@
 // Uses requestAnimationFrame + direct DOM writes (refs) — zero React re-renders
 // after mount so it never pollutes the render budget during playback.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import type { MusicIntelligenceFrame } from '../../../features/musicIntelligence/types'
 import { Collapsible } from '../react/ReactControlRows'
@@ -31,11 +31,14 @@ interface TextRow {
 
 export interface MusicIntelligenceDiagnosticsPanelProps {
   liveInputActive?: boolean
-  /** Optional row rendered at the top of the group, above Audio Bands (e.g. loaded-track info pills). */
+  /** Optional content rendered in a collapsible section above Audio Bands. */
   headerRow?: React.ReactNode
+  headerRowLabel?: string
+  /** Render sections directly without the parent Audio Intelligence disclosure group. */
+  ungrouped?: boolean
 }
 
-export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, headerRow }: MusicIntelligenceDiagnosticsPanelProps = {}) {
+export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, headerRow, headerRowLabel = 'Track', ungrouped = false }: MusicIntelligenceDiagnosticsPanelProps = {}) {
   const animRef = useRef<number>(0)
 
   // Live Input: compact operator view. Values update through DOM refs so the
@@ -71,6 +74,14 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
   // Bands
   const bandBars = useRef<BarRow[]>([
+    { label: 'Sub',   barEl: null, valEl: null, color: '#7c6fcd' },
+    { label: 'Bass',  barEl: null, valEl: null, color: '#4ac7db' },
+    { label: 'LMid',  barEl: null, valEl: null, color: '#61d6aa' },
+    { label: 'Mid',   barEl: null, valEl: null, color: '#b84fc9' },
+    { label: 'High',  barEl: null, valEl: null, color: '#d8b95a' },
+    { label: 'Air',   barEl: null, valEl: null, color: '#80dfc0' },
+  ])
+  const normalizedBandBars = useRef<BarRow[]>([
     { label: 'Sub',   barEl: null, valEl: null, color: '#7c6fcd' },
     { label: 'Bass',  barEl: null, valEl: null, color: '#4ac7db' },
     { label: 'LMid',  barEl: null, valEl: null, color: '#61d6aa' },
@@ -213,6 +224,15 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
       // Bands
       const bandVals = [b.sub, b.bass, b.lowMid, b.mid, b.high, b.air]
       bandBars.current.forEach((row, i) => updateBar(row, bandVals[i] ?? 0))
+      const normalizedBandVals = [
+        b.normalizedSub,
+        b.normalizedBass,
+        b.normalizedLowMid,
+        b.normalizedMid,
+        b.normalizedHigh,
+        b.normalizedAir,
+      ]
+      normalizedBandBars.current.forEach((row, i) => updateBar(row, normalizedBandVals[i] ?? 0))
 
       // Rhythm
       if (bpmRef.current)    bpmRef.current.textContent    = r.bpm.toFixed(1)
@@ -279,10 +299,9 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
     }
   }
 
-  return (
-    <div className="vz-mi-panel">
-      <Collapsible label="Audio Intelligence" defaultOpen>
-        {headerRow}
+  const content = (
+    <>
+        {headerRow && <MiSection title={headerRowLabel}>{headerRow}</MiSection>}
         {liveInputActive && (
           <MiSection title="Live Input">
             <div className="vz-mi-kv-row">
@@ -331,6 +350,21 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
         <MiSection title="Audio Bands">
           <div className="vz-mi-bar-group">
             {bandBars.current.map(row => {
+              const r = barRowRefs(row)
+              return (
+                <div key={row.label} className="vz-mi-bar-col">
+                  <span ref={r.valRef} className="vz-mi-bar-val">0.00</span>
+                  <div className="vz-mi-bar-track">
+                    <div ref={r.barRef} className="vz-mi-bar-fill" />
+                  </div>
+                  <span className="vz-mi-bar-lbl">{row.label}</span>
+                </div>
+              )
+            })}
+          </div>
+          <div className="vz-mi-band-subtitle">Normalized</div>
+          <div className="vz-mi-bar-group">
+            {normalizedBandBars.current.map(row => {
               const r = barRowRefs(row)
               return (
                 <div key={row.label} className="vz-mi-bar-col">
@@ -454,7 +488,16 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
           </div>
         </MiSection>
         </>}
-      </Collapsible>
+    </>
+  )
+
+  return (
+    <div className="vz-mi-panel">
+      {ungrouped ? content : (
+        <Collapsible label="Audio Intelligence" defaultOpen>
+          {content}
+        </Collapsible>
+      )}
     </div>
   )
 }
@@ -462,11 +505,21 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 // ── Local sub-components ──────────────────────────────────────────────────────
 
 function MiSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true)
+
   return (
-    <div className="vz-mi-section">
-      <div className="vz-mi-section-title">{title}</div>
-      {children}
-    </div>
+    <section className={`vz-mi-section${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="vz-mi-section-title vz-mi-section-title--toggle"
+        aria-expanded={open}
+        onClick={() => setOpen(current => !current)}
+      >
+        <span>{title}</span>
+        <span className="vz-mi-section-arrow" aria-hidden="true">▾</span>
+      </button>
+      {open && <div className="vz-mi-section-body">{children}</div>}
+    </section>
   )
 }
 

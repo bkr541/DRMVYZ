@@ -23482,7 +23482,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   color: var(--dock-cyan-bright);
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn[data-state='ready'] {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn[data-state='active'] {
   border-color: rgba(74, 199, 219, 0.42);
   background: rgba(74, 199, 219, 0.1);
   color: var(--dock-cyan-bright);

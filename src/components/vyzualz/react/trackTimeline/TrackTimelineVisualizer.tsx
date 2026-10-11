@@ -13,9 +13,13 @@ import {
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
+import collapseIconSvg from '../../../../assets/collapse.svg?raw'
+import expandIconSvg from '../../../../assets/expand.svg?raw'
 import {
   drawTrackTimelineCanvas,
   formatTime,
+  formatTrackTimelineValue,
+  resolveTrackTimelineLineHoverValue,
   type PaletteKey,
   type TrackTimelineCanvasSpec,
   type TrackTimelineHitRegion,
@@ -27,7 +31,6 @@ import {
   type TrackTimelineModel,
   type TrackTimelinePoint,
 } from './trackTimelineModel'
-import { TrackTimelineIcon } from './TrackTimelineIcon'
 import { NotificationDrawer, NotificationBellIcon } from '../../shared/NotificationDrawer'
 import { TextInputRow } from '../ReactControlRows'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
@@ -148,7 +151,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
       label,
       height: 60,
       count: points.length,
-      spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, fill: true },
+      spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, label, fill: true },
     }] : []
   })
 
@@ -162,7 +165,7 @@ function buildGroups(model: TrackTimelineModel): GroupDefinition[] {
       label,
       height: 60,
       count: points.length,
-      spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, fill: false },
+      spec: { kind: 'line', points, color: color as PaletteKey, curveName: key, label, fill: false },
     }] : []
   })
 
@@ -290,6 +293,7 @@ function TrackTimelineCanvas({ model, spec, height }: {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hitsRef = useRef<TrackTimelineHitRegion[]>([])
   const tooltipRef = useRef<HTMLDivElement>(null)
+  const hoverDotRef = useRef<HTMLSpanElement>(null)
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -309,24 +313,45 @@ function TrackTimelineCanvas({ model, spec, height }: {
   const handleMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     const tooltip = tooltipRef.current
-    if (!canvas || !tooltip) return
+    const hoverDot = hoverDotRef.current
+    if (!canvas || !tooltip || !hoverDot) return
     const rect = canvas.getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
+    const lineHover = spec.kind === 'line'
+      ? resolveTrackTimelineLineHoverValue({
+          points: spec.points,
+          viewport: spec.viewport ?? { startSec: 0, endSec: model.durationSec },
+          width: rect.width,
+          height: rect.height,
+          x,
+          y,
+        })
+      : null
     const hit = hitsRef.current.slice().reverse().find(region => (
       x >= region.x1 && x <= region.x2 && y >= region.y1 && y <= region.y2
     ))
-    if (!hit) {
+    if (!lineHover && !hit) {
       tooltip.hidden = true
+      hoverDot.hidden = true
       return
     }
-    tooltip.textContent = hit.text
+    if (lineHover) {
+      hoverDot.style.left = `${lineHover.x}px`
+      hoverDot.style.top = `${lineHover.y}px`
+      hoverDot.hidden = false
+    } else {
+      hoverDot.hidden = true
+    }
+    tooltip.textContent = lineHover
+      ? `${spec.kind === 'line' ? spec.label : ''}\n${formatTime(lineHover.time)} · ${formatTrackTimelineValue(lineHover.value)}`
+      : hit!.text
     tooltip.hidden = false
     const left = Math.max(8, Math.min(window.innerWidth - tooltip.offsetWidth - 8, event.clientX + 12))
     const top = Math.max(8, Math.min(window.innerHeight - tooltip.offsetHeight - 8, event.clientY + 12))
     tooltip.style.left = `${left}px`
     tooltip.style.top = `${top}px`
-  }, [])
+  }, [model.durationSec, spec])
 
   return (
     <>
@@ -337,7 +362,14 @@ function TrackTimelineCanvas({ model, spec, height }: {
         onMouseMove={handleMove}
         onMouseLeave={() => {
           if (tooltipRef.current) tooltipRef.current.hidden = true
+          if (hoverDotRef.current) hoverDotRef.current.hidden = true
         }}
+      />
+      <span
+        ref={hoverDotRef}
+        className={`ttv-line-hover-dot${spec.kind === 'line' ? ` ttv-line-hover-dot--${spec.color}` : ''}`}
+        aria-hidden="true"
+        hidden
       />
       <div ref={tooltipRef} className="ttv-tooltip" role="status" hidden />
     </>
@@ -373,7 +405,6 @@ function TimelineRow({
     <div className="ttv-timeline-row">
       <div className={`ttv-row-label${stickyLabel ? ' ttv-row-label--sticky' : ''}${nested ? ' ttv-row-label--nested' : ''}`} title={label}>
         <span className="ttv-label-text">{label}</span>
-        {nested && <span className="ttv-row-info" aria-hidden="true">i</span>}
         {count > 0 && <small>{count.toLocaleString()}</small>}
       </div>
       <div className={`ttv-canvas-wrap ttv-canvas-wrap--${playheadScope}${playheadAnchor ? ' ttv-canvas-wrap--playhead-anchor' : ''}`}>
@@ -428,92 +459,33 @@ function DetailRuler({ model, viewport }: {
   )
 }
 
-type RailIconName = 'timeline' | 'detail' | 'expand' | 'collapse' | 'center' | 'settings'
+type RailIconName = 'expand' | 'collapse' | 'center'
 
 function RailIcon({ name }: { name: RailIconName }) {
-  if (name === 'timeline') return <TrackTimelineIcon />
-  if (name === 'detail') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5 4v16M12 4v16M19 4v16M3 8h4M10 15h4M17 10h4" />
-        <circle cx="5" cy="8" r="1.6" /><circle cx="12" cy="15" r="1.6" /><circle cx="19" cy="10" r="1.6" />
-      </svg>
-    )
-  }
   if (name === 'expand' || name === 'collapse') {
-    // Collapse: the four corners turn inward (elbows pointing at the centre). Expand: the four corners push outward (brackets in each corner).
-    const inward = name === 'collapse'
     return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d={inward ? 'M8 4v5H3M16 4v5h5M8 20v-5H3M16 20v-5h5' : 'M3 8V3h5M21 8V3h-5M3 16v5h5M21 16v5h-5'} />
-      </svg>
-    )
-  }
-  if (name === 'center') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
-        <circle cx="12" cy="12" r="4.5" />
-      </svg>
+      <span
+        className="ttv-detail-toolbar-icon"
+        aria-hidden="true"
+        dangerouslySetInnerHTML={{ __html: name === 'collapse' ? collapseIconSvg : expandIconSvg }}
+      />
     )
   }
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5 7 7M17 17l1.5 1.5M18.5 5.5 17 7M7 17l-1.5 1.5" />
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+      <circle cx="12" cy="12" r="4.5" />
     </svg>
   )
 }
 
-function TrackTimelineRail({
-  onOverview,
-  onDetail,
-  onExpand,
-  onCollapse,
-  onCenter,
-  onSettings,
-}: {
-  onOverview: () => void
-  onDetail: () => void
-  onExpand: () => void
-  onCollapse: () => void
-  onCenter: () => void
-  onSettings: () => void
-}) {
-  const actions: Array<{ name: RailIconName; label: string; onClick: () => void; active?: boolean }> = [
-    { name: 'timeline', label: 'Overview', onClick: onOverview, active: true },
-    { name: 'detail', label: 'Detail view', onClick: onDetail },
-    { name: 'expand', label: 'Expand all groups', onClick: onExpand },
-    { name: 'collapse', label: 'Collapse all groups', onClick: onCollapse },
-    { name: 'center', label: 'Center detail on playhead', onClick: onCenter },
-  ]
-
+function AudioIntelligenceIcon() {
   return (
-    <nav className="ttv-tool-rail" aria-label="Track timeline navigation">
-      <div className="ttv-tool-rail-main">
-        {actions.map(action => (
-          <button
-            key={action.name}
-            type="button"
-            className={`ttv-rail-btn${action.active ? ' ttv-rail-btn--active' : ''}`}
-            onClick={action.onClick}
-            aria-label={action.label}
-            title={action.label}
-          >
-            <RailIcon name={action.name} />
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        className="ttv-rail-btn"
-        onClick={onSettings}
-        aria-label="Track analysis and information"
-        title="Track analysis and information"
-      >
-        <RailIcon name="settings" />
-      </button>
-    </nav>
+    <svg className="ttv-analysis-panel-header-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 12h3l2.25-6 4.1 12 3.15-9 2 3H21" />
+      <circle cx="3" cy="12" r="1.25" />
+      <circle cx="21" cy="12" r="1.25" />
+    </svg>
   )
 }
 
@@ -782,8 +754,6 @@ function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const appShellRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
-  const detailRef = useRef<HTMLElement>(null)
-  const analysisRef = useRef<HTMLElement>(null)
   const playheadTimeRef = useRef<HTMLInputElement>(null)
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
@@ -871,16 +841,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
     ? `VIEWPORT · ${visibleBars || 'CUSTOM'}${visibleBars ? ' BARS' : ''}`
     : `VIEWPORT · ${zoomPresetLabel(activeZoom)}`
 
-  const metaValues = [
-    formatTime(model.durationSec),
-    model.meta.bpm ? `${Math.round(model.meta.bpm)} BPM` : null,
-    model.meta.timeSignature ? `${model.meta.timeSignature}/4` : null,
-    model.meta.dominantKey || null,
-    `${model.beats.length} beats`,
-    `${model.sections.length} sections`,
-    model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : null,
-  ].filter((value): value is string => Boolean(value))
-
   const downbeatAvailable = model.beats.some(beat => beat.isDownbeat)
   const analysisStatusText = downbeatAvailable
     ? (model.warnings[0] ?? 'Analysis ready')
@@ -921,18 +881,6 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const openNotifications = useCallback(() => setNotificationsOpen(true), [])
   const closeNotifications = useCallback(() => setNotificationsOpen(false), [])
 
-  const scrollToOverview = useCallback(() => {
-    overviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  const scrollToAnalysis = useCallback(() => {
-    analysisRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  const scrollToDetail = useCallback(() => {
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
   return (
     <div
       ref={appShellRef}
@@ -968,36 +916,9 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
       </header>
 
       <div className="ttv-body">
-        <TrackTimelineRail
-          onOverview={scrollToOverview}
-          onDetail={scrollToDetail}
-          onExpand={() => setAllCollapsed(false)}
-          onCollapse={() => setAllCollapsed(true)}
-          onCenter={centerDetailOnPlayhead}
-          onSettings={scrollToAnalysis}
-        />
-
         <section className="ttv-visualization-shell">
           <div className="ttv-scroll-region">
             <div ref={overviewRef} className="ttv-sticky-timeline">
-              <div className="ttv-overview-heading">
-                <div className="ttv-overview-copy">
-                  <span>OVERVIEW</span>
-                  <small>Drag the cyan viewport or its handles to change the detail range.</small>
-                </div>
-                <div className="ttv-overview-actions">
-                  <details className="ttv-overflow-menu">
-                    <summary className="ttv-icon-btn" aria-label="Open track information menu" title="Track information">•••</summary>
-                    <div className="ttv-overflow-popover ttv-overflow-popover--overview">
-                      <strong title={model.meta.filename}>{model.meta.filename}</strong>
-                      <div className="ttv-info-rail-pills">
-                        {metaValues.map(value => <span key={value} className="ttv-meta-pill">{value}</span>)}
-                      </div>
-                    </div>
-                  </details>
-                </div>
-              </div>
-
               <div className="ttv-overview-stack">
                 <OverviewTimelineRow
                   model={model}
@@ -1031,7 +952,7 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
             </div>
 
             <main className="ttv-content-area">
-              <section ref={detailRef} className="ttv-detail-workspace">
+              <section className="ttv-detail-workspace">
                 <header className="ttv-detail-header">
                   <div className="ttv-detail-heading-copy">
                     <span className="ttv-detail-kicker">DETAIL VIEW (ZOOMED)</span>
@@ -1087,11 +1008,11 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   />
                 ))}
               </section>
-              <aside ref={analysisRef} className="ttv-analysis-panel" aria-label="Track analysis details">
+              <aside className="ttv-analysis-panel" aria-label="Audio Intelligence details">
                 <header className="ttv-analysis-panel-header">
                   <div>
-                    <span>TRACK ANALYSIS</span>
-                    <strong title={model.meta.filename}>{model.meta.filename}</strong>
+                    <AudioIntelligenceIcon />
+                    <span>Audio Intelligence</span>
                   </div>
                 </header>
                 <div
@@ -1101,19 +1022,18 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                   aria-label="Scrollable Audio Intelligence details"
                 >
                   <MusicIntelligenceDiagnosticsPanel
+                    ungrouped
+                    headerRowLabel="Track"
                     headerRow={(
-                      <div className="vz-mi-section">
-                        <div className="vz-mi-section-title">Track</div>
-                        <div className="ttv-track-info-grid">
-                          <TextInputRow label="Length" value={formatTime(model.durationSec)} onChange={noop} readOnly />
-                          <TextInputRow label="BPM" value={model.meta.bpm ? String(Math.round(model.meta.bpm)) : '—'} onChange={noop} readOnly />
-                          <TextInputRow label="Time Signature" value={model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'} onChange={noop} readOnly />
-                          <TextInputRow label="Key" value={model.meta.dominantKey || '—'} onChange={noop} readOnly />
-                          <TextInputRow label="Beats" value={model.beats.length.toLocaleString()} onChange={noop} readOnly />
-                          <TextInputRow label="Sections" value={String(model.sections.length)} onChange={noop} readOnly />
-                          <TextInputRow label="Sample Rate" value={model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : '—'} onChange={noop} readOnly />
-                          <TextInputRow label="Position" value={`${formatTime(0)} / ${formatTime(model.durationSec)}`} onChange={noop} readOnly inputRef={playheadTimeRef} />
-                        </div>
+                      <div className="ttv-track-info-grid">
+                        <TextInputRow label="Length" value={formatTime(model.durationSec)} onChange={noop} readOnly />
+                        <TextInputRow label="BPM" value={model.meta.bpm ? String(Math.round(model.meta.bpm)) : '—'} onChange={noop} readOnly />
+                        <TextInputRow label="Time Signature" value={model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'} onChange={noop} readOnly />
+                        <TextInputRow label="Key" value={model.meta.dominantKey || '—'} onChange={noop} readOnly />
+                        <TextInputRow label="Beats" value={model.beats.length.toLocaleString()} onChange={noop} readOnly />
+                        <TextInputRow label="Sections" value={String(model.sections.length)} onChange={noop} readOnly />
+                        <TextInputRow label="Sample Rate" value={model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : '—'} onChange={noop} readOnly />
+                        <TextInputRow label="Position" value={`${formatTime(0)} / ${formatTime(model.durationSec)}`} onChange={noop} readOnly inputRef={playheadTimeRef} />
                       </div>
                     )}
                   />

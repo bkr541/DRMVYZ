@@ -1914,6 +1914,46 @@
   color: rgba(255,255,255,0.28);
   margin-bottom: 5px;
 }
+.vz-mi-section-title--toggle {
+  width: 100%;
+  margin-bottom: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.vz-mi-section-title--toggle:hover,
+.vz-mi-section-title--toggle:focus-visible {
+  color: rgba(255,255,255,0.58);
+}
+.vz-mi-section-title--toggle:focus-visible {
+  outline: 1px solid rgba(74,199,219,0.5);
+  outline-offset: 2px;
+}
+.vz-mi-section-arrow {
+  flex: 0 0 auto;
+  font-size: 8px;
+  transition: transform 0.14s ease;
+}
+.vz-mi-section:not(.is-open) .vz-mi-section-arrow {
+  transform: rotate(-90deg);
+}
+.vz-mi-section-body {
+  padding-top: 5px;
+}
+
+.vz-mi-band-subtitle {
+  margin: 9px 0 5px;
+  color: rgba(255,255,255,0.28);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 
 /* Horizontal bar group (bands/stems) */
 .vz-mi-bar-group {
@@ -6747,17 +6787,30 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-add-to-picker__error { padding: 4px 8px 2px; font-size: 9px; color: #f87171; }
 
 /* Track Timeline dock trigger -------------------------------------------------- */
+.track-timeline-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  color: inherit;
+}
+
+.track-timeline-icon > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .vz-dock-track-timeline-btn {
   position: relative;
 }
 
-.vz-dock-track-timeline-btn[data-state='ready'] {
+.vz-dock-track-timeline-btn[data-state='active'] {
   color: var(--az-cyan);
   border-color: rgba(var(--az-cyan-rgb), 0.28);
   background: rgba(var(--az-cyan-rgb), 0.07);
 }
 
-.vz-dock-track-timeline-btn[data-state='ready']:hover {
+.vz-dock-track-timeline-btn[data-state='active']:hover {
   color: var(--az-green);
   border-color: rgba(97, 214, 170, 0.4);
   background: rgba(97, 214, 170, 0.09);
