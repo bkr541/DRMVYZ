@@ -263,47 +263,64 @@
   visibility: hidden;
 }
 
+/* Collapse / expand control: a slim grip on the rail's inner edge (Layout Lab · Template · "04 · Seam Notch"). It lies entirely inside the rail so
+   nothing of it reaches into the visualizer; hovering or focusing it widens it into a chevron button, and a collapsed rail shows it as that button. */
 .vz-inspector-toggle {
   position: absolute;
   z-index: 20;
   top: 50%;
   transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
+  width: 6px;
+  height: 40px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(12, 18, 26, 0.98);
-  color: rgba(255, 255, 255, 0.82);
+  overflow: hidden;
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--color-primary, #67f7ff) 50%, transparent);
+  color: transparent;
   cursor: pointer;
-  border-radius: 50%;
   font-size: 15px;
   line-height: 1;
   padding: 0;
-  transition: color 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: width 0.15s, color 0.15s, border-color 0.15s, background 0.15s;
 }
 
 .vz-inspector-toggle:hover,
 .vz-inspector-toggle:focus-visible {
-  color: #67f7ff;
-  border-color: rgba(103, 247, 255, 0.45);
-  box-shadow: 0 0 0 1px rgba(103, 247, 255, 0.15);
+  width: 18px;
+  color: var(--color-primary, #67f7ff);
+  border-color: color-mix(in srgb, var(--color-primary, #67f7ff) 50%, transparent);
+  background: #1c2430;
   outline: none;
 }
 
 .vz-inspector-toggle--left {
-  right: -14px;
+  right: 0;
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
 }
 
 .vz-inspector-toggle--right {
-  left: -14px;
+  left: 0;
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
 }
 
 .vz-inspector--collapsed .vz-inspector-toggle--left,
 .vz-inspector--collapsed .vz-inspector-toggle--right {
   left: 50%;
   right: auto;
+  width: 22px;
+  border: 1px solid color-mix(in srgb, var(--color-primary, #67f7ff) 40%, transparent);
+  border-radius: 6px;
+  background: #1c2430;
+  color: rgba(255, 255, 255, 0.78);
   transform: translate(-50%, -50%);
+}
+
+.vz-inspector--collapsed .vz-inspector-toggle:hover,
+.vz-inspector--collapsed .vz-inspector-toggle:focus-visible {
+  color: var(--color-primary, #67f7ff);
 }
 
 /* ── Panel tabs (left / right inspector tab strips) ─────────────────── */

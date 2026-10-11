@@ -1195,9 +1195,8 @@
 }
 
 /* "Contains the window" outline on the left rail's right edge — a thin
-   thread running the height of the rail, with a matching ring that wraps
-   around the floating collapse/expand toggle (.vz-inspector-toggle, which
-   already centers itself on this exact edge) instead of being broken by it.
+   thread running the height of the rail. The collapse/expand toggle
+   (.vz-inspector-toggle) is a grip lying on this edge inside the rail.
    Purely decorative: z-index keeps it under the toggle button and above the
    rail's own border/box-shadow. */
 /* Neutral hairline stops match RailWindowHeader's dark "Two-Tier Header
@@ -1220,31 +1219,9 @@
   pointer-events: none;
 }
 
-.lmv-left-rail::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  width: 32px;
-  height: 32px;
-  z-index: 19;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  pointer-events: none;
-}
-
-/* The toggle re-centers to the rail's midline while collapsed
-   (.vz-inspector--collapsed .vz-inspector-toggle--left) — follow it so the
-   ring keeps wrapping the icon instead of pointing at empty space. */
-.lmv-left-rail.vz-inspector--collapsed::before {
-  left: 50%;
-}
-
 /* Same silver treatment along the top and bottom edges, closing the frame
    that the right-edge thread + ring started. Both pseudo-element slots on
-   .lmv-left-rail are already spoken for (::before is the toggle ring, ::after
-   is the right-edge thread), and painting these as a background-image on the
+   .lmv-left-rail are already spoken for (::after is the right-edge thread), and painting these as a background-image on the
    rail itself doesn't work: .vz-inspector-inner is a normal in-flow child
    that fills the rail's full height with its own near-opaque background, so
    it paints over the rail's own background completely. Use
@@ -1285,9 +1262,8 @@
 }
 
 /* Same "contains the window" outline, mirrored onto the right rail's left
-   edge — same thread, same ring, same top/bottom bands as the left rail,
-   just flipped to the opposite side (the right rail's toggle centers on its
-   left edge via .vz-inspector-toggle--right { left: -14px }). */
+   edge — same thread and same top/bottom bands as the left rail,
+   just flipped to the opposite side. */
 .lmv-right-rail::after {
   content: '';
   position: absolute;
@@ -1305,25 +1281,7 @@
   pointer-events: none;
 }
 
-.lmv-right-rail::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 32px;
-  height: 32px;
-  z-index: 19;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  pointer-events: none;
-}
-
 /* The right rail's toggle also re-centers to the midline while collapsed. */
-.lmv-right-rail.vz-inspector--collapsed::before {
-  left: 50%;
-}
-
 .lmv-right-rail .vz-inspector-inner::before,
 .lmv-right-rail .vz-inspector-inner::after {
   content: '';

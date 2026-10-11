@@ -20,6 +20,7 @@ import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { AudioSourceIndicatorStyleGallery } from './layoutLab/AudioSourceIndicatorStyleGallery'
 import { NavIconStyleGallery } from './layoutLab/NavIconStyleGallery'
+import { RailToggleStyleGallery } from './layoutLab/RailToggleStyleGallery'
 import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
 import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
 import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
@@ -298,6 +299,8 @@ export function LayoutLabMockup() {
                 <TrackMapMarkerStyleGallery />
                 <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Lyric Manager · timeline controls</div>
                 <LyricManagerToolbarStyleGallery />
+                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Rails · collapse / expand control</div>
+                <RailToggleStyleGallery />
               </div>
             )}
             {engineId === 'lyricManager' && (

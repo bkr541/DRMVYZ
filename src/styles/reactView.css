@@ -23968,3 +23968,53 @@ path.llni-accent[fill='currentColor'], circle.llni-accent[fill='currentColor'], 
 .llni-item.is-active::before { content: ''; position: absolute; left: -2px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--az-cyan, #4ac7db); box-shadow: 0 0 10px rgba(74, 199, 219, 0.6); }
 .llni-item:not(.is-active):hover { color: rgba(196, 207, 211, 0.78); }
 .llni-stage--hex-seal .llni-item.is-active .llni-icon { background: rgba(74, 199, 219, 0.1); box-shadow: 0 0 16px rgba(74, 199, 219, 0.16); }
+
+/* Layout Lab · Template: rail collapse / expand control concepts. */
+.llrt-gallery { display: flex; flex-direction: column; gap: 22px; padding: 4px 0 24px; }
+.llrt-concept { display: flex; flex-direction: column; gap: 9px; }
+.llrt-copy { display: flex; flex-direction: column; gap: 4px; }
+.llrt-copy > span { color: rgba(232, 244, 248, 0.82); font: 800 9px/1.2 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.04em; text-transform: uppercase; }
+.llrt-copy > p { margin: 0; color: rgba(196, 207, 211, 0.46); font: 600 9px/1.45 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llrt-mock { display: flex; height: 168px; overflow: hidden; border: 1px solid rgba(154, 178, 188, 0.16); border-radius: 8px; background: #0a0f12; }
+.llrt-rail { position: relative; display: flex; flex: 0 0 150px; flex-direction: column; width: 150px; background: #12191d; transition: flex-basis 180ms ease, width 180ms ease; }
+.llrt-rail--left { border-right: 2px solid #2b323c; }
+.llrt-rail--right { border-left: 2px solid #2b323c; }
+.llrt-rail.is-collapsed { flex-basis: 32px; width: 32px; }
+.llrt-head { display: flex; flex: 0 0 34px; align-items: center; justify-content: space-between; gap: 6px; padding: 0 10px; background: linear-gradient(180deg, #333944 0 41%, #1c2026 42%); color: rgba(230, 238, 242, 0.92); font: 700 8px/1 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.14em; text-transform: uppercase; }
+.llrt-rail--right .llrt-head { flex-direction: row-reverse; }
+.llrt-body { display: flex; flex: 1; flex-direction: column; gap: 9px; padding: 12px 10px; overflow: hidden; }
+.llrt-body i { display: block; height: 7px; border-radius: 4px; background: rgba(154, 178, 188, 0.14); }
+.llrt-rail.is-collapsed .llrt-title, .llrt-rail.is-collapsed .llrt-body { display: none; }
+.llrt-rail.is-collapsed .llrt-head { justify-content: center; padding: 0; }
+.llrt-visualizer { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: flex-end; padding: 8px 12px; background: radial-gradient(circle at 50% 110%, rgba(74, 199, 219, 0.18), transparent 62%), #070b0d; }
+.llrt-visualizer > span { position: absolute; top: 10px; left: 0; right: 0; text-align: center; color: rgba(196, 207, 211, 0.3); font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.16em; text-transform: uppercase; }
+.llrt-visualizer > div { display: flex; height: 62%; align-items: flex-end; gap: 4px; }
+.llrt-visualizer > div i { flex: 1; border-radius: 2px 2px 0 0; background: linear-gradient(180deg, rgba(103, 247, 255, 0.85), rgba(74, 199, 219, 0.2)); }
+
+.llrt-toggle { display: grid; place-items: center; padding: 0; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(12, 18, 26, 0.98); color: rgba(255, 255, 255, 0.78); cursor: pointer; transition: color 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, width 140ms ease; }
+.llrt-toggle:hover, .llrt-toggle:focus-visible { color: #67f7ff; border-color: rgba(103, 247, 255, 0.5); outline: none; }
+/* 01 · Tucked circle: fully inside the rail edge. */
+.llrt-toggle--tucked { position: absolute; top: 50%; z-index: 3; width: 22px; height: 22px; border-radius: 50%; transform: translateY(-50%); }
+.llrt-rail--left .llrt-toggle--tucked { right: 6px; }
+.llrt-rail--right .llrt-toggle--tucked { left: 6px; }
+.llrt-rail.is-collapsed .llrt-toggle--tucked { left: 50%; right: auto; transform: translate(-50%, -50%); }
+/* 02 · Edge tab: flush against the inner edge, rounded toward the rail. */
+.llrt-toggle--edge-tab { position: absolute; top: 50%; z-index: 3; width: 14px; height: 46px; transform: translateY(-50%); background: #1c2430; }
+.llrt-rail--left .llrt-toggle--edge-tab { right: 0; border-right: 0; border-radius: 8px 0 0 8px; }
+.llrt-rail--right .llrt-toggle--edge-tab { left: 0; border-left: 0; border-radius: 0 8px 8px 0; }
+.llrt-rail.is-collapsed .llrt-toggle--edge-tab { width: 100%; border-radius: 0; border-left: 0; border-right: 0; }
+.llrt-toggle--edge-tab svg { width: 10px; height: 10px; }
+/* 03 · Header button: part of the header bar. */
+.llrt-toggle--header { width: 20px; height: 20px; border-radius: 5px; background: rgba(255, 255, 255, 0.07); }
+/* 04 · Seam notch: a slim grip that widens on hover. */
+.llrt-toggle--seam { position: absolute; top: 50%; z-index: 3; width: 6px; height: 40px; overflow: hidden; border-radius: 4px; transform: translateY(-50%); background: rgba(103, 247, 255, 0.5); border-color: transparent; color: transparent; }
+.llrt-rail--left .llrt-toggle--seam { right: 0; border-radius: 4px 0 0 4px; }
+.llrt-rail--right .llrt-toggle--seam { left: 0; border-radius: 0 4px 4px 0; }
+.llrt-toggle--seam:hover, .llrt-toggle--seam:focus-visible { width: 18px; background: #1c2430; border-color: rgba(103, 247, 255, 0.5); color: #67f7ff; }
+.llrt-rail.is-collapsed .llrt-toggle--seam { left: 50%; right: auto; width: 22px; border-radius: 6px; transform: translate(-50%, -50%); background: #1c2430; border-color: rgba(103, 247, 255, 0.4); color: rgba(255, 255, 255, 0.78); }
+/* 05 · Footer toggle: a slim row at the bottom of the rail. */
+.llrt-foot { display: flex; flex: 0 0 28px; align-items: center; gap: 8px; padding: 0 8px; border-top: 1px solid rgba(154, 178, 188, 0.14); }
+.llrt-rail--right .llrt-foot { flex-direction: row-reverse; }
+.llrt-toggle--footer { width: 20px; height: 20px; border-radius: 5px; }
+.llrt-foot-label { color: rgba(196, 207, 211, 0.5); font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.14em; text-transform: uppercase; }
+.llrt-rail.is-collapsed .llrt-foot { justify-content: center; padding: 0; }
