@@ -9,7 +9,6 @@ import {
 } from '../../../components/vyzualz/react/ReactTrackMapStrip'
 import { clientXToTimelineTime, computeViewportRangeLayout, computeWaveformViewport, timeToViewportRatio } from '../../timeline/timelineViewport'
 import { LyricWaveformCanvas } from '../editor/LyricWaveformCanvas'
-import type { LyricBeatGridStatus } from '../editor/lyricCueEditorModel'
 
 interface Props {
   durationMs: number
@@ -23,10 +22,6 @@ interface Props {
   decodedBuffer?: AudioBuffer | null
   waveformPeaks: number[] | null
   waveformLoading: boolean
-  beatGridStatus: LyricBeatGridStatus
-  beatGridStatusMessage: string | null
-  onAnalyzeTrack?: () => void
-  analysisActionLabel?: string
   /** Seeks the deck (milliseconds). Clicking or dragging any reference lane scrubs through it. */
   onSeek?: (timeMs: number) => void
   /** Wheel zoom over the lanes. */
@@ -134,10 +129,6 @@ export function LyricTrackTimelineWindow({
   beatGrid,
   waveformPeaks,
   waveformLoading,
-  beatGridStatus,
-  beatGridStatusMessage,
-  onAnalyzeTrack,
-  analysisActionLabel = 'Analyze Track',
   onSeek,
   onZoomChange,
   actions,
@@ -218,12 +209,6 @@ export function LyricTrackTimelineWindow({
     if (scrubRef.current) seekFromPointer(event)
   }
   const endScrub = () => { scrubRef.current = false }
-  const beatGridHint = beatGridStatus === 'trusted'
-    ? null
-    : beatGridStatusMessage ?? (beatGrid.length >= 2
-      ? 'Beat snapping is using a temporary BPM grid. Run analysis to replace it with detected beats.'
-      : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
-
   // Rows read top to bottom: time ruler, beat grid, sections, audio, lyric lanes. Each row has a
   // fixed label gutter and a content area; every content area measures its own width, so they stay aligned.
   const lane = (className: string, label: string | null, content: ReactNode) => (
@@ -263,14 +248,6 @@ export function LyricTrackTimelineWindow({
             <div ref={playheadRef} className="lyric-cue-timeline__playhead" data-testid="lyric-playhead" />
           </div>
         </div>
-        {beatGridHint && (
-          <div className="lmv-track-timeline-hint">
-            <span>{beatGridHint}</span>
-            {onAnalyzeTrack && beatGridStatus !== 'analyzing' && (
-              <button type="button" className="lmv-inline-action" onClick={onAnalyzeTrack}>{analysisActionLabel}</button>
-            )}
-          </div>
-        )}
         {toolbar}
       </DualRailCollapsible>
     </section>

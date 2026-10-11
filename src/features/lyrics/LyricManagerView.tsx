@@ -2251,14 +2251,18 @@ export function LyricManagerView({
                 decodedBuffer={decodedBuffer}
                 waveformPeaks={cueEditor.peaks}
                 waveformLoading={cueEditor.loading}
-                beatGridStatus={beatGridStatus}
-                beatGridStatusMessage={beatGridStatusMessage}
-                onAnalyzeTrack={handleAnalyzeSelectedTrack}
-                analysisActionLabel={beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track'}
                 onKeyDown={event => handleLyricUndoRedoKey(event, cueEditor)}
                 onSeek={handleTimelineSeek}
                 onZoomChange={cueEditor.setWaveformZoom}
-                actions={<LyricTimelineEditActions editor={cueEditor} />}
+                actions={<LyricTimelineEditActions
+                  editor={cueEditor}
+                  analyze={beatGridStatus === 'trusted' || beatGridStatus === 'analyzing'
+                    ? null
+                    : {
+                        label: beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track',
+                        onClick: () => { void handleAnalyzeSelectedTrack() },
+                      }}
+                />}
                 toolbar={
                   <LyricTimelineToolbar
                     editor={cueEditor}
@@ -2269,6 +2273,7 @@ export function LyricManagerView({
                     volume={engine.volume}
                     onTogglePlayback={handleTogglePlayback}
                     onVolumeChange={engine.setVolume}
+                    onSeek={handleTimelineSeek}
                   />
                 }
                 cueTimeline={

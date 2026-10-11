@@ -38,8 +38,6 @@ function render(extra: Partial<React.ComponentProps<typeof LyricTrackTimelineWin
       trackUrl={null}
       waveformPeaks={null}
       waveformLoading={false}
-      beatGridStatus="trusted"
-      beatGridStatusMessage={null}
       actions={<div data-testid="actions" />}
       toolbar={<div data-testid="toolbar" />}
       cueTimeline={<div data-testid="cues" />}

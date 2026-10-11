@@ -156,7 +156,7 @@ describe('LyricInspector tabs', () => {
 
   it('builds every Cue and Document control from the standard groups and rows, with no bespoke headings or fields', () => {
     expect(groupTitles('cue')).toEqual([
-      'Cue', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
+      'Cue', 'Overrides', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
     ])
     for (const id of ['cue', 'document'] as const) {
       const scope = pane(id)

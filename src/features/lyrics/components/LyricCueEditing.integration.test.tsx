@@ -69,10 +69,10 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
         trackUrl={null}
         waveformPeaks={editor.peaks}
         waveformLoading={editor.loading}
-        beatGridStatus={overrides.beatGridStatus ?? 'missing'}
-        beatGridStatusMessage={overrides.beatGridStatusMessage ?? null}
-        onAnalyzeTrack={onAnalyzeTrack}
-        actions={<LyricTimelineEditActions editor={editor} />}
+        actions={<LyricTimelineEditActions
+          editor={editor}
+          analyze={(overrides.beatGridStatus ?? 'missing') === 'trusted' || !onAnalyzeTrack ? null : { label: 'Analyze Track', onClick: onAnalyzeTrack }}
+        />}
         toolbar={(
           <LyricTimelineToolbar
             editor={editor}
@@ -83,6 +83,7 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
             volume={0.8}
             onTogglePlayback={() => undefined}
             onVolumeChange={() => undefined}
+            onSeek={() => undefined}
           />
         )}
         cueTimeline={<LyricCueStackedTimeline editor={editor} durationMs={durationMs} currentTimeMs={currentTimeMs} onSeek={() => undefined} />}
@@ -190,10 +191,14 @@ describe('Lyric Manager cue editing workspace', () => {
       navigationTarget: { cueId: 'cue-2', wordId: 'word-2', revision: 1 },
     })
 
-    // Track Timeline owns the recovery action (the hint shows beside its title).
-    const analyzeButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent === 'Analyze Track')
+    // The Track Timeline's cue-action row owns the recovery action, as an icon-only button after Delete, and the old hint text is gone.
+    const analyzeButton = container.querySelector<HTMLButtonElement>('[aria-label="Analyze Track"]')
     expect(analyzeButton).toBeTruthy()
+    expect(analyzeButton!.textContent?.trim()).toBe('')
+    const row = container.querySelector('[aria-label="Cue editing"]')!
+    expect(row.lastElementChild).toBe(analyzeButton)
+    expect(row.querySelector('[aria-label="Delete cue"]')!.compareDocumentPosition(analyzeButton!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.textContent).not.toContain('Temporary grid in use.')
     await act(async () => analyzeButton?.click())
     expect(analyze).toHaveBeenCalledOnce()
     expect(useLyricsStore.getState().selectedCueId).toBe('cue-2')

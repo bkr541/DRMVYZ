@@ -63,10 +63,12 @@ describe('Template Layout Lab workspace', () => {
     expect(markers?.querySelectorAll('[data-testid^="track-map-marker-concept-"]')).toHaveLength(6)
     expect(stage?.querySelector('.llwf-gallery')).toBeNull()
 
-    // The Lyric Manager transport replacements are the final gallery in the middle column.
+    // The Lyric Manager transport replacements come next, followed by the rails' collapse / expand control concepts, which are last.
     const toolbarGallery = stage?.querySelector('[aria-label="Lyric Manager timeline control row concepts"]')
     expect(toolbarGallery?.querySelectorAll('[data-testid^="lyric-toolbar-concept-"]')).toHaveLength(3)
-    expect(stage?.lastElementChild).toBe(toolbarGallery)
+    const railGallery = stage?.querySelector('[aria-label="Rail collapse and expand toggle concepts"]')
+    expect(railGallery?.querySelectorAll('[data-testid^="rail-toggle-"]')).toHaveLength(5)
+    expect(stage?.lastElementChild).toBe(railGallery)
   })
 
   it('adds a Layout Lab-only Template engine with a source indicator Design gallery and no lower workspace', async () => {

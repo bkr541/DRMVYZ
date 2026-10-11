@@ -102,7 +102,7 @@ export function LyricFontSizeField({ style, allowInherit = false, onStyleChange,
 
 /**
  * Appearance, Animation and Effects as three standard control groups (Collapsible + shared control rows). With `allowInherit`
- * (a cue) they are the cue's "… Overrides" and each offers a reset to the document default; without it (the Document tab) they
+ * (a cue) they are the cue's "… Overrides", nested under one "Overrides" parent group, and each offers a reset to the document default; without it (the Document tab) they
  * are the document's "Default …" groups.
  */
 export function LyricPresentationControls({
@@ -127,7 +127,7 @@ export function LyricPresentationControls({
       : null
   )
 
-  return (
+  const groups = (
     <>
       <Collapsible label={title('Appearance')}>
         {resetAction(Object.keys(style).length > 0, onClearStyle, 'Use document defaults')}
@@ -242,4 +242,7 @@ export function LyricPresentationControls({
       </Collapsible>
     </>
   )
+
+  // A cue's three override groups live together under one "Overrides" parent; the document's "Default …" groups stay top level.
+  return allowInherit ? <Collapsible label="Overrides">{groups}</Collapsible> : groups
 }

@@ -28,6 +28,7 @@ const spies = {
   setOverlayVisibility: vi.fn(),
   onTogglePlayback: vi.fn(),
   onVolumeChange: vi.fn(),
+  onSeek: vi.fn(),
   snapChanges: [] as LyricSnapMode[],
 }
 
@@ -82,6 +83,7 @@ function Harness({ playing = false, loaded = true }: { playing?: boolean; loaded
         volume={0.8}
         onTogglePlayback={spies.onTogglePlayback}
         onVolumeChange={spies.onVolumeChange}
+        onSeek={spies.onSeek}
       />
     </>
   )
@@ -119,6 +121,28 @@ describe('LyricTimelineToolbar', () => {
     expect(zoom.compareDocumentPosition(volume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
+  })
+
+  it('puts elapsed time left and the track length right of a track scrubber that seeks, then zoom and volume together after it', async () => {
+    await act(async () => root.render(<Harness />))
+    const toolbar = container.querySelector('[aria-label="Timeline controls"]')!
+    const scrubber = toolbar.querySelector<HTMLElement>('.lltr-scrubber')!
+    const [elapsed, total] = [...scrubber.querySelectorAll('.lltr-stamp')].map(item => item.textContent)
+    expect(elapsed).toBe('0:06')
+    expect(total).toBe('3:13')
+    const slider = scrubber.querySelector<HTMLInputElement>('input[type="range"]')!
+    expect(slider.getAttribute('aria-label')).toBe('Track position')
+    const levels = toolbar.querySelector('.lltr-levels')!
+    expect(levels.querySelector('[aria-label="Shared waveform zoom"]')).not.toBeNull()
+    expect(levels.querySelector('[aria-label="Preview volume"]')).not.toBeNull()
+    expect(scrubber.compareDocumentPosition(levels) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Seeking reports milliseconds.
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setValue.call(slider, '90.5')
+      slider.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(spies.onSeek).toHaveBeenCalledWith(90_500)
   })
 
   it('offers every cue action in one icon-only row with tooltip text, wired to the owner handlers', async () => {

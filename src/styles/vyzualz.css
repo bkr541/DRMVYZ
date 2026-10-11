@@ -205,7 +205,7 @@
 .vz-content {
   --vz-left-width: 322px;
   --vz-right-width: 322px;
-  --vz-collapsed-inspector-width: 48px;
+  --vz-collapsed-inspector-width: 32px;
 
   flex: 1;
   min-height: 0;
@@ -2713,7 +2713,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   --vz-sidebar-width: 72px;
   --vz-left-width: 322px;
   --vz-right-width: 322px;
-  --vz-collapsed-inspector-width: 48px;
+  --vz-collapsed-inspector-width: 32px;
 }
 .az-root[data-left-collapsed='true']  { --vz-left-width:  var(--vz-collapsed-inspector-width); }
 .az-root[data-right-collapsed='true'] { --vz-right-width: var(--vz-collapsed-inspector-width); }

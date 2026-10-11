@@ -1162,7 +1162,7 @@
   --lmv-side-width: 340px;
   --lmv-left-width: var(--lmv-side-width);
   --lmv-right-width: var(--lmv-side-width);
-  --lmv-collapsed-rail-width: 48px;
+  --lmv-collapsed-rail-width: 32px;
 
   display: grid;
   grid-template-columns: var(--lmv-left-width) minmax(0, 1fr) var(--lmv-right-width);
@@ -3344,4 +3344,21 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
+}
+
+/* The Track Timeline's control row (the "Quiet Row" styles live with the Layout Lab concept, .lltr-*): a little air under the lanes, and no hairline above it. */
+.lmv-track-timeline-window .lltr-bar--quiet { margin-top: 12px; border-top: 0; }
+
+/* Load & Analyze Track keeps its green identity (the colour the text button had) as an icon-only chip. */
+.dv-icon-chip.lmv-analyze-chip {
+  border-color: rgba(97, 214, 170, 0.38);
+  background: rgba(97, 214, 170, 0.08);
+  color: #61d6aa;
+}
+
+.dv-icon-chip.lmv-analyze-chip:hover:not(:disabled),
+.dv-icon-chip.lmv-analyze-chip:focus-visible {
+  border-color: rgba(97, 214, 170, 0.6);
+  background: rgba(97, 214, 170, 0.16);
+  color: #a6f1d2;
 }

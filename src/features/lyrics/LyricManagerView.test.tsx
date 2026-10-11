@@ -796,7 +796,10 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
     const editActions = container.querySelector('[aria-label="Cue editing"]')
-    expect(editActions?.querySelectorAll('button')).toHaveLength(11)
+    // Eleven cue commands, then the icon-only analyse button last (this track has no analysed beat grid yet); no hint text beside it.
+    expect(editActions?.querySelectorAll('button')).toHaveLength(12)
+    expect(editActions?.lastElementChild?.getAttribute('aria-label')).toMatch(/Analyze Track$/)
+    expect(container.textContent).not.toMatch(/No BPM or beat grid|Beat snapping/)
     expect(container.querySelector('[aria-label="Cue timing actions"]')).toBeNull()
   })
 
