@@ -3,6 +3,18 @@
 // after mount so it never pollutes the render budget during playback.
 
 import { useEffect, useRef, useState } from 'react'
+import {
+  Category,
+  ChartMultiLine,
+  Flash,
+  Meter,
+  Microphone,
+  Music,
+  Split,
+  TagGroup,
+  TextAlignLeft,
+  Waveform,
+} from '@carbon/icons-react'
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import type { MusicIntelligenceFrame } from '../../../features/musicIntelligence/types'
 import { Collapsible } from '../react/ReactControlRows'
@@ -92,18 +104,36 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
   // Rhythm
   const bpmRef   = useRef<HTMLSpanElement | null>(null)
-  const phaseBar = useRef<BarRow>({ label: 'Beat Phase', barEl: null, valEl: null, color: '#4ac7db' })
+  const bpmSourceRef = useRef<HTMLSpanElement | null>(null)
+  const beatIndexRef = useRef<HTMLSpanElement | null>(null)
+  const beatEventIdRef = useRef<HTMLSpanElement | null>(null)
+  const beatEventTimeRef = useRef<HTMLSpanElement | null>(null)
+  const rhythmBars = useRef<BarRow[]>([
+    { label: 'BPM Confidence',      barEl: null, valEl: null, color: '#7c6fcd' },
+    { label: 'Beat Phase',          barEl: null, valEl: null, color: '#4ac7db' },
+    { label: 'Phrase 4 Progress',   barEl: null, valEl: null, color: '#61d6aa' },
+    { label: 'Phrase 8 Progress',   barEl: null, valEl: null, color: '#80dfc0' },
+    { label: 'Phrase 16 Progress',  barEl: null, valEl: null, color: '#d8b95a' },
+    { label: 'Phrase 32 Progress',  barEl: null, valEl: null, color: '#b84fc9' },
+    { label: 'Transient',           barEl: null, valEl: null, color: '#d8b95a' },
+    { label: 'Kick Strength',       barEl: null, valEl: null, color: '#4ac7db' },
+    { label: 'Snare Strength',      barEl: null, valEl: null, color: '#61d6aa' },
+    { label: 'Hat Strength',        barEl: null, valEl: null, color: '#b84fc9' },
+    { label: 'Transient Confidence',barEl: null, valEl: null, color: '#ffa07a' },
+  ])
   const rhythmDots = useRef<DotRow[]>([
     { label: 'Beat',      dotEl: null, valEl: null },
     { label: 'Kick',      dotEl: null, valEl: null },
     { label: 'Snare',     dotEl: null, valEl: null },
     { label: 'Hat',       dotEl: null, valEl: null },
     { label: 'Downbeat',  dotEl: null, valEl: null },
+    { label: 'Phrase 4',  dotEl: null, valEl: null },
+    { label: 'Phrase 8',  dotEl: null, valEl: null },
+    { label: 'Phrase 16', dotEl: null, valEl: null },
+    { label: 'Phrase 32', dotEl: null, valEl: null },
   ])
-  const transientBar = useRef<BarRow>({ label: 'Transient', barEl: null, valEl: null, color: '#d8b95a' })
   const beatInBarRef = useRef<HTMLSpanElement | null>(null)
   const barIdxRef    = useRef<HTMLSpanElement | null>(null)
-  const ph16Bar      = useRef<BarRow>({ label: 'Ph16', barEl: null, valEl: null, color: '#61d6aa' })
 
   // Energy
   const energyBars = useRef<BarRow[]>([
@@ -237,10 +267,37 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
       if (bpmRef.current)    bpmRef.current.textContent    = r.bpm.toFixed(1)
       if (beatInBarRef.current) beatInBarRef.current.textContent = String(r.beatInBar + 1)
       if (barIdxRef.current)    barIdxRef.current.textContent    = String(r.barIndex)
-      updateBar(phaseBar.current,    r.beatPhase)
-      updateBar(ph16Bar.current,     r.phrase16Progress)
-      updateBar(transientBar.current, r.transient)
-      const dotActives = [r.beatHit, r.kickHit, r.snareHit, r.hatHit, r.downbeatHit]
+      if (bpmSourceRef.current) bpmSourceRef.current.textContent = r.bpmSource
+        ? r.bpmSource.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())
+        : '—'
+      if (beatIndexRef.current) beatIndexRef.current.textContent = String(r.beatIndex)
+      if (beatEventIdRef.current) beatEventIdRef.current.textContent = r.beatEventId == null ? '—' : String(r.beatEventId)
+      if (beatEventTimeRef.current) beatEventTimeRef.current.textContent = r.beatEventTimeSec == null ? '—' : `${r.beatEventTimeSec.toFixed(3)} s`
+      const rhythmValues = [
+        r.bpmConfidence,
+        r.beatPhase,
+        r.phrase4Progress,
+        r.phrase8Progress,
+        r.phrase16Progress,
+        r.phrase32Progress,
+        r.transient,
+        r.kickStrength,
+        r.snareStrength,
+        r.hatStrength,
+        r.transientConfidence,
+      ]
+      rhythmBars.current.forEach((row, i) => updateBar(row, rhythmValues[i] ?? 0))
+      const dotActives = [
+        r.beatHit,
+        r.kickHit,
+        r.snareHit,
+        r.hatHit,
+        r.downbeatHit,
+        r.phrase4Hit,
+        r.phrase8Hit,
+        r.phrase16Hit,
+        r.phrase32Hit,
+      ]
       rhythmDots.current.forEach((row, i) => updateDot(row, dotActives[i] ?? false))
 
       // Energy
@@ -392,11 +449,27 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
               <span className="vz-mi-kv-label">Bar</span>
               <span ref={barIdxRef} className="vz-mi-kv-val">0</span>
             </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">BPM Source</span>
+              <span ref={bpmSourceRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Beat Index</span>
+              <span ref={beatIndexRef} className="vz-mi-kv-val">0</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Beat Event ID</span>
+              <span ref={beatEventIdRef} className="vz-mi-kv-val">—</span>
+            </div>
+            <div className="vz-mi-summary-metric">
+              <span className="vz-mi-kv-label">Beat Event Time</span>
+              <span ref={beatEventTimeRef} className="vz-mi-kv-val">—</span>
+            </div>
           </div>
           <div className="vz-mi-rhythm-bars">
-            <MiBar row={phaseBar.current} barRowRefs={barRowRefs} />
-            <MiBar row={ph16Bar.current} barRowRefs={barRowRefs} />
-            <MiBar row={transientBar.current} barRowRefs={barRowRefs} />
+            {rhythmBars.current.map(row => (
+              <MiBar key={row.label} row={row} barRowRefs={barRowRefs} />
+            ))}
           </div>
           <div className="vz-mi-dots-row vz-mi-rhythm-events">
             {rhythmDots.current.map(row => {
@@ -433,7 +506,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
         <MiSection title="Harmonic">
           <div className="vz-mi-harmonic-grid">
             <div className="vz-mi-summary-metric">
-              <span className="vz-mi-kv-label">Key &amp; Mode</span>
+              <span className="vz-mi-kv-label">Key</span>
               <span ref={keyModeRef} className="vz-mi-kv-val">—</span>
             </div>
             <div className="vz-mi-summary-metric">
@@ -531,12 +604,33 @@ function MiSection({ title, children }: { title: string; children: React.ReactNo
         aria-expanded={open}
         onClick={() => setOpen(current => !current)}
       >
-        <span>{title}</span>
+        <span className="vz-mi-section-label">
+          <MiSectionIcon title={title} />
+          <span>{title}</span>
+        </span>
         <span className="vz-mi-section-arrow" aria-hidden="true">▾</span>
       </button>
       {open && <div className="vz-mi-section-body">{children}</div>}
     </section>
   )
+}
+
+function MiSectionIcon({ title }: { title: string }) {
+  const props = { size: 16, className: 'vz-mi-section-icon', 'aria-hidden': true } as const
+
+  switch (title) {
+    case 'Track': return <Music {...props} />
+    case 'Live Input': return <Microphone {...props} />
+    case 'Audio Bands': return <ChartMultiLine {...props} />
+    case 'Rhythm': return <Meter {...props} />
+    case 'Energy': return <Flash {...props} />
+    case 'Section': return <Category {...props} />
+    case 'Harmonic': return <Waveform {...props} />
+    case 'Stems': return <Split {...props} />
+    case 'Lyrics': return <TextAlignLeft {...props} />
+    case 'Semantic': return <TagGroup {...props} />
+    default: return <Category {...props} />
+  }
 }
 
 function MiBar({

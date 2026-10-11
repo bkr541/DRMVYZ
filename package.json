@@ -79,6 +79,7 @@
     "test:afterhours:legacy:perceptual": "node scripts/run-afterhours-visual-acceptance.mjs --perceptual-regression"
   },
   "dependencies": {
+    "@carbon/icons-react": "^11.89.0",
     "@mediapipe/tasks-vision": "^1.1.0",
     "@sentry/electron": "^7.18.0",
     "@supabase/supabase-js": "^2.106.0",
