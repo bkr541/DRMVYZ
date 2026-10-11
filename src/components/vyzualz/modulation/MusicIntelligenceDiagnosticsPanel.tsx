@@ -492,7 +492,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
   )
 
   return (
-    <div className="vz-mi-panel">
+    <div className={`vz-mi-panel${ungrouped ? ' vz-mi-panel--ungrouped' : ''}`}>
       {ungrouped ? content : (
         <Collapsible label="Audio Intelligence" defaultOpen>
           {content}

@@ -1906,6 +1906,14 @@
 }
 .vz-mi-section:last-child { border-bottom: none; }
 
+.vz-mi-panel--ungrouped > .vz-mi-section + .vz-mi-section {
+  margin-top: 12px;
+}
+
+.vz-mi-panel--ungrouped > .vz-mi-section > .vz-mi-section-body {
+  padding-left: 12px;
+}
+
 .vz-mi-section-title {
   font-size: 9px;
   font-weight: 700;
@@ -1923,6 +1931,7 @@
   justify-content: space-between;
   border: 0;
   background: transparent;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
 }
@@ -1943,7 +1952,7 @@
   transform: rotate(-90deg);
 }
 .vz-mi-section-body {
-  padding-top: 5px;
+  padding: 12px 0;
 }
 
 .vz-mi-band-subtitle {

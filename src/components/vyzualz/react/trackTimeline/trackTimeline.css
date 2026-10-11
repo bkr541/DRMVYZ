@@ -745,12 +745,32 @@ summary.ttv-icon-btn::-webkit-details-marker {
 .ttv-track-info-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 10px;
+  gap: 8px 16px;
 }
 
-/* Sample Rate and Position (the live "current / total" readout) have the longest values, so each takes a full row. */
-.ttv-track-info-grid > :nth-last-child(-n + 2) {
-  grid-column: 1 / -1;
+.ttv-track-info-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ttv-track-info-label,
+.ttv-track-info-value {
+  min-width: 0;
+}
+
+.ttv-track-info-label {
+  color: var(--ui-text-secondary, rgba(245, 248, 250, 0.7));
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+}
+
+.ttv-track-info-value {
+  color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
+  font: 700 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 
 .ttv-playhead-time {

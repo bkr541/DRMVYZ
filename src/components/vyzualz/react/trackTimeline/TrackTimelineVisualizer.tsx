@@ -32,7 +32,6 @@ import {
   type TrackTimelinePoint,
 } from './trackTimelineModel'
 import { NotificationDrawer, NotificationBellIcon } from '../../shared/NotificationDrawer'
-import { TextInputRow } from '../ReactControlRows'
 import { MusicIntelligenceDiagnosticsPanel } from '../../modulation/MusicIntelligenceDiagnosticsPanel'
 import {
   clampTrackTimelinePlayheadTime,
@@ -437,8 +436,6 @@ function OverviewTimelineRow({
 /** Bars and beats share one ruler row. */
 const DETAIL_RULER_HEIGHT = 34
 
-const noop = () => {}
-
 function DetailRuler({ model, viewport }: {
   model: TrackTimelineModel
   viewport: TrackTimelineViewport
@@ -455,6 +452,19 @@ function DetailRuler({ model, viewport }: {
           height={DETAIL_RULER_HEIGHT}
         />
       </div>
+    </div>
+  )
+}
+
+function TrackInfoRow({ label, value, valueRef }: {
+  label: string
+  value: string
+  valueRef?: RefObject<HTMLSpanElement>
+}) {
+  return (
+    <div className="ttv-track-info-row">
+      <span className="ttv-track-info-label">{label}</span>
+      <span ref={valueRef} className="ttv-track-info-value">{value}</span>
     </div>
   )
 }
@@ -496,7 +506,7 @@ function TrackTimelinePlayheadController({
   viewport,
 }: {
   appShellRef: RefObject<HTMLDivElement>
-  playheadTimeRef: RefObject<HTMLInputElement>
+  playheadTimeRef: RefObject<HTMLSpanElement>
   durationSec: number
   viewport: TrackTimelineViewport
 }) {
@@ -525,7 +535,7 @@ function TrackTimelinePlayheadController({
         if (playheadTimeRef.current && (
           !Number.isFinite(lastRenderedTime) || Math.abs(currentTimeSec - lastRenderedTime) >= 0.025
         )) {
-          playheadTimeRef.current.value = `${formatTime(currentTimeSec)} / ${formatTime(durationSec)}`
+          playheadTimeRef.current.textContent = `${formatTime(currentTimeSec)} / ${formatTime(durationSec)}`
           lastRenderedTime = currentTimeSec
         }
       }
@@ -754,7 +764,7 @@ function zoomPresetLabel(preset: TrackTimelineZoomPreset): string {
 export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
   const appShellRef = useRef<HTMLDivElement>(null)
   const overviewRef = useRef<HTMLDivElement>(null)
-  const playheadTimeRef = useRef<HTMLInputElement>(null)
+  const playheadTimeRef = useRef<HTMLSpanElement>(null)
   const engine = useSharedAudio()
   const engineRef = useRef(engine)
   engineRef.current = engine
@@ -1026,14 +1036,14 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                     headerRowLabel="Track"
                     headerRow={(
                       <div className="ttv-track-info-grid">
-                        <TextInputRow label="Length" value={formatTime(model.durationSec)} onChange={noop} readOnly />
-                        <TextInputRow label="BPM" value={model.meta.bpm ? String(Math.round(model.meta.bpm)) : '—'} onChange={noop} readOnly />
-                        <TextInputRow label="Time Signature" value={model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'} onChange={noop} readOnly />
-                        <TextInputRow label="Key" value={model.meta.dominantKey || '—'} onChange={noop} readOnly />
-                        <TextInputRow label="Beats" value={model.beats.length.toLocaleString()} onChange={noop} readOnly />
-                        <TextInputRow label="Sections" value={String(model.sections.length)} onChange={noop} readOnly />
-                        <TextInputRow label="Sample Rate" value={model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : '—'} onChange={noop} readOnly />
-                        <TextInputRow label="Position" value={`${formatTime(0)} / ${formatTime(model.durationSec)}`} onChange={noop} readOnly inputRef={playheadTimeRef} />
+                        <TrackInfoRow label="Length" value={formatTime(model.durationSec)} />
+                        <TrackInfoRow label="BPM" value={model.meta.bpm ? String(Math.round(model.meta.bpm)) : '—'} />
+                        <TrackInfoRow label="Time Signature" value={model.meta.timeSignature ? `${model.meta.timeSignature}/4` : '—'} />
+                        <TrackInfoRow label="Key" value={model.meta.dominantKey || '—'} />
+                        <TrackInfoRow label="Beats" value={model.beats.length.toLocaleString()} />
+                        <TrackInfoRow label="Sections" value={String(model.sections.length)} />
+                        <TrackInfoRow label="Sample Rate" value={model.meta.sampleRate ? `${Math.round(model.meta.sampleRate).toLocaleString()} Hz` : '—'} />
+                        <TrackInfoRow label="Position" value={`${formatTime(0)} / ${formatTime(model.durationSec)}`} valueRef={playheadTimeRef} />
                       </div>
                     )}
                   />
