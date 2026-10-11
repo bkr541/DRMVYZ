@@ -2132,8 +2132,138 @@
 .vz-mi-rhythm-bars {
   margin-top: 12px;
 }
-.vz-mi-section-type {
+.vz-mi-beat-grid-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.vz-mi-beat-grid-bars {
+  margin-top: 12px;
+}
+.vz-mi-beat-grid-bars .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-beat-grid-bars .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+.vz-mi-phrase-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.vz-mi-phrase-evidence {
+  grid-column: 1 / -1;
+}
+.vz-mi-phrase-evidence .vz-mi-kv-val {
+  overflow-wrap: break-word;
+}
+.vz-mi-phrase-bars {
+  margin-top: 12px;
+}
+.vz-mi-phrase-bars .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-phrase-bars .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+.vz-mi-rhythm-bars .vz-mi-row,
+.vz-mi-energy-bars .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-rhythm-bars .vz-mi-row-label,
+.vz-mi-energy-bars .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+.vz-mi-section-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
   margin-bottom: 12px;
+}
+.vz-mi-measurement-bars .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-measurement-bars .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+.vz-mi-chroma-title {
+  margin-top: 12px;
+}
+.vz-mi-chroma-row + .vz-mi-chroma-row {
+  margin-top: 8px;
+}
+.vz-mi-structure-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+.vz-mi-structure-wide {
+  grid-column: 1 / -1;
+}
+.vz-mi-structure-wide .vz-mi-kv-val {
+  overflow-wrap: break-word;
+}
+.vz-mi-structure-bars {
+  margin-top: 12px;
+}
+.vz-mi-structure-bars .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-structure-bars .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
+}
+.vz-mi-event-marker-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.vz-mi-event-marker-list .vz-mi-kv-val {
+  overflow-wrap: break-word;
+}
+.vz-mi-event-focus {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin-top: 12px;
+}
+.vz-mi-event-confidence {
+  margin-top: 12px;
+}
+.vz-mi-event-confidence .vz-mi-row {
+  height: auto;
+  min-height: 14px;
+}
+.vz-mi-event-confidence .vz-mi-row-label {
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
 }
 .vz-mi-harmonic-grid {
   display: grid;
@@ -2141,6 +2271,12 @@
   gap: 10px 16px;
 }
 .vz-mi-harmonic-bar {
+  margin-top: 12px;
+}
+.vz-mi-harmonic-events {
+  margin-top: 12px;
+}
+.vz-mi-stem-events {
   margin-top: 12px;
 }
 .vz-mi-semantic-grid {
@@ -2224,6 +2360,10 @@
   color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
   font: 700 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   overflow-wrap: break-word;
+}
+.vz-mi-lyrics-bars,
+.vz-mi-lyrics-events {
+  margin-top: 12px;
 }
 
 /* Shared legacy range primitives retained for Stage 4 layer-management UI. */

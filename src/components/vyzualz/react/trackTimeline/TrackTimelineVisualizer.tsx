@@ -1036,6 +1036,8 @@ export function TrackTimelineVisualizer(props: TrackTimelineVisualizerProps) {
                 >
                   <MusicIntelligenceDiagnosticsPanel
                     ungrouped
+                    beatGridAnalysis={analysis}
+                    beatGridStale={engine.currentTrack?.analysisRuntime.gridStale ?? analysis.gridStale ?? false}
                     headerRowLabel="Track"
                     headerRow={(
                       <div className="ttv-track-info-grid">
