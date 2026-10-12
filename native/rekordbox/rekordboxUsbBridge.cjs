@@ -14,6 +14,7 @@ const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
 const ANLZ_EXT_RE = /\.(DAT|EXT|2EX)$/i
 const MAX_NATIVE_ANLZ_FILES = 50000
 const ANLZ_PARSE_CONCURRENCY = 8
+const DEFAULT_SCAN_CACHE_TTL_MS = 2 * 60 * 1000
 
 // Matches the same removable-media mount-point shapes the renderer uses to guess
 // a USB root from a loaded file's path (see guessNativeUsbRootFromFile in
@@ -35,9 +36,17 @@ function isPlausibleRemovableRoot(rootPath) {
   return REMOVABLE_ROOT_RE.test(path.resolve(String(rootPath || '')))
 }
 
-function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log }) {
+function installRekordboxUsbBridge({
+  ipcMain,
+  dialog,
+  BrowserWindow,
+  log,
+  scanUsbRoot = scanRekordboxUsbRoot,
+  scanCacheTtlMs = DEFAULT_SCAN_CACHE_TTL_MS,
+}) {
   if (!ipcMain || !dialog) throw new Error('installRekordboxUsbBridge requires Electron ipcMain and dialog.')
   const rekordboxLog = log ? log.scope('rekordbox:scan') : null
+  const scanCoordinator = createRekordboxScanCoordinator({ scanUsbRoot, ttlMs: scanCacheTtlMs })
 
   ipcMain.handle('drmvyz:rekordbox:select-usb-root-and-parse', async event => {
     const owner = BrowserWindow?.fromWebContents?.(event.sender)
@@ -51,7 +60,7 @@ function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log }) {
       return emptyResult({ cancelled: true })
     }
 
-    return scanRekordboxUsbRoot(result.filePaths[0], log)
+    return scanCoordinator.scan(result.filePaths[0], log)
   })
 
   ipcMain.handle('drmvyz:rekordbox:scan-usb-root', async (_event, rootPath) => {
@@ -61,8 +70,56 @@ function installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log }) {
         warnings: ['The requested path does not look like a removable-media mount point and was not scanned.'],
       })
     }
-    return scanRekordboxUsbRoot(rootPath, log)
+    return scanCoordinator.scan(rootPath, log)
   })
+}
+
+function createRekordboxScanCoordinator({
+  scanUsbRoot = scanRekordboxUsbRoot,
+  ttlMs = DEFAULT_SCAN_CACHE_TTL_MS,
+  now = Date.now,
+} = {}) {
+  const entries = new Map()
+  const normalizedTtlMs = Math.max(0, Number.isFinite(ttlMs) ? ttlMs : DEFAULT_SCAN_CACHE_TTL_MS)
+
+  function invalidate(rootPath) {
+    if (rootPath == null) {
+      entries.clear()
+      return
+    }
+    entries.delete(normalizeUsbRootCacheKey(rootPath))
+  }
+
+  function scan(rootPath, log) {
+    const key = normalizeUsbRootCacheKey(rootPath)
+    const cached = entries.get(key)
+    const requestedAt = now()
+    if (cached?.promise) return cached.promise
+    if (cached?.result && requestedAt < cached.expiresAt) return Promise.resolve(cached.result)
+    if (cached) entries.delete(key)
+
+    let pending
+    pending = Promise.resolve()
+      .then(() => scanUsbRoot(rootPath, log))
+      .then(result => {
+        if (entries.get(key)?.promise !== pending) return result
+        if (!result?.library || result.cancelled) entries.delete(key)
+        else entries.set(key, { result, expiresAt: now() + normalizedTtlMs })
+        return result
+      }, error => {
+        if (entries.get(key)?.promise === pending) entries.delete(key)
+        throw error
+      })
+    entries.set(key, { promise: pending })
+    return pending
+  }
+
+  return { scan, invalidate }
+}
+
+function normalizeUsbRootCacheKey(rootPath) {
+  const resolved = path.resolve(String(rootPath || ''))
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved
 }
 
 async function scanRekordboxUsbRoot(rootPath, log) {
@@ -665,9 +722,11 @@ function emptyResult(overrides = {}) {
 
 module.exports = {
   installRekordboxUsbBridge,
+  createRekordboxScanCoordinator,
   scanRekordboxUsbRoot,
   parseAnlzLibrary,
   parseAnlzBuffer,
   isPlausibleRemovableRoot,
   ANLZ_PARSE_CONCURRENCY,
+  DEFAULT_SCAN_CACHE_TTL_MS,
 }

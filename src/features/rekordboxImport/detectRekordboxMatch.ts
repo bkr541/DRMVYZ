@@ -18,6 +18,11 @@ export async function fileHasRekordboxMatch(file: File, cache: RekordboxScanCach
     if (!scan) {
       scan = scanNativeRekordboxUsbRoot(root).then(result => (result && !result.cancelled ? result.library : null))
       cache.set(root, scan)
+      void scan.then(library => {
+        if (library === null && cache.get(root) === scan) cache.delete(root)
+      }, () => {
+        if (cache.get(root) === scan) cache.delete(root)
+      })
     }
     return matchFileToRekordboxTrack(file, await scan) !== null
   } catch {

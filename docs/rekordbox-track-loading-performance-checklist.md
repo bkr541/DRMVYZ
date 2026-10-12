@@ -121,12 +121,17 @@ Real removable-media benchmarking remains a release-validation task because repr
 
 ## 4. Eliminate duplicate Rekordbox scans
 
-**Status:** [~] Partially implemented; not production-complete
+**Status:** [x] Completed and verified
 
-### Existing partial behavior
+### Implemented summary
 
-- `fileHasRekordboxMatch()` can share an in-flight scan when callers explicitly provide the same `RekordboxScanCache` map.
-- Media upload creates one cache for a single upload batch.
+- The Electron main process now owns a scan coordinator shared by automatic known-root scans and native USB-picker scans.
+- Normalized USB roots share one in-flight promise, and successful libraries are reused for a bounded two-minute TTL.
+- Different USB roots have isolated entries.
+- Failed, cancelled, and library-less scans are evicted immediately so subsequent requests can retry.
+- Renderer batch caches also evict failed or empty results instead of retaining a poisoned promise.
+- The coordinator exposes explicit invalidation, while the bounded TTL prevents removed or changed media from remaining cached indefinitely.
+- Native tests cover concurrent sharing, sequential reuse, root isolation, TTL refresh, cancellation, failure recovery, and IPC wiring.
 
 ### Required change
 
@@ -245,8 +250,8 @@ Real removable-media benchmarking remains a release-validation task because repr
 - Unit test: metadata hydration preserves track ID and URL.
 - Unit test: metadata hydration does not call `replacePreparedTracks()` or reload the media element.
 - Unit test: reversed scan completion cannot overwrite the newest track or library.
-- Unit test: concurrent requests for one USB root share one native scan.
-- Unit test: failed shared scans are evicted and retryable.
+- [x] Unit test: concurrent requests for one USB root share one native scan.
+- [x] Unit test: failed shared scans are evicted and retryable.
 - Unit test: late metadata changes the analysis revision and supersedes the old job.
 - [x] Native test: bounded ANLZ concurrency never exceeds its configured limit.
 - [x] Native test: parallel parsing produces deterministic output and warning order.
@@ -261,7 +266,7 @@ Real removable-media benchmarking remains a release-validation task because repr
 2. [ ] Add in-place metadata hydration.
 3. [ ] Add request-generation and track-identity guards.
 4. [ ] Reconcile late metadata with existing analysis.
-5. [ ] Add the shared USB scan coordinator and cache.
+5. [x] Add the shared USB scan coordinator and cache.
 6. [x] Add bounded parallel ANLZ/PDB scanning.
 7. [ ] Add production timing instrumentation and complete the validation matrix.
 

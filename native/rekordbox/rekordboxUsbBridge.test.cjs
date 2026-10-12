@@ -7,12 +7,23 @@ const path = require('node:path')
 const test = require('node:test')
 const {
   ANLZ_PARSE_CONCURRENCY,
+  createRekordboxScanCoordinator,
   parseAnlzBuffer,
   parseAnlzLibrary,
   scanRekordboxUsbRoot,
   isPlausibleRemovableRoot,
   installRekordboxUsbBridge,
 } = require('./rekordboxUsbBridge.cjs')
+
+function successfulScan(id = 'library') {
+  return {
+    cancelled: false,
+    library: { id, tracks: [] },
+    warnings: [],
+    detectedPdbFiles: 0,
+    detectedAnlzFiles: 0,
+  }
+}
 
 function fakeLog() {
   const calls = []
@@ -544,6 +555,104 @@ test('scanRekordboxUsbRoot works without a log argument (logging is opt-in)', as
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-log-optional-'))
   t.after(() => fs.rm(root, { recursive: true, force: true }))
   await assert.doesNotReject(scanRekordboxUsbRoot(root))
+})
+
+test('Rekordbox scan coordinator shares in-flight and completed scans for a normalized USB root', async () => {
+  let scanCalls = 0
+  let resolveScan
+  const deferredScan = new Promise(resolve => { resolveScan = resolve })
+  const coordinator = createRekordboxScanCoordinator({
+    scanUsbRoot: async () => {
+      scanCalls += 1
+      return deferredScan
+    },
+  })
+
+  const first = coordinator.scan('/Volumes/DJ USB')
+  const second = coordinator.scan('/Volumes/DJ USB/')
+  await Promise.resolve()
+  assert.equal(scanCalls, 1)
+
+  resolveScan(successfulScan('shared'))
+  assert.equal((await first).library.id, 'shared')
+  assert.equal((await second).library.id, 'shared')
+  assert.equal((await coordinator.scan('/Volumes/DJ USB')).library.id, 'shared')
+  assert.equal(scanCalls, 1)
+
+  coordinator.invalidate('/Volumes/DJ USB')
+  assert.equal((await coordinator.scan('/Volumes/DJ USB')).library.id, 'shared')
+  assert.equal(scanCalls, 2)
+})
+
+test('Rekordbox scan coordinator isolates roots and refreshes completed scans after TTL expiry', async () => {
+  let currentTime = 1000
+  const scanCalls = []
+  const coordinator = createRekordboxScanCoordinator({
+    ttlMs: 50,
+    now: () => currentTime,
+    scanUsbRoot: async rootPath => {
+      scanCalls.push(rootPath)
+      return successfulScan(`${path.basename(rootPath)}-${scanCalls.length}`)
+    },
+  })
+
+  const [first, other] = await Promise.all([
+    coordinator.scan('/Volumes/ONE'),
+    coordinator.scan('/Volumes/TWO'),
+  ])
+  assert.equal(first.library.id, 'ONE-1')
+  assert.equal(other.library.id, 'TWO-2')
+  assert.equal(scanCalls.length, 2)
+
+  currentTime += 49
+  assert.equal((await coordinator.scan('/Volumes/ONE')).library.id, 'ONE-1')
+  currentTime += 1
+  assert.equal((await coordinator.scan('/Volumes/ONE')).library.id, 'ONE-3')
+  assert.equal(scanCalls.length, 3)
+})
+
+test('Rekordbox scan coordinator evicts failed and cancelled scans so later requests retry', async () => {
+  let attempts = 0
+  const coordinator = createRekordboxScanCoordinator({
+    scanUsbRoot: async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('USB disconnected')
+      if (attempts === 2) return { ...successfulScan(), cancelled: true, library: null }
+      return successfulScan('retry-success')
+    },
+  })
+
+  await assert.rejects(coordinator.scan('/Volumes/RETRY'), /USB disconnected/)
+  assert.equal((await coordinator.scan('/Volumes/RETRY')).cancelled, true)
+  assert.equal((await coordinator.scan('/Volumes/RETRY')).library.id, 'retry-success')
+  assert.equal(attempts, 3)
+})
+
+test('installed Rekordbox IPC handlers share the main-process scan coordinator', async () => {
+  let scanCalls = 0
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  installRekordboxUsbBridge({
+    ipcMain,
+    dialog: {
+      showOpenDialog: async () => ({ canceled: false, filePaths: ['/Volumes/DJ/'] }),
+    },
+    scanUsbRoot: async () => {
+      scanCalls += 1
+      return successfulScan('ipc-shared')
+    },
+  })
+
+  const scanHandler = handlers.get('drmvyz:rekordbox:scan-usb-root')
+  const selectHandler = handlers.get('drmvyz:rekordbox:select-usb-root-and-parse')
+  const [first, second] = await Promise.all([
+    scanHandler(null, '/Volumes/DJ'),
+    selectHandler({ sender: {} }),
+  ])
+
+  assert.equal(first.library.id, 'ipc-shared')
+  assert.equal(second.library.id, 'ipc-shared')
+  assert.equal(scanCalls, 1)
 })
 
 test('installRekordboxUsbBridge logs a warning when scan-usb-root is asked to scan a non-removable path', async () => {
