@@ -5,6 +5,7 @@ import {
   cinema2FeedbackTrailsEffectDefinition,
 } from './Cinema2BuiltinEffects'
 import { cinema2CinematicFinishEffectDefinition } from './Cinema2CinematicFinishEffect'
+import { cinema2EventHorizonLensingEffectDefinition } from './Cinema2EventHorizonLensingEffect'
 import { cinema2HdrBloomEffectDefinition } from './Cinema2HdrBloomEffect'
 import { cinema2GlareEffectDefinition } from './Cinema2GlareEffect'
 import { cinema2DepthOfFieldEffectDefinition } from './Cinema2DepthOfFieldEffect'
@@ -101,6 +102,7 @@ for (const definition of [
   cinema2VolumetricAtmosphereEffectDefinition,
   cinema2ReflectiveFloorEffectDefinition,
   cinema2CinematicFinishEffectDefinition,
+  cinema2EventHorizonLensingEffectDefinition,
 ]) {
   const registration = cinema2NativeEffectRegistry.register(definition)
   if (!registration.ok) {

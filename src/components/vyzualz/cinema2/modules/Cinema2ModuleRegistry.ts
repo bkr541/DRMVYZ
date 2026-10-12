@@ -17,6 +17,10 @@ import { cinema2MainframeNativeModuleDefinition } from './Cinema2MainframeNative
 import { cinema2ConduitNativeModuleDefinition } from './Cinema2ConduitNativeModule'
 import { cinema2EchoformNativeModuleDefinition } from './Cinema2EchoformNativeModule'
 import { cinema2EchowaveNativeModuleDefinition } from './Cinema2EchowaveNativeModule'
+import { cinema2CathedralNativeModuleDefinition } from './Cinema2CathedralNativeModule'
+import { cinema2AncientMachineNativeModuleDefinition } from './Cinema2AncientMachineNativeModule'
+import { cinema2EventHorizonNativeModuleDefinition } from './Cinema2EventHorizonNativeModule'
+import { cinema2ConstellationNativeModuleDefinition } from './Cinema2ConstellationNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -158,6 +162,26 @@ if (!echoformRegistration.ok) {
 const echowaveRegistration = cinema2NativeModuleRegistry.register(cinema2EchowaveNativeModuleDefinition)
 if (!echowaveRegistration.ok) {
   throw new Error(`Cinema 2.0 Echowave native module registration failed: ${echowaveRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const cathedralRegistration = cinema2NativeModuleRegistry.register(cinema2CathedralNativeModuleDefinition)
+if (!cathedralRegistration.ok) {
+  throw new Error(`Cinema 2.0 Cathedral native module registration failed: ${cathedralRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const ancientMachineRegistration = cinema2NativeModuleRegistry.register(cinema2AncientMachineNativeModuleDefinition)
+if (!ancientMachineRegistration.ok) {
+  throw new Error(`Cinema 2.0 Ancient Machine native module registration failed: ${ancientMachineRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const eventHorizonRegistration = cinema2NativeModuleRegistry.register(cinema2EventHorizonNativeModuleDefinition)
+if (!eventHorizonRegistration.ok) {
+  throw new Error(`Cinema 2.0 Event Horizon native module registration failed: ${eventHorizonRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const constellationRegistration = cinema2NativeModuleRegistry.register(cinema2ConstellationNativeModuleDefinition)
+if (!constellationRegistration.ok) {
+  throw new Error(`Cinema 2.0 Constellation native module registration failed: ${constellationRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

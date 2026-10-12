@@ -20,6 +20,10 @@ import { CINEMA2_BACKSTREET_PRESET_MANIFEST } from './Cinema2BackstreetPreset'
 import { CINEMA2_MAINFRAME_PRESET_MANIFEST } from './Cinema2MainframePreset'
 import { CINEMA2_ECHOFORM_PRESET_MANIFEST } from './Cinema2EchoformPreset'
 import { CINEMA2_ECHOWAVE_PRESET_MANIFEST } from './Cinema2EchowavePreset'
+import { CINEMA2_CATHEDRAL_PRESET_MANIFEST } from './Cinema2CathedralPreset'
+import { CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST } from './Cinema2AncientMachinePreset'
+import { CINEMA2_EVENT_HORIZON_PRESET_MANIFEST } from './Cinema2EventHorizonPreset'
+import { CINEMA2_CONSTELLATION_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
 
 /**
  * Single production registration seam for first-party native Cinema 2.0 presets.
@@ -106,6 +110,22 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_ECHOWAVE_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_CATHEDRAL_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_EVENT_HORIZON_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_CONSTELLATION_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'reference',

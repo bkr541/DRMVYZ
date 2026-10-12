@@ -23257,12 +23257,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
   width: 36px;
   height: 36px;
-  border: 0 !important;
-  border-radius: 50%;
-  background: linear-gradient(180deg, #67f7ff, #3aa9bd);
-  color: #04141a !important;
-  box-shadow: 0 4px 12px rgba(74, 199, 219, 0.3) !important;
   transition: all 0.15s;
+}
+
+/* Layout Lab "03 · Progress Tile" surfaces, applied without changing the
+   production dock's existing button geometry or placement. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn {
+  border: 1px solid rgba(74, 199, 219, 0.6) !important;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #1d2d34, #131d22);
+  color: var(--dock-cyan-bright) !important;
+  box-shadow: 0 0 0 3px #1c2026, 0 4px 10px rgba(0, 0, 0, 0.45) !important;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn {
+  border: 0 !important;
+  border-radius: 14px;
+  background: rgba(74, 199, 219, 0.14);
+  color: var(--dock-cyan-bright) !important;
+  box-shadow: none !important;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn svg,
@@ -23271,10 +23284,15 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   height: 18px;
 }
 
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn:hover:not([aria-disabled='true']),
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:hover:not(:disabled) {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn:hover:not([aria-disabled='true']) {
   background: linear-gradient(180deg, #67f7ff, #3aa9bd);
-  box-shadow: 0 4px 18px rgba(103, 247, 255, 0.5) !important;
+  border-color: transparent !important;
+  color: #04141a !important;
+}
+
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot .az-play-btn:hover:not(:disabled) {
+  background: rgba(74, 199, 219, 0.26);
+  box-shadow: none !important;
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-addtrack-btn[aria-disabled='true'],
