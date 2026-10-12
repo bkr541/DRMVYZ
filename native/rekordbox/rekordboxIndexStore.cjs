@@ -29,6 +29,7 @@ function buildTrackLookup(tracks) {
 function createRekordboxIndexStore({ baseDir }) {
   if (!baseDir) throw new Error('A Rekordbox index directory is required.')
   const manifestPath = path.join(baseDir, 'manifest.json')
+  const payloadCache = new Map()
 
   async function readJson(filePath, fallback) {
     try {
@@ -94,6 +95,7 @@ function createRekordboxIndexStore({ baseDir }) {
       lookup: buildTrackLookup(result.library.tracks),
     }
     await writeJson(path.join(baseDir, `${key}.json`), payload)
+    payloadCache.set(key, payload)
 
     const manifest = await readManifest()
     manifest.schemaVersion = INDEX_SCHEMA_VERSION
@@ -111,7 +113,58 @@ function createRekordboxIndexStore({ baseDir }) {
     return toStatus(manifest)
   }
 
-  return { getStatus, selectRoot, persistScan }
+  async function lookupTracks(filePaths) {
+    const manifest = await readManifest()
+    const selectedRootPath = manifest.selectedRootPath ? path.resolve(manifest.selectedRootPath) : null
+    if (!selectedRootPath) return { available: true, hasIndex: false, hitCount: 0, library: null }
+
+    const key = rootKey(selectedRootPath)
+    if (!manifest.indexes?.[key]) {
+      return { available: true, hasIndex: false, hitCount: 0, library: null, selectedRootPath }
+    }
+
+    let payload = payloadCache.get(key)
+    if (!payload) {
+      payload = await readJson(path.join(baseDir, `${key}.json`), null)
+      if (!payload?.library || !payload?.lookup) {
+        return { available: true, hasIndex: false, hitCount: 0, library: null, selectedRootPath }
+      }
+      payloadCache.set(key, payload)
+    }
+
+    const matchedIndexes = new Set()
+    for (const requestedPath of Array.isArray(filePaths) ? filePaths : []) {
+      const resolvedPath = path.resolve(String(requestedPath || ''))
+      const relativePath = path.relative(selectedRootPath, resolvedPath)
+      if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) continue
+
+      const normalizedFullPath = normalizeLookupValue(resolvedPath)
+      const normalizedRelativePath = normalizeLookupValue(`/${relativePath}`)
+      const directIndex = payload.lookup.byLocation[normalizedFullPath]
+        ?? payload.lookup.byLocation[normalizedRelativePath]
+        ?? payload.lookup.byLocation[normalizeLookupValue(relativePath)]
+      if (Number.isInteger(directIndex)) {
+        matchedIndexes.add(directIndex)
+        continue
+      }
+
+      const filenameMatches = payload.lookup.byFilename[normalizeLookupValue(path.basename(resolvedPath))] || []
+      if (filenameMatches.length === 1) matchedIndexes.add(filenameMatches[0])
+    }
+
+    const tracks = Array.from(matchedIndexes, index => payload.library.tracks[index]).filter(Boolean)
+    return {
+      available: true,
+      hasIndex: true,
+      hitCount: tracks.length,
+      selectedRootPath,
+      selectedRootName: path.basename(selectedRootPath),
+      syncedAt: payload.syncedAt,
+      library: tracks.length > 0 ? { ...payload.library, tracks } : null,
+    }
+  }
+
+  return { getStatus, selectRoot, persistScan, lookupTracks }
 }
 
 module.exports = { createRekordboxIndexStore, buildTrackLookup, INDEX_SCHEMA_VERSION }

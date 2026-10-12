@@ -85,6 +85,19 @@ function installRekordboxUsbBridge({
     return nextStatus
   })
 
+  ipcMain.handle('drmvyz:rekordbox:lookup-indexed-tracks', async (_event, filePaths) => {
+    if (!indexStore) return { available: false, hasIndex: false, hitCount: 0, library: null }
+    const startedAt = Date.now()
+    const result = await indexStore.lookupTracks(filePaths)
+    rekordboxLog?.info(result.hitCount > 0 ? 'Rekordbox index lookup hit' : 'Rekordbox index lookup miss', {
+      rootName: result.selectedRootName ?? null,
+      requestedTrackCount: Array.isArray(filePaths) ? filePaths.length : 0,
+      matchedTrackCount: result.hitCount,
+      lookupMs: Date.now() - startedAt,
+    })
+    return { ...result, lookupMs: Date.now() - startedAt }
+  })
+
   ipcMain.handle('drmvyz:rekordbox:select-usb-root-and-parse', async event => {
     const owner = BrowserWindow?.fromWebContents?.(event.sender)
     const result = await dialog.showOpenDialog(owner, {

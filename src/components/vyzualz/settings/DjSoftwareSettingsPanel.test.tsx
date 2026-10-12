@@ -59,7 +59,7 @@ afterEach(async () => {
 
 describe('DjSoftwareSettingsPanel', () => {
   it('shows the selected Rekordbox directory and indexes it on Sync', async () => {
-    expect(host.textContent).toContain('/Volumes/LUMA')
+    expect(host.querySelector<HTMLInputElement>('#vsm-dj-directory')?.value).toBe('/Volumes/LUMA')
     const syncButton = [...host.querySelectorAll('button')].find(button => button.textContent === 'Sync')
     expect(syncButton).toBeTruthy()
     await act(async () => syncButton?.click())
@@ -71,7 +71,7 @@ describe('DjSoftwareSettingsPanel', () => {
   })
 
   it('offers non-functional DJ providers as coming-soon choices', async () => {
-    const trigger = host.querySelector<HTMLButtonElement>('#vsm-dj-software-select')
+    const trigger = host.querySelector<HTMLButtonElement>('#vsm-dj-software-select-trigger')
     await act(async () => trigger?.click())
     const option = [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
       .find(candidate => candidate.textContent?.includes('Serato DJ Pro'))

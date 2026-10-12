@@ -19,7 +19,7 @@ import {
   type ImportedTrackIntelligence,
   type RekordboxLibrary,
 } from '../../../features/rekordboxImport'
-import { guessNativeUsbRootFromFile, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
+import { guessNativeUsbRootFromFile, lookupIndexedRekordboxTracks, scanNativeRekordboxUsbRoot } from '../../../features/rekordboxImport/nativeBridge'
 import { PeaksWaveformView } from '../transport/PeaksWaveformView'
 import type { WaveformCueCreateRequest } from '../../../features/timeline/waveformCuePoint'
 import { buildManualCueMarker } from '../../../features/timeline/manualCuePoint'
@@ -38,6 +38,7 @@ import {
   subscribeAudioSourcePolicy,
 } from '../../../audio/audioSourcePolicy'
 import { createLogger } from '../../../lib/logger'
+import { usePageActivities, type AppPageId } from '../../../stores/pageActivityStore'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 const rekordboxLoadLog = createLogger('react', 'RekordboxTrackLoad')
@@ -186,6 +187,8 @@ export interface VyzualzAudioDockProps {
   showAudioSourceControl?: boolean
   /** Optional action rendered in the lower reserved key immediately left of Cue. */
   lowerReservedAction?: ReactNode
+  /** Header activity destination for this dock's track-analysis work. */
+  activityPage?: AppPageId
 }
 
 export function VyzualzAudioDock({
@@ -197,6 +200,7 @@ export function VyzualzAudioDock({
   rekordboxMenuPortalTarget = null,
   showAudioSourceControl = false,
   lowerReservedAction,
+  activityPage = 'react',
 }: VyzualzAudioDockProps) {
   const {
     presets, activePresetId, bpmSync, toggleBpmSync, setPlaying,
@@ -333,7 +337,7 @@ export function VyzualzAudioDock({
   const suppressedAutoSectionsByTrackId = useReactStore(state => state.suppressedAutoSectionsByTrackId)
 
   const trackId = track?.id ?? null
-  const { peaks } = useWaveformPeaks(
+  const { peaks, loading: waveformPeaksLoading } = useWaveformPeaks(
     trackId,
     trackId ? engine.getDecodedBuffer(trackId) : undefined,
     track?.url ?? null,
@@ -344,7 +348,22 @@ export function VyzualzAudioDock({
 
   // Read the current track's RGB waveform from the store (null while analyzing)
   const currentKey = track?.analysisRuntime.analysisKey ?? ''
-  const rgbAnalysis = useRgbWaveformStore(s => s.waveforms[currentKey]?.analysis ?? null)
+  const rgbWaveformEntry = useRgbWaveformStore(s => s.waveforms[currentKey])
+  const rgbAnalysis = rgbWaveformEntry?.analysis ?? null
+  const trackAnalysisActivity = engine.currentAnalysisStatus === 'queued'
+    ? 'Preparing track analysis'
+    : engine.currentAnalysisStatus === 'decoding'
+      ? 'Decoding audio'
+      : engine.currentAnalysisStatus === 'analyzing'
+        ? 'Analyzing track'
+        : false
+  usePageActivities(activityPage, 'audio-dock-analysis', {
+    'track-analysis': trackAnalysisActivity,
+    'waveform-peaks': waveformPeaksLoading && 'Building waveform',
+    'rgb-waveform': (rgbWaveformEntry?.status === 'queued' || rgbWaveformEntry?.status === 'analyzing') && 'Analyzing waveform color',
+    'beat-grid': engine.currentBpmReanalysisStatus === 'reanalyzing' && 'Reanalyzing beat grid',
+    'rekordbox-metadata': rekordboxBusy && 'Loading Rekordbox metadata',
+  })
 
   // ── BPM state derivation ──────────────────────────────────────────────────
   const bpmState = deriveBpmState(
@@ -497,12 +516,17 @@ export function VyzualzAudioDock({
 
     const requestId = `track-load-${++rekordboxLoadGenerationRef.current}`
     const startedAt = Date.now()
+    const guessedRoot = audio.map(guessNativeUsbRootFromFile).find((root): root is string => Boolean(root))
 
     const mutationOptions = { notifyOnBlocked: false }
     const shouldForceUsbMode = rekordboxUsbMode || rekordboxLibrary?.source === 'rekordbox_usb'
-    const prepared = rekordboxLibrary || shouldForceUsbMode
+    const candidatePrepared = rekordboxLibrary || shouldForceUsbMode
       ? createPreparedTrackInputs(audio, rekordboxLibrary, { forceUsbMode: shouldForceUsbMode })
       : null
+    const candidateSummary = candidatePrepared ? summarizePreparedRekordboxInputs(candidatePrepared) : null
+    // A USB-mode fallback is not metadata. Keep the fast audio load, then query
+    // the persisted index instead of treating the fallback as a completed match.
+    const prepared = guessedRoot && candidateSummary?.realMatches === 0 ? null : candidatePrepared
     let loadedTracks: typeof engine.tracks = []
     if (engine.tracks.length > 0) {
       if (prepared) engine.replacePreparedTracks(prepared, mutationOptions)
@@ -538,25 +562,58 @@ export function VyzualzAudioDock({
       return
     }
 
-    const guessedRoot = audio.map(guessNativeUsbRootFromFile).find((root): root is string => Boolean(root))
     if (!guessedRoot) return
 
     setRekordboxBusy(true)
     setRekordboxStatusWithDiagnostic('Audio ready · Rekordbox metadata loading…')
-    const scanRequestedAt = Date.now()
-    rekordboxLoadLog.info('Rekordbox metadata scan started', {
+    const metadataRequestedAt = Date.now()
+    rekordboxLoadLog.info('Rekordbox indexed metadata lookup started', {
       requestId,
       rootLabel: getRootLabel(guessedRoot),
       trackCount: audio.length,
       runtimeTrackIds: loadedTracks.map(track => track.id),
     })
-    void scanNativeRekordboxUsbRoot(guessedRoot)
-      .then(result => {
+    void (async () => {
+      const indexed = await lookupIndexedRekordboxTracks(audio)
+      if (indexed?.library && indexed.hitCount > 0) {
+        rekordboxLoadLog.info('Rekordbox indexed metadata lookup hit', {
+          requestId,
+          elapsedMs: Date.now() - metadataRequestedAt,
+          lookupMs: indexed.lookupMs ?? null,
+          matchedTrackCount: indexed.hitCount,
+        })
+        return {
+          result: {
+            cancelled: false,
+            library: indexed.library,
+            warnings: [],
+            detectedPdbFiles: indexed.library.stats.detectedPdbFiles,
+            detectedAnlzFiles: indexed.library.stats.detectedAnlzFiles,
+            scannedRootName: indexed.selectedRootName ?? undefined,
+            scannedRootPath: indexed.selectedRootPath ?? undefined,
+            parserMode: 'hybrid' as const,
+          },
+          metadataSource: 'index' as const,
+        }
+      }
+
+      rekordboxLoadLog.info('Rekordbox index miss; falling back to USB scan', {
+        requestId,
+        elapsedMs: Date.now() - metadataRequestedAt,
+        hasIndex: Boolean(indexed?.hasIndex),
+      })
+      return {
+        result: await scanNativeRekordboxUsbRoot(guessedRoot),
+        metadataSource: 'scan' as const,
+      }
+    })()
+      .then(({ result, metadataSource }) => {
         const bridgeReceivedAt = Date.now()
         const ipcPreparedAt = result?.diagnostics?.ipcPreparedAtEpochMs
         rekordboxLoadLog.info('Rekordbox native bridge response received', {
           requestId,
-          bridgeRoundTripMs: bridgeReceivedAt - scanRequestedAt,
+          metadataSource,
+          bridgeRoundTripMs: bridgeReceivedAt - metadataRequestedAt,
           ipcDeliveryMs: typeof ipcPreparedAt === 'number' ? Math.max(0, bridgeReceivedAt - ipcPreparedAt) : null,
           nativeTimings: result?.diagnostics ?? null,
         })
@@ -570,7 +627,7 @@ export function VyzualzAudioDock({
           return
         }
 
-        setRekordboxLibrary(result.library)
+        if (metadataSource === 'scan') setRekordboxLibrary(result.library)
         setRekordboxUsbMode(true)
         const matchingStartedAt = Date.now()
         const hydrated = createPreparedTrackInputs(audio, result.library, { forceUsbMode: true })
@@ -599,7 +656,8 @@ export function VyzualzAudioDock({
           parserMode: result.parserMode,
           detectedPdbFiles: result.detectedPdbFiles,
           detectedAnlzFiles: result.detectedAnlzFiles,
-          bridgeRoundTripMs: bridgeReceivedAt - scanRequestedAt,
+          metadataSource,
+          bridgeRoundTripMs: bridgeReceivedAt - metadataRequestedAt,
           ipcDeliveryMs: typeof ipcPreparedAt === 'number' ? Math.max(0, bridgeReceivedAt - ipcPreparedAt) : null,
           matchingMs,
           hydrationMs,

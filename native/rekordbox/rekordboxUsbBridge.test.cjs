@@ -702,6 +702,15 @@ test('installed Rekordbox index handlers select, sync, and restore compact index
   const restored = await handlers.get('drmvyz:rekordbox:index-status')()
   assert.equal(restored.syncedAt, synced.syncedAt)
   assert.equal(restored.trackCount, 1)
+
+  const lookup = await handlers.get('drmvyz:rekordbox:lookup-indexed-tracks')(
+    null,
+    ['/Volumes/LUMA/Music/Track.wav'],
+  )
+  assert.equal(lookup.hitCount, 1)
+  assert.equal(lookup.library.tracks[0].trackId, '1')
+  assert.equal(typeof lookup.lookupMs, 'number')
+  assert.equal(scanCalls, 1)
 })
 
 test('installRekordboxUsbBridge logs a warning when scan-usb-root is asked to scan a non-removable path', async () => {

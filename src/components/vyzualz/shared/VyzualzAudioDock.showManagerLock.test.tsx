@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AudioEngine } from '../../../hooks/useAudioEngine'
 import { resetAudioSourcePolicyForTests } from '../../../audio/audioSourcePolicy'
 import { NotificationDrawer } from './NotificationDrawer'
+import { usePageActivityStore } from '../../../stores/pageActivityStore'
 
 const fixture = vi.hoisted(() => ({
   engine: {
@@ -62,6 +63,7 @@ const fixture = vi.hoisted(() => ({
   },
   nativeRekordbox: {
     guessedRoot: null as string | null,
+    lookup: vi.fn(),
     scan: vi.fn(),
   },
 }))
@@ -110,6 +112,7 @@ vi.mock('../../../features/rekordboxImport', () => ({
 }))
 vi.mock('../../../features/rekordboxImport/nativeBridge', () => ({
   guessNativeUsbRootFromFile: () => fixture.nativeRekordbox.guessedRoot,
+  lookupIndexedRekordboxTracks: (...args: unknown[]) => fixture.nativeRekordbox.lookup(...args),
   scanNativeRekordboxUsbRoot: (...args: unknown[]) => fixture.nativeRekordbox.scan(...args),
 }))
 vi.mock('../../shared/InfoPopover', () => ({ InfoPopover: () => null }))
@@ -191,6 +194,7 @@ async function dispatchAudioFile(name = 'track-c.wav'): Promise<void> {
 }
 
 beforeEach(() => {
+  usePageActivityStore.setState({ pages: { react: {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
   resetAudioSourcePolicyForTests()
   fixture.engine.source = 'file'
   fixture.engine.micError = null
@@ -216,6 +220,8 @@ beforeEach(() => {
   vi.mocked(fixture.engine.setSource).mockClear()
   vi.mocked(fixture.engine.pause).mockClear()
   fixture.nativeRekordbox.guessedRoot = null
+  fixture.nativeRekordbox.lookup.mockReset()
+  fixture.nativeRekordbox.lookup.mockResolvedValue(null)
   fixture.nativeRekordbox.scan.mockReset()
   fixture.visualState.bpmSync = false
   fixture.visualState.toggleBpmSync.mockClear()
@@ -311,6 +317,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
     expect(container?.querySelector('[role="status"]')?.textContent).toContain('Audio ready · Rekordbox metadata loading')
     expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(false)
+    expect(Object.values(usePageActivityStore.getState().pages.react)).toContain('Loading Rekordbox metadata')
 
     await act(async () => {
       resolveScan({
@@ -326,6 +333,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
       expect.objectContaining({ source: 'rekordbox_usb' }),
     )
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
+    expect(Object.values(usePageActivityStore.getState().pages.react)).not.toContain('Loading Rekordbox metadata')
   })
 
   it('keeps audio loaded when the asynchronous Rekordbox scan fails', async () => {
@@ -340,6 +348,38 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
     expect(container?.querySelector('[role="status"]')?.textContent).toContain(
       'Audio ready · Rekordbox metadata unavailable: USB unavailable',
+    )
+  })
+
+  it('hydrates USB tracks from the persisted Rekordbox index without scanning the USB', async () => {
+    fixture.nativeRekordbox.guessedRoot = '/Volumes/DJ'
+    fixture.nativeRekordbox.lookup.mockResolvedValue({
+      available: true,
+      hasIndex: true,
+      hitCount: 1,
+      lookupMs: 2,
+      selectedRootPath: '/Volumes/DJ',
+      selectedRootName: 'DJ',
+      library: {
+        id: 'indexed-library',
+        source: 'rekordbox_usb',
+        importedAt: '2026-10-12T10:00:00.000Z',
+        tracks: [{ trackId: 'rb-1', name: 'rekordbox-track', filename: 'rekordbox-track.wav', cues: [] }],
+        warnings: [],
+        stats: { detectedPdbFiles: 1, detectedAnlzFiles: 3 },
+      },
+    })
+    await renderView('react')
+
+    await dispatchAudioFile('rekordbox-track.wav')
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+    expect(fixture.engine.addTracks).toHaveBeenCalledOnce()
+    expect(fixture.nativeRekordbox.lookup).toHaveBeenCalledOnce()
+    expect(fixture.nativeRekordbox.scan).not.toHaveBeenCalled()
+    expect(fixture.engine.hydrateTrackMetadata).toHaveBeenCalledWith(
+      'loaded-0',
+      expect.objectContaining({ source: 'rekordbox_usb' }),
     )
   })
 

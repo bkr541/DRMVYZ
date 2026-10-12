@@ -38,4 +38,18 @@ test('Rekordbox index store persists the selected directory and a queryable trac
   const payload = JSON.parse(await fs.readFile(path.join(baseDir, indexFile), 'utf8'))
   assert.equal(payload.lookup.byLocation['/contents/artist/track.mp3'], 0)
   assert.deepEqual(payload.lookup.byFilename['track.mp3'], [0])
+
+  const lookup = await store.lookupTracks(['/Volumes/LUMA/Contents/Artist/Track.mp3'])
+  assert.equal(lookup.hasIndex, true)
+  assert.equal(lookup.hitCount, 1)
+  assert.equal(lookup.library.tracks[0].trackId, '1')
+
+  const restoredStore = createRekordboxIndexStore({ baseDir })
+  const restoredLookup = await restoredStore.lookupTracks(['/Volumes/LUMA/Contents/Artist/Track.mp3'])
+  assert.equal(restoredLookup.hitCount, 1)
+  assert.equal(restoredLookup.library.tracks[0].trackId, '1')
+
+  const outsideRoot = await store.lookupTracks(['/Volumes/OTHER/Contents/Artist/Track.mp3'])
+  assert.equal(outsideRoot.hitCount, 0)
+  assert.equal(outsideRoot.library, null)
 })

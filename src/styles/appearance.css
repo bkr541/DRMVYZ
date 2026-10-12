@@ -347,98 +347,26 @@ body,
   gap: 14px;
 }
 
-.vsm-dj-field-label,
-.vsm-dj-directory-label {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--color-text-faint);
-  font: 600 9px/1 var(--az-font-data);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.vsm-dj-select {
+.vsm-dj-provider-control {
   width: min(420px, 100%);
 }
 
-.vsm-dj-coming-soon {
-  margin-top: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border-faint);
-  border-radius: 6px;
-  color: var(--color-text-faint);
-  font: 500 10px/1.5 var(--az-font-data);
-}
-
 .vsm-dj-directory-row {
-  display: flex;
   align-items: flex-end;
-  gap: 8px;
 }
 
-.vsm-dj-directory {
+.vsm-dj-directory-control {
   flex: 1;
   min-width: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--color-border-faint);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.18);
 }
 
-.vsm-dj-directory.is-empty .vsm-dj-directory-value { color: var(--color-text-faint); }
-.vsm-dj-directory-label { margin-bottom: 5px; }
-.vsm-dj-directory-value {
-  display: block;
-  overflow: hidden;
-  color: var(--color-text-strong);
-  font: 500 10px/1.35 var(--az-font-data);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vsm-dj-button {
-  min-height: 34px;
-  white-space: nowrap;
-}
-
-.vsm-dj-button:disabled { cursor: not-allowed; opacity: 0.45; }
-.vsm-dj-button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  color: var(--color-primary);
-}
-.vsm-dj-button--primary,
-.vsm-dj-button--primary:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
-  color: var(--color-primary);
-}
-
-.vsm-dj-index-status {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+.vsm-dj-index-summary {
   margin-top: 12px;
 }
-
-.vsm-dj-index-status > div {
-  padding: 9px 10px;
-  border: 1px solid var(--color-border-faint);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.018);
-}
-
-.vsm-dj-index-status span,
-.vsm-dj-index-status strong {
-  display: block;
-  font-family: var(--az-font-data);
-}
-.vsm-dj-index-status span { color: var(--color-text-faint); font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
-.vsm-dj-index-status strong { margin-top: 5px; overflow: hidden; color: var(--color-text-strong); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 760px) {
   .vsm-dj-directory-row { align-items: stretch; flex-direction: column; }
-  .vsm-dj-index-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vsm-dj-index-summary { align-items: flex-start; flex-direction: column; }
 }
 
 .vsm-settings-group {

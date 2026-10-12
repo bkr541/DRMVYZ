@@ -2996,6 +2996,7 @@ export function ShowManagerView() {
         expandable
         unifiedTimeline
         waveformAppearance="deck"
+        activityPage="show-manager"
       />
       {showBrowserOpen && (
         <ShowBrowserDialog

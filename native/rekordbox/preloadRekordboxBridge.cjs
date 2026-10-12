@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     getIndexStatus: () => ipcRenderer.invoke('drmvyz:rekordbox:index-status'),
     selectIndexDirectory: () => ipcRenderer.invoke('drmvyz:rekordbox:select-index-directory'),
     syncIndex: () => ipcRenderer.invoke('drmvyz:rekordbox:sync-index'),
+    lookupIndexedTracks: filePaths => ipcRenderer.invoke('drmvyz:rekordbox:lookup-indexed-tracks', filePaths),
   }),
   output: Object.freeze({
     listTargets: () => ipcRenderer.invoke('drmvyz:output:list-targets'),

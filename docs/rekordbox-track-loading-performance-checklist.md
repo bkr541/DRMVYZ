@@ -131,6 +131,8 @@ Real removable-media benchmarking remains a release-validation task because repr
 - Failed, cancelled, and library-less scans are evicted immediately so subsequent requests can retry.
 - Renderer batch caches also evict failed or empty results instead of retaining a poisoned promise.
 - The coordinator exposes explicit invalidation, while the bounded TTL prevents removed or changed media from remaining cached indefinitely.
+- Settings → DJ Software can persistently pre-scan a Rekordbox USB into a local track index. Automatic track loading now queries that index by authorized USB-relative path before requesting any native scan.
+- Index hits return only the matched track metadata over IPC, hydrate the already-loaded runtime track, and bypass USB enumeration and ANLZ/PDB parsing entirely. Index misses retain the existing asynchronous scan fallback.
 - Native tests cover concurrent sharing, sequential reuse, root isolation, TTL refresh, cancellation, failure recovery, and IPC wiring.
 
 ### Required change
@@ -288,6 +290,7 @@ The first four items remove the unacceptable user-facing wait and prevent playba
 - Renderer completion logs separately report bridge round-trip, IPC delivery, track matching, and metadata hydration durations.
 - Full filesystem paths and audio filenames are intentionally excluded. USB volume labels and runtime track IDs remain available for correlation.
 - These entries are retained in the renderer diagnostics ring buffer and forwarded to the persistent Electron log for packaged builds.
+- The React header activity indicator remains animated while track decoding/analysis, waveform generation, beat-grid reanalysis, or Rekordbox metadata loading is still active; Show Manager routes the same work to its own header.
 
 ## Pre-scanned Rekordbox library index
 

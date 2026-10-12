@@ -31,6 +31,18 @@ export interface NativeRekordboxBridge {
   getIndexStatus?: () => Promise<RekordboxIndexStatus>
   selectIndexDirectory?: () => Promise<RekordboxIndexStatus & { cancelled?: boolean }>
   syncIndex?: () => Promise<RekordboxIndexStatus>
+  lookupIndexedTracks?: (filePaths: string[]) => Promise<RekordboxIndexLookupResult>
+}
+
+export interface RekordboxIndexLookupResult {
+  available: boolean
+  hasIndex: boolean
+  hitCount: number
+  selectedRootPath?: string | null
+  selectedRootName?: string | null
+  syncedAt?: string | null
+  lookupMs?: number
+  library: RekordboxLibrary | null
 }
 
 export interface RekordboxIndexStatus {
@@ -79,6 +91,7 @@ export function getNativeRekordboxBridge(): NativeRekordboxBridge | null {
     || bridge.getIndexStatus
     || bridge.selectIndexDirectory
     || bridge.syncIndex
+    || bridge.lookupIndexedTracks
   ) ? bridge : null
 }
 
@@ -100,6 +113,14 @@ export async function scanNativeRekordboxUsbRoot(rootPath: string): Promise<Nati
   const bridge = getNativeRekordboxBridge()
   if (!bridge?.scanUsbRoot) return null
   return bridge.scanUsbRoot(rootPath)
+}
+
+export async function lookupIndexedRekordboxTracks(files: File[]): Promise<RekordboxIndexLookupResult | null> {
+  const bridge = getNativeRekordboxBridge()
+  if (!bridge?.lookupIndexedTracks) return null
+  const filePaths = files.map(getNativeFilePath).filter((value): value is string => Boolean(value))
+  if (filePaths.length === 0) return null
+  return bridge.lookupIndexedTracks(filePaths)
 }
 
 /**

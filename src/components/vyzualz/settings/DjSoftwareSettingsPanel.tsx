@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import { DropdownSelect } from '../../shared/Dropdown/Dropdown'
+import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
+import { IconChipButton } from '../react/controls/IconChipButton'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { StatusBadge } from '../react/controls/StatusBadge'
+import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import {
   getNativeRekordboxBridge,
   type RekordboxIndexStatus,
@@ -10,6 +14,13 @@ type DjSoftware = 'rekordbox' | 'serato' | 'virtualdj' | 'traktor' | 'engine-dj'
 
 const DJ_SOFTWARE_STORAGE_KEY = 'drmvyz.settings.djSoftware.v1'
 const djSoftwareLog = createLogger('react', 'DjSoftwareSettings')
+const DJ_SOFTWARE_OPTIONS = [
+  { value: 'rekordbox', label: 'Rekordbox' },
+  { value: 'serato', label: 'Serato DJ Pro', description: 'Coming soon' },
+  { value: 'virtualdj', label: 'VirtualDJ', description: 'Coming soon' },
+  { value: 'traktor', label: 'Traktor Pro', description: 'Coming soon' },
+  { value: 'engine-dj', label: 'Engine DJ', description: 'Coming soon' },
+] as const
 
 function readSelectedSoftware(): DjSoftware {
   try {
@@ -104,25 +115,23 @@ export function DjSoftwareSettingsPanel() {
             <p>Select the DJ library provider DRMVYZ should use for track metadata.</p>
           </div>
         </div>
-        <label className="vsm-dj-field-label" htmlFor="vsm-dj-software-select">Software</label>
-        <DropdownSelect
-          id="vsm-dj-software-select"
-          value={software}
-          onChange={event => handleSoftwareChange(event.target.value)}
-          dropdownSize="default"
-          className="vsm-dj-select"
-          aria-label="DJ Software"
-        >
-          <option value="rekordbox">Rekordbox</option>
-          <option value="serato">Serato DJ Pro — Coming soon</option>
-          <option value="virtualdj">VirtualDJ — Coming soon</option>
-          <option value="traktor">Traktor Pro — Coming soon</option>
-          <option value="engine-dj">Engine DJ — Coming soon</option>
-        </DropdownSelect>
+        <div className="vsm-acct-field vsm-dj-provider-control">
+          <UnderlineDropdown
+            id="vsm-dj-software-select"
+            triggerId="vsm-dj-software-select-trigger"
+            eyebrow="Software"
+            ariaLabel="DJ Software"
+            menuLabel="DJ Software"
+            value={software}
+            options={DJ_SOFTWARE_OPTIONS}
+            onChange={handleSoftwareChange}
+            size="compact"
+          />
+        </div>
         {!rekordboxSelected && (
-          <div className="vsm-dj-coming-soon" role="status">
+          <NoticeCard title="Integration coming soon" tone="info" role="status">
             This integration is not available yet. Rekordbox is currently the only functional provider.
-          </div>
+          </NoticeCard>
         )}
       </section>
 
@@ -135,43 +144,49 @@ export function DjSoftwareSettingsPanel() {
             </div>
           </div>
 
-          <div className="vsm-dj-directory-row">
-            <div className={`vsm-dj-directory${status?.selectedRootPath ? '' : ' is-empty'}`}>
-              <span className="vsm-dj-directory-label">Directory</span>
-              <span className="vsm-dj-directory-value" title={status?.selectedRootPath ?? undefined}>
-                {status?.selectedRootPath ?? 'No directory selected'}
-              </span>
+          <div className="vsm-settings-inline-row vsm-dj-directory-row">
+            <div className="vsm-acct-field vsm-dj-directory-control">
+              <label className="vsm-acct-label" htmlFor="vsm-dj-directory">Directory</label>
+              <DreamVizTextInput
+                id="vsm-dj-directory"
+                value={status?.selectedRootPath ?? ''}
+                placeholder="No directory selected"
+                title={status?.selectedRootPath ?? undefined}
+                readOnly
+                tabIndex={-1}
+              />
             </div>
-            <button
-              type="button"
-              className="vz-settings-reset-btn vsm-dj-button"
+            <IconChipButton
               onClick={() => void chooseDirectory()}
               disabled={!nativeIndexAvailable || busy !== null}
-            >{busy === 'selecting' ? 'Choosing…' : 'Choose Directory'}</button>
+            >{busy === 'selecting' ? 'Choosing…' : 'Choose Directory'}</IconChipButton>
             {status?.selectedRootPath && (
-              <button
-                type="button"
-                className="vz-settings-reset-btn vsm-dj-button vsm-dj-button--primary"
+              <IconChipButton
+                tone="primary"
                 onClick={() => void syncDirectory()}
                 disabled={!nativeIndexAvailable || busy !== null}
-              >{busy === 'syncing' ? 'Syncing…' : 'Sync'}</button>
+              >{busy === 'syncing' ? 'Syncing…' : 'Sync'}</IconChipButton>
             )}
           </div>
 
           {!nativeIndexAvailable && busy !== 'loading' && (
-            <div className="vsm-settings-detail vsm-settings-detail--error" role="status">
-              <span>Library indexing requires the DRMVYZ desktop app.</span>
-            </div>
+            <NoticeCard title="Desktop app required" tone="warning" role="status">
+              Library indexing requires the DRMVYZ desktop app.
+            </NoticeCard>
           )}
           {error && (
-            <div className="vsm-settings-detail vsm-settings-detail--error" role="alert"><span>{error}</span></div>
+            <NoticeCard title="Rekordbox sync failed" tone="error" role="alert">{error}</NoticeCard>
           )}
           {status?.selectedRootPath && (
-            <div className="vsm-dj-index-status" aria-live="polite">
-              <div><span>Status</span><strong>{busy === 'syncing' ? 'Scanning and indexing…' : status.hasIndex ? 'Indexed' : 'Ready to sync'}</strong></div>
-              <div><span>Last sync</span><strong>{formatSyncDate(status.syncedAt)}</strong></div>
-              <div><span>Tracks</span><strong>{(status.trackCount ?? 0).toLocaleString()}</strong></div>
-              <div><span>ANLZ files</span><strong>{(status.detectedAnlzFiles ?? 0).toLocaleString()}</strong></div>
+            <div className="vsm-settings-inline-row vsm-dj-index-summary" aria-live="polite">
+              <StatusBadge tone={busy === 'syncing' ? 'playing' : status.hasIndex ? 'loaded' : 'dirty'}>
+                {busy === 'syncing' ? 'Syncing' : status.hasIndex ? 'Indexed' : 'Ready to sync'}
+              </StatusBadge>
+              <span>
+                Last sync: {formatSyncDate(status.syncedAt)}
+                {' · '}{(status.trackCount ?? 0).toLocaleString()} tracks
+                {' · '}{(status.detectedAnlzFiles ?? 0).toLocaleString()} ANLZ files
+              </span>
             </div>
           )}
         </section>
