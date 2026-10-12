@@ -30,6 +30,8 @@ const fixture = vi.hoisted(() => ({
     isPlaying: false,
     getDecodedBuffer: vi.fn(),
     setSource: vi.fn(async () => undefined),
+    addTracks: vi.fn(),
+    replaceTracks: vi.fn(),
     addPreparedTracks: vi.fn(),
     replacePreparedTracks: vi.fn(),
     prev: vi.fn(),
@@ -56,6 +58,10 @@ const fixture = vi.hoisted(() => ({
     addCueMarker: vi.fn(),
     removeCueMarker: vi.fn(),
     updateCueMarker: vi.fn(),
+  },
+  nativeRekordbox: {
+    guessedRoot: null as string | null,
+    scan: vi.fn(),
   },
 }))
 
@@ -89,8 +95,8 @@ vi.mock('../../../features/rekordboxImport', () => ({
   summarizeRekordboxLibrary: vi.fn(() => 'library'),
 }))
 vi.mock('../../../features/rekordboxImport/nativeBridge', () => ({
-  guessNativeUsbRootFromFile: () => null,
-  scanNativeRekordboxUsbRoot: vi.fn(),
+  guessNativeUsbRootFromFile: () => fixture.nativeRekordbox.guessedRoot,
+  scanNativeRekordboxUsbRoot: (...args: unknown[]) => fixture.nativeRekordbox.scan(...args),
 }))
 vi.mock('../../shared/InfoPopover', () => ({ InfoPopover: () => null }))
 
@@ -179,10 +185,14 @@ beforeEach(() => {
   fixture.engine.currentTrackId = null
   fixture.engine.currentAudioTrackId = null
   fixture.engine.isPlaying = false
+  vi.mocked(fixture.engine.addTracks).mockClear()
+  vi.mocked(fixture.engine.replaceTracks).mockClear()
   vi.mocked(fixture.engine.addPreparedTracks).mockClear()
   vi.mocked(fixture.engine.replacePreparedTracks).mockClear()
   vi.mocked(fixture.engine.setSource).mockClear()
   vi.mocked(fixture.engine.pause).mockClear()
+  fixture.nativeRekordbox.guessedRoot = null
+  fixture.nativeRekordbox.scan.mockReset()
   fixture.visualState.bpmSync = false
   fixture.visualState.toggleBpmSync.mockClear()
 })
@@ -254,11 +264,50 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(addTrack?.querySelector('svg path')?.getAttribute('d')).toBe('M12 5v14M5 12h14')
     await dispatchAudioFile('outside-show-manager.wav')
 
-    expect(fixture.engine.addPreparedTracks).toHaveBeenCalledWith(
-      [expect.objectContaining({ sourceFile: expect.any(File) })],
+    expect(fixture.engine.addTracks).toHaveBeenCalledWith(
+      [expect.any(File)],
       { notifyOnBlocked: false },
     )
     expect(container?.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('loads USB audio before the deferred Rekordbox scan completes', async () => {
+    fixture.nativeRekordbox.guessedRoot = '/Volumes/DJ'
+    let resolveScan!: (value: unknown) => void
+    fixture.nativeRekordbox.scan.mockReturnValue(new Promise(resolve => { resolveScan = resolve }))
+    await renderView('react')
+
+    await dispatchAudioFile('rekordbox-track.wav')
+
+    expect(fixture.engine.addTracks).toHaveBeenCalledOnce()
+    expect(fixture.nativeRekordbox.scan).toHaveBeenCalledWith('/Volumes/DJ')
+    expect(vi.mocked(fixture.engine.addTracks).mock.invocationCallOrder[0]).toBeLessThan(
+      fixture.nativeRekordbox.scan.mock.invocationCallOrder[0]!,
+    )
+    expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveScan({
+        cancelled: false,
+        library: { source: 'rekordbox_usb', tracks: [], stats: {}, warnings: [] },
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(fixture.engine.replacePreparedTracks).toHaveBeenCalledOnce()
+  })
+
+  it('keeps audio loaded when the asynchronous Rekordbox scan fails', async () => {
+    fixture.nativeRekordbox.guessedRoot = '/Volumes/DJ'
+    fixture.nativeRekordbox.scan.mockRejectedValue(new Error('USB unavailable'))
+    await renderView('react')
+
+    await dispatchAudioFile('rekordbox-track.wav')
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+
+    expect(fixture.engine.addTracks).toHaveBeenCalledOnce()
+    expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
   })
 
   it('routes the real Audio Dock SYNC button through the canonical toggle action', async () => {

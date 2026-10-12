@@ -481,7 +481,7 @@ export function VyzualzAudioDock({
     return { summary, replaced: shouldReplace, hadCurrentFile: true }
   }
 
-  const handleFiles = async (files: FileList | null) => {
+  const handleFiles = (files: FileList | null) => {
     if (!files) return
     if (liveInputSelected) return
     const audio = Array.from(files).filter(f =>
@@ -490,55 +490,69 @@ export function VyzualzAudioDock({
     if (!audio.length) return
     if (!requestAudioSourceMutation()) return
 
-    let activeLibrary = rekordboxLibrary
-    let autoNativeStatus: string | null = null
-
-    if (!activeLibrary) {
-      const guessedRoot = audio.map(guessNativeUsbRootFromFile).find((root): root is string => Boolean(root))
-      if (guessedRoot) {
-        setRekordboxBusy(true)
-        try {
-          const result = await scanNativeRekordboxUsbRoot(guessedRoot)
-          if (result?.library && !result.cancelled) {
-            activeLibrary = result.library
-            setRekordboxLibrary(result.library)
-            setRekordboxUsbMode(true)
-            autoNativeStatus = `Detected Rekordbox USB from loaded track path and parsed ${summarizeRekordboxLibrary(result.library)} with the native bridge.`
-          }
-        } catch (err) {
-          autoNativeStatus = err instanceof Error
-            ? `Native Rekordbox auto-scan failed: ${err.message}`
-            : `Native Rekordbox auto-scan failed: ${String(err)}`
-        } finally {
-          setRekordboxBusy(false)
-        }
-      }
-    }
-
-    const shouldForceUsbMode = rekordboxUsbMode || activeLibrary?.source === 'rekordbox_usb'
-    const prepared = createPreparedTrackInputs(audio, activeLibrary, { forceUsbMode: shouldForceUsbMode })
-    const summary = summarizePreparedRekordboxInputs(prepared)
-    // Native Rekordbox probing can await. Re-check at the mutation boundary in
-    // case navigation entered Show Manager while the file request was in flight.
-    if (!requestAudioSourceMutation()) return
     const mutationOptions = { notifyOnBlocked: false }
-    if (engine.tracks.length > 0) engine.replacePreparedTracks(prepared, mutationOptions)
-    else engine.addPreparedTracks(prepared, mutationOptions)
+    const shouldForceUsbMode = rekordboxUsbMode || rekordboxLibrary?.source === 'rekordbox_usb'
+    const prepared = rekordboxLibrary || shouldForceUsbMode
+      ? createPreparedTrackInputs(audio, rekordboxLibrary, { forceUsbMode: shouldForceUsbMode })
+      : null
+    if (engine.tracks.length > 0) {
+      if (prepared) engine.replacePreparedTracks(prepared, mutationOptions)
+      else engine.replaceTracks(audio, mutationOptions)
+    } else if (prepared) engine.addPreparedTracks(prepared, mutationOptions)
+    else engine.addTracks(audio, mutationOptions)
     if (engine.source !== 'file') engine.setSource('file', mutationOptions)
 
-    if (activeLibrary || shouldForceUsbMode || autoNativeStatus) {
+    if (prepared) {
+      const summary = summarizePreparedRekordboxInputs(prepared)
       const matchedPhrase = summary.realMatches > 0
         ? `Matched ${summary.realMatches}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata.`
         : summary.usbFallbacks > 0
           ? `No Rekordbox metadata match; marked ${summary.usbFallbacks}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} as USB Mode only.`
-          : activeLibrary ? 'Rekordbox library loaded, but no selected audio files matched.' : null
+          : rekordboxLibrary ? 'Rekordbox library loaded, but no selected audio files matched.' : null
 
       setRekordboxStatusWithDiagnostic([
-        autoNativeStatus,
         matchedPhrase,
         formatRekordboxDiagnostic(summary),
       ].filter(Boolean).join(' '), summary)
+      return
     }
+
+    const guessedRoot = audio.map(guessNativeUsbRootFromFile).find((root): root is string => Boolean(root))
+    if (!guessedRoot) return
+
+    setRekordboxBusy(true)
+    setRekordboxStatusWithDiagnostic('Audio ready · Rekordbox metadata loading…')
+    void scanNativeRekordboxUsbRoot(guessedRoot)
+      .then(result => {
+        if (!result?.library || result.cancelled) {
+          setRekordboxStatusWithDiagnostic('Audio ready · No readable Rekordbox metadata was found.')
+          return
+        }
+
+        setRekordboxLibrary(result.library)
+        setRekordboxUsbMode(true)
+        const hydrated = createPreparedTrackInputs(audio, result.library, { forceUsbMode: true })
+        const summary = summarizePreparedRekordboxInputs(hydrated)
+        // Until in-place metadata hydration lands in Fix #5, retain the existing
+        // prepared-track replacement behavior after the background scan. Audio
+        // loading itself is no longer blocked by this work.
+        if (requestAudioSourceMutation()) {
+          engine.replacePreparedTracks(hydrated, mutationOptions)
+          if (engine.source !== 'file') engine.setSource('file', mutationOptions)
+        }
+        setRekordboxStatusWithDiagnostic([
+          `Detected Rekordbox USB from loaded track path and parsed ${summarizeRekordboxLibrary(result.library)} with the native bridge.`,
+          summary.realMatches > 0
+            ? `Matched ${summary.realMatches}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata.`
+            : `No Rekordbox metadata match; marked ${summary.usbFallbacks}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} as USB Mode only.`,
+          formatRekordboxDiagnostic(summary),
+        ].join(' '), summary)
+      })
+      .catch(err => {
+        const message = err instanceof Error ? err.message : String(err)
+        setRekordboxStatusWithDiagnostic(`Audio ready · Rekordbox metadata unavailable: ${message}`)
+      })
+      .finally(() => setRekordboxBusy(false))
   }
 
   const handleRekordboxXml = async (files: FileList | null) => {
