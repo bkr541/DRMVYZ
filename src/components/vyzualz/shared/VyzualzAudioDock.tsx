@@ -463,22 +463,19 @@ export function VyzualzAudioDock({
   const rehydrateCurrentTrackFromRekordbox = (
     library: RekordboxLibrary | null,
     options: { forceUsbMode?: boolean } = {},
-  ): { summary: RekordboxHydrationSummary | null; replaced: boolean; hadCurrentFile: boolean } => {
-    if (liveInputSelected) return { summary: null, replaced: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
-    if (!requestAudioSourceMutation()) return { summary: null, replaced: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
-    const currentFile = engine.currentTrack?.sourceFile
-    if (!currentFile) return { summary: null, replaced: false, hadCurrentFile: false }
+  ): { summary: RekordboxHydrationSummary | null; hydrated: boolean; hadCurrentFile: boolean } => {
+    if (liveInputSelected) return { summary: null, hydrated: false, hadCurrentFile: Boolean(engine.currentTrack?.sourceFile) }
+    const currentTrack = engine.currentTrack
+    const currentFile = currentTrack?.sourceFile
+    if (!currentTrack || !currentFile) return { summary: null, hydrated: false, hadCurrentFile: false }
 
     const prepared = createPreparedTrackInputs([currentFile], library, options)
     const summary = summarizePreparedRekordboxInputs(prepared)
-    const shouldReplace = summary.realMatches > 0 || summary.usbFallbacks > 0
+    const shouldHydrate = summary.realMatches > 0 || summary.usbFallbacks > 0
+    const imported = prepared[0]?.imported
+    const hydrated = Boolean(shouldHydrate && imported && engine.hydrateTrackMetadata(currentTrack.id, imported))
 
-    if (shouldReplace) {
-      engine.replacePreparedTracks(prepared, { notifyOnBlocked: false })
-      if (engine.source !== 'file') engine.setSource('file', { notifyOnBlocked: false })
-    }
-
-    return { summary, replaced: shouldReplace, hadCurrentFile: true }
+    return { summary, hydrated, hadCurrentFile: true }
   }
 
   const handleFiles = (files: FileList | null) => {
@@ -495,11 +492,12 @@ export function VyzualzAudioDock({
     const prepared = rekordboxLibrary || shouldForceUsbMode
       ? createPreparedTrackInputs(audio, rekordboxLibrary, { forceUsbMode: shouldForceUsbMode })
       : null
+    let loadedTracks: typeof engine.tracks = []
     if (engine.tracks.length > 0) {
       if (prepared) engine.replacePreparedTracks(prepared, mutationOptions)
-      else engine.replaceTracks(audio, mutationOptions)
+      else loadedTracks = engine.replaceTracks(audio, mutationOptions)
     } else if (prepared) engine.addPreparedTracks(prepared, mutationOptions)
-    else engine.addTracks(audio, mutationOptions)
+    else loadedTracks = engine.addTracks(audio, mutationOptions)
     if (engine.source !== 'file') engine.setSource('file', mutationOptions)
 
     if (prepared) {
@@ -533,13 +531,10 @@ export function VyzualzAudioDock({
         setRekordboxUsbMode(true)
         const hydrated = createPreparedTrackInputs(audio, result.library, { forceUsbMode: true })
         const summary = summarizePreparedRekordboxInputs(hydrated)
-        // Until in-place metadata hydration lands in Fix #5, retain the existing
-        // prepared-track replacement behavior after the background scan. Audio
-        // loading itself is no longer blocked by this work.
-        if (requestAudioSourceMutation()) {
-          engine.replacePreparedTracks(hydrated, mutationOptions)
-          if (engine.source !== 'file') engine.setSource('file', mutationOptions)
-        }
+        hydrated.forEach((input, index) => {
+          const target = loadedTracks[index]
+          if (target && input.imported) engine.hydrateTrackMetadata(target.id, input.imported)
+        })
         setRekordboxStatusWithDiagnostic([
           `Detected Rekordbox USB from loaded track path and parsed ${summarizeRekordboxLibrary(result.library)} with the native bridge.`,
           summary.realMatches > 0
@@ -565,7 +560,7 @@ export function VyzualzAudioDock({
       const hydration = rehydrateCurrentTrackFromRekordbox(library, { forceUsbMode: false })
 
       const currentTrackMessage = hydration.hadCurrentFile
-        ? hydration.replaced && hydration.summary
+        ? hydration.hydrated && hydration.summary
           ? `Current track rehydrated from XML. ${formatRekordboxDiagnostic(hydration.summary)}.`
           : hydration.summary
             ? `Current track did not match this XML and was left unchanged. ${formatRekordboxDiagnostic(hydration.summary)}.`

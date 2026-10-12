@@ -44,7 +44,7 @@ Select audio
 - Scan failures update the metadata status without removing or blocking the already-loaded audio.
 - Focused tests verify that the audio mutation precedes a deferred scan and that scan rejection leaves the audio loaded.
 
-Late metadata still uses prepared-track replacement; eliminating that playback-affecting replacement is intentionally tracked under Fix #5.
+Late metadata now hydrates the existing runtime track in place as completed under Fix #5.
 
 ### Acceptance criteria
 
@@ -75,7 +75,7 @@ Late metadata still uses prepared-track replacement; eliminating that playback-a
 - Rekordbox BPM, beat-grid, cue, phrase, key, and external metadata are prepared together and committed through one prepared-track mutation, avoiding partial musical-timeline updates.
 - Focused tests cover the pending, successful, and failed background-scan paths.
 
-The metadata commit still recreates the prepared runtime track. Preserving the existing runtime track, URL, and playback state is intentionally tracked under Fix #5.
+The metadata commit now preserves the existing runtime track, URL, and playback state as completed under Fix #5.
 
 ### Acceptance criteria
 
@@ -156,7 +156,7 @@ Real removable-media benchmarking remains a release-validation task because repr
 
 ## 5. Hydrate metadata without reloading audio
 
-**Status:** [ ] Not completed
+**Status:** [x] Completed and verified
 
 ### Required change
 
@@ -167,9 +167,14 @@ Real removable-media benchmarking remains a release-validation task because repr
 - Recompute the analysis key using the imported Rekordbox grid revision without changing the audio URL.
 - Rely on the existing stable-URL guard so ordinary state updates never call `HTMLMediaElement.load()` again.
 
-### Current problem
+### Implemented summary
 
-`rehydrateCurrentTrackFromRekordbox()` currently calls `replacePreparedTracks()`. That invalidates analysis, clears Music Intelligence state, creates a new runtime track and blob URL, revokes the existing URL, resets the current index, and re-enqueues analysis.
+- Added `hydrateTrackMetadata(trackId, importedMetadata)` to the shared audio engine.
+- Hydration atomically patches external metadata, cue markers and regions, Rekordbox phrases, the imported analysis seed, display metadata, and the Rekordbox flag on the existing runtime track.
+- The analysis key is recomputed from the imported grid revision without changing the track ID, source `File`, blob URL, playlist index, playback position, play state, volume, media element, Web Audio graph, or decoded-buffer cache.
+- Automatic native scans retain the exact runtime IDs returned by the initial audio mutation and hydrate those tracks when metadata arrives.
+- XML import and manual USB rehydration now use the same in-place mutation.
+- Late metadata no longer calls `replacePreparedTracks()`, revokes the audio URL, or re-enters `HTMLMediaElement.load()`.
 
 ### Acceptance criteria
 
@@ -247,15 +252,15 @@ Real removable-media benchmarking remains a release-validation task because repr
 - [x] Unit test: audio-track mutation occurs before a deferred Rekordbox scan resolves.
 - [x] Unit test: scan failure leaves the audio track loaded and usable.
 - [x] Unit test: pending metadata status is announced while the audio file input remains enabled.
-- Unit test: metadata hydration preserves track ID and URL.
-- Unit test: metadata hydration does not call `replacePreparedTracks()` or reload the media element.
+- [x] Unit test: metadata hydration preserves track ID and URL.
+- [x] Unit test: metadata hydration does not call `replacePreparedTracks()` or reload the media element.
 - Unit test: reversed scan completion cannot overwrite the newest track or library.
 - [x] Unit test: concurrent requests for one USB root share one native scan.
 - [x] Unit test: failed shared scans are evicted and retryable.
 - Unit test: late metadata changes the analysis revision and supersedes the old job.
 - [x] Native test: bounded ANLZ concurrency never exceeds its configured limit.
 - [x] Native test: parallel parsing produces deterministic output and warning order.
-- Integration test: playback time and play state remain stable when Rekordbox metadata arrives.
+- [x] Integration test: playback time and play state remain stable when Rekordbox metadata arrives.
 - Integration test: switching tracks repeatedly while scanning never applies metadata to the wrong track.
 - Performance test: record time-to-audio-ready independently from time-to-metadata-ready.
 - Performance test: compare sequential and bounded-parallel scanning on representative real USB hardware.
@@ -263,7 +268,7 @@ Real removable-media benchmarking remains a release-validation task because repr
 ## Recommended implementation order
 
 1. [x] Load audio immediately.
-2. [ ] Add in-place metadata hydration.
+2. [x] Add in-place metadata hydration.
 3. [ ] Add request-generation and track-identity guards.
 4. [ ] Reconcile late metadata with existing analysis.
 5. [x] Add the shared USB scan coordinator and cache.

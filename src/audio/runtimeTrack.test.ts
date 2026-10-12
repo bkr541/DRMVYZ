@@ -3,6 +3,7 @@ import { DEFAULT_TRACK_ANALYSIS_RUNTIME, type Track } from '../types'
 import {
   createLocalRuntimeTrack,
   createRemoteRuntimeTrack,
+  hydrateRuntimeTrackMetadata,
   getTrackAudioTrackId,
   getTrackRuntimeId,
   isPersistedTrack,
@@ -144,6 +145,48 @@ describe('runtime track identity', () => {
     expect(track.id).not.toMatch(/^audio-/)
     expect(track.displayName).toBe('legacy')
     expect(track.dbId).toBeUndefined()
+  })
+
+  it('hydrates Rekordbox metadata without changing runtime identity or the audio source', () => {
+    const file = new File(['audio'], 'source.wav', { type: 'audio/wav', lastModified: 123 })
+    const track = createLocalRuntimeTrack(file)
+    const imported: ImportedTrackIntelligence = {
+      source: 'rekordbox_usb',
+      metadata: {
+        source: 'rekordbox_usb',
+        sourceTrackId: 'rb-42',
+        title: 'Hydrated Title',
+        artist: 'Hydrated Artist',
+        bpm: 128,
+        musicalKey: '8A',
+        genre: 'House',
+        durationSec: 240,
+      },
+      cueMarkers: [],
+      cueRegions: [],
+      rekordboxPhrases: [],
+      analysisSeed: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: true, key: true, phrases: false },
+        bpm: 128,
+        beatGrid: [{ timeSec: 0, confidence: 1, beatIndex: 0, beatWithinBar: 1, isDownbeat: true }],
+      },
+      matchConfidence: 1,
+      matchReason: 'native-path',
+      warnings: [],
+    }
+
+    const hydrated = hydrateRuntimeTrackMetadata(track, imported)
+
+    expect(hydrated.id).toBe(track.id)
+    expect(hydrated.url).toBe(track.url)
+    expect(hydrated.sourceFile).toBe(file)
+    expect(hydrated.sourceKind).toBe(track.sourceKind)
+    expect(hydrated.displayName).toBe('Hydrated Title')
+    expect(hydrated.externalMetadata).toBe(imported.metadata)
+    expect(hydrated.importedAnalysisSeed).toBe(imported.analysisSeed)
+    expect(hydrated.analysisRuntime.analysisKey).not.toBe(track.analysisRuntime.analysisKey)
+    expect(hydrated.analysisRuntime.analysisKey).toContain('imported-grid=')
   })
 
   it('migrates restored legacy analysis keys without retaining stale automatic results', () => {

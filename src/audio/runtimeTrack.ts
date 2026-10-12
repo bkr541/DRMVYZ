@@ -109,21 +109,29 @@ function buildAnalysisRuntime(
   }
 }
 
+function computeImportedAnalysisKey(
+  source: Pick<Track, 'sourceKind' | 'url'> & { sourceFile?: File },
+  imported?: ImportedTrackIntelligence,
+): string {
+  const analysisKey = computeAnalysisKey({ ...source, importedAnalysisSeed: imported?.analysisSeed })
+  const metadata = imported?.metadata
+  if (!metadata) return analysisKey
+  const seedKey = [
+    metadata.source,
+    metadata.sourceTrackId ?? 'unknown-track',
+    metadata.bpm ?? 'no-bpm',
+    metadata.musicalKey ?? 'no-key',
+    imported?.cueMarkers.length ?? 0,
+  ].join(':')
+  return `${analysisKey}:external:${seedKey}`
+}
+
 export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackIntelligence): Track {
   const url = URL.createObjectURL(file)
   const importedMetadata = imported?.metadata
   const title = importedMetadata?.title?.trim() || getFilenameWithoutExtension(file.name)
   const analysisRuntime = buildAnalysisRuntime({ sourceKind: 'file', url, sourceFile: file, importedAnalysisSeed: imported?.analysisSeed })
-  if (importedMetadata) {
-    const seedKey = [
-      importedMetadata.source,
-      importedMetadata.sourceTrackId ?? 'unknown-track',
-      importedMetadata.bpm ?? 'no-bpm',
-      importedMetadata.musicalKey ?? 'no-key',
-      imported?.cueMarkers.length ?? 0,
-    ].join(':')
-    analysisRuntime.analysisKey = `${analysisRuntime.analysisKey}:external:${seedKey}`
-  }
+  analysisRuntime.analysisKey = computeImportedAnalysisKey({ sourceKind: 'file', url, sourceFile: file }, imported)
 
   return {
     id:                 generateId(),
@@ -147,6 +155,34 @@ export function createLocalRuntimeTrack(file: File, imported?: ImportedTrackInte
     sourceKind:         'file',
     sourceFile:         file,
     analysisRuntime,
+  }
+}
+
+export function hydrateRuntimeTrackMetadata(track: Track, imported: ImportedTrackIntelligence): Track {
+  const metadata = imported.metadata
+  const title = metadata.title?.trim() || track.displayName
+  return {
+    ...track,
+    displayName: title,
+    title: metadata.title ?? track.title,
+    artist: metadata.artist ?? track.artist,
+    duration: metadata.durationSec ?? track.duration,
+    persistedMetadata: {
+      ...track.persistedMetadata,
+      bpm: metadata.bpm ?? track.persistedMetadata?.bpm ?? null,
+      musicalKey: metadata.musicalKey ?? track.persistedMetadata?.musicalKey ?? null,
+      genre: metadata.genre ?? track.persistedMetadata?.genre ?? null,
+    },
+    externalMetadata: metadata,
+    importedCueMarkers: imported.cueMarkers,
+    importedCueRegions: imported.cueRegions,
+    importedRekordboxPhrases: imported.rekordboxPhrases,
+    importedAnalysisSeed: imported.analysisSeed,
+    isRekordbox: true,
+    analysisRuntime: {
+      ...track.analysisRuntime,
+      analysisKey: computeImportedAnalysisKey(track, imported),
+    },
   }
 }
 

@@ -34,6 +34,7 @@ const fixture = vi.hoisted(() => ({
     replaceTracks: vi.fn(),
     addPreparedTracks: vi.fn(),
     replacePreparedTracks: vi.fn(),
+    hydrateTrackMetadata: vi.fn(() => true),
     prev: vi.fn(),
     next: vi.fn(),
     play: vi.fn(),
@@ -89,7 +90,20 @@ vi.mock('../../../features/waveform/rgbWaveformStorage', () => ({
 }))
 vi.mock('../transport/PeaksWaveformView', () => ({ PeaksWaveformView: () => <div data-testid="waveform" /> }))
 vi.mock('../../../features/rekordboxImport', () => ({
-  createPreparedTrackInputs: (files: File[]) => files.map(file => ({ sourceFile: file, imported: null })),
+  createPreparedTrackInputs: (files: File[], library: unknown, options?: { forceUsbMode?: boolean }) => files.map(file => ({
+    file,
+    imported: library || options?.forceUsbMode ? {
+      source: 'rekordbox_usb',
+      metadata: { source: 'rekordbox_usb', title: file.name },
+      cueMarkers: [],
+      cueRegions: [],
+      rekordboxPhrases: [],
+      analysisSeed: { source: 'rekordbox_usb', featureAvailability: {} },
+      matchConfidence: 1,
+      matchReason: 'native-path',
+      warnings: [],
+    } : undefined,
+  })),
   importRekordboxXml: vi.fn(),
   selectRekordboxUsbRoot: vi.fn(),
   summarizeRekordboxLibrary: vi.fn(() => 'library'),
@@ -189,6 +203,16 @@ beforeEach(() => {
   vi.mocked(fixture.engine.replaceTracks).mockClear()
   vi.mocked(fixture.engine.addPreparedTracks).mockClear()
   vi.mocked(fixture.engine.replacePreparedTracks).mockClear()
+  vi.mocked(fixture.engine.hydrateTrackMetadata).mockClear()
+  vi.mocked(fixture.engine.hydrateTrackMetadata).mockReturnValue(true)
+  vi.mocked(fixture.engine.addTracks).mockImplementation(files => files.map((file, index) => ({
+    id: `loaded-${index}`,
+    sourceFile: file,
+  })) as ReturnType<AudioEngine['addTracks']>)
+  vi.mocked(fixture.engine.replaceTracks).mockImplementation(files => files.map((file, index) => ({
+    id: `loaded-${index}`,
+    sourceFile: file,
+  })) as ReturnType<AudioEngine['replaceTracks']>)
   vi.mocked(fixture.engine.setSource).mockClear()
   vi.mocked(fixture.engine.pause).mockClear()
   fixture.nativeRekordbox.guessedRoot = null
@@ -297,7 +321,11 @@ describe('Show Manager Audio Dock source lock integration', () => {
       await Promise.resolve()
     })
 
-    expect(fixture.engine.replacePreparedTracks).toHaveBeenCalledOnce()
+    expect(fixture.engine.hydrateTrackMetadata).toHaveBeenCalledWith(
+      'loaded-0',
+      expect.objectContaining({ source: 'rekordbox_usb' }),
+    )
+    expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
   })
 
   it('keeps audio loaded when the asynchronous Rekordbox scan fails', async () => {

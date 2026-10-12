@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Track } from '../types'
 import type { TrackAnalysisRuntime } from '../types'
+import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
 import {
   getLastAudioSourcePolicyMessage,
   resetAudioSourcePolicyForTests,
@@ -19,6 +20,8 @@ vi.mock('../features/trackIntelligence/TrackAnalysisCoordinator', async () => {
   )
 
   class SynchronousCoordinator {
+    private readonly decodedBuffer = { duration: 180 } as AudioBuffer
+
     constructor(
       _deps: unknown,
       private readonly callbacks: {
@@ -40,7 +43,7 @@ vi.mock('../features/trackIntelligence/TrackAnalysisCoordinator', async () => {
     cancelTrack(): void {}
     prioritize(): void {}
     reanalyze(): void {}
-    getDecodedBuffer(): undefined { return undefined }
+    getDecodedBuffer(): AudioBuffer { return this.decodedBuffer }
   }
 
   return {
@@ -286,6 +289,65 @@ describe('useAudioEngine track loading', () => {
     expect(el?.loadMock.mock.calls.length).toBe(loadsAfterInitial)
     expect(el?.src).toBe('https://signed.test/a.wav')
     expect(engine?.currentTime).toBe(42)
+  })
+
+  it('hydrates Rekordbox metadata in place without reloading or interrupting the active audio source', async () => {
+    const file = new File(['audio'], 'hydrate.wav', { type: 'audio/wav', lastModified: 42 })
+    let loadedTracks: Track[] = []
+    act(() => {
+      loadedTracks = engine?.addTracks([file]) ?? []
+    })
+    const loaded = loadedTracks[0]!
+    const el = fakeAudioInstances[0]!
+
+    act(() => engine?.seek(42))
+    act(() => engine?.play())
+    await act(async () => { await Promise.resolve() })
+
+    const loadsBeforeHydration = el.loadMock.mock.calls.length
+    const bufferBeforeHydration = engine?.getDecodedBuffer(loaded.id)
+    const imported: ImportedTrackIntelligence = {
+      source: 'rekordbox_usb',
+      metadata: {
+        source: 'rekordbox_usb',
+        sourceTrackId: 'rb-hydrate',
+        title: 'Hydrated',
+        bpm: 126,
+      },
+      cueMarkers: [],
+      cueRegions: [],
+      rekordboxPhrases: [],
+      analysisSeed: {
+        source: 'rekordbox_usb',
+        featureAvailability: { bpm: true, beatGrid: true, key: false, phrases: false },
+        bpm: 126,
+        beatGrid: [{ timeSec: 0, confidence: 1, isDownbeat: true }],
+      },
+      matchConfidence: 1,
+      matchReason: 'native-path',
+      warnings: [],
+    }
+
+    let hydrated = false
+    act(() => {
+      hydrated = engine?.hydrateTrackMetadata(loaded.id, imported) ?? false
+    })
+
+    const current = engine?.tracks[0]
+    expect(hydrated).toBe(true)
+    expect(current?.id).toBe(loaded.id)
+    expect(current?.url).toBe(loaded.url)
+    expect(current?.sourceFile).toBe(file)
+    expect(engine?.currentIndex).toBe(0)
+    expect(engine?.currentTime).toBe(42)
+    expect(engine?.isPlaying).toBe(true)
+    expect(el.currentTime).toBe(42)
+    expect(el.src).toBe(loaded.url)
+    expect(el.loadMock).toHaveBeenCalledTimes(loadsBeforeHydration)
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+    expect(engine?.getDecodedBuffer(loaded.id)).toBe(bufferBeforeHydration)
+    expect(current?.externalMetadata?.sourceTrackId).toBe('rb-hydrate')
+    expect(current?.analysisRuntime.analysisKey).toContain('imported-grid=')
   })
 
   it('permits linked-track transport but refuses play and seek against an unrelated active source', async () => {

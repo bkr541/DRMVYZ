@@ -25,11 +25,13 @@ import {
   createLocalRuntimeTrack,
   createPreparedRuntimeTrack,
   createRemoteRuntimeTrack,
+  hydrateRuntimeTrackMetadata,
   getTrackAudioTrackId,
   isPersistedTrack,
   type RuntimeTrackUrlInput,
   type PreparedTrackInput,
 } from '../audio/runtimeTrack'
+import type { ImportedTrackIntelligence } from '../features/rekordboxImport/types'
 import { upsertTrackAnalysisPayload } from '../lib/audioDb'
 import { useReactStore } from '../stores/reactStore'
 import {
@@ -135,10 +137,11 @@ export interface AudioEngine {
   getCurrentTime: () => number
   duration: number
   volume: number
-  addTracks: (files: File[], options?: AudioSourceMutationOptions) => void
-  replaceTracks: (files: File[], options?: AudioSourceMutationOptions) => void
+  addTracks: (files: File[], options?: AudioSourceMutationOptions) => Track[]
+  replaceTracks: (files: File[], options?: AudioSourceMutationOptions) => Track[]
   addPreparedTracks: (inputs: PreparedTrackInput[], options?: AudioSourceMutationOptions) => void
   replacePreparedTracks: (inputs: PreparedTrackInput[], options?: AudioSourceMutationOptions) => void
+  hydrateTrackMetadata: (trackId: string, imported: ImportedTrackIntelligence) => boolean
   /** Load pre-built tracks by URL (e.g. signed Supabase URLs) without a File object. */
   addTrackUrls: (tracks: RuntimeTrackUrlInput[], options?: AudioSourceMutationOptions) => void
   replaceTrackUrls: (tracks: RuntimeTrackUrlInput[], options?: AudioSourceMutationOptions) => void
@@ -1279,29 +1282,46 @@ export function useAudioEngine(): AudioEngine {
 
   // ── Playlist ─────────────────────────────────────────────────────────────────
   const addTracks = useCallback((files: File[], options: AudioSourceMutationOptions = {}) => {
-    if (!requestAudioSourceMutation(options)) return
+    if (!requestAudioSourceMutation(options)) return []
     const newTracks = files.map(file => createLocalRuntimeTrack(file))
-    setTracks(prev => {
-      if (prev.length === 0) setCurrentIndex(0)
-      return [...prev, ...newTracks]
-    })
+    const previousTracks = tracksRef.current
+    const nextTracks = [...previousTracks, ...newTracks]
+    tracksRef.current = nextTracks
+    if (previousTracks.length === 0 && newTracks.length > 0) {
+      currentIndexRef.current = 0
+      setCurrentIndex(0)
+    }
+    setTracks(nextTracks)
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+    return newTracks
   }, [])
 
   const replaceTracks = useCallback((files: File[], options: AudioSourceMutationOptions = {}) => {
-    if (!requestAudioSourceMutation(options)) return
+    if (!requestAudioSourceMutation(options)) return []
     coordinatorRef.current?.invalidate()
     // Synchronously clear stale MI state before the new tracks arrive so the
     // old track's BPM/markers never bleed into the new track's analysis window.
     musicIntelligenceEngine.setSourceId(null, null)
     musicIntelligenceEngine.setTrackAnalysis(null)
     const newTracks = files.map(file => createLocalRuntimeTrack(file))
-    setTracks(prev => {
-      prev.forEach(t => URL.revokeObjectURL(t.url))
-      setCurrentIndex(newTracks.length > 0 ? 0 : -1)
-      return newTracks
-    })
+    tracksRef.current.forEach(t => URL.revokeObjectURL(t.url))
+    tracksRef.current = newTracks
+    const nextIndex = newTracks.length > 0 ? 0 : -1
+    currentIndexRef.current = nextIndex
+    setCurrentIndex(nextIndex)
+    setTracks(newTracks)
     newTracks.forEach(t => coordinatorRef.current?.enqueue(t, 'normal'))
+    return newTracks
+  }, [])
+
+  const hydrateTrackMetadata = useCallback((trackId: string, imported: ImportedTrackIntelligence): boolean => {
+    const index = tracksRef.current.findIndex(track => track.id === trackId)
+    if (index < 0) return false
+    const nextTracks = [...tracksRef.current]
+    nextTracks[index] = hydrateRuntimeTrackMetadata(nextTracks[index]!, imported)
+    tracksRef.current = nextTracks
+    setTracks(nextTracks)
+    return true
   }, [])
 
   const addPreparedTracks = useCallback((inputs: PreparedTrackInput[], options: AudioSourceMutationOptions = {}) => {
@@ -1620,7 +1640,7 @@ export function useAudioEngine(): AudioEngine {
     liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
     hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
-    addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
+    addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, hydrateTrackMetadata, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,
     analyserR: aRRef.current,
