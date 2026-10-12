@@ -358,6 +358,20 @@ export function useAudioEngine(): AudioEngine {
   // effect against analysis-driven `tracks` identity churn: only a genuine
   // source change may re-enter `el.src` / `el.load()`.
   const loadedTrackKeyRef = useRef<string | null>(null)
+  const mediaLoadDiagnosticRef = useRef<{
+    trackId: string
+    startedAt: number
+    milestones: Set<string>
+  } | null>(null)
+
+  const beginMediaLoadDiagnostics = useCallback((track: Track) => {
+    mediaLoadDiagnosticRef.current = {
+      trackId: track.id,
+      startedAt: Date.now(),
+      milestones: new Set(),
+    }
+    audioLog.info('media element load requested', { trackId: track.id })
+  }, [])
 
   // ── Track analysis coordinator refs ──────────────────────────────────────────
   // Stable mutable callbacks so the coordinator never holds stale React closure refs.
@@ -381,11 +395,41 @@ export function useAudioEngine(): AudioEngine {
     audioRef.current = el
     const onTimeUpdate   = () => setCurrentTime(el.currentTime)
     const onDurationChange = () => setDuration(el.duration || 0)
+    const logMediaMilestone = (milestone: string) => {
+      const diagnostic = mediaLoadDiagnosticRef.current
+      if (!diagnostic || diagnostic.milestones.has(milestone)) return
+      diagnostic.milestones.add(milestone)
+      audioLog.info(`media element ${milestone}`, {
+        trackId: diagnostic.trackId,
+        elapsedMs: Date.now() - diagnostic.startedAt,
+        readyState: el.readyState,
+        durationSec: Number.isFinite(el.duration) ? el.duration : null,
+      })
+    }
+    const onLoadedMetadata = () => logMediaMilestone('loadedmetadata')
+    const onCanPlay = () => logMediaMilestone('canplay')
+    const onPlaying = () => logMediaMilestone('playing')
+    const onError = () => {
+      const diagnostic = mediaLoadDiagnosticRef.current
+      audioLog.error('media element load failed', {
+        trackId: diagnostic?.trackId ?? null,
+        elapsedMs: diagnostic ? Date.now() - diagnostic.startedAt : null,
+        mediaErrorCode: el.error?.code ?? null,
+      })
+    }
     el.addEventListener('timeupdate',     onTimeUpdate)
     el.addEventListener('durationchange', onDurationChange)
+    el.addEventListener('loadedmetadata', onLoadedMetadata)
+    el.addEventListener('canplay', onCanPlay)
+    el.addEventListener('playing', onPlaying)
+    el.addEventListener('error', onError)
     return () => {
       el.removeEventListener('timeupdate',     onTimeUpdate)
       el.removeEventListener('durationchange', onDurationChange)
+      el.removeEventListener('loadedmetadata', onLoadedMetadata)
+      el.removeEventListener('canplay', onCanPlay)
+      el.removeEventListener('playing', onPlaying)
+      el.removeEventListener('error', onError)
       el.pause(); el.src = ''
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -944,6 +988,7 @@ export function useAudioEngine(): AudioEngine {
     const track = tracks[currentIndex]
     if (loadedTrackKeyRef.current === track.url) return
     loadedTrackKeyRef.current = track.url
+    beginMediaLoadDiagnostics(track)
     el.src = track.url; el.load()
     // The previous track's position must not survive into the new one. load()
     // resets the media element, but React state only catches up on the next
@@ -1316,11 +1361,27 @@ export function useAudioEngine(): AudioEngine {
 
   const hydrateTrackMetadata = useCallback((trackId: string, imported: ImportedTrackIntelligence): boolean => {
     const index = tracksRef.current.findIndex(track => track.id === trackId)
-    if (index < 0) return false
+    if (index < 0) {
+      audioLog.warn('Rekordbox metadata hydration skipped because the runtime track no longer exists', { trackId })
+      return false
+    }
+    const previousTrack = tracksRef.current[index]!
+    const previousCurrentIndex = currentIndexRef.current
     const nextTracks = [...tracksRef.current]
-    nextTracks[index] = hydrateRuntimeTrackMetadata(nextTracks[index]!, imported)
+    nextTracks[index] = hydrateRuntimeTrackMetadata(previousTrack, imported)
     tracksRef.current = nextTracks
     setTracks(nextTracks)
+    const hydratedTrack = nextTracks[index]!
+    audioLog.info('Rekordbox metadata hydrated into the existing runtime track', {
+      trackId,
+      sourceTrackId: imported.metadata.sourceTrackId ?? null,
+      cueCount: imported.cueMarkers.length,
+      phraseCount: imported.analysisSeed.rekordboxPhrases?.length ?? 0,
+      urlPreserved: hydratedTrack.url === previousTrack.url,
+      sourceFilePreserved: hydratedTrack.sourceFile === previousTrack.sourceFile,
+      currentIndexPreserved: currentIndexRef.current === previousCurrentIndex,
+      activeTrack: index === previousCurrentIndex,
+    })
     return true
   }, [])
 
@@ -1420,6 +1481,7 @@ export function useAudioEngine(): AudioEngine {
     // playlist state. Point the media element at that track immediately so a
     // same-tick Load and Play action cannot observe a stale index/source.
     if (el.src !== track.url) {
+      beginMediaLoadDiagnostics(track)
       el.src = track.url
       el.load()
       loadedTrackKeyRef.current = track.url
@@ -1431,7 +1493,7 @@ export function useAudioEngine(): AudioEngine {
     const ctx = ensureContext()
     if (ctx.state === 'suspended') ctx.resume()
     el.play().then(() => setIsPlaying(true)).catch(() => { /**/ })
-  }, [connectFileSource, ensureContext])
+  }, [beginMediaLoadDiagnostics, connectFileSource, ensureContext])
 
   const pause  = useCallback(() => {
     // Pausing is always safe: Show Manager uses this to silence a stale source

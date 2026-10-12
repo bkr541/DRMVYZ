@@ -37,8 +37,15 @@ import {
   requestAudioSourceMutation,
   subscribeAudioSourcePolicy,
 } from '../../../audio/audioSourcePolicy'
+import { createLogger } from '../../../lib/logger'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
+const rekordboxLoadLog = createLogger('react', 'RekordboxTrackLoad')
+
+function getRootLabel(rootPath: string): string {
+  const parts = rootPath.replace(/\\/g, '/').split('/').filter(Boolean)
+  return parts.at(-1) ?? 'unknown'
+}
 
 function readCollapsedPreference(): boolean {
   if (typeof window === 'undefined') return false
@@ -223,6 +230,7 @@ export function VyzualzAudioDock({
     expandable ? readCollapsedPreference() : false
   ))
   const audioSourceTriggerRef = useRef<HTMLButtonElement>(null)
+  const rekordboxLoadGenerationRef = useRef(0)
   const [audioSourcePopoverOpen, setAudioSourcePopoverOpen] = useState(false)
   const [rekordboxLibrary, setRekordboxLibrary] = useState<RekordboxLibrary | null>(null)
   const [rekordboxStatus, setRekordboxStatus] = useState<string | null>(null)
@@ -487,6 +495,9 @@ export function VyzualzAudioDock({
     if (!audio.length) return
     if (!requestAudioSourceMutation()) return
 
+    const requestId = `track-load-${++rekordboxLoadGenerationRef.current}`
+    const startedAt = Date.now()
+
     const mutationOptions = { notifyOnBlocked: false }
     const shouldForceUsbMode = rekordboxUsbMode || rekordboxLibrary?.source === 'rekordbox_usb'
     const prepared = rekordboxLibrary || shouldForceUsbMode
@@ -499,6 +510,13 @@ export function VyzualzAudioDock({
     } else if (prepared) engine.addPreparedTracks(prepared, mutationOptions)
     else loadedTracks = engine.addTracks(audio, mutationOptions)
     if (engine.source !== 'file') engine.setSource('file', mutationOptions)
+    rekordboxLoadLog.info('runtime track created; media readiness is reported by AudioEngine', {
+      requestId,
+      elapsedMs: Date.now() - startedAt,
+      trackCount: audio.length,
+      runtimeTrackIds: loadedTracks.map(track => track.id),
+      metadataAlreadyAvailable: Boolean(prepared),
+    })
 
     if (prepared) {
       const summary = summarizePreparedRekordboxInputs(prepared)
@@ -512,6 +530,11 @@ export function VyzualzAudioDock({
         matchedPhrase,
         formatRekordboxDiagnostic(summary),
       ].filter(Boolean).join(' '), summary)
+      rekordboxLoadLog.info('Rekordbox metadata ready during initial audio load', {
+        requestId,
+        elapsedMs: Date.now() - startedAt,
+        ...summary,
+      })
       return
     }
 
@@ -520,21 +543,48 @@ export function VyzualzAudioDock({
 
     setRekordboxBusy(true)
     setRekordboxStatusWithDiagnostic('Audio ready · Rekordbox metadata loading…')
+    const scanRequestedAt = Date.now()
+    rekordboxLoadLog.info('Rekordbox metadata scan started', {
+      requestId,
+      rootLabel: getRootLabel(guessedRoot),
+      trackCount: audio.length,
+      runtimeTrackIds: loadedTracks.map(track => track.id),
+    })
     void scanNativeRekordboxUsbRoot(guessedRoot)
       .then(result => {
+        const bridgeReceivedAt = Date.now()
+        const ipcPreparedAt = result?.diagnostics?.ipcPreparedAtEpochMs
+        rekordboxLoadLog.info('Rekordbox native bridge response received', {
+          requestId,
+          bridgeRoundTripMs: bridgeReceivedAt - scanRequestedAt,
+          ipcDeliveryMs: typeof ipcPreparedAt === 'number' ? Math.max(0, bridgeReceivedAt - ipcPreparedAt) : null,
+          nativeTimings: result?.diagnostics ?? null,
+        })
         if (!result?.library || result.cancelled) {
           setRekordboxStatusWithDiagnostic('Audio ready · No readable Rekordbox metadata was found.')
+          rekordboxLoadLog.warn('Rekordbox metadata scan finished without a usable library', {
+            requestId,
+            elapsedMs: Date.now() - startedAt,
+            cancelled: Boolean(result?.cancelled),
+          })
           return
         }
 
         setRekordboxLibrary(result.library)
         setRekordboxUsbMode(true)
+        const matchingStartedAt = Date.now()
         const hydrated = createPreparedTrackInputs(audio, result.library, { forceUsbMode: true })
+        const matchingMs = Date.now() - matchingStartedAt
         const summary = summarizePreparedRekordboxInputs(hydrated)
+        const hydrationStartedAt = Date.now()
+        let hydratedTrackCount = 0
         hydrated.forEach((input, index) => {
           const target = loadedTracks[index]
-          if (target && input.imported) engine.hydrateTrackMetadata(target.id, input.imported)
+          if (target && input.imported && engine.hydrateTrackMetadata(target.id, input.imported)) {
+            hydratedTrackCount += 1
+          }
         })
+        const hydrationMs = Date.now() - hydrationStartedAt
         setRekordboxStatusWithDiagnostic([
           `Detected Rekordbox USB from loaded track path and parsed ${summarizeRekordboxLibrary(result.library)} with the native bridge.`,
           summary.realMatches > 0
@@ -542,10 +592,28 @@ export function VyzualzAudioDock({
             : `No Rekordbox metadata match; marked ${summary.usbFallbacks}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} as USB Mode only.`,
           formatRekordboxDiagnostic(summary),
         ].join(' '), summary)
+        rekordboxLoadLog.info('Rekordbox metadata ready and applied in place', {
+          requestId,
+          elapsedMs: Date.now() - startedAt,
+          hydratedTrackCount,
+          parserMode: result.parserMode,
+          detectedPdbFiles: result.detectedPdbFiles,
+          detectedAnlzFiles: result.detectedAnlzFiles,
+          bridgeRoundTripMs: bridgeReceivedAt - scanRequestedAt,
+          ipcDeliveryMs: typeof ipcPreparedAt === 'number' ? Math.max(0, bridgeReceivedAt - ipcPreparedAt) : null,
+          matchingMs,
+          hydrationMs,
+          ...summary,
+        })
       })
       .catch(err => {
         const message = err instanceof Error ? err.message : String(err)
         setRekordboxStatusWithDiagnostic(`Audio ready · Rekordbox metadata unavailable: ${message}`)
+        rekordboxLoadLog.error('Rekordbox metadata scan failed after runtime track creation', {
+          requestId,
+          elapsedMs: Date.now() - startedAt,
+          error: message,
+        })
       })
       .finally(() => setRekordboxBusy(false))
   }

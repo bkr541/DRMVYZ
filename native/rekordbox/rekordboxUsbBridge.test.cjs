@@ -539,7 +539,7 @@ test('scanRekordboxUsbRoot logs a start line and a warning summary with counts w
   assert.deepEqual(log.calls[0].scope, 'rekordbox:scan')
   assert.equal(log.calls[0].level, 'info')
   assert.match(log.calls[0].args[0], /scanning USB root/)
-  assert.equal(log.calls[0].args[1].rootPath, path.resolve(root))
+  assert.equal(log.calls[0].args[1].rootName, path.basename(root))
 
   const summaryCall = log.calls[1]
   assert.equal(summaryCall.level, 'warn') // an empty/non-Rekordbox folder always yields >=1 warning
@@ -548,6 +548,10 @@ test('scanRekordboxUsbRoot logs a start line and a warning summary with counts w
   assert.equal(summary.tracks, result.library.tracks.length)
   assert.equal(summary.detectedPdbFiles, result.detectedPdbFiles)
   assert.equal(summary.detectedAnlzFiles, result.detectedAnlzFiles)
+  assert.equal(summary.nativeTotalMs, result.diagnostics.nativeTotalMs)
+  assert.equal(typeof summary.discoveryMs, 'number')
+  assert.equal(typeof summary.metadataParseMs, 'number')
+  assert.equal(typeof summary.libraryAssemblyMs, 'number')
   assert.deepEqual(summary.warnings, result.warnings)
 })
 
@@ -567,17 +571,23 @@ test('Rekordbox scan coordinator shares in-flight and completed scans for a norm
       return deferredScan
     },
   })
+  const log = fakeLog()
 
-  const first = coordinator.scan('/Volumes/DJ USB')
-  const second = coordinator.scan('/Volumes/DJ USB/')
+  const first = coordinator.scan('/Volumes/DJ USB', log)
+  const second = coordinator.scan('/Volumes/DJ USB/', log)
   await Promise.resolve()
   assert.equal(scanCalls, 1)
 
   resolveScan(successfulScan('shared'))
   assert.equal((await first).library.id, 'shared')
   assert.equal((await second).library.id, 'shared')
-  assert.equal((await coordinator.scan('/Volumes/DJ USB')).library.id, 'shared')
+  assert.equal((await coordinator.scan('/Volumes/DJ USB', log)).library.id, 'shared')
   assert.equal(scanCalls, 1)
+  assert.deepEqual(log.calls.slice(0, 3).map(call => call.args[0]), [
+    'Rekordbox USB scan cache miss',
+    'reusing in-flight Rekordbox USB scan',
+    'using cached Rekordbox USB scan',
+  ])
 
   coordinator.invalidate('/Volumes/DJ USB')
   assert.equal((await coordinator.scan('/Volumes/DJ USB')).library.id, 'shared')
@@ -652,6 +662,8 @@ test('installed Rekordbox IPC handlers share the main-process scan coordinator',
 
   assert.equal(first.library.id, 'ipc-shared')
   assert.equal(second.library.id, 'ipc-shared')
+  assert.equal(typeof first.diagnostics.ipcPreparedAtEpochMs, 'number')
+  assert.equal(typeof second.diagnostics.ipcPreparedAtEpochMs, 'number')
   assert.equal(scanCalls, 1)
 })
 

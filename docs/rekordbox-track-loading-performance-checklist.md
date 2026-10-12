@@ -276,3 +276,15 @@ Real removable-media benchmarking remains a release-validation task because repr
 7. [ ] Add production timing instrumentation and complete the validation matrix.
 
 The first four items remove the unacceptable user-facing wait and prevent playback interruption. Shared caching and parallel scanning then reduce how long background metadata remains pending.
+
+## Rekordbox load diagnostics
+
+**Status:** [x] Installed
+
+- Renderer logs correlate each file selection with a monotonic request ID and separately record runtime-track creation, native-bridge receipt, metadata-scan-started, metadata-ready, unavailable, and failed milestones.
+- Audio-engine logs distinguish media load requested, `loadedmetadata`, `canplay`, actual playback, and media failure so runtime-track creation is never mislabeled as user-ready audio.
+- In-place hydration logs prove whether runtime track ID, object URL, source file, active index, cue count, and phrase count were preserved.
+- Native scan logs record cache miss, in-flight reuse, completed-cache reuse, cache expiry, parser mode, discovered metadata counts, parsed track count, warning count, discovery time, metadata parse time, library assembly time, and total elapsed time.
+- Renderer completion logs separately report bridge round-trip, IPC delivery, track matching, and metadata hydration durations.
+- Full filesystem paths and audio filenames are intentionally excluded. USB volume labels and runtime track IDs remain available for correlation.
+- These entries are retained in the renderer diagnostics ring buffer and forwarded to the persistent Electron log for packaged builds.

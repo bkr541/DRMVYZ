@@ -60,7 +60,7 @@ function installRekordboxUsbBridge({
       return emptyResult({ cancelled: true })
     }
 
-    return scanCoordinator.scan(result.filePaths[0], log)
+    return prepareResultForIpc(await scanCoordinator.scan(result.filePaths[0], log))
   })
 
   ipcMain.handle('drmvyz:rekordbox:scan-usb-root', async (_event, rootPath) => {
@@ -70,8 +70,18 @@ function installRekordboxUsbBridge({
         warnings: ['The requested path does not look like a removable-media mount point and was not scanned.'],
       })
     }
-    return scanCoordinator.scan(rootPath, log)
+    return prepareResultForIpc(await scanCoordinator.scan(rootPath, log))
   })
+}
+
+function prepareResultForIpc(result) {
+  return {
+    ...result,
+    diagnostics: {
+      ...result?.diagnostics,
+      ipcPreparedAtEpochMs: Date.now(),
+    },
+  }
 }
 
 function createRekordboxScanCoordinator({
@@ -92,11 +102,27 @@ function createRekordboxScanCoordinator({
 
   function scan(rootPath, log) {
     const key = normalizeUsbRootCacheKey(rootPath)
+    const rootName = path.basename(key)
+    const rekordboxLog = log ? log.scope('rekordbox:scan') : null
     const cached = entries.get(key)
     const requestedAt = now()
-    if (cached?.promise) return cached.promise
-    if (cached?.result && requestedAt < cached.expiresAt) return Promise.resolve(cached.result)
-    if (cached) entries.delete(key)
+    if (cached?.promise) {
+      rekordboxLog?.info('reusing in-flight Rekordbox USB scan', { rootName })
+      return cached.promise
+    }
+    if (cached?.result && requestedAt < cached.expiresAt) {
+      rekordboxLog?.info('using cached Rekordbox USB scan', {
+        rootName,
+        cacheAgeMs: Math.max(0, requestedAt - cached.cachedAt),
+      })
+      return Promise.resolve(cached.result)
+    }
+    if (cached) {
+      rekordboxLog?.info('Rekordbox USB scan cache expired', { rootName })
+      entries.delete(key)
+    } else {
+      rekordboxLog?.info('Rekordbox USB scan cache miss', { rootName })
+    }
 
     let pending
     pending = Promise.resolve()
@@ -104,7 +130,10 @@ function createRekordboxScanCoordinator({
       .then(result => {
         if (entries.get(key)?.promise !== pending) return result
         if (!result?.library || result.cancelled) entries.delete(key)
-        else entries.set(key, { result, expiresAt: now() + normalizedTtlMs })
+        else {
+          const cachedAt = now()
+          entries.set(key, { result, cachedAt, expiresAt: cachedAt + normalizedTtlMs })
+        }
         return result
       }, error => {
         if (entries.get(key)?.promise === pending) entries.delete(key)
@@ -126,27 +155,33 @@ async function scanRekordboxUsbRoot(rootPath, log) {
   const rekordboxLog = log ? log.scope('rekordbox:scan') : null
   const normalizedRoot = path.resolve(String(rootPath || ''))
   const rootName = path.basename(normalizedRoot)
+  const scanStartedAt = Date.now()
   const warnings = []
-  rekordboxLog?.info(`scanning USB root "${rootName}"`, { rootPath: normalizedRoot })
+  rekordboxLog?.info(`scanning USB root "${rootName}"`, { rootName })
 
   const rekordboxDir = path.join(normalizedRoot, 'PIONEER', 'rekordbox')
   const exportPdb = path.join(rekordboxDir, 'export.pdb')
   const usbAnlzDir = path.join(normalizedRoot, 'PIONEER', 'USBANLZ')
 
+  const discoveryStartedAt = Date.now()
   const [hasExportPdb, anlzFiles] = await Promise.all([
     fileExists(exportPdb),
     listFiles(usbAnlzDir, file => ANLZ_EXT_RE.test(file), MAX_NATIVE_ANLZ_FILES),
   ])
+  const discoveryMs = Date.now() - discoveryStartedAt
   const detectedPdbFiles = hasExportPdb ? 1 : 0
   if (anlzFiles.capped) warnings.push(`ANLZ scan stopped after ${MAX_NATIVE_ANLZ_FILES.toLocaleString()} metadata files.`)
 
   let parserMode = 'anlz-lite'
+  const metadataParseStartedAt = Date.now()
   const [anlzLibrary, pdbResult] = await Promise.all([
     parseAnlzLibrary(anlzFiles.files, normalizedRoot),
     detectedPdbFiles > 0
       ? parsePdbIfParserAvailable(exportPdb)
       : Promise.resolve({ available: false, tracks: [], warnings: [] }),
   ])
+  const metadataParseMs = Date.now() - metadataParseStartedAt
+  const libraryAssemblyStartedAt = Date.now()
   warnings.push(...anlzLibrary.warnings, ...pdbResult.warnings)
   let tracks = anlzLibrary.tracks
 
@@ -164,7 +199,25 @@ async function scanRekordboxUsbRoot(rootPath, log) {
   if (anlzFiles.files.length === 0) warnings.push('No /PIONEER/USBANLZ/*.DAT, *.EXT, or *.2EX analysis files were found.')
   if (tracks.length === 0) warnings.push('No usable Rekordbox tracks could be parsed from this USB. Confirm this is the root of a Rekordbox-prepared USB.')
 
-  const summary = { rootName, parserMode, detectedPdbFiles, detectedAnlzFiles: anlzFiles.files.length, tracks: tracks.length }
+  const nativeCompletedAtEpochMs = Date.now()
+  const libraryAssemblyMs = nativeCompletedAtEpochMs - libraryAssemblyStartedAt
+  const nativeTotalMs = nativeCompletedAtEpochMs - scanStartedAt
+  const diagnostics = {
+    discoveryMs,
+    metadataParseMs,
+    libraryAssemblyMs,
+    nativeTotalMs,
+    nativeCompletedAtEpochMs,
+  }
+  const summary = {
+    rootName,
+    parserMode,
+    detectedPdbFiles,
+    detectedAnlzFiles: anlzFiles.files.length,
+    tracks: tracks.length,
+    elapsedMs: nativeTotalMs,
+    ...diagnostics,
+  }
   if (warnings.length > 0) rekordboxLog?.warn(`scan of "${rootName}" completed with ${warnings.length} warning(s)`, { ...summary, warnings })
   else rekordboxLog?.info(`scan of "${rootName}" completed`, summary)
 
@@ -184,6 +237,7 @@ async function scanRekordboxUsbRoot(rootPath, log) {
     scannedRootName: rootName,
     scannedRootPath: normalizedRoot,
     parserMode,
+    diagnostics,
   }
 }
 

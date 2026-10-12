@@ -13,6 +13,14 @@ export interface NativeRekordboxUsbScanResult {
   scannedRootName?: string
   scannedRootPath?: string
   parserMode?: 'rekordbox-parser' | 'anlz-lite' | 'hybrid' | 'unavailable'
+  diagnostics?: {
+    discoveryMs?: number
+    metadataParseMs?: number
+    libraryAssemblyMs?: number
+    nativeTotalMs?: number
+    nativeCompletedAtEpochMs?: number
+    ipcPreparedAtEpochMs?: number
+  }
 }
 
 export interface NativeRekordboxBridge {
