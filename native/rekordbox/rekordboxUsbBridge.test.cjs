@@ -667,6 +667,43 @@ test('installed Rekordbox IPC handlers share the main-process scan coordinator',
   assert.equal(scanCalls, 1)
 })
 
+test('installed Rekordbox index handlers select, sync, and restore compact index status', async t => {
+  const userData = await fs.mkdtemp(path.join(os.tmpdir(), 'drmvyz-rb-user-data-'))
+  t.after(() => fs.rm(userData, { recursive: true, force: true }))
+  const handlers = new Map()
+  const ipcMain = { handle: (channel, handler) => handlers.set(channel, handler) }
+  let scanCalls = 0
+  installRekordboxUsbBridge({
+    ipcMain,
+    dialog: { showOpenDialog: async () => ({ canceled: false, filePaths: ['/Volumes/LUMA'] }) },
+    app: { getPath: () => userData },
+    scanUsbRoot: async () => {
+      scanCalls += 1
+      return {
+        ...successfulScan('indexed'),
+        library: { id: 'indexed', tracks: [{ trackId: '1', location: '/Music/Track.wav', filename: 'Track.wav' }] },
+        parserMode: 'hybrid',
+        detectedPdbFiles: 1,
+        detectedAnlzFiles: 3,
+      }
+    },
+  })
+
+  const selected = await handlers.get('drmvyz:rekordbox:select-index-directory')({ sender: {} })
+  assert.equal(selected.selectedRootName, 'LUMA')
+  assert.equal(selected.hasIndex, false)
+
+  const synced = await handlers.get('drmvyz:rekordbox:sync-index')()
+  assert.equal(synced.hasIndex, true)
+  assert.equal(synced.trackCount, 1)
+  assert.equal(synced.detectedAnlzFiles, 3)
+  assert.equal(scanCalls, 1)
+
+  const restored = await handlers.get('drmvyz:rekordbox:index-status')()
+  assert.equal(restored.syncedAt, synced.syncedAt)
+  assert.equal(restored.trackCount, 1)
+})
+
 test('installRekordboxUsbBridge logs a warning when scan-usb-root is asked to scan a non-removable path', async () => {
   const log = fakeLog()
   const handlers = new Map()

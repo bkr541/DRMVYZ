@@ -217,7 +217,7 @@ if (!app.requestSingleInstanceLock()) {
     log.scope('system:app').info(`app ready — v${app.getVersion()} electron ${process.versions.electron} ${process.platform}/${process.arch} devServer=${useDevServer}`)
     if (!useDevServer) registerAppProtocol()
     configureSessionSecurity()
-    installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, log })
+    installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, app, log })
     installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
     installDiagnosticsBridge({ ipcMain, log })
     installSystemMetricsBridge({ app, ipcMain, log })

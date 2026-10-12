@@ -19,6 +19,9 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   rekordbox: Object.freeze({
     selectUsbRootAndParse: () => ipcRenderer.invoke('drmvyz:rekordbox:select-usb-root-and-parse'),
     scanUsbRoot: rootPath => ipcRenderer.invoke('drmvyz:rekordbox:scan-usb-root', rootPath),
+    getIndexStatus: () => ipcRenderer.invoke('drmvyz:rekordbox:index-status'),
+    selectIndexDirectory: () => ipcRenderer.invoke('drmvyz:rekordbox:select-index-directory'),
+    syncIndex: () => ipcRenderer.invoke('drmvyz:rekordbox:sync-index'),
   }),
   output: Object.freeze({
     listTargets: () => ipcRenderer.invoke('drmvyz:output:list-targets'),

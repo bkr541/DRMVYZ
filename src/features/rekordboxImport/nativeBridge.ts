@@ -28,6 +28,22 @@ export interface NativeRekordboxBridge {
   selectUsbRootAndParse?: () => Promise<NativeRekordboxUsbScanResult>
   /** Parse a known absolute USB root path without opening another picker. */
   scanUsbRoot?: (rootPath: string) => Promise<NativeRekordboxUsbScanResult>
+  getIndexStatus?: () => Promise<RekordboxIndexStatus>
+  selectIndexDirectory?: () => Promise<RekordboxIndexStatus & { cancelled?: boolean }>
+  syncIndex?: () => Promise<RekordboxIndexStatus>
+}
+
+export interface RekordboxIndexStatus {
+  available: boolean
+  selectedRootPath: string | null
+  selectedRootName: string | null
+  hasIndex: boolean
+  syncedAt?: string | null
+  parserMode?: string | null
+  trackCount?: number
+  detectedPdbFiles?: number
+  detectedAnlzFiles?: number
+  warningCount?: number
 }
 
 export interface NativeFileBridge {
@@ -57,7 +73,13 @@ declare global {
 export function getNativeRekordboxBridge(): NativeRekordboxBridge | null {
   if (typeof window === 'undefined') return null
   const bridge = window.drmvyzNative?.rekordbox
-  return bridge && (bridge.selectUsbRootAndParse || bridge.scanUsbRoot) ? bridge : null
+  return bridge && (
+    bridge.selectUsbRootAndParse
+    || bridge.scanUsbRoot
+    || bridge.getIndexStatus
+    || bridge.selectIndexDirectory
+    || bridge.syncIndex
+  ) ? bridge : null
 }
 
 export function isNativeRekordboxBridgeAvailable(): boolean {

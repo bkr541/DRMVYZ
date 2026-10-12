@@ -288,3 +288,13 @@ The first four items remove the unacceptable user-facing wait and prevent playba
 - Renderer completion logs separately report bridge round-trip, IPC delivery, track matching, and metadata hydration durations.
 - Full filesystem paths and audio filenames are intentionally excluded. USB volume labels and runtime track IDs remain available for correlation.
 - These entries are retained in the renderer diagnostics ring buffer and forwarded to the persistent Electron log for packaged builds.
+
+## Pre-scanned Rekordbox library index
+
+**Status:** [x] Settings workflow installed
+
+- Settings now includes a **DJ Software** destination with Rekordbox active and Serato DJ Pro, VirtualDJ, Traktor Pro, and Engine DJ identified as upcoming integrations.
+- Rekordbox users can select a prepared library/USB directory and explicitly sync it before a performance.
+- Sync scans in the main process, writes a persistent native-side library plus normalized location/filename lookup indexes, and returns only compact status/counts to the renderer.
+- The selected directory, last sync time, track count, ANLZ count, parser mode, and warnings summary persist across app restarts.
+- The full indexed library does not cross IPC during this settings workflow, avoiding the measured full-library serialization penalty.

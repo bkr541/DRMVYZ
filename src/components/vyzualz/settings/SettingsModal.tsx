@@ -11,6 +11,7 @@ import { BrandKitSettingsPanel } from '../../../features/personalization/compone
 import { AppearanceSettingsPanel } from '../../../features/appearance/AppearanceSettingsPanel'
 import { getRecentLogEntries } from '../../../lib/logger'
 import { DeveloperPanel } from './developer/DeveloperPanel'
+import { DjSoftwareSettingsPanel } from './DjSoftwareSettingsPanel'
 
 // ── AccountPanel ──────────────────────────────────────────────────────────────
 
@@ -456,13 +457,14 @@ function SystemSettingsPanel() {
   )
 }
 
-type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'developer'
+type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'dj-software' | 'developer'
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'brand', label: 'Brand Kit' },
   { id: 'system', label: 'System Settings' },
+  { id: 'dj-software', label: 'DJ Software' },
   { id: 'developer', label: 'Developer' },
 ]
 
@@ -567,6 +569,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             {tab === 'appearance' && <AppearanceSettingsPanel />}
             {tab === 'brand' && <BrandKitSettingsPanel />}
             {tab === 'system' && <SystemSettingsPanel />}
+            {tab === 'dj-software' && <DjSoftwareSettingsPanel />}
             {tab === 'developer' && <DeveloperPanel />}
           </div>
         </div>

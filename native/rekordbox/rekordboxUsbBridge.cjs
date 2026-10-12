@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const { createRekordboxIndexStore } = require('./rekordboxIndexStore.cjs')
 const {
   parsePssiTag,
   alignRekordboxPhrases,
@@ -40,6 +41,7 @@ function installRekordboxUsbBridge({
   ipcMain,
   dialog,
   BrowserWindow,
+  app,
   log,
   scanUsbRoot = scanRekordboxUsbRoot,
   scanCacheTtlMs = DEFAULT_SCAN_CACHE_TTL_MS,
@@ -47,6 +49,41 @@ function installRekordboxUsbBridge({
   if (!ipcMain || !dialog) throw new Error('installRekordboxUsbBridge requires Electron ipcMain and dialog.')
   const rekordboxLog = log ? log.scope('rekordbox:scan') : null
   const scanCoordinator = createRekordboxScanCoordinator({ scanUsbRoot, ttlMs: scanCacheTtlMs })
+  const indexStore = app?.getPath
+    ? createRekordboxIndexStore({ baseDir: path.join(app.getPath('userData'), 'rekordbox-indexes') })
+    : null
+
+  ipcMain.handle('drmvyz:rekordbox:index-status', async () => (
+    indexStore?.getStatus() ?? { available: false, selectedRootPath: null, selectedRootName: null, hasIndex: false }
+  ))
+
+  ipcMain.handle('drmvyz:rekordbox:select-index-directory', async event => {
+    if (!indexStore) throw new Error('Rekordbox indexing is unavailable outside the desktop app.')
+    const owner = BrowserWindow?.fromWebContents?.(event.sender)
+    const result = await dialog.showOpenDialog(owner, {
+      title: 'Select Rekordbox library or USB root',
+      properties: ['openDirectory'],
+      message: 'Select the Rekordbox-prepared USB root or library directory to index.',
+    })
+    if (result.canceled || result.filePaths.length === 0) return { ...(await indexStore.getStatus()), cancelled: true }
+    return { ...(await indexStore.selectRoot(result.filePaths[0])), cancelled: false }
+  })
+
+  ipcMain.handle('drmvyz:rekordbox:sync-index', async () => {
+    if (!indexStore) throw new Error('Rekordbox indexing is unavailable outside the desktop app.')
+    const status = await indexStore.getStatus()
+    if (!status.selectedRootPath) throw new Error('Select a Rekordbox directory before syncing.')
+    rekordboxLog?.info('Rekordbox library index sync started', { rootName: status.selectedRootName })
+    scanCoordinator.invalidate(status.selectedRootPath)
+    const result = await scanCoordinator.scan(status.selectedRootPath, log)
+    const nextStatus = await indexStore.persistScan(status.selectedRootPath, result)
+    rekordboxLog?.info('Rekordbox library index sync completed', {
+      rootName: nextStatus.selectedRootName,
+      trackCount: nextStatus.trackCount,
+      detectedAnlzFiles: nextStatus.detectedAnlzFiles,
+    })
+    return nextStatus
+  })
 
   ipcMain.handle('drmvyz:rekordbox:select-usb-root-and-parse', async event => {
     const owner = BrowserWindow?.fromWebContents?.(event.sender)

@@ -44,7 +44,7 @@ const rekordboxLoadLog = createLogger('react', 'RekordboxTrackLoad')
 
 function getRootLabel(rootPath: string): string {
   const parts = rootPath.replace(/\\/g, '/').split('/').filter(Boolean)
-  return parts.at(-1) ?? 'unknown'
+  return parts[parts.length - 1] ?? 'unknown'
 }
 
 function readCollapsedPreference(): boolean {
