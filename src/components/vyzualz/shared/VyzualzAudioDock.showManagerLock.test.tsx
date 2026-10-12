@@ -285,6 +285,8 @@ describe('Show Manager Audio Dock source lock integration', () => {
       fixture.nativeRekordbox.scan.mock.invocationCallOrder[0]!,
     )
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
+    expect(container?.querySelector('[role="status"]')?.textContent).toContain('Audio ready · Rekordbox metadata loading')
+    expect(container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')?.disabled).toBe(false)
 
     await act(async () => {
       resolveScan({
@@ -308,6 +310,9 @@ describe('Show Manager Audio Dock source lock integration', () => {
 
     expect(fixture.engine.addTracks).toHaveBeenCalledOnce()
     expect(fixture.engine.replacePreparedTracks).not.toHaveBeenCalled()
+    expect(container?.querySelector('[role="status"]')?.textContent).toContain(
+      'Audio ready · Rekordbox metadata unavailable: USB unavailable',
+    )
   })
 
   it('routes the real Audio Dock SYNC button through the canonical toggle action', async () => {

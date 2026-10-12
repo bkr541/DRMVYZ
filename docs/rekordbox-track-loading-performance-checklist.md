@@ -57,7 +57,7 @@ Late metadata still uses prepared-track replacement; eliminating that playback-a
 
 ## 2. Load Rekordbox metadata asynchronously
 
-**Status:** [ ] Not completed
+**Status:** [x] Completed and verified
 
 ### Required change
 
@@ -67,15 +67,21 @@ Late metadata still uses prepared-track replacement; eliminating that playback-a
 - Allow the UI to report staged progress without exposing a partially inconsistent musical timeline.
 - Treat metadata failure as a recoverable degradation rather than an audio-loading failure.
 
-### Current problem
+### Implemented summary
 
-Audio and Rekordbox preparation are currently combined into one awaited workflow. A prepared runtime track is not created until the metadata operation finishes.
+- Automatic USB discovery, native library parsing, track matching, and payload preparation run as detached work after the audio mutation completes.
+- The pending metadata operation does not disable the audio file input or transport interaction.
+- The dock exposes an accessible live status for metadata loading, matched/unmatched completion, cancellation, and failure.
+- Rekordbox BPM, beat-grid, cue, phrase, key, and external metadata are prepared together and committed through one prepared-track mutation, avoiding partial musical-timeline updates.
+- Focused tests cover the pending, successful, and failed background-scan paths.
+
+The metadata commit still recreates the prepared runtime track. Preserving the existing runtime track, URL, and playback state is intentionally tracked under Fix #5.
 
 ### Acceptance criteria
 
 - Audio remains usable during every Rekordbox scan stage.
 - Metadata appears on the already-loaded track when ready.
-- Metadata status clearly distinguishes loading, matched, unmatched, failed, and stale/ignored outcomes.
+- Metadata status clearly distinguishes loading, matched, unmatched, and failed outcomes. Stale/ignored outcomes are tracked under Fix #6.
 - BPM, grid, cues, and phrases are internally consistent at every committed revision.
 
 ---
@@ -229,6 +235,7 @@ The native bridge recursively enumerates directories sequentially and reads/pars
 
 - [x] Unit test: audio-track mutation occurs before a deferred Rekordbox scan resolves.
 - [x] Unit test: scan failure leaves the audio track loaded and usable.
+- [x] Unit test: pending metadata status is announced while the audio file input remains enabled.
 - Unit test: metadata hydration preserves track ID and URL.
 - Unit test: metadata hydration does not call `replacePreparedTracks()` or reload the media element.
 - Unit test: reversed scan completion cannot overwrite the newest track or library.

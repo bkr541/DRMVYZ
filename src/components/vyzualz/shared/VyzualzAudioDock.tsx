@@ -685,10 +685,12 @@ export function VyzualzAudioDock({
   // into the audio source popover — both have space for the full label + select.
   // The default (compact, inline in the dock's own grid) is the tight variant.
   const rekordboxMenuRoomy = !!rekordboxMenuPortalTarget || showAudioSourceControl
+  const rekordboxStatusMessage = rekordboxStatus?.trim() || null
   const rekordboxMenu = (
     <div
       className={rekordboxMenuRoomy ? 'vz-input-group' : 'vz-dock-rekordbox-menu'}
       aria-label="Rekordbox import tools"
+      aria-busy={rekordboxBusy}
     >
       <label
         className={rekordboxMenuRoomy ? 'vz-input-label' : 'vz-dock-rekordbox-label'}
@@ -721,11 +723,21 @@ export function VyzualzAudioDock({
         <option value="usb">Scan USB…</option>
         <option value="mode">{rekordboxUsbMode ? 'Turn USB Mode Off' : 'Arm USB Mode'}</option>
       </DropdownSelect>
+      {rekordboxStatusMessage && (
+        <span
+          className="vz-dock-rekordbox-status"
+          role="status"
+          aria-live="polite"
+          title={rekordboxDiagnostic ?? rekordboxStatusMessage}
+        >
+          {rekordboxStatusMessage}
+        </span>
+      )}
     </div>
   )
 
   const rekordboxPopoverMenu = (
-    <div className="mum-field" aria-label="Rekordbox import tools">
+    <div className="mum-field" aria-label="Rekordbox import tools" aria-busy={rekordboxBusy}>
       <label className="mum-field-label" htmlFor={rekordboxActionSelectId}>REKORDBOX</label>
       <UnderlineDropdown
         triggerId={rekordboxActionSelectId}
@@ -753,6 +765,16 @@ export function VyzualzAudioDock({
             : 'Rekordbox source rehydration is unavailable while Live Input is selected')
           : 'Import Rekordbox metadata or arm USB Mode. USB Mode does not import cues unless XML or the native parser matches the track.'}
       />
+      {rekordboxStatusMessage && (
+        <span
+          className="vz-dock-rekordbox-status"
+          role="status"
+          aria-live="polite"
+          title={rekordboxDiagnostic ?? rekordboxStatusMessage}
+        >
+          {rekordboxStatusMessage}
+        </span>
+      )}
     </div>
   )
 
