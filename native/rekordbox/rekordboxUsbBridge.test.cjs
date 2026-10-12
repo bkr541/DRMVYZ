@@ -5,7 +5,14 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
-const { parseAnlzBuffer, scanRekordboxUsbRoot, isPlausibleRemovableRoot, installRekordboxUsbBridge } = require('./rekordboxUsbBridge.cjs')
+const {
+  ANLZ_PARSE_CONCURRENCY,
+  parseAnlzBuffer,
+  parseAnlzLibrary,
+  scanRekordboxUsbRoot,
+  isPlausibleRemovableRoot,
+  installRekordboxUsbBridge,
+} = require('./rekordboxUsbBridge.cjs')
 
 function fakeLog() {
   const calls = []
@@ -143,6 +150,53 @@ test('parseAnlzBuffer accepts a minimal PMAI container', () => {
   assert.deepEqual(result.beatGrid, [])
   assert.deepEqual(result.phrases, [])
   assert.deepEqual(result.warnings, [])
+})
+
+test('parseAnlzLibrary bounds concurrent ANLZ reads at the configured worker limit', async () => {
+  const files = Array.from(
+    { length: ANLZ_PARSE_CONCURRENCY * 2 + 3 },
+    (_, index) => `/virtual/ANLZ${String(index).padStart(4, '0')}.DAT`,
+  )
+  let activeReads = 0
+  let maximumActiveReads = 0
+
+  const result = await parseAnlzLibrary(files, '/virtual', {
+    readFile: async filePath => {
+      activeReads += 1
+      maximumActiveReads = Math.max(maximumActiveReads, activeReads)
+      await new Promise(resolve => setTimeout(resolve, 2))
+      activeReads -= 1
+      return makePmai([makePpthTag(`/Contents/${path.basename(filePath)}.wav`)])
+    },
+  })
+
+  assert.equal(maximumActiveReads, ANLZ_PARSE_CONCURRENCY)
+  assert.equal(result.tracks.length, files.length)
+  assert.deepEqual(result.warnings, [])
+})
+
+test('parseAnlzLibrary merges results and warnings in stable file order despite reversed completion order', async () => {
+  const files = [
+    '/virtual/ANLZ0002.DAT',
+    '/virtual/ANLZ0000.DAT',
+    '/virtual/ANLZ0001.DAT',
+  ]
+  const result = await parseAnlzLibrary(files, '/virtual', {
+    concurrency: 3,
+    readFile: async filePath => {
+      const index = Number(path.basename(filePath).match(/\d+/)?.[0] || 0)
+      await new Promise(resolve => setTimeout(resolve, (2 - index) * 3))
+      if (index !== 1) return Buffer.from(`corrupt-${index}`)
+      return makePmai([makePpthTag('/Contents/Stable.wav')])
+    },
+  })
+
+  assert.equal(result.tracks.length, 1)
+  assert.equal(result.tracks[0].location, '/Contents/Stable.wav')
+  assert.deepEqual(result.warnings, [
+    'Skipped ANLZ0000.DAT: not a Rekordbox ANLZ PMAI file',
+    'Skipped ANLZ0002.DAT: not a Rekordbox ANLZ PMAI file',
+  ])
 })
 
 test('parseAnlzBuffer parses masked PSSI phrases in order with fill metadata and PQTZ-aligned timestamps', () => {

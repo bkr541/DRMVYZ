@@ -13,6 +13,7 @@ const {
 const AUDIO_EXT_RE = /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i
 const ANLZ_EXT_RE = /\.(DAT|EXT|2EX)$/i
 const MAX_NATIVE_ANLZ_FILES = 50000
+const ANLZ_PARSE_CONCURRENCY = 8
 
 // Matches the same removable-media mount-point shapes the renderer uses to guess
 // a USB root from a loaded file's path (see guessNativeUsbRootFromFile in
@@ -75,18 +76,24 @@ async function scanRekordboxUsbRoot(rootPath, log) {
   const exportPdb = path.join(rekordboxDir, 'export.pdb')
   const usbAnlzDir = path.join(normalizedRoot, 'PIONEER', 'USBANLZ')
 
-  const detectedPdbFiles = await fileExists(exportPdb) ? 1 : 0
-  const anlzFiles = await listFiles(usbAnlzDir, file => ANLZ_EXT_RE.test(file), MAX_NATIVE_ANLZ_FILES)
+  const [hasExportPdb, anlzFiles] = await Promise.all([
+    fileExists(exportPdb),
+    listFiles(usbAnlzDir, file => ANLZ_EXT_RE.test(file), MAX_NATIVE_ANLZ_FILES),
+  ])
+  const detectedPdbFiles = hasExportPdb ? 1 : 0
   if (anlzFiles.capped) warnings.push(`ANLZ scan stopped after ${MAX_NATIVE_ANLZ_FILES.toLocaleString()} metadata files.`)
 
   let parserMode = 'anlz-lite'
-  let tracks = []
-
-  const anlzLibrary = await parseAnlzLibrary(anlzFiles.files, normalizedRoot, warnings)
-  tracks = anlzLibrary.tracks
+  const [anlzLibrary, pdbResult] = await Promise.all([
+    parseAnlzLibrary(anlzFiles.files, normalizedRoot),
+    detectedPdbFiles > 0
+      ? parsePdbIfParserAvailable(exportPdb)
+      : Promise.resolve({ available: false, tracks: [], warnings: [] }),
+  ])
+  warnings.push(...anlzLibrary.warnings, ...pdbResult.warnings)
+  let tracks = anlzLibrary.tracks
 
   if (detectedPdbFiles > 0) {
-    const pdbResult = await parsePdbIfParserAvailable(exportPdb, warnings)
     if (pdbResult.tracks.length > 0) {
       tracks = mergePdbAndAnlzTracks(pdbResult.tracks, tracks)
       parserMode = anlzLibrary.tracks.length > 0 ? 'hybrid' : 'rekordbox-parser'
@@ -123,35 +130,63 @@ async function scanRekordboxUsbRoot(rootPath, log) {
   }
 }
 
-async function parseAnlzLibrary(files, rootPath, warnings) {
-  const byAudioPath = new Map()
-  for (const filePath of files) {
+async function parseAnlzLibrary(files, rootPath, options = {}) {
+  const readFile = options.readFile || fs.readFile
+  const concurrency = Math.max(1, Math.min(
+    Number.isFinite(options.concurrency) ? Math.floor(options.concurrency) : ANLZ_PARSE_CONCURRENCY,
+    Math.max(1, files.length),
+  ))
+  const orderedFiles = [...files].sort((a, b) => a.localeCompare(b))
+  const parsedFiles = await mapWithConcurrency(orderedFiles, concurrency, async filePath => {
     try {
-      const parsed = parseAnlzBuffer(await fs.readFile(filePath), filePath)
-      const location = normalizeDevicePath(parsed.audioPath || parsed.pathTag || '') || null
-      const stablePath = location || normalizeDevicePath(filePath)
-      const key = normalizeMatchKey(stablePath)
-      const existing = byAudioPath.get(key) || makeTrackFromPath(stablePath, filePath)
-      existing.cues = mergeCues(existing.cues || [], parsed.cues || [])
-      existing.beatGrid = mergeBeatGrid(existing.beatGrid || [], parsed.beatGrid || [])
-      existing.phrases = alignRekordboxPhrases(
-        mergeRekordboxPhrases(existing.phrases || [], parsed.phrases || []),
-        existing.beatGrid,
-      )
-      existing.pssiIntegrity = mergePssiIntegrity(existing.pssiIntegrity, parsed.pssiIntegrity)
-      for (const warning of parsed.warnings || []) warnings.push(`${path.basename(filePath)}: ${warning}`)
-      existing.downbeats = (existing.beatGrid || []).filter(beat => beat.isDownbeat)
-      existing.beatGridOffsetSec = existing.beatGrid?.[0]?.timeSec ?? existing.beatGridOffsetSec ?? null
-      existing.bpm = existing.bpm || inferBpmFromBeatGrid(existing.beatGrid || [])
-      existing.durationSec = Math.max(existing.durationSec || 0, parsed.durationSec || 0) || null
-      existing.location = location || existing.location
-      existing.analysisFilePaths = Array.from(new Set([...(existing.analysisFilePaths || []), normalizeDevicePath(filePath)]))
-      byAudioPath.set(key, existing)
-    } catch (err) {
-      warnings.push(`Skipped ${path.basename(filePath)}: ${err instanceof Error ? err.message : String(err)}`)
+      return { filePath, parsed: parseAnlzBuffer(await readFile(filePath), filePath), error: null }
+    } catch (error) {
+      return { filePath, parsed: null, error }
     }
+  })
+
+  const byAudioPath = new Map()
+  const warnings = []
+  for (const { filePath, parsed, error } of parsedFiles) {
+    if (error || !parsed) {
+      warnings.push(`Skipped ${path.basename(filePath)}: ${error instanceof Error ? error.message : String(error)}`)
+      continue
+    }
+    const location = normalizeDevicePath(parsed.audioPath || parsed.pathTag || '') || null
+    const stablePath = location || normalizeDevicePath(filePath)
+    const key = normalizeMatchKey(stablePath)
+    const existing = byAudioPath.get(key) || makeTrackFromPath(stablePath, filePath)
+    existing.cues = mergeCues(existing.cues || [], parsed.cues || [])
+    existing.beatGrid = mergeBeatGrid(existing.beatGrid || [], parsed.beatGrid || [])
+    existing.phrases = alignRekordboxPhrases(
+      mergeRekordboxPhrases(existing.phrases || [], parsed.phrases || []),
+      existing.beatGrid,
+    )
+    existing.pssiIntegrity = mergePssiIntegrity(existing.pssiIntegrity, parsed.pssiIntegrity)
+    for (const warning of parsed.warnings || []) warnings.push(`${path.basename(filePath)}: ${warning}`)
+    existing.downbeats = (existing.beatGrid || []).filter(beat => beat.isDownbeat)
+    existing.beatGridOffsetSec = existing.beatGrid?.[0]?.timeSec ?? existing.beatGridOffsetSec ?? null
+    existing.bpm = existing.bpm || inferBpmFromBeatGrid(existing.beatGrid || [])
+    existing.durationSec = Math.max(existing.durationSec || 0, parsed.durationSec || 0) || null
+    existing.location = location || existing.location
+    existing.analysisFilePaths = Array.from(new Set([...(existing.analysisFilePaths || []), normalizeDevicePath(filePath)]))
+    byAudioPath.set(key, existing)
   }
-  return { tracks: Array.from(byAudioPath.values()) }
+  return { tracks: Array.from(byAudioPath.values()), warnings }
+}
+
+async function mapWithConcurrency(items, concurrency, worker) {
+  const results = new Array(items.length)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await worker(items[index], index)
+    }
+  })
+  await Promise.all(workers)
+  return results
 }
 
 function parseAnlzBuffer(buffer, filePath) {
@@ -298,12 +333,13 @@ function parseExtendedCueTag(buffer, tagStart, tagLen, filePath) {
   return cues
 }
 
-async function parsePdbIfParserAvailable(exportPdbPath, warnings) {
+async function parsePdbIfParserAvailable(exportPdbPath) {
+  const warnings = []
   let parser
   try {
     parser = require('rekordbox-parser')
   } catch {
-    return { available: false, tracks: [] }
+    return { available: false, tracks: [], warnings }
   }
 
   try {
@@ -313,7 +349,7 @@ async function parsePdbIfParserAvailable(exportPdbPath, warnings) {
       || (db.tables || []).find(table => table.rows?.some?.(row => row.filePath || row.filename || row.title))
     if (!tracksTable) {
       warnings.push('rekordbox-parser opened export.pdb, but no track table was found.')
-      return { available: true, tracks: [] }
+      return { available: true, tracks: [], warnings }
     }
 
     const rows = rowsForTable(tracksTable, parser)
@@ -321,10 +357,11 @@ async function parsePdbIfParserAvailable(exportPdbPath, warnings) {
     return {
       available: true,
       tracks: rows.map(row => pdbRowToTrack(row, lookups)).filter(Boolean),
+      warnings,
     }
   } catch (err) {
     warnings.push(`export.pdb parser failed: ${err instanceof Error ? err.message : String(err)}`)
-    return { available: true, tracks: [] }
+    return { available: true, tracks: [], warnings }
   }
 }
 
@@ -509,6 +546,7 @@ async function listFiles(root, predicate, cap) {
     } catch {
       return
     }
+    entries.sort((a, b) => a.name.localeCompare(b.name))
     for (const entry of entries) {
       if (files.length >= cap) { capped = true; return }
       const full = path.join(dir, entry.name)
@@ -518,6 +556,7 @@ async function listFiles(root, predicate, cap) {
     }
   }
   await visit(root)
+  files.sort((a, b) => a.localeCompare(b))
   return { files, capped }
 }
 
@@ -627,6 +666,8 @@ function emptyResult(overrides = {}) {
 module.exports = {
   installRekordboxUsbBridge,
   scanRekordboxUsbRoot,
+  parseAnlzLibrary,
   parseAnlzBuffer,
   isPlausibleRemovableRoot,
+  ANLZ_PARSE_CONCURRENCY,
 }

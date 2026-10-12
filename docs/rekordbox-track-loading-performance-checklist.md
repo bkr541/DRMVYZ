@@ -88,7 +88,7 @@ The metadata commit still recreates the prepared runtime track. Preserving the e
 
 ## 3. Optimize Rekordbox ANLZ and PDB scanning
 
-**Status:** [ ] Not completed
+**Status:** [x] Completed and verified
 
 ### Required change
 
@@ -99,9 +99,15 @@ The metadata commit still recreates the prepared runtime track. Preserving the e
 - Consider bounded parallel directory traversal where it improves real USB performance.
 - Preserve the current scan cap, parsing warnings, cue merging, beat-grid merging, phrase alignment, and integrity reporting.
 
-### Current problem
+### Implemented summary
 
-The native bridge recursively enumerates directories sequentially and reads/parses each ANLZ file one at a time. PDB parsing begins only after ANLZ processing finishes.
+- Native ANLZ reads and parsing now use a bounded pool of eight workers instead of sequential file processing.
+- Parsed results retain their stable sorted file positions, so track merging and warning order remain deterministic regardless of read completion order.
+- `export.pdb` detection runs alongside ANLZ discovery, and compatible PDB parsing runs concurrently with the ANLZ batch.
+- The 50,000-file cap, per-file failure isolation, cue/beat-grid/phrase merging, and parser fallback warnings are preserved.
+- Native tests verify that concurrency reaches but never exceeds the configured limit and that reversed completion order produces stable output.
+
+Real removable-media benchmarking remains a release-validation task because representative USB hardware is not available in the automated test environment.
 
 ### Acceptance criteria
 
@@ -242,8 +248,8 @@ The native bridge recursively enumerates directories sequentially and reads/pars
 - Unit test: concurrent requests for one USB root share one native scan.
 - Unit test: failed shared scans are evicted and retryable.
 - Unit test: late metadata changes the analysis revision and supersedes the old job.
-- Native test: bounded ANLZ concurrency never exceeds its configured limit.
-- Native test: parallel parsing produces deterministic output and warning order.
+- [x] Native test: bounded ANLZ concurrency never exceeds its configured limit.
+- [x] Native test: parallel parsing produces deterministic output and warning order.
 - Integration test: playback time and play state remain stable when Rekordbox metadata arrives.
 - Integration test: switching tracks repeatedly while scanning never applies metadata to the wrong track.
 - Performance test: record time-to-audio-ready independently from time-to-metadata-ready.
@@ -256,7 +262,7 @@ The native bridge recursively enumerates directories sequentially and reads/pars
 3. [ ] Add request-generation and track-identity guards.
 4. [ ] Reconcile late metadata with existing analysis.
 5. [ ] Add the shared USB scan coordinator and cache.
-6. [ ] Add bounded parallel ANLZ/PDB scanning.
+6. [x] Add bounded parallel ANLZ/PDB scanning.
 7. [ ] Add production timing instrumentation and complete the validation matrix.
 
 The first four items remove the unacceptable user-facing wait and prevent playback interruption. Shared caching and parallel scanning then reduce how long background metadata remains pending.
