@@ -123,42 +123,11 @@ describe('ATL HOE Design tab behaviour', () => {
     expect(lowestOver(flicker)).toBeLessThan(1.25 * 0.4)
   })
 
-  it('leaves the calm sky alone unless Sky Pattern is on', () => {
+  it('leaves sky material bases authored because full-scene sky choreography is applied in the semantic shader', () => {
     const h = harness()
     h.step()
     expect(h.value('skyBand10.emissiveIntensity')).toBeCloseTo(1)
     expect(h.value('stars' + 'A.emissiveIntensity')).toBeCloseTo(3)
     expect(h.value('bolt00.emissiveIntensity')).toBeCloseTo(1)
-  })
-
-  it('brightens the stars on Stars and lets them twinkle on a transient', () => {
-    const h = harness()
-    h.set(IDS.skyPatternEnabled, true)
-    h.set(IDS.skyPattern, 'stars')
-    h.step()
-    expect(h.value('starsA.emissiveIntensity')).toBeCloseTo(3 * 1.6, 3)
-    h.step({ timeSec: 1.1, rhythm: { ...h.rhythm(), transient: 1, beatIndex: 2, beatPhase: 0.2, transientConfidence: 0.95 } })
-    const lit = ['A', 'B', 'C', 'D', 'E', 'F'].filter(group => h.value(`stars${group}.emissiveIntensity`) > 3 * 1.6 + 0.1)
-    expect(lit.length).toBeGreaterThan(0)
-    expect(lit.length).toBeLessThan(6)
-  })
-
-  it('darkens the sky, snuffs the stars and thickens the haze on Thunderstorm, then strikes one bolt on the bar line', () => {
-    const h = harness()
-    h.set(IDS.skyPatternEnabled, true)
-    h.set(IDS.skyPattern, 'thunderstorm')
-    h.step()
-    expect(h.value('skyBand10.emissiveIntensity')).toBeCloseTo(0.28, 3)
-    expect(h.value('starsA.emissiveIntensity')).toBeCloseTo(3 * 0.06, 3)
-    expect(h.value('bolt00.emissiveIntensity')).toBeCloseTo(0.28, 3)
-    const calmExposure = h.exposure()
-    // Beat 48 (24 s at 120 BPM) is the first beat of the 12-bar cycle: bolt 0 strikes, bolt 1 stays dark, and the thunder flash brightens the night.
-    h.play(23.8, { dt: 0.25 })
-    expect(h.value('bolt00.emissiveIntensity')).toBeCloseTo(0.28, 3)
-    h.play(24.1, { dt: 0.0625 })
-    expect(h.value('bolt00.emissiveIntensity')).toBeGreaterThan(2)
-    expect(h.value('bolt00Top.emissiveIntensity')).toBeGreaterThan(2)
-    expect(h.value('bolt01.emissiveIntensity')).toBeCloseTo(0.28, 3)
-    expect(h.exposure()).toBeGreaterThan(calmExposure + 0.05)
   })
 })

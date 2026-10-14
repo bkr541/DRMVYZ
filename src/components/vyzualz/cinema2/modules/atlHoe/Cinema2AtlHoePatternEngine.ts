@@ -1,3 +1,9 @@
+import {
+  blendCinema2AtlHoeCityLighting,
+  resolveCinema2AtlHoeCityLighting,
+  type Cinema2AtlHoeCityLightingFrame,
+} from './Cinema2AtlHoeLighting'
+
 export const CINEMA2_ATL_HOE_PATTERN_IDS = Object.freeze([
   'city-pulse',
   'waffle-marquee',
@@ -22,6 +28,21 @@ export type Cinema2AtlHoePerformanceStage = 'rest' | 'active' | 'buildup' | 'dro
 export type Cinema2AtlHoeRoleGains = readonly [number, number, number, number, number, number, number, number, number, number]
 export type Cinema2AtlHoeZoneWeights = readonly [number, number, number, number, number, number, number]
 export type Cinema2AtlHoePacked4 = readonly [number, number, number, number]
+
+export interface Cinema2AtlHoeSkyFrame {
+  readonly gradientGain: number
+  readonly starDensity: number
+  readonly starBrightness: number
+  readonly starZoneWeights: Cinema2AtlHoeZoneWeights
+  readonly stormDarkness: number
+  /** Normalized bolt indices; -1 is inactive. */
+  readonly boltIdentities: Cinema2AtlHoePacked4
+  /** Per-bolt top-to-bottom reveal position. */
+  readonly boltProgress: Cinema2AtlHoePacked4
+  readonly lightningFlash: number
+  readonly lightningRecovery: number
+  readonly cityPowerResponse: number
+}
 
 export interface Cinema2AtlHoePatternSignals {
   readonly energy: number
@@ -70,6 +91,8 @@ export interface Cinema2AtlHoePatternFrame {
   readonly lightningGain: number
   readonly atmosphereGain: number
   readonly practicalLightGain: number
+  readonly sky: Readonly<Cinema2AtlHoeSkyFrame>
+  readonly city: Readonly<Cinema2AtlHoeCityLightingFrame>
   readonly transition: Readonly<{
     outgoingPattern: Cinema2AtlHoePatternId | null
     incomingPattern: Cinema2AtlHoePatternId
@@ -101,6 +124,8 @@ interface ProgramState {
   lightningGain: number
   atmosphereGain: number
   practicalLightGain: number
+  sky: Readonly<Cinema2AtlHoeSkyFrame>
+  city: Readonly<Cinema2AtlHoeCityLightingFrame>
 }
 
 function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cinema2AtlHoePerformanceStage, s: Readonly<Cinema2AtlHoePatternSignals>): ProgramState {
@@ -118,6 +143,16 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
   let lightningGain = 0
   let atmosphereGain = 0.25
   let practicalLightGain = 0.5
+  let gradientGain = 0.72 + 0.12 * pulse(beats / 16)
+  let starDensity = 0.42
+  let starBrightness = 0.34 + 0.32 * s.high + 0.2 * s.transient
+  let starZoneWeights = freeze7([0.45, 0.68, 0.8, 1, 0.78, 0.62, 0.42])
+  let stormDarkness = 0
+  let boltIdentities = [-1, -1, -1, -1] as unknown as Cinema2AtlHoePacked4
+  let boltProgress = freeze4([0, 0, 0, 0])
+  let lightningFlash = 0
+  let lightningRecovery = 0
+  let cityPowerResponse = 0
 
   if (pattern === 'waffle-marquee') {
     const cell = fract(beats / 5.5)
@@ -130,6 +165,9 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     zoneWeights = freeze7([0.12, 0.34, 0.78, 1, 0.72, 0.3, 0.1])
     routeWidths = freeze4([0.065, 0.09, 0.065, 0.09])
     practicalLightGain = 0.65 + 0.3 * active
+    starDensity = 0.3
+    starBrightness = 0.28 + 0.38 * pulse(beats / 4) + 0.22 * s.high
+    starZoneWeights = freeze7([0.18, 0.38, 0.8, 1, 0.82, 0.4, 0.16])
   } else if (pattern === 'interstate-flow') {
     roleGains = freeze10([
       0.16 + 0.24 * s.kick, 0.28 + 0.5 * Math.max(s.mid, active * phase), 0.28 + 0.5 * s.downbeat,
@@ -140,6 +178,10 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     routeWidths = freeze4([0.055, 0.07, 0.055, 0.07])
     buildingLevel = clamp01(phase * 1.28 - 0.18)
     practicalLightGain = 0.82 + 0.18 * active
+    gradientGain = 0.62 + 0.18 * s.bass
+    starDensity = 0.24
+    starBrightness = 0.24 + 0.4 * s.high
+    starZoneWeights = freeze7([1, 0.78, 0.34, 0.12, 0.28, 0.7, 0.95])
   } else if (pattern === 'skyline-rise') {
     buildingLevel = fract(beats / 4)
     roleGains = freeze10([
@@ -151,6 +193,10 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     routeWidths = freeze4([0.12, 0.08, 0.12, 0.08])
     skyGain = 0.32 + 0.25 * s.high
     practicalLightGain = 0.38
+    gradientGain = 0.82 + 0.16 * s.build
+    starDensity = 0.62
+    starBrightness = 0.42 + 0.4 * Math.max(s.high, s.phrase)
+    starZoneWeights = freeze7([0.28, 0.54, 0.92, 0.42, 1, 0.6, 0.3])
   } else if (pattern === 'neon-brownout') {
     const step = Math.floor(beats * 2)
     outageMasks = freeze4([hash(step + 11), hash(step + 29), hash(step + 47), hash(step + 71)])
@@ -163,6 +209,11 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     zoneWeights = freeze7([0.65, 0.12, 0.78, 0.28, 0.9, 0.16, 0.58])
     routeWidths = freeze4([0.16, 0.11, 0.18, 0.1])
     practicalLightGain = 0.42
+    gradientGain = 0.5 + 0.18 * recovery
+    starDensity = 0.12 + 0.16 * hash(step + 103)
+    starBrightness = 0.16 + 0.34 * hash(step + 131)
+    starZoneWeights = freeze7(outageMasks.map((value, index) => index < 3 ? value : 0.2).concat([outageMasks[3], 0.5, 0.12]))
+    stormDarkness = 0.18 + 0.2 * active
   } else if (pattern === 'storm-takeover') {
     const strike = clamp01(Math.max(s.transient * 0.65, s.downbeat * 0.5, s.drop))
     roleGains = freeze10([
@@ -176,6 +227,18 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     lightningGain = strike
     atmosphereGain = 0.62 + 0.35 * active
     practicalLightGain = 0.2 + 0.5 * strike
+    gradientGain = 0.26 + 0.24 * strike
+    starDensity = 0.04
+    starBrightness = 0.08 + 0.15 * s.high
+    starZoneWeights = freeze7([0.2, 0.6, 0.1, 0.35, 0.72, 0.08, 0.45])
+    stormDarkness = 0.7 + 0.28 * active
+    const bolt = Math.floor(beats / 4) % 12
+    const reveal = clamp01(strike * 1.35)
+    boltIdentities = Object.freeze([bolt / 11, ((bolt + 3) % 12) / 11, ((bolt + 6) % 12) / 11, ((bolt + 9) % 12) / 11]) as Cinema2AtlHoePacked4
+    boltProgress = freeze4([reveal, reveal - 0.16, reveal - 0.32, reveal - 0.48])
+    lightningFlash = strike
+    lightningRecovery = clamp01(Math.max(s.drop * 0.7, s.transient * 0.22))
+    cityPowerResponse = clamp01(strike * (0.72 + 0.28 * s.drop))
   } else {
     // City Pulse: low-frequency weight stays in the foreground while mids and highs articulate the skyline.
     roleGains = freeze10([
@@ -187,6 +250,8 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     zoneWeights = freeze7([0.2, 0.58, 0.9, 0.36, 1, 0.52, 0.18])
     routeWidths = freeze4([0.14, 0.1, 0.14, 0.1])
     practicalLightGain = 0.58 + 0.28 * s.bass
+    starDensity = 0.46
+    starBrightness = 0.32 + 0.35 * s.high + 0.18 * s.phrase
   }
 
   if (stage === 'buildup') {
@@ -200,7 +265,13 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
 
   return { routeFronts, routeWidths, roleGains, zoneWeights, buildingLevel, signCellSelection,
     outageMasks, recoveryMasks, skyGain: clamp01(skyGain), lightningGain: clamp01(lightningGain),
-    atmosphereGain: clamp01(atmosphereGain), practicalLightGain: clamp01(practicalLightGain) }
+    atmosphereGain: clamp01(atmosphereGain), practicalLightGain: clamp01(practicalLightGain),
+    sky: Object.freeze({
+      gradientGain: clamp01(gradientGain), starDensity: clamp01(starDensity), starBrightness: clamp01(starBrightness),
+      starZoneWeights, stormDarkness: clamp01(stormDarkness), boltIdentities, boltProgress,
+      lightningFlash: clamp01(lightningFlash), lightningRecovery: clamp01(lightningRecovery), cityPowerResponse: clamp01(cityPowerResponse),
+    }),
+    city: resolveCinema2AtlHoeCityLighting(pattern, beats, stage, s) }
 }
 
 /** Pure deterministic planner. It never reads wall-clock time or randomness. */
@@ -212,7 +283,7 @@ export function evaluateCinema2AtlHoePattern(input: Readonly<Cinema2AtlHoePatter
   const outgoing = outgoingPattern ? programState(outgoingPattern, beats, input.stage, input.signals) : incoming
   const blend = <T extends readonly number[]>(key: keyof Pick<ProgramState, 'routeFronts' | 'routeWidths' | 'roleGains' | 'zoneWeights' | 'outageMasks' | 'recoveryMasks'>) =>
     mixTuple(outgoing[key] as unknown as T, incoming[key] as unknown as T, progress)
-  const scalar = (key: keyof Omit<ProgramState, 'routeFronts' | 'routeWidths' | 'roleGains' | 'zoneWeights' | 'outageMasks' | 'recoveryMasks'>) =>
+  const scalar = (key: keyof Omit<ProgramState, 'routeFronts' | 'routeWidths' | 'roleGains' | 'zoneWeights' | 'outageMasks' | 'recoveryMasks' | 'city' | 'sky'>) =>
     mix(outgoing[key] as number, incoming[key] as number, progress)
   return Object.freeze({
     pattern: input.pattern, stage: input.stage, beats,
@@ -224,6 +295,19 @@ export function evaluateCinema2AtlHoePattern(input: Readonly<Cinema2AtlHoePatter
     outageMasks: blend<Cinema2AtlHoePacked4>('outageMasks'), recoveryMasks: blend<Cinema2AtlHoePacked4>('recoveryMasks'),
     skyGain: scalar('skyGain'), lightningGain: scalar('lightningGain'), atmosphereGain: scalar('atmosphereGain'),
     practicalLightGain: scalar('practicalLightGain'),
+    sky: Object.freeze({
+      gradientGain: mix(outgoing.sky.gradientGain, incoming.sky.gradientGain, progress),
+      starDensity: mix(outgoing.sky.starDensity, incoming.sky.starDensity, progress),
+      starBrightness: mix(outgoing.sky.starBrightness, incoming.sky.starBrightness, progress),
+      starZoneWeights: mixTuple(outgoing.sky.starZoneWeights, incoming.sky.starZoneWeights, progress),
+      stormDarkness: mix(outgoing.sky.stormDarkness, incoming.sky.stormDarkness, progress),
+      boltIdentities: progress < 0.5 ? outgoing.sky.boltIdentities : incoming.sky.boltIdentities,
+      boltProgress: mixTuple(outgoing.sky.boltProgress, incoming.sky.boltProgress, progress),
+      lightningFlash: mix(outgoing.sky.lightningFlash, incoming.sky.lightningFlash, progress),
+      lightningRecovery: mix(outgoing.sky.lightningRecovery, incoming.sky.lightningRecovery, progress),
+      cityPowerResponse: mix(outgoing.sky.cityPowerResponse, incoming.sky.cityPowerResponse, progress),
+    }),
+    city: blendCinema2AtlHoeCityLighting(outgoing.city, incoming.city, progress),
     transition: Object.freeze({ outgoingPattern, incomingPattern: input.pattern, outgoingWeight: 1 - progress, incomingWeight: progress }),
   })
 }

@@ -17,6 +17,7 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 // docs/cinema2-atl-hoe-design-tab-plan.md). The same list is read by the preset, so the two cannot drift.
 const PART_GROUPS = JSON.parse(readFileSync(join(root, 'src/components/vyzualz/cinema2/presets/atlHoeParts.json'), 'utf8'))
 const ATL_ROLES = ['sign', 'windows', 'crown', 'spire', 'streetlight', 'road', 'star', 'lightning', 'foliageAccent', 'atmosphere']
+const ATL_LANDMARKS = ['waffleSign', 'bankOfAmerica', 'westin', 'truist', 'georgiaPacific', 'interstate', 'sky']
 const ATL_ROLE_PARTS = {
   sign: PART_GROUPS.signFaces,
   windows: [...PART_GROUPS.windows, ...PART_GROUPS.windowsCool],
@@ -32,21 +33,50 @@ const ATL_ROLE_PARTS = {
 const ATL_ROLE_BY_PART = new Map(Object.entries(ATL_ROLE_PARTS).flatMap(([role, parts]) => parts.map(part => [part, role])))
 const clamp01 = value => Math.min(1, Math.max(0, value))
 const atlZone = x => Math.min(6, Math.max(0, Math.floor(clamp01((x + 36) / 72) * 7)))
+const atlWindowGrid = name => {
+  const match = /-window-(\d+)-(\d+)-grid-(\d+)-(\d+)$/.exec(name)
+  return match ? { row: Number(match[1]), col: Number(match[2]), rows: Number(match[3]), cols: Number(match[4]) } : null
+}
+const atlLandmark = (role, part, name, x) => {
+  if (role === 'sign') return 'waffleSign'
+  if (role === 'road' || role === 'streetlight') return 'interstate'
+  if (role === 'star' || role === 'lightning' || role === 'atmosphere') return 'sky'
+  const identity = `${part}:${name}`.toLowerCase()
+  if (identity.includes('boa') || identity.includes('bofa')) return 'bankOfAmerica'
+  if (identity.includes('westin') || part === 'cyanWindows' || part === 'glassWindows') return 'westin'
+  if (identity.includes('truist')) return 'truist'
+  if (identity.includes('gp-') || identity.includes('georgia')) return 'georgiaPacific'
+  const zone = atlZone(x)
+  return zone <= 3 ? 'bankOfAmerica' : zone === 4 ? 'westin' : zone === 5 ? 'truist' : 'georgiaPacific'
+}
 const atlRoute = (part, name, x) => {
   const sign = /^signFace(\d+)$/.exec(part)
   if (sign) return Number(sign[1]) % 8
-  const lamp = /lamp(?:Orb|Halo)([A-D])/.exec(part)
-  if (lamp) return (lamp[1].charCodeAt(0) - 65) * 2 + 1
+  const lamp = /road-lamp-(?:halo-|pool-)?(\d+)/.exec(name)
+  if (lamp) return Number(lamp[1]) % 8
+  const road = /road-(?:deck-)?(?:far|near)-edge-(\d+)/.exec(name)
+  if (road) return Number(road[1]) % 8
   const windows = [...PART_GROUPS.windows, ...PART_GROUPS.windowsCool].indexOf(part)
-  if (windows >= 0) return windows % 8
+  if (windows >= 0) {
+    const identity = atlLandmark('windows', part, name, x)
+    return Math.max(0, ATL_LANDMARKS.indexOf(identity) - 1) * 2 % 8
+  }
   return Math.min(7, Math.max(0, atlZone(x) + (hash(`atl-route:${part}:${name}`) > 0.72 ? 1 : 0)))
 }
-const atlPhase = (role, x, y) => role === 'lightning'
+const atlPhase = (role, x, y, name) => role === 'lightning'
   ? clamp01((46 - y) / 41)
+  : role === 'windows'
+    ? (() => { const grid = atlWindowGrid(name); return grid ? grid.col / Math.max(1, grid.cols - 1) : clamp01((x + 36) / 72) })()
   : role === 'road' || role === 'streetlight' || role === 'sign'
     ? clamp01((x + 36) / 72)
     : clamp01((y + 6) / 52)
-const atlLevel = (role, y) => ['windows', 'crown', 'spire'].includes(role) ? clamp01((y + 5) / 35) : 0
+const atlLevel = (role, y, name) => {
+  if (role === 'windows') {
+    const grid = atlWindowGrid(name)
+    if (grid) return 1 - grid.row / Math.max(1, grid.rows - 1)
+  }
+  return ['windows', 'crown', 'spire'].includes(role) ? clamp01((y + 5) / 35) : 0
+}
 const MATERIALS = {
   // A dark backing plane closes the world behind the sky bands; the visible sky is the stack of skyBandNN strips built below.
   sky: { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.02, 0.07, 0.17] },
@@ -144,22 +174,27 @@ const cylinder = (part, at, radius, height, segments = 24, rotate = [0, 0, 0], n
 
 function mergePart(part, list) {
   const positions = [], normals = [], indices = [], phases = []
-  const roles = [], zones = [], routes = [], atlPhases = [], levels = [], randoms = []
+  const roles = [], zones = [], routes = [], atlPhases = [], levels = [], randoms = [], landmarks = []
   const role = ATL_ROLE_BY_PART.get(part)
   for (const item of list) {
     const base = positions.length / 3
     positions.push(...item.positions); normals.push(...item.normals); phases.push(...item.phases)
     if (role) {
       const roleCode = ATL_ROLES.indexOf(role)
-      const random = hash(`atl-random:${part}:${item.name}`)
+      const bolt = role === 'lightning' ? /^bolt(\d+)(?:Top)?$/.exec(part) : null
+      // Lightning reuses the semantic random channel as a stable normalized bolt identity;
+      // `_ATL_PHASE` remains the top-to-bottom branch progression used by the shader reveal.
+      const random = bolt ? Number(bolt[1]) / 11 : hash(`atl-random:${part}:${item.name}`)
       for (let offset = 0; offset < item.positions.length; offset += 3) {
         const x = item.positions[offset], y = item.positions[offset + 1]
+        const landmark = atlLandmark(role, part, item.name, x)
         roles.push(roleCode)
         zones.push(atlZone(x))
         routes.push(atlRoute(part, item.name, x))
-        atlPhases.push(atlPhase(role, x, y))
-        levels.push(atlLevel(role, y))
+        atlPhases.push(atlPhase(role, x, y, item.name))
+        levels.push(atlLevel(role, y, item.name))
         randoms.push(random)
+        landmarks.push(ATL_LANDMARKS.indexOf(landmark))
       }
     }
     for (const index of item.indices) indices.push(base + index)
@@ -178,6 +213,7 @@ function mergePart(part, list) {
       _ATL_PHASE: { array: new Float32Array(atlPhases), type: 'SCALAR' },
       _ATL_LEVEL: { array: new Float32Array(levels), type: 'SCALAR' },
       _ATL_RANDOM: { array: new Float32Array(randoms), type: 'SCALAR' },
+      _ATL_LANDMARK: { array: new Float32Array(landmarks), type: 'SCALAR' },
     } } : {}),
   }
 }
@@ -481,10 +517,14 @@ TRUIST_COLUMNS.forEach(([X0, X1, Y], i) => {
   // A thin dark pier along the column's left edge, then a cyan band for every floor in the column.
   refBlock('truistCrown', tModelU(x0) - 1.2, tModelU(x0) + 1.2, tModelV(topY), LANDMARK_Z, depth + 0.1, `truist-pier-${i}`)
   const u0 = tModelU(x0) + 2.2, u1 = tModelU(x1) - 1.2, pitch = 14
+  const rowCount = Math.max(1, Math.ceil((1000 - (tModelV(topY) + 5)) / pitch))
   for (let v = tModelV(topY) + 5, row = 0; v < 1000; v += pitch, row += 1) {
     if (hash(`truist:${i}:${row}`) > 0.8) continue
     const [xa, ya] = refPoint(u0, v, LANDMARK_Z), [xb] = refPoint(u1, v, LANDMARK_Z), [, yb] = refPoint(u0, v + pitch * 0.58, LANDMARK_Z)
-    addGeometry('truistWindows', new THREE.PlaneGeometry(1, 1), { at: [(xa + xb) / 2, (ya + yb) / 2, LANDMARK_Z + depth / 2 + 0.04], size: [Math.abs(xb - xa), Math.abs(ya - yb), 1], name: `truist-band-${i}-${row}` })
+    addGeometry('truistWindows', new THREE.PlaneGeometry(1, 1), {
+      at: [(xa + xb) / 2, (ya + yb) / 2, LANDMARK_Z + depth / 2 + 0.04], size: [Math.abs(xb - xa), Math.abs(ya - yb), 1],
+      name: `truist-window-${row}-${i}-grid-${rowCount}-${TRUIST_COLUMNS.length}`,
+    })
   }
 })
 refBlock('truistCrown', 1212, 1232, 380, LANDMARK_Z, 2.8, 'truist-shoulder')
@@ -586,7 +626,10 @@ function refWindows({ key, u0, u1, vTop, vBottom = 1000, z, depth, bayU = 12, ba
     if (hash(`${key}:${row}:${col}`) > chance) continue
     const [x, y] = refPoint(u0 + du * (col + 0.5), vTop + dv * (row + 0.5), z)
     const target = part === 'warmWindows' ? PART_GROUPS.windows[binOf(u0 + du * (col + 0.5), WINDOW_EDGES)] : part
-    addGeometry(target, new THREE.PlaneGeometry(1, 1), { at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1] })
+    addGeometry(target, new THREE.PlaneGeometry(1, 1), {
+      at: [x, y, z + depth / 2 + 0.04], size: [width * 0.56, height * 0.5, 1],
+      name: `${key}-window-${row}-${col}-grid-${rows}-${cols}`,
+    })
   }
 }
 refWindows({ key: 'boa', u0: boaU(740), u1: boaU(933), vTop: boaV(BOA_SETBACK_Y) + 10, z: FZ + 0.1, depth: 0.08, bayU: 9, bayV: 14, chance: 0.12 })
@@ -607,7 +650,7 @@ refWindows({ key: 'boa-up', u0: boaU(762), u1: boaU(913), vTop: boaV(BOA_PLATFOR
       at: [centreX + Math.sin(angle) * (radius + 0.03), (y0 + y1) / 2, LANDMARK_Z + Math.cos(angle) * (radius + 0.03)],
       size: [(2 * Math.PI * radius * (spanDeg / 360)) / columns * 0.86, Math.abs(y0 - y1) * 0.76, 1],
       rotate: [0, angle, 0],
-      name: `westin-window-${row}-${col}`,
+      name: `westin-window-${row}-${col}-grid-${rowsCount}-${columns}`,
     })
   }
 }
@@ -644,9 +687,18 @@ const ROAD_Z = -8
 const ROAD_FROM = -1300, ROAD_TO = 3000
 refBand('road', ROAD_FROM, ROAD_TO, 846, 872, ROAD_Z, 3.0, 'road-deck-far')
 // The lit edges are thin strips on each deck's front face; a deck-deep box would show its whole top face from the camera's height.
-refBand('roadGlow', ROAD_FROM, ROAD_TO, 846, 847.4, ROAD_Z + 1.5, 0.08, 'road-deck-far-edge')
+const ROAD_LIGHT_SEGMENTS = 40
+for (let index = 0; index < ROAD_LIGHT_SEGMENTS; index += 1) {
+  const u0 = ROAD_FROM + ((ROAD_TO - ROAD_FROM) * index) / ROAD_LIGHT_SEGMENTS
+  const u1 = ROAD_FROM + ((ROAD_TO - ROAD_FROM) * (index + 1)) / ROAD_LIGHT_SEGMENTS
+  refBand('roadGlow', u0, u1, 846, 847.4, ROAD_Z + 1.5, 0.08, `road-deck-far-edge-${index}`)
+}
 refBand('road', ROAD_FROM, ROAD_TO, 884, 912, ROAD_Z + 0.8, 3.2, 'road-deck-near')
-refBand('roadGlow', ROAD_FROM, ROAD_TO, 884, 885.4, ROAD_Z + 0.8 + 1.6, 0.08, 'road-deck-near-edge')
+for (let index = 0; index < ROAD_LIGHT_SEGMENTS; index += 1) {
+  const u0 = ROAD_FROM + ((ROAD_TO - ROAD_FROM) * index) / ROAD_LIGHT_SEGMENTS
+  const u1 = ROAD_FROM + ((ROAD_TO - ROAD_FROM) * (index + 1)) / ROAD_LIGHT_SEGMENTS
+  refBand('roadGlow', u0, u1, 884, 885.4, ROAD_Z + 0.8 + 1.6, 0.08, `road-deck-near-edge-${index}`)
+}
 refBlock('road', ROAD_FROM, ROAD_TO, 912, ROAD_Z + 0.8, 3.2, 'road-understructure')
 // Pale underside beams catch a little of the lamp light so the deck has thickness.
 for (let u = ROAD_FROM; u < ROAD_TO; u += 90) refBand('road', u, u + 5, 872, 884, ROAD_Z + 0.4, 2.8, `road-beam-${u}`)

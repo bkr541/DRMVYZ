@@ -10,6 +10,9 @@ import {
 import {
   CINEMA2_ATL_HOE_PATTERN_CROSSFADE_SECONDS,
   Cinema2AtlHoePatternController,
+  CINEMA2_ATL_HOE_TRIGGER_IDS,
+  createCinema2AtlHoePatternCycle,
+  resolveCinema2AtlHoeAutoPattern,
 } from '../modules/atlHoe/Cinema2AtlHoePatternController'
 
 const SIGNALS: Cinema2AtlHoePatternSignals = Object.freeze({
@@ -28,7 +31,7 @@ describe('ATL HOE full-scene pattern engine', () => {
     const outputs = CINEMA2_ATL_HOE_PATTERN_IDS.map(pattern => frame(pattern))
     const signatures = outputs.map(output => JSON.stringify({
       roles: output.roleGains, zones: output.zoneWeights, routes: output.routeWidths,
-      building: output.buildingLevel, sign: output.signCellSelection, outages: output.outageMasks,
+      building: output.buildingLevel, sign: output.signCellSelection, outages: output.outageMasks, sky: output.sky,
     }))
     expect(new Set(signatures)).toHaveLength(6)
     expect(frame('neon-brownout')).toEqual(frame('neon-brownout'))
@@ -64,14 +67,57 @@ describe('ATL HOE full-scene pattern engine', () => {
 
   it('crossfades manual changes for 450 ms without a black frame or white-flash overshoot', () => {
     const controller = new Cinema2AtlHoePatternController('city-pulse')
-    controller.update('city-pulse', 0)
-    const start = controller.update('storm-takeover', 0)
+    const input = (authoredPattern: Cinema2AtlHoePatternId, deltaTimeSec: number) => ({
+      authoredPattern, autoPerformance: false, patternChange: false, triggerEventId: null,
+      autoBoundaryId: null, autoPattern: authoredPattern, deltaTimeSec,
+    })
+    controller.update(input('city-pulse', 0))
+    const start = controller.update(input('storm-takeover', 0))
     expect(start).toMatchObject({ pattern: 'storm-takeover', changed: true, transition: { outgoingPattern: 'city-pulse', progress: 0 } })
-    const midpoint = controller.update('storm-takeover', CINEMA2_ATL_HOE_PATTERN_CROSSFADE_SECONDS / 2)
+    const midpoint = controller.update(input('storm-takeover', CINEMA2_ATL_HOE_PATTERN_CROSSFADE_SECONDS / 2))
     const output = evaluateCinema2AtlHoePattern({ pattern: midpoint.pattern, beats: 8, stage: 'active', signals: SIGNALS, transition: midpoint.transition })
     expect(output.transition).toMatchObject({ outgoingWeight: 0.5, incomingWeight: 0.5 })
     expect(Math.max(...output.roleGains)).toBeLessThanOrEqual(1)
     expect(output.roleGains.filter(gain => gain > 0.08).length).toBeGreaterThanOrEqual(4)
-    expect(controller.update('storm-takeover', CINEMA2_ATL_HOE_PATTERN_CROSSFADE_SECONDS / 2).transition).toBeNull()
+    expect(controller.update(input('storm-takeover', CINEMA2_ATL_HOE_PATTERN_CROSSFADE_SECONDS / 2)).transition).toBeNull()
+  })
+
+  it('cycles without immediate repeats for every supported trigger and de-duplicates stable event ids', () => {
+    expect(CINEMA2_ATL_HOE_TRIGGER_IDS).toEqual(['beat', 'kick', 'snare', 'downbeat', 'beat2', 'bar', 'bar4', 'bar8', 'phrase', 'section', 'drop'])
+    const controller = new Cinema2AtlHoePatternController('city-pulse', createCinema2AtlHoePatternCycle(index => index / 7))
+    let previous = controller.activePattern
+    for (const [index, trigger] of CINEMA2_ATL_HOE_TRIGGER_IDS.entries()) {
+      const event = `${trigger}:${index}`
+      const selection = controller.update({ authoredPattern: 'city-pulse', autoPerformance: false, patternChange: true,
+        triggerEventId: event, autoBoundaryId: null, autoPattern: 'city-pulse', deltaTimeSec: 0 })
+      expect(selection.pattern, trigger).not.toBe(previous)
+      expect(controller.update({ authoredPattern: 'city-pulse', autoPerformance: false, patternChange: true,
+        triggerEventId: event, autoBoundaryId: null, autoPattern: 'city-pulse', deltaTimeSec: 0 }).changed, trigger).toBe(false)
+      previous = selection.pattern
+    }
+  })
+
+  it('applies the auto policy once per boundary, prioritizes drops, and resets event ownership', () => {
+    expect(resolveCinema2AtlHoeAutoPattern({ stage: 'drop', energy: 1, vocalPresence: 0, current: 'city-pulse', boundaryOrdinal: 2 })).toBe('storm-takeover')
+    expect(['skyline-rise', 'interstate-flow']).toContain(resolveCinema2AtlHoeAutoPattern({ stage: 'buildup', energy: 0.6, vocalPresence: 0, current: 'city-pulse', boundaryOrdinal: 1 }))
+    expect(['city-pulse', 'neon-brownout']).toContain(resolveCinema2AtlHoeAutoPattern({ stage: 'rest', energy: 0.05, vocalPresence: 0, current: 'waffle-marquee', boundaryOrdinal: 0 }))
+    const controller = new Cinema2AtlHoePatternController('city-pulse')
+    const auto = (boundary: string | null) => controller.update({ authoredPattern: 'city-pulse', autoPerformance: true, patternChange: false,
+      triggerEventId: null, autoBoundaryId: boundary, autoPattern: 'storm-takeover', deltaTimeSec: 0 })
+    expect(auto('drop:1')).toMatchObject({ pattern: 'storm-takeover', changed: true })
+    expect(auto('drop:1').changed).toBe(false)
+    controller.reset('city-pulse')
+    expect(auto('drop:1').changed).toBe(true)
+  })
+
+  it('gives every program an integrated, distinct sky state and reveals storm bolts top-to-bottom', () => {
+    const skies = CINEMA2_ATL_HOE_PATTERN_IDS.map(pattern => frame(pattern).sky)
+    expect(new Set(skies.map(sky => JSON.stringify(sky)))).toHaveLength(6)
+    const storm = frame('storm-takeover', 'drop', { ...SIGNALS, transient: 1, drop: 1 }).sky
+    expect(storm.stormDarkness).toBeGreaterThan(0.8)
+    expect(storm.lightningFlash).toBe(1)
+    expect(storm.cityPowerResponse).toBeGreaterThan(0.9)
+    expect(storm.boltIdentities.filter(identity => identity >= 0)).toHaveLength(4)
+    expect(storm.boltProgress[0]).toBeGreaterThanOrEqual(storm.boltProgress[1])
   })
 })

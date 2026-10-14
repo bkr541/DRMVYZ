@@ -6,8 +6,8 @@ import atlHoeParts from '../presets/atlHoeParts.json'
 import {
   CINEMA2_ATL_HOE_PARAMETER_IDS as IDS,
   CINEMA2_ATL_HOE_SIGN_PATTERNS,
-  CINEMA2_ATL_HOE_SKY_PATTERNS,
 } from '../presets/Cinema2AtlHoeDesign'
+import { CINEMA2_ATL_HOE_TRIGGER_IDS } from '../modules/atlHoe/Cinema2AtlHoePatternController'
 import { CINEMA2_ATL_HOE_PRESET_MANIFEST as manifest } from '../presets/Cinema2AtlHoePreset'
 
 const parameters = new Map((manifest.parameters ?? []).map(parameter => [parameter.id as string, parameter]))
@@ -19,6 +19,7 @@ const targetsOf = (ruleId: string) => (rules.find(rule => rule.id === ruleId)?.a
 
 describe('ATL HOE Design tab', () => {
   it('declares the requested master controls with the agreed defaults', () => {
+    expect(parameters.get(IDS.autoPerformance)).toMatchObject({ label: 'Auto Performance', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls' })
     expect(parameters.get(IDS.masterIntensity)).toMatchObject({ label: 'Master Intensity', defaultValue: 1, designParentGroup: 'master-controls' })
     expect(parameters.get(IDS.bpmSync)).toMatchObject({ label: 'BPM Sync', type: 'boolean', defaultValue: true })
     expect(parameters.get(IDS.cameraMovement)).toMatchObject({ label: 'Camera Movement', defaultValue: 0, min: 0, max: 1 })
@@ -33,6 +34,11 @@ describe('ATL HOE Design tab', () => {
     expect(pattern).toMatchObject({ label: 'Pattern', type: 'enum', defaultValue: 'city-pulse', designParentGroup: 'design' })
     expect((pattern as { options: readonly { value: string }[] }).options.map(option => option.value)).toEqual([...CINEMA2_ATL_HOE_SIGN_PATTERNS])
     expect(CINEMA2_ATL_HOE_SIGN_PATTERNS).toHaveLength(6)
+    expect((pattern?.metadata as { userEditSetParameters?: Record<string, boolean> }).userEditSetParameters).toEqual({ [IDS.autoPerformance]: false })
+    expect(parameters.get(IDS.patternChange)).toMatchObject({ label: 'Pattern Change', type: 'boolean', defaultValue: false })
+    const trigger = parameters.get(IDS.trigger)
+    expect((trigger as { options: readonly { value: string }[] }).options.map(option => option.value)).toEqual([...CINEMA2_ATL_HOE_TRIGGER_IDS])
+    expect(trigger?.visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: IDS.patternChange, value: true }])
     expect(parameters.get(IDS.flicker)).toMatchObject({ label: 'Flicker', defaultValue: 0, designParentGroup: 'effects' })
     expect(parameters.get(IDS.cityAtmosphere)).toMatchObject({ label: 'City Atmosphere', defaultValue: 0.5, designParentGroup: 'effects' })
   })
@@ -74,6 +80,9 @@ describe('ATL HOE Design tab', () => {
     expect(rules.some(rule => ['atl-hoe-marquee-chase', 'atl-hoe-cascade-wave', 'atl-hoe-fault-transient', 'atl-hoe-drop'].includes(rule.id))).toBe(false)
     expect(bindings.atlHoePattern?.$ref).toBe(IDS.signPattern)
     expect(bindings.atlHoeBpmSync?.$ref).toBe(IDS.bpmSync)
+    expect(bindings.atlHoeAutoPerformance?.$ref).toBe(IDS.autoPerformance)
+    expect(bindings.atlHoePatternChange?.$ref).toBe(IDS.patternChange)
+    expect(bindings.atlHoeTrigger?.$ref).toBe(IDS.trigger)
   })
 
   it('routes music controls to the program engine while retaining the independent Flicker gate', () => {
@@ -87,23 +96,10 @@ describe('ATL HOE Design tab', () => {
     expect(rules.find(rule => rule.id === 'atl-hoe-flicker')?.actions.every(action => action.gate != null)).toBe(true)
   })
 
-  it('offers a Sky Pattern toggle (default off) and, once on, a Stars / Thunderstorm dropdown', () => {
-    expect(parameters.get(IDS.skyPatternEnabled)).toMatchObject({ label: 'Sky Pattern', type: 'boolean', defaultValue: false, designParentGroup: 'design' })
-    const dropdown = parameters.get(IDS.skyPattern)
-    expect(dropdown).toMatchObject({ type: 'enum', defaultValue: 'stars' })
-    expect((dropdown as { options: readonly { value: string }[] }).options.map(option => option.value)).toEqual([...CINEMA2_ATL_HOE_SKY_PATTERNS])
-    expect(dropdown?.visibleWhen).toEqual([{ kind: 'parameter-equals', parameterId: IDS.skyPatternEnabled, value: true }])
-  })
-
-  it('has twelve defined lightning bolts, each struck by its own rule, and gates every sky rule on the toggle and the type', () => {
+  it('integrates the twelve lightning bolts into the full-scene program engine instead of exposing a disconnected sky mode', () => {
     expect(atlHoeParts.bolts).toHaveLength(12)
-    const strikes = rules.filter(rule => rule.id.startsWith('atl-hoe-storm-strike-'))
-    expect(strikes).toHaveLength(12)
-    for (const rule of rules.filter(candidate => candidate.id.startsWith('atl-hoe-storm-') || candidate.id.startsWith('atl-hoe-stars-'))) {
-      const conditions = rule.enabledWhen ?? []
-      expect(conditions.some(condition => condition.kind === 'parameter-equals' && condition.parameterId === IDS.skyPatternEnabled && condition.value === true), rule.id).toBe(true)
-      expect(conditions.some(condition => condition.kind === 'parameter-equals' && condition.parameterId === IDS.skyPattern), rule.id).toBe(true)
-    }
+    expect([...parameters.values()].some(parameter => parameter.label === 'Sky Pattern' || parameter.label === 'Sky Pattern Type')).toBe(false)
+    expect(rules.some(rule => rule.id.startsWith('atl-hoe-storm-') || rule.id.startsWith('atl-hoe-stars-'))).toBe(false)
   })
 
   it('drives the camera from Camera Movement and BPM Sync, with the camera at rest by default', () => {
@@ -119,7 +115,7 @@ describe('ATL HOE Design tab', () => {
     expect(atmosphere?.actions.map(action => (action.target.kind === 'effect' || action.target.kind === 'environment') ? action.target.property : '')).toEqual(['mistAmount', 'density', 'fog.density'])
   })
 
-  it('lays the Design tab out as Master Controls, Design, Effects and Palette, revealing the sky dropdown only when the toggle is on', () => {
+  it('lays the Design tab out as Master Controls, Design, Effects and Palette, revealing Trigger only for Pattern Change', () => {
     const compiled = compileCinema2NativePreset(manifest, { availableCapabilities: ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting'] })
     if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => diagnostic.message).join('; '))
     const state = new Cinema2ParameterState(compiled.plan.parameters)
@@ -129,12 +125,12 @@ describe('ATL HOE Design tab', () => {
     ]))
 
     expect(labels()).toEqual({
-      'master-controls': ['Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
-      design: ['Pattern', 'Sky Pattern'],
+      'master-controls': ['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
+      design: ['Pattern', 'Pattern Change'],
       effects: ['Flicker', 'City Atmosphere'],
       palette: ['Sign Color', 'Letter Color', 'Architecture Color'],
     })
-    expect(state.setPersistentValue(IDS.skyPatternEnabled, true)).toMatchObject({ ok: true })
-    expect(labels().design).toEqual(['Pattern', 'Sky Pattern', 'Sky Pattern Type'])
+    expect(state.setPersistentValue(IDS.patternChange, true)).toMatchObject({ ok: true })
+    expect(labels().design).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
   })
 })

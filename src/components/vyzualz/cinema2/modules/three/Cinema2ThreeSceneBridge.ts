@@ -26,6 +26,7 @@ import {
   type Cinema2AtlHoeTopologyDiagnostic,
 } from '../atlHoe/Cinema2AtlHoeTopology'
 import type { Cinema2AtlHoePatternFrame } from '../atlHoe/Cinema2AtlHoePatternEngine'
+import type { Cinema2ResolvedEnvironmentFrame } from '../../spatial/Cinema2LightingEnvironmentRuntime'
 
 /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
 export interface Cinema2ThreePartOverrides {
@@ -88,6 +89,21 @@ export interface Cinema2ThreePanelSpec {
   intensity: number
 }
 
+export const CINEMA2_THREE_ATL_HOE_LIGHT_ROLES = Object.freeze([
+  'sign-spill', 'city-left', 'city-center', 'city-right', 'road-left', 'road-right', 'crown-flash', 'foliage-rim',
+] as const)
+export type Cinema2ThreeAtlHoeLightRole = typeof CINEMA2_THREE_ATL_HOE_LIGHT_ROLES[number]
+
+/** One member of ATL HOE's fixed point-light pool. The role selects a program channel; no lights are allocated per window. */
+export interface Cinema2ThreeAtlHoeLightSpec {
+  id: string
+  role: Cinema2ThreeAtlHoeLightRole
+  position: readonly [number, number, number]
+  color: readonly [number, number, number]
+  range: number
+  intensity: number
+}
+
 export interface Cinema2ThreeSceneOptions {
   panels?: readonly Cinema2ThreePanelSpec[]
   /** The loaded `RectAreaLightUniformsLib` (required when `panels` is non-empty; the module fetches it only in that case). */
@@ -107,6 +123,8 @@ export interface Cinema2ThreeSceneOptions {
   mainframe?: Readonly<Record<string, Cinema2ThreeMainframeRole>>
   /** ATL HOE performance surfaces. Each configured part must carry the complete generated semantic topology. */
   atlHoe?: Readonly<Record<string, Cinema2AtlHoeRole>>
+  /** ATL HOE-only fixed spill-light pool, authored in priority order for quality-tier reduction. */
+  atlHoeLights?: readonly Readonly<Cinema2ThreeAtlHoeLightSpec>[]
   /**
    * The engine target is a float target and the preset tone-maps later (`config.hdr`): segment light is emitted unrolled, above 1. Ignored
    * where the GPU cannot render to float textures (the preset's targets then fall back to 8-bit).
@@ -169,6 +187,7 @@ export interface Cinema2ThreeBridgeDiagnostic {
 
 /** Panel (RectAreaLight) budget per quality tier: they cost per pixel per light, so low has none. */
 export const CINEMA2_THREE_PANEL_LIMITS: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 0, medium: 2, high: 4 })
+export const CINEMA2_THREE_ATL_HOE_LIGHT_LIMITS: Readonly<Record<Cinema2RenderQualityLevel, number>> = Object.freeze({ low: 3, medium: 6, high: 8 })
 
 export const CINEMA2_THREE_DEFAULT_OVERRIDES: Readonly<Cinema2ThreeMaterialOverrides> = Object.freeze({
   color: null, emissive: null, emissiveIntensity: null, roughness: null, metalness: null, environmentIntensity: 0.5,
@@ -251,6 +270,8 @@ export class Cinema2ThreeSceneBridge {
   private stage: WarmStage = 'environment'
   private environmentLoad: 'idle' | 'loading' | 'done' = 'idle'
   private readonly panels: { light: ThreeNamespace.RectAreaLight; spec: Readonly<Cinema2ThreePanelSpec> }[] = []
+  private readonly atlHoeLights: { light: ThreeNamespace.PointLight; spec: Readonly<Cinema2ThreeAtlHoeLightSpec> }[] = []
+  private atlHoeFog: ThreeNamespace.FogExp2 | null = null
   private readonly particleFields: Cinema2ThreeParticleField[] = []
   /** The audio glow's breath this frame (0 without a glow), which lifts the particle fields. */
   private glowBreath = 0
@@ -354,6 +375,21 @@ export class Cinema2ThreeSceneBridge {
       uCinema2AtlRecovery: { value: new THREE.Vector4(1, 1, 1, 1) },
       uCinema2AtlProgram0: { value: new THREE.Vector4(0, -1, 0, 0) },
       uCinema2AtlProgram1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlSky0: { value: new THREE.Vector4(0.7, 0.4, 0.4, 0) },
+      uCinema2AtlSkyZones0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlSkyZones1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlBoltIds: { value: new THREE.Vector4(-1, -1, -1, -1) },
+      uCinema2AtlBoltProgress: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlSky1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlHeroVerticalFronts: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlHeroHorizontalFronts: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlHeroVerticalWidths: { value: new THREE.Vector4(0.2, 0.2, 0.2, 0.2) },
+      uCinema2AtlHeroHorizontalWidths: { value: new THREE.Vector4(0.2, 0.2, 0.2, 0.2) },
+      uCinema2AtlHeroGains: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlCity0: { value: new THREE.Vector4(0, 0.2, 0, 0) },
+      uCinema2AtlCity1: { value: new THREE.Vector4(0.2, 0, 0, 0.2) },
+      uCinema2AtlCity2: { value: new THREE.Vector4(0, 0, 0, 1) },
+      uCinema2AtlCity3: { value: new THREE.Vector4(0, 0, 0, 0) },
     }
 
     for (const instance of instances) {
@@ -417,6 +453,17 @@ export class Cinema2ThreeSceneBridge {
       }
     }
 
+    // ATL HOE uses a fixed representative pool: source emitters illuminate nearby architecture without allocating a light per window.
+    for (const spec of options.atlHoeLights ?? []) {
+      const light = new THREE.PointLight(0xffffff, 0, spec.range, 2)
+      light.name = `cinema2-atl-hoe-light:${spec.id}`
+      light.color.setRGB(spec.color[0], spec.color[1], spec.color[2], THREE.SRGBColorSpace)
+      light.position.set(spec.position[0], spec.position[1], spec.position[2])
+      light.visible = false
+      this.scene.add(light)
+      this.atlHoeLights.push({ light, spec })
+    }
+
     ;(options.particles ?? []).forEach((spec, index) => {
       const field = new Cinema2ThreeParticleField(THREE, spec, index)
       this.scene.add(field.points)
@@ -464,7 +511,7 @@ export class Cinema2ThreeSceneBridge {
       renderer.resetState()
       this.applyQuality(lighting.quality)
       this.applyOverrides(overrides)
-      this.applyEnvironmentAndPanels(overrides, lighting.environment.exposure)
+      this.applyEnvironmentAndPanels(overrides, lighting.environment, atlHoe)
       this.applyGlow(glow)
       this.applySegments(segments)
       this.applyMainframe(mainframe)
@@ -506,6 +553,8 @@ export class Cinema2ThreeSceneBridge {
     }
     for (const { light } of this.panels) this.scene.remove(light)
     this.panels.length = 0
+    for (const { light } of this.atlHoeLights) this.scene.remove(light)
+    this.atlHoeLights.length = 0
     for (const field of this.particleFields) { this.scene.remove(field.points); field.dispose() }
     this.particleFields.length = 0
     this.placed.length = 0
@@ -562,6 +611,8 @@ export class Cinema2ThreeSceneBridge {
     this.appliedOverrides = null // clearcoat and panel visibility depend on the tier: reapply them
     const limit = CINEMA2_THREE_PANEL_LIMITS[quality]
     this.panels.forEach(({ light }, index) => { light.visible = index < limit })
+    const atlHoeLimit = CINEMA2_THREE_ATL_HOE_LIGHT_LIMITS[quality]
+    this.atlHoeLights.forEach(({ light }, index) => { light.visible = index < atlHoeLimit })
   }
 
   /**
@@ -656,6 +707,7 @@ export class Cinema2ThreeSceneBridge {
       [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.phase]: [0, 1],
       [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.level]: [0, 1],
       [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.random]: [0, 1],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.landmark]: [0, 6],
     }
     for (const [name, [minimum, maximum]] of Object.entries(limits)) {
       const attribute = geometry.getAttribute(name)
@@ -802,6 +854,8 @@ export class Cinema2ThreeSceneBridge {
       uniforms.uCinema2AtlRole1.value.set(0, 0, 0, 0)
       uniforms.uCinema2AtlRole2.value.set(0, 0, 0, 0)
       uniforms.uCinema2AtlProgram1.value.set(0, 0, 0, 0)
+      uniforms.uCinema2AtlSky1.value.set(0, 0, 0, 0)
+      for (const { light } of this.atlHoeLights) light.intensity = 0
       return
     }
     const roles = frame.roleGains, zones = frame.zoneWeights
@@ -816,13 +870,62 @@ export class Cinema2ThreeSceneBridge {
     uniforms.uCinema2AtlRecovery.value.set(...frame.recoveryMasks)
     uniforms.uCinema2AtlProgram0.value.set(frame.buildingLevel, frame.signCellSelection, frame.practicalLightGain, frame.transition.incomingWeight)
     uniforms.uCinema2AtlProgram1.value.set(frame.skyGain, frame.lightningGain, frame.atmosphereGain, frame.transition.outgoingWeight)
+    const sky = frame.sky
+    uniforms.uCinema2AtlSky0.value.set(sky.gradientGain, sky.starDensity, sky.starBrightness, sky.stormDarkness)
+    uniforms.uCinema2AtlSkyZones0.value.set(sky.starZoneWeights[0], sky.starZoneWeights[1], sky.starZoneWeights[2], sky.starZoneWeights[3])
+    uniforms.uCinema2AtlSkyZones1.value.set(sky.starZoneWeights[4], sky.starZoneWeights[5], sky.starZoneWeights[6], 0)
+    uniforms.uCinema2AtlBoltIds.value.set(...sky.boltIdentities)
+    uniforms.uCinema2AtlBoltProgress.value.set(...sky.boltProgress)
+    uniforms.uCinema2AtlSky1.value.set(sky.lightningFlash, sky.lightningRecovery, sky.cityPowerResponse, 0)
+    const city = frame.city
+    uniforms.uCinema2AtlHeroVerticalFronts.value.set(...city.heroVerticalFronts)
+    uniforms.uCinema2AtlHeroHorizontalFronts.value.set(...city.heroHorizontalFronts)
+    uniforms.uCinema2AtlHeroVerticalWidths.value.set(...city.heroVerticalWidths)
+    uniforms.uCinema2AtlHeroHorizontalWidths.value.set(...city.heroHorizontalWidths)
+    uniforms.uCinema2AtlHeroGains.value.set(...city.heroGains)
+    uniforms.uCinema2AtlCity0.value.set(city.streetlightFront, city.streetlightWidth, city.streetlightGain, city.roadFront)
+    uniforms.uCinema2AtlCity1.value.set(city.roadWidth, city.roadGain, city.crownFront, city.crownWidth)
+    uniforms.uCinema2AtlCity2.value.set(city.crownGain, city.lowFacadeGain, city.windowSparkle, city.foliageThreshold)
+    uniforms.uCinema2AtlCity3.value.set(city.foliageGain, 0, 0, 0)
+    const environment = city.environment
+    const overall = Math.min(1, Math.max(0, draw?.strength ?? 0))
+    for (const { light, spec } of this.atlHoeLights) {
+      const baseGain = spec.role === 'sign-spill' ? environment.signSpill
+        : spec.role === 'city-left' ? environment.citySpills[0]
+          : spec.role === 'city-center' ? environment.citySpills[1]
+            : spec.role === 'city-right' ? environment.citySpills[2]
+              : spec.role === 'road-left' ? environment.roadPools[0]
+                : spec.role === 'road-right' ? environment.roadPools[1]
+                  : spec.role === 'crown-flash' ? environment.crownFlash
+                    : environment.foliageRim
+      const strikeResponse = spec.role === 'crown-flash'
+        ? 1.9 * sky.lightningFlash : (spec.role.startsWith('city-') ? 0.8 * sky.cityPowerResponse : 0)
+      const gain = baseGain + strikeResponse
+      // Match the engine light calibration: authored intensity is the surface response around half range.
+      light.intensity = spec.intensity * gain * overall * Math.PI * (spec.range * 0.5) ** 2
+    }
   }
 
-  private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
+  private applyEnvironmentAndPanels(
+    overrides: Readonly<Cinema2ThreeMaterialOverrides>,
+    environmentFrame: Readonly<Cinema2ResolvedEnvironmentFrame>,
+    atlHoe: Readonly<Cinema2ThreeAtlHoeDraw> | null,
+  ): void {
     // The environment follows the Cinema 2.0 environment exposure, so a preset's global exposure control dims reflections too.
-    this.scene.environmentIntensity = overrides.environmentIntensity * Math.max(0, exposure)
+    this.scene.environmentIntensity = overrides.environmentIntensity * Math.max(0, environmentFrame.exposure)
     this.scene.environmentRotation.set(0, (overrides.environmentRotation * Math.PI) / 180, 0)
     for (const { light, spec } of this.panels) light.intensity = spec.intensity * overrides.panelIntensity
+    const fog = environmentFrame.fog
+    if (this.options.atlHoeLights && fog?.mode === 'exponential') {
+      if (!this.atlHoeFog) this.atlHoeFog = new this.library.THREE.FogExp2(0x000000, 0)
+      this.atlHoeFog.color.setRGB(fog.color[0], fog.color[1], fog.color[2], this.library.THREE.SRGBColorSpace)
+      const response = atlHoe?.patternFrame?.city.environment
+      const sky = atlHoe?.patternFrame?.sky
+      const strength = Math.min(1, Math.max(0, atlHoe?.strength ?? 0))
+      // Bound the density so lighting can reveal haze without turning the sign into a flat veil.
+      this.atlHoeFog.density = Math.min(0.018, Math.max(0, fog.density * (1 + strength * (0.24 * (response?.fogGain ?? 0) + 0.14 * (response?.dropAfterglow ?? 0) + 0.22 * (sky?.stormDarkness ?? 0)))))
+      this.scene.fog = this.atlHoeFog
+    } else if (this.options.atlHoeLights) this.scene.fog = null
     // Three uses the scene-wide intensity for anything lit only by scene.environment; a part with its own share gets the environment as its
     // own envMap instead, so its envMapIntensity (scene level x share) is honoured.
     const environment = this.scene.environment
@@ -1167,6 +1270,21 @@ interface AtlHoeUniforms {
   uCinema2AtlRecovery: { value: ThreeNamespace.Vector4 }
   uCinema2AtlProgram0: { value: ThreeNamespace.Vector4 }
   uCinema2AtlProgram1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlSky0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlSkyZones0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlSkyZones1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlBoltIds: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlBoltProgress: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlSky1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlHeroVerticalFronts: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlHeroHorizontalFronts: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlHeroVerticalWidths: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlHeroHorizontalWidths: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlHeroGains: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlCity0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlCity1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlCity2: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlCity3: { value: ThreeNamespace.Vector4 }
 }
 
 function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
@@ -1181,13 +1299,16 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       `attribute float ${attribute.phase};`,
       `attribute float ${attribute.level};`,
       `attribute float ${attribute.random};`,
+      `attribute float ${attribute.landmark};`,
       'varying vec3 vCinema2AtlMeta0;',
       'varying vec3 vCinema2AtlMeta1;',
+      'varying float vCinema2AtlLandmark;',
     ].join('\n'))
     .replace('#include <begin_vertex>', [
       '#include <begin_vertex>',
       `vCinema2AtlMeta0 = vec3( ${attribute.role}, ${attribute.zone}, ${attribute.route} );`,
       `vCinema2AtlMeta1 = vec3( ${attribute.phase}, ${attribute.level}, ${attribute.random} );`,
+      `vCinema2AtlLandmark = ${attribute.landmark};`,
     ].join('\n'))
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', [
@@ -1205,8 +1326,24 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       'uniform vec4 uCinema2AtlRecovery;',
       'uniform vec4 uCinema2AtlProgram0;',
       'uniform vec4 uCinema2AtlProgram1;',
+      'uniform vec4 uCinema2AtlSky0;',
+      'uniform vec4 uCinema2AtlSkyZones0;',
+      'uniform vec4 uCinema2AtlSkyZones1;',
+      'uniform vec4 uCinema2AtlBoltIds;',
+      'uniform vec4 uCinema2AtlBoltProgress;',
+      'uniform vec4 uCinema2AtlSky1;',
+      'uniform vec4 uCinema2AtlHeroVerticalFronts;',
+      'uniform vec4 uCinema2AtlHeroHorizontalFronts;',
+      'uniform vec4 uCinema2AtlHeroVerticalWidths;',
+      'uniform vec4 uCinema2AtlHeroHorizontalWidths;',
+      'uniform vec4 uCinema2AtlHeroGains;',
+      'uniform vec4 uCinema2AtlCity0;',
+      'uniform vec4 uCinema2AtlCity1;',
+      'uniform vec4 uCinema2AtlCity2;',
+      'uniform vec4 uCinema2AtlCity3;',
       'varying vec3 vCinema2AtlMeta0;',
       'varying vec3 vCinema2AtlMeta1;',
+      'varying float vCinema2AtlLandmark;',
       'vec3 cinema2AtlPalette( float value ) {',
       '  return 0.55 + 0.45 * cos( 6.2831853 * ( vec3( 0.0, 0.33, 0.67 ) + value * 0.131 ) );',
       '}',
@@ -1223,10 +1360,19 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       '  if ( zone < 4.5 ) return uCinema2AtlZones1.x; if ( zone < 5.5 ) return uCinema2AtlZones1.y;',
       '  return uCinema2AtlZones1.z;',
       '}',
+      'float cinema2AtlPickSkyZone( float zone ) {',
+      '  if ( zone < 0.5 ) return uCinema2AtlSkyZones0.x; if ( zone < 1.5 ) return uCinema2AtlSkyZones0.y;',
+      '  if ( zone < 2.5 ) return uCinema2AtlSkyZones0.z; if ( zone < 3.5 ) return uCinema2AtlSkyZones0.w;',
+      '  if ( zone < 4.5 ) return uCinema2AtlSkyZones1.x; if ( zone < 5.5 ) return uCinema2AtlSkyZones1.y;',
+      '  return uCinema2AtlSkyZones1.z;',
+      '}',
       'float cinema2AtlPick4( vec4 values, float index ) {',
       '  return index < 0.5 ? values.x : index < 1.5 ? values.y : index < 2.5 ? values.z : values.w;',
       '}',
       'float cinema2AtlWrappedDistance( float a, float b ) { float d = abs( a - b ); return min( d, 1.0 - d ); }',
+      'float cinema2AtlPulse( float value, float front, float width ) {',
+      '  return 1.0 - smoothstep( width, width * 1.7, cinema2AtlWrappedDistance( value, front ) );',
+      '}',
     ].join('\n'))
     .replace('#include <emissivemap_fragment>', [
       '#include <emissivemap_fragment>',
@@ -1236,6 +1382,7 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       'if ( uCinema2AtlHoeDiagnostic > 3.5 ) cinema2AtlValue = vCinema2AtlMeta1.x * 7.0;',
       'if ( uCinema2AtlHoeDiagnostic > 4.5 ) cinema2AtlValue = vCinema2AtlMeta1.y * 7.0;',
       'if ( uCinema2AtlHoeDiagnostic > 5.5 ) cinema2AtlValue = vCinema2AtlMeta1.z * 7.0;',
+      'if ( uCinema2AtlHoeDiagnostic > 6.5 ) cinema2AtlValue = vCinema2AtlLandmark;',
       'float cinema2AtlEnabled = step( 0.5, uCinema2AtlHoeDiagnostic ) * uCinema2AtlHoeStrength;',
       'float cinema2AtlRoleGain = cinema2AtlPickRole( vCinema2AtlMeta0.x );',
       'float cinema2AtlZoneGain = cinema2AtlPickZone( vCinema2AtlMeta0.y );',
@@ -1256,9 +1403,56 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       'if ( vCinema2AtlMeta0.x > 5.5 && vCinema2AtlMeta0.x < 6.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.x;',
       'if ( vCinema2AtlMeta0.x > 6.5 && vCinema2AtlMeta0.x < 7.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.y;',
       'if ( vCinema2AtlMeta0.x > 8.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.z;',
-      'float cinema2AtlMotion = 0.24 + 0.42 * cinema2AtlRouteLight + 0.34 * max( cinema2AtlClimb, cinema2AtlCell );',
-      'float cinema2AtlPatternGain = max( 0.08, cinema2AtlRoleGain * ( 0.28 + 0.72 * cinema2AtlZoneGain ) * cinema2AtlMotion * cinema2AtlOutageGain * cinema2AtlFamilyGain );',
-      'totalEmissiveRadiance *= mix( 1.0, cinema2AtlPatternGain * 1.9, uCinema2AtlHoeStrength );',
+      // Building landmarks 1-4 map to independent Bank of America, Westin, Truist and Georgia-Pacific lanes. Phase is horizontal progress;
+      // level is vertical progress. Broad masks keep both directions readable at embedded Stage size.
+      'float cinema2AtlHeroIndex = clamp( vCinema2AtlLandmark - 1.0, 0.0, 3.0 );',
+      'float cinema2AtlHeroEligible = step( 0.5, vCinema2AtlLandmark ) * ( 1.0 - step( 4.5, vCinema2AtlLandmark ) );',
+      'float cinema2AtlHeroGain = cinema2AtlPick4( uCinema2AtlHeroGains, cinema2AtlHeroIndex );',
+      'float cinema2AtlVertical = cinema2AtlPulse( vCinema2AtlMeta1.y, cinema2AtlPick4( uCinema2AtlHeroVerticalFronts, cinema2AtlHeroIndex ), max( 0.1, cinema2AtlPick4( uCinema2AtlHeroVerticalWidths, cinema2AtlHeroIndex ) ) );',
+      'float cinema2AtlHorizontal = cinema2AtlPulse( vCinema2AtlMeta1.x, cinema2AtlPick4( uCinema2AtlHeroHorizontalFronts, cinema2AtlHeroIndex ), max( 0.1, cinema2AtlPick4( uCinema2AtlHeroHorizontalWidths, cinema2AtlHeroIndex ) ) );',
+      'float cinema2AtlCitySurface = 0.0;',
+      'if ( vCinema2AtlMeta0.x > 0.5 && vCinema2AtlMeta0.x < 1.5 ) {',
+      '  float lowFacade = ( 1.0 - smoothstep( 0.18, 0.46, vCinema2AtlMeta1.y ) ) * uCinema2AtlCity2.y;',
+      '  float sparkle = step( 1.0 - 0.34 * uCinema2AtlCity2.z, vCinema2AtlMeta1.z ) * uCinema2AtlCity2.z;',
+      '  cinema2AtlCitySurface = cinema2AtlHeroEligible * cinema2AtlHeroGain * ( 0.72 * cinema2AtlVertical + 0.62 * cinema2AtlHorizontal + 0.44 * lowFacade + 0.7 * sparkle );',
+      '} else if ( vCinema2AtlMeta0.x > 1.5 && vCinema2AtlMeta0.x < 3.5 ) {',
+      '  float crownRoute = cinema2AtlPulse( vCinema2AtlMeta1.y, uCinema2AtlCity1.z, max( 0.12, uCinema2AtlCity1.w ) );',
+      '  cinema2AtlCitySurface = cinema2AtlHeroEligible * cinema2AtlHeroGain * uCinema2AtlCity2.x * ( 0.4 + 0.9 * crownRoute + 0.36 * cinema2AtlHorizontal );',
+      '} else if ( vCinema2AtlMeta0.x > 3.5 && vCinema2AtlMeta0.x < 4.5 ) {',
+      '  cinema2AtlCitySurface = cinema2AtlPulse( vCinema2AtlMeta1.x, uCinema2AtlCity0.x, max( 0.1, uCinema2AtlCity0.y ) ) * uCinema2AtlCity0.z;',
+      '} else if ( vCinema2AtlMeta0.x > 4.5 && vCinema2AtlMeta0.x < 5.5 ) {',
+      '  cinema2AtlCitySurface = cinema2AtlPulse( vCinema2AtlMeta1.x, uCinema2AtlCity0.w, max( 0.12, uCinema2AtlCity1.x ) ) * uCinema2AtlCity1.y;',
+      '} else if ( vCinema2AtlMeta0.x > 7.5 && vCinema2AtlMeta0.x < 8.5 ) {',
+      '  cinema2AtlCitySurface = step( uCinema2AtlCity2.w, vCinema2AtlMeta1.z ) * uCinema2AtlCity3.x;',
+      '}',
+      // Role, zone, motion and family values are authored as independent selectors, not successive dimmers. Multiplying all four made a
+      // normally active light emit only 8-20% of its authored value. Keep dark hierarchy through the floor/outage mask, then add a bright
+      // routed accent so selected sign cells, windows, lamps and skyline fixtures can drive the HDR bloom again.
+      'float cinema2AtlMotionAccent = max( cinema2AtlCitySurface, max( cinema2AtlRouteLight, max( cinema2AtlClimb, cinema2AtlCell ) ) );',
+      'float cinema2AtlBaseLight = 0.28 + 1.25 * cinema2AtlRoleGain + 0.48 * cinema2AtlZoneGain;',
+      'float cinema2AtlAccentLight = 1.4 * cinema2AtlMotionAccent * max( 0.3, cinema2AtlRoleGain );',
+      'float cinema2AtlFamilyScale = mix( 0.58, 1.0, cinema2AtlFamilyGain );',
+      'float cinema2AtlPatternGain = max( 0.16, ( cinema2AtlBaseLight + cinema2AtlAccentLight ) * cinema2AtlFamilyScale * cinema2AtlOutageGain );',
+      // Sky is a first-class program surface. Star density uses the authored random coordinate, while bolt identity and `_ATL_PHASE`
+      // reveal each selected strike from its top toward the skyline.
+      'if ( vCinema2AtlMeta0.x > 5.5 && vCinema2AtlMeta0.x < 6.5 ) {',
+      '  float starOn = step( 1.0 - uCinema2AtlSky0.y, vCinema2AtlMeta1.z );',
+      '  cinema2AtlPatternGain = max( 0.015, starOn * cinema2AtlPickSkyZone( vCinema2AtlMeta0.y ) * uCinema2AtlSky0.z );',
+      '}',
+      'if ( vCinema2AtlMeta0.x > 6.5 && vCinema2AtlMeta0.x < 7.5 ) {',
+      '  float boltIdentity = vCinema2AtlMeta1.z;',
+      '  float boltReveal = 0.0;',
+      '  for ( int cinema2AtlBolt = 0; cinema2AtlBolt < 4; cinema2AtlBolt ++ ) {',
+      '    float selected = 1.0 - step( 0.025, abs( boltIdentity - cinema2AtlPick4( uCinema2AtlBoltIds, float( cinema2AtlBolt ) ) ) );',
+      '    boltReveal = max( boltReveal, selected * step( vCinema2AtlMeta1.x, cinema2AtlPick4( uCinema2AtlBoltProgress, float( cinema2AtlBolt ) ) ) );',
+      '  }',
+      '  cinema2AtlPatternGain = max( 0.01, boltReveal * ( 6.0 * uCinema2AtlSky1.x + 2.2 * uCinema2AtlSky1.y ) );',
+      '}',
+      'if ( vCinema2AtlMeta0.x > 8.5 ) cinema2AtlPatternGain *= uCinema2AtlSky0.x * ( 1.0 - 0.72 * uCinema2AtlSky0.w );',
+      'float cinema2AtlStrikeZone = exp( -1.4 * abs( vCinema2AtlMeta0.y - uCinema2AtlBoltIds.x * 6.0 ) );',
+      'float cinema2AtlCityStrike = uCinema2AtlSky1.z * cinema2AtlStrikeZone * ( 1.0 - step( 5.5, vCinema2AtlMeta0.x ) );',
+      'cinema2AtlPatternGain += 1.8 * cinema2AtlCityStrike;',
+      'totalEmissiveRadiance *= mix( 1.0, cinema2AtlPatternGain, uCinema2AtlHoeStrength );',
       'totalEmissiveRadiance = mix( totalEmissiveRadiance, cinema2AtlPalette( cinema2AtlValue ) * 2.0, cinema2AtlEnabled );',
     ].join('\n'))
 }

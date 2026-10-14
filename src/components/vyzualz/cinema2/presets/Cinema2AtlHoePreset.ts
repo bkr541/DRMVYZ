@@ -68,6 +68,7 @@ const ATMOSPHERE_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atl-hoe-atmos
 const BLOOM_OUTPUT_ID = cinema2StableId<Cinema2RenderSlotId>('atl-hoe-bloom-output')
 
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
+const rgb = (r: number, g: number, b: number) => Object.freeze([r, g, b] as const)
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
 const slotId = (name: string) => cinema2StableId<Cinema2RenderSlotId>(`atl-hoe-${name}`)
 
@@ -104,7 +105,7 @@ function effectPass(
   })
 }
 
-function spot(id: Cinema2LightId, at: Cinema2Vector3, target: Cinema2SceneNodeId, intensity: number, lightColor: Cinema2Color, coneAngleDegrees: number) {
+function spot(id: Cinema2LightId, at: Cinema2Vector3, target: Cinema2SceneNodeId, intensity: number, lightColor: Cinema2Color, coneAngleDegrees: number, threeShadow = false) {
   return Object.freeze({
     id,
     type: 'spot' as const,
@@ -112,9 +113,22 @@ function spot(id: Cinema2LightId, at: Cinema2Vector3, target: Cinema2SceneNodeId
     intensity,
     transform: Object.freeze({ position: at }),
     targetNode: cinema2Ref(target),
-    config: Object.freeze({ coneAngleDegrees, penumbra: 0.7, range: 52 }),
+    config: Object.freeze({ coneAngleDegrees, penumbra: 0.7, range: 52, ...(threeShadow ? { threeShadow: true } : {}) }),
   })
 }
+
+// Priority order is intentional: low retains sign / center skyline / left road, medium adds both skyline wings and the second road pool,
+// high adds crown lightning and the foreground foliage rim. Eight pooled lights plus the three authored spots remain under the shared limit.
+const ATL_HOE_SPILL_LIGHTS = Object.freeze([
+  Object.freeze({ id: 'sign', role: 'sign-spill', position: vec3(-4.2, 6.6, 7.2), color: rgb(1, 0.43, 0.055), range: 10, intensity: 0.62 }),
+  Object.freeze({ id: 'city-center', role: 'city-center', position: vec3(1.2, 7.2, -13.5), color: rgb(0.24, 0.58, 1), range: 17, intensity: 0.34 }),
+  Object.freeze({ id: 'road-left', role: 'road-left', position: vec3(-7.5, 1.1, -2.5), color: rgb(1, 0.32, 0.045), range: 9, intensity: 0.48 }),
+  Object.freeze({ id: 'city-left', role: 'city-left', position: vec3(-8.5, 6.5, -14), color: rgb(0.18, 0.72, 1), range: 15, intensity: 0.31 }),
+  Object.freeze({ id: 'road-right', role: 'road-right', position: vec3(7.8, 1.2, -4), color: rgb(1, 0.38, 0.06), range: 10, intensity: 0.46 }),
+  Object.freeze({ id: 'city-right', role: 'city-right', position: vec3(9, 7.5, -15), color: rgb(0.25, 0.86, 1), range: 16, intensity: 0.3 }),
+  Object.freeze({ id: 'crown', role: 'crown-flash', position: vec3(2.8, 13.8, -15), color: rgb(0.56, 0.76, 1), range: 15, intensity: 0.48 }),
+  Object.freeze({ id: 'foliage', role: 'foliage-rim', position: vec3(-9.5, 3.2, 2.5), color: rgb(1, 0.34, 0.075), range: 9, intensity: 0.38 }),
+])
 
 /**
  * ATL HOE is deliberately static in its first milestone. The camera, geometry,
@@ -170,6 +184,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Spire flashes on the downbeat.' }),
     Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'The Marquee chase restarts every bar.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'The Cascade wave crosses the scene every phrase.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section boundaries can advance a full-scene program and guide Auto Performance.' }),
     Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick and transient hits on the sign, lights and windows.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'The whole city blazes on a drop.' }),
     Object.freeze({ id: 'visual-director.significance' as const, requirement: 'optional' as const, purpose: 'Builds lift the spires and impacts brighten the night.' }),
@@ -188,6 +203,9 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       atlHoeTopologyStrength: 0,
       atlHoeTopologyDiagnostic: 'off',
       atlHoePattern: 'city-pulse',
+      atlHoeAutoPerformance: true,
+      atlHoePatternChange: false,
+      atlHoeTrigger: 'bar4',
       atlHoeBpmSync: true,
       atlHoeMasterIntensity: 1,
       atlHoeMusicReactivity: 0.8,
@@ -240,11 +258,16 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       hdr: true,
       parts: Object.freeze([...LIT_PART_NAMES, 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
       atlHoe: CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES,
+      atlHoeLights: ATL_HOE_SPILL_LIGHTS,
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),
         Object.freeze({ position: vec3(7, 14, 5), target: vec3(2.5, 7, -16), size: Object.freeze([8, 6]), color: Object.freeze([0.25, 0.38, 0.56]), intensity: 0.48 }),
       ]),
+      shadows: Object.freeze({
+        cast: Object.freeze(['signMetal', 'signTrim', 'signBorder', 'signLetters']),
+        receive: Object.freeze(['signMetal', 'signTrim', 'signBorder', 'road', 'foliage', 'foliageBack']),
+      }),
     }),
   })]),
   scene: Object.freeze({
@@ -285,11 +308,11 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATL_HOE_CAMERA_ID) }),
   // BPM Sync: the sign patterns' beat, bar and phrase timing follows the loaded track's tempo (on) or a steady 120 BPM (off), as the camera sway does.
-  choreography: Object.freeze({ rules: atlHoeChoreographyRules(CINEMA2_ATL_HOE_MODULE_ID, ATMOSPHERE_EFFECT_ID), tempoSyncParameter: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync) }),
+  choreography: Object.freeze({ rules: atlHoeChoreographyRules(CINEMA2_ATL_HOE_MODULE_ID, ATMOSPHERE_EFFECT_ID, BLOOM_EFFECT_ID), tempoSyncParameter: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync) }),
   lighting: Object.freeze({
     lights: Object.freeze([
       spot(MOON_LIGHT_ID, vec3(-10, 18, 12), SKYLINE_TARGET_ID, 1.25, color(0.34, 0.49, 0.72), 48),
-      spot(SIGN_LIGHT_ID, vec3(3, 9, 19), SIGN_TARGET_ID, 0, color(1, 0.93, 0.78), 26),
+      spot(SIGN_LIGHT_ID, vec3(3, 9, 19), SIGN_TARGET_ID, 0.12, color(1, 0.93, 0.78), 26, true),
       spot(CITY_LIGHT_ID, vec3(7, 4, -4), SKYLINE_TARGET_ID, 0.1, color(1, 0.45, 0.12), 52),
       Object.freeze({ id: AMBIENT_LIGHT_ID, type: 'ambient' as const, color: color(0.18, 0.29, 0.46), intensity: 0.62 }),
     ]),

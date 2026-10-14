@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CINEMA2_ATL_HOE_ATTRIBUTE_NAMES,
+  CINEMA2_ATL_HOE_LANDMARKS,
   CINEMA2_ATL_HOE_ROLES,
   CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES,
+  cinema2AtlHoeLandmarkCode,
   cinema2AtlHoeRoleCode,
 } from '../modules/atlHoe/Cinema2AtlHoeTopology'
 
@@ -40,13 +42,21 @@ function validateScalarRange(asset: ReturnType<typeof readGlb>, accessorIndex: n
   return null
 }
 
+function readScalars(asset: ReturnType<typeof readGlb>, accessorIndex: number): number[] {
+  const accessor = asset.json.accessors[accessorIndex]!
+  const view = asset.json.bufferViews[accessor.bufferView]!
+  const start = asset.binaryOffset + (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0)
+  return Array.from({ length: accessor.count }, (_, index) => asset.data.readFloatLE(start + index * 4))
+}
+
 describe('ATL HOE semantic lighting topology', () => {
   it('assigns stable role codes and covers every performance family', () => {
     expect(CINEMA2_ATL_HOE_ROLES.map(cinema2AtlHoeRoleCode)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(CINEMA2_ATL_HOE_LANDMARKS.map(cinema2AtlHoeLandmarkCode)).toEqual([0, 1, 2, 3, 4, 5, 6])
     expect(new Set(Object.values(CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES))).toEqual(new Set(CINEMA2_ATL_HOE_ROLES))
   })
 
-  it('ships every semantic mesh with six scalar attributes matching its vertex count', () => {
+  it('ships every semantic mesh with seven scalar attributes matching its vertex count', () => {
     const asset = readGlb()
     const gltf = asset.json
     const meshByName = new Map(gltf.meshes.map(mesh => [mesh.name, mesh]))
@@ -63,10 +73,50 @@ describe('ATL HOE semantic lighting topology', () => {
       const ranges: Record<string, readonly [number, number, boolean]> = {
         _ATL_ROLE: [expectedRole, expectedRole, true], _ATL_ZONE: [0, 6, true], _ATL_ROUTE: [0, 7, true],
         _ATL_PHASE: [0, 1, false], _ATL_LEVEL: [0, 1, false], _ATL_RANDOM: [0, 1, false],
+        _ATL_LANDMARK: [0, 6, true],
       }
       for (const [name, [minimum, maximum, integer]] of Object.entries(ranges)) {
         expect(validateScalarRange(asset, primitive!.attributes[name]!, minimum, maximum, integer), `${part} ${name}`).toBeNull()
       }
+    }
+  })
+
+  it('gives hero buildings two-dimensional identity and gives road fixtures independent routes', () => {
+    const asset = readGlb()
+    const meshByName = new Map(asset.json.meshes.map(mesh => [mesh.name, mesh]))
+    const collect = (parts: readonly string[], attribute: keyof typeof CINEMA2_ATL_HOE_ATTRIBUTE_NAMES) => parts.flatMap(part => {
+      const accessor = meshByName.get(part)?.primitives[0]?.attributes[CINEMA2_ATL_HOE_ATTRIBUTE_NAMES[attribute].toUpperCase()]
+      return accessor == null ? [] : readScalars(asset, accessor)
+    })
+    const windowParts = Object.entries(CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES).filter(([, role]) => role === 'windows').map(([part]) => part)
+    const landmarks = collect(windowParts, 'landmark')
+    const phases = collect(windowParts, 'phase')
+    const levels = collect(windowParts, 'level')
+    for (const landmark of [1, 2, 3]) {
+      const horizontal = new Set(phases.filter((_, index) => landmarks[index] === landmark).map(value => value.toFixed(3)))
+      const vertical = new Set(levels.filter((_, index) => landmarks[index] === landmark).map(value => value.toFixed(3)))
+      expect(horizontal.size, `landmark ${landmark} horizontal columns`).toBeGreaterThanOrEqual(3)
+      expect(vertical.size, `landmark ${landmark} vertical rows`).toBeGreaterThanOrEqual(3)
+    }
+    const streetParts = Object.entries(CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES).filter(([, role]) => role === 'streetlight').map(([part]) => part)
+    expect(new Set(collect(streetParts, 'route')).size).toBeGreaterThanOrEqual(4)
+    expect(new Set(collect(['roadGlow'], 'route')).size).toBe(8)
+  })
+
+  it('stores a stable bolt identity and top-to-bottom branch phase in the shipped asset', () => {
+    const asset = readGlb()
+    const meshByName = new Map(asset.json.meshes.map(mesh => [mesh.name, mesh]))
+    for (let index = 0; index < 12; index += 1) {
+      const parts = [`bolt${String(index).padStart(2, '0')}`, `bolt${String(index).padStart(2, '0')}Top`]
+      const read = (part: string, attribute: keyof typeof CINEMA2_ATL_HOE_ATTRIBUTE_NAMES) => {
+        const accessor = meshByName.get(part)?.primitives[0]?.attributes[CINEMA2_ATL_HOE_ATTRIBUTE_NAMES[attribute].toUpperCase()]
+        return accessor == null ? [] : readScalars(asset, accessor)
+      }
+      for (const part of parts) {
+        expect(new Set(read(part, 'random').map(value => value.toFixed(5)))).toEqual(new Set([(index / 11).toFixed(5)]))
+      }
+      const phases = parts.flatMap(part => read(part, 'phase'))
+      expect(Math.max(...phases) - Math.min(...phases), `bolt ${index} branch progression`).toBeGreaterThan(0.45)
     }
   })
 })

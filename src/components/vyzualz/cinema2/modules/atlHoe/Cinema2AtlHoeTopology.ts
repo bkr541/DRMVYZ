@@ -7,6 +7,7 @@ export const CINEMA2_ATL_HOE_ATTRIBUTE_NAMES = Object.freeze({
   phase: '_atl_phase',
   level: '_atl_level',
   random: '_atl_random',
+  landmark: '_atl_landmark',
 })
 
 export const CINEMA2_ATL_HOE_ROLES = Object.freeze([
@@ -27,6 +28,7 @@ export type Cinema2AtlHoeLandmark = typeof CINEMA2_ATL_HOE_LANDMARKS[number]
 export const CINEMA2_ATL_HOE_ROUTE_COUNT = 8
 
 export const cinema2AtlHoeRoleCode = (role: Cinema2AtlHoeRole): number => CINEMA2_ATL_HOE_ROLES.indexOf(role)
+export const cinema2AtlHoeLandmarkCode = (landmark: Cinema2AtlHoeLandmark): number => CINEMA2_ATL_HOE_LANDMARKS.indexOf(landmark)
 
 const entries = <T extends Cinema2AtlHoeRole>(role: T, names: readonly string[]) => names.map(name => [name, role] as const)
 
@@ -48,7 +50,7 @@ export const CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES: Readonly<Record<string, Cinema
   ...entries('atmosphere', [...atlHoeParts.skySurfaces, ...atlHoeParts.skyBands]),
 ]))
 
-export const CINEMA2_ATL_HOE_TOPOLOGY_DIAGNOSTICS = Object.freeze(['off', 'role', 'zone', 'route', 'phase', 'level', 'random'] as const)
+export const CINEMA2_ATL_HOE_TOPOLOGY_DIAGNOSTICS = Object.freeze(['off', 'role', 'zone', 'route', 'phase', 'level', 'random', 'landmark'] as const)
 export type Cinema2AtlHoeTopologyDiagnostic = typeof CINEMA2_ATL_HOE_TOPOLOGY_DIAGNOSTICS[number]
 
 export const cinema2AtlHoeDiagnosticCode = (diagnostic: Cinema2AtlHoeTopologyDiagnostic): number =>

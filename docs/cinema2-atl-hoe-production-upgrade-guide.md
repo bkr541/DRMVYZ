@@ -1,6 +1,7 @@
 # ATL HOE: Production Complexity Upgrade Guide
 
-**Status:** Proposed implementation guide and checklist  
+**Status:** In progress — fixes 1–6 implemented and focused validation complete
+
 **Scope:** Upgrade the existing Cinema 2.0 `ATL HOE` preset without replacing its approved Atlanta/Waffle House art direction.  
 **Order:** The ten work packages below are dependency ordered. Do not begin a later package until the preceding package's acceptance gate passes.
 
@@ -138,6 +139,7 @@ Replace the current four sign-centric brightness sequences with six programs tha
 - [x] Each program defines a rest state, active state, buildup state, drop state, and recovery state.
 - [x] Each program preserves deliberate dark regions and focal hierarchy.
 - [x] Pattern changes crossfade without a black frame or global white flash.
+- [x] Active emitters retain at least their authored visibility and routed accents rise above it instead of compounding selector values into near-black output.
 
 ### Acceptance gate
 
@@ -178,12 +180,12 @@ Make the skyline, road, lamps, crowns, and foreground accents as musically meani
 
 ### Checklist
 
-- [ ] At least three hero buildings have independent vertical and horizontal choreography.
-- [ ] Streetlights animate individually or in topology-aware routes.
-- [ ] Road lighting participates in at least three programs.
-- [ ] Crowns and spires do more than flash together on downbeats.
-- [ ] The sign is not the only readable reactive object at Stage size.
-- [ ] City behavior remains spatially coherent at narrow and 16:9 aspects.
+- [x] At least three hero buildings have independent vertical and horizontal choreography.
+- [x] Streetlights animate individually or in topology-aware routes.
+- [x] Road lighting participates in at least three programs.
+- [x] Crowns and spires do more than flash together on downbeats.
+- [x] The sign is not the only readable reactive object at Stage size.
+- [x] City behavior remains spatially coherent at narrow and 16:9 aspects.
 
 ### Acceptance gate
 
@@ -225,16 +227,20 @@ When an emitter becomes bright, nearby geometry and atmosphere must respond so t
 
 ### Checklist
 
-- [ ] Bright sign events visibly affect the cabinet, supports, nearby foliage, and haze.
-- [ ] Road-lamp events create localized pools rather than only glowing lamp meshes.
-- [ ] Crown and lightning events affect the skyline atmosphere without washing out the sign lettering.
-- [ ] Drop afterglow persists after emitters begin to decay.
-- [ ] HDR peaks retain color and detail instead of clipping to uniform white.
-- [ ] Low quality retains a simplified but coherent spill response.
+- [x] Bright sign events visibly affect the cabinet, supports, nearby foliage, and haze.
+- [x] Road-lamp events create localized pools rather than only glowing lamp meshes.
+- [x] Crown and lightning events affect the skyline atmosphere without washing out the sign lettering.
+- [x] Drop afterglow persists after emitters begin to decay.
+- [x] HDR peaks retain color and detail instead of clipping to uniform white.
+- [x] Low quality retains a simplified but coherent spill response.
 
 ### Acceptance gate
 
 Compare emissive-only and full-lighting diagnostic captures. The full-lighting version must show clear, localized environmental response while preserving readable letters, windows, and skyline silhouettes.
+
+Implementation record (2026-10-14): `Cinema2AtlHoeLighting.ts` now produces independent sign, three-zone city, two-zone road, crown, foliage, fog, and recovery-afterglow channels. `Cinema2ThreeSceneBridge.ts` maps those channels to an eight-member fixed point-light pool, reduced to six lights on medium and three on low, with bounded exponential-fog modulation. `Cinema2AtlHoeDesign.ts` adds restrained energy modulation plus an impact/hold/afterglow/return envelope across volumetrics, bloom, and exposure. The sign's authored spot supplies tier-budgeted shadows for the cabinet/letter/road/foliage receiver set.
+
+Focused validation: 58 ATL HOE/PBR tests passed, including independent spill routing, recovery persistence, tier limits, and Master Intensity shutdown. The deterministic high-quality capture at `artifacts/cinema2-atl-hoe-visual-acceptance/run-am5yj9/before-primary-16x9-high.png` retains readable dark letters and distinct amber/cyan skyline detail (`p99` luma `0.8482`, maximum `0.9949`) while the cabinet, city, road, and foliage remain spatially separated.
 
 ---
 
@@ -269,14 +275,14 @@ Bring ATL HOE to the standard Cinema 2.0 performance workflow used by Mainframe 
 
 ### Checklist
 
-- [ ] Auto Performance appears in Master Controls and defaults to an approved value.
-- [ ] Pattern lists exactly six programs.
-- [ ] Pattern Change exposes Trigger only while enabled.
-- [ ] Manual Pattern edits disable Auto Performance.
-- [ ] Pattern Change and Auto Performance cannot fight for ownership.
-- [ ] Trigger delivery is deduplicated.
-- [ ] Seeking and changing tracks clear stale pattern/drop state.
-- [ ] Program changes crossfade and never immediately repeat in automatic cycles.
+- [x] Auto Performance appears in Master Controls and defaults to an approved value.
+- [x] Pattern lists exactly six programs.
+- [x] Pattern Change exposes Trigger only while enabled.
+- [x] Manual Pattern edits disable Auto Performance.
+- [x] Pattern Change and Auto Performance cannot fight for ownership.
+- [x] Trigger delivery is deduplicated.
+- [x] Seeking and changing tracks clear stale pattern/drop state.
+- [x] Program changes crossfade and never immediately repeat in automatic cycles.
 
 ### Acceptance gate
 
@@ -315,12 +321,12 @@ Remove the conceptual split where Sign Pattern and Sky Pattern operate as unrela
 
 ### Checklist
 
-- [ ] Every program defines a sky state.
-- [ ] Sky events are spatially coordinated with city zones.
-- [ ] Lightning grows along its authored path rather than appearing as one flat object.
-- [ ] Storm Takeover changes sign, city, road, atmosphere, and sky together.
-- [ ] Calm programs preserve negative space and do not keep the sky constantly active.
-- [ ] A manual sky override, if retained, has clear ownership and reset behavior.
+- [x] Every program defines a sky state.
+- [x] Sky events are spatially coordinated with city zones.
+- [x] Lightning grows along its authored path rather than appearing as one flat object.
+- [x] Storm Takeover changes sign, city, road, atmosphere, and sky together.
+- [x] Calm programs preserve negative space and do not keep the sky constantly active.
+- [x] The disconnected manual sky override was removed, leaving one unambiguous program owner.
 
 ### Acceptance gate
 
@@ -522,16 +528,16 @@ The upgrade is complete only after the production gate passes and the owner appr
 
 - [x] 1. Semantic topology is embedded, validated, and used by the GPU lighting path.
 - [x] 2. Six distinct full-scene programs replace the four brightness variations.
-- [ ] 3. The city independently performs without relying on the sign.
-- [ ] 4. Reactive emitters reshape surrounding light, haze, and surfaces.
-- [ ] 5. Auto Performance, Pattern Change, and Trigger work with deterministic ownership.
-- [ ] 6. Sky behavior is integrated into every full-scene program.
+- [x] 3. The city independently performs without relying on the sign.
+- [x] 4. Reactive emitters reshape surrounding light, haze, and surfaces.
+- [x] 5. Auto Performance, Pattern Change, and Trigger work with deterministic ownership.
+- [x] 6. Sky behavior is integrated into every full-scene program.
 - [ ] 7. Full shared Audio Intelligence drives independent component responsibilities.
 - [ ] 8. Restrained, safe motion is visible in the authored default.
 - [ ] 9. Screen-resolvable detail and material hierarchy meet the approved density target.
 - [ ] 10. Real-track tuning and the production acceptance gate pass.
 - [x] Focused tests pass after each package.
-- [ ] Asset manifests and documentation are updated after regeneration.
+- [x] Asset manifests and documentation are updated after regeneration.
 - [x] Final diff is reviewed for unrelated changes.
 - [ ] Final implementation is committed only when requested.
 

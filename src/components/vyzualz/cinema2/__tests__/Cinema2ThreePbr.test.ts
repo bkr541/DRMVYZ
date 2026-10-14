@@ -13,14 +13,17 @@ import {
 } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import {
   CINEMA2_THREE_DEFAULT_OVERRIDES,
+  CINEMA2_THREE_ATL_HOE_LIGHT_LIMITS,
   CINEMA2_THREE_PANEL_LIMITS,
   Cinema2ThreeSceneBridge,
   type Cinema2ThreeMaterialOverrides,
+  type Cinema2ThreeAtlHoeLightSpec,
   type Cinema2ThreePanelSpec,
 } from '../modules/three/Cinema2ThreeSceneBridge'
 import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from '../presets/Cinema2ThreeModelReferencePreset'
 import { createCinema2MainframeLightingDiagnosticFrame } from '../modules/mainframe/Cinema2MainframeLightingDiagnostic'
 import { CINEMA2_ATL_HOE_ATTRIBUTE_NAMES } from '../modules/atlHoe/Cinema2AtlHoeTopology'
+import { evaluateCinema2AtlHoePattern } from '../modules/atlHoe/Cinema2AtlHoePatternEngine'
 
 // The bridge talks to a real (shared) Three renderer; for these tests it gets a stand-in host so real Three scene objects can be inspected without a GPU.
 const host = vi.hoisted(() => ({
@@ -59,13 +62,17 @@ function loadedAsset() {
 const PANELS: Cinema2ThreePanelSpec[] = [0, 1, 2, 3, 4].map(index => ({
   position: [index, 4, 6], target: [0, 1, 0], width: 4, height: 3, color: [1, 0.5, 0.25], intensity: 2 + index,
 }))
+const ATL_HOE_LIGHTS: Cinema2ThreeAtlHoeLightSpec[] = [
+  ['sign-spill', 'sign-spill'], ['city-center', 'city-center'], ['road-left', 'road-left'], ['city-left', 'city-left'],
+  ['road-right', 'road-right'], ['city-right', 'city-right'], ['crown-flash', 'crown-flash'], ['foliage-rim', 'foliage-rim'],
+].map(([id, role], index) => ({ id: id!, role: role as Cinema2ThreeAtlHoeLightSpec['role'], position: [index, 2, -4], color: [1, 0.4, 0.1], range: 10, intensity: 0.5 }))
 
 function execution(quality: 'low' | 'medium' | 'high', exposure = 1): Cinema2ModuleRenderExecutionContext {
   const projection = new THREE.Matrix4().makePerspective(-0.5, 0.5, 0.3, -0.3, 0.1, 50)
   return {
     frame: {} as never, target: {} as WebGLFramebuffer, width: 64, height: 36, depthAvailable: true, spatialNodes: [],
     camera: { projectionMatrix: projection.toArray(), viewMatrix: new THREE.Matrix4().toArray(), near: 0.1, far: 50 } as never,
-    lightingEnvironment: { quality, lights: [], omittedLightCount: 0, environment: { exposure } } as never,
+    lightingEnvironment: { quality, lights: [], omittedLightCount: 0, environment: { exposure, fog: { mode: 'exponential', color: [0.03, 0.06, 0.1, 1], density: 0.011, near: 0, far: 50 } } } as never,
   }
 }
 
@@ -137,6 +144,13 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
     expect(codes({ atlHoe: { signFace00: 'billboard' } })).toEqual(['CINEMA2_THREE_SCENE_ATL_HOE_INVALID'])
   })
 
+  it('accepts the bounded ATL HOE spill-light topology and rejects invalid roles or oversized pools', () => {
+    expect(codes({ atlHoeLights: ATL_HOE_LIGHTS })).toEqual([])
+    expect(codes({ atlHoeLights: [{ ...ATL_HOE_LIGHTS[0], role: 'window' }] })).toEqual(['CINEMA2_THREE_SCENE_ATL_HOE_LIGHTS_INVALID'])
+    expect(codes({ atlHoeLights: [...ATL_HOE_LIGHTS, ATL_HOE_LIGHTS[0]] })).toEqual(['CINEMA2_THREE_SCENE_ATL_HOE_LIGHTS_INVALID'])
+    expect(CINEMA2_THREE_ATL_HOE_LIGHT_LIMITS).toEqual({ low: 3, medium: 6, high: 8 })
+  })
+
   it('rejects unknown environments and malformed panels', () => {
     expect(codes({ environment: 'nope' })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
     expect(codes({ environment: 7 })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
@@ -156,12 +170,30 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
 })
 
 describe('Cinema 2.0 Three bridge PBR', () => {
+  it('turns ATL HOE program channels into localized, tier-bounded spill lights and reactive fog', async () => {
+    const { bridge, scene } = await readyBridge({ atlHoeLights: ATL_HOE_LIGHTS }, 'high')
+    const patternFrame = evaluateCinema2AtlHoePattern({
+      pattern: 'storm-takeover', beats: 24, stage: 'drop',
+      signals: { energy: 0.8, sub: 0.7, bass: 0.9, mid: 0.6, high: 0.75, flux: 0.7, kick: 1, snare: 0.7, transient: 0.85, downbeat: 1, phrase: 0.5, build: 0, drop: 1 },
+    })
+    bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'off', patternFrame })
+    const lights = scene.children.filter((object): object is THREE.PointLight => object instanceof THREE.PointLight && object.name.startsWith('cinema2-atl-hoe-light:'))
+    expect(lights).toHaveLength(8)
+    expect(lights.filter(light => light.visible)).toHaveLength(8)
+    expect(lights.every(light => light.intensity > 0)).toBe(true)
+    expect((scene.fog as THREE.FogExp2).density).toBeGreaterThan(0.01)
+    bridge.draw(execution('low'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'off', patternFrame })
+    expect(lights.filter(light => light.visible)).toHaveLength(3)
+    bridge.draw(execution('low'), overrides(), 0, null, null, null, null, { strength: 0, diagnostic: 'off', patternFrame })
+    expect(lights.every(light => light.intensity === 0)).toBe(true)
+  })
+
   it('binds ATL HOE topology diagnostics while strength zero preserves authored emission', () => {
     const scene = new THREE.Group()
     const geometry = new THREE.BoxGeometry(1, 1, 1)
     const count = geometry.getAttribute('position').count
     const values = {
-      role: 0, zone: 3, route: 4, phase: 0.5, level: 0.25, random: 0.75,
+      role: 0, zone: 3, route: 4, phase: 0.5, level: 0.25, random: 0.75, landmark: 0,
     }
     for (const [key, name] of Object.entries(CINEMA2_ATL_HOE_ATTRIBUTE_NAMES)) {
       geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(count).fill(values[key as keyof typeof values]), 1))
@@ -183,13 +215,32 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     }
     owned.onBeforeCompile(shader as never, undefined as never)
     expect(shader.vertexShader).toContain('vCinema2AtlMeta0 = vec3( _atl_role, _atl_zone, _atl_route )')
+    expect(shader.vertexShader).toContain('vCinema2AtlLandmark = _atl_landmark')
     expect(shader.fragmentShader).toContain('uniform vec4 uCinema2AtlRole0')
+    expect(shader.fragmentShader).toContain('uniform vec4 uCinema2AtlHeroVerticalFronts')
+    expect(shader.fragmentShader).toContain('uniform vec4 uCinema2AtlBoltProgress')
+    expect(shader.fragmentShader).toContain('step( vCinema2AtlMeta1.x, cinema2AtlPick4( uCinema2AtlBoltProgress')
+    expect(shader.fragmentShader).toContain('float cinema2AtlCitySurface')
     expect(shader.fragmentShader).toContain('float cinema2AtlPatternGain')
+    expect(shader.fragmentShader).toContain('float cinema2AtlBaseLight = 0.28 + 1.25 * cinema2AtlRoleGain + 0.48 * cinema2AtlZoneGain')
+    expect(shader.fragmentShader).toContain('float cinema2AtlAccentLight = 1.4 * cinema2AtlMotionAccent')
+    expect(shader.fragmentShader).not.toContain('cinema2AtlRoleGain * ( 0.28 + 0.72 * cinema2AtlZoneGain )')
     expect(shader.fragmentShader).toContain('mix( totalEmissiveRadiance')
     expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(0)
-    bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'route' })
+    const patternFrame = evaluateCinema2AtlHoePattern({
+      pattern: 'skyline-rise', beats: 12.5, stage: 'active',
+      signals: { energy: 0.6, sub: 0.7, bass: 0.72, mid: 0.8, high: 0.64, flux: 0.5, kick: 0.75, snare: 0.55, transient: 0.62, downbeat: 0.7, phrase: 0.5, build: 0.4, drop: 0 },
+    })
+    bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'route', patternFrame })
     expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(1)
     expect(shader.uniforms.uCinema2AtlHoeDiagnostic?.value).toBe(3)
+    expect((shader.uniforms.uCinema2AtlHeroGains?.value as THREE.Vector4).toArray()).toEqual([...patternFrame.city.heroGains])
+    expect((shader.uniforms.uCinema2AtlCity0?.value as THREE.Vector4).toArray()).toEqual([
+      patternFrame.city.streetlightFront, patternFrame.city.streetlightWidth, patternFrame.city.streetlightGain, patternFrame.city.roadFront,
+    ])
+    expect((shader.uniforms.uCinema2AtlSky0?.value as THREE.Vector4).toArray()).toEqual([
+      patternFrame.sky.gradientGain, patternFrame.sky.starDensity, patternFrame.sky.starBrightness, patternFrame.sky.stormDarkness,
+    ])
   })
 
   it('rejects missing and out-of-range ATL HOE topology attributes', () => {

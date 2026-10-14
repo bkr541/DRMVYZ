@@ -11,14 +11,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/atl-hoe.glb",
-        "bytes": 4388788,
-        "triangles": 74473
+        "bytes": 6580492,
+        "triangles": 75409
       }
     },
     "gpuBytes": {
-      "high": 4250988,
-      "medium": 4250988,
-      "low": 4250988
+      "high": 6318204,
+      "medium": 6318204,
+      "low": 6318204
     }
   },
   {
