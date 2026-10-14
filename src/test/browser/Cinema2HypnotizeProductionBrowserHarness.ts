@@ -1,13 +1,14 @@
 /** Deterministic static capture surface for the real Cinema 2.0 Hypnotize production path. */
 import type { Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { CINEMA2_HYPNOTIZE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2HypnotizePreset'
-import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
+import { Cinema2Runtime, getCinema2RuntimeDiagnostics } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { AudioFeatureBus } from '../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
 
 interface HypnotizeProductionApi {
   prepare(): Promise<unknown>
   status(): unknown
+  dispose(): unknown
 }
 
 declare global {
@@ -22,6 +23,7 @@ const requestedQuality = query.get('quality')
 const quality: Cinema2RenderQualityLevel = requestedQuality === 'low' || requestedQuality === 'medium' ? requestedQuality : 'high'
 const energy = clamp(Number(query.get('energy') ?? 0.56), 0, 1)
 const bass = clamp(Number(query.get('bass') ?? 0.65), 0, 1)
+const bpm = clamp(Number(query.get('bpm') ?? 120), 40, 240)
 const captureTimeSec = Math.max(0, Number(query.get('timeSec') ?? 2.4) || 0)
 const scenario = query.get('scenario') ?? 'steady'
 const sourcePresent = scenario !== 'idle'
@@ -37,7 +39,7 @@ let previousBeat = -1
 const publishAudio = (nextTimestampMs: number) => {
   if (!sourcePresent) return
   const timeSec = nextTimestampMs / 1000
-  const beatPosition = timeSec * 2
+  const beatPosition = timeSec * bpm / 60
   const beatIndex = Math.floor(beatPosition)
   const beatChanged = beatIndex !== previousBeat
   const beatInBar = ((beatIndex % 4) + 4) % 4
@@ -57,8 +59,8 @@ const publishAudio = (nextTimestampMs: number) => {
     },
     rhythm: {
       ...DEFAULT_MI_FRAME.rhythm,
-      bpm: 120, bpmConfidence: 0.96, bpmSource: 'offline_analysis', beatPhase: beatPosition - beatIndex,
-      beatHit: beatChanged, beatIndex, beatEventId: beatIndex, beatEventTimeSec: beatIndex / 2,
+      bpm, bpmConfidence: 0.96, bpmSource: 'offline_analysis', beatPhase: beatPosition - beatIndex,
+      beatHit: beatChanged, beatIndex, beatEventId: beatIndex, beatEventTimeSec: beatIndex / (bpm / 60),
       beatInBar, barIndex: Math.floor(beatIndex / 4), downbeatHit: beatChanged && beatInBar === 0,
       kickHit: beatChanged && beatInBar % 2 === 0, kickStrength: beatChanged && beatInBar % 2 === 0 ? bass : 0,
       snareHit: beatChanged && beatInBar % 2 === 1, snareStrength: beatChanged && beatInBar % 2 === 1 ? energy * 0.9 : 0,
@@ -119,7 +121,7 @@ const created = Cinema2Runtime.create(canvas, {
   diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: 'hypnotize-phase-b-static' },
   transportSource: {
-    getState: () => ({ sourcePresent, playing: sourcePresent, analysisActive: sourcePresent, paused: !sourcePresent, trackId: sourcePresent ? 'hypnotize-phase-d-fixture' : null, timeSec: timestampMs / 1000, bpm: sourcePresent ? 120 : null }),
+    getState: () => ({ sourcePresent, playing: sourcePresent, analysisActive: sourcePresent, paused: !sourcePresent, trackId: sourcePresent ? 'hypnotize-phase-d-fixture' : null, timeSec: timestampMs / 1000, bpm: sourcePresent ? bpm : null }),
   },
 })
 if (!created.runtime) throw new Error(created.error)
@@ -150,6 +152,7 @@ function status() {
     effects: runtime.getEffectRuntimeSnapshot(),
     performance: runtime.getPerformanceSnapshot(),
     camera: runtime.getCameraRuntimeSnapshot().camera,
+    parameters: runtime.getParameterState().getSnapshot(),
   })
 }
 
@@ -179,7 +182,16 @@ async function prepare(): Promise<unknown> {
   return pending
 }
 
-window.__hypnotizeProduction = Object.freeze({ prepare, status })
+function dispose(): unknown {
+  runtime.dispose()
+  return Object.freeze({
+    snapshot: runtime.getSnapshot(),
+    diagnostics: getCinema2RuntimeDiagnostics(),
+    resources: runtime.getResourceManagerSnapshot(),
+  })
+}
+
+window.__hypnotizeProduction = Object.freeze({ prepare, status, dispose })
 addEventListener('beforeunload', () => runtime.dispose(), { once: true })
 
 function clamp(value: number, min: number, max: number): number {

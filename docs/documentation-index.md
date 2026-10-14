@@ -36,7 +36,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema/07-webgl-runtime-and-render-target-pool.md` | Cinema single-owner WebGL runtime, target pool, texture handles, and context recovery |
 | `docs/cinema/stage-23-retire-legacy-engine-identities.md` | Current Cinema public-engine retirement, legacy restore aliases, and remaining adapter debt |
 | `docs/cinema2-say-it-preset-plan.md` | Current architecture, scope and staged implementation plan for the Cinema 2.0 SAY IT kinetic-type keeper preset |
-| `docs/cinema2-hypnotize-phase-a.md` | Hypnotize Phase A specification, Phase B Three.js environment, Phase C choreography, and Phase D cinematic-polish and production-acceptance record |
+| `docs/cinema2-hypnotize-phase-a.md` | Hypnotize Phase A specification, Phase B Three.js environment, Phase C choreography, Phase D cinematic polish, and final technical-acceptance record |
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |
 | `docs/cinema2-sixfold.md` | Sixfold recursive mirror chamber geometry, materials, controls, lifecycle, capture harness, and Phase C boundary |
 | `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |

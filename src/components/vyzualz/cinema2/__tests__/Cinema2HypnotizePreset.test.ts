@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { CINEMA2_HYPNOTIZE_STATIC_COUNTS } from '../modules/hypnotize/Cinema2HypnotizeGeometry'
 import {
+  CINEMA2_HYPNOTIZE_ALTERNATING_LED_PATTERNS,
+  CINEMA2_HYPNOTIZE_MAJOR_IMPACT_THRESHOLD,
   CINEMA2_HYPNOTIZE_PATTERN_PROFILES,
   Cinema2HypnotizePatternEngine,
   resolveCinema2HypnotizeLedDrive,
+  resolveCinema2HypnotizeLedPowerGatingEnabled,
 } from '../modules/hypnotize/Cinema2HypnotizePatternEngine'
 import { CINEMA2_HYPNOTIZE_NATIVE_MODULE_TYPE_ID, CINEMA2_HYPNOTIZE_PATTERNS } from '../modules/Cinema2HypnotizeNativeModule'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
@@ -14,6 +17,7 @@ import {
   CINEMA2_HYPNOTIZE_COUNTER_ROTATION_ID,
   CINEMA2_HYPNOTIZE_FLASH_ACCENTS_ID,
   CINEMA2_HYPNOTIZE_INTENSITY_ID,
+  CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID,
   CINEMA2_HYPNOTIZE_PATTERN_CHANGE_ID,
   CINEMA2_HYPNOTIZE_PATTERN_ID,
   CINEMA2_HYPNOTIZE_PRESET_ID,
@@ -24,6 +28,7 @@ import {
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
+import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 
 const CAPABILITIES = Object.freeze(['render.webgl2', 'render.depth', 'render.history', 'scene.3d', 'camera.world'] as const)
 
@@ -49,6 +54,12 @@ describe('Cinema 2.0 Hypnotize Phase D preset', () => {
     expect(byId(CINEMA2_HYPNOTIZE_COUNTER_ROTATION_ID)).toMatchObject({ type: 'float', designParentGroup: 'design' })
     expect(byId(CINEMA2_HYPNOTIZE_TRAVEL_ID)).toMatchObject({ type: 'float', designParentGroup: 'design' })
     expect(byId(CINEMA2_HYPNOTIZE_FLASH_ACCENTS_ID)).toMatchObject({ type: 'enum', designParentGroup: 'master-controls' })
+    expect(byId(CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID)).toMatchObject({
+      type: 'boolean',
+      defaultValue: false,
+      designParentGroup: 'effects',
+      label: 'Drop / Impact LED Gating',
+    })
     expect(parameters.find(parameter => parameter.label === 'LED Intensity')).toMatchObject({ defaultValue: 2.1 })
     expect(parameters.find(parameter => parameter.label === 'LED Bloom')).toMatchObject({ defaultValue: 1.45 })
     expect(parameters.filter(parameter => parameter.designParentGroup === 'palette' && parameter.type === 'color').map(parameter => parameter.label)).toEqual([
@@ -113,14 +124,88 @@ describe('Cinema 2.0 Hypnotize Phase D preset', () => {
       phraseAccent: 0.12,
       dropAccent: 0.05,
     }
-    const signatures = CINEMA2_HYPNOTIZE_PATTERNS.map(pattern => addresses.map(address => Number(resolveCinema2HypnotizeLedDrive({
+    const signatures = CINEMA2_HYPNOTIZE_PATTERNS.map(pattern => [5.35, 5.6, 5.85].flatMap(beats => addresses.map(address => Number(resolveCinema2HypnotizeLedDrive({
       pattern,
       previousPattern: pattern,
       transition: 1,
-      beats: 5.35,
+      beats,
       profile: CINEMA2_HYPNOTIZE_PATTERN_PROFILES[pattern],
-    }, address, signals).toFixed(4))).join(','))
+    }, address, signals).toFixed(4)))).join(','))
     expect(new Set(signatures).size).toBe(6)
+  })
+
+  it('uses sporadic, non-paired ON/OFF choreography across collar and exterior LEDs in three patterns', () => {
+    const signals = {
+      overallEnergy: 0.64,
+      bassPressure: 0.71,
+      highsAmount: 0.48,
+      fluxAmount: 0.36,
+      kickAccent: 0.22,
+      snareAccent: 0.16,
+      downbeatAccent: 0.1,
+      phraseAccent: 0.08,
+      dropAccent: 0.05,
+    }
+    const addresses = [
+      ...Array.from({ length: 8 }, (_, layer) => Array.from({ length: 12 }, (_, sector) => {
+        const segmentCount = layer % 2 === 0 || layer === 1 || layer === 3 ? 3 : layer === 5 ? 2 : 4
+        return Array.from({ length: segmentCount }, (_, segment) => ({ family: 'collar' as const, layer, sector, segment }))
+      }).flat()).flat(),
+      ...Array.from({ length: 16 }, (_, sector) => Array.from({ length: 12 }, (_, segment) => ({ family: 'exterior' as const, layer: 8, sector, segment }))).flat(),
+    ]
+    expect(addresses).toHaveLength(CINEMA2_HYPNOTIZE_STATIC_COUNTS.addressableLedSegments)
+
+    for (const pattern of CINEMA2_HYPNOTIZE_ALTERNATING_LED_PATTERNS) {
+      const profile = CINEMA2_HYPNOTIZE_PATTERN_PROFILES[pattern]
+      const signatures: string[] = []
+      const activeCounts: number[] = []
+      for (let step = 0; step < 8; step += 1) {
+        const drives = addresses.map(address => resolveCinema2HypnotizeLedDrive({
+          pattern,
+          previousPattern: pattern,
+          transition: 1,
+          beats: 4 + step * 0.25,
+          profile,
+        }, address, signals))
+        expect(drives.some(value => value === 0)).toBe(true)
+        expect(drives.some(value => value >= 0.72)).toBe(true)
+        signatures.push(drives.map(value => value === 0 ? '0' : '1').join(''))
+        activeCounts.push(drives.filter(value => value > 0).length)
+      }
+      expect(new Set(signatures).size).toBe(8)
+      expect(new Set(activeCounts).size).toBeGreaterThanOrEqual(5)
+
+      const exterior = signatures[0]!.slice(-192)
+      expect(exterior).toMatch(/010|101/)
+      expect(exterior).not.toMatch(/^(00|11)+$/)
+    }
+  })
+
+  it('restricts LED power masks to DROP sections and Major Impacts when the toggle is enabled', () => {
+    expect(resolveCinema2HypnotizeLedPowerGatingEnabled(false, 'verse', 0)).toBe(true)
+    expect(resolveCinema2HypnotizeLedPowerGatingEnabled(true, 'verse', CINEMA2_HYPNOTIZE_MAJOR_IMPACT_THRESHOLD - 0.01)).toBe(false)
+    expect(resolveCinema2HypnotizeLedPowerGatingEnabled(true, 'DROP', 0)).toBe(true)
+    expect(resolveCinema2HypnotizeLedPowerGatingEnabled(true, 'verse', CINEMA2_HYPNOTIZE_MAJOR_IMPACT_THRESHOLD)).toBe(true)
+
+    const pattern = 'blackIris' as const
+    const profile = CINEMA2_HYPNOTIZE_PATTERN_PROFILES[pattern]
+    const signals = {
+      overallEnergy: 0.62,
+      bassPressure: 0.7,
+      highsAmount: 0.5,
+      fluxAmount: 0.35,
+      kickAccent: 0.2,
+      snareAccent: 0.15,
+      downbeatAccent: 0.1,
+      phraseAccent: 0.08,
+      dropAccent: 0,
+    }
+    const frame = { pattern, previousPattern: pattern, transition: 1, beats: 4, profile }
+    const addresses = Array.from({ length: 12 }, (_, segment) => ({ family: 'exterior' as const, layer: 8, sector: 3, segment }))
+    const activeMask = addresses.map(address => resolveCinema2HypnotizeLedDrive(frame, address, signals, true))
+    const restingMask = addresses.map(address => resolveCinema2HypnotizeLedDrive(frame, address, signals, false))
+    expect(activeMask.some(value => value === 0)).toBe(true)
+    expect(restingMask.every(value => value >= 0.72)).toBe(true)
   })
 
   it('crossfades manual changes and advances deterministic Pattern Change events', () => {
@@ -147,5 +232,59 @@ describe('Cinema 2.0 Hypnotize Phase D preset', () => {
     expect(engine.update(base).pattern).toBe('mesmericOrbit')
     expect(engine.update({ ...base, authoredPattern: 'turbineBloom' }).pattern).toBe('turbineBloom')
     expect(engine.update({ ...base, authoredPattern: 'turbineBloom', patternChange: true, triggerEventId: 'beat-8' }).pattern).toBe('chromaticRelay')
+  })
+
+  it('uses the shared BPM clock, freezes while paused, and resets deterministically after a seek', () => {
+    const input = {
+      authoredPattern: 'mesmericOrbit' as const,
+      patternChange: false,
+      autoPerformance: false,
+      trigger: 'beat',
+      triggerEventId: null,
+      triggerPulse: 0,
+      deltaTimeSec: 0.25,
+      animationActive: true,
+      bpmSync: true,
+      bpm: 90,
+      discontinuityGeneration: 0,
+      overallEnergy: 0.5,
+      vocalPresence: 0,
+      directorIntensity: 0.5,
+      directorMomentum: 0.5,
+      buildAmount: 0,
+      dropAccent: 0,
+    }
+    const synced = new Cinema2HypnotizePatternEngine()
+    const free = new Cinema2HypnotizePatternEngine()
+    synced.update(input)
+    free.update({ ...input, bpmSync: false })
+    let syncedFrame = synced.update(input)
+    let freeFrame = free.update({ ...input, bpmSync: false })
+    for (let index = 0; index < 3; index += 1) {
+      syncedFrame = synced.update(input)
+      freeFrame = free.update({ ...input, bpmSync: false })
+    }
+    expect(syncedFrame.beats).toBeCloseTo(1.5)
+    expect(freeFrame.beats).toBeCloseTo(2)
+
+    const paused = synced.update({ ...input, deltaTimeSec: 1, animationActive: false })
+    expect(paused.beats).toBe(syncedFrame.beats)
+    expect(synced.update({ ...input, discontinuityGeneration: 1 }).beats).toBe(0)
+  })
+
+  it('round-trips saved controls and gives manual Pattern edits authority over Auto Performance', () => {
+    const compiled = compileCinema2NativePreset(CINEMA2_HYPNOTIZE_PRESET_MANIFEST, { availableCapabilities: CAPABILITIES })
+    if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => diagnostic.message).join('; '))
+    const current = new Cinema2ParameterState(compiled.plan.parameters)
+    expect(current.setPersistentValue(CINEMA2_HYPNOTIZE_AUTO_PERFORMANCE_ID, true)).toMatchObject({ ok: true })
+    expect(current.setPersistentValue(CINEMA2_HYPNOTIZE_PATTERN_ID, 'blackIris')).toMatchObject({ ok: true })
+    expect(current.getValue(CINEMA2_HYPNOTIZE_AUTO_PERFORMANCE_ID)).toBe(false)
+    expect(current.setPersistentValue(CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID, true)).toMatchObject({ ok: true })
+
+    const restored = new Cinema2ParameterState(compiled.plan.parameters)
+    expect(restored.restore(current.serialize())).toMatchObject({ ok: true })
+    expect(restored.getValue(CINEMA2_HYPNOTIZE_PATTERN_ID)).toBe('blackIris')
+    expect(restored.getValue(CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID)).toBe(true)
+    expect(restored.getValue(CINEMA2_HYPNOTIZE_AUTO_PERFORMANCE_ID)).toBe(false)
   })
 })

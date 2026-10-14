@@ -22,6 +22,7 @@ interface ExternalFramebufferRenderer {
 export interface Cinema2HypnotizeDrawState {
   readonly timeSeconds: number
   readonly patternFrame: Readonly<Cinema2HypnotizePatternFrame>
+  readonly ledPowerGatingEnabled: boolean
   readonly intensity: number
   readonly ringDensity: number
   readonly chamberRadius: number
@@ -269,26 +270,29 @@ export class Cinema2HypnotizeRenderer {
       dropAccent: state.dropAccent,
     }
     for (const led of this.rig.ledSegments) {
-      const drive = resolveCinema2HypnotizeLedDrive(pattern, led, ledSignals)
+      const drive = resolveCinema2HypnotizeLedDrive(pattern, led, ledSignals, state.ledPowerGatingEnabled)
+      const powered = drive > 0.001
       const source = led.colorRole === 'warm' ? warm : led.colorRole === 'spectrum' ? spectrum : cool
       setSrgb(led.material.color, source, THREE)
-      led.material.color.multiplyScalar(0.1 + Math.min(1, drive) * 0.16)
+      led.material.color.multiplyScalar(powered ? 0.08 + Math.min(1, drive) * 0.18 : 0.006)
       setSrgb(led.material.emissive, source, THREE)
       const authoredDrive = Math.pow(Math.min(1.4, drive), 1.55)
-      led.material.emissiveIntensity = (
+      led.material.emissiveIntensity = powered ? (
         3.1
         + state.coolGlow * 0.8
         + profile.ledBloom * 0.7
         + authoredDrive * 12.5
         + state.highsAmount * 1.2
-      ) * state.intensity * emissionGate
-      const segmentPulse = 1 + Math.min(1.4, drive) * 0.13 + state.kickAccent * state.pulseDepth * 0.035
+      ) * state.intensity * emissionGate : 0
+      const segmentPulse = powered
+        ? 1 + Math.min(1.4, drive) * 0.13 + state.kickAccent * state.pulseDepth * 0.035
+        : 0.96
       led.mesh.scale.set(
         led.baseScale[0] * segmentPulse,
         led.baseScale[1] * segmentPulse,
-        led.baseScale[2] * (1 + Math.min(1.4, drive) * 0.08),
+        led.baseScale[2] * (powered ? 1 + Math.min(1.4, drive) * 0.08 : 0.96),
       )
-      led.mesh.position.z = led.baseZ + Math.min(1.4, drive) * 0.045
+      led.mesh.position.z = led.baseZ + (powered ? Math.min(1.4, drive) * 0.045 : 0)
     }
 
     const quality = execution.lightingEnvironment.quality

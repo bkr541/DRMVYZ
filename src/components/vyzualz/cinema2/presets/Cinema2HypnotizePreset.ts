@@ -36,6 +36,7 @@ export const CINEMA2_HYPNOTIZE_FLASH_ACCENTS_ID = pid('flash-accents')
 export const CINEMA2_HYPNOTIZE_DROP_STRENGTH_ID = pid('drop-strength')
 export const CINEMA2_HYPNOTIZE_ATMOSPHERE_ID = pid('atmosphere')
 export const CINEMA2_HYPNOTIZE_CHROMATIC_SPLIT_ID = pid('chromatic-split')
+export const CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID = pid('impact-only-led-gating')
 
 const ROOT_ID = cinema2StableId<Cinema2SceneNodeId>('hypnotize-root')
 const KEY_TARGET_ID = cinema2StableId<Cinema2SceneNodeId>('hypnotize-key-target')
@@ -238,8 +239,19 @@ const parameters = Object.freeze([
     order: 6,
   }),
   floatControl(CINEMA2_HYPNOTIZE_DROP_STRENGTH_ID, 'Drop Strength', 'Caps collapse compression, discharge scale and afterglow.', 0.75, 0, 1, 0.01, 'effects', 'Performance', 1),
-  floatControl(CINEMA2_HYPNOTIZE_ATMOSPHERE_ID, 'Atmosphere', 'Controls depth haze without lifting the black structure.', 0.28, 0, 1, 0.01, 'effects', 'Post', 2),
-  floatControl(CINEMA2_HYPNOTIZE_CHROMATIC_SPLIT_ID, 'Chromatic Split', 'Controls bounded spectral separation at bright edges.', 0.006, 0, 0.025, 0.001, 'effects', 'Post', 3),
+  Object.freeze({
+    ...authoredControlBase,
+    id: CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID,
+    label: 'Drop / Impact LED Gating',
+    description: 'When enabled, individual LED ON/OFF masks run only during a DROP section or a Major Impact. LEDs remain continuously powered at all other times.',
+    type: 'boolean' as const,
+    defaultValue: false,
+    designParentGroup: 'effects' as const,
+    group: 'Performance',
+    order: 2,
+  }),
+  floatControl(CINEMA2_HYPNOTIZE_ATMOSPHERE_ID, 'Atmosphere', 'Controls depth haze without lifting the black structure.', 0.28, 0, 1, 0.01, 'effects', 'Post', 3),
+  floatControl(CINEMA2_HYPNOTIZE_CHROMATIC_SPLIT_ID, 'Chromatic Split', 'Controls bounded spectral separation at bright edges.', 0.006, 0, 0.025, 0.001, 'effects', 'Post', 4),
 ])
 
 const modules = Object.freeze((derived.modules ?? []).map(module => Object.freeze({
@@ -268,6 +280,7 @@ const modules = Object.freeze((derived.modules ?? []).map(module => Object.freez
     travel: 0.45,
     flashAccents: 'reduced',
     dropStrength: 0.75,
+    impactOnlyLedGating: false,
     overallEnergy: 0,
     bassPressure: 0,
     lowMidAmount: 0,
@@ -301,6 +314,7 @@ const modules = Object.freeze((derived.modules ?? []).map(module => Object.freez
     travel: cinema2Ref(CINEMA2_HYPNOTIZE_TRAVEL_ID),
     flashAccents: cinema2Ref(CINEMA2_HYPNOTIZE_FLASH_ACCENTS_ID),
     dropStrength: cinema2Ref(CINEMA2_HYPNOTIZE_DROP_STRENGTH_ID),
+    impactOnlyLedGating: cinema2Ref(CINEMA2_HYPNOTIZE_IMPACT_ONLY_LED_GATING_ID),
   }),
 })))
 
@@ -385,11 +399,11 @@ const lighting = Object.freeze({
 export const CINEMA2_HYPNOTIZE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   ...staticDerived,
   id: CINEMA2_HYPNOTIZE_PRESET_ID,
-  revision: 4,
+  revision: 7,
   metadata: Object.freeze({
     name: 'Hypnotize',
     description: 'A black optical engine of curved turbine vanes, braided conductors, filament membranes and an illuminated recursive shaft.',
-    tags: Object.freeze(['keeper', 'hypnotize', '3d', 'three-js', 'optical', 'turbine', 'tunnel', 'audio-reactive', 'choreography', 'phase-c', 'phase-d', 'cinematic-polish']),
+    tags: Object.freeze(['keeper', 'hypnotize', '3d', 'three-js', 'optical', 'turbine', 'tunnel', 'audio-reactive', 'choreography', 'phase-c', 'phase-d', 'cinematic-polish', 'sporadic-led-choreography', 'impact-only-led-gating']),
   }),
   capabilities: Object.freeze([
     ...(derived.capabilities ?? []).filter(capability => !capability.id.startsWith('audio.') && !capability.id.startsWith('music.') && capability.id !== 'visual-director.significance'),

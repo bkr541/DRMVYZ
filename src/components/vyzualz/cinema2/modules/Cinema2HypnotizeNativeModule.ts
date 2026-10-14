@@ -5,6 +5,7 @@ import { Cinema2HypnotizeRenderer, type Cinema2HypnotizeDrawState } from './hypn
 import {
   CINEMA2_HYPNOTIZE_PATTERNS,
   Cinema2HypnotizePatternEngine,
+  resolveCinema2HypnotizeLedPowerGatingEnabled,
   resolveCinema2HypnotizeTriggerEventId,
   type Cinema2HypnotizePattern,
 } from './hypnotize/Cinema2HypnotizePatternEngine'
@@ -34,7 +35,7 @@ export function createCinema2HypnotizeNativeModuleDefinition(
         loading = loadLibrary().then(library => {
           if (disposed) return
           renderer = context.resources.acquire(
-            'hypnotize:reactive-optical-engine:phase-d-cinematic-polish',
+            'hypnotize:reactive-optical-engine:phase-d-impact-only-led-gating',
             'Cinema2HypnotizeRenderer',
             gl => new Cinema2HypnotizeRenderer(gl, library),
             value => value.dispose(),
@@ -71,6 +72,13 @@ export function createCinema2HypnotizeNativeModuleDefinition(
           const downbeatAccent = clamp(readNumber(context.parameters, 'downbeatAccent', 0), 0, 1)
           const phraseAccent = clamp(readNumber(context.parameters, 'phraseAccent', 0), 0, 1)
           const dropAccent = clamp(readNumber(context.parameters, 'dropAccent', 0), 0, 1)
+          const directorImpact = clamp(readNumber(context.parameters, 'directorImpact', dropAccent), 0, 1)
+          const sectionType = audio?.structure.section.available ? audio.structure.section.value?.type : null
+          const ledPowerGatingEnabled = resolveCinema2HypnotizeLedPowerGatingEnabled(
+            readBoolean(context.parameters, 'impactOnlyLedGating', false),
+            sectionType,
+            directorImpact,
+          )
           const triggerPulse = resolveTriggerPulse(trigger, {
             beat: beatAccent,
             kick: kickAccent,
@@ -101,6 +109,7 @@ export function createCinema2HypnotizeNativeModuleDefinition(
           const state: Cinema2HypnotizeDrawState = {
             timeSeconds: execution.frame.transport?.timeSec ?? execution.frame.elapsedTimeSec,
             patternFrame,
+            ledPowerGatingEnabled,
             intensity: clamp(readNumber(context.parameters, 'intensity', 0.9), 0, 2),
             ringDensity: clamp(readNumber(context.parameters, 'nodeDensity', 1), 0, 1),
             chamberRadius: clamp(readNumber(context.parameters, 'spread', 1.58) / 1.58, 0.55, 1.45),
@@ -132,7 +141,7 @@ export function createCinema2HypnotizeNativeModuleDefinition(
             dropAccent,
             directorIntensity: clamp(readNumber(context.parameters, 'directorIntensity', overallEnergy), 0, 1),
             directorMomentum: clamp(readNumber(context.parameters, 'directorMomentum', overallEnergy), 0, 1),
-            directorImpact: clamp(readNumber(context.parameters, 'directorImpact', dropAccent), 0, 1),
+            directorImpact,
             dropStrength: clamp(readNumber(context.parameters, 'dropStrength', 0.75), 0, 1),
             flashLevel: readFlashLevel(context.parameters.get('flashAccents')),
             colors: [
