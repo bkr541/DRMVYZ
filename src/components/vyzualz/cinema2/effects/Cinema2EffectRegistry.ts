@@ -11,6 +11,8 @@ import { cinema2GlareEffectDefinition } from './Cinema2GlareEffect'
 import { cinema2DepthOfFieldEffectDefinition } from './Cinema2DepthOfFieldEffect'
 import { cinema2ReflectiveFloorEffectDefinition } from './Cinema2ReflectiveFloorEffect'
 import { cinema2VolumetricAtmosphereEffectDefinition } from './Cinema2VolumetricAtmosphereEffect'
+import { cinema2AmbientOcclusionEffectDefinition } from './Cinema2AmbientOcclusionEffect'
+import { cinema2AntiAliasingEffectDefinition } from './Cinema2AntiAliasingEffect'
 import type { Cinema2EffectDiagnostic, Cinema2EffectTypeDefinition } from './Cinema2EffectContracts'
 
 export interface Cinema2EffectRegistryResult {
@@ -103,6 +105,9 @@ for (const definition of [
   cinema2ReflectiveFloorEffectDefinition,
   cinema2CinematicFinishEffectDefinition,
   cinema2EventHorizonLensingEffectDefinition,
+  // Opt-in: registering a definition allocates nothing; an instance (and its shaders) exists only for a preset that lists the effect.
+  cinema2AmbientOcclusionEffectDefinition,
+  cinema2AntiAliasingEffectDefinition,
 ]) {
   const registration = cinema2NativeEffectRegistry.register(definition)
   if (!registration.ok) {

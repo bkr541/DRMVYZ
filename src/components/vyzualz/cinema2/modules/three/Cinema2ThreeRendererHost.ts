@@ -1,4 +1,5 @@
 import type * as ThreeNamespace from 'three'
+import { registerCinema2DecoderRenderer, unregisterCinema2DecoderRenderer } from './Cinema2ThreeDecoders'
 import type { Cinema2ThreeLibrary } from './Cinema2ThreeLibrary'
 
 /**
@@ -33,6 +34,8 @@ export function getCinema2ThreeRenderer(library: Cinema2ThreeLibrary, gl: WebGL2
   renderer.autoClear = false
   renderer.toneMapping = THREE.NoToneMapping
   renderer.outputColorSpace = THREE.SRGBColorSpace
+  // Lets the KTX2 loader (only created for models that use KTX2) ask this renderer which compressed texture formats the GPU samples.
+  registerCinema2DecoderRenderer(renderer)
 
   let environment: ThreeNamespace.Texture | null = null
   const shipped = new Map<string, Promise<ThreeNamespace.Texture>>()
@@ -87,6 +90,7 @@ export function getCinema2ThreeRenderer(library: Cinema2ThreeLibrary, gl: WebGL2
   const onContextLost = () => {
     canvas.removeEventListener('webglcontextlost', onContextLost)
     if (entries.get(gl) === entry) entries.delete(gl)
+    unregisterCinema2DecoderRenderer(renderer)
     try { renderer.dispose() } catch { /* The context is already gone; Three only needs its listeners removed. */ }
   }
   canvas.addEventListener('webglcontextlost', onContextLost)

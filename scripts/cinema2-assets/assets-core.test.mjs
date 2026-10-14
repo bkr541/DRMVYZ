@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_BUDGETS, ENVIRONMENT_GPU_BYTES, analyzeAssets, readHdrSize, estimateTextureGpuBytes, generateAttributions, generateManifestSource, inspectGlb, readImageSize } from './assets-core.mjs'
+import { readFileSync } from 'node:fs'
+import { DEFAULT_BUDGETS, ENVIRONMENT_GPU_BYTES, SUPPORTED_GLTF_EXTENSIONS, analyzeAssets, readExrSize, readHdrSize, estimateTextureGpuBytes, generateAttributions, generateManifestSource, inspectGlb, readImageSize } from './assets-core.mjs'
 
 // ---- fixtures: header-only images and a tiny GLB, built in memory
 
@@ -48,6 +49,19 @@ function glb({ triangles = 12, images = [], extra = {} } = {}) {
   return Buffer.concat([header, chunkHeader(jsonChunk.length, 0x4e4f534a), jsonChunk, chunkHeader(binChunk.length, 0x004e4942), binChunk])
 }
 
+function ktx2(width, height) {
+  const b = Buffer.alloc(80)
+  Buffer.from([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a]).copy(b, 0)
+  b.writeUInt32LE(width, 20)
+  b.writeUInt32LE(height, 24)
+  return b
+}
+function exr(width, height) {
+  const attribute = (name, type, value) => Buffer.concat([Buffer.from(`${name}\0${type}\0`, 'latin1'), Buffer.from(new Int32Array([value.length]).buffer), value])
+  const window = Buffer.from(new Int32Array([0, 0, width - 1, height - 1]).buffer)
+  return Buffer.concat([Buffer.from(new Uint32Array([0x01312f76, 2]).buffer), attribute('channels', 'chlist', Buffer.alloc(4)), attribute('dataWindow', 'box2i', window), Buffer.from([0]), Buffer.alloc(32)])
+}
+
 function hdr(width, height, magic = '#?RADIANCE') {
   return Buffer.concat([Buffer.from(`${magic}\nFORMAT=32-bit_rle_rgbe\n\n-Y ${height} +X ${width}\n`, 'ascii'), Buffer.alloc(64)])
 }
@@ -70,6 +84,11 @@ const files = {
   'public/cinema2/models/ok.glb': glb({ triangles: 1000 }),
   'public/cinema2/models/dense.glb': glb({ triangles: 200000 }),
   'public/cinema2/models/textured.glb': glb({ triangles: 10, images: [png(2048, 2048), png(2048, 2048), png(2048, 2048), png(2048, 2048)] }),
+  'public/cinema2/models/draco.glb': glb({ triangles: 10, extra: { extensionsUsed: ['KHR_draco_mesh_compression'], extensionsRequired: ['KHR_draco_mesh_compression'] } }),
+  'public/cinema2/models/ktx2.glb': glb({ triangles: 10, images: [ktx2(1024, 1024)], extra: { extensionsUsed: ['KHR_texture_basisu'], extensionsRequired: ['KHR_texture_basisu'] } }),
+  'public/cinema2/models/unsupported.glb': glb({ triangles: 10, extra: { extensionsUsed: ['KHR_materials_made_up'], extensionsRequired: ['KHR_materials_made_up'] } }),
+  'public/cinema2/models/optional-unknown.glb': glb({ triangles: 10, extra: { extensionsUsed: ['KHR_materials_made_up'] } }),
+  'public/cinema2/environments/env-exr.exr': exr(1024, 512),
   'public/cinema2/models/broken.glb': Buffer.from('not a glb at all, just text'),
 }
 const read = path => { if (!(path in files)) throw new Error('ENOENT'); return files[path] }
@@ -170,7 +189,7 @@ test('fails on bad ids, mismatched folders, duplicate ids and bad kinds or layou
   assert.deepEqual(codes(analyzeAssets([{ directory: 'ok-model', record: model() }, { directory: 'ok-model', record: model() }], read)), ['ASSET_ID_DUPLICATE'])
   assert.deepEqual(codes(analyze(model({ kind: 'video' }))), ['ASSET_KIND_INVALID'])
   assert.deepEqual(codes(analyze(texture({ layout: 'mystery' }))), ['ASSET_LAYOUT_INVALID'])
-  assert.deepEqual(codes(analyze(model({ compression: 'draco' }))), ['ASSET_COMPRESSION_INVALID'])
+  assert.deepEqual(codes(analyze(model({ compression: 'zstd' }))), ['ASSET_COMPRESSION_INVALID'])
 })
 
 test('fails on missing, out-of-tree, shared, non-image and corrupt files', () => {
@@ -216,4 +235,44 @@ test('generates a deterministic manifest source and an attribution list', () => 
   const attributions = JSON.parse(generateAttributions(assets))
   assert.deepEqual(attributions.assets.map(asset => [asset.id, asset.attribution]), [['ok-model', '"Rock" by Someone'], ['ok-texture', null]])
   assert.ok(DEFAULT_BUDGETS.installerBytes === 50 * 1024 * 1024)
+})
+
+test('accepts Draco and KTX2 models only when the record matches what the file uses', () => {
+  const draco = analyze(model({ compression: 'draco', files: { high: 'public/cinema2/models/draco.glb' } }))
+  assert.deepEqual(draco.issues, [])
+  assert.equal(draco.assets[0].compression, 'draco')
+  assert.deepEqual(codes(analyze(model({ compression: 'meshopt', files: { high: 'public/cinema2/models/draco.glb' } }))), ['ASSET_COMPRESSION_MISMATCH'])
+  assert.deepEqual(codes(analyze(model({ compression: 'draco' }))), ['ASSET_COMPRESSION_MISMATCH'])
+
+  const ktx = analyze(model({ compression: 'none', textureCompression: 'ktx2', files: { high: 'public/cinema2/models/ktx2.glb' } }))
+  assert.deepEqual(ktx.issues, [])
+  assert.equal(ktx.assets[0].textureCompression, 'ktx2')
+  assert.deepEqual(codes(analyze(model({ compression: 'none', files: { high: 'public/cinema2/models/ktx2.glb' } }))), ['ASSET_COMPRESSION_MISMATCH'])
+  assert.deepEqual(codes(analyze(model({ textureCompression: 'basis' }))), ['ASSET_TEXTURE_COMPRESSION_INVALID'])
+  // KTX2 is priced as a block-compressed texture (about 1 byte per pixel) and the manifest records it.
+  assert.ok(generateManifestSource(ktx.assets).includes('"textureCompression": "ktx2"'))
+  assert.ok(!generateManifestSource(analyze(model()).assets).includes('textureCompression'), 'existing records are not rewritten')
+})
+
+test('rejects a required glTF extension the loader does not support, and tolerates an unknown optional one', () => {
+  const unsupported = analyze(model({ files: { high: 'public/cinema2/models/unsupported.glb' } }))
+  assert.deepEqual(codes(unsupported), ['ASSET_EXTENSION_UNSUPPORTED'])
+  assert.match(unsupported.issues[0].message, /KHR_materials_made_up/)
+  assert.deepEqual(analyze(model({ files: { high: 'public/cinema2/models/optional-unknown.glb' } })).issues, [])
+})
+
+test('the supported extension list matches the installed Three.js GLTFLoader', () => {
+  const source = readFileSync(new URL('../../node_modules/three/examples/jsm/loaders/GLTFLoader.js', import.meta.url), 'utf8')
+  const block = /const EXTENSIONS = \{([\s\S]*?)\n\};/.exec(source)?.[1] ?? ''
+  const loaderExtensions = [...block.matchAll(/:\s*'([^']+)'/g)].map(match => match[1]).sort()
+  assert.ok(loaderExtensions.length > 10)
+  assert.deepEqual([...SUPPORTED_GLTF_EXTENSIONS].sort(), loaderExtensions)
+})
+
+test('accepts an OpenEXR environment and reads its size from the dataWindow', () => {
+  assert.deepEqual(readExrSize(exr(2048, 1024)), { format: 'exr', width: 2048, height: 1024 })
+  assert.equal(readExrSize(Buffer.from('not an exr file at all')), null)
+  const environment = analyze({ id: 'ok-env', kind: 'environment', license: 'CC0', origin: 'x', files: { high: 'public/cinema2/environments/env-exr.exr' } })
+  assert.deepEqual(environment.issues, [])
+  assert.equal(environment.assets[0].gpuBytes.high, ENVIRONMENT_GPU_BYTES)
 })

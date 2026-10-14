@@ -4,13 +4,17 @@ import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePre
  * Shipped 3D assets are referenced by id, never by URL. The roadmap's #7 asset pipeline will generate the manifest file that
  * feeds this registry; until then `Cinema2ThreeAssetManifest.ts` is authored by hand with the same record shape.
  */
-export type Cinema2ThreeAssetCompression = 'none' | 'meshopt'
+/** Geometry compression of a shipped model. Texture compression (KTX2 / Basis) is declared separately by `textureCompression`. */
+export type Cinema2ThreeAssetCompression = 'none' | 'meshopt' | 'draco'
+export type Cinema2ThreeAssetTextureCompression = 'none' | 'ktx2'
 
 export interface Cinema2ThreeAssetRecord {
   id: string
   /** App-origin path of the GLB (root-relative, served from `public/` in dev and from `dist/` in Electron). */
   url: string
   compression: Cinema2ThreeAssetCompression
+  /** Embedded textures are KTX2 (Basis Universal); the loader then needs the Basis transcoder. Default `none`. */
+  textureCompression?: Cinema2ThreeAssetTextureCompression
   /** Per-quality replacements for `url` (smaller textures / lower LOD). Missing tiers fall back to `url`. */
   variants?: Partial<Record<Cinema2RenderQualityLevel, string>>
   license: string

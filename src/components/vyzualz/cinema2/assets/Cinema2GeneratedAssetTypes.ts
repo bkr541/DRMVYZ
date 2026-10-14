@@ -24,7 +24,9 @@ interface Cinema2GeneratedAssetBase {
 
 export interface Cinema2GeneratedModelAssetRecord extends Cinema2GeneratedAssetBase {
   readonly kind: 'model'
-  readonly compression: 'none' | 'meshopt'
+  readonly compression: 'none' | 'meshopt' | 'draco'
+  /** Present only when the embedded textures are KTX2 (Basis Universal). */
+  readonly textureCompression?: 'none' | 'ktx2'
 }
 
 export interface Cinema2GeneratedTextureAssetRecord extends Cinema2GeneratedAssetBase {

@@ -36,10 +36,12 @@ export const cinema2ThreeAssetRegistry = new Cinema2ThreeAssetRegistry()
 for (const record of CINEMA2_ASSET_RECORDS) {
   if (record.kind !== 'model') continue
   const { high, medium, low } = record.files as { high: ModelFile; medium?: ModelFile; low?: ModelFile }
+  const textureCompression = (record as { textureCompression?: 'none' | 'ktx2' }).textureCompression
   cinema2ThreeAssetRegistry.register({
     id: record.id,
     url: high.url,
     compression: record.compression,
+    ...(textureCompression ? { textureCompression } : {}),
     variants: {
       ...(medium ? { medium: medium.url } : {}),
       ...(low ? { low: low.url } : {}),

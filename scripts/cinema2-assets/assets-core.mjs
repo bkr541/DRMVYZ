@@ -16,7 +16,40 @@ export const LICENSE_ALLOWLIST = Object.freeze({
 
 export const ASSET_KINDS = Object.freeze(['model', 'texture', 'environment'])
 export const TEXTURE_LAYOUTS = Object.freeze(['surface-normal-crack-roughness', 'color', 'noise-volume-rgba', 'sprite-sheet-rgba'])
-export const MODEL_COMPRESSIONS = Object.freeze(['none', 'meshopt'])
+/** Geometry compression of a shipped model. */
+export const MODEL_COMPRESSIONS = Object.freeze(['none', 'meshopt', 'draco'])
+/** Texture compression of a shipped model's embedded images: `ktx2` means KTX2 / Basis Universal (the runtime then loads the Basis transcoder). */
+export const TEXTURE_COMPRESSIONS = Object.freeze(['none', 'ktx2'])
+
+/**
+ * glTF extensions the runtime loader (Three.js GLTFLoader, r186) understands. A model that *requires* anything else cannot load and is rejected;
+ * `scripts/cinema2-assets/assets-core.test.mjs` checks this list against the installed GLTFLoader so a Three upgrade cannot silently drift from it.
+ */
+export const SUPPORTED_GLTF_EXTENSIONS = Object.freeze([
+  'KHR_binary_glTF',
+  'KHR_draco_mesh_compression',
+  'KHR_lights_punctual',
+  'KHR_materials_clearcoat',
+  'KHR_materials_dispersion',
+  'KHR_materials_ior',
+  'KHR_materials_sheen',
+  'KHR_materials_specular',
+  'KHR_materials_transmission',
+  'KHR_materials_iridescence',
+  'KHR_materials_anisotropy',
+  'KHR_materials_unlit',
+  'KHR_materials_volume',
+  'KHR_texture_basisu',
+  'KHR_texture_transform',
+  'KHR_mesh_quantization',
+  'KHR_materials_emissive_strength',
+  'EXT_materials_bump',
+  'EXT_texture_webp',
+  'EXT_texture_avif',
+  'EXT_meshopt_compression',
+  'KHR_meshopt_compression',
+  'EXT_mesh_gpu_instancing',
+])
 export const QUALITY_TIERS = Object.freeze(['low', 'medium', 'high'])
 
 /** Owner-adjustable defaults; `assets/cinema2/budgets.json` overrides any of them. */
@@ -80,6 +113,34 @@ export function readHdrSize(bytes) {
   return match ? { format: 'hdr', width: Number(match[2]), height: Number(match[1]) } : null
 }
 
+/**
+ * Pixel size of an OpenEXR image, read from the `dataWindow` attribute of its header. Returns null for anything else.
+ * Header layout: magic (4), version (4), then attributes `name\0 type\0 size(int32) value` until an empty name.
+ */
+export function readExrSize(bytes) {
+  const b = Buffer.from(bytes.buffer ?? bytes, bytes.byteOffset ?? 0, bytes.byteLength ?? bytes.length)
+  if (b.length < 16 || b.readUInt32LE(0) !== 0x01312f76) return null
+  let offset = 8
+  while (offset < b.length && b[offset] !== 0) {
+    const nameEnd = b.indexOf(0, offset)
+    if (nameEnd < 0) return null
+    const name = b.toString('latin1', offset, nameEnd)
+    const typeEnd = b.indexOf(0, nameEnd + 1)
+    if (typeEnd < 0 || typeEnd + 5 > b.length) return null
+    const size = b.readInt32LE(typeEnd + 1)
+    const valueStart = typeEnd + 5
+    if (name === 'dataWindow' && size === 16 && valueStart + 16 <= b.length) {
+      const xMin = b.readInt32LE(valueStart)
+      const yMin = b.readInt32LE(valueStart + 4)
+      const xMax = b.readInt32LE(valueStart + 8)
+      const yMax = b.readInt32LE(valueStart + 12)
+      return { format: 'exr', width: xMax - xMin + 1, height: yMax - yMin + 1 }
+    }
+    offset = valueStart + size
+  }
+  return null
+}
+
 /** GPU bytes of one uploaded texture including its mip chain. KTX2 is assumed to be a block-compressed ~1 byte per pixel format. */
 export function estimateTextureGpuBytes(width, height, format = 'rgba8') {
   const bytesPerPixel = format === 'ktx2' ? 1 : 4
@@ -132,7 +193,7 @@ export function inspectGlb(bytes) {
     if (!size) throw new Error(`image ${index} has an unrecognised format`)
     textures.push(size)
   }
-  return { triangles, geometryBytes, textures, extensionsRequired: json.extensionsRequired ?? [] }
+  return { triangles, geometryBytes, textures, extensionsUsed: json.extensionsUsed ?? [], extensionsRequired: json.extensionsRequired ?? [] }
 }
 
 // ---------------------------------------------------------------- record analysis and validation
@@ -169,6 +230,7 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
     if (!ASSET_KINDS.includes(record.kind)) { fail(id, 'ASSET_KIND_INVALID', `kind must be one of ${ASSET_KINDS.join(', ')}.`); continue }
     if (record.kind === 'texture' && !TEXTURE_LAYOUTS.includes(record.layout)) fail(id, 'ASSET_LAYOUT_INVALID', `texture layout must be one of ${TEXTURE_LAYOUTS.join(', ')}.`)
     if (record.kind === 'model' && !MODEL_COMPRESSIONS.includes(record.compression)) fail(id, 'ASSET_COMPRESSION_INVALID', `model compression must be one of ${MODEL_COMPRESSIONS.join(', ')}.`)
+    if (record.kind === 'model' && record.textureCompression !== undefined && !TEXTURE_COMPRESSIONS.includes(record.textureCompression)) fail(id, 'ASSET_TEXTURE_COMPRESSION_INVALID', `textureCompression must be one of ${TEXTURE_COMPRESSIONS.join(', ')}.`)
     if (!record.files || typeof record.files !== 'object' || typeof record.files.high !== 'string') { fail(id, 'ASSET_FILES_INVALID', 'files must map at least "high" to a path.'); continue }
 
     const files = {}
@@ -185,8 +247,8 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
       const entry = { path, url: `/${path.slice('public/'.length)}`, bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex').slice(0, 16) }
       try {
         if (record.kind === 'environment') {
-          const size = readHdrSize(bytes)
-          if (!size) throw new Error('not a Radiance .hdr (RGBE) image with a "-Y height +X width" header')
+          const size = path.toLowerCase().endsWith('.exr') ? readExrSize(bytes) : readHdrSize(bytes)
+          if (!size) throw new Error('not a Radiance .hdr (RGBE) image with a "-Y height +X width" header, or an OpenEXR image with a dataWindow')
           if (size.width !== size.height * 2) throw new Error(`an environment must be equirectangular (2:1); got ${size.width}x${size.height}`)
           if (size.width > budgets.maxEnvironmentWidth) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `"${path}" is ${size.width} px wide, above the ${budgets.maxEnvironmentWidth}px environment limit.`)
           Object.assign(entry, { width: size.width, height: size.height, format: size.format })
@@ -208,6 +270,13 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
           }
         } else {
           const glb = inspectGlb(bytes)
+          for (const extension of glb.extensionsRequired) {
+            if (!SUPPORTED_GLTF_EXTENSIONS.includes(extension)) fail(id, 'ASSET_EXTENSION_UNSUPPORTED', `"${path}" requires the glTF extension ${extension}, which the Cinema 2.0 loader does not support. Re-export without it (or bake it into plain PBR materials).`)
+          }
+          const usesDraco = glb.extensionsUsed.includes('KHR_draco_mesh_compression')
+          const usesKtx2 = glb.extensionsUsed.includes('KHR_texture_basisu')
+          if ((record.compression === 'draco') !== usesDraco) fail(id, 'ASSET_COMPRESSION_MISMATCH', `"${path}" ${usesDraco ? 'uses' : 'does not use'} KHR_draco_mesh_compression but the record says compression "${record.compression}".`)
+          if ((record.textureCompression === 'ktx2') !== usesKtx2) fail(id, 'ASSET_COMPRESSION_MISMATCH', `"${path}" ${usesKtx2 ? 'uses' : 'does not use'} KHR_texture_basisu (KTX2) but the record says textureCompression "${record.textureCompression ?? 'none'}".`)
           if (glb.triangles > budgets.maxTrianglesPerAsset) fail(id, 'ASSET_TRIANGLES_OVER_BUDGET', `"${path}" has ${glb.triangles} triangles, above the ${budgets.maxTrianglesPerAsset} limit.`)
           for (const size of glb.textures) if (Math.max(size.width, size.height) > budgets.maxTextureDimension) fail(id, 'ASSET_TEXTURE_TOO_LARGE', `an embedded texture in "${path}" is ${size.width}x${size.height}, above the ${budgets.maxTextureDimension}px limit.`)
           Object.assign(entry, { triangles: glb.triangles })
@@ -233,7 +302,7 @@ export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
     assets.push({
       id,
       kind: record.kind,
-      ...(record.kind === 'texture' ? { layout: record.layout } : record.kind === 'model' ? { compression: record.compression } : {}),
+      ...(record.kind === 'texture' ? { layout: record.layout } : record.kind === 'model' ? { compression: record.compression, ...(record.textureCompression === 'ktx2' ? { textureCompression: 'ktx2' } : {}) } : {}),
       license,
       attribution: typeof record.attribution === 'string' && record.attribution.trim() ? record.attribution.trim() : null,
       origin: record.origin,
@@ -264,6 +333,7 @@ export function generateManifestSource(assets) {
       kind: asset.kind,
       ...(asset.layout ? { layout: asset.layout } : {}),
       ...(asset.compression ? { compression: asset.compression } : {}),
+      ...(asset.textureCompression ? { textureCompression: asset.textureCompression } : {}),
       license: asset.license,
       attribution: asset.attribution,
       files,

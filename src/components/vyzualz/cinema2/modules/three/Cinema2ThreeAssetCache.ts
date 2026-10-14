@@ -2,6 +2,8 @@ import type * as ThreeNamespace from 'three'
 import type { Cinema2RenderQualityLevel } from '../../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ThreeLibrary } from './Cinema2ThreeLibrary'
 import type { Cinema2ThreeAssetRecord, Cinema2ThreeAssetRegistry } from './Cinema2ThreeAssetRegistry'
+import { describeCinema2LoadedModel, type Cinema2ThreeAssetMetadata, type Cinema2ThreeGltfInfo } from './Cinema2ThreeAssetMetadata'
+import { cinema2ThreeDecoderPool, readCinema2GlbRequirements, type Cinema2DecoderKind, type Cinema2ThreeDecoderPool } from './Cinema2ThreeDecoders'
 
 export interface Cinema2ThreeLoadedAsset {
   readonly id: string
@@ -10,6 +12,17 @@ export interface Cinema2ThreeLoadedAsset {
   readonly triangleCount: number
   /** Estimated GPU bytes for the template's unique geometry and textures. */
   readonly gpuBytes: number
+  /** Animation clips the file carried. Loading never plays them; see `Cinema2ThreeAnimationController`. */
+  readonly animations: readonly ThreeNamespace.AnimationClip[]
+  /** Names, hierarchy, custom attributes, skins, clips and glTF scene metadata of the loaded model. */
+  readonly metadata: Readonly<Cinema2ThreeAssetMetadata>
+}
+
+/** What a model loader returns. A bare `Object3D` (tests, simple loaders) means "scene only". */
+export interface Cinema2ThreeLoadedModel {
+  readonly scene: ThreeNamespace.Object3D
+  readonly animations?: readonly ThreeNamespace.AnimationClip[]
+  readonly gltf?: Readonly<Cinema2ThreeGltfInfo>
 }
 
 export class Cinema2ThreeAssetError extends Error {
@@ -21,7 +34,9 @@ export class Cinema2ThreeAssetError extends Error {
 
 export interface Cinema2ThreeAssetCacheOptions {
   /** Fetch + decode one asset. Replaced in tests; the default fetches the URL and parses it with GLTFLoader (+ meshopt). */
-  loadModel?: (library: Cinema2ThreeLibrary, record: Readonly<Cinema2ThreeAssetRecord>, url: string) => Promise<ThreeNamespace.Object3D>
+  loadModel?: (library: Cinema2ThreeLibrary, record: Readonly<Cinema2ThreeAssetRecord>, url: string) => Promise<ThreeNamespace.Object3D | Cinema2ThreeLoadedModel>
+  /** Decoder pool for Draco / KTX2 models (a test seam; the default is the shared pool). */
+  decoders?: Cinema2ThreeDecoderPool
   /** Assets that stay decoded in memory after their last user releases them (their GPU resources are freed). */
   idleLimit?: number
 }
@@ -43,9 +58,11 @@ export class Cinema2ThreeAssetCache {
   private readonly idle: string[] = []
   private readonly loadModel: NonNullable<Cinema2ThreeAssetCacheOptions['loadModel']>
   private readonly idleLimit: number
+  private readonly decoders: Cinema2ThreeDecoderPool
 
   constructor(private readonly registry: Cinema2ThreeAssetRegistry, options: Cinema2ThreeAssetCacheOptions = {}) {
-    this.loadModel = options.loadModel ?? loadModelWithGltfLoader
+    this.decoders = options.decoders ?? cinema2ThreeDecoderPool
+    this.loadModel = options.loadModel ?? ((library, record, url) => loadModelWithGltfLoader(library, record, url, this.decoders))
     this.idleLimit = options.idleLimit ?? 4
   }
 
@@ -96,15 +113,25 @@ export class Cinema2ThreeAssetCache {
   }
 
   private async decode(library: Cinema2ThreeLibrary, record: Readonly<Cinema2ThreeAssetRecord>, url: string): Promise<Cinema2ThreeLoadedAsset> {
-    let scene: ThreeNamespace.Object3D
+    let loaded: ThreeNamespace.Object3D | Cinema2ThreeLoadedModel
     try {
-      scene = await this.loadModel(library, record, url)
+      loaded = await this.loadModel(library, record, url)
     } catch (error) {
       if (error instanceof Cinema2ThreeAssetError) throw error
       throw new Cinema2ThreeAssetError('CINEMA2_THREE_ASSET_LOAD_FAILED', `Cinema 2.0 could not load 3D asset "${record.id}" from ${url}: ${error instanceof Error ? error.message : String(error)}`)
     }
+    const model: Cinema2ThreeLoadedModel = (loaded as ThreeNamespace.Object3D).isObject3D ? { scene: loaded as ThreeNamespace.Object3D } : loaded as Cinema2ThreeLoadedModel
+    const scene = model.scene
+    const animations = Object.freeze([...(model.animations ?? [])])
     const stats = measureObject(scene)
-    return Object.freeze({ id: record.id, scene, triangleCount: stats.triangles, gpuBytes: stats.bytes })
+    return Object.freeze({
+      id: record.id,
+      scene,
+      triangleCount: stats.triangles,
+      gpuBytes: stats.bytes,
+      animations,
+      metadata: describeCinema2LoadedModel(scene, animations, model.gltf),
+    })
   }
 
   private retire(entry: CacheEntry): void {
@@ -126,7 +153,12 @@ export class Cinema2ThreeAssetCache {
 
 const GLB_MAGIC = 0x46546c67 // "glTF"
 
-async function loadModelWithGltfLoader(library: Cinema2ThreeLibrary, record: Readonly<Cinema2ThreeAssetRecord>, url: string): Promise<ThreeNamespace.Object3D> {
+async function loadModelWithGltfLoader(
+  library: Cinema2ThreeLibrary,
+  record: Readonly<Cinema2ThreeAssetRecord>,
+  url: string,
+  decoders: Cinema2ThreeDecoderPool,
+): Promise<Cinema2ThreeLoadedModel> {
   const response = await fetch(url)
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   const buffer = await response.arrayBuffer()
@@ -134,10 +166,27 @@ async function loadModelWithGltfLoader(library: Cinema2ThreeLibrary, record: Rea
   if (buffer.byteLength < 12 || new DataView(buffer).getUint32(0, true) !== GLB_MAGIC) {
     throw new Error('the file is not a binary glTF (GLB)')
   }
+  // The file's own header says which decoders it needs, so a Draco or KTX2 model loads even when its record forgot to say so, and models that
+  // need neither never touch the decoder pool.
+  const requirements = readCinema2GlbRequirements(buffer)
+  const kinds = new Set<Cinema2DecoderKind>(requirements.decoders)
+  if (record.compression === 'draco') kinds.add('draco')
+  if (record.textureCompression === 'ktx2') kinds.add('ktx2')
   const loader = new library.GLTFLoader()
-  if (record.compression === 'meshopt') loader.setMeshoptDecoder(library.MeshoptDecoder as never)
-  const gltf = await loader.parseAsync(buffer, url.slice(0, url.lastIndexOf('/') + 1))
-  return gltf.scene
+  if (record.compression === 'meshopt' || requirements.meshopt) loader.setMeshoptDecoder(library.MeshoptDecoder as never)
+  const lease = kinds.size > 0 ? await decoders.lease([...kinds]) : null
+  try {
+    if (lease?.loaders.draco) loader.setDRACOLoader(lease.loaders.draco)
+    if (lease?.loaders.ktx2) loader.setKTX2Loader(lease.loaders.ktx2)
+    const gltf = await loader.parseAsync(buffer, url.slice(0, url.lastIndexOf('/') + 1))
+    return {
+      scene: gltf.scene,
+      animations: gltf.animations,
+      gltf: { generator: gltf.asset?.generator, copyright: gltf.asset?.copyright, extensionsUsed: requirements.extensionsUsed },
+    }
+  } finally {
+    lease?.release()
+  }
 }
 
 interface ObjectStats {
