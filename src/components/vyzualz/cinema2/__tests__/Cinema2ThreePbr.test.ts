@@ -174,7 +174,9 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     const { bridge, scene } = await readyBridge({ atlHoeLights: ATL_HOE_LIGHTS }, 'high')
     const patternFrame = evaluateCinema2AtlHoePattern({
       pattern: 'storm-takeover', beats: 24, stage: 'drop',
-      signals: { energy: 0.8, sub: 0.7, bass: 0.9, mid: 0.6, high: 0.75, flux: 0.7, kick: 1, snare: 0.7, transient: 0.85, downbeat: 1, phrase: 0.5, build: 0, drop: 1 },
+      signals: { energy: 0.8, sub: 0.7, bass: 0.9, mid: 0.6, high: 0.75, flux: 0.7, vocal: 0.4, significance: 0.6, momentum: 0.7, impact: 0.9, variation: 0.5,
+        kick: 1, snare: 0.7, transient: 0.85, beat: 0.8, downbeat: 1, bar: 0.7, phrase: 0.5, section: 0.8, sectionPolicy: 1,
+        sectionProgress: 0.2, sectionIntensity: 1, sectionConfidence: 0.95, buildProgress: 0, buildConfidence: 0, buildIntensity: 0, build: 0, drop: 1 },
     })
     bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'off', patternFrame })
     const lights = scene.children.filter((object): object is THREE.PointLight => object instanceof THREE.PointLight && object.name.startsWith('cinema2-atl-hoe-light:'))
@@ -229,7 +231,9 @@ describe('Cinema 2.0 Three bridge PBR', () => {
     expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(0)
     const patternFrame = evaluateCinema2AtlHoePattern({
       pattern: 'skyline-rise', beats: 12.5, stage: 'active',
-      signals: { energy: 0.6, sub: 0.7, bass: 0.72, mid: 0.8, high: 0.64, flux: 0.5, kick: 0.75, snare: 0.55, transient: 0.62, downbeat: 0.7, phrase: 0.5, build: 0.4, drop: 0 },
+      signals: { energy: 0.6, sub: 0.7, bass: 0.72, mid: 0.8, high: 0.64, flux: 0.5, vocal: 0.35, significance: 0.4, momentum: 0.5, impact: 0.2, variation: 0.3,
+        kick: 0.75, snare: 0.55, transient: 0.62, beat: 0.6, downbeat: 0.7, bar: 0.5, phrase: 0.5, section: 0.3, sectionPolicy: 0.78,
+        sectionProgress: 0.5, sectionIntensity: 0.6, sectionConfidence: 0.9, buildProgress: 0.4, buildConfidence: 0.9, buildIntensity: 0.7, build: 0.4, drop: 0 },
     })
     bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'route', patternFrame })
     expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(1)

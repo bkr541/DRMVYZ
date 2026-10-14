@@ -17,13 +17,61 @@ import {
 
 const SIGNALS: Cinema2AtlHoePatternSignals = Object.freeze({
   energy: 0.62, sub: 0.7, bass: 0.76, mid: 0.55, high: 0.48, flux: 0.42,
-  kick: 0.82, snare: 0.58, transient: 0.66, downbeat: 0.7, phrase: 0.5, build: 0.64, drop: 0,
+  vocal: 0.35, significance: 0.4, momentum: 0.44, impact: 0.2, variation: 0.3,
+  kick: 0.82, snare: 0.58, transient: 0.66, beat: 0.52, downbeat: 0.7, bar: 0.5, phrase: 0.5, section: 0.4, sectionPolicy: 0.78,
+  sectionProgress: 0.55, sectionIntensity: 0.62, sectionConfidence: 0.88,
+  buildProgress: 0.64, buildConfidence: 0.9, buildIntensity: 0.72, build: 0.64, drop: 0,
 })
+const ZERO_SIGNALS: Cinema2AtlHoePatternSignals = Object.freeze(Object.fromEntries(Object.keys(SIGNALS).map(key => [key, 0])) as unknown as Cinema2AtlHoePatternSignals)
 
 const frame = (pattern: Cinema2AtlHoePatternId, stage: Cinema2AtlHoePerformanceStage = 'active', signals = SIGNALS) =>
   evaluateCinema2AtlHoePattern({ pattern, beats: 13.375, stage, signals })
 
 describe('ATL HOE full-scene pattern engine', () => {
+  it('assigns independent frequency and vocal responsibilities instead of applying global brightness', () => {
+    const base = evaluateCinema2AtlHoePattern({ pattern: 'city-pulse', beats: 8, stage: 'active', signals: ZERO_SIGNALS })
+    const withSignal = (key: keyof Cinema2AtlHoePatternSignals) => evaluateCinema2AtlHoePattern({
+      pattern: 'city-pulse', beats: 8, stage: 'active', signals: { ...ZERO_SIGNALS, [key]: 1 },
+    })
+    expect(withSignal('sub').city.roadGain).toBeGreaterThan(base.city.roadGain + 0.3)
+    expect(withSignal('sub').roleGains[0]).toBeCloseTo(base.roleGains[0])
+    expect(withSignal('bass').roleGains[0]).toBeGreaterThan(base.roleGains[0] + 0.25)
+    expect(withSignal('mid').city.heroGains[1]).toBeGreaterThan(base.city.heroGains[1] + 0.35)
+    expect(withSignal('high').sky.starBrightness).toBeGreaterThan(base.sky.starBrightness + 0.25)
+    expect(withSignal('flux').city.foliageGain).toBeGreaterThan(base.city.foliageGain + 0.45)
+    expect(withSignal('vocal').roleGains[0]).toBeGreaterThan(base.roleGains[0] + 0.12)
+  })
+
+  it('keeps rhythm and structural envelopes on separate component families', () => {
+    const base = evaluateCinema2AtlHoePattern({ pattern: 'city-pulse', beats: 8, stage: 'active', signals: ZERO_SIGNALS })
+    const withSignal = (key: keyof Cinema2AtlHoePatternSignals) => evaluateCinema2AtlHoePattern({
+      pattern: 'city-pulse', beats: 8, stage: 'active', signals: { ...ZERO_SIGNALS, [key]: 1 },
+    })
+    expect(withSignal('kick').city.streetlightGain).toBeGreaterThan(base.city.streetlightGain + 0.35)
+    expect(withSignal('snare').city.foliageGain).toBeGreaterThan(base.city.foliageGain + 0.45)
+    expect(withSignal('bar').city.roadGain).toBeGreaterThan(base.city.roadGain + 0.1)
+    expect(withSignal('downbeat').roleGains[2]).toBeGreaterThan(base.roleGains[2] + 0.3)
+    expect(withSignal('phrase').sky.starBrightness).toBeGreaterThan(base.sky.starBrightness + 0.12)
+    expect(withSignal('impact').city.roadGain).toBeCloseTo(base.city.roadGain)
+  })
+
+  it('applies distinct breakdown, unknown, verse, buildup and drop activity policies', () => {
+    const signature = (stage: Cinema2AtlHoePerformanceStage, sectionPolicy: number, build = 0, drop = 0) => {
+      const output = evaluateCinema2AtlHoePattern({ pattern: 'city-pulse', beats: 8, stage,
+        signals: { ...ZERO_SIGNALS, energy: 0.5, sectionIntensity: 0.6, sectionPolicy, build, drop } })
+      return output.roleGains.reduce((sum, gain) => sum + gain, 0) + output.atmosphereGain
+    }
+    const breakdown = signature('rest', 0.2)
+    const unknown = signature('active', 0.45)
+    const verse = signature('active', 0.78)
+    const buildup = signature('buildup', 0.9, 0.8)
+    const drop = signature('drop', 1, 0, 1)
+    expect(new Set([breakdown, unknown, verse, buildup, drop])).toHaveLength(5)
+    expect(unknown).toBeGreaterThan(breakdown)
+    expect(verse).toBeGreaterThan(unknown)
+    expect(drop).toBeGreaterThan(buildup)
+  })
+
   it('defines exactly six deterministic programs with distinct spatial selections', () => {
     expect(CINEMA2_ATL_HOE_PATTERN_IDS).toEqual([
       'city-pulse', 'waffle-marquee', 'interstate-flow', 'skyline-rise', 'neon-brownout', 'storm-takeover',

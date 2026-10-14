@@ -390,6 +390,7 @@ export class Cinema2ThreeSceneBridge {
       uCinema2AtlCity1: { value: new THREE.Vector4(0.2, 0, 0, 0.2) },
       uCinema2AtlCity2: { value: new THREE.Vector4(0, 0, 0, 1) },
       uCinema2AtlCity3: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlMotion: { value: new THREE.Vector4(0, 0, 0, 0) },
     }
 
     for (const instance of instances) {
@@ -887,6 +888,7 @@ export class Cinema2ThreeSceneBridge {
     uniforms.uCinema2AtlCity1.value.set(city.roadWidth, city.roadGain, city.crownFront, city.crownWidth)
     uniforms.uCinema2AtlCity2.value.set(city.crownGain, city.lowFacadeGain, city.windowSparkle, city.foliageThreshold)
     uniforms.uCinema2AtlCity3.value.set(city.foliageGain, 0, 0, 0)
+    uniforms.uCinema2AtlMotion.value.set(...frame.sceneMotion)
     const environment = city.environment
     const overall = Math.min(1, Math.max(0, draw?.strength ?? 0))
     for (const { light, spec } of this.atlHoeLights) {
@@ -1285,6 +1287,7 @@ interface AtlHoeUniforms {
   uCinema2AtlCity1: { value: ThreeNamespace.Vector4 }
   uCinema2AtlCity2: { value: ThreeNamespace.Vector4 }
   uCinema2AtlCity3: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlMotion: { value: ThreeNamespace.Vector4 }
 }
 
 function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
@@ -1300,6 +1303,7 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       `attribute float ${attribute.level};`,
       `attribute float ${attribute.random};`,
       `attribute float ${attribute.landmark};`,
+      'uniform vec4 uCinema2AtlMotion;',
       'varying vec3 vCinema2AtlMeta0;',
       'varying vec3 vCinema2AtlMeta1;',
       'varying float vCinema2AtlLandmark;',
@@ -1309,6 +1313,12 @@ function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
       `vCinema2AtlMeta0 = vec3( ${attribute.role}, ${attribute.zone}, ${attribute.route} );`,
       `vCinema2AtlMeta1 = vec3( ${attribute.phase}, ${attribute.level}, ${attribute.random} );`,
       `vCinema2AtlLandmark = ${attribute.landmark};`,
+      // Stars drift at a different depth than the city; foliage gets a tiny high/flux shimmer. Both remain below silhouette-breaking travel.
+      `float cinema2AtlStarMotion = 1.0 - step( 0.5, abs( ${attribute.role} - 6.0 ) );`,
+      `float cinema2AtlFoliageMotion = 1.0 - step( 0.5, abs( ${attribute.role} - 8.0 ) );`,
+      `transformed.x += cinema2AtlStarMotion * sin( uCinema2AtlMotion.x * 0.11 + ${attribute.random} * 19.0 ) * ( 0.012 + 0.025 * uCinema2AtlMotion.y );`,
+      `transformed.y += cinema2AtlStarMotion * cos( uCinema2AtlMotion.x * 0.08 + ${attribute.random} * 13.0 ) * 0.012;`,
+      `transformed.x += cinema2AtlFoliageMotion * sin( uCinema2AtlMotion.x * 0.9 + ${attribute.random} * 31.0 ) * ( 0.006 + 0.018 * max( uCinema2AtlMotion.z, uCinema2AtlMotion.w ) );`,
     ].join('\n'))
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', [

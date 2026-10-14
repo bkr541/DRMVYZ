@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
+import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 import { createCinema2DesignParentGroupModel } from '../parameters/Cinema2InspectorModel'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import atlHoeParts from '../presets/atlHoeParts.json'
@@ -9,6 +10,8 @@ import {
 } from '../presets/Cinema2AtlHoeDesign'
 import { CINEMA2_ATL_HOE_TRIGGER_IDS } from '../modules/atlHoe/Cinema2AtlHoePatternController'
 import { CINEMA2_ATL_HOE_PRESET_MANIFEST as manifest } from '../presets/Cinema2AtlHoePreset'
+import { Cinema2CameraRuntime } from '../spatial/Cinema2CameraRuntime'
+import { Cinema2SpatialRuntime } from '../spatial/Cinema2SpatialRuntime'
 
 const parameters = new Map((manifest.parameters ?? []).map(parameter => [parameter.id as string, parameter]))
 const rules = manifest.choreography?.rules ?? []
@@ -22,7 +25,8 @@ describe('ATL HOE Design tab', () => {
     expect(parameters.get(IDS.autoPerformance)).toMatchObject({ label: 'Auto Performance', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls' })
     expect(parameters.get(IDS.masterIntensity)).toMatchObject({ label: 'Master Intensity', defaultValue: 1, designParentGroup: 'master-controls' })
     expect(parameters.get(IDS.bpmSync)).toMatchObject({ label: 'BPM Sync', type: 'boolean', defaultValue: true })
-    expect(parameters.get(IDS.cameraMovement)).toMatchObject({ label: 'Camera Movement', defaultValue: 0, min: 0, max: 1 })
+    expect(parameters.get(IDS.cameraMovement)).toMatchObject({ label: 'Camera Movement', defaultValue: 0.32, min: 0, max: 1 })
+    expect(parameters.get(IDS.cameraImpacts)).toMatchObject({ label: 'Camera Impacts', type: 'boolean', defaultValue: true })
     expect(parameters.get(IDS.musicReactivity)).toMatchObject({ label: 'Music Reactivity', defaultValue: 0.8 })
     expect(parameters.get(IDS.kickReaction)).toMatchObject({ label: 'Kick Reactivity', defaultValue: 0.72 })
     expect(parameters.get(IDS.transientReaction)).toMatchObject({ label: 'Transient Reaction', defaultValue: 0.58 })
@@ -102,11 +106,41 @@ describe('ATL HOE Design tab', () => {
     expect(rules.some(rule => rule.id.startsWith('atl-hoe-storm-') || rule.id.startsWith('atl-hoe-stars-'))).toBe(false)
   })
 
-  it('drives the camera from Camera Movement and BPM Sync, with the camera at rest by default', () => {
+  it('drives restrained camera parallax by default, with independent BPM and impact controls', () => {
     const camera = manifest.cameras?.[0]
     expect(camera?.controls?.motionAmount?.$ref).toBe(IDS.cameraMovement)
     expect(camera?.controls?.tempoSync?.$ref).toBe(IDS.bpmSync)
+    expect(camera?.controls?.kickZoom?.$ref).toBe(IDS.cameraImpacts)
     expect(camera?.motion).toBeDefined()
+    expect(camera?.safety?.maxPositionOffset).toEqual([0.7, 0.48, 0.75])
+  })
+
+  it('keeps a 30-second default camera path inside the authored safe envelope at Stage and 16:9 aspects', () => {
+    const compiled = compileCinema2NativePreset(manifest, { availableCapabilities: ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting'] })
+    if (!compiled.ok) throw new Error(compiled.diagnostics.map(diagnostic => diagnostic.message).join('; '))
+    for (const [width, height] of [[900, 1200], [1920, 1080]] as const) {
+      const state = new Cinema2ParameterState(compiled.plan.parameters)
+      const resolver = new Cinema2FinalValueResolver(compiled.plan.targets, {
+        resolveBaseValue: target => target.parameterId == null ? target.authoredBaseValue : state.getValue(target.parameterId),
+      })
+      const spatial = new Cinema2SpatialRuntime(compiled.plan.scene, compiled.plan.targets.targets, resolver)
+      const runtime = new Cinema2CameraRuntime(compiled.plan, state, resolver, spatial)
+      const xs: number[] = []
+      for (let step = 0; step <= 30 * 30; step += 1) {
+        const timeSec = step / 30
+        const view = runtime.update({ frameId: step + 1, timestampMs: timeSec * 1_000, deltaTimeSec: step ? 1 / 30 : 0, elapsedTimeSec: timeSec,
+          viewport: { width, height, dpr: 1 }, contextGeneration: 1, audio: null, director: null } as never)
+        xs.push(view.position[0])
+        expect(view.position[0]).toBeGreaterThanOrEqual(-0.85)
+        expect(view.position[0]).toBeLessThanOrEqual(0.85)
+        expect(view.position[1]).toBeGreaterThanOrEqual(5.2)
+        expect(view.position[1]).toBeLessThanOrEqual(6.55)
+        expect(view.position[2]).toBeGreaterThanOrEqual(19.1)
+        expect(view.position[2]).toBeLessThanOrEqual(20.9)
+      }
+      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.04)
+    }
+    expect(manifest.cameras?.[0]?.minAspect).toBe(16 / 9)
   })
 
   it('moves the haze with City Atmosphere without changing it at the default', () => {
@@ -125,7 +159,7 @@ describe('ATL HOE Design tab', () => {
     ]))
 
     expect(labels()).toEqual({
-      'master-controls': ['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
+      'master-controls': ['Auto Performance', 'Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Camera Impacts', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
       design: ['Pattern', 'Pattern Change'],
       effects: ['Flicker', 'City Atmosphere'],
       palette: ['Sign Color', 'Letter Color', 'Architecture Color'],

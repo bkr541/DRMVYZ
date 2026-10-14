@@ -296,15 +296,22 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     transform: Object.freeze({ position: vec3(0, 5.9, 20) }),
     target: vec3(-0.4, 6.55, -8.4),
     rig: Object.freeze({ kind: 'static' as const }),
-    // Camera Movement scales a gentle sway (a slow drift, a weave and a lens breath); at its default of 0 the camera holds the authored frame.
-    // BPM Sync locks the sway to the track's beat grid; off, it free-runs at 120 BPM. Kick reactivity does not move the camera.
+    // The restrained default creates readable foreground/background parallax; safety bounds protect the sign, road and skyline crowns.
+    // BPM Sync locks the phrase-scale breath to the track, while Camera Impacts owns the small kick punch independently.
     motion: cinema2CinematicMotion('gentle', {
       overrides: Object.freeze({
-        drift: Object.freeze({ position: 0.1, target: 0.04, rollDegrees: 0.2, fovDegrees: 0.4, speed: 0.06 }),
-        tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.25, bob: 0.02, roll: 0.4, fov: 1.2, punch: 0 }),
+        drift: Object.freeze({ position: 0.18, target: 0.065, rollDegrees: 0.16, fovDegrees: 0.35, speed: 0.045 }),
+        tempo: Object.freeze({ referenceBpm: 120, flightSpeed: false, weave: 0.32, bob: 0.018, roll: 0.28, fov: 0.85, punch: 0.7 }),
+        fovRateLimitDegreesPerSecond: 3.5,
       }),
     }),
-    controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.cameraMovement), tempoSync: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync) }),
+    controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.cameraMovement), tempoSync: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.bpmSync), kickZoom: cinema2Ref(CINEMA2_ATL_HOE_PARAMETER_IDS.cameraImpacts) }),
+    smoothingMs: 170,
+    safety: Object.freeze({
+      minPosition: vec3(-0.85, 5.2, 19.1), maxPosition: vec3(0.85, 6.55, 20.9),
+      maxPositionOffset: vec3(0.7, 0.48, 0.75), maxTargetOffset: vec3(0.34, 0.3, 0.5),
+      minFovDegrees: 39.5, maxFovDegrees: 45, minNear: 0.08, maxFar: 96,
+    }),
   })]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATL_HOE_CAMERA_ID) }),
   // BPM Sync: the sign patterns' beat, bar and phrase timing follows the loaded track's tempo (on) or a steady 120 BPM (off), as the camera sway does.

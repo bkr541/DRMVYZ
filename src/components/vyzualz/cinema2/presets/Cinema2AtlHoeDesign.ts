@@ -39,6 +39,7 @@ export const CINEMA2_ATL_HOE_PARAMETER_IDS = Object.freeze({
   autoPerformance: parameterId('atl-hoe-auto-performance'),
   bpmSync: parameterId('atl-hoe-bpm-sync'),
   cameraMovement: parameterId('atl-hoe-camera-movement'),
+  cameraImpacts: parameterId('atl-hoe-camera-impacts'),
   musicReactivity: parameterId('atl-hoe-music-reactivity'),
   kickReaction: parameterId('atl-hoe-kick-reaction'),
   transientReaction: parameterId('atl-hoe-transient-reaction'),
@@ -114,8 +115,13 @@ export const CINEMA2_ATL_HOE_DESIGN_PARAMETERS: readonly Cinema2ParameterManifes
   }),
   Object.freeze({
     ...baseParameter, id: P.cameraMovement, label: 'Camera Movement',
-    description: 'How much the camera sways with the music: a slow drift, a side-to-side weave and a lens breath. At 0 the camera holds the authored frame.',
-    type: 'float' as const, defaultValue: 0, min: 0, max: 1, step: 0.01, designParentGroup: 'master-controls' as const, order: 4,
+    description: 'How much the camera creates depth through slow lateral parallax, target drift and phrase-scale lens breathing. The restrained default keeps every sign cell and skyline crown in frame.',
+    type: 'float' as const, defaultValue: 0.32, min: 0, max: 1, step: 0.01, designParentGroup: 'master-controls' as const, order: 4,
+  }),
+  Object.freeze({
+    ...baseParameter, id: P.cameraImpacts, label: 'Camera Impacts',
+    description: 'Allows the small bounded lens punch on kick impacts. Turn this off to keep the default parallax and breathing while removing per-impact camera accents.',
+    type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 5,
   }),
   Object.freeze({
     ...baseParameter, id: P.musicReactivity, label: 'Music Reactivity',
@@ -304,6 +310,7 @@ export function atlHoeChoreographyRules(
   rule('atl-hoe-environment-energy', 23, { signal: 'continuous', capability: 'audio.features', path: 'audio.features.overallEnergy', smoothingMs: 140 }, [
     { id: actionId('atl-hoe-energy-beams'), target: { kind: 'effect' as const, ref: cinema2Ref(atmosphereEffectId), property: 'beamIntensity' }, operation: 'multiply' as const, value: 1.65 },
     { id: actionId('atl-hoe-energy-mist'), target: { kind: 'effect' as const, ref: cinema2Ref(atmosphereEffectId), property: 'mistAmount' }, operation: 'multiply' as const, value: 1.3 },
+    { id: actionId('atl-hoe-energy-drift'), target: { kind: 'effect' as const, ref: cinema2Ref(atmosphereEffectId), property: 'drift' }, operation: 'multiply' as const, value: 1.8 },
     { id: actionId('atl-hoe-energy-bloom'), target: { kind: 'effect' as const, ref: cinema2Ref(bloomEffectId), property: 'intensity' }, operation: 'multiply' as const, value: 1.22 },
   ], { strength: music })
   // Drop arc: immediate source hit, short hold, then a longer city/haze afterglow while exposure returns quickly.

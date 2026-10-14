@@ -173,6 +173,8 @@ export class Cinema2CameraRuntime {
 
     const camera = this.authoredCamera
     const motion = camera.motion
+    const motionActive = frame.transport == null || (frame.transport.playing && !frame.transport.paused && frame.transport.animationActive)
+    const motionDeltaTimeSec = motionActive ? frame.deltaTimeSec : 0
     const safety = resolveSafety(camera)
     const motionSafety = resolveMotionSafety(camera.controls, this.parameters)
     const tempoState = motion?.tempo ? this.advanceTempo(camera, motion.tempo, frame) : null
@@ -186,7 +188,7 @@ export class Cinema2CameraRuntime {
     pose = blendPose(userPose, this.applyTargetContributions(userPose), motionSafety.motionScale)
     const basePosition = pose.position
     const motionAmount = clamp(finite(readNumberControl(camera.controls, 'motionAmount', this.parameters) ?? undefined, 1), 0, 2) * motionSafety.motionScale
-    if (motion?.drift) pose = applyDrift(pose, motion.drift, frame.elapsedTimeSec, motionAmount)
+    if (motion?.drift) pose = applyDrift(pose, motion.drift, motionTimeSec, motionAmount)
     // A bound Zoom on Kick toggle owns the kick zoom outright (full strength when on, none when off), independent of the motion amount.
     const kickZoom = camera.controls?.kickZoom
       ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionSafety.motionScale : 0)
@@ -194,15 +196,16 @@ export class Cinema2CameraRuntime {
     if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
     const safe = clampPose(pose, safety, safetyReference)
     const smoothingMs = resolveSmoothingMs(camera, this.parameters)
-    let smoothed = this.previousPose && smoothingMs > 0
-      ? smoothPose(this.previousPose, safe.pose, frame.deltaTimeSec, smoothingMs)
-      : safe.pose
-    if (motion?.fovRateLimitDegreesPerSecond != null && this.previousPose) {
-      smoothed = { ...smoothed, fovDegrees: limitRate(this.previousPose.fovDegrees, smoothed.fovDegrees, motion.fovRateLimitDegreesPerSecond, frame.deltaTimeSec) }
+    let smoothed = !motionActive && this.previousPose ? clonePose(this.previousPose)
+      : this.previousPose && smoothingMs > 0
+        ? smoothPose(this.previousPose, safe.pose, motionDeltaTimeSec, smoothingMs)
+        : safe.pose
+    if (motionActive && motion?.fovRateLimitDegreesPerSecond != null && this.previousPose) {
+      smoothed = { ...smoothed, fovDegrees: limitRate(this.previousPose.fovDegrees, smoothed.fovDegrees, motion.fovRateLimitDegreesPerSecond, motionDeltaTimeSec) }
     }
     const finalSafety = clampPose(smoothed, safety, safetyReference)
     this.previousPose = clonePose(finalSafety.pose)
-    const bank = motion?.bank ? this.updateBank(motion.bank, basePosition, frame.deltaTimeSec, motionAmount) : 0
+    const bank = motion?.bank ? (motionActive ? this.updateBank(motion.bank, basePosition, motionDeltaTimeSec, motionAmount) : this.bankDegrees) : 0
     const rollDegrees = clamp(finalSafety.pose.rollDegrees + bank, -MAX_ROLL_DEGREES, MAX_ROLL_DEGREES)
 
     const viewMatrix = createLookAtMatrix(finalSafety.pose.position, finalSafety.pose.target, rollDegrees)
@@ -256,7 +259,10 @@ export class Cinema2CameraRuntime {
     tempo: Readonly<Cinema2CameraTempoManifest>,
     frame: Readonly<Cinema2ModuleFrameReadContext>,
   ): { beats: number; locked: boolean } {
-    const dt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
+    const frameDt = Number.isFinite(frame.deltaTimeSec) ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
+    // Rendering may continue while transport animation is paused. Keep the authored camera clock and impact envelope frozen so resume is seamless.
+    const motionActive = frame.transport == null || (frame.transport.playing && !frame.transport.paused && frame.transport.animationActive)
+    const dt = motionActive ? frameDt : 0
     const referenceBpm = clamp(finite(tempo.referenceBpm, 120), 40, 240)
     const syncControl = readToggleControl(camera.controls, 'tempoSync', this.parameters)
     const bpm = resolveCinema2EffectiveBpm(frame)

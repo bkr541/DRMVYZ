@@ -174,6 +174,21 @@ describe('Cinema 2.0 camera tempo motion', () => {
     expect(largest).toBeLessThan(0.25)
   })
 
+  it('freezes tempo motion while transport animation is paused and resumes without a jump', () => {
+    const { camera } = build({ motion: { drift: { position: 0.3, target: 0.1, speed: 0.1 }, tempo: { weave: 1, fov: 0.5 } }, rig: { kind: 'static' } as never })
+    let before = camera.update({ ...frame(2, { bpm: 120 }), transport: { sourcePresent: true, playing: true, paused: false, analysisActive: true, animationActive: true, trackId: 'track', timeSec: 2 } })
+    for (let step = 1; step <= 120; step += 1) {
+      const timeSec = 2 + step / 60
+      const paused = camera.update({ ...frame(timeSec, { bpm: 120 }), transport: { sourcePresent: true, playing: false, paused: true, analysisActive: true, animationActive: false, trackId: 'track', timeSec: 2 } })
+      expect(paused.position).toEqual(before.position)
+      expect(paused.target).toEqual(before.target)
+      expect(paused.fovDegrees).toBe(before.fovDegrees)
+      before = paused
+    }
+    const resumed = camera.update({ ...frame(4 + 1 / 60, { bpm: 120 }), transport: { sourcePresent: true, playing: true, paused: false, analysisActive: true, animationActive: true, trackId: 'track', timeSec: 2 + 1 / 60 } })
+    expect(Math.hypot(...resumed.position.map((value, axis) => value - before.position[axis]) as [number, number, number])).toBeLessThan(0.15)
+  })
+
   it('punches the FOV in on every kick, in proportion to its strength, and lets it recover', () => {
     const { camera } = build({ motion: { tempo: { punch: 3, fov: 0 } } , rig: { kind: 'static' } as never })
     run(camera, 2, { bpm: 120 })

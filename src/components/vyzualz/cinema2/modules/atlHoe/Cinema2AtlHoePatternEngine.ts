@@ -51,11 +51,27 @@ export interface Cinema2AtlHoePatternSignals {
   readonly mid: number
   readonly high: number
   readonly flux: number
+  readonly vocal: number
+  readonly significance: number
+  readonly momentum: number
+  readonly impact: number
+  readonly variation: number
   readonly kick: number
   readonly snare: number
   readonly transient: number
+  readonly beat: number
   readonly downbeat: number
+  readonly bar: number
   readonly phrase: number
+  readonly section: number
+  /** Section-specific activity policy: breakdown < unknown < verse/buildup < drop. */
+  readonly sectionPolicy: number
+  readonly sectionProgress: number
+  readonly sectionIntensity: number
+  readonly sectionConfidence: number
+  readonly buildProgress: number
+  readonly buildConfidence: number
+  readonly buildIntensity: number
   readonly build: number
   readonly drop: number
 }
@@ -77,6 +93,8 @@ export interface Cinema2AtlHoePatternFrame {
   readonly pattern: Cinema2AtlHoePatternId
   readonly stage: Cinema2AtlHoePerformanceStage
   readonly beats: number
+  /** beat-time, energy, highs and flux for tiny non-emissive environmental motion. */
+  readonly sceneMotion: Cinema2AtlHoePacked4
   readonly routeFronts: Cinema2AtlHoePacked4
   readonly routeWidths: Cinema2AtlHoePacked4
   /** sign, windows, crown, spire, streetlight, road, star, lightning, foliage accent, atmosphere. */
@@ -129,7 +147,8 @@ interface ProgramState {
 }
 
 function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cinema2AtlHoePerformanceStage, s: Readonly<Cinema2AtlHoePatternSignals>): ProgramState {
-  const active = stage === 'rest' ? 0 : stage === 'active' ? 0.45 : stage === 'buildup' ? 0.55 + 0.45 * s.build : stage === 'drop' ? 1 : 0.28 + 0.38 * s.drop
+  const active = stage === 'rest' ? 0 : stage === 'active' ? (0.32 + 0.24 * s.sectionIntensity) * (0.55 + 0.45 * s.sectionPolicy)
+    : stage === 'buildup' ? 0.5 + 0.5 * s.build : stage === 'drop' ? 1 : 0.28 + 0.38 * s.drop
   const phase = fract(beats / 8)
   const routeFronts = freeze4([fract(phase + 0.00), fract(phase + 0.25), fract(phase + 0.50), fract(phase + 0.75)])
   let routeWidths = freeze4([0.10, 0.10, 0.10, 0.10])
@@ -158,9 +177,9 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     const cell = fract(beats / 5.5)
     signCellSelection = cell
     roleGains = freeze10([
-      0.48 + 0.5 * active + 0.35 * s.kick, 0.2 + 0.38 * s.mid + 0.28 * s.phrase,
+      0.48 + 0.42 * active + 0.28 * s.kick + 0.24 * s.vocal, 0.2 + 0.34 * s.mid + 0.22 * s.phrase + 0.18 * s.vocal,
       0.18 + 0.5 * s.downbeat, 0.12 + 0.38 * s.high, 0.3 + 0.62 * pulse(beats / 4),
-      0.2 + 0.35 * phase, 0.12 + 0.24 * s.high, 0.02, 0.08 + 0.18 * s.transient, 0.18,
+      0.2 + 0.3 * phase + 0.2 * s.bar, 0.12 + 0.24 * s.high, 0.02, 0.08 + 0.18 * s.transient, 0.18 + 0.12 * s.momentum,
     ])
     zoneWeights = freeze7([0.12, 0.34, 0.78, 1, 0.72, 0.3, 0.1])
     routeWidths = freeze4([0.065, 0.09, 0.065, 0.09])
@@ -171,7 +190,7 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
   } else if (pattern === 'interstate-flow') {
     roleGains = freeze10([
       0.16 + 0.24 * s.kick, 0.28 + 0.5 * Math.max(s.mid, active * phase), 0.28 + 0.5 * s.downbeat,
-      0.2 + 0.42 * s.build, 0.55 + 0.44 * active + 0.24 * s.kick, 0.62 + 0.38 * active + 0.3 * s.bass,
+      0.2 + 0.42 * s.build, 0.55 + 0.38 * active + 0.2 * s.kick + 0.18 * s.beat, 0.62 + 0.3 * active + 0.3 * s.sub + 0.2 * s.bar,
       0.08 + 0.18 * s.high, 0.02, 0.1 + 0.18 * s.transient, 0.16,
     ])
     zoneWeights = freeze7([1, 0.72, 0.42, 0.18, 0.35, 0.68, 0.96])
@@ -185,15 +204,15 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
   } else if (pattern === 'skyline-rise') {
     buildingLevel = fract(beats / 4)
     roleGains = freeze10([
-      0.14 + 0.32 * s.phrase, 0.48 + 0.5 * active + 0.3 * s.mid, 0.45 + 0.5 * Math.max(s.high, s.downbeat),
-      0.4 + 0.56 * Math.max(s.build, s.downbeat), 0.18 + 0.24 * s.kick, 0.16 + 0.2 * s.bass,
+      0.14 + 0.28 * s.phrase + 0.18 * s.vocal, 0.48 + 0.42 * active + 0.26 * s.mid + 0.18 * s.significance, 0.45 + 0.5 * Math.max(s.high, s.downbeat),
+      0.4 + 0.5 * Math.max(s.build, s.downbeat) + 0.12 * s.section, 0.18 + 0.24 * s.kick, 0.16 + 0.2 * s.bass,
       0.2 + 0.3 * s.high, 0.02, 0.12 + 0.2 * s.transient, 0.22 + 0.18 * s.build,
     ])
     zoneWeights = freeze7([0.18, 0.5, 0.88, 0.3, 1, 0.55, 0.2])
     routeWidths = freeze4([0.12, 0.08, 0.12, 0.08])
     skyGain = 0.32 + 0.25 * s.high
     practicalLightGain = 0.38
-    gradientGain = 0.82 + 0.16 * s.build
+    gradientGain = 0.78 + 0.14 * s.build + 0.08 * s.sectionProgress
     starDensity = 0.62
     starBrightness = 0.42 + 0.4 * Math.max(s.high, s.phrase)
     starZoneWeights = freeze7([0.28, 0.54, 0.92, 0.42, 1, 0.6, 0.3])
@@ -215,7 +234,7 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
     starZoneWeights = freeze7(outageMasks.map((value, index) => index < 3 ? value : 0.2).concat([outageMasks[3], 0.5, 0.12]))
     stormDarkness = 0.18 + 0.2 * active
   } else if (pattern === 'storm-takeover') {
-    const strike = clamp01(Math.max(s.transient * 0.65, s.downbeat * 0.5, s.drop))
+    const strike = clamp01(Math.max(s.transient * 0.65, s.downbeat * 0.5, s.impact * 0.7, s.drop))
     roleGains = freeze10([
       0.18 + 0.26 * s.kick, 0.2 + 0.38 * s.mid + 0.35 * strike, 0.28 + 0.5 * strike,
       0.22 + 0.56 * strike, 0.18 + 0.34 * s.kick, 0.2 + 0.34 * s.bass,
@@ -242,10 +261,10 @@ function programState(pattern: Cinema2AtlHoePatternId, beats: number, stage: Cin
   } else {
     // City Pulse: low-frequency weight stays in the foreground while mids and highs articulate the skyline.
     roleGains = freeze10([
-      0.42 + 0.4 * s.bass + 0.4 * s.kick, 0.3 + 0.46 * s.mid + 0.18 * active,
+      0.42 + 0.34 * s.bass + 0.34 * s.kick + 0.18 * s.vocal, 0.3 + 0.4 * s.mid + 0.16 * active + 0.16 * s.significance,
       0.28 + 0.46 * s.high + 0.36 * s.downbeat, 0.2 + 0.38 * s.build,
       0.32 + 0.48 * s.kick, 0.38 + 0.42 * s.sub, 0.12 + 0.3 * s.high,
-      0.02 + 0.15 * s.drop, 0.1 + 0.22 * s.transient, 0.22 + 0.2 * s.energy,
+      0.02 + 0.15 * s.drop, 0.1 + 0.22 * s.transient + 0.12 * s.flux, 0.22 + 0.15 * s.energy + 0.15 * s.momentum,
     ])
     zoneWeights = freeze7([0.2, 0.58, 0.9, 0.36, 1, 0.52, 0.18])
     routeWidths = freeze4([0.14, 0.1, 0.14, 0.1])
@@ -287,6 +306,7 @@ export function evaluateCinema2AtlHoePattern(input: Readonly<Cinema2AtlHoePatter
     mix(outgoing[key] as number, incoming[key] as number, progress)
   return Object.freeze({
     pattern: input.pattern, stage: input.stage, beats,
+    sceneMotion: Object.freeze([beats, clamp01(input.signals.energy), clamp01(input.signals.high), clamp01(input.signals.flux)]) as Cinema2AtlHoePacked4,
     routeFronts: blend<Cinema2AtlHoePacked4>('routeFronts'),
     routeWidths: blend<Cinema2AtlHoePacked4>('routeWidths'),
     roleGains: blend<Cinema2AtlHoeRoleGains>('roleGains'),

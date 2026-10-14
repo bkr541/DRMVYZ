@@ -5,7 +5,10 @@ import { CINEMA2_ATL_HOE_PATTERN_IDS, type Cinema2AtlHoePatternSignals } from '.
 
 const silent: Cinema2AtlHoePatternSignals = Object.freeze({
   energy: 0, sub: 0, bass: 0, mid: 0, high: 0, flux: 0,
-  kick: 0, snare: 0, transient: 0, downbeat: 0, phrase: 0, build: 0, drop: 0,
+  vocal: 0, significance: 0, momentum: 0, impact: 0, variation: 0,
+  kick: 0, snare: 0, transient: 0, beat: 0, downbeat: 0, bar: 0, phrase: 0, section: 0, sectionPolicy: 0.45,
+  sectionProgress: 0, sectionIntensity: 0, sectionConfidence: 0,
+  buildProgress: 0, buildConfidence: 0, buildIntensity: 0, build: 0, drop: 0,
 })
 const withSignal = (signal: keyof Cinema2AtlHoePatternSignals): Cinema2AtlHoePatternSignals => ({ ...silent, [signal]: 1 })
 

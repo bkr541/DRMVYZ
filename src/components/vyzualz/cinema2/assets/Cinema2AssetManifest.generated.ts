@@ -11,14 +11,24 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/atl-hoe.glb",
-        "bytes": 6580492,
-        "triangles": 75409
+        "bytes": 7305160,
+        "triangles": 94985
+      },
+      "medium": {
+        "url": "/cinema2/models/atl-hoe-medium.glb",
+        "bytes": 5924716,
+        "triangles": 62647
+      },
+      "low": {
+        "url": "/cinema2/models/atl-hoe-low.glb",
+        "bytes": 5248736,
+        "triangles": 54036
       }
     },
     "gpuBytes": {
-      "high": 6318204,
-      "medium": 6318204,
-      "low": 6318204
+      "high": 7037964,
+      "medium": 5657560,
+      "low": 4981600
     }
   },
   {
@@ -73,14 +83,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-chamber.glb",
-        "bytes": 7059684,
+        "bytes": 9008084,
         "triangles": 142196
       }
     },
     "gpuBytes": {
-      "high": 7050680,
-      "medium": 7050680,
-      "low": 7050680
+      "high": 8994072,
+      "medium": 8994072,
+      "low": 8994072
     }
   },
   {
@@ -92,14 +102,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-tubes.glb",
-        "bytes": 3287340,
+        "bytes": 4217292,
         "triangles": 61984
       }
     },
     "gpuBytes": {
-      "high": 3266504,
-      "medium": 3266504,
-      "low": 3266504
+      "high": 4183848,
+      "medium": 4183848,
+      "low": 4183848
     }
   },
   {
@@ -111,14 +121,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/conduit-wordmark.glb",
-        "bytes": 2946436,
+        "bytes": 3766808,
         "triangles": 57882
       }
     },
     "gpuBytes": {
-      "high": 2938540,
-      "medium": 2938540,
-      "low": 2938540
+      "high": 3754524,
+      "medium": 3754524,
+      "low": 3754524
     }
   },
   {

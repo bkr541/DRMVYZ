@@ -61,7 +61,7 @@ import {
 import { Cinema2MainframeBeatClockResolver, resolveCinema2MainframeTimeSec } from './mainframe/Cinema2MainframePatternEngine'
 import { resolveCinema2MainframeTriggerEventIdentity, type Cinema2MainframeTriggerId } from './mainframe/Cinema2MainframePatternController'
 import { shouldResetCinema2MainframeDropState } from './mainframe/Cinema2MainframeMusicAdapter'
-import type { Cinema2AudioEvent, Cinema2AudioSignal } from '../audio/Cinema2AudioIntelligenceBridge'
+import { Cinema2AtlHoeMusicAdapter } from './atlHoe/Cinema2AtlHoeMusicAdapter'
 import {
   CINEMA2_THREE_SEGMENT_ROLES,
   Cinema2ThreeSegmentLighting,
@@ -203,8 +203,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
         createCinema2AtlHoePatternCycle(index => context.randomness.sample('atl-hoe-pattern-cycle', index)),
       ) : null
       const atlHoeBeatClock = atlHoeRoles ? new Cinema2MainframeBeatClockResolver() : null
-      const atlHoeImpulses = createAtlHoeImpulseState()
-      let atlHoeSectionId: string | null = null
+      const atlHoeMusic = atlHoeRoles ? new Cinema2AtlHoeMusicAdapter() : null
       let atlHoePreviousTimeSec: number | null = null
       let atlHoePreviousBeat: number | null = null
       let atlHoePreviousSourceIdentity: string | null = null
@@ -336,34 +335,32 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
               if (reset) {
                 atlHoeController!.reset(pattern)
                 atlHoeBeatClock!.reset()
-                resetAtlHoeImpulseState(atlHoeImpulses)
-                atlHoeSectionId = null
+                atlHoeMusic!.reset()
               }
               const timing = atlHoeBeatClock!.resolve(acceptedFrame, parameters.get('atlHoeBpmSync') !== false)
               const reactivity = readNumber(parameters.get('atlHoeMusicReactivity'), 0, 1) ?? 0.8
               const master = readNumber(parameters.get('atlHoeMasterIntensity'), 0, 1.5) ?? 1
-              const impulse = updateAtlHoeImpulses(atlHoeImpulses, acceptedFrame, frame.deltaTimeSec, atlHoeSectionId)
-              atlHoeSectionId = impulse.sectionId
-              const build = readAudioSignal(frame.audio?.features.buildProgress)
-                || readDirectorSignal(frame.director?.context.build)
-              const energy = readAudioSignal(frame.audio?.features.overallEnergy)
-              const drop = impulse.values.drop * (readNumber(parameters.get('atlHoeDropReaction'), 0, 1) ?? 0.92)
-              const stage: Cinema2AtlHoePerformanceStage = impulse.dropHit ? 'drop' : drop > 0.035 ? 'recovery'
-                : build > 0.12 ? 'buildup' : energy > 0.07 ? 'active' : 'rest'
+              const music = atlHoeMusic!.update(acceptedFrame, atlHoePreviousTimeSec, frame.deltaTimeSec, playback, reset)
+              const continuous = music.continuous
+              const qualifiedBuild = continuous.buildConfidence >= 0.45
+                ? continuous.buildProgress * (0.35 + 0.65 * continuous.buildIntensity) : 0
+              const energy = continuous.overall
+              const drop = music.impulses.drop * (readNumber(parameters.get('atlHoeDropReaction'), 0, 1) ?? 0.92)
+              const stage: Cinema2AtlHoePerformanceStage = music.stage
               const trigger = readAtlHoeTrigger(parameters.get('atlHoeTrigger'))
-              const triggerEventId = trigger === 'section'
-                ? impulse.sectionEventId
+              const triggerEventId = reset ? null : trigger === 'section'
+                ? music.eventIds.section
                 : resolveCinema2MainframeTriggerEventIdentity(
-                  acceptedFrame, trigger as Cinema2MainframeTriggerId, atlHoePreviousTimeSec, impulse.dropEventId,
+                  acceptedFrame, trigger as Cinema2MainframeTriggerId, atlHoePreviousTimeSec, music.dropEventId,
                   { previousBeat: atlHoePreviousBeat, current: timing },
                 )
               const bar4EventId = resolveCinema2MainframeTriggerEventIdentity(
-                acceptedFrame, 'bar4', atlHoePreviousTimeSec, impulse.dropEventId,
+                acceptedFrame, 'bar4', atlHoePreviousTimeSec, music.dropEventId,
                 { previousBeat: atlHoePreviousBeat, current: timing },
               )
-              const autoBoundaryId = impulse.dropEventId ?? impulse.sectionEventId ?? bar4EventId
+              const autoBoundaryId = reset ? null : music.dropEventId ?? music.eventIds.section ?? bar4EventId
               const autoPattern = resolveCinema2AtlHoeAutoPattern({
-                stage, energy, vocalPresence: readAudioSignal(acceptedAudio?.features.vocalPresence),
+                stage, energy, vocalPresence: continuous.vocal,
                 current: atlHoeController!.activePattern, boundaryOrdinal: Math.floor(timing.beats / 16),
               })
               const selection = atlHoeController!.update({
@@ -379,17 +376,33 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
               const transientAmount = readNumber(parameters.get('atlHoeTransientReaction'), 0, 1) ?? 0.58
               const signals: Cinema2AtlHoePatternSignals = Object.freeze({
                 energy: energy * reactivity,
-                sub: readAudioSignal(frame.audio?.bands.sub) * reactivity,
-                bass: readAudioSignal(frame.audio?.bands.bass) * reactivity,
-                mid: readAudioSignal(frame.audio?.bands.mid) * reactivity,
-                high: readAudioSignal(frame.audio?.bands.high) * reactivity,
-                flux: readAudioSignal(frame.audio?.features.spectralFlux) * reactivity,
-                kick: impulse.values.kick * kickAmount,
-                snare: impulse.values.snare * transientAmount,
-                transient: impulse.values.transient * transientAmount,
-                downbeat: impulse.values.downbeat * kickAmount,
-                phrase: impulse.values.phrase * reactivity,
-                build: build * reactivity,
+                sub: continuous.sub * reactivity,
+                bass: continuous.bass * reactivity,
+                mid: continuous.mid * reactivity,
+                high: continuous.high * reactivity,
+                flux: continuous.flux * reactivity,
+                vocal: continuous.vocal * reactivity,
+                significance: continuous.significance * reactivity,
+                momentum: continuous.momentum * reactivity,
+                impact: continuous.impact * reactivity,
+                variation: continuous.variation * reactivity,
+                kick: music.impulses.kick * kickAmount,
+                snare: music.impulses.snare * transientAmount,
+                transient: music.impulses.transient * transientAmount,
+                beat: music.impulses.beat * reactivity,
+                downbeat: music.impulses.downbeat * kickAmount,
+                bar: music.impulses.bar * reactivity,
+                phrase: music.impulses.phrase * reactivity,
+                section: music.impulses.section * reactivity,
+                sectionPolicy: music.section === 'breakdown' ? 0.2 : music.section === 'unknown' ? 0.45
+                  : music.section === 'other' ? 0.6 : music.section === 'verse' ? 0.78 : music.section === 'buildup' ? 0.9 : 1,
+                sectionProgress: continuous.sectionProgress,
+                sectionIntensity: continuous.sectionIntensity * reactivity,
+                sectionConfidence: continuous.sectionConfidence,
+                buildProgress: continuous.buildProgress,
+                buildConfidence: continuous.buildConfidence,
+                buildIntensity: continuous.buildIntensity,
+                build: qualifiedBuild * reactivity,
                 drop,
               })
               atlHoeDraw = {
@@ -411,6 +424,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             segmentLighting?.reset()
             atlHoeController?.reset()
             atlHoeBeatClock?.reset()
+            atlHoeMusic?.reset()
             // With a bridge, its resource disposer releases the assets after its own materials; otherwise release here.
             if (!bridge) releaseHeld()
           },
@@ -696,33 +710,6 @@ function readColor(value: unknown): readonly [number, number, number] | null {
     : null
 }
 
-type AtlHoeImpulseId = 'kick' | 'snare' | 'transient' | 'downbeat' | 'phrase' | 'drop'
-interface AtlHoeImpulseSlot { value: number; lastId: string | null; releaseSec: number }
-type AtlHoeImpulseState = Record<AtlHoeImpulseId, AtlHoeImpulseSlot>
-
-function createAtlHoeImpulseState(): AtlHoeImpulseState {
-  return {
-    kick: { value: 0, lastId: null, releaseSec: 0.35 },
-    snare: { value: 0, lastId: null, releaseSec: 0.28 },
-    transient: { value: 0, lastId: null, releaseSec: 0.22 },
-    downbeat: { value: 0, lastId: null, releaseSec: 0.7 },
-    phrase: { value: 0, lastId: null, releaseSec: 1.1 },
-    drop: { value: 0, lastId: null, releaseSec: 2.2 },
-  }
-}
-
-function readAudioSignal(signal: Readonly<Cinema2AudioSignal<number>> | undefined): number {
-  return signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value)
-    ? Math.min(1, Math.max(0, signal.value)) : 0
-}
-
-function readDirectorSignal(signal: unknown): number {
-  if (!signal || typeof signal !== 'object') return 0
-  const record = signal as { available?: unknown; value?: unknown }
-  return record.available === true && typeof record.value === 'number' && Number.isFinite(record.value)
-    ? Math.min(1, Math.max(0, record.value)) : 0
-}
-
 function readAtlHoePattern(value: unknown): Cinema2AtlHoePatternId {
   return CINEMA2_ATL_HOE_PATTERN_IDS.includes(value as Cinema2AtlHoePatternId)
     ? value as Cinema2AtlHoePatternId : CINEMA2_ATL_HOE_DEFAULT_PATTERN
@@ -731,66 +718,6 @@ function readAtlHoePattern(value: unknown): Cinema2AtlHoePatternId {
 function readAtlHoeTrigger(value: unknown): Cinema2AtlHoeTriggerId {
   return CINEMA2_ATL_HOE_TRIGGER_IDS.includes(value as Cinema2AtlHoeTriggerId)
     ? value as Cinema2AtlHoeTriggerId : 'bar4'
-}
-
-function resetAtlHoeImpulseState(state: AtlHoeImpulseState): void {
-  for (const slot of Object.values(state)) {
-    slot.value = 0
-    slot.lastId = null
-  }
-}
-
-function updateAtlHoeImpulses(
-  state: AtlHoeImpulseState,
-  frame: Readonly<Cinema2ModuleFrameReadContext>,
-  deltaTimeSec: number,
-  previousSectionId: string | null,
-): Readonly<{
-  values: Readonly<Record<AtlHoeImpulseId, number>>
-  dropHit: boolean
-  dropEventId: string | null
-  sectionId: string | null
-  sectionEventId: string | null
-}> {
-  const audio = frame.audio
-  const section = audio?.structure.section.available ? audio.structure.section.value : null
-  const sectionId = section?.id ?? previousSectionId
-  const sectionText = `${section?.type ?? ''} ${section?.label ?? ''}`.toLowerCase()
-  const sectionDrop = section && section.id !== previousSectionId && (sectionText.includes('drop') || sectionText.includes('chorus') || sectionText.includes('peak'))
-    ? ({ id: `section-drop:${section.id}`, strength: section.dropConfidence ?? section.intensity } satisfies Pick<Cinema2AudioEvent, 'id' | 'strength'>)
-    : null
-  const moment = audio?.structure.semanticMoments.available
-    ? audio.structure.semanticMoments.value?.find(item => Math.abs(item.timeSec - audio.upstream.timeSec) <= 0.1 && String(item.type).toLowerCase().includes('drop'))
-    : null
-  const dropEvent = moment ? { id: `moment-drop:${moment.id}`, strength: moment.confidence } : sectionDrop
-  const events: Readonly<Record<AtlHoeImpulseId, Readonly<Pick<Cinema2AudioEvent, 'id' | 'strength'>> | null>> = {
-    kick: audio?.rhythm.kick ?? null,
-    snare: audio?.rhythm.snare ?? null,
-    transient: audio?.rhythm.transient ?? null,
-    downbeat: audio?.rhythm.downbeat ?? null,
-    phrase: audio?.rhythm.fixedClocks[16].boundary ?? null,
-    drop: dropEvent,
-  }
-  const values = {} as Record<AtlHoeImpulseId, number>
-  let dropHit = false
-  let dropEventId: string | null = null
-  for (const id of Object.keys(state) as AtlHoeImpulseId[]) {
-    const slot = state[id]
-    const event = events[id]
-    const fresh = !!event && event.id !== slot.lastId
-    if (fresh) {
-      slot.lastId = event.id
-      slot.value = Math.max(slot.value, Math.min(1, Math.max(0, event.strength)))
-      if (id === 'drop') { dropHit = true; dropEventId = event.id }
-    } else {
-      slot.value = Math.max(0, slot.value - Math.max(0, deltaTimeSec) / slot.releaseSec)
-    }
-    values[id] = slot.value
-  }
-  return Object.freeze({
-    values: Object.freeze(values), dropHit, dropEventId, sectionId,
-    sectionEventId: section?.id && section.id !== previousSectionId ? `section:${section.id}` : null,
-  })
 }
 
 function message(error: unknown): string {

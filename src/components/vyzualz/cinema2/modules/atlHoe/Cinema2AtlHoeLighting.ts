@@ -63,24 +63,24 @@ export function resolveCinema2AtlHoeCityLighting(
   let verticalWidths = packed([0.18, 0.16, 0.18, 0.2])
   let horizontalWidths = packed([0.16, 0.18, 0.15, 0.2])
   let heroGains = packed([
-    0.34 + 0.5 * signals.mid + 0.26 * signals.bass,
-    0.3 + 0.52 * signals.mid + 0.25 * signals.flux,
+    0.34 + 0.44 * signals.mid + 0.22 * signals.bass + 0.16 * signals.vocal,
+    0.3 + 0.46 * signals.mid + 0.22 * signals.flux + 0.15 * signals.significance,
     0.32 + 0.55 * signals.mid + 0.22 * signals.snare,
-    0.26 + 0.42 * signals.mid + 0.24 * signals.phrase,
+    0.26 + 0.38 * signals.mid + 0.22 * signals.phrase + 0.14 * signals.section,
   ])
   let streetlightFront = fract(beats / 4)
   let streetlightWidth = 0.15
-  let streetlightGain = 0.32 + 0.58 * signals.kick + 0.24 * signals.bass
+  let streetlightGain = 0.32 + 0.46 * signals.kick + 0.2 * signals.beat + 0.2 * signals.bass
   let roadFront = fract(beats / 6)
   let roadWidth = 0.2
-  let roadGain = 0.4 + 0.52 * Math.max(signals.sub, signals.bass)
+  let roadGain = 0.4 + 0.45 * Math.max(signals.sub, signals.bass) + 0.16 * signals.bar
   let crownFront = fract(beats / 5)
   let crownWidth = 0.2
   let crownGain = 0.32 + 0.48 * signals.high + 0.48 * signals.flux
   let lowFacadeGain = 0.34 + 0.58 * Math.max(signals.sub, signals.bass)
   let windowSparkle = 0.18 + 0.58 * signals.high + 0.38 * signals.flux
-  let foliageThreshold = 0.9 - 0.36 * Math.max(signals.snare, signals.transient)
-  let foliageGain = 0.12 + 0.72 * Math.max(signals.snare, signals.transient)
+  let foliageThreshold = 0.9 - 0.36 * Math.max(signals.flux, signals.snare, signals.transient)
+  let foliageGain = 0.12 + 0.72 * Math.max(signals.flux, signals.snare, signals.transient)
 
   if (pattern === 'waffle-marquee') {
     streetlightFront = fract(beats / 3.5 + 0.18)
@@ -108,7 +108,7 @@ export function resolveCinema2AtlHoeCityLighting(
     streetlightGain *= 0.62
     roadGain *= 0.7
   } else if (pattern === 'storm-takeover') {
-    const strike = clamp01(Math.max(signals.drop, signals.transient * 0.7, signals.downbeat * 0.5))
+    const strike = clamp01(Math.max(signals.drop, signals.transient * 0.7, signals.downbeat * 0.5, signals.impact * 0.7))
     crownGain = 0.28 + 0.72 * strike + 0.3 * signals.high
     crownWidth = 0.34
     windowSparkle = 0.08 + 0.92 * strike
@@ -138,7 +138,7 @@ export function resolveCinema2AtlHoeCityLighting(
   ] as const)
   const crownFlash = clamp01(Math.max(crownGain, signals.downbeat * 0.72, signals.drop) + 0.12 * dropAfterglow)
   const foliageRim = clamp01(foliageGain * (0.5 + 0.5 * Math.max(signals.transient, signals.snare)) + 0.16 * dropAfterglow)
-  const fogGain = clamp01(0.22 + 0.5 * signals.energy + 0.32 * signals.build + 0.35 * dropAfterglow)
+  const fogGain = clamp01(0.22 + 0.38 * signals.energy + 0.28 * signals.build + 0.18 * signals.momentum + 0.35 * dropAfterglow)
 
   return Object.freeze({
     heroVerticalFronts: vertical,

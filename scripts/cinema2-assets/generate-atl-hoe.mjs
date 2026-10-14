@@ -2,7 +2,7 @@
 // The preset camera looks down -Z; the Waffle House sign sits in the foreground
 // while the four landmark silhouettes occupy progressively deeper skyline layers.
 //
-//   node scripts/cinema2-assets/generate-atl-hoe.mjs [out.glb]
+//   node scripts/cinema2-assets/generate-atl-hoe.mjs [out.glb] [--quality=high|medium|low]
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,7 +11,18 @@ import { mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/Buffer
 import { hash, writeGlb } from './cinema2-tube-kit.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/atl-hoe.glb')
+const outputArgument = process.argv.slice(2).find(argument => !argument.startsWith('--'))
+const requestedQuality = process.argv.find(argument => argument.startsWith('--quality='))?.split('=')[1] ?? 'high'
+if (!['high', 'medium', 'low'].includes(requestedQuality)) throw new Error(`Unsupported ATL HOE quality: ${requestedQuality}`)
+const QUALITY = requestedQuality
+const QUALITY_PROFILE = Object.freeze({
+  high: Object.freeze({ segmentScale: 1, foliageStep: 1, scatterScale: 1, dimensionalClusters: 1 }),
+  medium: Object.freeze({ segmentScale: 0.72, foliageStep: 1.28, scatterScale: 0.68, dimensionalClusters: 0.58 }),
+  low: Object.freeze({ segmentScale: 0.48, foliageStep: 1.72, scatterScale: 0.38, dimensionalClusters: 0.25 }),
+})[QUALITY]
+const qualitySegments = (segments, minimum = 6) => Math.max(minimum, Math.round(segments * QUALITY_PROFILE.segmentScale))
+const qualityCount = count => count <= 0 ? 0 : Math.max(1, Math.round(count * QUALITY_PROFILE.scatterScale))
+const outputPath = outputArgument ? resolve(outputArgument) : join(root, 'public/cinema2/models/atl-hoe.glb')
 
 // The lit things are split into groups of parts so the Design tab can colour and animate them separately (see
 // docs/cinema2-atl-hoe-design-tab-plan.md). The same list is read by the preset, so the two cannot drift.
@@ -116,11 +127,16 @@ const MATERIALS = {
   signBorder: { baseColorFactor: [0.006, 0.007, 0.009, 1], metallicFactor: 0.45, roughnessFactor: 0.42, emissiveFactor: [0.001, 0.002, 0.004] },
   // The letters' and faces' base colours are white; the preset's colour parameters (Letter Color, Sign Color) supply the actual tint.
   signLetters: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.82 },
+  signWiring: { baseColorFactor: [0.018, 0.021, 0.025, 1], metallicFactor: 0.72, roughnessFactor: 0.34 },
   lampGlow: { baseColorFactor: [0.4, 0.18, 0.04, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [1, 0.45, 0.1] },
   roadPole: { baseColorFactor: [0.09, 0.09, 0.1, 1], metallicFactor: 0.4, roughnessFactor: 0.5 },
   // Matte near-black so the warm city light does not blaze off the decks' top faces, which the camera sees from above.
   road: { baseColorFactor: [0.01, 0.012, 0.014, 1], metallicFactor: 0, roughnessFactor: 1 },
+  roadConcrete: { baseColorFactor: [0.105, 0.11, 0.115, 1], metallicFactor: 0.04, roughnessFactor: 0.94 },
+  roadMarking: { baseColorFactor: [0.48, 0.45, 0.34, 1], metallicFactor: 0, roughnessFactor: 0.84 },
   roadGlow: { baseColorFactor: [0.14, 0.055, 0.012, 1], metallicFactor: 0, roughnessFactor: 0.65, emissiveFactor: [0.28, 0.075, 0.006] },
+  roofEquipment: { baseColorFactor: [0.075, 0.082, 0.09, 1], metallicFactor: 0.38, roughnessFactor: 0.7 },
+  facadeMullion: { baseColorFactor: [0.018, 0.022, 0.027, 1], metallicFactor: 0.56, roughnessFactor: 0.5 },
   // Near-black leaves with only a trace of blue-green; the warm city light picks out their city-facing edges.
   foliageBack: { baseColorFactor: [0.003, 0.006, 0.009, 1], metallicFactor: 0, roughnessFactor: 1 },
   foliage: { baseColorFactor: [0.003, 0.006, 0.009, 1], metallicFactor: 0, roughnessFactor: 1 },
@@ -170,7 +186,7 @@ function addGeometry(part, source, { at = [0, 0, 0], size = [1, 1, 1], rotate = 
 }
 
 const box = (part, at, size, rotate = [0, 0, 0], name) => addGeometry(part, new THREE.BoxGeometry(1, 1, 1), { at, size, rotate, name })
-const cylinder = (part, at, radius, height, segments = 24, rotate = [0, 0, 0], name) => addGeometry(part, new THREE.CylinderGeometry(radius, radius, height, segments, 1, false), { at, rotate, name })
+const cylinder = (part, at, radius, height, segments = 24, rotate = [0, 0, 0], name) => addGeometry(part, new THREE.CylinderGeometry(radius, radius, height, qualitySegments(segments), 1, false), { at, rotate, name })
 
 function mergePart(part, list) {
   const positions = [], normals = [], indices = [], phases = []
@@ -664,6 +680,27 @@ for (const [i, [u, v, z]] of [[946.5, 42, LANDMARK_Z - 2.3], [1135, 166, LANDMAR
   box('beacon', [x, y, z + 0.1], [0.16, 0.16, 0.16], [0, 0, 0], `beacon-${i}`)
 }
 
+// Screen-resolvable hero-building construction detail. These dark mullions and rooftop units are deliberately non-emissive: they keep
+// the landmark silhouettes legible when the performance lights brown out and make the glass/concrete/steel hierarchy survive an
+// emission-off material review. Medium retains the principal pieces; low keeps one identifying mullion/equipment group per landmark.
+const HERO_DETAIL_STEP = QUALITY === 'high' ? 1 : QUALITY === 'medium' ? 2 : 4
+for (let u = 1094, index = 0; u <= 1178; u += 12, index += 1) {
+  if (index % HERO_DETAIL_STEP !== 0) continue
+  refBand('facadeMullion', u - 0.8, u + 0.8, 356, 920, LANDMARK_Z + 0.35, 0.08, `westin-mullion-${index}`)
+}
+for (let u = tModelU(690), index = 0; u <= tModelU(1025); u += 14, index += 1) {
+  if (index % HERO_DETAIL_STEP !== 0) continue
+  refBand('facadeMullion', u - 0.9, u + 0.9, tModelV(382), 900, LANDMARK_Z + 1.58, 0.08, `truist-mullion-${index}`)
+}
+for (const [index, [u0, u1, v0, v1]] of [
+  [1105, 1122, 332, 344], [1146, 1164, 337, 351],
+  [tModelU(720), tModelU(760), tModelV(344), tModelV(366)],
+  [GP_LEFT + 18, GP_LEFT + 42, 214, 232],
+].entries()) {
+  if (QUALITY === 'low' && index % 2 === 1) continue
+  refBand('roofEquipment', u0, u1, v0, v1, LANDMARK_Z + 0.5, 0.7, `hero-roof-equipment-${index}`)
+}
+
 // Wider Stages show more city than the reference frame, so the skyline keeps going past both edges (reference columns -1300 … 0 and
 // 1672 … 3000, enough for a 3:1 Stage) with the same three bands and varied widths and heights.
 for (const [part, band, z, depth, topMin, topMax] of [['distantBuildings', 'far', FAR_Z, 3, 600, 680], ['midBuildings', 'mid', MID_Z, 3.4, 520, 640], ['nearBuildings', 'near', NEAR_Z, 3.2, 660, 730]]) {
@@ -701,7 +738,17 @@ for (let index = 0; index < ROAD_LIGHT_SEGMENTS; index += 1) {
 }
 refBlock('road', ROAD_FROM, ROAD_TO, 912, ROAD_Z + 0.8, 3.2, 'road-understructure')
 // Pale underside beams catch a little of the lamp light so the deck has thickness.
-for (let u = ROAD_FROM; u < ROAD_TO; u += 90) refBand('road', u, u + 5, 872, 884, ROAD_Z + 0.4, 2.8, `road-beam-${u}`)
+for (let u = ROAD_FROM; u < ROAD_TO; u += 90 * HERO_DETAIL_STEP) refBand('roadConcrete', u, u + 7, 872, 920, ROAD_Z + 0.4, 2.8, `road-beam-${u}`)
+// Guardrails and lane markers make the foreground route read as a constructed interstate even when its emissive edge is dark.
+for (const [name, v, z] of [['far', 840, ROAD_Z + 1.62], ['near', 878, ROAD_Z + 2.48]]) {
+  refBand('roadPole', ROAD_FROM, ROAD_TO, v, v + 2.6, z, 0.09, `road-guardrail-${name}`)
+  for (let u = ROAD_FROM; u < ROAD_TO; u += 96 * HERO_DETAIL_STEP) {
+    refBand('roadPole', u, u + 2.2, v, v + 15, z - 0.05, 0.12, `road-guardrail-post-${name}-${u}`)
+  }
+}
+for (let u = ROAD_FROM; u < ROAD_TO; u += 72 * HERO_DETAIL_STEP) {
+  refBand('roadMarking', u, Math.min(ROAD_TO, u + 38), 861, 863.2, ROAD_Z + 1.54, 0.04, `road-lane-marker-${u}`)
+}
 // Lamps: the reference's five, then a steady run in both directions with a little deterministic spread.
 const crownPxAt = z => Math.abs(refPoint(1, 600, z)[0] - refPoint(0, 600, z)[0])
 const LAMPS = [[478, 790], [635, 818], [787, 828], [975, 800], [1075, 848], [1400, 845], [1560, 830], [1650, 845]]
@@ -711,6 +758,7 @@ LAMPS.forEach(([u, v], i) => {
   refBand('roadPole', u - 1.8, u + 1.8, v, 884, ROAD_Z + 0.4, 0.3, `road-lamp-pole-${i}`)
   const lampBin = binOf(u, LAMP_EDGES)
   refBand(PART_GROUPS.lampOrbs[lampBin], u - 4, u + 4, v - 6, v + 2, ROAD_Z + 0.4, 0.5, `road-lamp-${i}`)
+  refBand('roadPole', u - 6, u + 6, v - 8, v - 4.5, ROAD_Z + 0.32, 0.8, `road-lamp-housing-${i}`)
   // A soft halo behind the orb, and a pool of light on the near deck's face below the lamp.
   addGeometry(PART_GROUPS.lampHalos[lampBin], new THREE.CircleGeometry(1, 14), { at: [refPoint(u, v - 2, ROAD_Z + 0.2)[0], refPoint(u, v - 2, ROAD_Z + 0.2)[1], ROAD_Z + 0.2], size: [crownPxAt(ROAD_Z + 0.2) * 7, crownPxAt(ROAD_Z + 0.2) * 7, 1], name: `road-lamp-halo-${i}` })
   addGeometry(PART_GROUPS.lampHalos[lampBin], new THREE.CircleGeometry(1, 14), { at: [refPoint(u, 898, ROAD_Z + 2.4)[0], refPoint(u, 898, ROAD_Z + 2.4)[1], ROAD_Z + 0.8 + 1.65], size: [crownPxAt(ROAD_Z + 2.4) * 46, crownPxAt(ROAD_Z + 2.4) * 7, 1], name: `road-lamp-pool-${i}` })
@@ -767,6 +815,9 @@ function signRow(name, count, startX, y, dz = 0) {
   signBox('signMetal', [rowCenter, y, rowZ], [rowWidth, cabinetHeight, cabinetDepth], [0, 0, 0], `${name}-cabinet`)
   signBox('signTrim', [rowCenter, y + cabinetHeight / 2 - 0.02, rowFront - 0.015], [rowWidth + 0.04, 0.035, 0.05], [0, 0, 0], `${name}-cabinet-top-edge`)
   signBox('signTrim', [rowCenter, y - cabinetHeight / 2 + 0.02, rowFront - 0.015], [rowWidth + 0.04, 0.035, 0.05], [0, 0, 0], `${name}-cabinet-bottom-edge`)
+  // Rear spine, vertical seams and a recessed service conduit make the cabinet read as fabricated steel instead of one flat slab.
+  signBox('signMetal', [rowCenter, y, rowZ - cabinetDepth / 2 - 0.11], [rowWidth + 0.18, 0.12, 0.16], [0, 0, 0], `${name}-rear-spine`)
+  signBox('signWiring', [rowCenter, y - cabinetHeight * 0.24, rowZ - cabinetDepth / 2 - 0.2], [rowWidth - 0.34, 0.075, 0.08], [0, 0, 0], `${name}-rear-wiring-housing`)
   for (let i = 0; i < count; i += 1) {
     const x = startX + i * (panel + gap)
     // A flat yellow face, sitting just proud of the cabinet front and just behind the frame's front edge.
@@ -777,12 +828,19 @@ function signRow(name, count, startX, y, dz = 0) {
     signBox('signBorder', [x, y - (panel - ring) / 2, bezelZ], [panel, ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-bottom`)
     signBox('signBorder', [x - (panel - ring) / 2, y, bezelZ], [ring, panel - 2 * ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-left`)
     signBox('signBorder', [x + (panel - ring) / 2, y, bezelZ], [ring, panel - 2 * ring, bezelDepth], [0, 0, 0], `${name}-${i}-bezel-right`)
+    if (i < count - 1) signBox('signTrim', [x + (panel + gap) / 2, y, rowZ - cabinetDepth / 2 - 0.04], [0.055, cabinetHeight * 0.86, 0.08], [0, 0, 0], `${name}-${i}-rear-seam`)
   }
   return { rowWidth, rowCenter, cabinetHeight }
 }
 const LOWER_ROW_DZ = 0.34
 const topRow = signRow('top', 6, topStart, topY)
 const bottomRow = signRow('bottom', 5, bottomStart, bottomY, LOWER_ROW_DZ)
+
+// Cabinet-to-rail brackets stay large enough to read in the embedded preview; high adds paired gussets, medium/low retain the anchors.
+for (const [index, x] of [topStart - panel * 0.45, signCenterX, topStart + 5 * (panel + gap) + panel * 0.45].entries()) {
+  signBox('signMetal', [x, bottomY - 0.9, signZ - 0.22], [0.16, 0.72, 0.34], [0, 0, index === 1 ? 0 : (index - 1) * 0.18], `sign-support-bracket-${index}`)
+  if (QUALITY === 'high') signBox('signTrim', [x + 0.12, bottomY - 0.9, signZ - 0.39], [0.055, 0.58, 0.055], [0, 0, (index - 1) * 0.18], `sign-support-brace-${index}`)
+}
 
 // Four rivets at the corners of the exposed left end of each cabinet, as on the real sign.
 for (const [row, y, dz0] of [[topRow, topY, 0], [bottomRow, bottomY, LOWER_ROW_DZ]]) {
@@ -910,7 +968,7 @@ function contourV(contour, u) {
   }
   return contour.at(-1)[1]
 }
-const PETAL_DISC = new THREE.CircleGeometry(1, 7)
+const PETAL_DISC = new THREE.CircleGeometry(1, qualitySegments(7, 5))
 /** One rosette (a centre disc and six petal discs) centred on reference pixel (u, v) at depth z, `radius` reference pixels across its petals' reach. */
 function rosette(part, u, v, z, radius, key) {
   const [cx, cy] = refPoint(u, v, z)
@@ -924,7 +982,7 @@ function rosette(part, u, v, z, radius, key) {
     addGeometry(part, PETAL_DISC, { at: [cx + Math.cos(angle) * reach, cy + Math.sin(angle) * reach, z], size: [petal * (0.85 + hash(`${key}:s${k}`) * 0.3), petal * (0.85 + hash(`${key}:s${k}`) * 0.3), 1], name: `${key}-p${k}` })
   }
 }
-function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, faint = 0, flecks = 0, depth = 3.2 }) {
+function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, faint = 0, flecks = 0, dimensional = 0, depth = 3.2 }) {
   const px = pxAt(z)
   const front = z + depth / 2
   // The body under the contour, one slab per contour segment, sunk below the edge so the rosettes carry the silhouette.
@@ -938,31 +996,49 @@ function treeMass({ key, contour, z, fillTo, radius: [rMin, rMax], step, faint =
   const uStart = contour[0][0], uEnd = contour.at(-1)[0]
   // Dark rosettes along the contour, two staggered rows (the second sits lower and fills the gaps of the first).
   for (let row = 0; row < 2; row += 1) {
-    for (let u = uStart + row * step * 0.5, i = 0; u <= uEnd; u += step * (u < -60 || u > 1730 ? 3 : 1) * (0.8 + hash(`${key}:step:${row}:${i}`) * 0.4), i += 1) {
+    for (let u = uStart + row * step * 0.5, i = 0; u <= uEnd; u += step * QUALITY_PROFILE.foliageStep * (u < -60 || u > 1730 ? 3 : 1) * (0.8 + hash(`${key}:step:${row}:${i}`) * 0.4), i += 1) {
       const r = rMin + hash(`${key}:r:${row}:${i}`) * (rMax - rMin)
       const v = contourV(contour, u) + r * (0.55 + row * 1.05) + (hash(`${key}:v:${row}:${i}`) - 0.5) * r * 0.5
       rosette('foliage', u, v, front + 0.05 + row * 0.01 + (i % 5) * 0.002, r, `${key}-edge-${row}-${i}`)
     }
   }
   // Faint blue rosettes inside the mass (only where the frame can see them), in front of the dark ones.
-  for (let i = 0; i < faint; i += 1) {
+  for (let i = 0; i < qualityCount(faint); i += 1) {
     const u = uStart + hash(`${key}:faint-u:${i}`) * (Math.min(uEnd, 1760) - Math.max(uStart, -80)) + Math.max(0, -80 - uStart)
     const v = contourV(contour, u) + rMax * 2 + hash(`${key}:faint-v:${i}`) * 260
     rosette('foliageFaint', u, v, front + 0.12 + (i % 7) * 0.003, rMin + hash(`${key}:faint-r:${i}`) * (rMax - rMin), `${key}-faint-${i}`)
   }
-  for (let i = 0; i < flecks; i += 1) {
+  for (let i = 0; i < qualityCount(flecks); i += 1) {
     const u = uStart + hash(`${key}:fleck-u:${i}`) * (uEnd - uStart)
     const v = contourV(contour, u) + 4 + hash(`${key}:fleck-v:${i}`) * 40
     const [x, y] = refPoint(u, v, front + 0.2)
     addGeometry('foliageLit', new THREE.OctahedronGeometry(1, 0), { at: [x, y, front + 0.2], size: [px * 1.7, px * 1.4, px * 1], name: `${key}-fleck-${i}` })
   }
+  // A limited set of faceted 3D clusters breaks the card-like silhouette in the foreground. They use the same non-emissive foliage
+  // family, remain behind the readable sign face, and are explicitly thinned by quality tier.
+  const clusterCount = Math.round(dimensional * QUALITY_PROFILE.dimensionalClusters)
+  const clusterGeometry = new THREE.IcosahedronGeometry(1, QUALITY === 'high' ? 1 : 0)
+  for (let i = 0; i < clusterCount; i += 1) {
+    const u = Math.max(-80, uStart) + hash(`${key}:cluster-u:${i}`) * (Math.min(1760, uEnd) - Math.max(-80, uStart))
+    const radius = rMin + hash(`${key}:cluster-r:${i}`) * (rMax - rMin)
+    const v = contourV(contour, u) + radius * (1.1 + hash(`${key}:cluster-v:${i}`) * 5.2)
+    const [x, y] = refPoint(u, v, front + 0.16)
+    const worldRadius = radius * px * (0.36 + hash(`${key}:cluster-size:${i}`) * 0.18)
+    addGeometry('foliage', clusterGeometry, {
+      at: [x, y, front + 0.16 + (i % 9) * 0.006],
+      size: [worldRadius * (0.82 + hash(`${key}:cluster-x:${i}`) * 0.34), worldRadius, worldRadius * 0.62],
+      rotate: [hash(`${key}:cluster-rx:${i}`), hash(`${key}:cluster-ry:${i}`), hash(`${key}:cluster-rz:${i}`)],
+      name: `${key}-cluster-${i}`,
+    })
+  }
+  clusterGeometry.dispose()
 }
 treeMass({
-  key: 'tree-left', z: 4, fillTo: 1700, radius: [12, 18], step: 15, faint: 70, flecks: 70,
+  key: 'tree-left', z: 4, fillTo: 1700, radius: [12, 18], step: 15, faint: 70, flecks: 70, dimensional: 72,
   contour: [[-1300, 700], [-900, 688], [-500, 706], [-200, 690], [0, 676], [60, 684], [110, 698], [170, 716], [230, 744], [290, 774], [335, 802], [370, 840], [395, 960]],
 })
 treeMass({
-  key: 'tree-right', z: 4.4, fillTo: 1700, radius: [12, 19], step: 15, faint: 110, flecks: 110,
+  key: 'tree-right', z: 4.4, fillTo: 1700, radius: [12, 19], step: 15, faint: 110, flecks: 110, dimensional: 104,
   contour: [[1085, 960], [1100, 905], [1130, 880], [1180, 858], [1240, 838], [1300, 822], [1350, 805], [1400, 770], [1450, 725], [1500, 690], [1550, 650], [1600, 610], [1672, 556], [2200, 548], [2800, 566], [3000, 572]],
 })
 treeMass({
@@ -970,13 +1046,13 @@ treeMass({
   contour: [[330, 802], [420, 786], [520, 792], [620, 773], [700, 786], [780, 801], [870, 791], [960, 776], [1050, 769], [1130, 783], [1200, 802]],
 })
 treeMass({
-  key: 'tree-bottom', z: 6.5, fillTo: 1700, radius: [13, 22], step: 20, faint: 20, flecks: 25,
+  key: 'tree-bottom', z: 6.5, fillTo: 1700, radius: [13, 22], step: 20, faint: 20, flecks: 25, dimensional: 36,
   contour: [[380, 960], [500, 938], [620, 924], [740, 908], [860, 912], [980, 924], [1090, 932]],
 })
 
 mkdirSync(dirname(outputPath), { recursive: true })
 const meshes = [...byPart.entries()].map(([part, list]) => mergePart(part, list))
 const result = writeGlb(outputPath, meshes, MATERIALS, 'DRMVYZ scripts/cinema2-assets/generate-atl-hoe.mjs', 'atl-hoe')
-console.log(`Wrote ${outputPath}`)
+console.log(`Wrote ${outputPath} (${QUALITY})`)
 for (const mesh of meshes) console.log(`  ${mesh.name}: ${mesh.indices.length / 3} triangles, ${mesh.positions.length / 3} vertices`)
 console.log(`  total ${result.triangles} triangles, ${(result.byteLength / 1024).toFixed(0)} KB`)
