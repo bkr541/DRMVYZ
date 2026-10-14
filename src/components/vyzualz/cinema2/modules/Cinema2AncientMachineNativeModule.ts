@@ -81,6 +81,7 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
             aperture: clamp(readNumber(context.parameters, 'aperture', 0.12) + drop * 0.55, 0, 1),
             glyphDensity: clamp(readNumber(context.parameters, 'glyphDensity', 0.86), 0, 1),
             energy: clamp(readNumber(context.parameters, 'overallEnergy', 0), 0, 1),
+            bass: clamp(readNumber(context.parameters, 'bassPressure', 0), 0, 1),
             beat: clamp(readNumber(context.parameters, 'beatAccent', 0), 0, 1),
             kick: clamp(readNumber(context.parameters, 'kickAccent', 0), 0, 1),
             snare: clamp(readNumber(context.parameters, 'snareAccent', 0), 0, 1),

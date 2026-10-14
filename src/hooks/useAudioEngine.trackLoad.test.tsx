@@ -104,10 +104,24 @@ class FakeAudio {
   src = ''
   readonly playMock = vi.fn(() => Promise.resolve())
   readonly loadMock = vi.fn()
+  private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>()
 
   constructor() { fakeAudioInstances.push(this) }
-  addEventListener(): void {}
-  removeEventListener(): void {}
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+    const listeners = this.listeners.get(type) ?? new Set<EventListenerOrEventListenerObject>()
+    listeners.add(listener)
+    this.listeners.set(type, listeners)
+  }
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void {
+    this.listeners.get(type)?.delete(listener)
+  }
+  emit(type: string): void {
+    const event = new Event(type)
+    this.listeners.get(type)?.forEach(listener => {
+      if (typeof listener === 'function') listener(event)
+      else listener.handleEvent(event)
+    })
+  }
   load(): void { this.loadMock() }
   pause(): void {}
   play(): Promise<void> { return this.playMock() }
@@ -197,6 +211,32 @@ describe('useAudioEngine track loading', () => {
     expect(fakeAudioInstances[0]?.src).toBe('https://signed.test/reverie.wav')
     expect(fakeAudioInstances[0]?.playMock).toHaveBeenCalledOnce()
     expect(engine?.currentAudioTrackId).toBe('track-a')
+    expect(engine?.isPlaying).toBe(true)
+  })
+
+  it('honors the automatic-advance setting when a track ends', async () => {
+    act(() => {
+      engine?.replaceTrackUrls([
+        { name: 'a.wav', url: 'https://signed.test/a.wav', dbId: 'track-a' },
+        { name: 'b.wav', url: 'https://signed.test/b.wav', dbId: 'track-b' },
+      ])
+      engine?.play()
+    })
+    await act(async () => { await Promise.resolve() })
+
+    act(() => engine?.setAutoAdvance(false))
+    act(() => fakeAudioInstances[0]?.emit('ended'))
+    expect(engine?.currentIndex).toBe(0)
+    expect(engine?.isPlaying).toBe(false)
+
+    act(() => {
+      engine?.setAutoAdvance(true)
+      engine?.play()
+    })
+    await act(async () => { await Promise.resolve() })
+    act(() => fakeAudioInstances[0]?.emit('ended'))
+
+    expect(engine?.currentIndex).toBe(1)
     expect(engine?.isPlaying).toBe(true)
   })
 

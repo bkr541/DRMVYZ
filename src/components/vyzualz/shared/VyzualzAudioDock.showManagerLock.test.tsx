@@ -14,6 +14,8 @@ const fixture = vi.hoisted(() => ({
     source: 'file',
     micError: null,
     tracks: [],
+    currentIndex: -1,
+    autoAdvance: true,
     currentTrack: null,
     currentTrackId: null,
     currentAudioTrackId: null,
@@ -36,6 +38,9 @@ const fixture = vi.hoisted(() => ({
     addPreparedTracks: vi.fn(),
     replacePreparedTracks: vi.fn(),
     hydrateTrackMetadata: vi.fn(() => true),
+    removeTrack: vi.fn(),
+    selectTrack: vi.fn(),
+    setAutoAdvance: vi.fn(),
     prev: vi.fn(),
     next: vi.fn(),
     play: vi.fn(),
@@ -115,7 +120,11 @@ vi.mock('../../../features/rekordboxImport/nativeBridge', () => ({
   lookupIndexedRekordboxTracks: (...args: unknown[]) => fixture.nativeRekordbox.lookup(...args),
   scanNativeRekordboxUsbRoot: (...args: unknown[]) => fixture.nativeRekordbox.scan(...args),
 }))
-vi.mock('../../shared/InfoPopover', () => ({ InfoPopover: () => null }))
+vi.mock('../../shared/InfoPopover', () => ({
+  InfoPopover: ({ open, title, children }: { open: boolean; title: React.ReactNode; children: React.ReactNode }) => (
+    open ? <div role="dialog" aria-label={String(title)}>{children}</div> : null
+  ),
+}))
 
 vi.mock('../VyzualzSidebar', () => ({
   VyzualzSidebar: () => <nav aria-label="Mock VYZUALZ sidebar" />,
@@ -199,6 +208,8 @@ beforeEach(() => {
   fixture.engine.source = 'file'
   fixture.engine.micError = null
   fixture.engine.tracks = []
+  fixture.engine.currentIndex = -1
+  fixture.engine.autoAdvance = true
   fixture.engine.currentTrack = null
   fixture.engine.currentTrackId = null
   fixture.engine.currentAudioTrackId = null
@@ -219,6 +230,12 @@ beforeEach(() => {
   })) as ReturnType<AudioEngine['replaceTracks']>)
   vi.mocked(fixture.engine.setSource).mockClear()
   vi.mocked(fixture.engine.pause).mockClear()
+  vi.mocked(fixture.engine.prev).mockClear()
+  vi.mocked(fixture.engine.next).mockClear()
+  vi.mocked(fixture.engine.removeTrack).mockClear()
+  vi.mocked(fixture.engine.selectTrack).mockClear()
+  vi.mocked(fixture.engine.setAutoAdvance).mockClear()
+  fixture.visualState.setPlaying.mockClear()
   fixture.nativeRekordbox.guessedRoot = null
   fixture.nativeRekordbox.lookup.mockReset()
   fixture.nativeRekordbox.lookup.mockResolvedValue(null)
@@ -299,6 +316,90 @@ describe('Show Manager Audio Dock source lock integration', () => {
       { notifyOnBlocked: false },
     )
     expect(container?.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  it('exposes previous and next playlist controls in the React audio dock', async () => {
+    fixture.engine.tracks = [
+      { id: 'track-a' },
+      { id: 'track-b' },
+      { id: 'track-c' },
+    ] as unknown as AudioEngine['tracks']
+    fixture.engine.currentIndex = 1
+    fixture.engine.currentTrack = {
+      id: 'track-b',
+      url: 'blob:track-b',
+      displayName: 'Track B',
+      analysisRuntime: {
+        analysisKey: 'track-b-key',
+        gridStale: false,
+      },
+    } as AudioEngine['currentTrack']
+    await renderView('react')
+
+    const previous = container?.querySelector<HTMLButtonElement>('[aria-label="Previous track"]')
+    const next = container?.querySelector<HTMLButtonElement>('[aria-label="Next track"]')
+    expect(previous?.disabled).toBe(false)
+    expect(next?.disabled).toBe(false)
+
+    await act(async () => previous?.click())
+    await act(async () => next?.click())
+
+    expect(fixture.engine.prev).toHaveBeenCalledOnce()
+    expect(fixture.engine.next).toHaveBeenCalledOnce()
+    expect(fixture.visualState.setPlaying).toHaveBeenCalledTimes(2)
+    expect(fixture.visualState.setPlaying).toHaveBeenNthCalledWith(1, true)
+    expect(fixture.visualState.setPlaying).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it('opens playlist controls for advance, state, selection, removal, and append loading', async () => {
+    fixture.engine.tracks = [
+      { id: 'track-a', name: 'track-a.wav', displayName: 'Track A' },
+      { id: 'track-b', name: 'track-b.wav', displayName: 'Track B' },
+    ] as unknown as AudioEngine['tracks']
+    fixture.engine.currentIndex = 1
+    fixture.engine.currentTrack = {
+      id: 'track-b',
+      url: 'blob:track-b',
+      name: 'track-b.wav',
+      displayName: 'Track B',
+      analysisRuntime: {
+        analysisKey: 'track-b-key',
+        gridStale: false,
+      },
+    } as AudioEngine['currentTrack']
+    await renderView('react')
+
+    const trigger = container?.querySelector<HTMLButtonElement>('[aria-label="Playlist"]')
+    await act(async () => trigger?.click())
+
+    const popover = container?.querySelector<HTMLElement>('[role="dialog"][aria-label="Playlist"]')
+    expect(popover?.textContent).toContain('2 tracks')
+    expect(popover?.textContent).toContain('Track A')
+    expect(popover?.textContent).toContain('Track B')
+
+    const advance = popover?.querySelector<HTMLButtonElement>('[role="switch"]')
+    expect(advance?.getAttribute('aria-checked')).toBe('true')
+    await act(async () => advance?.click())
+    expect(fixture.engine.setAutoAdvance).toHaveBeenCalledWith(false)
+
+    await act(async () => popover?.querySelectorAll<HTMLButtonElement>('.vz-dock-playlist-select')[0]?.click())
+    expect(fixture.engine.selectTrack).toHaveBeenCalledWith(0)
+
+    const remove = popover?.querySelector<HTMLButtonElement>('[aria-label="Remove Track A from playlist"]')
+    await act(async () => remove?.click())
+    expect(fixture.engine.removeTrack).toHaveBeenCalledWith('track-a')
+
+    const append = Array.from(popover?.querySelectorAll<HTMLButtonElement>('.vz-dock-playlist-load-mode button') ?? [])
+      .find(button => button.textContent === 'Append')
+    await act(async () => append?.click())
+    expect(container?.querySelector('.vz-dock-addtrack-btn')?.getAttribute('aria-label')).toBe('Append Track')
+
+    await dispatchAudioFile('appended-track.wav')
+    expect(fixture.engine.addTracks).toHaveBeenCalledWith(
+      [expect.any(File)],
+      { notifyOnBlocked: false },
+    )
+    expect(fixture.engine.replaceTracks).not.toHaveBeenCalled()
   })
 
   it('loads USB audio before the deferred Rekordbox scan completes', async () => {

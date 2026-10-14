@@ -1433,6 +1433,60 @@ export {
 } from './presets/Cinema2ConstellationPreset'
 
 export {
+  CINEMA2_BOSS_BATTLE_PRESET_ID,
+  CINEMA2_BOSS_BATTLE_PRESET_MANIFEST,
+} from './presets/Cinema2BossBattlePreset'
+
+export {
+  CINEMA2_BOSS_BATTLE_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_BOSS_BATTLE_NATIVE_MODULE_VERSION,
+  CINEMA2_BOSS_BATTLE_IMAGE_URL,
+  cinema2BossBattleNativeModuleDefinition,
+} from './modules/Cinema2BossBattleNativeModule'
+
+export {
+  CINEMA2_SIXFOLD_PRESET_ID,
+  CINEMA2_SIXFOLD_PRESET_MANIFEST,
+  CINEMA2_SIXFOLD_PATTERN_ID,
+  CINEMA2_SIXFOLD_PATTERN_CHANGE_ID,
+  CINEMA2_SIXFOLD_TRIGGER_ID,
+  CINEMA2_SIXFOLD_MASTER_INTENSITY_ID,
+  CINEMA2_SIXFOLD_AUTO_PERFORMANCE_ID,
+  CINEMA2_SIXFOLD_BPM_SYNC_ID,
+} from './presets/Cinema2SixfoldPreset'
+
+export {
+  CINEMA2_SIXFOLD_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_SIXFOLD_NATIVE_MODULE_VERSION,
+  CINEMA2_SIXFOLD_PATTERNS,
+  CINEMA2_SIXFOLD_TRIGGER_IDS,
+  Cinema2SixfoldPatternController,
+  resolveCinema2SixfoldComponentResponses,
+  cinema2SixfoldNativeModuleDefinition,
+} from './modules/Cinema2SixfoldNativeModule'
+
+export {
+  CINEMA2_HYPNOTIZE_PRESET_ID,
+  CINEMA2_HYPNOTIZE_PRESET_MANIFEST,
+  CINEMA2_HYPNOTIZE_PATTERN_ID,
+  CINEMA2_HYPNOTIZE_PATTERN_CHANGE_ID,
+  CINEMA2_HYPNOTIZE_TRIGGER_ID,
+  CINEMA2_HYPNOTIZE_INTENSITY_ID,
+  CINEMA2_HYPNOTIZE_REACTIVITY_ID,
+  CINEMA2_HYPNOTIZE_AUTO_PERFORMANCE_ID,
+  CINEMA2_HYPNOTIZE_BPM_SYNC_ID,
+  CINEMA2_HYPNOTIZE_SPECTRUM_ID,
+} from './presets/Cinema2HypnotizePreset'
+
+export {
+  CINEMA2_HYPNOTIZE_NATIVE_MODULE_TYPE_ID,
+  CINEMA2_HYPNOTIZE_NATIVE_MODULE_VERSION,
+  CINEMA2_HYPNOTIZE_PATTERNS,
+  createCinema2HypnotizeNativeModuleDefinition,
+  cinema2HypnotizeNativeModuleDefinition,
+} from './modules/Cinema2HypnotizeNativeModule'
+
+export {
   defineCinema2FirstPartyPreset,
   validateCinema2PresetAuthoringConventions,
   type Cinema2FirstPartyPresetDeclaration,

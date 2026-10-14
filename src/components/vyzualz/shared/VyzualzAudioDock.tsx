@@ -1,4 +1,5 @@
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
+import { IconMorphToggle } from '../react/controls/IconMorphToggle'
 import { isDockBlankSpace } from './dockBlankSpace'
 import { useId, useState, useRef, useEffect, useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -126,6 +127,8 @@ type BpmState =
   /** Analysis completed but BPM detection specifically failed (rest of analysis is valid). */
   | { kind: 'unavailable' }
 
+type PlaylistLoadMode = 'append' | 'replace'
+
 function deriveBpmState(
   source:   'file' | 'microphone' | 'demo',
   hasTrack: boolean,
@@ -234,8 +237,11 @@ export function VyzualzAudioDock({
     expandable ? readCollapsedPreference() : false
   ))
   const audioSourceTriggerRef = useRef<HTMLButtonElement>(null)
+  const playlistTriggerRef = useRef<HTMLButtonElement>(null)
   const rekordboxLoadGenerationRef = useRef(0)
   const [audioSourcePopoverOpen, setAudioSourcePopoverOpen] = useState(false)
+  const [playlistPopoverOpen, setPlaylistPopoverOpen] = useState(false)
+  const [playlistLoadMode, setPlaylistLoadMode] = useState<PlaylistLoadMode>('replace')
   const [rekordboxLibrary, setRekordboxLibrary] = useState<RekordboxLibrary | null>(null)
   const [rekordboxStatus, setRekordboxStatus] = useState<string | null>(null)
   const [rekordboxDiagnostic, setRekordboxDiagnostic] = useState<string | null>(null)
@@ -528,7 +534,7 @@ export function VyzualzAudioDock({
     // the persisted index instead of treating the fallback as a completed match.
     const prepared = guessedRoot && candidateSummary?.realMatches === 0 ? null : candidatePrepared
     let loadedTracks: typeof engine.tracks = []
-    if (engine.tracks.length > 0) {
+    if (playlistLoadMode === 'replace' && engine.tracks.length > 0) {
       if (prepared) engine.replacePreparedTracks(prepared, mutationOptions)
       else loadedTracks = engine.replaceTracks(audio, mutationOptions)
     } else if (prepared) engine.addPreparedTracks(prepared, mutationOptions)
@@ -767,6 +773,29 @@ export function VyzualzAudioDock({
     else                  { engine.play();  setPlaying(true) }
   }
 
+  const handlePreviousTrack = () => {
+    engine.prev()
+    setPlaying(true)
+  }
+
+  const handleNextTrack = () => {
+    engine.next()
+    setPlaying(true)
+  }
+
+  const handleSelectPlaylistTrack = (index: number) => {
+    if (trackSourceLocked || index === engine.currentIndex) return
+    engine.selectTrack(index)
+    setPlaying(true)
+  }
+
+  const handleRemovePlaylistTrack = (trackId: string) => {
+    if (trackSourceLocked) return
+    const removingLastTrack = engine.tracks.length === 1
+    engine.removeTrack(trackId)
+    if (removingLastTrack) setPlaying(false)
+  }
+
   const handleCue = () => {
     if (engine.isPlaying) setCuePoint(engine.currentTime)
     else engine.seek(cuePoint)
@@ -785,6 +814,18 @@ export function VyzualzAudioDock({
   const artist  = track?.artist?.trim() || (hasTrack ? '' : 'Load a track to begin')
   const vol     = engine.volume
   const volPct  = `${Math.round(vol * 100)}%`
+  const canSelectPreviousTrack = !trackSourceLocked && transportReady && engine.currentIndex > 0
+  const canSelectNextTrack = !trackSourceLocked
+    && transportReady
+    && engine.currentIndex >= 0
+    && engine.currentIndex < engine.tracks.length - 1
+  const trackLoadActionLabel = trackSourceLocked
+    ? sourceSelectionLocked ? 'Track Locked' : 'Live Input Active'
+    : hasTrack && playlistLoadMode === 'append'
+      ? 'Append Track'
+      : hasTrack
+        ? 'Replace Track'
+        : 'Add Track'
 
   // There is no collapse button: clicking empty dock space (padding, the gaps between and inside the cards) toggles the dock.
   const handleDockClick = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -915,9 +956,22 @@ export function VyzualzAudioDock({
       <div className="vz-dock-region">
       <div className="vz-dock-left vz-dock-card">
         {deckLabel && <div className="vz-dock-card-label">{deckLabel}</div>}
-        {/* The play button sits where the track cover used to. */}
+        {/* Playlist transport sits where the track cover used to. */}
         <div className="vz-dock-play-slot">
           <button
+            type="button"
+            className="vz-dock-track-nav-btn vz-dock-track-nav-btn--previous"
+            title={trackSourceLocked ? trackSourceLockTitle : canSelectPreviousTrack ? 'Previous track' : 'No previous track'}
+            aria-label="Previous track"
+            disabled={!canSelectPreviousTrack}
+            onClick={handlePreviousTrack}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M6 5h2v14H6V5zm3.5 7L18 5v14l-8.5-7z" />
+            </svg>
+          </button>
+          <button
+            type="button"
             className="az-play-btn"
             title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Pause' : 'Play'}
             aria-label={engine.isPlaying ? 'Pause' : 'Play'}
@@ -929,6 +983,18 @@ export function VyzualzAudioDock({
               ? <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
               : <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             }
+          </button>
+          <button
+            type="button"
+            className="vz-dock-track-nav-btn vz-dock-track-nav-btn--next"
+            title={trackSourceLocked ? trackSourceLockTitle : canSelectNextTrack ? 'Next track' : 'No next track'}
+            aria-label="Next track"
+            disabled={!canSelectNextTrack}
+            onClick={handleNextTrack}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M16 5h2v14h-2V5zM6 5l8.5 7L6 19V5z" />
+            </svg>
           </button>
         </div>
 
@@ -968,8 +1034,8 @@ export function VyzualzAudioDock({
           className="vz-dock-addtrack-btn"
           htmlFor={trackSourceLocked ? undefined : fileInputId}
           aria-disabled={trackSourceLocked}
-          aria-label={sourceSelectionLocked ? 'Track Locked' : liveInputSelected ? 'Live Input Active' : hasTrack ? 'Replace Track' : 'Add Track'}
-          title={trackSourceLocked ? trackSourceLockTitle : hasTrack ? `Replace: ${title}` : 'Add Track'}
+          aria-label={trackLoadActionLabel}
+          title={trackSourceLocked ? trackSourceLockTitle : hasTrack && playlistLoadMode === 'append' ? 'Append audio to playlist' : hasTrack ? `Replace: ${title}` : 'Add Track'}
           onClick={event => {
             if (!trackSourceLocked) return
             event.preventDefault()
@@ -979,7 +1045,7 @@ export function VyzualzAudioDock({
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          <span>{sourceSelectionLocked ? 'Track Locked' : liveInputSelected ? 'Live Input Active' : hasTrack ? 'Replace Track' : 'Add Track'}</span>
+          <span>{trackLoadActionLabel}</span>
         </label>
 
       </div>
@@ -1183,7 +1249,10 @@ export function VyzualzAudioDock({
               ref={audioSourceTriggerRef}
               type="button"
               className="vz-dock-source-trigger"
-              onClick={() => setAudioSourcePopoverOpen(value => !value)}
+              onClick={() => {
+                setPlaylistPopoverOpen(false)
+                setAudioSourcePopoverOpen(value => !value)
+              }}
               aria-haspopup="dialog"
               aria-expanded={audioSourcePopoverOpen}
               aria-label="Audio source & Rekordbox"
@@ -1280,11 +1349,133 @@ export function VyzualzAudioDock({
               <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0"/>
             </svg>
           </button>
-          {/* Reserved keys beside BPM. React uses the lower slot for Track Timeline. */}
-          <div className="vz-dock-blank-group" aria-hidden={lowerReservedAction ? undefined : true}>
-            <div className="vz-dock-blank-btn" />
+          {/* Playlist uses the upper reserved key; React uses the lower slot for Track Timeline. */}
+          <div className="vz-dock-blank-group">
+            <button
+              ref={playlistTriggerRef}
+              type="button"
+              className="vz-dock-playlist-trigger"
+              title="Playlist"
+              aria-label="Playlist"
+              aria-haspopup="dialog"
+              aria-expanded={playlistPopoverOpen}
+              onClick={() => {
+                setAudioSourcePopoverOpen(false)
+                setPlaylistPopoverOpen(value => !value)
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h11M4 12h11M4 18h7" />
+                <path d="M18 14v6M15 17h6" />
+              </svg>
+            </button>
             {lowerReservedAction ?? <div className="vz-dock-blank-btn" />}
           </div>
+          <InfoPopover
+            open={playlistPopoverOpen}
+            anchorRef={playlistTriggerRef}
+            onOpenChange={setPlaylistPopoverOpen}
+            title="Playlist"
+            description={engine.tracks.length === 0
+              ? 'No tracks loaded'
+              : `${engine.currentIndex + 1} of ${engine.tracks.length} selected`}
+            headerIcon={(
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h11M4 12h11M4 18h7" />
+                <path d="M18 14v6M15 17h6" />
+              </svg>
+            )}
+            className="vz-dock-source-popover vz-dock-playlist-popover"
+            placement="above"
+            align="end"
+            width={360}
+            maxHeight={480}
+          >
+            <div className="vz-dock-playlist-popover-body">
+              <div className="vz-dock-playlist-setting">
+                <span>
+                  <strong>Automatic advance</strong>
+                  <small>Continue with the next track when playback ends.</small>
+                </span>
+                <IconMorphToggle
+                  checked={engine.autoAdvance}
+                  onCheckedChange={engine.setAutoAdvance}
+                  className="vz-settings-seg-btn vz-dock-playlist-toggle"
+                  aria-label="Automatic advance"
+                  disabled={sourceSelectionLocked}
+                />
+              </div>
+
+              <fieldset className="vz-dock-playlist-load-mode" disabled={trackSourceLocked}>
+                <legend>New track loads</legend>
+                <div className="rv-segmented-control">
+                  <button
+                    type="button"
+                    className={playlistLoadMode === 'append' ? 'is-active' : ''}
+                    aria-pressed={playlistLoadMode === 'append'}
+                    onClick={() => setPlaylistLoadMode('append')}
+                  >
+                    Append
+                  </button>
+                  <button
+                    type="button"
+                    className={playlistLoadMode === 'replace' ? 'is-active' : ''}
+                    aria-pressed={playlistLoadMode === 'replace'}
+                    onClick={() => setPlaylistLoadMode('replace')}
+                  >
+                    Replace
+                  </button>
+                </div>
+              </fieldset>
+
+              <div className="vz-dock-playlist-state" aria-live="polite">
+                <span>Queue</span>
+                <strong>{engine.tracks.length} track{engine.tracks.length === 1 ? '' : 's'}</strong>
+              </div>
+
+              <div className="vz-dock-playlist-tracks" role="list" aria-label="Loaded tracks">
+                {engine.tracks.length === 0 ? (
+                  <p className="vz-dock-playlist-empty">Use Add Track to build a playlist.</p>
+                ) : engine.tracks.map((playlistTrack, index) => {
+                  const active = index === engine.currentIndex
+                  return (
+                    <div
+                      key={playlistTrack.id}
+                      className={`vz-dock-playlist-track${active ? ' is-active' : ''}`}
+                      role="listitem"
+                    >
+                      <button
+                        type="button"
+                        className="vz-dock-playlist-select"
+                        aria-current={active ? 'true' : undefined}
+                        disabled={trackSourceLocked || active}
+                        onClick={() => handleSelectPlaylistTrack(index)}
+                      >
+                        <span className="vz-dock-playlist-index">{String(index + 1).padStart(2, '0')}</span>
+                        <span className="vz-dock-playlist-identity">
+                          <strong>{playlistTrack.displayName || playlistTrack.name}</strong>
+                          {playlistTrack.artist && <small>{playlistTrack.artist}</small>}
+                        </span>
+                        {active && <span className="vz-dock-playlist-active-label">Active</span>}
+                      </button>
+                      <button
+                        type="button"
+                        className="vz-dock-playlist-remove"
+                        aria-label={`Remove ${playlistTrack.displayName || playlistTrack.name} from playlist`}
+                        title="Remove from playlist"
+                        disabled={trackSourceLocked}
+                        onClick={() => handleRemovePlaylistTrack(playlistTrack.id)}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                          <path d="M6 12h12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </InfoPopover>
         </div>
       </div>
       </div>

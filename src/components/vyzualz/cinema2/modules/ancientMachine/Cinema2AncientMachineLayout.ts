@@ -97,19 +97,6 @@ export function buildCinema2AncientMachineLayout(
     ))
   }
 
-  for (let blade = 0; blade < 16; blade += 1) {
-    const angle = blade / 16 * Math.PI * 2
-    instances.push(makeInstance(
-      [Math.cos(angle) * 0.62, Math.sin(angle) * 0.62, 0.18],
-      [0.88, 0.24, 0.2],
-      angle + Math.PI * 0.5,
-      blade % 2 === 0 ? 'plate' : 'internal-light',
-      blade % resolved.ringCount,
-      blade % 4,
-    ))
-  }
-
-  instances.push(makeInstance([0, 0, -0.06], [0.76, 0.76, 0.45], 0, 'internal-light', 0, 0))
   return Object.freeze({ config: resolved, instances: Object.freeze(instances.map(instance => Object.freeze(instance))) })
 }
 

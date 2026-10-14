@@ -6794,11 +6794,48 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   width: 60px;
   height: 60px;
   align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-play-slot .az-play-btn {
+  flex: 0 0 auto;
   width: 56px;
   height: 56px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(154, 178, 188, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(196, 207, 211, 0.78);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-nav-btn:hover:not(:disabled) {
+  border-color: rgba(74, 199, 219, 0.6);
+  background: rgba(74, 199, 219, 0.14);
+  color: #67f7ff;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-nav-btn:focus-visible {
+  outline: 2px solid #67f7ff;
+  outline-offset: 2px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-track-nav-btn:disabled {
+  opacity: 0.28;
+  cursor: default;
 }
 
 .rv-shell > .vz-transport-dock .vz-dock-volume-row {
@@ -7141,6 +7178,14 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   min-width: 0;
   margin: 0;
 }
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-blank-group > .vz-dock-playlist-trigger {
+  grid-column: auto;
+  grid-row: auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+}
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-blank-group { display: none; }
 
 /* A stale-grid decision is important but transient. Present it as an opaque
@@ -7185,7 +7230,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-left {
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   grid-template-rows: 1fr;
   column-gap: 10px;
   padding: 7px 10px;
@@ -7199,13 +7244,19 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-play-slot {
-  width: 40px;
+  width: 112px;
   height: 40px;
+  gap: 4px;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-play-slot .az-play-btn {
   width: 38px;
   height: 38px;
+}
+
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-track-nav-btn {
+  width: 28px;
+  height: 30px;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-volume-row {
@@ -8027,6 +8078,188 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.vz-dock-playlist-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-family: var(--az-font, sans-serif);
+}
+
+.vz-dock-playlist-setting,
+.vz-dock-playlist-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.vz-dock-playlist-setting > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.vz-dock-playlist-setting strong,
+.vz-dock-playlist-state > span,
+.vz-dock-playlist-load-mode legend {
+  color: rgba(232, 244, 248, 0.9);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.vz-dock-playlist-setting small {
+  color: rgba(196, 212, 220, 0.55);
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.vz-dock-playlist-toggle {
+  flex: 0 0 auto;
+}
+
+.vz-dock-playlist-toggle:disabled,
+.vz-dock-playlist-load-mode:disabled {
+  opacity: 0.42;
+}
+
+.vz-dock-playlist-load-mode {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vz-dock-playlist-load-mode legend {
+  margin-bottom: 7px;
+}
+
+.vz-dock-playlist-load-mode > div {
+  grid-template-columns: 1fr 1fr;
+}
+
+.vz-dock-playlist-load-mode button {
+  min-height: 28px;
+}
+
+.vz-dock-playlist-state {
+  padding-top: 2px;
+}
+
+.vz-dock-playlist-state strong {
+  color: rgba(196, 212, 220, 0.58);
+  font: 700 9px/1 var(--az-font-data, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vz-dock-playlist-tracks {
+  display: flex;
+  flex-direction: column;
+  max-height: 226px;
+  overflow-y: auto;
+  border: 1px solid rgba(154, 178, 188, 0.13);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.vz-dock-playlist-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.1);
+}
+
+.vz-dock-playlist-track:last-child {
+  border-bottom: 0;
+}
+
+.vz-dock-playlist-track.is-active {
+  background: rgba(74, 199, 219, 0.08);
+}
+
+.vz-dock-playlist-select {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 6px 8px 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(232, 244, 248, 0.82);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vz-dock-playlist-select:disabled {
+  cursor: default;
+}
+
+.vz-dock-playlist-index {
+  color: rgba(103, 247, 255, 0.45);
+  font: 700 8.5px/1 var(--az-font-data, monospace);
+}
+
+.vz-dock-playlist-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vz-dock-playlist-identity strong,
+.vz-dock-playlist-identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vz-dock-playlist-identity strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.vz-dock-playlist-identity small {
+  color: rgba(196, 212, 220, 0.48);
+  font-size: 8.5px;
+}
+
+.vz-dock-playlist-active-label {
+  color: #67f7ff;
+  font: 750 7.5px/1 var(--az-font-data, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vz-dock-playlist-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(154, 178, 188, 0.1);
+  background: transparent;
+  color: rgba(196, 212, 220, 0.4);
+  cursor: pointer;
+}
+
+.vz-dock-playlist-select:hover:not(:disabled),
+.vz-dock-playlist-remove:hover:not(:disabled) {
+  background: rgba(74, 199, 219, 0.08);
+  color: #67f7ff;
+}
+
+.vz-dock-playlist-empty {
+  margin: 0;
+  padding: 22px 14px;
+  color: rgba(196, 212, 220, 0.46);
+  font-size: 10px;
+  text-align: center;
 }
 
 .rv-shell > .vz-transport-dock--collapsed .vz-dock-source-trigger {
@@ -23197,7 +23430,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* Left card */
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-left {
-  grid-template-columns: 36px 36px minmax(0, 1fr);
+  grid-template-columns: 36px 112px minmax(0, 1fr);
   grid-template-rows: auto 36px;
   align-content: center;
   column-gap: 12px;
@@ -23249,7 +23482,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-play-slot {
   grid-column: 2;
   grid-row: 2;
-  width: 36px;
+  width: 112px;
   height: 36px;
 }
 
@@ -23463,6 +23696,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn {
   position: relative;
   box-sizing: border-box;
@@ -23494,6 +23728,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-cue-btn:hover:not(:disabled),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn:hover:not(:disabled),
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger:hover,
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger:hover,
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-track-timeline-btn:hover:not(:disabled) {
   border-color: rgba(74, 199, 219, 0.55);
   background: rgba(74, 199, 219, 0.1);
@@ -23517,7 +23752,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-sync-master-btn--on,
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger[aria-expanded='true'] {
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-trigger[aria-expanded='true'],
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-playlist-trigger[aria-expanded='true'] {
   border-color: rgba(74, 199, 219, 0.55);
   background: rgba(74, 199, 219, 0.14);
   color: var(--dock-cyan-bright);

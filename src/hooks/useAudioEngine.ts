@@ -129,6 +129,8 @@ export interface AudioEngine {
   tracks: Track[]
   currentIndex: number
   isPlaying: boolean
+  autoAdvance: boolean
+  setAutoAdvance: (enabled: boolean) => void
   currentTime: number
   /**
    * High-precision getter — reads HTMLAudioElement.currentTime at the moment of
@@ -278,6 +280,7 @@ export function useAudioEngine(): AudioEngine {
   const [tracks, setTracks] = useState<Track[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [autoAdvance, setAutoAdvance] = useState(true)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolumeState] = useState(0.8)
@@ -378,6 +381,8 @@ export function useAudioEngine(): AudioEngine {
   const coordinatorRef = useRef<TrackAnalysisCoordinator | null>(null)
   const tracksRef      = useRef<Track[]>(tracks)
   const currentIndexRef = useRef<number>(currentIndex)
+  useEffect(() => { tracksRef.current = tracks }, [tracks])
+  useEffect(() => { currentIndexRef.current = currentIndex }, [currentIndex])
   const ensureContextRef = useRef<() => AudioContext>(() => { throw new Error('not ready') })
   // Dispatch table: properties reassigned each render so coordinator callbacks always call current logic.
   const dispatchRef = useRef({
@@ -473,11 +478,11 @@ export function useAudioEngine(): AudioEngine {
       const mayAdvanceSource = requestAudioSourceMutation({ notifyOnBlocked: false })
       // Show Manager owns one linked track. Never auto-advance from it into an
       // unrelated playlist entry when playback reaches the end.
-      const shouldAdvance = hasNextTrack && mayAdvanceSource
+      const shouldAdvance = autoAdvance && hasNextTrack && mayAdvanceSource
       setIsPlaying(shouldAdvance)
       return shouldAdvance ? nextIndex : prev
     })
-  }, [tracks.length])
+  }, [autoAdvance, tracks.length])
 
   useEffect(() => {
     const el = audioRef.current
@@ -1446,22 +1451,36 @@ export function useAudioEngine(): AudioEngine {
   const removeTrack = useCallback((id: string, options: AudioSourceMutationOptions = {}) => {
     if (!requestAudioSourceMutation(options)) return
     coordinatorRef.current?.cancelTrack(id)
+    const previousTracks = tracksRef.current
+    const removedIndex = previousTracks.findIndex(track => track.id === id)
+    if (removedIndex < 0) return
     // If the active track is being removed, clear MI state immediately.
     if (tracksRef.current[currentIndexRef.current]?.id === id) {
       musicIntelligenceEngine.setSourceId(null, null)
       musicIntelligenceEngine.setTrackAnalysis(null)
     }
-    setTracks(prev => {
-      const idx = prev.findIndex(t => t.id === id)
-      if (idx >= 0 && prev[idx].url.startsWith('blob:')) URL.revokeObjectURL(prev[idx].url)
-      const next = prev.filter(t => t.id !== id)
-      setCurrentIndex(ci => {
-        if (ci === idx) return Math.min(ci, next.length - 1)
-        if (ci > idx) return ci - 1
-        return ci
-      })
-      return next
-    })
+    const removedTrack = previousTracks[removedIndex]
+    if (removedTrack?.url.startsWith('blob:')) URL.revokeObjectURL(removedTrack.url)
+    const nextTracks = previousTracks.filter(track => track.id !== id)
+    const previousIndex = currentIndexRef.current
+    const nextIndex = previousIndex === removedIndex
+      ? Math.min(previousIndex, nextTracks.length - 1)
+      : previousIndex > removedIndex
+        ? previousIndex - 1
+        : previousIndex
+    tracksRef.current = nextTracks
+    currentIndexRef.current = nextIndex
+    if (nextTracks.length === 0) {
+      audioRef.current?.pause()
+      if (audioRef.current) audioRef.current.src = ''
+      loadedTrackKeyRef.current = null
+      setIsPlaying(false)
+      setCurrentTime(0)
+      currentTimeRef.current = 0
+      setDuration(0)
+    }
+    setCurrentIndex(nextIndex)
+    setTracks(nextTracks)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectTrack = useCallback((i: number, options: AudioSourceMutationOptions = {}) => {
@@ -1701,7 +1720,7 @@ export function useAudioEngine(): AudioEngine {
     source, setSource, micError, liveInputActive, analysisActive,
     liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
     hasActiveProgramAudio, isActive,
-    tracks, currentIndex, isPlaying, currentTime, getCurrentTime, duration, volume,
+    tracks, currentIndex, isPlaying, autoAdvance, setAutoAdvance, currentTime, getCurrentTime, duration, volume,
     addTracks, replaceTracks, addPreparedTracks, replacePreparedTracks, hydrateTrackMetadata, addTrackUrls, replaceTrackUrls, removeTrack, selectTrack, play, pause, stop, next, prev, seek, setVolume,
     analyserMaster: aMasterRef.current,
     analyserL: aLRef.current,

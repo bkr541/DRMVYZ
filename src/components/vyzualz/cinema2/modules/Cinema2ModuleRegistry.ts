@@ -21,6 +21,9 @@ import { cinema2CathedralNativeModuleDefinition } from './Cinema2CathedralNative
 import { cinema2AncientMachineNativeModuleDefinition } from './Cinema2AncientMachineNativeModule'
 import { cinema2EventHorizonNativeModuleDefinition } from './Cinema2EventHorizonNativeModule'
 import { cinema2ConstellationNativeModuleDefinition } from './Cinema2ConstellationNativeModule'
+import { cinema2BossBattleNativeModuleDefinition } from './Cinema2BossBattleNativeModule'
+import { cinema2SixfoldNativeModuleDefinition } from './Cinema2SixfoldNativeModule'
+import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -182,6 +185,21 @@ if (!eventHorizonRegistration.ok) {
 const constellationRegistration = cinema2NativeModuleRegistry.register(cinema2ConstellationNativeModuleDefinition)
 if (!constellationRegistration.ok) {
   throw new Error(`Cinema 2.0 Constellation native module registration failed: ${constellationRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const bossBattleRegistration = cinema2NativeModuleRegistry.register(cinema2BossBattleNativeModuleDefinition)
+if (!bossBattleRegistration.ok) {
+  throw new Error(`Cinema 2.0 Boss Battle native module registration failed: ${bossBattleRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const sixfoldRegistration = cinema2NativeModuleRegistry.register(cinema2SixfoldNativeModuleDefinition)
+if (!sixfoldRegistration.ok) {
+  throw new Error(`Cinema 2.0 Sixfold native module registration failed: ${sixfoldRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const hypnotizeRegistration = cinema2NativeModuleRegistry.register(cinema2HypnotizeNativeModuleDefinition)
+if (!hypnotizeRegistration.ok) {
+  throw new Error(`Cinema 2.0 Hypnotize native module registration failed: ${hypnotizeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

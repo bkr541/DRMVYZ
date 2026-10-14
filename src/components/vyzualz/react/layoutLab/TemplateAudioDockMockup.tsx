@@ -24,6 +24,7 @@ function mockWaveformBarHeight(index: number): number {
 export function TemplateAudioDockMockup() {
   const [collapsed, setCollapsed] = useState(false)
   const [playing, setPlaying] = useState(true)
+  const [trackIndex, setTrackIndex] = useState(1)
   const [volume, setVolume] = useState(0.82)
   const [bpm, setBpm] = useState(128)
   const [bpmSync, setBpmSync] = useState(true)
@@ -55,6 +56,18 @@ export function TemplateAudioDockMockup() {
         <div className="vz-dock-play-slot">
           <button
             type="button"
+            className="vz-dock-track-nav-btn vz-dock-track-nav-btn--previous"
+            title="Previous track (mockup)"
+            aria-label="Previous track (mockup)"
+            disabled={trackIndex === 0}
+            onClick={() => setTrackIndex(index => Math.max(0, index - 1))}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M6 5h2v14H6V5zm3.5 7L18 5v14l-8.5-7z" />
+            </svg>
+          </button>
+          <button
+            type="button"
             className="az-play-btn"
             title={playing ? 'Pause (mockup)' : 'Play (mockup)'}
             aria-label={playing ? 'Pause (mockup)' : 'Play (mockup)'}
@@ -64,6 +77,18 @@ export function TemplateAudioDockMockup() {
             {playing
               ? <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
               : <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>}
+          </button>
+          <button
+            type="button"
+            className="vz-dock-track-nav-btn vz-dock-track-nav-btn--next"
+            title="Next track (mockup)"
+            aria-label="Next track (mockup)"
+            disabled={trackIndex === 2}
+            onClick={() => setTrackIndex(index => Math.min(2, index + 1))}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+              <path d="M16 5h2v14h-2V5zM6 5l8.5 7L6 19V5z" />
+            </svg>
           </button>
         </div>
 

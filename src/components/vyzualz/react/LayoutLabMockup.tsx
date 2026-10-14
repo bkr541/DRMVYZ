@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { MockEngineDropdown } from './layoutLab/MockEngineDropdown'
@@ -12,38 +12,16 @@ import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
-import { MediaThumbnailStyleGallery } from './layoutLab/MediaThumbnailStyleGallery'
-import { PresetTwoColumnStyleGallery } from './layoutLab/PresetTwoColumnStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
-import { AudioSourceIndicatorStyleGallery } from './layoutLab/AudioSourceIndicatorStyleGallery'
-import { NavIconStyleGallery } from './layoutLab/NavIconStyleGallery'
-import { RailToggleStyleGallery } from './layoutLab/RailToggleStyleGallery'
-import { DockLeftGroupStyleGallery } from './layoutLab/DockLeftGroupStyleGallery'
-import { TrackMapMarkerStyleGallery } from './layoutLab/TrackMapMarkerStyleGallery'
-import { DockRightGroupStyleGallery } from './layoutLab/DockRightGroupStyleGallery'
-import { LyricManagerTimelineStyleGallery } from './layoutLab/LyricManagerTimelineStyleGallery'
-import { LyricManagerToolbarStyleGallery } from './layoutLab/LyricManagerToolbarStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
-import { CanvasMockup } from './layoutLab/CanvasMockup'
-import { CanvasRightRailMockup } from './layoutLab/CanvasRightRailMockup'
-import { LaserDmxMockup } from './layoutLab/LaserDmxMockup'
-import { LaserDmxRightRailMockup } from './layoutLab/LaserDmxRightRailMockup'
-import { PixGridMockup } from './layoutLab/PixGridMockup'
-import { PixGridRightRailMockup } from './layoutLab/PixGridRightRailMockup'
-import { SoundDrawingMockup } from './layoutLab/SoundDrawingMockup'
-import { SoundDrawingRightRailMockup } from './layoutLab/SoundDrawingRightRailMockup'
 import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
 import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
 import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
-import { useCanvasMockState, type CanvasMockState } from './layoutLab/useCanvasMockState'
-import { useLaserDmxMockState, type LaserDmxMockState } from './layoutLab/useLaserDmxMockState'
-import { usePixGridMockState, type PixGridMockState } from './layoutLab/usePixGridMockState'
-import { useSoundDrawingMockState } from './layoutLab/useSoundDrawingMockState'
 import { useCinema2MockState } from './layoutLab/useCinema2MockState'
 import type { ReactLowerSurface } from './reactWorkspaceComposition'
 
@@ -66,6 +44,8 @@ const MOCK_RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'output'>[
   { id: 'react', label: 'REACT' },
   { id: 'output', label: 'OUTPUT' },
 ]
+
+const EMPTY_ENGINE_MOCKUPS = new Set<LayoutLabEngineId>(['canvas', 'pixGrid', 'oscilloscope', 'laserDmx'])
 
 function MockChevron({ expanded }: { expanded: boolean }) {
   return (
@@ -93,126 +73,21 @@ function MockStageFocusIcon() {
   )
 }
 
-function LaserDmxCanvasMockup({ state }: { state: LaserDmxMockState }) {
-  return (
-    <div className="rv-layout-lab-laser-canvas" aria-label="LaserDMX visual mockup">
-      <div className="rv-layout-lab-laser-stage">
-        <div className="rv-layout-lab-laser-grid" aria-hidden="true" />
-        {state.mode === 'matrix' ? state.beams.map((beam, index) => {
-          const selected = state.selectedBeamIds.includes(beam.id)
-          return (
-            <button
-              key={beam.id}
-              type="button"
-              className={selected ? 'rv-layout-lab-laser-beam is-selected' : 'rv-layout-lab-laser-beam'}
-              aria-label={`Select beam ${beam.name}`}
-              aria-pressed={selected}
-              style={{
-                left: `${10 + beam.origin.column * 4.9}%`,
-                top: `${72 - index * 3}%`,
-                width: `${30 + Math.abs(beam.target.column - beam.origin.column) * 2.5}%`,
-                transform: `rotate(${beam.target.column >= beam.origin.column ? -24 : -156}deg)`,
-              }}
-              onClick={event => state.selectBeam(beam.id, event.ctrlKey || event.metaKey || event.shiftKey)}
-            />
-          )
-        }) : state.fixtures.map(fixture => {
-          const selected = state.selectedFixtureIds.includes(fixture.id)
-          return (
-            <button
-              key={fixture.id}
-              type="button"
-              className={selected ? 'rv-layout-lab-laser-fixture is-selected' : 'rv-layout-lab-laser-fixture'}
-              aria-label={`Select fixture ${fixture.name}`}
-              aria-pressed={selected}
-              title={fixture.name}
-              style={{ left: `${fixture.position.x * 100}%`, top: `${fixture.position.y * 100}%` }}
-              onClick={event => state.selectFixture(fixture.id, event.ctrlKey || event.metaKey || event.shiftKey)}
-            >
-              <span aria-hidden="true">{fixture.kind === 'laser' ? '⌁' : fixture.kind === 'movingHead' ? '◉' : fixture.kind === 'videoWall' ? '▦' : fixture.kind === 'haze' ? '≋' : '◆'}</span>
-            </button>
-          )
-        })}
-      </div>
-      <div className="rv-layout-lab-laser-canvas-status">
-        <span>{state.mode === 'matrix' ? 'BEAM MATRIX MOCK' : 'SHOW DIRECTOR MOCK'}</span>
-        <strong>{state.mode === 'matrix' ? `${state.beams.length} beams · ${state.groups.length} groups` : `${state.fixtures.length} fixtures · local rig`}</strong>
-        <small>{state.mode === 'matrix' ? state.selectedBeams.length ? `${state.selectedBeams.length} beam${state.selectedBeams.length === 1 ? '' : 's'} selected` : state.selectedGroup?.name ?? 'Global Matrix' : state.selectedFixtures.length ? `${state.selectedFixtures.length} fixture${state.selectedFixtures.length === 1 ? '' : 's'} selected` : 'No fixture selected'}</small>
-      </div>
-    </div>
-  )
-}
-
-function CanvasCanvasMockup({ state }: { state: CanvasMockState }) {
-  return (
-    <div className="rv-layout-lab-canvas-canvas" aria-label="Canvas visual mockup">
-      <div className={`rv-layout-lab-canvas-stage${state.isFractures ? ' is-fractures' : ''}`} aria-hidden="true">
-        {state.isFractures ? (
-          <div className="rv-layout-lab-canvas-fragments">
-            {Array.from({ length: 12 }, (_, index) => <span key={index} style={{ '--fragment-index': index } as CSSProperties} />)}
-          </div>
-        ) : (
-          <div className={`rv-layout-lab-canvas-media-preview is-${state.activeMedia?.type ?? 'empty'}`}>
-            <span>{state.activeMedia?.type === 'video' ? '▶' : state.activeMedia?.type === 'svg' ? 'DVYDRM' : state.activeMedia ? 'CANVAS' : 'NO SOURCE'}</span>
-          </div>
-        )}
-      </div>
-      <div className="rv-layout-lab-canvas-canvas-status">
-        <span>{state.isFractures ? 'FRACTURES MOCK' : 'CANVAS MEDIA MOCK'}</span>
-        <strong>{state.activeMedia?.name ?? 'No active media'}</strong>
-        <small>{state.activePreset.name} · local deterministic preview</small>
-      </div>
-    </div>
-  )
-}
-
-function PixGridCanvasMockup({ state }: { state: PixGridMockState }) {
-  const activePreset = state.presets.find(preset => preset.id === state.activePresetId)
-  return (
-    <div className="rv-layout-lab-pix-grid-canvas" aria-label="PixGrid visual mockup">
-      <div className="rv-layout-lab-pix-grid-stage" aria-hidden="true">
-        <div className="rv-layout-lab-pix-grid-matrix" />
-        <div className="rv-layout-lab-pix-grid-artwork">
-          <span>PIX</span>
-          <strong>GRID</strong>
-        </div>
-        {state.selection && (
-          <div
-            className="rv-layout-lab-pix-grid-selection"
-            style={{
-              left: `${Math.min(80, state.selection.x / 1.6)}%`,
-              top: `${Math.min(70, state.selection.y / 0.9)}%`,
-              width: `${Math.max(8, state.selection.width / 1.6)}%`,
-              height: `${Math.max(8, state.selection.height / 0.9)}%`,
-            }}
-          />
-        )}
-      </div>
-      <div className="rv-layout-lab-pix-grid-canvas-status">
-        <span>{state.editOpen ? 'PIXGRID EDIT ACTIVE' : 'PIXGRID PREVIEW'}</span>
-        <strong>{state.activeScene.name}</strong>
-        <small>{state.selectedLayer?.name ?? 'Scene Pixels'} · {activePreset?.name ?? 'No preset'}</small>
-      </div>
-    </div>
-  )
-}
-
 export function LayoutLabMockup() {
   const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinematicPortal')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
   const [templateRightTab, setTemplateRightTab] = useState<'presets' | 'design' | 'react' | 'output'>('design')
-  const composition = engineId === 'template' || engineId === 'lyricManager' ? null : resolveLayoutLabComposition(engineId)
+  const [clearedRightTab, setClearedRightTab] = useState<'presets' | 'design' | 'react' | 'output'>('design')
+  const composition = engineId === 'template' || engineId === 'lyricManager' || EMPTY_ENGINE_MOCKUPS.has(engineId)
+    ? null
+    : resolveLayoutLabComposition(engineId)
   const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>('trackMap')
-  const soundDrawingState = useSoundDrawingMockState()
-  const pixGridState = usePixGridMockState()
-  const laserDmxState = useLaserDmxMockState()
-  const canvasState = useCanvasMockState()
   const cinema2State = useCinema2MockState()
 
   const handleSelectEngine = (id: LayoutLabEngineId) => {
-    if (id === 'template' || id === 'lyricManager') {
+    if (id === 'template' || id === 'lyricManager' || EMPTY_ENGINE_MOCKUPS.has(id)) {
       setEngineId(id)
       return
     }
@@ -234,15 +109,7 @@ export function LayoutLabMockup() {
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed(value => !value)}
         >
-          {engineId === 'oscilloscope' ? (
-            <SoundDrawingMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={soundDrawingState} />
-          ) : engineId === 'pixGrid' ? (
-            <PixGridMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={pixGridState} />
-          ) : engineId === 'laserDmx' ? (
-            <LaserDmxMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={laserDmxState} />
-          ) : engineId === 'canvas' ? (
-            <CanvasMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={canvasState} />
-          ) : engineId === 'cinema2' ? (
+          {engineId === 'cinema2' ? (
             <Cinema2StillsFilmstripMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={cinema2State} />
           ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
@@ -274,38 +141,10 @@ export function LayoutLabMockup() {
 
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            {engineId === 'pixGrid' && <PixGridCanvasMockup state={pixGridState} />}
-            {engineId === 'laserDmx' && <LaserDmxCanvasMockup state={laserDmxState} />}
-            {engineId === 'canvas' && <CanvasCanvasMockup state={canvasState} />}
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
             {engineId === 'cinema' && (
               <div className="llcm-stage-gallery">
                 <HeaderStatusStyleGallery />
-              </div>
-            )}
-            {engineId === 'template' && (
-              <div className="llcm-stage-gallery">
-                <div className="llcm-stage-columns">
-                  <div className="llcm-stage-column">
-                    <div className="llcm-stage-section-hdr">Audio dock · left group</div>
-                    <DockLeftGroupStyleGallery />
-                  </div>
-                  <div className="llcm-stage-column">
-                    <div className="llcm-stage-section-hdr">Audio dock · right group</div>
-                    <DockRightGroupStyleGallery />
-                  </div>
-                </div>
-                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Track Map · marker rows</div>
-                <TrackMapMarkerStyleGallery />
-                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Lyric Manager · timeline controls</div>
-                <LyricManagerToolbarStyleGallery />
-                <div className="llcm-stage-section-hdr llcm-stage-section-hdr--wide">Rails · collapse / expand control</div>
-                <RailToggleStyleGallery />
-              </div>
-            )}
-            {engineId === 'lyricManager' && (
-              <div className="llcm-stage-gallery">
-                <LyricManagerTimelineStyleGallery />
               </div>
             )}
           </div>
@@ -391,29 +230,25 @@ export function LayoutLabMockup() {
                     <PresetTwoColumnConceptsGallery />
                   </div>
                 )}
-                {templateRightTab === 'react' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <MediaThumbnailStyleGallery />
-                    <PresetTwoColumnStyleGallery />
-                  </div>
-                )}
-                {templateRightTab === 'design' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <AudioSourceIndicatorStyleGallery />
-                    <NavIconStyleGallery />
-                  </div>
-                )}
-                {/* Output is intentionally blank in the Template engine. */}
+                {/* Design, React, and Output are intentionally blank in the Template engine. */}
               </div>
             </>
-          ) : engineId === 'oscilloscope' ? (
-            <SoundDrawingRightRailMockup state={soundDrawingState} />
-          ) : engineId === 'pixGrid' ? (
-            <PixGridRightRailMockup state={pixGridState} onSelectEngine={handleSelectEngine} />
-          ) : engineId === 'laserDmx' ? (
-            <LaserDmxRightRailMockup state={laserDmxState} />
-          ) : engineId === 'canvas' ? (
-            <CanvasRightRailMockup state={canvasState} onSelectEngine={handleSelectEngine} />
+          ) : EMPTY_ENGINE_MOCKUPS.has(engineId) ? (
+            <>
+              <RailTabs
+                tabs={MOCK_RIGHT_TABS}
+                activeTab={clearedRightTab}
+                onChange={setClearedRightTab}
+                ariaLabel={engineId === 'laserDmx'
+                  ? 'LaserDMX inspector tabs'
+                  : engineId === 'canvas'
+                    ? 'Canvas inspector tabs'
+                    : engineId === 'pixGrid'
+                      ? 'PixGrid inspector tabs'
+                      : 'Sound Drawing inspector tabs'}
+              />
+              <div className="vz-panel-body" />
+            </>
           ) : engineId === 'cinema2' ? (
             <Cinema2RightRailMockup state={cinema2State} />
           ) : (

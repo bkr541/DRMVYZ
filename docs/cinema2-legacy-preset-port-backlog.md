@@ -152,19 +152,19 @@ A monumental, traversable cathedral of repeating arches and structural ribs. The
 
 ### Creative identity
 
-A massive ceremonial mechanism made from concentric seals, gears, glyph rings, teeth, tracks, and a central aperture. It should read as a physical machine with weight and hierarchy, not as a flat radial shader.
+A massive ceremonial mechanism made from concentric seals, gears, glyph rings, teeth, tracks, and a central spherical energy crystal. It should read as a physical machine with weight and hierarchy, not as a flat radial shader.
 
 ### Authored looks
 
-- **Oracle Lock:** dense glyph rings, restrained movement, near-closed aperture, bar-scale progression.
+- **Oracle Lock:** dense glyph rings, restrained movement, compressed energy crystal, bar-scale progression.
 - **Gear Sun:** bright, fast, aggressive interlocking gears and beat-driven radial energy.
 - **Epoch Engine:** deep layered machinery, slow geological rotation, section-scale unlocking.
 
 ### Native 3D and geometry
 
-- World-space nested gear, ring, tooth, plate, glyph, rail, and aperture assemblies.
+- World-space nested gear, ring, tooth, plate, glyph, and rail assemblies surrounding a faceted spherical energy crystal.
 - Separate depth planes and mechanical layers with real occlusion and parallax.
-- Stable named parts for outer seals, gear crown, glyph rings, lock pins, central iris, and rear chamber.
+- Stable named parts for outer seals, gear crown, glyph rings, lock pins, energy crystal, and rear chamber.
 - Use instanced teeth/glyphs and procedural gear profiles; reserve imported assets for hero detail only.
 - Support material variation between aged metal, dark stone/ceramic, emissive glyphs, and polished internal components.
 
@@ -172,22 +172,22 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 
 - `beat` — advance selected ring or gear cadence.
 - `downbeat` — lock-pin strike and major ring alignment.
-- `kick` — gear torque, aperture pulse, or radial light hit.
+- `kick` — gear torque, crystal pulse, or radial light hit.
 - `snare`/`highs` — glyph flare and tooth highlights.
 - `bar` — advance the Oracle sequence or change active ring.
 - `phrase` — change rotational relationship, camera side, or glyph program.
 - `section` — long-form Epoch unlock state.
-- `buildProgress` — increasing lock pressure, rotational convergence, and aperture tension.
-- `drop` — bounded mechanical release, iris opening, and internal light reveal.
-- `overallEnergy`/`bass` — mechanical vibration and emissive pressure.
+- `buildProgress` — increasing lock pressure, rotational convergence, and crystal tension.
+- `drop` — bounded mechanical release, crystal expansion, and internal light reveal.
+- `overallEnergy`/`bass` — directional debris vibration and expansion plus energy-crystal pressure.
 
 ### Geometry choreography
 
 - Counter-rotate ring groups with deterministic ratios.
 - Advance lock state in discrete musical steps rather than frame-rate-dependent accumulation.
-- Use choreography targets for ring rotation, gear phase, glyph brightness, lock progression, aperture opening, and mechanical depth.
-- Build choreography converges rings toward alignment; drop choreography releases the iris and expands internal depth.
-- Manual progression or aperture edits reclaim authority from Auto Performance.
+- Use choreography targets for ring rotation, gear phase, glyph brightness, lock progression, crystal expansion, and mechanical depth.
+- Build choreography converges rings toward alignment; drop choreography releases crystal pressure and expands internal depth.
+- Manual progression or crystal-expansion edits reclaim authority from Auto Performance.
 
 ### Camera, lighting, and effects
 
@@ -200,7 +200,7 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 
 - Master Intensity, Auto Performance, BPM Sync, Camera Motion.
 - Machine Look, Ring Count, Gear Density, Glyph Density, Tooth Density.
-- Rotation Speed, Counter-Rotation, Mechanical Depth, Lock Progress, Aperture Opening.
+- Rotation Speed, Counter-Rotation, Mechanical Depth, Lock Progress, Crystal Expansion.
 - Progression Mode, Pattern Trigger, Unlock Response, Drop Release.
 - Metal Color, Glyph Color, Internal Light Color, Background Color.
 - Haze, Bloom, Finish, Vibration, Camera Distance.
@@ -208,7 +208,7 @@ A massive ceremonial mechanism made from concentric seals, gears, glyph rings, t
 ### Completion checklist
 
 - [x] Oracle Lock, Gear Sun, and Epoch Engine are represented as authored Machine Looks.
-- [x] Native instanced rings, teeth, glyphs, pins, plates, and iris geometry have stable addresses and real depth.
+- [x] Native instanced rings, teeth, glyphs, pins, plates, and spherical energy-crystal geometry have stable addresses and real depth.
 - [x] Pattern Change and conditional Trigger controls use Mainframe's persistent, deterministic, no-repeat event contract.
 - [x] Pause, seek, track, context-generation, and playback resets return pattern authority safely.
 - [x] Manual Machine Look edits reclaim authority and Auto Performance remains separately user-controlled.

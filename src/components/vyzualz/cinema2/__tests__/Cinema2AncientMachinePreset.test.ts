@@ -23,10 +23,12 @@ class FakeCanvas extends EventTarget {
 describe('Cinema 2.0 Ancient Machine preset', () => {
   it('builds deterministic concentric mechanical geometry with stable addresses', () => {
     const first = buildCinema2AncientMachineLayout(); const second = buildCinema2AncientMachineLayout()
-    expect(first).toEqual(second); expect(first.instances).toHaveLength(461)
+    expect(first).toEqual(second); expect(first.instances).toHaveLength(444)
     expect(first.instances.filter(instance => instance.kind === 'tooth')).toHaveLength(36)
     expect(first.instances.filter(instance => instance.kind === 'glyph')).toHaveLength(72)
-    expect(packCinema2AncientMachineInstances(first.instances)).toHaveLength(461 * CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
+    expect(first.instances.filter(instance => instance.kind === 'plate')).toHaveLength(12)
+    expect(first.instances.filter(instance => instance.kind === 'plate').every(instance => Math.hypot(instance.center[0], instance.center[1]) > 4.5)).toBe(true)
+    expect(packCinema2AncientMachineInstances(first.instances)).toHaveLength(444 * CINEMA2_ANCIENT_MACHINE_INSTANCE_FLOATS)
   })
 
   it('ships all three legacy identities as authored looks and passes native gates', () => {
@@ -35,6 +37,11 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     expect(cinema2NativeModuleRegistry.get(CINEMA2_ANCIENT_MACHINE_NATIVE_MODULE_TYPE_ID, 1)).not.toBeNull()
     expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_ANCIENT_MACHINE_LOOK_ID)).toMatchObject({
       defaultValue: 'oracleLock', options: [{ value: 'oracleLock' }, { value: 'gearSun' }, { value: 'epochEngine' }],
+    })
+    expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.choreography?.rules.find(rule => rule.source.signal === 'continuous' && rule.source.path === 'audio.bands.bass')).toMatchObject({
+      priority: 11,
+      source: { smoothingMs: 90 },
+      actions: [{ target: { property: 'bassPressure' } }],
     })
     expect(validateCinema2PresetAuthoringConventions({ role: 'keeper', manifest: CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST })).toEqual({ ok: true, diagnostics: [] })
     const compiled = compileCinema2NativePreset(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST, { availableCapabilities: CAPABILITIES })

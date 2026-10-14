@@ -56,7 +56,7 @@ npm ci
 npm run electron:dev
 ```
 
-On macOS, `launch.command` starts the same development workflow.
+On macOS, `launch.command` selects the repository's required Node 22 runtime and starts the same development workflow. It also gives the development Electron shell a DRMVYZ-specific macOS identity so it can run alongside other Electron projects.
 
 The Electron shell enables native Rekordbox USB scanning, including `export.pdb` and `PIONEER/USBANLZ` cue and beat-grid metadata.
 

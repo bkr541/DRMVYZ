@@ -27,6 +27,11 @@ const APP_ORIGIN = `${APP_SCHEME}://app`
 const DIST_DIR = path.join(app.getAppPath(), 'dist')
 let mainWindow = null
 
+// Keep development state and its single-instance lock separate from both the
+// packaged application and unrelated Electron projects.
+app.setName('DRMVYZ')
+if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'DRMVYZ Development'))
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: APP_SCHEME,
@@ -199,8 +204,13 @@ function createMainWindow() {
 }
 
 if (!app.requestSingleInstanceLock()) {
+  log.scope('system:app').warn('another DRMVYZ instance owns the development profile; focusing it instead')
   app.quit()
 } else {
+  app.on('before-quit', () => log.scope('system:app').info('before-quit'))
+  app.on('will-quit', () => log.scope('system:app').info('will-quit'))
+  app.on('quit', (_event, exitCode) => log.scope('system:app').info('quit', { exitCode }))
+  process.on('exit', exitCode => log.scope('system:app').info('main process exit', { exitCode }))
   app.on('second-instance', () => {
     if (!mainWindow) {
       createMainWindow()

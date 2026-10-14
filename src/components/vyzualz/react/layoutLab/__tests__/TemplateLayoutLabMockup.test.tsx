@@ -38,40 +38,7 @@ function tabLabels(ariaLabel: string): string[] {
 }
 
 describe('Template Layout Lab workspace', () => {
-  it('shows the six audio dock left-group concepts in the middle section', async () => {
-    await selectEngine('Template')
-
-    const stage = container.querySelector('.rv-canvas-wrap > .llcm-stage-gallery')
-    expect(stage?.querySelector('[aria-label="Audio dock left group concepts"]')).not.toBeNull()
-    expect(stage?.querySelectorAll('[data-testid^="dock-left-concept-"]')).toHaveLength(6)
-  })
-
-  it('lays the dock mockups out in two columns: left group on the left, right group on the right', async () => {
-    await selectEngine('Template')
-
-    const columns = container.querySelectorAll('.llcm-stage-columns > .llcm-stage-column')
-    expect(columns).toHaveLength(2)
-    expect(columns[0]?.querySelector('[aria-label="Audio dock left group concepts"]')).not.toBeNull()
-    expect(columns[0]?.querySelector('[aria-label="Audio dock right group concepts"]')).toBeNull()
-    expect(columns[1]?.querySelector('[aria-label="Audio dock right group concepts"]')).not.toBeNull()
-    expect(columns[1]?.querySelectorAll('[data-testid^="dock-right-concept-"]')).toHaveLength(6)
-
-    // The Track Map marker concepts sit under both columns, across the full width.
-    const stage = container.querySelector('.rv-canvas-wrap > .llcm-stage-gallery')
-    const markers = stage?.querySelector(':scope > .lltm-gallery')
-    expect(markers).not.toBeNull()
-    expect(markers?.querySelectorAll('[data-testid^="track-map-marker-concept-"]')).toHaveLength(6)
-    expect(stage?.querySelector('.llwf-gallery')).toBeNull()
-
-    // The Lyric Manager transport replacements come next, followed by the rails' collapse / expand control concepts, which are last.
-    const toolbarGallery = stage?.querySelector('[aria-label="Lyric Manager timeline control row concepts"]')
-    expect(toolbarGallery?.querySelectorAll('[data-testid^="lyric-toolbar-concept-"]')).toHaveLength(3)
-    const railGallery = stage?.querySelector('[aria-label="Rail collapse and expand toggle concepts"]')
-    expect(railGallery?.querySelectorAll('[data-testid^="rail-toggle-"]')).toHaveLength(5)
-    expect(stage?.lastElementChild).toBe(railGallery)
-  })
-
-  it('adds a Layout Lab-only Template engine with a source indicator Design gallery and no lower workspace', async () => {
+  it('keeps the Template inspector tabs while Design and React remain empty', async () => {
     await selectEngine('Template')
 
     expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
@@ -81,17 +48,18 @@ describe('Template Layout Lab workspace', () => {
 
     const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')
     expect(tabLabels('Layout Lab inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    expect(rightRail?.querySelector('[aria-label="Audio source indicator concepts"]')).not.toBeNull()
+    expect(rightRail?.querySelector('.vz-panel-body')?.childElementCount).toBe(0)
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
-    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(1)
+    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
 
-    const presetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-      .find(button => button.textContent?.trim() === 'PRESETS')
-    if (!presetsTab) throw new Error('Missing PRESETS tab')
-    await act(async () => presetsTab.click())
-    expect(presetsTab.getAttribute('aria-selected')).toBe('true')
+    const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+      .find(button => button.textContent?.trim() === 'REACT')
+    if (!reactTab) throw new Error('Missing REACT tab')
+    await act(async () => reactTab.click())
+    expect(reactTab.getAttribute('aria-selected')).toBe('true')
+    expect(rightRail?.querySelector('.vz-panel-body')?.childElementCount).toBe(0)
   })
 
   it('shows four two-column preset card treatments, eight presets each, in the PRESETS tab', async () => {
@@ -121,68 +89,14 @@ describe('Template Layout Lab workspace', () => {
     expect(gallery?.querySelectorAll('.is-active, .rv-preset-spotlight-card--active')).toHaveLength(4)
   })
 
-  it('shows ten audio source concepts and previews every concept in the selected mode', async () => {
-    await selectEngine('Template')
-
-    const gallery = container.querySelector('[aria-label="Audio source indicator concepts"]')
-    expect(gallery?.querySelectorAll('[data-testid^="audio-source-concept-"]')).toHaveLength(10)
-    expect(gallery?.querySelectorAll('[data-mockup-height="32"]')).toHaveLength(10)
-    expect(gallery?.querySelectorAll('[role="tab"]')).toHaveLength(5)
-    expect(gallery?.getAttribute('data-source-mode')).toBe('rekordbox')
-
-    const liveTab = [...(gallery?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])]
-      .find(button => button.textContent?.trim() === 'LIVE')
-    await act(async () => liveTab?.click())
-
-    expect(gallery?.getAttribute('data-source-mode')).toBe('live')
-    expect(liveTab?.getAttribute('aria-selected')).toBe('true')
-    expect(gallery?.textContent).toContain('Live Input')
-    expect(gallery?.querySelector('img[alt="Rekordbox"]')).toBeNull()
-  })
-
-  it('shows three Media Library thumbnail treatments, six thumbnails each, in the REACT tab', async () => {
-    await selectEngine('Template')
-    const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-      .find(button => button.textContent?.trim() === 'REACT')
-    if (!reactTab) throw new Error('Missing REACT tab')
-    await act(async () => reactTab.click())
-
-    const gallery = container.querySelector('.llmt-gallery')
-    expect(gallery?.querySelectorAll('.lldd-gallery-row')).toHaveLength(3)
-    expect(gallery?.querySelectorAll('.llmt-poster')).toHaveLength(6)
-    expect(gallery?.querySelectorAll('.llmt-sheet-tile')).toHaveLength(6)
-    expect(gallery?.querySelectorAll('.llmt-mosaic-tile')).toHaveLength(6)
-    // The same six items in every treatment, and clicking one selects it in all three.
-    const names = (selector: string) => [...(gallery?.querySelectorAll(selector) ?? [])].map(node => node.getAttribute('aria-label')).sort()
-    expect(names('.llmt-sheet-tile')).toEqual(names('.llmt-poster'))
-    expect(names('.llmt-mosaic-tile')).toEqual(names('.llmt-poster'))
-    const target = gallery?.querySelectorAll<HTMLButtonElement>('.llmt-sheet-tile')[2]
-    await act(async () => target?.click())
-    expect(gallery?.querySelectorAll('.is-active')).toHaveLength(3)
-
-    // Below the thumbnails: three two-column preset list treatments, six presets each, the full name in every card.
-    const presets = container.querySelector('.llp2-gallery')
-    expect(presets?.querySelectorAll('.lldd-gallery-row')).toHaveLength(3)
-    for (const selector of ['.llp2-stacked', '.llp2-corner', '.llp2-split']) expect(presets?.querySelectorAll(selector)).toHaveLength(6)
-    expect(presets?.querySelector('.llp2-grid')?.className).toBe('llp2-grid')
-    for (const selector of ['.llp2-stacked-name', '.llp2-corner-name', '.llp2-split-name']) {
-      expect([...(presets?.querySelectorAll(selector) ?? [])].map(node => node.textContent)).toContain('Audio Reactive Ripple Grid')
-    }
-    await act(async () => presets?.querySelectorAll<HTMLButtonElement>('.llp2-corner')[4]?.click())
-    expect(presets?.querySelectorAll('.is-active')).toHaveLength(3)
-
-    // Design and Output stay blank.
-    const designTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(button => button.textContent?.trim() === 'DESIGN')
-    await act(async () => designTab?.click())
-    expect(container.querySelector('.llmt-gallery')).toBeNull()
-  })
-
-  it('returns to existing engines without changing their Layout Lab composition', async () => {
+  it('returns to Canvas with its dropdown preserved and workspace mockups cleared', async () => {
     await selectEngine('Template')
     await selectEngine('CANVAS')
 
-    expect(tabLabels('Canvas left workspace tabs')).toEqual(['SOURCE', 'LAYERS'])
+    expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: CANVAS')
+    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
+    expect(container.querySelector('.rv-lower-workspace')).toBeNull()
     expect(tabLabels('Canvas inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    expect(tabLabels('Timeline surfaces (mockup)')).toEqual(['Track Map', 'Performance Pads'])
+    expect(container.querySelector('[aria-label="Layout Lab right rail"] .vz-panel-body')?.childElementCount).toBe(0)
   })
 })
