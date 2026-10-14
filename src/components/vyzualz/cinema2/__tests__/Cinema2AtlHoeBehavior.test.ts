@@ -62,9 +62,6 @@ function harness() {
     if (!target) throw new Error(`Missing module target ${property}`)
     return resolver.resolve(target.id).value as number
   }
-  const kick = (timeSec: number, beatIndex: number) => step({
-    timeSec, rhythm: { ...source.rhythm, kickHit: true, kickStrength: 1, beatIndex, beatPhase: 0.2, transientConfidence: 0.95 },
-  })
   const set = (id: Cinema2ParameterId, next: unknown) => expect(parameterState.setPersistentValue(id, next)).toMatchObject({ ok: true })
   const exposure = () => {
     const target = plan.targets.targets.find(candidate => candidate.kind === 'environment' && candidate.property === 'exposure')
@@ -79,7 +76,7 @@ function harness() {
       each?.(t)
     }
   }
-  return { step, value, kick, set, exposure, play, rhythm: () => source.rhythm }
+  return { step, value, set, exposure, play, rhythm: () => source.rhythm }
 }
 
 const FACE = 'signFace00.emissiveIntensity'
@@ -105,28 +102,12 @@ describe('ATL HOE Design tab behaviour', () => {
     expect(h.value(FACE)).toBeCloseTo(1.25 * 1.46, 3)
   })
 
-  it('hits the sign on a kick in Pulse, scaled by Kick Reactivity', () => {
+  it('keeps program timing out of material choreography when the selected full-scene program changes', () => {
     const h = harness()
+    h.set(IDS.signPattern, 'interstate-flow')
     h.step()
-    h.kick(1.1, 2)
-    const full = h.value(FACE)
-    expect(full).toBeGreaterThan(1.25 + 0.5)
-    const quiet = harness()
-    quiet.set(IDS.kickReaction, 0.2)
-    quiet.step()
-    quiet.kick(1.1, 2)
-    expect(quiet.value(FACE)).toBeLessThan(full)
-    expect(quiet.value(FACE)).toBeGreaterThan(1.25)
-  })
-
-  it('sits other patterns at their rest level and stops the Pulse kick hit', () => {
-    const h = harness()
-    h.set(IDS.signPattern, 'marquee')
-    h.step()
-    expect(h.value(FACE)).toBeCloseTo(1.25 * 0.45, 3)
-    expect(h.value('spireBoa.emissiveIntensity')).toBeCloseTo(2.2 * 0.8, 3)
-    h.kick(1.1, 2)
-    expect(h.value(FACE)).toBeCloseTo(1.25 * 0.45, 3)
+    expect(h.value(FACE)).toBeCloseTo(1.25, 3)
+    expect(h.value('spireBoa.emissiveIntensity')).toBeCloseTo(2.2, 3)
   })
 
   it('dips sign cells with Flicker on every beat of the clock, and not at all at the default of 0', () => {
@@ -140,45 +121,6 @@ describe('ATL HOE Design tab behaviour', () => {
     const flicker = harness()
     flicker.set(IDS.flicker, 1)
     expect(lowestOver(flicker)).toBeLessThan(1.25 * 0.4)
-  })
-
-  it('chases the Marquee across the cells from the first to the last after a bar line', () => {
-    const h = harness()
-    h.set(IDS.signPattern, 'marquee')
-    h.step()
-    const rest = 1.25 * 0.45
-    let first = 0
-    // Beat 4 (the bar line) arrives at t = 2 s at 120 BPM; find the frame where the first cell lights.
-    h.play(2.4, { each: t => { if (!first && h.value('signFace00.emissiveIntensity') > rest + 0.3) { first = t } } })
-    expect(first).toBeGreaterThan(1.9)
-    expect(first).toBeLessThan(2.2)
-    // At the moment the first cell lights, the last has not been reached yet.
-    const h2 = harness()
-    h2.set(IDS.signPattern, 'marquee')
-    h2.step()
-    h2.play(first)
-    expect(h2.value('signFace10.emissiveIntensity')).toBeCloseTo(rest, 3)
-    h2.play(first + 2.2)
-    expect(Math.max(...Array.from({ length: 11 }, (_, index) => h2.value(`signFace${String(index).padStart(2, '0')}.emissiveIntensity`)))).toBeGreaterThan(rest + 0.2)
-  })
-
-  it('follows the loaded track\'s tempo with BPM Sync on and a steady 120 BPM with it off', () => {
-    // Pulse flashes the spires on every bar line. A 90 BPM track has four bar lines in the first ten seconds; a steady 120 BPM clock has five.
-    const bars = (sync: boolean) => {
-      const h = harness()
-      h.set(IDS.bpmSync, sync)
-      h.step()
-      let count = 0
-      let above = false
-      h.play(11, { bpm: 90, each: () => {
-        const lit = h.value('spireBoa.emissiveIntensity') > 2.2 + 0.4
-        if (lit && !above) count += 1
-        above = lit
-      } })
-      return count
-    }
-    expect(bars(true)).toBe(4)
-    expect(bars(false)).toBe(5)
   })
 
   it('leaves the calm sky alone unless Sky Pattern is on', () => {

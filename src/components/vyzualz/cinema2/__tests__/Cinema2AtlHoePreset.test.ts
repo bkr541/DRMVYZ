@@ -16,6 +16,7 @@ import {
   CINEMA2_ATL_HOE_RANDOM_SEED,
   createCinema2AtlHoeVisualAcceptanceMetadata,
 } from '../../../../test/browser/Cinema2AtlHoeVisualAcceptanceConfig'
+import { CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES } from '../modules/atlHoe/Cinema2AtlHoeTopology'
 
 const CAPABILITIES = ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world', 'lighting'] as const
 const manifest = CINEMA2_ATL_HOE_PRESET_MANIFEST
@@ -77,7 +78,10 @@ describe('ATL HOE preset', () => {
       'winA.emissiveIntensity': 1.45,
       'lampOrbA.emissiveIntensity': 1.3,
       'beacon.emissiveIntensity': 3,
+      atlHoeTopologyStrength: 0,
+      atlHoeTopologyDiagnostic: 'off',
     })
+    expect(module.config?.atlHoe).toEqual(CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES)
   })
 
   it('uses a locked world camera and a depth-aware night finish without audio choreography', () => {

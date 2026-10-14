@@ -23,6 +23,7 @@ import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2Cinem
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2VolumetricAtmosphereEffect'
 import { CINEMA2_ATL_HOE_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
+import { CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES } from '../modules/atlHoe/Cinema2AtlHoeTopology'
 import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import atlHoeParts from './atlHoeParts.json'
@@ -183,6 +184,16 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     parameters: Object.freeze({
       ...LIT_PART_PARAMETERS,
       ...CINEMA2_ATL_HOE_SKY_PART_PARAMETERS,
+      // Developer diagnostic only. Strength zero guarantees topology is visually inert in the normal preset.
+      atlHoeTopologyStrength: 0,
+      atlHoeTopologyDiagnostic: 'off',
+      atlHoePattern: 'city-pulse',
+      atlHoeBpmSync: true,
+      atlHoeMasterIntensity: 1,
+      atlHoeMusicReactivity: 0.8,
+      atlHoeKickReaction: 0.72,
+      atlHoeTransientReaction: 0.58,
+      atlHoeDropReaction: 0.92,
       environmentIntensity: 0.38,
       'cyanWindows.emissive': color(0.1, 0.9, 0.85),
       'cyanWindows.emissiveIntensity': 1.8,
@@ -228,6 +239,7 @@ export const CINEMA2_ATL_HOE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       instances: Object.freeze([Object.freeze({ asset: CINEMA2_ATL_HOE_ASSET_ID, node: MODEL_NODE_ID })]),
       hdr: true,
       parts: Object.freeze([...LIT_PART_NAMES, 'road', 'roadPole', 'roadGlow', 'bofaGlass', 'bofaRib', 'bofaCore', 'bofaStone', 'bofaGlow', 'truistBody', 'truistCrown', 'beacon', 'gpStone', 'gpStoneB', 'gpStoneC', 'gpLedge', 'gpSlot', 'landmarkDark', 'landmarkGlass', 'distantBuildings', 'midBuildings', 'nearBuildings', 'signMetal', 'signTrim', 'signBorder', 'signLetters', 'foliageBack', 'foliage', 'foliageFaint', 'foliageLit']),
+      atlHoe: CINEMA2_ATL_HOE_SEMANTIC_PART_ROLES,
       environment: CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID,
       panels: Object.freeze([
         Object.freeze({ position: vec3(-9, 10.5, 11), target: vec3(-5, 6.6, 3), size: Object.freeze([7, 5]), color: Object.freeze([0.28, 0.42, 0.62]), intensity: 0.85 }),

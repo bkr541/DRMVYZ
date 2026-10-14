@@ -16,6 +16,11 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import atlHoeParts from './atlHoeParts.json'
 import atlHoeBolts from './atlHoeBolts.json'
+import {
+  CINEMA2_ATL_HOE_PATTERN_IDS,
+  CINEMA2_ATL_HOE_PATTERN_LABELS,
+  type Cinema2AtlHoePatternId,
+} from '../modules/atlHoe/Cinema2AtlHoePatternEngine'
 
 // ── ATL HOE Design tab: controls, palette bindings and audio-reactive choreography ─────────────────────────────────────────────
 // See docs/cinema2-atl-hoe-design-tab-plan.md. The lit things are groups of model parts (atlHoeParts.json); every reaction is a
@@ -48,8 +53,8 @@ export const CINEMA2_ATL_HOE_PARAMETER_IDS = Object.freeze({
 })
 const P = CINEMA2_ATL_HOE_PARAMETER_IDS
 
-export const CINEMA2_ATL_HOE_SIGN_PATTERNS = Object.freeze(['pulse', 'marquee', 'cascade', 'neonFault'] as const)
-export type Cinema2AtlHoeSignPattern = typeof CINEMA2_ATL_HOE_SIGN_PATTERNS[number]
+export const CINEMA2_ATL_HOE_SIGN_PATTERNS = CINEMA2_ATL_HOE_PATTERN_IDS
+export type Cinema2AtlHoeSignPattern = Cinema2AtlHoePatternId
 export const CINEMA2_ATL_HOE_SKY_PATTERNS = Object.freeze(['stars', 'thunderstorm'] as const)
 export type Cinema2AtlHoeSkyPattern = typeof CINEMA2_ATL_HOE_SKY_PATTERNS[number]
 const SKY_PATTERN_LABELS: Readonly<Record<Cinema2AtlHoeSkyPattern, string>> = Object.freeze({ stars: 'Stars', thunderstorm: 'Thunderstorm' })
@@ -60,9 +65,6 @@ export const CINEMA2_ATL_HOE_SKY_PART_PARAMETERS: Readonly<Record<string, Cinema
   ...Object.fromEntries([...atlHoeParts.skySurfaces, ...atlHoeParts.skyBands, ...BOLT_PARTS].map(part => [`${part}.emissiveIntensity`, 1])),
   // The generator writes linear emissive values (as stored in the GLB); colour parameters are read as sRGB, so they are encoded here.
   ...Object.fromEntries(BOLT_PARTS.map(part => [`${part}.emissive`, Object.freeze([...(atlHoeBolts as Record<string, number[]>)[part].map(srgbEncode), 1]) as Cinema2Color])),
-})
-const PATTERN_LABELS: Readonly<Record<Cinema2AtlHoeSignPattern, string>> = Object.freeze({
-  pulse: 'Pulse', marquee: 'Marquee', cascade: 'Cascade', neonFault: 'Neon Fault',
 })
 
 // ── Architecture Color: the visible control drives the windows directly and overrides nine hidden groups, each starting at its authored colour ────────────────────
@@ -128,10 +130,10 @@ export const CINEMA2_ATL_HOE_DESIGN_PARAMETERS: readonly Cinema2ParameterManifes
     type: 'float' as const, defaultValue: 0.92, min: 0, max: 1, step: 0.01, designParentGroup: 'master-controls' as const, group: 'Music', order: 7,
   }),
   Object.freeze({
-    ...baseParameter, id: P.signPattern, label: 'Sign Pattern',
-    description: 'How the sign, the skyscraper windows, the street lights and the spires move together. Pulse: everything breathes with the kick and the bass. Marquee: the sign cells chase one after another, with the street lights stepping across. Cascade: a wave of light crosses the scene from left to right on every phrase. Neon Fault: a failing-neon feel, with cells and windows dropping out and stuttering back.',
-    type: 'enum' as const, defaultValue: 'pulse',
-    options: Object.freeze(CINEMA2_ATL_HOE_SIGN_PATTERNS.map(value => Object.freeze({ value, label: PATTERN_LABELS[value] }))),
+    ...baseParameter, id: P.signPattern, label: 'Pattern',
+    description: 'Selects one of six authored full-scene lighting programs. Each program assigns different spatial paths and musical responsibilities to the sign, road, streetlights, skyline, crowns, foliage and sky.',
+    type: 'enum' as const, defaultValue: 'city-pulse',
+    options: Object.freeze(CINEMA2_ATL_HOE_SIGN_PATTERNS.map(value => Object.freeze({ value, label: CINEMA2_ATL_HOE_PATTERN_LABELS[value] }))),
     designParentGroup: 'design' as const, group: 'Lighting', order: 1,
   }),
   Object.freeze({
@@ -185,6 +187,13 @@ export const CINEMA2_ATL_HOE_DESIGN_PARAMETERS: readonly Cinema2ParameterManifes
 /** Module parameter bindings for the palette: sign faces, letters and every architecture part's emissive colour. */
 export function atlHoeModuleBindings(): Readonly<Record<string, Cinema2ParameterRef>> {
   const bindings: Record<string, Cinema2ParameterRef> = {}
+  bindings.atlHoePattern = cinema2Ref(P.signPattern)
+  bindings.atlHoeBpmSync = cinema2Ref(P.bpmSync)
+  bindings.atlHoeMasterIntensity = cinema2Ref(P.masterIntensity)
+  bindings.atlHoeMusicReactivity = cinema2Ref(P.musicReactivity)
+  bindings.atlHoeKickReaction = cinema2Ref(P.kickReaction)
+  bindings.atlHoeTransientReaction = cinema2Ref(P.transientReaction)
+  bindings.atlHoeDropReaction = cinema2Ref(P.dropReaction)
   for (const part of atlHoeParts.signFaces) {
     bindings[`${part}.emissive`] = cinema2Ref(P.signColor)
     bindings[`${part}.color`] = cinema2Ref(P.signBaseColor)
@@ -205,9 +214,6 @@ const MASTER_PARTS = [...SIGN, ...WINDOWS, ...LAMPS, ...SPIRES, 'roadGlow', 'bof
 type Source = Cinema2ChoreographySourceManifest
 const KICK: Source = { signal: 'kick', capability: 'music.rhythm-events' }
 const TRANSIENT: Source = { signal: 'transient', capability: 'music.rhythm-events' }
-const DOWNBEAT: Source = { signal: 'downbeat', capability: 'music.downbeat' }
-const BAR: Source = { signal: 'bar', capability: 'music.bar' }
-const PHRASE: Source = { signal: 'phrase', capability: 'music.phrase' }
 const BEAT: Source = { signal: 'beat', capability: 'music.beat' }
 const DROP: Source = { signal: 'drop', capability: 'music.drop' }
 
@@ -232,7 +238,6 @@ export function atlHoeChoreographyRules(moduleId: Cinema2ModuleId, atmosphereEff
     { kind: 'parameter-equals' as const, parameterId: P.skyPatternEnabled, value: true },
     { kind: 'parameter-equals' as const, parameterId: P.skyPattern, value: sky },
   ]
-  const whenPattern = (pattern: Cinema2AtlHoeSignPattern) => [{ kind: 'parameter-equals' as const, parameterId: P.signPattern, value: pattern }]
 
   /** An envelope that adds `peak` to (or multiplies by `peak`) every part named, optionally staggered per part. */
   const hit = (
@@ -252,7 +257,7 @@ export function atlHoeChoreographyRules(moduleId: Cinema2ModuleId, atmosphereEff
   }))
   const rule = (
     id: string, priority: number, source: Source, actions: Cinema2ChoreographyActionManifest[],
-    options: { strength?: Cinema2ParameterRef; pattern?: Cinema2AtlHoeSignPattern; sky?: Cinema2AtlHoeSkyPattern; conditions?: readonly Cinema2ChoreographyConditionManifest[] } = {},
+    options: { strength?: Cinema2ParameterRef; sky?: Cinema2AtlHoeSkyPattern; conditions?: readonly Cinema2ChoreographyConditionManifest[] } = {},
   ) => {
     rules.push({
       id: ruleId(id),
@@ -260,7 +265,6 @@ export function atlHoeChoreographyRules(moduleId: Cinema2ModuleId, atmosphereEff
       source,
       actions,
       ...(options.strength ? { strengthParameter: options.strength } : {}),
-      ...(options.pattern ? { enabledWhen: whenPattern(options.pattern) } : {}),
       ...(options.sky ? { enabledWhen: whenSky(options.sky) } : {}),
       ...(options.conditions ? { conditions: options.conditions } : {}),
     })
@@ -275,18 +279,6 @@ export function atlHoeChoreographyRules(moduleId: Cinema2ModuleId, atmosphereEff
   rule('atl-hoe-master', 5, { signal: 'parameter', parameter: cinema2Ref(P.masterIntensity), offset: -1 },
     MASTER_PARTS.map(part => ({ id: actionId(`atl-hoe-master-${part}`), target: intensity(part), operation: 'multiply' as const, value: 1.92 })))
 
-  // Pattern rest levels: how bright each group sits between hits (a constant multiplier while that pattern is chosen). Pulse is 1: the authored look.
-  const rest: Readonly<Record<Exclude<Cinema2AtlHoeSignPattern, 'pulse'>, readonly [number, number, number, number]>> = Object.freeze({
-    marquee: [0.45, 0.8, 0.7, 0.8], cascade: [0.6, 0.7, 0.6, 0.7], neonFault: [0.85, 0.75, 0.7, 0.6],
-  })
-  for (const pattern of ['marquee', 'cascade', 'neonFault'] as const) {
-    const [signRest, windowRest, lampRest, spireRest] = rest[pattern]
-    const groups: ReadonlyArray<readonly [readonly string[], number]> = [[SIGN, signRest], [WINDOWS, windowRest], [LAMPS, lampRest], [SPIRES, spireRest]]
-    rule(`atl-hoe-rest-${pattern}`, 6, { signal: 'parameter', parameter: cinema2Ref(P.masterIntensity), scale: 0, offset: 1 },
-      groups.flatMap(([parts, level]) => parts.map(part => ({ id: actionId(`atl-hoe-rest-${pattern}-${part}`), target: intensity(part), operation: 'multiply' as const, value: level }))),
-      { pattern })
-  }
-
   // Continuous music (Music Reactivity): the windows swell with the track's energy, the spires lift through a build, an impact brightens the night.
   rule('atl-hoe-energy', 20, { signal: 'continuous', capability: 'audio.features', path: 'audio.features.overallEnergy', smoothingMs: 120 },
     WINDOWS.map(part => ({ id: actionId(`atl-hoe-energy-${part}`), target: intensity(part), operation: 'add' as const, value: 0.5 })), { strength: music })
@@ -295,48 +287,6 @@ export function atlHoeChoreographyRules(moduleId: Cinema2ModuleId, atmosphereEff
   rule('atl-hoe-impact', 22, { signal: 'continuous', capability: 'visual-director.significance', path: 'director.impact', smoothingMs: 45 }, [
     { id: actionId('atl-hoe-impact-exposure'), target: { kind: 'environment' as const, property: 'exposure' }, operation: 'add' as const, value: 0.08 },
   ], { strength: music })
-  rule('atl-hoe-bass', 23, { signal: 'continuous', capability: 'audio.bands', path: 'audio.bands.bass', smoothingMs: 50 },
-    SIGN.map(part => ({ id: actionId(`atl-hoe-bass-${part}`), target: intensity(part), operation: 'add' as const, value: 0.45 })), { strength: music, pattern: 'pulse' })
-
-  // Drop: the whole city blazes, whatever the pattern.
-  rule('atl-hoe-drop', 40, DROP, hit('atl-hoe-drop', MASTER_PARTS, 1.4, { hold: 0.4, release: 1.6 }), { strength: drop })
-
-  // ── Pulse: everything breathes with the music ──
-  rule('atl-hoe-pulse-kick', 30, KICK, [...hit('atl-hoe-pulse-kick', SIGN, 0.9, { hold: 0.05, release: 0.45 }), ...hit('atl-hoe-pulse-kick-lamps', LAMPS, 0.7, { hold: 0.05, release: 0.45 })], { strength: kick, pattern: 'pulse' })
-  rule('atl-hoe-pulse-downbeat', 31, DOWNBEAT, hit('atl-hoe-pulse-downbeat', SPIRES, 1.1, { hold: 0.05, release: 0.7 }), { strength: kick, pattern: 'pulse' })
-  rule('atl-hoe-pulse-transient', 32, TRANSIENT, hit('atl-hoe-pulse-transient', WINDOWS, 0.8, { hold: 0.05, release: 0.3, probability: 0.45 }), { strength: transient, pattern: 'pulse' })
-
-  // ── Marquee: the cells chase one after another ──
-  rule('atl-hoe-marquee-chase', 30, BAR, hit('atl-hoe-marquee-chase', SIGN, 1.3, { hold: 0.12, release: 0.9 }, 'add', index => (index * 4) / SIGN.length), { strength: music, pattern: 'marquee' })
-  for (const [index] of atlHoeParts.lampOrbs.entries()) {
-    rule(`atl-hoe-marquee-lamps-${index}`, 31, BEAT, hit(`atl-hoe-marquee-lamps-${index}`, [atlHoeParts.lampOrbs[index], atlHoeParts.lampHalos[index]], 1.1, { hold: 0.1, release: 0.6 }),
-      { strength: kick, pattern: 'marquee', conditions: [{ kind: 'beat-interval', every: 4, phase: index, unit: 'beat' }] })
-  }
-  rule('atl-hoe-marquee-transient', 32, TRANSIENT, hit('atl-hoe-marquee-transient', WINDOWS, 0.8, { hold: 0.05, release: 0.3, probability: 0.5 }), { strength: transient, pattern: 'marquee' })
-  rule('atl-hoe-marquee-downbeat', 33, DOWNBEAT, hit('atl-hoe-marquee-downbeat', SPIRES, 1.1, { hold: 0.05, release: 0.7 }), { strength: kick, pattern: 'marquee' })
-
-  // ── Cascade: a wave crosses the scene on every phrase ──
-  rule('atl-hoe-cascade-wave', 30, PHRASE, [
-    ...hit('atl-hoe-cascade-sign', SIGN, 1.2, { hold: 0.25, release: 1.3 }, 'add', index => index * 0.45),
-    ...hit('atl-hoe-cascade-windows', WINDOWS, 1.0, { hold: 0.25, release: 1.3, delayBeats: 5 }, 'add', index => index * 0.6),
-    ...hit('atl-hoe-cascade-lamps', LAMPS, 1.0, { hold: 0.25, release: 1.3, delayBeats: 11 }, 'add', index => (index % atlHoeParts.lampOrbs.length) * 0.4),
-    ...hit('atl-hoe-cascade-spires', SPIRES, 1.4, { hold: 0.25, release: 1.3, delayBeats: 13.5 }),
-  ], { strength: music, pattern: 'cascade' })
-  rule('atl-hoe-cascade-kick', 31, KICK, hit('atl-hoe-cascade-kick', SIGN, 0.35, { hold: 0.05, release: 0.4 }), { strength: kick, pattern: 'cascade' })
-  rule('atl-hoe-cascade-transient', 32, TRANSIENT, hit('atl-hoe-cascade-transient', WINDOWS, 0.5, { hold: 0.05, release: 0.3, probability: 0.3 }), { strength: transient, pattern: 'cascade' })
-
-  // ── Neon Fault: a failing neon sign ──
-  rule('atl-hoe-fault-transient', 30, TRANSIENT, [
-    ...hit('atl-hoe-fault-sign', SIGN, 0.08, { hold: 0.1, release: 0.25, probability: 0.3 }, 'multiply'),
-    ...hit('atl-hoe-fault-windows', WINDOWS, 0.1, { hold: 0.1, release: 0.25, probability: 0.3 }, 'multiply'),
-    ...hit('atl-hoe-fault-lamps', LAMPS, 0.1, { hold: 0.1, release: 0.25, probability: 0.3 }, 'multiply'),
-  ], { strength: transient, pattern: 'neonFault' })
-  rule('atl-hoe-fault-kick', 31, KICK, hit('atl-hoe-fault-kick', SIGN, 1.2, { hold: 0.03, release: 0.3 }), { strength: kick, pattern: 'neonFault' })
-  for (const [index, part] of SPIRES.entries()) {
-    rule(`atl-hoe-fault-spire-${index}`, 32, BEAT, hit(`atl-hoe-fault-spire-${index}`, [part], 0.1, { hold: 1.2, release: 0.8 }, 'multiply'),
-      { strength: music, pattern: 'neonFault', conditions: [{ kind: 'beat-interval', every: 8, phase: (index * 3) % 8, unit: 'beat' }] })
-  }
-
   // Flicker: on every beat each sign cell stutters through its own step pattern; the slider is how deep the drop-outs go.
   const FLICKER_PATTERNS = ['x.x..xx.', '..xx.x..', 'xx..x...', '.x.xx..x', 'x...xx.x', '..x.x.xx']
   rule('atl-hoe-flicker', 28, BEAT, SIGN.flatMap((part, index) => hit('atl-hoe-flicker', [part], 0.1, { hold: 1, release: 0, gate: { stepsPerBeat: 8, pattern: FLICKER_PATTERNS[index % FLICKER_PATTERNS.length], duty: 0.6 } }, 'multiply')),

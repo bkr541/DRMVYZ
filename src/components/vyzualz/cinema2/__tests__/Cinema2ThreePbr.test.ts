@@ -20,6 +20,7 @@ import {
 } from '../modules/three/Cinema2ThreeSceneBridge'
 import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from '../presets/Cinema2ThreeModelReferencePreset'
 import { createCinema2MainframeLightingDiagnosticFrame } from '../modules/mainframe/Cinema2MainframeLightingDiagnostic'
+import { CINEMA2_ATL_HOE_ATTRIBUTE_NAMES } from '../modules/atlHoe/Cinema2AtlHoeTopology'
 
 // The bridge talks to a real (shared) Three renderer; for these tests it gets a stand-in host so real Three scene objects can be inspected without a GPU.
 const host = vi.hoisted(() => ({
@@ -131,6 +132,11 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
     expect(codes({ segments: { energy: 'glow' } })).toEqual(['CINEMA2_THREE_SCENE_SEGMENTS_INVALID'])
   })
 
+  it('accepts ATL HOE semantic roles and rejects unknown roles', () => {
+    expect(codes({ atlHoe: { signFace00: 'sign', winA: 'windows', roadGlow: 'road' } })).toEqual([])
+    expect(codes({ atlHoe: { signFace00: 'billboard' } })).toEqual(['CINEMA2_THREE_SCENE_ATL_HOE_INVALID'])
+  })
+
   it('rejects unknown environments and malformed panels', () => {
     expect(codes({ environment: 'nope' })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
     expect(codes({ environment: 7 })).toEqual(['CINEMA2_THREE_SCENE_ENVIRONMENT_UNKNOWN'])
@@ -150,6 +156,64 @@ describe('Cinema 2.0 three-scene PBR config validation', () => {
 })
 
 describe('Cinema 2.0 Three bridge PBR', () => {
+  it('binds ATL HOE topology diagnostics while strength zero preserves authored emission', () => {
+    const scene = new THREE.Group()
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const count = geometry.getAttribute('position').count
+    const values = {
+      role: 0, zone: 3, route: 4, phase: 0.5, level: 0.25, random: 0.75,
+    }
+    for (const [key, name] of Object.entries(CINEMA2_ATL_HOE_ATTRIBUTE_NAMES)) {
+      geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(count).fill(values[key as keyof typeof values]), 1))
+    }
+    const material = new THREE.MeshStandardMaterial({ emissive: 0xffaa00, emissiveIntensity: 1.25 })
+    material.name = 'signFace00'
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.name = 'signFace00'
+    scene.add(mesh)
+    const bridge = new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'atl-hoe-topology', scene, triangleCount: 12, gpuBytes: 100 } as never, node: null },
+    ], { atlHoe: { signFace00: 'sign' } })
+    const owned = ((bridge as unknown as { scene: THREE.Scene }).scene.getObjectByName('signFace00') as THREE.Mesh).material as THREE.MeshStandardMaterial
+    expect(owned.customProgramCacheKey()).toContain('-atl-hoe-topology')
+    const shader = {
+      vertexShader: '#include <common>\n#include <begin_vertex>',
+      fragmentShader: '#include <common>\n#include <emissivemap_fragment>',
+      uniforms: {} as Record<string, { value: unknown }>,
+    }
+    owned.onBeforeCompile(shader as never, undefined as never)
+    expect(shader.vertexShader).toContain('vCinema2AtlMeta0 = vec3( _atl_role, _atl_zone, _atl_route )')
+    expect(shader.fragmentShader).toContain('uniform vec4 uCinema2AtlRole0')
+    expect(shader.fragmentShader).toContain('float cinema2AtlPatternGain')
+    expect(shader.fragmentShader).toContain('mix( totalEmissiveRadiance')
+    expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(0)
+    bridge.draw(execution('high'), overrides(), 0, null, null, null, null, { strength: 1, diagnostic: 'route' })
+    expect(shader.uniforms.uCinema2AtlHoeStrength?.value).toBe(1)
+    expect(shader.uniforms.uCinema2AtlHoeDiagnostic?.value).toBe(3)
+  })
+
+  it('rejects missing and out-of-range ATL HOE topology attributes', () => {
+    const make = (badRoute: boolean) => {
+      const scene = new THREE.Group()
+      const geometry = new THREE.BoxGeometry(1, 1, 1)
+      const count = geometry.getAttribute('position').count
+      for (const [key, name] of Object.entries(CINEMA2_ATL_HOE_ATTRIBUTE_NAMES)) {
+        if (!badRoute && key === 'random') continue
+        const value = key === 'route' && badRoute ? 9 : 0
+        geometry.setAttribute(name, new THREE.Float32BufferAttribute(new Float32Array(count).fill(value), 1))
+      }
+      const material = new THREE.MeshStandardMaterial(); material.name = 'signFace00'
+      const mesh = new THREE.Mesh(geometry, material); mesh.name = 'signFace00'; scene.add(mesh)
+      return scene
+    }
+    expect(() => new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'atl-missing', scene: make(false), triangleCount: 12, gpuBytes: 100 } as never, node: null },
+    ], { atlHoe: { signFace00: 'sign' } })).toThrow(/requires a per-vertex _atl_random/)
+    expect(() => new Cinema2ThreeSceneBridge(glGuardStub(), library, [
+      { asset: { id: 'atl-range', scene: make(true), triangleCount: 12, gpuBytes: 100 } as never, node: null },
+    ], { atlHoe: { signFace00: 'sign' } })).toThrow(/out-of-range _atl_route/)
+  })
+
   it('binds each Mainframe lighting role and its shader uniforms to the intended mesh, even without audio', () => {
     const scene = new THREE.Group()
     const roles = { circuitHousings: 'circuitHousing', circuitCores: 'circuit', indicatorCores: 'indicator',

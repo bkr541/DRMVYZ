@@ -7,6 +7,7 @@ import {
 import type {
   Cinema2ModuleCreateContext,
   Cinema2ModuleDiagnostic,
+  Cinema2ModuleFrameReadContext,
   Cinema2ModuleParameterReadFacet,
   Cinema2ModuleRenderExecutionContext,
   Cinema2ModuleTypeDefinition,
@@ -22,12 +23,28 @@ import {
   Cinema2ThreeSceneBridge,
   samePartOverrides,
   type Cinema2ThreeGlowDraw,
+  type Cinema2ThreeAtlHoeDraw,
   type Cinema2ThreeMaterialOverrides,
   type Cinema2ThreePartOverrides,
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
   type Cinema2ThreeSegmentDraw,
 } from './three/Cinema2ThreeSceneBridge'
+import {
+  CINEMA2_ATL_HOE_ROLES,
+  readCinema2AtlHoeTopologyDiagnostic,
+  type Cinema2AtlHoeRole,
+} from './atlHoe/Cinema2AtlHoeTopology'
+import {
+  CINEMA2_ATL_HOE_DEFAULT_PATTERN,
+  CINEMA2_ATL_HOE_PATTERN_IDS,
+  evaluateCinema2AtlHoePattern,
+  type Cinema2AtlHoePatternId,
+  type Cinema2AtlHoePatternSignals,
+  type Cinema2AtlHoePerformanceStage,
+} from './atlHoe/Cinema2AtlHoePatternEngine'
+import { Cinema2AtlHoePatternController } from './atlHoe/Cinema2AtlHoePatternController'
+import type { Cinema2AudioEvent, Cinema2AudioSignal } from '../audio/Cinema2AudioIntelligenceBridge'
 import {
   CINEMA2_THREE_SEGMENT_ROLES,
   Cinema2ThreeSegmentLighting,
@@ -161,6 +178,11 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       const segmentRoles = parseSegments(context.module)
       const segmentLighting = segmentRoles ? new Cinema2ThreeSegmentLighting() : null
       let segmentDraw: Cinema2ThreeSegmentDraw | null = null
+      const atlHoeRoles = parseAtlHoe(context.module)
+      let atlHoeDraw: Cinema2ThreeAtlHoeDraw | null = atlHoeRoles ? { strength: 0, diagnostic: 'off' } : null
+      const atlHoeController = atlHoeRoles ? new Cinema2AtlHoePatternController() : null
+      const atlHoeImpulses = createAtlHoeImpulseState()
+      let atlHoeSectionId: string | null = null
       const diagnostics: Cinema2ModuleDiagnostic[] = []
 
       const report = (code: string, message: string, path: string) => {
@@ -214,7 +236,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -235,7 +257,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
-          bridge.draw(execution, overrides, spinRadians, glowDraw, segmentDraw)
+          bridge.draw(execution, overrides, spinRadians, glowDraw, segmentDraw, null, null, atlHoeDraw)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
           if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }
@@ -247,7 +269,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
             overrides = readOverrides(parameters, overrides, partNames)
             const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0
-            const sync = parameters.get('spinSync') !== false
+            const sync = atlHoeRoles ? parameters.get('atlHoeBpmSync') !== false : parameters.get('spinSync') !== false
             const beats = beatClock.update(frame, sync).beats
             spinRadians = cinema2ThreeSpinRadians(beats, turnSeconds)
             if (audioGlow) {
@@ -273,12 +295,49 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
               })
               segmentDraw = { color: readColor(parameters.get('segmentColor')) ?? [1, 0.62, 0.2], strength: readNumber(parameters.get('segmentStrength'), 0, 40) ?? 1, core: readNumber(parameters.get('segmentCore'), 0, 1) ?? 0, frame: segmentFrame }
             }
+            if (atlHoeRoles) {
+              const pattern = readAtlHoePattern(parameters.get('atlHoePattern'))
+              const selection = atlHoeController!.update(pattern, frame.deltaTimeSec)
+              const reactivity = readNumber(parameters.get('atlHoeMusicReactivity'), 0, 1) ?? 0.8
+              const master = readNumber(parameters.get('atlHoeMasterIntensity'), 0, 1.5) ?? 1
+              const impulse = updateAtlHoeImpulses(atlHoeImpulses, frame, frame.deltaTimeSec, atlHoeSectionId)
+              atlHoeSectionId = impulse.sectionId
+              const build = readAudioSignal(frame.audio?.features.buildProgress)
+                || readDirectorSignal(frame.director?.context.build)
+              const energy = readAudioSignal(frame.audio?.features.overallEnergy)
+              const drop = impulse.values.drop * (readNumber(parameters.get('atlHoeDropReaction'), 0, 1) ?? 0.92)
+              const stage: Cinema2AtlHoePerformanceStage = impulse.dropHit ? 'drop' : drop > 0.035 ? 'recovery'
+                : build > 0.12 ? 'buildup' : energy > 0.07 ? 'active' : 'rest'
+              const kickAmount = readNumber(parameters.get('atlHoeKickReaction'), 0, 1) ?? 0.72
+              const transientAmount = readNumber(parameters.get('atlHoeTransientReaction'), 0, 1) ?? 0.58
+              const signals: Cinema2AtlHoePatternSignals = Object.freeze({
+                energy: energy * reactivity,
+                sub: readAudioSignal(frame.audio?.bands.sub) * reactivity,
+                bass: readAudioSignal(frame.audio?.bands.bass) * reactivity,
+                mid: readAudioSignal(frame.audio?.bands.mid) * reactivity,
+                high: readAudioSignal(frame.audio?.bands.high) * reactivity,
+                flux: readAudioSignal(frame.audio?.features.spectralFlux) * reactivity,
+                kick: impulse.values.kick * kickAmount,
+                snare: impulse.values.snare * transientAmount,
+                transient: impulse.values.transient * transientAmount,
+                downbeat: impulse.values.downbeat * kickAmount,
+                phrase: impulse.values.phrase * reactivity,
+                build: build * reactivity,
+                drop,
+              })
+              atlHoeDraw = {
+                strength: Math.max(readNumber(parameters.get('atlHoeTopologyStrength'), 0, 1) ?? 0, Math.min(1, reactivity * Math.min(1, master))),
+                diagnostic: readCinema2AtlHoeTopologyDiagnostic(parameters.get('atlHoeTopologyDiagnostic')),
+                patternFrame: evaluateCinema2AtlHoePattern({ pattern: selection.pattern, beats, stage, signals, transition: selection.transition }),
+              }
+            }
           },
           dispose: () => {
             disposed = true
             beatClock.reset()
             audioGlow?.reset()
             segmentLighting?.reset()
+            atlHoeController?.reset()
             // With a bridge, its resource disposer releases the assets after its own materials; otherwise release here.
             if (!bridge) releaseHeld()
           },
@@ -380,6 +439,11 @@ function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinem
     || Object.values(rawSegments).some(role => !CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)))) {
     diagnostics.push({ code: 'CINEMA2_THREE_SCENE_SEGMENTS_INVALID', path: '$.config.segments', message: `config.segments must map part names to a role: ${CINEMA2_THREE_SEGMENT_ROLES.join(', ')}.` })
   }
+  const rawAtlHoe = module.config?.atlHoe
+  if (rawAtlHoe !== undefined && (!rawAtlHoe || typeof rawAtlHoe !== 'object' || Array.isArray(rawAtlHoe)
+    || Object.values(rawAtlHoe).some(role => !CINEMA2_ATL_HOE_ROLES.includes(role as Cinema2AtlHoeRole)))) {
+    diagnostics.push({ code: 'CINEMA2_THREE_SCENE_ATL_HOE_INVALID', path: '$.config.atlHoe', message: `config.atlHoe must map part names to a role: ${CINEMA2_ATL_HOE_ROLES.join(', ')}.` })
+  }
   const rawParticles = module.config?.particles
   if (rawParticles !== undefined) {
     if (!Array.isArray(rawParticles)) {
@@ -436,6 +500,16 @@ function parseSegments(module: Readonly<Cinema2ModuleManifest>): Readonly<Record
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const roles: Record<string, Cinema2ThreeSegmentRole> = {}
   for (const [name, role] of Object.entries(raw)) if (CINEMA2_THREE_SEGMENT_ROLES.includes(role as Cinema2ThreeSegmentRole)) roles[name] = role as Cinema2ThreeSegmentRole
+  return Object.keys(roles).length > 0 ? Object.freeze(roles) : null
+}
+
+function parseAtlHoe(module: Readonly<Cinema2ModuleManifest>): Readonly<Record<string, Cinema2AtlHoeRole>> | null {
+  const raw = module.config?.atlHoe
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const roles: Record<string, Cinema2AtlHoeRole> = {}
+  for (const [name, role] of Object.entries(raw)) {
+    if (CINEMA2_ATL_HOE_ROLES.includes(role as Cinema2AtlHoeRole)) roles[name] = role as Cinema2AtlHoeRole
+  }
   return Object.keys(roles).length > 0 ? Object.freeze(roles) : null
 }
 
@@ -518,6 +592,81 @@ function readColor(value: unknown): readonly [number, number, number] | null {
   return Array.isArray(value) && value.length >= 3 && value.slice(0, 3).every(component => typeof component === 'number' && Number.isFinite(component))
     ? [value[0] as number, value[1] as number, value[2] as number]
     : null
+}
+
+type AtlHoeImpulseId = 'kick' | 'snare' | 'transient' | 'downbeat' | 'phrase' | 'drop'
+interface AtlHoeImpulseSlot { value: number; lastId: string | null; releaseSec: number }
+type AtlHoeImpulseState = Record<AtlHoeImpulseId, AtlHoeImpulseSlot>
+
+function createAtlHoeImpulseState(): AtlHoeImpulseState {
+  return {
+    kick: { value: 0, lastId: null, releaseSec: 0.35 },
+    snare: { value: 0, lastId: null, releaseSec: 0.28 },
+    transient: { value: 0, lastId: null, releaseSec: 0.22 },
+    downbeat: { value: 0, lastId: null, releaseSec: 0.7 },
+    phrase: { value: 0, lastId: null, releaseSec: 1.1 },
+    drop: { value: 0, lastId: null, releaseSec: 2.2 },
+  }
+}
+
+function readAudioSignal(signal: Readonly<Cinema2AudioSignal<number>> | undefined): number {
+  return signal?.available && typeof signal.value === 'number' && Number.isFinite(signal.value)
+    ? Math.min(1, Math.max(0, signal.value)) : 0
+}
+
+function readDirectorSignal(signal: unknown): number {
+  if (!signal || typeof signal !== 'object') return 0
+  const record = signal as { available?: unknown; value?: unknown }
+  return record.available === true && typeof record.value === 'number' && Number.isFinite(record.value)
+    ? Math.min(1, Math.max(0, record.value)) : 0
+}
+
+function readAtlHoePattern(value: unknown): Cinema2AtlHoePatternId {
+  return CINEMA2_ATL_HOE_PATTERN_IDS.includes(value as Cinema2AtlHoePatternId)
+    ? value as Cinema2AtlHoePatternId : CINEMA2_ATL_HOE_DEFAULT_PATTERN
+}
+
+function updateAtlHoeImpulses(
+  state: AtlHoeImpulseState,
+  frame: Readonly<Cinema2ModuleFrameReadContext>,
+  deltaTimeSec: number,
+  previousSectionId: string | null,
+): Readonly<{ values: Readonly<Record<AtlHoeImpulseId, number>>; dropHit: boolean; sectionId: string | null }> {
+  const audio = frame.audio
+  const section = audio?.structure.section.available ? audio.structure.section.value : null
+  const sectionId = section?.id ?? previousSectionId
+  const sectionText = `${section?.type ?? ''} ${section?.label ?? ''}`.toLowerCase()
+  const sectionDrop = section && section.id !== previousSectionId && (sectionText.includes('drop') || sectionText.includes('chorus') || sectionText.includes('peak'))
+    ? ({ id: `section-drop:${section.id}`, strength: section.dropConfidence ?? section.intensity } satisfies Pick<Cinema2AudioEvent, 'id' | 'strength'>)
+    : null
+  const moment = audio?.structure.semanticMoments.available
+    ? audio.structure.semanticMoments.value?.find(item => Math.abs(item.timeSec - audio.upstream.timeSec) <= 0.1 && String(item.type).toLowerCase().includes('drop'))
+    : null
+  const dropEvent = moment ? { id: `moment-drop:${moment.id}`, strength: moment.confidence } : sectionDrop
+  const events: Readonly<Record<AtlHoeImpulseId, Readonly<Pick<Cinema2AudioEvent, 'id' | 'strength'>> | null>> = {
+    kick: audio?.rhythm.kick ?? null,
+    snare: audio?.rhythm.snare ?? null,
+    transient: audio?.rhythm.transient ?? null,
+    downbeat: audio?.rhythm.downbeat ?? null,
+    phrase: audio?.rhythm.fixedClocks[16].boundary ?? null,
+    drop: dropEvent,
+  }
+  const values = {} as Record<AtlHoeImpulseId, number>
+  let dropHit = false
+  for (const id of Object.keys(state) as AtlHoeImpulseId[]) {
+    const slot = state[id]
+    const event = events[id]
+    const fresh = !!event && event.id !== slot.lastId
+    if (fresh) {
+      slot.lastId = event.id
+      slot.value = Math.max(slot.value, Math.min(1, Math.max(0, event.strength)))
+      if (id === 'drop') dropHit = true
+    } else {
+      slot.value = Math.max(0, slot.value - Math.max(0, deltaTimeSec) / slot.releaseSec)
+    }
+    values[id] = slot.value
+  }
+  return Object.freeze({ values: Object.freeze(values), dropHit, sectionId })
 }
 
 function message(error: unknown): string {

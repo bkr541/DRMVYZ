@@ -18,6 +18,14 @@ import { measureObject } from './Cinema2ThreeAssetCache'
 import { getCinema2ThreeRenderer } from './Cinema2ThreeRendererHost'
 import type { Cinema2MainframeLightingFrame } from '../mainframe/Cinema2MainframePatternEngine'
 import { resolveCinema2MainframeHardwareDetails, resolveCinema2MainframeHardwareLighting } from '../mainframe/Cinema2MainframeHardwareLighting'
+import {
+  CINEMA2_ATL_HOE_ATTRIBUTE_NAMES,
+  cinema2AtlHoeDiagnosticCode,
+  cinema2AtlHoeRoleCode,
+  type Cinema2AtlHoeRole,
+  type Cinema2AtlHoeTopologyDiagnostic,
+} from '../atlHoe/Cinema2AtlHoeTopology'
+import type { Cinema2AtlHoePatternFrame } from '../atlHoe/Cinema2AtlHoePatternEngine'
 
 /** The material properties one named part of a model can override on its own (a part is a mesh of the asset: `outline`, `crystal`). */
 export interface Cinema2ThreePartOverrides {
@@ -97,6 +105,8 @@ export interface Cinema2ThreeSceneOptions {
   conduitSemantics?: boolean
   /** Mainframe-only semantic emissive roles. Parts must carry the generated Mainframe system/bank/region/route attributes. */
   mainframe?: Readonly<Record<string, Cinema2ThreeMainframeRole>>
+  /** ATL HOE performance surfaces. Each configured part must carry the complete generated semantic topology. */
+  atlHoe?: Readonly<Record<string, Cinema2AtlHoeRole>>
   /**
    * The engine target is a float target and the preset tone-maps later (`config.hdr`): segment light is emitted unrolled, above 1. Ignored
    * where the GPU cannot render to float textures (the preset's targets then fall back to 8-bit).
@@ -125,6 +135,13 @@ export interface Cinema2ThreeSegmentDraw {
    */
   core?: number
   frame: Readonly<Cinema2ThreeSegmentFrame>
+}
+
+export interface Cinema2ThreeAtlHoeDraw {
+  /** Zero is guaranteed to preserve the material's authored static appearance. */
+  strength: number
+  diagnostic: Cinema2AtlHoeTopologyDiagnostic
+  patternFrame?: Readonly<Cinema2AtlHoePatternFrame> | null
 }
 
 export type Cinema2ThreeMainframeRole = 'circuit' | 'circuitHousing' | 'indicator' | 'radar' | 'chip' | 'logo' | 'radarHousing' | 'chipHousing'
@@ -249,6 +266,8 @@ export class Cinema2ThreeSceneBridge {
   private readonly segmentUniforms: SegmentUniforms
   /** Shared by the five independently colored Mainframe emissive material families. */
   private readonly mainframeUniforms: MainframeUniforms
+  /** Shared by every ATL HOE topology diagnostic material. */
+  private readonly atlHoeUniforms: AtlHoeUniforms
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -320,6 +339,21 @@ export class Cinema2ThreeSceneBridge {
       uCinema2MainframeSystems1: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeSystems2: { value: new THREE.Vector4(0, 0, 0, 0) },
       uCinema2MainframeHdr: { value: options.hdr === true && gl.getExtension('EXT_color_buffer_float') != null ? 1 : 0 },
+    }
+    this.atlHoeUniforms = {
+      uCinema2AtlHoeStrength: { value: 0 },
+      uCinema2AtlHoeDiagnostic: { value: 0 },
+      uCinema2AtlRole0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlRole1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlRole2: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlZones0: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlZones1: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlRouteFronts: { value: new THREE.Vector4(-10, -10, -10, -10) },
+      uCinema2AtlRouteWidths: { value: new THREE.Vector4(0.1, 0.1, 0.1, 0.1) },
+      uCinema2AtlOutages: { value: new THREE.Vector4(0, 0, 0, 0) },
+      uCinema2AtlRecovery: { value: new THREE.Vector4(1, 1, 1, 1) },
+      uCinema2AtlProgram0: { value: new THREE.Vector4(0, -1, 0, 0) },
+      uCinema2AtlProgram1: { value: new THREE.Vector4(0, 0, 0, 0) },
     }
 
     for (const instance of instances) {
@@ -416,6 +450,7 @@ export class Cinema2ThreeSceneBridge {
     segments: Readonly<Cinema2ThreeSegmentDraw> | null = null,
     placement: Readonly<Cinema2ThreeDrawPlacement> | null = null,
     mainframe: Readonly<Cinema2ThreeMainframeDraw> | null = null,
+    atlHoe: Readonly<Cinema2ThreeAtlHoeDraw> | null = null,
   ): void {
     if (this.disposed) return
     if (!exec.depthAvailable) throw new Error('Cinema 2.0 Three scene module requires a render target with a depth attachment.')
@@ -433,6 +468,7 @@ export class Cinema2ThreeSceneBridge {
       this.applyGlow(glow)
       this.applySegments(segments)
       this.applyMainframe(mainframe)
+      this.applyAtlHoe(atlHoe)
       this.applyPartVisibility(placement?.parts ?? null)
       this.place(exec, spinRadians, placement?.scale ?? 1)
       applyCinema2CameraFrame(this.camera, camera)
@@ -607,6 +643,35 @@ export class Cinema2ThreeSceneBridge {
     return role
   }
 
+  private atlHoeRoleOf(owned: Readonly<OwnedMaterial>): Cinema2AtlHoeRole | null {
+    const role = this.options.atlHoe?.[owned.part] ?? this.options.atlHoe?.[owned.materialName]
+    if (!role) return null
+    const geometry = owned.slot.mesh.geometry
+    const positionCount = geometry.getAttribute('position')?.count
+    const expectedRole = cinema2AtlHoeRoleCode(role)
+    const limits: Readonly<Record<string, readonly [number, number]>> = {
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.role]: [expectedRole, expectedRole],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.zone]: [0, 6],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.route]: [0, 7],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.phase]: [0, 1],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.level]: [0, 1],
+      [CINEMA2_ATL_HOE_ATTRIBUTE_NAMES.random]: [0, 1],
+    }
+    for (const [name, [minimum, maximum]] of Object.entries(limits)) {
+      const attribute = geometry.getAttribute(name)
+      if (!attribute || attribute.itemSize !== 1 || attribute.count !== positionCount) {
+        throw new Error(`ATL HOE ${owned.part} (${role}) requires a per-vertex ${name} attribute.`)
+      }
+      for (let index = 0; index < attribute.count; index += 1) {
+        const value = attribute.getX(index)
+        if (!Number.isFinite(value) || value < minimum - 1e-5 || value > maximum + 1e-5) {
+          throw new Error(`ATL HOE ${owned.part} (${role}) has an out-of-range ${name} value at vertex ${index}.`)
+        }
+      }
+    }
+    return role
+  }
+
   private decorate(owned: OwnedMaterial): void {
     const material = owned.material
     const geometry = owned.slot.mesh.geometry
@@ -633,6 +698,17 @@ export class Cinema2ThreeSceneBridge {
         addMainframeLighting(shader, mainframeShared, roleUniform)
       }
       material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-mainframe`
+      material.needsUpdate = true
+      return
+    }
+    const atlHoeRole = this.atlHoeRoleOf(owned)
+    if (atlHoeRole) {
+      const shared = this.atlHoeUniforms
+      material.onBeforeCompile = shader => {
+        if (film) addVertexFilmThickness(shader)
+        addAtlHoeTopology(shader, shared)
+      }
+      material.customProgramCacheKey = () => `cinema2${film ? '-film' : ''}-atl-hoe-topology`
       material.needsUpdate = true
       return
     }
@@ -714,6 +790,32 @@ export class Cinema2ThreeSceneBridge {
     uniforms.uCinema2MainframeSystems0.value.set(frame.systemGains[0], frame.systemGains[1], frame.systemGains[2], frame.systemGains[3])
     uniforms.uCinema2MainframeSystems1.value.set(frame.systemGains[4], frame.systemGains[5], frame.systemGains[6], frame.systemGains[7])
     uniforms.uCinema2MainframeSystems2.value.set(frame.systemGains[8], 0, 0, 0)
+  }
+
+  private applyAtlHoe(draw: Readonly<Cinema2ThreeAtlHoeDraw> | null): void {
+    const uniforms = this.atlHoeUniforms
+    uniforms.uCinema2AtlHoeStrength.value = draw ? Math.min(1, Math.max(0, draw.strength)) : 0
+    uniforms.uCinema2AtlHoeDiagnostic.value = draw ? cinema2AtlHoeDiagnosticCode(draw.diagnostic) : 0
+    const frame = draw?.patternFrame
+    if (!frame) {
+      uniforms.uCinema2AtlRole0.value.set(0, 0, 0, 0)
+      uniforms.uCinema2AtlRole1.value.set(0, 0, 0, 0)
+      uniforms.uCinema2AtlRole2.value.set(0, 0, 0, 0)
+      uniforms.uCinema2AtlProgram1.value.set(0, 0, 0, 0)
+      return
+    }
+    const roles = frame.roleGains, zones = frame.zoneWeights
+    uniforms.uCinema2AtlRole0.value.set(roles[0], roles[1], roles[2], roles[3])
+    uniforms.uCinema2AtlRole1.value.set(roles[4], roles[5], roles[6], roles[7])
+    uniforms.uCinema2AtlRole2.value.set(roles[8], roles[9], 0, 0)
+    uniforms.uCinema2AtlZones0.value.set(zones[0], zones[1], zones[2], zones[3])
+    uniforms.uCinema2AtlZones1.value.set(zones[4], zones[5], zones[6], 0)
+    uniforms.uCinema2AtlRouteFronts.value.set(...frame.routeFronts)
+    uniforms.uCinema2AtlRouteWidths.value.set(...frame.routeWidths)
+    uniforms.uCinema2AtlOutages.value.set(...frame.outageMasks)
+    uniforms.uCinema2AtlRecovery.value.set(...frame.recoveryMasks)
+    uniforms.uCinema2AtlProgram0.value.set(frame.buildingLevel, frame.signCellSelection, frame.practicalLightGain, frame.transition.incomingWeight)
+    uniforms.uCinema2AtlProgram1.value.set(frame.skyGain, frame.lightningGain, frame.atmosphereGain, frame.transition.outgoingWeight)
   }
 
   private applyEnvironmentAndPanels(overrides: Readonly<Cinema2ThreeMaterialOverrides>, exposure: number): void {
@@ -825,13 +927,13 @@ export class Cinema2ThreeSceneBridge {
         error => {
           this.compiling = false
           if (this.disposed) return
-          // Do not mask Mainframe shader failures as a successfully prepared render.
+          // Do not mask semantic shader failures as a successfully prepared render.
           // Other Three presets keep the pre-existing warm-up behavior.
-          if (!this.options.mainframe) { this.stage = 'ready'; return }
+          if (!this.options.mainframe && !this.options.atlHoe) { this.stage = 'ready'; return }
           this.stage = 'failed'
           this.diagnostics.push({
-            code: 'CINEMA2_THREE_MAINFRAME_SHADER_COMPILE_FAILED',
-            message: `Mainframe shader compilation failed: ${error instanceof Error ? error.message : String(error)}`,
+            code: this.options.atlHoe ? 'CINEMA2_THREE_ATL_HOE_SHADER_COMPILE_FAILED' : 'CINEMA2_THREE_MAINFRAME_SHADER_COMPILE_FAILED',
+            message: `${this.options.atlHoe ? 'ATL HOE' : 'Mainframe'} shader compilation failed: ${error instanceof Error ? error.message : String(error)}`,
           })
         },
       )
@@ -1050,6 +1152,116 @@ export function addSegmentLighting(shader: ShaderSource, shared: SegmentUniforms
 
 // The shader loop unrolls over the wave count; keep the two modules agreeing.
 if (CINEMA2_THREE_SEGMENT_WAVE_COUNT !== 4) throw new Error('Cinema 2.0 segment lighting packs its waves into vec4 uniforms.')
+
+interface AtlHoeUniforms {
+  uCinema2AtlHoeStrength: { value: number }
+  uCinema2AtlHoeDiagnostic: { value: number }
+  uCinema2AtlRole0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlRole1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlRole2: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlZones0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlZones1: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlRouteFronts: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlRouteWidths: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlOutages: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlRecovery: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlProgram0: { value: ThreeNamespace.Vector4 }
+  uCinema2AtlProgram1: { value: ThreeNamespace.Vector4 }
+}
+
+function addAtlHoeTopology(shader: ShaderSource, shared: AtlHoeUniforms): void {
+  Object.assign(shader.uniforms, shared)
+  const attribute = CINEMA2_ATL_HOE_ATTRIBUTE_NAMES
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', [
+      '#include <common>',
+      `attribute float ${attribute.role};`,
+      `attribute float ${attribute.zone};`,
+      `attribute float ${attribute.route};`,
+      `attribute float ${attribute.phase};`,
+      `attribute float ${attribute.level};`,
+      `attribute float ${attribute.random};`,
+      'varying vec3 vCinema2AtlMeta0;',
+      'varying vec3 vCinema2AtlMeta1;',
+    ].join('\n'))
+    .replace('#include <begin_vertex>', [
+      '#include <begin_vertex>',
+      `vCinema2AtlMeta0 = vec3( ${attribute.role}, ${attribute.zone}, ${attribute.route} );`,
+      `vCinema2AtlMeta1 = vec3( ${attribute.phase}, ${attribute.level}, ${attribute.random} );`,
+    ].join('\n'))
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', [
+      '#include <common>',
+      'uniform float uCinema2AtlHoeStrength;',
+      'uniform float uCinema2AtlHoeDiagnostic;',
+      'uniform vec4 uCinema2AtlRole0;',
+      'uniform vec4 uCinema2AtlRole1;',
+      'uniform vec4 uCinema2AtlRole2;',
+      'uniform vec4 uCinema2AtlZones0;',
+      'uniform vec4 uCinema2AtlZones1;',
+      'uniform vec4 uCinema2AtlRouteFronts;',
+      'uniform vec4 uCinema2AtlRouteWidths;',
+      'uniform vec4 uCinema2AtlOutages;',
+      'uniform vec4 uCinema2AtlRecovery;',
+      'uniform vec4 uCinema2AtlProgram0;',
+      'uniform vec4 uCinema2AtlProgram1;',
+      'varying vec3 vCinema2AtlMeta0;',
+      'varying vec3 vCinema2AtlMeta1;',
+      'vec3 cinema2AtlPalette( float value ) {',
+      '  return 0.55 + 0.45 * cos( 6.2831853 * ( vec3( 0.0, 0.33, 0.67 ) + value * 0.131 ) );',
+      '}',
+      'float cinema2AtlPickRole( float role ) {',
+      '  if ( role < 0.5 ) return uCinema2AtlRole0.x; if ( role < 1.5 ) return uCinema2AtlRole0.y;',
+      '  if ( role < 2.5 ) return uCinema2AtlRole0.z; if ( role < 3.5 ) return uCinema2AtlRole0.w;',
+      '  if ( role < 4.5 ) return uCinema2AtlRole1.x; if ( role < 5.5 ) return uCinema2AtlRole1.y;',
+      '  if ( role < 6.5 ) return uCinema2AtlRole1.z; if ( role < 7.5 ) return uCinema2AtlRole1.w;',
+      '  return role < 8.5 ? uCinema2AtlRole2.x : uCinema2AtlRole2.y;',
+      '}',
+      'float cinema2AtlPickZone( float zone ) {',
+      '  if ( zone < 0.5 ) return uCinema2AtlZones0.x; if ( zone < 1.5 ) return uCinema2AtlZones0.y;',
+      '  if ( zone < 2.5 ) return uCinema2AtlZones0.z; if ( zone < 3.5 ) return uCinema2AtlZones0.w;',
+      '  if ( zone < 4.5 ) return uCinema2AtlZones1.x; if ( zone < 5.5 ) return uCinema2AtlZones1.y;',
+      '  return uCinema2AtlZones1.z;',
+      '}',
+      'float cinema2AtlPick4( vec4 values, float index ) {',
+      '  return index < 0.5 ? values.x : index < 1.5 ? values.y : index < 2.5 ? values.z : values.w;',
+      '}',
+      'float cinema2AtlWrappedDistance( float a, float b ) { float d = abs( a - b ); return min( d, 1.0 - d ); }',
+    ].join('\n'))
+    .replace('#include <emissivemap_fragment>', [
+      '#include <emissivemap_fragment>',
+      'float cinema2AtlValue = vCinema2AtlMeta0.x;',
+      'if ( uCinema2AtlHoeDiagnostic > 1.5 ) cinema2AtlValue = vCinema2AtlMeta0.y;',
+      'if ( uCinema2AtlHoeDiagnostic > 2.5 ) cinema2AtlValue = vCinema2AtlMeta0.z;',
+      'if ( uCinema2AtlHoeDiagnostic > 3.5 ) cinema2AtlValue = vCinema2AtlMeta1.x * 7.0;',
+      'if ( uCinema2AtlHoeDiagnostic > 4.5 ) cinema2AtlValue = vCinema2AtlMeta1.y * 7.0;',
+      'if ( uCinema2AtlHoeDiagnostic > 5.5 ) cinema2AtlValue = vCinema2AtlMeta1.z * 7.0;',
+      'float cinema2AtlEnabled = step( 0.5, uCinema2AtlHoeDiagnostic ) * uCinema2AtlHoeStrength;',
+      'float cinema2AtlRoleGain = cinema2AtlPickRole( vCinema2AtlMeta0.x );',
+      'float cinema2AtlZoneGain = cinema2AtlPickZone( vCinema2AtlMeta0.y );',
+      'float cinema2AtlRouteLight = 0.0;',
+      'for ( int cinema2AtlI = 0; cinema2AtlI < 4; cinema2AtlI ++ ) {',
+      '  float front = cinema2AtlPick4( uCinema2AtlRouteFronts, float( cinema2AtlI ) );',
+      '  float width = max( 0.025, cinema2AtlPick4( uCinema2AtlRouteWidths, float( cinema2AtlI ) ) );',
+      '  cinema2AtlRouteLight = max( cinema2AtlRouteLight, 1.0 - smoothstep( width, width * 1.8, cinema2AtlWrappedDistance( vCinema2AtlMeta1.x, front ) ) );',
+      '}',
+      'float cinema2AtlClimb = uCinema2AtlProgram0.x > 0.001 ? 1.0 - smoothstep( 0.09, 0.23, abs( vCinema2AtlMeta1.y - uCinema2AtlProgram0.x ) ) : 0.0;',
+      'float cinema2AtlCell = uCinema2AtlProgram0.y >= 0.0 ? 1.0 - smoothstep( 0.04, 0.12, cinema2AtlWrappedDistance( vCinema2AtlMeta1.x, uCinema2AtlProgram0.y ) ) : 0.0;',
+      'float cinema2AtlMaskIndex = floor( clamp( vCinema2AtlMeta1.z, 0.0, 0.9999 ) * 4.0 );',
+      'float cinema2AtlOut = step( vCinema2AtlMeta1.z, cinema2AtlPick4( uCinema2AtlOutages, cinema2AtlMaskIndex ) );',
+      'float cinema2AtlRecovery = cinema2AtlPick4( uCinema2AtlRecovery, cinema2AtlMaskIndex );',
+      'float cinema2AtlOutageGain = mix( 1.0, cinema2AtlRecovery, cinema2AtlOut );',
+      'float cinema2AtlFamilyGain = 1.0;',
+      'if ( vCinema2AtlMeta0.x > 3.5 && vCinema2AtlMeta0.x < 5.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram0.z;',
+      'if ( vCinema2AtlMeta0.x > 5.5 && vCinema2AtlMeta0.x < 6.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.x;',
+      'if ( vCinema2AtlMeta0.x > 6.5 && vCinema2AtlMeta0.x < 7.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.y;',
+      'if ( vCinema2AtlMeta0.x > 8.5 ) cinema2AtlFamilyGain = uCinema2AtlProgram1.z;',
+      'float cinema2AtlMotion = 0.24 + 0.42 * cinema2AtlRouteLight + 0.34 * max( cinema2AtlClimb, cinema2AtlCell );',
+      'float cinema2AtlPatternGain = max( 0.08, cinema2AtlRoleGain * ( 0.28 + 0.72 * cinema2AtlZoneGain ) * cinema2AtlMotion * cinema2AtlOutageGain * cinema2AtlFamilyGain );',
+      'totalEmissiveRadiance *= mix( 1.0, cinema2AtlPatternGain * 1.9, uCinema2AtlHoeStrength );',
+      'totalEmissiveRadiance = mix( totalEmissiveRadiance, cinema2AtlPalette( cinema2AtlValue ) * 2.0, cinema2AtlEnabled );',
+    ].join('\n'))
+}
 
 export const CINEMA2_MAINFRAME_ROUTE_ATTRIBUTE = '_mainframe_route'
 export const CINEMA2_MAINFRAME_BANK_ATTRIBUTE = '_mainframe_bank'

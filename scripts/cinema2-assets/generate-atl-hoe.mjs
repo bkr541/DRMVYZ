@@ -16,6 +16,37 @@ const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'publ
 // The lit things are split into groups of parts so the Design tab can colour and animate them separately (see
 // docs/cinema2-atl-hoe-design-tab-plan.md). The same list is read by the preset, so the two cannot drift.
 const PART_GROUPS = JSON.parse(readFileSync(join(root, 'src/components/vyzualz/cinema2/presets/atlHoeParts.json'), 'utf8'))
+const ATL_ROLES = ['sign', 'windows', 'crown', 'spire', 'streetlight', 'road', 'star', 'lightning', 'foliageAccent', 'atmosphere']
+const ATL_ROLE_PARTS = {
+  sign: PART_GROUPS.signFaces,
+  windows: [...PART_GROUPS.windows, ...PART_GROUPS.windowsCool],
+  crown: ['bofaCore', 'bofaGlow', 'beacon', 'spireBoaTip', 'spireWestinRim', 'spireTruistCap'],
+  spire: ['spireBoa', 'spireWestinMast', 'spireTruistEdge'],
+  streetlight: [...PART_GROUPS.lampOrbs, ...PART_GROUPS.lampHalos],
+  road: ['roadGlow'],
+  star: PART_GROUPS.stars,
+  lightning: [...PART_GROUPS.bolts, ...PART_GROUPS.boltTops],
+  foliageAccent: ['foliageFaint', 'foliageLit'],
+  atmosphere: [...PART_GROUPS.skySurfaces, ...PART_GROUPS.skyBands],
+}
+const ATL_ROLE_BY_PART = new Map(Object.entries(ATL_ROLE_PARTS).flatMap(([role, parts]) => parts.map(part => [part, role])))
+const clamp01 = value => Math.min(1, Math.max(0, value))
+const atlZone = x => Math.min(6, Math.max(0, Math.floor(clamp01((x + 36) / 72) * 7)))
+const atlRoute = (part, name, x) => {
+  const sign = /^signFace(\d+)$/.exec(part)
+  if (sign) return Number(sign[1]) % 8
+  const lamp = /lamp(?:Orb|Halo)([A-D])/.exec(part)
+  if (lamp) return (lamp[1].charCodeAt(0) - 65) * 2 + 1
+  const windows = [...PART_GROUPS.windows, ...PART_GROUPS.windowsCool].indexOf(part)
+  if (windows >= 0) return windows % 8
+  return Math.min(7, Math.max(0, atlZone(x) + (hash(`atl-route:${part}:${name}`) > 0.72 ? 1 : 0)))
+}
+const atlPhase = (role, x, y) => role === 'lightning'
+  ? clamp01((46 - y) / 41)
+  : role === 'road' || role === 'streetlight' || role === 'sign'
+    ? clamp01((x + 36) / 72)
+    : clamp01((y + 6) / 52)
+const atlLevel = (role, y) => ['windows', 'crown', 'spire'].includes(role) ? clamp01((y + 5) / 35) : 0
 const MATERIALS = {
   // A dark backing plane closes the world behind the sky bands; the visible sky is the stack of skyBandNN strips built below.
   sky: { baseColorFactor: [0, 0, 0, 1], metallicFactor: 0, roughnessFactor: 1, emissiveFactor: [0.02, 0.07, 0.17] },
@@ -113,12 +144,42 @@ const cylinder = (part, at, radius, height, segments = 24, rotate = [0, 0, 0], n
 
 function mergePart(part, list) {
   const positions = [], normals = [], indices = [], phases = []
+  const roles = [], zones = [], routes = [], atlPhases = [], levels = [], randoms = []
+  const role = ATL_ROLE_BY_PART.get(part)
   for (const item of list) {
     const base = positions.length / 3
     positions.push(...item.positions); normals.push(...item.normals); phases.push(...item.phases)
+    if (role) {
+      const roleCode = ATL_ROLES.indexOf(role)
+      const random = hash(`atl-random:${part}:${item.name}`)
+      for (let offset = 0; offset < item.positions.length; offset += 3) {
+        const x = item.positions[offset], y = item.positions[offset + 1]
+        roles.push(roleCode)
+        zones.push(atlZone(x))
+        routes.push(atlRoute(part, item.name, x))
+        atlPhases.push(atlPhase(role, x, y))
+        levels.push(atlLevel(role, y))
+        randoms.push(random)
+      }
+    }
     for (const index of item.indices) indices.push(base + index)
   }
-  return { name: part, part, positions: new Float32Array(positions), normals: new Float32Array(normals), indices: Uint32Array.from(indices), phases: new Float32Array(phases) }
+  return {
+    name: part,
+    part,
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: Uint32Array.from(indices),
+    phases: new Float32Array(phases),
+    ...(role ? { attributes: {
+      _ATL_ROLE: { array: new Float32Array(roles), type: 'SCALAR' },
+      _ATL_ZONE: { array: new Float32Array(zones), type: 'SCALAR' },
+      _ATL_ROUTE: { array: new Float32Array(routes), type: 'SCALAR' },
+      _ATL_PHASE: { array: new Float32Array(atlPhases), type: 'SCALAR' },
+      _ATL_LEVEL: { array: new Float32Array(levels), type: 'SCALAR' },
+      _ATL_RANDOM: { array: new Float32Array(randoms), type: 'SCALAR' },
+    } } : {}),
+  }
 }
 
 // ── Sky ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

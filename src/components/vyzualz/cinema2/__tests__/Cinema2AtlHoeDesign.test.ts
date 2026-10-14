@@ -28,10 +28,11 @@ describe('ATL HOE Design tab', () => {
     expect(parameters.get(IDS.dropReaction)).toMatchObject({ label: 'Drop Reaction', defaultValue: 0.92 })
   })
 
-  it('offers the four sign patterns (default Pulse), Flicker (default 0) and City Atmosphere (default at the authored look)', () => {
+  it('offers exactly six full-scene programs, Flicker and City Atmosphere', () => {
     const pattern = parameters.get(IDS.signPattern)
-    expect(pattern).toMatchObject({ type: 'enum', defaultValue: 'pulse', designParentGroup: 'design' })
+    expect(pattern).toMatchObject({ label: 'Pattern', type: 'enum', defaultValue: 'city-pulse', designParentGroup: 'design' })
     expect((pattern as { options: readonly { value: string }[] }).options.map(option => option.value)).toEqual([...CINEMA2_ATL_HOE_SIGN_PATTERNS])
+    expect(CINEMA2_ATL_HOE_SIGN_PATTERNS).toHaveLength(6)
     expect(parameters.get(IDS.flicker)).toMatchObject({ label: 'Flicker', defaultValue: 0, designParentGroup: 'effects' })
     expect(parameters.get(IDS.cityAtmosphere)).toMatchObject({ label: 'City Atmosphere', defaultValue: 0.5, designParentGroup: 'effects' })
   })
@@ -68,22 +69,19 @@ describe('ATL HOE Design tab', () => {
     expect(properties).not.toContain('beacon.emissiveIntensity')
   })
 
-  it('gates each sign pattern\'s rules on the Sign Pattern value and runs only the shared rules otherwise', () => {
-    const gated = (pattern: string) => rules.filter(rule => (rule.enabledWhen ?? []).some(condition => condition.kind === 'parameter-equals' && condition.parameterId === IDS.signPattern && condition.value === pattern))
-    for (const pattern of CINEMA2_ATL_HOE_SIGN_PATTERNS) expect(gated(pattern).length, pattern).toBeGreaterThan(0)
-    // Marquee staggers one chase over the eleven cells; Cascade staggers a wave across sign, windows, lamps and spires.
-    const chase = rules.find(rule => rule.id === 'atl-hoe-marquee-chase')
-    expect(chase?.actions.map(action => action.delayBeats)).toEqual(Array.from({ length: 11 }, (_, index) => (index * 4) / 11))
-    expect(rules.find(rule => rule.id === 'atl-hoe-cascade-wave')?.source.signal).toBe('phrase')
-    // Neon Fault drops parts out at random on transients.
-    expect(rules.find(rule => rule.id === 'atl-hoe-fault-transient')?.actions.every(action => action.probability === 0.3)).toBe(true)
+  it('moves persistent program timing out of generic choreography and binds the six-program planner to the module', () => {
+    expect(rules.some(rule => (rule.enabledWhen ?? []).some(condition => condition.kind === 'parameter-equals' && condition.parameterId === IDS.signPattern))).toBe(false)
+    expect(rules.some(rule => ['atl-hoe-marquee-chase', 'atl-hoe-cascade-wave', 'atl-hoe-fault-transient', 'atl-hoe-drop'].includes(rule.id))).toBe(false)
+    expect(bindings.atlHoePattern?.$ref).toBe(IDS.signPattern)
+    expect(bindings.atlHoeBpmSync?.$ref).toBe(IDS.bpmSync)
   })
 
-  it('routes each reaction slider to its own events', () => {
+  it('routes music controls to the program engine while retaining the independent Flicker gate', () => {
     const strengthOf = (ruleId: string) => rules.find(rule => rule.id === ruleId)?.strengthParameter?.$ref
-    expect(strengthOf('atl-hoe-pulse-kick')).toBe(IDS.kickReaction)
-    expect(strengthOf('atl-hoe-pulse-transient')).toBe(IDS.transientReaction)
-    expect(strengthOf('atl-hoe-drop')).toBe(IDS.dropReaction)
+    expect(bindings.atlHoeMusicReactivity?.$ref).toBe(IDS.musicReactivity)
+    expect(bindings.atlHoeKickReaction?.$ref).toBe(IDS.kickReaction)
+    expect(bindings.atlHoeTransientReaction?.$ref).toBe(IDS.transientReaction)
+    expect(bindings.atlHoeDropReaction?.$ref).toBe(IDS.dropReaction)
     expect(strengthOf('atl-hoe-energy')).toBe(IDS.musicReactivity)
     expect(strengthOf('atl-hoe-flicker')).toBe(IDS.flicker)
     expect(rules.find(rule => rule.id === 'atl-hoe-flicker')?.actions.every(action => action.gate != null)).toBe(true)
@@ -132,11 +130,11 @@ describe('ATL HOE Design tab', () => {
 
     expect(labels()).toEqual({
       'master-controls': ['Master Intensity', 'BPM Sync', 'Camera Movement', 'Music Reactivity', 'Kick Reactivity', 'Transient Reaction', 'Drop Reaction'],
-      design: ['Sign Pattern', 'Sky Pattern'],
+      design: ['Pattern', 'Sky Pattern'],
       effects: ['Flicker', 'City Atmosphere'],
       palette: ['Sign Color', 'Letter Color', 'Architecture Color'],
     })
     expect(state.setPersistentValue(IDS.skyPatternEnabled, true)).toMatchObject({ ok: true })
-    expect(labels().design).toEqual(['Sign Pattern', 'Sky Pattern', 'Sky Pattern Type'])
+    expect(labels().design).toEqual(['Pattern', 'Sky Pattern', 'Sky Pattern Type'])
   })
 })
