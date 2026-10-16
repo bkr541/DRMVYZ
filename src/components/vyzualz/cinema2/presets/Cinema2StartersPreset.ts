@@ -23,7 +23,7 @@ const envelope = (name: string, property: string, release: number) => Object.fre
 
 export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_STARTERS_PRESET_ID, revision: 1,
-  metadata: Object.freeze({ name: 'Starters', description: 'An open leather field case and three capture balls, animated with restrained musical energy.', tags: Object.freeze(['keeper', 'procedural', 'meadow', 'starter', 'audio-reactive']) }),
+  metadata: Object.freeze({ name: 'Starters', description: 'A procedural three-dimensional field case and three capture-ball composition.', tags: Object.freeze(['keeper', 'procedural', 'meadow', 'starter', 'audio-reactive']) }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Procedurally draws the complete Starters scene.' }),
     Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Shared energy shapes light and material response.' }),
@@ -37,7 +37,7 @@ export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     float(P.reactivity, 'Music Reactivity', 'Scales all shared Audio Intelligence choreography.', 0.8, 0, 1, 0.01, 'master-controls', 'Playback', 2),
     Object.freeze({ ...base, id: P.autoPerformance, label: 'Auto Performance', description: 'Authorizes bounded additive audio choreography while preserving authored controls.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, group: 'Playback', order: 3 }),
     Object.freeze({ ...base, id: P.bpmSync, label: 'BPM Sync', description: 'On follows the shared analyzed beat grid; off uses a 120 BPM free-running motion clock.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, group: 'Playback', order: 4 }),
-    float(P.caseOpen, 'Case Open', 'Sets the resting lid presentation.', 0.72, 0, 1, 0.01, 'design', 'Hero Geometry', 1),
+    float(P.caseOpen, 'Case Open', 'Sets the resting lid presentation; zero preserves the approved closed-case composition.', 0, 0, 1, 0.01, 'design', 'Hero Geometry', 1),
     float(P.ballSpread, 'Ball Spread', 'Sets the horizontal spacing of the foreground balls.', 1, 0.55, 1.6, 0.01, 'design', 'Hero Geometry', 2),
     float(P.ballScale, 'Ball Scale', 'Sets the foreground ball size.', 1, 0.6, 1.5, 0.01, 'design', 'Hero Geometry', 3),
     float(P.grassDensity, 'Grass Density', 'Sets the amount of foreground meadow texture.', 0.72, 0, 1, 0.01, 'design', 'Environment', 4),
@@ -48,7 +48,7 @@ export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_STARTERS_MODULE_ID, typeId: CINEMA2_STARTERS_NATIVE_MODULE_TYPE_ID, version: 1, enabled: true,
-    parameters: Object.freeze({ intensity: 1, bpmSync: true, caseOpen: 0.72, ballSpread: 1, ballScale: 1, grassDensity: 0.72, ambientMotion: 0.45, glow: 0.38, vignette: 0.35, backgroundColor: BACKGROUND, grassColor: GRASS, leatherColor: LEATHER, ballRedColor: RED, ballWhiteColor: WHITE, metalColor: METAL, overallEnergy: 0, bassPressure: 0, kickAccent: 0, snareAccent: 0, buildAmount: 0, dropAccent: 0, highsAmount: 0 }),
+    parameters: Object.freeze({ intensity: 1, bpmSync: true, caseOpen: 0, ballSpread: 1, ballScale: 1, grassDensity: 0.72, ambientMotion: 0.45, glow: 0.38, vignette: 0.35, backgroundColor: BACKGROUND, grassColor: GRASS, leatherColor: LEATHER, ballRedColor: RED, ballWhiteColor: WHITE, metalColor: METAL, overallEnergy: 0, bassPressure: 0, kickAccent: 0, snareAccent: 0, buildAmount: 0, dropAccent: 0, highsAmount: 0 }),
     parameterBindings: Object.freeze({ intensity: cinema2Ref(P.intensity), bpmSync: cinema2Ref(P.bpmSync), caseOpen: cinema2Ref(P.caseOpen), ballSpread: cinema2Ref(P.ballSpread), ballScale: cinema2Ref(P.ballScale), grassDensity: cinema2Ref(P.grassDensity), ambientMotion: cinema2Ref(P.ambientMotion), glow: cinema2Ref(P.glow), vignette: cinema2Ref(P.vignette), backgroundColor: cinema2Ref(P.background), grassColor: cinema2Ref(P.grass), leatherColor: cinema2Ref(P.leather), ballRedColor: cinema2Ref(P.ballRed), ballWhiteColor: cinema2Ref(P.ballWhite), metalColor: cinema2Ref(P.metal) }),
   })]),
   scene: Object.freeze({ nodes: Object.freeze([Object.freeze({ id: ROOT, kind: 'group' as const, coordinateSpace: 'normalized-screen' as const, visible: true }), Object.freeze({ id: NODE, kind: 'module' as const, parent: cinema2Ref(ROOT), module: cinema2Ref(CINEMA2_STARTERS_MODULE_ID), visible: true })]), roots: Object.freeze([cinema2Ref(ROOT)]) }),

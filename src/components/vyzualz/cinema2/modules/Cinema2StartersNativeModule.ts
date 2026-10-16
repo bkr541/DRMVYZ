@@ -46,7 +46,7 @@ export function createCinema2StartersNativeModuleDefinition(
             height: execution.height,
             time: beat.beats,
             intensity: clamp(readNumber(p, 'intensity', 1), 0, 2),
-            caseOpen: clamp(readNumber(p, 'caseOpen', 0.72), 0, 1),
+            caseOpen: clamp(readNumber(p, 'caseOpen', 0), 0, 1),
             ballSpread: clamp(readNumber(p, 'ballSpread', 1), 0.55, 1.6),
             ballScale: clamp(readNumber(p, 'ballScale', 1), 0.6, 1.5),
             grassDensity: clamp(readNumber(p, 'grassDensity', 0.72), 0, 1),
