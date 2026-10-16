@@ -23412,6 +23412,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* Headliner Design tab: one-shot action buttons (Capture Pose, Clear Ghosts, Relearn Background) sit on their own row. */
 .rv-headliner-trigger-row {
   display: flex;
+  gap: 8px;
   padding: 4px 0;
 }
 

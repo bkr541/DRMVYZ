@@ -312,7 +312,7 @@ const VELOCITY_SMEAR: HeadlinerPresetDefinition = {
     {
       id: 'smearLength', kind: 'slider', group: 'design', label: 'Smear Length',
       min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
-      description: 'How far fast movement is stretched.',
+      description: 'How far fast movement is stretched. The upper half produces long, pronounced streaks.',
     },
     {
       id: 'smearDirection', kind: 'select', group: 'design', label: 'Smear Direction', default: 'with',
@@ -331,7 +331,7 @@ const VELOCITY_SMEAR: HeadlinerPresetDefinition = {
     {
       id: 'motionThreshold', kind: 'slider', group: 'effects', label: 'Motion Threshold',
       min: 0, max: 1, step: 0.01, default: 0.25, format: 'percent',
-      description: 'Movement slower than this is left untouched.',
+      description: 'Movement slower than this is left untouched; higher values also reject uncertain motion vectors.',
     },
     {
       id: 'smearSoftness', kind: 'slider', group: 'effects', label: 'Smear Softness',
@@ -346,7 +346,7 @@ const VELOCITY_SMEAR: HeadlinerPresetDefinition = {
     {
       id: 'beatPump', kind: 'slider', group: 'effects', label: 'Beat Pump',
       min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
-      description: 'Lengthens the smear on every beat (locked to the track with BPM Sync on).',
+      description: 'Briefly and visibly lengthens the smear on every beat (locked to the track with BPM Sync on).',
     },
     ...paletteControls('streaks', 'blends the streaks from the start colour on the left of the picture to the end colour on the right.'),
   ],
@@ -417,6 +417,7 @@ const MOTION_MELT: HeadlinerPresetDefinition = {
 }
 
 const AUTO_CAPTURE_OPTIONS = [
+  { value: 'manual', label: 'Manual' },
   { value: '0', label: 'Off' },
   { value: '1', label: 'Every Beat' },
   { value: '2', label: 'Every 2 Beats' },
@@ -438,17 +439,23 @@ const FREEZE_GHOST: HeadlinerPresetDefinition = {
   parameters: [
     ...masterControls(),
     {
+      id: 'autoCapture', kind: 'select', group: 'design', label: 'Auto Capture', default: 'manual',
+      options: AUTO_CAPTURE_OPTIONS,
+      description: 'Choose Manual, turn capture off, or capture on a steady beat interval.',
+    },
+    {
       id: 'capturePose', kind: 'button', group: 'design', label: 'Capture Pose', trigger: 'capture-pose',
+      visibleWhen: { parameter: 'autoCapture', equals: 'manual' },
       description: 'Freezes the current picture as a ghost.',
     },
     {
       id: 'clearGhosts', kind: 'button', group: 'design', label: 'Clear Ghosts', trigger: 'clear-ghosts',
+      visibleWhen: { parameter: 'autoCapture', equals: 'manual' },
       description: 'Removes every frozen ghost.',
     },
     {
-      id: 'autoCapture', kind: 'select', group: 'design', label: 'Auto Capture', default: '0',
-      options: AUTO_CAPTURE_OPTIONS,
-      description: 'Also captures a ghost on a steady beat (the track’s beat with BPM Sync on).',
+      id: 'autoPerformance', kind: 'toggle', group: 'design', label: 'Auto Performance', default: false,
+      description: 'Uses Music Intelligence to choose a capture rhythm for each musical window.',
     },
     {
       id: 'maxGhosts', kind: 'slider', group: 'design', label: 'Max Ghosts',

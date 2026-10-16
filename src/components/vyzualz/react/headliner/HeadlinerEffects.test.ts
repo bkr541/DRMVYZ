@@ -4,11 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveHeadlinerParameters } from './HeadlinerEffectCatalog'
 import {
   createHeadlinerEffectProcessor,
+  resolveVelocitySmearDistanceFrames,
+  resolveVelocitySmearSigns,
   resolveHeadlinerWorkSize,
   type HeadlinerEffectRenderArgs,
 } from './HeadlinerEffects'
 import { HEADLINER_IDLE_TIMING, type HeadlinerEffectTiming } from './HeadlinerTiming'
-import { placeCloneSpreadCopies } from './HeadlinerCloneEffects'
+import { placeCloneSpreadCopies, resolveFreezeGhostAutoCaptureInterval } from './HeadlinerCloneEffects'
 import { stepMeltField } from './HeadlinerEffects'
 import { fireHeadlinerTrigger } from './HeadlinerTriggers'
 import {
@@ -197,6 +199,19 @@ describe('Headliner effect processors', () => {
     expect(draws.filter(draw => draw.canvas !== output.canvas).length).toBeGreaterThan(10)
     processor.dispose()
   })
+
+  it('Velocity Smear gives length, direction and Beat Pump materially distinct outputs', () => {
+    const short = resolveVelocitySmearDistanceFrames(0.2, 0, 4, 1)
+    const long = resolveVelocitySmearDistanceFrames(0.85, 0, 4, 1)
+    const pumped = resolveVelocitySmearDistanceFrames(0.85, 1, 4, 1)
+    const betweenBeats = resolveVelocitySmearDistanceFrames(0.85, 1, 4.5, 1)
+    expect(long).toBeGreaterThan(short * 2)
+    expect(pumped).toBeGreaterThan(long * 3)
+    expect(betweenBeats).toBeLessThan(pumped * 0.4)
+    expect(resolveVelocitySmearSigns('with')).toEqual([1])
+    expect(resolveVelocitySmearSigns('behind')).toEqual([-1])
+    expect(resolveVelocitySmearSigns('both')).toEqual([1, -1])
+  })
 })
 
 describe('Motion Melt', () => {
@@ -246,6 +261,13 @@ describe('Motion Melt', () => {
 })
 
 describe('Freeze Ghost', () => {
+  it('chooses a stable auto-performance cadence from Music Intelligence energy and build data', () => {
+    expect(resolveFreezeGhostAutoCaptureInterval({ energy: 0.2, build: 0 })).toBe(4)
+    expect(resolveFreezeGhostAutoCaptureInterval({ energy: 0.5, build: 0 })).toBe(2)
+    expect(resolveFreezeGhostAutoCaptureInterval({ energy: 0.8, build: 0 })).toBe(1)
+    expect(resolveFreezeGhostAutoCaptureInterval({ energy: 0.2, build: 0.8 })).toBe(1)
+  })
+
   it('shows nothing until a pose is captured, keeps it while you move, and clears on demand', () => {
     const processor = createHeadlinerEffectProcessor('freeze-ghost')
     const output = makeOutput()
@@ -285,6 +307,21 @@ describe('Freeze Ghost', () => {
     expect(layerDrawsAt(2.1)).toBe(2)
     // A third capture still shows only two ghosts.
     expect(layerDrawsAt(3.1)).toBe(2)
+    processor.dispose()
+  })
+
+  it('holds the Music Intelligence cadence for each four-beat auto-performance window', () => {
+    const processor = createHeadlinerEffectProcessor('freeze-ghost')
+    const output = makeOutput()
+    const layerDrawsAt = (beat: number, energy: number) => {
+      draws = []
+      processor.render(renderArgs(output, { autoPerformance: true }, 'freeze-ghost', { beat, energy }))
+      return draws.filter(draw => draw.canvas !== output.canvas && draw.canvas.width === 720 && draw.alpha < 1).length
+    }
+    expect(layerDrawsAt(0.2, 0.2)).toBe(0)
+    expect(layerDrawsAt(1.1, 0.9)).toBe(0)
+    expect(layerDrawsAt(4.1, 0.9)).toBe(1)
+    expect(layerDrawsAt(5.1, 0.2)).toBe(2)
     processor.dispose()
   })
 })

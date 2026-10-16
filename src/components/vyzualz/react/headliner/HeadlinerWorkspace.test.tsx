@@ -430,6 +430,23 @@ describe('Headliner production workspace controls', () => {
     expect(container.querySelectorAll('input[type="range"]').length).toBeGreaterThan(5)
   })
 
+  it('shows Freeze Ghost manual actions together and hides them for automatic capture', async () => {
+    await act(async () => useReactStore.getState().setHeadlinerSettings({ presetId: 'freeze-ghost' }))
+    await act(async () => root.render(<HeadlinerDesignPanel />))
+
+    const designText = container.querySelector('[data-headliner-design-groups]')?.textContent ?? ''
+    expect(designText.indexOf('Auto Capture')).toBeLessThan(designText.indexOf('Capture Pose'))
+    expect(designText.indexOf('Auto Performance')).toBeLessThan(designText.indexOf('Max Ghosts'))
+    const actions = container.querySelector('.rv-headliner-trigger-row')
+    expect([...(actions?.querySelectorAll('button') ?? [])].map(button => button.textContent)).toEqual(['Capture Pose', 'Clear Ghosts'])
+
+    await act(async () => useReactStore.getState().setHeadlinerSettings({
+      parameters: { 'freeze-ghost': { autoCapture: '1' } },
+    }))
+    expect(container.textContent).not.toContain('Capture Pose')
+    expect(container.textContent).not.toContain('Clear Ghosts')
+  })
+
   it('swaps Echo Spacing for Echo Delay when BPM Sync is turned off, and resets to the preset defaults', async () => {
     await act(async () => root.render(<HeadlinerDesignPanel />))
     expect(container.textContent).toContain('Echo Spacing')

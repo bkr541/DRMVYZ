@@ -45,6 +45,23 @@ describe('Headliner effect catalog', () => {
     expect(isHeadlinerParameterVisible(byId('relearnBackground'), background)).toBe(true)
   })
 
+  it('orders Freeze Ghost capture controls and only exposes its actions in Manual mode', () => {
+    const freeze = getHeadlinerPreset('freeze-ghost')
+    const design = freeze.parameters.filter(parameter => parameter.group === 'design')
+    expect(design.slice(0, 5).map(parameter => parameter.id)).toEqual([
+      'autoCapture', 'capturePose', 'clearGhosts', 'autoPerformance', 'maxGhosts',
+    ])
+    expect(design[0]).toMatchObject({ kind: 'select', default: 'manual' })
+    expect(design[3]).toMatchObject({ kind: 'toggle', default: false })
+
+    const manual = resolveHeadlinerParameters('freeze-ghost', {})
+    const automatic = resolveHeadlinerParameters('freeze-ghost', { autoCapture: '1' })
+    expect(isHeadlinerParameterVisible(design[1], manual)).toBe(true)
+    expect(isHeadlinerParameterVisible(design[2], manual)).toBe(true)
+    expect(isHeadlinerParameterVisible(design[1], automatic)).toBe(false)
+    expect(isHeadlinerParameterVisible(design[2], automatic)).toBe(false)
+  })
+
   it.each(HEADLINER_PRESETS.map(preset => [preset.name, preset] as const))('%s has the standard Master Controls and fills every Design group', (_name, preset) => {
     const master = preset.parameters.filter(parameter => parameter.group === 'master')
     expect(master.find(parameter => parameter.id === 'masterIntensity')).toMatchObject({ kind: 'slider', default: 1 })

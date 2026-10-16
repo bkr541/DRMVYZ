@@ -363,11 +363,7 @@ function HeadlinerParameterControl({
   const id = `headliner-parameter-${definition.id}`
   switch (definition.kind) {
     case 'button':
-      return (
-        <div className="rv-headliner-trigger-row" title={definition.description}>
-          <IconChipButton id={id} onClick={() => fireHeadlinerTrigger(definition.trigger)}>{definition.label}</IconChipButton>
-        </div>
-      )
+      return <IconChipButton id={id} onClick={() => fireHeadlinerTrigger(definition.trigger)}>{definition.label}</IconChipButton>
     case 'slider':
       return (
         <SliderRow
@@ -453,14 +449,34 @@ export function HeadlinerDesignPanel() {
                 <Collapsible key={group} label={HEADLINER_GROUP_LABELS[group]}>
                   {controls.length === 0 ? (
                     <div className="rv-ctrl-info">No controls yet.</div>
-                  ) : controls.map(definition => (
-                    <HeadlinerParameterControl
-                      key={`${preset?.id}:${definition.id}`}
-                      definition={definition}
-                      value={values[definition.id]}
-                      onChange={value => setValue(definition.id, value)}
-                    />
-                  ))}
+                  ) : controls.map((definition, index) => {
+                    if (definition.kind === 'button' && index > 0 && controls[index - 1]?.kind === 'button') return null
+                    if (definition.kind === 'button') {
+                      const buttons = controls.slice(index).filter((candidate, offset) => (
+                        candidate.kind === 'button' && (offset === 0 || controls[index + offset - 1]?.kind === 'button')
+                      ))
+                      return (
+                        <div className="rv-headliner-trigger-row" key={`${preset?.id}:${definition.id}`} title={buttons.map(button => button.description).filter(Boolean).join(' ')}>
+                          {buttons.map(button => (
+                            <HeadlinerParameterControl
+                              key={`${preset?.id}:${button.id}`}
+                              definition={button}
+                              value={values[button.id]}
+                              onChange={value => setValue(button.id, value)}
+                            />
+                          ))}
+                        </div>
+                      )
+                    }
+                    return (
+                      <HeadlinerParameterControl
+                        key={`${preset?.id}:${definition.id}`}
+                        definition={definition}
+                        value={values[definition.id]}
+                        onChange={value => setValue(definition.id, value)}
+                      />
+                    )
+                  })}
                 </Collapsible>
               )
             })}

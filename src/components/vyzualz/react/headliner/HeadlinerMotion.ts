@@ -58,11 +58,20 @@ export function estimateBlockFlow(
       const slot = (row * cols + col) * 2
 
       let zeroSad = 0
+      let darkest = 255
+      let lightest = 0
       for (let y = 0; y < block; y += 1) {
         const base = (y0 + y) * width + x0
-        for (let x = 0; x < block; x += 1) zeroSad += Math.abs(current[base + x] - previous[base + x])
+        for (let x = 0; x < block; x += 1) {
+          const value = current[base + x]
+          zeroSad += Math.abs(value - previous[base + x])
+          darkest = Math.min(darkest, value)
+          lightest = Math.max(lightest, value)
+        }
       }
-      if (zeroSad <= stillSad) {
+      // A nearly flat block has no trustworthy feature to track. Rejecting it
+      // prevents sensor noise on walls, clothing and shadows becoming streaks.
+      if (zeroSad <= stillSad || lightest - darkest < noiseFloor * 3) {
         out[slot] = 0
         out[slot + 1] = 0
         continue
@@ -92,9 +101,14 @@ export function estimateBlockFlow(
           }
         }
       }
+      // A match must beat the stationary explanation decisively. Ambiguous
+      // matches are more distracting than a missed vector in a smear effect.
+      const confident = (bestX !== 0 || bestY !== 0)
+        && bestSad <= zeroSad * 0.72
+        && zeroSad - bestSad >= stillSad * 0.5
       // The patch now at x0 came from x0 + dx, so the content moved by -dx.
-      out[slot] = -bestX
-      out[slot + 1] = -bestY
+      out[slot] = confident ? -bestX : 0
+      out[slot + 1] = confident ? -bestY : 0
     }
   }
   return { cols, rows }
@@ -111,6 +125,14 @@ export function smoothFlow(
   const spatial = new Float32Array(next.length)
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col < cols; col += 1) {
+      const slot = (row * cols + col) * 2
+      // Do not grow motion into a stationary cell. That was the main source of
+      // colored blocks appearing on static shirts and backgrounds.
+      if (next[slot] === 0 && next[slot + 1] === 0) {
+        spatial[slot] = 0
+        spatial[slot + 1] = 0
+        continue
+      }
       let sumX = 0
       let sumY = 0
       let weight = 0
@@ -120,19 +142,23 @@ export function smoothFlow(
           const neighbourCol = col + dx
           if (neighbourRow < 0 || neighbourRow >= rows || neighbourCol < 0 || neighbourCol >= cols) continue
           const w = dx === 0 && dy === 0 ? 2 : 1
-          const slot = (neighbourRow * cols + neighbourCol) * 2
-          sumX += next[slot] * w
-          sumY += next[slot + 1] * w
+          const neighbourSlot = (neighbourRow * cols + neighbourCol) * 2
+          if (next[neighbourSlot] === 0 && next[neighbourSlot + 1] === 0) continue
+          sumX += next[neighbourSlot] * w
+          sumY += next[neighbourSlot + 1] * w
           weight += w
         }
       }
-      const slot = (row * cols + col) * 2
-      spatial[slot] = sumX / weight
-      spatial[slot + 1] = sumY / weight
+      spatial[slot] = weight > 0 ? sumX / weight : 0
+      spatial[slot + 1] = weight > 0 ? sumY / weight : 0
     }
   }
   for (let index = 0; index < running.length; index += 1) {
-    running[index] += (spatial[index] - running[index]) * temporal
+    const target = spatial[index]
+    // Stale vectors should disappear quickly when a limb stops instead of
+    // tinting its former path for several frames.
+    const response = target === 0 ? Math.max(0.8, temporal) : temporal
+    running[index] += (target - running[index]) * response
   }
 }
 

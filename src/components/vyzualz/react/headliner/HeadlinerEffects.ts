@@ -244,8 +244,22 @@ class GhostTrailsProcessor implements HeadlinerEffectProcessor {
 
 // ── Velocity Smear ─────────────────────────────────────────────────────────────
 
-/** How many frames of movement the longest smear extrapolates. */
-const SMEAR_MAX_FRAMES = 18
+/** Converts the authored length and beat envelope into motion-frame distance. */
+export function resolveVelocitySmearDistanceFrames(
+  length: number,
+  beatPump: number,
+  beat: number,
+  strength: number,
+): number {
+  const beatFraction = beat - Math.floor(beat)
+  const pulse = Math.exp(-7 * beatFraction)
+  const pump = 1 + clamp01(beatPump) * 2.25 * pulse
+  return (4 + clamp01(length) * 34) * pump * Math.min(1.5, Math.max(0, strength))
+}
+
+export function resolveVelocitySmearSigns(direction: string): readonly number[] {
+  return direction === 'both' ? [1, -1] : direction === 'behind' ? [-1] : [1]
+}
 
 class VelocitySmearProcessor implements HeadlinerEffectProcessor {
   readonly presetId = 'velocity-smear' as const
@@ -266,48 +280,77 @@ class VelocitySmearProcessor implements HeadlinerEffectProcessor {
     this.layer.resize(work.width, work.height)
     if (!drawVideoInto(this.picture, args) || !this.picture.canvas) return
 
-    const threshold = getHeadlinerNumber(parameters, 'motionThreshold', 0.25) * 3
-    const beatFraction = timing.beat - Math.floor(timing.beat)
-    const pump = 1 + getHeadlinerNumber(parameters, 'beatPump', 0) * 1.5 * Math.exp(-4 * beatFraction)
-    const frames = getHeadlinerNumber(parameters, 'smearLength', 0.5) * SMEAR_MAX_FRAMES * pump * Math.min(1.5, strength)
+    const thresholdControl = getHeadlinerNumber(parameters, 'motionThreshold', 0.25)
+    const vectorThreshold = 0.2 + thresholdControl * 2.2
+    const differenceThreshold = 4 + thresholdControl * 24
+    const frames = resolveVelocitySmearDistanceFrames(
+      getHeadlinerNumber(parameters, 'smearLength', 0.5),
+      getHeadlinerNumber(parameters, 'beatPump', 0),
+      timing.beat,
+      strength,
+    )
     const direction = getHeadlinerString(parameters, 'smearDirection', 'with')
-    const signs = direction === 'both' ? [1, -1] : direction === 'behind' ? [-1] : [1]
+    const signs = resolveVelocitySmearSigns(direction)
     const quality = Number(getHeadlinerString(parameters, 'smearQuality', '10')) || 10
 
     // Cells that are moving fast enough to smear.
     const cells: { col: number; row: number; vx: number; vy: number; weight: number }[] = []
+    const analysisCellWidth = frame.width / frame.cols
+    const analysisCellHeight = frame.height / frame.rows
     for (let row = 0; row < frame.rows; row += 1) {
       for (let col = 0; col < frame.cols; col += 1) {
         const slot = (row * frame.cols + col) * 2
         const vx = frame.flow[slot]
         const vy = frame.flow[slot + 1]
         const magnitude = Math.hypot(vx, vy)
-        if (magnitude <= threshold) continue
-        cells.push({ col, row, vx, vy, weight: clamp01((magnitude - threshold) / 3) })
+        let difference = 0
+        const analysisX = Math.floor(col * analysisCellWidth)
+        const analysisY = Math.floor(row * analysisCellHeight)
+        let differenceSamples = 0
+        for (let y = 0; y < analysisCellHeight; y += 1) {
+          const offset = (analysisY + y) * frame.width + analysisX
+          for (let x = 0; x < analysisCellWidth; x += 1) {
+            difference += frame.difference[offset + x]
+            differenceSamples += 1
+          }
+        }
+        const meanDifference = difference / Math.max(1, differenceSamples)
+        if (magnitude <= vectorThreshold || meanDifference <= differenceThreshold) continue
+        const vectorWeight = (magnitude - vectorThreshold) / Math.max(0.1, 4 - vectorThreshold)
+        const differenceWeight = (meanDifference - differenceThreshold) / Math.max(1, 64 - differenceThreshold)
+        cells.push({ col, row, vx, vy, weight: clamp01(0.3 + vectorWeight * 0.45 + differenceWeight * 0.25) })
       }
     }
     if (cells.length === 0) return
 
-    const taps = Math.max(2, Math.min(quality, Math.floor(HEADLINER_SMEAR_DRAW_BUDGET / (cells.length * signs.length))))
+    const taps = Math.max(4, Math.min(
+      Math.round(quality * 1.75),
+      Math.floor(HEADLINER_SMEAR_DRAW_BUDGET / (cells.length * signs.length)),
+    ))
     const layer = this.layer.context
     if (!layer) return
     this.layer.clear()
     const cellWidth = work.width / frame.cols
     const cellHeight = work.height / frame.rows
-    const padX = cellWidth * 0.5
-    const padY = cellHeight * 0.5
+    const padX = cellWidth * 0.75
+    const padY = cellHeight * 0.75
     for (const cell of cells) {
       const sourceX = Math.max(0, cell.col * cellWidth - padX)
       const sourceY = Math.max(0, cell.row * cellHeight - padY)
       const sourceW = Math.min(work.width - sourceX, cellWidth + padX * 2)
       const sourceH = Math.min(work.height - sourceY, cellHeight + padY * 2)
       // Analysis pixels per frame -> work pixels over the smear length.
-      const stepX = (cell.vx / frame.width) * work.width * frames
-      const stepY = (cell.vy / frame.height) * work.height * frames
+      const rawStepX = (cell.vx / frame.width) * work.width * frames
+      const rawStepY = (cell.vy / frame.height) * work.height * frames
+      const distance = Math.hypot(rawStepX, rawStepY)
+      const distanceLimit = Math.min(work.width, work.height) * 0.72
+      const distanceScale = distance > distanceLimit ? distanceLimit / distance : 1
+      const stepX = rawStepX * distanceScale
+      const stepY = rawStepY * distanceScale
       for (const sign of signs) {
-        for (let tap = 1; tap <= taps; tap += 1) {
-          const along = tap / taps
-          layer.globalAlpha = clamp01(0.9 * cell.weight * Math.pow(1 - along, 1.1))
+        for (let tap = 0; tap < taps; tap += 1) {
+          const along = taps === 1 ? 1 : Math.pow(tap / (taps - 1), 0.85)
+          layer.globalAlpha = clamp01(cell.weight * Math.pow(1 - along * 0.92, 0.55))
           layer.drawImage(
             this.picture.canvas,
             sourceX, sourceY, sourceW, sourceH,
@@ -338,7 +381,7 @@ class VelocitySmearProcessor implements HeadlinerEffectProcessor {
       this.layer,
       getHeadlinerNumber(parameters, 'smearOpacity', 0.8) * Math.min(1, strength),
       getHeadlinerString(parameters, 'blendMode', 'normal'),
-      softness * 6 * (canvas.width / 1280),
+      softness * 3 * (canvas.width / 1280),
     )
   }
 

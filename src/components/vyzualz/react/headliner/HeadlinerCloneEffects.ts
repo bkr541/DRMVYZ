@@ -126,6 +126,8 @@ class FreezeGhostProcessor implements HeadlinerEffectProcessor {
   private readonly isolator = new HeadlinerPerformerIsolator()
   private readonly triggers = new HeadlinerTriggerReader()
   private lastSlot = Number.NaN
+  private lastPerformanceWindow = Number.NaN
+  private performanceInterval = 4
 
   render(args: HeadlinerEffectRenderArgs): void {
     drawLive(args)
@@ -146,7 +148,19 @@ class FreezeGhostProcessor implements HeadlinerEffectProcessor {
     const isolation = getHeadlinerString(parameters, 'isolation', 'off')
     const mask = this.isolator.update(video, sourceRect, isolation, getHeadlinerNumber(parameters, 'isolationStrength', 0.6))
 
-    const every = Number(getHeadlinerString(parameters, 'autoCapture', '0')) || 0
+    const autoPerformance = getHeadlinerBoolean(parameters, 'autoPerformance', false)
+    if (autoPerformance) {
+      const performanceWindow = Math.floor(timing.beat / 4)
+      if (performanceWindow !== this.lastPerformanceWindow) {
+        this.lastPerformanceWindow = performanceWindow
+        this.performanceInterval = resolveFreezeGhostAutoCaptureInterval(timing)
+      }
+    } else {
+      this.lastPerformanceWindow = Number.NaN
+    }
+    const every = autoPerformance
+      ? this.performanceInterval
+      : Number(getHeadlinerString(parameters, 'autoCapture', 'manual')) || 0
     let auto = false
     if (every > 0) {
       const slot = Math.floor(timing.beat / every)
@@ -188,6 +202,19 @@ class FreezeGhostProcessor implements HeadlinerEffectProcessor {
     this.scratch.dispose()
     this.isolator.dispose()
   }
+}
+
+/**
+ * Chooses one stable capture cadence per four-beat window from the shared Music
+ * Intelligence signals. Builds and high-energy passages receive denser ghosts;
+ * restrained passages leave more room between poses.
+ */
+export function resolveFreezeGhostAutoCaptureInterval(
+  timing: Pick<HeadlinerEffectRenderArgs['timing'], 'energy' | 'build'>,
+): 1 | 2 | 4 {
+  if (timing.build >= 0.55 || timing.energy >= 0.72) return 1
+  if (timing.energy >= 0.42) return 2
+  return 4
 }
 
 // ── Strobe Clone ───────────────────────────────────────────────────────────────

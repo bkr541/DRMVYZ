@@ -61,6 +61,14 @@ describe('Headliner motion analysis', () => {
     expect(flow.every(value => value === 0)).toBe(true)
   })
 
+  it('rejects ambiguous motion in textureless regions', () => {
+    const previous = new Uint8Array(WIDTH * HEIGHT).fill(90)
+    const current = new Uint8Array(WIDTH * HEIGHT).fill(125)
+    const flow = new Float32Array(32 * 18 * 2).fill(9)
+    estimateBlockFlow(current, previous, WIDTH, HEIGHT, flow)
+    expect(flow.every(value => value === 0)).toBe(true)
+  })
+
   it('smooths the running flow toward each new field', () => {
     const next = new Float32Array(32 * 18 * 2).fill(4)
     const running = new Float32Array(next.length)
@@ -69,5 +77,16 @@ describe('Headliner motion analysis', () => {
     expect(running[40]).toBeLessThan(4)
     for (let i = 0; i < 20; i += 1) smoothFlow(next, running, 32, 18, 0.5)
     expect(running[40]).toBeCloseTo(4, 1)
+  })
+
+  it('does not spread an isolated motion vector into stationary neighbours', () => {
+    const next = new Float32Array(32 * 18 * 2)
+    const running = new Float32Array(next.length)
+    const centre = (8 * 32 + 16) * 2
+    next[centre] = 4
+    smoothFlow(next, running, 32, 18, 0.55)
+    expect(running[centre]).toBeGreaterThan(2)
+    expect(running[centre - 2]).toBe(0)
+    expect(running[centre + 2]).toBe(0)
   })
 })
