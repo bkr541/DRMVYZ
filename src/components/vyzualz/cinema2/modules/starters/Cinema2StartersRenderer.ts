@@ -116,6 +116,11 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float radius) {
   return length(pa - ba * h) - radius;
 }
 
+float sdEllipsoid(vec3 p, vec3 radii) {
+  float normalizedDistance = length(p / radii) - 1.0;
+  return normalizedDistance * min(radii.x, min(radii.y, radii.z));
+}
+
 float sdShortCylinder(vec3 p, vec3 axis, float radius, float halfDepth) {
   float axial = dot(p, axis);
   vec2 q = vec2(length(p - axis * axial) - radius, abs(axial) - halfDepth);
@@ -211,8 +216,85 @@ vec2 ballField(vec3 p, vec3 center, int index) {
   return nearest(result, vec2(button, 9.0));
 }
 
+vec2 forestField(vec3 p) {
+  // Repeated but irregular tree cells create a continuous rear woodland. All
+  // trunks and shrubs begin at y=0, so they visibly emerge from the same 3D
+  // grass plane as the hero objects instead of floating in a backdrop layer.
+  float treeCell = floor((p.x + 1.7) / 3.4);
+  float treeRandom = hash21(vec2(treeCell, 4.7));
+  float rearArc = min(p.x * p.x, 30.0);
+  float leftWing = smoothstep(2.5, 10.5, -p.x);
+  vec3 treePoint = p;
+  treePoint.x = mod(p.x + 1.7, 3.4) - 1.7;
+  // The woodland occupies a shallow rear arc: the center of the tree line is
+  // nearest and its outer edges recede, following the grass horizon instead
+  // of reading as a straight row pasted behind the hero composition.
+  float treeDepth = 14.40 + rearArc * 0.025 - leftWing * (6.35 + rearArc * 0.012);
+  treePoint.z += treeDepth + (treeRandom - 0.5) * 0.50;
+  float treeHeight = mix(3.70, 5.15, treeRandom);
+  float treeSway = sin(u_time * 0.22 + treeCell * 1.71) * u_ambientMotion * (0.018 + u_bass * 0.026);
+  treePoint.x -= treeSway * smoothstep(0.15, treeHeight, treePoint.y);
+
+  float trunkRadius = mix(0.13, 0.20, hash21(vec2(treeCell, 8.3)));
+  float trunk = sdCapsule(treePoint, vec3(0.0, 0.0, 0.0), vec3(treeSway * 1.6, treeHeight * 0.72, 0.0), trunkRadius);
+  vec2 result = vec2(trunk, 11.0);
+
+  vec3 crown = treePoint - vec3(treeSway * 1.5, treeHeight * 0.76, 0.0);
+  float foliage = sdEllipsoid(crown, vec3(0.82, treeHeight * 0.25, 0.58));
+  foliage = min(foliage, sdEllipsoid(crown - vec3(-0.55, -0.12, 0.05), vec3(0.58, treeHeight * 0.20, 0.50)));
+  foliage = min(foliage, sdEllipsoid(crown - vec3(0.54, -0.06, -0.04), vec3(0.62, treeHeight * 0.21, 0.52)));
+  foliage = min(foliage, sdEllipsoid(crown - vec3(0.02, 0.55, 0.02), vec3(0.56, treeHeight * 0.19, 0.46)));
+  float leafBreakup = (fbm(treePoint.xy * 2.3 + treePoint.z) - 0.5) * 0.075;
+  result = nearest(result, vec2(foliage + leafBreakup, 12.0));
+
+  float shrubCell = floor((p.x + 0.85) / 1.7);
+  float shrubRandom = hash21(vec2(shrubCell, 12.4));
+  vec3 shrubPoint = p;
+  shrubPoint.x = mod(p.x + 0.85, 1.7) - 0.85;
+  float shrubDepth = 13.65 + rearArc * 0.023 - leftWing * (5.85 + rearArc * 0.010);
+  shrubPoint.z += shrubDepth + (shrubRandom - 0.5) * 0.42;
+  float shrubHeight = mix(0.66, 1.18, shrubRandom);
+  shrubPoint.x -= sin(u_time * 0.28 + shrubCell) * u_ambientMotion * 0.012 * smoothstep(0.0, shrubHeight, shrubPoint.y);
+  float shrub = sdEllipsoid(shrubPoint - vec3(0.0, shrubHeight * 0.48, 0.0), vec3(0.68, shrubHeight * 0.58, 0.48));
+  shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(-0.46, shrubHeight * 0.38, 0.04), vec3(0.43, shrubHeight * 0.43, 0.38)));
+  shrub = min(shrub, sdEllipsoid(shrubPoint - vec3(0.45, shrubHeight * 0.34, -0.03), vec3(0.45, shrubHeight * 0.40, 0.36)));
+  shrub += (fbm(shrubPoint.xy * 3.7 + shrubPoint.z * 1.8) - 0.5) * 0.055;
+  result = nearest(result, vec2(shrub, 13.0));
+
+  // Continue the rear perimeter around the left side with true world-space
+  // clusters. Keeping these as separate SDF objects avoids distorting the
+  // distance field while completing the curved woodland boundary.
+  for (int i = 0; i < 4; i++) {
+    float index = float(i);
+    float sideRandom = hash21(vec2(index, 21.7));
+    vec3 sideCenter = vec3(-5.25 - index * 3.12, 0.0, -13.25 + index * 3.86);
+    vec3 sidePoint = p - sideCenter;
+    float sideHeight = mix(3.45, 4.85, sideRandom);
+    float sideSway = sin(u_time * 0.20 + index * 1.47) * u_ambientMotion * (0.018 + u_bass * 0.024);
+    sidePoint.x -= sideSway * smoothstep(0.1, sideHeight, sidePoint.y);
+
+    float sideTrunk = sdCapsule(sidePoint, vec3(0.0), vec3(sideSway * 1.5, sideHeight * 0.71, 0.0), mix(0.13, 0.19, sideRandom));
+    result = nearest(result, vec2(sideTrunk, 11.0));
+    vec3 sideCrown = sidePoint - vec3(sideSway * 1.4, sideHeight * 0.76, 0.0);
+    float sideFoliage = sdEllipsoid(sideCrown, vec3(0.78, sideHeight * 0.24, 0.56));
+    sideFoliage = min(sideFoliage, sdEllipsoid(sideCrown - vec3(-0.51, -0.10, 0.04), vec3(0.55, sideHeight * 0.19, 0.47)));
+    sideFoliage = min(sideFoliage, sdEllipsoid(sideCrown - vec3(0.50, -0.04, -0.03), vec3(0.58, sideHeight * 0.20, 0.49)));
+    sideFoliage += (fbm(sidePoint.xy * 2.35 + sidePoint.z) - 0.5) * 0.07;
+    result = nearest(result, vec2(sideFoliage, 12.0));
+
+    vec3 sideShrubPoint = p - (sideCenter + vec3(-1.25, 0.0, 0.36));
+    float sideShrubHeight = mix(0.68, 1.08, hash21(vec2(index, 32.8)));
+    float sideShrub = sdEllipsoid(sideShrubPoint - vec3(0.0, sideShrubHeight * 0.48, 0.0), vec3(1.18, sideShrubHeight * 0.58, 0.55));
+    sideShrub += (fbm(sideShrubPoint.xy * 3.5 + sideShrubPoint.z * 1.7) - 0.5) * 0.05;
+    result = nearest(result, vec2(sideShrub, 13.0));
+  }
+  return result;
+}
+
 vec2 mapScene(vec3 p) {
   vec2 result = vec2(p.y, 1.0);
+
+  result = nearest(result, forestField(p));
 
   // Lower case and its visible right-side depth.
   result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 0.83, -1.18), vec3(2.70, 0.70, 0.93), 0.20), 2.0));
@@ -314,7 +396,17 @@ vec3 materialColor(float material, vec3 p) {
   if (material < 7.5) return u_ballWhite;
   if (material < 8.5) return vec3(0.012, 0.018, 0.018);
   if (material < 9.5) return u_ballWhite * 1.04;
-  return u_leather * 1.34;
+  if (material < 10.5) return u_leather * 1.34;
+  if (material < 11.5) {
+    float barkGrain = fbm(p.xy * vec2(3.0, 7.0) + p.z * 1.4);
+    return mix(vec3(0.095, 0.045, 0.018), u_leather * vec3(0.30, 0.22, 0.13), barkGrain);
+  }
+  if (material < 12.5) {
+    float leaves = fbm(p.xy * 3.8 + p.z * 2.1);
+    return mix(u_grass * vec3(0.18, 0.40, 0.16), u_grass * vec3(0.58, 0.76, 0.34), leaves);
+  }
+  float shrubLeaves = fbm(p.xz * 5.2 + p.y * 3.4);
+  return mix(u_grass * vec3(0.24, 0.52, 0.20), u_grass * vec3(0.78, 0.90, 0.42), shrubLeaves);
 }
 
 float centerLightFlash() {
@@ -390,9 +482,8 @@ vec3 backgroundColor(vec3 direction, vec2 screenPoint) {
   float bokeh = smoothstep(0.93, 0.995, hash21(floor(direction.xz * 34.0 + direction.xy * 11.0)));
   color += u_grass * bokeh * 0.18;
 
-  // A layered illustrated forest occupies the full rear of the composition.
-  // Screen-space placement keeps its roots locked to the distant grass line
-  // while parallax-like density and value shifts preserve a readable depth cue.
+  // Only a subdued far canopy remains in screen space. The readable trunks,
+  // trees and shrubs are ray-marched geometry rooted in the grass plane.
   vec2 forestPoint = screenPoint;
   forestPoint.x += sin(u_time * 0.22 + screenPoint.y * 3.2) * u_ambientMotion * (0.002 + u_bass * 0.008);
   float farPines = coniferMask(forestPoint, 4.7, 0.56, 0.18, 0.58);
@@ -400,22 +491,6 @@ vec3 backgroundColor(vec3 direction, vec2 screenPoint) {
   vec3 farForest = mix(u_background * vec3(0.60, 1.10, 0.72), u_grass * vec3(0.28, 0.43, 0.24), 0.54);
   color = mix(color, farForest, farPines * 0.88);
 
-  vec2 broadleafA = broadleafTreeMask(forestPoint, 2.55, 0.53, 0.36, 0.66);
-  vec2 broadleafB = broadleafTreeMask(forestPoint, 2.85, 0.51, 0.79, 0.56);
-  float trunks = max(broadleafA.y, broadleafB.y);
-  float broadCanopy = max(broadleafA.x, broadleafB.x);
-  vec3 bark = u_leather * vec3(0.26, 0.30, 0.22);
-  color = mix(color, bark, trunks * 0.92);
-  float leafBreakup = fbm(screenPoint * vec2(10.0, 7.0) + vec2(3.2, -4.7));
-  vec3 leafDark = u_grass * vec3(0.25, 0.48, 0.27);
-  vec3 leafLight = u_grass * vec3(0.50, 0.72, 0.34);
-  color = mix(color, mix(leafDark, leafLight, leafBreakup), broadCanopy * 0.96);
-
-  float shrubs = shrubMask(forestPoint, 6.4, 0.49, 0.13, 0.24);
-  shrubs = max(shrubs, shrubMask(forestPoint, 7.2, 0.48, 0.61, 0.19));
-  float hedge = 1.0 - smoothstep(0.50, 0.61, screenPoint.y + fbm(vec2(screenPoint.x * 8.0, 2.1)) * 0.10);
-  vec3 shrubColor = mix(u_grass * vec3(0.34, 0.58, 0.24), u_grass * vec3(0.62, 0.82, 0.38), leafBreakup);
-  color = mix(color, shrubColor, max(shrubs, hedge) * 0.94);
   return color;
 }
 
