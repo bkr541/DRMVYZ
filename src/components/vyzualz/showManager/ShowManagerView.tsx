@@ -931,6 +931,7 @@ export function ShowManagerView() {
   const [deckDraftName, setDeckDraftName] = useState('Untitled Deck')
   const [deckNameError, setDeckNameError] = useState<string | null>(null)
   const [previewDeckItemId, setPreviewDeckItemId] = useState<string | null>(null)
+  const [previewDeckTransitionProgress, setPreviewDeckTransitionProgress] = useState(0)
   const [uploadState, setUploadState] = useState<PixGridDeckUploadUiState>({
     active: false,
     phase: 'Ready',
@@ -1440,8 +1441,15 @@ export function ShowManagerView() {
   const previewEnabledItems = editingDeck?.items.filter(item => item.enabled) ?? []
   const previewDeckIndex = Math.max(0, previewEnabledItems.findIndex(item => item.id === previewDeckItemId))
   const previewBpm = showRuntimeBpm && showRuntimeBpm > 0 ? showRuntimeBpm : 120
+  const previewPriorBeats = editingDeck
+    ? previewEnabledItems.slice(0, previewDeckIndex).reduce((sum, item) => sum + (item.timingOverrideBeats ?? editingDeck.configuration.defaultItemDurationBeats), 0)
+    : 0
+  const previewItemBeats = editingDeck
+    ? previewEnabledItems[previewDeckIndex]?.timingOverrideBeats ?? editingDeck.configuration.defaultItemDurationBeats
+    : 0
+  const previewTransitionFraction = editingDeck?.configuration.transitionPolicy.durationFraction ?? 0.25
   const builderPreviewTime = editingDeck
-    ? (previewDeckIndex * editingDeck.configuration.defaultItemDurationBeats * 60) / previewBpm + 0.01
+    ? (previewPriorBeats + previewItemBeats * (1 - previewTransitionFraction + previewDeckTransitionProgress * previewTransitionFraction)) * 60 / previewBpm + 0.01
     : showRuntimeCurrentTime
 
   const enterDeckBuilder = (deckId: string | null) => {
@@ -2615,6 +2623,8 @@ export function ShowManagerView() {
               onPreview={setPreviewDeckItemId}
               onPrevious={() => stepPreview(-1)}
               onNext={() => stepPreview(1)}
+              transitionProgress={previewDeckTransitionProgress}
+              onTransitionProgress={setPreviewDeckTransitionProgress}
             />
           ) : activeSectionEngineId === 'laserDmx' ? (
             <LaserDmxShowManagerTimeline

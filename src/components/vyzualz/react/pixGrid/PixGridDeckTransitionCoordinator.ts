@@ -1,6 +1,7 @@
 import {
   type PixGridDeckCompileError,
   type PixGridDeckTransitionPlan,
+  type PixGridDeckTransportStrategy,
   type PixGridPreparedFrame,
   type PixGridPreparedFrameSet,
 } from './PixGridDeckCompilerContracts'
@@ -21,6 +22,7 @@ import {
   PixGridDeckTransitionPlanCache,
   pixGridDeckTransitionPlanCache,
 } from './PixGridDeckTransitionPlanCache'
+import { pixGridMotionProfileCompileSignature, resolvePixGridMotionProfile } from './PixGridMotionProfiles'
 
 export type PixGridDeckTransitionCompileFunction = (
   request: PixGridDeckTransitionCompileRequest,
@@ -41,6 +43,7 @@ export interface PixGridDeckTransitionPairStatus {
   phase: 'queued' | 'compiling' | 'ready' | 'failed' | 'cancelled'
   progress: number
   error: PixGridDeckCompileError | null
+  priority: 'required' | 'prefetch' | 'speculative'
 }
 
 export interface PixGridDeckTransitionStatus {
@@ -51,6 +54,11 @@ export interface PixGridDeckTransitionStatus {
   pairCount: number
   readyPairCount: number
   failedPairCount: number
+  requiredPairCount: number
+  readyRequiredPairCount: number
+  playable: boolean
+  fullyPrepared: boolean
+  degraded: boolean
   pairs: readonly PixGridDeckTransitionPairStatus[]
 }
 
@@ -62,6 +70,9 @@ export interface PixGridDeckTransitionCoordinatorDiagnostics {
   expectedPairCount: number
   cacheEntryCount: number
   cacheBytes: number
+  completedJobCount: number
+  totalCompilationMs: number
+  averageCompilationMs: number
 }
 
 interface PairExpectation {
@@ -75,6 +86,9 @@ interface PairExpectation {
   cacheKey: string
   requestedMode: ReturnType<typeof resolvePixGridDeckTransitionPairPolicy>['mode']
   durationFraction: number
+  preferredStrategy: PixGridDeckTransportStrategy | 'automatic'
+  motionProfileSignature: string
+  priority: PixGridDeckTransitionPairStatus['priority']
 }
 
 interface TransitionJob {
@@ -122,10 +136,14 @@ function adjacentPairs(items: readonly PixGridDeckItemDefinition[], loop: boolea
   return pairs
 }
 
-function allDirectedPairs(items: readonly PixGridDeckItemDefinition[]): Array<readonly [PixGridDeckItemDefinition, PixGridDeckItemDefinition]> {
-  const pairs: Array<readonly [PixGridDeckItemDefinition, PixGridDeckItemDefinition]> = []
-  for (const source of items) for (const target of items) if (source.id !== target.id) pairs.push([source, target])
-  return pairs
+function uniquePairs(pairs: readonly (readonly [PixGridDeckItemDefinition, PixGridDeckItemDefinition])[]) {
+  const seen = new Set<string>()
+  return pairs.filter(([source, target]) => {
+    const key = `${source.id}\u0000${target.id}`
+    if (source.id === target.id || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function resolveReachablePixGridDeckTransitionPairs(
@@ -133,11 +151,19 @@ export function resolveReachablePixGridDeckTransitionPairs(
 ): Array<readonly [PixGridDeckItemDefinition, PixGridDeckItemDefinition]> {
   const items = deck.items.filter(item => item.enabled).sort((left, right) => left.order - right.order)
   if (items.length <= 1) return []
-  const hasScopedAssignments = Object.keys(deck.configuration.sectionItemAssignments).length > 0
-    || Object.keys(deck.configuration.sceneItemAssignments ?? {}).length > 0
-  if (deck.configuration.playbackOrder === 'shuffle'
-    || deck.configuration.playbackOrder === 'sectionAssigned'
-    || hasScopedAssignments) return allDirectedPairs(items)
+  const byId = new Map(items.map(item => [item.id, item] as const))
+  const assignedPairs = [
+    ...Object.values(deck.configuration.sectionItemAssignments),
+    ...Object.values(deck.configuration.sceneItemAssignments ?? {}),
+  ].flatMap(ids => adjacentPairs(ids.flatMap(id => byId.get(id) ? [byId.get(id)!] : []), deck.configuration.loop))
+  if (deck.configuration.playbackOrder === 'shuffle') {
+    // The deterministic runtime planner adds its actual lookahead through
+    // setPlaybackDemand; this bounded baseline avoids N×(N-1) compilation.
+    return uniquePairs([...adjacentPairs(items, deck.configuration.loop), ...assignedPairs])
+  }
+  if (deck.configuration.playbackOrder === 'sectionAssigned') {
+    return uniquePairs([...assignedPairs, ...adjacentPairs(items, deck.configuration.loop)])
+  }
   if (deck.configuration.playbackOrder === 'reverse') {
     return adjacentPairs([...items].reverse(), deck.configuration.loop)
   }
@@ -146,7 +172,7 @@ export function resolveReachablePixGridDeckTransitionPairs(
     const reverse = forward.map(([source, target]) => [target, source] as const)
     return [...forward, ...reverse]
   }
-  return adjacentPairs(items, deck.configuration.loop)
+  return uniquePairs([...adjacentPairs(items, deck.configuration.loop), ...assignedPairs])
 }
 
 export class PixGridDeckTransitionCoordinator {
@@ -161,10 +187,13 @@ export class PixGridDeckTransitionCoordinator {
   private readonly decks = new Map<string, PixGridDeckDefinition>()
   private readonly frameSets = new Map<string, PixGridPreparedFrameSet>()
   private readonly statuses = new Map<string, PixGridDeckTransitionStatus>()
+  private readonly demandByDeck = new Map<string, readonly (readonly [string, string])[]>()
   private readonly listeners = new Set<(statuses: ReadonlyMap<string, PixGridDeckTransitionStatus>) => void>()
   private running = 0
   private sequence = 0
   private deduplicated = 0
+  private completedJobs = 0
+  private totalCompilationMs = 0
   private disposed = false
 
   constructor(options: PixGridDeckTransitionCoordinatorOptions = {}) {
@@ -207,7 +236,18 @@ export class PixGridDeckTransitionCoordinator {
       expectedPairCount: this.expectations.size,
       cacheEntryCount: this.cache.size,
       cacheBytes: this.cache.approximateBytes,
+      completedJobCount: this.completedJobs,
+      totalCompilationMs: this.totalCompilationMs,
+      averageCompilationMs: this.completedJobs > 0 ? this.totalCompilationMs / this.completedJobs : 0,
     }
+  }
+
+  setPlaybackDemand(deckId: string, pairs: readonly (readonly [string, string])[]): void {
+    const normalized = pairs.filter(([source, target]) => source !== target).slice(0, 4)
+    const signature = JSON.stringify(normalized)
+    if (JSON.stringify(this.demandByDeck.get(deckId) ?? []) === signature) return
+    this.demandByDeck.set(deckId, normalized)
+    this.synchronize([...this.decks.values()], new Map(this.frameSets))
   }
 
   synchronize(
@@ -229,7 +269,14 @@ export class PixGridDeckTransitionCoordinator {
       const enabled = deck.items.filter(item => item.enabled).sort((left, right) => left.order - right.order)
       if (enabled.length !== frameSet.frames.length) continue
       const framesByItemId = new Map(enabled.map((item, index) => [item.id, frameSet.frames[index]!] as const))
-      for (const [sourceItem, targetItem] of resolveReachablePixGridDeckTransitionPairs(deck)) {
+      const baselinePairs = resolveReachablePixGridDeckTransitionPairs(deck)
+      const demandedPairs = (this.demandByDeck.get(deck.id) ?? []).flatMap(([sourceId, targetId]) => {
+        const source = enabled.find(item => item.id === sourceId)
+        const target = enabled.find(item => item.id === targetId)
+        return source && target ? [[source, target] as const] : []
+      })
+      const pairs = uniquePairs([...demandedPairs, ...baselinePairs])
+      for (const [pairIndex, [sourceItem, targetItem]] of pairs.entries()) {
         const sourceFrame = framesByItemId.get(sourceItem.id)
         const targetFrame = framesByItemId.get(targetItem.id)
         if (!sourceFrame || !targetFrame) continue
@@ -238,11 +285,18 @@ export class PixGridDeckTransitionCoordinator {
           sourceItem.id,
           targetItem.id,
         )
+        const motionProfile = resolvePixGridMotionProfile({
+          configuration: deck.configuration,
+          sourceItemId: sourceItem.id,
+          targetItemId: targetItem.id,
+        }).profile
         const settings = {
           requestedMode: pairPolicy.mode,
           sourceItemId: sourceItem.id,
           targetItemId: targetItem.id,
           durationFraction: pairPolicy.durationFraction,
+          preferredStrategy: motionProfile.preferredStrategy,
+          motionProfileSignature: pixGridMotionProfileCompileSignature(motionProfile),
         }
         const cacheKey = createPixGridDeckTransitionCacheKey({
           sourceFrameCacheKey: sourceFrame.cacheKey,
@@ -261,6 +315,9 @@ export class PixGridDeckTransitionCoordinator {
           cacheKey,
           requestedMode: pairPolicy.mode,
           durationFraction: pairPolicy.durationFraction,
+          preferredStrategy: motionProfile.preferredStrategy,
+          motionProfileSignature: pixGridMotionProfileCompileSignature(motionProfile),
+          priority: pairIndex < demandedPairs.length || pairIndex === 0 ? 'required' : pairIndex < 4 ? 'prefetch' : 'speculative',
         })
       }
     }
@@ -306,6 +363,10 @@ export class PixGridDeckTransitionCoordinator {
         }
         this.jobs.set(job.key, job)
         this.queue.push(job)
+        this.queue.sort((left, right) => {
+          const rank = { required: 0, prefetch: 1, speculative: 2 }
+          return rank[left.expectation.priority] - rank[right.expectation.priority] || left.id.localeCompare(right.id)
+        })
       } else if (!job.consumers.has(expectation.token)) {
         this.deduplicated += 1
       }
@@ -322,6 +383,13 @@ export class PixGridDeckTransitionCoordinator {
     this.synchronize([...this.decks.values()], new Map(this.frameSets))
   }
 
+  retryPair(deckId: string, sourceItemId: string, targetItemId: string): void {
+    const expectation = this.expectations.get(pairToken(deckId, sourceItemId, targetItemId))
+    if (!expectation) return
+    this.failures.delete(expectation.cacheKey)
+    this.synchronize([...this.decks.values()], new Map(this.frameSets))
+  }
+
   cancelDeck(deckId: string): void {
     for (const [token, expectation] of this.expectations) {
       if (expectation.deckId !== deckId) continue
@@ -331,6 +399,7 @@ export class PixGridDeckTransitionCoordinator {
       if (job && job.consumers.size === 0) job.controller.abort()
     }
     this.decks.delete(deckId)
+    this.demandByDeck.delete(deckId)
     this.frameSets.delete(deckId)
     this.statuses.delete(deckId)
     this.retainExpectedCacheEntries()
@@ -345,6 +414,7 @@ export class PixGridDeckTransitionCoordinator {
     this.expectations.clear()
     this.failures.clear()
     this.decks.clear()
+    this.demandByDeck.clear()
     this.frameSets.clear()
     this.statuses.clear()
     this.listeners.clear()
@@ -382,6 +452,7 @@ export class PixGridDeckTransitionCoordinator {
             targetItemId: expectation.targetItem.id,
             cacheKey: expectation.cacheKey,
             phase: 'cancelled', progress: 0, error: null,
+            priority: expectation.priority,
           }
         : cached
           ? {
@@ -389,6 +460,7 @@ export class PixGridDeckTransitionCoordinator {
               targetItemId: expectation.targetItem.id,
               cacheKey: expectation.cacheKey,
               phase: 'ready', progress: 1, error: null,
+              priority: expectation.priority,
             }
           : failed
             ? {
@@ -396,6 +468,7 @@ export class PixGridDeckTransitionCoordinator {
                 targetItemId: expectation.targetItem.id,
                 cacheKey: expectation.cacheKey,
                 phase: 'failed', progress: 0, error: failed,
+                priority: expectation.priority,
               }
             : job
               ? {
@@ -403,12 +476,14 @@ export class PixGridDeckTransitionCoordinator {
                   targetItemId: expectation.targetItem.id,
                   cacheKey: expectation.cacheKey,
                   phase: job.phase, progress: job.progress, error: null,
+                  priority: expectation.priority,
                 }
               : {
                   sourceItemId: expectation.sourceItem.id,
                   targetItemId: expectation.targetItem.id,
                   cacheKey: expectation.cacheKey,
                   phase: 'cancelled', progress: 0, error: null,
+                  priority: expectation.priority,
                 }
       const pairs = grouped.get(expectation.deckId) ?? []
       pairs.push(status)
@@ -422,18 +497,26 @@ export class PixGridDeckTransitionCoordinator {
       ))
       const readyPairCount = pairs.filter(pair => pair.phase === 'ready').length
       const failedPairCount = pairs.filter(pair => pair.phase === 'failed').length
+      const requiredPairs = pairs.filter(pair => pair.priority === 'required')
+      const readyRequiredPairCount = requiredPairs.filter(pair => pair.phase === 'ready').length
+      const requiredFailure = requiredPairs.some(pair => pair.phase === 'failed')
       const currentFrameSet = this.frameSets.get(deckId)
       const frameSetReady = currentFrameSet?.deckRevision === deck.revision
       this.statuses.set(deckId, {
         deckId,
         deckRevision: deck.revision,
-        ready: frameSetReady && (pairs.length === 0 || readyPairCount === pairs.length),
+        ready: frameSetReady && !requiredFailure && (requiredPairs.length === 0 || readyRequiredPairCount === requiredPairs.length),
         progress: frameSetReady
           ? (pairs.length > 0 ? pairs.reduce((sum, pair) => sum + pair.progress, 0) / pairs.length : 1)
           : 0,
         pairCount: pairs.length,
         readyPairCount,
         failedPairCount,
+        requiredPairCount: requiredPairs.length,
+        readyRequiredPairCount,
+        playable: frameSetReady && !requiredFailure && (requiredPairs.length === 0 || readyRequiredPairCount === requiredPairs.length),
+        fullyPrepared: frameSetReady && readyPairCount === pairs.length,
+        degraded: frameSetReady && failedPairCount > 0 && !requiredFailure,
         pairs,
       })
     }
@@ -460,6 +543,7 @@ export class PixGridDeckTransitionCoordinator {
   }
 
   private async run(job: TransitionJob): Promise<void> {
+    const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
     try {
       job.phase = 'compiling'
       job.progress = 0.02
@@ -475,6 +559,8 @@ export class PixGridDeckTransitionCoordinator {
           sourceItemId: expectation.sourceItem.id,
           targetItemId: expectation.targetItem.id,
           durationFraction: expectation.durationFraction,
+          preferredStrategy: expectation.preferredStrategy,
+          motionProfileSignature: expectation.motionProfileSignature,
         },
         signal: job.controller.signal,
         onProgress: progress => {
@@ -502,6 +588,9 @@ export class PixGridDeckTransitionCoordinator {
     } catch (error) {
       if (!job.controller.signal.aborted) this.rebuildStatuses({ key: job.key, error: normalizeError(error) })
     } finally {
+      const finishedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
+      this.completedJobs += 1
+      this.totalCompilationMs += Math.max(0, finishedAt - startedAt)
       if (this.jobs.get(job.key) === job) this.jobs.delete(job.key)
       this.running = Math.max(0, this.running - 1)
       this.rebuildStatuses()

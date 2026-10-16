@@ -12,6 +12,7 @@ import {
   MAX_PIX_GRID_SVG_SOURCE_CHARACTERS,
 } from './PixGridLimits'
 import { isAnimatedPixGridWebP } from './PixGridWebP'
+import { readPixGridResponseBlobBounded } from './PixGridBoundedResponse'
 import {
   createPixGridConversionCacheKey,
   preparePixGridPixelData,
@@ -98,10 +99,7 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
 
   const response = await fetch(sourceUrl, { signal: input.signal, cache: 'force-cache' })
   if (!response.ok) throw new Error(`PixGrid could not load the media asset (${response.status}).`)
-  const blob = await response.blob()
-  if (blob.size > MAX_PIX_GRID_MEDIA_SOURCE_BYTES) {
-    throw new Error('This media asset is too large for bounded PixGrid preparation.')
-  }
+  const blob = await readPixGridResponseBlobBounded(response, MAX_PIX_GRID_MEDIA_SOURCE_BYTES, input.signal)
   if (capability.kind === 'webp' && await isAnimatedPixGridWebP(blob)) {
     throw new Error('Animated WebP is not supported by PixGrid.')
   }
@@ -163,6 +161,9 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
 export class PixGridPreparedAssetCache {
   private readonly entries = new Map<string, PixGridPreparedAsset>()
   private bytes = 0
+  private hits = 0
+  private misses = 0
+  private evictions = 0
 
   constructor(
     readonly maxEntries = 24,
@@ -171,10 +172,17 @@ export class PixGridPreparedAssetCache {
 
   get size(): number { return this.entries.size }
   get approximateBytes(): number { return this.bytes }
+  get diagnostics(): Readonly<{ entries: number; bytes: number; hits: number; misses: number; evictions: number }> {
+    return { entries: this.entries.size, bytes: this.bytes, hits: this.hits, misses: this.misses, evictions: this.evictions }
+  }
 
   get(key: string): PixGridPreparedAsset | null {
     const entry = this.entries.get(key)
-    if (!entry) return null
+    if (!entry) {
+      this.misses += 1
+      return null
+    }
+    this.hits += 1
     this.entries.delete(key)
     this.entries.set(key, entry)
     return entry
@@ -206,6 +214,7 @@ export class PixGridPreparedAssetCache {
       const oldest = this.entries.get(oldestKey)
       this.entries.delete(oldestKey)
       this.bytes -= oldest?.approximateBytes ?? 0
+      this.evictions += 1
     }
   }
 
@@ -221,6 +230,9 @@ export class PixGridPreparedAssetCache {
   clear(): void {
     this.entries.clear()
     this.bytes = 0
+    this.hits = 0
+    this.misses = 0
+    this.evictions = 0
   }
 }
 

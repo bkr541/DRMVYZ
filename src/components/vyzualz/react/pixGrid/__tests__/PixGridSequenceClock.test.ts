@@ -102,6 +102,7 @@ function planAt(
     sequenceBar?: number
     motion?: number
     transportMode?: 'live' | 'reconstruct'
+    beatsPerBar?: number
     autoPerformanceEnabled?: boolean
     transitionModeResolver?: (sourceItemId: string, targetItemId: string) => 'pixelTransport' | 'pixelDissolve' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe' | 'radialReveal' | 'hardCut' | null
   } = {},
@@ -115,6 +116,7 @@ function planAt(
       sectionType: options.sectionType ?? 'drop',
       sectionId: options.sectionId ?? `${options.sectionType ?? 'drop'}-fixture`,
       sectionBarTimeline: options.sectionBarTimeline,
+      beatsPerBar: options.beatsPerBar,
       sceneId: options.sceneId ?? null,
       trackIdentity: options.trackIdentity ?? 'track-alpha',
       presetId: targetDeck.generatedPresetId,
@@ -151,7 +153,7 @@ function emptyMasks() {
 
 function preparedFrame(entry: PixGridDeckItemDefinition, cacheKey: string): PixGridPreparedFrame {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     cacheKey,
     mediaId: entry.mediaId,
     sourceFingerprint: entry.source.fingerprint,
@@ -180,7 +182,7 @@ function preparedFrame(entry: PixGridDeckItemDefinition, cacheKey: string): PixG
 function preparedFrameSet(targetDeck: PixGridDeckDefinition): PixGridPreparedFrameSet {
   const frames = targetDeck.items.filter(entry => entry.enabled).map((entry, index) => preparedFrame(entry, FRAME_IDS[index]!))
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     deckId: targetDeck.id,
     deckRevision: targetDeck.revision,
     width: 1,
@@ -444,6 +446,126 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
     })
   })
 
+  it.each([0.25, 0.5, 0.75])('queues a competing musical trigger at %s progress without replacing the displayed pair', progress => {
+    const targetDeck = deck('forward', {
+      transitionPolicy: {
+        mode: 'pixelTransport', durationFraction: 0.5, pairOverrides: [], style: 'wipe', durationBeats: 2,
+      },
+    })
+    const secondBar = 1 + progress * 0.5
+    const result = planAt(targetDeck, secondBar, {
+      sectionType: 'intro',
+      autoPerformanceEnabled: false,
+      signals: [
+        { id: 'first', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' },
+        { id: 'second', bar: secondBar, kind: 'audio', behavior: 'force', quantization: 'phrase' },
+      ],
+    })
+    expect(result).toMatchObject({
+      sourceItemId: 'item-a', targetItemId: 'item-b', transitionArmedBy: 'second',
+      transitionWindow: {
+        active: true, lifecycle: 'interrupted', interruptionPolicy: 'queueNext', queuedBoundaryIdentity: 'second',
+      },
+    })
+    expect(result.transitionWindow.progress).toBeCloseTo(progress)
+  })
+
+  it('starts arrival-anchored transport early and lands exactly on the musical event', () => {
+    const targetDeck = deck('forward', {
+      transitionPolicy: {
+        mode: 'pixelTransport',
+        durationFraction: 0.25,
+        pairOverrides: [],
+        style: 'wipe',
+        durationBeats: 1,
+        anchorMode: 'arrival',
+        arrivalAnchor: 'trackMap',
+      },
+    })
+    const signals: PixGridSequenceBoundarySignal[] = [{
+      id: 'track-map:drop', bar: 4, kind: 'trackMap', behavior: 'force', quantization: 'bar',
+    }]
+    const before = planAt(targetDeck, 3.875, { sectionType: 'intro', signals })
+    expect(before).toMatchObject({
+      sourceItemId: 'item-a',
+      targetItemId: 'item-b',
+      activeItemId: 'item-b',
+      transitionWindow: {
+        active: true,
+        startBar: 3.75,
+        endBar: 4,
+        progress: 0.5,
+        anchorMode: 'arrival',
+        arrivalAnchor: 'trackMap',
+        arrivalBar: 4,
+      },
+    })
+    const landed = planAt(targetDeck, 4, { sectionType: 'intro', signals })
+    expect(landed).toMatchObject({
+      activeItemId: 'item-b',
+      transitionWindow: { active: false, progress: 1, endBar: 4, arrivalBar: 4 },
+    })
+    expect(planAt(structuredClone(targetDeck), 3.875, { sectionType: 'intro', signals })).toEqual(before)
+  })
+
+  it('uses the authoritative time signature for beat durations and quantization', () => {
+    const targetDeck = deck('forward', {
+      defaultItemDurationBeats: 8,
+      transitionPolicy: {
+        mode: 'crossfade', durationFraction: 0.25, pairOverrides: [], style: 'crossfade', durationBeats: 2,
+      },
+    })
+    const signal: PixGridSequenceBoundarySignal[] = [{
+      id: 'meter-boundary', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar',
+    }]
+    expect(planAt(targetDeck, 1.25, { sectionType: 'intro', signals: signal, beatsPerBar: 4, autoPerformanceEnabled: false }).transitionWindow)
+      .toMatchObject({ startBar: 1, endBar: 1.5, durationBeats: 2 })
+    expect(planAt(targetDeck, 1.25, { sectionType: 'intro', signals: signal, beatsPerBar: 3, autoPerformanceEnabled: false }).transitionWindow)
+      .toMatchObject({ startBar: 1, endBar: 1 + 2 / 3, durationBeats: 2 })
+    expect(planAt(targetDeck, 1.25, { sectionType: 'intro', signals: signal, beatsPerBar: 6, autoPerformanceEnabled: false }).transitionWindow)
+      .toMatchObject({ startBar: 1, endBar: 1 + 1 / 3, durationBeats: 2 })
+  })
+
+  it('reconstructs each historical section with its own scene assignment', () => {
+    const targetDeck = deck('sectionAssigned', {
+      sceneItemAssignments: {
+        'scene-intro': ['item-a'],
+        'scene-verse-1': ['item-b'],
+        'scene-verse-2': ['item-c'],
+        'scene-drop': ['item-d'],
+      },
+    })
+    const sectionBarTimeline: PixGridSectionBarSpan[] = [
+      { id: 'intro-1', type: 'intro', startBar: 0, endBar: 1, sceneId: 'scene-intro' },
+      { id: 'verse-1', type: 'verse', startBar: 1, endBar: 2, sceneId: 'scene-verse-1' },
+      { id: 'verse-2', type: 'verse', startBar: 2, endBar: 3, sceneId: 'scene-verse-2' },
+      { id: 'drop-1', type: 'drop', startBar: 3, endBar: 5, sceneId: 'scene-drop' },
+    ]
+    const result = planAt(targetDeck, 3.5, {
+      sectionType: 'drop', sectionId: 'drop-1', sceneId: 'scene-drop', sectionBarTimeline,
+    })
+    expect(result).toMatchObject({ activeItemId: 'item-d', eligibleItemIds: ['item-d'], frameEpoch: 3 })
+    expect(planAt(structuredClone(targetDeck), 3.5, {
+      sectionType: 'drop', sectionId: 'drop-1', sceneId: 'scene-drop', sectionBarTimeline,
+    })).toEqual(result)
+  })
+
+  it('keeps an arrival transform stable while the live sequence clock is paused', () => {
+    const targetDeck = deck('forward', {
+      transitionPolicy: {
+        mode: 'pixelTransport', durationFraction: 0.25, pairOverrides: [], style: 'wipe', durationBeats: 1,
+        anchorMode: 'arrival', arrivalAnchor: 'dropImpact',
+      },
+    })
+    const signals: PixGridSequenceBoundarySignal[] = [{
+      id: 'drop-impact:fixture', bar: 4, kind: 'audio', behavior: 'force', quantization: 'beat',
+    }]
+    const first = planAt(targetDeck, 12, { sequenceBar: 3.875, sectionType: 'intro', signals, transportMode: 'live' })
+    const paused = planAt(targetDeck, 24, { sequenceBar: 3.875, sectionType: 'intro', signals, transportMode: 'live' })
+    expect(paused.transitionWindow).toEqual(first.transitionWindow)
+    expect(paused.activeItemId).toBe(first.activeItemId)
+  })
+
   it('quantizes percentage timing and applies a directed hard-cut override without changing other pairs', () => {
     const targetDeck = deck('forward', {
       transitionPolicy: {
@@ -464,7 +586,8 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
       signals: [{ id: 'cut-a-b', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
     })
     expect(hardCut.transitionWindow).toMatchObject({
-      mode: 'hardCut',
+      requestedMode: 'hardCut',
+      resolvedMode: null,
       durationBeats: 0,
       durationFraction: 0,
       pairOverride: true,
@@ -487,7 +610,8 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
       signals: [{ id: 'cut-a-b', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
     })
     expect(quantized.transitionWindow).toMatchObject({
-      mode: 'crossfade',
+      requestedMode: 'crossfade',
+      resolvedMode: null,
       durationBeats: 0.75,
       durationFraction: 0.26,
       pairOverride: false,
@@ -514,7 +638,8 @@ describe('PixGridSequenceClock pure deterministic planning', () => {
       ),
     })
     expect(plannedHardCut.transitionWindow).toMatchObject({
-      mode: 'hardCut',
+      requestedMode: 'auto',
+      resolvedMode: 'hardCut',
       durationBeats: 0,
       active: false,
       startBar: 1,
@@ -713,7 +838,7 @@ describe('PixGridSequenceClock production adapters', () => {
       activeItemId: 'item-d',
       eligibleItemIds: ['item-d', 'item-b'],
       transitionArmedBy: null,
-      transitionWindow: { mode: 'hardCut', durationBeats: 0 },
+      transitionWindow: { requestedMode: 'auto', resolvedMode: 'hardCut', durationBeats: 0 },
     })
     expect(frame.deckSequencePlan?.boundaryIdentity).not.toBe('track-map:track-map-cue')
     expect(frame.resolvedRuntime.state.selectedSceneId).toBe(selectedSceneId)

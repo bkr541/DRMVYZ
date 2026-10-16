@@ -39,6 +39,8 @@ export interface PixGridDeckBlobCompileRequest {
   transparentBackground: string
   signal?: AbortSignal
   onProgress?: (phase: Extract<PixGridDeckCompilePhase, 'decoding' | 'compiling'>, progress: number) => void
+  totalTimeoutMs?: number
+  idleTimeoutMs?: number
 }
 
 export interface PixGridDeckTransitionCompileRequest {
@@ -49,6 +51,21 @@ export interface PixGridDeckTransitionCompileRequest {
   settings: PixGridDeckTransitionCompileSettings
   signal?: AbortSignal
   onProgress?: (progress: number) => void
+  totalTimeoutMs?: number
+  idleTimeoutMs?: number
+}
+
+const DEFAULT_TOTAL_TIMEOUT_MS = 180_000
+const DEFAULT_IDLE_TIMEOUT_MS = 30_000
+
+function timeoutError(kind: 'total' | 'idle'): PixGridDeckCompileError {
+  return {
+    code: 'worker-timeout',
+    message: kind === 'idle'
+      ? 'PixGrid Deck compiler stopped reporting progress.'
+      : 'PixGrid Deck compiler exceeded the job deadline.',
+    retryable: true,
+  }
 }
 
 export function createPixGridDeckCompilerWorker(): PixGridDeckCompilerWorkerPort {
@@ -221,12 +238,38 @@ async function buildWorkerRequest(request: PixGridDeckBlobCompileRequest): Promi
   return { message: { ...base, sourceKind: 'blob', source: request.source }, transfer: [] }
 }
 
+function buildBlobWorkerRequest(request: PixGridDeckBlobCompileRequest): {
+  message: PixGridDeckWorkerCompileRequest
+  transfer: Transferable[]
+} {
+  return {
+    message: {
+      type: 'compile',
+      jobId: request.jobId,
+      cacheKey: request.cacheKey,
+      mediaId: request.mediaId,
+      sourceFingerprint: request.sourceFingerprint,
+      sourceRevision: request.sourceRevision,
+      width: request.width,
+      height: request.height,
+      mimeType: request.mimeType,
+      hasAlpha: request.hasAlpha,
+      transparentBackground: request.transparentBackground,
+      sourceKind: 'blob',
+      source: request.source,
+    },
+    transfer: [],
+  }
+}
+
 export async function compilePixGridDeckBlob(
   request: PixGridDeckBlobCompileRequest,
   workerFactory: PixGridDeckCompilerWorkerFactory = createPixGridDeckCompilerWorker,
 ): Promise<PixGridPreparedFrame> {
   if (request.signal?.aborted) throw abortError()
-  const workerRequest = await buildWorkerRequest(request)
+  const workerRequest = isSvgRequest(request)
+    ? await buildWorkerRequest(request)
+    : buildBlobWorkerRequest(request)
   if (request.signal?.aborted) throw abortError()
   let worker: PixGridDeckCompilerWorkerPort
   try {
@@ -237,9 +280,17 @@ export async function compilePixGridDeckBlob(
 
   return new Promise<PixGridPreparedFrame>((resolve, reject) => {
     let settled = false
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+    const totalTimer = setTimeout(() => finish(() => reject(timeoutError('total'))), Math.max(1, request.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS))
+    const armIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => finish(() => reject(timeoutError('idle'))), Math.max(1, request.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS))
+    }
     const finish = (callback: () => void) => {
       if (settled) return
       settled = true
+      clearTimeout(totalTimer)
+      if (idleTimer) clearTimeout(idleTimer)
       request.signal?.removeEventListener('abort', handleAbort)
       worker.removeEventListener('message', handleMessage)
       worker.removeEventListener('error', handleWorkerError)
@@ -259,6 +310,7 @@ export async function compilePixGridDeckBlob(
       const message = event.data
       if (message.jobId !== request.jobId) return
       if (message.type === 'progress') {
+        armIdleTimer()
         request.onProgress?.(message.phase, Math.max(0, Math.min(1, message.progress)))
         return
       }
@@ -306,6 +358,7 @@ export async function compilePixGridDeckBlob(
     request.signal?.addEventListener('abort', handleAbort, { once: true })
     worker.addEventListener('message', handleMessage)
     worker.addEventListener('error', handleWorkerError)
+    armIdleTimer()
     try {
       worker.postMessage(workerRequest.message, workerRequest.transfer)
     } catch (error) {
@@ -356,9 +409,17 @@ export async function compilePixGridDeckTransition(
 
   return new Promise<PixGridDeckTransitionPlan>((resolve, reject) => {
     let settled = false
+    let idleTimer: ReturnType<typeof setTimeout> | null = null
+    const totalTimer = setTimeout(() => finish(() => reject(timeoutError('total'))), Math.max(1, request.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS))
+    const armIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => finish(() => reject(timeoutError('idle'))), Math.max(1, request.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS))
+    }
     const finish = (callback: () => void) => {
       if (settled) return
       settled = true
+      clearTimeout(totalTimer)
+      if (idleTimer) clearTimeout(idleTimer)
       request.signal?.removeEventListener('abort', handleAbort)
       worker.removeEventListener('message', handleMessage)
       worker.removeEventListener('error', handleWorkerError)
@@ -378,6 +439,7 @@ export async function compilePixGridDeckTransition(
       const result = event.data
       if (result.jobId !== request.jobId) return
       if (result.type === 'progress') {
+        armIdleTimer()
         request.onProgress?.(Math.max(0, Math.min(1, result.progress)))
         return
       }
@@ -397,6 +459,11 @@ export async function compilePixGridDeckTransition(
         && result.matchedSourceIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
         && result.deathSourceIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
         && result.birthTargetIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+        && result.matchedControlX.byteLength % Int16Array.BYTES_PER_ELEMENT === 0
+        && result.matchedControlY.byteLength % Int16Array.BYTES_PER_ELEMENT === 0
+        && result.matchedGroupIds.byteLength % Uint16Array.BYTES_PER_ELEMENT === 0
+        && result.deathTargetIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
+        && result.birthSourceIndices.byteLength % Uint32Array.BYTES_PER_ELEMENT === 0
       if (!validShape) {
         finish(() => reject({
           code: 'invalid-result',
@@ -409,10 +476,22 @@ export async function compilePixGridDeckTransition(
       const matchedTargetIndices = new Uint32Array(result.matchedTargetIndices)
       const deathSourceIndices = new Uint32Array(result.deathSourceIndices)
       const birthTargetIndices = new Uint32Array(result.birthTargetIndices)
+      const matchedControlX = new Int16Array(result.matchedControlX)
+      const matchedControlY = new Int16Array(result.matchedControlY)
+      const matchedStagger = new Uint8Array(result.matchedStagger)
+      const matchedGroupIds = new Uint16Array(result.matchedGroupIds)
+      const deathTargetIndices = new Uint32Array(result.deathTargetIndices)
+      const birthSourceIndices = new Uint32Array(result.birthSourceIndices)
       const cellCount = result.width * result.height
       const validContent = result.diagnostics.matchedCount === matchedSourceIndices.length
         && result.diagnostics.birthCount === birthTargetIndices.length
         && result.diagnostics.deathCount === deathSourceIndices.length
+        && matchedControlX.length === matchedSourceIndices.length
+        && matchedControlY.length === matchedSourceIndices.length
+        && matchedStagger.length === matchedSourceIndices.length
+        && matchedGroupIds.length === matchedSourceIndices.length
+        && deathTargetIndices.length === deathSourceIndices.length
+        && birthSourceIndices.length === birthTargetIndices.length
         && transitionIndexPartitionIsValid(
           matchedSourceIndices,
           deathSourceIndices,
@@ -449,11 +528,25 @@ export async function compilePixGridDeckTransition(
         matchedTargetIndices,
         deathSourceIndices,
         birthTargetIndices,
+        matchedControlX,
+        matchedControlY,
+        matchedStagger,
+        matchedGroupIds,
+        deathTargetIndices,
+        birthSourceIndices,
+        strategy: result.strategy,
+        strategyReason: result.strategyReason,
         diagnostics: result.diagnostics,
         approximateBytes: matchedSourceIndices.byteLength
           + matchedTargetIndices.byteLength
           + deathSourceIndices.byteLength
           + birthTargetIndices.byteLength
+          + matchedControlX.byteLength
+          + matchedControlY.byteLength
+          + matchedStagger.byteLength
+          + matchedGroupIds.byteLength
+          + deathTargetIndices.byteLength
+          + birthSourceIndices.byteLength
           + 512,
       }))
     }
@@ -461,6 +554,7 @@ export async function compilePixGridDeckTransition(
     request.signal?.addEventListener('abort', handleAbort, { once: true })
     worker.addEventListener('message', handleMessage)
     worker.addEventListener('error', handleWorkerError)
+    armIdleTimer()
     try {
       worker.postMessage(message, [sourcePixels, targetPixels, sourceForeground, targetForeground])
     } catch (error) {

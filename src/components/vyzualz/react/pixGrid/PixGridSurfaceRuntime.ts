@@ -45,6 +45,16 @@ export interface PixGridSurfacePerformanceFrame {
   resolvedRuntime: PixGridUnifiedFrame
 }
 
+const canonicalStateCache = new WeakMap<PixGridState, Readonly<{ presetId: string | null; state: PixGridState }>>()
+
+function resolveCanonicalRuntimeState(state: PixGridState, presetId: string | null): PixGridState {
+  const cached = canonicalStateCache.get(state)
+  if (cached?.presetId === presetId) return cached.state
+  const canonical = ensurePixGridCanonicalPresetIntegrity(state, presetId)
+  canonicalStateCache.set(state, { presetId, state: canonical })
+  return canonical
+}
+
 /**
  * Production orchestration seam shared by PixGridSurface and runtime-level
  * acceptance tests. It keeps the audio frame, Shared Performance Context, and
@@ -53,10 +63,8 @@ export interface PixGridSurfacePerformanceFrame {
 export function resolvePixGridSurfacePerformanceFrame(
   input: ResolvePixGridSurfacePerformanceFrameInput,
 ): PixGridSurfacePerformanceFrame {
-  const canonicalAuthoredState = ensurePixGridCanonicalPresetIntegrity(
-    input.authoredState,
-    input.presetId ?? input.authoredState.selectedPresetId,
-  )
+  const canonicalPresetId = input.presetId ?? input.authoredState.selectedPresetId
+  const canonicalAuthoredState = resolveCanonicalRuntimeState(input.authoredState, canonicalPresetId)
   const previewMappedState = resolvePixGridPreviewState(canonicalAuthoredState, input.trackSceneId)
   const deckState = input.deck
     ? withPixGridDeckGeneratedGroups(previewMappedState, input.deck.id)
@@ -89,7 +97,7 @@ export function resolvePixGridSurfacePerformanceFrame(
     ? 'editingContext'
     : 'performance'
   const sequencePosition = resolvePixGridDeckSequencePosition(previewAudioFrame, performanceContext)
-  const previewTimeline = Number.isFinite(previewAudioFrame.previewElapsedBar)
+  const rawPreviewTimeline = Number.isFinite(previewAudioFrame.previewElapsedBar)
     ? [{
         id: `editor-preview:${mappedState.selectedSceneId ?? previewAudioFrame.sectionType ?? 'unknown'}`,
         type: previewAudioFrame.sectionType ?? 'unknown',
@@ -97,6 +105,25 @@ export function resolvePixGridSurfacePerformanceFrame(
         endBar: Math.max(sequencePosition.sequenceBar + 1, previewAudioFrame.previewLoopBars ?? 1),
       }]
     : performanceContext.sectionBarTimeline
+  const previewTimeline = input.deck
+    ? rawPreviewTimeline.map(span => {
+        const barsPerSecond = performanceContext.bpm / (60 * Math.max(1, performanceContext.timeSignature))
+        const gridOffsetBars = performanceContext.absoluteBar - performanceContext.audioTimeSec * barsPerSecond
+        const historicalSceneCue = input.cues
+          .filter(cue => cue.enabled && cue.action.type === 'selectScene')
+          .map(cue => ({ cue, bar: cue.timeSec * barsPerSecond + gridOffsetBars }))
+          .filter(entry => entry.bar <= span.startBar + 1e-8)
+          .sort((left, right) => right.bar - left.bar || right.cue.order - left.cue.order)[0]
+        const matchingSceneId = Object.keys(input.deck!.configuration.sceneItemAssignments ?? {})
+          .find(sceneId => sceneId.endsWith(`:${span.type}`))
+        return {
+          ...span,
+          sceneId: historicalSceneCue?.cue.action.type === 'selectScene'
+            ? historicalSceneCue.cue.action.sceneId
+            : matchingSceneId ?? null,
+        }
+      })
+    : rawPreviewTimeline
   const deckSequencePlan = input.deck
     ? resolvePixGridSequencePlan({
         deck: input.deck,
@@ -110,6 +137,7 @@ export function resolvePixGridSurfacePerformanceFrame(
             : performanceContext.sectionId,
           sectionOccurrence: performanceContext.sectionOccurrence,
           sectionBarTimeline: previewTimeline,
+          beatsPerBar: performanceContext.timeSignature,
           sceneId: mappedState.selectedSceneId,
           trackIdentity: performanceContext.trackIdentity,
           presetId: input.presetId ?? input.deck.generatedPresetId,

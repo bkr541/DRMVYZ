@@ -5,12 +5,14 @@ import {
 } from './PixGridDeckCompilerContracts'
 import type { PixGridDeckRuntimeFrameSource } from './PixGridDeckRuntime'
 import { pixGridCellTransitionMix } from './PixGridCellTransitions'
+import type { PixGridMotionEasing } from './PixGridMotionProfiles'
 
 export interface PixGridDeckCompositorScratch {
   width: number
   height: number
   pixels: Uint8Array
   masks: Record<PixGridDeckGeneratedMaskName, Uint8Array>
+  collisionWeights: Float32Array
 }
 
 export interface PixGridComposedDeckFrame {
@@ -27,7 +29,7 @@ function createMasks(cellCount: number): Record<PixGridDeckGeneratedMaskName, Ui
 }
 
 export function createPixGridDeckCompositorScratch(): PixGridDeckCompositorScratch {
-  return { width: 0, height: 0, pixels: new Uint8Array(0), masks: createMasks(0) }
+  return { width: 0, height: 0, pixels: new Uint8Array(0), masks: createMasks(0), collisionWeights: new Float32Array(0) }
 }
 
 function ensureScratch(
@@ -41,8 +43,10 @@ function ensureScratch(
     scratch.height = height
     scratch.pixels = new Uint8Array(cellCount * 4)
     scratch.masks = createMasks(cellCount)
+    scratch.collisionWeights = new Float32Array(cellCount)
   }
   scratch.pixels.fill(0)
+  scratch.collisionWeights.fill(0)
   for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) scratch.masks[name].fill(0)
   return scratch
 }
@@ -114,8 +118,16 @@ function composeCellTransition(
   }
 }
 
+function hasVisiblePixel(pixels: Uint8Array): boolean {
+  for (let offset = 3; offset < pixels.length; offset += 4) {
+    if (pixels[offset] > 0) return true
+  }
+  return false
+}
+
 function blendRawPixel(
   pixels: Uint8Array,
+  weights: Float32Array,
   cell: number,
   red: number,
   green: number,
@@ -125,17 +137,19 @@ function blendRawPixel(
   const offset = cell * 4
   const sourceAlpha = alpha / 255
   if (sourceAlpha <= 0) return
-  const targetAlpha = pixels[offset + 3] / 255
-  const outputAlpha = sourceAlpha + targetAlpha * (1 - sourceAlpha)
-  const denominator = Math.max(0.0001, outputAlpha)
-  pixels[offset] = Math.round((red * sourceAlpha + pixels[offset] * targetAlpha * (1 - sourceAlpha)) / denominator)
-  pixels[offset + 1] = Math.round((green * sourceAlpha + pixels[offset + 1] * targetAlpha * (1 - sourceAlpha)) / denominator)
-  pixels[offset + 2] = Math.round((blue * sourceAlpha + pixels[offset + 2] * targetAlpha * (1 - sourceAlpha)) / denominator)
-  pixels[offset + 3] = Math.round(outputAlpha * 255)
+  const previousWeight = weights[cell]!
+  const nextWeight = previousWeight + sourceAlpha
+  const denominator = Math.max(0.0001, nextWeight)
+  pixels[offset] = Math.round((pixels[offset]! * previousWeight + red * sourceAlpha) / denominator)
+  pixels[offset + 1] = Math.round((pixels[offset + 1]! * previousWeight + green * sourceAlpha) / denominator)
+  pixels[offset + 2] = Math.round((pixels[offset + 2]! * previousWeight + blue * sourceAlpha) / denominator)
+  pixels[offset + 3] = Math.max(pixels[offset + 3]!, alpha)
+  weights[cell] = nextWeight
 }
 
 function blendWeightedFramePixel(
   pixels: Uint8Array,
+  weights: Float32Array,
   targetCell: number,
   framePixels: Uint8Array,
   sourceCell: number,
@@ -144,6 +158,7 @@ function blendWeightedFramePixel(
   const offset = sourceCell * 4
   blendRawPixel(
     pixels,
+    weights,
     targetCell,
     framePixels[offset]!,
     framePixels[offset + 1]!,
@@ -160,6 +175,50 @@ function interpolateIndex(sourceIndex: number, targetIndex: number, width: numbe
   const x = Math.round(sourceX + (targetX - sourceX) * progress)
   const y = Math.round(sourceY + (targetY - sourceY) * progress)
   return y * width + x
+}
+
+function quadraticIndex(
+  sourceIndex: number,
+  targetIndex: number,
+  controlX: number,
+  controlY: number,
+  width: number,
+  height: number,
+  progress: number,
+): number {
+  const sourceX = sourceIndex % width
+  const sourceY = Math.floor(sourceIndex / width)
+  const targetX = targetIndex % width
+  const targetY = Math.floor(targetIndex / width)
+  const inverse = 1 - progress
+  const x = Math.round(inverse * inverse * sourceX + 2 * inverse * progress * controlX + progress * progress * targetX)
+  const y = Math.round(inverse * inverse * sourceY + 2 * inverse * progress * controlY + progress * progress * targetY)
+  return Math.max(0, Math.min(height - 1, y)) * width + Math.max(0, Math.min(width - 1, x))
+}
+
+function easeInOut(progress: number): number {
+  const p = clamp01(progress)
+  return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2
+}
+
+function motionEase(progress: number, easing: PixGridMotionEasing): number {
+  const p = clamp01(progress)
+  if (easing === 'linear') return p
+  if (easing === 'easeIn') return p * p
+  if (easing === 'easeOut') return 1 - (1 - p) * (1 - p)
+  return easeInOut(p)
+}
+
+function motionColor(sourceValue: number, targetValue: number, progress: number, mode: 'rgb' | 'sourceHold' | 'targetReveal'): number {
+  if (mode === 'sourceHold') return progress < 0.72 ? sourceValue : mixBytes(sourceValue, targetValue, (progress - 0.72) / 0.28)
+  if (mode === 'targetReveal') return mixBytes(sourceValue, targetValue, Math.sqrt(progress))
+  return mixBytes(sourceValue, targetValue, progress)
+}
+
+function shiftedByte(value: number, shift: number, progress: number): number {
+  if (shift === 0) return value
+  const envelope = Math.sin(Math.PI * clamp01(progress))
+  return Math.max(0, Math.min(255, Math.round(value * (1 + shift * envelope))))
 }
 
 function setWeightedMask(
@@ -180,8 +239,18 @@ function composePixelTransport(
   source: PixGridDeckRuntimeFrameSource,
   outputPixels: Uint8Array,
   outputMasks: Record<PixGridDeckGeneratedMaskName, Uint8Array>,
+  collisionWeights: Float32Array,
 ): void {
-  const progress = clamp01(source.transitionProgress)
+  const baseProgress = clamp01(source.transitionProgress)
+  const dynamics = source.transitionDynamics
+  const progress = clamp01(
+    baseProgress + Math.sin(Math.PI * baseProgress) * (
+      ((dynamics?.movementSpeed ?? 1) - 1) * 0.08
+      +
+      (dynamics?.acceleration ?? 0) * 0.1
+      + (dynamics?.completionEmphasis ?? 0) * 0.06
+    ),
+  )
   const plan = source.transitionPlan
   if (!plan || plan.mode !== 'pixelTransport') {
     composeCellTransition({ ...source, transitionMode: 'pixelDissolve' }, outputPixels, outputMasks)
@@ -197,8 +266,8 @@ function composePixelTransport(
   for (let cell = 0; cell < cellCount; cell += 1) {
     const sourceWeight = sourceForeground[cell] > 0 ? 0 : 1 - progress
     const targetWeight = targetForeground[cell] > 0 ? 0 : progress
-    if (sourceWeight > 0) blendWeightedFramePixel(outputPixels, cell, sourceFrame.pixels, cell, sourceWeight)
-    if (targetWeight > 0) blendWeightedFramePixel(outputPixels, cell, targetFrame.pixels, cell, targetWeight)
+    if (sourceWeight > 0) blendWeightedFramePixel(outputPixels, collisionWeights, cell, sourceFrame.pixels, cell, sourceWeight)
+    if (targetWeight > 0) blendWeightedFramePixel(outputPixels, collisionWeights, cell, targetFrame.pixels, cell, targetWeight)
     for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
       if (name === 'foreground') continue
       const sourceValue = sourceForeground[cell] > 0 ? 0 : sourceFrame.masks[name][cell]
@@ -206,41 +275,64 @@ function composePixelTransport(
       setWeightedMask(outputMasks[name], cell, sourceValue, targetValue, progress)
     }
   }
+  // Background composition is an underlay. Collision weights only arbitrate
+  // transported foreground particles so opaque artwork does not dilute them.
+  collisionWeights.fill(0)
 
   for (let index = 0; index < plan.matchedSourceIndices.length; index += 1) {
     const sourceCell = plan.matchedSourceIndices[index]
     const targetCell = plan.matchedTargetIndices[index]
-    const outputCell = interpolateIndex(sourceCell, targetCell, source.width, progress)
+    const groupPulse = ((plan.matchedGroupIds[index]! & 3) / 3)
+      * (dynamics?.regionPulse ?? 0)
+      * (0.04 + (dynamics?.regionalGrouping ?? 0.5) * 0.08)
+    const maxDelay = 0.22 * (dynamics?.pixelStagger ?? 0.5) * 2 * (1 - (dynamics?.reconstruction ?? 0) * 0.45)
+    const delay = plan.matchedStagger[index]! / 255 * maxDelay
+    const localProgress = motionEase(clamp01((progress + groupPulse - delay) / Math.max(0.001, 1 - delay)), dynamics?.easing ?? 'easeInOut')
+    const midpointX = ((sourceCell % source.width) + (targetCell % source.width)) * 0.5
+    const midpointY = (Math.floor(sourceCell / source.width) + Math.floor(targetCell / source.width)) * 0.5
+    const pathStrength = (0.45 + (dynamics?.motionIntensity ?? 0.5) * 0.55) * (dynamics?.pathCurvature ?? 1)
+    const controlX = midpointX + (plan.matchedControlX[index]! - midpointX) * pathStrength
+    const controlY = midpointY + (plan.matchedControlY[index]! - midpointY) * pathStrength
+    const outputCell = quadraticIndex(sourceCell, targetCell, controlX, controlY, source.width, source.height, localProgress)
     const sourceOffset = sourceCell * 4
     const targetOffset = targetCell * 4
     blendRawPixel(
       outputPixels,
+      collisionWeights,
       outputCell,
-      mixBytes(sourceFrame.pixels[sourceOffset]!, targetFrame.pixels[targetOffset]!, progress),
-      mixBytes(sourceFrame.pixels[sourceOffset + 1]!, targetFrame.pixels[targetOffset + 1]!, progress),
-      mixBytes(sourceFrame.pixels[sourceOffset + 2]!, targetFrame.pixels[targetOffset + 2]!, progress),
-      mixBytes(sourceFrame.pixels[sourceOffset + 3]!, targetFrame.pixels[targetOffset + 3]!, progress),
+      shiftedByte(motionColor(sourceFrame.pixels[sourceOffset]!, targetFrame.pixels[targetOffset]!, localProgress, dynamics?.colorInterpolation ?? 'rgb'), dynamics?.brightnessShift ?? 0, localProgress),
+      shiftedByte(motionColor(sourceFrame.pixels[sourceOffset + 1]!, targetFrame.pixels[targetOffset + 1]!, localProgress, dynamics?.colorInterpolation ?? 'rgb'), dynamics?.brightnessShift ?? 0, localProgress),
+      shiftedByte(motionColor(sourceFrame.pixels[sourceOffset + 2]!, targetFrame.pixels[targetOffset + 2]!, localProgress, dynamics?.colorInterpolation ?? 'rgb'), dynamics?.brightnessShift ?? 0, localProgress),
+      mixBytes(sourceFrame.pixels[sourceOffset + 3]!, targetFrame.pixels[targetOffset + 3]!, localProgress),
     )
     for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
-      setWeightedMask(outputMasks[name], outputCell, sourceFrame.masks[name][sourceCell], targetFrame.masks[name][targetCell], progress)
+      setWeightedMask(outputMasks[name], outputCell, sourceFrame.masks[name][sourceCell], targetFrame.masks[name][targetCell], localProgress)
     }
   }
 
-  for (const sourceCell of plan.deathSourceIndices) {
-    blendWeightedFramePixel(outputPixels, sourceCell, sourceFrame.pixels, sourceCell, 1 - progress)
+  for (let index = 0; index < plan.deathSourceIndices.length; index += 1) {
+    const sourceCell = plan.deathSourceIndices[index]!
+    const targetCell = plan.deathTargetIndices[index] ?? sourceCell
+    const localProgress = easeInOut(clamp01(progress * (1 + (dynamics?.dispersal ?? 0) * 0.12)))
+    const outputCell = interpolateIndex(sourceCell, targetCell, source.width, localProgress)
+    blendWeightedFramePixel(outputPixels, collisionWeights, outputCell, sourceFrame.pixels, sourceCell, 1 - localProgress)
     for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
-      outputMasks[name][sourceCell] = Math.max(
-        outputMasks[name][sourceCell],
-        Math.round(sourceFrame.masks[name][sourceCell] * (1 - progress)),
+      outputMasks[name][outputCell] = Math.max(
+        outputMasks[name][outputCell],
+        Math.round(sourceFrame.masks[name][sourceCell] * (1 - localProgress)),
       )
     }
   }
-  for (const targetCell of plan.birthTargetIndices) {
-    blendWeightedFramePixel(outputPixels, targetCell, targetFrame.pixels, targetCell, progress)
+  for (let index = 0; index < plan.birthTargetIndices.length; index += 1) {
+    const targetCell = plan.birthTargetIndices[index]!
+    const sourceCell = plan.birthSourceIndices[index] ?? targetCell
+    const localProgress = easeInOut(clamp01(progress * (0.92 + (dynamics?.reconstruction ?? 0) * 0.08)))
+    const outputCell = interpolateIndex(sourceCell, targetCell, source.width, localProgress)
+    blendWeightedFramePixel(outputPixels, collisionWeights, outputCell, targetFrame.pixels, targetCell, localProgress)
     for (const name of PIX_GRID_DECK_GENERATED_MASK_NAMES) {
-      outputMasks[name][targetCell] = Math.max(
-        outputMasks[name][targetCell],
-        Math.round(targetFrame.masks[name][targetCell] * progress),
+      outputMasks[name][outputCell] = Math.max(
+        outputMasks[name][outputCell],
+        Math.round(targetFrame.masks[name][targetCell] * localProgress),
       )
     }
   }
@@ -259,9 +351,16 @@ export function composePixGridDeckRuntimeFrame(
   } else if (source.transitionMode === 'hardCut') {
     copyFrame(scratch.pixels, scratch.masks, source.sourceFrame.pixels, source.sourceFrame.masks)
   } else if (source.transitionMode === 'pixelTransport') {
-    composePixelTransport(source, scratch.pixels, scratch.masks)
+    composePixelTransport(source, scratch.pixels, scratch.masks, scratch.collisionWeights)
   } else {
     composeCellTransition(source, scratch.pixels, scratch.masks)
+    // A spatial wipe between two sparse, disjoint silhouettes can otherwise
+    // select only transparent cells from both frames at an intermediate step.
+    // Preserve visual continuity with the deterministic crossfade grammar.
+    if (!hasVisiblePixel(scratch.pixels)
+      && (hasVisiblePixel(source.sourceFrame.pixels) || hasVisiblePixel(source.targetFrame.pixels))) {
+      composeCellTransition({ ...source, transitionMode: 'crossfade' }, scratch.pixels, scratch.masks)
+    }
   }
   return { width: source.width, height: source.height, pixels: scratch.pixels, masks: scratch.masks }
 }

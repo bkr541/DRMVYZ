@@ -1,9 +1,9 @@
 import type { PixGridDeckTransitionMode } from './PixGridDeckDomain'
 import type { PixGridProgramTransitionOverride } from './PixGridTypes'
 
-export const PIX_GRID_DECK_COMPILER_SCHEMA_VERSION = 1 as const
+export const PIX_GRID_DECK_COMPILER_SCHEMA_VERSION = 3 as const
 export const PIX_GRID_DECK_COMPILE_CONCURRENCY = 3
-export const PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION = 1 as const
+export const PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION = 3 as const
 
 export const PIX_GRID_DECK_GENERATED_MASK_NAMES = [
   'foreground',
@@ -20,6 +20,7 @@ export type PixGridDeckCompilePhase = 'queued' | 'decoding' | 'compiling' | 'rea
 export type PixGridDeckCompileErrorCode =
   | 'worker-unavailable'
   | 'worker-startup-failed'
+  | 'worker-timeout'
   | 'source-unavailable'
   | 'source-load-failed'
   | 'source-too-large'
@@ -87,6 +88,14 @@ export type PixGridDeckCellTransitionMode = Extract<
   'pixelDissolve' | 'crossfade' | 'rowWipe' | 'columnWipe' | 'checkerWipe' | 'radialReveal'
 >
 export type PixGridDeckConcreteTransitionMode = 'pixelTransport' | 'hardCut' | PixGridDeckCellTransitionMode
+export type PixGridDeckTransportStrategy =
+  | 'directMorph'
+  | 'clusteredMorph'
+  | 'directionalFlow'
+  | 'disperseReconstruct'
+  | 'implodeExpand'
+  | 'assemble'
+  | 'disperse'
 
 export interface PixGridDeckTransitionDiagnostics {
   sourceForegroundCount: number
@@ -100,6 +109,10 @@ export interface PixGridDeckTransitionDiagnostics {
   targetColorEntropy: number
   candidateComparisons: number
   maxCandidatesPerSource: number
+  strategy: PixGridDeckTransportStrategy | null
+  strategyReason: string | null
+  sourceRegionCount: number
+  targetRegionCount: number
 }
 
 /** Renderer-independent Stage 5 contract. Stage 6 consumes these buffers. */
@@ -119,6 +132,16 @@ export interface PixGridDeckTransitionPlan {
   matchedTargetIndices: Uint32Array
   deathSourceIndices: Uint32Array
   birthTargetIndices: Uint32Array
+  /** Compiler-owned quadratic path controls and deterministic activation order. */
+  matchedControlX: Int16Array
+  matchedControlY: Int16Array
+  matchedStagger: Uint8Array
+  matchedGroupIds: Uint16Array
+  /** Compiler-generated motion endpoints for unmatched deaths and births. */
+  deathTargetIndices: Uint32Array
+  birthSourceIndices: Uint32Array
+  strategy: PixGridDeckTransportStrategy | null
+  strategyReason: string | null
   diagnostics: PixGridDeckTransitionDiagnostics
   approximateBytes: number
 }
@@ -128,6 +151,9 @@ export interface PixGridDeckTransitionCompileSettings {
   sourceItemId: string
   targetItemId: string
   durationFraction: number
+  /** Mapping-affecting motion strategy; runtime-only modulation is intentionally excluded. */
+  preferredStrategy?: PixGridDeckTransportStrategy | 'automatic'
+  motionProfileSignature?: string
 }
 
 export interface PixGridDeckItemCompileStatus {
@@ -246,6 +272,14 @@ export interface PixGridDeckWorkerTransitionResultMessage {
   matchedTargetIndices: ArrayBuffer
   deathSourceIndices: ArrayBuffer
   birthTargetIndices: ArrayBuffer
+  matchedControlX: ArrayBuffer
+  matchedControlY: ArrayBuffer
+  matchedStagger: ArrayBuffer
+  matchedGroupIds: ArrayBuffer
+  deathTargetIndices: ArrayBuffer
+  birthSourceIndices: ArrayBuffer
+  strategy: PixGridDeckTransportStrategy | null
+  strategyReason: string | null
   diagnostics: PixGridDeckTransitionDiagnostics
 }
 

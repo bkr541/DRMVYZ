@@ -19,10 +19,12 @@ export type PixGridPresetId = typeof PIX_GRID_PRESET_IDS[number]
 
 export const PIX_GRID_AUTHORED_PRESET_CONFIGURATION_VERSION = 8 as const
 
-const SECTION_TYPES: ReactSectionType[] = ['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'outro']
+export const PIX_GRID_BUILT_IN_SECTION_TYPES: readonly ReactSectionType[] = [
+  'intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown',
+]
 
 function createScenes(prefix: string, intensity: number[], motion: number[], glow: number[]) {
-  return SECTION_TYPES.map((sectionType, index) => ({
+  return PIX_GRID_BUILT_IN_SECTION_TYPES.map((sectionType, index) => ({
     id: `${prefix}-${sectionType}`,
     sectionType,
     engineId: 'pixGrid' as const,
@@ -35,7 +37,7 @@ function createScenes(prefix: string, intensity: number[], motion: number[], glo
 }
 
 function createMappings(prefix: string): ReactSectionMapping[] {
-  return SECTION_TYPES.map(sectionType => ({ sectionType, sceneId: `${prefix}-${sectionType}` }))
+  return PIX_GRID_BUILT_IN_SECTION_TYPES.map(sectionType => ({ sectionType, sceneId: `${prefix}-${sectionType}` }))
 }
 
 /**
@@ -160,9 +162,11 @@ function sceneSettings(
     preDrop: { density: 0.3, motionMultiplier: 0.05, paletteOffset: 2 },
     drop: { density: 1, motionMultiplier: 1.25, paletteOffset: 0 },
     breakdown: { density: 0.4, motionMultiplier: 0.35, paletteOffset: 2 },
+    bridge: { density: 0.5, motionMultiplier: 0.5, paletteOffset: 1 },
     outro: { density: 0.22, motionMultiplier: 0.15, paletteOffset: 0 },
+    unknown: { density: 0.5, motionMultiplier: 0.5, paletteOffset: 0 },
   }
-  return Object.fromEntries(SECTION_TYPES.map(type => [
+  return Object.fromEntries(PIX_GRID_BUILT_IN_SECTION_TYPES.map(type => [
     `${prefix}-${type}`,
     { ...base[type]!, ...custom[type] },
   ]))
@@ -509,9 +513,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.42, 0.66, 0.82, 0.36, 1, 0.5, 0.3],
-      motion: [0.12, 0.32, 0.58, 0.02, 0.74, 0.16, 0.04],
-      glow: [0.3, 0.5, 0.64, 0.24, 0.82, 0.4, 0.22],
+      intensity: [0.42, 0.66, 0.82, 0.36, 1, 0.5, 0.58, 0.3, 0.5],
+      motion: [0.12, 0.32, 0.58, 0.02, 0.74, 0.16, 0.28, 0.04, 0.2],
+      glow: [0.3, 0.5, 0.64, 0.24, 0.82, 0.4, 0.46, 0.22, 0.4],
     },
   ),
   preset(
@@ -577,9 +581,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.4, 0.66, 0.84, 0.34, 1, 0.48, 0.28],
-      motion: [0.14, 0.38, 0.62, 0.02, 0.76, 0.14, 0.04],
-      glow: [0.3, 0.5, 0.66, 0.22, 0.8, 0.36, 0.2],
+      intensity: [0.4, 0.66, 0.84, 0.34, 1, 0.48, 0.6, 0.28, 0.5],
+      motion: [0.14, 0.38, 0.62, 0.02, 0.76, 0.14, 0.32, 0.04, 0.2],
+      glow: [0.3, 0.5, 0.66, 0.22, 0.8, 0.36, 0.48, 0.2, 0.38],
     },
   ),
   preset(
@@ -646,9 +650,9 @@ export const PIX_GRID_PRESETS: ReactPreset[] = [
       }),
     },
     {
-      intensity: [0.38, 0.62, 0.8, 0.32, 0.98, 0.46, 0.26],
-      motion: [0.14, 0.4, 0.64, 0.02, 0.78, 0.16, 0.04],
-      glow: [0.26, 0.42, 0.58, 0.2, 0.72, 0.32, 0.18],
+      intensity: [0.38, 0.62, 0.8, 0.32, 0.98, 0.46, 0.56, 0.26, 0.48],
+      motion: [0.14, 0.4, 0.64, 0.02, 0.78, 0.16, 0.34, 0.04, 0.22],
+      glow: [0.26, 0.42, 0.58, 0.2, 0.72, 0.32, 0.42, 0.18, 0.36],
     },
   ),
 

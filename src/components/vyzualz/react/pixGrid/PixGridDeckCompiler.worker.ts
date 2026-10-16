@@ -149,6 +149,12 @@ function compileTransition(message: PixGridDeckWorkerTransitionRequest): void {
   const matchedTargetIndices = plan.matchedTargetIndices.buffer as ArrayBuffer
   const deathSourceIndices = plan.deathSourceIndices.buffer as ArrayBuffer
   const birthTargetIndices = plan.birthTargetIndices.buffer as ArrayBuffer
+  const matchedControlX = plan.matchedControlX.buffer as ArrayBuffer
+  const matchedControlY = plan.matchedControlY.buffer as ArrayBuffer
+  const matchedStagger = plan.matchedStagger.buffer as ArrayBuffer
+  const matchedGroupIds = plan.matchedGroupIds.buffer as ArrayBuffer
+  const deathTargetIndices = plan.deathTargetIndices.buffer as ArrayBuffer
+  const birthSourceIndices = plan.birthSourceIndices.buffer as ArrayBuffer
   workerScope.postMessage({
     type: 'transition-result',
     jobId,
@@ -165,8 +171,19 @@ function compileTransition(message: PixGridDeckWorkerTransitionRequest): void {
     matchedTargetIndices,
     deathSourceIndices,
     birthTargetIndices,
+    matchedControlX,
+    matchedControlY,
+    matchedStagger,
+    matchedGroupIds,
+    deathTargetIndices,
+    birthSourceIndices,
+    strategy: plan.strategy,
+    strategyReason: plan.strategyReason,
     diagnostics: plan.diagnostics,
-  }, [matchedSourceIndices, matchedTargetIndices, deathSourceIndices, birthTargetIndices])
+  }, [
+    matchedSourceIndices, matchedTargetIndices, deathSourceIndices, birthTargetIndices,
+    matchedControlX, matchedControlY, matchedStagger, matchedGroupIds, deathTargetIndices, birthSourceIndices,
+  ])
 }
 
 workerScope.onmessage = event => {

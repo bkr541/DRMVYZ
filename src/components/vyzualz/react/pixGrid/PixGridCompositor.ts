@@ -10,6 +10,7 @@ import type {
   PixGridSceneSettings,
   PixGridState,
 } from './PixGridTypes'
+import { MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES } from './PixGridLimits'
 import { normalizePixGridState } from './PixGridValidation'
 import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
@@ -217,6 +218,32 @@ function transparentSample(reference: PixGridAssetSample): PixGridAssetSample {
 
 interface PixGridColumnExtent { minRow: number; maxRow: number }
 const columnExtentCache = new Map<string, readonly (PixGridColumnExtent | null)[]>()
+let columnExtentCacheHits = 0
+let columnExtentCacheMisses = 0
+let columnExtentCacheEvictions = 0
+
+export function getPixGridColumnExtentCacheDiagnostics(): Readonly<{
+  entries: number
+  maximumEntries: number
+  hits: number
+  misses: number
+  evictions: number
+}> {
+  return {
+    entries: columnExtentCache.size,
+    maximumEntries: MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES,
+    hits: columnExtentCacheHits,
+    misses: columnExtentCacheMisses,
+    evictions: columnExtentCacheEvictions,
+  }
+}
+
+export function clearPixGridColumnExtentCache(): void {
+  columnExtentCache.clear()
+  columnExtentCacheHits = 0
+  columnExtentCacheMisses = 0
+  columnExtentCacheEvictions = 0
+}
 
 function columnExtentsFor(
   layer: PixGridLayer,
@@ -227,7 +254,13 @@ function columnExtentsFor(
     % Math.max(1, asset.frameCount ?? 1)
   const key = `${layer.assetId}:${layer.maskAssetId ?? 'none'}:${layer.seed}:${normalizedFrame}`
   const cached = columnExtentCache.get(key)
-  if (cached) return cached
+  if (cached) {
+    columnExtentCacheHits += 1
+    columnExtentCache.delete(key)
+    columnExtentCache.set(key, cached)
+    return cached
+  }
+  columnExtentCacheMisses += 1
 
   const extents: (PixGridColumnExtent | null)[] = []
   for (let column = 0; column < asset.nativeSize.width; column += 1) {
@@ -243,6 +276,12 @@ function columnExtentsFor(
     extents.push(maxRow >= minRow ? { minRow, maxRow } : null)
   }
   columnExtentCache.set(key, extents)
+  while (columnExtentCache.size > MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES) {
+    const oldest = columnExtentCache.keys().next().value as string | undefined
+    if (!oldest) break
+    columnExtentCache.delete(oldest)
+    columnExtentCacheEvictions += 1
+  }
   return extents
 }
 

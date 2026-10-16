@@ -14,6 +14,7 @@ import { createPixGridDeckTransitionCacheKey } from './PixGridDeckTransitionPlan
 import type { PixGridSequencePlan } from './PixGridSequenceClock'
 import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
 import type { PixGridGroup, PixGridState } from './PixGridTypes'
+import type { PixGridMotionDynamics } from './PixGridMotionProfiles'
 
 export type PixGridDeckRuntimeStatus =
   | 'ready'
@@ -43,6 +44,9 @@ export interface PixGridDeckRuntimeFrameSource {
   frameEpoch: number
   identity: string
   fallbackReason: string | null
+  motionProfileId?: string | null
+  /** Transient Shared Audio Intelligence modulation; never persisted or compiled. */
+  transitionDynamics?: Readonly<PixGridMotionDynamics>
 }
 
 export interface PixGridDeckRuntimeResolution {
@@ -79,24 +83,12 @@ function validFrame(
     && PIX_GRID_DECK_GENERATED_MASK_NAMES.every(name => frame.masks[name].length === cellCount)
 }
 
-const validatedTransitionPlans = new WeakMap<PixGridDeckTransitionPlan, string>()
-
 function validTransitionPlan(
   plan: PixGridDeckTransitionPlan,
   source: PixGridPreparedFrame,
   target: PixGridPreparedFrame,
   sequencePlan: PixGridSequencePlan,
 ): boolean {
-  const validationIdentity = [
-    source.cacheKey,
-    target.cacheKey,
-    `${source.width}x${source.height}`,
-    sequencePlan.sourceItemId,
-    sequencePlan.targetItemId,
-    sequencePlan.transitionWindow.mode,
-    sequencePlan.transitionWindow.durationFraction,
-  ].join(':')
-  if (validatedTransitionPlans.get(plan) === validationIdentity) return true
   if (
     plan.schemaVersion !== PIX_GRID_DECK_COMPILER_SCHEMA_VERSION
     || plan.algorithmVersion !== PIX_GRID_DECK_TRANSITION_ALGORITHM_VERSION
@@ -104,40 +96,104 @@ function validTransitionPlan(
     || plan.height !== source.height
     || plan.sourceFrameCacheKey !== source.cacheKey
     || plan.targetFrameCacheKey !== target.cacheKey
-    || plan.requestedMode !== sequencePlan.transitionWindow.mode
-    || (sequencePlan.transitionWindow.mode !== 'auto' && plan.mode !== sequencePlan.transitionWindow.mode)
+    || plan.requestedMode !== sequencePlan.transitionWindow.requestedMode
+    || (sequencePlan.transitionWindow.resolvedMode != null && plan.mode !== sequencePlan.transitionWindow.resolvedMode)
+    || (plan.requestedMode !== 'auto'
+      && plan.mode !== plan.requestedMode
+      && !(plan.requestedMode === 'pixelTransport' && plan.fallbackReason != null))
     || plan.cacheKey !== createPixGridDeckTransitionCacheKey({
       sourceFrameCacheKey: source.cacheKey,
       targetFrameCacheKey: target.cacheKey,
       settings: {
-        requestedMode: plan.requestedMode,
+        requestedMode: sequencePlan.transitionWindow.requestedMode,
         sourceItemId: sequencePlan.sourceItemId,
         targetItemId: sequencePlan.targetItemId,
         durationFraction: sequencePlan.transitionWindow.durationFraction,
       },
     })
   ) return false
-  if (plan.mode !== 'pixelTransport') {
-    validatedTransitionPlans.set(plan, validationIdentity)
-    return true
-  }
+  if (plan.mode !== 'pixelTransport') return true
   const cellCount = plan.width * plan.height
   if (plan.matchedSourceIndices.length !== plan.matchedTargetIndices.length) return false
+  if (plan.matchedControlX.length !== plan.matchedSourceIndices.length
+    || plan.matchedControlY.length !== plan.matchedSourceIndices.length
+    || plan.matchedStagger.length !== plan.matchedSourceIndices.length
+    || plan.matchedGroupIds.length !== plan.matchedSourceIndices.length
+    || plan.deathTargetIndices.length !== plan.deathSourceIndices.length
+    || plan.birthSourceIndices.length !== plan.birthTargetIndices.length
+    || plan.strategy == null) return false
   const validIndex = (index: number) => Number.isInteger(index) && index >= 0 && index < cellCount
-  for (const indices of [plan.matchedSourceIndices, plan.matchedTargetIndices, plan.deathSourceIndices, plan.birthTargetIndices]) {
-    for (let index = 0; index < indices.length; index += 1) {
-      if (!validIndex(indices[index]!)) return false
+  const validPartition = (matched: Uint32Array, unmatched: Uint32Array, mask: Uint8Array, expected: number) => {
+    let foregroundCount = 0
+    for (const value of mask) if (value > 0) foregroundCount += 1
+    if (expected !== foregroundCount || matched.length + unmatched.length !== expected) return false
+    const seen = new Uint8Array(cellCount)
+    for (const indices of [matched, unmatched]) for (const index of indices) {
+      if (!validIndex(index) || seen[index] || mask[index] === 0) return false
+      seen[index] = 1
     }
+    return true
   }
-  validatedTransitionPlans.set(plan, validationIdentity)
+  if (!validPartition(
+    plan.matchedSourceIndices,
+    plan.deathSourceIndices,
+    source.masks.foreground,
+    plan.diagnostics.sourceForegroundCount,
+  )) return false
+  if (!validPartition(
+    plan.matchedTargetIndices,
+    plan.birthTargetIndices,
+    target.masks.foreground,
+    plan.diagnostics.targetForegroundCount,
+  )) return false
+  for (const indices of [plan.deathTargetIndices, plan.birthSourceIndices]) {
+    for (const index of indices) if (!validIndex(index)) return false
+  }
   return true
 }
 
 function fallbackTransitionMode(plan: PixGridSequencePlan): PixGridDeckConcreteTransitionMode {
-  const requested = plan.transitionWindow.mode
-  if (requested === 'pixelTransport') return 'pixelDissolve'
-  if (requested === 'auto') return 'hardCut'
+  const requested = plan.transitionWindow.requestedMode
+  // Preserve continuity while compilation is pending or a stale plan is rejected.
+  // Explicit cuts remain cuts; compiler-free concrete cell modes are safe to run.
+  if (requested === 'pixelTransport' || requested === 'auto') return 'crossfade'
   return requested
+}
+
+/**
+ * Locks plan availability at the first active frame of a transition boundary.
+ * A plan that finishes compiling mid-window is picked up at the next boundary,
+ * avoiding an abrupt crossfade-to-transport jump halfway through an animation.
+ */
+export class PixGridDeckTransitionPlanLatch {
+  private boundaryIdentity: string | null = null
+  private locked = false
+  private plan: PixGridDeckTransitionPlan | null = null
+
+  resolve(input: {
+    active: boolean
+    boundaryIdentity: string | null
+    plan: PixGridDeckTransitionPlan | null | undefined
+  }): PixGridDeckTransitionPlan | null {
+    if (!input.active) {
+      this.boundaryIdentity = null
+      this.locked = false
+      this.plan = null
+      return input.plan ?? null
+    }
+    if (!this.locked || this.boundaryIdentity !== input.boundaryIdentity) {
+      this.boundaryIdentity = input.boundaryIdentity
+      this.locked = true
+      this.plan = input.plan ?? null
+    }
+    return this.plan
+  }
+
+  reset(): void {
+    this.boundaryIdentity = null
+    this.locked = false
+    this.plan = null
+  }
 }
 
 export function resolvePixGridDeckRuntimeFrameSource(input: {
@@ -145,6 +201,7 @@ export function resolvePixGridDeckRuntimeFrameSource(input: {
   preparedFrameSet: PixGridPreparedFrameSet | null | undefined
   sequencePlan: PixGridSequencePlan | null | undefined
   transitionPlan: PixGridDeckTransitionPlan | null | undefined
+  transitionPlanState?: 'pending' | 'failed'
   width: number
   height: number
 }): PixGridDeckRuntimeResolution {
@@ -189,7 +246,9 @@ export function resolvePixGridDeckRuntimeFrameSource(input: {
   const fallbackReason = transitionNeedsPairPlan && !transitionPlan
     ? requestedPlan
       ? 'invalid-transition-plan'
-      : 'missing-transition-plan'
+      : input.transitionPlanState === 'failed'
+        ? 'transition-compilation-failed'
+        : 'missing-transition-plan'
     : null
   const transitionMode = transitionPlan?.mode ?? fallbackTransitionMode(sequencePlan)
   const transitionProgress = sourceFrame.cacheKey === targetFrame.cacheKey
@@ -200,6 +259,8 @@ export function resolvePixGridDeckRuntimeFrameSource(input: {
     status,
     diagnostic: fallbackReason === 'invalid-transition-plan'
       ? 'The precompiled Deck transition plan was stale or invalid; a deterministic fallback is active.'
+      : fallbackReason === 'transition-compilation-failed'
+        ? 'The Deck transition failed to compile; a continuity-preserving fallback is active until a retry succeeds.'
       : fallbackReason === 'missing-transition-plan'
         ? 'The Deck transition plan is not ready; a deterministic fallback is active.'
         : null,

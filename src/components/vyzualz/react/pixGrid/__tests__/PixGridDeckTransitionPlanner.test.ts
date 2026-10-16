@@ -111,12 +111,18 @@ describe('PixGrid Deck Stage 5 transition planner', () => {
       { sourceItemId: 'item-a', targetItemId: 'item-b', mode: 'pixelTransport', durationFraction: 0.5 },
     ])
     expect(resolvePixGridDeckTransitionPairPolicy(normalized.transitionPolicy, 'item-a', 'item-b'))
-      .toEqual({ mode: 'pixelTransport', durationFraction: 0.5, overridden: true })
+      .toEqual({
+        mode: 'pixelTransport', durationFraction: 0.5, overridden: true,
+        anchorMode: 'onset', arrivalAnchor: 'dropImpact',
+      })
     expect(resolvePixGridDeckTransitionPairPolicy(normalized.transitionPolicy, 'item-b', 'item-a'))
-      .toEqual({ mode: 'crossfade', durationFraction: 0.25, overridden: false })
+      .toEqual({
+        mode: 'crossfade', durationFraction: 0.25, overridden: false,
+        anchorMode: 'onset', arrivalAnchor: 'dropImpact',
+      })
   })
 
-  it('selects transport for sparse graphics and avoids it for dense photographs', () => {
+  it('selects bounded spatial transport for sparse graphics and dense imagery', () => {
     const source = sparseA()
     const target = sparseB()
     const sparseSelection = selectAutomaticPixGridDeckTransition({
@@ -133,7 +139,11 @@ describe('PixGrid Deck Stage 5 transition planner', () => {
       id: 'dense-b', width: 32, height: 18, lit: () => true,
       color: (x, y) => [(x * 29 + y * 83) % 256, (x * 101 + y * 7) % 256, (x * 11 + y * 59) % 256, 255],
     })
-    expect(compile(denseA, denseB).mode).not.toBe('pixelTransport')
+    const densePlan = compile(denseA, denseB)
+    expect(densePlan.mode).toBe('pixelTransport')
+    expect(densePlan.strategy).toBe('clusteredMorph')
+    expect(densePlan.diagnostics.candidateComparisons)
+      .toBeLessThanOrEqual(densePlan.diagnostics.sourceForegroundCount * PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE)
   })
 
   it('produces a valid normalized plan for all automatic and explicit modes', () => {
@@ -169,6 +179,8 @@ describe('PixGrid Deck Stage 5 transition planner', () => {
     expect([...first.matchedTargetIndices]).toEqual([...second.matchedTargetIndices])
     expect([...first.deathSourceIndices]).toEqual([...second.deathSourceIndices])
     expect([...first.birthTargetIndices]).toEqual([...second.birthTargetIndices])
+    expect([...first.matchedControlX]).toEqual([...second.matchedControlX])
+    expect([...first.matchedGroupIds]).toEqual([...second.matchedGroupIds])
     expect(new Set(first.matchedTargetIndices).size).toBe(first.matchedTargetIndices.length)
     expect(first.diagnostics.birthCount).toBeGreaterThan(0)
     expect(first.diagnostics.candidateComparisons)
@@ -201,12 +213,38 @@ describe('PixGrid Deck Stage 5 transition planner', () => {
 
     const empty = preparedFrame({ id: 'empty', width: 32, height: 18, lit: () => false })
     expect(compile(empty, empty).mode).toBe('hardCut')
-    expect(compile(empty, source).mode).toBe('crossfade')
+    const assembly = compile(empty, source)
+    expect(assembly).toMatchObject({ mode: 'pixelTransport', strategy: 'assemble' })
+    expect(assembly.diagnostics.birthCount).toBe(assembly.diagnostics.targetForegroundCount)
 
     const full = preparedFrame({ id: 'full', width: 32, height: 18, lit: () => true })
     const forcedMorph = compile(full, source, 'pixelTransport')
-    expect(forcedMorph.mode).not.toBe('pixelTransport')
-    expect(forcedMorph.fallbackReason).toBeTruthy()
+    expect(forcedMorph.mode).toBe('pixelTransport')
+    expect(forcedMorph.strategy).toBeTruthy()
+    expect(forcedMorph.fallbackReason).toBeNull()
+  })
+
+  it('uses structural regions and coherent groups for disconnected unequal-count shapes', () => {
+    const source = preparedFrame({
+      id: 'two-regions', width: 32, height: 18,
+      lit: (x, y) => (x >= 2 && x <= 6 && y >= 3 && y <= 7)
+        || (x >= 22 && x <= 27 && y >= 10 && y <= 14),
+      color: (x) => x < 16 ? [0, 217, 255, 255] : [255, 62, 209, 255],
+    })
+    const target = preparedFrame({
+      id: 'three-regions', width: 32, height: 18,
+      lit: (x, y) => (x >= 4 && x <= 9 && y >= 9 && y <= 14)
+        || (x >= 18 && x <= 21 && y >= 2 && y <= 5)
+        || (x >= 25 && x <= 29 && y >= 4 && y <= 8),
+      color: (x) => x < 16 ? [0, 217, 255, 255] : [255, 62, 209, 255],
+    })
+    const plan = compile(source, target)
+    expect(plan).toMatchObject({ mode: 'pixelTransport', strategy: 'disperseReconstruct' })
+    expect(plan.diagnostics).toMatchObject({ sourceRegionCount: 2, targetRegionCount: 3 })
+    expect(plan.matchedControlX).toHaveLength(plan.matchedSourceIndices.length)
+    expect(plan.matchedControlY).toHaveLength(plan.matchedSourceIndices.length)
+    expect(plan.matchedStagger).toHaveLength(plan.matchedSourceIndices.length)
+    expect(new Set(plan.matchedGroupIds).size).toBeGreaterThan(1)
   })
 
   it('invalidates only cached plans involving a changed frame', () => {

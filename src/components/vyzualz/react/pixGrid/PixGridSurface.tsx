@@ -68,7 +68,11 @@ import { PixGridSelectedScenePreviewClock } from './PixGridScenePreview'
 import type { PixGridDeckDefinition } from './PixGridDeckDomain'
 import {
   clearPixGridDeckRuntimeResolution,
+  getPixGridDeckTransitionStatus,
+  getPixGridDeckCompilerDiagnostics,
+  getPixGridDeckTransitionDiagnostics,
   getPixGridDeckTransitionPlan,
+  prioritizePixGridDeckTransitionPairs,
   getPixGridPreparedFrameSet,
   setPixGridDeckRuntimeResolution,
   usePixGridDeckCompilerStore,
@@ -76,12 +80,16 @@ import {
 import type { PixGridSequencePlan } from './PixGridSequenceClock'
 import {
   createPixGridDeckGeneratedGroups,
+  PixGridDeckTransitionPlanLatch,
   resolvePixGridDeckRuntimeFrameSource,
   type PixGridDeckRuntimeFrameSource,
   type PixGridDeckRuntimeStatus,
 } from './PixGridDeckRuntime'
 import { createPixGridDeckCompositorScratch } from './PixGridDeckCompositor'
 import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
+import { resolvePixGridMotionDynamics, resolvePixGridMotionProfile } from './PixGridMotionProfiles'
+import { getPixGridRegisteredSequenceDeckByPresetId } from './PixGridPresetRegistry'
+import { clearPixGridDevelopmentDiagnostics, publishPixGridDevelopmentDiagnostics } from './PixGridDevelopmentDiagnostics'
 
 function activeDeckSourceId(state: PixGridState, sceneId?: string | null): string | null {
   const scene = state.scenes.find(candidate => candidate.id === (sceneId ?? state.selectedSceneId))
@@ -160,7 +168,27 @@ function normalizedControl(value: number): number {
 function resolveSectionScene(preset: ReactPreset, sections: readonly ReactTrackSection[], audioTime: number): string | null {
   const section = sections.find((candidate) => audioTime >= candidate.startSec && audioTime < candidate.endSec)
   if (!section) return null
-  return preset.sectionMappings.find((mapping) => mapping.sectionType === section.type)?.sceneId ?? null
+  return preset.sectionMappings.find((mapping) => mapping.sectionType === section.type)?.sceneId
+    ?? preset.sectionMappings.find((mapping) => mapping.sectionType === 'unknown')?.sceneId
+    ?? null
+}
+
+export function resolvePixGridPreparationSceneIds(
+  preset: ReactPreset,
+  state: PixGridState,
+  sections: readonly ReactTrackSection[],
+  audioTime: number,
+): readonly string[] {
+  if (state.editor.scenePreviewMode === 'selectedScene') return state.selectedSceneId ? [state.selectedSceneId] : []
+  const currentIndex = sections.findIndex(section => audioTime >= section.startSec && audioTime < section.endSec)
+  const candidates = currentIndex >= 0 ? sections.slice(currentIndex, currentIndex + 2) : []
+  const ids = candidates.flatMap(section => {
+    const mapped = preset.sectionMappings.find(mapping => mapping.sectionType === section.type)?.sceneId
+      ?? preset.sectionMappings.find(mapping => mapping.sectionType === 'unknown')?.sceneId
+    return mapped ? [mapped] : []
+  })
+  if (ids.length === 0 && state.selectedSceneId) ids.push(state.selectedSceneId)
+  return [...new Set(ids)]
 }
 
 const PREVIEW_EVENT_FLAGS: Partial<Record<PixGridDiscreteAudioSource, keyof PixGridAudioFrame>> = {
@@ -318,6 +346,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
   const [runtimeQuality, setRuntimeQuality] = useState<PixGridQualityTier>(initialProfile.logicalQuality)
   const runtimeDimensions = resolvePixGridMatrixDimensions(runtimeQuality)
   const deckRuntimeResolutionOwner = useRef<object>({})
+  const deckTransitionPlanLatchRef = useRef(new PixGridDeckTransitionPlanLatch())
   useEffect(() => {
     setPixGridDeckRuntimeResolution(deckRuntimeResolutionOwner.current, runtimeDimensions.width, runtimeDimensions.height)
   }, [runtimeDimensions.height, runtimeDimensions.width])
@@ -349,14 +378,23 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       transitions?.ready ? 1 : 0,
     ].join(':')
   })
-  const activeScene =
-    props.pixGridState.scenes.find((scene) => scene.id === props.pixGridState.selectedSceneId) ?? props.pixGridState.scenes[0]
+  const preparationSceneIds = props.activePreset
+    ? resolvePixGridPreparationSceneIds(
+        props.activePreset,
+        props.pixGridState,
+        props.trackSections ?? [],
+        props.audioTimeSec ?? 0,
+      )
+    : []
+  const preparationSceneKey = preparationSceneIds.join('|')
   const mediaIds = useMemo(() => {
-    const activeLayerIds = new Set(activeScene?.layerIds ?? [])
+    const activeLayerIds = new Set(props.pixGridState.scenes
+      .filter(scene => preparationSceneIds.includes(scene.id))
+      .flatMap(scene => scene.layerIds))
     const ids = props.pixGridState.layers.flatMap((layer) => (activeLayerIds.has(layer.id) && layer.mediaId ? [layer.mediaId] : []))
     if (props.pixGridState.conversion.selectedMediaId) ids.push(props.pixGridState.conversion.selectedMediaId)
     return [...new Set(ids)]
-  }, [activeScene?.layerIds, props.pixGridState.conversion.selectedMediaId, props.pixGridState.layers])
+  }, [preparationSceneKey, props.pixGridState.conversion.selectedMediaId, props.pixGridState.layers, props.pixGridState.scenes])
   const mediaKey = mediaIds.join('|')
   const mediaItems = useMediaStore((state) => state.items)
   const ensureMediaSigned = useMediaStore((state) => state.ensureMediaSigned)
@@ -523,6 +561,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     let latestVisibleFrameCellCount = 0
     let latestRenderedPresentationState: PixGridState | null = null
     let latestRenderedPresentationFrame: Pick<PixGridBaselineRenderFrame, 'intensity' | 'glow'> | null = null
+    let frameRenderStartedAt = 0
     let lastRouteDiagnosticsAt = Number.NEGATIVE_INFINITY
     let mounted = true
     let gpuRetryAttempts = 0
@@ -909,6 +948,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       const authoredDeckId = activeDeckSourceId(runtimeState, selectedSceneId)
       const activeDeck = current.pixGridDecks?.find(deck => deck.id === authoredDeckId)
         ?? current.pixGridDecks?.find(deck => deck.generatedPresetId === activePreset.id)
+        ?? getPixGridRegisteredSequenceDeckByPresetId(activePreset.id)
         ?? null
       const preparedFrameSet = activeDeck ? getPixGridPreparedFrameSet(activeDeck.id) : null
       const surfacePerformanceFrame = resolvePixGridSurfacePerformanceFrame({
@@ -935,8 +975,25 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       } = surfacePerformanceFrame
       const state = transportState === 'stopped' ? mappedState : resolvedRuntime.state
       const expectedDeckId = activeDeckSourceId(state)
-      const deckTransitionPlan = activeDeck && deckSequencePlan
+      const availableDeckTransitionPlan = activeDeck && deckSequencePlan
         ? getPixGridDeckTransitionPlan(activeDeck.id, deckSequencePlan.sourceItemId, deckSequencePlan.targetItemId)
+        : null
+      if (activeDeck && deckSequencePlan) {
+        prioritizePixGridDeckTransitionPairs(activeDeck.id, [
+          [deckSequencePlan.sourceItemId, deckSequencePlan.targetItemId],
+          [deckSequencePlan.targetItemId, deckSequencePlan.nextItemId],
+        ])
+      }
+      const deckTransitionPlan = deckTransitionPlanLatchRef.current.resolve({
+        active: Boolean(deckSequencePlan?.transitionWindow.active),
+        boundaryIdentity: deckSequencePlan?.transitionWindow.boundaryIdentity ?? null,
+        plan: availableDeckTransitionPlan,
+      })
+      const deckTransitionPairStatus = activeDeck && deckSequencePlan
+        ? getPixGridDeckTransitionStatus(activeDeck.id)?.pairs.find(pair => (
+            pair.sourceItemId === deckSequencePlan.sourceItemId
+            && pair.targetItemId === deckSequencePlan.targetItemId
+          )) ?? null
         : null
       const deckRuntimeResolution = activeDeck || expectedDeckId
         ? resolvePixGridDeckRuntimeFrameSource({
@@ -944,9 +1001,30 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
             preparedFrameSet,
             sequencePlan: deckSequencePlan,
             transitionPlan: deckTransitionPlan,
+            transitionPlanState: deckTransitionPairStatus?.phase === 'failed' ? 'failed' : 'pending',
             width: state.matrixWidth,
             height: state.matrixHeight,
           })
+        : null
+      const resolvedMotionProfile = activeDeck && deckSequencePlan
+        ? resolvePixGridMotionProfile({
+            configuration: activeDeck.configuration,
+            sceneId: selectedSceneId,
+            sourceItemId: deckSequencePlan.sourceItemId,
+            targetItemId: deckSequencePlan.targetItemId,
+          })
+        : null
+      const deckFrameSource = deckRuntimeResolution?.source && resolvedMotionProfile
+        ? {
+            ...deckRuntimeResolution.source,
+            motionProfileId: resolvedMotionProfile.profile.id,
+            transitionDynamics: resolvePixGridMotionDynamics({
+              profile: resolvedMotionProfile.profile,
+              audioFrame: previewAudioFrame,
+              choreography: resolvedRuntime.choreography,
+              transitionActive: deckRuntimeResolution.source.transitionActive,
+            }),
+          }
         : null
       latestRuntimeDiagnostics = transportState === 'stopped' && !reactivityActive
         ? {
@@ -1035,7 +1113,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         groupEffects: transportState === 'stopped' ? [] : resolvedRuntime.groupEffects,
         audioFrame: routedAudioFrame,
         deckSequencePlan,
-        deckFrameSource: deckRuntimeResolution?.source ?? null,
+        deckFrameSource,
         deckRuntimeStatus: deckRuntimeResolution?.status ?? null,
         deckRuntimeDiagnostic: deckRuntimeResolution?.diagnostic ?? null,
         blackout: !(current.analysisActive ?? current.isPlaying) && !current.isPaused && state.stoppedBehavior === 'blackout',
@@ -1122,8 +1200,43 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       logicalFrame: PixGridLogicalFrame | null,
       rendererPath: PixGridRendererDiagnostics['path'],
     ) => {
+      if (!logicalFrame) return
+      const compilerDiagnostics = getPixGridDeckCompilerDiagnostics()
+      const transitionDiagnostics = getPixGridDeckTransitionDiagnostics()
+      const preparedDiagnostics = pixGridPreparedAssetCache.diagnostics
+      publishPixGridDevelopmentDiagnostics({
+        activePresetId: input.preset.id,
+        activeSceneId: input.state.selectedSceneId,
+        activeImageItemId: input.deckSequencePlan?.sourceItemId ?? null,
+        sourceImageItemId: input.deckSequencePlan?.sourceItemId ?? null,
+        destinationImageItemId: input.deckSequencePlan?.targetItemId ?? null,
+        requestedTransitionMode: input.deckSequencePlan?.transitionWindow.requestedMode ?? null,
+        resolvedTransitionStrategy: input.deckFrameSource?.transitionPlan?.strategy ?? input.deckFrameSource?.transitionMode ?? null,
+        activeMotionProfileId: input.deckFrameSource?.motionProfileId ?? null,
+        transitionProgress: input.deckFrameSource?.transitionProgress ?? 0,
+        scheduledStartBar: input.deckSequencePlan?.transitionWindow.startBar ?? null,
+        scheduledArrivalBar: input.deckSequencePlan?.transitionWindow.arrivalBar ?? null,
+        compilationStatus: input.deckRuntimeStatus,
+        preparedFrameCount: compilerDiagnostics.cacheEntryCount,
+        activeWorkerJobs: compilerDiagnostics.runningJobCount + transitionDiagnostics.runningJobCount,
+        transitionCacheEntries: transitionDiagnostics.cacheEntryCount,
+        transitionCacheBytes: transitionDiagnostics.cacheBytes,
+        cacheHits: preparedDiagnostics.hits,
+        cacheMisses: preparedDiagnostics.misses,
+        transitionFallbackReason: input.deckFrameSource?.fallbackReason ?? input.deckRuntimeDiagnostic,
+        audioSignals: {
+          kick: input.audioFrame.kickHit,
+          snare: input.audioFrame.snareHit,
+          bass: input.audioFrame.bass,
+          energy: input.audioFrame.energy,
+          buildProgress: input.audioFrame.buildProgress,
+          dropImpact: input.audioFrame.dropImpactHit,
+        },
+        frameRenderingCostMs: frameRenderStartedAt > 0 ? Math.max(0, performance.now() - frameRenderStartedAt) : 0,
+        updatedAtMs: performance.now(),
+      })
       const listener = propsRef.current.onRuntimeFrame
-      if (!listener || !logicalFrame) return
+      if (!listener) return
       const activeScene = input.state.scenes.find(scene => scene.id === input.state.selectedSceneId) ?? null
       const sceneSettings = input.state.selectedSceneId
         ? input.preset.pixGridSettings?.sceneSettings?.[input.state.selectedSceneId]
@@ -1230,6 +1343,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
 
     const render = (now: number) => {
       animationFrame = 0
+      frameRenderStartedAt = performance.now()
       if (lifecycle.disposed || !ownership.isCurrent()) return
       const force = forcedRender
       forcedRender = false
@@ -1402,6 +1516,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
       gpuRenderer?.dispose()
       gpuRenderer = null
       disposePixGridBaselineRenderer()
+      clearPixGridDevelopmentDiagnostics()
       propsRef.current.onCanvasReady?.(null)
       fpsReporter.unavailable()
       propsRef.current.onDiagnostics?.({ ...lastDiagnostics, fps: 0 })

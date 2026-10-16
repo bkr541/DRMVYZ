@@ -9,6 +9,7 @@ import {
 import { hasPixGridBuiltInAsset } from './PixGridArtwork'
 import { normalizePixGridLayerFrameSource } from './PixGridFrameSources'
 import { PIX_GRID_DEFAULT_PROGRAM_BY_PRESET_ID } from './PixGridPerformancePrograms'
+import { PIX_GRID_REGISTERED_PERFORMANCE_PROGRAM_IDS } from './PixGridPresetRegistry'
 import { PIX_GRID_AUDIO_INTELLIGENCE_SOURCES, getPixGridAudioIntelligenceSource } from './PixGridAudioIntelligenceRegistry'
 import { PIX_GRID_ASSIGNMENT_TARGET_BY_ID, PIX_GRID_ASSIGNMENT_TARGETS } from './PixGridAssignmentCompiler'
 import {
@@ -188,11 +189,9 @@ const REACTION_TARGET_SCOPES = new Set<PixGridReactionTargetScope>(['output', 's
 const PHRASE_SEGMENTS = new Set<PixGridPhraseSegment>(['entry', 'early', 'middle', 'late', 'exit'])
 const SECTION_TYPES = new Set<ReactSectionType>(['intro', 'verse', 'build', 'preDrop', 'drop', 'breakdown', 'bridge', 'outro', 'unknown'])
 const SECTION_PHASES = new Set(['entry', 'body', 'exit'] as const)
-const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>([
-  'pix-grid-bass-beacon-performance',
-  'pix-grid-geometric-reactor-performance',
-  'pix-grid-pixel-parade-performance',
-])
+const PERFORMANCE_PROGRAM_IDS = new Set<PixGridPerformanceProgramId>(
+  PIX_GRID_REGISTERED_PERFORMANCE_PROGRAM_IDS as readonly PixGridPerformanceProgramId[],
+)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -946,6 +945,9 @@ function normalizeScenes(
       {
         id,
         name: text(raw.name, `Scene ${index + 1}`),
+        ...(SECTION_TYPES.has(raw.sectionType as ReactSectionType)
+          ? { sectionType: raw.sectionType as ReactSectionType }
+          : {}),
         layerIds: [...new Set(requestedLayerIds)].slice(0, MAX_PIX_GRID_LAYERS),
         pixelOverrides: normalizePixGridPixelOverrides(raw.pixelOverrides, width, height),
       },

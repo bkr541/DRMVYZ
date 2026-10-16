@@ -10,6 +10,8 @@ import {
   type PixGridDeckSourceSnapshot,
 } from './PixGridDeckDomain'
 import { validatePixGridDeckSourceFile } from './PixGridDeckMediaValidation'
+import { readPixGridResponseBlobBounded } from './PixGridBoundedResponse'
+import { PIX_GRID_DECK_MAX_SOURCE_BYTES } from './PixGridDeckMediaValidation'
 
 export const PIX_GRID_DECK_PROJECT_MEDIA_MANIFEST_VERSION = 1 as const
 
@@ -111,7 +113,7 @@ async function defaultReadSource(item: UploadedMedia): Promise<File> {
   if (!item.url) throw new Error('The source media URL is unavailable.')
   const response = await fetch(item.url)
   if (!response.ok) throw new Error(`Source media download failed with status ${response.status}.`)
-  const blob = await response.blob()
+  const blob = await readPixGridResponseBlobBounded(response, PIX_GRID_DECK_MAX_SOURCE_BYTES)
   return new File([blob], item.name, { type: item.mimeType ?? blob.type })
 }
 

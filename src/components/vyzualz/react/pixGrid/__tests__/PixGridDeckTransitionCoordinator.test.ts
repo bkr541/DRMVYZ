@@ -91,7 +91,7 @@ function frame(id: string, offset = 0): PixGridPreparedFrame {
 
 function frameSet(targetDeck: PixGridDeckDefinition, frames: readonly PixGridPreparedFrame[]): PixGridPreparedFrameSet {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     deckId: targetDeck.id,
     deckRevision: targetDeck.revision,
     width: frames[0]!.width,
@@ -124,7 +124,26 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
       .toEqual(['c>b', 'b>a', 'a>c'])
     expect(resolveReachablePixGridDeckTransitionPairs(deck(1, 'pingPong')).map(([a, b]) => `${a.id}>${b.id}`))
       .toEqual(['a>b', 'b>c', 'b>a', 'c>b'])
-    expect(resolveReachablePixGridDeckTransitionPairs(deck(1, 'shuffle'))).toHaveLength(6)
+    expect(resolveReachablePixGridDeckTransitionPairs(deck(1, 'shuffle')).map(([a, b]) => `${a.id}>${b.id}`))
+      .toEqual(['a>b', 'b>c', 'c>a'])
+  })
+
+  it('keeps twelve-image shuffle preparation linear and adds actual runtime demand', async () => {
+    const targetDeck = {
+      ...deck(1, 'shuffle'),
+      items: Array.from({ length: 12 }, (_, index) => item(String.fromCharCode(97 + index), index)),
+    }
+    const frames = targetDeck.items.map((entry, index) => frame(entry.id, index))
+    const coordinator = new PixGridDeckTransitionCoordinator({
+      cache: new PixGridDeckTransitionPlanCache(), compile: directCompile, concurrency: 2,
+    })
+    coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, frames)]]))
+    expect(coordinator.getDiagnostics().expectedPairCount).toBe(12)
+    coordinator.setPlaybackDemand(targetDeck.id, [['a', 'f'], ['f', 'k']])
+    expect(coordinator.getDiagnostics().expectedPairCount).toBe(14)
+    await waitFor(() => coordinator.getPlan(targetDeck.id, 'a', 'f') != null)
+    expect(coordinator.getStatus(targetDeck.id)?.playable).toBe(true)
+    coordinator.dispose()
   })
 
   it('compiles real Stage 3 prepared frames and exposes cached pair plans', async () => {
@@ -132,7 +151,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
     const cache = new PixGridDeckTransitionPlanCache()
     const coordinator = new PixGridDeckTransitionCoordinator({ cache, compile: directCompile, concurrency: 2 })
     coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, [frame('a'), frame('b', 1), frame('c', 2)])]]))
-    await waitFor(() => coordinator.getStatus(targetDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getStatus(targetDeck.id)?.fullyPrepared === true)
     const plan = coordinator.getPlan(targetDeck.id, 'a', 'b')
     expect(plan).toMatchObject({ sourceFrameCacheKey: 'frame:a:0', targetFrameCacheKey: 'frame:b:1' })
     expect(plan?.diagnostics.sourceForegroundCount).toBeGreaterThan(0)
@@ -147,7 +166,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
     const coordinator = new PixGridDeckTransitionCoordinator({ cache, compile: compileSpy, concurrency: 3 })
     const originalFrames = [frame('a'), frame('b'), frame('c')]
     coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, originalFrames)]]))
-    await waitFor(() => coordinator.getStatus(targetDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getStatus(targetDeck.id)?.fullyPrepared === true)
     const stablePlanKey = coordinator.getPlan(targetDeck.id, 'c', 'a')?.cacheKey
     expect(compileSpy).toHaveBeenCalledTimes(3)
 
@@ -159,7 +178,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
 
     const revisedFrames = [originalFrames[0]!, frame('b', 9), originalFrames[2]!]
     coordinator.synchronize([revisedDeck], new Map([[revisedDeck.id, frameSet(revisedDeck, revisedFrames)]]))
-    await waitFor(() => coordinator.getStatus(revisedDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getStatus(revisedDeck.id)?.fullyPrepared === true)
     expect(compileSpy).toHaveBeenCalledTimes(5)
     expect(coordinator.getPlan(revisedDeck.id, 'c', 'a')?.cacheKey).toBe(stablePlanKey)
     expect(cache.size).toBe(3)
@@ -173,7 +192,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
     const compileSpy = vi.fn(directCompile)
     const coordinator = new PixGridDeckTransitionCoordinator({ cache, compile: compileSpy, concurrency: 3 })
     coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, frames)]]))
-    await waitFor(() => coordinator.getStatus(targetDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getStatus(targetDeck.id)?.fullyPrepared === true)
     const stableReverseKey = coordinator.getPlan(targetDeck.id, 'c', 'a')?.cacheKey
 
     const revisedDeck: PixGridDeckDefinition = {
@@ -188,7 +207,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
       },
     }
     coordinator.synchronize([revisedDeck], new Map([[revisedDeck.id, frameSet(revisedDeck, frames)]]))
-    await waitFor(() => coordinator.getStatus(revisedDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getStatus(revisedDeck.id)?.fullyPrepared === true)
     expect(compileSpy).toHaveBeenCalledTimes(4)
     expect(coordinator.getPlan(revisedDeck.id, 'a', 'b')).toMatchObject({
       requestedMode: 'hardCut',
@@ -204,12 +223,29 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
     const coordinator = new PixGridDeckTransitionCoordinator({ cache, compile: directCompile, concurrency: 3 })
     coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, [frame('a'), frame('b'), frame('c')])]]))
     await waitFor(() => (coordinator.getStatus(targetDeck.id)?.failedPairCount ?? 0) > 0)
-    expect(coordinator.getStatus(targetDeck.id)).toMatchObject({ ready: false })
+    expect(coordinator.getStatus(targetDeck.id)).toMatchObject({ degraded: false, playable: false })
     expect(coordinator.getStatus(targetDeck.id)?.pairs.some(pair => (
       pair.phase === 'failed'
       && pair.error?.retryable === true
       && pair.error.message.includes('could not retain')
     ))).toBe(true)
+    coordinator.dispose()
+  })
+
+  it('remains playable when only an optional prefetched pair fails', async () => {
+    const targetDeck = deck()
+    const compile: PixGridDeckTransitionCompileFunction = async request => {
+      if (request.settings.sourceItemId === 'b') throw {
+        code: 'transition-failed', message: 'Optional pair failed.', retryable: true,
+      }
+      return directCompile(request)
+    }
+    const coordinator = new PixGridDeckTransitionCoordinator({
+      cache: new PixGridDeckTransitionPlanCache(), compile, concurrency: 2,
+    })
+    coordinator.synchronize([targetDeck], new Map([[targetDeck.id, frameSet(targetDeck, [frame('a'), frame('b'), frame('c')])]]))
+    await waitFor(() => (coordinator.getStatus(targetDeck.id)?.failedPairCount ?? 0) > 0)
+    expect(coordinator.getStatus(targetDeck.id)).toMatchObject({ playable: true, degraded: true, fullyPrepared: false })
     coordinator.dispose()
   })
 
@@ -272,7 +308,7 @@ describe('PixGrid Deck Stage 5 transition coordinator', () => {
       }
       resolvedCount = pending.length
     }
-    await waitFor(() => coordinator.getStatus(secondDeck.id)?.ready === true)
+    await waitFor(() => coordinator.getPlan(secondDeck.id, 'a', 'b') != null)
     expect(cache.keys.some(key => key === stale.request.cacheKey)).toBe(false)
     expect(coordinator.getPlan(secondDeck.id, 'a', 'b')?.sourceFrameCacheKey).toBe('frame:a:7')
     coordinator.dispose()

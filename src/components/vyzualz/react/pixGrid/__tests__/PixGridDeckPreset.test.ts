@@ -63,6 +63,11 @@ function transitionStatus(deck: PixGridDeckDefinition, ready = true): PixGridDec
     pairCount: 3,
     readyPairCount: ready ? 3 : 0,
     failedPairCount: 0,
+    requiredPairCount: 1,
+    readyRequiredPairCount: ready ? 1 : 0,
+    playable: ready,
+    fullyPrepared: ready,
+    degraded: false,
     pairs: [],
   }
 }
@@ -101,6 +106,8 @@ describe('PixGrid Deck generated Preset lifecycle', () => {
       enabledItemCount: 3,
       frameProgress: 1,
       transitionProgress: 1,
+      level: 'fullyPrepared',
+      playable: true,
     })
 
     expect(resolvePixGridDeckPresetReadiness(

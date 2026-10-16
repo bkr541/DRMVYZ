@@ -6,12 +6,27 @@ import {
   type PixGridDeckTransitionCompileSettings,
   type PixGridDeckTransitionDiagnostics,
   type PixGridDeckTransitionPlan,
+  type PixGridDeckTransportStrategy,
   type PixGridPreparedFrame,
   type PixGridPreparedFrameMetrics,
 } from './PixGridDeckCompilerContracts'
 
-export const PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE = 64
-export const PIX_GRID_DECK_TRANSITION_MAX_TRANSPORT_FOREGROUND = 12_000
+export const PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE = 48
+export const PIX_GRID_DECK_TRANSITION_MAX_TRANSPORT_FOREGROUND = 40_000
+
+interface ComponentEvidence {
+  id: number
+  count: number
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+  centroidX: number
+  centroidY: number
+  averageRed: number
+  averageGreen: number
+  averageBlue: number
+}
 
 interface FrameEvidence {
   foregroundIndices: Uint32Array
@@ -19,6 +34,8 @@ interface FrameEvidence {
   colorEntropy: number
   centroidX: number
   centroidY: number
+  componentLabels: Int32Array
+  components: readonly ComponentEvidence[]
 }
 
 interface TransitionPlannerFrameInput {
@@ -74,6 +91,8 @@ export function createPixGridDeckTransitionCacheKey(input: {
     input.settings.targetItemId,
     input.settings.requestedMode,
     stableNumber(clamp(input.settings.durationFraction, 0, 0.75)),
+    input.settings.preferredStrategy ?? 'automatic',
+    input.settings.motionProfileSignature ?? 'engine-default',
   ].join('|')
   return `pix-grid-deck-transition:${fnv1a(signature)}:${signature}`
 }
@@ -108,21 +127,45 @@ function foregroundIndices(mask: Uint8Array): Uint32Array {
   return result
 }
 
-function connectedComponentCount(mask: Uint8Array, width: number, height: number): number {
+function connectedComponents(mask: Uint8Array, pixels: Uint8Array, width: number, height: number): {
+  labels: Int32Array
+  components: ComponentEvidence[]
+} {
   const visited = new Uint8Array(mask.length)
+  const labels = new Int32Array(mask.length).fill(-1)
   const queue = new Uint32Array(mask.length)
-  let components = 0
+  const components: ComponentEvidence[] = []
   for (let start = 0; start < mask.length; start += 1) {
     if (mask[start] === 0 || visited[start]) continue
-    components += 1
+    const id = components.length
     let read = 0
     let write = 0
+    let xSum = 0
+    let ySum = 0
+    let redSum = 0
+    let greenSum = 0
+    let blueSum = 0
+    let minX = width
+    let minY = height
+    let maxX = -1
+    let maxY = -1
     queue[write++] = start
     visited[start] = 1
     while (read < write) {
       const cell = queue[read++]!
       const x = cell % width
       const y = Math.floor(cell / width)
+      const offset = cell * 4
+      labels[cell] = id
+      xSum += x
+      ySum += y
+      redSum += pixels[offset]!
+      greenSum += pixels[offset + 1]!
+      blueSum += pixels[offset + 2]!
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
       const neighbors = [
         x > 0 ? cell - 1 : -1,
         x + 1 < width ? cell + 1 : -1,
@@ -135,8 +178,21 @@ function connectedComponentCount(mask: Uint8Array, width: number, height: number
         queue[write++] = neighbor
       }
     }
+    components.push({
+      id,
+      count: write,
+      minX,
+      minY,
+      maxX,
+      maxY,
+      centroidX: xSum / write,
+      centroidY: ySum / write,
+      averageRed: redSum / write,
+      averageGreen: greenSum / write,
+      averageBlue: blueSum / write,
+    })
   }
-  return components
+  return { labels, components }
 }
 
 function normalizedColorEntropy(pixels: Uint8Array, indices: Uint32Array): number {
@@ -158,6 +214,7 @@ function normalizedColorEntropy(pixels: Uint8Array, indices: Uint32Array): numbe
 
 function frameEvidence(frame: TransitionPlannerFrameInput): FrameEvidence {
   const indices = foregroundIndices(frame.foreground)
+  const componentAnalysis = connectedComponents(frame.foreground, frame.pixels, frame.width, frame.height)
   let xSum = 0
   let ySum = 0
   for (const cell of indices) {
@@ -166,10 +223,12 @@ function frameEvidence(frame: TransitionPlannerFrameInput): FrameEvidence {
   }
   return {
     foregroundIndices: indices,
-    componentCount: connectedComponentCount(frame.foreground, frame.width, frame.height),
+    componentCount: componentAnalysis.components.length,
     colorEntropy: normalizedColorEntropy(frame.pixels, indices),
     centroidX: indices.length > 0 ? xSum / indices.length / Math.max(1, frame.width - 1) : 0.5,
     centroidY: indices.length > 0 ? ySum / indices.length / Math.max(1, frame.height - 1) : 0.5,
+    componentLabels: componentAnalysis.labels,
+    components: componentAnalysis.components,
   }
 }
 
@@ -198,22 +257,22 @@ function transportSuitability(
 ): { suitable: boolean; reason: string } {
   const sourceCount = sourceEvidence.foregroundIndices.length
   const targetCount = targetEvidence.foregroundIndices.length
-  if (sourceCount === 0 || targetCount === 0) return { suitable: false, reason: 'empty-foreground' }
   if (sourceCount > PIX_GRID_DECK_TRANSITION_MAX_TRANSPORT_FOREGROUND
     || targetCount > PIX_GRID_DECK_TRANSITION_MAX_TRANSPORT_FOREGROUND) {
     return { suitable: false, reason: 'foreground-budget' }
   }
-  const sourceDensity = sourceCount / Math.max(1, source.metrics.cellCount)
-  const targetDensity = targetCount / Math.max(1, target.metrics.cellCount)
-  if (Math.max(sourceDensity, targetDensity) > 0.58) return { suitable: false, reason: 'dense-content' }
-  if (ratioCompatibility(sourceCount, targetCount) < 0.2) return { suitable: false, reason: 'foreground-count-mismatch' }
-  if (ratioCompatibility(sourceEvidence.componentCount, targetEvidence.componentCount) < 0.2) {
-    return { suitable: false, reason: 'component-mismatch' }
+  if (sourceCount === 0) return { suitable: true, reason: 'procedural-assembly' }
+  if (targetCount === 0) return { suitable: true, reason: 'procedural-dispersal' }
+  const density = Math.max(
+    sourceCount / Math.max(1, source.metrics.cellCount),
+    targetCount / Math.max(1, target.metrics.cellCount),
+  )
+  if (density > 0.58) return { suitable: true, reason: 'bounded-region-transport' }
+  if (ratioCompatibility(sourceCount, targetCount) < 0.35) return { suitable: true, reason: 'transport-with-births-deaths' }
+  if (ratioCompatibility(sourceEvidence.componentCount, targetEvidence.componentCount) < 0.35) {
+    return { suitable: true, reason: 'hierarchical-component-transport' }
   }
-  if (Math.max(sourceEvidence.colorEntropy, targetEvidence.colorEntropy) > 0.84) {
-    return { suitable: false, reason: 'high-color-entropy' }
-  }
-  return { suitable: true, reason: 'sparse-compatible-foreground' }
+  return { suitable: true, reason: 'coherent-pixel-transport' }
 }
 
 export function selectAutomaticPixGridDeckTransition(input: {
@@ -230,41 +289,11 @@ export function selectAutomaticPixGridDeckTransition(input: {
   if (sourceCount === 0 && targetCount === 0) {
     return { mode: 'hardCut', reason: 'both-frames-empty', sourceEvidence, targetEvidence }
   }
-  if (sourceCount === 0 || targetCount === 0) {
-    return { mode: 'crossfade', reason: 'one-frame-empty', sourceEvidence, targetEvidence }
-  }
   const suitability = transportSuitability(input.source, input.target, sourceEvidence, targetEvidence)
   if (suitability.suitable) {
     return { mode: 'pixelTransport', reason: suitability.reason, sourceEvidence, targetEvidence }
   }
-
-  const maxDensity = Math.max(
-    sourceCount / Math.max(1, input.source.metrics.cellCount),
-    targetCount / Math.max(1, input.target.metrics.cellCount),
-  )
-  const maxEntropy = Math.max(sourceEvidence.colorEntropy, targetEvidence.colorEntropy)
-  if (maxDensity >= 0.72 && maxEntropy >= 0.45) {
-    return { mode: 'crossfade', reason: 'dense-high-entropy-content', sourceEvidence, targetEvidence }
-  }
-  if (maxDensity >= 0.62) {
-    return { mode: 'pixelDissolve', reason: 'dense-content', sourceEvidence, targetEvidence }
-  }
-
-  const deltaX = targetEvidence.centroidX - sourceEvidence.centroidX
-  const deltaY = targetEvidence.centroidY - sourceEvidence.centroidY
-  if (Math.abs(deltaX) >= 0.18 && Math.abs(deltaX) >= Math.abs(deltaY)) {
-    return { mode: 'columnWipe', reason: 'horizontal-centroid-shift', sourceEvidence, targetEvidence }
-  }
-  if (Math.abs(deltaY) >= 0.18) {
-    return { mode: 'rowWipe', reason: 'vertical-centroid-shift', sourceEvidence, targetEvidence }
-  }
-  if (ratioCompatibility(sourceEvidence.componentCount, targetEvidence.componentCount) < 0.35) {
-    return { mode: 'checkerWipe', reason: 'component-structure-mismatch', sourceEvidence, targetEvidence }
-  }
-  if (ratioCompatibility(boundsArea(input.source.metrics), boundsArea(input.target.metrics)) < 0.45) {
-    return { mode: 'radialReveal', reason: 'foreground-scale-mismatch', sourceEvidence, targetEvidence }
-  }
-  return { mode: 'pixelDissolve', reason: 'moderate-structural-difference', sourceEvidence, targetEvidence }
+  return { mode: 'pixelDissolve', reason: suitability.reason, sourceEvidence, targetEvidence }
 }
 
 function componentBounds(metrics: PixGridPreparedFrameMetrics, width: number, height: number) {
@@ -278,6 +307,71 @@ function colorDistance(sourcePixels: Uint8Array, sourceCell: number, targetPixel
     + Math.abs(sourcePixels[sourceOffset + 1]! - targetPixels[targetOffset + 1]!)
     + Math.abs(sourcePixels[sourceOffset + 2]! - targetPixels[targetOffset + 2]!)
     + Math.abs(sourcePixels[sourceOffset + 3]! - targetPixels[targetOffset + 3]!)
+}
+
+function componentCorrespondence(
+  source: TransitionPlannerFrameInput,
+  target: TransitionPlannerFrameInput,
+  sourceEvidence: FrameEvidence,
+  targetEvidence: FrameEvidence,
+): Int32Array {
+  const result = new Int32Array(sourceEvidence.components.length).fill(-1)
+  if (targetEvidence.components.length === 0) return result
+  const usedTargets = new Set<number>()
+  for (const sourceComponent of sourceEvidence.components) {
+    let bestId = targetEvidence.components[0]!.id
+    let bestScore = Number.POSITIVE_INFINITY
+    for (const targetComponent of targetEvidence.components) {
+      if (sourceEvidence.components.length <= targetEvidence.components.length && usedTargets.has(targetComponent.id)) continue
+      const sourceX = sourceComponent.centroidX / Math.max(1, source.width - 1)
+      const sourceY = sourceComponent.centroidY / Math.max(1, source.height - 1)
+      const targetX = targetComponent.centroidX / Math.max(1, target.width - 1)
+      const targetY = targetComponent.centroidY / Math.max(1, target.height - 1)
+      const geometry = Math.hypot(sourceX - targetX, sourceY - targetY)
+      const scale = Math.abs(Math.log((sourceComponent.count + 1) / (targetComponent.count + 1)))
+      const color = (
+        Math.abs(sourceComponent.averageRed - targetComponent.averageRed)
+        + Math.abs(sourceComponent.averageGreen - targetComponent.averageGreen)
+        + Math.abs(sourceComponent.averageBlue - targetComponent.averageBlue)
+      ) / 765
+      const score = geometry * 5 + scale * 1.5 + color + targetComponent.id * 1e-6
+      if (score < bestScore) {
+        bestScore = score
+        bestId = targetComponent.id
+      }
+    }
+    result[sourceComponent.id] = bestId
+    usedTargets.add(bestId)
+  }
+  return result
+}
+
+function selectTransportStrategy(
+  source: TransitionPlannerFrameInput,
+  target: TransitionPlannerFrameInput,
+  sourceEvidence: FrameEvidence,
+  targetEvidence: FrameEvidence,
+): { strategy: PixGridDeckTransportStrategy; reason: string } {
+  const sourceCount = sourceEvidence.foregroundIndices.length
+  const targetCount = targetEvidence.foregroundIndices.length
+  if (sourceCount === 0) return { strategy: 'assemble', reason: 'empty-source-assembly' }
+  if (targetCount === 0) return { strategy: 'disperse', reason: 'empty-target-dispersal' }
+  const density = Math.max(sourceCount, targetCount) / Math.max(1, source.width * source.height)
+  const countRatio = ratioCompatibility(sourceCount, targetCount)
+  const componentRatio = ratioCompatibility(sourceEvidence.componentCount, targetEvidence.componentCount)
+  if (density >= 0.58) return { strategy: 'clusteredMorph', reason: 'dense-region-groups' }
+  if (countRatio < 0.4
+    || componentRatio < 0.4
+    || sourceEvidence.componentCount !== targetEvidence.componentCount) {
+    return { strategy: 'disperseReconstruct', reason: 'large-structural-difference' }
+  }
+  const deltaX = targetEvidence.centroidX - sourceEvidence.centroidX
+  const deltaY = targetEvidence.centroidY - sourceEvidence.centroidY
+  if (Math.hypot(deltaX, deltaY) >= 0.16) return { strategy: 'directionalFlow', reason: 'centroid-directed-flow' }
+  if (ratioCompatibility(boundsArea(source.metrics), boundsArea(target.metrics)) < 0.5) {
+    return { strategy: 'implodeExpand', reason: 'large-scale-change' }
+  }
+  return { strategy: 'directMorph', reason: 'component-aligned-morph' }
 }
 
 function compileTransportMapping(input: {
@@ -321,6 +415,8 @@ function compileTransportMapping(input: {
   const matchedTarget: number[] = []
   const deaths: number[] = []
   let candidateComparisons = 0
+  const componentTargets = componentCorrespondence(source, target, sourceEvidence, targetEvidence)
+  const mappedTargetBySource = new Int32Array(source.width * source.height).fill(-1)
   const sourceBounds = componentBounds(source.metrics, source.width, source.height)
   const targetBounds = componentBounds(target.metrics, target.width, target.height)
   const sourceSpanX = Math.max(1, sourceBounds.maxX - sourceBounds.minX)
@@ -328,6 +424,8 @@ function compileTransportMapping(input: {
   const targetSpanX = Math.max(1, targetBounds.maxX - targetBounds.minX)
   const targetSpanY = Math.max(1, targetBounds.maxY - targetBounds.minY)
   const maxBinRadius = Math.max(2, Math.ceil(Math.max(target.width, target.height) / binSize / 5))
+  const dense = Math.max(sourceIndices.length, targetIndices.length) / Math.max(1, source.width * source.height) > 0.58
+  const maxCandidates = dense ? 24 : PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE
 
   for (const sourceCell of sourceIndices) {
     const sourceX = sourceCell % source.width
@@ -338,14 +436,16 @@ function compileTransportMapping(input: {
     const desiredY = clamp(Math.round(targetBounds.minY + normalizedY * targetSpanY), 0, target.height - 1)
     const centerBinX = Math.floor(desiredX / binSize)
     const centerBinY = Math.floor(desiredY / binSize)
+    const sourceComponent = sourceEvidence.componentLabels[sourceCell]!
+    const desiredComponent = sourceComponent >= 0 ? componentTargets[sourceComponent]! : -1
     let bestTarget = -1
     let bestScore = Number.POSITIVE_INFINITY
     let compared = 0
 
-    for (let radius = 0; radius <= maxBinRadius && compared < PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE; radius += 1) {
-      for (let by = centerBinY - radius; by <= centerBinY + radius && compared < PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE; by += 1) {
+    for (let radius = 0; radius <= maxBinRadius && compared < maxCandidates; radius += 1) {
+      for (let by = centerBinY - radius; by <= centerBinY + radius && compared < maxCandidates; by += 1) {
         if (by < 0 || by >= Math.ceil(target.height / binSize)) continue
-        for (let bx = centerBinX - radius; bx <= centerBinX + radius && compared < PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE; bx += 1) {
+        for (let bx = centerBinX - radius; bx <= centerBinX + radius && compared < maxCandidates; bx += 1) {
           if (bx < 0 || bx >= binsWide) continue
           if (radius > 0 && bx > centerBinX - radius && bx < centerBinX + radius
             && by > centerBinY - radius && by < centerBinY + radius) continue
@@ -353,17 +453,26 @@ function compileTransportMapping(input: {
           if (!bucket) continue
           for (const targetCell of bucket) {
             if (claimed[targetCell]) continue
+            if (desiredComponent >= 0 && targetEvidence.componentLabels[targetCell] !== desiredComponent) continue
             compared += 1
             candidateComparisons += 1
             const targetX = targetCell % target.width
             const targetY = Math.floor(targetCell / target.width)
             const distance = Math.abs(targetX - desiredX) + Math.abs(targetY - desiredY)
-            const score = distance * 1024 + colorDistance(source.pixels, sourceCell, target.pixels, targetCell) * 2 + targetCell / Math.max(1, target.width * target.height)
+            let neighborPenalty = 0
+            const leftTarget = sourceX > 0 ? mappedTargetBySource[sourceCell - 1]! : -1
+            const upTarget = sourceY > 0 ? mappedTargetBySource[sourceCell - source.width]! : -1
+            if (leftTarget >= 0) neighborPenalty += Math.abs(targetX - (leftTarget % target.width + 1)) + Math.abs(targetY - Math.floor(leftTarget / target.width))
+            if (upTarget >= 0) neighborPenalty += Math.abs(targetX - (upTarget % target.width)) + Math.abs(targetY - (Math.floor(upTarget / target.width) + 1))
+            const score = distance * 1024
+              + neighborPenalty * 320
+              + colorDistance(source.pixels, sourceCell, target.pixels, targetCell) * 2
+              + targetCell / Math.max(1, target.width * target.height)
             if (score < bestScore) {
               bestScore = score
               bestTarget = targetCell
             }
-            if (compared >= PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE) break
+            if (compared >= maxCandidates) break
           }
         }
       }
@@ -375,6 +484,7 @@ function compileTransportMapping(input: {
       continue
     }
     claimed[bestTarget] = 1
+    mappedTargetBySource[sourceCell] = bestTarget
     matchedSource.push(sourceCell)
     matchedTarget.push(bestTarget)
   }
@@ -400,6 +510,101 @@ function emptyMapping(sourceEvidence: FrameEvidence, targetEvidence: FrameEviden
   }
 }
 
+function clampCell(x: number, y: number, width: number, height: number): number {
+  const safeX = clamp(Math.round(x), 0, width - 1)
+  const safeY = clamp(Math.round(y), 0, height - 1)
+  return safeY * width + safeX
+}
+
+function stableUnit(seed: number): number {
+  let value = Math.imul(seed ^ (seed >>> 16), 0x45d9f3b)
+  value = Math.imul(value ^ (value >>> 16), 0x45d9f3b)
+  return ((value ^ (value >>> 16)) >>> 0) / 0xffffffff
+}
+
+function compileMotionData(input: {
+  source: TransitionPlannerFrameInput
+  target: TransitionPlannerFrameInput
+  sourceEvidence: FrameEvidence
+  targetEvidence: FrameEvidence
+  mapping: ReturnType<typeof compileTransportMapping>
+  strategy: PixGridDeckTransportStrategy
+}) {
+  const { source, target, sourceEvidence, targetEvidence, mapping, strategy } = input
+  const count = mapping.matchedSourceIndices.length
+  const controlX = new Int16Array(count)
+  const controlY = new Int16Array(count)
+  const stagger = new Uint8Array(count)
+  const groupIds = new Uint16Array(count)
+  const centerX = (sourceEvidence.centroidX + targetEvidence.centroidX) * 0.5 * Math.max(1, source.width - 1)
+  const centerY = (sourceEvidence.centroidY + targetEvidence.centroidY) * 0.5 * Math.max(1, source.height - 1)
+  for (let index = 0; index < count; index += 1) {
+    const sourceCell = mapping.matchedSourceIndices[index]!
+    const targetCell = mapping.matchedTargetIndices[index]!
+    const sx = sourceCell % source.width
+    const sy = Math.floor(sourceCell / source.width)
+    const tx = targetCell % target.width
+    const ty = Math.floor(targetCell / target.width)
+    const component = Math.max(0, sourceEvidence.componentLabels[sourceCell]!)
+    const group = (component * 257 + Math.floor(sx / 4) * 17 + Math.floor(sy / 4)) & 0xffff
+    groupIds[index] = group
+    stagger[index] = Math.round(stableUnit(group * 65537) * 72)
+    let cx = (sx + tx) * 0.5
+    let cy = (sy + ty) * 0.5
+    if (strategy === 'directionalFlow') {
+      const sign = stableUnit(group) < 0.5 ? -1 : 1
+      cx += (ty - sy) * 0.16 * sign
+      cy -= (tx - sx) * 0.16 * sign
+    } else if (strategy === 'disperseReconstruct') {
+      const dx = sx - centerX
+      const dy = sy - centerY
+      const length = Math.max(1, Math.hypot(dx, dy))
+      cx += dx / length * Math.min(source.width, source.height) * 0.12
+      cy += dy / length * Math.min(source.width, source.height) * 0.12
+    } else if (strategy === 'implodeExpand') {
+      cx = centerX
+      cy = centerY
+    } else if (strategy === 'clusteredMorph') {
+      const groupCenterX = Math.floor(sx / 4) * 4 + 1.5
+      const groupCenterY = Math.floor(sy / 4) * 4 + 1.5
+      cx = cx * 0.65 + groupCenterX * 0.35
+      cy = cy * 0.65 + groupCenterY * 0.35
+    }
+    controlX[index] = Math.round(clamp(cx, -32_768, 32_767))
+    controlY[index] = Math.round(clamp(cy, -32_768, 32_767))
+  }
+
+  const sourceCenterCell = clampCell(
+    sourceEvidence.centroidX * Math.max(1, source.width - 1),
+    sourceEvidence.centroidY * Math.max(1, source.height - 1),
+    source.width,
+    source.height,
+  )
+  const targetCenterCell = clampCell(
+    targetEvidence.centroidX * Math.max(1, target.width - 1),
+    targetEvidence.centroidY * Math.max(1, target.height - 1),
+    target.width,
+    target.height,
+  )
+  const deathTargetIndices = Uint32Array.from(mapping.deathSourceIndices, cell => {
+    const x = cell % source.width
+    const y = Math.floor(cell / source.width)
+    if (strategy === 'disperse' || strategy === 'disperseReconstruct') {
+      return clampCell(centerX + (x - centerX) * 1.6, centerY + (y - centerY) * 1.6, source.width, source.height)
+    }
+    return targetCenterCell
+  })
+  const birthSourceIndices = Uint32Array.from(mapping.birthTargetIndices, cell => {
+    const x = cell % target.width
+    const y = Math.floor(cell / target.width)
+    if (strategy === 'assemble' || strategy === 'disperseReconstruct') {
+      return clampCell(centerX + (x - centerX) * 0.25, centerY + (y - centerY) * 0.25, target.width, target.height)
+    }
+    return sourceCenterCell
+  })
+  return { controlX, controlY, stagger, groupIds, deathTargetIndices, birthSourceIndices }
+}
+
 export function compilePixGridDeckTransitionPlan(input: PixGridDeckTransitionPlannerInput): PixGridDeckTransitionPlan {
   if (input.source.width !== input.target.width || input.source.height !== input.target.height) {
     throw new Error('PixGrid Deck transition frames must share one logical matrix size.')
@@ -418,7 +623,7 @@ export function compilePixGridDeckTransitionPlan(input: PixGridDeckTransitionPla
   let fallbackReason: string | null = null
   const suitability = transportSuitability(input.source, input.target, automatic.sourceEvidence, automatic.targetEvidence)
   if (mode === 'pixelTransport' && !suitability.suitable) {
-    mode = automatic.mode === 'pixelTransport' ? 'pixelDissolve' : automatic.mode
+    mode = 'pixelDissolve'
     fallbackReason = suitability.reason
   }
 
@@ -430,6 +635,28 @@ export function compilePixGridDeckTransitionPlan(input: PixGridDeckTransitionPla
         targetEvidence: automatic.targetEvidence,
       })
     : emptyMapping(automatic.sourceEvidence, automatic.targetEvidence)
+  const selectedStrategy = mode === 'pixelTransport'
+    ? input.settings.preferredStrategy && input.settings.preferredStrategy !== 'automatic'
+      ? { strategy: input.settings.preferredStrategy, reason: 'declarative-motion-profile' }
+      : selectTransportStrategy(input.source, input.target, automatic.sourceEvidence, automatic.targetEvidence)
+    : null
+  const motion = selectedStrategy
+    ? compileMotionData({
+        source: input.source,
+        target: input.target,
+        sourceEvidence: automatic.sourceEvidence,
+        targetEvidence: automatic.targetEvidence,
+        mapping,
+        strategy: selectedStrategy.strategy,
+      })
+    : {
+        controlX: new Int16Array(),
+        controlY: new Int16Array(),
+        stagger: new Uint8Array(),
+        groupIds: new Uint16Array(),
+        deathTargetIndices: new Uint32Array(),
+        birthSourceIndices: new Uint32Array(),
+      }
 
   const diagnostics: PixGridDeckTransitionDiagnostics = {
     sourceForegroundCount: automatic.sourceEvidence.foregroundIndices.length,
@@ -443,11 +670,21 @@ export function compilePixGridDeckTransitionPlan(input: PixGridDeckTransitionPla
     targetColorEntropy: automatic.targetEvidence.colorEntropy,
     candidateComparisons: mapping.candidateComparisons,
     maxCandidatesPerSource: PIX_GRID_DECK_TRANSITION_MAX_CANDIDATES_PER_SOURCE,
+    strategy: selectedStrategy?.strategy ?? null,
+    strategyReason: selectedStrategy?.reason ?? null,
+    sourceRegionCount: automatic.sourceEvidence.components.length,
+    targetRegionCount: automatic.targetEvidence.components.length,
   }
   const approximateBytes = mapping.matchedSourceIndices.byteLength
     + mapping.matchedTargetIndices.byteLength
     + mapping.deathSourceIndices.byteLength
     + mapping.birthTargetIndices.byteLength
+    + motion.controlX.byteLength
+    + motion.controlY.byteLength
+    + motion.stagger.byteLength
+    + motion.groupIds.byteLength
+    + motion.deathTargetIndices.byteLength
+    + motion.birthSourceIndices.byteLength
     + 512
   return {
     schemaVersion: PIX_GRID_DECK_COMPILER_SCHEMA_VERSION,
@@ -465,6 +702,14 @@ export function compilePixGridDeckTransitionPlan(input: PixGridDeckTransitionPla
     matchedTargetIndices: mapping.matchedTargetIndices,
     deathSourceIndices: mapping.deathSourceIndices,
     birthTargetIndices: mapping.birthTargetIndices,
+    matchedControlX: motion.controlX,
+    matchedControlY: motion.controlY,
+    matchedStagger: motion.stagger,
+    matchedGroupIds: motion.groupIds,
+    deathTargetIndices: motion.deathTargetIndices,
+    birthSourceIndices: motion.birthSourceIndices,
+    strategy: selectedStrategy?.strategy ?? null,
+    strategyReason: selectedStrategy?.reason ?? null,
     diagnostics,
     approximateBytes,
   }

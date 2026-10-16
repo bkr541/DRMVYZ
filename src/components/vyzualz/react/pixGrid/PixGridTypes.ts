@@ -119,6 +119,8 @@ export interface PixGridCellRect {
 export interface PixGridScene {
   id: string
   name: string
+  /** Stable musical identity. Scene names remain user-editable presentation. */
+  sectionType?: ReactSectionType
   layerIds: string[]
   pixelOverrides: PixGridPixelOverride[]
 }
@@ -713,6 +715,8 @@ export interface PixGridSectionBarSpan {
   type: ReactSectionType
   startBar: number
   endBar: number
+  /** Scene that owned this historical interval, when known. */
+  sceneId?: string | null
 }
 
 

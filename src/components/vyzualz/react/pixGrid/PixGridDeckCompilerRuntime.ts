@@ -18,6 +18,7 @@ import type {
   PixGridDeckTransitionPlan,
   PixGridPreparedFrameSet,
 } from './PixGridDeckCompilerContracts'
+import { PIX_GRID_REGISTERED_SEQUENCE_DECKS } from './PixGridPresetRegistry'
 
 interface PixGridDeckCompilerRuntimeState {
   statuses: Readonly<Record<string, PixGridDeckCompileStatus>>
@@ -46,6 +47,11 @@ function statusRecord<T>(statuses: ReadonlyMap<string, T>): Readonly<Record<stri
   return Object.freeze(Object.fromEntries(statuses))
 }
 
+function runtimeDecks(decks: readonly import('./PixGridDeckDomain').PixGridDeckDefinition[]) {
+  const ids = new Set(decks.map(deck => deck.id))
+  return [...decks, ...PIX_GRID_REGISTERED_SEQUENCE_DECKS.filter(deck => !ids.has(deck.id))]
+}
+
 export function startPixGridDeckCompilerRuntime(): () => void {
   if (stopRuntime) return stopRuntime
   coordinator = new PixGridDeckCompileCoordinator({ sourceResolver: resolvePixGridDeckMediaSource })
@@ -54,22 +60,27 @@ export function startPixGridDeckCompilerRuntime(): () => void {
     if (!coordinator || !transitionCoordinator) return
     const state = useReactStore.getState()
     const frameSets = new Map<string, PixGridPreparedFrameSet>()
-    for (const deck of state.pixGridDecks) {
+    const decks = runtimeDecks(state.pixGridDecks)
+    for (const deck of decks) {
       const frameSet = coordinator.getPreparedFrameSet(deck.id)
       if (frameSet) frameSets.set(deck.id, frameSet)
     }
-    transitionCoordinator.synchronize(state.pixGridDecks, frameSets)
+    transitionCoordinator.synchronize(decks, frameSets)
   }
   const sync = () => {
     if (!coordinator) return
     const state = useReactStore.getState()
     coordinator.synchronize(
-      state.pixGridDecks,
+      runtimeDecks(state.pixGridDecks),
       runtimeResolution?.width ?? state.pixGridState.matrixWidth,
       runtimeResolution?.height ?? state.pixGridState.matrixHeight,
     )
     syncTransitions()
   }
+  let lastDecks = useReactStore.getState().pixGridDecks
+  let lastMatrixWidth = useReactStore.getState().pixGridState.matrixWidth
+  let lastMatrixHeight = useReactStore.getState().pixGridState.matrixHeight
+  let lastMediaItems = useMediaStore.getState().items
   synchronizeRuntime = sync
   const unsubscribeStatus = coordinator.subscribe(statuses => {
     usePixGridDeckCompilerStore.getState().setStatuses(statusRecord(statuses))
@@ -78,8 +89,20 @@ export function startPixGridDeckCompilerRuntime(): () => void {
   const unsubscribeTransitionStatus = transitionCoordinator.subscribe(statuses => {
     usePixGridDeckCompilerStore.getState().setTransitionStatuses(statusRecord(statuses))
   })
-  const unsubscribeReact = useReactStore.subscribe(sync)
-  const unsubscribeMedia = useMediaStore.subscribe(() => coordinator?.notifyMediaSourcesChanged())
+  const unsubscribeReact = useReactStore.subscribe(state => {
+    const matrixChanged = !runtimeResolution
+      && (state.pixGridState.matrixWidth !== lastMatrixWidth || state.pixGridState.matrixHeight !== lastMatrixHeight)
+    if (state.pixGridDecks === lastDecks && !matrixChanged) return
+    lastDecks = state.pixGridDecks
+    lastMatrixWidth = state.pixGridState.matrixWidth
+    lastMatrixHeight = state.pixGridState.matrixHeight
+    sync()
+  })
+  const unsubscribeMedia = useMediaStore.subscribe(state => {
+    if (state.items === lastMediaItems) return
+    lastMediaItems = state.items
+    coordinator?.notifyMediaSourcesChanged()
+  })
   sync()
   stopRuntime = () => {
     unsubscribeStatus()
@@ -144,9 +167,20 @@ export function getPixGridDeckTransitionStatus(deckId: string): PixGridDeckTrans
   return usePixGridDeckCompilerStore.getState().transitionStatuses[deckId] ?? null
 }
 
+export function prioritizePixGridDeckTransitionPairs(
+  deckId: string,
+  pairs: readonly (readonly [string, string])[],
+): void {
+  transitionCoordinator?.setPlaybackDemand(deckId, pairs)
+}
+
 export function retryPixGridDeckCompilation(deckId: string): void {
   coordinator?.retryDeck(deckId)
   transitionCoordinator?.retryDeck(deckId)
+}
+
+export function retryPixGridDeckTransitionPair(deckId: string, sourceItemId: string, targetItemId: string): void {
+  transitionCoordinator?.retryPair(deckId, sourceItemId, targetItemId)
 }
 
 export function getPixGridDeckCompilerDiagnostics(): PixGridDeckCompilerDiagnostics {
@@ -170,5 +204,8 @@ export function getPixGridDeckTransitionDiagnostics(): PixGridDeckTransitionCoor
     expectedPairCount: 0,
     cacheEntryCount: 0,
     cacheBytes: 0,
+    completedJobCount: 0,
+    totalCompilationMs: 0,
+    averageCompilationMs: 0,
   }
 }

@@ -1,8 +1,9 @@
 import type { ReactSectionType } from '../ReactTypes'
+import { MAX_PIX_GRID_SEQUENCE_OCCURRENCES } from './PixGridLimits'
 
 export const PIX_GRID_DECK_SCHEMA_VERSION = 1 as const
 export const PIX_GRID_DECK_MIN_ITEMS = 2
-export const PIX_GRID_DECK_MAX_ITEMS = 12
+export const PIX_GRID_DECK_MAX_ITEMS = MAX_PIX_GRID_SEQUENCE_OCCURRENCES
 export const PIX_GRID_DECK_NAME_MAX_LENGTH = 80
 export const PIX_GRID_DECK_GENERATED_PRESET_ID_PREFIX = 'pix-grid-deck:' as const
 export const PIX_GRID_DECK_PATTERN_ID = 'mediaDeck' as const
@@ -30,12 +31,16 @@ export type PixGridDeckTransitionMode =
   | 'checkerWipe'
   | 'radialReveal'
   | 'hardCut'
+export type PixGridDeckTransitionAnchorMode = 'onset' | 'arrival'
+export type PixGridDeckMusicalArrivalAnchor = 'beat' | 'bar' | 'phrase' | 'section' | 'buildCompletion' | 'dropImpact' | 'trackMap'
 
 export interface PixGridDeckTransitionPairOverride {
   sourceItemId: string
   targetItemId: string
   mode: PixGridDeckTransitionMode
   durationFraction?: number
+  /** Reusable motion choreography for this directed occurrence pair. */
+  motionProfileId?: string
 }
 
 export type PixGridDeckPreDropBehavior = 'hold' | 'dim' | 'disperse' | 'previewNext' | 'continue'
@@ -47,6 +52,9 @@ export interface PixGridDeckTransitionPolicy {
   durationFraction?: number
   /** Directed, pair-local overrides. These never mutate source frame data. */
   pairOverrides?: readonly PixGridDeckTransitionPairOverride[]
+  /** Onset preserves legacy behavior; arrival schedules early to finish on the selected event. */
+  anchorMode?: PixGridDeckTransitionAnchorMode
+  arrivalAnchor?: PixGridDeckMusicalArrivalAnchor
   /** @deprecated Legacy Stage 1–4 compatibility projection. */
   style: PixGridDeckTransitionStyle
   /** @deprecated Legacy Stage 1–4 compatibility projection. */
@@ -79,6 +87,10 @@ export interface PixGridDeckConfiguration {
   playbackOrder: PixGridDeckPlaybackOrder
   loop: boolean
   reactionProfileId: PixGridDeckReactionProfileId
+  /** Universal motion profile. Legacy documents resolve to the balanced engine default. */
+  motionProfileId?: string
+  /** Scene-local runtime motion overrides; pair overrides retain precedence. */
+  sceneMotionProfileIds?: Record<string, string>
   transitionPolicy: PixGridDeckTransitionPolicy
   defaultItemDurationBeats: number
   sectionTimingBeats: Partial<Record<ReactSectionType, number>>
@@ -141,7 +153,6 @@ export type PixGridDeckValidationCode =
   | 'duplicate-name'
   | 'invalid-item-count'
   | 'duplicate-item-id'
-  | 'duplicate-media-id'
   | 'deck-not-found'
   | 'deck-not-ready'
 
@@ -199,10 +210,14 @@ export const DEFAULT_PIX_GRID_DECK_CONFIGURATION: Readonly<PixGridDeckConfigurat
   playbackOrder: 'forward',
   loop: true,
   reactionProfileId: 'balanced',
+  motionProfileId: 'balanced',
+  sceneMotionProfileIds: Object.freeze({}),
   transitionPolicy: Object.freeze({
     mode: 'auto',
     durationFraction: 0.25,
     pairOverrides: Object.freeze([]),
+    anchorMode: 'onset',
+    arrivalAnchor: 'dropImpact',
     style: 'wipe',
     durationBeats: 1,
   }),
@@ -443,6 +458,9 @@ function normalizeTransitionPairOverrides(
       targetItemId,
       mode,
       ...(durationFraction == null ? {} : { durationFraction }),
+      ...(typeof raw.motionProfileId === 'string' && SAFE_ID.test(raw.motionProfileId.trim())
+        ? { motionProfileId: raw.motionProfileId.trim() }
+        : {}),
     })
   }
   return [...normalized.values()].sort((left, right) => (
@@ -455,6 +473,8 @@ export interface PixGridDeckResolvedTransitionPolicy {
   mode: PixGridDeckTransitionMode
   durationFraction: number
   pairOverrides: readonly PixGridDeckTransitionPairOverride[]
+  anchorMode: PixGridDeckTransitionAnchorMode
+  arrivalAnchor: PixGridDeckMusicalArrivalAnchor
 }
 
 export function resolvePixGridDeckTransitionPolicy(
@@ -469,6 +489,10 @@ export function resolvePixGridDeckTransitionPolicy(
     mode,
     durationFraction,
     pairOverrides: Array.isArray(policy.pairOverrides) ? policy.pairOverrides : [],
+    anchorMode: policy.anchorMode === 'arrival' ? 'arrival' : 'onset',
+    arrivalAnchor: ['beat', 'bar', 'phrase', 'section', 'buildCompletion', 'dropImpact', 'trackMap'].includes(policy.arrivalAnchor ?? '')
+      ? policy.arrivalAnchor as PixGridDeckMusicalArrivalAnchor
+      : 'dropImpact',
   }
 }
 
@@ -476,7 +500,13 @@ export function resolvePixGridDeckTransitionPairPolicy(
   policy: PixGridDeckTransitionPolicy,
   sourceItemId: string,
   targetItemId: string,
-): Readonly<{ mode: PixGridDeckTransitionMode; durationFraction: number; overridden: boolean }> {
+): Readonly<{
+  mode: PixGridDeckTransitionMode
+  durationFraction: number
+  overridden: boolean
+  anchorMode: PixGridDeckTransitionAnchorMode
+  arrivalAnchor: PixGridDeckMusicalArrivalAnchor
+}> {
   const resolved = resolvePixGridDeckTransitionPolicy(policy)
   const override = resolved.pairOverrides.find(candidate => (
     candidate.sourceItemId === sourceItemId && candidate.targetItemId === targetItemId
@@ -488,6 +518,8 @@ export function resolvePixGridDeckTransitionPairPolicy(
       ? 0
       : clamp(override?.durationFraction, 0, 0.75, resolved.durationFraction),
     overridden: override != null,
+    anchorMode: resolved.anchorMode,
+    arrivalAnchor: resolved.arrivalAnchor,
   }
 }
 
@@ -527,10 +559,24 @@ export function normalizePixGridDeckConfiguration(
       : DEFAULT_PIX_GRID_DECK_CONFIGURATION.playbackOrder,
     loop: typeof source.loop === 'boolean' ? source.loop : DEFAULT_PIX_GRID_DECK_CONFIGURATION.loop,
     reactionProfileId: normalizeReactionProfileId(source.reactionProfileId),
+    motionProfileId: typeof source.motionProfileId === 'string' && SAFE_ID.test(source.motionProfileId.trim())
+      ? source.motionProfileId.trim()
+      : DEFAULT_PIX_GRID_DECK_CONFIGURATION.motionProfileId,
+    sceneMotionProfileIds: isRecord(source.sceneMotionProfileIds)
+      ? Object.fromEntries(Object.entries(source.sceneMotionProfileIds).flatMap(([sceneId, profileId]) => (
+          SAFE_ID.test(sceneId) && typeof profileId === 'string' && SAFE_ID.test(profileId.trim())
+            ? [[sceneId, profileId.trim()]]
+            : []
+        )))
+      : {},
     transitionPolicy: {
       mode,
       durationFraction,
       pairOverrides: normalizeTransitionPairOverrides(rawTransition.pairOverrides, itemIds),
+      anchorMode: rawTransition.anchorMode === 'arrival' ? 'arrival' : 'onset',
+      arrivalAnchor: ['beat', 'bar', 'phrase', 'section', 'buildCompletion', 'dropImpact', 'trackMap'].includes(String(rawTransition.arrivalAnchor))
+        ? rawTransition.arrivalAnchor as PixGridDeckMusicalArrivalAnchor
+        : 'dropImpact',
       style: legacyStyleFromTransitionMode(mode),
       durationBeats,
     },
@@ -596,18 +642,12 @@ function normalizeDeckItems(
   }
 
   const itemIds = new Set<string>()
-  const mediaIds = new Set<string>()
   for (const { item } of sortable) {
     if (itemIds.has(item.id)) {
       issues.push(rejectedIssue('duplicate-item-id', `Duplicate Deck item ID: ${item.id}`, 'items'))
       return null
     }
-    if (mediaIds.has(item.mediaId)) {
-      issues.push(rejectedIssue('duplicate-media-id', `Duplicate Deck media ID: ${item.mediaId}`, 'items'))
-      return null
-    }
     itemIds.add(item.id)
-    mediaIds.add(item.mediaId)
   }
 
   sortable.sort((left, right) => left.rawOrder - right.rawOrder || left.sourceIndex - right.sourceIndex)

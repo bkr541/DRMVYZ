@@ -43,9 +43,13 @@ export function applyPixGridPresetSettings(
   const sceneIds = Object.keys(settings.sceneSettings ?? {})
   const selectedSceneId = settings.selectedSceneId ?? sceneIds[0] ?? safeCurrent.selectedSceneId ?? 'pix-grid-scene-1'
   const explicitlyClearsPerformanceProgram = settings.performanceProgramId === null
+  const presetDefinition = PIX_GRID_PRESET_BY_ID.get(presetId)
   const scenes = (sceneIds.length > 0 ? sceneIds : [selectedSceneId]).map((id, index) => ({
     id,
     name: pixGridSceneNameFromId(id, index),
+    ...(presetDefinition?.scenes.find(scene => scene.id === id)?.sectionType
+      ? { sectionType: presetDefinition.scenes.find(scene => scene.id === id)!.sectionType }
+      : {}),
     layerIds: presetLayers.map(layer => layer.id),
     pixelOverrides: [],
   }))

@@ -95,7 +95,7 @@ function preparedFrame(id: string): PixGridPreparedFrame {
   const foreground = new Uint8Array([1, 0, 0, 1])
   const empty = () => new Uint8Array(4)
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     cacheKey: `frame:${id}`,
     mediaId: `media:${id}`,
     sourceFingerprint: `sha256:${id}`,
@@ -150,6 +150,14 @@ function transitionResultMessage(): Extract<PixGridDeckWorkerMessage, { type: 't
     matchedTargetIndices: Uint32Array.from([0, 3]).buffer,
     deathSourceIndices: new ArrayBuffer(0),
     birthTargetIndices: new ArrayBuffer(0),
+    matchedControlX: Int16Array.from([0, 1]).buffer,
+    matchedControlY: Int16Array.from([0, 1]).buffer,
+    matchedStagger: Uint8Array.from([0, 0]).buffer,
+    matchedGroupIds: Uint16Array.from([0, 1]).buffer,
+    deathTargetIndices: new ArrayBuffer(0),
+    birthSourceIndices: new ArrayBuffer(0),
+    strategy: 'directMorph',
+    strategyReason: 'fixture',
     diagnostics: {
       sourceForegroundCount: 2,
       targetForegroundCount: 2,
@@ -161,7 +169,11 @@ function transitionResultMessage(): Extract<PixGridDeckWorkerMessage, { type: 't
       sourceColorEntropy: 0,
       targetColorEntropy: 0,
       candidateComparisons: 2,
-      maxCandidatesPerSource: 64,
+      maxCandidatesPerSource: 48,
+      strategy: 'directMorph',
+      strategyReason: 'fixture',
+      sourceRegionCount: 2,
+      targetRegionCount: 2,
     },
   }
 }
@@ -169,6 +181,7 @@ function transitionResultMessage(): Extract<PixGridDeckWorkerMessage, { type: 't
 describe('PixGrid Deck compiler executor', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('publishes a serializable request and reconstructs transferable buffers', async () => {
@@ -261,6 +274,26 @@ describe('PixGrid Deck compiler executor', () => {
     worker.emit(transitionResultMessage())
     await expect(promise).rejects.toMatchObject({ code: 'cancelled' })
     expect(worker.posted).toContainEqual({ type: 'cancel', jobId: 'transition-job' })
+    expect(worker.terminated).toBe(true)
+  })
+
+  it('terminates a stalled transition worker after the idle watchdog expires', async () => {
+    vi.useFakeTimers()
+    const worker = new FakeWorker()
+    const promise = compilePixGridDeckTransition({
+      jobId: 'transition-job',
+      cacheKey: 'transition-cache',
+      source: preparedFrame('source'),
+      target: preparedFrame('target'),
+      settings: {
+        requestedMode: 'auto', sourceItemId: 'item-source', targetItemId: 'item-target', durationFraction: 0.25,
+      },
+      idleTimeoutMs: 25,
+      totalTimeoutMs: 1_000,
+    }, () => worker)
+    const rejection = expect(promise).rejects.toMatchObject({ code: 'worker-timeout', retryable: true })
+    await vi.advanceTimersByTimeAsync(26)
+    await rejection
     expect(worker.terminated).toBe(true)
   })
 

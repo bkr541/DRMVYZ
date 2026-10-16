@@ -19,3 +19,10 @@ export const MAX_PIX_GRID_ACTION_CUES_PER_TRACK = 4_096
 
 export const MAX_PIX_GRID_MEDIA_SOURCE_BYTES = 64 * 1024 * 1024
 export const MAX_PIX_GRID_SVG_SOURCE_CHARACTERS = 2_000_000
+
+/**
+ * Sequence occurrences are cheap references; source pixels and pair plans stay
+ * independently bounded by their LRU caches and demand scheduler.
+ */
+export const MAX_PIX_GRID_SEQUENCE_OCCURRENCES = 64
+export const MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES = 128

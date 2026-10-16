@@ -191,7 +191,12 @@ export function renderPixGridCanvasFallback(
   deckScratch?: PixGridDeckCompositorScratch,
 ): Readonly<{ logicalWidth: number; logicalHeight: number; logicalFrame: ReturnType<typeof composePixGridLogicalFrame> }> {
   const requested = normalizePixGridState(rawState)
-  const state = requested.quality === 'draft' ? normalizePixGridState({ ...requested, quality: 'low' }) : requested
+  // A prepared Deck frame is authoritative at its compiled matrix size. Do not
+  // promote Draft to Low here or Canvas will reject that frame by resolution
+  // while WebGL renders it, producing different logical framebuffers.
+  const state = requested.quality === 'draft' && !deckFrameSource
+    ? normalizePixGridState({ ...requested, quality: 'low' })
+    : requested
   const logicalCanvas = logicalTarget.canvas
   const logicalContext = logicalTarget.context
   if (logicalCanvas.width !== state.matrixWidth) logicalCanvas.width = state.matrixWidth

@@ -34,7 +34,7 @@ describe('PixGrid Deck domain normalization', () => {
     expect(PIX_GRID_DECK_FRAME_SOURCE_KIND).toBe('deck')
     expect(PIX_GRID_DECK_PERFORMANCE_PROGRAM_ID).toBe('pix-grid-media-deck-performance')
     expect(PIX_GRID_DECK_MIN_ITEMS).toBe(2)
-    expect(PIX_GRID_DECK_MAX_ITEMS).toBe(12)
+    expect(PIX_GRID_DECK_MAX_ITEMS).toBe(64)
   })
 
   it('normalizes names, ordering, revisions, defaults, and generated preset identity', () => {
@@ -142,7 +142,7 @@ describe('PixGrid Deck domain normalization', () => {
     expect(first.deck).not.toHaveProperty('objectUrl')
   })
 
-  it.each([1, 13])('rejects committed Decks with %s items', (count: number) => {
+  it.each([1, 65])('rejects committed Decks with %s items', (count: number) => {
     const result = normalizePixGridDeckDefinition({ id: `deck-${count}`, name: 'Bounds', items: items(count) })
     expect(result.deck).toBeNull()
     expect(result.issues).toEqual(expect.arrayContaining([
@@ -150,7 +150,17 @@ describe('PixGrid Deck domain normalization', () => {
     ]))
   })
 
-  it('rejects missing item arrays, unknown schemas, and duplicate item or media IDs', () => {
+  it('accepts long bounded sequences while preserving repeated occurrence order', () => {
+    const long = items(32)
+    for (let index = 4; index < long.length; index += 4) long[index]!.mediaId = 'media-1'
+    const result = normalizePixGridDeckDefinition({ id: 'long-sequence', name: 'Long sequence', items: long })
+    expect(result.issues).toEqual([])
+    expect(result.deck?.items).toHaveLength(32)
+    expect(result.deck?.items.filter(item => item.mediaId === 'media-1')).toHaveLength(8)
+    expect(new Set(result.deck?.items.map(item => item.id)).size).toBe(32)
+  })
+
+  it('rejects missing item arrays, unknown schemas, and duplicate item IDs while allowing repeated assets', () => {
     expect(normalizePixGridDeckDefinition({ id: 'missing-items', name: 'Missing items' }).issues)
       .toEqual([expect.objectContaining({ code: 'invalid-item-count', severity: 'rejected' })])
 
@@ -168,8 +178,9 @@ describe('PixGrid Deck domain normalization', () => {
 
     const duplicateMedia = items(2)
     duplicateMedia[1]!.mediaId = duplicateMedia[0]!.mediaId
-    expect(normalizePixGridDeckDefinition({ id: 'duplicate-media', name: 'Duplicate media', items: duplicateMedia }).issues)
-      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'duplicate-media-id' })]))
+    const repeated = normalizePixGridDeckDefinition({ id: 'duplicate-media', name: 'Repeated media', items: duplicateMedia })
+    expect(repeated.deck?.items.map(item => item.mediaId)).toEqual(['media-1', 'media-1'])
+    expect(repeated.issues).toEqual([])
   })
 
   it('keeps the first deterministic collection entry and quarantines duplicate names', () => {
@@ -194,5 +205,25 @@ describe('PixGrid Deck domain normalization', () => {
     draft.items.push({ mediaId: 'draft-media-1' })
     expect(draft.items).toHaveLength(1)
     expect(normalizePixGridDeckDefinition(draft).deck).toBeNull()
+  })
+
+  it('migrates motion profiles idempotently while preserving directed and scene overrides', () => {
+    const raw = {
+      id: 'motion-migration', name: 'Motion migration', items: items(3),
+      configuration: {
+        motionProfileId: 'flow',
+        sceneMotionProfileIds: { 'scene-drop': 'explosive-reconstruction' },
+        transitionPolicy: {
+          mode: 'pixelTransport',
+          pairOverrides: [{ sourceItemId: 'item-1', targetItemId: 'item-2', mode: 'pixelTransport', motionProfileId: 'clustered-morph' }],
+        },
+      },
+    }
+    const first = normalizePixGridDeckDefinition(raw).deck!
+    const second = normalizePixGridDeckDefinition(first).deck!
+    expect(second).toEqual(first)
+    expect(second.configuration.motionProfileId).toBe('flow')
+    expect(second.configuration.sceneMotionProfileIds).toEqual({ 'scene-drop': 'explosive-reconstruction' })
+    expect(second.configuration.transitionPolicy.pairOverrides?.[0]?.motionProfileId).toBe('clustered-morph')
   })
 })

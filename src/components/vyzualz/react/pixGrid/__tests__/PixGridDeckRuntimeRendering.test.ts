@@ -22,6 +22,7 @@ import {
 } from '../PixGridDeckCompositor'
 import {
   pixGridDeckGeneratedGroupId,
+  PixGridDeckTransitionPlanLatch,
   resolvePixGridDeckRuntimeFrameSource,
   type PixGridDeckRuntimeFrameSource,
 } from '../PixGridDeckRuntime'
@@ -35,7 +36,7 @@ import { PIX_GRID_PRESET_BY_ID } from '../PixGridPresets'
 import { applyPixGridPresetSettings } from '../PixGridState'
 import type { PixGridAudioFrame, PixGridGroup, PixGridLayer, PixGridState } from '../PixGridTypes'
 import { normalizePixGridState } from '../PixGridValidation'
-import type { PixGridSequencePlan } from '../PixGridSequenceClock'
+import { resolvePixGridSequencePlan, type PixGridSequencePlan } from '../PixGridSequenceClock'
 
 const WIDTH = 64
 const HEIGHT = 36
@@ -153,7 +154,7 @@ function deck(revision = 1): PixGridDeckDefinition {
 
 function frameSet(revision = 1): PixGridPreparedFrameSet {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     deckId: DECK_ID,
     deckRevision: revision,
     width: WIDTH,
@@ -182,7 +183,48 @@ function transitionPlan(mode: PixGridDeckTransitionMode): PixGridDeckTransitionP
   })
 }
 
-function sequencePlan(progress: number, mode: PixGridDeckTransitionMode): PixGridSequencePlan {
+function denseFrame(frame: PixGridPreparedFrame): PixGridPreparedFrame {
+  const foreground = new Uint8Array(WIDTH * HEIGHT).fill(255)
+  return {
+    ...frame,
+    masks: { ...frame.masks, foreground, background: new Uint8Array(WIDTH * HEIGHT) },
+    metrics: {
+      ...frame.metrics,
+      foregroundCellCount: WIDTH * HEIGHT,
+      backgroundCellCount: 0,
+      bounds: { minX: 0, minY: 0, maxX: WIDTH - 1, maxY: HEIGHT - 1 },
+    },
+  }
+}
+
+function transitionPlanForFrames(
+  mode: PixGridDeckTransitionMode,
+  source: PixGridPreparedFrame,
+  target: PixGridPreparedFrame,
+): PixGridDeckTransitionPlan {
+  const settings = {
+    requestedMode: mode,
+    sourceItemId: SOURCE_ITEM_ID,
+    targetItemId: TARGET_ITEM_ID,
+    durationFraction: 0.25,
+  } as const
+  return compilePixGridDeckPreparedFrameTransition({
+    cacheKey: createPixGridDeckTransitionCacheKey({
+      sourceFrameCacheKey: source.cacheKey,
+      targetFrameCacheKey: target.cacheKey,
+      settings,
+    }),
+    source,
+    target,
+    settings,
+  })
+}
+
+function sequencePlan(
+  progress: number,
+  mode: PixGridDeckTransitionMode,
+  resolvedMode: PixGridDeckConcreteTransitionMode | null = mode === 'auto' ? null : mode,
+): PixGridSequencePlan {
   return {
     clockId: 'PixGridSequenceClock',
     deckId: DECK_ID,
@@ -205,6 +247,8 @@ function sequencePlan(progress: number, mode: PixGridDeckTransitionMode): PixGri
     boundaryIdentity: 'runtime-boundary:1',
     transitionArmedBy: null,
     transitionWindow: {
+      lifecycle: progress >= 0.9 ? 'completing' : 'active',
+      interruptionPolicy: 'finishCurrent',
       permitted: true,
       active: true,
       startBar: 1,
@@ -212,13 +256,19 @@ function sequencePlan(progress: number, mode: PixGridDeckTransitionMode): PixGri
       progress,
       boundaryIdentity: 'runtime-boundary:1',
       quantization: 'bar',
-      mode,
+      requestedMode: mode,
+      resolvedMode,
       durationBeats: 1,
       durationFraction: 0.25,
       pairOverride: false,
+      anchorMode: 'onset',
+      arrivalAnchor: 'dropImpact',
+      arrivalBar: null,
+      queuedBoundaryIdentity: null,
     },
     hold: { active: false, reason: null, behavior: null },
     effect: 'none',
+    timingPolicy: { source: 'automaticCadence', beatsPerBar: 4, itemDurationBeats: 32 },
   }
 }
 
@@ -320,6 +370,61 @@ function alphaCellCount(pixels: Uint8Array): number {
   return count
 }
 
+function alphaCentroidX(pixels: Uint8Array): number {
+  let weightedX = 0
+  let weight = 0
+  for (let cell = 0; cell < pixels.length / 4; cell += 1) {
+    const alpha = pixels[cell * 4 + 3]!
+    weightedX += (cell % WIDTH) * alpha
+    weight += alpha
+  }
+  return weight > 0 ? weightedX / weight : 0
+}
+
+function opaqueFrame(id: string, red: number): PixGridPreparedFrame {
+  const pixels = new Uint8Array(WIDTH * HEIGHT * 4)
+  const alpha = new Uint8Array(WIDTH * HEIGHT).fill(255)
+  for (let cell = 0; cell < WIDTH * HEIGHT; cell += 1) {
+    const offset = cell * 4
+    const x = cell % WIDTH
+    const y = Math.floor(cell / WIDTH)
+    const foreground = x >= 25 && x <= 38 && y >= 11 && y <= 24
+    pixels[offset] = foreground ? red : 12
+    pixels[offset + 1] = foreground ? 140 : 12
+    pixels[offset + 2] = foreground ? 240 : 12
+    pixels[offset + 3] = 255
+  }
+  return compilePixGridDeckRasterFrame({
+    cacheKey: createPixGridDeckCompilerCacheKey({
+      sourceFingerprint: `sha256:${id}`, sourceRevision: 1, mimeType: 'image/png',
+      width: WIDTH, height: HEIGHT, transparentBackground: '#000000', hasAlpha: false,
+    }),
+    mediaId: `runtime-media-${id}`, sourceFingerprint: `sha256:${id}`, sourceRevision: 1,
+    rasterPixels: pixels, sourceAlpha: alpha, width: WIDTH, height: HEIGHT,
+    transparentBackground: '#000000', hasAlpha: false,
+  })
+}
+
+function composedTransition(
+  source: PixGridPreparedFrame,
+  target: PixGridPreparedFrame,
+  progress: number,
+  mode: PixGridDeckTransitionMode = 'auto',
+) {
+  const plan = transitionPlanForFrames(mode, source, target)
+  return {
+    frame: composePixGridDeckRuntimeFrame({
+      ...resolveSource(progress, 'crossfade', null),
+      sourceFrame: source,
+      targetFrame: target,
+      transitionPlan: plan,
+      transitionMode: plan.mode,
+      transitionProgress: progress,
+    }),
+    plan,
+  }
+}
+
 function hash(pixels: Uint8Array): string {
   let value = 0x811c9dc5
   for (const byte of pixels) {
@@ -396,9 +501,84 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
       expect(Array.from(end.pixels), `${requestedMode} target endpoint`).toEqual(Array.from(targetFrame.pixels))
       const middle = composePixGridDeckRuntimeFrame(resolveSource(0.5, requestedMode, plan), scratch)
       expect(middle.pixels.length).toBe(WIDTH * HEIGHT * 4)
-      expect(alphaCellCount(middle.pixels)).toBeGreaterThan(0)
+      expect(alphaCellCount(middle.pixels), `${requestedMode} middle frame`).toBeGreaterThan(0)
       expect(Object.values(middle.masks).every(mask => mask.length === WIDTH * HEIGHT)).toBe(true)
     }
+  })
+
+  it('preserves alpha semantics across transparent and opaque transition pairs', () => {
+    const opaque = opaqueFrame('opaque-pair', 245)
+
+    const transparentPair = composedTransition(sourceFrame, targetFrame, 0.5)
+    expect(transparentPair.frame.pixels[3]).toBe(0)
+    expect(alphaCellCount(transparentPair.frame.pixels)).toBeGreaterThan(0)
+
+    const toOpaqueStart = composedTransition(sourceFrame, opaque, 0).frame
+    const toOpaqueMiddle = composedTransition(sourceFrame, opaque, 0.5).frame
+    const toOpaqueEnd = composedTransition(sourceFrame, opaque, 1).frame
+    expect(toOpaqueStart.pixels).toEqual(sourceFrame.pixels)
+    expect(alphaCellCount(toOpaqueMiddle.pixels)).toBeGreaterThan(0)
+    expect(toOpaqueEnd.pixels).toEqual(opaque.pixels)
+
+    const toTransparentStart = composedTransition(opaque, targetFrame, 0).frame
+    const toTransparentMiddle = composedTransition(opaque, targetFrame, 0.5).frame
+    const toTransparentEnd = composedTransition(opaque, targetFrame, 1).frame
+    expect(toTransparentStart.pixels).toEqual(opaque.pixels)
+    expect(alphaCellCount(toTransparentMiddle.pixels)).toBeGreaterThan(0)
+    expect(toTransparentEnd.pixels).toEqual(targetFrame.pixels)
+  })
+
+  it('keeps consecutive A to B to C to D transitions bound to their own frame pair', () => {
+    const third = preparedFrame({
+      id: 'third', mediaId: 'runtime-media-third',
+      lit: (x, y) => x >= 24 && x <= 31 && y >= 4 && y <= 13,
+      color: [255, 90, 30],
+    })
+    const fourth = opaqueFrame('fourth', 180)
+    const pairs = [[sourceFrame, targetFrame], [targetFrame, third], [third, fourth]] as const
+    const cacheKeys = new Set<string>()
+    for (const [source, target] of pairs) {
+      const middle = composedTransition(source, target, 0.5)
+      cacheKeys.add(middle.plan.cacheKey)
+      expect(middle.plan.sourceFrameCacheKey).toBe(source.cacheKey)
+      expect(middle.plan.targetFrameCacheKey).toBe(target.cacheKey)
+      expect(composedTransition(source, target, 0).frame.pixels).toEqual(source.pixels)
+      expect(composedTransition(source, target, 1).frame.pixels).toEqual(target.pixels)
+      expect(alphaCellCount(middle.frame.pixels)).toBeGreaterThan(0)
+    }
+    expect(cacheKeys.size).toBe(pairs.length)
+  })
+
+  it('integrates compiler, sequence clock, runtime validation, and compositor for auto mode', () => {
+    const targetDeck = deck()
+    const compiled = transitionPlan('auto')
+    const clockPlan = resolvePixGridSequencePlan({
+      deck: targetDeck,
+      preparedFrames: [
+        { itemId: SOURCE_ITEM_ID, frameId: sourceFrame.cacheKey },
+        { itemId: TARGET_ITEM_ID, frameId: targetFrame.cacheKey },
+      ],
+      timeline: {
+        absoluteBar: 1.125, sequenceBar: 1.125, sectionType: 'intro', sectionId: 'intro-1',
+        sceneId: null, trackIdentity: 'runtime-track', presetId: PRESET_ID, timelineRevision: 'runtime-1',
+      },
+      boundarySignals: [{ id: 'runtime-force', bar: 1, kind: 'trackMap', behavior: 'force', quantization: 'bar' }],
+      autoPerformanceEnabled: false,
+      motion: 1,
+      transportMode: 'reconstruct',
+      transitionModeResolver: () => compiled.mode,
+    })
+    expect(clockPlan?.transitionWindow).toMatchObject({
+      active: true,
+      requestedMode: 'auto',
+      resolvedMode: compiled.mode,
+    })
+    const runtime = resolvePixGridDeckRuntimeFrameSource({
+      deck: targetDeck, preparedFrameSet: frameSet(), sequencePlan: clockPlan,
+      transitionPlan: compiled, width: WIDTH, height: HEIGHT,
+    })
+    expect(runtime).toMatchObject({ status: 'ready', source: { transitionMode: compiled.mode, fallbackReason: null } })
+    expect(alphaCellCount(composePixGridDeckRuntimeFrame(runtime.source!).pixels)).toBeGreaterThan(0)
   })
 
   it('reuses Deck compositor buffers across frames at a stable matrix size', () => {
@@ -423,6 +603,29 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
     expect(second).toEqual(first)
     expect(sourceFrame.pixels).toEqual(sourceBefore)
     expect(targetFrame.pixels).toEqual(targetBefore)
+  })
+
+  it('keeps spatial transport continuous and arrival-exact across representative progress samples', () => {
+    const plan = transitionPlan('pixelTransport')
+    const samples = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]
+    const frames = samples.map(progress => composePixGridDeckRuntimeFrame({
+      ...resolveSource(progress, 'pixelTransport', plan),
+      transitionDynamics: {
+        motionIntensity: 0.8,
+        acceleration: 0.65,
+        dispersal: 0.45,
+        reconstruction: 0.7,
+        regionPulse: 0.5,
+        completionEmphasis: 0.9,
+      },
+    }).pixels.slice())
+    expect(frames[0]).toEqual(sourceFrame.pixels)
+    expect(frames[frames.length - 1]).toEqual(targetFrame.pixels)
+    for (const frame of frames.slice(1, -1)) expect(alphaCellCount(frame)).toBeGreaterThan(0)
+    const centroids = frames.map(alphaCentroidX)
+    expect(centroids[0]).toBeLessThan(centroids[3]!)
+    expect(centroids[3]).toBeLessThan(centroids[centroids.length - 1]!)
+    expect(new Set(frames.map(hash)).size).toBe(samples.length)
   })
 
   it('rejects stale Deck revisions and matrix sizes and falls back safely for a stale pair plan', () => {
@@ -459,7 +662,7 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
       transitionPlan: stalePlan, width: WIDTH, height: HEIGHT,
     })
     expect(fallback.status).toBe('ready-fallback')
-    expect(fallback.source?.transitionMode).toBe('pixelDissolve')
+    expect(fallback.source?.transitionMode).toBe('crossfade')
     expect(fallback.source?.fallbackReason).toBe('invalid-transition-plan')
   })
 
@@ -586,5 +789,74 @@ describe('PixGrid Deck Stage 6 runtime rendering', () => {
       const runtime = resolveSource(0.5, mode, plan)
       expect(runtime.transitionMode).toBe(plan.mode as PixGridDeckConcreteTransitionMode)
     }
+  })
+
+  it('accepts requested auto when the compiler resolves pixelTransport', () => {
+    const plan = transitionPlan('auto')
+    expect(plan).toMatchObject({ requestedMode: 'auto', mode: 'pixelTransport' })
+    const resolution = resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: frameSet(),
+      sequencePlan: sequencePlan(0.5, 'auto', plan.mode), transitionPlan: plan,
+      width: WIDTH, height: HEIGHT,
+    })
+    expect(resolution).toMatchObject({ status: 'ready', source: { transitionMode: 'pixelTransport', fallbackReason: null } })
+  })
+
+  it('accepts dense clustered transport for auto and explicit pixelTransport', () => {
+    const denseSource = denseFrame(sourceFrame)
+    const denseTarget = denseFrame(targetFrame)
+    const denseFrameSet = { ...frameSet(), frames: [denseSource, denseTarget] }
+
+    const automatic = transitionPlanForFrames('auto', denseSource, denseTarget)
+    expect(automatic.requestedMode).toBe('auto')
+    expect(automatic).toMatchObject({ mode: 'pixelTransport', strategy: 'clusteredMorph' })
+    expect(resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: denseFrameSet,
+      sequencePlan: sequencePlan(0.5, 'auto', automatic.mode), transitionPlan: automatic,
+      width: WIDTH, height: HEIGHT,
+    })).toMatchObject({ status: 'ready', source: { transitionMode: automatic.mode } })
+
+    const requestedTransport = transitionPlanForFrames('pixelTransport', denseSource, denseTarget)
+    expect(requestedTransport).toMatchObject({ requestedMode: 'pixelTransport' })
+    expect(requestedTransport).toMatchObject({ mode: 'pixelTransport', strategy: 'clusteredMorph' })
+    expect(requestedTransport.fallbackReason).toBeNull()
+    expect(resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: denseFrameSet,
+      sequencePlan: sequencePlan(0.5, 'pixelTransport', requestedTransport.mode),
+      transitionPlan: requestedTransport, width: WIDTH, height: HEIGHT,
+    })).toMatchObject({ status: 'ready', source: { transitionMode: requestedTransport.mode } })
+  })
+
+  it('uses continuity fallback for unavailable plans while preserving intentional hard cuts', () => {
+    const pending = resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: frameSet(), sequencePlan: sequencePlan(0.5, 'auto'),
+      transitionPlan: null, transitionPlanState: 'pending', width: WIDTH, height: HEIGHT,
+    })
+    expect(pending).toMatchObject({
+      status: 'ready-fallback',
+      source: { transitionMode: 'crossfade', fallbackReason: 'missing-transition-plan' },
+    })
+    const failed = resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: frameSet(), sequencePlan: sequencePlan(0.5, 'pixelTransport'),
+      transitionPlan: null, transitionPlanState: 'failed', width: WIDTH, height: HEIGHT,
+    })
+    expect(failed).toMatchObject({
+      status: 'ready-fallback',
+      source: { transitionMode: 'crossfade', fallbackReason: 'transition-compilation-failed' },
+    })
+    const intentionalCut = resolvePixGridDeckRuntimeFrameSource({
+      deck: deck(), preparedFrameSet: frameSet(), sequencePlan: sequencePlan(0.5, 'hardCut'),
+      transitionPlan: null, width: WIDTH, height: HEIGHT,
+    })
+    expect(intentionalCut.source?.transitionMode).toBe('hardCut')
+  })
+
+  it('adopts a late compiled plan only at the next transition boundary', () => {
+    const latch = new PixGridDeckTransitionPlanLatch()
+    const plan = transitionPlan('auto')
+    expect(latch.resolve({ active: true, boundaryIdentity: 'a-to-b', plan: null })).toBeNull()
+    expect(latch.resolve({ active: true, boundaryIdentity: 'a-to-b', plan })).toBeNull()
+    expect(latch.resolve({ active: false, boundaryIdentity: 'a-to-b', plan })).toBe(plan)
+    expect(latch.resolve({ active: true, boundaryIdentity: 'b-to-c', plan })).toBe(plan)
   })
 })

@@ -10,6 +10,8 @@ const SCENE_SUFFIXES: ReadonlyArray<readonly [string, ReactSectionType]> = [
   ['build', 'build'],
   ['drop', 'drop'],
   ['outro', 'outro'],
+  ['bridge', 'bridge'],
+  ['unknown', 'unknown'],
 ]
 
 const PREVIEW_CLOCK_EPSILON = 1e-9
@@ -46,6 +48,7 @@ export function resolvePixGridPreviewState(
 export function resolvePixGridSceneSectionType(state: PixGridState): ReactSectionType | null {
   const scene = state.scenes.find(candidate => candidate.id === state.selectedSceneId)
   if (!scene) return null
+  if (scene.sectionType) return scene.sectionType
   const candidates = [scene.id, scene.name].map(value => value.toLowerCase().replace(/[\s_-]+/g, ''))
   for (const [suffix, sectionType] of SCENE_SUFFIXES) {
     const normalized = suffix.toLowerCase()

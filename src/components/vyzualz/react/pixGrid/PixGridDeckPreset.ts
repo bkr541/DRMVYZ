@@ -18,6 +18,10 @@ export interface PixGridDeckPresetReadiness {
   frameProgress: number
   transitionProgress: number
   ready: boolean
+  /** Always populated by the P1 resolver; optional for legacy test/store producers. */
+  level?: 'invalid' | 'preparing' | 'playable' | 'fullyPrepared' | 'degraded'
+  playable?: boolean
+  fullyPrepared?: boolean
   errorCount: number
   message: string
   errors?: readonly string[]
@@ -73,28 +77,43 @@ export function resolvePixGridDeckPresetReadiness(
   const errors = [
     ...(statusMatches ? compileStatus.items : [])
       .filter(item => item.error)
-      .map(item => item.error!.message),
+      .map(item => `${item.itemId}: ${item.error!.message}`),
     ...(transitionMatches ? transitionStatus.pairs : [])
       .filter(pair => pair.error)
-      .map(pair => pair.error!.message),
+      .map(pair => `${pair.sourceItemId} → ${pair.targetItemId}: ${pair.error!.message}`),
   ]
   const errorCount = Math.max(
     errors.length,
     (statusMatches ? compileStatus.failedItemCount : 0)
       + (transitionMatches ? transitionStatus.failedPairCount : 0),
   )
-  const ready = enabledItemCount >= 2
+  const framesReady = enabledItemCount >= 2
     && statusMatches
     && compileStatus.ready
-    && transitionMatches
-    && transitionStatus.ready
+  const playable = Boolean(framesReady && transitionMatches && transitionStatus?.playable)
+  const fullyPrepared = Boolean(playable && transitionStatus?.fullyPrepared)
+  const degraded = Boolean(playable && transitionStatus?.degraded)
+  const ready = playable
+  const level: PixGridDeckPresetReadiness['level'] = enabledItemCount < 2 || (statusMatches && compileStatus.failedItemCount > 0)
+    ? 'invalid'
+    : !playable
+      ? 'preparing'
+      : degraded
+        ? 'degraded'
+        : fullyPrepared
+          ? 'fullyPrepared'
+          : 'playable'
   const message = enabledItemCount < 2
     ? 'Enable at least two images.'
-    : errorCount > 0
-      ? 'Resolve compilation errors before creating the Preset.'
-      : ready
-        ? 'Ready to create Preset.'
-        : 'Preparing images and transitions…'
+    : level === 'invalid'
+      ? 'Required image compilation failed.'
+      : level === 'degraded'
+        ? 'Playable with optional transition failures; retry affected pairs when convenient.'
+        : level === 'fullyPrepared'
+          ? 'Ready to create Preset.'
+          : level === 'playable'
+            ? 'Playable; preparing upcoming transitions in the background…'
+            : 'Preparing required images and transitions…'
   return {
     deckId: deck.id,
     deckRevision: deck.revision,
@@ -102,6 +121,9 @@ export function resolvePixGridDeckPresetReadiness(
     frameProgress,
     transitionProgress,
     ready,
+    level,
+    playable,
+    fullyPrepared,
     errorCount,
     message,
     errors,

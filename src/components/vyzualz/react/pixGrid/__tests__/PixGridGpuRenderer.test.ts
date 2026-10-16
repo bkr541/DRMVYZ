@@ -399,7 +399,11 @@ describe('PixGridGpuRenderer', () => {
     )
 
     expect(Array.from(gpuUpload)).toEqual(Array.from(fallback.logicalFrame.pixels))
-    expect(Array.from(image.data)).toEqual(Array.from(fallback.logicalFrame.pixels))
+    const intensity = resolvePixGridPresentation(state, frame).resolvedOutputIntensity
+    const presented = fallback.logicalFrame.pixels.map((value, index) => (
+      index % 4 === 3 ? value : Math.round(value * intensity)
+    ))
+    expect(Array.from(image.data)).toEqual(Array.from(presented))
   })
 
   it('disposes every owned GPU resource idempotently', () => {

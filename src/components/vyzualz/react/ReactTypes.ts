@@ -3,7 +3,7 @@ import type { SoundDrawingScopeState } from '../../../audio/scope/scopeTypes'
 import { createCinematicWorldConfig } from './CinematicWorldConfig'
 import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
-import { PIX_GRID_PRESETS } from './pixGrid/PixGridPresets'
+import { PIX_GRID_CATALOG_PRESETS } from './pixGrid/PixGridPresetRegistry'
 import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './renderers/cutbank/CutbankSettings'
@@ -4588,7 +4588,7 @@ export const DEFAULT_REACT_PRESETS: ReactPreset[] = [
   },
 
   // ── LaserDMX Beam Matrix launcher ─────────────────────────────────────────
-  ...PIX_GRID_PRESETS,
+  ...PIX_GRID_CATALOG_PRESETS,
 
   {
     id: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID,

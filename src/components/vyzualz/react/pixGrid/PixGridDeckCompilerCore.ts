@@ -50,7 +50,7 @@ function normalizeBackground(value: string): string {
 
 export function createPixGridDeckConversionSettings(
   transparentBackground: string,
-  hasAlpha: boolean,
+  _hasAlpha: boolean,
 ): PixGridConversionSettings {
   return {
     ...DEFAULT_PIX_GRID_CONVERSION_SETTINGS,
@@ -61,7 +61,9 @@ export function createPixGridDeckConversionSettings(
     paletteSize: 64,
     ditherMode: 'none',
     edgeEnhancement: 0,
-    backgroundHandling: hasAlpha ? 'solid' : 'transparent',
+    // The Deck compiler preserves source alpha. The configured color remains a
+    // render-time background choice and is never baked into animated content.
+    backgroundHandling: 'transparent',
     backgroundColor: normalizeBackground(transparentBackground),
   }
 }
@@ -104,6 +106,7 @@ export function createPixGridDeckCompilerCacheKey(input: {
     input.sourceFingerprint,
     Math.max(0, Math.floor(input.sourceRevision)),
     input.mimeType ?? 'unknown',
+    `source-alpha:${input.hasAlpha ? 1 : 0}`,
     `${Math.max(1, Math.floor(input.width))}x${Math.max(1, Math.floor(input.height))}`,
     conversionSignature(settings),
   ].join('|')
@@ -136,6 +139,34 @@ function maskCount(mask: Uint8Array): number {
   return count
 }
 
+function opaqueBackgroundReference(pixels: Uint8Array, width: number, height: number): readonly [number, number, number] {
+  const samples: Array<readonly [number, number, number]> = []
+  const add = (cell: number) => {
+    const offset = cell * 4
+    samples.push([pixels[offset]!, pixels[offset + 1]!, pixels[offset + 2]!])
+  }
+  for (let x = 0; x < width; x += 1) {
+    add(x)
+    if (height > 1) add((height - 1) * width + x)
+  }
+  for (let y = 1; y < height - 1; y += 1) {
+    add(y * width)
+    if (width > 1) add(y * width + width - 1)
+  }
+  const median = (channel: number) => {
+    const values = samples.map(sample => sample[channel]!).sort((a, b) => a - b)
+    return values[Math.floor(values.length / 2)] ?? 0
+  }
+  return [median(0), median(1), median(2)]
+}
+
+function colorDistanceFrom(pixels: Uint8Array, offset: number, color: readonly number[]): number {
+  const red = pixels[offset]! - color[0]!
+  const green = pixels[offset + 1]! - color[1]!
+  const blue = pixels[offset + 2]! - color[2]!
+  return Math.sqrt(red * red * 0.3 + green * green * 0.59 + blue * blue * 0.11)
+}
+
 export function derivePixGridDeckFrameAnalysis(input: {
   pixels: Uint8Array
   sourceAlpha: Uint8Array
@@ -160,16 +191,30 @@ export function derivePixGridDeckFrameAnalysis(input: {
   let minY = height
   let maxX = -1
   let maxY = -1
+  let visibleLuminanceCount = 0
+  let hasTransparency = false
+  for (const alpha of sourceAlpha) {
+    if (alpha < PIX_GRID_DECK_MASK_THRESHOLDS.foregroundAlpha) {
+      hasTransparency = true
+      break
+    }
+  }
+  const opaqueBackground = hasTransparency ? null : opaqueBackgroundReference(pixels, width, height)
 
   for (let cell = 0; cell < cellCount; cell += 1) {
     const alpha = sourceAlpha[cell]
-    const foreground = alpha >= PIX_GRID_DECK_MASK_THRESHOLDS.foregroundAlpha
+    const offset = cell * 4
+    const foreground = hasTransparency
+      ? alpha >= PIX_GRID_DECK_MASK_THRESHOLDS.foregroundAlpha
+      : colorDistanceFrom(pixels, offset, opaqueBackground!) >= 18
     masks.foreground[cell] = foreground ? 255 : 0
     masks.background[cell] = foreground ? 0 : 255
-    const offset = cell * 4
     const luminance = luminanceAt(pixels, offset)
-    luminanceSum += luminance
-    luminanceSquaredSum += luminance * luminance
+    if (foreground) {
+      luminanceSum += luminance
+      luminanceSquaredSum += luminance * luminance
+      visibleLuminanceCount += 1
+    }
     alphaSum += alpha / 255
     if (!foreground) continue
 
@@ -205,8 +250,9 @@ export function derivePixGridDeckFrameAnalysis(input: {
     }
   }
 
-  const averageLuminance = luminanceSum / cellCount
-  const variance = Math.max(0, luminanceSquaredSum / cellCount - averageLuminance * averageLuminance)
+  const luminanceDivisor = Math.max(1, visibleLuminanceCount)
+  const averageLuminance = luminanceSum / luminanceDivisor
+  const variance = Math.max(0, luminanceSquaredSum / luminanceDivisor - averageLuminance * averageLuminance)
   const foregroundCellCount = maskCount(masks.foreground)
   const metrics: PixGridPreparedFrameMetrics = {
     cellCount,

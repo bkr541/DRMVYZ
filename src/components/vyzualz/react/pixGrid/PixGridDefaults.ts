@@ -156,9 +156,13 @@ export function createDefaultPixGridState(): PixGridState {
     } : {}),
   })) ?? []
   const sceneIds = Object.keys(defaultSettings?.sceneSettings ?? {})
+  const defaultPreset = PIX_GRID_PRESET_BY_ID.get(DEFAULT_PIX_GRID_PRESET_ID)
   const defaultScenes: PixGridScene[] = (sceneIds.length > 0 ? sceneIds : [DEFAULT_PIX_GRID_SCENE_ID]).map((id, index) => ({
     id,
     name: pixGridSceneNameFromId(id, index),
+    ...(defaultPreset?.scenes.find(scene => scene.id === id)?.sectionType
+      ? { sectionType: defaultPreset.scenes.find(scene => scene.id === id)!.sectionType }
+      : {}),
     layerIds: defaultLayers.map(layer => layer.id),
     pixelOverrides: [],
   }))

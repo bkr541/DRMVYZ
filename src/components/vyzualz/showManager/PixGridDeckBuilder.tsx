@@ -21,6 +21,7 @@ import {
   type PixGridDeckUpdatePatch,
 } from '../react/pixGrid/PixGridDeckDomain'
 import type { PixGridDeckPresetReadiness } from '../react/pixGrid/PixGridDeckPreset'
+import { PIX_GRID_MOTION_PROFILES } from '../react/pixGrid/PixGridMotionProfiles'
 
 export interface PixGridDeckUploadUiState {
   active: boolean
@@ -64,6 +65,8 @@ const PRE_DROP_OPTIONS: ReadonlyArray<{ value: PixGridDeckPreDropBehavior; label
   { value: 'previewNext', label: 'Preview Next' },
   { value: 'continue', label: 'Continue Sequence' },
 ]
+
+const MOTION_PROFILE_OPTIONS = PIX_GRID_MOTION_PROFILES.map(profile => ({ value: profile.id, label: profile.name }))
 
 export function PixGridDeckBuilderLibrary({
   deck,
@@ -115,7 +118,7 @@ export function PixGridDeckBuilderLibrary({
         icon={<Image01Icon size={15} color="currentColor" aria-hidden="true" />}
         label="Deck Images"
       />
-      <span className="sm-window-substatus">{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS}` : 'Create a new Deck'}</span>
+      <span className="sm-window-substatus">{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS} occurrences · sources prepared on demand` : 'Create a new Deck'}</span>
       <div className="sm-deck-upload-card">
         <label htmlFor={inputId} className={`sm-deck-upload-button${upload.active ? ' is-busy' : ''}`}>
           <input
@@ -209,8 +212,21 @@ export function PixGridDeckBuilderInspector({
       override.sourceItemId === sourceItemId && override.targetItemId === targetItemId
     ))
     if (value !== 'default') {
-      next.push({ sourceItemId, targetItemId, mode: value as PixGridDeckTransitionMode })
+      const existing = current.find(override => override.sourceItemId === sourceItemId && override.targetItemId === targetItemId)
+      next.push({ sourceItemId, targetItemId, mode: value as PixGridDeckTransitionMode, ...(existing?.motionProfileId ? { motionProfileId: existing.motionProfileId } : {}) })
     }
+    updateConfiguration({ transitionPolicy: { pairOverrides: next } })
+  }
+  const setPairMotionProfile = (sourceItemId: string, targetItemId: string, motionProfileId: string) => {
+    if (!configuration) return
+    const current = [...(configuration.transitionPolicy.pairOverrides ?? [])]
+    const existing = current.find(override => override.sourceItemId === sourceItemId && override.targetItemId === targetItemId)
+    const next = current.filter(override => !(override.sourceItemId === sourceItemId && override.targetItemId === targetItemId))
+    if (motionProfileId !== 'default' || existing) next.push({
+      sourceItemId, targetItemId, mode: existing?.mode ?? configuration.transitionPolicy.mode ?? 'auto',
+      ...(existing?.durationFraction == null ? {} : { durationFraction: existing.durationFraction }),
+      ...(motionProfileId === 'default' ? {} : { motionProfileId }),
+    })
     updateConfiguration({ transitionPolicy: { pairOverrides: next } })
   }
   const setPairDuration = (sourceItemId: string, targetItemId: string, durationFraction: number) => {
@@ -227,6 +243,7 @@ export function PixGridDeckBuilderInspector({
       targetItemId,
       mode: existing?.mode ?? configuration.transitionPolicy.mode ?? 'auto',
       durationFraction,
+      ...(existing?.motionProfileId ? { motionProfileId: existing.motionProfileId } : {}),
     })
     updateConfiguration({ transitionPolicy: { pairOverrides: next } })
   }
@@ -312,6 +329,30 @@ export function PixGridDeckBuilderInspector({
 
             <section className="sm-deck-inspector-section">
               <h3>Transition</h3>
+              <Field label="Motion profile">
+                <Dropdown
+                  id="deck-motion-profile"
+                  ariaLabel="Deck motion profile"
+                  value={configuration.motionProfileId ?? 'balanced'}
+                  options={MOTION_PROFILE_OPTIONS}
+                  onChange={value => updateConfiguration({ motionProfileId: value })}
+                  size="compact"
+                />
+              </Field>
+              <small>Preset default · pair and scene overrides take precedence.</small>
+              <button
+                type="button"
+                className="sm-deck-reset-motion"
+                onClick={() => updateConfiguration({
+                  motionProfileId: 'balanced',
+                  sceneMotionProfileIds: {},
+                  transitionPolicy: {
+                    pairOverrides: (configuration.transitionPolicy.pairOverrides ?? []).map(({ motionProfileId: _motionProfileId, ...override }) => override),
+                  },
+                })}
+              >
+                Reset motion overrides
+              </button>
               <Dropdown
                 id="deck-transition-mode"
                 ariaLabel="Deck transition mode"
@@ -332,6 +373,16 @@ export function PixGridDeckBuilderInspector({
                   onChange={value => updateConfiguration({ transitionPolicy: { durationFraction: value } })}
                 />
               </Field>
+              <Field label="Timing anchor">
+                <Dropdown
+                  id="deck-transition-anchor"
+                  ariaLabel="Deck transition timing anchor"
+                  value={configuration.transitionPolicy.anchorMode ?? 'onset'}
+                  options={[{ value: 'onset', label: 'Start on boundary' }, { value: 'arrival', label: 'Arrive on boundary' }]}
+                  onChange={value => updateConfiguration({ transitionPolicy: { anchorMode: value as 'onset' | 'arrival' } })}
+                  size="compact"
+                />
+              </Field>
               {transitionPairs.length > 0 && (
                 <div className="sm-deck-pair-overrides">
                   <strong>Pair overrides</strong>
@@ -350,6 +401,14 @@ export function PixGridDeckBuilderInspector({
                           value={override?.mode ?? 'default'}
                           options={[{ value: 'default', label: 'Use Default' }, ...TRANSITION_OPTIONS]}
                           onChange={value => setPairOverride(sourceItem.id, targetItem.id, value)}
+                          size="dense"
+                        />
+                        <Dropdown
+                          id={`deck-pair-motion-${sourceItem.id}-${targetItem.id}`}
+                          ariaLabel={`Motion profile from image ${sourceItem.order + 1} to image ${targetItem.order + 1}`}
+                          value={override?.motionProfileId ?? 'default'}
+                          options={[{ value: 'default', label: `Inherit ${configuration.motionProfileId ?? 'balanced'}` }, ...MOTION_PROFILE_OPTIONS]}
+                          onChange={value => setPairMotionProfile(sourceItem.id, targetItem.id, value)}
                           size="dense"
                         />
                         {override && override.mode !== 'hardCut' && (
@@ -417,6 +476,20 @@ export function PixGridDeckBuilderInspector({
                       onChange={value => setSectionAssignment(sectionType, value)}
                       size="dense"
                     />
+                    <Dropdown
+                      id={`deck-section-${sectionType}-motion`}
+                      ariaLabel={`${sectionType} scene motion profile`}
+                      value={configuration.sceneMotionProfileIds?.[`pix-grid-deck-scene:${deck.id}:${sectionType}`] ?? 'default'}
+                      options={[{ value: 'default', label: 'Inherit Motion' }, ...MOTION_PROFILE_OPTIONS]}
+                      onChange={value => {
+                        const sceneId = `pix-grid-deck-scene:${deck.id}:${sectionType}`
+                        const next = { ...(configuration.sceneMotionProfileIds ?? {}) }
+                        if (value === 'default') delete next[sceneId]
+                        else next[sceneId] = value
+                        updateConfiguration({ sceneMotionProfileIds: next })
+                      }}
+                      size="dense"
+                    />
                   </div>
                 ))}
               </div>
@@ -454,12 +527,16 @@ export function PixGridDeckSequenceStrip({
   onPreview,
   onPrevious,
   onNext,
+  transitionProgress = 0,
+  onTransitionProgress,
 }: {
   deck: PixGridDeckDefinition
   previewItemId: string | null
   onPreview: (itemId: string) => void
   onPrevious: () => void
   onNext: () => void
+  transitionProgress?: number
+  onTransitionProgress?: (progress: number) => void
 }) {
   const enabledItems = deck.items.filter(item => item.enabled)
   return (
@@ -485,6 +562,25 @@ export function PixGridDeckSequenceStrip({
           </button>
         ))}
       </div>
+      {enabledItems.length > 1 && onTransitionProgress && (
+        <label className="sm-deck-transition-scrubber">
+          <span>
+            Preview {Math.max(0, previewItemId ? enabledItems.findIndex(item => item.id === previewItemId) : 0) + 1}
+            {' → '}
+            {(Math.max(0, previewItemId ? enabledItems.findIndex(item => item.id === previewItemId) : 0) + 1) % enabledItems.length + 1}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={transitionProgress}
+            aria-label="Scrub generated PixGrid transition"
+            onChange={event => onTransitionProgress(Number(event.target.value))}
+          />
+          <small>{Math.round(transitionProgress * 100)}% generated intermediate frame</small>
+        </label>
+      )}
     </section>
   )
 }

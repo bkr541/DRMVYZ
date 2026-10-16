@@ -28,8 +28,9 @@ describe('PixGrid Deck worker-safe compiler core', () => {
       fitMode: 'contain',
       sampling: 'crisp',
       colorMode: 'original',
+      paletteSize: 64,
       ditherMode: 'none',
-      backgroundHandling: 'solid',
+      backgroundHandling: 'transparent',
       backgroundColor: '#123456',
     })
     const expected = preparePixGridPixelData({
@@ -53,6 +54,30 @@ describe('PixGrid Deck worker-safe compiler core', () => {
     })
     expect(prepared.schemaVersion).toBe(PIX_GRID_DECK_COMPILER_SCHEMA_VERSION)
     expect(prepared.pixels).toEqual(expected)
+    expect(prepared.pixels[11]).toBe(0)
+    expect(prepared.masks.foreground[2]).toBe(0)
+    expect(prepared.masks.background[2]).toBe(255)
+  })
+
+  it('separates opaque artwork occupancy from its rendered background', () => {
+    const width = 5
+    const height = 5
+    const pixels = new Uint8Array(width * height * 4)
+    const alpha = new Uint8Array(width * height).fill(255)
+    for (let cell = 0; cell < width * height; cell += 1) {
+      const offset = cell * 4
+      pixels[offset + 3] = 255
+    }
+    const center = 2 * width + 2
+    pixels[center * 4] = 255
+    const frame = compilePixGridDeckRasterFrame({
+      cacheKey: 'opaque-artwork', mediaId: 'opaque', sourceFingerprint: 'opaque', sourceRevision: 1,
+      rasterPixels: pixels, sourceAlpha: alpha, width, height, transparentBackground: '#224466', hasAlpha: false,
+    })
+    expect(frame.pixels.every((_value, index) => index % 4 !== 3 || frame.pixels[index] === 255)).toBe(true)
+    expect(frame.masks.foreground[center]).toBe(255)
+    expect(frame.masks.background[0]).toBe(255)
+    expect(frame.metrics.foregroundCellCount).toBe(1)
   })
 
   it('derives every canonical mask and deterministic metrics', () => {
