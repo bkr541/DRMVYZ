@@ -8,6 +8,28 @@ export default defineConfig({
   // (see electron/main.cjs) instead of the dev server's HTTP origin.
   base: './',
   plugins: [react()],
+  // Cinema 2.0 intentionally loads Three.js only when a 3D preset is selected.
+  // Keep every package entry used by that lazy path in Vite's initial dependency
+  // optimization pass. Otherwise the first activation after a backend dependency
+  // change can trigger a mid-session re-optimization/reload, leaving all Three.js
+  // presets in their recoverable "module could not load" state.
+  optimizeDeps: {
+    include: [
+      'three',
+      'three/examples/jsm/environments/RoomEnvironment.js',
+      'three/examples/jsm/libs/meshopt_decoder.module.js',
+      'three/examples/jsm/lights/RectAreaLightUniformsLib.js',
+      'three/examples/jsm/loaders/DRACOLoader.js',
+      'three/examples/jsm/loaders/EXRLoader.js',
+      'three/examples/jsm/loaders/GLTFLoader.js',
+      'three/examples/jsm/loaders/HDRLoader.js',
+      'three/examples/jsm/loaders/KTX2Loader.js',
+      'three/examples/jsm/postprocessing/SMAAPass.js',
+      'three/examples/jsm/shaders/FXAAShader.js',
+      'three/examples/jsm/shaders/SMAAShader.js',
+      'three/examples/jsm/utils/SkeletonUtils.js',
+    ],
+  },
   test: {
     // Global setup: localStorage stub + noise suppression for every test file.
     setupFiles: ['src/test/setup.ts'],

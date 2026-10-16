@@ -24,6 +24,7 @@ import { cinema2ConstellationNativeModuleDefinition } from './Cinema2Constellati
 import { cinema2BossBattleNativeModuleDefinition } from './Cinema2BossBattleNativeModule'
 import { cinema2SixfoldNativeModuleDefinition } from './Cinema2SixfoldNativeModule'
 import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNativeModule'
+import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -200,6 +201,11 @@ if (!sixfoldRegistration.ok) {
 const hypnotizeRegistration = cinema2NativeModuleRegistry.register(cinema2HypnotizeNativeModuleDefinition)
 if (!hypnotizeRegistration.ok) {
   throw new Error(`Cinema 2.0 Hypnotize native module registration failed: ${hypnotizeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const startersRegistration = cinema2NativeModuleRegistry.register(cinema2StartersNativeModuleDefinition)
+if (!startersRegistration.ok) {
+  throw new Error(`Cinema 2.0 Starters native module registration failed: ${startersRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {
