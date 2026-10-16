@@ -1,0 +1,372 @@
+diff --git a/package.json b/package.json
+index 34094db8..823bb69c 100644
+--- a/package.json
++++ b/package.json
+@@ -21,6 +21,7 @@
+     "test:coverage": "vitest run --coverage",
+     "test:diagnose": "vitest run --reporter=default --reporter=hanging-process",
+     "test:bench": "vitest bench",
++    "benchmark:pix-grid:p2": "vite-node scripts/benchmark-pix-grid-p2.ts",
+     "playwright:install": "playwright install chromium",
+     "playwright:install:ci": "playwright install --with-deps chromium",
+     "test:e2e": "playwright test",
+diff --git a/src/components/vyzualz/react/pixGrid/PixGridAssetPreparation.ts b/src/components/vyzualz/react/pixGrid/PixGridAssetPreparation.ts
+index c914569c..35789323 100644
+--- a/src/components/vyzualz/react/pixGrid/PixGridAssetPreparation.ts
++++ b/src/components/vyzualz/react/pixGrid/PixGridAssetPreparation.ts
+@@ -13,6 +13,7 @@ import {
+ } from './PixGridLimits'
+ import { isAnimatedPixGridWebP } from './PixGridWebP'
+ import { readPixGridResponseBlobBounded } from './PixGridBoundedResponse'
++import { PIX_GRID_DECK_MAX_DECODED_PIXELS, PIX_GRID_DECK_MAX_RASTER_DIMENSION } from './PixGridDeckMediaValidation'
+ import {
+   createPixGridConversionCacheKey,
+   preparePixGridPixelData,
+@@ -83,6 +84,14 @@ async function decodeBitmap(blob: Blob): Promise<DecodedPixGridImage> {
+ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): Promise<PixGridPreparedAsset> {
+   const capability = inspectPixGridMediaCapability(input.media)
+   if (!capability.supported) throw new Error(capability.reason ?? 'Unsupported PixGrid media.')
++  const declaredWidth = input.media.width ?? 0
++  const declaredHeight = input.media.height ?? 0
++  if (declaredWidth > PIX_GRID_DECK_MAX_RASTER_DIMENSION || declaredHeight > PIX_GRID_DECK_MAX_RASTER_DIMENSION) {
++    throw new Error(`This media exceeds PixGrid's ${PIX_GRID_DECK_MAX_RASTER_DIMENSION}px source-dimension limit.`)
++  }
++  if (declaredWidth > 0 && declaredHeight > 0 && declaredWidth * declaredHeight > PIX_GRID_DECK_MAX_DECODED_PIXELS) {
++    throw new Error('This media exceeds PixGrid\'s decoded-pixel memory budget.')
++  }
+   const sourceUrl = resolvePixGridMediaSourceUrl(input.media)
+   if (!sourceUrl) throw new Error('The original media URL is temporarily unavailable.')
+   const mediaRevision = resolvePixGridMediaRevision(input.media)
+@@ -109,6 +118,7 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput):
+   const decoded = await decodeBitmap(blob)
+   const bitmap = decoded.source
+   try {
++    if (input.signal?.aborted) throw new DOMException('PixGrid media preparation was cancelled.', 'AbortError')
+     const canvas = document.createElement('canvas')
+     canvas.width = input.width
+     canvas.height = input.height
+@@ -118,6 +128,9 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput):
+     context.imageSmoothingEnabled = input.settings.sampling === 'smooth'
+     const sourceWidth = 'naturalWidth' in bitmap ? bitmap.naturalWidth : bitmap.width
+     const sourceHeight = 'naturalHeight' in bitmap ? bitmap.naturalHeight : bitmap.height
++    if (sourceWidth > PIX_GRID_DECK_MAX_RASTER_DIMENSION || sourceHeight > PIX_GRID_DECK_MAX_RASTER_DIMENSION || sourceWidth * sourceHeight > PIX_GRID_DECK_MAX_DECODED_PIXELS) {
++      throw new Error('The decoded media exceeds PixGrid\'s bounded image-memory limits.')
++    }
+     const rect = resolvePixGridFitRect({
+       sourceWidth: sourceWidth || input.width,
+       sourceHeight: sourceHeight || input.height,
+diff --git a/src/components/vyzualz/react/pixGrid/PixGridBoundedResponse.ts b/src/components/vyzualz/react/pixGrid/PixGridBoundedResponse.ts
+index 492f294f..4cb9eb8e 100644
+--- a/src/components/vyzualz/react/pixGrid/PixGridBoundedResponse.ts
++++ b/src/components/vyzualz/react/pixGrid/PixGridBoundedResponse.ts
+@@ -38,7 +38,7 @@ export async function readPixGridResponseBlobBounded(
+     return blob
+   }
+ 
+-  const chunks: Uint8Array[] = []
++  const chunks: BlobPart[] = []
+   let bytes = 0
+   const abort = () => { void reader.cancel('PixGrid media preparation was cancelled.') }
+   signal?.addEventListener('abort', abort, { once: true })
+@@ -53,7 +53,9 @@ export async function readPixGridResponseBlobBounded(
+         await reader.cancel('PixGrid source exceeded its streaming size budget').catch(() => undefined)
+         throw new PixGridResponseLimitError(limit, bytes)
+       }
+-      chunks.push(result.value)
++      const copy = new Uint8Array(result.value.byteLength)
++      copy.set(result.value)
++      chunks.push(copy)
+     }
+     return new Blob(chunks, { type: response.headers.get('content-type') ?? '' })
+   } finally {
+diff --git a/src/components/vyzualz/react/pixGrid/PixGridCompositor.ts b/src/components/vyzualz/react/pixGrid/PixGridCompositor.ts
+index 61743c75..1f17e721 100644
+--- a/src/components/vyzualz/react/pixGrid/PixGridCompositor.ts
++++ b/src/components/vyzualz/react/pixGrid/PixGridCompositor.ts
+@@ -10,9 +10,8 @@ import type {
+   PixGridSceneSettings,
+   PixGridState,
+ } from './PixGridTypes'
+-import { MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES } from './PixGridLimits'
++import { MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES, MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
+ import { normalizePixGridState } from './PixGridValidation'
+-import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
+ import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
+ import { unpackPixGridOverride } from './PixGridAuthoring'
+ import { PixGridReactionRuntime, resolveLegacyPixGridLayerAudioReactivity } from './PixGridAudioRouting'
+diff --git a/src/components/vyzualz/react/pixGrid/PixGridSurface.tsx b/src/components/vyzualz/react/pixGrid/PixGridSurface.tsx
+index 27b7a3a0..0350f0fd 100644
+--- a/src/components/vyzualz/react/pixGrid/PixGridSurface.tsx
++++ b/src/components/vyzualz/react/pixGrid/PixGridSurface.tsx
+@@ -429,6 +429,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
+     const requestedItems = mediaIds.map((id) => mediaItems.find((item) => item.id === id) ?? null)
+     const missingId = mediaIds.find((_, index) => !requestedItems[index])
+     if (missingId) {
++      pixGridPreparedAssetCache.invalidateMedia(missingId)
+       setPreparedAssets(new Map())
+       setMediaPreparationStatus('missing')
+       setMediaPreparationMessage(
+@@ -1225,12 +1226,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
+         cacheMisses: preparedDiagnostics.misses,
+         transitionFallbackReason: input.deckFrameSource?.fallbackReason ?? input.deckRuntimeDiagnostic,
+         audioSignals: {
+-          kick: input.audioFrame.kickHit,
+-          snare: input.audioFrame.snareHit,
+-          bass: input.audioFrame.bass,
+-          energy: input.audioFrame.energy,
+-          buildProgress: input.audioFrame.buildProgress,
+-          dropImpact: input.audioFrame.dropImpactHit,
++          kick: input.audioFrame.kickHit ?? false,
++          snare: input.audioFrame.snareHit ?? false,
++          bass: input.audioFrame.bass ?? 0,
++          energy: input.audioFrame.energy ?? 0,
++          buildProgress: input.audioFrame.buildProgress ?? 0,
++          dropImpact: input.audioFrame.dropImpactHit ?? false,
+         },
+         frameRenderingCostMs: frameRenderStartedAt > 0 ? Math.max(0, performance.now() - frameRenderStartedAt) : 0,
+         updatedAtMs: performance.now(),
+diff --git a/src/components/vyzualz/react/pixGrid/__tests__/PixGridP2Hardening.test.ts b/src/components/vyzualz/react/pixGrid/__tests__/PixGridP2Hardening.test.ts
+index 784b1bc1..c65d9548 100644
+--- a/src/components/vyzualz/react/pixGrid/__tests__/PixGridP2Hardening.test.ts
++++ b/src/components/vyzualz/react/pixGrid/__tests__/PixGridP2Hardening.test.ts
+@@ -76,7 +76,7 @@ describe('PixGrid P2 sections and conformance', () => {
+           }],
+         },
+       },
+-    } as typeof original
++    } as unknown as typeof original
+     const report = validatePixGridPresetConformance(invalid)
+     expect(report.compatible).toBe(false)
+     expect(report.errors).toEqual(expect.arrayContaining([
+diff --git a/src/components/vyzualz/showManager/PixGridDeckBuilder.tsx b/src/components/vyzualz/showManager/PixGridDeckBuilder.tsx
+index cc28a90f..cd62d7a8 100644
+--- a/src/components/vyzualz/showManager/PixGridDeckBuilder.tsx
++++ b/src/components/vyzualz/showManager/PixGridDeckBuilder.tsx
+@@ -76,6 +76,7 @@ export function PixGridDeckBuilderLibrary({
+   onFiles,
+   onPreview,
+   onMove,
++  onDuplicate,
+   onReorder,
+   onToggle,
+   onRemove,
+@@ -87,6 +88,7 @@ export function PixGridDeckBuilderLibrary({
+   onFiles: (files: File[]) => void
+   onPreview: (itemId: string) => void
+   onMove: (itemId: string, direction: -1 | 1) => void
++  onDuplicate: (itemId: string) => void
+   onReorder: (sourceItemId: string, targetItemId: string) => void
+   onToggle: (itemId: string) => void
+   onRemove: (itemId: string) => void
+@@ -129,7 +131,7 @@ export function PixGridDeckBuilderLibrary({
+             disabled={upload.active || remainingSlots <= 0}
+             onChange={chooseFiles}
+           />
+-          <strong>{deck ? 'Add Images' : 'Upload 2–12 Images'}</strong>
++          <strong>{deck ? 'Add Images' : `Upload 2–${PIX_GRID_DECK_MAX_ITEMS} Images`}</strong>
+           <span>{upload.active ? upload.phase : deck ? `${remainingSlots} slots remaining` : `Creates “${draftName || 'Untitled Deck'}”`}</span>
+         </label>
+         {upload.error && <DrawerNotice tone="error" role="alert" title="Deck upload failed">{upload.error}</DrawerNotice>}
+@@ -161,6 +163,7 @@ export function PixGridDeckBuilderLibrary({
+             <div className="sm-deck-image-actions" aria-label={`${item.source.fileName ?? `Image ${index + 1}`} actions`}>
+               <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label="Move image earlier">↑</button>
+               <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === items.length - 1} aria-label="Move image later">↓</button>
++              <button type="button" onClick={() => onDuplicate(item.id)} disabled={remainingSlots <= 0} aria-label="Duplicate image occurrence">＋</button>
+               <button type="button" onClick={() => onToggle(item.id)} aria-pressed={item.enabled}>{item.enabled ? 'On' : 'Off'}</button>
+               <button type="button" onClick={() => onRemove(item.id)} disabled={items.length <= PIX_GRID_DECK_MIN_ITEMS} aria-label="Remove image">×</button>
+             </div>
+diff --git a/src/components/vyzualz/showManager/ShowManagerView.tsx b/src/components/vyzualz/showManager/ShowManagerView.tsx
+index d0d22dc0..483a8775 100644
+--- a/src/components/vyzualz/showManager/ShowManagerView.tsx
++++ b/src/components/vyzualz/showManager/ShowManagerView.tsx
+@@ -74,6 +74,7 @@ import {
+ } from '../react/pixGrid/PixGridDeckPreset'
+ import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompilerRuntime'
+ import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
++import { createPixGridDeckItemId, PIX_GRID_DECK_MAX_ITEMS } from '../react/pixGrid/PixGridDeckDomain'
+ import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
+ import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
+ import { SaveActiveGlyph } from '../layout/HeaderGlyphs'
+@@ -1562,6 +1563,20 @@ export function ShowManagerView() {
+     handleDeckUpdate({ items: editingDeck.items.filter(item => item.id !== itemId) })
+   }
+ 
++  const duplicateDeckItem = (itemId: string) => {
++    if (!editingDeck || editingDeck.items.length >= PIX_GRID_DECK_MAX_ITEMS) return
++    const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
++    const sourceIndex = items.findIndex(item => item.id === itemId)
++    const source = items[sourceIndex]
++    if (!source || sourceIndex < 0) return
++    items.splice(sourceIndex + 1, 0, {
++      ...source,
++      id: createPixGridDeckItemId(),
++      revision: 1,
++    })
++    handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
++  }
++
+   const stepPreview = (direction: -1 | 1) => {
+     if (previewEnabledItems.length === 0) return
+     const nextIndex = (previewDeckIndex + direction + previewEnabledItems.length) % previewEnabledItems.length
+@@ -2224,6 +2239,7 @@ export function ShowManagerView() {
+               onFiles={handleDeckFiles}
+               onPreview={setPreviewDeckItemId}
+               onMove={moveDeckItem}
++              onDuplicate={duplicateDeckItem}
+               onReorder={(sourceItemId, targetItemId) => {
+                 if (!editingDeck) return
+                 const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
+diff --git a/src/stores/pixGridDeckPersistence.test.ts b/src/stores/pixGridDeckPersistence.test.ts
+index 3a99ba3a..502654d7 100644
+--- a/src/stores/pixGridDeckPersistence.test.ts
++++ b/src/stores/pixGridDeckPersistence.test.ts
+@@ -227,7 +227,7 @@ describe('PixGrid Deck project persistence and history', () => {
+       ok: false,
+       error: { code: 'invalid-item-count' },
+     })
+-    expect(createDeck('thirteen-items', 'Thirteen items', 13)).toMatchObject({
++    expect(createDeck('sixty-five-items', 'Sixty-five items', 65)).toMatchObject({
+       ok: false,
+       error: { code: 'invalid-item-count' },
+     })
+
+diff --git a/docs/contracts/pixgrid-p2-final-hardening.md b/docs/contracts/pixgrid-p2-final-hardening.md
+new file mode 100644
+index 00000000..0b9065e8
+--- /dev/null
++++ b/docs/contracts/pixgrid-p2-final-hardening.md
+@@ -0,0 +1,56 @@
++# PixGrid P2 final hardening contract
++
++## Completion map
++
++| P2 item | Result |
++| --- | --- |
++| P2-01 sequence capacity | Completed. A Deck supports 2–64 occurrence records. Occurrence IDs remain unique, media IDs may repeat, and the Deck Builder can duplicate an occurrence without duplicating its media asset. Source preparation is keyed by media revision and pair compilation remains demand-driven rather than all-pairs. |
++| P2-02 section coverage | Completed. Built-ins author Intro, Verse, Build, Pre-drop, Drop, Breakdown, Bridge, Outro, and Unknown mappings. `scene.sectionType` is authoritative; name inference is compatibility-only. Unknown sections use an explicit mapping or preserve the safe current/fallback scene. |
++| P2-03 registries | Completed. Preset conformance resolves performance programs, motion profiles, assets, audio sources, and audio destinations through the shared registries. Duplicate and unknown IDs produce field-addressed issues. |
++| P2-04 media safety | Completed. Content-Length is checked before consumption, streamed bytes are counted and cancelled at the 64 MiB limit, aborts clean readers, and declared plus decoded dimensions are checked against Deck media limits. ImageBitmap disposal, SVG checks, animated-WebP rejection, and revision-aware invalidation remain in force. |
++| P2-05 caches and scene preparation | Completed. Prepared media is capped at 24 entries/16 MiB, prepared frames at 64 entries/64 MiB, transition plans at 256 entries/32 MiB, generated groups at 128 entries, and column extents at 128 LRU entries. Live preparation follows the effective current and next playback scenes; selected-scene preview remains isolated. Deleted media invalidates its prepared entry. |
++| P2-06 visual regression | Completed for the P2 contract, with existing suite debt recorded below. The reusable quality test samples 0/10/25/50/75/90/100%, checks exact endpoints, deterministic hashes, occupancy, brightness bounds, spatial intermediates, and distinct Flow/Disperse/Clustered results. Existing sequence, seeking, audio, GPU/Canvas, worker, and persistence suites provide the broader matrix. |
++| P2-07 expansion validator | Completed. `validatePixGridPresetConformance()` returns blocking errors and warnings carrying preset ID, field path, and stable code. `PIX_GRID_PRESET_CONFORMANCE_REPORTS` evaluates every registered definition. |
++| P2-08 diagnostics | Completed. Development snapshots expose preset/scene/item/pair identities, requested and resolved transition, profile, timing/progress, compiler/preparation/worker state, cache counters, fallback reason, audio signals, and frame cost without normal-playback console output. |
++
++## Sequence and compatibility rules
++
++The 64-occurrence ceiling is a resource-aware authoring constraint, not a unique-asset limit. A repeated occurrence receives a new item ID but retains the underlying `mediaId`; timing and directed pair overrides therefore remain occurrence-specific while prepared source pixels are shared. Removing an occurrence only updates the Deck definition and never deletes the canonical media record.
++
++Existing saved Decks require no schema migration. Decks at or below the former 12-item ceiling normalize unchanged. Legacy scenes without `sectionType` continue to use name/ID inference, while newly generated scenes persist authoritative section metadata. No built-in preset or performance-program ID changed.
++
++## Media and cache constraints
++
++- Source body: 64 MiB maximum, enforced before download when Content-Length is trustworthy and during stream consumption in all cases.
++- Raster dimensions and decoded pixel count: the existing Deck media-validation constants are checked both from metadata and after decode.
++- Prepared generic media: 24 entries and 16 MiB, LRU.
++- Prepared Deck frames: 64 entries and 64 MiB, LRU.
++- Transition plans: 256 entries and 32 MiB, LRU.
++- Column extents: 128 entries, LRU.
++- Transition compiler concurrency: two jobs by default, with cancellation and watchdog behavior retained from P1.
++
++The development diagnostics report cache entries/bytes and hit/miss/eviction counters where available. Eviction affects reuse only; recomputation is deterministic.
++
++## Adding and validating a preset
++
++Register the definition through `PixGridPresetRegistry.ts`, then call `validatePixGridPresetConformance(definition, allDefinitions)` in tooling or tests. Treat `compatible: false` as blocking. Warnings are non-blocking but must be reviewed; intentional static layers do not fail merely because they do not transform. Runtime and editor discovery both consume the registry, so a new preset does not require a second validation whitelist.
++
++## Repeatable performance measurement
++
++Run `npm run benchmark:pix-grid:p2`. The benchmark uses two deterministic 160×90 logical frames, 12 correspondence compilations, 240 composed transition frames, and a 64-occurrence/16-asset shuffle Deck.
++
++Measured on an Apple M3 Pro MacBook Pro (12 CPU cores, 18 GB RAM), macOS, Node 26.11.1:
++
++- Logical compose: 3.15 ms mean, 3.54 ms p95, 7.84 ms worst observed.
++- Transition compilation: 5.76 ms mean, 7.99 ms p95/worst observed.
++- Compiled transition-plan estimate: 30,696 bytes.
++- Long-sequence initial work: 64 reachable pairs for 64 occurrences, versus 4,032 possible directed pairs avoided.
++- Configured worker concurrency: 2; prepared-frame and transition-cache ceilings: 64 MiB and 32 MiB.
++
++These are CPU logical-frame measurements, not browser FPS claims. Browser media decode/preparation peak memory and repeated-preset browser memory could not be measured reliably because the existing runtime acceptance timed out waiting for Deck compilation. No number is reported for those fields rather than substituting an estimate.
++
++## Validation record and known baseline issues
++
++The P2-focused run passed 33 tests across bounded media, cache eviction, section metadata, conformance, animation quality, Deck domain, preview timeline, and the updated persistence capacity assertion. TypeScript typecheck passed. The bundled-worker Chromium acceptance passed.
++
++The repository's broader PixGrid suites still contain pre-existing failures: file-fixture URL resolution under Node, legacy persistence/canonical-graph expectations, two rendered-pixel expectations, performance-program assignment-count expectations, a WebP fixture, two GPU expectations, runtime browser compilation timeout, and Show Manager selected-track loading timeout. The full unit run was stopped after those known failures and a long-running GPU test; `test:pix-grid:final` and `verify:pix-grid:final` were not redundantly rerun because they begin with the same failing unit prerequisite. These failures are not hidden by fallback behavior and remain release-suite debt.
+
+diff --git a/scripts/benchmark-pix-grid-p2.ts b/scripts/benchmark-pix-grid-p2.ts
+new file mode 100644
+index 00000000..6592ba58
+--- /dev/null
++++ b/scripts/benchmark-pix-grid-p2.ts
+@@ -0,0 +1,70 @@
++import { performance } from 'node:perf_hooks'
++import { compilePixGridDeckRasterFrame } from '../src/components/vyzualz/react/pixGrid/PixGridDeckCompilerCore'
++import { composePixGridDeckRuntimeFrame, createPixGridDeckCompositorScratch } from '../src/components/vyzualz/react/pixGrid/PixGridDeckCompositor'
++import { DEFAULT_PIX_GRID_DECK_CONFIGURATION, type PixGridDeckDefinition } from '../src/components/vyzualz/react/pixGrid/PixGridDeckDomain'
++import { resolveReachablePixGridDeckTransitionPairs } from '../src/components/vyzualz/react/pixGrid/PixGridDeckTransitionCoordinator'
++import { compilePixGridDeckPreparedFrameTransition, createPixGridDeckTransitionCacheKey } from '../src/components/vyzualz/react/pixGrid/PixGridDeckTransitionPlanner'
++
++const width = 160
++const height = 90
++
++function prepared(id: string, offset: number) {
++  const pixels = new Uint8Array(width * height * 4)
++  const alpha = new Uint8Array(width * height)
++  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
++    const lit = ((x + offset) % 11 < 4 && (y * 2 + offset) % 13 < 5)
++    const cell = y * width + x
++    pixels.set([offset ? 255 : 20, offset ? 70 : 220, offset ? 150 : 255, lit ? 255 : 0], cell * 4)
++    alpha[cell] = lit ? 255 : 0
++  }
++  return compilePixGridDeckRasterFrame({ cacheKey: `bench:${id}`, mediaId: id, sourceFingerprint: id, sourceRevision: 1, rasterPixels: pixels, sourceAlpha: alpha, width, height, transparentBackground: '#000000', hasAlpha: true })
++}
++
++function stats(samples: readonly number[]) {
++  const ordered = [...samples].sort((a, b) => a - b)
++  return {
++    meanMs: samples.reduce((sum, value) => sum + value, 0) / samples.length,
++    p95Ms: ordered[Math.min(ordered.length - 1, Math.floor(ordered.length * 0.95))]!,
++    worstMs: ordered[ordered.length - 1]!,
++  }
++}
++
++const source = prepared('source', 0)
++const target = prepared('target', 5)
++const settings = { requestedMode: 'pixelTransport' as const, sourceItemId: 'source', targetItemId: 'target', durationFraction: 0.5, preferredStrategy: 'directionalFlow' as const }
++const compileSamples: number[] = []
++let plan = compilePixGridDeckPreparedFrameTransition({ cacheKey: 'warmup', source, target, settings })
++for (let index = 0; index < 12; index += 1) {
++  const started = performance.now()
++  plan = compilePixGridDeckPreparedFrameTransition({ cacheKey: createPixGridDeckTransitionCacheKey({ sourceFrameCacheKey: source.cacheKey, targetFrameCacheKey: target.cacheKey, settings }) + `:${index}`, source, target, settings })
++  compileSamples.push(performance.now() - started)
++}
++
++const scratch = createPixGridDeckCompositorScratch()
++const renderSamples: number[] = []
++for (let index = 0; index < 240; index += 1) {
++  const started = performance.now()
++  composePixGridDeckRuntimeFrame({
++    kind: 'deck', deckId: 'benchmark', deckRevision: 1, width, height,
++    sourceItemId: 'source', targetItemId: 'target', sourceFrame: source, targetFrame: target,
++    transitionPlan: plan, transitionMode: plan.mode, transitionProgress: (index % 120) / 119,
++    transitionActive: true, boundaryIdentity: 'benchmark', frameEpoch: 1, identity: `benchmark:${index}`,
++    fallbackReason: null,
++  }, scratch)
++  renderSamples.push(performance.now() - started)
++}
++
++const items = Array.from({ length: 64 }, (_, index) => ({
++  id: `item-${index}`, mediaId: `media-${index % 16}`, enabled: true, order: index, revision: 1,
++  timingOverrideBeats: null, source: { mediaRevision: 1, fingerprint: `fingerprint-${index % 16}`, fileName: `${index % 16}.png`, mimeType: 'image/png', width, height, hasAlpha: true, transparentBackground: '#000000' },
++}))
++const deck: PixGridDeckDefinition = { id: 'benchmark', name: 'Benchmark', revision: 1, createdAt: 1, updatedAt: 1, items, configuration: { ...DEFAULT_PIX_GRID_DECK_CONFIGURATION, playbackOrder: 'shuffle', loop: true } }
++
++console.log(JSON.stringify({
++  environment: { runtime: process.version, platform: process.platform, arch: process.arch, logicalResolution: `${width}x${height}` },
++  renderFrame: stats(renderSamples),
++  transitionCompile: stats(compileSamples),
++  transitionPlanBytes: plan.approximateBytes,
++  sequence: { occurrences: items.length, uniqueMedia: 16, initiallyReachablePairs: resolveReachablePixGridDeckTransitionPairs(deck).length, allDirectedPairsAvoided: items.length * (items.length - 1) },
++  configuredBounds: { workerConcurrency: 2, preparedFrameCacheBytes: 64 * 1024 * 1024, transitionCacheBytes: 32 * 1024 * 1024 },
++}, null, 2))
+

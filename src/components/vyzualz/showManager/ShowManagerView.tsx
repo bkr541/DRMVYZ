@@ -74,6 +74,7 @@ import {
 } from '../react/pixGrid/PixGridDeckPreset'
 import { usePixGridDeckCompilerStore } from '../react/pixGrid/PixGridDeckCompilerRuntime'
 import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaService'
+import { createPixGridDeckItemId, PIX_GRID_DECK_MAX_ITEMS } from '../react/pixGrid/PixGridDeckDomain'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { SaveActiveGlyph } from '../layout/HeaderGlyphs'
@@ -1562,6 +1563,20 @@ export function ShowManagerView() {
     handleDeckUpdate({ items: editingDeck.items.filter(item => item.id !== itemId) })
   }
 
+  const duplicateDeckItem = (itemId: string) => {
+    if (!editingDeck || editingDeck.items.length >= PIX_GRID_DECK_MAX_ITEMS) return
+    const items = [...editingDeck.items].sort((left, right) => left.order - right.order)
+    const sourceIndex = items.findIndex(item => item.id === itemId)
+    const source = items[sourceIndex]
+    if (!source || sourceIndex < 0) return
+    items.splice(sourceIndex + 1, 0, {
+      ...source,
+      id: createPixGridDeckItemId(),
+      revision: 1,
+    })
+    handleDeckUpdate({ items: items.map((item, order) => ({ ...item, order })) })
+  }
+
   const stepPreview = (direction: -1 | 1) => {
     if (previewEnabledItems.length === 0) return
     const nextIndex = (previewDeckIndex + direction + previewEnabledItems.length) % previewEnabledItems.length
@@ -2224,6 +2239,7 @@ export function ShowManagerView() {
               onFiles={handleDeckFiles}
               onPreview={setPreviewDeckItemId}
               onMove={moveDeckItem}
+              onDuplicate={duplicateDeckItem}
               onReorder={(sourceItemId, targetItemId) => {
                 if (!editingDeck) return
                 const items = [...editingDeck.items].sort((left, right) => left.order - right.order)

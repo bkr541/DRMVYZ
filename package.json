@@ -21,6 +21,7 @@
     "test:coverage": "vitest run --coverage",
     "test:diagnose": "vitest run --reporter=default --reporter=hanging-process",
     "test:bench": "vitest bench",
+    "benchmark:pix-grid:p2": "vite-node scripts/benchmark-pix-grid-p2.ts",
     "playwright:install": "playwright install chromium",
     "playwright:install:ci": "playwright install --with-deps chromium",
     "test:e2e": "playwright test",

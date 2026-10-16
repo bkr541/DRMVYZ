@@ -13,6 +13,7 @@ import {
 } from './PixGridLimits'
 import { isAnimatedPixGridWebP } from './PixGridWebP'
 import { readPixGridResponseBlobBounded } from './PixGridBoundedResponse'
+import { PIX_GRID_DECK_MAX_DECODED_PIXELS, PIX_GRID_DECK_MAX_RASTER_DIMENSION } from './PixGridDeckMediaValidation'
 import {
   createPixGridConversionCacheKey,
   preparePixGridPixelData,
@@ -83,6 +84,14 @@ async function decodeBitmap(blob: Blob): Promise<DecodedPixGridImage> {
 export async function preparePixGridMediaAsset(input: PixGridPreparationInput): Promise<PixGridPreparedAsset> {
   const capability = inspectPixGridMediaCapability(input.media)
   if (!capability.supported) throw new Error(capability.reason ?? 'Unsupported PixGrid media.')
+  const declaredWidth = input.media.width ?? 0
+  const declaredHeight = input.media.height ?? 0
+  if (declaredWidth > PIX_GRID_DECK_MAX_RASTER_DIMENSION || declaredHeight > PIX_GRID_DECK_MAX_RASTER_DIMENSION) {
+    throw new Error(`This media exceeds PixGrid's ${PIX_GRID_DECK_MAX_RASTER_DIMENSION}px source-dimension limit.`)
+  }
+  if (declaredWidth > 0 && declaredHeight > 0 && declaredWidth * declaredHeight > PIX_GRID_DECK_MAX_DECODED_PIXELS) {
+    throw new Error('This media exceeds PixGrid\'s decoded-pixel memory budget.')
+  }
   const sourceUrl = resolvePixGridMediaSourceUrl(input.media)
   if (!sourceUrl) throw new Error('The original media URL is temporarily unavailable.')
   const mediaRevision = resolvePixGridMediaRevision(input.media)
@@ -109,6 +118,7 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
   const decoded = await decodeBitmap(blob)
   const bitmap = decoded.source
   try {
+    if (input.signal?.aborted) throw new DOMException('PixGrid media preparation was cancelled.', 'AbortError')
     const canvas = document.createElement('canvas')
     canvas.width = input.width
     canvas.height = input.height
@@ -118,6 +128,9 @@ export async function preparePixGridMediaAsset(input: PixGridPreparationInput): 
     context.imageSmoothingEnabled = input.settings.sampling === 'smooth'
     const sourceWidth = 'naturalWidth' in bitmap ? bitmap.naturalWidth : bitmap.width
     const sourceHeight = 'naturalHeight' in bitmap ? bitmap.naturalHeight : bitmap.height
+    if (sourceWidth > PIX_GRID_DECK_MAX_RASTER_DIMENSION || sourceHeight > PIX_GRID_DECK_MAX_RASTER_DIMENSION || sourceWidth * sourceHeight > PIX_GRID_DECK_MAX_DECODED_PIXELS) {
+      throw new Error('The decoded media exceeds PixGrid\'s bounded image-memory limits.')
+    }
     const rect = resolvePixGridFitRect({
       sourceWidth: sourceWidth || input.width,
       sourceHeight: sourceHeight || input.height,

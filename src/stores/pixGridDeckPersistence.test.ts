@@ -227,7 +227,7 @@ describe('PixGrid Deck project persistence and history', () => {
       ok: false,
       error: { code: 'invalid-item-count' },
     })
-    expect(createDeck('thirteen-items', 'Thirteen items', 13)).toMatchObject({
+    expect(createDeck('sixty-five-items', 'Sixty-five items', 65)).toMatchObject({
       ok: false,
       error: { code: 'invalid-item-count' },
     })

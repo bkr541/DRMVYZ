@@ -10,9 +10,8 @@ import type {
   PixGridSceneSettings,
   PixGridState,
 } from './PixGridTypes'
-import { MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES } from './PixGridLimits'
+import { MAX_PIX_GRID_COLUMN_EXTENT_CACHE_ENTRIES, MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import { normalizePixGridState } from './PixGridValidation'
-import { MAX_PIX_GRID_VISIBLE_LAYERS } from './PixGridLimits'
 import type { PixGridPreparedAsset } from './PixGridAssetPreparation'
 import { unpackPixGridOverride } from './PixGridAuthoring'
 import { PixGridReactionRuntime, resolveLegacyPixGridLayerAudioReactivity } from './PixGridAudioRouting'

@@ -429,6 +429,7 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
     const requestedItems = mediaIds.map((id) => mediaItems.find((item) => item.id === id) ?? null)
     const missingId = mediaIds.find((_, index) => !requestedItems[index])
     if (missingId) {
+      pixGridPreparedAssetCache.invalidateMedia(missingId)
       setPreparedAssets(new Map())
       setMediaPreparationStatus('missing')
       setMediaPreparationMessage(
@@ -1225,12 +1226,12 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         cacheMisses: preparedDiagnostics.misses,
         transitionFallbackReason: input.deckFrameSource?.fallbackReason ?? input.deckRuntimeDiagnostic,
         audioSignals: {
-          kick: input.audioFrame.kickHit,
-          snare: input.audioFrame.snareHit,
-          bass: input.audioFrame.bass,
-          energy: input.audioFrame.energy,
-          buildProgress: input.audioFrame.buildProgress,
-          dropImpact: input.audioFrame.dropImpactHit,
+          kick: input.audioFrame.kickHit ?? false,
+          snare: input.audioFrame.snareHit ?? false,
+          bass: input.audioFrame.bass ?? 0,
+          energy: input.audioFrame.energy ?? 0,
+          buildProgress: input.audioFrame.buildProgress ?? 0,
+          dropImpact: input.audioFrame.dropImpactHit ?? false,
         },
         frameRenderingCostMs: frameRenderStartedAt > 0 ? Math.max(0, performance.now() - frameRenderStartedAt) : 0,
         updatedAtMs: performance.now(),

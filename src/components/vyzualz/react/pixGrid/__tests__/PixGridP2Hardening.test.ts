@@ -76,7 +76,7 @@ describe('PixGrid P2 sections and conformance', () => {
           }],
         },
       },
-    } as typeof original
+    } as unknown as typeof original
     const report = validatePixGridPresetConformance(invalid)
     expect(report.compatible).toBe(false)
     expect(report.errors).toEqual(expect.arrayContaining([

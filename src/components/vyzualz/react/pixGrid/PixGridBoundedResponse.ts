@@ -38,7 +38,7 @@ export async function readPixGridResponseBlobBounded(
     return blob
   }
 
-  const chunks: Uint8Array[] = []
+  const chunks: BlobPart[] = []
   let bytes = 0
   const abort = () => { void reader.cancel('PixGrid media preparation was cancelled.') }
   signal?.addEventListener('abort', abort, { once: true })
@@ -53,7 +53,9 @@ export async function readPixGridResponseBlobBounded(
         await reader.cancel('PixGrid source exceeded its streaming size budget').catch(() => undefined)
         throw new PixGridResponseLimitError(limit, bytes)
       }
-      chunks.push(result.value)
+      const copy = new Uint8Array(result.value.byteLength)
+      copy.set(result.value)
+      chunks.push(copy)
     }
     return new Blob(chunks, { type: response.headers.get('content-type') ?? '' })
   } finally {

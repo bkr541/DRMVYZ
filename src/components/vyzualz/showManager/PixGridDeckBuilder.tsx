@@ -76,6 +76,7 @@ export function PixGridDeckBuilderLibrary({
   onFiles,
   onPreview,
   onMove,
+  onDuplicate,
   onReorder,
   onToggle,
   onRemove,
@@ -87,6 +88,7 @@ export function PixGridDeckBuilderLibrary({
   onFiles: (files: File[]) => void
   onPreview: (itemId: string) => void
   onMove: (itemId: string, direction: -1 | 1) => void
+  onDuplicate: (itemId: string) => void
   onReorder: (sourceItemId: string, targetItemId: string) => void
   onToggle: (itemId: string) => void
   onRemove: (itemId: string) => void
@@ -129,7 +131,7 @@ export function PixGridDeckBuilderLibrary({
             disabled={upload.active || remainingSlots <= 0}
             onChange={chooseFiles}
           />
-          <strong>{deck ? 'Add Images' : 'Upload 2–12 Images'}</strong>
+          <strong>{deck ? 'Add Images' : `Upload 2–${PIX_GRID_DECK_MAX_ITEMS} Images`}</strong>
           <span>{upload.active ? upload.phase : deck ? `${remainingSlots} slots remaining` : `Creates “${draftName || 'Untitled Deck'}”`}</span>
         </label>
         {upload.error && <DrawerNotice tone="error" role="alert" title="Deck upload failed">{upload.error}</DrawerNotice>}
@@ -161,6 +163,7 @@ export function PixGridDeckBuilderLibrary({
             <div className="sm-deck-image-actions" aria-label={`${item.source.fileName ?? `Image ${index + 1}`} actions`}>
               <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label="Move image earlier">↑</button>
               <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === items.length - 1} aria-label="Move image later">↓</button>
+              <button type="button" onClick={() => onDuplicate(item.id)} disabled={remainingSlots <= 0} aria-label="Duplicate image occurrence">＋</button>
               <button type="button" onClick={() => onToggle(item.id)} aria-pressed={item.enabled}>{item.enabled ? 'On' : 'Off'}</button>
               <button type="button" onClick={() => onRemove(item.id)} disabled={items.length <= PIX_GRID_DECK_MIN_ITEMS} aria-label="Remove image">×</button>
             </div>
