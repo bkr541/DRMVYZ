@@ -10,3 +10,7 @@ Used by the Headliner engine's Face Warp and Face Echo effects, which load them
 from /mediapipe/ so face tracking works offline. The SIMD-less runtime
 (vision_wasm_nosimd_internal.*) is deliberately not shipped: Electron's Chromium
 always supports WebAssembly SIMD.
+
+selfie_segmenter.tflite is Google's "Selfie Segmenter" model (float16):
+https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite
+Used by the Headliner silhouette effects (Aura, Energy Outline, Outline Echo, Particle Body).

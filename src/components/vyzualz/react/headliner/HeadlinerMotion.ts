@@ -173,6 +173,8 @@ export interface HeadlinerMotionFrame {
   flow: Float32Array | null
   cols: number
   rows: number
+  /** The camera pixels this frame was analysed from (RGBA, width x height), for effects that need colour. */
+  rgba: Uint8ClampedArray
 }
 
 function createCanvas(width: number, height: number): HTMLCanvasElement | null {
@@ -246,6 +248,7 @@ export class HeadlinerMotionAnalyzer {
       flow: withFlow ? this.flow : null,
       cols,
       rows,
+      rgba: pixels.data,
     }
   }
 

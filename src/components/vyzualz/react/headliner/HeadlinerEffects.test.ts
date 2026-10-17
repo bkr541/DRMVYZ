@@ -118,7 +118,7 @@ describe('Headliner effect processors', () => {
     expect(resolveHeadlinerWorkSize(400, 300)).toEqual({ width: 400, height: 300 })
   })
 
-  it.each(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
+  it.each(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo', 'particle-shed'] as const)('%s at Master Intensity 0 is the clean camera', presetId => {
     const processor = createHeadlinerEffectProcessor(presetId)
     const output = makeOutput()
     setSquare(30)

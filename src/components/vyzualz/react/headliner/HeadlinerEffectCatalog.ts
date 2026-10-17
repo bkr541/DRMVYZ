@@ -1,4 +1,4 @@
-// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–10) and the Design-tab
+// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–15) and the Design-tab
 // parameters each one exposes. The catalog is data only: the Design panel renders it with the standard
 // rows and the effect processors read the resolved values, so a control cannot exist without a reader.
 
@@ -16,6 +16,11 @@ export type HeadlinerPresetId =
   | 'rgb-ghost'
   | 'face-warp'
   | 'face-echo'
+  | 'aura'
+  | 'energy-outline'
+  | 'outline-echo'
+  | 'particle-body'
+  | 'particle-shed'
 
 /** The four standard Design parent groups. */
 export type HeadlinerParameterGroup = 'master' | 'design' | 'effects' | 'palette'
@@ -817,6 +822,320 @@ const FACE_ECHO: HeadlinerPresetDefinition = {
   ],
 }
 
+// ── Presets 11–15 ──────────────────────────────────────────────────────────────
+
+const GLOW_COLOR_MODE_OPTIONS = [
+  { value: 'tint', label: 'Solid' },
+  { value: 'gradient', label: 'Gradient' },
+  { value: 'spectrum', label: 'Spectrum' },
+] as const
+
+/** Palette for the glowing silhouette effects: they have no "original" colour, so they offer a solid colour, a blend or a hue cycle. */
+const glowPaletteControls = (subject: string, primary: string, secondary: string): HeadlinerParameterDefinition[] => [
+  {
+    id: 'colorMode', kind: 'select', group: 'palette', label: 'Color Mode', default: 'tint',
+    options: GLOW_COLOR_MODE_OPTIONS,
+    description: `Solid uses one colour for the ${subject}. Gradient blends the two colours. Spectrum cycles through the rainbow.`,
+  },
+  { id: 'primaryColor', kind: 'color', group: 'palette', label: 'Color', default: primary, description: `The ${subject} colour (Solid) or its start colour (Gradient).` },
+  {
+    id: 'secondaryColor', kind: 'color', group: 'palette', label: 'Gradient End Color', default: secondary,
+    visibleWhen: { parameter: 'colorMode', equals: 'gradient' },
+  },
+]
+
+const beatPulseControl = (subject: string): HeadlinerParameterDefinition => ({
+  id: 'beatPulse', kind: 'slider', group: 'effects', label: 'Beat Pulse',
+  min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+  description: `Swells the ${subject} on every beat and on kicks.`,
+})
+
+const glowControl = (fallback: number): HeadlinerParameterDefinition => ({
+  id: 'glow', kind: 'slider', group: 'effects', label: 'Glow',
+  min: 0, max: 1, step: 0.01, default: fallback, format: 'percent',
+  description: 'Soft bloom around the bright parts.',
+})
+
+const AURA: HeadlinerPresetDefinition = {
+  id: 'aura',
+  name: 'Aura',
+  description: 'Finds you in the picture and wraps a glowing, breathing aura around your silhouette, in layered shells that pulse with the music.',
+  tone: '#7a5cff',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'auraSize', kind: 'slider', group: 'design', label: 'Aura Size',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+      description: 'How far the aura reaches out from your body.',
+    },
+    {
+      id: 'shells', kind: 'slider', group: 'design', label: 'Shells',
+      min: 1, max: 5, step: 1, default: 3, format: 'number',
+      description: 'How many layered rings the aura is built from.',
+    },
+    {
+      id: 'auraOpacity', kind: 'slider', group: 'design', label: 'Aura Opacity',
+      min: 0, max: 1, step: 0.01, default: 0.85, format: 'percent',
+    },
+    blendMode('screen'),
+    glowControl(0.5),
+    beatPulseControl('aura'),
+    {
+      id: 'breathing', kind: 'slider', group: 'effects', label: 'Breathing',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+      description: 'Slowly widens and narrows the aura, once every bar.',
+    },
+    {
+      id: 'dimBackground', kind: 'slider', group: 'effects', label: 'Dim Background',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'Darkens everything except you, so the aura stands out.',
+    },
+    {
+      id: 'coverBody', kind: 'toggle', group: 'effects', label: 'Glow Over Body', default: false,
+      description: 'Lets the aura also tint your body instead of staying outside your outline.',
+    },
+    ...glowPaletteControls('aura', '#8a6bff', '#ff4fd8'),
+  ],
+}
+
+const ENERGY_OUTLINE: HeadlinerPresetDefinition = {
+  id: 'energy-outline',
+  name: 'Energy Outline',
+  description: 'Reduces you to a bright animated neon contour that follows your real body shape.',
+  tone: '#35f2ff',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'lineWidth', kind: 'slider', group: 'design', label: 'Line Width',
+      min: 0, max: 1, step: 0.01, default: 0.35, format: 'percent',
+    },
+    {
+      id: 'lineOpacity', kind: 'slider', group: 'design', label: 'Line Opacity',
+      min: 0, max: 1, step: 0.01, default: 0.95, format: 'percent',
+    },
+    {
+      id: 'cameraDim', kind: 'slider', group: 'design', label: 'Camera Dim',
+      min: 0, max: 1, step: 0.01, default: 0.8, format: 'percent',
+      description: 'How far the normal camera picture is darkened behind the contour. 100% is a pure neon outline.',
+    },
+    blendMode('add'),
+    glowControl(0.6),
+    beatPulseControl('line'),
+    {
+      id: 'innerDetail', kind: 'slider', group: 'effects', label: 'Inner Detail',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'Adds the camera’s own edges inside your outline (face, hair, clothing folds).',
+    },
+    {
+      id: 'flicker', kind: 'slider', group: 'effects', label: 'Flicker',
+      min: 0, max: 1, step: 0.01, default: 0.2, format: 'percent',
+      description: 'Makes the line flicker like a failing neon tube.',
+    },
+    {
+      id: 'crackle', kind: 'slider', group: 'effects', label: 'Crackle',
+      min: 0, max: 1, step: 0.01, default: 0.25, format: 'percent',
+      description: 'Jitters horizontal slices of the line sideways for an electric edge.',
+    },
+    ...glowPaletteControls('outline', '#35f2ff', '#ff4fd8'),
+  ],
+}
+
+const OUTLINE_ECHO: HeadlinerPresetDefinition = {
+  id: 'outline-echo',
+  name: 'Outline Echo',
+  description: 'Leaves glowing contour silhouettes of your recent poses behind you, instead of full copies.',
+  tone: '#ff5ad1',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'echoCount', kind: 'slider', group: 'design', label: 'Echo Count',
+      min: 1, max: 12, step: 1, default: 5, format: 'number',
+      description: 'How many previous outlines stay on screen.',
+    },
+    {
+      id: 'echoSpacingBeats', kind: 'select', group: 'design', label: 'Echo Spacing', default: '0.25',
+      options: SPACING_OPTIONS, visibleWhen: { parameter: 'bpmSync', equals: true },
+      description: 'Time between stored outlines, as a fraction of a beat.',
+    },
+    {
+      id: 'echoDelayMs', kind: 'slider', group: 'design', label: 'Echo Delay',
+      min: 30, max: 600, step: 5, default: 160, format: 'ms',
+      visibleWhen: { parameter: 'bpmSync', equals: false },
+      description: 'Time between stored outlines.',
+    },
+    {
+      id: 'echoOpacity', kind: 'slider', group: 'design', label: 'Echo Opacity',
+      min: 0, max: 1, step: 0.01, default: 0.7, format: 'percent',
+      description: 'Opacity of the newest outline.',
+    },
+    {
+      id: 'echoFalloff', kind: 'slider', group: 'design', label: 'Echo Falloff',
+      min: 0.3, max: 0.98, step: 0.01, default: 0.78, format: 'percent',
+      description: 'How much each older outline fades relative to the one before it.',
+    },
+    {
+      id: 'lineWidth', kind: 'slider', group: 'design', label: 'Line Width',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+    },
+    blendMode('add'),
+    {
+      id: 'showLive', kind: 'toggle', group: 'effects', label: 'Show Live Outline', default: true,
+      description: 'Draws your current outline on top of the echoes.',
+    },
+    {
+      id: 'cameraDim', kind: 'slider', group: 'effects', label: 'Camera Dim',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+      description: 'How far the normal camera picture is darkened behind the outlines.',
+    },
+    glowControl(0.5),
+    beatPulseControl('lines'),
+    {
+      id: 'echoDrift', kind: 'slider', group: 'effects', label: 'Echo Drift',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      description: 'Pushes each older outline further along the drift direction.',
+    },
+    {
+      id: 'driftAngle', kind: 'slider', group: 'effects', label: 'Drift Direction',
+      min: 0, max: 360, step: 1, default: 270, format: 'degrees',
+      visibleWhen: { parameter: 'echoDrift', notEquals: 0 },
+      description: 'Direction of the drift (270° is upward).',
+    },
+    {
+      id: 'echoZoom', kind: 'slider', group: 'effects', label: 'Echo Zoom',
+      min: -0.2, max: 0.2, step: 0.005, default: 0, format: 'number',
+      description: 'Grows (positive) or shrinks (negative) each older outline.',
+    },
+    ...glowPaletteControls('outlines', '#ff5ad1', '#35f2ff'),
+  ],
+}
+
+const PARTICLE_BODY: HeadlinerPresetDefinition = {
+  id: 'particle-body',
+  name: 'Particle Body',
+  description: 'Rebuilds your body out of thousands of particles that drift, explode, collapse or swirl with the music, then come back together.',
+  tone: '#ffb04a',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'particleAmount', kind: 'slider', group: 'design', label: 'Particle Amount',
+      min: 0, max: 1, step: 0.01, default: 1, format: 'percent',
+      description: '0% is the normal video, partway turns part of your body to particles, 100% is a full particle body.',
+    },
+    {
+      id: 'cycle', kind: 'select', group: 'design', label: 'Auto Cycle', default: 'bar',
+      options: [
+        { value: 'off', label: 'Off (Use Amount)' },
+        { value: 'bar', label: 'Every Bar' },
+        { value: 'two', label: 'Every 2 Bars' },
+      ],
+      description: 'Runs normal video → partial particles → full particle body → normal video over the chosen time, locked to the beat.',
+    },
+    {
+      id: 'detail', kind: 'select', group: 'design', label: 'Detail', default: 'medium',
+      options: [{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }],
+      description: 'How many particles make up the body. Higher is finer and costs more.',
+    },
+    {
+      id: 'particleSize', kind: 'slider', group: 'design', label: 'Particle Size',
+      min: 0.4, max: 2.5, step: 0.05, default: 1, format: 'number',
+    },
+    blendMode('normal'),
+    {
+      id: 'reaction', kind: 'select', group: 'effects', label: 'Reaction', default: 'drift',
+      options: [
+        { value: 'drift', label: 'Drift' },
+        { value: 'explode', label: 'Explode On Kick' },
+        { value: 'collapse', label: 'Collapse On Kick' },
+        { value: 'swirl', label: 'Swirl' },
+      ],
+      description: 'What the particles do to the music: wander softly, burst outward on each kick, get pulled inward, or swirl around your centre.',
+    },
+    {
+      id: 'reactionPower', kind: 'slider', group: 'effects', label: 'Reaction Power',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+    },
+    {
+      id: 'cohesion', kind: 'slider', group: 'effects', label: 'Cohesion',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How quickly scattered particles snap back into your shape.',
+    },
+    {
+      id: 'driftAmount', kind: 'slider', group: 'effects', label: 'Drift',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'How far each particle wanders around its place.',
+    },
+    {
+      id: 'scatter', kind: 'slider', group: 'effects', label: 'Scatter',
+      min: 0, max: 1, step: 0.01, default: 0.15, format: 'percent',
+      description: 'Keeps the body loose and grainy.',
+    },
+    {
+      id: 'hideBody', kind: 'slider', group: 'effects', label: 'Hide Real Body',
+      min: 0, max: 1, step: 0.01, default: 0.9, format: 'percent',
+      description: 'How far the camera picture of your body is faded out while it is particles.',
+    },
+    glowControl(0.3),
+    ...paletteControls('particles', 'blends the particles from the start colour at the top of the picture to the end colour at the bottom.'),
+  ],
+}
+
+const PARTICLE_SHED: HeadlinerPresetDefinition = {
+  id: 'particle-shed',
+  name: 'Particle Shed',
+  description: 'Keeps you visible and throws particles off whatever moves: fast hands fling them outward in the direction of the movement.',
+  tone: '#5affb0',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'emission', kind: 'slider', group: 'design', label: 'Emission',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How many particles movement sheds.',
+    },
+    {
+      id: 'throwSpeed', kind: 'slider', group: 'design', label: 'Throw Speed',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+      description: 'How hard particles are flung along the direction of the movement.',
+    },
+    {
+      id: 'lifetime', kind: 'slider', group: 'design', label: 'Lifetime',
+      min: 0.2, max: 4, step: 0.05, default: 1.2, format: 'seconds',
+      description: 'How long particles last before they fade out.',
+    },
+    {
+      id: 'particleSize', kind: 'slider', group: 'design', label: 'Particle Size',
+      min: 0.3, max: 3, step: 0.05, default: 1, format: 'number',
+    },
+    blendMode('screen'),
+    {
+      id: 'motionThreshold', kind: 'slider', group: 'effects', label: 'Motion Threshold',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'Movement slower than this sheds nothing.',
+    },
+    {
+      id: 'spread', kind: 'slider', group: 'effects', label: 'Spread',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+      description: 'How widely particles scatter around the movement direction.',
+    },
+    {
+      id: 'gravity', kind: 'slider', group: 'effects', label: 'Gravity',
+      min: -1, max: 1, step: 0.01, default: 0.15, format: 'number',
+      description: 'Pulls particles down (positive) or floats them up (negative).',
+    },
+    {
+      id: 'drag', kind: 'slider', group: 'effects', label: 'Air Drag',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+      description: 'How quickly thrown particles slow down.',
+    },
+    {
+      id: 'kickBurst', kind: 'slider', group: 'effects', label: 'Kick Burst',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'Sheds extra particles on every kick.',
+    },
+    glowControl(0.4),
+    ...paletteControls('particles', 'blends the particles from the start colour at the top of the picture to the end colour at the bottom.'),
+  ],
+}
+
 export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.freeze([
   MOTION_ECHO,
   GHOST_TRAILS,
@@ -828,6 +1147,11 @@ export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.fr
   RGB_GHOST,
   FACE_WARP,
   FACE_ECHO,
+  AURA,
+  ENERGY_OUTLINE,
+  OUTLINE_ECHO,
+  PARTICLE_BODY,
+  PARTICLE_SHED,
 ])
 
 export function getHeadlinerPreset(id: unknown): HeadlinerPresetDefinition {

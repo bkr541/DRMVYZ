@@ -1,5 +1,5 @@
 // The Headliner effect processors (Motion Echo, Ghost Trails, Velocity Smear, Motion Melt, Freeze Ghost, Strobe
-// Clone, Clone Spread, RGB Ghost, Face Warp, Face Echo). Each one draws the live camera picture first and then layers its effect on top, so Master
+// Clone, Clone Spread, RGB Ghost, Face Warp, Face Echo, Aura, Energy Outline, Outline Echo, Particle Body, Particle Shed). Each one draws the live camera picture first and then layers its effect on top, so Master
 // Intensity 0 is always the clean camera. They work on reduced-size surfaces (capped at WORK_MAX_WIDTH) to keep
 // history and feedback buffers cheap, and read every setting from the Design-tab values passed in per frame.
 
@@ -31,6 +31,8 @@ import {
 } from './HeadlinerEffectKit'
 import { HeadlinerMotionAnalyzer } from './HeadlinerMotion'
 import { createFaceEchoProcessor, createFaceWarpProcessor } from './HeadlinerFaceEffects'
+import { createAuraProcessor, createEnergyOutlineProcessor, createOutlineEchoProcessor } from './HeadlinerSilhouetteEffects'
+import { createParticleBodyProcessor, createParticleShedProcessor } from './HeadlinerParticleEffects'
 import { createRgbGhostProcessor } from './HeadlinerTemporalEffects'
 
 export { HEADLINER_MAX_ECHOES, HEADLINER_SMEAR_DRAW_BUDGET, HEADLINER_WORK_MAX_WIDTH, hexToRgb, resolveHeadlinerWorkSize } from './HeadlinerEffectKit'
@@ -565,6 +567,16 @@ export function createHeadlinerEffectProcessor(presetId: HeadlinerPresetId): Hea
       return createFaceWarpProcessor()
     case 'face-echo':
       return createFaceEchoProcessor()
+    case 'aura':
+      return createAuraProcessor()
+    case 'energy-outline':
+      return createEnergyOutlineProcessor()
+    case 'outline-echo':
+      return createOutlineEchoProcessor()
+    case 'particle-body':
+      return createParticleBodyProcessor()
+    case 'particle-shed':
+      return createParticleShedProcessor()
     case 'motion-echo':
     default:
       return new MotionEchoProcessor()

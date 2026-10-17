@@ -642,8 +642,13 @@ Built as Headliner presets (Presets tab), each with its own Design tab (Master C
 | 8 | RGB Ghost | Implemented |
 | 9 | Face Warp | Implemented |
 | 10 | Face Echo | Implemented |
+| 11 | Aura | Implemented |
+| 12 | Energy Outline | Implemented |
+| 13 | Outline Echo | Implemented |
+| 14 | Particle Body | Implemented |
+| 15 | Particle Shed | Implemented |
 
-This completes the recommended first-pass build set (effects 1–10).
+This completes the recommended first-pass build set (effects 1–10); effects 11–15 follow it.
 
 How they work (all on the 2D program canvas):
 
@@ -662,4 +667,12 @@ Shared behaviour: every preset's Master Controls hold Master Intensity (0 is the
 
 Face tracking (`HeadlinerFaceTracking.ts`, shared by Face Warp and Face Echo): a MediaPipe Face Landmarker (`@mediapipe/tasks-vision`) runs on the camera picture up to 30 times a second, GPU first with a CPU fallback, and is turned into one pose (centre, size, tilt). The pose is smoothed per effect (the Face Follow Smoothing control); a face that is lost is held for about a third of a second and then fades out. The model and the WebAssembly runtime ship in `public/mediapipe/` (about 17 MB, Apache-2.0, see `public/mediapipe/NOTICE.txt`), so tracking works offline. It loads the first time a face effect is active and is released when none is.
 
-Effects 11–30 are not started. Those that need the body (Aura, Energy Outline, Portal Body, Particle Body and similar) will need a person-segmentation model; MediaPipe, now in the project, also offers one (Image Segmenter) that could serve them.
+Person segmentation (`HeadlinerSegmentation.ts`, shared by Aura, Energy Outline, Outline Echo and Particle Body): a MediaPipe Image Segmenter with Google's "Selfie Segmenter" model (float16, `public/mediapipe/selfie_segmenter.tflite`, 250 KB, Apache-2.0, offline) runs on a 256 px copy of the camera picture up to 30 times a second (GPU first, CPU fallback), is smoothed over time and becomes a white-on-transparent mask canvas. It loads the first time a silhouette effect is active and is released when none is. Until the first mask arrives the effects show the plain camera; if the model cannot start they fall back to the Learned Background approximation used by the clone effects. `HeadlinerSilhouetteShapes.ts` grows or shrinks the mask (union / intersection of shifted copies) for contours and shells.
+
+- **Aura** grows the silhouette into 1–5 layered, blurred shells outside the body that breathe once per bar and swell on beats and kicks. Dim Background darkens everything but the performer; Glow Over Body lets the aura tint the body too. Solid, Gradient (inner to outer shell) or Spectrum colour.
+- **Energy Outline** reduces the picture to a neon contour (silhouette dilated minus eroded) with optional inner camera edges, flicker, crackle (sideways-jittered slices), bloom and Camera Dim (100% is a pure outline on black).
+- **Outline Echo** stores only the outlines of past poses (at half work size, one per beat division or millisecond delay) and draws them back with falloff, drift, zoom and colour by age, with the live outline on top.
+- **Particle Body** rebuilds the silhouette from up to ~20,000 grid particles coloured from the camera. Particle Amount (or the Auto Cycle, one or two bars) takes it normal video → partial → full particle body → normal video; the real body fades as it turns to particles. Reactions: Drift, Explode on kick, Collapse on kick, Swirl.
+- **Particle Shed** keeps the live picture and emits up to 5,000 particles from cells of the block-matching flow field, thrown along the motion direction, coloured from the camera, with gravity, drag, spread and an extra burst on kicks. It does not use the segmenter.
+
+Effects 16–30 are not started. Spark Skeleton needs pose landmarks (MediaPipe Pose Landmarker could serve it); Portal Body and Digital Silhouette can reuse the segmentation added here.
