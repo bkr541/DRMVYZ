@@ -11,11 +11,13 @@ const mocks = vi.hoisted(() => ({
   describeFontFile: vi.fn(),
   fontUploadError: null as string | null,
   addFilesToUploadQueue: vi.fn(),
+  queue: [] as unknown[],
+  activeKey: null as string | null,
 }))
 
 vi.mock('../../stores/mediaStore', () => {
   const state = {
-    uploadQueue: [], uploadDrafts: {}, activeUploadDraftKey: null, analyzingAudioTempIds: new Set(), collections: [], items: [],
+    get uploadQueue() { return mocks.queue }, uploadDrafts: {}, get activeUploadDraftKey() { return mocks.activeKey }, analyzingAudioTempIds: new Set(), collections: [], items: [],
     mutationStates: {}, loadError: null,
     addFilesToUploadQueue: mocks.addFilesToUploadQueue, removeUploadQueueItem: vi.fn(), clearUploadQueue: vi.fn(), setActiveUploadDraftKey: vi.fn(),
     applyUploadDraftToAllQueued: vi.fn(), setUploadDraftRole: vi.fn(), setUploadDraftTitle: vi.fn(), setUploadDraftDescription: vi.fn(),
@@ -59,6 +61,8 @@ beforeEach(() => {
   mocks.describeFontFile.mockReset().mockResolvedValue(details)
   mocks.addFilesToUploadQueue.mockReset()
   mocks.fontUploadError = null
+  mocks.queue = []
+  mocks.activeKey = null
 })
 afterEach(() => { act(() => root.unmount()); container.remove() })
 
@@ -183,5 +187,42 @@ describe('media upload dialog with a font', () => {
     await act(async () => { root.render(<MediaUploadModal audioOnly onClose={() => undefined} />) })
     await chooseFiles([fontFile()])
     expect(text()).toContain('Only audio files can be uploaded here.')
+  })
+})
+
+describe('Additional Info shows only fields that apply to the file', () => {
+  const queued = (name: string, type: string) => ({
+    tempId: `t-${name}`, file: new File([new Uint8Array(4)], name, { type }), previewUrl: `blob:${name}`, isAudio: false,
+    suggestedRole: name.endsWith('.svg') ? 'svg' : name.match(/\.(mp4|mov|webm)$/) ? 'background_video' : 'background_image',
+  })
+  const labelsFor = async (name: string, type: string) => {
+    mocks.queue = [queued(name, type)]
+    mocks.activeKey = `t-${name}`
+    await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
+    const labels = [...container.querySelectorAll('.mum-addinfo-label')].map(node => (node.textContent ?? '').replace(/\s*\*$/, '').trim())
+    act(() => root.unmount())
+    root = createRoot(container)
+    return labels
+  }
+
+  it('gives a PNG resolution, alpha and energy, but no duration, FPS, loop, BPM or key', async () => {
+    expect(await labelsFor('logo.png', 'image/png')).toEqual(['RESOLUTION', 'HAS ALPHA', 'ENERGY'])
+  })
+
+  it('does not offer alpha for a JPEG', async () => {
+    expect(await labelsFor('photo.jpg', 'image/jpeg')).toEqual(['RESOLUTION', 'ENERGY'])
+  })
+
+  it('adds loopable for a GIF', async () => {
+    expect(await labelsFor('spin.gif', 'image/gif')).toEqual(['RESOLUTION', 'LOOPABLE', 'HAS ALPHA', 'ENERGY'])
+  })
+
+  it('gives a video the timing and music fields, with alpha only for formats that can carry it', async () => {
+    expect(await labelsFor('clip.mp4', 'video/mp4')).toEqual(['DURATION (SEC)', 'RESOLUTION', 'FPS', 'LOOPABLE', 'BPM', 'KEY', 'ENERGY'])
+    expect(await labelsFor('clip.webm', 'video/webm')).toContain('HAS ALPHA')
+  })
+
+  it('hides the whole section for an SVG', async () => {
+    expect(await labelsFor('glyph.svg', 'image/svg+xml')).toEqual([])
   })
 })

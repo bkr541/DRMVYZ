@@ -20,6 +20,7 @@ import {
   isSvgFilename,
   getMediaFormatInfo,
   getCompatibleMediaRoles,
+  getMediaMetadataFields,
 } from '../../lib/mediaRoles'
 import type { MediaRole, MediaEnergy } from '../../lib/mediaRoles'
 import { useAudioStore } from '../../stores/audioStore'
@@ -832,6 +833,15 @@ export function MediaUploadModal({
       ? getMediaFormatInfo(activeQueueItem.file.type, activeQueueItem.file.name)
       : null
   const compatibleRoles = roleFormat ? getCompatibleMediaRoles(roleFormat) : VISUAL_MEDIA_ROLES
+  // Additional Info shows only the fields that can describe the file being edited (a PNG has no duration, FPS or tempo).
+  const metadataFileSource = editItem
+    ? { mimeType: editItem.mimeType ?? '', name: editItem.name }
+    : activeQueueItem
+      ? { mimeType: activeQueueItem.file.type, name: activeQueueItem.file.name }
+      : uploadQueue[0]
+        ? { mimeType: uploadQueue[0].file.type, name: uploadQueue[0].file.name }
+        : null
+  const metadataFields = metadataFileSource ? getMediaMetadataFields(metadataFileSource.mimeType, metadataFileSource.name) : null
 
   // ── Role / Title fields — shared between the edit-mode (stacked) and
   // upload-mode (side-by-side row) layouts below ────────────────────────
@@ -1275,29 +1285,29 @@ export function MediaUploadModal({
                 {!isSvgQueue && (isEdit || uploadQueue.length > 0) && (
                   <div className="mum-field">
                     <label className="mum-field-label">ADDITIONAL INFO</label>
-                    {!isEdit ? (
-                      <div className="mum-addinfo-grid">
-                        {adItem('DURATION (SEC)', durContent)}
-                        {adItem('RESOLUTION', resContent)}
-                        {adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent)}
-                        {adItem('LOOPABLE', loopContent)}
-                        {adItem('HAS ALPHA', alphaContent)}
-                        {adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent)}
-                        {adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
-                        {adItem('ENERGY', energyContent)}
+                    {metadataFields && (isEdit ? (
+                      <div className="mum-addinfo-grid mum-addinfo-grid--edit">
+                        {metadataFields.duration && adItem('DURATION (SEC)', durContent, true)}
+                        {metadataFields.resolution && adItem('RESOLUTION', resContent, true)}
+                        {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent, true)}
+                        {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent, true)}
+                        {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
+                        {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
+                        {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
+                        {metadataFields.energy && adItem('ENERGY', energyContent)}
                       </div>
                     ) : (
-                      <div className="mum-addinfo-grid mum-addinfo-grid--edit">
-                        {adItem('DURATION (SEC)', durContent, true)}
-                        {adItem('RESOLUTION', resContent, true)}
-                        {adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent, true)}
-                        {adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent, true)}
-                        {adItem('HAS ALPHA', alphaContent)}
-                        {adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
-                        {adItem('LOOPABLE', loopContent)}
-                        {adItem('ENERGY', energyContent)}
+                      <div className="mum-addinfo-grid">
+                        {metadataFields.duration && adItem('DURATION (SEC)', durContent)}
+                        {metadataFields.resolution && adItem('RESOLUTION', resContent)}
+                        {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent)}
+                        {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
+                        {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
+                        {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent)}
+                        {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
+                        {metadataFields.energy && adItem('ENERGY', energyContent)}
                       </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </>

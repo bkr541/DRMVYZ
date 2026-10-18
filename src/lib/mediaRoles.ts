@@ -159,6 +159,44 @@ export function getMediaFormatInfo(mimeType: string, name: string): MediaFormatI
   return { isVideo, isSvg, supportsAlpha }
 }
 
+/** Which "Additional Info" fields apply to a file. A field is shown only for media it can describe: a PNG has no duration, FPS or tempo. */
+export interface MediaMetadataFieldSet {
+  duration: boolean
+  resolution: boolean
+  fps: boolean
+  loopable: boolean
+  hasAlpha: boolean
+  bpm: boolean
+  key: boolean
+  energy: boolean
+}
+
+/**
+ * Chooses the Additional Info fields for a file, from its MIME type and name (as in `getMediaFormatInfo`):
+ *  - video: duration, resolution, FPS, loopable, tempo (BPM), musical key and energy; Has Alpha only for formats that can carry it (WebM, MOV);
+ *  - GIF: resolution, loopable (they are usually animated), Has Alpha and energy;
+ *  - other raster images: resolution and energy, plus Has Alpha for formats with an alpha channel (PNG, WebP; never JPEG);
+ *  - SVG: only resolution, since a vector has no alpha toggle, tempo or timing to describe.
+ */
+export function getMediaMetadataFields(mimeType: string, name: string): MediaMetadataFieldSet {
+  const format = getMediaFormatInfo(mimeType, name)
+  if (format.isVideo) {
+    const alphaCapable = /^video\/(webm|quicktime)$/.test(mimeType) || /\.(webm|mov)$/i.test(name)
+    return { duration: true, resolution: true, fps: true, loopable: true, hasAlpha: alphaCapable, bpm: true, key: true, energy: true }
+  }
+  const isGif = mimeType === 'image/gif' || /\.gif$/i.test(name)
+  return {
+    duration: false,
+    resolution: true,
+    fps: false,
+    loopable: isGif,
+    hasAlpha: format.supportsAlpha && !format.isSvg,
+    bpm: false,
+    key: false,
+    energy: !format.isSvg,
+  }
+}
+
 /**
  * Filters the full visual role list down to roles that could ever actually
  * apply to a file with these format characteristics — e.g. a JPEG can never

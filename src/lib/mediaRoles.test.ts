@@ -85,3 +85,18 @@ describe('getCompatibleMediaRoles', () => {
     for (const role of roles) expect(VISUAL_MEDIA_ROLES).toContain(role)
   })
 })
+
+describe('getMediaMetadataFields', () => {
+  it('describes each media type with only the fields that apply to it', async () => {
+    const { getMediaMetadataFields } = await import('./mediaRoles')
+    const on = (mime: string, name: string) => Object.entries(getMediaMetadataFields(mime, name)).filter(([, shown]) => shown).map(([field]) => field)
+    expect(on('image/png', 'a.png')).toEqual(['resolution', 'hasAlpha', 'energy'])
+    expect(on('image/jpeg', 'a.jpg')).toEqual(['resolution', 'energy'])
+    expect(on('image/webp', 'a.webp')).toEqual(['resolution', 'hasAlpha', 'energy'])
+    expect(on('image/gif', 'a.gif')).toEqual(['resolution', 'loopable', 'hasAlpha', 'energy'])
+    expect(on('image/svg+xml', 'a.svg')).toEqual(['resolution'])
+    expect(on('video/mp4', 'a.mp4')).toEqual(['duration', 'resolution', 'fps', 'loopable', 'bpm', 'key', 'energy'])
+    expect(on('video/webm', 'a.webm')).toContain('hasAlpha')
+    expect(on('', 'clip.MOV')).toContain('hasAlpha')
+  })
+})
