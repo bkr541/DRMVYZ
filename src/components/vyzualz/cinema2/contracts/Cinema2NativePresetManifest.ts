@@ -1,4 +1,5 @@
 import type { Cinema2RenderTargetDescriptor, Cinema2RenderTargetOwnershipClass } from './Cinema2RenderTargets'
+import type { PresetDiscoveryFields } from '../../react/presetDiscovery'
 
 /**
  * Native authored preset contract for the Cinema 2.0 sibling engine.
@@ -129,11 +130,10 @@ export interface Cinema2CapabilityRequirement {
   purpose?: string
 }
 
-export interface Cinema2PresetMetadataManifest {
+export interface Cinema2PresetMetadataManifest extends PresetDiscoveryFields {
   name: string
   description?: string
   author?: string
-  tags?: readonly string[]
   metadata?: Cinema2JsonObject
 }
 

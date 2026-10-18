@@ -14,3 +14,7 @@ always supports WebAssembly SIMD.
 selfie_segmenter.tflite is Google's "Selfie Segmenter" model (float16):
 https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite
 Used by the Headliner silhouette effects (Aura, Energy Outline, Outline Echo, Particle Body).
+
+pose_landmarker_lite.task is Google's "Pose Landmarker (lite)" model (float16, v1):
+https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task
+Used by the Headliner engine's Spark Skeleton effect.

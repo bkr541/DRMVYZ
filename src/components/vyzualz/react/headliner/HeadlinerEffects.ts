@@ -1,5 +1,5 @@
 // The Headliner effect processors (Motion Echo, Ghost Trails, Velocity Smear, Motion Melt, Freeze Ghost, Strobe
-// Clone, Clone Spread, RGB Ghost, Face Warp, Face Echo, Aura, Energy Outline, Outline Echo, Particle Body, Particle Shed). Each one draws the live camera picture first and then layers its effect on top, so Master
+// Clone, Clone Spread, RGB Ghost, Face Warp, Face Echo, Aura, Energy Outline, Outline Echo, Particle Body, Particle Shed, Spark Skeleton, Digital Silhouette, Portal Body, X-Ray, Posterize Pulse). Each one draws the live camera picture first and then layers its effect on top, so Master
 // Intensity 0 is always the clean camera. They work on reduced-size surfaces (capped at WORK_MAX_WIDTH) to keep
 // history and feedback buffers cheap, and read every setting from the Design-tab values passed in per frame.
 
@@ -33,6 +33,9 @@ import { HeadlinerMotionAnalyzer } from './HeadlinerMotion'
 import { createFaceEchoProcessor, createFaceWarpProcessor } from './HeadlinerFaceEffects'
 import { createAuraProcessor, createEnergyOutlineProcessor, createOutlineEchoProcessor } from './HeadlinerSilhouetteEffects'
 import { createParticleBodyProcessor, createParticleShedProcessor } from './HeadlinerParticleEffects'
+import { createSparkSkeletonProcessor } from './HeadlinerSkeletonEffect'
+import { createDigitalSilhouetteProcessor, createPortalBodyProcessor } from './HeadlinerSilhouetteFillEffects'
+import { createPosterizePulseProcessor, createXRayProcessor } from './HeadlinerToneEffects'
 import { createRgbGhostProcessor } from './HeadlinerTemporalEffects'
 
 export { HEADLINER_MAX_ECHOES, HEADLINER_SMEAR_DRAW_BUDGET, HEADLINER_WORK_MAX_WIDTH, hexToRgb, resolveHeadlinerWorkSize } from './HeadlinerEffectKit'
@@ -577,6 +580,16 @@ export function createHeadlinerEffectProcessor(presetId: HeadlinerPresetId): Hea
       return createParticleBodyProcessor()
     case 'particle-shed':
       return createParticleShedProcessor()
+    case 'spark-skeleton':
+      return createSparkSkeletonProcessor()
+    case 'digital-silhouette':
+      return createDigitalSilhouetteProcessor()
+    case 'portal-body':
+      return createPortalBodyProcessor()
+    case 'x-ray':
+      return createXRayProcessor()
+    case 'posterize-pulse':
+      return createPosterizePulseProcessor()
     case 'motion-echo':
     default:
       return new MotionEchoProcessor()

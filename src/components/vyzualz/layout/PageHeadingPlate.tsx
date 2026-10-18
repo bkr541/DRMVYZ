@@ -59,6 +59,18 @@ export function ShowHeadingIcon() {
   )
 }
 
+export function PresetHeadingIcon() {
+  return (
+    <svg {...svgProps}>
+      <path d="M5 7h14M5 12h14M5 17h14" />
+      <path d="M9 4.5v5M15 9.5v5M11 14.5v5" />
+      <circle cx="9" cy="7" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.35" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="17" r="1.35" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 const LEFT_RAIL_SELECTOR = '.vz-inspector--left, .rw-frame--left'
 const MIN_PLATE_WIDTH = 280
 const HEADER_SELECTOR = '.vz-header, .mmv-header, .lmv-header, .sm-topbar'

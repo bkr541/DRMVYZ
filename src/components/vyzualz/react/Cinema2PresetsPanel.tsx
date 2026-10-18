@@ -4,6 +4,7 @@ import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCata
 import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactPresetCard } from './ReactPresetCard'
+import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from './presetDiscovery'
 
 const CINEMA2_PRESET_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#61d6aa']
 
@@ -21,8 +22,10 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
   const presets = cinema2NativePresetRegistry.list().filter(manifest => {
     if (manifest.metadata.tags?.includes('internal')) return false
     if (!inScope(manifest.id)) return false
-    const text = `${manifest.metadata.name} ${manifest.metadata.description ?? ''} ${(manifest.metadata.tags ?? []).join(' ')}`.toLowerCase()
-    return text.includes(needle)
+    return presetMatchesDiscoveryQuery(needle, {
+      ...manifest.metadata,
+      ...resolvePresetDiscoveryMetadata(manifest.metadata, 'cinematic'),
+    })
   })
 
   return (

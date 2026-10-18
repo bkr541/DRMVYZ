@@ -1,6 +1,7 @@
 import type { ShaderDefinition, ShaderCategory } from '../registry/shaderRegistryTypes'
 import { shaderRegistry } from '../registry'
 import { migrateLegacyReactorSceneId } from '../scenes/reactorMigration'
+import { presetMatchesDiscoveryQuery } from '../../presetDiscovery'
 
 // ── Library entry ─────────────────────────────────────────────────────────────
 
@@ -162,16 +163,7 @@ export class ShaderLibrary {
     }
 
     if (opts.query) {
-      const q = opts.query.toLowerCase()
-      result = result.filter(e => {
-        const d = e.definition
-        return (
-          d.name.toLowerCase().includes(q) ||
-          d.description.toLowerCase().includes(q) ||
-          (d.tags ?? []).some(t => t.toLowerCase().includes(q)) ||
-          d.category.toLowerCase().includes(q)
-        )
-      })
+      result = result.filter(e => presetMatchesDiscoveryQuery(opts.query!, e.definition))
     }
 
     return result

@@ -5,6 +5,7 @@ import type { CinematicWorldConfig } from './CinematicWorldConfig'
 import { REACTIVE_CONSTELLATION_CURATED_PRESETS } from './ReactiveConstellationPresets'
 import { PIX_GRID_CATALOG_PRESETS } from './pixGrid/PixGridPresetRegistry'
 import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
+import type { PresetDiscoveryFields, PresetDiscoveryMetadata } from './presetDiscovery'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './renderers/cutbank/CutbankSettings'
 import type {
@@ -410,7 +411,7 @@ export interface CanvasPresetSettings {
   bassBurst: number
 }
 
-export interface CanvasPresetDefinition {
+export interface CanvasPresetDefinition extends PresetDiscoveryFields {
   id: CanvasPresetId
   name: string
   description: string
@@ -3233,7 +3234,7 @@ export type LaserDmxBeamMatrixPresetCategory =
   | 'drop'
   | 'atmospheric'
 
-export interface LaserDmxBeamMatrixPreset {
+export interface LaserDmxBeamMatrixPreset extends PresetDiscoveryMetadata {
   id:          string
   name:        string
   description: string
@@ -3509,7 +3510,7 @@ export interface ReactPixGridDeckPresetMetadata {
   thumbnailFingerprint: string
 }
 
-export interface ReactPreset {
+export interface ReactPreset extends PresetDiscoveryFields {
   id: string
   name: string
   description: string

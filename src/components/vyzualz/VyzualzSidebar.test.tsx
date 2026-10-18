@@ -61,9 +61,14 @@ describe('VyzualzSidebar workspace navigation', () => {
 
     const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav-item')]
     const labels = navItems.map(item => item.getAttribute('aria-label'))
-    expect(labels).toEqual(['React', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(labels).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
     expect(labels).not.toContain('Visualizer')
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
+
+    const presetManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Preset Manager')
+    expect(presetManagerItem?.querySelectorAll('svg rect').length).toBeGreaterThanOrEqual(3)
+    act(() => presetManagerItem?.click())
+    expect(onAppViewChange).toHaveBeenCalledWith('presetManager')
 
     const showManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Show Manager')
     expect(showManagerItem).toBeInstanceOf(HTMLButtonElement)

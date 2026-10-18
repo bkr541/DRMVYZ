@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
  * destination by VyzualzSidebar and compared side by side in Layout Lab (Template, Design tab). Every glyph is drawn on a 32 grid in `currentColor`
  * plus one `llni-accent` shape, which takes the item's `--llni-accent` colour.
  */
-export type NavIconKind = 'react' | 'show' | 'lyrics' | 'media'
+export type NavIconKind = 'react' | 'preset' | 'show' | 'lyrics' | 'media'
 export type GlyphProps = { kind: NavIconKind }
 
 /** The DVYDRM logo's four-point star: concave sides pinched toward the centre. */
@@ -31,6 +31,12 @@ export function SignalStarGlyph({ kind }: GlyphProps) {
         <rect x="4" y="9.5" width="12" height="4.6" rx="1.5" /><rect x="4" y="16.2" width="8" height="4.6" rx="1.5" /><rect x="4" y="22.9" width="13" height="4.6" rx="1.5" />
         <path {...accent} d="M23 11v17" strokeWidth="1.6" />
         <path {...accent} d={star(23, 6, 4.4)} fill="currentColor" strokeWidth="0.8" />
+      </>}
+      {kind === 'preset' && <>
+        <rect x="5" y="15" width="17" height="11" rx="2" opacity="0.42" />
+        <rect x="8" y="10" width="17" height="11" rx="2" opacity="0.72" />
+        <rect {...accent} x="11" y="5" width="17" height="11" rx="2" />
+        <path {...accent} d="M15 9h9M18 6.7v4.6M15 13h6" strokeWidth="1.3" />
       </>}
       {kind === 'lyrics' && <>
         <path d="M5 8h22M5 15h11M5 22h16" strokeWidth="2" />
@@ -100,6 +106,12 @@ export function IsometricStackGlyph({ kind }: GlyphProps) {
       {kind === 'show' && <>
         {plane(17)}<path d="M5 4.5h22" /><rect x="8" y="5.5" width="4" height="3.6" rx="1.2" /><rect x="20" y="5.5" width="4" height="3.6" rx="1.2" />
         <path {...accent} d="M8.5 10.5 6 18M11.5 10.5l3 6.5M20.5 10.5l-3 6.5M23.5 10.5 26 18" strokeWidth="1.4" />
+      </>}
+      {kind === 'preset' && <>
+        <rect x="4.5" y="16.5" width="18" height="11" rx="2" opacity="0.42" />
+        <rect x="7.5" y="11" width="18" height="11" rx="2" opacity="0.7" />
+        <rect {...accent} x="10.5" y="5.5" width="18" height="11" rx="2" />
+        <path {...accent} d="M14.5 9.2h10M17.5 7v4.4M14.5 13h7" strokeWidth="1.25" />
       </>}
       {kind === 'lyrics' && <>
         {plane(9)}<path d="M10 14.2l5 2.5M14 12.2l7 3.5M18 10.2 24 13.2" opacity="0.8" />

@@ -174,6 +174,15 @@ describe('canonical React preset card architecture', () => {
     )
     expect(filtered.length).toBeGreaterThan(0)
     expect(filtered.every(preset => preset.category === 'drop' && preset.tags.includes('volumetric'))).toBe(true)
+
+    const categorySearch = filterLaserDmxBeamMatrixPresets(
+      LASER_DMX_BEAM_MATRIX_PRESETS,
+      'atmospheric',
+      null,
+      new Set(),
+    )
+    expect(categorySearch.length).toBeGreaterThan(0)
+    expect(categorySearch.some(preset => preset.category === 'atmospheric')).toBe(true)
   })
 
   it('keeps legacy CANVAS effect recipes available internally but removes them from the visible preset catalog', async () => {

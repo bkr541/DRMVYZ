@@ -70,6 +70,20 @@ export function VyzualzSidebar({
 
         <div className="az-nav-section-label">Managers</div>
 
+        {/* Preset Manager icon */}
+        <button
+          type="button"
+          className={`az-nav-item${appView === 'presetManager' ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('presetManager')}
+          title="Preset Manager"
+          aria-label="Preset Manager"
+          aria-current={appView === 'presetManager' ? 'page' : undefined}
+        >
+          <span className="az-nav-fill" aria-hidden="true" />
+          <NavIconSvg size={28}><IsometricStackGlyph kind="preset" /></NavIconSvg>
+          <span className="az-nav-label">Preset Manager</span>
+        </button>
+
         {/* Show Manager icon */}
         <button
           type="button"

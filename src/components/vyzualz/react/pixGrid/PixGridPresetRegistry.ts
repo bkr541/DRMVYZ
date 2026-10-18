@@ -1,4 +1,5 @@
 import type { ReactPreset } from '../ReactTypes'
+import type { PresetDiscoveryFields } from '../presetDiscovery'
 import { PIX_GRID_BUILT_IN_ASSET_BY_ID } from './PixGridArtwork'
 import { createPixGridDeckGeneratedPreset } from './PixGridDeckPreset'
 import { PIX_GRID_PERFORMANCE_PROGRAM_BY_ID, PIX_GRID_PERFORMANCE_PROGRAMS } from './PixGridPerformancePrograms'
@@ -22,7 +23,7 @@ import type { PixGridPerformanceProgram } from './PixGridPerformanceTypes'
 
 export const PIX_GRID_PRESET_DEFINITION_SCHEMA_VERSION = 1 as const
 
-export interface PixGridPresetDefinition {
+export interface PixGridPresetDefinition extends PresetDiscoveryFields {
   schemaVersion: typeof PIX_GRID_PRESET_DEFINITION_SCHEMA_VERSION
   id: string
   version: number

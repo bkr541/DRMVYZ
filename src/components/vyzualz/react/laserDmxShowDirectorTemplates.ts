@@ -12,6 +12,7 @@ import {
   type LaserDmxShowDirectorState,
 } from './ReactTypes'
 import { migrateLaserDmxBuiltInRigToPhysicalScannerContent } from './LaserDmxShowDirectorPhysicalContentMigration'
+import type { PresetDiscoveryMetadata } from './presetDiscovery'
 
 export type LaserDmxShowDirectorTemplateCategory = 'club' | 'festival' | 'drop' | 'led' | 'hits' | 'movement' | 'atmosphere'
 
@@ -19,7 +20,7 @@ export type LaserDmxShowDirectorTemplateFixture = LaserDmxShowDirectorFixturePat
   kind: LaserDmxShowDirectorFixtureKind
 }
 
-export interface LaserDmxShowDirectorTemplate {
+export interface LaserDmxShowDirectorTemplate extends PresetDiscoveryMetadata {
   id: string
   name: string
   description: string

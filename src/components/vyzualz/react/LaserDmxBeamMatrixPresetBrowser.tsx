@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { ReactPresetCard, type ReactPresetCardChip } from './ReactPresetCard'
+import { presetMatchesDiscoveryQuery } from './presetDiscovery'
 import { resolveLaserDmxBeamMatrixPresetProvenance } from './LaserDmxBeamMatrixPresetProvenance'
 import { getBeamMatrixPresetPalette } from './LaserDmxPresetThumbnail'
 import {
@@ -87,10 +88,7 @@ export function filterLaserDmxBeamMatrixPresets(
   return presets.filter(preset => {
     if (activeCategory && preset.category !== activeCategory) return false
     if (activeTags.size > 0 && !preset.tags.some(tag => activeTags.has(tag))) return false
-    if (!query) return true
-    return preset.name.toLowerCase().includes(query)
-      || preset.description.toLowerCase().includes(query)
-      || preset.tags.some(tag => tag.toLowerCase().includes(query))
+    return presetMatchesDiscoveryQuery(query, preset)
   })
 }
 

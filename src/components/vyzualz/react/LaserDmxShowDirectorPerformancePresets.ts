@@ -29,8 +29,9 @@ import {
   LASER_DMX_SHOW_DIRECTOR_RIG_BACKED_PERFORMANCE_SHOWS,
   type LaserDmxShowDirectorRigBackedPerformanceShowDefinition,
 } from './LaserDmxShowDirectorRigBackedPerformanceShows'
+import type { PresetDiscoveryFields } from './presetDiscovery'
 
-export interface LaserDmxShowDirectorPerformancePresetDefinition {
+export interface LaserDmxShowDirectorPerformancePresetDefinition extends PresetDiscoveryFields {
   id: string
   name: string
   description: string

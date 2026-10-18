@@ -1,4 +1,4 @@
-export const APP_VIEWS = ['react', 'showManager', 'lyrics', 'media'] as const
+export const APP_VIEWS = ['react', 'presetManager', 'showManager', 'lyrics', 'media'] as const
 
 export type AppView = (typeof APP_VIEWS)[number]
 export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
@@ -7,6 +7,7 @@ export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 
 export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {
   react: 'React',
+  presetManager: 'Preset Manager',
   showManager: 'Show Manager',
   lyrics: 'Lyric Manager',
   media: 'Media Manager',

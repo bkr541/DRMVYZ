@@ -16,6 +16,7 @@ import { PresetSearchRow } from './controls/PresetSearchRow'
 import { PanelSubtabs } from './PanelSubtabs'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { LayerRow } from './controls/LayerRow'
+import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from './presetDiscovery'
 
 // Same accent palette as the LayerRow canonical component's Layout Lab gallery.
 const CINEMA_LAYER_ROW_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#b84fc9', '#d8b95a', '#61d6aa', '#ff6b6b']
@@ -41,8 +42,10 @@ export function CinemaPresetsPanel() {
   const presets = state.compositions.filter(candidate => {
     if (isCinemaEngineeringOnlyComposition(candidate)) return false
     if (!inScope(candidate.id)) return false
-    const text = `${candidate.metadata.name} ${candidate.metadata.description ?? ''} ${(candidate.metadata.tags ?? []).join(' ')}`.toLowerCase()
-    return text.includes(needle)
+    return presetMatchesDiscoveryQuery(needle, {
+      ...candidate.metadata,
+      ...resolvePresetDiscoveryMetadata(candidate.metadata, 'composition'),
+    })
   })
 
   const selectPreset = (id: typeof state.activeCompositionId) => {

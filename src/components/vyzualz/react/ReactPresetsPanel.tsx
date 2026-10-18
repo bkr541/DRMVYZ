@@ -58,6 +58,7 @@ import {
 } from './reactPresetLibraryState'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import type { PresetScopeTab } from '../../../features/presetCatalog/presetScope'
+import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from './presetDiscovery'
 
 // Clean Playback is the implicit base look CANVAS always starts on (see
 // selectReactEngine), not a preset the user picks — so it is never carded in
@@ -128,6 +129,7 @@ function createCanvasPresetCardPreset(preset: CanvasPresetDefinition): ReactPres
     id: preset.id,
     name: preset.name,
     description: preset.description,
+    ...resolvePresetDiscoveryMetadata(preset, preset.rendererKind),
     engine: 'canvas',
     palette: {
       primary: preset.accent,
@@ -251,12 +253,25 @@ function emptyScopeMessage(engineLabel: string, scope: PresetScopeTab, query: st
   return scope === 'user' ? 'No user presets yet.' : `No ${engineLabel} presets.`
 }
 
-/** Case-insensitive substring match of the preset search query against any of
- *  the supplied text fields. An empty query matches everything. */
-function presetMatchesQuery(query: string, ...fields: (string | null | undefined)[]): boolean {
-  const needle = query.trim().toLowerCase()
-  if (!needle) return true
-  return fields.some(field => (field ?? '').toLowerCase().includes(needle))
+function reactPresetDiscoveryMetadata(preset: ReactPreset) {
+  const constellationProfile = preset.cinematicConfig?.worldSettings.mode === 'reactiveConstellation'
+    ? preset.cinematicConfig.worldSettings.settings.visualDnaProfile
+    : null
+  const fallbackCategory = preset.engine === 'cinematicPortal'
+    ? preset.cinematicConfig?.worldMode ?? 'cinematic-world'
+    : preset.engine === 'oscilloscope'
+      ? preset.oscillatorSettings?.sourceType ?? 'sound-drawing'
+      : preset.engine === 'pixGrid'
+        ? preset.pixGridDeck ? 'media-deck' : 'pixel-art'
+        : preset.engine
+  return resolvePresetDiscoveryMetadata(
+    preset,
+    fallbackCategory,
+    [
+      ...(preset.productionPreset?.styleTags ?? []),
+      ...(constellationProfile ? [constellationProfile] : []),
+    ],
+  )
 }
 
 function renderPresetCard(preset: ReactPreset, props: Omit<PresetCollectionProps, 'presets'>) {
@@ -336,7 +351,10 @@ function CanvasPresetCollection({ thumbnailGenerationKey, query, scope, inScope 
     [thumbnailGenerationKey],
   )
   const visibleCanvasPresets = CANVAS_TAB_PRESETS.filter(canvasPreset =>
-    inScope(canvasPreset.id) && presetMatchesQuery(query, canvasPreset.name, cardById.get(canvasPreset.id)?.description),
+    inScope(canvasPreset.id) && presetMatchesDiscoveryQuery(query, {
+      ...canvasPreset,
+      ...resolvePresetDiscoveryMetadata(canvasPreset, canvasPreset.rendererKind),
+    }),
   )
 
   return (
@@ -394,11 +412,18 @@ function getShowDirectorTemplateChips(template: LaserDmxShowDirectorTemplate): R
 
 /** The Performance Show and Rig Layout cards that match the search and the SYSTEM / USER sub-tab. */
 function getVisibleShowDirectorPerformanceShows(query: string, inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id) && presetMatchesQuery(query, preset.name, preset.description))
+  return LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.filter(preset => inScope(preset.id) && presetMatchesDiscoveryQuery(query, {
+    ...preset,
+    ...resolvePresetDiscoveryMetadata(
+      {},
+      'performance-show',
+      [...preset.genreTags, ...preset.behaviorTags, ...preset.musicIntelligenceCapabilities],
+    ),
+  }))
 }
 
 function getVisibleShowDirectorRigLayouts(query: string, inScope: (presetKey: string) => boolean) {
-  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id) && presetMatchesQuery(query, template.name, template.description))
+  return LASER_DMX_SHOW_DIRECTOR_TEMPLATES.filter(template => inScope(template.id) && presetMatchesDiscoveryQuery(query, template))
 }
 
 function ShowDirectorPerformanceCards({ presets }: { presets: readonly (typeof LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS)[number][] }) {
@@ -591,7 +616,10 @@ export function ReactPresetsPanel() {
     [displayPresets, activeReactEngineId, favoriteIds],
   )
   const filteredPresets = useMemo(
-    () => visiblePresets.filter(preset => inScope(preset.id) && presetMatchesQuery(presetQuery, preset.name, preset.description)),
+    () => visiblePresets.filter(preset => inScope(preset.id) && presetMatchesDiscoveryQuery(presetQuery, {
+      ...preset,
+      ...reactPresetDiscoveryMetadata(preset),
+    })),
     [visiblePresets, presetQuery, inScope],
   )
   const activePresetProvenance = useMemo(() => resolveReactPresetProvenance({

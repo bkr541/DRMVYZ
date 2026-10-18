@@ -1,9 +1,10 @@
-// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–15) and the Design-tab
+// Headliner effect presets (docs/HEADLINER_30_POV_Visual_Effects.md, priorities 1–20) and the Design-tab
 // parameters each one exposes. The catalog is data only: the Design panel renders it with the standard
 // rows and the effect processors read the resolved values, so a control cannot exist without a reader.
 
 import { HEADLINER_ISOLATION_OPTIONS } from './HeadlinerIsolation'
 import type { HeadlinerTriggerId } from './HeadlinerTriggers'
+import type { PresetDiscoveryFields } from '../presetDiscovery'
 
 export type HeadlinerPresetId =
   | 'motion-echo'
@@ -21,6 +22,11 @@ export type HeadlinerPresetId =
   | 'outline-echo'
   | 'particle-body'
   | 'particle-shed'
+  | 'spark-skeleton'
+  | 'digital-silhouette'
+  | 'portal-body'
+  | 'x-ray'
+  | 'posterize-pulse'
 
 /** The four standard Design parent groups. */
 export type HeadlinerParameterGroup = 'master' | 'design' | 'effects' | 'palette'
@@ -83,7 +89,7 @@ export type HeadlinerParameterDefinition =
   | HeadlinerSelectParameter
   | HeadlinerColorParameter
 
-export interface HeadlinerPresetDefinition {
+export interface HeadlinerPresetDefinition extends PresetDiscoveryFields {
   id: HeadlinerPresetId
   name: string
   description: string
@@ -1136,6 +1142,262 @@ const PARTICLE_SHED: HeadlinerPresetDefinition = {
   ],
 }
 
+// ── Presets 16–20 ──────────────────────────────────────────────────────────────
+
+const patternControls = (): HeadlinerParameterDefinition[] => [
+  {
+    id: 'fillOpacity', kind: 'slider', group: 'design', label: 'Fill Opacity',
+    min: 0, max: 1, step: 0.01, default: 1, format: 'percent',
+  },
+  {
+    id: 'patternSpeed', kind: 'slider', group: 'design', label: 'Pattern Speed',
+    min: 0, max: 3, step: 0.05, default: 1, format: 'number',
+    description: 'How fast the fill moves.',
+  },
+  {
+    id: 'patternScale', kind: 'slider', group: 'design', label: 'Pattern Scale',
+    min: 0.4, max: 2.5, step: 0.05, default: 1, format: 'number',
+    description: 'Size of the pattern’s features.',
+  },
+]
+
+const SPARK_SKELETON: HeadlinerPresetDefinition = {
+  id: 'spark-skeleton',
+  name: 'Spark Skeleton',
+  description: 'Tracks your body points and connects them with glowing, electric bones and nodes, shedding sparks from fast hands.',
+  tone: '#4dffd2',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'style', kind: 'select', group: 'design', label: 'Style', default: 'skeleton',
+      options: [
+        { value: 'skeleton', label: 'Skeleton' },
+        { value: 'constellation', label: 'Constellation' },
+        { value: 'both', label: 'Both' },
+      ],
+      description: 'Skeleton draws the bones. Constellation links nearby points into a web of lights. Both draws both.',
+    },
+    {
+      id: 'lineWidth', kind: 'slider', group: 'design', label: 'Line Width',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+    },
+    {
+      id: 'nodeSize', kind: 'slider', group: 'design', label: 'Node Size',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+    },
+    {
+      id: 'cameraDim', kind: 'slider', group: 'design', label: 'Camera Dim',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How far the normal camera picture is darkened behind the skeleton. 100% is only the skeleton on black.',
+    },
+    blendMode('add'),
+    {
+      id: 'jitter', kind: 'slider', group: 'effects', label: 'Electric Jitter',
+      min: 0, max: 1, step: 0.01, default: 0.35, format: 'percent',
+      description: 'Makes the bones crackle like electric arcs.',
+    },
+    {
+      id: 'sparks', kind: 'slider', group: 'effects', label: 'Sparks',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'Sparks fly off fast-moving hands and head, and burst from the joints on every kick.',
+    },
+    glowControl(0.6),
+    beatPulseControl('skeleton'),
+    {
+      id: 'minVisibility', kind: 'slider', group: 'effects', label: 'Point Confidence',
+      min: 0.1, max: 0.95, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How sure the tracker must be before a point is drawn. Higher hides points it can barely see, such as legs behind a desk.',
+    },
+    {
+      id: 'followSmoothing', kind: 'slider', group: 'effects', label: 'Follow Smoothing',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'How steadily the skeleton follows you. Low sticks tightly to every movement; high glides.',
+    },
+    ...glowPaletteControls('skeleton', '#4dffd2', '#ff4fd8'),
+  ],
+}
+
+const DIGITAL_SILHOUETTE: HeadlinerPresetDefinition = {
+  id: 'digital-silhouette',
+  name: 'Digital Silhouette',
+  description: 'Replaces you with a clean silhouette filled with animated gradients, plasma, stripes or music-reactive bars.',
+  tone: '#ff7a3d',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'fill', kind: 'select', group: 'design', label: 'Fill', default: 'gradient',
+      options: [
+        { value: 'gradient', label: 'Gradient' },
+        { value: 'plasma', label: 'Plasma' },
+        { value: 'stripes', label: 'Stripes' },
+        { value: 'bars', label: 'Music Bars' },
+      ],
+      description: 'What the silhouette is filled with.',
+    },
+    ...patternControls(),
+    blendMode('normal'),
+    {
+      id: 'environment', kind: 'select', group: 'effects', label: 'Surroundings', default: 'dim',
+      options: [
+        { value: 'keep', label: 'Keep' },
+        { value: 'dim', label: 'Dim' },
+        { value: 'mono', label: 'Black & White' },
+        { value: 'blur', label: 'Blur' },
+        { value: 'black', label: 'Black' },
+      ],
+      description: 'How the room around you is treated.',
+    },
+    {
+      id: 'environmentAmount', kind: 'slider', group: 'effects', label: 'Surroundings Amount',
+      min: 0, max: 1, step: 0.01, default: 0.6, format: 'percent',
+      visibleWhen: { parameter: 'environment', notEquals: 'keep' },
+    },
+    {
+      id: 'rimLight', kind: 'slider', group: 'effects', label: 'Rim Light',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+      description: 'A bright line along the edge of the silhouette.',
+    },
+    glowControl(0.4),
+    beatPulseControl('fill'),
+    ...glowPaletteControls('fill', '#ff7a3d', '#7a5cff'),
+  ],
+}
+
+const PORTAL_BODY: HeadlinerPresetDefinition = {
+  id: 'portal-body',
+  name: 'Portal Body',
+  description: 'Your body becomes a window: the room stays as it is, while inside you there is a tunnel, starfield, grid or plasma world.',
+  tone: '#5a8cff',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'fill', kind: 'select', group: 'design', label: 'World', default: 'tunnel',
+      options: [
+        { value: 'tunnel', label: 'Tunnel' },
+        { value: 'starfield', label: 'Starfield' },
+        { value: 'grid', label: 'Neon Grid' },
+        { value: 'plasma', label: 'Plasma' },
+      ],
+      description: 'What is seen through your body.',
+    },
+    ...patternControls(),
+    blendMode('normal'),
+    {
+      id: 'rimLight', kind: 'slider', group: 'effects', label: 'Portal Rim',
+      min: 0, max: 1, step: 0.01, default: 0.7, format: 'percent',
+      description: 'A bright edge around the portal.',
+    },
+    {
+      id: 'outsideDim', kind: 'slider', group: 'effects', label: 'Dim Room',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      description: 'Darkens the room around you so the portal stands out.',
+    },
+    glowControl(0.4),
+    beatPulseControl('portal'),
+    ...glowPaletteControls('portal', '#5a8cff', '#ff4fd8'),
+  ],
+}
+
+const X_RAY: HeadlinerPresetDefinition = {
+  id: 'x-ray',
+  name: 'X-Ray',
+  description: 'Turns the camera into a high-contrast alternate view: inverted, thermal, edge-only, negative, posterized or scan-style. It can pulse on beats or flash on hits.',
+  tone: '#9ad8ff',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'xrayMode', kind: 'select', group: 'design', label: 'Mode', default: 'invert',
+      options: [
+        { value: 'invert', label: 'Monochrome Inversion' },
+        { value: 'thermal', label: 'Thermal' },
+        { value: 'edges', label: 'Edges Only' },
+        { value: 'negative', label: 'Negative' },
+        { value: 'posterize', label: 'Posterized Luminance' },
+        { value: 'scan', label: 'Scan Contour' },
+      ],
+      description: 'The alternate picture of you.',
+    },
+    {
+      id: 'trigger', kind: 'select', group: 'design', label: 'Show When', default: 'always',
+      options: [
+        { value: 'always', label: 'Always' },
+        { value: 'beat', label: 'Pulse On Each Beat' },
+        { value: 'hit', label: 'Flash On Kick / Snare' },
+        { value: 'build', label: 'During Build-Ups' },
+      ],
+      description: 'When the X-Ray appears over the normal camera. Kick and snare flashes need a playing track.',
+    },
+    {
+      id: 'baseAmount', kind: 'slider', group: 'design', label: 'Minimum Amount',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      visibleWhen: { parameter: 'trigger', notEquals: 'always' },
+      description: 'How much X-Ray stays visible between pulses.',
+    },
+    {
+      id: 'contrast', kind: 'slider', group: 'design', label: 'Contrast',
+      min: 0, max: 1, step: 0.01, default: 0.4, format: 'percent',
+    },
+    {
+      id: 'edgeGain', kind: 'slider', group: 'effects', label: 'Edge Strength',
+      min: 0, max: 1, step: 0.01, default: 0.5, format: 'percent',
+      description: 'How strongly edges are drawn in the Edges Only and Scan Contour modes.',
+    },
+    {
+      id: 'bands', kind: 'slider', group: 'effects', label: 'Posterize Bands',
+      min: 2, max: 12, step: 1, default: 5, format: 'number',
+      description: 'Brightness bands in the Posterized Luminance mode.',
+    },
+    {
+      id: 'holdSeconds', kind: 'slider', group: 'effects', label: 'Flash Length',
+      min: 0.05, max: 1.5, step: 0.05, default: 0.35, format: 'seconds',
+      visibleWhen: { parameter: 'trigger', equals: 'hit' },
+      description: 'How long a kick or snare flash takes to fade.',
+    },
+    ...paletteControls('X-ray image', 'ramps the picture from dark through the start colour to the end colour and white. Original keeps the classic X-ray and heat colours.'),
+  ],
+}
+
+const POSTERIZE_PULSE: HeadlinerPresetDefinition = {
+  id: 'posterize-pulse',
+  name: 'Posterize Pulse',
+  description: 'Crushes the picture into a few colour bands that tighten on beats, bass and drops, then smoothly recovers.',
+  tone: '#ffe14a',
+  parameters: [
+    ...masterControls(),
+    {
+      id: 'normalLevels', kind: 'slider', group: 'design', label: 'Normal Levels',
+      min: 4, max: 48, step: 1, default: 16, format: 'number',
+      description: 'Bands per colour channel at rest.',
+    },
+    {
+      id: 'beatLevels', kind: 'slider', group: 'design', label: 'Beat Levels',
+      min: 2, max: 32, step: 1, default: 8, format: 'number',
+      description: 'Bands on every beat.',
+    },
+    {
+      id: 'bassLevels', kind: 'slider', group: 'design', label: 'Bass Levels',
+      min: 2, max: 32, step: 1, default: 4, format: 'number',
+      description: 'Bands on a strong bass hit (kick).',
+    },
+    {
+      id: 'dropLevels', kind: 'slider', group: 'design', label: 'Drop Levels',
+      min: 2, max: 16, step: 1, default: 2, format: 'number',
+      description: 'Bands on the downbeat of each bar; also how crushed a build-up gets.',
+    },
+    {
+      id: 'recovery', kind: 'slider', group: 'effects', label: 'Recovery',
+      min: 0.05, max: 2, step: 0.05, default: 0.45, format: 'seconds',
+      description: 'How long the picture takes to come back to Normal Levels after a hit.',
+    },
+    {
+      id: 'posterAmount', kind: 'slider', group: 'effects', label: 'Effect Amount',
+      min: 0, max: 1, step: 0.01, default: 1, format: 'percent',
+      description: 'Mixes the posterized picture with the live one.',
+    },
+    ...paletteControls('bands', 'maps the bands from the start colour (dark) to the end colour (light). Original keeps the camera colours.'),
+  ],
+}
+
 export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.freeze([
   MOTION_ECHO,
   GHOST_TRAILS,
@@ -1152,6 +1414,11 @@ export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.fr
   OUTLINE_ECHO,
   PARTICLE_BODY,
   PARTICLE_SHED,
+  SPARK_SKELETON,
+  DIGITAL_SILHOUETTE,
+  PORTAL_BODY,
+  X_RAY,
+  POSTERIZE_PULSE,
 ])
 
 export function getHeadlinerPreset(id: unknown): HeadlinerPresetDefinition {

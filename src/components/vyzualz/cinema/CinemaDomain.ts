@@ -1,3 +1,4 @@
+import type { PresetDiscoveryFields } from '../react/presetDiscovery'
 import type {
   CinemaActionId,
   CinemaAssetBindingId,
@@ -528,10 +529,9 @@ export interface CinemaPerformanceRuleDefinition {
   actions: readonly CinemaPerformanceAction[]
 }
 
-export interface CinemaCompositionMetadata {
+export interface CinemaCompositionMetadata extends PresetDiscoveryFields {
   name: string
   description?: string
-  tags?: readonly string[]
   author?: string
   createdAt?: string
   updatedAt?: string

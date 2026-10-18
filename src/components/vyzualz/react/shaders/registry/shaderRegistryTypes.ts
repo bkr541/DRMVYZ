@@ -2,6 +2,7 @@ import type { BrandPaletteRole } from '../../../../../features/personalization/B
 import type { ShaderPerformanceProgram } from '../performance/ShaderPerformanceProgramTypes'
 import type { ShaderAudioUniformFrame, ShaderTimingUniformFrame } from '../audio/shaderAudioTypes'
 import type { TextureFormat } from '../runtime/shaderRuntimeTypes'
+import type { PresetDiscoveryFields } from '../../presetDiscovery'
 
 // ── Categories ────────────────────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ export interface ShaderRuntimeParameterController {
  * The registry stores these; the runtime consumes them to compile programs
  * and allocate resources.  No WebGL objects are created here.
  */
-export interface ShaderDefinition {
+export interface ShaderDefinition extends PresetDiscoveryFields {
   /** Globally unique stable identifier (kebab-case, e.g. 'my-scene-id'). */
   id: string
   name: string

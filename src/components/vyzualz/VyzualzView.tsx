@@ -22,6 +22,9 @@ const ReactView = lazy(() =>
 const ShowManagerView = lazy(() =>
   import('./showManager/ShowManagerView').then(module => ({ default: module.ShowManagerView })),
 )
+const PresetManagerView = lazy(() =>
+  import('./presetManager/PresetManagerView').then(module => ({ default: module.PresetManagerView })),
+)
 const MediaManagerView = lazy(() =>
   import('../../features/media/MediaManagerView').then(module => ({ default: module.MediaManagerView })),
 )
@@ -130,6 +133,16 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
             </Suspense>
           </div>
         </main>
+      </ManagedWorkspaceShell>
+    )
+  }
+
+  if (appView === 'presetManager') {
+    return (
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+        <Suspense fallback={<WorkspaceLoader label="Preset Manager" />}>
+          <PresetManagerView />
+        </Suspense>
       </ManagedWorkspaceShell>
     )
   }

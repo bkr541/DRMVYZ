@@ -1,4 +1,5 @@
 import { DreamVizTextInput } from './DreamVizTextInput'
+import type { ReactNode } from 'react'
 
 // ── PresetSearchRow ──────────────────────────────────────────────────────────
 //
@@ -16,6 +17,7 @@ export interface PresetSearchRowProps {
   placeholder?: string
   ariaLabel?: string
   className?: string
+  trailing?: ReactNode
 }
 
 export function PresetSearchRow({
@@ -24,6 +26,7 @@ export function PresetSearchRow({
   placeholder = 'Search presets…',
   ariaLabel = 'Search presets',
   className = '',
+  trailing,
 }: PresetSearchRowProps) {
   return (
     <div className={`vz-md-search-row rv-preset-search-row${className ? ` ${className}` : ''}`}>
@@ -51,6 +54,7 @@ export function PresetSearchRow({
           </button>
         )}
       </div>
+      {trailing}
     </div>
   )
 }

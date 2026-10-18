@@ -164,3 +164,51 @@ export function applyMask(layer: WorkSurface, mask: HTMLCanvasElement | null, bl
   target.restore()
 }
 
+/** A small surface for reading pixels back (colours, masks, per-pixel effects): `willReadFrequently` keeps the readback on the CPU. */
+export class ReadSurface {
+  readonly canvas: HTMLCanvasElement | null
+  readonly context: CanvasRenderingContext2D | null
+
+  constructor() {
+    this.canvas = typeof document === 'undefined' ? null : document.createElement('canvas')
+    this.context = this.canvas?.getContext('2d', { willReadFrequently: true }) ?? null
+  }
+
+  resize(width: number, height: number): void {
+    if (this.canvas && (this.canvas.width !== width || this.canvas.height !== height)) {
+      this.canvas.width = width
+      this.canvas.height = height
+    }
+  }
+
+  /** Draws the source (optionally a crop of it) over the whole surface and returns its pixels, or null if they cannot be read. */
+  readImage(source: CanvasImageSource, sx?: number, sy?: number, sw?: number, sh?: number): ImageData | null {
+    const canvas = this.canvas
+    const context = this.context
+    if (!canvas || !context) return null
+    try {
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      if (sx === undefined) context.drawImage(source, 0, 0, canvas.width, canvas.height)
+      else context.drawImage(source, sx, sy as number, sw as number, sh as number, 0, 0, canvas.width, canvas.height)
+      return context.getImageData(0, 0, canvas.width, canvas.height)
+    } catch {
+      return null
+    }
+  }
+
+  read(source: CanvasImageSource, sx?: number, sy?: number, sw?: number, sh?: number): Uint8ClampedArray | null {
+    return this.readImage(source, sx, sy, sw, sh)?.data ?? null
+  }
+
+  /** Replaces the surface's pixels (after editing the data `readImage` returned). */
+  put(image: ImageData): void {
+    this.context?.putImageData(image, 0, 0)
+  }
+
+  dispose(): void {
+    if (this.canvas) {
+      this.canvas.width = 0
+      this.canvas.height = 0
+    }
+  }
+}

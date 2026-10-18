@@ -38,6 +38,7 @@ import {
 import { createHeadlinerEffectProcessor, type HeadlinerEffectProcessor } from './HeadlinerEffects'
 import { HeadlinerTimingTracker } from './HeadlinerTiming'
 import { fireHeadlinerTrigger } from './HeadlinerTriggers'
+import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from '../presetDiscovery'
 
 function HeadlinerFullscreenIcon() {
   return (
@@ -305,7 +306,10 @@ export function HeadlinerPresetsPanel() {
   const needle = query.trim().toLowerCase()
   const inScope = usePresetScopeFilter('headliner', scope)
   const presets = HEADLINER_PRESETS.filter(preset => (
-    inScope(preset.id) && `${preset.name} ${preset.description}`.toLowerCase().includes(needle)
+    inScope(preset.id) && presetMatchesDiscoveryQuery(needle, {
+      ...preset,
+      ...resolvePresetDiscoveryMetadata(preset, 'camera-effect', preset.id.split('-')),
+    })
   ))
 
   return (

@@ -389,7 +389,7 @@ describe('Headliner production workspace controls', () => {
   it('lists the effect presets and loads the one that is picked', async () => {
     await act(async () => root.render(<HeadlinerPresetsPanel />))
     const ids = [...container.querySelectorAll<HTMLElement>('[data-headliner-preset-id]')].map(card => card.dataset.headlinerPresetId)
-    expect(ids).toEqual(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo', 'aura', 'energy-outline', 'outline-echo', 'particle-body', 'particle-shed'])
+    expect(ids).toEqual(['motion-echo', 'ghost-trails', 'velocity-smear', 'motion-melt', 'freeze-ghost', 'strobe-clone', 'clone-spread', 'rgb-ghost', 'face-warp', 'face-echo', 'aura', 'energy-outline', 'outline-echo', 'particle-body', 'particle-shed', 'spark-skeleton', 'digital-silhouette', 'portal-body', 'x-ray', 'posterize-pulse'])
     expect(useReactStore.getState().headlinerSettings.presetId).toBe('motion-echo')
 
     await act(async () => container.querySelector<HTMLElement>('[data-headliner-preset-id="ghost-trails"]')?.click())

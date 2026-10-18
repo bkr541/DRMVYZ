@@ -9,8 +9,8 @@ import type { AppView, PerformanceAppView } from './appView'
 
 describe('shared app-view model', () => {
   it('defines only the current production workspaces in the canonical app-view union', () => {
-    expectTypeOf<AppView>().toEqualTypeOf<'react' | 'showManager' | 'lyrics' | 'media'>()
-    expect(APP_VIEWS).toEqual(['react', 'showManager', 'lyrics', 'media'])
+    expectTypeOf<AppView>().toEqualTypeOf<'react' | 'presetManager' | 'showManager' | 'lyrics' | 'media'>()
+    expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(APP_VIEWS.join(',')).not.toContain('visualizer')
   })
 

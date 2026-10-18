@@ -1,0 +1,107 @@
+.pmv-root {
+  --pmv-cyan: #39e8f4;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: rgba(232, 238, 240, 0.9);
+  background: #080d11;
+  font-family: var(--az-font, Inter, system-ui, sans-serif);
+}
+
+.pmv-header {
+  height: 60px;
+  min-height: 60px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px 0 0;
+  background: rgba(12, 16, 19, 0.96);
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.pmv-header-left {
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pmv-workspace {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.pmv-content {
+  --vz-left-width: 400px;
+  --vz-right-width: 0px;
+}
+
+.pmv-content > .vz-inspector > .vz-inspector-inner {
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+.pmv-content .rw-window-header {
+  margin: -8px -12px 0;
+}
+
+.pmv-browser {
+  flex: 1;
+  min-height: 0;
+}
+
+.pmv-category {
+  width: 126px;
+  flex: 0 0 126px;
+}
+
+.pmv-category .drm-dropdown__trigger { min-height: 30px !important; }
+
+.pmv-card-list { padding: 0 4px; }
+
+.pmv-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: #070c14;
+}
+
+.pmv-card {
+  position: relative;
+  min-height: 96px;
+  margin: 0 0 8px;
+  overflow: hidden;
+  border: 1px solid rgba(87, 125, 143, 0.18);
+  border-radius: 7px;
+  background: linear-gradient(110deg, rgba(8, 17, 22, 0.9), rgba(11, 23, 29, 0.82));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.01);
+}
+.pmv-card.is-active { border-color: var(--pmv-cyan); background: linear-gradient(110deg, rgba(11, 38, 50, 0.96), rgba(12, 37, 46, 0.88)); box-shadow: inset 0 0 18px rgba(57, 232, 244, 0.06), 0 0 7px rgba(57, 232, 244, 0.18); }
+.pmv-card.is-active::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: var(--pmv-cyan); box-shadow: 0 0 10px var(--pmv-cyan); }
+.pmv-card-main { width: 100%; min-height: 96px; display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 9px; padding: 7px 31px 7px 7px; border: 0; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.pmv-thumbnail { width: 80px; height: 80px; display: block; overflow: hidden; border: 1px solid rgba(35, 184, 219, 0.55); border-radius: 5px; background: #02070c; box-shadow: 0 0 12px rgba(29, 152, 190, 0.12); }
+.pmv-art { width: 100%; height: 100%; display: block; }
+.pmv-card-copy { min-width: 0; display: flex; flex-direction: column; padding-top: 2px; }
+.pmv-card-copy strong { overflow: hidden; color: rgba(243, 246, 248, 0.96); font-size: 11px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.pmv-card-type { margin-top: 4px; color: rgba(65, 207, 222, 0.76); font-size: 9px; }
+.pmv-card-meta { margin-top: 3px; color: rgba(139, 168, 182, 0.62); font-size: 9px; }
+.pmv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
+.pmv-empty { padding: 32px 14px; color: rgba(144, 170, 180, 0.58); text-align: center; font-size: 9px; }
+
+@media (max-width: 760px) {
+  .pmv-content { --vz-left-width: 100%; }
+  .pmv-stage { display: none; }
+  .pmv-category { width: 118px; flex-basis: 118px; }
+}

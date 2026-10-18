@@ -237,15 +237,15 @@ Examples:
 
 The UI must make this ownership obvious.
 
-If the user manually changes that property, the user must immediately reclaim control of that domain.
+If the user manually changes that property, the user must immediately reclaim control of that domain according to its explicitly declared authority rule.
 
 ### Mandatory rule
 
-**A manual edit to an auto-owned property must disable automation for that property or its clearly defined domain.**
+**By default, a manual edit to an auto-owned property must disable automation for that property or its clearly defined domain.**
 
-Interlock already demonstrates the correct direction by turning Auto Performance off when the user manually selects Pattern or Segment Pattern.
+The mandatory **Pattern / Pattern Change / Trigger** controls in Section 9 have one explicitly defined exception: selecting a Pattern while Pattern Change is ON immediately establishes the user's chosen base pattern **without turning Pattern Change OFF**. The selected pattern remains the base until the next *new, qualifying* Trigger; any authorized Auto Performance build/drop override must remain temporary and must not overwrite the authored Pattern or Pattern Change setting.
 
-This behavior must become a global first-party preset convention.
+Other automatic domains continue to follow the manual-takeover rule unless their authority is explicitly specified otherwise. No automation may instantly cancel a manual Pattern edit using the same already-active musical event.
 
 ---
 
@@ -403,7 +403,7 @@ For every parameter:
 
 The expected visual property must clearly change.
 
-In addition to legacy parity, every port must add and validate the mandatory shared Design controls defined in Section 9: **BPM Sync** under **Master Controls** and at least **four independently configurable color controls** under **Palette**, even when the legacy preset did not expose equivalent controls. Their authored defaults must preserve the approved baseline composition and behavior.
+In addition to legacy parity, every port must add and validate the mandatory shared Design controls defined in Section 9: **BPM Sync** under **Master Controls**, at least **four independently configurable color controls** under **Palette**, and **Pattern / Pattern Change / Trigger** together under **Design** with at least six native patterns, even when the legacy preset did not expose equivalent controls. Their authored defaults must preserve the approved baseline composition and behavior.
 
 If the parameter value changes in state but the canvas does not visibly change, the parameter is broken.
 
@@ -488,7 +488,7 @@ Define:
 - number of major elements
 - placement
 - motion vocabulary
-- pattern/layout vocabulary
+- pattern/layout vocabulary, including at least six original preset-appropriate Pattern options (with no fixed maximum) and how automatic changes use the shared Trigger events
 - idle state
 - build behavior
 - drop behavior
@@ -523,6 +523,7 @@ Examples:
 - movement speed
 - density
 - segment program
+- Pattern / Pattern Change / Trigger ownership and any temporary Auto Performance build/drop override
 - color
 - camera
 - trails
@@ -587,6 +588,57 @@ The four-color minimum must:
 A Color Mode selector, palette preset selector, gradient selector, derived color, hidden runtime color, or duplicate alias does **not** count toward the four-color minimum. Multiple controls that merely write the same undifferentiated color target also do not satisfy the requirement.
 
 Preset-specific labels are allowed and encouraged. The contract requires the four configurable color roles and their placement under **Palette**; it does not require every preset to use identical color names.
+
+### Mandatory Pattern / Pattern Change / Trigger controls
+
+Every newly created or newly ported first-party Cinema 2.0 preset **must expose all three controls together** in the **Design** tab under the top-level **Design** parent group, in this order: **Pattern**, **Pattern Change**, and **Trigger**. They may be organized in a nested **Pattern** group within **Design**, but must not be scattered across Master Controls, Effects, or Palette. Implement these through generic Cinema 2.0 parameter definitions, bindings, and existing Inspector conditional-visibility mechanisms; do not special-case preset names or build an alternate control system.
+
+#### 1. Pattern (dropdown)
+
+- Provide a user-facing enum/dropdown labeled exactly **Pattern**, with **at least six distinct, working pattern options** and **no fixed maximum**.
+- Each option must be expressly designed for the **new preset's own visual engine, rendering, purpose, composition, atmosphere, and overall identity**. Preserve creative freedom: **do not prescribe, copy, or hard-code universal pattern names, choreography styles, geometry arrangements, visual effects, movement sequences, or specific pattern content** into the shared contract or Inspector. The preset author defines its own appropriate options.
+- Every advertised pattern must have a genuine native runtime consumer and produce its intended, verifiable preset-specific visual result. Six differently labeled aliases of the same behavior do not satisfy the minimum.
+- Manual Pattern selection must take effect immediately, whether Pattern Change is OFF or ON. The selected Pattern is the authored base selection; automatic runtime changes must not silently overwrite its persisted parameter value.
+
+#### 2. Pattern Change (toggle)
+
+- Provide a user-facing **boolean toggle** labeled exactly **Pattern Change**, following the established Cinema 2.0 pattern-control behavior; default to **OFF**.
+- **OFF:** the manually authored Pattern stays selected. No Trigger-driven pattern cycling may occur, and the Trigger control must not appear as an active user option. Ordinary audio-reactive modulation of the selected pattern may continue.
+- **ON:** the runtime can advance from the current base Pattern to another authored Pattern when the selected Trigger receives a **new qualifying musical event**. Changes must be real and visibly reflected in the render output, not only in an internal ID.
+- **Manual selection while ON is intentionally allowed:** choosing a Pattern immediately makes it the active base pattern **without disabling Pattern Change**. The manually chosen pattern remains the base until the **next new qualifying Trigger event**, when automatic advancement resumes. Do not let an event already present when the user edited Pattern cause an immediate unwanted jump.
+- Follow the established shared Cinema 2.0 event-driven switching conventions, including no accidental immediate repetition, duplicate-event suppression, deterministic playback/timeline handling, and safe behavior on pause, resume, seek, loop, track change, Trigger edits, toggle changes, and preset re-entry. The choice and choreography of the preset-specific patterns remain entirely up to the preset author.
+
+#### 3. Trigger (dropdown)
+
+- Provide a user-facing enum/dropdown labeled exactly **Trigger**, visible and selectable **only when Pattern Change is ON**. Preserve its selected value when the toggle is OFF so it is restored when enabled again.
+- Use the **exact same 11 option values, labels, and meanings** as the established shared Cinema 2.0 Pattern Change trigger dropdown. Reuse the existing `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` or its canonical shared successor rather than retyping or inventing a competing list:
+
+  | Value | Display label |
+  |---|---|
+  | `beat` | Beat |
+  | `kick` | Kick |
+  | `snare` | Snare |
+  | `downbeat` | Downbeat |
+  | `beat2` | Every 2 Beats |
+  | `beat4` | Every 4 Beats |
+  | `bar` | Bar |
+  | `bar4` | Every 4 Bars |
+  | `bar8` | Every 8 Bars |
+  | `phrase` | Phrase |
+  | `drop` | Drop |
+
+- Trigger changes determine **when** a different pattern is selected, **not** which geometry, animation, or audio-reactive choreography the chosen pattern contains. Individual patterns continue reacting to the shared Audio Intelligence signals between pattern transitions.
+- Consume Cinema 2.0's shared beat, rhythmic, structural, and drop event sources and established trigger-resolution semantics. Do not implement a second beat clock, drop detector, phrase detector, or independent preset-local event definition.
+
+#### Pattern selection authority and Auto Performance interaction
+
+- **Pattern Change and Auto Performance are distinct controls.** Enabling Pattern Change does **not** automatically disable Auto Performance, and manually choosing a Pattern does **not** turn Pattern Change OFF.
+- If the preset has Auto Performance, it **may temporarily override the currently performing pattern during an authorized build or drop**, even while Pattern Change is ON. Such an override must be explicitly scoped to the musical moment, visually purposeful, and bounded. It must **not** permanently replace the user's authored Pattern, disable Pattern Change, mutate the saved Trigger, or take indefinite ownership of the pattern domain.
+- While a temporary override is visible, keep the underlying Pattern Change controller's scheduled progression well-defined. When the override ends, render the current underlying base pattern, including any valid Trigger-driven advancement that occurred during the override.
+- A manual Pattern edit must not be instantly undone by an already-active build/drop event. The edit must take visible effect; another temporary override can begin only on a subsequent separately qualifying Auto Performance event. This is the express pattern-specific exception to the default manual-takeover conventions in Sections 3 and 15.
+- The preset must document this precedence clearly in its authority matrix: **manual selection establishes base Pattern -> selected Trigger may advance the base while Pattern Change is ON -> Auto Performance may temporarily substitute a build/drop performance pattern -> underlying base resumes afterward**.
+
+**Completion condition:** a preset fails this mandatory control requirement if the three controls merely appear in the Inspector, fewer than six meaningful native patterns exist, the Trigger options differ from the canonical list, manual Pattern selection wrongly disables Pattern Change, or the specified musical switching and temporary-override behavior is not demonstrated in the real production render.
 
 Every user-facing parameter must satisfy all of the following.
 
@@ -791,12 +843,14 @@ while the user still owns:
 
 ### Manual takeover
 
-If a user manually edits a property that Auto Performance owns:
+If a user manually edits a property that Auto Performance owns, the default response is to:
 
 - disable Auto Performance for that domain, or
-- switch that domain to Manual
+- switch that domain to Manual.
 
 The result must be immediate and visible.
+
+**Exception for the required Pattern control:** while Pattern Change is enabled, a manual Pattern choice must immediately take effect as the base pattern **without disabling Pattern Change**, and the next new qualifying Trigger may advance it. Auto Performance may still provide **temporary build/drop overrides** under the explicit precedence, restoration, and non-interference rules in Section 9. This exception does not authorize silent overrides of other manual controls.
 
 ---
 
@@ -910,6 +964,13 @@ Every preset must additionally prove on the production path that:
 - at least **four independently configurable color controls** are present under **Design > Palette**
 - each required Palette color can be changed independently and visibly affects its documented visual role
 - no required Palette color is only a duplicate alias, hidden derived value, or unconsumed state
+- **Pattern**, **Pattern Change**, and conditionally visible **Trigger** exist together under **Design > Design**, with the correct control types and wiring
+- the Pattern dropdown offers **at least six** distinct preset-specific choices, each of which produces the authored visual result on the production canvas
+- the Trigger dropdown exposes **exactly the 11 canonical shared options**, with unchanged values, labels, and event meanings, and is displayed only when Pattern Change is ON
+- Pattern Change OFF holds the selected base Pattern; Pattern Change ON advances it only on a new qualifying event and does not double-switch on duplicate events
+- manually choosing a Pattern while Pattern Change is ON immediately displays the chosen base, **leaves Pattern Change ON**, and holds that selection until the next fresh qualifying Trigger
+- if Auto Performance is supported, a build/drop override is temporary, does not immediately cancel a manual edit, and restores the correctly advanced underlying pattern when it ends
+- all pattern/toggle/trigger behavior remains correct through pause, resume, seek, loop, track change, preset re-entry, and control changes
 
 ---
 
@@ -1032,6 +1093,11 @@ A preset must not be marked complete, merged as production-ready, or exposed as 
 - hero visual is incorrectly positioned
 - required geometry is missing
 - BPM Sync is missing, placed outside Design > Master Controls, or does not control a real synchronization/timing path
+- any of the required Pattern / Pattern Change / Trigger controls is missing, is placed outside Design > Design, has the wrong type, or has no real runtime consumer
+- fewer than six distinct preset-specific working Pattern options are available, or pattern options are visually inert aliases
+- Trigger omits or alters any of the 11 canonical options, is not conditional on Pattern Change, or does not advance patterns at qualified shared musical events
+- manually selecting a Pattern incorrectly disables Pattern Change, or a stale/duplicate Trigger causes an immediate unwanted switch
+- Auto Performance permanently steals pattern ownership, cancels a manual edit using an already-active build/drop event, or fails to restore the underlying pattern after a temporary override
 - fewer than four independently configurable user-facing color controls exist under Design > Palette
 - any required Palette color is visually inert, unconsumed, or only aliases the same undifferentiated target as another required color
 - user-facing control has no visible result
@@ -1090,8 +1156,9 @@ Document:
 - control mapping
 - audio mapping
 - BPM Sync timing contract
+- preset-specific Pattern library (at least six, no fixed maximum) and shared Pattern Change / Trigger behavior specification, without prescribing the option names or choreography content
 - palette role map with at least four independently configurable colors
-- authority matrix
+- authority matrix, including Pattern Change and any temporary Auto Performance build/drop ownership
 - system ownership
 
 For legacy ports, document legacy behavior first.
@@ -1110,7 +1177,7 @@ No automation is allowed to mask missing visual behavior.
 
 Add production-canvas acceptance tests.
 
-Explicitly prove the mandatory **BPM Sync** control and the minimum four independently configurable **Palette** color controls before continuing.
+Explicitly prove the mandatory **BPM Sync** control, the minimum four independently configurable **Palette** color controls, and the complete **Pattern / Pattern Change / Trigger** control set (including all six-or-more real patterns and correct Inspector placement) before continuing. Complete automatic trigger and override testing once Audio Intelligence and Auto Performance are connected.
 
 Do not continue while primary controls are perceptually inert.
 
@@ -1148,7 +1215,7 @@ Use Director output for macro significance and structural behavior.
 
 Declare exactly which domains it owns.
 
-Add manual takeover behavior.
+Add manual takeover behavior, respecting the Section 9 exception for Pattern selection while Pattern Change stays enabled. Prove temporary build/drop overrides return to the current base pattern without clobbering authored choices.
 
 ---
 
@@ -1174,16 +1241,18 @@ Every implementation must produce or update:
 4. Parameter-to-visible-output map
 5. Audio-signal-to-visual-response map
 6. BPM Sync timing contract
-7. Palette role map documenting at least four independently configurable user-facing colors
-8. Native module/render implementation
-9. Production-path control tests
-10. Production-path motion tests
-11. Production-path audio-reactivity tests
-12. Manual takeover tests
-13. Preset re-entry/reset tests
-14. Visual acceptance captures or checkpoints
-15. Legacy A/B comparison when porting
-16. Known intentional differences from legacy, if any
+7. Pattern library specification documenting at least six genuinely distinct preset-specific options, with no prescribed pattern names or choreography styles
+8. Pattern Change / Trigger behavior and authority specification, including temporary Auto Performance build/drop overrides when supported
+9. Palette role map documenting at least four independently configurable user-facing colors
+10. Native module/render implementation
+11. Production-path control tests, including all required Pattern controls and the 11 Trigger options
+12. Production-path motion tests
+13. Production-path audio-reactivity and event-driven pattern transition tests
+14. Manual takeover and Pattern Change preservation tests
+15. Preset re-entry/reset tests
+16. Visual acceptance captures or checkpoints
+17. Legacy A/B comparison when porting
+18. Known intentional differences from legacy, if any
 
 ---
 
@@ -1203,6 +1272,9 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 
 - [ ] Every primary control visibly works.
 - [ ] **BPM Sync** exists in **Design > Master Controls**, is user-editable, is wired to a real timing consumer, and has validated Sync ON/OFF behavior.
+- [ ] **Pattern**, **Pattern Change**, and **Trigger** are correctly implemented together under **Design > Design**, with Trigger conditionally visible only when Pattern Change is ON.
+- [ ] **Pattern** contains at least six genuine, independently working preset-specific choices, with no imposed upper limit, pattern names, or choreography templates.
+- [ ] **Trigger** contains the exact 11 shared Cinema 2.0 musical-event options and selects when to advance the pattern.
 - [ ] At least **four independently configurable color controls** exist in **Design > Palette**.
 - [ ] Each required Palette color visibly controls its documented visual role and is not a duplicate alias or derived-only value.
 - [ ] Minimum/default/maximum states are validated.
@@ -1214,6 +1286,7 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 
 - [ ] Idle motion matches the specification.
 - [ ] Pattern-specific motion is actually pattern-specific.
+- [ ] Switching between every required Pattern option produces its intended visible output.
 - [ ] Frame-to-frame motion is visible.
 - [ ] Movement does not depend on hidden stale state.
 
@@ -1224,6 +1297,7 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 - [ ] Rhythmic response is visible.
 - [ ] Continuous energy response is visible.
 - [ ] Structural response is visible where intended.
+- [ ] Pattern Change advances on the selected new qualifying Trigger event, without stale or duplicate transitions, and leaves the base pattern unchanged when OFF.
 - [ ] Pause/seek/loop/track-change behavior is correct.
 - [ ] BPM Sync uses shared Cinema 2.0 timing sources when enabled and a deliberate non-synced timing path when disabled.
 
@@ -1231,6 +1305,8 @@ A Cinema 2.0 preset is complete only when all of the following are true.
 
 - [ ] Every major property has declared ownership.
 - [ ] Manual edits take effect immediately.
+- [ ] Manually selecting a Pattern while Pattern Change is ON updates the base immediately, leaves Pattern Change ON, and holds until the next fresh qualifying Trigger.
+- [ ] If Auto Performance supports build/drop pattern overrides, those overrides are bounded and temporary and resume the correctly maintained base selection afterward.
 - [ ] Auto Performance cannot silently fight the user.
 - [ ] Hard-disable controls are respected.
 - [ ] Automation returns cleanly to authored values.

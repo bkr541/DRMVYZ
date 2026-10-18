@@ -461,6 +461,16 @@ describe('J. ShaderLibrary search and filter', () => {
     expect(results[0].definition.name).toBe('Plasma Wave')
   })
 
+  it('searches standardized category and tag metadata', () => {
+    const lib = makeLibrary([
+      makeDef('genre-house', { category: 'generator', tags: ['house'] }),
+      makeDef('genre-dubstep', { category: 'feedback', tags: ['dubstep'] }),
+    ])
+
+    expect(lib.search('house').map(entry => entry.definition.id)).toEqual(['genre-house'])
+    expect(lib.search('feedback').map(entry => entry.definition.id)).toContain('genre-dubstep')
+  })
+
   it('category filter narrows results', () => {
     const lib = makeLibrary([
       makeDef('b1', { category: 'fractal' }),

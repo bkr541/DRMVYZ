@@ -647,8 +647,13 @@ Built as Headliner presets (Presets tab), each with its own Design tab (Master C
 | 13 | Outline Echo | Implemented |
 | 14 | Particle Body | Implemented |
 | 15 | Particle Shed | Implemented |
+| 16 | Spark Skeleton | Implemented |
+| 17 | Digital Silhouette | Implemented |
+| 18 | Portal Body | Implemented |
+| 19 | X-Ray | Implemented |
+| 20 | Posterize Pulse | Implemented |
 
-This completes the recommended first-pass build set (effects 1–10); effects 11–15 follow it.
+This completes the recommended first-pass build set (effects 1–10); effects 11–20 follow it.
 
 How they work (all on the 2D program canvas):
 
@@ -675,4 +680,12 @@ Person segmentation (`HeadlinerSegmentation.ts`, shared by Aura, Energy Outline,
 - **Particle Body** rebuilds the silhouette from up to ~20,000 grid particles coloured from the camera. Particle Amount (or the Auto Cycle, one or two bars) takes it normal video → partial → full particle body → normal video; the real body fades as it turns to particles. Reactions: Drift, Explode on kick, Collapse on kick, Swirl.
 - **Particle Shed** keeps the live picture and emits up to 5,000 particles from cells of the block-matching flow field, thrown along the motion direction, coloured from the camera, with gravity, drag, spread and an extra burst on kicks. It does not use the segmenter.
 
-Effects 16–30 are not started. Spark Skeleton needs pose landmarks (MediaPipe Pose Landmarker could serve it); Portal Body and Digital Silhouette can reuse the segmentation added here.
+Body tracking (`HeadlinerPoseTracking.ts`, used by Spark Skeleton): a MediaPipe Pose Landmarker (lite model, float16, `public/mediapipe/pose_landmarker_lite.task`, 5.8 MB, Apache-2.0, offline) finds the 33 body points up to 30 times a second (GPU first, CPU fallback). A filter smooths every point, hides points below the Point Confidence setting (a DJ behind the decks has no visible legs) and holds a lost body for about a third of a second before fading. It loads when Spark Skeleton is active and is released when it is not.
+
+- **Spark Skeleton** draws glowing bones (with Electric Jitter arcs), pulsing joint nodes and an optional Constellation web of nearby points. Fast wrists and head shed sparks, and every kick bursts sparks from the joints. Camera Dim down to pure skeleton-on-black.
+- **Digital Silhouette** replaces the performer with a clean silhouette filled with an animated Gradient, Plasma, Stripes or music-reactive Bars (`HeadlinerFillPatterns.ts`). Surroundings can stay, dim, go black and white, blur or go black. Optional rim light. The fills react to the music's energy and kicks (the engine exposes energy and kicks, not a spectrum, so the bars are music-reactive rather than a true analyser). Album artwork, video and image fills are not offered yet.
+- **Portal Body** leaves the room as it is and shows a Tunnel, Starfield, Neon Grid or Plasma world through the silhouette, with a bright portal rim and an optional dimmed room.
+- **X-Ray** reworks the picture on a 640 px-wide copy: Monochrome Inversion, Thermal, Edges Only (Sobel), Negative, Posterized Luminance or Scan Contour (edges, a sweeping band and scan lines). It can be always on, pulse on every beat, flash on kicks/snares, or follow build-ups, with a minimum amount between pulses. No pixel work is done while the transition is at 0.
+- **Posterize Pulse** quantises the picture to a number of bands per channel: Normal 16, Beat 8, Bass (kick) 4, Drop (downbeat) 2 by default. Each event snaps the count down and it recovers smoothly (exponentially in log2 of the band count); a build-up also pulls the resting level down. Original keeps camera colours; Tint and Gradient map the bands from dark to the chosen colours.
+
+Effects 21–30 are not started.

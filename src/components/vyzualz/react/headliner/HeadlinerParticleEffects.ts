@@ -7,6 +7,7 @@
 
 import { getHeadlinerNumber, getHeadlinerString } from './HeadlinerEffectCatalog'
 import {
+  ReadSurface,
   WorkSurface,
   clamp01,
   compositeLayer,
@@ -50,44 +51,6 @@ export function resolveParticleColor(
     ? [lerp(palette.primary[0], palette.secondary[0], down), lerp(palette.primary[1], palette.secondary[1], down), lerp(palette.primary[2], palette.secondary[2], down)]
     : palette.primary
   return [lerp(camera[0], target[0], palette.amount), lerp(camera[1], target[1], palette.amount), lerp(camera[2], target[2], palette.amount)]
-}
-
-class ReadSurface {
-  readonly canvas: HTMLCanvasElement | null
-  readonly context: CanvasRenderingContext2D | null
-
-  constructor() {
-    this.canvas = typeof document === 'undefined' ? null : document.createElement('canvas')
-    this.context = this.canvas?.getContext('2d', { willReadFrequently: true }) ?? null
-  }
-
-  resize(width: number, height: number): void {
-    if (this.canvas && (this.canvas.width !== width || this.canvas.height !== height)) {
-      this.canvas.width = width
-      this.canvas.height = height
-    }
-  }
-
-  read(source: CanvasImageSource, sx?: number, sy?: number, sw?: number, sh?: number): Uint8ClampedArray | null {
-    const canvas = this.canvas
-    const context = this.context
-    if (!canvas || !context) return null
-    try {
-      context.clearRect(0, 0, canvas.width, canvas.height)
-      if (sx === undefined) context.drawImage(source, 0, 0, canvas.width, canvas.height)
-      else context.drawImage(source, sx, sy as number, sw as number, sh as number, 0, 0, canvas.width, canvas.height)
-      return context.getImageData(0, 0, canvas.width, canvas.height).data
-    } catch {
-      return null
-    }
-  }
-
-  dispose(): void {
-    if (this.canvas) {
-      this.canvas.width = 0
-      this.canvas.height = 0
-    }
-  }
 }
 
 // ── Particle Body ──────────────────────────────────────────────────────────────
