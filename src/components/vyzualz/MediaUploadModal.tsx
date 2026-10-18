@@ -26,6 +26,19 @@ import { useAudioStore } from '../../stores/audioStore'
 import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
 import { Dropdown } from '../shared/Dropdown/Dropdown'
+import { useReactStore } from '../../stores/reactStore'
+import { describeFontFile } from './react/renderers/fontGlyphUtils'
+import { FontUploadFields } from './MediaUploadFontFields'
+import {
+  FONT_UPLOAD_ACCEPT,
+  FONT_UPLOAD_LABEL,
+  explainFontSelection,
+  fontPreviewFamily,
+  formatFontBytes,
+  isFontEntryUploadable,
+  isFontUploadFile,
+  type FontQueueEntry,
+} from './mediaUploadFonts'
 
 // ── Local display metadata ────────────────────────────────────────────────────
 // Separate from store queue — purely for thumbnail/dims display in modal file list
@@ -267,11 +280,50 @@ export function MediaUploadModal({
   const [progress, setProgress] = useState({ completed: 0, total: 0 })
   const [rasterSvgWarning, setRasterSvgWarning] = useState<{ file: File } | null>(null)
 
+  // Fonts queued in this dialog. They are not media records, so they live here instead of the media store's upload queue.
+  const [fontQueue, setFontQueue] = useState<FontQueueEntry[]>([])
+  const [activeFontId, setActiveFontId] = useState<string | null>(null)
+  const [fontPreviewText, setFontPreviewText] = useState('')
+  const [fontPreviewReady, setFontPreviewReady] = useState<ReadonlySet<string>>(new Set())
+  const registeredFacesRef = useRef(new Map<string, FontFace>())
+  const isFontQueue = !isEdit && fontQueue.length > 0
+  const activeFont = fontQueue.find(entry => entry.id === activeFontId) ?? fontQueue[0] ?? null
+
   const fileInputId = useId()
   const dropRef = useRef<HTMLDivElement>(null)
   const uploadAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => () => uploadAbortRef.current?.abort(), [])
+
+  // Register each queued font as a temporary FontFace so the dialog can preview it, and drop the faces when entries leave the queue.
+  useEffect(() => {
+    if (typeof FontFace === 'undefined' || typeof document === 'undefined' || !document.fonts) return
+    const faces = registeredFacesRef.current
+    const wanted = new Set(fontQueue.filter(entry => entry.details && !entry.fileError).map(entry => entry.id))
+    for (const [id, face] of faces) {
+      if (wanted.has(id)) continue
+      document.fonts.delete(face)
+      faces.delete(id)
+      setFontPreviewReady(prev => { const next = new Set(prev); next.delete(id); return next })
+    }
+    for (const entry of fontQueue) {
+      if (!wanted.has(entry.id) || faces.has(entry.id)) continue
+      const placeholder = new FontFace(fontPreviewFamily(entry.id), 'local("sans-serif")')
+      faces.set(entry.id, placeholder)
+      void entry.file.arrayBuffer().then(async buffer => {
+        const face = new FontFace(fontPreviewFamily(entry.id), buffer)
+        await face.load()
+        if (registeredFacesRef.current.get(entry.id) !== placeholder) return
+        registeredFacesRef.current.set(entry.id, face)
+        document.fonts.add(face)
+        setFontPreviewReady(prev => new Set(prev).add(entry.id))
+      }).catch(() => { registeredFacesRef.current.delete(entry.id) })
+    }
+  }, [fontQueue])
+  useEffect(() => () => {
+    for (const face of registeredFacesRef.current.values()) document.fonts?.delete(face)
+    registeredFacesRef.current.clear()
+  }, [])
 
   // Whether the current queue is all audio files
   const isAudioQueue = uploadQueue.length > 0 && uploadQueue.every(q => q.isAudio)
@@ -355,7 +407,39 @@ export function MediaUploadModal({
     setUploadDraftMetadata({ hasAlpha: roleImpliesAlpha(role) })
   }
 
+  const addFontFiles = useCallback(async (files: File[]) => {
+    const entries: FontQueueEntry[] = files.map(file => ({
+      id: `font-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      file,
+      details: null,
+      fileError: null,
+      name: '',
+      tags: [],
+      collectionIds: [],
+      status: 'ready',
+    }))
+    setFontQueue(prev => [...prev, ...entries])
+    setActiveFontId(current => current ?? entries[0]?.id ?? null)
+    await Promise.all(entries.map(async entry => {
+      try {
+        const details = await describeFontFile(entry.file)
+        setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, details, name: item.name || details.name } : item)))
+      } catch (error) {
+        setFontQueue(prev => prev.map(item => (item.id === entry.id
+          ? { ...item, fileError: error instanceof Error ? error.message : 'This font could not be read.', name: item.name || item.file.name.replace(/\.[^.]+$/, '') }
+          : item)))
+      }
+    }))
+  }, [])
+
   const addFiles = useCallback(async (files: File[]) => {
+    const selectionProblem = explainFontSelection({ files, mediaQueued: uploadQueue.length, fontsQueued: fontQueue.length, audioOnly })
+    if (selectionProblem) { setSelectionError(selectionProblem); return }
+    if (files.length > 0 && files.every(isFontUploadFile)) {
+      setSelectionError(null)
+      await addFontFiles(files)
+      return
+    }
     const valid = audioOnly
       ? files.filter(file => isAudioFile(file))
       : files.filter(f =>
@@ -458,7 +542,7 @@ export function MediaUploadModal({
       newMeta.forEach((v, k) => next.set(k, v))
       return next
     })
-  }, [audioOnly, uploadQueue.length, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [audioOnly, uploadQueue.length, fontQueue.length, addFontFiles, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const removeEntry = (tempId: string) => {
     removeUploadQueueItem(tempId)
@@ -472,33 +556,50 @@ export function MediaUploadModal({
   const clearAll = () => {
     clearUploadQueue()
     setDisplayMeta(new Map())
+    setFontQueue([])
+    setActiveFontId(null)
+  }
+
+  const removeFontEntry = (id: string) => {
+    setFontQueue(prev => prev.filter(entry => entry.id !== id))
+    setActiveFontId(current => (current === id ? null : current))
+  }
+  const patchActiveFont = (patch: Partial<FontQueueEntry>) => {
+    if (!activeFont) return
+    setFontQueue(prev => prev.map(entry => (entry.id === activeFont.id ? { ...entry, ...patch } : entry)))
   }
 
   // Tags
+  // Tags and collections edit whichever item the form is showing: the active font when fonts are queued, otherwise the media draft.
+  const currentTags: string[] = isFontQueue ? (activeFont?.tags ?? []) : uploadDraft.tags
+  const currentCollectionIds: string[] = isFontQueue ? (activeFont?.collectionIds ?? []) : uploadDraft.collectionIds
+  const setCurrentTags = (tags: string[]) => { if (isFontQueue) patchActiveFont({ tags }); else setUploadDraftTags(tags) }
+  const setCurrentCollectionIds = (ids: string[]) => { if (isFontQueue) patchActiveFont({ collectionIds: ids }); else setUploadDraftCollections(ids) }
+
   const addTag = (raw: string) => {
     const tag = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
-    if (tag && !uploadDraft.tags.includes(tag)) setUploadDraftTags([...uploadDraft.tags, tag])
+    if (tag && !currentTags.includes(tag)) setCurrentTags([...currentTags, tag])
     setTagInput('')
   }
-  const removeTag = (t: string) => setUploadDraftTags(uploadDraft.tags.filter(x => x !== t))
+  const removeTag = (t: string) => setCurrentTags(currentTags.filter(x => x !== t))
 
   const handleTagKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); if (tagInput.trim()) addTag(tagInput) }
-    if (e.key === 'Backspace' && !tagInput && uploadDraft.tags.length) {
-      setUploadDraftTags(uploadDraft.tags.slice(0, -1))
+    if (e.key === 'Backspace' && !tagInput && currentTags.length) {
+      setCurrentTags(currentTags.slice(0, -1))
     }
   }
 
   // Collections
   const filteredColls = collections.filter(c =>
-    c.name.toLowerCase().includes(collInput.toLowerCase()) && !uploadDraft.collectionIds.includes(c.id)
+    c.name.toLowerCase().includes(collInput.toLowerCase()) && !currentCollectionIds.includes(c.id)
   )
   const addCollection = (id: string) => {
-    setUploadDraftCollections([...uploadDraft.collectionIds, id])
+    setCurrentCollectionIds([...currentCollectionIds, id])
     setCollInput('')
   }
   const removeCollection = (id: string) =>
-    setUploadDraftCollections(uploadDraft.collectionIds.filter(x => x !== id))
+    setCurrentCollectionIds(currentCollectionIds.filter(x => x !== id))
 
   const collectionDropdownOptions = collInput.trim()
     ? filteredColls.length > 0
@@ -525,8 +626,43 @@ export function MediaUploadModal({
     }
   }
 
+  // Fonts go through the Font Library's own upload (storage + font_assets row), one at a time.
+  const handleFontUpload = async () => {
+    const pending = fontQueue.filter(isFontEntryUploadable)
+    if (pending.length === 0) return
+    setUploading(true)
+    clearLoadError()
+    setBatchError(null)
+    setProgress({ completed: 0, total: pending.length })
+    let completed = 0
+    let failed = 0
+    for (const entry of pending) {
+      setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'uploading', uploadError: undefined } : item)))
+      const id = await useReactStore.getState().uploadOscillatorFont(entry.file, {
+        name: entry.name,
+        tags: entry.tags,
+        collectionIds: entry.collectionIds,
+      })
+      if (id) {
+        completed += 1
+        setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'done' } : item)))
+      } else {
+        failed += 1
+        const reason = useReactStore.getState().fontUploadError ?? 'The font could not be uploaded.'
+        setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'error', uploadError: reason } : item)))
+      }
+      setProgress({ completed: completed + failed, total: pending.length })
+    }
+    setUploading(false)
+    if (failed === 0) { onClose(); return }
+    setBatchError(completed > 0
+      ? `${completed} font${completed === 1 ? '' : 's'} uploaded. ${failed} failed and can be retried.`
+      : (useReactStore.getState().fontUploadError ?? 'The font could not be uploaded.'))
+  }
+
   // Upload
   const handleUpload = async () => {
+    if (isFontQueue) { await handleFontUpload(); return }
     if (!uploadQueue.length || bpmError) return
     const controller = new AbortController()
     uploadAbortRef.current = controller
@@ -638,7 +774,9 @@ export function MediaUploadModal({
   const detectedDur  = activeMeta?.duration !== undefined ? activeMeta.duration.toFixed(2) : undefined
 
   const busy      = uploading || saving || editMutation?.status === 'pending'
-  const canUpload = uploadQueue.length > 0 && !busy && !bpmError
+  const canUpload = isFontQueue
+    ? !busy && fontQueue.some(isFontEntryUploadable)
+    : uploadQueue.length > 0 && !busy && !bpmError
   const canSave   = !busy
 
   // ── Additional Info item renderer ──────────────────────────────────────
@@ -726,6 +864,57 @@ export function MediaUploadModal({
     </div>
   )
 
+  const tagsAndCollectionsRow = (
+        <div className="mum-fields-row">
+          <div className="mum-field">
+            <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
+            <DreamVizTextInput
+              id="mum-tags-input"
+              className="mum-chip-input"
+              placeholder="Type to add tags…"
+              value={tagInput}
+              onChange={e => setTagInput(e.target.value)}
+              onKeyDown={handleTagKey}
+              onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+            />
+            {currentTags.length > 0 && (
+              <div className="mum-chip-field">
+                <TagChips tags={currentTags} onRemove={removeTag} />
+              </div>
+            )}
+          </div>
+
+          <div className="mum-field">
+            <label className="mum-field-label">COLLECTIONS</label>
+            <Dropdown
+              id="media-collections"
+              searchable
+              searchValue={collInput}
+              onSearchChange={setCollInput}
+              value={null}
+              options={collectionDropdownOptions}
+              onChange={value => { void handleCollectionDropdownChange(value) }}
+              placeholder="Type to search or create…"
+              ariaLabel="Collections"
+              menuLabel="Collections"
+              size="compact"
+              maxMenuHeight={260}
+              showDescriptions={false}
+              className="mum-collections-dropdown"
+            />
+            {currentCollectionIds.length > 0 && (
+              <div className="mum-chip-field">
+                <CollectionChips
+                  ids={currentCollectionIds}
+                  collections={collections}
+                  onRemove={removeCollection}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+  )
+
   // ── Raster SVG warning handler ──────────────────────────────────────────────
   const handleRasterSvgContinue = useCallback(async () => {
     if (!rasterSvgWarning) return
@@ -788,7 +977,7 @@ export function MediaUploadModal({
                 <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M32 38V20M26 26l6-6 6 6" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              {isEdit ? 'EDIT MEDIA' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
+              {isEdit ? 'EDIT MEDIA' : isFontQueue ? 'FONT UPLOAD' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
           </div>
           <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close">×</button>
@@ -806,22 +995,72 @@ export function MediaUploadModal({
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
             >
-              <div className="mum-drop-label">Drag &amp; drop media here</div>
+              <div className="mum-drop-label">{audioOnly ? 'Drag & drop media here' : 'Drag & drop media or fonts here'}</div>
               <div className="mum-drop-or">or</div>
               <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
               <input
                 id={fileInputId}
                 type="file"
-                accept={audioOnly ? AUDIO_ACCEPT : ACCEPT}
+                accept={audioOnly ? AUDIO_ACCEPT : `${ACCEPT},${FONT_UPLOAD_ACCEPT}`}
                 multiple
                 style={{ display: 'none' }}
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
-              <div className="mum-drop-hint">Max file size: {MAX_FILE_LABEL}</div>
+              <div className="mum-drop-hint">{audioOnly ? `Max file size: ${MAX_FILE_LABEL}` : `Media up to ${MAX_FILE_LABEL} · Fonts: ${FONT_UPLOAD_LABEL}`}</div>
             </div>
 
+            {/* Font list */}
+            {isFontQueue && (
+              <div className="mum-filelist">
+                <div className="mum-filelist-header">
+                  <span>{fontQueue.length} font{fontQueue.length !== 1 ? 's' : ''} selected</span>
+                  <IconChipButton onClick={clearAll} disabled={uploading}>Clear</IconChipButton>
+                </div>
+                <div className="mum-filelist-items">
+                  {fontQueue.map(entry => {
+                    const selected = entry.id === activeFont?.id
+                    const ready = fontPreviewReady.has(entry.id)
+                    const badgeStatus = entry.fileError ? 'error' : entry.status
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`mum-file-row${selected ? ' mum-file-row--selected' : ''}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selected}
+                        aria-label={`Edit details for ${entry.file.name}`}
+                        onClick={() => setActiveFontId(entry.id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveFontId(entry.id) } }}
+                      >
+                        <div className="mum-file-thumb">
+                          <div className="mum-file-thumb-font" style={ready ? { fontFamily: `"${fontPreviewFamily(entry.id)}", sans-serif` } : undefined}>Aa</div>
+                        </div>
+                        <div className="mum-file-info">
+                          <div className="mum-file-name">{entry.file.name}</div>
+                          <div className="mum-file-meta">
+                            {entry.details ? `${entry.details.format} · ${formatFontBytes(entry.details.fileSize)} · ${entry.details.glyphCount.toLocaleString('en-US')} glyphs` : formatFontBytes(entry.file.size)}
+                          </div>
+                          {(entry.fileError || entry.uploadError) && <div className="mum-file-error" role="alert">{entry.fileError ?? entry.uploadError}</div>}
+                        </div>
+                        <StatusBadge status={badgeStatus} errorMsg={entry.fileError ?? entry.uploadError} />
+                        <button
+                          type="button"
+                          className="mum-file-remove"
+                          onClick={e => { e.stopPropagation(); removeFontEntry(entry.id) }}
+                          disabled={uploading}
+                          aria-label={`Remove ${entry.file.name}`}
+                        >
+                          <Delete02Icon size={13} color="currentColor" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* File list */}
-            {uploadQueue.length > 0 && (
+            {!isFontQueue && uploadQueue.length > 0 && (
               <div className="mum-filelist">
                 <div className="mum-filelist-header">
                   <span>{uploadQueue.length} file{uploadQueue.length !== 1 ? 's' : ''} selected</span>
@@ -883,7 +1122,19 @@ export function MediaUploadModal({
           {/* Right: metadata form */}
           <div className="mum-right">
 
-            {!isEdit && uploadQueue.length > 1 && (
+            {isFontQueue && fontQueue.length > 1 && (
+              <div className="mum-editing-banner">
+                <span>Editing <strong>{activeFont?.file.name ?? 'a font'}</strong></span>
+                <IconChipButton
+                  onClick={() => { if (activeFont) setFontQueue(prev => prev.map(entry => ({ ...entry, tags: [...activeFont.tags], collectionIds: [...activeFont.collectionIds] }))) }}
+                  disabled={!activeFont || uploading}
+                >
+                  Apply tags &amp; collections to all {fontQueue.length} fonts
+                </IconChipButton>
+              </div>
+            )}
+
+            {!isEdit && !isFontQueue && uploadQueue.length > 1 && (
               <div className="mum-editing-banner">
                 <span>Editing <strong>{activeQueueItem?.file.name ?? 'a file'}</strong></span>
                 <IconChipButton onClick={applyUploadDraftToAllQueued} disabled={!activeQueueItem}>
@@ -892,8 +1143,17 @@ export function MediaUploadModal({
               </div>
             )}
 
-            {/* ── Audio queue: locked role badge + Track Details ─── */}
-            {isAudioQueue && !isEdit ? (
+            {/* ── Font queue: font name, preview, tags, collections and file details ─── */}
+            {isFontQueue && activeFont ? (
+              <FontUploadFields
+                entry={activeFont}
+                previewText={fontPreviewText}
+                previewReady={fontPreviewReady.has(activeFont.id)}
+                onNameChange={name => patchActiveFont({ name })}
+                onPreviewTextChange={setFontPreviewText}
+                tagsAndCollections={tagsAndCollectionsRow}
+              />
+            ) : /* ── Audio queue: locked role badge + Track Details ─── */ isAudioQueue && !isEdit ? (
               <>
                 {/* Locked role indicator */}
                 <div className="mum-field">
@@ -1006,55 +1266,7 @@ export function MediaUploadModal({
                   />
                 </div>
 
-                {/* Tags + Collections: always side-by-side */}
-                <div className="mum-fields-row">
-                  <div className="mum-field">
-                    <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
-                    <DreamVizTextInput
-                      id="mum-tags-input"
-                      className="mum-chip-input"
-                      placeholder="Type to add tags…"
-                      value={tagInput}
-                      onChange={e => setTagInput(e.target.value)}
-                      onKeyDown={handleTagKey}
-                      onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-                    />
-                    {uploadDraft.tags.length > 0 && (
-                      <div className="mum-chip-field">
-                        <TagChips tags={uploadDraft.tags} onRemove={removeTag} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mum-field">
-                    <label className="mum-field-label">COLLECTIONS</label>
-                    <Dropdown
-                      id="media-collections"
-                      searchable
-                      searchValue={collInput}
-                      onSearchChange={setCollInput}
-                      value={null}
-                      options={collectionDropdownOptions}
-                      onChange={value => { void handleCollectionDropdownChange(value) }}
-                      placeholder="Type to search or create…"
-                      ariaLabel="Collections"
-                      menuLabel="Collections"
-                      size="compact"
-                      maxMenuHeight={260}
-                      showDescriptions={false}
-                      className="mum-collections-dropdown"
-                    />
-                    {uploadDraft.collectionIds.length > 0 && (
-                      <div className="mum-chip-field">
-                        <CollectionChips
-                          ids={uploadDraft.collectionIds}
-                          collections={collections}
-                          onRemove={removeCollection}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {tagsAndCollectionsRow}
 
                 {/* Additional Info — hidden until a file is actually queued (nothing to
                     detect duration/resolution/etc. from yet) or we're editing an already-
@@ -1147,7 +1359,9 @@ export function MediaUploadModal({
             >
               {uploading
                 ? `Uploading ${progress.completed}/${progress.total}…`
-                : isAudioQueue
+                : isFontQueue
+                  ? `Upload ${fontQueue.filter(isFontEntryUploadable).length || ''} Font${fontQueue.filter(isFontEntryUploadable).length === 1 ? '' : 's'}`.replace('  ', ' ')
+                  : isAudioQueue
                   ? `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Track${uploadQueue.length !== 1 ? 's' : ''}`
                   : `Upload ${uploadQueue.length > 0 ? uploadQueue.length + ' ' : ''}Media`}
             </IconChipButton>

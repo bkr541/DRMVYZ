@@ -319,3 +319,45 @@ describe('textToOpenTypeGlyphPoints — fallback', () => {
     expect(pts.length).toBeGreaterThan(0)
   })
 })
+
+describe('describeFontFile', () => {
+  it('rejects non-font and oversized files before parsing', async () => {
+    const { describeFontFile, FONT_MAX_BYTES } = await import('./fontGlyphUtils')
+    await expect(describeFontFile(new File([new Uint8Array(4)], 'a.woff2'))).rejects.toThrow('Only .ttf and .otf fonts are supported')
+    const big = new File([new Uint8Array(4)], 'big.ttf')
+    Object.defineProperty(big, 'size', { value: FONT_MAX_BYTES + 1 })
+    await expect(describeFontFile(big)).rejects.toThrow('Font file too large (max 2 MB)')
+  })
+
+  it('reports a parse failure as a readable error', async () => {
+    const { describeFontFile } = await import('./fontGlyphUtils')
+    await expect(describeFontFile(new File([new Uint8Array(32)], 'broken.otf'))).rejects.toThrow(/Failed to parse font/)
+  })
+})
+
+describe('font names from a real font file', () => {
+  function makeFontFile(fileName: string): File {
+    const notdef = new opentype.Glyph({ name: '.notdef', unicode: 0, advanceWidth: 600, path: new opentype.Path() })
+    const a = new opentype.Glyph({ name: 'A', unicode: 65, advanceWidth: 600, path: new opentype.Path() })
+    const font = new opentype.Font({
+      familyName: 'Show Display', styleName: 'Bold Italic', unitsPerEm: 1000, ascender: 800, descender: -200, glyphs: [notdef, a],
+    })
+    return new File([font.toArrayBuffer()], fileName, { type: 'font/ttf' })
+  }
+
+  it('reads the family, style, glyph count and format that the upload dialog shows', async () => {
+    const { describeFontFile } = await import('./fontGlyphUtils')
+    const details = await describeFontFile(makeFontFile('ShowDisplay-BoldItalic.ttf'))
+    expect(details).toMatchObject({
+      fontFamilyName: 'Show Display', styleName: 'Bold Italic', format: 'TTF', mimeType: 'font/ttf', glyphCount: 2, fileName: 'ShowDisplay-BoldItalic.ttf',
+    })
+    expect(details.name).toContain('Show Display')
+  })
+
+  it('uses the same names when the font is inspected for upload', async () => {
+    const { inspectFontFile } = await import('./fontGlyphUtils')
+    const inspected = await inspectFontFile(makeFontFile('x.otf'))
+    expect(inspected.fontFamilyName).toBe('Show Display')
+    expect(inspected.mimeType).toBe('font/otf')
+  })
+})

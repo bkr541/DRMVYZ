@@ -867,3 +867,38 @@ describe('selectOscillatorFont — stale result not entering runtime caches', ()
     expect(calls.every(([calledId]) => calledId !== ASSET_ID)).toBe(true)
   })
 })
+
+// ── uploadOscillatorFont — details from the media upload dialog ───────────────
+
+describe('uploadOscillatorFont — name, tags and collections', () => {
+  beforeEach(() => {
+    h.mockInspectFontFile.mockResolvedValue(makeInspection())
+    h.mockUploadFontFile.mockResolvedValue({ error: null })
+    h.mockCreateFontAsset.mockResolvedValue({ id: ASSET_ID, error: null })
+  })
+
+  it('stores the chosen name, tags and collections on the database row and the in-memory font, and resolves with its id', async () => {
+    const id = await useReactStore.getState().uploadOscillatorFont(makeFile(), {
+      name: '  Show   Headline ', tags: [' headline ', 'headline', ''], collectionIds: ['collection-1', 'collection-1'],
+    })
+    expect(id).toBe(ASSET_ID)
+    expect(h.mockCreateFontAsset).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Show Headline', tags: ['headline'], collection_ids: ['collection-1'],
+    }))
+    expect(useReactStore.getState().oscillatorFontAssets[0]).toMatchObject({
+      id: ASSET_ID, name: 'Show Headline', tags: ['headline'], collectionIds: ['collection-1'],
+    })
+  })
+
+  it('keeps the name read from the font when no details are given, as the Font Library panel does', async () => {
+    const id = await useReactStore.getState().uploadOscillatorFont(makeFile())
+    expect(id).toBe(ASSET_ID)
+    expect(h.mockCreateFontAsset).toHaveBeenCalledWith(expect.objectContaining({ name: 'Test Font', tags: [], collection_ids: [] }))
+  })
+
+  it('resolves with null and reports the reason when the upload fails', async () => {
+    h.mockUploadFontFile.mockResolvedValue({ error: 'bucket unavailable' })
+    await expect(useReactStore.getState().uploadOscillatorFont(makeFile(), { name: 'X' })).resolves.toBeNull()
+    expect(useReactStore.getState().fontUploadError).toContain('bucket unavailable')
+  })
+})

@@ -2964,7 +2964,12 @@ interface ReactStoreState {
   selectOscillatorFont: (id: string | null) => Promise<void>
   fontSelectPending: string | null
   fontSelectError: string | null
-  uploadOscillatorFont: (file: File) => Promise<void>
+  /**
+   * Uploads a font to the Font Library and makes it the active text font. `details` optionally names it and files it under tags and
+   * collections in the same step (the media upload dialog uses this). Resolves with the new font's id, or null when the upload failed
+   * (the reason is in `fontUploadError`).
+   */
+  uploadOscillatorFont: (file: File, details?: { name?: string; tags?: string[]; collectionIds?: string[] }) => Promise<string | null>
   fontUploadPending: boolean
   fontUploadError: string | null
   loadOscillatorFonts: () => Promise<void>
@@ -10542,10 +10547,10 @@ export const useReactStore = create<ReactStoreState>()(
         }
       },
 
-      uploadOscillatorFont: async (file) => {
+      uploadOscillatorFont: async (file, details) => {
         if (!supabaseConfigured) {
           set({ fontUploadError: 'Supabase is not configured' })
-          return
+          return null
         }
 
         set({ fontUploadPending: true, fontUploadError: null })
@@ -10556,7 +10561,7 @@ export const useReactStore = create<ReactStoreState>()(
           const { data: { user } } = await supabase.auth.getUser()
           if (!user) {
             set({ fontUploadPending: false, fontUploadError: 'Sign in to upload fonts' })
-            return
+            return null
           }
           const userId = user.id
 
@@ -10566,9 +10571,13 @@ export const useReactStore = create<ReactStoreState>()(
             inspected = await inspectFontFile(file)
           } catch (e) {
             set({ fontUploadPending: false, fontUploadError: (e as Error).message })
-            return
+            return null
           }
           inspectedId = inspected.id
+          // The caller may rename the font and file it under tags/collections; otherwise the name comes from the font itself.
+          const displayName = details?.name?.trim().replace(/\s+/g, ' ').slice(0, 160) || inspected.name
+          const tags = Array.from(new Set((details?.tags ?? []).map(tag => tag.trim()).filter(Boolean)))
+          const collectionIds = Array.from(new Set(details?.collectionIds ?? []))
 
           // 3. Build a safe storage path: userId/UUID/<normalized>.  file.name is
           //    preserved in the DB file_name column but never placed in the path.
@@ -10576,7 +10585,7 @@ export const useReactStore = create<ReactStoreState>()(
           if (!storageFileName) {
             evictFontFromCache(inspected.id)
             set({ fontUploadPending: false, fontUploadError: 'Unsupported font format' })
-            return
+            return null
           }
           const storagePath = `${userId}/${crypto.randomUUID()}/${storageFileName}`
 
@@ -10585,18 +10594,20 @@ export const useReactStore = create<ReactStoreState>()(
           if (uploadErr) {
             evictFontFromCache(inspected.id)
             set({ fontUploadPending: false, fontUploadError: `Upload failed: ${uploadErr}` })
-            return
+            return null
           }
 
           // 5. Insert metadata row into font_assets
           const { id: dbId, error: insertErr } = await createFontAsset({
             user_id:           userId,
-            name:              inspected.name,
+            name:              displayName,
             file_name:         inspected.fileName,
             font_family_name:  inspected.fontFamilyName ?? null,
             storage_path:      storagePath,
             mime_type:         inspected.mimeType,
             file_size:         inspected.fileSize,
+            tags:              tags,
+            collection_ids:    collectionIds,
           })
 
           // 6. Roll back storage object on insert failure
@@ -10607,21 +10618,21 @@ export const useReactStore = create<ReactStoreState>()(
               fontUploadPending: false,
               fontUploadError:   `Database insert failed: ${insertErr ?? 'unknown error'}`,
             })
-            return
+            return null
           }
 
           // 7. Build the cloud metadata asset record using the database UUID as id
           const asset: OscillatorFontAsset = {
             id:             dbId,
-            name:           inspected.name,
+            name:           displayName,
             fileName:       inspected.fileName,
             fontFamilyName: inspected.fontFamilyName,
             storagePath,
             mimeType:       inspected.mimeType,
             fileSize:       inspected.fileSize,
             createdAt:      new Date().toISOString(),
-            tags:           [],
-            collectionIds:  [],
+            tags,
+            collectionIds,
           }
 
           // 8. Move runtime cache from the temporary FNV id to the canonical DB UUID
@@ -10650,9 +10661,11 @@ export const useReactStore = create<ReactStoreState>()(
               oscillatorTextPointCache: newTextCache,
             }
           })
+          return dbId
         } catch (e) {
           if (inspectedId) evictFontFromCache(inspectedId)
           set({ fontUploadPending: false, fontUploadError: `Unexpected error: ${(e as Error).message}` })
+          return null
         }
       },
 

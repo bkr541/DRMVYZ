@@ -7,11 +7,24 @@ import {
   generateBuiltinShapePoints,
 } from './oscillatorPathUtils'
 
+/** Largest font file the library accepts. */
+export const FONT_MAX_BYTES = 2 * 1024 * 1024
+
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 function firstValue(obj: opentype.LocalizedName | undefined): string | undefined {
   if (!obj) return undefined
   return obj['en'] ?? obj[Object.keys(obj)[0]]
+}
+
+/**
+ * Reads a name-table entry. opentype.js 2 groups names by platform (`names.windows.fontFamily`, `names.macintosh.fontFamily`), while older
+ * versions exposed them directly (`names.fontFamily`); both are read, Windows first, so fonts report their real family and style names.
+ */
+function readFontName(font: opentype.Font, key: 'fontFamily' | 'fullName' | 'fontSubfamily'): string | undefined {
+  const names = font.names as unknown as Record<string, unknown>
+  const platform = (name: 'windows' | 'macintosh') => (names[name] as Record<string, opentype.LocalizedName> | undefined)?.[key]
+  return firstValue(platform('windows')) ?? firstValue(platform('macintosh')) ?? firstValue(names[key] as opentype.LocalizedName | undefined)
 }
 
 function hashBuffer(bytes: Uint8Array): string {
@@ -58,7 +71,7 @@ export async function inspectFontFile(file: File): Promise<FontInspectionResult>
   if (!nameLower.endsWith('.ttf') && !nameLower.endsWith('.otf')) {
     throw new Error('Only .ttf and .otf fonts are supported')
   }
-  if (file.size > 2 * 1024 * 1024) {
+  if (file.size > FONT_MAX_BYTES) {
     throw new Error('Font file too large (max 2 MB)')
   }
 
@@ -71,8 +84,8 @@ export async function inspectFontFile(file: File): Promise<FontInspectionResult>
   let displayName: string
   try {
     font = opentype.parse(buffer)
-    fontFamilyName = firstValue(font.names.fontFamily)
-    const fullName = firstValue(font.names.fullName)
+    fontFamilyName = readFontName(font, 'fontFamily')
+    const fullName = readFontName(font, 'fullName')
     displayName = fullName ?? fontFamilyName ?? file.name.replace(/\.(ttf|otf)$/i, '').trim()
   } catch (e) {
     throw new Error(`Failed to parse font: ${(e as Error).message}`)
@@ -92,6 +105,54 @@ export async function inspectFontFile(file: File): Promise<FontInspectionResult>
     fileSize:   file.size,
     buffer,
     font,
+  }
+}
+
+/** What the upload dialog shows about a font before it is uploaded. */
+export interface FontFileDetails {
+  /** Display name extracted from the font (full name, else family, else file name). */
+  name:           string
+  fileName:       string
+  fontFamilyName?: string
+  /** Style / sub-family name, e.g. "Bold Italic". */
+  styleName?:     string
+  /** 'TTF' or 'OTF' from the file extension. */
+  format:         'TTF' | 'OTF'
+  mimeType:       'font/ttf' | 'font/otf'
+  fileSize:       number
+  glyphCount:     number
+}
+
+/**
+ * Validates and parses a font file for display only. Same checks as inspectFontFile (extension, 2 MB limit, parseable), but it does
+ * not touch the runtime font caches, so previewing a file in a dialog leaves nothing behind if the user then cancels.
+ */
+export async function describeFontFile(file: File): Promise<FontFileDetails> {
+  const nameLower = file.name.toLowerCase()
+  if (!nameLower.endsWith('.ttf') && !nameLower.endsWith('.otf')) {
+    throw new Error('Only .ttf and .otf fonts are supported')
+  }
+  if (file.size > FONT_MAX_BYTES) {
+    throw new Error('Font file too large (max 2 MB)')
+  }
+  let font: opentype.Font
+  try {
+    font = opentype.parse(await file.arrayBuffer())
+  } catch (e) {
+    throw new Error(`Failed to parse font: ${(e as Error).message}`)
+  }
+  const fontFamilyName = readFontName(font, 'fontFamily')
+  const fullName = readFontName(font, 'fullName')
+  const isOtf = nameLower.endsWith('.otf')
+  return {
+    name:           fullName ?? fontFamilyName ?? file.name.replace(/\.(ttf|otf)$/i, '').trim(),
+    fileName:       file.name,
+    fontFamilyName,
+    styleName:      readFontName(font, 'fontSubfamily'),
+    format:         isOtf ? 'OTF' : 'TTF',
+    mimeType:       isOtf ? 'font/otf' : 'font/ttf',
+    fileSize:       file.size,
+    glyphCount:     font.numGlyphs,
   }
 }
 
