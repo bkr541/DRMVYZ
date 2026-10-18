@@ -182,10 +182,12 @@ interface MediaUploadModalProps {
   onAudioUploaded?: (tracks: SavedAudioTrack[]) => void
   /** Keep files preloaded by Media Manager drag-and-drop instead of clearing them on mount. */
   preserveQueuedFiles?: boolean
+  /** Files dropped on the Media Library before the dialog opened (for example fonts, which the media queue does not take). */
+  initialFiles?: File[]
 }
 
 export function MediaUploadModal({
-  onClose, editItem, audioOnly = false, onAudioUploaded, preserveQueuedFiles = false,
+  onClose, editItem, audioOnly = false, onAudioUploaded, preserveQueuedFiles = false, initialFiles,
 }: MediaUploadModalProps) {
   const isEdit = !!editItem
 
@@ -544,6 +546,11 @@ export function MediaUploadModal({
       return next
     })
   }, [audioOnly, uploadQueue.length, fontQueue.length, addFontFiles, addFilesToUploadQueue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Files handed in by the Media Library's drop zone go through the same checks and queues as files chosen inside the dialog.
+  useEffect(() => {
+    if (!isEdit && initialFiles && initialFiles.length > 0) void addFiles(initialFiles)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const removeEntry = (tempId: string) => {
     removeUploadQueueItem(tempId)
@@ -977,7 +984,7 @@ export function MediaUploadModal({
       className="mum-backdrop"
       onClick={e => { if (e.target === e.currentTarget && !busy) onClose() }}
     >
-      <div className="mum-modal" role="dialog" aria-modal="true" aria-label="Media Upload">
+      <div className={`mum-modal${isEdit ? '' : ' mum-modal--upload'}`} role="dialog" aria-modal="true" aria-label="Media Upload">
 
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="mum-header">
@@ -1046,9 +1053,9 @@ export function MediaUploadModal({
                           <div className="mum-file-thumb-font" style={ready ? { fontFamily: `"${fontPreviewFamily(entry.id)}", sans-serif` } : undefined}>Aa</div>
                         </div>
                         <div className="mum-file-info">
-                          <div className="mum-file-name">{entry.file.name}</div>
+                          <div className="mum-file-name">{entry.name.trim() || entry.file.name}</div>
                           <div className="mum-file-meta">
-                            {entry.details ? `${entry.details.format} · ${formatFontBytes(entry.details.fileSize)} · ${entry.details.glyphCount.toLocaleString('en-US')} glyphs` : formatFontBytes(entry.file.size)}
+                            {entry.file.name} · {entry.details ? `${entry.details.format} · ${formatFontBytes(entry.details.fileSize)} · ${entry.details.glyphCount.toLocaleString('en-US')} glyphs` : formatFontBytes(entry.file.size)}
                           </div>
                           {(entry.fileError || entry.uploadError) && <div className="mum-file-error" role="alert">{entry.fileError ?? entry.uploadError}</div>}
                         </div>
@@ -1134,7 +1141,7 @@ export function MediaUploadModal({
 
             {isFontQueue && fontQueue.length > 1 && (
               <div className="mum-editing-banner">
-                <span>Editing <strong>{activeFont?.file.name ?? 'a font'}</strong></span>
+                <span>Editing <strong>{activeFont?.name.trim() || activeFont?.file.name || 'a font'}</strong></span>
                 <IconChipButton
                   onClick={() => { if (activeFont) setFontQueue(prev => prev.map(entry => ({ ...entry, tags: [...activeFont.tags], collectionIds: [...activeFont.collectionIds] }))) }}
                   disabled={!activeFont || uploading}

@@ -446,6 +446,15 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(mocks.mediaState.addFilesToUploadQueue).toHaveBeenCalledTimes(1)
     expect(mocks.mediaState.openImportMediaModal).toHaveBeenCalledTimes(1)
 
+    // A dropped font opens the upload dialog directly; the media queue would refuse it.
+    const fontDrop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(fontDrop, 'dataTransfer', { value: { files: [new File(['font'], 'Headline.ttf', { type: 'font/ttf' })] } })
+    act(() => {
+      container?.querySelector('.vz-media-browser')?.dispatchEvent(fontDrop)
+    })
+    expect(mocks.mediaState.addFilesToUploadQueue).toHaveBeenCalledTimes(1)
+    expect(mocks.mediaState.openImportMediaModal).toHaveBeenCalledTimes(2)
+
     act(() => findButton('Audio Tracks')?.click())
     expect(container?.querySelector('[title="Edit track metadata"]')).toBeNull()
     expect(container?.querySelector('.vz-track-remove-btn')).not.toBeNull()

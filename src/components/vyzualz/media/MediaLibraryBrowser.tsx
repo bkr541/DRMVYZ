@@ -27,6 +27,7 @@ import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { MediaUploadModal } from '../MediaUploadModal'
+import { isFontUploadFile } from '../mediaUploadFonts'
 import { MediaPreviewModal } from './MediaPreviewModal'
 import { MediaStatusBar } from './MediaStatusBar'
 import { CollectionEditorModal } from './CollectionEditorModal'
@@ -764,6 +765,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [dragOver, setDragOver]       = useState(false)
   const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
   const [preserveQueuedFiles, setPreserveQueuedFiles] = useState(false)
+  const [quickDropFonts, setQuickDropFonts] = useState<File[] | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // ── Manager-only: multi-select + right-click Edit/Download/Delete ────────
@@ -980,6 +982,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const handleQuickDrop = (files: File[]) => {
     clearUploadQueue()
+    // Fonts are not media records, so the media queue refuses them; the dialog takes a batch of fonts directly.
+    if (files.length > 0 && files.every(isFontUploadFile)) {
+      setQuickDropFonts(files)
+      setPreserveQueuedFiles(false)
+      openImportMediaModal()
+      return
+    }
+    setQuickDropFonts(null)
     const queued = addFilesToUploadQueue(files)
     if (queued > 0) {
       setPreserveQueuedFiles(true)
@@ -1664,7 +1674,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   return (
     <>
-      {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} onClose={() => { setPreserveQueuedFiles(false); closeImportMediaModal() }} />}
+      {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} initialFiles={quickDropFonts ?? undefined} onClose={() => { setPreserveQueuedFiles(false); setQuickDropFonts(null); closeImportMediaModal() }} />}
       {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       {isManager && collectionEditorOpen && <CollectionEditorModal collection={collectionEditorTarget ?? undefined} onClose={closeCollectionEditor} />}
       {cardContextMenu && (

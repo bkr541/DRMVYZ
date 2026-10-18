@@ -79,6 +79,11 @@
 /* ── Body ─────────────────────────────────────────────────────────────── */
 /* Single stacked column: drop zone on top, form fields below, both
    scrolling together as one region. */
+/* The upload dialog keeps one height from the moment it opens, so choosing media, audio or a font (each with a different form) never makes it
+   jump in size; the body scrolls instead. Edit mode keeps its content-sized height. */
+.mum-modal--upload {
+  height: min(90vh, 740px);
+}
 .mum-body {
   display: flex;
   flex-direction: column;
@@ -699,8 +704,8 @@
 
 /* ── Font upload — live preview and note ─────────────────────────────── */
 .mum-font-preview {
-  min-height: 72px;
-  max-height: 120px;
+  min-height: 60px;
+  max-height: 96px;
   overflow: auto;
   padding: 12px 14px;
   margin-bottom: 8px;
@@ -708,7 +713,7 @@
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.28);
   color: rgba(245, 248, 250, 0.92);
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
