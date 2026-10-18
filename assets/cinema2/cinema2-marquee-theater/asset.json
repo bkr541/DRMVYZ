@@ -3,8 +3,8 @@
   "kind": "model",
   "compression": "none",
   "license": "generated-in-house",
-  "origin": "Owner-supplied DVYDRM Cinema 2.0 Art Deco theater reconstruction from docs/Marquee. The source GLB preserves 1,833 named nodes, three independent marquee text surfaces, grouped neon, 216 marquee bulbs, 718 canopy bulbs, 152 tower bulbs, and 320 entrance LED cells.",
+  "origin": "Owner-supplied DVYDRM Marquee high-fidelity reconstruction v2 (docs/Marquee/Marquee_Reconstruction_v2), rebuilt by scripts/cinema2-assets/build-marquee-runtime.mjs with marked runtime deltas (stronger crown, black tower panels, larger LED cells, one continuous forecourt slab) and capped embedded texture sizes. Node names, fixture counts and the three marquee.<face>.TEXT_SURFACE meshes are preserved. The previous blockout runtime model is kept at docs/Marquee/DVYDRM_Cinema2_Theater_runtime_blockout_rollback.glb.",
   "files": {
-    "high": "public/cinema2/models/marquee-theater.glb"
+    "high": "public/cinema2/models/marquee-theater-v2.glb"
   }
 }

@@ -57,7 +57,7 @@ describe('MARQUEE Cinema 2.0 preset', () => {
     expect(restored.getValue(P.frontText)).toBe('')
     expect(restored.getValue(P.leftText)).toBe('TONIGHT')
     expect(restored.reset(P.frontText)).toMatchObject({ ok: true })
-    expect(restored.getValue(P.frontText)).toBe('DVYDRM PRESENTS')
+    expect(restored.getValue(P.frontText)).toBe('DVYDRM')
     expect(displayCinema2MarqueeText('  A   VERY\nLONG SHOW  ')).toBe('A VERY LONG SHOW')
     expect(estimateCinema2MarqueeFontSize('A VERY LONG SHOW')).toBeLessThan(estimateCinema2MarqueeFontSize('SHOW'))
   })

@@ -15,6 +15,7 @@ import type {
   Cinema2ModuleUpdateContext,
 } from './Cinema2ModuleContracts'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
+import { MARQUEE_LOOK } from './marquee/Cinema2MarqueeLook'
 import { Cinema2MarqueeSceneController, type Cinema2MarqueeSceneFrame } from './marquee/Cinema2MarqueeSceneController'
 import {
   CINEMA2_MARQUEE_DEFAULT_PATTERN,
@@ -55,6 +56,7 @@ interface StaticFrame {
   readonly reflection: number
 }
 
+const MARQUEE_OVERRIDES = Object.freeze({ ...CINEMA2_THREE_DEFAULT_OVERRIDES, environmentIntensity: MARQUEE_LOOK.environmentIntensity })
 const assets = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
 const clamp01 = (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
 
@@ -97,9 +99,9 @@ export function resolveCinema2MarqueeStaticFrame(parameters: Cinema2ModuleParame
     patternChange: bool(parameters, 'patternChange', false),
     trigger: isCinema2MarqueeTrigger(trigger) ? trigger : 'bar4',
     text: Object.freeze({
-      front: string(parameters, 'frontText', 'DVYDRM PRESENTS'),
-      left: string(parameters, 'leftText', 'ONE NIGHT ONLY'),
-      right: string(parameters, 'rightText', 'LIVE PREMIERE'),
+      front: string(parameters, 'frontText', 'DVYDRM'),
+      left: string(parameters, 'leftText', 'SHOWINGS'),
+      right: string(parameters, 'rightText', 'SHOWINGS'),
     }),
     signIllumination: number(parameters, 'signIllumination', 0.78),
     zoneIntensity: Object.freeze({
@@ -205,7 +207,7 @@ export const cinema2MarqueeNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         if (state === 'idle') startLoading(execution.lightingEnvironment?.quality ?? 'high')
         if (state === 'building' && !bridge) buildBridge()
         if (!bridge || !sceneFrame || state === 'loading' || state === 'failed') return
-        bridge.draw(execution, CINEMA2_THREE_DEFAULT_OVERRIDES)
+        bridge.draw(execution, MARQUEE_OVERRIDES)
         if (bridge.ready) state = 'ready'
         const bytes = bridge.estimateGpuBytes()
         if (bytes !== reportedBytes) { reportedBytes = bytes; context.resources.reportGpuBytes(bytes) }

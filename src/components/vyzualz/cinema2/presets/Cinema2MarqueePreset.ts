@@ -55,6 +55,14 @@ export const CINEMA2_MARQUEE_PARAMETER_IDS = Object.freeze({
 const P = CINEMA2_MARQUEE_PARAMETER_IDS
 const vec3 = (x: number, y: number, z: number): Cinema2Vector3 => Object.freeze([x, y, z])
 const color = (r: number, g: number, b: number, a = 1): Cinema2Color => Object.freeze([r, g, b, a])
+export const CINEMA2_MARQUEE_LEFT_CAMERA_ID = cinema2StableId<Cinema2CameraId>('marquee-left-three-quarter-camera')
+export const CINEMA2_MARQUEE_RIGHT_CAMERA_ID = cinema2StableId<Cinema2CameraId>('marquee-right-three-quarter-camera')
+export const CINEMA2_MARQUEE_LOW_CANOPY_CAMERA_ID = cinema2StableId<Cinema2CameraId>('marquee-low-canopy-camera')
+const MARQUEE_ALTERNATE_CAMERAS = Object.freeze([
+  { id: CINEMA2_MARQUEE_LEFT_CAMERA_ID, label: 'Left Three-Quarter', fov: 38, eye: [-8, 2.65, 24.6] as const, target: [0, 5.4, 0.45] as const },
+  { id: CINEMA2_MARQUEE_RIGHT_CAMERA_ID, label: 'Right Three-Quarter', fov: 38, eye: [8, 2.65, 24.6] as const, target: [0, 5.4, 0.45] as const },
+  { id: CINEMA2_MARQUEE_LOW_CANOPY_CAMERA_ID, label: 'Low Canopy', fov: 45, eye: [0.2, 1.15, 16.4] as const, target: [0, 4.43, 2.18] as const },
+])
 const NIGHT = color(0.012, 0.025, 0.034)
 const RED = color(0.86, 0.035, 0.025)
 const GOLD = color(1, 0.55, 0.14)
@@ -90,9 +98,9 @@ const PARAMETERS = Object.freeze([
   Object.freeze({ ...baseParameter, id: P.patternChange, label: 'Pattern Change', type: 'boolean' as const, defaultValue: false, designParentGroup: 'design' as const, group: 'Pattern', order: 2 }),
   Object.freeze({ ...baseParameter, id: P.trigger, label: 'Trigger', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
     visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: P.patternChange, value: true })]), designParentGroup: 'design' as const, group: 'Pattern', order: 3 }),
-  textParameter(P.frontText, 'Front Marquee Text', 'DVYDRM PRESENTS', 10),
-  textParameter(P.leftText, 'Left Marquee Text', 'ONE NIGHT ONLY', 11),
-  textParameter(P.rightText, 'Right Marquee Text', 'LIVE PREMIERE', 12),
+  textParameter(P.frontText, 'Front Marquee Text', 'DVYDRM', 10),
+  textParameter(P.leftText, 'Left Marquee Text', 'SHOWINGS', 11),
+  textParameter(P.rightText, 'Right Marquee Text', 'SHOWINGS', 12),
   floatParameter(P.signIllumination, 'Sign Illumination', 0.78, 'design', 'Marquee Copy', 13),
   floatParameter(P.frontIntensity, 'Front Marquee', 1, 'design', 'Lighting Zones', 20),
   floatParameter(P.sideIntensity, 'Side Marquees', 0.86, 'design', 'Lighting Zones', 21),
@@ -100,7 +108,7 @@ const PARAMETERS = Object.freeze([
   floatParameter(P.towerIntensity, 'Vertical Towers', 0.82, 'design', 'Lighting Zones', 23),
   floatParameter(P.entranceIntensity, 'Entrance LEDs', 0.68, 'design', 'Lighting Zones', 24),
   floatParameter(P.neonIntensity, 'Neon Crown', 0.92, 'design', 'Lighting Zones', 25),
-  floatParameter(P.bloom, 'Bloom', 0.64, 'effects', 'Atmosphere', 1),
+  floatParameter(P.bloom, 'Bloom', 0.5, 'effects', 'Atmosphere', 1),
   Object.freeze({ ...floatParameter(P.haze, 'Haze', 0.008, 'effects', 'Atmosphere', 2, 0.03), step: 0.001 }),
   floatParameter(P.reflection, 'Wet Street Reflections', 0.72, 'effects', 'Atmosphere', 3),
   floatParameter(P.cinematicFinish, 'Cinematic Finish', 1, 'effects', 'Grade', 4),
@@ -116,6 +124,12 @@ const LAYER = cinema2StableId<Cinema2LayerId>('marquee-world-layer')
 const AMBIENT = cinema2StableId<Cinema2LightId>('marquee-ambient')
 const KEY = cinema2StableId<Cinema2LightId>('marquee-key')
 const WARM = cinema2StableId<Cinema2LightId>('marquee-warm-fill')
+const FORECOURT = cinema2StableId<Cinema2LightId>('marquee-forecourt-glow')
+const WALL_LEFT = cinema2StableId<Cinema2LightId>('marquee-wall-wash-left')
+const WALL_RIGHT = cinema2StableId<Cinema2LightId>('marquee-wall-wash-right')
+const FORECOURT_TARGET = cinema2StableId<Cinema2SceneNodeId>('marquee-forecourt-target')
+const WALL_LEFT_TARGET = cinema2StableId<Cinema2SceneNodeId>('marquee-wall-left-target')
+const WALL_RIGHT_TARGET = cinema2StableId<Cinema2SceneNodeId>('marquee-wall-right-target')
 const BLUE_RIM = cinema2StableId<Cinema2LightId>('marquee-blue-rim')
 const FLOOR = cinema2StableId<Cinema2EffectId>('marquee-reflective-floor')
 const HAZE = cinema2StableId<Cinema2EffectId>('marquee-haze')
@@ -166,7 +180,7 @@ export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_MARQUEE_MODULE_ID, typeId: CINEMA2_MARQUEE_NATIVE_MODULE_TYPE_ID, version: CINEMA2_MARQUEE_NATIVE_MODULE_VERSION, enabled: true,
     parameters: Object.freeze({ masterIntensity: 0.9, bpmSync: true, autoPerformance: true, pattern: CINEMA2_MARQUEE_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
-      frontText: 'DVYDRM PRESENTS', leftText: 'ONE NIGHT ONLY', rightText: 'LIVE PREMIERE', signIllumination: 0.78,
+      frontText: 'DVYDRM', leftText: 'SHOWINGS', rightText: 'SHOWINGS', signIllumination: 0.78,
       frontIntensity: 1, sideIntensity: 0.86, canopyIntensity: 0.72, towerIntensity: 0.82, entranceIntensity: 0.68, neonIntensity: 0.92,
       reflection: 0.72, nightColor: NIGHT, marqueeColor: RED, incandescentColor: GOLD, blueColor: BLUE, architectureColor: ARCHITECTURE }),
     parameterBindings: Object.freeze({ masterIntensity: cinema2Ref(P.masterIntensity), bpmSync: cinema2Ref(P.bpmSync), autoPerformance: cinema2Ref(P.autoPerformance), pattern: cinema2Ref(P.pattern), patternChange: cinema2Ref(P.patternChange), trigger: cinema2Ref(P.trigger),
@@ -184,28 +198,42 @@ export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   scene: Object.freeze({ nodes: Object.freeze([
     Object.freeze({ id: ROOT, kind: 'group' as const, coordinateSpace: 'world' as const }),
     Object.freeze({ id: MODEL, kind: 'module' as const, parent: cinema2Ref(ROOT), module: cinema2Ref(CINEMA2_MARQUEE_MODULE_ID) }),
-    Object.freeze({ id: TARGET, kind: 'group' as const, parent: cinema2Ref(ROOT), transform: Object.freeze({ position: vec3(0, 4.65, 1.2) }) }),
+    Object.freeze({ id: TARGET, kind: 'group' as const, parent: cinema2Ref(ROOT), transform: Object.freeze({ position: vec3(0, 5.0, 0.5) }) }),
+    Object.freeze({ id: FORECOURT_TARGET, kind: 'group' as const, parent: cinema2Ref(ROOT), transform: Object.freeze({ position: vec3(0, 0, 6.5) }) }),
+    Object.freeze({ id: WALL_LEFT_TARGET, kind: 'group' as const, parent: cinema2Ref(ROOT), transform: Object.freeze({ position: vec3(-9.4, 4.2, -1.9) }) }),
+    Object.freeze({ id: WALL_RIGHT_TARGET, kind: 'group' as const, parent: cinema2Ref(ROOT), transform: Object.freeze({ position: vec3(9.4, 4.2, -1.9) }) }),
   ]), roots: Object.freeze([cinema2Ref(ROOT)]) }),
   layers: Object.freeze([Object.freeze({ id: LAYER, label: 'MARQUEE Theater', source: cinema2Ref(ROOT), role: 'world' as const, depthPolicy: 'read-write' as const, order: 0 })]),
-  cameras: Object.freeze([Object.freeze({
-    id: CINEMA2_MARQUEE_CAMERA_ID, label: 'Hero Street', projection: 'perspective' as const, fovDegrees: 39, minAspect: 0.72, near: 0.1, far: 80,
-    transform: Object.freeze({ position: vec3(0, 3.15, 20.5) }), target: vec3(0, 4.7, 1.2), rig: Object.freeze({ kind: 'static' as const }),
-    motion: Object.freeze({ drift: Object.freeze({ translation: vec3(0.12, 0.07, 0.16), rotationDegrees: vec3(0.12, 0.2, 0.06), frequencyHz: 0.045, seed: 52021 }), tempo: Object.freeze({ referenceBpm: 120, orbitSpeed: false, minRate: 0.8, maxRate: 1.15, weave: 0.006, bob: 0.006, roll: 0.002, fov: 0.24, punch: 0.004 }) }),
-    controls: Object.freeze({ motionAmount: cinema2Ref(P.cameraMotion), tempoSync: cinema2Ref(P.bpmSync) }), smoothingMs: 180,
-    safety: Object.freeze({ minPosition: vec3(-1.3, 2.65, 18.5), maxPosition: vec3(1.3, 4.25, 22.5), maxPositionOffset: vec3(0.9, 0.55, 0.8), maxTargetOffset: vec3(0.5, 0.35, 0.4), minFovDegrees: 35, maxFovDegrees: 44, minNear: 0.08, maxFar: 90 }),
-  })]),
+  cameras: Object.freeze([
+    Object.freeze({
+      id: CINEMA2_MARQUEE_CAMERA_ID, label: 'Hero Street', projection: 'perspective' as const, fovDegrees: 40.5, minAspect: 0.72, near: 0.1, far: 90,
+      transform: Object.freeze({ position: vec3(0, 1.7, 19.2) }), target: vec3(0, 4.35, 0.3), rig: Object.freeze({ kind: 'static' as const }),
+      motion: Object.freeze({ drift: Object.freeze({ translation: vec3(0.12, 0.07, 0.16), rotationDegrees: vec3(0.12, 0.2, 0.06), frequencyHz: 0.045, seed: 52021 }), tempo: Object.freeze({ referenceBpm: 120, orbitSpeed: false, minRate: 0.8, maxRate: 1.15, weave: 0.006, bob: 0.006, roll: 0.002, fov: 0.24, punch: 0.004 }) }),
+      controls: Object.freeze({ motionAmount: cinema2Ref(P.cameraMotion), tempoSync: cinema2Ref(P.bpmSync) }), smoothingMs: 180,
+      safety: Object.freeze({ minPosition: vec3(-1.3, 1.2, 17.7), maxPosition: vec3(1.3, 3.3, 21.7), maxPositionOffset: vec3(0.9, 0.55, 0.8), maxTargetOffset: vec3(0.5, 0.35, 0.4), minFovDegrees: 37, maxFovDegrees: 45, minNear: 0.08, maxFar: 100 }),
+    }),
+    // Additional authored views from the V2 reconstruction manifest. The hero stays the default; these exist for look-development and capture.
+    ...MARQUEE_ALTERNATE_CAMERAS.map(view => Object.freeze({
+      id: view.id, label: view.label, projection: 'perspective' as const, fovDegrees: view.fov, minAspect: 0.72, near: 0.1, far: 90,
+      transform: Object.freeze({ position: vec3(view.eye[0], view.eye[1], view.eye[2]) }), target: vec3(view.target[0], view.target[1], view.target[2]), rig: Object.freeze({ kind: 'static' as const }),
+    })),
+  ]),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_MARQUEE_CAMERA_ID) }),
+  // Ordered by importance: the quality tiers keep only the first lights (low 2, medium 6, high 12).
   lighting: Object.freeze({ lights: Object.freeze([
-    Object.freeze({ id: AMBIENT, type: 'ambient' as const, color: color(0.22, 0.29, 0.38), intensity: 0.055 }),
-    Object.freeze({ id: KEY, type: 'spot' as const, color: color(1, 0.72, 0.39), intensity: 0.72, transform: Object.freeze({ position: vec3(-6, 8.8, 11) }), targetNode: cinema2Ref(TARGET), config: Object.freeze({ coneAngleDegrees: 54, penumbra: 0.76, range: 42, threeShadow: true }) }),
-    Object.freeze({ id: WARM, type: 'spot' as const, color: GOLD, intensity: 0.36, transform: Object.freeze({ position: vec3(6.8, 3.2, 10) }), targetNode: cinema2Ref(TARGET), config: Object.freeze({ coneAngleDegrees: 62, penumbra: 0.82, range: 40 }) }),
+    Object.freeze({ id: AMBIENT, type: 'ambient' as const, color: color(0.22, 0.29, 0.38), intensity: 0.03 }),
+    Object.freeze({ id: FORECOURT, type: 'spot' as const, color: GOLD, intensity: 1.1, transform: Object.freeze({ position: vec3(0, 3.1, 5.2) }), targetNode: cinema2Ref(FORECOURT_TARGET), config: Object.freeze({ coneAngleDegrees: 78, penumbra: 0.92, range: 16 }) }),
+    Object.freeze({ id: KEY, type: 'spot' as const, color: color(1, 0.72, 0.39), intensity: 0.34, transform: Object.freeze({ position: vec3(-6, 8.8, 11) }), targetNode: cinema2Ref(TARGET), config: Object.freeze({ coneAngleDegrees: 54, penumbra: 0.76, range: 42, threeShadow: true }) }),
     Object.freeze({ id: BLUE_RIM, type: 'spot' as const, color: BLUE, intensity: 0.28, transform: Object.freeze({ position: vec3(0, 11, -1) }), targetNode: cinema2Ref(TARGET), config: Object.freeze({ coneAngleDegrees: 48, penumbra: 0.7, range: 36 }) }),
+    Object.freeze({ id: WALL_LEFT, type: 'spot' as const, color: color(1, 0.55, 0.2), intensity: 0.9, transform: Object.freeze({ position: vec3(-8.6, 0.5, 1.2) }), targetNode: cinema2Ref(WALL_LEFT_TARGET), config: Object.freeze({ coneAngleDegrees: 50, penumbra: 0.95, range: 12 }) }),
+    Object.freeze({ id: WALL_RIGHT, type: 'spot' as const, color: color(1, 0.55, 0.2), intensity: 0.9, transform: Object.freeze({ position: vec3(8.6, 0.5, 1.2) }), targetNode: cinema2Ref(WALL_RIGHT_TARGET), config: Object.freeze({ coneAngleDegrees: 50, penumbra: 0.95, range: 12 }) }),
+    Object.freeze({ id: WARM, type: 'spot' as const, color: GOLD, intensity: 0.22, transform: Object.freeze({ position: vec3(6.8, 3.2, 10) }), targetNode: cinema2Ref(TARGET), config: Object.freeze({ coneAngleDegrees: 62, penumbra: 0.82, range: 40 }) }),
   ]) }),
   environment: Object.freeze({ backgroundColor: NIGHT, exposure: 1, controls: Object.freeze({ backgroundColor: cinema2Ref(P.nightColor) }) }),
   effects: Object.freeze([
-    Object.freeze({ id: FLOOR, typeId: CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output' as const, parameters: Object.freeze({ mix: 1, floorY: -0.2, reflectivity: 0.72, roughness: 0.58, fresnel: 2.2, albedo: 0.035, poolIntensity: 0.92, specular: 1.18, fadeDistance: 46, maxReflection: 28, thickness: 2.1, baseColor: NIGHT, skyColor: NIGHT, streak: 0.32, samplingStability: 0.72, edgeFallback: 0.42 }), parameterBindings: Object.freeze({ reflectivity: cinema2Ref(P.reflection), baseColor: cinema2Ref(P.nightColor), skyColor: cinema2Ref(P.nightColor) }) }),
-    Object.freeze({ id: HAZE, typeId: CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output' as const, parameters: Object.freeze({ mix: 1, density: 0.008, beamIntensity: 0.08, mistAmount: 0.035, mistHeight: 0.7, mistFloor: -0.2, floorY: -0.2, floorReflection: 0.08, anisotropy: 0.42, occlusion: 0.88, ambientHaze: 0.002, noiseScale: 0.3, noiseStrength: 0.12, drift: 0.014, maxDistance: 58, reactivity: 0 }), parameterBindings: Object.freeze({ density: cinema2Ref(P.haze) }) }),
-    Object.freeze({ id: BLOOM, typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 2, scope: 'output' as const, parameters: Object.freeze({ mix: 1, threshold: 1.2, knee: 0.42, intensity: 0.64, spread: 0.46, levels: 6, clampMax: 20, tint: GOLD }), parameterBindings: Object.freeze({ intensity: cinema2Ref(P.bloom) }) }),
+    Object.freeze({ id: FLOOR, typeId: CINEMA2_REFLECTIVE_FLOOR_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output' as const, parameters: Object.freeze({ mix: 1, floorY: -0.025, reflectivity: 0.72, roughness: 0.58, fresnel: 2.2, albedo: 0.035, poolIntensity: 1.3, specular: 1.6, fadeDistance: 46, maxReflection: 32, thickness: 2.6, baseColor: NIGHT, skyColor: NIGHT, streak: 0, samplingStability: 1, edgeFallback: 0 }), parameterBindings: Object.freeze({ reflectivity: cinema2Ref(P.reflection), baseColor: cinema2Ref(P.nightColor), skyColor: cinema2Ref(P.nightColor) }) }),
+    Object.freeze({ id: HAZE, typeId: CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output' as const, parameters: Object.freeze({ mix: 1, density: 0.008, beamIntensity: 0.08, mistAmount: 0.035, mistHeight: 0.7, mistFloor: -0.025, floorY: -0.025, floorReflection: 0.08, anisotropy: 0.42, occlusion: 0.88, ambientHaze: 0.002, noiseScale: 0.3, noiseStrength: 0.12, drift: 0.014, maxDistance: 58, reactivity: 0 }), parameterBindings: Object.freeze({ density: cinema2Ref(P.haze) }) }),
+    Object.freeze({ id: BLOOM, typeId: CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 2, scope: 'output' as const, parameters: Object.freeze({ mix: 1, threshold: 1.35, knee: 0.4, intensity: 0.5, spread: 0.4, levels: 6, clampMax: 20, tint: GOLD }), parameterBindings: Object.freeze({ intensity: cinema2Ref(P.bloom) }) }),
     Object.freeze({ id: FINISH, typeId: CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID, version: 1, enabled: true, order: 3, scope: 'output' as const, parameters: Object.freeze({ mix: 1, toneMap: 1, exposure: 0.94, temperature: 0.035, tint: -0.01, vignette: 0.3, vignetteSoftness: 0.76, grain: 0.018, grainSize: 1.2, aberration: 0.003, contrast: 1.16, saturation: 1.04 }), parameterBindings: Object.freeze({ mix: cinema2Ref(P.cinematicFinish) }) }),
   ]),
   render: Object.freeze({ targets: Object.freeze([viewportTarget(SCENE_TARGET, true), viewportTarget(FLOOR_TARGET), viewportTarget(HAZE_TARGET), viewportTarget(BLOOM_TARGET)]), passes: Object.freeze([

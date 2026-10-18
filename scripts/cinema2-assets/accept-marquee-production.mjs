@@ -115,7 +115,7 @@ try {
   await validationPage.close()
 
   const failurePage = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 })
-  await failurePage.route('**/cinema2/models/marquee-theater.glb', route => route.fulfill({ status: 404, contentType: 'application/octet-stream', body: '' }))
+  await failurePage.route('**/cinema2/models/marquee-theater-v2.glb', route => route.fulfill({ status: 404, contentType: 'application/octet-stream', body: '' }))
   await failurePage.goto(`${baseUrl}?quality=high`, { waitUntil: 'domcontentloaded' })
   await failurePage.waitForFunction(() => Boolean(globalThis.__marqueeProduction), undefined, { timeout: 30_000 })
   const failure = await failurePage.evaluate(async () => {

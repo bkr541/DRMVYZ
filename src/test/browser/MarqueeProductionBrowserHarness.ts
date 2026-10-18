@@ -1,6 +1,14 @@
 /** Deterministic capture surface for the real Cinema 2.0 Marquee production path. */
 import type { Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
-import { CINEMA2_MARQUEE_PRESET_ID } from '../../components/vyzualz/cinema2/presets/Cinema2MarqueePreset'
+import {
+  CINEMA2_MARQUEE_LEFT_CAMERA_ID,
+  CINEMA2_MARQUEE_LOW_CANOPY_CAMERA_ID,
+  CINEMA2_MARQUEE_PRESET_ID,
+  CINEMA2_MARQUEE_PRESET_MANIFEST,
+  CINEMA2_MARQUEE_RIGHT_CAMERA_ID,
+} from '../../components/vyzualz/cinema2/presets/Cinema2MarqueePreset'
+import { Cinema2PresetRegistry } from '../../components/vyzualz/cinema2/presets/Cinema2PresetRegistry'
+import { cinema2Ref } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 import { AudioFeatureBus } from '../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
@@ -148,8 +156,40 @@ if (!noAudio) publishMarqueeAudioFrame(0)
 const clock = controlledClock(timestampMs => {
   if (!noAudio) publishMarqueeAudioFrame(timestampMs)
 })
+// Development-only look switches for visual validation (see Cinema2MarqueeDebug): emission, geometry view, alternate authored camera.
+if (import.meta.env.DEV) {
+  ;(globalThis as { __CINEMA2_MARQUEE_DEBUG__?: unknown }).__CINEMA2_MARQUEE_DEBUG__ = {
+    emission: query.get('marqueeEmission') === 'off' ? 'off' : 'on',
+    geometry: query.get('marqueeGeometry') ?? 'normal',
+  }
+}
+const alternateCameras: Readonly<Record<string, typeof CINEMA2_MARQUEE_LEFT_CAMERA_ID>> = {
+  left: CINEMA2_MARQUEE_LEFT_CAMERA_ID, right: CINEMA2_MARQUEE_RIGHT_CAMERA_ID, low: CINEMA2_MARQUEE_LOW_CANOPY_CAMERA_ID,
+}
+const requestedCamera = import.meta.env.DEV ? alternateCameras[query.get('marqueeCamera') ?? ''] : undefined
+// Diagnostic variants of the production manifest: an alternate authored camera and/or neutral white lighting (no warm key, no wall washes).
+const neutralLighting = import.meta.env.DEV && query.get('marqueeLighting') === 'neutral'
+let presetRegistry: Cinema2PresetRegistry | undefined
+if (requestedCamera || neutralLighting) {
+  presetRegistry = new Cinema2PresetRegistry()
+  const manifest = CINEMA2_MARQUEE_PRESET_MANIFEST
+  const variant = {
+    ...manifest,
+    ...(requestedCamera ? { defaults: { camera: cinema2Ref(requestedCamera) } } : {}),
+    ...(neutralLighting ? {
+      lighting: {
+        lights: (manifest.lighting?.lights ?? []).map(light => (light.type === 'ambient'
+          ? { ...light, color: [1, 1, 1, 1], intensity: 0.5 }
+          : { ...light, color: [1, 1, 1, 1], intensity: light.id === 'marquee-key' ? 0.9 : 0 })),
+      },
+    } : {}),
+  }
+  const registered = presetRegistry.register(variant)
+  if (!registered.ok) throw new Error(`Marquee diagnostic manifest was rejected: ${registered.diagnostics.map(item => item.message).join('; ')}`)
+}
 const created = Cinema2Runtime.create(canvas, {
   presetId: CINEMA2_MARQUEE_PRESET_ID,
+  ...(presetRegistry ? { presetRegistry } : {}),
   renderQuality: quality,
   requestAnimationFrame: clock.requestAnimationFrame,
   cancelAnimationFrame: clock.cancelAnimationFrame,
