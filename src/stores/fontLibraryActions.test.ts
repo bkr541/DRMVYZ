@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   // fontDb helpers
   mockUploadFontFile:   vi.fn(),
   mockCreateFontAsset:  vi.fn(),
+  mockUpdateFontAssetName: vi.fn(),
+  mockUpdateFontAssetMetadata: vi.fn(),
   mockDeleteFontAsset:  vi.fn(),
   mockRemoveFontFile:   vi.fn(),
   mockListFontAssets:   vi.fn(),
@@ -50,6 +52,8 @@ vi.mock('../lib/supabase', () => ({
 vi.mock('../lib/fontDb', () => ({
   uploadFontFile:   h.mockUploadFontFile,
   createFontAsset:  h.mockCreateFontAsset,
+  updateFontAssetName: h.mockUpdateFontAssetName,
+  updateFontAssetMetadata: h.mockUpdateFontAssetMetadata,
   deleteFontAsset:  h.mockDeleteFontAsset,
   removeFontFile:   h.mockRemoveFontFile,
   listFontAssets:   h.mockListFontAssets,
@@ -105,6 +109,8 @@ function makeRow(id = ASSET_ID): FontAssetRow {
     storage_path:     `${USER_ID}/${id}/TestFont.ttf`,
     mime_type:        'font/ttf',
     file_size:        42000,
+    tags:             [],
+    collection_ids:   [],
     created_at:       '2025-06-01T00:00:00.000Z',
   }
 }
@@ -154,9 +160,50 @@ beforeEach(() => {
   h.mockGetBufferFromCache.mockReturnValue(undefined)
   h.mockParseOpenTypeFontFromAsset.mockReturnValue({})
   h.mockTextToOpenTypeGlyphPoints.mockReturnValue([])
+  h.mockUpdateFontAssetName.mockResolvedValue({ error: null })
+  h.mockUpdateFontAssetMetadata.mockResolvedValue({ error: null })
 
   // Restore blank store state
   useReactStore.setState(BLANK_FONT_STATE)
+})
+
+// ── renameOscillatorFontAsset ─────────────────────────────────────────────────
+
+describe('renameOscillatorFontAsset', () => {
+  it('persists the new name and updates the in-memory font record', async () => {
+    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
+
+    await expect(useReactStore.getState().renameOscillatorFontAsset(ASSET_ID, 'My Headline Font')).resolves.toBe(true)
+
+    expect(h.mockUpdateFontAssetName).toHaveBeenCalledWith(ASSET_ID, 'My Headline Font')
+    expect(useReactStore.getState().oscillatorFontAssets[0]?.name).toBe('My Headline Font')
+  })
+
+  it('keeps the current name when persistence fails', async () => {
+    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
+    h.mockUpdateFontAssetName.mockResolvedValueOnce({ error: 'database unavailable' })
+
+    await expect(useReactStore.getState().renameOscillatorFontAsset(ASSET_ID, 'Unsaved Name')).resolves.toBe(false)
+
+    expect(useReactStore.getState().oscillatorFontAssets[0]?.name).toBe('Test Font')
+  })
+})
+
+describe('updateOscillatorFontAssetMetadata', () => {
+  it('persists tags and collection memberships with the font name', async () => {
+    useReactStore.setState({ oscillatorFontAssets: [makeAsset()] })
+
+    await expect(useReactStore.getState().updateOscillatorFontAssetMetadata(ASSET_ID, {
+      name: 'Show Font', tags: [' headline ', 'headline'], collectionIds: ['collection-1'],
+    })).resolves.toBe(true)
+
+    expect(h.mockUpdateFontAssetMetadata).toHaveBeenCalledWith(ASSET_ID, {
+      name: 'Show Font', tags: ['headline'], collectionIds: ['collection-1'],
+    })
+    expect(useReactStore.getState().oscillatorFontAssets[0]).toMatchObject({
+      name: 'Show Font', tags: ['headline'], collectionIds: ['collection-1'],
+    })
+  })
 })
 
 // ── uploadOscillatorFont ───────────────────────────────────────────────────────

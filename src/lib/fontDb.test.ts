@@ -33,6 +33,8 @@ vi.mock('./supabase', () => ({
 import {
   listFontAssets,
   createFontAsset,
+  updateFontAssetName,
+  updateFontAssetMetadata,
   deleteFontAsset,
   uploadFontFile,
   downloadFontFile,
@@ -56,6 +58,8 @@ function makeRow(overrides: Partial<FontAssetRow> = {}): FontAssetRow {
     storage_path:     STORAGE_PATH,
     mime_type:        'font/ttf',
     file_size:        42000,
+    tags:             [],
+    collection_ids:   [],
     created_at:       '2025-06-01T00:00:00.000Z',
     ...overrides,
   }
@@ -99,6 +103,13 @@ function setupDelete(result: MutateResult) {
   const mockDelete = vi.fn().mockReturnValueOnce({ eq: mockEq })
   mockDbFrom.mockReturnValueOnce({ delete: mockDelete })
   return { mockDelete, mockEq }
+}
+
+function setupUpdate(result: MutateResult) {
+  const mockEq = vi.fn().mockResolvedValueOnce(result)
+  const mockUpdate = vi.fn().mockReturnValueOnce({ eq: mockEq })
+  mockDbFrom.mockReturnValueOnce({ update: mockUpdate })
+  return { mockUpdate, mockEq }
 }
 
 function setupStorageUpload(result: MutateResult) {
@@ -211,6 +222,30 @@ describe('deleteFontAsset', () => {
     setupDelete({ error: { message: 'row not found' } })
     const { error } = await deleteFontAsset(ASSET_ID)
     expect(error).toBe('row not found')
+  })
+})
+
+describe('updateFontAssetName', () => {
+  it('updates only the selected font name', async () => {
+    const { mockUpdate, mockEq } = setupUpdate({ error: null })
+    const { error } = await updateFontAssetName(ASSET_ID, 'My Headline Font')
+    expect(error).toBeNull()
+    expect(mockUpdate).toHaveBeenCalledWith({ name: 'My Headline Font' })
+    expect(mockEq).toHaveBeenCalledWith('id', ASSET_ID)
+  })
+})
+
+describe('updateFontAssetMetadata', () => {
+  it('updates the editable font metadata together', async () => {
+    const { mockUpdate, mockEq } = setupUpdate({ error: null })
+    const { error } = await updateFontAssetMetadata(ASSET_ID, {
+      name: 'Show Font', tags: ['headline'], collectionIds: ['collection-1'],
+    })
+    expect(error).toBeNull()
+    expect(mockUpdate).toHaveBeenCalledWith({
+      name: 'Show Font', tags: ['headline'], collection_ids: ['collection-1'],
+    })
+    expect(mockEq).toHaveBeenCalledWith('id', ASSET_ID)
   })
 })
 

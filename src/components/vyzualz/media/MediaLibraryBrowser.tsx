@@ -43,8 +43,10 @@ import { trackInitials } from './trackInitials'
 import { notify } from '../../../stores/notificationStore'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
+import { useFontPreviewPreload } from '../react/useFontPreviewPreload'
+import type { OscillatorFontAsset } from '../react/ReactTypes'
 
-type MediaLibraryFilter = 'all' | 'tracks' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
+type MediaLibraryFilter = 'all' | 'tracks' | 'fonts' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
 
 
@@ -180,7 +182,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
 })
 
 function toServerFilter(filter: MediaLibraryFilter): MediaLibraryServerFilter {
-  if (filter === 'tracks' || filter === 'collections' || filter === 'pools') return 'all'
+  if (filter === 'tracks' || filter === 'fonts' || filter === 'collections' || filter === 'pools') return 'all'
   return filter
 }
 
@@ -191,6 +193,13 @@ function matchesSearch(item: UploadedMedia, query: string): boolean {
     || item.name.toLowerCase().includes(lower)
     || (item.description ?? '').toLowerCase().includes(lower)
     || item.tags.some(tag => tag.toLowerCase().includes(lower))
+}
+
+function formatFontFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'Unknown size'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function PerformanceDeckEmptyState({
@@ -258,6 +267,7 @@ const PIX_GRID_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All Visuals' },
   { key: 'tracks',      label: 'Audio Tracks' },
+  { key: 'fonts',       label: 'Fonts' },
   { key: 'collections', label: 'Collections' },
   { key: 'pools',       label: 'Pools' },
   { key: 'favorites',   label: 'Favorites' },
@@ -641,6 +651,9 @@ export interface MediaLibraryBrowserProps {
    * inspector panels. Independent of loading the track into the shared deck. */
   activeTrackId?: string | null
   onSelectTrack?: (track: SavedAudioTrack) => void
+  /** Manager-only: selects an uploaded font into the middle preview stage. */
+  activeFontId?: string | null
+  onSelectFont?: (font: OscillatorFontAsset) => void
 }
 
 export interface MediaLibraryCardActionAnchor {
@@ -678,6 +691,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   getDisabledReason,
   activeTrackId = null,
   onSelectTrack,
+  activeFontId = null,
+  onSelectFont,
 }: MediaLibraryBrowserProps) {
   const {
     items, queryItemIds, addFilesToUploadQueue, clearUploadQueue, removeItem, retryUpload, toggleFavorite,
@@ -728,6 +743,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const createCanvasMediaPool = useReactStore(state => state.createCanvasMediaPool)
   const activeMediaPoolId = useReactStore(state => state.canvasOrchestrationSettings.activeMediaPoolId)
   const setActiveCanvasMediaPool = useReactStore(state => state.setActiveCanvasMediaPool)
+  const oscillatorFontAssets = useReactStore(state => state.oscillatorFontAssets)
+  const fontsLoadState = useReactStore(state => state.fontsLoadState)
+  const fontLoadError = useReactStore(state => state.fontLoadError)
+  const loadOscillatorFonts = useReactStore(state => state.loadOscillatorFonts)
   const [newPoolDraft, setNewPoolDraft] = useState('')
   const [newPoolError, setNewPoolError] = useState<string | null>(null)
 
@@ -853,6 +872,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     if (libraryFilter === 'tracks') loadSavedTracksRef.current?.()
   }, [libraryFilter])
 
+  useEffect(() => {
+    if (isManager && libraryFilter === 'fonts') void loadOscillatorFonts()
+  }, [isManager, libraryFilter, loadOscillatorFonts])
+
   const handleSetFilter = useCallback((f: MediaLibraryFilter) => {
     setMediaLibraryFilter(f)
     if (f !== 'collections') setOpenCollectionId(null)
@@ -881,6 +904,21 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       (t.genre ?? '').toLowerCase().includes(searchLower)
     )
   }, [savedTracks, searchActive, searchLower])
+
+  const filteredFonts = useMemo(() => {
+    if (!searchActive) return oscillatorFontAssets
+    return oscillatorFontAssets.filter(font =>
+      font.name.toLowerCase().includes(searchLower) ||
+      font.fileName.toLowerCase().includes(searchLower) ||
+      (font.fontFamilyName ?? '').toLowerCase().includes(searchLower) ||
+      (font.tags ?? []).some(tag => tag.toLowerCase().includes(searchLower))
+    )
+  }, [oscillatorFontAssets, searchActive, searchLower])
+  const fontPreviewAssets = useMemo(
+    () => isManager && libraryFilter === 'fonts' ? filteredFonts : [],
+    [filteredFonts, isManager, libraryFilter],
+  )
+  const fontPreviewStatus = useFontPreviewPreload(fontPreviewAssets)
 
   // Items per collection (keyed by collection id); React mode counts only eligible media
   const itemsByCollection = useMemo(() => {
@@ -1259,6 +1297,56 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
+  const renderFontsView = () => {
+    if ((fontsLoadState === 'idle' || fontsLoadState === 'loading') && oscillatorFontAssets.length === 0) {
+      return <div className="vz-font-empty" role="status">Loading font library…</div>
+    }
+
+    if (fontsLoadState === 'error' && oscillatorFontAssets.length === 0) {
+      return (
+        <DrawerNotice tone="error" role="alert" title="Font library unavailable">
+          {fontLoadError ?? 'The uploaded fonts could not be loaded.'}{' '}
+          <IconChipButton onClick={() => { void loadOscillatorFonts() }}>Retry</IconChipButton>
+        </DrawerNotice>
+      )
+    }
+
+    if (filteredFonts.length === 0) {
+      return (
+        <div className="vz-font-empty">
+          {searchActive ? `No fonts match "${searchQuery}"` : 'No fonts uploaded yet.'}
+        </div>
+      )
+    }
+
+    return (
+      <div className="vz-font-list vz-track-list vz-track-list--rows" role="group" aria-label="Uploaded fonts">
+        {filteredFonts.map(font => (
+          <button
+            key={font.id}
+            type="button"
+            className={`vz-font-row vz-track-row vz-track-row--list${activeFontId === font.id ? ' vz-font-row--active vz-track-row--active' : ''}`}
+            onClick={() => onSelectFont?.(font)}
+            aria-pressed={activeFontId === font.id}
+          >
+            <div className="vz-font-row-info vz-track-row-info">
+              <div
+                className="vz-font-row-name vz-track-row-title"
+                title={font.name}
+                style={fontPreviewStatus[font.id] === 'ready'
+                  ? { fontFamily: `"drmvyz-preview-${font.id}", sans-serif` }
+                  : undefined}
+              >
+                {font.name}
+              </div>
+              <div className="vz-font-row-meta vz-track-row-details">{font.mimeType || 'Font'} · {formatFontFileSize(font.fileSize)}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    )
+  }
+
   const renderCollectionsView = () => {
     // Drilled into a specific collection
     if (openCollectionId && openCollection) {
@@ -1487,7 +1575,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           <DreamVizTextInput
             className="vz-md-search-input"
             type="text"
-            placeholder={libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
+            aria-label={libraryFilter === 'fonts' ? 'Search fonts' : libraryFilter === 'tracks' ? 'Search tracks' : 'Search media'}
+            placeholder={libraryFilter === 'fonts' ? 'Search fonts…' : libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -1495,7 +1584,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
           )}
         </div>
-        {libraryFilter !== 'tracks' && (
+        {libraryFilter !== 'tracks' && libraryFilter !== 'fonts' && (
           <div className="vz-md-view-toggles">
             <button
               className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
@@ -1520,6 +1609,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       <div className="vz-media-scroll" ref={scrollRef}>
         {libraryFilter === 'tracks' ? (
           renderTracksView()
+        ) : libraryFilter === 'fonts' ? (
+          renderFontsView()
         ) : libraryFilter === 'collections' ? (
           renderCollectionsView()
         ) : libraryFilter === 'pools' ? (

@@ -105,6 +105,12 @@ export interface Cinema2ThreeAtlHoeLightSpec {
 }
 
 export interface Cinema2ThreeSceneOptions {
+  /** Optional preset-owned controller for named model surfaces that need richer runtime behavior than material overrides. */
+  modelController?: Readonly<{
+    attach(root: ThreeNamespace.Object3D): void
+    beforeDraw?(): void
+    dispose?(): void
+  }>
   panels?: readonly Cinema2ThreePanelSpec[]
   /** The loaded `RectAreaLightUniformsLib` (required when `panels` is non-empty; the module fetches it only in that case). */
   areaLightTables?: { init(): void } | null
@@ -434,6 +440,7 @@ export class Cinema2ThreeSceneBridge {
           owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
         }
       }
+      options.modelController?.attach(model)
       root.add(model)
       this.scene.add(root)
       this.placed.push({ node: instance.node, spin: instance.spin === true, root, materials })
@@ -517,6 +524,7 @@ export class Cinema2ThreeSceneBridge {
       this.applySegments(segments)
       this.applyMainframe(mainframe)
       this.applyAtlHoe(atlHoe)
+      this.options.modelController?.beforeDraw?.()
       this.applyPartVisibility(placement?.parts ?? null)
       this.place(exec, spinRadians, placement?.scale ?? 1)
       applyCinema2CameraFrame(this.camera, camera)
@@ -560,6 +568,7 @@ export class Cinema2ThreeSceneBridge {
     this.particleFields.length = 0
     this.placed.length = 0
     this.pendingTextures.length = 0
+    this.options.modelController?.dispose?.()
     // Geometry and textures belong to the shared asset (freed when its last holder releases it); the renderer belongs to the context.
     this.target.dispose()
   }

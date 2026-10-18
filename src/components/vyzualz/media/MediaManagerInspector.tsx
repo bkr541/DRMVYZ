@@ -22,6 +22,8 @@ import {
   VISUAL_MEDIA_ROLES,
   type MediaRole,
 } from '../../../lib/mediaRoles'
+import type { OscillatorFontAsset } from '../react/ReactTypes'
+import { useReactStore } from '../../../stores/reactStore'
 
 /**
  * What the Info tab hands the page header: the header's centre group owns the buttons, the tab owns the
@@ -35,6 +37,99 @@ export interface MediaHeaderActions {
 }
 
 type HeaderActionsSink = (actions: MediaHeaderActions | null) => void
+
+function TagsCollectionsGroup({
+  tags,
+  onTagsChange,
+  collectionIds,
+  onCollectionIdsChange,
+}: {
+  tags: string[]
+  onTagsChange: (tags: string[]) => void
+  collectionIds: string[]
+  onCollectionIdsChange: (collectionIds: string[]) => void
+}) {
+  const { collections, createCollection } = useMediaStore(useShallow(state => ({
+    collections: state.collections,
+    createCollection: state.createCollection,
+  })))
+  const [tagInput, setTagInput] = useState('')
+  const [collInput, setCollInput] = useState('')
+
+  const addTag = (value: string) => {
+    const trimmed = value.trim()
+    if (trimmed && !tags.includes(trimmed)) onTagsChange([...tags, trimmed])
+    setTagInput('')
+  }
+  const filteredCollections = collections.filter(collection =>
+    collection.name.toLowerCase().includes(collInput.toLowerCase()) && !collectionIds.includes(collection.id))
+  const collectionDropdownOptions = collInput.trim()
+    ? filteredCollections.length > 0
+      ? filteredCollections.map(collection => ({ value: collection.id, label: collection.name }))
+      : [{ value: '__create__', label: `+ Create "${collInput.trim()}"` }]
+    : []
+  const addCollection = (id: string) => {
+    onCollectionIdsChange([...collectionIds, id])
+    setCollInput('')
+  }
+  const handleCollectionChange = async (value: string) => {
+    if (value !== '__create__') { addCollection(value); return }
+    const newId = await createCollection(collInput.trim())
+    if (newId) addCollection(newId)
+  }
+
+  return (
+    <Collapsible label="Tags &amp; Collections" defaultOpen>
+      <div className="rv-ctrl-row">
+        <span className="rv-ctrl-label-cluster">
+          <label className="rv-ctrl-label" htmlFor="mmi-tags">Tags</label>
+        </span>
+        <DreamVizTextInput
+          id="mmi-tags"
+          className="mmi-chip-input"
+          placeholder="Type to add tags…"
+          value={tagInput}
+          onChange={event => setTagInput(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(tagInput) }
+          }}
+          onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+        />
+        {tags.length > 0 && (
+          <div className="mmi-chip-field">
+            {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={() => onTagsChange(tags.filter(candidate => candidate !== tag))} removeLabel="Remove tag" />)}
+          </div>
+        )}
+      </div>
+      <div className="rv-ctrl-row">
+        <span className="rv-ctrl-label-cluster">
+          <label className="rv-ctrl-label" htmlFor="mmi-collections">Collections</label>
+        </span>
+        <Dropdown
+          id="mmi-collections"
+          searchable
+          searchValue={collInput}
+          onSearchChange={setCollInput}
+          value={null}
+          options={collectionDropdownOptions}
+          onChange={value => { void handleCollectionChange(value) }}
+          placeholder="Type to search or create…"
+          ariaLabel="Collections"
+          menuLabel="Collections"
+          size="compact"
+          showDescriptions={false}
+        />
+        {collectionIds.length > 0 && (
+          <div className="mmi-chip-field">
+            {collectionIds.map(id => (
+              <Badge key={id} label={collections.find(collection => collection.id === id)?.name ?? id} tone="#b84fc9" onRemove={() => onCollectionIdsChange(collectionIds.filter(candidate => candidate !== id))} removeLabel="Remove collection" />
+            ))}
+          </div>
+        )}
+      </div>
+    </Collapsible>
+  )
+}
 
 /** Publishes the tab's header actions while it is mounted. Handlers are read through a ref so publishing never loops. */
 function useHeaderActions(
@@ -59,11 +154,9 @@ function useHeaderActions(
 // ── Visual media editor ──────────────────────────────────────────────────────
 
 function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia; onHeaderActions?: HeaderActionsSink }) {
-  const { saveMediaEdits, removeItem, collections, createCollection } = useMediaStore(useShallow(state => ({
+  const { saveMediaEdits, removeItem } = useMediaStore(useShallow(state => ({
     saveMediaEdits: state.saveMediaEdits,
     removeItem: state.removeItem,
-    collections: state.collections,
-    createCollection: state.createCollection,
   })))
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -81,9 +174,7 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
   const [title, setTitle] = useState(media.title ?? '')
   const [description, setDescription] = useState(media.description ?? '')
   const [tags, setTags] = useState<string[]>(media.tags)
-  const [tagInput, setTagInput] = useState('')
   const [collectionIds, setCollectionIds] = useState<string[]>(media.collectionIds)
-  const [collInput, setCollInput] = useState('')
   const [fps, setFps] = useState<string>(media.metadata.fps != null ? String(media.metadata.fps) : '')
   const [loopable, setLoopable] = useState(media.metadata.loopable ?? false)
   const [hasAlpha, setHasAlpha] = useState(media.metadata.hasAlpha ?? false)
@@ -95,9 +186,7 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
     setTitle(media.title ?? '')
     setDescription(media.description ?? '')
     setTags(media.tags)
-    setTagInput('')
     setCollectionIds(media.collectionIds)
-    setCollInput('')
     setFps(media.metadata.fps != null ? String(media.metadata.fps) : '')
     setLoopable(media.metadata.loopable ?? false)
     setHasAlpha(media.metadata.hasAlpha ?? false)
@@ -105,28 +194,6 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
     setConfirmingDelete(false)
     setDeleting(false)
   }, [media.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const addTag = (value: string) => {
-    const trimmed = value.trim()
-    if (trimmed && !tags.includes(trimmed)) setTags([...tags, trimmed])
-    setTagInput('')
-  }
-  const removeTag = (tag: string) => setTags(tags.filter(candidate => candidate !== tag))
-
-  const filteredCollections = collections.filter(c =>
-    c.name.toLowerCase().includes(collInput.toLowerCase()) && !collectionIds.includes(c.id))
-  const collectionDropdownOptions = collInput.trim()
-    ? filteredCollections.length > 0
-      ? filteredCollections.map(c => ({ value: c.id, label: c.name }))
-      : [{ value: '__create__', label: `+ Create "${collInput.trim()}"` }]
-    : []
-  const addCollection = (id: string) => { setCollectionIds([...collectionIds, id]); setCollInput('') }
-  const removeCollectionId = (id: string) => setCollectionIds(collectionIds.filter(candidate => candidate !== id))
-  const handleCollectionChange = async (value: string) => {
-    if (value !== '__create__') { addCollection(value); return }
-    const newId = await createCollection(collInput.trim())
-    if (newId) addCollection(newId)
-  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -197,55 +264,13 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
         </div>
       </Collapsible>
 
-      <Collapsible label="Tags &amp; Collections" defaultOpen>
-        <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label-cluster">
-            <label className="rv-ctrl-label" htmlFor="mmi-tags">Tags</label>
-          </span>
-          <DreamVizTextInput
-            id="mmi-tags"
-            className="mmi-chip-input"
-            placeholder="Type to add tags…"
-            value={tagInput}
-            onChange={event => setTagInput(event.target.value)}
-            onKeyDown={event => {
-              if (event.key === 'Enter' || event.key === ',') { event.preventDefault(); addTag(tagInput) }
-            }}
-            onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-          />
-          {tags.length > 0 && (
-            <div className="mmi-chip-field">
-              {tags.map(tag => <Badge key={tag} label={tag} tone="#4ac7db" onRemove={() => removeTag(tag)} removeLabel="Remove tag" />)}
-            </div>
-          )}
-        </div>
-        <div className="rv-ctrl-row">
-          <span className="rv-ctrl-label-cluster">
-            <label className="rv-ctrl-label" htmlFor="mmi-collections">Collections</label>
-          </span>
-          <Dropdown
-            id="mmi-collections"
-            searchable
-            searchValue={collInput}
-            onSearchChange={setCollInput}
-            value={null}
-            options={collectionDropdownOptions}
-            onChange={value => { void handleCollectionChange(value) }}
-            placeholder="Type to search or create…"
-            ariaLabel="Collections"
-            menuLabel="Collections"
-            size="compact"
-            showDescriptions={false}
-          />
-          {collectionIds.length > 0 && (
-            <div className="mmi-chip-field">
-              {collectionIds.map(id => (
-                <Badge key={id} label={collections.find(c => c.id === id)?.name ?? id} tone="#b84fc9" onRemove={() => removeCollectionId(id)} removeLabel="Remove collection" />
-              ))}
-            </div>
-          )}
-        </div>
-      </Collapsible>
+      <TagsCollectionsGroup
+        key={media.id}
+        tags={tags}
+        onTagsChange={setTags}
+        collectionIds={collectionIds}
+        onCollectionIdsChange={setCollectionIds}
+      />
 
       <Collapsible label="Additional Info" defaultOpen={false}>
         {isVideo && (
@@ -334,6 +359,132 @@ function AudioTrackInspector({ track, onHeaderActions }: { track: SavedAudioTrac
   )
 }
 
+// ── Uploaded font information ────────────────────────────────────────────────
+
+function formatFontFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return 'Unknown'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatFontDate(value: string): string {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return 'Unknown'
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(date)
+}
+
+function FontInspector({
+  font,
+  onHeaderActions,
+  onFontRenamed,
+}: {
+  font: OscillatorFontAsset
+  onHeaderActions?: HeaderActionsSink
+  onFontRenamed?: (font: OscillatorFontAsset) => void
+}) {
+  const updateOscillatorFontAssetMetadata = useReactStore(state => state.updateOscillatorFontAssetMetadata)
+  const [name, setName] = useState(font.name)
+  const [tags, setTags] = useState<string[]>(font.tags ?? [])
+  const [collectionIds, setCollectionIds] = useState<string[]>(font.collectionIds ?? [])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setName(font.name)
+    setTags(font.tags ?? [])
+    setCollectionIds(font.collectionIds ?? [])
+    setError(null)
+  }, [font.id, font.name, font.tags, font.collectionIds])
+
+  const handleSave = async () => {
+    const nextName = name.trim()
+    if (!nextName) {
+      setError('Font name is required.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const saved = await updateOscillatorFontAssetMetadata(font.id, { name: nextName, tags, collectionIds })
+    setSaving(false)
+    if (!saved) {
+      setError('Could not save the font details. Try again.')
+      return
+    }
+    setName(nextName)
+    onFontRenamed?.({ ...font, name: nextName, tags, collectionIds })
+  }
+
+  useHeaderActions(
+    onHeaderActions,
+    { save: () => { void handleSave() }, remove: null },
+    { saving, deleting: false },
+  )
+
+  const rows = [
+    ['file-name', 'File Name', font.fileName],
+  ] as const
+
+  return (
+    <div className="mmi-body">
+      <Collapsible label="Font Details" defaultOpen>
+        <TextInputRow
+          id="mmi-font-name"
+          label="Name"
+          value={name}
+          onChange={value => { setName(value); setError(null) }}
+          maxLength={160}
+        />
+        {rows.map(([id, label, value]) => (
+          <TextInputRow
+            key={id}
+            id={`mmi-font-${id}`}
+            label={label}
+            value={value}
+            onChange={() => {}}
+            maxLength={512}
+            readOnly
+          />
+        ))}
+        <div className="mmi-font-meta-row">
+          <TextInputRow
+            id="mmi-font-format"
+            label="Format"
+            value={font.mimeType || 'Unknown'}
+            onChange={() => {}}
+            readOnly
+          />
+          <TextInputRow
+            id="mmi-font-file-size"
+            label="File Size"
+            value={formatFontFileSize(font.fileSize)}
+            onChange={() => {}}
+            readOnly
+          />
+          <TextInputRow
+            id="mmi-font-uploaded"
+            label="Uploaded"
+            value={formatFontDate(font.createdAt)}
+            onChange={() => {}}
+            readOnly
+          />
+        </div>
+      </Collapsible>
+      <TagsCollectionsGroup
+        key={font.id}
+        tags={tags}
+        onTagsChange={setTags}
+        collectionIds={collectionIds}
+        onCollectionIdsChange={setCollectionIds}
+      />
+      {error && <DrawerNotice tone="error" role="alert" title="Save failed">{error}</DrawerNotice>}
+      {font.parseError && (
+        <DrawerNotice tone="warning" role="status" title="Font parsing warning">{font.parseError}</DrawerNotice>
+      )}
+    </div>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 type MediaInspectorTab = 'info' | 'edit' | 'output'
@@ -347,13 +498,18 @@ const MEDIA_INSPECTOR_TABS: RailTabOption<MediaInspectorTab>[] = [
 export function MediaManagerInspector({
   media,
   track,
+  font = null,
   onMediaCreated,
+  onFontRenamed,
   onHeaderActions,
 }: {
   media: UploadedMedia | null
   track: SavedAudioTrack | null
+  font?: OscillatorFontAsset | null
   /** Save As created a new media item; the view selects it. */
   onMediaCreated?: (mediaId: string) => void
+  /** A persisted rename updates the selected record used by the stage and inspector. */
+  onFontRenamed?: (font: OscillatorFontAsset) => void
   /** Receives Save Changes / Delete Media for the page header while the Info tab is showing. */
   onHeaderActions?: HeaderActionsSink
 }) {
@@ -379,7 +535,7 @@ export function MediaManagerInspector({
           <MediaEditPanel key={media.id} media={media} onMediaCreated={id => onMediaCreated?.(id)} />
         ) : (
           <div className="mmi-empty">
-            <p>{track ? 'Audio tracks are edited from the Info tab.' : 'Select an image or video to edit it.'}</p>
+            <p>{track ? 'Audio tracks are edited from the Info tab.' : font ? 'Fonts are viewed from the Info tab.' : 'Select an image or video to edit it.'}</p>
           </div>
         )
       )}
@@ -388,6 +544,8 @@ export function MediaManagerInspector({
           <VisualMediaInspector key={media.id} media={media} onHeaderActions={onHeaderActions} />
         ) : track ? (
           <AudioTrackInspector key={track.id} track={track} onHeaderActions={onHeaderActions} />
+        ) : font ? (
+          <FontInspector key={font.id} font={font} onHeaderActions={onHeaderActions} onFontRenamed={onFontRenamed} />
         ) : (
           <div className="mmi-empty">
             <p>Select media from the library to view and edit its details.</p>

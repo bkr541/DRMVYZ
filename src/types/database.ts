@@ -670,6 +670,8 @@ export interface FontAssetRow {
   storage_path:     string
   mime_type:        string
   file_size:        number
+  tags:             string[]
+  collection_ids:   string[]
   created_at:       string
 }
 
@@ -681,6 +683,8 @@ export interface FontAssetInsert {
   storage_path:      string
   mime_type:         string
   file_size:         number
+  tags?:             string[]
+  collection_ids?:   string[]
 }
 
 // ── Database type map (for createClient<Database>) ────────────────────────────

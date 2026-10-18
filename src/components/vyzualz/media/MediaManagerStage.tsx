@@ -28,6 +28,8 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { useFontPreviewPreload } from '../react/useFontPreviewPreload'
+import type { OscillatorFontAsset } from '../react/ReactTypes'
 
 function formatTime(s: number): string {
   if (!isFinite(s) || s < 0) return '0:00'
@@ -423,15 +425,37 @@ function AudioTrackStage({ track }: { track: SavedAudioTrack }) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+function FontStage({ font }: { font: OscillatorFontAsset }) {
+  const previewAssets = useMemo(() => [font], [font])
+  const previewStatus = useFontPreviewPreload(previewAssets)
+  const ready = previewStatus[font.id] === 'ready'
+
+  return (
+    <div className="mms-stage mms-stage--font">
+      <div className="mms-font-preview" aria-label={`${font.name} font preview`}>
+        <div
+          className="mms-font-preview-text"
+          style={ready ? { fontFamily: `"drmvyz-preview-${font.id}", sans-serif` } : undefined}
+        >
+          {font.name}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function MediaManagerStage({
   media,
   track,
+  font = null,
 }: {
   media: UploadedMedia | null
   track: SavedAudioTrack | null
+  font?: OscillatorFontAsset | null
 }) {
   if (media) return <VisualMediaStage key={media.id} media={media} />
   if (track) return <AudioTrackStage key={track.id} track={track} />
+  if (font) return <FontStage key={font.id} font={font} />
   return (
     <div className="mms-empty">
       <p>Select media from the library to preview it here.</p>

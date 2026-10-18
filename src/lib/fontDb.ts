@@ -28,6 +28,23 @@ export async function createFontAsset(insert: FontAssetInsert): Promise<DbCreate
   return { id: data?.id ?? null, error: error?.message ?? null }
 }
 
+export async function updateFontAssetName(id: string, name: string): Promise<DbMutateResult> {
+  const { error } = await supabase.from('font_assets').update({ name }).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
+export async function updateFontAssetMetadata(
+  id: string,
+  patch: { name: string; tags: string[]; collectionIds: string[] },
+): Promise<DbMutateResult> {
+  const { error } = await supabase.from('font_assets').update({
+    name: patch.name,
+    tags: patch.tags,
+    collection_ids: patch.collectionIds,
+  }).eq('id', id)
+  return { error: error?.message ?? null }
+}
+
 export async function deleteFontAsset(id: string): Promise<DbMutateResult> {
   const { error } = await supabase.from('font_assets').delete().eq('id', id)
   return { error: error?.message ?? null }

@@ -135,6 +135,8 @@ export interface OscillatorFontAsset {
   mimeType:        string
   fileSize:        number
   createdAt:       string
+  tags?:           string[]
+  collectionIds?:  string[]
   parseError?:     string | null
 }
 

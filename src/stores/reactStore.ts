@@ -411,7 +411,7 @@ import {
   getBufferFromCache,
 } from '../components/vyzualz/react/renderers/fontGlyphUtils'
 import { supabase, supabaseConfigured } from '../lib/supabase'
-import { uploadFontFile, createFontAsset, removeFontFile, listFontAssets, downloadFontFile, deleteFontAsset } from '../lib/fontDb'
+import { uploadFontFile, createFontAsset, updateFontAssetName, updateFontAssetMetadata, removeFontFile, listFontAssets, downloadFontFile, deleteFontAsset } from '../lib/fontDb'
 
 // Maps validated MIME type to a fixed, path-safe Storage object filename.
 // file.name is kept only in font_assets.file_name (DB metadata), never in the path.
@@ -2955,6 +2955,8 @@ interface ReactStoreState {
   // Uploaded font assets (persisted — metadata only, binary lives in cloud storage)
   oscillatorFontAssets: OscillatorFontAsset[]
   addOscillatorFontAsset: (asset: OscillatorFontAsset) => void
+  renameOscillatorFontAsset: (id: string, name: string) => Promise<boolean>
+  updateOscillatorFontAssetMetadata: (id: string, patch: { name: string; tags: string[]; collectionIds: string[] }) => Promise<boolean>
   removeOscillatorFontAsset: (id: string) => Promise<void>
   fontRemovePending: string | null
   fontRemoveError: string | null
@@ -10345,6 +10347,35 @@ export const useReactStore = create<ReactStoreState>()(
           return { oscillatorFontAssets: [...s.oscillatorFontAssets, asset] }
         }),
 
+      renameOscillatorFontAsset: async (id, name) => {
+        const nextName = name.trim()
+        if (!nextName || !useReactStore.getState().oscillatorFontAssets.some(asset => asset.id === id)) return false
+        const { error } = await updateFontAssetName(id, nextName)
+        if (error) return false
+        set(state => ({
+          oscillatorFontAssets: state.oscillatorFontAssets.map(asset =>
+            asset.id === id ? { ...asset, name: nextName } : asset),
+        }))
+        return true
+      },
+
+      updateOscillatorFontAssetMetadata: async (id, patch) => {
+        const nextName = patch.name.trim()
+        if (!nextName || !useReactStore.getState().oscillatorFontAssets.some(asset => asset.id === id)) return false
+        const nextPatch = {
+          name: nextName,
+          tags: Array.from(new Set(patch.tags.map(tag => tag.trim()).filter(Boolean))),
+          collectionIds: Array.from(new Set(patch.collectionIds)),
+        }
+        const { error } = await updateFontAssetMetadata(id, nextPatch)
+        if (error) return false
+        set(state => ({
+          oscillatorFontAssets: state.oscillatorFontAssets.map(asset =>
+            asset.id === id ? { ...asset, ...nextPatch } : asset),
+        }))
+        return true
+      },
+
       removeOscillatorFontAsset: async (id) => {
         const asset = useReactStore.getState().oscillatorFontAssets.find(a => a.id === id)
         if (!asset) return
@@ -10589,6 +10620,8 @@ export const useReactStore = create<ReactStoreState>()(
             mimeType:       inspected.mimeType,
             fileSize:       inspected.fileSize,
             createdAt:      new Date().toISOString(),
+            tags:           [],
+            collectionIds:  [],
           }
 
           // 8. Move runtime cache from the temporary FNV id to the canonical DB UUID
@@ -10657,6 +10690,8 @@ export const useReactStore = create<ReactStoreState>()(
             mimeType:       row.mime_type,
             fileSize:       row.file_size,
             createdAt:      row.created_at,
+            tags:           row.tags ?? [],
+            collectionIds:  row.collection_ids ?? [],
           }))
 
           const loadedIds = new Set(assets.map(a => a.id))

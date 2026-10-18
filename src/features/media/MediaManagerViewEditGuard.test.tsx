@@ -46,6 +46,15 @@ async function renderView() {
 }
 const selectMedia = (id: string) => act(async () => { mocks.browser.current!.onSelect!(id) })
 const selectTrack = (id: string) => act(async () => { mocks.browser.current!.onSelectTrack!({ id }) })
+const selectFont = (id: string) => act(async () => { mocks.browser.current!.onSelectFont!({
+  id,
+  name: 'Neon Sans',
+  fileName: 'neon-sans.otf',
+  storagePath: `user/${id}/font.otf`,
+  mimeType: 'font/otf',
+  fileSize: 245_760,
+  createdAt: '2026-07-01T00:00:00.000Z',
+}) })
 const dialogButton = (label: string) =>
   [...document.querySelectorAll<HTMLButtonElement>('.dv-confirm-dialog button')].find(b => b.textContent?.trim() === label) ?? null
 const activeMediaId = () => mocks.browser.current!.activeMediaId as unknown as string | null
@@ -90,6 +99,19 @@ describe('Media Manager selection guard', () => {
     await selectMedia('db-1')
     await act(async () => { useMediaEditStore.getState().toggleFlip() })
     await selectTrack('track-1')
+    expect(activeMediaId()).toBe('db-1')
+    expect(document.querySelector('.dv-confirm-dialog')).not.toBeNull()
+  })
+
+  it('selects a font for the middle preview and guards unsaved media edits', async () => {
+    await renderView()
+    await selectFont('font-1')
+    expect(mocks.browser.current!.activeFontId).toBe('font-1')
+    expect(activeMediaId()).toBeNull()
+
+    await selectMedia('db-1')
+    await act(async () => { useMediaEditStore.getState().toggleFlip() })
+    await selectFont('font-2')
     expect(activeMediaId()).toBe('db-1')
     expect(document.querySelector('.dv-confirm-dialog')).not.toBeNull()
   })

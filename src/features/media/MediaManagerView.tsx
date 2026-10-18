@@ -18,6 +18,7 @@ import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
+import type { OscillatorFontAsset } from '../../components/vyzualz/react/ReactTypes'
 
 interface MediaManagerViewProps {
   onOpenLyricManager: (intent: LyricManagerNavigationIntent) => void
@@ -34,8 +35,9 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [selectedMediaId, setSelectedMediaId] = useState<string | null>(null)
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null)
+  const [selectedFont, setSelectedFont] = useState<OscillatorFontAsset | null>(null)
   // A selection that would replace unsaved edits waits here until the user decides.
-  const [pendingSelection, setPendingSelection] = useState<{ mediaId: string | null; trackId: string | null } | null>(null)
+  const [pendingSelection, setPendingSelection] = useState<{ mediaId: string | null; trackId: string | null; font: OscillatorFontAsset | null } | null>(null)
   const needsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
   // The Info tab owns the draft; the header's centre group owns the buttons that act on it.
   const [headerActions, setHeaderActions] = useState<MediaHeaderActions | null>(null)
@@ -44,26 +46,27 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   const selectedTrack = selectedTrackId ? savedTracks.find(track => track.id === selectedTrackId) ?? null : null
 
   /** Loads a selection and starts its edit session from a clean baseline. */
-  const commitSelection = useCallback((mediaId: string | null, trackId: string | null) => {
+  const commitSelection = useCallback((mediaId: string | null, trackId: string | null, font: OscillatorFontAsset | null) => {
     setSelectedMediaId(mediaId)
     setSelectedTrackId(trackId)
+    setSelectedFont(font)
     useMediaEditStore.getState().beginSession(mediaId)
   }, [])
 
-  const requestSelection = useCallback((mediaId: string | null, trackId: string | null) => {
+  const requestSelection = useCallback((mediaId: string | null, trackId: string | null, font: OscillatorFontAsset | null) => {
     const store = useMediaEditStore.getState()
     const sameMedia = mediaId !== null && mediaId === store.mediaId
     if (selectMediaEditNeedsGuard(store) && !sameMedia) {
-      setPendingSelection({ mediaId, trackId })
+      setPendingSelection({ mediaId, trackId, font })
       return
     }
-    commitSelection(mediaId, trackId)
+    commitSelection(mediaId, trackId, font)
   }, [commitSelection])
 
   // The edited item disappearing (deleted elsewhere) ends its session.
   useEffect(() => {
-    if (selectedMediaId && !selectedMedia) commitSelection(null, selectedTrackId)
-  }, [selectedMedia, selectedMediaId, selectedTrackId, commitSelection])
+    if (selectedMediaId && !selectedMedia) commitSelection(null, selectedTrackId, selectedFont)
+  }, [selectedFont, selectedMedia, selectedMediaId, selectedTrackId, commitSelection])
 
   // Leaving Media Manager for good drops the session; the navigation guard has already resolved any edits.
   useEffect(() => () => { useMediaEditStore.getState().endSession() }, [])
@@ -144,9 +147,11 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             />
             <MediaLibraryBrowser
               activeMediaId={selectedMediaId}
-              onSelect={id => requestSelection(id, null)}
+              onSelect={id => requestSelection(id, null, null)}
               activeTrackId={selectedTrackId}
-              onSelectTrack={track => requestSelection(null, track.id)}
+              onSelectTrack={track => requestSelection(null, track.id, null)}
+              activeFontId={selectedFont?.id ?? null}
+              onSelectFont={font => requestSelection(null, null, font)}
               context="manager"
               title="Media Library"
               hideInternalHeader
@@ -156,7 +161,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           </WorkspaceRail>
 
           <div className="mmv-stage-area" aria-label="Selected media preview">
-            <MediaManagerStage media={selectedMedia} track={selectedTrack} />
+            <MediaManagerStage media={selectedMedia} track={selectedTrack} font={selectedFont} />
           </div>
 
           <WorkspaceRail
@@ -169,7 +174,9 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             <MediaManagerInspector
               media={selectedMedia}
               track={selectedTrack}
-              onMediaCreated={id => commitSelection(id, null)}
+              font={selectedFont}
+              onMediaCreated={id => commitSelection(id, null, null)}
+              onFontRenamed={setSelectedFont}
               onHeaderActions={setHeaderActions}
             />
           </WorkspaceRail>
@@ -181,7 +188,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
         onProceed={() => {
           const next = pendingSelection
           setPendingSelection(null)
-          if (next) commitSelection(next.mediaId, next.trackId)
+          if (next) commitSelection(next.mediaId, next.trackId, next.font)
         }}
       />
     </main>

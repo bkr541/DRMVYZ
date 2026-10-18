@@ -27,6 +27,9 @@ vi.mock('../../../stores/audioStore', () => ({
   useAudioStore: (selector: (state: unknown) => unknown) => selector({ getSignedUrl: async () => null }),
 }))
 vi.mock('../hooks/useWaveformPeaks', () => ({ useWaveformPeaks: () => ({ peaks: null }) }))
+vi.mock('../react/useFontPreviewPreload', () => ({
+  useFontPreviewPreload: (assets: Array<{ id: string }>) => Object.fromEntries(assets.map(asset => [asset.id, 'ready'])),
+}))
 vi.mock('../transport/VzMiniWaveform', () => ({ VzMiniWaveform: () => null }))
 vi.mock('./MediaEditPreview', () => ({
   MediaEditPreview: (props: Record<string, unknown>) => { mocks.preview(props); return <canvas data-testid="edit-canvas" /> },
@@ -41,6 +44,7 @@ vi.mock('./MediaVideoTimeline', () => ({
 import { MediaManagerStage } from './MediaManagerStage'
 import { useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
+import type { OscillatorFontAsset } from '../react/ReactTypes'
 
 function media(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
   return {
@@ -74,6 +78,27 @@ afterEach(() => {
 })
 
 describe('Media Manager stage with the edit session', () => {
+  it('centers the selected font name in its uploaded typeface', async () => {
+    const font: OscillatorFontAsset = {
+      id: 'font-1',
+      name: 'Neon Sans',
+      fileName: 'neon-sans.otf',
+      fontFamilyName: 'Neon Sans',
+      storagePath: 'user/font-1/font.otf',
+      mimeType: 'font/otf',
+      fileSize: 245_760,
+      createdAt: '2026-07-01T00:00:00.000Z',
+    }
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => { root?.render(<MediaManagerStage media={null} track={null} font={font} />) })
+
+    const preview = container.querySelector<HTMLElement>('.mms-font-preview-text')
+    expect(preview?.textContent).toBe('Neon Sans')
+    expect(preview?.style.fontFamily).toContain('drmvyz-preview-font-1')
+  })
+
   it('shows untouched media directly, with no edit canvas', async () => {
     useMediaEditStore.getState().beginSession('db-1')
     await renderStage(media())

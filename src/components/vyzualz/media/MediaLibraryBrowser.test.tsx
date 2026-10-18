@@ -36,6 +36,10 @@ vi.mock('../../../lib/audioDb', () => ({
   listTrackAnalysisPayloads: mocks.listTrackAnalysisPayloads,
 }))
 
+vi.mock('../react/useFontPreviewPreload', () => ({
+  useFontPreviewPreload: (assets: Array<{ id: string }>) => Object.fromEntries(assets.map(asset => [asset.id, 'ready'])),
+}))
+
 vi.mock('../MediaUploadModal', () => ({
   MediaUploadModal: ({ editItem }: { editItem?: { id: string } }) => (
     <div data-testid={editItem ? 'media-edit-modal' : 'media-upload-modal'} />
@@ -138,6 +142,10 @@ function resetMocks() {
   }
   mocks.reactState = {
     canvasOrchestrationSettings: { mediaPools: [] },
+    oscillatorFontAssets: [],
+    fontsLoadState: 'loaded',
+    fontLoadError: null,
+    loadOscillatorFonts: vi.fn().mockResolvedValue(undefined),
     createCanvasMediaPool: vi.fn().mockReturnValue({ ok: false, code: 'invalid-pool-name', message: 'Enter a name for the CANVAS Media Pool.' }),
     deleteCanvasMediaPool: vi.fn(),
     addCanvasMediaToPool: vi.fn().mockReturnValue({ ok: true }),
@@ -550,6 +558,69 @@ describe('MediaLibraryBrowser capability boundaries', () => {
     expect(container?.textContent).toContain('No media available. Add files from Media Manager.')
     act(() => findButton('Open Media Manager')?.click())
     expect(onOpenMediaManager).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MediaLibraryBrowser manager: Fonts tab', () => {
+  it('loads and searches the users uploaded fonts in the manager rail', async () => {
+    const onSelectFont = vi.fn()
+    mocks.reactState.oscillatorFontAssets = [
+      {
+        id: 'font-1',
+        name: 'Neon Sans',
+        fontFamilyName: 'Neon Sans Display',
+        fileName: 'neon-sans.otf',
+        storagePath: 'user/font-1/font.otf',
+        mimeType: 'font/otf',
+        fileSize: 245_760,
+        createdAt: '2026-07-01T00:00:00.000Z',
+      },
+      {
+        id: 'font-2',
+        name: 'Mono Grid',
+        fileName: 'mono-grid.ttf',
+        storagePath: 'user/font-2/font.ttf',
+        mimeType: 'font/ttf',
+        fileSize: 102_400,
+        createdAt: '2026-07-02T00:00:00.000Z',
+      },
+    ]
+
+    await renderBrowser({
+      activeMediaId: null,
+      onSelect: vi.fn(),
+      onSelectFont,
+      activeFontId: 'font-1',
+      context: 'manager',
+      capabilities: MEDIA_MANAGER_CAPABILITIES,
+    })
+
+    act(() => findButton('Fonts')?.click())
+
+    expect(mocks.reactState.loadOscillatorFonts).toHaveBeenCalledTimes(1)
+    expect(container?.querySelector<HTMLInputElement>('[aria-label="Search fonts"]')?.placeholder).toBe('Search fonts…')
+    expect(container?.querySelectorAll('.vz-font-row')).toHaveLength(2)
+    expect(container?.textContent).toContain('Neon Sans')
+    expect(container?.textContent).toContain('Mono Grid')
+    expect(container?.querySelector<HTMLElement>('.vz-font-row-name')?.style.fontFamily).toContain('drmvyz-preview-font-1')
+    expect(container?.querySelector('.vz-font-row-sample')).toBeNull()
+    expect(container?.querySelector('.vz-font-row--active')).not.toBeNull()
+    expect(container?.querySelector('.vz-font-row')?.classList.contains('vz-track-row--list')).toBe(true)
+    expect(container?.querySelector('.vz-font-row--active')?.classList.contains('vz-track-row--active')).toBe(true)
+
+    act(() => container?.querySelector<HTMLButtonElement>('.vz-font-row')?.click())
+    expect(onSelectFont).toHaveBeenCalledWith(expect.objectContaining({ id: 'font-1', name: 'Neon Sans' }))
+
+    const search = container?.querySelector<HTMLInputElement>('[aria-label="Search fonts"]')
+    expect(search).not.toBeNull()
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(search, 'display')
+      search?.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(container?.querySelectorAll('.vz-font-row')).toHaveLength(1)
+    expect(container?.textContent).toContain('Neon Sans')
+    expect(container?.textContent).not.toContain('Mono Grid')
   })
 })
 

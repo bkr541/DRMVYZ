@@ -208,6 +208,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-marquee-theater",
+    "kind": "model",
+    "compression": "none",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/marquee-theater.glb",
+        "bytes": 1346448,
+        "triangles": 6152
+      }
+    },
+    "gpuBytes": {
+      "high": 11488533,
+      "medium": 11488533,
+      "low": 11488533
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

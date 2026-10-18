@@ -29,6 +29,7 @@ import { CINEMA2_SIXFOLD_PRESET_MANIFEST } from './Cinema2SixfoldPreset'
 import { CINEMA2_HYPNOTIZE_PRESET_MANIFEST } from './Cinema2HypnotizePreset'
 import { CINEMA2_STARTERS_PRESET_MANIFEST } from './Cinema2StartersPreset'
 import { CINEMA2_BWC_PRESET_MANIFEST } from './Cinema2BwcPreset'
+import { CINEMA2_MARQUEE_PRESET_MANIFEST } from './Cinema2MarqueePreset'
 
 /**
  * Single production registration seam for first-party native Cinema 2.0 presets.
@@ -103,6 +104,10 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_MAINFRAME_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_MARQUEE_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'keeper',

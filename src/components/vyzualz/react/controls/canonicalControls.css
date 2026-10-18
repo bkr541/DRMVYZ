@@ -412,6 +412,7 @@
 .dv-underline-tabs--scroll {
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
 }
 

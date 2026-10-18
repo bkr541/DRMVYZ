@@ -12,30 +12,52 @@ const mocks = vi.hoisted(() => ({
   saveMediaEdits: vi.fn(async () => true),
   removeItem: vi.fn(async () => true),
   updateSavedTrackMetadata: vi.fn(async () => true),
+  renameOscillatorFontAsset: vi.fn(async () => true),
+  updateOscillatorFontAssetMetadata: vi.fn(async () => true),
 }))
 vi.mock('../../../stores/mediaStore', () => ({
   useMediaStore: (selector: (state: unknown) => unknown) => selector({
-    saveMediaEdits: mocks.saveMediaEdits, removeItem: mocks.removeItem, collections: [], createCollection: async () => null,
+    saveMediaEdits: mocks.saveMediaEdits, removeItem: mocks.removeItem,
+    collections: [{ id: 'collection-1', name: 'Show Fonts' }], createCollection: async () => null,
   }),
 }))
 vi.mock('../../../stores/audioStore', () => ({
   useAudioStore: (selector: (state: unknown) => unknown) => selector({ updateSavedTrackMetadata: mocks.updateSavedTrackMetadata }),
 }))
+vi.mock('../../../stores/reactStore', () => ({
+  useReactStore: (selector: (state: unknown) => unknown) => selector({
+    renameOscillatorFontAsset: mocks.renameOscillatorFontAsset,
+    updateOscillatorFontAssetMetadata: mocks.updateOscillatorFontAssetMetadata,
+  }),
+}))
 
 import { MediaManagerInspector, type MediaHeaderActions } from './MediaManagerInspector'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import type { OscillatorFontAsset } from '../react/ReactTypes'
 
 const media = {
   id: 'db-1', name: 'a.png', type: 'image', url: 'x', thumbnailUrl: null, meta: '', favorite: false,
   mediaRole: 'other', tags: [], collectionIds: [], metadata: {},
 } as UploadedMedia
 const track = { id: 't-1', title: 'Song', artist: null, genre: null, bpm: null, musicalKey: null } as unknown as SavedAudioTrack
+const font: OscillatorFontAsset = {
+  id: 'font-1',
+  name: 'Neon Sans',
+  fontFamilyName: 'Neon Sans Display',
+  fileName: 'neon-sans.otf',
+  storagePath: 'user/font-1/font.otf',
+  mimeType: 'font/otf',
+  fileSize: 245_760,
+  createdAt: '2026-07-01T12:00:00.000Z',
+  tags: ['headline'],
+  collectionIds: ['collection-1'],
+}
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
-async function renderInspector(props: { media: UploadedMedia | null; track: SavedAudioTrack | null; onHeaderActions?: (actions: MediaHeaderActions | null) => void }) {
+async function renderInspector(props: { media: UploadedMedia | null; track: SavedAudioTrack | null; font?: OscillatorFontAsset | null; onFontRenamed?: (font: OscillatorFontAsset) => void; onHeaderActions?: (actions: MediaHeaderActions | null) => void }) {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -85,6 +107,28 @@ describe('Media Manager inspector tabs', () => {
     expect(container!.textContent).toContain('Track Details')
   })
 
+  it('shows the selected font metadata in the Info tab', async () => {
+    await renderInspector({ media: null, track: null, font })
+    expect(container!.textContent).toContain('Font Details')
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-name')?.value).toBe('Neon Sans')
+    expect(container!.querySelector('#mmi-font-family')).toBeNull()
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-file-name')?.value).toBe('neon-sans.otf')
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-format')?.value).toBe('font/otf')
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-file-size')?.value).toBe('240 KB')
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-uploaded')?.value).toBe('Jul 1, 2026')
+    expect(container!.querySelector('.mmi-font-meta-row')?.querySelectorAll('.rv-ctrl-row')).toHaveLength(3)
+    expect(container!.querySelector<HTMLInputElement>('#mmi-font-name')?.readOnly).toBe(false)
+    expect([...container!.querySelectorAll<HTMLInputElement>('[id^="mmi-font-"]:not(#mmi-font-name)')].every(input => input.readOnly)).toBe(true)
+    expect(container!.textContent).toContain('Tags & Collections')
+    expect(container!.textContent).toContain('headline')
+    expect(container!.textContent).toContain('Show Fonts')
+    expect(container!.querySelector('#mmi-tags')).not.toBeNull()
+    expect(container!.querySelector('[aria-label="Collections"]')).not.toBeNull()
+
+    await choose('Edit')
+    expect(container!.textContent).toContain('Fonts are viewed from the Info tab.')
+  })
+
   it('nothing selected shows the empty state in Info and a prompt in Edit', async () => {
     await renderInspector({ media: null, track: null })
     expect(container!.textContent).toContain('Select media from the library')
@@ -128,5 +172,33 @@ describe('Media Manager inspector header actions', () => {
     expect(latest?.onDelete).toBeNull()
     await act(async () => { latest?.onSave() })
     expect(mocks.updateSavedTrackMetadata).toHaveBeenCalledWith('t-1', expect.objectContaining({ title: 'Song' }))
+  })
+
+  it('publishes font details through Save Changes while keeping Delete disabled', async () => {
+    const published: Array<MediaHeaderActions | null> = []
+    const onFontRenamed = vi.fn()
+    await renderInspector({ media: null, track: null, font, onFontRenamed, onHeaderActions: actions => { published.push(actions) } })
+    const nameInput = container!.querySelector<HTMLInputElement>('#mmi-font-name')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(nameInput, 'My Headline Font')
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const tagInput = container!.querySelector<HTMLInputElement>('#mmi-tags')!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(tagInput, 'poster')
+      tagInput.dispatchEvent(new Event('input', { bubbles: true }))
+      tagInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    const latest = published[published.length - 1]
+    expect(latest?.onDelete).toBeNull()
+    await act(async () => { latest?.onSave(); await Promise.resolve() })
+    expect(mocks.updateOscillatorFontAssetMetadata).toHaveBeenCalledWith('font-1', {
+      name: 'My Headline Font',
+      tags: ['headline', 'poster'],
+      collectionIds: ['collection-1'],
+    })
+    expect(onFontRenamed).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'font-1', name: 'My Headline Font', tags: ['headline', 'poster'], collectionIds: ['collection-1'],
+    }))
   })
 })

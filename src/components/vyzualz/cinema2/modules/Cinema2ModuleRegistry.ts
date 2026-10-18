@@ -26,6 +26,7 @@ import { cinema2SixfoldNativeModuleDefinition } from './Cinema2SixfoldNativeModu
 import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNativeModule'
 import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeModule'
 import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
+import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -147,6 +148,10 @@ if (!depthRegistration.ok) {
 const mainframeRegistration = cinema2NativeModuleRegistry.register(cinema2MainframeNativeModuleDefinition)
 if (!mainframeRegistration.ok) {
   throw new Error(`Cinema 2.0 Mainframe native module registration failed: ${mainframeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+const marqueeRegistration = cinema2NativeModuleRegistry.register(cinema2MarqueeNativeModuleDefinition)
+if (!marqueeRegistration.ok) {
+  throw new Error(`Cinema 2.0 MARQUEE native module registration failed: ${marqueeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 const backstreetRegistration = cinema2NativeModuleRegistry.register(cinema2BackstreetNativeModuleDefinition)
