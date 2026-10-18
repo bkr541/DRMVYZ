@@ -1,5 +1,10 @@
 # Cinema 2.0 Legacy Preset Port Backlog
 
+> **Frozen historical backlog:** The owner has completed the native ports they
+> intend to carry forward. Remaining unchecked concepts are not new legacy
+> Cinema work. Their migrate-or-archive disposition is authoritative in
+> `src/components/vyzualz/cinema2/migration/Cinema2LegacyMigrationManifest.ts`.
+
 ## Purpose
 
 This document is the implementation and acceptance backlog for carrying the strongest ideas from the legacy Cinema catalog into native Cinema 2.0 presets.

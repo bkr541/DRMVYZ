@@ -35,6 +35,8 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinematic-worlds.md` | Cinematic Worlds configuration, renderer, camera direction, and lifecycle |
 | `docs/cinema/07-webgl-runtime-and-render-target-pool.md` | Cinema single-owner WebGL runtime, target pool, texture handles, and context recovery |
 | `docs/cinema/stage-23-retire-legacy-engine-identities.md` | Current Cinema public-engine retirement, legacy restore aliases, and remaining adapter debt |
+| `docs/cinema-legacy-engine-removal-plan.md` | Seven-phase tracker for migrating state, cutting over to Cinema 2.0, and removing the legacy Cinema engine |
+| `docs/cinema-legacy-engine-removal-inventory.md` | Phase 1 freeze boundary, deletion inventory, consumer ownership, source disposition authority, and persisted-data policy |
 | `docs/cinema2-say-it-preset-plan.md` | Current architecture, scope and staged implementation plan for the Cinema 2.0 SAY IT kinetic-type keeper preset |
 | `docs/cinema2-hypnotize-phase-a.md` | Hypnotize Phase A specification, Phase B Three.js environment, Phase C choreography, Phase D cinematic polish, and final technical-acceptance record |
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |

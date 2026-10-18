@@ -1,5 +1,11 @@
 # Cinema Stage 23: Retire legacy engine identities
 
+> **Legacy Cinema freeze:** The `cinema` engine is now in removal-only
+> maintenance. Do not add presets, features, runtime paths, or new consumers.
+> The current removal boundary and source dispositions are tracked in
+> `docs/cinema-legacy-engine-removal-plan.md` and
+> `docs/cinema-legacy-engine-removal-inventory.md`.
+
 Stage 23 makes Cinema the public home for the content formerly exposed as **Shader Pads** and **Cinematic Worlds**.
 
 ## Public engine contract

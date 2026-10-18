@@ -408,6 +408,20 @@ export {
   type Cinema2PresetDiagnostic,
   type Cinema2PresetDiagnosticSeverity,
 } from './presets/Cinema2PresetCompiler'
+export {
+  CINEMA2_LEGACY_CUSTOM_CONTENT_POLICY,
+  CINEMA2_LEGACY_ENGINE_IDS,
+  CINEMA2_LEGACY_SOURCE_MIGRATIONS,
+  cinema2LegacySourceKey,
+  resolveCinema2LegacySourceMigration,
+  type Cinema2LegacyEngineId,
+  type Cinema2LegacyMappedSource,
+  type Cinema2LegacyMigrationDestination,
+  type Cinema2LegacyRetiredSource,
+  type Cinema2LegacySourceAvailability,
+  type Cinema2LegacySourceEngineId,
+  type Cinema2LegacySourceMigration,
+} from './migration/Cinema2LegacyMigrationManifest'
 
 export {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
