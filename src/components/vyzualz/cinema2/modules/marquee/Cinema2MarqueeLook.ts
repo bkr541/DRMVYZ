@@ -13,21 +13,21 @@ export const MARQUEE_LOOK = Object.freeze({
   fixtureBase: Object.freeze({
     'marquee-front': 0.5, 'marquee-left': 0.5, 'marquee-right': 0.5, canopy: 0.5,
     'tower-left': 0.55, 'tower-right': 0.55, 'led-left': 0.35, 'led-right': 0.35,
-    'neon-red': 0.45, 'neon-amber': 0.45, 'neon-blue': 0.35,
+    'neon-red': 0.45, 'neon-amber': 0.45, 'neon-blue': 0.35, 'crowd-flash': 0,
   } as Readonly<Record<Cinema2MarqueeFixtureKind, number>>),
   fixturePeak: Object.freeze({
     'marquee-front': 3.0, 'marquee-left': 3.0, 'marquee-right': 3.0, canopy: 3.2,
     'tower-left': 3.2, 'tower-right': 3.2, 'led-left': 2.0, 'led-right': 2.0,
-    'neon-red': 1.5, 'neon-amber': 1.5, 'neon-blue': 1.1,
+    'neon-red': 1.5, 'neon-amber': 1.5, 'neon-blue': 1.1, 'crowd-flash': 9,
   } as Readonly<Record<Cinema2MarqueeFixtureKind, number>>),
   /** Fixture level = base + peak * gain^curve. A curve above 1 keeps mid-gain bulbs visibly dimmer than peak ones, so travelling patterns read instead of saturating to cream. */
   fixtureCurve: 1.8,
   /** Letterboard emission as a multiple of the texture's own colour (lettering stays dark). */
   signBase: 0.06,
-  signPeak: 0.2,
+  signPeak: 0.32,
   interiorEmission: 1.5,
   /** Image-based light level: low, so the facade is lit by the theater's own fixtures rather than by an even studio fill. */
-  environmentIntensity: 0.07,
+  environmentIntensity: 0.035,
   glassOpacity: 0.42,
   brickRelief: 2.2,
   brickNormalScale: 0.9,

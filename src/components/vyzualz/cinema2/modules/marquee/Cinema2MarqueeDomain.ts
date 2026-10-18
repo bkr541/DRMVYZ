@@ -32,6 +32,7 @@ export type Cinema2MarqueeFixtureKind =
   | 'neon-red'
   | 'neon-amber'
   | 'neon-blue'
+  | 'crowd-flash'
 
 export interface Cinema2MarqueeSignals {
   readonly overall: number
@@ -113,6 +114,7 @@ export function evaluateCinema2MarqueeFixture(
   const p = clamp01(address.progress)
   const row = clamp01(address.row)
   const energy = clamp01(0.38 * s.overall + 0.28 * s.bass + 0.18 * s.mid + 0.08 * s.high + 0.08 * s.significance)
+  if (address.kind === 'crowd-flash') return evaluateCinema2MarqueeCrowdFlash(address, frame)
   const marquee = address.kind.startsWith('marquee-')
   const tower = address.kind.startsWith('tower-')
   const led = address.kind.startsWith('led-')
@@ -170,6 +172,24 @@ export function evaluateCinema2MarqueeFixture(
   if (marquee) gain += 0.12 * e.beat + 0.18 * e.phrase
   gain += 0.28 * e.drop
   return clamp01(gain)
+}
+
+/**
+ * Paparazzi camera flashes. Pattern-independent: a flash pops when a music impulse lands and the camera's own (stable) draw says it is one of
+ * the cameras that fires on that kind of event, plus a sparse idle twinkle on the beat clock so the crowd is alive with no music at all.
+ */
+export function evaluateCinema2MarqueeCrowdFlash(
+  address: Readonly<Cinema2MarqueeFixtureAddress>,
+  frame: Readonly<Cinema2MarqueePerformanceFrame>,
+): number {
+  const { impulses: e, signals: s, beats } = frame
+  const seed = fract(Math.sin(address.progress * 91.7 + address.row * 37.3) * 43758.5453)
+  const seed2 = fract(seed * 7.13 + 0.31)
+  const seed3 = fract(seed * 3.71 + 0.67)
+  const idle = fract(beats * 0.5 + seed) < 0.06 ? 0.55 : 0
+  const pop = e.kick * (seed < 0.45 ? 1 : 0) + e.snare * (seed2 < 0.5 ? 1 : 0) + e.transient * (seed3 < 0.35 ? 0.9 : 0)
+    + e.beat * (seed < 0.18 ? 0.8 : 0) + e.drop * (seed2 < 0.8 ? 1 : 0) + e.downbeat * (seed3 < 0.4 ? 0.9 : 0)
+  return clamp01(idle + pop * (0.55 + 0.45 * clamp01(s.overall + 0.4)))
 }
 
 export function createCinema2MarqueePatternCycle(sample: (index: number) => number): readonly Cinema2MarqueePatternId[] {

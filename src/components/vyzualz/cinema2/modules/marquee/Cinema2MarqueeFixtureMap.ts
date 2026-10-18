@@ -59,6 +59,9 @@ export function classifyCinema2MarqueeNode(authoredName: string, materialName: s
   match = /^leds\.(left|right)\.r(\d+)\.c(\d+)$/.exec(authoredName)
   if (match) return fixture(match[1] === 'left' ? 'led-left' : 'led-right', 'cell', null, Number(match[2]), Number(match[3]))
 
+  match = /^crowd\.flash\.(\d+)$/.exec(authoredName)
+  if (match) return fixture('crowd-flash', 'camera', Number(match[1]))
+
   // Neon is recognised by its material, so a renamed tube is still controllable; LED cells are the only other neon-material meshes.
   const neon = /^mat\.neon_(red|amber|blue)$/.exec(materialName) ?? /^Neon · (red|amber|blue)$/.exec(materialName)
   if (neon) return fixture(`neon-${neon[1] as 'red' | 'amber' | 'blue'}`, 'tube')
@@ -88,7 +91,7 @@ export function marqueePerimeterProgress(part: string, index: number, counts: Re
 export function marqueeCreaseDegrees(materialName: string, authoredName = ''): number {
   if (/^(crown|neon|roof\.neon|tower\.-?\d+\.(fixture|housing))/.test(authoredName) || /rounded|arch|scallop|lens|glass/.test(authoredName)) return authoredName.startsWith('crown.') ? 75 : 180
   if (/incandescent|neon/i.test(materialName)) return 180
-  if (/velvet|curtain/i.test(materialName)) return 70
+  if (/velvet|curtain|carpet|crowd/i.test(materialName)) return 70
   if (/metal|brass|red_painted/i.test(materialName)) return 55
   return 38
 }

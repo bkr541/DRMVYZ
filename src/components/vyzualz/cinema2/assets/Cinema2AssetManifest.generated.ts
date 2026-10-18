@@ -216,14 +216,14 @@ export const CINEMA2_ASSET_RECORDS = [
     "files": {
       "high": {
         "url": "/cinema2/models/marquee-theater-v2.glb",
-        "bytes": 1162640,
-        "triangles": 59120
+        "bytes": 1455004,
+        "triangles": 84460
       }
     },
     "gpuBytes": {
-      "high": 19404289,
-      "medium": 19404289,
-      "low": 19404289
+      "high": 19565641,
+      "medium": 19565641,
+      "low": 19565641
     }
   },
   {

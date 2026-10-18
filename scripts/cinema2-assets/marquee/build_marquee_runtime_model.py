@@ -8,6 +8,8 @@ controller are unchanged; the deltas only strengthen architecture the approved r
   - the central roof stripes (thicker, blue centre with amber flanks as in the reference)
   - the tower panels (black behind the bulb lenses, larger lenses)
   - the entrance LED cells (larger, nearly touching round cells, on a black housing)
+  - a red carpet from the entrance doors toward the viewer, brass stanchions with red velvet rope, and a dark paparazzi crowd lining it
+    on both sides (every figure raises a camera toward the viewer; each camera has an addressable flash fixture, crowd.flash.NNN)
   - the forecourt (one continuous slab instead of slab + curb + lowered road; no hairline paving-joint rods and no pale reflection-lane slabs: hairlines 0.01 above the slab z-fight and tear the
     screen-space floor reflection, and wet reflections should read instead of a tile lattice)
 
@@ -428,6 +430,60 @@ for i in range(0):  # RUNTIME DELTA: paving-joint rods omitted
  zz=-1.7+i*.85;rod(f'ground.paving_joint.z{i:02d}',(-13.4,-.014,zz),(13.4,-.014,zz),.009,GROUT)
 # emphasize reflection strips as subtle mesh strips under facade (do not fake with full image)
 # RUNTIME DELTA: the V2 'reflection_receiving_lane' slabs are omitted; the runtime floor reflection supplies the wet-street read.
+
+
+# RUNTIME DELTA: red carpet, velvet ropes and a dark paparazzi crowd facing the viewer (+Z).
+CARPET=material('mat.red_carpet',(150,10,22),rough=.88)
+CARPET_TRIM=material('mat.carpet_gold_trim',(214,168,82),metal=.6,rough=.35)
+ROPE=material('mat.red_rope',(160,12,22),rough=.55)
+CROWD=material('mat.crowd_silhouette',(9,8,10),rough=.9)
+CROWD_GEAR=material('mat.crowd_camera',(22,22,27),metal=.55,rough=.28)
+CARPET_HALF=1.7
+box('carpet.runner',(0,.004,11.2),(CARPET_HALF*2,.03,25.6),CARPET)
+for side in (-1,1):
+ box(f'carpet.trim.{side}',(side*(CARPET_HALF-.04),.021,11.2),(.05,.012,25.6),CARPET_TRIM)
+# Brass stanchions and sagging red rope along both carpet edges.
+POSTS=[1.0+i*1.7 for i in range(9)]
+for side in (-1,1):
+ sx=side*(CARPET_HALF+.3)
+ for i,pz in enumerate(POSTS):
+  rod(f'carpet.post.{side}.{i}',(sx,0,pz),(sx,.95,pz),.028,BRASS,10)
+  sphere(f'carpet.post_cap.{side}.{i}',(sx,.98,pz),.05,BRASS,1)
+  if i+1<len(POSTS):
+   z2=POSTS[i+1];mid=(pz+z2)/2
+   tube(f'carpet.rope.{side}.{i}',[(sx,.88,pz),(sx,.80,pz+(z2-pz)*.25),(sx,.77,mid),(sx,.80,pz+(z2-pz)*.75),(sx,.88,z2)],.022,ROPE,6)
+# Paparazzi: four staggered rows on each side. One body mesh, one camera mesh and one flash sphere per figure.
+CR=random.Random(7711)
+def figure(idx,x,z,s):
+ parts=[]
+ def b(c,e):
+  m=trimesh.creation.box(extents=np.asarray(e)*s);T=np.eye(4);T[:3,3]=np.asarray(c)*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
+ def ball(c,r):
+  m=trimesh.creation.icosphere(subdivisions=1,radius=r*s);T=np.eye(4);T[:3,3]=np.asarray(c)*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
+ def limb(a,c,r):
+  a=np.asarray(a,float)*s;c=np.asarray(c,float)*s;d=c-a
+  m=trimesh.creation.cylinder(radius=r*s,height=np.linalg.norm(d),sections=6)
+  T=trimesh.geometry.align_vectors([0,0,1],d);T[:3,3]=(a+c)/2;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
+ b((0,.43,0),(.34,.86,.24))          # legs
+ b((0,1.12,0),(.50,.62,.28))         # torso
+ b((0,1.50,0),(.58,.12,.28))         # shoulders
+ ball((0,1.66,0),.125)               # head
+ for sx in (-1,1): limb((sx*.27,1.46,0),(sx*.09,1.62,.30),.05)  # arms raised to the camera
+ add(f'crowd.body.{idx:03d}',trimesh.util.concatenate(parts),CROWD)
+ gear=[]
+ m=trimesh.creation.box(extents=np.asarray((.20,.13,.12))*s);T=np.eye(4);T[:3,3]=np.asarray((0,1.64,.36))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ m=trimesh.creation.cylinder(radius=.052*s,height=.12*s,sections=10);T=trimesh.geometry.align_vectors([0,0,1],[0,0,1]);T[:3,3]=np.asarray((0,1.64,.47))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ add(f'crowd.camera.{idx:03d}',trimesh.util.concatenate(gear),CROWD_GEAR)
+ sphere(f'crowd.flash.{idx:03d}',(x,1.78*s,z+.36*s),.034*s,BULB_GLASS,1)
+idx=0
+for side in (-1,1):
+ for row in range(4):
+  base=2.55+row*.95
+  zs=4.6+(row%2)*.5  # RUNTIME DELTA: crowd starts beyond the canopy line so the entrance, LED panels and display windows stay visible
+  while zs<13.0:
+   jitter=CR.uniform(-.28,.28)
+   figure(idx,side*(base+jitter),zs+CR.uniform(-.2,.2),CR.uniform(.94,1.08))
+   idx+=1;zs+=CR.uniform(.8,1.15)
 
 # One main scene camera and named calibration records, camera proof after exporting.
 CAMERA={

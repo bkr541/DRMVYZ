@@ -11,6 +11,7 @@ import { mergeMarqueeParts, creaseNormals } from '../modules/marquee/Cinema2Marq
 import {
   CINEMA2_MARQUEE_ZERO_IMPULSES,
   CINEMA2_MARQUEE_ZERO_SIGNALS,
+  evaluateCinema2MarqueeCrowdFlash,
   type Cinema2MarqueeFixtureKind,
 } from '../modules/marquee/Cinema2MarqueeDomain'
 import { classifyCinema2MarqueeNode, marqueePerimeterProgress } from '../modules/marquee/Cinema2MarqueeFixtureMap'
@@ -20,7 +21,7 @@ import { CINEMA2_ASSET_RECORDS } from '../assets/Cinema2AssetManifest.generated'
 import { CINEMA2_MARQUEE_PRESET_MANIFEST } from '../presets/Cinema2MarqueePreset'
 
 const library = { THREE } as unknown as Cinema2ThreeLibrary
-const KINDS: readonly Cinema2MarqueeFixtureKind[] = ['marquee-front', 'marquee-left', 'marquee-right', 'canopy', 'tower-left', 'tower-right', 'led-left', 'led-right', 'neon-red', 'neon-amber', 'neon-blue']
+const KINDS: readonly Cinema2MarqueeFixtureKind[] = ['marquee-front', 'marquee-left', 'marquee-right', 'canopy', 'tower-left', 'tower-right', 'led-left', 'led-right', 'neon-red', 'neon-amber', 'neon-blue', 'crowd-flash']
 
 /** The shipped GLB, minus its embedded images (nothing here decodes textures), parsed with the real GLTFLoader. */
 async function loadShippedModel(): Promise<THREE.Group> {
@@ -74,6 +75,8 @@ describe('MARQUEE V2 fixture map', () => {
     expect(kindOf('neon.crown.blue.2', 'mat.neon_blue')).toBe('neon-blue')
     expect(kindOf('crown.layer.1.neon', 'mat.neon_amber')).toBe('neon-amber')
     expect(kindOf('marquee.front.frame.top.neon', 'mat.neon_red')).toBe('neon-red')
+    expect(kindOf('crowd.flash.017')).toBe('crowd-flash')
+    expect(kindOf('carpet.runner', 'mat.red_carpet')).toBe('static')
     expect(kindOf('marquee.front.TEXT_SURFACE')).toBe('sign')
     expect(kindOf('facade.brick_wall_front', 'mat.brick_textured')).toBe('static')
   })
@@ -123,6 +126,7 @@ describe('MARQUEE scene controller on the shipped V2 model', () => {
     const counts = controller.getFixtureCounts()
     expect(controller.getDiagnostics()).toEqual([])
     expect(counts).toMatchObject({ 'marquee-front': 90, 'marquee-left': 70, 'marquee-right': 70, canopy: 444, 'led-left': 171, 'led-right': 171 })
+    expect(counts['crowd-flash']).toBeGreaterThanOrEqual(60)
     expect(counts['tower-left']).toBe(counts['tower-right'])
     expect(counts['tower-left']).toBeGreaterThanOrEqual(90)
     for (const kind of ['neon-red', 'neon-amber', 'neon-blue']) expect(counts[kind]).toBeGreaterThan(3)
@@ -215,5 +219,31 @@ describe('MARQUEE shipped asset and preset', () => {
     const cameras = CINEMA2_MARQUEE_PRESET_MANIFEST.cameras ?? []
     expect(cameras.map(camera => camera.id)).toEqual(['marquee-hero-camera', 'marquee-left-three-quarter-camera', 'marquee-right-three-quarter-camera', 'marquee-low-canopy-camera'])
     expect(CINEMA2_MARQUEE_PRESET_MANIFEST.defaults?.camera?.$ref).toBe('marquee-hero-camera')
+  })
+})
+
+describe('MARQUEE paparazzi flashes', () => {
+  const flashes = Array.from({ length: 96 }, (_, i) => ({ kind: 'crowd-flash' as const, progress: i / 95, row: ((i * 37) % 96) / 95 }))
+  const at = (beats: number, impulses: Partial<typeof CINEMA2_MARQUEE_ZERO_IMPULSES>, overall = 0.6) => flashes.map(address => evaluateCinema2MarqueeCrowdFlash(address, {
+    pattern: 'opening-night', beats, patternBeats: beats,
+    signals: { ...CINEMA2_MARQUEE_ZERO_SIGNALS, overall }, impulses: { ...CINEMA2_MARQUEE_ZERO_IMPULSES, ...impulses },
+  }))
+
+  it('fires only a share of the crowd on a kick, more on a drop, and never all or none', () => {
+    const lit = (values: number[]) => values.filter(value => value > 0.3).length
+    const kick = lit(at(3.3, { kick: 1 }))
+    const drop = lit(at(3.3, { drop: 1 }))
+    expect(kick).toBeGreaterThan(10)
+    expect(kick).toBeLessThan(80)
+    expect(drop).toBeGreaterThan(kick)
+  })
+
+  it('twinkles sparsely with no music, and stays within 0..1', () => {
+    for (let beats = 0; beats < 8; beats += 0.37) {
+      const values = at(beats, {}, 0)
+      expect(Math.max(...values)).toBeLessThanOrEqual(1)
+      expect(values.filter(value => value > 0.3).length).toBeLessThan(25)
+    }
+    expect(Math.max(...Array.from({ length: 24 }, (_, i) => Math.max(...at(i * 0.25, {}, 0))))).toBeGreaterThan(0.3)
   })
 })

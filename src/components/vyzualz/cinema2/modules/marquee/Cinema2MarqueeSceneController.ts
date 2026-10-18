@@ -89,6 +89,7 @@ export class Cinema2MarqueeSceneController {
   private readonly groundMaterials: StandardMaterial[] = []
   private readonly interiorMaterials: StandardMaterial[] = []
   private readonly glassMaterials: StandardMaterial[] = []
+  private readonly carpetMaterials: { material: StandardMaterial; base: Rgb }[] = []
   private readonly allMeshes: ThreeNamespace.Mesh[] = []
   private readonly disposables: { dispose(): void }[] = []
   private readonly diagnostics: string[] = []
@@ -196,7 +197,7 @@ export class Cinema2MarqueeSceneController {
     const expectedMinimums: Readonly<Partial<Record<Cinema2MarqueeFixtureKind, number>>> = Object.freeze({
       'marquee-front': 80, 'marquee-left': 60, 'marquee-right': 60, canopy: 400,
       'tower-left': 90, 'tower-right': 90, 'led-left': 160, 'led-right': 160,
-      'neon-red': 8, 'neon-amber': 4, 'neon-blue': 4,
+      'neon-red': 8, 'neon-amber': 4, 'neon-blue': 4, 'crowd-flash': 40,
     })
     for (const [kind, minimum] of Object.entries(expectedMinimums) as [Cinema2MarqueeFixtureKind, number][]) {
       const count = this.families.get(kind)?.fixtures.length ?? 0
@@ -256,7 +257,7 @@ export class Cinema2MarqueeSceneController {
     for (const disposable of this.disposables) disposable.dispose()
     this.signs.clear()
     this.families.clear()
-    for (const list of [this.brickMaterials, this.curtainMaterials, this.groundMaterials, this.interiorMaterials, this.glassMaterials, this.allMeshes]) list.length = 0
+    for (const list of [this.brickMaterials, this.curtainMaterials, this.groundMaterials, this.interiorMaterials, this.glassMaterials, this.carpetMaterials, this.allMeshes]) list.length = 0
     this.disposables.length = 0
     this.originalMaterials.clear()
   }
@@ -265,6 +266,9 @@ export class Cinema2MarqueeSceneController {
   private categorise(materials: readonly StandardMaterial[]): void {
     for (const material of materials) {
       const name = material.name
+      if (/red_carpet|red_rope/i.test(name) && !this.carpetMaterials.some(entry => entry.material === material)) {
+        this.carpetMaterials.push({ material, base: [material.color.r, material.color.g, material.color.b] })
+      }
       const list = /brick/i.test(name) ? this.brickMaterials
         : /velvet|curtain/i.test(name) ? this.curtainMaterials
           : /pavement_polished|^Pavement/i.test(name) ? this.groundMaterials
@@ -414,6 +418,10 @@ export class Cinema2MarqueeSceneController {
       material.color.setRGB(Math.min(1.3, velvet[0]), Math.min(1.6, velvet[1]), Math.min(1.6, velvet[2]), THREE.SRGBColorSpace)
       material.roughness = 0.82
     }
+    // Carpet and rope follow Marquee Red: unchanged at the authored default, re-tinted when the palette changes.
+    for (const { material, base } of this.carpetMaterials) {
+      material.color.setRGB(Math.min(1, base[0] * velvet[0]), Math.min(1, base[1] * velvet[1]), Math.min(1, base[2] * velvet[2]), THREE.LinearSRGBColorSpace)
+    }
     for (const material of this.groundMaterials) {
       material.roughness = lerp(0.62, 0.22, clamp01(frame.reflection))
       material.metalness = lerp(0.04, 0.3, clamp01(frame.reflection))
@@ -555,6 +563,7 @@ function srgbToLinear(value: number): number {
 
 /** Colour each family emits. Bulbs follow Incandescent Gold, red trim and neon follow Marquee Red, the crown's blue follows Neon Blue, LEDs ramp between them. */
 function fixtureColor(kind: Cinema2MarqueeFixtureKind, colors: Cinema2MarqueeSceneFrame['colors'], height: number): Rgb {
+  if (kind === 'crowd-flash') return [1, 0.97, 0.9]
   if (kind === 'neon-blue') return colors.blue
   if (kind === 'neon-red') return colors.marquee
   if (kind === 'neon-amber') return mix(colors.incandescent, colors.marquee, 0.15)

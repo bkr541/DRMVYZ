@@ -51,7 +51,7 @@ interface StaticFrame {
   readonly trigger: Cinema2MarqueeTriggerId
   readonly text: Readonly<{ front: string; left: string; right: string }>
   readonly signIllumination: number
-  readonly zoneIntensity: Readonly<Record<'marquee-front' | 'marquee-left' | 'marquee-right' | 'canopy' | 'tower-left' | 'tower-right' | 'led-left' | 'led-right' | 'neon-red' | 'neon-amber' | 'neon-blue', number>>
+  readonly zoneIntensity: Readonly<Record<'marquee-front' | 'marquee-left' | 'marquee-right' | 'canopy' | 'tower-left' | 'tower-right' | 'led-left' | 'led-right' | 'neon-red' | 'neon-amber' | 'neon-blue' | 'crowd-flash', number>>
   readonly colors: Readonly<{ night: Rgb; marquee: Rgb; incandescent: Rgb; blue: Rgb; architecture: Rgb }>
   readonly reflection: number
 }
@@ -109,7 +109,7 @@ export function resolveCinema2MarqueeStaticFrame(parameters: Cinema2ModuleParame
       canopy: number(parameters, 'canopyIntensity', 0.72),
       'tower-left': towers, 'tower-right': towers,
       'led-left': leds, 'led-right': leds,
-      'neon-red': neon, 'neon-amber': neon, 'neon-blue': neon,
+      'neon-red': neon, 'neon-amber': neon, 'neon-blue': neon, 'crowd-flash': 1,
     }),
     colors: Object.freeze({
       night: color(parameters, 'nightColor', [0.012, 0.025, 0.034]),
