@@ -105,8 +105,10 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
   // The edit session is the single source of truth; the stage only reads it.
   const sessionMediaId = useMediaEditStore(state => state.mediaId)
   const sessionEdit = useMediaEditStore(state => state.edit)
+  const sessionBackgroundRemoval = useMediaEditStore(state => state.backgroundRemoval)
   const cropMode = useMediaEditStore(state => state.cropMode)
   const activeEdit = sessionMediaId === media.id ? sessionEdit : null
+  const activeBackgroundRemoval = sessionMediaId === media.id ? sessionBackgroundRemoval : null
   const [previewFault, setPreviewFault] = useState<string | null>(null)
   const [cropDraft, setCropDraft] = useState<MediaEditCrop>(() => createDefaultMediaEdit().crop)
 
@@ -120,6 +122,11 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
     setPreviewFault(null)
   }, [media.id])
 
+  useEffect(() => {
+    setImageError(false)
+    setPreviewFault(null)
+  }, [activeBackgroundRemoval?.url])
+
   // Entering crop mode starts the rectangle from the current crop, drawn on the oriented full frame.
   useEffect(() => {
     if (!cropMode || !activeEdit) return
@@ -129,8 +136,8 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
 
   const isVideo = media.type === 'video'
   // Media with transparency gets its checkerboard behind the picture only; the stage behind it is the same for everything.
-  const transparentClass = media.metadata?.hasAlpha === true ? ' mms-media--transparent' : ''
-  const src = media.url || null
+  const transparentClass = media.metadata?.hasAlpha === true || activeBackgroundRemoval ? ' mms-media--transparent' : ''
+  const src = activeBackgroundRemoval?.url || media.url || null
   const editing = activeEdit !== null && (cropMode || !isMediaEditNeutral(activeEdit))
   // Untouched media is shown directly; the GPU preview only takes over while an edit is active.
   const showEditPreview = editing && previewFault === null && Boolean(src)
@@ -205,8 +212,8 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
           />
         ) : imageError ? (
           <DrawerNotice tone="error" role="alert" title="Image unavailable">
-            {recovering ? 'Refreshing media link…' : 'Image could not be loaded'}{' '}
-            {!recovering && <IconChipButton onClick={() => { void recoverAsset() }}>Retry</IconChipButton>}
+            {recovering ? 'Refreshing media link…' : activeBackgroundRemoval ? 'The transparent preview could not be loaded' : 'Image could not be loaded'}{' '}
+            {!recovering && !activeBackgroundRemoval && <IconChipButton onClick={() => { void recoverAsset() }}>Retry</IconChipButton>}
           </DrawerNotice>
         ) : (
           <img
@@ -215,8 +222,11 @@ function VisualMediaStage({ media }: { media: UploadedMedia }) {
             alt={media.title ?? media.name}
             className={`mms-image${transparentClass}${sourceClass}`}
             crossOrigin="anonymous"
-            onLoad={() => markMediaAssetLoaded(media.id, 'original')}
-            onError={() => { setImageError(true); void recoverAsset() }}
+            onLoad={() => { if (!activeBackgroundRemoval) markMediaAssetLoaded(media.id, 'original') }}
+            onError={() => {
+              setImageError(true)
+              if (!activeBackgroundRemoval) void recoverAsset()
+            }}
           />
         )}
         {showEditPreview && activeEdit && !videoError && !imageError && (

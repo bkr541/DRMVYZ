@@ -15,7 +15,8 @@ const base = { width: 1920, height: 1080, quality: 'high', timeSec: 1.25, patter
 const motion = { 'marquee-camera-motion': 0 }
 const sets = {
   one: [{ name: '01-hero-production', ...base }],
-  floor: [0.5, 1.25, 2.6, 3.1, 4.4].map(t => ({ name: `floor-${t}`, ...base, timeSec: t })),
+  // Exercise the authored camera drift: the reflective plane must stay stable while both music and camera motion advance.
+  floor: [0.5, 1.25, 2.6, 3.1, 4.4].map(t => ({ name: `floor-${t}`, ...base, timeSec: t, params: { 'marquee-camera-motion': 0.18 } })),
   refl: [{ name: 'refl-95', ...base, params: { 'marquee-reflection': 0.95 } }],
   hero: [
     { name: '01-hero-production', ...base },

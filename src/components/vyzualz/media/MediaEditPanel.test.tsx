@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   replaceMediaContent: vi.fn(),
   uploadCanonicalVisualFile: vi.fn(),
   renderEditedMedia: vi.fn(),
+  removeImageBackground: vi.fn(),
 }))
 
 vi.mock('../../../stores/mediaStore', () => ({
@@ -27,6 +28,10 @@ vi.mock('../../../features/media/edit/mediaEditRender', async importOriginal => 
   const actual = await importOriginal<typeof import('../../../features/media/edit/mediaEditRender')>()
   return { ...actual, renderEditedMedia: mocks.renderEditedMedia }
 })
+
+vi.mock('../../../features/media/backgroundRemoval/removeImageBackground', () => ({
+  removeImageBackground: mocks.removeImageBackground,
+}))
 
 import { MediaEditPanel } from './MediaEditPanel'
 import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
@@ -83,9 +88,14 @@ async function click(target: HTMLElement | null) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:transparent-preview') })
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
   useMediaEditStore.getState().endSession()
   mocks.renderEditedMedia.mockResolvedValue({
     kind: 'image', blob: new Blob(['png'], { type: 'image/png' }), mimeType: 'image/png', extension: 'png', width: 800, height: 600, hasAlpha: false,
+  })
+  mocks.removeImageBackground.mockResolvedValue({
+    blob: new Blob(['transparent'], { type: 'image/png' }), width: 800, height: 600,
   })
   mocks.replaceMediaContent.mockResolvedValue({ ok: true, item: media() })
   mocks.uploadCanonicalVisualFile.mockResolvedValue({ ok: true, item: media({ id: 'db-2' }) })
@@ -118,6 +128,22 @@ describe('Edit tab', () => {
     }
     expect(button('Save')).not.toBeNull()
     expect(button('Save As')).not.toBeNull()
+    expect(button('Remove Background') !== null).toBe(item.type === 'image')
+  })
+
+  it('removes and restores an image background as part of the shared edit session', async () => {
+    await renderPanel()
+    await click(button('Remove Background'))
+    await flush()
+
+    expect(mocks.removeImageBackground).toHaveBeenCalledTimes(1)
+    expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(true)
+    expect(button('Save')!.disabled).toBe(false)
+    expect(button('Save As')!.disabled).toBe(false)
+
+    await click(button('Restore Background'))
+    expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
+    expect(button('Remove Background')).not.toBeNull()
   })
 
   it('places the groups and buttons in the specified reading order', async () => {

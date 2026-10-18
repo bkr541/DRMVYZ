@@ -20,7 +20,7 @@ Historical patch records are useful evidence, but they are not automatically cur
 | --- | --- |
 | **React** | Main VJ workspace with six visual engines, Track Map, performance controls, recording, and production output |
 | **Visualizer** | Classic modular spectrum, waveform, meter, and social-layout workspace |
-| **Media Manager** | Shared image, SVG, video, audio, and Brand Kit asset management |
+| **Media Manager** | Shared image, SVG, video, audio, and Brand Kit asset management, including offline image background removal |
 | **Lyric Manager** | Lyric extraction, timing, cue styling, editing, and preview |
 
 ## React View engines

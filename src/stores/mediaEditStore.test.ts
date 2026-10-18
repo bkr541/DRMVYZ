@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   replaceMediaContent: vi.fn(),
   uploadCanonicalVisualFile: vi.fn(),
   renderEditedMedia: vi.fn(),
+  removeImageBackground: vi.fn(),
 }))
 
 vi.mock('./mediaStore', () => ({
@@ -23,6 +24,10 @@ vi.mock('../features/media/edit/mediaEditRender', async importOriginal => {
   const actual = await importOriginal<typeof import('../features/media/edit/mediaEditRender')>()
   return { ...actual, renderEditedMedia: mocks.renderEditedMedia }
 })
+
+vi.mock('../features/media/backgroundRemoval/removeImageBackground', () => ({
+  removeImageBackground: mocks.removeImageBackground,
+}))
 
 import { createDefaultMediaEdit } from '../features/media/edit/mediaEditModel'
 import { selectMediaEditDirty, selectMediaEditNeedsGuard, useMediaEditStore } from './mediaEditStore'
@@ -55,6 +60,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.items = [media()]
   mocks.renderEditedMedia.mockResolvedValue(renderedImage())
+  mocks.removeImageBackground.mockResolvedValue({
+    blob: new Blob(['transparent'], { type: 'image/png' }), width: 800, height: 600,
+  })
   mocks.replaceMediaContent.mockResolvedValue({ ok: true, item: media() })
   mocks.uploadCanonicalVisualFile.mockResolvedValue({ ok: true, item: media({ id: 'db-2' }) })
   useMediaEditStore.getState().endSession()
@@ -133,9 +141,40 @@ describe('edit session state', () => {
     expect(store().mediaId).toBe('db-9')
     expect(selectMediaEditDirty(store())).toBe(false)
   })
+
+  it('treats a removed background as unsaved work and Reset restores the original', async () => {
+    store().beginSession('db-1')
+    await store().removeBackground()
+
+    expect(mocks.removeImageBackground).toHaveBeenCalledWith('https://signed/sunset.jpg', expect.any(AbortSignal))
+    expect(store().backgroundRemoval).toMatchObject({ width: 800, height: 600 })
+    expect(selectMediaEditDirty(store())).toBe(true)
+    expect(selectMediaEditNeedsGuard(store())).toBe(true)
+
+    store().discard()
+    expect(store().backgroundRemoval).toBeNull()
+    expect(selectMediaEditDirty(store())).toBe(false)
+  })
 })
 
 describe('Save', () => {
+  it('saves a background-removed image through the normal PNG replace path', async () => {
+    store().beginSession('db-1')
+    await store().removeBackground()
+    const transparentUrl = store().backgroundRemoval?.url
+    mocks.renderEditedMedia.mockResolvedValueOnce({ ...renderedImage(), hasAlpha: true })
+
+    expect(await store().save()).toEqual({ ok: true, mediaId: 'db-1' })
+    expect(mocks.renderEditedMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'image', url: transparentUrl, mimeType: 'image/png', hasAlpha: true }),
+      createDefaultMediaEdit(),
+      expect.anything(),
+    )
+    expect((mocks.replaceMediaContent.mock.calls[0]![1] as File).type).toBe('image/png')
+    expect(store().backgroundRemoval).toBeNull()
+    expect(selectMediaEditNeedsGuard(store())).toBe(false)
+  })
+
   it('renders the real edit and replaces the same item, then clears the dirty state', async () => {
     store().beginSession('db-1')
     store().setSlider('brightness', 25)
@@ -299,6 +338,25 @@ describe('Save', () => {
 })
 
 describe('Save As', () => {
+  it('uploads background-removed pixels as a new transparent PNG', async () => {
+    store().beginSession('db-1')
+    await store().removeBackground()
+    const transparentUrl = store().backgroundRemoval?.url
+    mocks.renderEditedMedia.mockResolvedValueOnce({ ...renderedImage(), hasAlpha: true })
+
+    expect(await store().saveAs('Cutout')).toEqual({ ok: true, mediaId: 'db-2' })
+    expect(mocks.renderEditedMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ url: transparentUrl, mimeType: 'image/png', hasAlpha: true }),
+      createDefaultMediaEdit(),
+      expect.anything(),
+    )
+    const [file] = mocks.uploadCanonicalVisualFile.mock.calls[0]!
+    expect((file as File).name).toBe('Cutout.png')
+    expect((file as File).type).toBe('image/png')
+    expect(store().mediaId).toBe('db-2')
+    expect(selectMediaEditDirty(store())).toBe(false)
+  })
+
   it('rejects a blank or invalid name without rendering anything', async () => {
     store().beginSession('db-1')
     store().setSlider('hue', 20)

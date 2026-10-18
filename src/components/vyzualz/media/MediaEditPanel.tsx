@@ -65,14 +65,14 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
   }
   if (!session) return <div className="mmi-body" aria-busy="true" />
 
-  const { edit, cropMode } = session
+  const { edit, backgroundRemoval, cropMode } = session
   const store = useMediaEditStore.getState()
   const working = busy !== 'idle'
   const disabled = working
   // Rotate / flip / mirror change the frame the crop rectangle is drawn on, so they wait for Apply or Cancel.
   const transformDisabled = working || cropMode
   const cropIsFull = mediaEditsEqual({ ...createDefaultMediaEdit(), crop: edit.crop }, createDefaultMediaEdit())
-  const canSave = dirty && !working && !cropMode && !isMediaEditNeutral(edit)
+  const canSave = dirty && !working && !cropMode && (backgroundRemoval !== null || !isMediaEditNeutral(edit))
 
   const renderSlider = ({ key, label, format }: SliderSpec) => {
     const range = MEDIA_EDIT_RANGES[key]
@@ -95,7 +95,9 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
 
   const progressLabel = busy === 'idle' || !progress
     ? null
-    : progress.stage === 'uploading'
+    : progress.stage === 'background-removal'
+      ? 'Removing image background locally…'
+      : progress.stage === 'uploading'
       ? 'Uploading edited media…'
       : progress.fraction !== null
         ? `Rendering video… ${Math.round(progress.fraction * 100)}%`
@@ -160,6 +162,26 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
           disabled={transformDisabled}
           onChange={() => store.toggleMirror()}
         />
+        {media.type === 'image' && (
+          <div className="rv-ctrl-row mmi-edit-action-row">
+            <span className="rv-ctrl-label-cluster">
+              <span className="rv-ctrl-label">Background</span>
+              <span className="rv-ctrl-description">Creates a transparent PNG locally.</span>
+            </span>
+            <span className="mmi-edit-actions">
+              <IconChipButton
+                disabled={transformDisabled}
+                tone={backgroundRemoval ? 'primary' : 'default'}
+                onClick={() => {
+                  if (backgroundRemoval) store.restoreBackground()
+                  else void store.removeBackground()
+                }}
+              >
+                {busy === 'removing-background' ? 'Removing…' : backgroundRemoval ? 'Restore Background' : 'Remove Background'}
+              </IconChipButton>
+            </span>
+          </div>
+        )}
       </Collapsible>
 
       <Collapsible label="Color" defaultOpen>
@@ -170,7 +192,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
         {DETAIL_SLIDERS.map(renderSlider)}
       </Collapsible>
 
-      {error && <DrawerNotice tone="error" role="alert" title="Save failed">{error}</DrawerNotice>}
+      {error && <DrawerNotice tone="error" role="alert" title="Edit failed">{error}</DrawerNotice>}
       {progressLabel && <div className="mmi-edit-progress" role="status" aria-live="polite">{progressLabel}</div>}
 
       <div className="mmi-actions mmi-actions--row">

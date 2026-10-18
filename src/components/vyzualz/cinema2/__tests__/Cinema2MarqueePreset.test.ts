@@ -62,6 +62,14 @@ describe('MARQUEE Cinema 2.0 preset', () => {
     expect(estimateCinema2MarqueeFontSize('A VERY LONG SHOW')).toBeLessThan(estimateCinema2MarqueeFontSize('SHOW'))
   })
 
+  it('keeps the virtual reflection and haze floors above the physical pavement to prevent depth banding', () => {
+    const floor = manifest.effects?.find(effect => effect.id === 'marquee-reflective-floor')
+    const haze = manifest.effects?.find(effect => effect.id === 'marquee-haze')
+    expect(floor?.parameters?.floorY).toBeCloseTo(-0.015)
+    expect(haze?.parameters).toMatchObject({ floorY: -0.015, mistFloor: -0.015 })
+    expect(Number(floor?.parameters?.floorY)).toBeGreaterThan(-0.025)
+  })
+
   it('ships seven spatially distinct lighting programs', () => {
     const addresses = [
       { kind: 'marquee-front' as const, progress: 0.2, row: 0.2 }, { kind: 'marquee-left' as const, progress: 0.7, row: 0.7 },

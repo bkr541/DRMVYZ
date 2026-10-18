@@ -9,7 +9,8 @@ controller are unchanged; the deltas only strengthen architecture the approved r
   - the tower panels (black behind the bulb lenses, larger lenses)
   - the entrance LED cells (larger, nearly touching round cells, on a black housing)
   - a red carpet from the entrance doors toward the viewer, brass stanchions with red velvet rope, and a dark paparazzi crowd lining it
-    on both sides (every figure raises a camera toward the viewer; each camera has an addressable flash fixture, crowd.flash.NNN)
+    on both sides (rounded, individually posed figures raise detailed cameras toward the viewer; each camera has an addressable flash
+    fixture, crowd.flash.NNN)
   - the forecourt (one continuous slab instead of slab + curb + lowered road; no hairline paving-joint rods and no pale reflection-lane slabs: hairlines 0.01 above the slab z-fight and tear the
     screen-space floor reflection, and wet reflections should read instead of a tile lattice)
 
@@ -452,29 +453,47 @@ for side in (-1,1):
   if i+1<len(POSTS):
    z2=POSTS[i+1];mid=(pz+z2)/2
    tube(f'carpet.rope.{side}.{i}',[(sx,.88,pz),(sx,.80,pz+(z2-pz)*.25),(sx,.77,mid),(sx,.80,pz+(z2-pz)*.75),(sx,.88,z2)],.022,ROPE,6)
-# Paparazzi: four staggered rows on each side. One body mesh, one camera mesh and one flash sphere per figure.
+# Paparazzi: four staggered rows on each side. Each rounded, subtly varied figure is still combined into one body mesh and one camera
+# mesh so the existing runtime batching and addressable flash nodes remain unchanged.
 CR=random.Random(7711)
 def figure(idx,x,z,s):
+ pose=random.Random(9017+idx)
  parts=[]
- def b(c,e):
-  m=trimesh.creation.box(extents=np.asarray(e)*s);T=np.eye(4);T[:3,3]=np.asarray(c)*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
- def ball(c,r):
-  m=trimesh.creation.icosphere(subdivisions=1,radius=r*s);T=np.eye(4);T[:3,3]=np.asarray(c)*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
- def limb(a,c,r):
+ def ellipsoid(c,radii,subdivisions=1,target=parts):
+  m=trimesh.creation.icosphere(subdivisions=subdivisions,radius=1);m.apply_scale(np.asarray(radii)*s)
+  T=np.eye(4);T[:3,3]=np.asarray(c)*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);target.append(m)
+ def limb(a,c,r,sections=8,target=parts):
   a=np.asarray(a,float)*s;c=np.asarray(c,float)*s;d=c-a
-  m=trimesh.creation.cylinder(radius=r*s,height=np.linalg.norm(d),sections=6)
-  T=trimesh.geometry.align_vectors([0,0,1],d);T[:3,3]=(a+c)/2;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);parts.append(m)
- b((0,.43,0),(.34,.86,.24))          # legs
- b((0,1.12,0),(.50,.62,.28))         # torso
- b((0,1.50,0),(.58,.12,.28))         # shoulders
- ball((0,1.66,0),.125)               # head
- for sx in (-1,1): limb((sx*.27,1.46,0),(sx*.09,1.62,.30),.05)  # arms raised to the camera
+  m=trimesh.creation.cylinder(radius=r*s,height=np.linalg.norm(d),sections=sections)
+  T=trimesh.geometry.align_vectors([0,0,1],d);T[:3,3]=(a+c)/2;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);target.append(m)
+ # Natural asymmetry keeps the rows from reading as copies while preserving the original footprint and height.
+ lean=pose.uniform(-.035,.035);stance=pose.uniform(.10,.16);depth=pose.uniform(-.025,.025)
+ for sx in (-1,1):
+  knee=(sx*(stance+pose.uniform(-.02,.02)),.46,depth+pose.uniform(-.035,.035))
+  ankle=(sx*(stance+pose.uniform(-.035,.035)),.09,pose.uniform(-.025,.045))
+  limb((sx*.105+lean,.93,0),knee,.075,9)
+  limb(knee,ankle,.063,9)
+  ellipsoid((ankle[0],.055,ankle[2]+.055),(.09,.052,.145),1)
+ ellipsoid((lean*.45,1.22,0),(.285,.405,.19),2)                 # jacketed torso
+ ellipsoid((lean*.65,1.49,.005),(.31,.105,.19),1)              # rounded shoulders
+ limb((lean*.7,1.49,0),(lean*.8,1.60,.005),.072,9)             # neck
+ ellipsoid((lean,1.72,.008),(.126,.145,.12),2)                 # head
+ # Bent upper arms and forearms meet two visible hands around the camera instead of forming rigid diagonal sticks.
+ for sx in (-1,1):
+  shoulder=(lean+sx*.265,1.48,0)
+  elbow=(lean+sx*pose.uniform(.27,.33),pose.uniform(1.49,1.56),pose.uniform(.12,.18))
+  hand=(lean+sx*pose.uniform(.075,.105),pose.uniform(1.62,1.67),pose.uniform(.29,.33))
+  limb(shoulder,elbow,.057,9);limb(elbow,hand,.050,9);ellipsoid(hand,(.058,.052,.052),1)
  add(f'crowd.body.{idx:03d}',trimesh.util.concatenate(parts),CROWD)
  gear=[]
- m=trimesh.creation.box(extents=np.asarray((.20,.13,.12))*s);T=np.eye(4);T[:3,3]=np.asarray((0,1.64,.36))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
- m=trimesh.creation.cylinder(radius=.052*s,height=.12*s,sections=10);T=trimesh.geometry.align_vectors([0,0,1],[0,0,1]);T[:3,3]=np.asarray((0,1.64,.47))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ camera_x=lean;camera_y=1.655;camera_z=.36
+ m=trimesh.creation.box(extents=np.asarray((.22,.135,.12))*s);T=np.eye(4);T[:3,3]=np.asarray((camera_x,camera_y,camera_z))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ # Lens barrel, top-mounted flash housing and a hanging neck strap give each camera a readable profile.
+ m=trimesh.creation.cylinder(radius=.056*s,height=.14*s,sections=12);T=np.eye(4);T[:3,3]=np.asarray((camera_x,camera_y,camera_z+.12))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ m=trimesh.creation.box(extents=np.asarray((.105,.07,.075))*s);T=np.eye(4);T[:3,3]=np.asarray((camera_x,camera_y+.105,camera_z-.005))*s;T[0,3]+=x;T[2,3]+=z;m.apply_transform(T);gear.append(m)
+ for sx in (-1,1): limb((camera_x+sx*.085,camera_y-.035,camera_z-.045),(lean+sx*.11,1.33,.12),.012,6,gear)
  add(f'crowd.camera.{idx:03d}',trimesh.util.concatenate(gear),CROWD_GEAR)
- sphere(f'crowd.flash.{idx:03d}',(x,1.78*s,z+.36*s),.034*s,BULB_GLASS,1)
+ sphere(f'crowd.flash.{idx:03d}',(x+camera_x*s,(camera_y+.105)*s,z+(camera_z+.04)*s),.034*s,BULB_GLASS,1)
 idx=0
 for side in (-1,1):
  for row in range(4):

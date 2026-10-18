@@ -195,6 +195,27 @@ describe('Media Manager stage with the edit session', () => {
     expect(container!.querySelector('img.mms-image')!.className).not.toContain('transparent')
   })
 
+  it('previews a session-local background removal as a transparent image source', async () => {
+    useMediaEditStore.getState().beginSession('db-1')
+    useMediaEditStore.setState({
+      backgroundRemoval: {
+        blob: new Blob(['transparent'], { type: 'image/png' }),
+        url: 'blob:background-removed',
+        width: 800,
+        height: 600,
+      },
+    })
+    await renderStage(media())
+
+    const image = container!.querySelector<HTMLImageElement>('img.mms-image')!
+    expect(image.getAttribute('src')).toBe('blob:background-removed')
+    expect(image.className).toContain('mms-media--transparent')
+
+    await act(async () => { useMediaEditStore.getState().setSlider('contrast', 20) })
+    expect(lastProps(mocks.preview).sourceKey).toBe('blob:background-removed')
+    expect(lastProps(mocks.preview).className).toContain('mms-media--transparent')
+  })
+
   it('ignores an edit session that belongs to a different item', async () => {
     useMediaEditStore.getState().beginSession('db-other')
     await act(async () => { useMediaEditStore.getState().setSlider('brightness', 50) })
