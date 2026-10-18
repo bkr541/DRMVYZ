@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from 'react'
+import { createContext, useCallback, useContext, useMemo } from 'react'
 import { create } from 'zustand'
 import type { AppPageId } from './pageActivityStore'
 import type { NoticeCardTone } from '../components/vyzualz/react/controls/NoticeCard'
@@ -131,6 +131,15 @@ export const NotificationPageContext = createContext<AppPageId | null>(null)
 export const NotificationPageProvider = NotificationPageContext.Provider
 export function useNotificationPage(): AppPageId | null {
   return useContext(NotificationPageContext)
+}
+
+/**
+ * `notify` bound to the page the calling component sits in, for shared components (library browser, dialogs) that
+ * appear on more than one page. Outside any page there is no drawer to post to, so the call does nothing.
+ */
+export function useNotifyCurrentPage(): (options: NotifyOptions) => void {
+  const page = useNotificationPage()
+  return useCallback((options: NotifyOptions) => { if (page) notify(page, options) }, [page])
 }
 
 /** Worst tone among a page's notices, for the bell's dot: errors outrank warnings; info and success do not flag. */

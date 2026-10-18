@@ -31,6 +31,10 @@ vi.mock('../../../features/media/edit/mediaEditRender', async importOriginal => 
 import { MediaEditPanel } from './MediaEditPanel'
 import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
+import { useNotificationStore } from '../../../stores/notificationStore'
+
+const cards = () => useNotificationStore.getState().events['media-manager']
+beforeEach(() => { useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, 'media-manager': [] } }) })
 
 function media(overrides: Partial<UploadedMedia> = {}): UploadedMedia {
   return {
@@ -213,6 +217,8 @@ describe('Save from the Edit tab', () => {
     expect(mocks.replaceMediaContent).toHaveBeenCalledWith('db-1', expect.any(File), expect.anything())
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
     expect(button('Save')!.disabled).toBe(true)
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Media saved', message: 'Your edits to "Sunset" were saved.' })
   })
 
   it('shows a useful error and stays dirty when saving fails', async () => {
@@ -224,6 +230,7 @@ describe('Save from the Edit tab', () => {
     expect(container!.querySelector('[role="alert"]')?.textContent).toContain('Storage permission denied')
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(true)
     expect(button('Save')!.disabled).toBe(false)
+    expect(cards()).toHaveLength(0)
   })
 })
 
@@ -285,6 +292,8 @@ describe('Save As dialog', () => {
     expect((mocks.uploadCanonicalVisualFile.mock.calls[0]![0] as File).name).toBe('Sunset Night.png')
     expect(mocks.replaceMediaContent).not.toHaveBeenCalled()
     expect(onMediaCreated).toHaveBeenCalledWith('db-2')
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Copy saved', message: 'Your edited copy "Sunset Night" was added to your media library.' })
     expect(document.querySelector('.dv-confirm-dialog')).toBeNull()
     expect(useMediaEditStore.getState().mediaId).toBe('db-2')
     expect(selectMediaEditDirty(useMediaEditStore.getState())).toBe(false)
@@ -298,6 +307,7 @@ describe('Save As dialog', () => {
     expect(document.querySelector('.dv-confirm-dialog')).not.toBeNull()
     expect(document.querySelector('.dv-confirm-dialog')?.textContent).toContain('Sign in to upload media.')
     expect(onMediaCreated).not.toHaveBeenCalled()
+    expect(cards()).toHaveLength(0)
     document.querySelector('.dv-confirm-backdrop')?.remove()
   })
 

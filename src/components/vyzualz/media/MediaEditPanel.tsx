@@ -18,6 +18,7 @@ import { mediaEditUnsupportedReason } from '../../../features/media/edit/mediaEd
 import { suggestEditedTitle } from '../../../features/media/edit/mediaEditOutput'
 import { selectMediaEditDirty, useMediaEditStore } from '../../../stores/mediaEditStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
+import { notify } from '../../../stores/notificationStore'
 
 interface SliderSpec {
   key: MediaEditSliderKey
@@ -53,6 +54,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
   const error = useMediaEditStore(state => state.error)
   const [savingAsOpen, setSavingAsOpen] = useState(false)
 
+  const displayName = media.title ?? media.name
   const unsupported = mediaEditUnsupportedReason(media)
   if (unsupported) {
     return (
@@ -172,7 +174,11 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
       {progressLabel && <div className="mmi-edit-progress" role="status" aria-live="polite">{progressLabel}</div>}
 
       <div className="mmi-actions mmi-actions--row">
-        <IconChipButton tone="primary" disabled={!canSave} onClick={() => { void store.save() }}>
+        <IconChipButton tone="primary" disabled={!canSave} onClick={() => {
+          void store.save().then(outcome => {
+            if (outcome.ok) notify('media-manager', { tone: 'success', title: 'Media saved', message: `Your edits to "${displayName}" were saved.` })
+          })
+        }}>
           {busy === 'saving' ? 'Saving…' : 'Save'}
         </IconChipButton>
         <IconChipButton disabled={!canSave} onClick={() => { store.clearError(); setSavingAsOpen(true) }}>
@@ -194,6 +200,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
               if (!outcome.ok) return
               setSavingAsOpen(false)
               onMediaCreated(outcome.mediaId)
+              notify('media-manager', { tone: 'success', title: 'Copy saved', message: `Your edited copy "${name.trim()}" was added to your media library.` })
             })
           }}
         />

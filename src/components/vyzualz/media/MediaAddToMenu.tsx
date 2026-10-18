@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
+import { useNotifyCurrentPage, type NotifyOptions } from '../../../stores/notificationStore'
 import { ContextMenuItemsList, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 
@@ -89,6 +90,26 @@ function AddToPickerPanel({
   )
 }
 
+/**
+ * The card for an "Add To" action. `inGroupBefore` / `inGroupAfter` count how many of the `total` targets were already in
+ * the Collection or Pool, and are in it now, so a repeat add reports "already there" and a failed write is not called a success.
+ */
+function describeAddToGroup(kind: 'Collection' | 'Pool', name: string, total: number, inGroupBefore: number, inGroupAfter: number): NotifyOptions {
+  const noun = (count: number) => `${count} media item${count === 1 ? '' : 's'}`
+  const added = inGroupAfter - inGroupBefore
+  if (inGroupAfter < total) {
+    return {
+      tone: 'error',
+      title: `Add to ${kind.toLowerCase()} incomplete`,
+      message: `${noun(Math.max(added, 0))} of ${total} ${added === 1 ? 'was' : 'were'} added to "${name}". Try adding the rest again.`,
+    }
+  }
+  if (added === 0) {
+    return { tone: 'info', title: `Already in ${kind.toLowerCase()}`, message: total === 1 ? `That media item is already in "${name}".` : `Those ${total} media items are already in "${name}".` }
+  }
+  return { tone: 'success', title: `Added to ${kind.toLowerCase()}`, message: `${noun(added)} ${added === 1 ? 'was' : 'were'} added to "${name}".` }
+}
+
 export function MediaAddToSubmenu({
   targetIds,
   onDone,
@@ -107,11 +128,20 @@ export function MediaAddToSubmenu({
     addCanvasMediaToPool: state.addCanvasMediaToPool,
   })))
 
+  const notifyPage = useNotifyCurrentPage()
   const [collectionError, setCollectionError] = useState<string | null>(null)
   const [poolError, setPoolError] = useState<string | null>(null)
 
-  const addToCollection = async (collectionId: string) => {
+  const collectionMemberCount = (collectionId: string, ids: string[]) => {
+    const items = useMediaStore.getState().items
+    return ids.filter(id => items.find(item => item.id === id)?.collectionIds.includes(collectionId)).length
+  }
+
+  const addToCollection = async (collectionId: string, collectionName?: string) => {
+    const name = collectionName ?? collections.find(collection => collection.id === collectionId)?.name ?? 'the collection'
+    const alreadyIn = collectionMemberCount(collectionId, targetIds)
     await addMediaToCollection(collectionId, targetIds)
+    notifyPage(describeAddToGroup('Collection', name, targetIds.length, alreadyIn, collectionMemberCount(collectionId, targetIds)))
     onDone()
   }
 
@@ -122,12 +152,15 @@ export function MediaAddToSubmenu({
       setCollectionError('Could not create collection.')
       return
     }
-    await addMediaToCollection(id, targetIds)
-    onDone()
+    notifyPage({ tone: 'success', title: 'Collection created', message: `"${name}" was added to your collections.` })
+    await addToCollection(id, name)
   }
 
   const addToPool = (poolId: string) => {
-    for (const mediaId of targetIds) addCanvasMediaToPool(poolId, mediaId)
+    const pool = mediaPools.find(candidate => candidate.id === poolId)
+    const alreadyIn = pool ? targetIds.filter(mediaId => pool.mediaIds.includes(mediaId)).length : 0
+    const failed = targetIds.filter(mediaId => !addCanvasMediaToPool(poolId, mediaId).ok).length
+    notifyPage(describeAddToGroup('Pool', pool?.name ?? 'the pool', targetIds.length, alreadyIn, targetIds.length - failed))
     onDone()
   }
 
@@ -138,7 +171,9 @@ export function MediaAddToSubmenu({
       setPoolError(result.message)
       return
     }
+    notifyPage({ tone: 'success', title: 'Pool created', message: `"${result.pool.name}" was added to your media pools.` })
     for (const mediaId of targetIds) addCanvasMediaToPool(result.pool.id, mediaId)
+    notifyPage(describeAddToGroup('Pool', result.pool.name, targetIds.length, 0, targetIds.length))
     onDone()
   }
 

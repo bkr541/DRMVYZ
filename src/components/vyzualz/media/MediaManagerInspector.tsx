@@ -213,7 +213,8 @@ function VisualMediaInspector({ media, onHeaderActions }: { media: UploadedMedia
       },
     })
     setSaving(false)
-    if (!saved) setError('Could not save changes. Try again.')
+    if (!saved) { setError('Could not save changes. Try again.'); return }
+    notify('media-manager', { tone: 'success', title: 'Media saved', message: `Changes to "${title.trim() || media.title || media.name}" were saved.` })
   }
 
   const handleConfirmDelete = async () => {
@@ -339,7 +340,8 @@ function AudioTrackInspector({ track, onHeaderActions }: { track: SavedAudioTrac
       musicalKey: musicalKey.trim() || null,
     })
     setSaving(false)
-    if (!saved) setError('Could not save changes. Try again.')
+    if (!saved) { setError('Could not save changes. Try again.'); return }
+    notify('media-manager', { tone: 'success', title: 'Track saved', message: `Changes to "${trimmedTitle}" were saved.` })
   }
 
   useHeaderActions(onHeaderActions, { save: () => { void handleSave() }, remove: null }, { saving, deleting: false })
@@ -412,6 +414,7 @@ function FontInspector({
       return
     }
     setName(nextName)
+    notify('media-manager', { tone: 'success', title: 'Font saved', message: `Changes to "${nextName}" were saved.` })
     onFontRenamed?.({ ...font, name: nextName, tags, collectionIds })
   }
 

@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
+import { NotificationPageProvider, useNotificationStore } from '../../../stores/notificationStore'
 
 const mocks = vi.hoisted(() => ({
   mediaState: {} as Record<string, unknown>,
@@ -16,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../../stores/mediaStore', () => ({
-  useMediaStore: () => mocks.mediaState,
+  useMediaStore: Object.assign(() => mocks.mediaState, { getState: () => mocks.mediaState }),
 }))
 
 vi.mock('../../../stores/audioStore', () => ({
@@ -147,7 +148,7 @@ function resetMocks() {
     fontLoadError: null,
     loadOscillatorFonts: vi.fn().mockResolvedValue(undefined),
     createCanvasMediaPool: vi.fn().mockReturnValue({ ok: false, code: 'invalid-pool-name', message: 'Enter a name for the CANVAS Media Pool.' }),
-    deleteCanvasMediaPool: vi.fn(),
+    deleteCanvasMediaPool: vi.fn().mockReturnValue({ ok: true }),
     addCanvasMediaToPool: vi.fn().mockReturnValue({ ok: true }),
     addCanvasPoolText: vi.fn().mockReturnValue({ ok: true }),
     updateCanvasPoolText: vi.fn().mockReturnValue({ ok: true }),
@@ -167,12 +168,16 @@ function resetMocks() {
   }
 }
 
+// Cards only post inside a page that has a Notifications drawer; most suites render the browser bare.
+let renderInMediaManagerPage = false
+
 async function renderBrowser(props: React.ComponentProps<typeof MediaLibraryBrowser>) {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   await act(async () => {
-    root?.render(<MediaLibraryBrowser {...props} />)
+    const browser = <MediaLibraryBrowser {...props} />
+    root?.render(renderInMediaManagerPage ? <NotificationPageProvider value="media-manager">{browser}</NotificationPageProvider> : browser)
     await Promise.resolve()
   })
 }
@@ -882,5 +887,131 @@ describe('MediaLibraryBrowser manager: Add To submenu', () => {
 
     expect(mocks.reactState.createCanvasMediaPool).toHaveBeenCalledWith('Encore')
     expect(mocks.reactState.addCanvasMediaToPool).toHaveBeenCalledWith('pool-new', 'media-1')
+  })
+})
+
+describe('MediaLibraryBrowser manager: success cards', () => {
+  const cards = () => useNotificationStore.getState().events['media-manager']
+  const menuItem = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')]
+    .find(button => button.textContent === label) ?? null
+  const pickerOption = (name: string) => [...document.querySelectorAll<HTMLElement>('.vz-add-to-picker__name')]
+    .find(span => span.textContent === name)?.closest<HTMLButtonElement>('.vz-add-to-picker__option') ?? null
+  const confirmDelete = async () => {
+    await act(async () => {
+      const dialog = container?.querySelector<HTMLElement>('.dv-confirm-dialog[role="alertdialog"]')
+      ;[...(dialog?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(button => button.textContent === 'Delete')?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+  }
+  const setInputValue = (input: HTMLInputElement, value: string) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  const openAddTo = async (submenu: 'Collection' | 'Pool') => {
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => container?.querySelector<HTMLElement>('.vz-media-card')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 50, clientY: 50 })))
+    act(() => menuItem('Add To')?.click())
+    act(() => menuItem(submenu)?.click())
+  }
+
+  beforeEach(() => {
+    renderInMediaManagerPage = true
+    useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, 'media-manager': [] } })
+  })
+  afterEach(() => { renderInMediaManagerPage = false })
+
+  it('confirms a deleted saved track', async () => {
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Audio Tracks')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('.vz-track-remove-btn')?.click())
+    await confirmDelete()
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Track deleted', message: '"Performance Track" was deleted from your audio library.' })
+  })
+
+  it('posts no card when the track could not be deleted', async () => {
+    mocks.audioState.removeSavedTrack = vi.fn().mockResolvedValue(false)
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Audio Tracks')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('.vz-track-remove-btn')?.click())
+    await confirmDelete()
+    expect(cards()).toHaveLength(0)
+  })
+
+  it('confirms a deleted collection, but not a failed delete', async () => {
+    mocks.mediaState.collections = [{ id: 'coll-1', name: 'Opening Set', description: '' }]
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Collections')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('[title="Delete collection"]')?.click())
+    await confirmDelete()
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Collection deleted', message: '"Opening Set" was deleted. Its media remains in your library.' })
+
+    mocks.mediaState.removeCollection = vi.fn().mockResolvedValue(false)
+    act(() => container?.querySelector<HTMLButtonElement>('[title="Delete collection"]')?.click())
+    await confirmDelete()
+    expect(cards()).toHaveLength(1)
+  })
+
+  it('confirms a deleted pool', async () => {
+    mocks.reactState.canvasOrchestrationSettings = { mediaPools: [{ id: 'pool-1', name: 'Warehouse Loop', mediaIds: [], textItems: [] }] }
+    mocks.reactState.deleteCanvasMediaPool = vi.fn().mockReturnValue({ ok: true })
+    await renderBrowser({ activeMediaId: null, onSelect: vi.fn(), context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES })
+    act(() => findButton('Pools')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('.vz-media-remove')?.click())
+    await confirmDelete()
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Pool deleted' })
+    expect(cards()[0]!.message).toContain('"Warehouse Loop"')
+  })
+
+  it('confirms media added to a collection, and says so when it was already there', async () => {
+    mocks.mediaState.collections = [{ id: 'coll-1', name: 'Opening Set' }]
+    mocks.mediaState.addMediaToCollection = vi.fn().mockImplementation(async () => {
+      mocks.mediaState.items = [{ ...visual, collectionIds: ['coll-1'] }]
+    })
+    await openAddTo('Collection')
+    await act(async () => { pickerOption('Opening Set')?.click(); await Promise.resolve() })
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Added to collection', message: '1 media item was added to "Opening Set".' })
+
+    act(() => root?.unmount()); container?.remove()
+    await openAddTo('Collection')
+    await act(async () => { pickerOption('Opening Set')?.click(); await Promise.resolve() })
+    expect(cards()[0]).toMatchObject({ tone: 'info', title: 'Already in collection' })
+  })
+
+  it('reports an incomplete add instead of a success when the write did not land', async () => {
+    mocks.mediaState.collections = [{ id: 'coll-1', name: 'Opening Set' }]
+    await openAddTo('Collection')
+    await act(async () => { pickerOption('Opening Set')?.click(); await Promise.resolve() })
+    expect(cards()[0]).toMatchObject({ tone: 'error', title: 'Add to collection incomplete' })
+  })
+
+  it('confirms a new collection and the media added to it', async () => {
+    mocks.mediaState.createCollection = vi.fn().mockResolvedValue('coll-new')
+    mocks.mediaState.addMediaToCollection = vi.fn().mockImplementation(async () => {
+      mocks.mediaState.items = [{ ...visual, collectionIds: ['coll-new'] }]
+    })
+    await openAddTo('Collection')
+    const input = document.querySelector<HTMLInputElement>('[aria-label="New Collection name"]')!
+    act(() => setInputValue(input, 'Encore'))
+    await act(async () => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await Promise.resolve(); await Promise.resolve() })
+    expect(cards().map(card => card.title)).toEqual(['Added to collection', 'Collection created'])
+    expect(cards()[0]!.message).toBe('1 media item was added to "Encore".')
+  })
+
+  it('confirms media added to a pool and a newly created pool', async () => {
+    mocks.reactState.canvasOrchestrationSettings = { mediaPools: [{ id: 'pool-1', name: 'Warehouse Loop', mediaIds: [], textItems: [] }] }
+    await openAddTo('Pool')
+    act(() => pickerOption('Warehouse Loop')?.click())
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Added to pool', message: '1 media item was added to "Warehouse Loop".' })
+
+    mocks.reactState.createCanvasMediaPool = vi.fn().mockReturnValue({ ok: true, pool: { id: 'pool-new', name: 'Encore', mediaIds: [] } })
+    act(() => root?.unmount()); container?.remove()
+    await openAddTo('Pool')
+    const input = document.querySelector<HTMLInputElement>('[aria-label="New Pool name"]')!
+    act(() => setInputValue(input, 'Encore'))
+    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    expect(cards().map(card => card.title)).toEqual(['Added to pool', 'Pool created', 'Added to pool'])
   })
 })

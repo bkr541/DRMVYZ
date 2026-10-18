@@ -41,7 +41,7 @@ import { ContextActionMenu } from '../context-menu/ContextActionMenu'
 import { MediaAddToSubmenu } from './MediaAddToMenu'
 import { AudioTrackCard } from './AudioTrackCard'
 import { trackInitials } from './trackInitials'
-import { notify } from '../../../stores/notificationStore'
+import { notify, useNotifyCurrentPage } from '../../../stores/notificationStore'
 import { createLyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyricNavigation'
 import { useFontPreviewPreload } from '../react/useFontPreviewPreload'
@@ -740,6 +740,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   })))
 
   const mediaPools = useReactStore(state => state.canvasOrchestrationSettings.mediaPools)
+  const notifyPage = useNotifyCurrentPage()
   const deleteCanvasMediaPool = useReactStore(state => state.deleteCanvasMediaPool)
   const createCanvasMediaPool = useReactStore(state => state.createCanvasMediaPool)
   const activeMediaPoolId = useReactStore(state => state.canvasOrchestrationSettings.activeMediaPoolId)
@@ -1012,8 +1013,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   const handleRemoveTrack = useCallback(async (track: SavedAudioTrack) => {
     const deleted = await removeSavedTrack(track.id)
-    if (deleted) engine.removeTrack(track.id)
-  }, [engine, removeSavedTrack])
+    if (deleted) {
+      engine.removeTrack(track.id)
+      notifyPage({ tone: 'success', title: 'Track deleted', message: `"${track.title || track.fileName}" was deleted from your audio library.` })
+    }
+  }, [engine, notifyPage, removeSavedTrack])
 
   useEffect(() => {
     if (previewItem) {
@@ -1165,12 +1169,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     })
   }, [removeItem])
 
-  const handleConfirmDeleteCollection = useCallback(async (id: string) => {
+  const handleConfirmDeleteCollection = useCallback(async (id: string, name: string) => {
     setDeletingCollection(true)
-    await removeCollection(id)
+    const deleted = await removeCollection(id)
     setDeletingCollection(false)
     setDeleteCollectionConfirm(null)
-  }, [removeCollection])
+    if (deleted) notifyPage({ tone: 'success', title: 'Collection deleted', message: `"${name}" was deleted. Its media remains in your library.` })
+  }, [notifyPage, removeCollection])
 
   const renderMediaCard = useCallback((media: UploadedMedia) => {
     const disabledReason = getDisabledReason?.(media) ?? null
@@ -1459,6 +1464,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     }
     setNewPoolDraft('')
     setNewPoolError(null)
+    notifyPage({ tone: 'success', title: 'Pool created', message: `"${result.pool.name}" was added to your media pools.` })
   }
 
   const renderPoolActiveToggle = (poolId: string, poolName: string) => {
@@ -1733,7 +1739,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           message={`Delete collection “${deleteCollectionConfirm.name}”? Media files will remain in the library.`}
           busy={deletingCollection}
           onCancel={() => setDeleteCollectionConfirm(null)}
-          onConfirm={() => { void handleConfirmDeleteCollection(deleteCollectionConfirm.id) }}
+          onConfirm={() => { void handleConfirmDeleteCollection(deleteCollectionConfirm.id, deleteCollectionConfirm.name) }}
         />
       )}
       {deletePoolConfirm && (
@@ -1741,7 +1747,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           title="Delete Pool"
           message={`Delete pool “${deletePoolConfirm.name}”? Media files will remain in the library.`}
           onCancel={() => setDeletePoolConfirm(null)}
-          onConfirm={() => { deleteCanvasMediaPool(deletePoolConfirm.id); setDeletePoolConfirm(null) }}
+          onConfirm={() => {
+            const result = deleteCanvasMediaPool(deletePoolConfirm.id)
+            if (result.ok) notifyPage({ tone: 'success', title: 'Pool deleted', message: `"${deletePoolConfirm.name}" was deleted. Its media remains in your library.` })
+            setDeletePoolConfirm(null)
+          }}
         />
       )}
       <div

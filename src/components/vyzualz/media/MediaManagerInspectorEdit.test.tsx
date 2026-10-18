@@ -3,7 +3,8 @@
 
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useNotificationStore } from '../../../stores/notificationStore'
 
 vi.mock('./MediaEditPanel', () => ({
   MediaEditPanel: ({ media }: { media: { id: string } }) => <div data-testid="edit-panel" data-media={media.id} />,
@@ -66,6 +67,14 @@ async function renderInspector(props: { media: UploadedMedia | null; track: Save
 const tab = (label: string) =>
   [...container!.querySelectorAll<HTMLElement>('[role="tab"]')].find(node => node.textContent?.trim() === label)!
 const choose = (label: string) => act(async () => { tab(label).click() })
+
+const cards = () => useNotificationStore.getState().events['media-manager']
+beforeEach(() => {
+  useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, 'media-manager': [] } })
+  mocks.saveMediaEdits.mockResolvedValue(true)
+  mocks.updateSavedTrackMetadata.mockResolvedValue(true)
+  mocks.updateOscillatorFontAssetMetadata.mockResolvedValue(true)
+})
 
 afterEach(() => {
   if (root) act(() => root?.unmount())
@@ -155,6 +164,8 @@ describe('Media Manager inspector header actions', () => {
     await act(async () => { latest()?.onSave() })
     expect(mocks.saveMediaEdits).toHaveBeenCalledTimes(1)
     expect(mocks.saveMediaEdits).toHaveBeenCalledWith('db-1', expect.objectContaining({ title: '' }))
+    expect(cards()).toHaveLength(1)
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Media saved', message: 'Changes to "a.png" were saved.' })
 
     await act(async () => { latest()?.onDelete?.() })
     expect(document.querySelector('.dv-confirm-dialog')).not.toBeNull()
@@ -172,6 +183,7 @@ describe('Media Manager inspector header actions', () => {
     expect(latest?.onDelete).toBeNull()
     await act(async () => { latest?.onSave() })
     expect(mocks.updateSavedTrackMetadata).toHaveBeenCalledWith('t-1', expect.objectContaining({ title: 'Song' }))
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Track saved', message: 'Changes to "Song" were saved.' })
   })
 
   it('publishes font details through Save Changes while keeping Delete disabled', async () => {
@@ -197,8 +209,25 @@ describe('Media Manager inspector header actions', () => {
       tags: ['headline', 'poster'],
       collectionIds: ['collection-1'],
     })
+    expect(cards()[0]).toMatchObject({ tone: 'success', title: 'Font saved', message: 'Changes to "My Headline Font" were saved.' })
     expect(onFontRenamed).toHaveBeenCalledWith(expect.objectContaining({
       id: 'font-1', name: 'My Headline Font', tags: ['headline', 'poster'], collectionIds: ['collection-1'],
     }))
+  })
+})
+
+describe('Media Manager inspector: no success card when a save fails', () => {
+  it('keeps the inline error and posts nothing for media, tracks and fonts', async () => {
+    mocks.saveMediaEdits.mockResolvedValue(false)
+    mocks.updateSavedTrackMetadata.mockResolvedValue(false)
+    mocks.updateOscillatorFontAssetMetadata.mockResolvedValue(false)
+    for (const props of [{ media, track: null }, { media: null, track }, { media: null, track: null, font }] as const) {
+      const published: Array<MediaHeaderActions | null> = []
+      await renderInspector({ ...props, onHeaderActions: actions => { published.push(actions) } })
+      await act(async () => { published[published.length - 1]?.onSave(); await Promise.resolve() })
+      expect(container!.textContent).toMatch(/Could not save/)
+      act(() => root?.unmount()); container?.remove(); root = null
+    }
+    expect(cards()).toHaveLength(0)
   })
 })

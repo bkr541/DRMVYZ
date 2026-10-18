@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { MediaCollection } from '../../../stores/mediaStore'
 import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
+import { useNotifyCurrentPage } from '../../../stores/notificationStore'
 
 export function CollectionEditorModal({ collection, onClose }: { collection?: MediaCollection; onClose: () => void }) {
   const createCollection = useMediaStore(state => state.createCollection)
   const updateCollection = useMediaStore(state => state.updateCollection)
   const loadError = useMediaStore(state => state.loadError)
   const clearLoadError = useMediaStore(state => state.clearLoadError)
+  const notifyPage = useNotifyCurrentPage()
   const [name, setName] = useState(collection?.name ?? '')
   const [description, setDescription] = useState(collection?.description ?? '')
   const [saving, setSaving] = useState(false)
@@ -39,7 +41,12 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
       ? await updateCollection(collection.id, name, description)
       : Boolean(await createCollection(name, description))
     setSaving(false)
-    if (succeeded) onClose()
+    if (!succeeded) return
+    const savedName = name.trim()
+    notifyPage(collection
+      ? { tone: 'success', title: 'Collection updated', message: `"${savedName}" was updated.` }
+      : { tone: 'success', title: 'Collection created', message: `"${savedName}" was added to your collections.` })
+    onClose()
   }
 
   return (
