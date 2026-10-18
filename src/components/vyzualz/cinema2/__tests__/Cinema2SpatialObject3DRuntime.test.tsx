@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type * as opentype from 'opentype.js'
 
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { CINEMA2_FULLSCREEN_SHADER_MODULE_TYPE_ID } from '../modules/Cinema2FullscreenShaderModule'
 import {
   CINEMA2_OBJECT3D_MODULE_TYPE_ID,

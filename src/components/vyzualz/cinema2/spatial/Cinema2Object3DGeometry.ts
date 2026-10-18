@@ -2,12 +2,12 @@ import type * as opentype from 'opentype.js'
 import {
   compileCinemaOpenTypeText,
   type CinemaOpenTypeTextTessellation,
-} from '../../cinema/CinemaOpenTypeTextGeometry'
+} from '../../shared/vectorGeometry/CinemaOpenTypeTextGeometry'
 import {
   compileCinemaSvgVector,
   type CinemaSvgVectorOptions,
-} from '../../cinema/CinemaSvgVectorGeometry'
-import type { CinemaVectorCpuMesh } from '../../cinema/CinemaVectorGeometry'
+} from '../../shared/vectorGeometry/CinemaSvgVectorGeometry'
+import type { CinemaVectorCpuMesh } from '../../shared/vectorGeometry/CinemaVectorGeometry'
 
 export interface Cinema2CompiledObject3DGeometry {
   key: string

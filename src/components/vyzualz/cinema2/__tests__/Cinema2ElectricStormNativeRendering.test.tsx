@@ -3,7 +3,7 @@
 import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../../../test/support/CinemaWebGLTestUtils'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'

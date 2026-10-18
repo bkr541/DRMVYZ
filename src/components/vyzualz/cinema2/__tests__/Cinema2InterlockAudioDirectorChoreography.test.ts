@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import type { MusicIntelligenceFrame } from '../../../../features/musicIntelligence/types'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2ChoreographyRuntime } from '../choreography/Cinema2ChoreographyRuntime'
 import { Cinema2VisualDirector } from '../director/Cinema2VisualDirector'

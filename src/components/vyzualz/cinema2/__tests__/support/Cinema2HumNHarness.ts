@@ -1,5 +1,5 @@
 import { vi, expect } from 'vitest'
-import { createCinemaMockWebGL } from '../../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../../test/support/CinemaWebGLTestUtils'
 import {
   CINEMA2_HUMN_PRESET_ID,
   Cinema2AudioIntelligenceBridge,

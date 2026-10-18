@@ -17,6 +17,11 @@ npm run cinema:legacy-boundary:check
 Any change that removes a legacy import must reduce that allowlist in the same
 patch. A new importer is a Phase 1 boundary violation.
 
+As of Phase 3, that check additionally enforces a hard invariant: no production
+or test file under `src/components/vyzualz/cinema2` may import anything from the
+legacy Cinema directory. The remaining external-import baseline is 24 files,
+all owned by later React-shell, migration, browser-harness, or deletion phases.
+
 ## Source disposition authority
 
 `src/components/vyzualz/cinema2/migration/Cinema2LegacyMigrationManifest.ts`
@@ -87,6 +92,26 @@ non-Cinema consumers:
 - `src/components/vyzualz/react/renderers/CinematicWorldRenderer.ts`;
 - `src/components/vyzualz/react/renderers/cinematic/**`;
 - Shader scene and Shader renderer modules used outside the Cinema adapters.
+
+### Phase 3 older-renderer audit
+
+Deletion of the older Cinematic Worlds renderer tree is **not approved as part
+of the legacy Cinema directory deletion**. The audit found active consumers
+outside `src/components/vyzualz/cinema`, including:
+
+- `CinematicPortalRenderer.ts`, which owns the still-present older portal
+  renderer registry/host path;
+- Music Intelligence publication tests that exercise
+  `cinematicInputFromReactFrame`;
+- Afterhours browser and perceptual-acceptance harnesses;
+- Cinematic world shader E2E coverage; and
+- the world implementations and their own lifecycle/settings tests.
+
+The reusable bounds/vector/anchor contracts those renderers shared with legacy
+Cinema now live under `src/components/vyzualz/shared/vectorGeometry`, so these
+consumers no longer force retention of legacy Cinema geometry. The renderer
+tree itself remains independently owned and must be retired only after its
+non-Cinema consumers are migrated or explicitly retired in a later phase.
 
 ## Consumers that must be migrated first
 

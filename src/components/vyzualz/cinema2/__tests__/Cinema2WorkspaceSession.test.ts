@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   CINEMA2_ELECTRIC_STORM_FLASH_DECAY_ID,
   CINEMA2_ELECTRIC_STORM_PRESET_ID,

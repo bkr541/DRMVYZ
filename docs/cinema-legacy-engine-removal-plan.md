@@ -18,7 +18,7 @@ discarded merely because the built-in presets have been ported.
 | Field | Value |
 | --- | --- |
 | Overall status | **In progress** |
-| Current phase | Phase 3 |
+| Current phase | Phase 4 |
 | Last updated | 2026-10-18 |
 | Target live engine | `cinema2` |
 | Legacy live engine | `cinema` |
@@ -40,7 +40,7 @@ discarded merely because the built-in presets have been ported.
 | --- | --- | --- | --- |
 | 1 | Freeze scope and build the migration manifest | **Complete** | None |
 | 2 | Establish Cinema 2.0 persistence and content parity | **Complete** | Phase 1 |
-| 3 | Decouple Cinema 2.0 from legacy Cinema | **Pending** | Phase 1 |
+| 3 | Decouple Cinema 2.0 from legacy Cinema | **Complete** | Phase 1 |
 | 4 | Migrate persisted state and cross-engine references | **Pending** | Phases 1-3 |
 | 5 | Cut over the application shell and runtime | **Pending** | Phase 4 |
 | 6 | Delete the legacy implementation and artifacts | **Pending** | Phase 5 |
@@ -269,7 +269,7 @@ Completed 2026-10-18.
 
 ## Phase 3: Decouple Cinema 2.0 from legacy Cinema
 
-**Status:** Pending
+**Status:** Complete
 
 ### Desired result
 
@@ -291,15 +291,15 @@ Cinema directory so that deleting the directory cannot break Cinema 2.0.
 
 ### Checklist
 
-- [ ] Relocate or replace reusable geometry contracts.
-- [ ] Update Cinema 2.0 production imports.
-- [ ] Relocate shared WebGL test infrastructure.
-- [ ] Update affected Cinema 2.0 tests.
-- [ ] Rewrite the legacy-dependent production-path test.
-- [ ] Audit older Cinematic Worlds renderers and adapters.
-- [ ] Add an automated dependency-boundary assertion.
-- [ ] Run the focused Cinema 2.0 runtime and geometry tests.
-- [ ] Record validation evidence below.
+- [x] Relocate or replace reusable geometry contracts.
+- [x] Update Cinema 2.0 production imports.
+- [x] Relocate shared WebGL test infrastructure.
+- [x] Update affected Cinema 2.0 tests.
+- [x] Rewrite the legacy-dependent production-path test.
+- [x] Audit older Cinematic Worlds renderers and adapters.
+- [x] Add an automated dependency-boundary assertion.
+- [x] Run the focused Cinema 2.0 runtime and geometry tests.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -308,7 +308,38 @@ production or test import from `src/components/vyzualz/cinema`.
 
 ### Evidence / notes
 
-_Pending._
+Completed 2026-10-18.
+
+- Vector mesh, SVG tessellation, OpenType tessellation, bounds, and world-object
+  anchor contracts now live under `src/components/vyzualz/shared/vectorGeometry`.
+  Legacy Cinema uses compatibility re-exports while it remains installed;
+  Cinema 2.0 and the older Cinematic Worlds renderer import shared ownership
+  directly.
+- The shared WebGL2/ResizeObserver test support now lives at
+  `src/test/support/CinemaWebGLTestUtils.ts`. All Cinema 2.0 tests import that
+  neutral module; the legacy test path is a temporary compatibility re-export.
+- `Cinema2ProductionPath.test.tsx` no longer imports or creates the legacy
+  Cinema foundation, store, workspace, frame bridge, or engine panel. It tests
+  engine selection and repeated ownership retirement against a neutral sibling
+  engine. All 7 production-path tests pass.
+- `scripts/check-cinema-legacy-boundary.mjs` now has an explicit zero-tolerance
+  assertion for imports from any Cinema 2.0 production or test file into the
+  legacy directory. The check passes with zero Cinema 2.0 importers and 24
+  remaining external importers owned by later phases.
+- The Cinematic Worlds audit is recorded in
+  `docs/cinema-legacy-engine-removal-inventory.md`. That renderer tree still has
+  non-Cinema production, browser, E2E, and test consumers, so it is retained as
+  an independently owned legacy renderer until those consumers are migrated or
+  explicitly retired. Its shared geometry contracts no longer depend on Cinema.
+- Focused runtime/geometry validation ran 68 tests across 9 files: 66 passed.
+  The passing set includes the production path, core Cinema 2.0 runtime, spatial
+  object runtime, and all relocated legacy vector/SVG/OpenType compatibility
+  tests. `Cinema2SpatialReferencePreset.test.ts` retains two unrelated existing
+  failures: a stale Inspector section expectation and a render-pass execution
+  expectation. The relocated WebGL helper is byte-identical to its previous
+  implementation, and the failures do not affect the dependency gate.
+- Focused ESLint passed with zero warnings or errors. A focused TypeScript pass
+  reported no diagnostics in any Phase 3 file. `git diff --check` passed.
 
 ---
 

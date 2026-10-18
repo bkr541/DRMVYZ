@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import type { Cinema2EffectId, Cinema2NativePresetManifest } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID,

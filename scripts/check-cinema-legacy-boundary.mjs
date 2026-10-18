@@ -5,50 +5,11 @@ import process from 'node:process'
 const repositoryRoot = process.cwd()
 const sourceRoot = path.join(repositoryRoot, 'src')
 const legacyRoot = path.join(sourceRoot, 'components', 'vyzualz', 'cinema')
+const cinema2Root = path.join(sourceRoot, 'components', 'vyzualz', 'cinema2')
 
 // Phase 1 baseline. Removing an importer requires updating this list in the same
 // change; adding an importer fails the check because legacy Cinema is frozen.
 const allowedExternalImporters = new Set([
-  'src/components/vyzualz/cinema2/__tests__/Cinema2AfterhoursNativeRendering.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2AfterhoursPreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2AmbientOcclusionAndAntiAliasing.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2AncientMachinePreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2CathedralPreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ConstellationPreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2DepthPreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2EffectRuntime.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ElectricStormNativeRendering.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2EventHorizonPreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2FinishAndFloor.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2HistoryService.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2HumNPreset.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2InspectorPanel.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2InterlockAudioDirectorChoreography.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2InterlockLiquidLight.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2InterlockNativeRendering.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2InterlockProductionPath.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2KeeperPresetFramework.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2LayerCompositingDepthFoundation.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2MediaSlotRuntime.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ModuleRuntime.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2PerformanceDiagnostics.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ProductionPath.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ReactorNativeRendering.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ReferenceVisual.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2RenderGraphExecutor.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2RenderQualityAndPool.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2ResourceManager.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2Runtime.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2Shadows.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2SpatialObject3DRuntime.test.tsx',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2SpatialReferencePreset.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2TextureAssets.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2Threshold.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2VolumetricAtmosphere.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/Cinema2WorkspaceSession.test.ts',
-  'src/components/vyzualz/cinema2/__tests__/support/Cinema2HumNHarness.ts',
-  'src/components/vyzualz/cinema2/spatial/Cinema2Object3DGeometry.ts',
-  'src/components/vyzualz/cinema2/spatial/Cinema2Object3DRenderer.ts',
   'src/components/vyzualz/react/CinemaAdvancedGraphEditor.tsx',
   'src/components/vyzualz/react/CinemaCanvas.tsx',
   'src/components/vyzualz/react/CinemaComposerPanel.tsx',
@@ -68,9 +29,6 @@ const allowedExternalImporters = new Set([
   'src/components/vyzualz/react/__tests__/finalReactEngineIntegrity.test.ts',
   'src/components/vyzualz/react/activeEnginePresetName.ts',
   'src/components/vyzualz/react/panels/ReactWorkspacePanels.tsx',
-  'src/components/vyzualz/react/renderers/CinematicWorldRenderer.ts',
-  'src/components/vyzualz/react/renderers/cinematic/worlds/OrbitalPrismArrayWorld.ts',
-  'src/components/vyzualz/react/renderers/cinematic/worlds/ReactiveConstellationWorld.ts',
   'src/components/vyzualz/react/useCinemaLegacyRetirement.ts',
   'src/components/vyzualz/react/useReactPresetAutomation.ts',
   'src/stores/reactStore.ts',
@@ -118,8 +76,16 @@ for (const file of sourceFiles(sourceRoot)) {
 
 const unexpected = [...actualImporters].filter(file => !allowedExternalImporters.has(file)).sort()
 const stale = [...allowedExternalImporters].filter(file => !actualImporters.has(file)).sort()
+const cinema2Importers = [...actualImporters].filter(file => {
+  const absolutePath = path.join(repositoryRoot, file)
+  return absolutePath === cinema2Root || absolutePath.startsWith(`${cinema2Root}${path.sep}`)
+}).sort()
 
-if (unexpected.length > 0 || stale.length > 0) {
+if (unexpected.length > 0 || stale.length > 0 || cinema2Importers.length > 0) {
+  if (cinema2Importers.length > 0) {
+    console.error('Cinema 2.0 must not import legacy Cinema code:')
+    for (const file of cinema2Importers) console.error(`  ! ${file}`)
+  }
   if (unexpected.length > 0) {
     console.error('Unexpected imports of frozen legacy Cinema code:')
     for (const file of unexpected) console.error(`  + ${file}`)

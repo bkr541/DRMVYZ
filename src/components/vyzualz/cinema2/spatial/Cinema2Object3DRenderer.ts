@@ -1,7 +1,7 @@
 import type { Cinema2Color, Cinema2Vector3 } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2Matrix4 } from '../scene/Cinema2SceneGraph'
 import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from './Cinema2LightingEnvironmentRuntime'
-import type { CinemaVectorCpuMesh } from '../../cinema/CinemaVectorGeometry'
+import type { CinemaVectorCpuMesh } from '../../shared/vectorGeometry/CinemaVectorGeometry'
 
 export interface Cinema2Object3DMaterial {
   color?: Cinema2Color

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { CINEMA2_AMBIENT_OCCLUSION_EFFECT_TYPE_ID, cinema2AmbientOcclusionEffectDefinition } from '../effects/Cinema2AmbientOcclusionEffect'
 import {
   CINEMA2_ANTI_ALIASING_EFFECT_TYPE_ID,

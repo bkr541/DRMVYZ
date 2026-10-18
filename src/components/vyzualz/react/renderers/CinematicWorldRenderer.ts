@@ -1,6 +1,8 @@
-import type { CinemaVector3 } from '../../cinema/CinemaDomain'
-import type { CinemaBounds3D } from '../../cinema/CinemaVectorGeometry'
-import type { CinemaWorld3DObjectAnchor } from '../../cinema/CinemaWorld3DObject'
+import type { CinemaBounds3D } from '../../shared/vectorGeometry/CinemaVectorGeometry'
+import type {
+  CinemaSpatialVector3 as CinemaVector3,
+  CinemaWorld3DObjectAnchor,
+} from '../../shared/vectorGeometry/CinemaSpatialGeometryContracts'
 import type { MusicIntelligenceFrame, SectionSource } from '../../../../features/musicIntelligence/types'
 import type {
   CinematicAudioTarget,

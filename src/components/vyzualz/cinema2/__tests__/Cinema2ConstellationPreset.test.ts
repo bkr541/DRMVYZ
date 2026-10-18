@@ -1,5 +1,5 @@
 import { describe,expect,it,vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { CINEMA2_CONSTELLATION_LOOKS,CINEMA2_CONSTELLATION_NATIVE_MODULE_TYPE_ID,Cinema2ConstellationProgramController,createCinema2ConstellationLookCycle } from '../modules/Cinema2ConstellationNativeModule'
 import { CINEMA2_CONSTELLATION_QUALITY_COUNTS } from '../modules/constellation/Cinema2ConstellationRenderer'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'

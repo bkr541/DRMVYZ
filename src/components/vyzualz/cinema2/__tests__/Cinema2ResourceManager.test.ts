@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   Cinema2ResourceManager,
   type Cinema2RenderTargetDescriptor,

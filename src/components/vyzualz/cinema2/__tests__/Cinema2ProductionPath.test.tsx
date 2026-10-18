@@ -9,9 +9,6 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
 import { useCinema2WorkspaceRestoreState } from '../../react/useCinema2WorkspaceRestoreState'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
-import { ReactEnginePanel } from '../../react/ReactEnginePanel'
-import { CinemaWorkspace } from '../../react/CinemaWorkspace'
-import { buildCinemaWorkspaceFrameBridge } from '../../react/CinemaWorkspaceFrameBridge'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
@@ -20,12 +17,7 @@ import {
   getDrmvyzWebGLContextDiagnosticsForTests,
   resetDrmvyzWebGLContextDiagnosticsForTests,
 } from '../../react/shaders/runtime/WebGLContextLifecycle'
-import {
-  CINEMA_FOUNDATION_COMPOSITION,
-  createCinemaFoundationPersistedState,
-} from '../../cinema/CinemaFoundation'
-import { useCinemaStore } from '../../cinema/CinemaStore'
-import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { CinemaResizeObserverMock, createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { getCinema2AudioIntelligenceBridgeDiagnostics } from '../audio/Cinema2AudioIntelligenceBridge'
 import { getCinema2RuntimeDiagnostics, type Cinema2Runtime } from '../runtime/Cinema2Runtime'
 import {
@@ -43,36 +35,16 @@ import {
 let root: Root | null = null
 let host: HTMLDivElement | null = null
 
-const productionFrameBridge = buildCinemaWorkspaceFrameBridge({
-  width: 1,
-  height: 1,
-  dpr: 1,
-  audioTimeSec: 0,
-  durationSec: null,
-  trackId: null,
-  playing: false,
-  paused: false,
-  bpm: null,
-  musicIntelligence: DEFAULT_MI_FRAME,
-})
-
 function ProductionSiblingHarness({ onCinema2RuntimeReady }: { onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void } = {}) {
   const engineId = useReactStore(state => state.activeReactEngineId)
-  const [cinema2Runtime, setCinema2Runtime] = React.useState<Cinema2Runtime | null>(null)
   const handleCinema2RuntimeReady = (runtime: Cinema2Runtime | null) => {
-    setCinema2Runtime(runtime)
     onCinema2RuntimeReady?.(runtime)
   }
   return (
     <>
       <ReactEngineBrowser />
-      {engineId === 'cinema' ? (
-        <CinemaWorkspace surface="stage" frameBridge={productionFrameBridge} />
-      ) : engineId === 'cinema2' ? (
-        <>
-          <Cinema2Stage onRuntimeReady={handleCinema2RuntimeReady} />
-          <ReactEnginePanel cinema2Runtime={cinema2Runtime} />
-        </>
+      {engineId === 'cinema2' ? (
+        <Cinema2Stage onRuntimeReady={handleCinema2RuntimeReady} />
       ) : (
         <div data-production-engine={engineId} />
       )}
@@ -88,24 +60,17 @@ function ProductionReentryHarness({
   onCinema2RuntimeReady?: (runtime: Cinema2Runtime | null) => void
 }) {
   const engineId = useReactStore(state => state.activeReactEngineId)
-  const [runtime, setRuntime] = React.useState<Cinema2Runtime | null>(null)
   const restoreState = useCinema2WorkspaceRestoreState(presetId)
   return (
     <>
       <ReactEngineBrowser />
       {engineId === 'cinema2' ? (
-        <>
-          <Cinema2Stage
-            presetId={presetId}
-            restoreState={restoreState}
-            onRuntimeReady={next => {
-              setRuntime(next)
-              onCinema2RuntimeReady?.(next)
-            }}
-            onRuntimeRetiring={state => cinema2WorkspaceSessionStore.storePresetState(state)}
-          />
-          <ReactEnginePanel cinema2Runtime={runtime} />
-        </>
+        <Cinema2Stage
+          presetId={presetId}
+          restoreState={restoreState}
+          onRuntimeReady={onCinema2RuntimeReady}
+          onRuntimeRetiring={state => cinema2WorkspaceSessionStore.storePresetState(state)}
+        />
       ) : <div data-production-engine={engineId} />}
     </>
   )
@@ -138,8 +103,7 @@ beforeEach(() => {
   cinema2WorkspaceSessionStore.reset()
   AudioFeatureBus.reset()
   useReactStore.getState().resetReactView()
-  useCinemaStore.getState().hydrateCinemaState(createCinemaFoundationPersistedState())
-  expect(useCinemaStore.getState().setActiveCinemaComposition(CINEMA_FOUNDATION_COMPOSITION.id).ok).toBe(true)
+  useReactStore.getState().selectReactEngine('oscilloscope')
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -159,7 +123,7 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 production sibling path', () => {
-  it('enters through the real engine selector and survives 24 Cinema 1 <-> Cinema 2.0 switches without resource growth', async () => {
+  it('enters through the real engine selector and survives 24 neutral-engine <-> Cinema 2.0 switches without resource growth', async () => {
     const initialDiagnostics = getCinema2RuntimeDiagnostics()
     const callbacks = new Map<number, FrameRequestCallback>()
     let nextRaf = 1
@@ -199,13 +163,11 @@ describe('Cinema 2.0 production sibling path', () => {
     })
 
     await act(async () => root?.render(<ProductionSiblingHarness onCinema2RuntimeReady={runtime => { activeCinema2RuntimeRef.current = runtime }} />))
-    expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
-    expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
-    expect(callbacks.size).toBe(1)
+    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
+    expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+    expect(callbacks.size).toBe(0)
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
-      activeEngine: 'cinema',
-      activeOwnerCount: 1,
-      phase: 'stable',
+      activeOwnerCount: 0,
     })
 
     const trigger = host?.querySelector<HTMLButtonElement>('.rv-engine-dropdown-trigger')
@@ -218,7 +180,6 @@ describe('Cinema 2.0 production sibling path', () => {
     expect(useReactStore.getState().activeReactEngineId).toBe('cinema2')
     expect(host?.querySelector('[data-cinema2-stage="runtime"]')).not.toBeNull()
     expect(host?.querySelector('[data-cinema2-output-canvas="true"]')).not.toBeNull()
-    expect(host?.querySelector('[data-cinema2-media-source="empty"]')).not.toBeNull()
     expect(contexts[contexts.length - 1]?.clearColor).toHaveBeenCalledWith(0, 0, 0, 1)
     expect(callbacks.size).toBe(1)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({
@@ -311,9 +272,9 @@ describe('Cinema 2.0 production sibling path', () => {
     const cinema2ContextWithTarget = contexts[contexts.length - 1]!
 
     for (let pass = 0; pass < 12; pass += 1) {
-      await act(async () => useReactStore.getState().selectReactEngine('cinema'))
-      expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
-      expect(callbacks.size).toBe(1)
+      await act(async () => useReactStore.getState().selectReactEngine('oscilloscope'))
+      expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+      expect(callbacks.size).toBe(0)
       expect(getCinema2RuntimeDiagnostics()).toMatchObject({
         activeRuntimeCount: 0,
         activeTargetResolverCount: 0,
@@ -333,8 +294,7 @@ describe('Cinema 2.0 production sibling path', () => {
         expect(cinema2ContextWithTarget.__calls.deletedFramebuffers).toBeGreaterThanOrEqual(1)
       }
       expect(getDrmvyzWebGLContextDiagnosticsForTests()).toMatchObject({
-        activeCount: 1,
-        activeLiveByEngine: { cinema: 1 },
+        activeCount: 0,
       })
 
       await act(async () => useReactStore.getState().selectReactEngine('cinema2'))
@@ -358,9 +318,9 @@ describe('Cinema 2.0 production sibling path', () => {
       })
     }
 
-    await act(async () => useReactStore.getState().selectReactEngine('cinema'))
-    expect(host?.querySelector('[data-cinema-output-canvas="true"]')).not.toBeNull()
-    expect(callbacks.size).toBe(1)
+    await act(async () => useReactStore.getState().selectReactEngine('oscilloscope'))
+    expect(host?.querySelector('[data-production-engine="oscilloscope"]')).not.toBeNull()
+    expect(callbacks.size).toBe(0)
     expect(getCinema2RuntimeDiagnostics()).toMatchObject({
       activeRuntimeCount: 0,
       activeTargetResolverCount: 0,
@@ -368,9 +328,8 @@ describe('Cinema 2.0 production sibling path', () => {
       activeEventListenerCount: 0,
       activeWebGLContextCount: 0,
     })
-    const retiredObservers = CinemaResizeObserverMock.instances.slice(0, -1)
-    expect(retiredObservers.length).toBeGreaterThanOrEqual(24)
-    expect(retiredObservers.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
+    expect(CinemaResizeObserverMock.instances.length).toBeGreaterThanOrEqual(13)
+    expect(CinemaResizeObserverMock.instances.every(observer => observer.disconnect.mock.calls.length === 1)).toBe(true)
 
     await act(async () => root?.unmount())
     root = null

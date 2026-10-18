@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   CINEMA2_REFERENCE_VISUAL_BLOOM_ENABLED_ID,
   CINEMA2_REFERENCE_VISUAL_OUTPUT_ENABLED_ID,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { createCinema2InspectorModel } from '../parameters/Cinema2InspectorModel'

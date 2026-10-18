@@ -5,7 +5,7 @@ import { useReactStore } from '../../../../stores/reactStore'
 import { ReactEngineBrowser } from '../../react/ReactEngineBrowser'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'
-import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL, CinemaResizeObserverMock } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,

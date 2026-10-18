@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import type { Cinema2ModuleRenderPassProvider } from '../modules/Cinema2ModuleContracts'
 import { CINEMA2_SHADOW_RESOLUTIONS, Cinema2ShadowService, fitLight } from '../runtime/Cinema2ShadowService'
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   CINEMA2_ELECTRIC_STORM_PRESET_ID,
   CINEMA2_QUALITY_MODE_PARAMETER_ID,

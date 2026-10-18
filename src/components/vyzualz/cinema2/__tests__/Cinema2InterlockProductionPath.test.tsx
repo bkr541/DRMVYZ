@@ -4,7 +4,7 @@ import React, { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createCinemaMockWebGL, CinemaResizeObserverMock, type CinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL, CinemaResizeObserverMock, type CinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { Cinema2InspectorPanel } from '../../react/Cinema2InspectorPanel'
 import { Cinema2PresetsPanel } from '../../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../../react/Cinema2Stage'

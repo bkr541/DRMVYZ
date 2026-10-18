@@ -1,26 +1,16 @@
 import type { CinemaVector3 } from './CinemaDomain'
-import { createCinemaObjectModelMatrix, type CinemaObject3DMaterial } from './CinemaObject3DRenderer'
+import { createCinemaObjectModelMatrix } from './CinemaObject3DRenderer'
 import type { Cinema3DObjectDefinition } from './Cinema3DObjectState'
 import type { CinemaBounds3D } from './CinemaVectorGeometry'
+import type {
+  CinemaWorld3DObjectAnchor,
+  CinemaWorld3DObjectNormalization,
+} from '../shared/vectorGeometry/CinemaSpatialGeometryContracts'
 
-export type CinemaWorld3DObjectNormalization =
-  | Readonly<{ mode: 'none' }>
-  | Readonly<{ mode: 'fit-max-dimension'; size: number }>
-
-export interface CinemaWorld3DObjectAnchor {
-  id: string
-  visible?: boolean
-  transform?: Readonly<{
-    position?: CinemaVector3
-    rotation?: CinemaVector3
-    scale?: CinemaVector3
-  }>
-  normalization?: CinemaWorld3DObjectNormalization
-  materialDefaults?: Readonly<CinemaObject3DMaterial>
-  /** Anchor-local point used for camera focus. Bounds center is used when omitted. */
-  focusAnchor?: CinemaVector3
-  framingPadding?: number
-}
+export type {
+  CinemaWorld3DObjectAnchor,
+  CinemaWorld3DObjectNormalization,
+} from '../shared/vectorGeometry/CinemaSpatialGeometryContracts'
 
 export interface CinemaWorld3DObjectPlacement {
   modelMatrix: Float32Array

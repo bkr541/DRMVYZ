@@ -1,4 +1,4 @@
-import type { CinemaWorld3DObjectAnchor } from '../../../../cinema/CinemaWorld3DObject'
+import type { CinemaWorld3DObjectAnchor } from '../../../../shared/vectorGeometry/CinemaSpatialGeometryContracts'
 import {
   resolveReactiveConstellationSettings,
   type ReactiveConstellationSettings,

@@ -1,5 +1,5 @@
 import { describe,expect,it,vi } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { CINEMA2_EVENT_HORIZON_LENSING_RESOLUTION } from '../effects/Cinema2EventHorizonLensingEffect'
 import { CINEMA2_EVENT_HORIZON_LOOKS,CINEMA2_EVENT_HORIZON_NATIVE_MODULE_TYPE_ID,Cinema2EventHorizonProgramController,createCinema2EventHorizonLookCycle } from '../modules/Cinema2EventHorizonNativeModule'
 import { CINEMA2_EVENT_HORIZON_QUALITY_COUNTS } from '../modules/eventHorizon/Cinema2EventHorizonRenderer'

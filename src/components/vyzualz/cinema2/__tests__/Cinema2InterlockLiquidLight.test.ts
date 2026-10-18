@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createCinemaMockWebGL, type CinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL, type CinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import {
   cinema2StableId,
   type Cinema2Color,

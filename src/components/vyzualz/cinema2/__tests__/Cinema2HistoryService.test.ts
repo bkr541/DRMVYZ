@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createCinemaMockWebGL } from '../../cinema/__tests__/CinemaWebGLTestUtils'
+import { createCinemaMockWebGL } from '../../../../test/support/CinemaWebGLTestUtils'
 import { cinema2NamespacedId, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
 import { Cinema2HistoryService } from '../runtime/Cinema2HistoryService'
 import { Cinema2ResourceManager } from '../runtime/Cinema2ResourceManager'
