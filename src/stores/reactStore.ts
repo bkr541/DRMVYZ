@@ -19,6 +19,17 @@ import {
   type HeadlinerSettings,
 } from '../components/vyzualz/react/headliner/HeadlinerSettings'
 import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
+import {
+  activateCinema2Workspace as activateCinema2WorkspaceDocument,
+  archiveLegacyCinemaDocument,
+  createEmptyCinema2WorkspaceDocument,
+  normalizeCinema2WorkspaceDocument,
+  storeCinema2WorkspacePresetState as storeCinema2WorkspacePresetDocumentState,
+  type Cinema2WorkspaceActivationRequest,
+  type Cinema2WorkspaceActivationResult,
+  type Cinema2WorkspaceDocument,
+  type Cinema2WorkspacePresetState,
+} from '../components/vyzualz/cinema2'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -2533,7 +2544,7 @@ interface CanvasShowManagerHistorySnapshot {
   canvasShowManagerEditingElementId: string | null
 }
 
-interface ReactStoreState {
+export interface ReactStoreState {
   activeReactPresetId: string | null
   activeReactEngineId: ReactEngineId
   reactPresets: ReactPreset[]
@@ -2545,6 +2556,12 @@ interface ReactStoreState {
   /** Persisted only until Stage 23 transfers legacy authored selection into canonical Cinema state. */
   pendingCinemaLegacySelectionMigration: CinemaLegacySelectionMigration | null
   completeCinemaLegacySelectionMigration: () => void
+
+  // Project-scoped Cinema 2.0 state. Live runtimes and GPU resources never enter persistence.
+  cinema2Workspace: Readonly<Cinema2WorkspaceDocument>
+  activateCinema2Workspace: (request: Readonly<Cinema2WorkspaceActivationRequest>) => Cinema2WorkspaceActivationResult
+  storeCinema2WorkspacePresetState: (state: Readonly<Cinema2WorkspacePresetState>) => void
+  archiveLegacyCinemaDocument: (legacyDocument: unknown, archivedAt?: string) => void
 
   // PixGrid compact, serializable authoring/runtime configuration.
   pixGridState: PixGridState
@@ -6068,6 +6085,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactEngineId:                persistedSelection.activeReactEngineId,
     headlinerSettings:                   normalizeHeadlinerSettings(s.headlinerSettings),
     pendingCinemaLegacySelectionMigration: s.pendingCinemaLegacySelectionMigration,
+    cinema2Workspace:                   normalizeCinema2WorkspaceDocument(s.cinema2Workspace),
     reactPresets:                       coherentReactPresets,
     pixGridState:                       coherentPixGridState,
     pixGridDecks:                       persistedDecks,
@@ -6144,6 +6162,7 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
 export const REACT_PROJECT_STATE_KEYS = [
   'headlinerSettings',
   'pendingCinemaLegacySelectionMigration',
+  'cinema2Workspace',
   'reactPresets',
   'pixGridState',
   'pixGridDecks',
@@ -6246,6 +6265,9 @@ export function mergeReactStoreState(
     ...persisted,
     reactPresets,
     headlinerSettings: normalizeHeadlinerSettings(persisted.headlinerSettings ?? currentState.headlinerSettings),
+    cinema2Workspace: normalizeCinema2WorkspaceDocument(
+      persisted.cinema2Workspace ?? currentState.cinema2Workspace,
+    ),
     performancePads,
     presetAutomationCuesByTrackId,
     cinematicConfigsByPresetId,
@@ -6585,6 +6607,18 @@ export const useReactStore = create<ReactStoreState>()(
       })),
       pendingCinemaLegacySelectionMigration: null,
       completeCinemaLegacySelectionMigration: () => set({ pendingCinemaLegacySelectionMigration: null }),
+      cinema2Workspace: createEmptyCinema2WorkspaceDocument(),
+      activateCinema2Workspace: (request) => {
+        const result = activateCinema2WorkspaceDocument(get().cinema2Workspace, request)
+        if (result.ok) set({ cinema2Workspace: result.document })
+        return result
+      },
+      storeCinema2WorkspacePresetState: (state) => set(current => ({
+        cinema2Workspace: storeCinema2WorkspacePresetDocumentState(current.cinema2Workspace, state),
+      })),
+      archiveLegacyCinemaDocument: (legacyDocument, archivedAt) => set(current => ({
+        cinema2Workspace: archiveLegacyCinemaDocument(current.cinema2Workspace, legacyDocument, archivedAt),
+      })),
       pixGridState: createDefaultPixGridState(),
       pixGridUndoStack: [],
       pixGridRedoStack: [],
@@ -12902,6 +12936,7 @@ export const useReactStore = create<ReactStoreState>()(
           return {
             ...repairedSelection,
             pendingCinemaLegacySelectionMigration: null,
+            cinema2Workspace: createEmptyCinema2WorkspaceDocument(),
             reactPresets: DEFAULT_REACT_PRESETS,
             pixGridState: createDefaultPixGridState(),
             pixGridUndoStack: [],
@@ -12978,6 +13013,7 @@ export const useReactStore = create<ReactStoreState>()(
           activeReactPresetId:          INITIAL_PRESET_ID,
           activeReactEngineId:          INITIAL_ENGINE_ID,
           pendingCinemaLegacySelectionMigration: null,
+          cinema2Workspace:             createEmptyCinema2WorkspaceDocument(),
           reactPresets:                 DEFAULT_REACT_PRESETS,
           pixGridState:                 createDefaultPixGridState(),
           pixGridUndoStack:             [],

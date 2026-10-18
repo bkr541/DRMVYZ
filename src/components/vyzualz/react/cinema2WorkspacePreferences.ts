@@ -1,11 +1,9 @@
 import type { Cinema2PresetId } from '../cinema2'
 
-// Persists only the last-selected Cinema 2.0 preset id across full page
-// reloads/app restarts (localStorage), distinct from cinema2WorkspaceSessionStore
-// (runtime/Cinema2WorkspaceSession.ts), which is an explicit in-memory,
-// session-lifetime owner of re-entry parameter/media state and deliberately
-// never persists to disk. This module follows the same guarded-localStorage
-// shape as reactWorkspacePreferences.ts.
+// Compatibility bootstrap for installs created before the versioned Cinema 2.0
+// workspace document existed. The project-scoped workspace in reactStore is now
+// authoritative; this guarded preference is used only when that document has no
+// active preset yet.
 
 const STORAGE_KEY = 'drmvyz:cinema2:last-preset:v1'
 

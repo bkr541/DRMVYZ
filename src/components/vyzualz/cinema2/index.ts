@@ -345,6 +345,30 @@ export {
 } from './runtime/Cinema2WorkspaceSession'
 
 export {
+  CINEMA2_DEFAULT_WORKSPACE_ACTIVATION,
+  CINEMA2_LEGACY_ARCHIVE_SCHEMA_ID,
+  CINEMA2_LEGACY_ARCHIVE_SCHEMA_VERSION,
+  CINEMA2_WORKSPACE_SCHEMA_ID,
+  CINEMA2_WORKSPACE_SCHEMA_VERSION,
+  activateCinema2Workspace,
+  archiveLegacyCinemaDocument,
+  createEmptyCinema2WorkspaceDocument,
+  exportCinema2LegacyArchive,
+  getCinema2WorkspacePresetState,
+  normalizeCinema2WorkspaceDocument,
+  parseCinema2WorkspaceDocument,
+  storeCinema2WorkspacePresetState,
+  type Cinema2LegacyArchive,
+  type Cinema2PersistedPresetState,
+  type Cinema2WorkspaceActivationRequest,
+  type Cinema2WorkspaceActivationResult,
+  type Cinema2WorkspaceDiagnostic,
+  type Cinema2WorkspaceDocument,
+  type Cinema2WorkspaceLookSelection,
+  type Cinema2WorkspaceParseResult,
+} from './runtime/Cinema2WorkspacePersistence'
+
+export {
   validateCinema2RenderTargetDescriptor,
   type Cinema2RenderTargetColorFormat,
   type Cinema2RenderTargetDepthFormat,

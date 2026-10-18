@@ -190,12 +190,9 @@ export function Cinema2Stage({
         transportSource,
       })
       if (!created.runtime && restoreState?.serializedParameterState != null) {
-        // The in-session captured parameter state (cinema2WorkspaceSessionStore)
-        // can go stale relative to the active preset's current schema — e.g. a
-        // parameter authored into that preset was since removed. Rather than
-        // leaving the Stage permanently unavailable over state that's only a
-        // same-session cache (not a saved show/project), discard it and retry
-        // once with the preset's authored defaults.
+        // Persisted state can go stale relative to the active preset's current
+        // schema. Keep the Stage available by retrying with authored defaults;
+        // the parser/activation API retains diagnostics for explicit callers.
         if (import.meta.env.DEV) {
           console.warn('[Cinema2Stage] discarding incompatible session parameter state and retrying with defaults:', created.error)
         }

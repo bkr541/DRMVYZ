@@ -73,7 +73,7 @@ import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
 import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   cinema2NativePresetRegistry,
-  cinema2WorkspaceSessionStore,
+  getCinema2WorkspacePresetState,
   type Cinema2PresetId,
   type Cinema2Runtime,
   type Cinema2RuntimeSnapshot,
@@ -81,7 +81,7 @@ import {
 } from '../cinema2'
 import { readCinema2LastPresetId, writeCinema2LastPresetId } from './cinema2WorkspacePreferences'
 import { useCinema2WorkspaceRestoreState } from './useCinema2WorkspaceRestoreState'
-import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
+import { getCinemaEditorSelection, snapshotCinemaPersistedState, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
 import { useCinemaLegacyRetirement } from './useCinemaLegacyRetirement'
@@ -260,6 +260,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridState,
     applyPixGridAuthoringState,
     selectSvgAsset,
+    cinema2Workspace,
+    activateCinema2Workspace,
+    storeCinema2WorkspacePresetState,
+    archiveLegacyCinemaDocument,
   } = useReactStore(
     useShallow((s) => ({
     reactPresets:           s.reactPresets,
@@ -304,6 +308,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridState:                  s.setPixGridState,
     applyPixGridAuthoringState:       s.applyPixGridAuthoringState,
     selectSvgAsset:                  s.selectSvgAsset,
+    cinema2Workspace:                s.cinema2Workspace,
+    activateCinema2Workspace:        s.activateCinema2Workspace,
+    storeCinema2WorkspacePresetState: s.storeCinema2WorkspacePresetState,
+    archiveLegacyCinemaDocument:     s.archiveLegacyCinemaDocument,
     })),
   )
   const bpmSync = useVisualStore((s) => s.bpmSync)
@@ -425,23 +433,31 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
   const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
   const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
-  const [cinema2PresetId, setCinema2PresetId] = useState<Cinema2PresetId>(() => {
-    const sessionPresetId = cinema2WorkspaceSessionStore.getActivePresetId()
-    if (sessionPresetId) return sessionPresetId
+  const [cinema2InitialPresetId] = useState<Cinema2PresetId>(() => {
     const lastPresetId = readCinema2LastPresetId()
     if (lastPresetId && cinema2NativePresetRegistry.has(lastPresetId)) return lastPresetId
     return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
   })
-  const cinema2RestoreState = useCinema2WorkspaceRestoreState(cinema2PresetId)
+  const cinema2PresetId = cinema2Workspace.activePresetId ?? cinema2InitialPresetId
+  const cinema2RestoreState = useCinema2WorkspaceRestoreState(
+    cinema2PresetId,
+    getCinema2WorkspacePresetState(cinema2Workspace, cinema2PresetId),
+    cinema2Workspace.activationRevision,
+  )
   const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
-    cinema2WorkspaceSessionStore.selectPreset(presetId)
+    const result = activateCinema2Workspace({ presetId })
+    if (!result.ok) return
     writeCinema2LastPresetId(presetId)
-    setCinema2PresetId(presetId)
-  }, [])
+  }, [activateCinema2Workspace])
   const handleCinema2RuntimeRetiring = useCallback((state: Readonly<Cinema2WorkspacePresetState>) => {
-    cinema2WorkspaceSessionStore.storePresetState(state)
-  }, [])
+    storeCinema2WorkspacePresetState(state)
+  }, [storeCinema2WorkspacePresetState])
+  useEffect(() => {
+    if (cinema2Workspace.activePresetId) return
+    const result = activateCinema2Workspace({ presetId: cinema2InitialPresetId })
+    if (result.ok) writeCinema2LastPresetId(cinema2InitialPresetId)
+  }, [activateCinema2Workspace, cinema2InitialPresetId, cinema2Workspace.activePresetId])
   const [canvasOutputCapability, setCanvasOutputCapability] = useState<CanvasOutputCapability>(CANVAS_OUTPUT_AVAILABLE)
   const outputCapability = activeReactEngineId === 'canvas'
     ? canvasOutputCapability
@@ -526,8 +542,55 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
-  const cinemaActiveCompositionId = useCinemaStore(state => state.activeCompositionId)
-  const cinemaEditorMetadata = useCinemaStore(state => state.editorMetadata)
+  const {
+    cinemaActiveCompositionId,
+    cinemaActiveInstanceId,
+    cinemaDefinitions,
+    cinemaCompositions,
+    cinemaInstances,
+    cinemaCollections,
+    cinemaEditorMetadata,
+    cinemaMigrationProvenance,
+    cinemaSchemaId,
+    cinemaSchemaVersion,
+  } = useCinemaStore(useShallow(state => ({
+    cinemaActiveCompositionId: state.activeCompositionId,
+    cinemaActiveInstanceId: state.activeInstanceId,
+    cinemaDefinitions: state.definitions,
+    cinemaCompositions: state.compositions,
+    cinemaInstances: state.instances,
+    cinemaCollections: state.collections,
+    cinemaEditorMetadata: state.editorMetadata,
+    cinemaMigrationProvenance: state.migrationProvenance,
+    cinemaSchemaId: state.schemaId,
+    cinemaSchemaVersion: state.schemaVersion,
+  })))
+  const cinemaLegacyArchiveSource = useMemo(() => snapshotCinemaPersistedState({
+    schemaId: cinemaSchemaId,
+    schemaVersion: cinemaSchemaVersion,
+    definitions: cinemaDefinitions,
+    compositions: cinemaCompositions,
+    instances: cinemaInstances,
+    collections: cinemaCollections,
+    activeCompositionId: cinemaActiveCompositionId,
+    activeInstanceId: cinemaActiveInstanceId,
+    editorMetadata: cinemaEditorMetadata,
+    migrationProvenance: cinemaMigrationProvenance,
+  }), [
+    cinemaActiveCompositionId,
+    cinemaActiveInstanceId,
+    cinemaCollections,
+    cinemaCompositions,
+    cinemaDefinitions,
+    cinemaEditorMetadata,
+    cinemaInstances,
+    cinemaMigrationProvenance,
+    cinemaSchemaId,
+    cinemaSchemaVersion,
+  ])
+  useEffect(() => {
+    archiveLegacyCinemaDocument(cinemaLegacyArchiveSource)
+  }, [archiveLegacyCinemaDocument, cinemaLegacyArchiveSource])
   const cinemaSelectedNodeId = useMemo(
     () => cinemaActiveCompositionId ? getCinemaEditorSelection(cinemaEditorMetadata, cinemaActiveCompositionId) : null,
     [cinemaActiveCompositionId, cinemaEditorMetadata],

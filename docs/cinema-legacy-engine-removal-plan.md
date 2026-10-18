@@ -18,7 +18,7 @@ discarded merely because the built-in presets have been ported.
 | Field | Value |
 | --- | --- |
 | Overall status | **In progress** |
-| Current phase | Phase 2 |
+| Current phase | Phase 3 |
 | Last updated | 2026-10-18 |
 | Target live engine | `cinema2` |
 | Legacy live engine | `cinema` |
@@ -39,7 +39,7 @@ discarded merely because the built-in presets have been ported.
 | Phase | Description | Status | Depends on |
 | --- | --- | --- | --- |
 | 1 | Freeze scope and build the migration manifest | **Complete** | None |
-| 2 | Establish Cinema 2.0 persistence and content parity | **Pending** | Phase 1 |
+| 2 | Establish Cinema 2.0 persistence and content parity | **Complete** | Phase 1 |
 | 3 | Decouple Cinema 2.0 from legacy Cinema | **Pending** | Phase 1 |
 | 4 | Migrate persisted state and cross-engine references | **Pending** | Phases 1-3 |
 | 5 | Cut over the application shell and runtime | **Pending** | Phase 4 |
@@ -181,7 +181,7 @@ Completed 2026-10-18.
 
 ## Phase 2: Establish Cinema 2.0 persistence and content parity
 
-**Status:** Pending
+**Status:** Complete
 
 ### Desired result
 
@@ -206,16 +206,16 @@ destinations that will be migrated away from legacy Cinema.
 
 ### Checklist
 
-- [ ] Define the versioned Cinema 2.0 persisted-state schema.
-- [ ] Implement safe parsing, migration, and fallback for that schema.
-- [ ] Persist required parameter and media state.
-- [ ] Implement the external Cinema 2.0 activation API.
-- [ ] Add project/package serialization support where required.
-- [ ] Implement the Phase 1 policy for custom compositions and instances.
-- [ ] Provide a recoverable archive/export path for non-translatable data.
-- [ ] Test application reload and project save/load round trips.
-- [ ] Test save and save-as behavior for migrated content.
-- [ ] Record validation evidence below.
+- [x] Define the versioned Cinema 2.0 persisted-state schema.
+- [x] Implement safe parsing, migration, and fallback for that schema.
+- [x] Persist required parameter and media state.
+- [x] Implement the external Cinema 2.0 activation API.
+- [x] Add project/package serialization support where required.
+- [x] Implement the Phase 1 policy for custom compositions and instances.
+- [x] Provide a recoverable archive/export path for non-translatable data.
+- [x] Test application reload and project save/load round trips.
+- [x] Test save and save-as behavior for migrated content.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -226,7 +226,44 @@ destinations that will be migrated away from legacy Cinema.
 
 ### Evidence / notes
 
-_Pending._
+Completed 2026-10-18.
+
+- `Cinema2WorkspacePersistence.ts` defines the versioned
+  `drmvyz.cinema2.workspace` schema, strict parser/fallback behavior, persistent
+  preset/look/parameter/media records, and an activation API that validates all
+  destinations through the native Cinema 2.0 registry.
+- The React project store now owns the Cinema 2.0 workspace document. It is part
+  of `REACT_PROJECT_STATE_KEYS`, so normal local persistence, project save/load,
+  duplication, and save-as structured-clone paths carry the same state.
+- Runtime retirement writes canonical parameter and media descriptors back to
+  the durable project document without retaining runtimes, GPU objects, or
+  transient animation/audio state. Explicit activations have a separate
+  revision so external same-preset activations can safely rebuild the Stage.
+- The stable `activateCinema2Workspace` API accepts a registered preset plus an
+  optional semantic look, parameter patch, and media patch. It is exposed both
+  as a pure API and as an atomic React-store action for later migration, pad,
+  automation, and track-section integration.
+- While the legacy store remains present, `ReactView` mirrors its complete
+  serializable document into a versioned `drmvyz.cinema2.legacy-archive` inside
+  project state. `exportCinema2LegacyArchive` provides a raw JSON recovery path;
+  project save/save-as also retains the archive automatically. This preserves
+  definitions, custom compositions, instances, collections, active IDs, editor
+  metadata, and migration provenance without attempting lossy translation.
+- `Cinema2WorkspacePersistence.test.ts` and
+  `cinema2WorkspacePersistence.test.ts`: 7 tests passed. Coverage includes all
+  mapped Phase 1 destinations, reload, preset/look/parameter/media round trips,
+  invalid-version fallback, invalid activation rejection, runtime-retirement
+  saves, project save/load, save-as cloning, atomic external activation, and
+  lossless archive export.
+- Focused ESLint passed with no errors. It reported one existing
+  `ReactView.tsx` exhaustive-deps warning unrelated to Phase 2.
+- A focused TypeScript pass reported no errors in any Phase 2 file.
+- `Cinema2ProductionPath.test.tsx` remains red on five pre-existing harness
+  failures because `ReactEnginePanel` is rendered without its required
+  `AudioEngineProvider`; its two provider-independent tests pass. The existing
+  `Cinema2WorkspaceSession.test.ts` also has one stale expectation (`1.37`) for
+  a Reactor value now normalized to `1.1`. Neither failure is caused by the
+  Phase 2 persistence path, and neither check was rerun.
 
 ---
 

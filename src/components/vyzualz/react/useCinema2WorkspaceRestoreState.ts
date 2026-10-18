@@ -7,6 +7,7 @@ import {
 
 interface Cinema2RestoreActivation {
   presetId: Cinema2PresetId
+  activationRevision: number
   state: Readonly<Cinema2WorkspacePresetState> | null
 }
 
@@ -20,12 +21,18 @@ interface Cinema2RestoreActivation {
  */
 export function useCinema2WorkspaceRestoreState(
   presetId: Cinema2PresetId,
+  persistedState?: Readonly<Cinema2WorkspacePresetState> | null,
+  activationRevision = 0,
 ): Readonly<Cinema2WorkspacePresetState> | null {
   const activationRef = useRef<Cinema2RestoreActivation | null>(null)
-  if (activationRef.current?.presetId !== presetId) {
+  if (activationRef.current?.presetId !== presetId
+    || activationRef.current.activationRevision !== activationRevision) {
     activationRef.current = {
       presetId,
-      state: cinema2WorkspaceSessionStore.getPresetState(presetId),
+      activationRevision,
+      state: persistedState === undefined
+        ? cinema2WorkspaceSessionStore.getPresetState(presetId)
+        : persistedState,
     }
   }
   return activationRef.current.state
