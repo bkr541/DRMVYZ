@@ -22,6 +22,9 @@ import {
 } from '../laserDmxBeamMatrixCoordinates'
 import { LASER_DMX_MATRIX_COLUMNS, LASER_DMX_MATRIX_MAX_BEAMS, DEFAULT_BEAM_MOTION } from '../ReactTypes'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useNotificationStore } from '../../../../stores/notificationStore'
+
+const reactCards = () => useNotificationStore.getState().events['react']
 
 const COLS = 15
 const ROWS = 10
@@ -397,9 +400,38 @@ describe('duplicateLaserDmxMatrixBeamsWithOffset', () => {
       modulationRoutes: [],
     }))
     store.setLaserDmxBeamMatrixSettings({ beams: fakeBeams })
+    useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
     const count = store.duplicateLaserDmxMatrixBeamsWithOffset([fakeBeams[0].id], 1, 0)
     expect(count).toBe(0)
     expect(useReactStore.getState().laserDmxBeamMatrix.beams.length).toBe(LASER_DMX_MATRIX_MAX_BEAMS)
+    expect(reactCards()).toHaveLength(1)
+    expect(reactCards()[0]).toMatchObject({ tone: 'warning', title: 'Beam limit reached' })
+  })
+
+  it('tells the user when adding or duplicating a single beam hits the beam limit', () => {
+    const fakeBeams = Array.from({ length: LASER_DMX_MATRIX_MAX_BEAMS }, (_, i) => ({
+      id: `beam-cap-${i}`, name: `B${i}`, enabled: true,
+      sequenceIndex: i, motion: DEFAULT_BEAM_MOTION,
+      origin: { column: 1, row: 1, z: 0 },
+      target: { kind: 'grid' as const, column: 1, row: 1, z: 0 },
+      groupId: null, useGroupColor: false,
+      color: { red: 0, green: 255, blue: 220, white: 0, alpha: 1 },
+      appearance: { dimmer: 1, shutterOpen: true, width: 1, focus: 1, strobeRate: 0, flickerAmount: 0, divergence: 0.15, glow: 0.65, geometry: 'line' as const },
+      modulationRoutes: [],
+    }))
+    useReactStore.getState().setLaserDmxBeamMatrixSettings({ beams: fakeBeams })
+    useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
+    useReactStore.getState().addLaserDmxMatrixBeam()
+    useReactStore.getState().duplicateLaserDmxMatrixBeam(fakeBeams[0].id)
+    expect(useReactStore.getState().laserDmxBeamMatrix.beams.length).toBe(LASER_DMX_MATRIX_MAX_BEAMS)
+    expect(reactCards().map(card => card.title)).toEqual(['Beam limit reached', 'Beam limit reached'])
+    expect(reactCards()[0]!.message).toContain(String(LASER_DMX_MATRIX_MAX_BEAMS))
+  })
+
+  it('posts no beam-limit card while there is room', () => {
+    useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
+    useReactStore.getState().addLaserDmxMatrixBeam()
+    expect(reactCards()).toHaveLength(0)
   })
 
   it('returns count of actually created beams when limit truncates the request', () => {
@@ -421,6 +453,7 @@ describe('duplicateLaserDmxMatrixBeamsWithOffset', () => {
     const count = store.duplicateLaserDmxMatrixBeamsWithOffset(sourceBeams, 1, 0)
     expect(count).toBe(slots)
     expect(useReactStore.getState().laserDmxBeamMatrix.beams.length).toBe(LASER_DMX_MATRIX_MAX_BEAMS)
+    expect(reactCards().some(card => card.title === 'Beam limit reached')).toBe(true)
   })
 
   it('duplicated beam gets a new ID (not the original)', () => {

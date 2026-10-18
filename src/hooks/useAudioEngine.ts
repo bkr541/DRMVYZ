@@ -112,6 +112,8 @@ export interface AudioEngine {
   source: AudioSource
   setSource: (s: AudioSource, options?: AudioSourceMutationOptions) => Promise<void>
   micError: string | null
+  /** Why the current track's media element could not load or play. Cleared when the next track starts loading. */
+  trackLoadError: string | null
   /** True only after a Live Input MediaStream has been acquired and connected. */
   liveInputActive: boolean
   /** Source-level analysis activity, intentionally independent from file transport playing. */
@@ -271,9 +273,21 @@ export interface AudioEngine {
   currentBpmReanalysisStatus: BpmReanalysisStatus
 }
 
+/** Plain-language reason for an HTMLMediaElement `error.code` (MediaError constants). */
+export function describeMediaElementError(code: number | undefined): string {
+  switch (code) {
+    case 1: return 'loading was cancelled.'
+    case 2: return 'a network error interrupted loading. Check your connection and select the track again.'
+    case 3: return 'the audio data is damaged or could not be decoded.'
+    case 4: return 'the file is missing or its format is not supported.'
+    default: return 'the audio could not be loaded.'
+  }
+}
+
 export function useAudioEngine(): AudioEngine {
   const [source, setSourceState] = useState<AudioSource>('file')
   const [micError, setMicError] = useState<string | null>(null)
+  const [trackLoadError, setTrackLoadError] = useState<string | null>(null)
   const [liveInputActive, setLiveInputActive] = useState(false)
   const [liveInputSensitivity, setLiveInputSensitivityState] = useState(1)
   const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(0.02)
@@ -373,6 +387,7 @@ export function useAudioEngine(): AudioEngine {
       startedAt: Date.now(),
       milestones: new Set(),
     }
+    setTrackLoadError(null)
     audioLog.info('media element load requested', { trackId: track.id })
   }, [])
 
@@ -421,6 +436,11 @@ export function useAudioEngine(): AudioEngine {
         elapsedMs: diagnostic ? Date.now() - diagnostic.startedAt : null,
         mediaErrorCode: el.error?.code ?? null,
       })
+      // Clearing the source (stop, removing the last track) also raises an error event; only a load we asked for is a failure.
+      if (!diagnostic || !el.src) return
+      const failedTrack = tracksRef.current.find(track => track.id === diagnostic?.trackId)
+      const trackLabel = failedTrack ? (failedTrack.title?.trim() || failedTrack.displayName || failedTrack.name) : 'The track'
+      setTrackLoadError(`"${trackLabel}" could not be played: ${describeMediaElementError(el.error?.code)}`)
     }
     el.addEventListener('timeupdate',     onTimeUpdate)
     el.addEventListener('durationchange', onDurationChange)
@@ -1717,7 +1737,7 @@ export function useAudioEngine(): AudioEngine {
     : null
 
   return {
-    source, setSource, micError, liveInputActive, analysisActive,
+    source, setSource, micError, trackLoadError, liveInputActive, analysisActive,
     liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
     hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, autoAdvance, setAutoAdvance, currentTime, getCurrentTime, duration, volume,

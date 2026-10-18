@@ -399,6 +399,7 @@ import {
   normalizeUnifiedSvgSettings,
 } from '../components/vyzualz/react/svgSourceLifecycle'
 import { useMediaStore } from './mediaStore'
+import { notify } from './notificationStore'
 import { createSignedMediaUrl } from '../lib/mediaDb'
 import * as opentype from 'opentype.js'
 import {
@@ -2194,6 +2195,15 @@ function clampCol(v: number): number { return Math.max(1, Math.min(LASER_DMX_MAT
 function clampRow(v: number): number { return Math.max(1, Math.min(LASER_DMX_MATRIX_ROWS, Math.round(v))) }
 function clamp01bm(v: number): number { return Math.max(0, Math.min(1, v)) }
 function clampC255(v: number): number { return Math.max(0, Math.min(255, Math.round(v))) }
+
+/** The Beam Matrix holds a fixed number of beams; adding past it is refused, and the user is told why. */
+function notifyLaserDmxBeamLimit(): void {
+  notify('react', {
+    tone: 'warning',
+    title: 'Beam limit reached',
+    message: `A LaserDMX Beam Matrix holds at most ${LASER_DMX_MATRIX_MAX_BEAMS} beams. Delete a beam before adding another.`,
+  })
+}
 
 function makeDefaultMatrixBeam(existing: LaserDmxMatrixBeam[]): LaserDmxMatrixBeam {
   return {
@@ -11253,7 +11263,11 @@ export const useReactStore = create<ReactStoreState>()(
       resetLaserDmxBeamMatrix: () =>
         set({ laserDmxBeamMatrix: createDefaultLaserDmxBeamMatrixSettings() }),
 
-      addLaserDmxMatrixBeam: (initial) =>
+      addLaserDmxMatrixBeam: (initial) => {
+        if (get().laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) {
+          notifyLaserDmxBeamLimit()
+          return
+        }
         set(s => {
           if (s.laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) return {}
           const base = makeDefaultMatrixBeam(s.laserDmxBeamMatrix.beams)
@@ -11266,9 +11280,14 @@ export const useReactStore = create<ReactStoreState>()(
               selectedBeamIds: [beam.id],
             },
           }
-        }),
+        })
+      },
 
-      duplicateLaserDmxMatrixBeam: (beamId) =>
+      duplicateLaserDmxMatrixBeam: (beamId) => {
+        if (get().laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) {
+          notifyLaserDmxBeamLimit()
+          return
+        }
         set(s => {
           if (s.laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) return {}
           const src = s.laserDmxBeamMatrix.beams.find(b => b.id === beamId)
@@ -11288,7 +11307,8 @@ export const useReactStore = create<ReactStoreState>()(
               selectedBeamIds: [copy.id],
             },
           }
-        }),
+        })
+      },
 
       removeLaserDmxMatrixBeam: (beamId) =>
         set(s => {
@@ -11570,7 +11590,7 @@ export const useReactStore = create<ReactStoreState>()(
         let created = 0
         set(s => {
           const available = LASER_DMX_MATRIX_MAX_BEAMS - s.laserDmxBeamMatrix.beams.length
-          const toCreate = beamIds.slice(0, available)
+          const toCreate = beamIds.slice(0, Math.max(0, available))
           const newBeams: LaserDmxMatrixBeam[] = []
           const baseSeqIndex = s.laserDmxBeamMatrix.beams.length
           for (const id of toCreate) {
@@ -11611,6 +11631,7 @@ export const useReactStore = create<ReactStoreState>()(
             },
           }
         })
+        if (created < beamIds.length && get().laserDmxBeamMatrix.beams.length >= LASER_DMX_MATRIX_MAX_BEAMS) notifyLaserDmxBeamLimit()
         return created
       },
 

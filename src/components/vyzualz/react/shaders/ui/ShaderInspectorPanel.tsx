@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { useShallow }            from 'zustand/react/shallow'
 import { useShaderPanelStore }      from './shaderPanelStore'
 import { useShaderLibraryStore }    from '../library/ShaderLibraryStore'
+import { notify } from '../../../../../stores/notificationStore'
 import { shaderRegistry }           from '../registry'
 import { ShaderCompilePanel }       from '../editor/ShaderCompilePanel'
 import { ShaderPassInspector }      from '../editor/ShaderPassInspector'
@@ -63,13 +64,17 @@ export function ShaderInspectorPanel() {
     if (userSceneEntry) {
       const result = libStore.updateUserScene(updated.id, updated)
       if (result?.ok === false) {
+        notify('react', { tone: 'error', title: 'Shader not saved', message: `"${updated.name}" could not be saved: ${result.error}` })
         if (import.meta.env.DEV) console.warn('[ShaderInspectorPanel] updateUserScene failed:', result.error)
       } else {
         // Force recompile after a successful update so the renderer picks up the change
         useShaderPanelStore.getState().requestRecompile(updated.id)
+        notify('react', { tone: 'success', title: 'Shader saved', message: `Changes to "${updated.name}" were saved.` })
       }
     } else {
-      libStore.addUserScene(updated)
+      const added = libStore.addUserScene(updated)
+      if (added.ok) notify('react', { tone: 'success', title: 'Shader saved', message: `"${updated.name}" was added to your shader scenes.` })
+      else notify('react', { tone: 'error', title: 'Shader not saved', message: `"${updated.name}" could not be saved: ${added.error}` })
     }
   }, [userSceneEntry, libStore])
 

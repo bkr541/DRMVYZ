@@ -93,6 +93,18 @@ export function getCanvasLayerAdmissionDecision({
   }
 }
 
+/** Why a layer request was refused, in words for the user. Null when the decision allows the layer. */
+export function describeCanvasLayerRejection(decision: CanvasLayerAdmissionDecision): string | null {
+  if (decision.eligible) return null
+  if (decision.candidateKind === null) return 'Only SVG files and transparent PNG images can be added as layers.'
+  if (decision.candidateKind === 'png' && decision.verifiedTransparentPng !== true) {
+    return decision.verifiedTransparentPng === false
+      ? 'This PNG has no transparent pixels, so it cannot be a layer. Use a PNG with transparency, or an SVG.'
+      : 'This PNG could not be checked for transparency, so it was not added as a layer.'
+  }
+  return 'The layer limit has been reached. Delete a layer before adding another.'
+}
+
 export function getCanvasTransparentPngVerification(
   item: CanvasLayerAdmissionMedia | null | undefined,
 ): boolean | null {

@@ -8,11 +8,13 @@ import type { AudioEngine } from '../../../hooks/useAudioEngine'
 import { resetAudioSourcePolicyForTests } from '../../../audio/audioSourcePolicy'
 import { NotificationDrawer } from './NotificationDrawer'
 import { usePageActivityStore } from '../../../stores/pageActivityStore'
+import { useNotificationStore } from '../../../stores/notificationStore'
 
 const fixture = vi.hoisted(() => ({
   engine: {
     source: 'file',
     micError: null,
+    trackLoadError: null,
     tracks: [],
     currentIndex: -1,
     autoAdvance: true,
@@ -207,6 +209,8 @@ beforeEach(() => {
   resetAudioSourcePolicyForTests()
   fixture.engine.source = 'file'
   fixture.engine.micError = null
+  fixture.engine.trackLoadError = null
+  useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
   fixture.engine.tracks = []
   fixture.engine.currentIndex = -1
   fixture.engine.autoAdvance = true
@@ -250,6 +254,41 @@ afterEach(() => {
   root = null
   container = null
   resetAudioSourcePolicyForTests()
+})
+
+describe('Audio Dock failure notices', () => {
+  it('lists a track that could not be played in the page Notifications drawer', async () => {
+    fixture.engine.trackLoadError = '"Night Drive" could not be played: the file is missing or its format is not supported.'
+    await renderView('react')
+    const text = await drawerText('react')
+    expect(text).toContain('Track could not be played')
+    expect(text).toContain('"Night Drive" could not be played')
+  })
+
+  it('tells the user when a chosen file is not audio, and adds nothing', async () => {
+    await renderView('react')
+    const input = container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')
+    Object.defineProperty(input, 'files', { configurable: true, value: [new File(['x'], 'notes.pdf', { type: 'application/pdf' })] })
+    await act(async () => { input?.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    expect(fixture.engine.addTracks).not.toHaveBeenCalled()
+    const text = await drawerText('react')
+    expect(text).toContain('No audio files added')
+    expect(text).toContain('"notes.pdf" is not a supported audio file')
+  })
+
+  it('adds the audio files in a mixed selection and reports the skipped one', async () => {
+    await renderView('react')
+    const input = container?.querySelector<HTMLInputElement>('input[type="file"][accept="audio/*"]')
+    Object.defineProperty(input, 'files', {
+      configurable: true,
+      value: [new File(['a'], 'mix.wav', { type: 'audio/wav' }), new File(['x'], 'cover.jpg', { type: 'image/jpeg' })],
+    })
+    await act(async () => { input?.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    expect(fixture.engine.addTracks).toHaveBeenCalledTimes(1)
+    const text = await drawerText('react')
+    expect(text).toContain('Some files were skipped')
+    expect(text).toContain('1 file was not a supported audio type')
+  })
 })
 
 describe('Show Manager Audio Dock source lock integration', () => {

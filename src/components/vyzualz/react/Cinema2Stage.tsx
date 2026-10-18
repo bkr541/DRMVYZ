@@ -8,6 +8,7 @@ import {
   type Cinema2RuntimeSnapshot,
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
+import { notify } from '../../../stores/notificationStore'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
@@ -210,6 +211,11 @@ export function Cinema2Stage({
       runtime = created.runtime
       onRuntimeReadyRef.current?.(runtime)
       void restoreCinema2WorkspaceMedia(runtime, restoreState).catch(error => {
+        notify('react', {
+          tone: 'warning',
+          title: 'Saved media not restored',
+          message: `The media from your last session could not be reloaded: ${error instanceof Error ? error.message : String(error)}`,
+        })
         if (import.meta.env.DEV) console.warn('[Cinema2Stage] media restore failed:', error)
       })
       resize()

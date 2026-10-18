@@ -6,6 +6,7 @@
 
 import type { HeadlinerSourceRect } from './HeadlinerCompositor'
 import { HeadlinerPerformerIsolator } from './HeadlinerIsolation'
+import { reportHeadlinerTrackerFailure } from './HeadlinerTrackerNotices'
 
 export const HEADLINER_SEGMENT_MODEL_URL = '/mediapipe/selfie_segmenter.tflite'
 export const HEADLINER_SEGMENT_WASM_URL = '/mediapipe/wasm'
@@ -90,6 +91,7 @@ export class HeadlinerSegmenter implements HeadlinerSegmentSource {
   private status: HeadlinerSegmenterStatus = 'idle'
   private sequence = 0
   private lastRunSec = Number.NEGATIVE_INFINITY
+  private runFailureReported = false
   private lastTimestampMs = 0
   private input: HTMLCanvasElement | null = null
   private mask: HTMLCanvasElement | null = null
@@ -132,6 +134,7 @@ export class HeadlinerSegmenter implements HeadlinerSegmentSource {
     } catch (error) {
       this.status = 'unavailable'
       console.warn('[Headliner] Person segmentation could not start:', error)
+      reportHeadlinerTrackerFailure('person', 'start', error)
     } finally {
       this.loading = false
     }
@@ -161,6 +164,10 @@ export class HeadlinerSegmenter implements HeadlinerSegmentSource {
       result.close?.()
     } catch (error) {
       console.warn('[Headliner] Person segmentation failed:', error)
+      if (!this.runFailureReported) {
+        this.runFailureReported = true
+        reportHeadlinerTrackerFailure('person', 'detect', error)
+      }
     }
   }
 

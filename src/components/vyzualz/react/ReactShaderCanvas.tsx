@@ -13,6 +13,7 @@ import { shaderRegistry }          from './shaders/registry'
 import type { ActiveBrandOverlay } from '../../../features/personalization/brandAssetCompositor'
 import { compositeBrandAsset } from '../../../features/personalization/brandAssetCompositor'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
+import { reportReactEngineFailure } from './reactEngineFailureNotice'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -313,6 +314,7 @@ export function ReactShaderCanvas({
       resize()
     } catch (err) {
       ownership.retire('setup-failed')
+      reportReactEngineFailure('shaderPads', 'setup-failed', err)
       if (import.meta.env.DEV) {
         console.error('[ReactShaderCanvas] setup failed:', err)
       }
@@ -362,6 +364,7 @@ export function ReactShaderCanvas({
         frame(now)
       } catch (error) {
         ownership.retire('render-failed')
+        reportReactEngineFailure('shaderPads', 'render-failed', error)
         useShaderPanelStore.getState().setCompileError(
           `Shader render failed: ${error instanceof Error ? error.message : String(error)}`,
         )

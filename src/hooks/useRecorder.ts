@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { encodeWAV, downloadBlob } from '../utils/wavExport'
+import { notify } from '../stores/notificationStore'
 
 export type RecorderState = 'idle' | 'recording'
 export type RecordingMode = 'video-audio' | 'video-only'
@@ -181,12 +182,12 @@ export function useRecorder(): Recorder {
     seconds: number,
   ) => {
     if (!ringBuffer) {
-      alert('No audio captured yet. Play a track or use Live Input first.')
+      notify('react', { tone: 'warning', title: 'Nothing to export', message: 'No audio has been captured yet. Play a track or use Live Input first.' })
       return
     }
     const samples = ringBuffer.read(seconds)
     if (samples.length === 0) {
-      alert('Ring buffer is empty — play some audio first.')
+      notify('react', { tone: 'warning', title: 'Nothing to export', message: 'The audio buffer is empty. Play some audio first, then export again.' })
       return
     }
     const wav = encodeWAV(samples, ringBuffer.sampleRate)
@@ -201,7 +202,10 @@ export function useRecorder(): Recorder {
       return c.width * c.height > best.width * best.height ? c : best
     }, null)
 
-    if (!target) { alert('No canvas found to export.'); return }
+    if (!target) {
+      notify('react', { tone: 'warning', title: 'Nothing to export', message: 'There is no visual output to export yet. Start an engine, then export again.' })
+      return
+    }
 
     const url = target.toDataURL('image/png')
     const a   = document.createElement('a')

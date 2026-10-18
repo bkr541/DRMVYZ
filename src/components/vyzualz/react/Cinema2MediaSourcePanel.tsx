@@ -5,6 +5,7 @@ import type { Cinema2MediaKind, Cinema2MediaSlotId } from '../cinema2/contracts/
 import type { Cinema2MediaSlotRuntimeSnapshot, Cinema2MediaSource } from '../cinema2/media/Cinema2MediaSlotRuntime'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
+import { notify } from '../../../stores/notificationStore'
 import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryCapabilities'
 import { SelectRow } from './ReactControlRows'
 import { isUnifiedSvgMediaItem } from './svgSourceLifecycle'
@@ -59,6 +60,17 @@ export function Cinema2MediaSourcePanel({ runtime, onOpenMediaManager }: Cinema2
             const source = cinema2MediaSourceFromLibraryItem(media)
             if (!source) return
             void mediaRuntime.replace(selectedSlot.id as Cinema2MediaSlotId, source)
+              .then(slot => {
+                // A failed load leaves the slot on its previous media (or empty) and records why on the slot.
+                if (slot.error) notify('react', { tone: 'error', title: 'Media could not be loaded', message: `${slot.label}: ${slot.error}` })
+              })
+              .catch(error => {
+                notify('react', {
+                  tone: 'error',
+                  title: 'Media could not be loaded',
+                  message: `${selectedSlot.label}: ${error instanceof Error ? error.message : String(error)}`,
+                })
+              })
           }}
           context="canvas"
           title="Media Library"

@@ -40,6 +40,7 @@ import {
 } from '../../../audio/audioSourcePolicy'
 import { createLogger } from '../../../lib/logger'
 import { usePageActivities, type AppPageId } from '../../../stores/pageActivityStore'
+import { useNotifyCurrentPage } from '../../../stores/notificationStore'
 
 const AUDIO_DOCK_COLLAPSED_STORAGE_KEY = 'drmvyz.audioDock.collapsed.v1'
 const rekordboxLoadLog = createLogger('react', 'RekordboxTrackLoad')
@@ -248,6 +249,8 @@ export function VyzualzAudioDock({
   const [rekordboxBusy, setRekordboxBusy] = useState(false)
   const [rekordboxUsbMode, setRekordboxUsbMode] = useState(false)
   const [dismissedSourceLockAttempt, setDismissedSourceLockAttempt] = useState<number | null>(null)
+  const [dismissedTrackLoadError, setDismissedTrackLoadError] = useState<string | null>(null)
+  const notifyPage = useNotifyCurrentPage()
   const audioSourcePolicySnapshot = useSyncExternalStore(
     subscribeAudioSourcePolicy,
     getAudioSourcePolicySnapshot,
@@ -514,9 +517,20 @@ export function VyzualzAudioDock({
   const handleFiles = (files: FileList | null) => {
     if (!files) return
     if (liveInputSelected) return
-    const audio = Array.from(files).filter(f =>
+    const selected = Array.from(files)
+    const audio = selected.filter(f =>
       f.type.startsWith('audio/') || /\.(mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
     )
+    const skipped = selected.length - audio.length
+    if (skipped > 0) {
+      notifyPage({
+        tone: 'warning',
+        title: audio.length === 0 ? 'No audio files added' : 'Some files were skipped',
+        message: audio.length === 0
+          ? `${selected.length === 1 ? `"${selected[0]!.name}" is` : `Those ${selected.length} files are`} not a supported audio file. Choose MP3, WAV, AIFF, M4A, OGG or FLAC.`
+          : `${skipped} file${skipped === 1 ? ' was' : 's were'} not a supported audio type and ${skipped === 1 ? 'was' : 'were'} not added.`,
+      })
+    }
     if (!audio.length) return
     if (!requestAudioSourceMutation()) return
 
@@ -1499,6 +1513,18 @@ export function VyzualzAudioDock({
           title="Live Input active"
         >
           Track and Show controls are unavailable while Live Input analyzes the default microphone. Switch the input back to Track/File to restore them.
+        </DrawerNotice>
+      )}
+
+      {engine.trackLoadError && engine.trackLoadError !== dismissedTrackLoadError && (
+        <DrawerNotice
+          className="vz-dock-source-lock-notice"
+          tone="error"
+          role="alert"
+          title="Track could not be played"
+          onDismiss={() => setDismissedTrackLoadError(engine.trackLoadError)}
+        >
+          {engine.trackLoadError}
         </DrawerNotice>
       )}
 

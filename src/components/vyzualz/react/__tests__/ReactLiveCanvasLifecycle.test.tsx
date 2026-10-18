@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultLaserDmxShowDirectorFixture, createDefaultLaserDmxShowDirectorState, DEFAULT_REACT_PRESETS, type ReactEngineId, type ReactPreset } from '../ReactTypes'
 import { REACT_ENGINE_IDS } from '../reactEngineCatalog'
+import { useNotificationStore } from '../../../../stores/notificationStore'
 import {
   getReactLiveEngineOwnershipDiagnosticsForTests,
   resetReactLiveEngineOwnershipForTests,
@@ -282,8 +283,15 @@ describe('ReactPlaceholderCanvas live ownership boundary', () => {
   it('retires ownership and observers when the first engine frame throws', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.renderReactEngine.mockImplementationOnce(() => { throw new Error('render failed') })
+    useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, react: [] } })
 
     await act(async () => root?.render(renderCanvas('cinematicPortal')))
+
+    // The engine is retired, so the user is told instead of being left with a dead canvas.
+    const cards = useNotificationStore.getState().events['react']
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({ tone: 'error', title: 'Cinematic Worlds stopped rendering' })
+    expect(cards[0]!.message).toContain('render failed')
 
     expect(getReactLiveEngineOwnershipDiagnosticsForTests()).toMatchObject({
       activeOwnerCount: 0,

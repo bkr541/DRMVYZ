@@ -9,6 +9,7 @@ import {
   type Cinema2InspectorInstanceModel,
   type Cinema2InspectorSurface,
 } from '../cinema2/parameters/Cinema2InspectorModel'
+import { notify } from '../../../stores/notificationStore'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
@@ -65,14 +66,23 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
   const parameterState = runtime.getParameterState()
   const commit = (control: Readonly<Cinema2InspectorControlModel>, candidate: unknown) => {
     const result = parameterState.setPersistentValue(control.definition.id, candidate)
-    if (result.ok) refresh()
-    else if (import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] parameter update rejected:', result.diagnostics)
+    if (result.ok) {
+      refresh()
+    } else {
+      notify('react', {
+        tone: 'warning',
+        title: 'Setting not applied',
+        message: `${control.definition.label ?? 'This setting'} was not changed: ${result.diagnostics[0]?.message ?? 'the value was rejected.'}`,
+      })
+      if (import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] parameter update rejected:', result.diagnostics)
+    }
   }
   const dispatch = (control: Readonly<Cinema2InspectorControlModel>) => {
     const target = plan.targets.targets.find(candidate => (
       candidate.parameterId === control.definition.id && candidate.channel === 'action'
     ))
     if (!target) {
+      notify('react', { tone: 'warning', title: 'Action unavailable', message: `${control.definition.label ?? 'This action'} is not available for the current preset.` })
       if (import.meta.env.DEV) console.warn(`[Cinema2InspectorPanel] no action target for ${control.definition.id}`)
       return
     }
@@ -82,7 +92,14 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
       operation: 'action',
       eventId: `cinema2-inspector:${control.definition.id}:${actionSequence.current}`,
     }])
-    if (!result.ok && import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
+    if (!result.ok) {
+      notify('react', {
+        tone: 'warning',
+        title: 'Action not run',
+        message: `${control.definition.label ?? 'The action'} could not run: ${result.diagnostics[0]?.message ?? 'it was rejected.'}`,
+      })
+      if (import.meta.env.DEV) console.warn('[Cinema2InspectorPanel] action dispatch rejected:', result.diagnostics)
+    }
   }
 
   const sectionsContent = sections.length === 0

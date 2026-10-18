@@ -3,6 +3,8 @@
 // (where the head is, how big, how tilted) that the effects can follow. The model and its WASM runtime ship in
 // public/mediapipe, so tracking works offline. The maths is pure so it can be tested without a camera.
 
+import { reportHeadlinerTrackerFailure } from './HeadlinerTrackerNotices'
+
 /** The 36 landmarks around the edge of the face (MediaPipe's FACEMESH_FACE_OVAL, in loop order). */
 export const HEADLINER_FACE_OVAL_INDICES: readonly number[] = Object.freeze([
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377,
@@ -217,6 +219,7 @@ export class HeadlinerFaceTracker implements HeadlinerFaceSource {
   private pose: HeadlinerFacePose | null = null
   private sequence = 0
   private lastDetectSec = Number.NEGATIVE_INFINITY
+  private runFailureReported = false
   private lastTimestampMs = 0
 
   constructor(private readonly load: HeadlinerFaceLandmarkerLoader = loadMediaPipeFaceLandmarker) {}
@@ -260,6 +263,7 @@ export class HeadlinerFaceTracker implements HeadlinerFaceSource {
     } catch (error) {
       this.status = 'unavailable'
       console.warn('[Headliner] Face tracking could not start:', error)
+      reportHeadlinerTrackerFailure('face', 'start', error)
     } finally {
       this.loading = false
     }
@@ -278,6 +282,10 @@ export class HeadlinerFaceTracker implements HeadlinerFaceSource {
       this.sequence += 1
     } catch (error) {
       console.warn('[Headliner] Face detection failed:', error)
+      if (!this.runFailureReported) {
+        this.runFailureReported = true
+        reportHeadlinerTrackerFailure('face', 'detect', error)
+      }
       this.pose = null
       this.sequence += 1
     }

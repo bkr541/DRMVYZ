@@ -214,6 +214,39 @@ describe('useAudioEngine track loading', () => {
     expect(engine?.isPlaying).toBe(true)
   })
 
+  it('reports why a track could not be played, and clears it when the next track starts loading', async () => {
+    act(() => {
+      engine?.replaceTrackUrls([
+        { name: 'broken.wav', title: 'Night Drive', url: 'https://signed.test/broken.wav', dbId: 'track-a' },
+        { name: 'fine.wav', url: 'https://signed.test/fine.wav', dbId: 'track-b' },
+      ])
+    })
+    await act(async () => { await Promise.resolve() })
+    expect(engine?.trackLoadError).toBeNull()
+
+    act(() => {
+      ;(fakeAudioInstances[0] as unknown as { error: { code: number } }).error = { code: 4 }
+      fakeAudioInstances[0]?.emit('error')
+    })
+    expect(engine?.trackLoadError).toBe('"Night Drive" could not be played: the file is missing or its format is not supported.')
+
+    act(() => engine?.selectTrack(1))
+    await act(async () => { await Promise.resolve() })
+    expect(engine?.trackLoadError).toBeNull()
+  })
+
+  it('does not report an error when the media element only complains about a cleared source', async () => {
+    act(() => {
+      engine?.replaceTrackUrls([{ name: 'a.wav', url: 'https://signed.test/a.wav', dbId: 'track-a' }])
+    })
+    await act(async () => { await Promise.resolve() })
+    act(() => {
+      fakeAudioInstances[0]!.src = ''
+      fakeAudioInstances[0]?.emit('error')
+    })
+    expect(engine?.trackLoadError).toBeNull()
+  })
+
   it('honors the automatic-advance setting when a track ends', async () => {
     act(() => {
       engine?.replaceTrackUrls([

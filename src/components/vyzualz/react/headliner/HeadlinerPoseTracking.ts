@@ -3,6 +3,8 @@
 // each point so lines glide instead of jitter, and hides points the model cannot see (a DJ behind the decks has no
 // visible legs). The maths is pure so it can be tested without a camera.
 
+import { reportHeadlinerTrackerFailure } from './HeadlinerTrackerNotices'
+
 export const HEADLINER_POSE_MODEL_URL = '/mediapipe/pose_landmarker_lite.task'
 export const HEADLINER_POSE_WASM_URL = '/mediapipe/wasm'
 /** Detection runs at most this often; effects smooth between detections. */
@@ -160,6 +162,7 @@ export class HeadlinerPoseTracker implements HeadlinerPoseSource {
   private points: HeadlinerPosePoint[] | null = null
   private sequence = 0
   private lastDetectSec = Number.NEGATIVE_INFINITY
+  private runFailureReported = false
   private lastTimestampMs = 0
 
   constructor(private readonly load: HeadlinerPoseLandmarkerLoader = loadMediaPipePoseLandmarker) {}
@@ -199,6 +202,7 @@ export class HeadlinerPoseTracker implements HeadlinerPoseSource {
     } catch (error) {
       this.status = 'unavailable'
       console.warn('[Headliner] Body tracking could not start:', error)
+      reportHeadlinerTrackerFailure('body', 'start', error)
     } finally {
       this.loading = false
     }
@@ -217,6 +221,10 @@ export class HeadlinerPoseTracker implements HeadlinerPoseSource {
       this.sequence += 1
     } catch (error) {
       console.warn('[Headliner] Body detection failed:', error)
+      if (!this.runFailureReported) {
+        this.runFailureReported = true
+        reportHeadlinerTrackerFailure('body', 'detect', error)
+      }
       this.points = null
       this.sequence += 1
     }

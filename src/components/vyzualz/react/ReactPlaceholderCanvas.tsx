@@ -36,6 +36,7 @@ import {
 } from './renderers/ReactEngineRenderer'
 import { resolveCinematicPortalBackend } from './renderers/CinematicPortalRenderer'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
+import { reportReactEngineFailure } from './reactEngineFailureNotice'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
 import { clearSoundDrawingRuntimeCaches, setSoundDrawingClipsForFrame } from './renderers/SoundDrawingRenderer'
 import { resolvePerformancePadTransition } from './renderers/reactPresetTransition'
@@ -385,6 +386,7 @@ export function ReactPlaceholderCanvas({
       resize()
     } catch (error) {
       ownership.retire('setup-failed')
+      reportReactEngineFailure(ownedEngine, 'setup-failed', error)
       if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] setup failed:', error)
       return
     }
@@ -438,6 +440,7 @@ export function ReactPlaceholderCanvas({
         frame(now)
       } catch (error) {
         ownership.retire('render-failed')
+        reportReactEngineFailure(ownedEngine, 'render-failed', error)
         if (import.meta.env.DEV) console.error('[ReactPlaceholderCanvas] render failed:', error)
       }
     }

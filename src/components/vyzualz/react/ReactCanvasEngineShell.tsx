@@ -29,6 +29,7 @@ import { CANVAS_ENGINE_MEDIA_LIBRARY_CAPABILITIES } from '../media/mediaLibraryC
 import { MediaAddToPoolPicker } from '../media/MediaAddToMenu'
 import { getCanvasLibraryDisabledReason, getCanvasLibraryMediaType } from './canvasMediaLibraryContract'
 import {
+  describeCanvasLayerRejection,
   ensureCanvasTransparentPngVerification,
   getCanvasAuthoredLayerCandidateKind,
   getCanvasLayerAdmissionDecision,
@@ -392,8 +393,21 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
       ? makeCanvasMediaItemFromLibrary(libraryItem, useReactStore.getState().canvasMediaTimingById[mediaId])
       : useReactStore.getState().canvasMediaItems.find(item => item.id === mediaId) ?? null
     const candidateKind = getCanvasAuthoredLayerCandidateKind(candidate)
-    if (!candidate || !candidateKind) return
-    if (candidateKind === 'png' && await ensureCanvasTransparentPngVerification(candidate) !== true) return
+    if (!candidate || !candidateKind) {
+      setActionFeedback('Only SVG files and transparent PNG images can be added as layers.')
+      return
+    }
+    if (candidateKind === 'png' && await ensureCanvasTransparentPngVerification(candidate) !== true) {
+      setActionFeedback(describeCanvasLayerRejection({
+        eligible: false,
+        candidateKind,
+        verifiedTransparentPng: getCanvasTransparentPngVerification(candidate),
+        occupiedSlots: 0,
+        requiredSlots: 0,
+        hasCapacity: true,
+      }))
+      return
+    }
     const latestState = useReactStore.getState()
     const admission = getCanvasLayerAdmissionDecision({
       candidate,
@@ -402,7 +416,10 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
       renderMode: latestState.canvasOrchestrationSettings.renderMode,
       activeCanvasMediaId: latestState.activeCanvasMediaId,
     })
-    if (!admission.eligible) return
+    if (!admission.eligible) {
+      setActionFeedback(describeCanvasLayerRejection(admission))
+      return
+    }
 
     const result = addCanvasAuthoredLayer(mediaId, {
       ownership: 'manual',
@@ -425,6 +442,7 @@ function CanvasMediaLibrary({ compact = false }: { compact?: boolean }) {
     })
     if (!admission.eligible) {
       setDuplicateConfirmation(null)
+      setActionFeedback(describeCanvasLayerRejection(admission))
       return
     }
     if (currentState.canvasOrchestrationSettings.authoredLayers.some(layer => layer.mediaId === mediaId)) {
