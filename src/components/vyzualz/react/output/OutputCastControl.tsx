@@ -978,11 +978,6 @@ function OutputCastPopover({
                   {sessionStatsParts.length > 0 && (
                     <small><span className="rv-cast-session-field-label">Stats</span>{joinWithDot(sessionStatsParts)}</small>
                   )}
-                  {session.error && (
-                    <DrawerNotice tone="error" role="alert" title={sessionStatusLabel ?? 'Output failed'}>
-                      {session.error}
-                    </DrawerNotice>
-                  )}
                 </div>
                 <button type="button" className="rv-cast-stop" onClick={onStop}>Stop Output</button>
               </div>
@@ -1006,7 +1001,6 @@ function OutputCastPopover({
             {bridge && !canvasReady && (
               <DrawerNotice tone="info" role="status" title="Output canvas preparing">The active engine is still preparing its live output canvas.</DrawerNotice>
             )}
-            {error && <DrawerNotice tone="error" role="alert" title="Casting error">{error}</DrawerNotice>}
             {providerIssues.map(status => (
               <DrawerNotice key={status.providerId} tone="warning" role="status" title={status.label}>
                 {status.message ?? 'This output provider is currently unavailable.'}
@@ -1284,6 +1278,13 @@ export function OutputCastControl({
           onCast={(target, windowMode, aspectRatio) => void startCast(target, windowMode, aspectRatio)}
           onStop={() => void stopCast()}
         />
+      )}
+      {/* Failures are listed here, outside the popover, so they stay in the Notifications drawer after it is closed. */}
+      {error && <DrawerNotice tone="error" role="alert" title="Casting error">{error}</DrawerNotice>}
+      {session?.error && (
+        <DrawerNotice tone="error" role="alert" title={session.state === 'failed' ? 'Output failed' : 'Output problem'}>
+          {session.error}
+        </DrawerNotice>
       )}
     </>
   )

@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactPersistenceStatusStore } from '../../../stores/reactPersistenceStatusStore'
+import { DrawerNotice } from '../shared/DrawerNotice'
+import { IconChipButton } from './controls/IconChipButton'
 
 function formatSavedTime(timestamp: number | null): string | null {
   if (!timestamp) return null
@@ -23,13 +25,22 @@ export function ReactPersistenceStatus() {
 
   if (phase === 'error') {
     return (
-      <div className={`${chipClass} rv-persistence-status--error`} data-save-tone="error" role="alert">
-        <span className="vz-header-state-label" aria-hidden="true">Save</span>
-        <span className="vz-header-state-value" title={error ?? undefined}>Changes not safely stored</span>
-        <button type="button" onClick={() => { void retry() }} disabled={retryPending}>
-          {retryPending ? 'Retrying…' : 'Retry'}
-        </button>
-      </div>
+      <>
+        <div className={`${chipClass} rv-persistence-status--error`} data-save-tone="error" role="alert">
+          <span className="vz-header-state-label" aria-hidden="true">Save</span>
+          <span className="vz-header-state-value" title={error ?? undefined}>Changes not safely stored</span>
+          <button type="button" onClick={() => { void retry() }} disabled={retryPending}>
+            {retryPending ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+        {/* The chip is easy to miss; the same failure is listed in the Notifications drawer, with the reason and a retry. */}
+        <DrawerNotice tone="error" role="alert" title="Changes not safely stored">
+          Your latest React view changes could not be saved{error ? `: ${error}` : '.'}{' '}
+          <IconChipButton className="vz-media-status-action" onClick={() => { void retry() }} disabled={retryPending}>
+            {retryPending ? 'Retrying…' : 'Retry save'}
+          </IconChipButton>
+        </DrawerNotice>
+      </>
     )
   }
 

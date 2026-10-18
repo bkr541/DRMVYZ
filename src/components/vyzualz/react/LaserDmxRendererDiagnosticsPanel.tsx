@@ -1,6 +1,7 @@
 import awaitingAudioIconUrl from '../../../assets/laserDmx/awaiting-audio.svg'
 import { Collapsible } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import {
   requestLaserDmxWebGLRetry,
   useLaserDmxRendererDiagnostics,
@@ -18,6 +19,30 @@ function retryTime(value: number | null): string {
   if (value == null) return 'None scheduled'
   const remainingMs = Math.max(0, value - Date.now())
   return remainingMs > 0 ? `in ${(remainingMs / 1_000).toFixed(1)} s` : 'pending'
+}
+
+/**
+ * The headline of the diagnostics below, listed in the Notifications drawer: LaserDMX has fallen back from its WebGL
+ * renderer. The diagnostics section is collapsed by default, so without this the user just sees a plainer picture.
+ */
+export function LaserDmxRendererNotice() {
+  const diagnostics = useLaserDmxRendererDiagnostics()
+  if (diagnostics.activeRenderer === 'inactive') return null
+  const reason = diagnostics.finalFallbackReason ?? diagnostics.fallbackReason
+  if (!reason) return null
+  const canRetry = diagnostics.presentationMode !== 'capture' && diagnostics.manualRetryAvailable
+  return (
+    <DrawerNotice tone="warning" role="status" title="LaserDMX is using a fallback renderer">
+      {reason}
+      {diagnostics.contextLossCount > 0 ? ` The graphics context was lost ${diagnostics.contextLossCount} time${diagnostics.contextLossCount === 1 ? '' : 's'}.` : ''}
+      {canRetry && (
+        <>
+          {' '}
+          <IconChipButton className="vz-media-status-action" onClick={() => requestLaserDmxWebGLRetry()}>Retry WebGL</IconChipButton>
+        </>
+      )}
+    </DrawerNotice>
+  )
 }
 
 export function LaserDmxRendererDiagnosticsPanel() {

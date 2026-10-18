@@ -491,9 +491,18 @@ export function VyzualzAudioDock({
   }
 
   // ── File and Rekordbox input ─────────────────────────────────────────────
-  const setRekordboxStatusWithDiagnostic = (status: string | null, summary?: RekordboxHydrationSummary | null) => {
+  /**
+   * Sets the small status line beside the Rekordbox menu. Pass `outcome` for a finished import, scan or failure so the
+   * result is also listed in the Notifications drawer; progress messages ("metadata loading…") stay in the status line.
+   */
+  const setRekordboxStatusWithDiagnostic = (
+    status: string | null,
+    summary?: RekordboxHydrationSummary | null,
+    outcome?: { tone: 'success' | 'info' | 'warning' | 'error'; title: string },
+  ) => {
     setRekordboxStatus(status)
     setRekordboxDiagnostic(summary ? formatRekordboxBadgeDiagnostic(summary) : null)
+    if (outcome && status) notifyPage({ tone: outcome.tone, title: outcome.title, message: status })
   }
 
   const rehydrateCurrentTrackFromRekordbox = (
@@ -573,7 +582,9 @@ export function VyzualzAudioDock({
       setRekordboxStatusWithDiagnostic([
         matchedPhrase,
         formatRekordboxDiagnostic(summary),
-      ].filter(Boolean).join(' '), summary)
+      ].filter(Boolean).join(' '), summary, summary.realMatches > 0
+        ? { tone: 'success', title: 'Rekordbox metadata applied' }
+        : { tone: 'info', title: 'No Rekordbox match' })
       rekordboxLoadLog.info('Rekordbox metadata ready during initial audio load', {
         requestId,
         elapsedMs: Date.now() - startedAt,
@@ -638,7 +649,7 @@ export function VyzualzAudioDock({
           nativeTimings: result?.diagnostics ?? null,
         })
         if (!result?.library || result.cancelled) {
-          setRekordboxStatusWithDiagnostic('Audio ready · No readable Rekordbox metadata was found.')
+          setRekordboxStatusWithDiagnostic('Audio ready · No readable Rekordbox metadata was found.', null, { tone: 'warning', title: 'No Rekordbox metadata found' })
           rekordboxLoadLog.warn('Rekordbox metadata scan finished without a usable library', {
             requestId,
             elapsedMs: Date.now() - startedAt,
@@ -668,7 +679,9 @@ export function VyzualzAudioDock({
             ? `Matched ${summary.realMatches}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} to Rekordbox metadata.`
             : `No Rekordbox metadata match; marked ${summary.usbFallbacks}/${audio.length} loaded track${audio.length === 1 ? '' : 's'} as USB Mode only.`,
           formatRekordboxDiagnostic(summary),
-        ].join(' '), summary)
+        ].join(' '), summary, summary.realMatches > 0
+          ? { tone: 'success', title: 'Rekordbox metadata applied' }
+          : { tone: 'info', title: 'No Rekordbox match' })
         rekordboxLoadLog.info('Rekordbox metadata ready and applied in place', {
           requestId,
           elapsedMs: Date.now() - startedAt,
@@ -686,7 +699,7 @@ export function VyzualzAudioDock({
       })
       .catch(err => {
         const message = err instanceof Error ? err.message : String(err)
-        setRekordboxStatusWithDiagnostic(`Audio ready · Rekordbox metadata unavailable: ${message}`)
+        setRekordboxStatusWithDiagnostic(`Audio ready · Rekordbox metadata unavailable: ${message}`, null, { tone: 'warning', title: 'Rekordbox metadata unavailable' })
         rekordboxLoadLog.error('Rekordbox metadata scan failed after runtime track creation', {
           requestId,
           elapsedMs: Date.now() - startedAt,
@@ -716,9 +729,10 @@ export function VyzualzAudioDock({
       setRekordboxStatusWithDiagnostic(
         `Rekordbox XML ready: ${summarizeRekordboxLibrary(library)}. ${currentTrackMessage}`,
         hydration.summary,
+        { tone: 'success', title: 'Rekordbox XML imported' },
       )
     } catch (err) {
-      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err))
+      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err), null, { tone: 'error', title: 'Rekordbox XML import failed' })
     } finally {
       setRekordboxBusy(false)
     }
@@ -730,7 +744,7 @@ export function VyzualzAudioDock({
     try {
       const result = await selectRekordboxUsbRoot()
       if (result.cancelled) {
-        setRekordboxStatusWithDiagnostic('USB scan canceled. No files were loaded or replaced.')
+        setRekordboxStatusWithDiagnostic('USB scan canceled. No files were loaded or replaced.', null, { tone: 'info', title: 'USB scan canceled' })
         return
       }
 
@@ -763,9 +777,9 @@ export function VyzualzAudioDock({
         currentTrackMessage,
         hydration.summary ? formatRekordboxDiagnostic(hydration.summary) : null,
         warnings.length ? warnings[0] : null,
-      ].filter(Boolean).join(' '), hydration.summary)
+      ].filter(Boolean).join(' '), hydration.summary, { tone: warnings.length ? 'warning' : 'success', title: 'Rekordbox USB scanned' })
     } catch (err) {
-      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err))
+      setRekordboxStatusWithDiagnostic(err instanceof Error ? err.message : String(err), null, { tone: 'error', title: 'Rekordbox USB scan failed' })
     } finally {
       setRekordboxBusy(false)
     }

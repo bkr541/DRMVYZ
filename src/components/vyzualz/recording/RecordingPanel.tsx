@@ -1,7 +1,7 @@
 import type { RecorderState, RecordingMode } from '../../../hooks/useRecorder'
 import { Badge } from '../react/controls/Badge'
 import { IconChipButton } from '../react/controls/IconChipButton'
-import { NoticeCard } from '../react/controls/NoticeCard'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { StatusBadge } from '../react/controls/StatusBadge'
 import { CtrlSection, SelectRow } from '../react/ReactControlRows'
 
@@ -74,15 +74,15 @@ export function RecordingPanel({
       )}
 
       {fpsWarning && (
-        <NoticeCard tone="warning" role="alert" title="FPS drop">
+        <DrawerNotice tone="warning" role="alert" title="FPS drop">
           {Math.round(liveFps)} fps — recording may be choppy.
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       {recorderError && (
-        <NoticeCard tone="error" role="alert" title="Recording error">
+        <DrawerNotice tone="error" role="alert" title="Recording error">
           {recorderError}
-        </NoticeCard>
+        </DrawerNotice>
       )}
 
       <div className="rv-ctrl-action-row">

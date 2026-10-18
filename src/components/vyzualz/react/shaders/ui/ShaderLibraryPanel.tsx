@@ -11,6 +11,7 @@ import type { QualityTierWithAuto } from '../performance/shaderPerformanceTypes'
 import { ShaderSceneThumbnail } from './ShaderSceneThumbnail'
 import { resolveShaderSceneProvenance } from './ShaderSceneProvenance'
 import { DropdownSelect } from '../../../../shared/Dropdown/Dropdown'
+import { DrawerNotice } from '../../../shared/DrawerNotice'
 
 // ── Tab types ─────────────────────────────────────────────────────────────────
 
@@ -315,10 +316,9 @@ export function ShaderLibraryPanel() {
 
       {/* ── Import error ── */}
       {importError && (
-        <div className="rv-osc-status-warn rv-shader-library-import-error">
-          Import failed: {importError}
-          <button type="button" onClick={() => setImportError(null)} aria-label="Dismiss">✕</button>
-        </div>
+        <DrawerNotice tone="error" role="alert" title="Shader import failed" onDismiss={() => setImportError(null)}>
+          {importError}
+        </DrawerNotice>
       )}
 
       {/* ── Scene list ── */}

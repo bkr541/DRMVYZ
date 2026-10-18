@@ -1,5 +1,6 @@
 import React from 'react'
 import { IconChipButton } from '../../controls/IconChipButton'
+import { DrawerNotice } from '../../../shared/DrawerNotice'
 import { useShallow } from 'zustand/react/shallow'
 import { useShaderPanelStore } from './shaderPanelStore'
 import { shaderRegistry } from '../registry'
@@ -59,9 +60,8 @@ export function ShaderParameterPanel() {
   if (compileError) {
     return (
       <div className="rv-ctrl-group">
-        <div className="rv-osc-status-warn">
-          Shader compile error: {compileError}
-        </div>
+        <DrawerNotice tone="error" role="alert" title="Shader compile error">{compileError}</DrawerNotice>
+        <div className="rv-ctrl-info">Parameters are unavailable until the shader compiles.</div>
       </div>
     )
   }

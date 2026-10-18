@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { drawerText, WithNotificationDrawer } from '../../../../../test/WithNotificationDrawer'
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,6 +99,7 @@ function renderSurface({
   audioTimeSec = 0,
   trackIdentity = null,
   getAudioTime = vi.fn(() => 42),
+  inNotificationPage = false,
 }: {
   isPlaying: boolean
   analysisActive?: boolean
@@ -110,9 +112,11 @@ function renderSurface({
   audioTimeSec?: number
   trackIdentity?: string | null
   getAudioTime?: ReturnType<typeof vi.fn<() => number>>
+  /** Render as part of a page with its Notifications drawer open, to read what the surface lists there. */
+  inNotificationPage?: boolean
 }) {
   const preset = DEFAULT_REACT_PRESETS.find(candidate => candidate.id === 'pix-grid-bass-beacon')!
-  act(() => root.render(
+  const surface = (
     <PixGridSurface
       analyser={analyser}
       activePreset={preset}
@@ -130,8 +134,9 @@ function renderSurface({
       onCanvasReady={onCanvasReady}
       onLiveFps={onLiveFps}
       onDiagnostics={onDiagnostics}
-    />,
-  ))
+    />
+  )
+  act(() => root.render(inNotificationPage ? <WithNotificationDrawer>{surface}</WithNotificationDrawer> : surface))
   return { onCanvasReady, onLiveFps, onDiagnostics, getAudioTime }
 }
 
@@ -305,6 +310,17 @@ describe('PixGridSurface lifecycle', () => {
     expect([...host.querySelectorAll('canvas')]).toEqual(canvases)
     expect(webglAttempts).toBe(1)
     expect(rafCallbacks.size).toBe(1)
+  })
+
+  it('lists the fallback renderer in the Notifications drawer with a working Retry GPU', () => {
+    renderSurface({ isPlaying: false, inNotificationPage: true })
+    runNextFrame()
+    expect(drawerText()).toContain('PixGrid is using the fallback renderer')
+    expect(drawerText()).toContain('Canvas2D PixGrid fallback')
+    expect(host.textContent).not.toContain('Canvas2D PixGrid fallback')
+    const retry = [...document.body.querySelectorAll<HTMLButtonElement>('.vz-notifications-drawer button')].find(b => b.textContent?.includes('Retry GPU'))!
+    act(() => retry.click())
+    expect(webglAttempts).toBe(2)
   })
 
   it('surfaces a concise retryable fallback diagnostic', () => {

@@ -297,7 +297,7 @@ function CinematicWorldSourceGrid({
   )
 }
 
-function OscillatorSourceDiagnostics({
+export function OscillatorSourceDiagnostics({
   osc,
   glyphAssets,
   fontAssets,
@@ -334,22 +334,26 @@ function OscillatorSourceDiagnostics({
   if (!hasSvgDiagnostics && !hasTextDiagnostics) return null
 
   return (
-    <div className="rv-osc-source-diagnostics" role="status" aria-live="polite">
-      {svgStatus?.loading && <div className="rv-ctrl-info">Loading SVG caches…</div>}
-      {svgStatus && !svgStatus.mediaId && (
-        <div className="rv-osc-status-warn">No SVG selected — choose one below</div>
+    <>
+      {svgStatus?.loading && (
+        <div className="rv-osc-source-diagnostics" role="status" aria-live="polite">
+          <div className="rv-ctrl-info">Loading SVG caches…</div>
+        </div>
       )}
-      {svgStatus?.error && <div className="rv-osc-status-warn">Load error: {svgStatus.error}</div>}
+      {svgStatus && !svgStatus.mediaId && (
+        <DrawerNotice tone="info" role="status" title="No SVG selected">Choose an SVG in the Sound Drawing source list.</DrawerNotice>
+      )}
+      {svgStatus?.error && <DrawerNotice tone="error" role="alert" title="SVG could not be loaded">{svgStatus.error}</DrawerNotice>}
       {osc.sourceType === 'svgGlyph' && !svgStatus && !selectedGlyph && (
-        <div className="rv-osc-status-warn">No SVG glyph selected</div>
+        <DrawerNotice tone="info" role="status" title="No SVG glyph selected">Choose a glyph in the Sound Drawing source list.</DrawerNotice>
       )}
       {osc.sourceType === 'text' && !osc.text.trim() && (
-        <div className="rv-osc-status-warn">Text is empty</div>
+        <DrawerNotice tone="info" role="status" title="Text is empty">Type the text Sound Drawing should draw.</DrawerNotice>
       )}
       {osc.sourceType === 'text' && selectedFont?.parseError && (
-        <div className="rv-osc-status-warn">{selectedFont.parseError}</div>
+        <DrawerNotice tone="error" role="alert" title="Font could not be read">{selectedFont.parseError}</DrawerNotice>
       )}
-    </div>
+    </>
   )
 }
 

@@ -39,6 +39,7 @@ import { Collapsible, SelectRow, SliderRow, ToggleRow } from './ReactControlRows
 import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
 import { CinemaComposerStage19Panel } from './CinemaComposerStage19Panel'
 import { CinemaAdvancedGraphEditor } from './CinemaAdvancedGraphEditor'
+import { notify } from '../../../stores/notificationStore'
 
 const BLEND_OPTIONS: readonly CinemaComposerBlendMode[] = [
   'normal', 'add', 'screen', 'multiply', 'lighten', 'darken', 'difference', 'overlay', 'masked',
@@ -48,7 +49,10 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState<'All' | CinemaComposerLibraryItem['category']>('All')
   const [renameDraft, setRenameDraft] = useState('')
-  const [libraryMessage, setLibraryMessage] = useState('')
+  /** Posts the result of a Composition Library action to the Notifications drawer. */
+  const reportLibrary = (ok: boolean, message: string, okTitle: string, failTitle: string) => {
+    notify('react', { tone: ok ? 'success' : 'error', title: ok ? okTitle : failTitle, message })
+  }
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const state = useCinemaStore(useShallow(store => ({
     activeCompositionId: store.activeCompositionId,
@@ -66,7 +70,6 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
   const libraryStatus = active ? getCinemaCompositionLibraryStatus(active) : null
   useEffect(() => {
     setRenameDraft(active?.metadata.name ?? '')
-    setLibraryMessage('')
   }, [active?.id, active?.metadata.name])
   const structured = active != null && isCinemaComposerComposition(active)
   const layers = active && structured ? getCinemaComposerLayers(active) : []
@@ -96,40 +99,40 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
   const saveComposition = () => {
     if (!active || libraryStatus?.provenance === 'built-in') return
     const result = useCinemaStore.getState().saveCinemaComposition(active.id)
-    setLibraryMessage(result.ok ? 'Composition saved.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition.'))
+    reportLibrary(result.ok, result.ok ? 'Composition saved.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition.'), 'Composition saved', 'Composition not saved')
   }
 
   const saveCompositionAs = () => {
     if (!active) return
     const id = nextCompositionId(state.compositions.map(composition => String(composition.id)))
     const result = useCinemaStore.getState().saveCinemaCompositionAs(active.id, id, `${active.metadata.name} Copy`)
-    setLibraryMessage(result.ok ? 'Saved as a new user composition.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition copy.'))
+    reportLibrary(result.ok, result.ok ? 'Saved as a new user composition.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to save composition copy.'), 'Copy saved', 'Copy not saved')
   }
 
   const duplicateComposition = () => {
     if (!active) return
     const id = nextCompositionId(state.compositions.map(composition => String(composition.id)))
     const result = useCinemaStore.getState().duplicateCinemaComposition(active.id, id, `${active.metadata.name} Copy`)
-    setLibraryMessage(result.ok ? 'Composition duplicated with independent graph IDs.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to duplicate composition.'))
+    reportLibrary(result.ok, result.ok ? 'Composition duplicated with independent graph IDs.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to duplicate composition.'), 'Composition duplicated', 'Composition not duplicated')
   }
 
   const renameComposition = () => {
     if (!active || libraryStatus?.provenance === 'built-in') return
     const result = useCinemaStore.getState().renameCinemaComposition(active.id, renameDraft)
-    setLibraryMessage(result.ok ? 'Composition renamed.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to rename composition.'))
+    reportLibrary(result.ok, result.ok ? 'Composition renamed.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to rename composition.'), 'Composition renamed', 'Composition not renamed')
   }
 
   const deleteComposition = () => {
     if (!active || libraryStatus?.provenance === 'built-in') return
     const result = useCinemaStore.getState().deleteCinemaComposition(active.id)
-    setLibraryMessage(result.ok ? 'Composition deleted; selection moved to a safe fallback.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to delete composition.'))
+    reportLibrary(result.ok, result.ok ? 'Composition deleted; selection moved to a safe fallback.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to delete composition.'), 'Composition deleted', 'Composition not deleted')
   }
 
   const exportComposition = () => {
     if (!active) return
     const encoded = encodeCinemaPackage(useCinemaStore.getState().exportCinemaCompositionPackage(active.id))
     if (!encoded.ok) {
-      setLibraryMessage(firstDiagnostic(encoded.diagnostics.diagnostics, 'Unable to export composition.'))
+      reportLibrary(false, firstDiagnostic(encoded.diagnostics.diagnostics, 'Unable to export composition.'), '', 'Export failed')
       return
     }
     const blob = new Blob([encoded.value], { type: 'application/json' })
@@ -139,7 +142,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       anchor.href = url
       anchor.download = `${active.id}.cinema.json`
       anchor.click()
-      setLibraryMessage('Composition package exported.')
+      reportLibrary(true, `${active.metadata.name} was exported as ${active.id}.cinema.json.`, 'Composition exported', '')
     } finally {
       URL.revokeObjectURL(url)
     }
@@ -150,13 +153,13 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
     try {
       const decoded = decodeCinemaPackage(await file.text())
       if (!decoded.ok) {
-        setLibraryMessage(firstDiagnostic(decoded.diagnostics.diagnostics, 'Import package is invalid.'))
+        reportLibrary(false, firstDiagnostic(decoded.diagnostics.diagnostics, 'Import package is invalid.'), '', 'Import failed')
         return
       }
       const result = useCinemaStore.getState().importCinemaPackage(decoded.value, { mode: 'merge', conflictPolicy: 'reject' })
-      setLibraryMessage(result.ok ? 'Cinema package imported.' : firstDiagnostic(result.diagnostics.diagnostics, 'Cinema package was not imported.'))
+      reportLibrary(result.ok, result.ok ? 'Cinema package imported.' : firstDiagnostic(result.diagnostics.diagnostics, 'Cinema package was not imported.'), 'Package imported', 'Import failed')
     } catch (error) {
-      setLibraryMessage(`Cinema package was not imported: ${error instanceof Error ? error.message : String(error)}`)
+      reportLibrary(false, `Cinema package was not imported: ${error instanceof Error ? error.message : String(error)}`, '', 'Import failed')
     }
   }
 
@@ -169,7 +172,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
       compositionIds: [active.id],
       metadata: { cinemaLibrary: true },
     })
-    setLibraryMessage(result.ok ? 'Collection created.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to create collection.'))
+    reportLibrary(result.ok, result.ok ? 'Collection created.' : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to create collection.'), 'Collection created', 'Collection not created')
   }
 
   const toggleCollection = (collectionId: CinemaCollectionId) => {
@@ -183,7 +186,7 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
         ? collection.compositionIds.filter(id => id !== active.id)
         : [...collection.compositionIds, active.id],
     })
-    setLibraryMessage(result.ok ? (included ? 'Removed from collection.' : 'Added to collection.') : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to update collection.'))
+    reportLibrary(result.ok, result.ok ? `${active.metadata.name} was ${included ? 'removed from' : 'added to'} "${collection.label}".` : firstDiagnostic(result.diagnostics.diagnostics, 'Unable to update collection.'), included ? 'Removed from collection' : 'Added to collection', 'Collection not updated')
   }
 
   const edit = (label: string, editor: Parameters<ReturnType<typeof useCinemaStore.getState>['editCinemaComposition']>[2]) => {
@@ -295,7 +298,6 @@ export function CinemaComposerPanel({ frameBridge = null }: { frameBridge?: Cine
                 </label>
               ))}
             </div>
-            {libraryMessage && <div className="rv-cinema-library-manager__message" role="status">{libraryMessage}</div>}
           </div>
         </Collapsible>
       )}

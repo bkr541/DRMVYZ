@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NativeOutputBridge, OutputCastRequest, OutputCastSession, OutputReceiverRequest, OutputTarget } from '../../../../native/outputBridge'
 import { CANVAS_FRACTURES_OUTPUT_DEFERRED } from '../canvasFracturesOutputContract'
+import { drawerText, WithNotificationDrawer } from '../../../../test/WithNotificationDrawer'
 import { OutputCastControl } from './OutputCastControl'
 
 const targets: OutputTarget[] = [
@@ -139,6 +140,23 @@ afterEach(async () => {
 })
 
 describe('OutputCastControl', () => {
+  it('keeps casting failures in the Notifications drawer after the popover is closed', async () => {
+    await act(async () => root.render(<WithNotificationDrawer><OutputCastControl canvas={canvas} /></WithNotificationDrawer>))
+    // The popover was never opened: a session that fails in the background must still be reported.
+    await act(async () => {
+      sessionChanged?.({
+        id: 'session-9', targetId: 'display:2', targetName: 'Stage Screen', windowMode: 'fullscreen',
+        aspectRatio: '16:9', state: 'failed', error: 'The receiver rejected the connection.',
+      })
+    })
+    expect(document.body.querySelector('[role="dialog"].rv-cast-popover')).toBeNull()
+    expect(drawerText()).toContain('Output failed')
+    expect(drawerText()).toContain('The receiver rejected the connection.')
+
+    await act(async () => { sessionChanged?.(null) })
+    expect(drawerText()).not.toContain('The receiver rejected the connection.')
+  })
+
   it('places casting behind the visualizer icon and requires window and aspect selections', async () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     expect(trigger).not.toBeNull()

@@ -489,6 +489,10 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(container?.querySelector('[role="status"]')?.textContent).toContain(
       'Audio ready · Rekordbox metadata unavailable: USB unavailable',
     )
+    // The failure is also listed in the Notifications drawer, not only in the small status line.
+    const text = await drawerText('react')
+    expect(text).toContain('Rekordbox metadata unavailable')
+    expect(text).toContain('USB unavailable')
   })
 
   it('hydrates USB tracks from the persisted Rekordbox index without scanning the USB', async () => {
@@ -521,6 +525,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
       'loaded-0',
       expect.objectContaining({ source: 'rekordbox_usb' }),
     )
+    expect(await drawerText('react')).toMatch(/Rekordbox metadata applied|No Rekordbox match/)
   })
 
   it('routes the real Audio Dock SYNC button through the canonical toggle action', async () => {

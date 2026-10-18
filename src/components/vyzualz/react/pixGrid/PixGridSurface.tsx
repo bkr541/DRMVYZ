@@ -90,6 +90,7 @@ import { resolvePixGridLayerFrameSource } from './PixGridFrameSources'
 import { resolvePixGridMotionDynamics, resolvePixGridMotionProfile } from './PixGridMotionProfiles'
 import { getPixGridRegisteredSequenceDeckByPresetId } from './PixGridPresetRegistry'
 import { clearPixGridDevelopmentDiagnostics, publishPixGridDevelopmentDiagnostics } from './PixGridDevelopmentDiagnostics'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 
 function activeDeckSourceId(state: PixGridState, sceneId?: string | null): string | null {
   const scene = state.scenes.find(candidate => candidate.id === (sceneId ?? state.selectedSceneId))
@@ -1606,17 +1607,22 @@ export function PixGridSurface(props: PixGridSurfaceProps) {
         hidden={!fallbackActive}
       />
       {selectedMediaId && mediaPreparationMessage && (
-        <div className="rv-pix-grid-diagnostic rv-pix-grid-diagnostic--media" role="status" aria-live="polite">
-          <span>{mediaPreparationMessage}</span>
-        </div>
+        <DrawerNotice
+          className="rv-pix-grid-diagnostic rv-pix-grid-diagnostic--media"
+          tone={/^Preparing /.test(mediaPreparationMessage) ? 'info' : 'warning'}
+          role="status"
+          title={/^Preparing /.test(mediaPreparationMessage) ? 'PixGrid media' : 'PixGrid media unavailable'}
+        >
+          {mediaPreparationMessage}
+        </DrawerNotice>
       )}
       {fallbackActive && diagnostics.fallbackReason && (
-        <div className="rv-pix-grid-diagnostic" role="status" aria-live="polite">
-          <span>{diagnostics.fallbackReason}</span>
+        <DrawerNotice className="rv-pix-grid-diagnostic" tone="warning" role="status" title="PixGrid is using the fallback renderer">
+          {diagnostics.fallbackReason}{' '}
           <button type="button" onClick={() => retryGpuRef.current()}>
             Retry GPU
           </button>
-        </div>
+        </DrawerNotice>
       )}
     </div>
   )

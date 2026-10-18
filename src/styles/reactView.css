@@ -4154,29 +4154,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   flex-direction: column;
   gap: 4px;
 }
-.rv-shader-library-import-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 3px;
-}
-.rv-shader-library-import-error button {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0;
-  font-size: 12px;
-  line-height: 1;
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-.rv-shader-library-import-error button:hover {
-  opacity: 1;
-}
 .rv-shader-scene-card-body {
   flex: 1;
   min-width: 0;
@@ -18845,11 +18822,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 .rv-cinema-library-manager__status span,
 .rv-cinema-library-manager__collections small,
-.rv-cinema-library-manager__message {
-  color: var(--text-secondary, #9aa4b2);
-  font-size: 9px;
-}
-
 .rv-cinema-library-manager__actions button {
   border: 1px solid var(--border-subtle, rgba(255,255,255,.12));
   background: rgba(255,255,255,.045);
@@ -18880,10 +18852,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   gap: 6px;
   font-size: 10px;
-}
-
-.rv-cinema-library-manager__message {
-  line-height: 1.4;
 }
 
 /* Cinema Stage 22: optional advanced freeform graph editor. */
@@ -21719,38 +21687,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   width: 100%;
   height: 100%;
   background: #000;
-}
-
-.rv-cinema2-runtime-status {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 1;
-  display: flex;
-  max-width: min(460px, calc(100% - 48px));
-  transform: translate(-50%, -50%);
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border: 1px solid rgba(192, 49, 74, 0.28);
-  border-radius: 7px;
-  background: rgba(8, 12, 16, 0.88);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.36);
-  text-align: center;
-  pointer-events: none;
-}
-
-.rv-cinema2-runtime-status strong {
-  color: rgba(232, 244, 248, 0.82);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.rv-cinema2-runtime-status span {
-  color: rgba(232, 244, 248, 0.55);
-  font-size: 10px;
-  line-height: 1.45;
 }
 
 .rv-cinema2-textarea {

@@ -9,6 +9,7 @@ import {
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
 import { notify } from '../../../stores/notificationStore'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { acquireReactLiveEngineOwnership } from './renderers/ReactLiveEngineOwnership'
 import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
 import { assertDrmvyzWebGLContextOwnershipBoundsForDevelopment } from './shaders/runtime/WebGLContextLifecycle'
@@ -276,10 +277,13 @@ export function Cinema2Stage({
         aria-label="Cinema 2.0 live output"
       />
       {message && (
-        <div className="rv-cinema2-runtime-status" role="status" aria-live="polite">
-          <strong>Cinema 2.0</strong>
-          <span>{message}</span>
-        </div>
+        <DrawerNotice
+          tone={runtimeSnapshot?.phase === 'unavailable' ? 'error' : 'warning'}
+          role="status"
+          title={runtimeSnapshot?.phase === 'unavailable' ? 'Cinema 2.0 unavailable' : runtimeSnapshot?.phase === 'context-lost' ? 'Cinema 2.0 recovering' : 'Cinema 2.0'}
+        >
+          {message}
+        </DrawerNotice>
       )}
     </section>
   )

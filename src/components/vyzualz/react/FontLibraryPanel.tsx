@@ -3,6 +3,7 @@ import { IconChipButton } from './controls/IconChipButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Delete02Icon } from 'hugeicons-react'
+import { DrawerNotice } from '../shared/DrawerNotice'
 import { useReactStore } from '../../../stores/reactStore'
 import { useFontPreviewPreload } from './useFontPreviewPreload'
 import type { OscillatorFontAsset } from './ReactTypes'
@@ -69,7 +70,12 @@ export function FontLibraryPanel() {
   const [viewportH, setViewportH] = useState(260)
 
   const anyBusy = fontUploadPending || !!fontSelectPending || !!fontRemovePending
-  const errs = [fontLoadError, fontUploadError, fontSelectError, fontRemoveError].filter(Boolean)
+  const fontErrors = [
+    { key: 'load', title: 'Font Library could not load', message: fontLoadError },
+    { key: 'upload', title: 'Font upload failed', message: fontUploadError },
+    { key: 'select', title: 'Font could not be applied', message: fontSelectError },
+    { key: 'remove', title: 'Font could not be removed', message: fontRemoveError },
+  ].filter((entry): entry is { key: string; title: string; message: string } => Boolean(entry.message))
   const searchLower = searchQuery.toLowerCase()
   const filteredAssets = useMemo(() => (
     searchQuery.length > 0
@@ -139,7 +145,9 @@ export function FontLibraryPanel() {
           <DreamVizTextInput className="rv-font-preview-input" type="text" aria-label="Font preview text" placeholder="Preview text…" value={previewText} onChange={e => setPreviewText(e.target.value)} />
         </div>
 
-        {errs.length > 0 && <div className="rv-osc-status-warn" style={{ margin: '0 10px 6px' }}>{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}
+        {fontErrors.map(entry => (
+          <DrawerNotice key={entry.key} tone="error" role="alert" title={entry.title}>{entry.message}</DrawerNotice>
+        ))}
         {fontsLoadState === 'loading' && <div className="rv-ctrl-info" style={{ margin: '0 10px' }}>Loading font library…</div>}
         {oscillatorFontAssets.length === 0 && fontsLoadState !== 'loading' && <div className="rv-ctrl-info" style={{ margin: '0 10px' }}>No fonts uploaded yet.</div>}
         {oscillatorFontAssets.length > 0 && filteredAssets.length === 0 && <div className="rv-ctrl-info" style={{ margin: '0 10px' }}>No fonts match &ldquo;{searchQuery}&rdquo;</div>}

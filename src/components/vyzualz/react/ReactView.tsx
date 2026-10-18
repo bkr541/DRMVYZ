@@ -35,6 +35,7 @@ import {
 } from './panels/ReactWorkspacePanels'
 import { LaserDmxBeamMatrixEditorOverlay } from './LaserDmxBeamMatrixEditorOverlay'
 import { LaserDmxShowDirectorCanvas } from './LaserDmxShowDirectorCanvas'
+import { LaserDmxRendererNotice } from './LaserDmxRendererDiagnosticsPanel'
 import { resolveLaserDmxAuthoringOverlayVisibility } from './renderers/laserDmx/LaserDmxRendererBackend'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
@@ -797,6 +798,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
 
   return (
     <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
+      {activeReactEngineId === 'laserDmx' && <LaserDmxRendererNotice />}
       <div className="vz-header">
         <PageHeadingPlate title="REACT" icon={<ReactHeadingIcon />} />
 

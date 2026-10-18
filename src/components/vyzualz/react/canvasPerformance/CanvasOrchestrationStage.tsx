@@ -19,6 +19,7 @@ import { resolveCanvasEffectVisualState } from './CanvasEffectRecipes'
 import { CanvasLayerEffectRuntime, type CanvasLayerEffectFrameContext } from './CanvasLayerEffectRendering'
 import { isCanvasPreloadHandleDrawable, type CanvasPreloadHandle, type CanvasPreloadManager } from './CanvasPreloadManager'
 import { resolveCanvasTransitionVisualState } from './CanvasTransitions'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 import { CanvasShowAdaptiveQualityController, resolveCanvasShowCompositionDimensions, type CanvasShowQualitySnapshot } from './CanvasShowAdaptiveQuality'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract, type CanvasLayerAlphaHierarchy } from './CanvasOutputContract'
 import type {
@@ -989,16 +990,16 @@ function CanvasGenericOrchestrationStage({
           onLiveFps={onLiveFps}
         />
       )}
+      {mediaErrors.length > 0 && (
+        <DrawerNotice tone="error" role="alert" title="CANVAS show media could not load">
+          Failed to load {mediaErrors.length} source{mediaErrors.length === 1 ? '' : 's'}{mediaErrors[0]?.message ? ` · ${mediaErrors[0].message}` : ''}
+        </DrawerNotice>
+      )}
       {showStatus !== false && <div className="rv-canvas-orchestration-status" role="status">
         <strong>{frame.showLabel} · {frame.template.label}</strong>
         <span>{frame.layers.filter(layer => layer.enabled).length} layers · {frame.decoderCount} video decoders · {mediaSummary.length} sources</span>
         {frame.anticipatoryStage !== 'none' && <span>Queued: {frame.anticipatoryStage}{frame.nextSectionType ? ` → ${frame.nextSectionType}` : ''}</span>}
         {frame.pendingMediaIds.length > 0 && <span>Preloading {frame.pendingMediaIds.length} upcoming source{frame.pendingMediaIds.length === 1 ? '' : 's'}</span>}
-        {mediaErrors.length > 0 && (
-          <span role="alert">
-            Failed to load {mediaErrors.length} source{mediaErrors.length === 1 ? '' : 's'} · {mediaErrors[0]?.message}
-          </span>
-        )}
         {frame.runtimeMode === 'show' && qualitySnapshot && (
           <span data-testid="canvas-show-quality-diagnostics">
             Quality {qualitySnapshot.tier} · {Math.round(qualitySnapshot.scale * 100)}% composition · {qualitySnapshot.activeVideoCount} video{qualitySnapshot.activeVideoCount === 1 ? '' : 's'} · {qualitySnapshot.averageFrameMs.toFixed(1)}ms
