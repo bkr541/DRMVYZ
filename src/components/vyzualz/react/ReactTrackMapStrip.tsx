@@ -2279,7 +2279,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
         const preset = linkedCue.presetId
           ? reactPresets.find(p => p.id === linkedCue.presetId)
           : null
-        const destinationLabel = preset?.name ?? (linkedCue.cinemaCompositionId ? 'Cinema' : linkedCue.label)
+        const destinationLabel = preset?.name ?? (linkedCue.destination?.engineId === 'cinema2' ? 'Cinema 2.0' : linkedCue.label)
         cueUpdate.label = buildPresetCueLabel(patch.label, destinationLabel)
       }
       if (cueUpdate.timeSec != null || cueUpdate.label != null) {
@@ -2589,7 +2589,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
               ? reactPresets.find(p => p.id === selectedSectionPresetCue.presetId) ?? null
               : null
             const selectedSectionPresetLabel = selectedSectionPreset?.name
-              ?? (selectedSectionPresetCue?.cinemaCompositionId ? 'Cinema composition' : null)
+              ?? (selectedSectionPresetCue?.destination?.engineId === 'cinema2' ? 'Cinema 2.0 preset' : null)
             const selectedSectionConfidence = selectedSection
               ? buildSectionConfidenceDisplayData(selectedSection)
               : null

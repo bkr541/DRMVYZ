@@ -9,8 +9,8 @@ import {
   REACT_KNOWN_ENGINE_IDS,
   isSelectableReactEngineId,
 } from '../reactEngineCatalog'
-import { migrateLegacyPerformancePadsToCinema } from '../../cinema/CinemaLegacyRetirement'
-import { CINEMA_LEGACY_PRESET_CATALOG } from '../../cinema/CinemaFoundation'
+import { migrateLegacyPerformancePadsToCinema2 } from '../../cinema2/migration/Cinema2LegacyStateMigration'
+import { cinema2NativePresetRegistry } from '../../cinema2/presets/Cinema2PresetRegistry'
 import { sanitizeReactPresetFavorites, writeReactPresetFavorites } from '../reactPresetLibraryState'
 import {
   REACT_VISUAL_PERFORMANCE_ACTIONS,
@@ -66,16 +66,15 @@ describe('React engine final integrity audit', () => {
   it('keeps migrated default pads and compatibility performance actions pointed at valid targets', () => {
     const engineIds = new Set(REACT_KNOWN_ENGINE_IDS)
     const presetIds = new Set(DEFAULT_REACT_PRESETS.map(preset => preset.id))
-    const cinemaIds = new Set<string>(CINEMA_LEGACY_PRESET_CATALOG.compositions.map(composition => composition.id))
     const actionIds = new Set<string>()
 
-    for (const pad of migrateLegacyPerformancePadsToCinema(DEFAULT_PERFORMANCE_PADS)) {
+    for (const pad of migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS)) {
       if (pad.presetId != null) {
         expect(presetIds.has(pad.presetId), `pad ${pad.id} references missing preset ${pad.presetId}`).toBe(true)
         expect(DEFAULT_REACT_PRESETS.find(preset => preset.id === pad.presetId)?.engine).not.toBe('cinematicPortal')
       }
-      if (pad.cinemaCompositionId != null) {
-        expect(cinemaIds.has(pad.cinemaCompositionId), `pad ${pad.id} references missing Cinema composition`).toBe(true)
+      if (pad.destination?.engineId === 'cinema2') {
+        expect(cinema2NativePresetRegistry.list().some(preset => preset.id === pad.destination?.presetId), `pad ${pad.id} references missing Cinema 2.0 preset`).toBe(true)
       }
     }
 

@@ -36,12 +36,10 @@ describe('Cinema Stage 23 legacy engine retirement', () => {
         activeReactPresetId: cinematicPreset.id,
       }, version)
 
-      expect(migrated.activeReactEngineId, `version ${version}`).toBe('cinema')
+      expect(migrated.activeReactEngineId, `version ${version}`).toBe('cinema2')
       expect(migrated.activeReactPresetId, `version ${version}`).toBeNull()
-      expect(migrated.pendingCinemaLegacySelectionMigration, `version ${version}`).toEqual({
-        legacyEngineId: 'cinematicPortal',
-        legacySourceId: cinematicPreset.id,
-      })
+      expect(migrated.pendingCinemaLegacySelectionMigration, `version ${version}`).toBeNull()
+      expect((migrated.cinema2Workspace as { activePresetId: string | null }).activePresetId, `version ${version}`).not.toBeNull()
     }
   })
 
@@ -51,12 +49,9 @@ describe('Cinema Stage 23 legacy engine retirement', () => {
       activeReactPresetId: null,
     }, 66)
 
-    expect(migrated.activeReactEngineId).toBe('cinema')
+    expect(migrated.activeReactEngineId).toBe('cinema2')
     expect(migrated.activeReactPresetId).toBeNull()
-    expect(migrated.pendingCinemaLegacySelectionMigration).toEqual({
-      legacyEngineId: 'shaderPads',
-      legacySourceId: null,
-    })
+    expect(migrated.pendingCinemaLegacySelectionMigration).toBeNull()
   })
 
   it('rewrites legacy performance-pad and automation-cue destinations to stable Stage-21 Cinema composition IDs', () => {

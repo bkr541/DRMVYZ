@@ -3323,8 +3323,8 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
 export interface ReactPerformancePad {
   id: string
   presetId: string | null
-  /** Stage 23 destination for retired Cinematic Worlds pad assignments. */
-  cinemaCompositionId?: string | null
+  /** Versioned cross-engine destination. Legacy `cinemaCompositionId` is decoded only during migration. */
+  destination?: ReactEngineDestination | null
   label: string
   color: string
   keyBinding: string
@@ -3480,6 +3480,8 @@ export interface ReactTrackSection {
   endSec: number
   intensity: number
   engineId?: ReactEngineId
+  /** Optional exact destination when an engine identity alone is not sufficient. */
+  destination?: ReactEngineDestination | null
   source?: ReactTrackSectionSource
   /** User/import locks survive automatic reanalysis and boundary rebuilding. */
   locked?: boolean
@@ -3555,14 +3557,22 @@ export function resolveReactPresetLaserDmxWorkspace(
 export interface ReactPresetAutomationCue {
   id:           string
   timeSec:      number
-  /** Legacy/React preset destination. Null when Stage 23 migrated the cue to Cinema. */
+  /** React preset destination. Null when `destination` owns cross-engine activation. */
   presetId:     string | null
-  /** Stable Cinema composition destination for retired Cinematic Worlds cues. */
-  cinemaCompositionId?: string | null
+  /** Versioned cross-engine destination. Legacy `cinemaCompositionId` is decoded only during migration. */
+  destination?: ReactEngineDestination | null
   label:        string
   enabled:      boolean
   transitionMs: number
   sectionId?:   string
+}
+
+export interface ReactEngineDestination {
+  schemaVersion: 1
+  engineId: ReactEngineId
+  presetId: string
+  variantId?: string
+  parameterPatch?: Record<string, unknown>
 }
 
 // ── DVYDRM palette constants ──────────────────────────────────────────────────

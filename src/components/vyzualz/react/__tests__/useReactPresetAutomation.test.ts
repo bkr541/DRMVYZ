@@ -135,6 +135,25 @@ describe('resolveActiveCue — disabled cues', () => {
 // ── Missing presets ───────────────────────────────────────────────────────────
 
 describe('resolveActiveCue — missing preset', () => {
+  it('accepts a registered Cinema 2.0 destination without a React preset ID', () => {
+    const cinemaCue = cue({
+      id: 'cinema2-cue',
+      timeSec: 10,
+      presetId: null,
+      destination: {
+        schemaVersion: 1,
+        engineId: 'cinema2',
+        presetId: 'drmvyz.cinema2.reactor',
+      },
+    })
+    expect(resolveActiveCue(
+      [cinemaCue],
+      20,
+      new Set(),
+      new Set(['drmvyz.cinema2.reactor']),
+    )?.id).toBe('cinema2-cue')
+  })
+
   it('skips a cue whose presetId is not in validPresetIds', () => {
     const cues = [
       cue({ id: 'c1', timeSec: 10, presetId: 'p-exists'  }),

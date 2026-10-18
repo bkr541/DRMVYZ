@@ -169,7 +169,7 @@ describe('Neon Lattice persisted-data retirement', () => {
 
   it('migrates an active Neon project to the authoritative safe startup pair', () => {
     const migrated = migrateReactStore(makeMigrationFixture(), 36)
-    expect(migrated.activeReactEngineId).toBe('cinema')
+    expect(migrated.activeReactEngineId).toBe('cinema2')
     expect(migrated.activeReactPresetId).toBeNull()
   })
 
@@ -294,7 +294,7 @@ describe('Neon Lattice persisted-data retirement', () => {
     }
 
     const sanitized = migrateReactStore(fixture, 37)
-    expect(sanitized.activeReactEngineId).toBe('cinema')
+    expect(sanitized.activeReactEngineId).toBe('cinema2')
     expect(sanitized.activeReactPresetId).toBeNull()
     expect((sanitized.reactPresets as ReactPreset[]).map(preset => preset.id)).toEqual([safePreset.id])
     expect((sanitized.performancePads as Array<Record<string, unknown>>)[0]).toMatchObject({ presetId: null, actionId: null, visualAction: null })
@@ -336,7 +336,7 @@ describe('Neon Lattice persisted-data retirement', () => {
     for (const presetId of RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS) {
       expect(serialized).not.toContain(presetId)
     }
-    expect(persistedTwice.activeReactEngineId).toBe('cinema')
+    expect(persistedTwice.activeReactEngineId).toBe('cinema2')
     expect(persistedTwice.activeReactPresetId).toBeNull()
   })
 })

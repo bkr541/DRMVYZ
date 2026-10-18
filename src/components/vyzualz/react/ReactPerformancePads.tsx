@@ -176,7 +176,7 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
             }
 
             const isActive = pad.id === activePadId
-            const hasDestination = Boolean(pad.presetId || pad.cinemaCompositionId)
+            const hasDestination = Boolean(pad.presetId || pad.destination)
             return (
               <button
                 key={pad.id}

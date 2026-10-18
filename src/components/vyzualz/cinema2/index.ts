@@ -348,6 +348,7 @@ export {
   CINEMA2_DEFAULT_WORKSPACE_ACTIVATION,
   CINEMA2_LEGACY_ARCHIVE_SCHEMA_ID,
   CINEMA2_LEGACY_ARCHIVE_SCHEMA_VERSION,
+  CINEMA2_LEGACY_MIGRATION_VERSION,
   CINEMA2_WORKSPACE_SCHEMA_ID,
   CINEMA2_WORKSPACE_SCHEMA_VERSION,
   activateCinema2Workspace,
@@ -355,10 +356,13 @@ export {
   createEmptyCinema2WorkspaceDocument,
   exportCinema2LegacyArchive,
   getCinema2WorkspacePresetState,
+  migrateLegacyCinemaWorkspace,
   normalizeCinema2WorkspaceDocument,
   parseCinema2WorkspaceDocument,
   storeCinema2WorkspacePresetState,
   type Cinema2LegacyArchive,
+  type Cinema2LegacyWorkspaceMigrationRequest,
+  type Cinema2LegacyWorkspaceMigrationResult,
   type Cinema2PersistedPresetState,
   type Cinema2WorkspaceActivationRequest,
   type Cinema2WorkspaceActivationResult,
@@ -367,6 +371,19 @@ export {
   type Cinema2WorkspaceLookSelection,
   type Cinema2WorkspaceParseResult,
 } from './runtime/Cinema2WorkspacePersistence'
+
+export {
+  REACT_ENGINE_DESTINATION_SCHEMA_VERSION,
+  activateCinema2LegacyDestination,
+  migrateLegacyCinemaStoreToCinema2,
+  migrateLegacyPerformancePadsToCinema2,
+  migrateLegacyPresetAutomationCuesToCinema2,
+  migrateLegacyReactSelectionToCinema2,
+  migrateLegacyTrackSectionsToCinema2,
+  resolveCinema2LegacyDestination,
+  type Cinema2LegacyCompositionSourceResolver,
+  type Cinema2LegacySourceIdentity,
+} from './migration/Cinema2LegacyStateMigration'
 
 export {
   validateCinema2RenderTargetDescriptor,

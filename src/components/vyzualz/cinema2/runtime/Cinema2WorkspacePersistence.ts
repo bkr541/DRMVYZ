@@ -20,6 +20,7 @@ export const CINEMA2_WORKSPACE_SCHEMA_ID = 'drmvyz.cinema2.workspace' as const
 export const CINEMA2_WORKSPACE_SCHEMA_VERSION = 1 as const
 export const CINEMA2_LEGACY_ARCHIVE_SCHEMA_ID = 'drmvyz.cinema2.legacy-archive' as const
 export const CINEMA2_LEGACY_ARCHIVE_SCHEMA_VERSION = 1 as const
+export const CINEMA2_LEGACY_MIGRATION_VERSION = 1 as const
 
 export interface Cinema2LegacyArchive {
   schemaId: typeof CINEMA2_LEGACY_ARCHIVE_SCHEMA_ID
@@ -44,6 +45,9 @@ export interface Cinema2WorkspaceDocument {
   activePresetId: Cinema2PresetId | null
   presets: readonly Readonly<Cinema2PersistedPresetState>[]
   legacyArchive: Readonly<Cinema2LegacyArchive> | null
+  /** Idempotency marker for the raw legacy Cinema document copied into this workspace. */
+  legacyMigrationVersion: number
+  legacyMigrationFingerprint: string | null
 }
 
 export interface Cinema2WorkspaceDiagnostic {
@@ -91,6 +95,8 @@ export function createEmptyCinema2WorkspaceDocument(): Readonly<Cinema2Workspace
     activePresetId: null,
     presets: [],
     legacyArchive: null,
+    legacyMigrationVersion: 0,
+    legacyMigrationFingerprint: null,
   })
 }
 
@@ -138,8 +144,55 @@ export function parseCinema2WorkspaceDocument(
     activePresetId,
     presets: presets.sort((left, right) => left.presetId.localeCompare(right.presetId)),
     legacyArchive: archive,
+    legacyMigrationVersion: nonNegativeInteger(input.legacyMigrationVersion),
+    legacyMigrationFingerprint: typeof input.legacyMigrationFingerprint === 'string'
+      ? input.legacyMigrationFingerprint
+      : null,
   })
   return { ok: diagnostics.length === 0, value, diagnostics: deepFreeze(diagnostics) }
+}
+
+export interface Cinema2LegacyWorkspaceMigrationRequest {
+  legacyDocument: unknown
+  activation?: Readonly<Cinema2WorkspaceActivationRequest>
+  archivedAt?: string
+}
+
+export interface Cinema2LegacyWorkspaceMigrationResult {
+  ok: boolean
+  document: Readonly<Cinema2WorkspaceDocument>
+  diagnostics: readonly Cinema2WorkspaceDiagnostic[]
+}
+
+/** Atomically archives the legacy document, optionally activates its mapped preset, and marks completion. */
+export function migrateLegacyCinemaWorkspace(
+  documentInput: unknown,
+  request: Readonly<Cinema2LegacyWorkspaceMigrationRequest>,
+): Cinema2LegacyWorkspaceMigrationResult {
+  const document = normalizeCinema2WorkspaceDocument(documentInput)
+  const fingerprint = fingerprintJson(request.legacyDocument)
+  if (
+    document.legacyMigrationVersion >= CINEMA2_LEGACY_MIGRATION_VERSION
+    && document.legacyMigrationFingerprint === fingerprint
+  ) {
+    return { ok: true, document, diagnostics: [] }
+  }
+  let next = document
+  if (request.activation) {
+    const activated = activateCinema2Workspace(next, request.activation)
+    if (!activated.ok) return { ok: false, document, diagnostics: activated.diagnostics }
+    next = activated.document
+  }
+  next = archiveLegacyCinemaDocument(next, request.legacyDocument, request.archivedAt)
+  return {
+    ok: true,
+    document: deepFreeze({
+      ...next,
+      legacyMigrationVersion: CINEMA2_LEGACY_MIGRATION_VERSION,
+      legacyMigrationFingerprint: fingerprint,
+    }),
+    diagnostics: [],
+  }
 }
 
 export function normalizeCinema2WorkspaceDocument(input: unknown): Readonly<Cinema2WorkspaceDocument> {
@@ -337,6 +390,16 @@ function cloneJsonValue(value: unknown): Cinema2JsonValue {
   const serialized = JSON.stringify(value)
   if (serialized === undefined) return {}
   return JSON.parse(serialized) as Cinema2JsonValue
+}
+
+function fingerprintJson(value: unknown): string {
+  const serialized = JSON.stringify(cloneJsonValue(value))
+  let hash = 0x811c9dc5
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash ^= serialized.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return `fnv1a-${(hash >>> 0).toString(36)}`
 }
 
 function activationFailure(

@@ -3,8 +3,8 @@ import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactPresetAutomationCue } from './ReactTypes'
 import { isSelectableReactEngineId } from './reactEngineCatalog'
-import { useCinemaStore } from '../cinema/CinemaStore'
-import type { CinemaCompositionId } from '../cinema/CinemaIdentifiers'
+import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetRegistry'
+import { activateCinema2LegacyDestination } from '../cinema2/migration/Cinema2LegacyStateMigration'
 
 /**
  * Returns the last enabled cue whose timeSec <= positionSec and whose presetId
@@ -15,14 +15,14 @@ export function resolveActiveCue(
   cues: ReactPresetAutomationCue[],
   positionSec: number,
   validPresetIds: Set<string>,
-  validCinemaCompositionIds: Set<string> = new Set(),
+  validCinema2PresetIds: Set<string> = new Set(),
 ): ReactPresetAutomationCue | null {
   let active: ReactPresetAutomationCue | null = null
   for (const cue of cues) {
     if (cue.timeSec > positionSec) break  // sorted — no further candidates
     if (!cue.enabled) continue
-    const destinationIsValid = cue.cinemaCompositionId
-      ? validCinemaCompositionIds.has(cue.cinemaCompositionId)
+    const destinationIsValid = cue.destination?.engineId === 'cinema2'
+      ? validCinema2PresetIds.has(cue.destination.presetId)
       : Boolean(cue.presetId && validPresetIds.has(cue.presetId))
     if (!destinationIsValid) continue
     active = cue
@@ -51,7 +51,6 @@ export function useReactPresetAutomation(): void {
   // Subscribe to the raw cue map so the effect re-runs when cues change.
   const cuesByTrackId = useReactStore(s => s.presetAutomationCuesByTrackId)
   const reactPresets  = useReactStore(s => s.reactPresets)
-  const cinemaCompositions = useCinemaStore(s => s.compositions)
 
   // Execution state — mutations here never cause re-renders.
   const lastAppliedCueIdRef = useRef<string | null>(null)
@@ -69,8 +68,8 @@ export function useReactPresetAutomation(): void {
     const rawCues    = cuesByTrackId[currentTrackId] ?? []
     const sortedCues = [...rawCues].sort((a, b) => a.timeSec - b.timeSec)
     const validIds = new Set(reactPresets.filter(p => isSelectableReactEngineId(p.engine)).map(p => p.id))
-    const validCinemaIds = new Set(cinemaCompositions.map(composition => String(composition.id)))
-    const activeCue = resolveActiveCue(sortedCues, currentTime, validIds, validCinemaIds)
+    const validCinema2Ids = new Set(cinema2NativePresetRegistry.list().map(preset => String(preset.id)))
+    const activeCue = resolveActiveCue(sortedCues, currentTime, validIds, validCinema2Ids)
 
     // Reset execution state on track change; treat first run as a track change.
     if (currentTrackId !== prevTrackIdRef.current) {
@@ -84,11 +83,16 @@ export function useReactPresetAutomation(): void {
         // Imperative call: avoids adding selectReactPreset to the dep array
         // and breaks any potential subscribe loop (selectReactPreset changes
         // activeReactPresetId, which is not in this effect's dependencies).
-        if (activeCue.cinemaCompositionId) {
-          const result = useCinemaStore.getState().setActiveCinemaComposition(
-            activeCue.cinemaCompositionId as CinemaCompositionId,
-          )
-          if (result.ok) useReactStore.getState().selectReactEngine('cinema')
+        if (activeCue.destination?.engineId === 'cinema2') {
+          const state = useReactStore.getState()
+          const workspace = activateCinema2LegacyDestination(state.cinema2Workspace, activeCue.destination)
+          if (workspace !== state.cinema2Workspace) {
+            useReactStore.setState({
+              cinema2Workspace: workspace,
+              activeReactEngineId: 'cinema2',
+              activeReactPresetId: null,
+            })
+          }
         } else if (activeCue.presetId) {
           useReactStore.getState().selectReactPreset(activeCue.presetId)
         }
@@ -97,5 +101,5 @@ export function useReactPresetAutomation(): void {
       // position) so we don't retry the null→null no-op on every tick.
       lastAppliedCueIdRef.current = activeCueId
     }
-  }, [currentTrackId, currentTime, cuesByTrackId, reactPresets, cinemaCompositions])
+  }, [currentTrackId, currentTime, cuesByTrackId, reactPresets])
 }

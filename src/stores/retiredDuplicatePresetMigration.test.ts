@@ -99,11 +99,15 @@ describe('retired React presets', () => {
     const presets = migrated.reactPresets as ReactPreset[]
     const pads = migrated.performancePads as ReactPerformancePad[]
     expect(migrated.activeReactPresetId).toBeNull()
-    expect(migrated.activeReactEngineId).toBe('cinema')
+    expect(migrated.activeReactEngineId).toBe('cinema2')
     expect(presets.some(preset => RETIRED_IDS.includes(preset.id))).toBe(false)
     expect(pads).toEqual([expect.objectContaining({ id: 'pad-6', presetId: null, label: 'Empty' })])
     expect(migrated.presetAutomationCuesByTrackId).toEqual({
-      'track-1': [expect.objectContaining({ id: 'live', presetId: liveCinematic.id })],
+      'track-1': [expect.objectContaining({
+        id: 'live',
+        presetId: null,
+        destination: expect.objectContaining({ engineId: 'cinema2' }),
+      })],
     })
     expect(migrated.cinematicConfigsByPresetId).toEqual({})
     expect(migrated.cinematicSeedLocksByPresetId).toEqual({})

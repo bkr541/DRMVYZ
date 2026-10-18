@@ -206,7 +206,7 @@ describe('scoped React reset actions', () => {
     const after = useReactStore.getState()
 
     expect(after.activeReactPresetId).toBeNull()
-    expect(after.activeReactEngineId).toBe('cinema')
+    expect(after.activeReactEngineId).toBe('cinema2')
     expect(after.laserDmxWorkspaceMode).toBe('beamMatrix')
     expect(after.selectedSectionId).toBeNull()
     expect(after.selectedSectionByTrackId).toEqual({})

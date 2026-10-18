@@ -545,11 +545,11 @@ describe('H: ShaderDefinitionValidator — production scenes', () => {
 // ── I: selectReactEngine — shaderPads branch ─────────────────────────────────
 
 describe('I: selectReactEngine — retired shaderPads alias', () => {
-  it('I1: selecting shaderPads routes to Cinema and records a compatibility handoff', () => {
+  it('I1: selecting shaderPads routes directly to Cinema 2.0 without a persisted handoff', () => {
     useReactStore.getState().selectReactEngine('shaderPads')
     const state = useReactStore.getState()
-    expect(state.activeReactEngineId).toBe('cinema')
+    expect(state.activeReactEngineId).toBe('cinema2')
     expect(state.activeReactPresetId).toBeNull()
-    expect(state.pendingCinemaLegacySelectionMigration).toEqual({ legacyEngineId: 'shaderPads', legacySourceId: null })
+    expect(state.pendingCinemaLegacySelectionMigration).toBeNull()
   })
 })

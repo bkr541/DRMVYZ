@@ -86,7 +86,7 @@ describe('Cinematic Portal compatibility migration', () => {
       reactPresets: [...DEFAULT_REACT_PRESETS, retired],
     }, 42)
 
-    expect(migrated.activeReactEngineId).toBe('cinema')
+    expect(migrated.activeReactEngineId).toBe('cinema2')
     expect(migrated.activeReactPresetId).toBeNull()
     expect((migrated.reactPresets as ReactPreset[]).some(preset => preset.id === retired.id)).toBe(false)
   })

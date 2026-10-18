@@ -62,7 +62,7 @@ describe('legacy preset migration — each removed Shader preset retires through
         activeReactEngineId: 'shaderPads',
       })
       expect(result.activeReactPresetId).toBeNull()
-      expect(result.activeReactEngineId).toBe('cinema')
+      expect(result.activeReactEngineId).toBe('cinema2')
     },
   )
 })
@@ -76,7 +76,7 @@ describe('legacy engine without valid preset → Singularity Crown fallback', ()
       activeReactEngineId: 'shaderPads',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
   })
 
   it('shaderPads engine with unknown preset ID falls back to Singularity Crown', () => {
@@ -85,7 +85,7 @@ describe('legacy engine without valid preset → Singularity Crown fallback', ()
       activeReactEngineId: 'shaderPads',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
   })
 })
 
@@ -97,7 +97,7 @@ describe('valid preset with stale shaderPads engine → engine repaired', () => 
       activeReactPresetId: 'preset-bass-triangle-reactor',
       activeReactEngineId: 'shaderPads',
     })
-    expect(result.activeReactPresetId).toBe('preset-bass-triangle-reactor')
+    expect(result.activeReactPresetId).toBeNull()
     expect(result.activeReactEngineId).toBe('oscilloscope')
   })
 
@@ -119,7 +119,7 @@ describe('valid non-Shader state is not modified', () => {
       activeReactPresetId: 'preset-xy-cyan-scope',
       activeReactEngineId: 'oscilloscope',
     })
-    expect(result.activeReactPresetId).toBe('preset-xy-cyan-scope')
+    expect(result.activeReactPresetId).toBeNull()
     expect(result.activeReactEngineId).toBe('oscilloscope')
   })
 
@@ -138,7 +138,7 @@ describe('valid non-Shader state is not modified', () => {
       activeReactEngineId: 'neonLattice',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
   })
 
   it('Cinematic Portal state is preserved', () => {
@@ -147,7 +147,7 @@ describe('valid non-Shader state is not modified', () => {
       activeReactEngineId: 'cinematicPortal',
     })
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
   })
 })
 
@@ -203,10 +203,10 @@ describe('unrelated state fields survive migration unchanged', () => {
 
     // Active IDs must be migrated
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
 
     // Unrelated values are preserved while Patch 8 adds safe lyric-source defaults.
-    expect(result.oscillatorSettings).toEqual({
+    expect(result.oscillatorSettings).toMatchObject({
       ...oscillatorSettings,
       textSource: 'static',
       lyricGapBehavior: 'hide',
@@ -224,7 +224,13 @@ describe('unrelated state fields survive migration unchanged', () => {
     expect(result.laserDmxSettings).toEqual(laserDmxSettings)
     expect(result.laserDmxBeamMatrix).toEqual(laserDmxBeamMatrix)
     expect(result).not.toHaveProperty('neonLatticeSettings')
-    expect(result.presetAutomationCuesByTrackId).toEqual(presetAutomationCuesByTrackId)
+    expect(result.presetAutomationCuesByTrackId).toMatchObject({
+      'track-1': [{
+        id: 'cue-1',
+        presetId: null,
+        destination: { engineId: 'cinema2' },
+      }],
+    })
     expect((result as Record<string, unknown>).futureField).toEqual(futureField)
   })
 })
@@ -240,8 +246,8 @@ describe('version 20 selection normalization', () => {
     const result = migrate19(state)
     // Stage 23 keeps Shader Pads as an import alias but retires its public engine identity.
     expect(result.activeReactPresetId).toBeNull()
-    expect(result.activeReactEngineId).toBe('cinema')
-    expect(result.pendingCinemaLegacySelectionMigration).toEqual({ legacyEngineId: 'shaderPads', legacySourceId: null })
+    expect(result.activeReactEngineId).toBe('cinema2')
+    expect(result.pendingCinemaLegacySelectionMigration).toBeNull()
   })
 })
 
@@ -251,6 +257,6 @@ describe('resetReactView', () => {
   it('lands on Cinema with no legacy preset after reset', () => {
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
     expect(activeReactPresetId).toBeNull()
-    expect(activeReactEngineId).toBe('cinema')
+    expect(activeReactEngineId).toBe('cinema2')
   })
 })

@@ -50,7 +50,7 @@ describe('repairReactEnginePresetSelection', () => {
   it('retires a stale Neon engine selection to the explicit startup pair', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'neonLattice' as never)).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'cinema2',
     })
   })
 
@@ -66,7 +66,7 @@ describe('repairReactEnginePresetSelection', () => {
     const stalePreset = firstFor('cinematicPortal')
     expect(repairReactEnginePresetSelection(stalePreset.id, 'shaderPads')).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'cinema2',
     })
   })
 
@@ -81,7 +81,7 @@ describe('repairReactEnginePresetSelection', () => {
   it('falls back to the explicit startup pair when both values are invalid', () => {
     expect(repairReactEnginePresetSelection('removed-preset', 'removed-engine')).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'cinema2',
     })
   })
 })
@@ -107,7 +107,7 @@ describe('React selection persistence invariant', () => {
       activeReactEngineId: 'cinema',
     }, 65)
 
-    expect(result.activeReactEngineId).toBe('cinema')
+    expect(result.activeReactEngineId).toBe('cinema2')
     expect(result.activeReactPresetId).toBeNull()
   })
 
@@ -118,7 +118,7 @@ describe('React selection persistence invariant', () => {
     } as never)
 
     const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.activeReactEngineId).toBe('cinema')
+    expect(persisted.activeReactEngineId).toBe('cinema2')
     expect(persisted.activeReactPresetId).toBeNull()
   })
 
@@ -164,14 +164,14 @@ describe('React selection persistence invariant', () => {
     expect(migrated.reactGlow).toBe(0.65)
   })
 
-  it('persists and restores Cinema selection without a legacy preset', () => {
+  it('migrates a live Cinema selection to Cinema 2.0 at the persistence boundary', () => {
     useReactStore.getState().selectReactEngine('cinema')
     const persisted = reactStorePartialize(useReactStore.getState())
-    expect(persisted.activeReactEngineId).toBe('cinema')
+    expect(persisted.activeReactEngineId).toBe('cinema2')
     expect(persisted.activeReactPresetId).toBeNull()
 
     const merged = mergeReactStoreState(persisted, useReactStore.getState())
-    expect(merged.activeReactEngineId).toBe('cinema')
+    expect(merged.activeReactEngineId).toBe('cinema2')
     expect(merged.activeReactPresetId).toBeNull()
   })
 

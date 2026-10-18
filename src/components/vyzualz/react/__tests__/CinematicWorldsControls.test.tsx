@@ -315,15 +315,14 @@ describe('Cinematic Worlds audio mappings', () => {
 
 
 describe('Cinematic Worlds Stage 23 retirement', () => {
-  it('keeps the legacy controls compatibility-only while the public engine panel stays on Cinema', async () => {
+  it('keeps the legacy controls compatibility-only while the public engine panel moves to Cinema 2.0', async () => {
     useReactStore.getState().selectReactPreset(presetFor('eventHorizon').id)
     await render(<ReactEnginePanel />)
 
-    expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinema2')
     expect(useReactStore.getState().activeReactPresetId).toBeNull()
-    expect(useReactStore.getState().pendingCinemaLegacySelectionMigration).toMatchObject({
-      legacyEngineId: 'cinematicPortal',
-    })
+    expect(useReactStore.getState().pendingCinemaLegacySelectionMigration).toBeNull()
+    expect(useReactStore.getState().cinema2Workspace.activePresetId).not.toBeNull()
     expect(container.querySelector('[data-cinematic-world-grid]')).toBeNull()
   })
 })

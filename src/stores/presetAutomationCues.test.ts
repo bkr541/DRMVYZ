@@ -226,7 +226,7 @@ describe('presetAutomationCues — migration v9→v10', () => {
   it('does not strip other state keys during migration', () => {
     const oldState = { activeReactEngineId: 'cinematicPortal', someOtherKey: true }
     const migrated = migrateReactStore(oldState, 9)
-    expect(migrated.activeReactEngineId).toBe('cinema')
+    expect(migrated.activeReactEngineId).toBe('cinema2')
     expect(migrated.someOtherKey).toBe(true)
   })
 })

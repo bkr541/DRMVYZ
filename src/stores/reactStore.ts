@@ -30,6 +30,7 @@ import {
   type Cinema2WorkspaceDocument,
   type Cinema2WorkspacePresetState,
 } from '../components/vyzualz/cinema2'
+import type { Cinema2JsonValue, Cinema2PresetId } from '../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
 import type { CinematicWorldConfig } from '../components/vyzualz/react/CinematicWorldConfig'
 import {
   getReactPerformanceAction,
@@ -395,15 +396,20 @@ import {
 import { isSelectableReactEngineId, REACT_ENGINE_IDS } from '../components/vyzualz/react/reactEngineCatalog'
 import {
   isCinemaLegacyEngineId,
-  migrateLegacyPerformancePadsToCinema,
-  migrateLegacyPresetAutomationCuesToCinema,
   normalizeCinemaLegacySelectionMigration,
-  resolveCinemaLegacyCompositionId,
   resolveCinemaLegacySourceForComposition,
   type CinemaLegacySelectionMigration,
 } from '../components/vyzualz/cinema/CinemaLegacyRetirement'
 import { useCinemaStore } from '../components/vyzualz/cinema/CinemaStore'
-import type { CinemaCompositionId } from '../components/vyzualz/cinema/CinemaIdentifiers'
+import {
+  activateCinema2LegacyDestination,
+  migrateLegacyPerformancePadsToCinema2,
+  migrateLegacyPresetAutomationCuesToCinema2,
+  migrateLegacyReactSelectionToCinema2,
+  migrateLegacyTrackSectionsToCinema2,
+  resolveCinema2LegacyDestination,
+  type Cinema2LegacySourceIdentity,
+} from '../components/vyzualz/cinema2/migration/Cinema2LegacyStateMigration'
 import {
   getMediaIdFromSvgGlyphId,
   getSvgGlyphAssetId,
@@ -2553,7 +2559,7 @@ export interface ReactStoreState {
   headlinerSettings: HeadlinerSettings
   setHeadlinerSettings: (patch: Partial<HeadlinerSettings>) => void
 
-  /** Persisted only until Stage 23 transfers legacy authored selection into canonical Cinema state. */
+  /** Transient Stage-23 compatibility token. Phase 4 decodes old values but never persists a new one. */
   pendingCinemaLegacySelectionMigration: CinemaLegacySelectionMigration | null
   completeCinemaLegacySelectionMigration: () => void
 
@@ -3707,7 +3713,9 @@ const MAX_PERFORMANCE_ACTION_EVENTS = 64
 
 function sanitizeLiveTrackSection(section: ReactTrackSection): ReactTrackSection {
   if (section.engineId == null || isSelectableReactEngineId(section.engineId)) return section
-  if (isCinemaLegacyEngineId(section.engineId)) return { ...section, engineId: 'cinema' }
+  if (section.engineId === 'cinema' || isCinemaLegacyEngineId(section.engineId)) {
+    return migrateLegacyTrackSectionsToCinema2([section], resolveCinema2SourceForLegacyComposition)[0]!
+  }
   const { engineId: _retiredEngineId, ...safeSection } = section
   return safeSection
 }
@@ -3719,11 +3727,32 @@ function isLivePresetId(presets: readonly ReactPreset[], presetId: string | null
 
 function isLiveAutomationCueDestination(
   presets: readonly ReactPreset[],
-  cue: Pick<ReactPresetAutomationCue, 'presetId' | 'cinemaCompositionId'>,
+  cue: Pick<ReactPresetAutomationCue, 'presetId' | 'destination'>,
 ): boolean {
   if (isLivePresetId(presets, cue.presetId)) return true
-  if (!cue.cinemaCompositionId) return false
-  return useCinemaStore.getState().compositions.some(composition => composition.id === cue.cinemaCompositionId)
+  if (!cue.destination) return false
+  if (cue.destination.engineId === 'cinema2') {
+    const result = activateCinema2WorkspaceDocument(createEmptyCinema2WorkspaceDocument(), {
+      presetId: cue.destination.presetId as Cinema2PresetId,
+      ...(cue.destination.variantId ? { look: { id: cue.destination.variantId } } : {}),
+      ...(cue.destination.parameterPatch
+        ? { parameterPatch: cue.destination.parameterPatch as Record<string, Cinema2JsonValue> }
+        : {}),
+    })
+    return result.ok
+  }
+  return presets.some(preset => (
+    preset.id === cue.destination?.presetId
+    && preset.engine === cue.destination.engineId
+    && isSelectableReactEngineId(preset.engine)
+  ))
+}
+
+function resolveCinema2SourceForLegacyComposition(compositionId: string): Cinema2LegacySourceIdentity | null {
+  const source = resolveCinemaLegacySourceForComposition(compositionId)
+  return source
+    ? { sourceEngineId: source.legacyEngineId, sourceId: source.legacySourceId }
+    : null
 }
 
 
@@ -3739,7 +3768,7 @@ function resolveLegacyPresetSelectionMigration(
 
 const LEGACY_CINEMATIC_FALLBACK_PRESET_ID = 'preset-singularity-crown'
 const INITIAL_PRESET_ID: string | null = null
-const INITIAL_ENGINE_ID: ReactEngineId = 'cinema'
+const INITIAL_ENGINE_ID: ReactEngineId = 'cinema2'
 
 const LEGACY_SHADER_PRESET_IDS = new Set([
   'preset-neon-energy-cloud',
@@ -4135,29 +4164,51 @@ function retireLegacyReactEngineState(
   input: Record<string, unknown>,
   originalSelection: CinemaLegacySelectionMigration | null = null,
 ): Record<string, unknown> {
-  const activeSelection = normalizeCinemaLegacySelectionMigration(
-    input.activeReactEngineId,
-    input.activeReactPresetId,
-  )
-  const persistedPending = normalizePendingCinemaLegacySelectionMigration(
-    input.pendingCinemaLegacySelectionMigration,
-  )
-  const pending = persistedPending ?? activeSelection ?? originalSelection
+  const workspace = normalizeCinema2WorkspaceDocument(input.cinema2Workspace)
+  const selection = migrateLegacyReactSelectionToCinema2({
+    workspace,
+    engineId: input.activeReactEngineId,
+    presetId: input.activeReactPresetId,
+    pendingSelection: normalizePendingCinemaLegacySelectionMigration(input.pendingCinemaLegacySelectionMigration)
+      ?? originalSelection,
+  })
   const performancePads = Array.isArray(input.performancePads)
-    ? migrateLegacyPerformancePadsToCinema(input.performancePads as ReactPerformancePad[])
+    ? migrateLegacyPerformancePadsToCinema2(
+        input.performancePads as ReactPerformancePad[],
+        resolveCinema2SourceForLegacyComposition,
+      )
     : input.performancePads
   const presetAutomationCuesByTrackId = isRecord(input.presetAutomationCuesByTrackId)
-    ? migrateLegacyPresetAutomationCuesToCinema(
+    ? migrateLegacyPresetAutomationCuesToCinema2(
         input.presetAutomationCuesByTrackId as Record<string, ReactPresetAutomationCue[]>,
+        resolveCinema2SourceForLegacyComposition,
       )
     : input.presetAutomationCuesByTrackId
+  const manualTrackSectionsByTrackId = isRecord(input.manualTrackSectionsByTrackId)
+    ? Object.fromEntries(Object.entries(input.manualTrackSectionsByTrackId).map(([trackId, sections]) => [
+        trackId,
+        Array.isArray(sections)
+          ? migrateLegacyTrackSectionsToCinema2(sections as ReactTrackSection[], resolveCinema2SourceForLegacyComposition)
+          : sections,
+      ]))
+    : input.manualTrackSectionsByTrackId
+  const manualTrackSections = Array.isArray(input.manualTrackSections)
+    ? migrateLegacyTrackSectionsToCinema2(
+        input.manualTrackSections as ReactTrackSection[],
+        resolveCinema2SourceForLegacyComposition,
+      )
+    : input.manualTrackSections
+  const { pendingCinemaLegacySelectionMigration: _legacyPending, ...withoutPending } = input
 
   return {
-    ...input,
-    ...(activeSelection ? { activeReactEngineId: 'cinema', activeReactPresetId: null } : {}),
-    ...(pending ? { pendingCinemaLegacySelectionMigration: pending } : {}),
+    ...withoutPending,
+    ...(selection.selectedLegacyEngine ? { activeReactEngineId: 'cinema2', activeReactPresetId: null } : {}),
+    pendingCinemaLegacySelectionMigration: null,
+    cinema2Workspace: selection.workspace,
     ...(performancePads !== undefined ? { performancePads } : {}),
     ...(presetAutomationCuesByTrackId !== undefined ? { presetAutomationCuesByTrackId } : {}),
+    ...(manualTrackSectionsByTrackId !== undefined ? { manualTrackSectionsByTrackId } : {}),
+    ...(manualTrackSections !== undefined ? { manualTrackSections } : {}),
   }
 }
 
@@ -5030,10 +5081,16 @@ export function normalizeCinematicPresetCollection(presets: ReactPreset[]): Reac
 // ── Exported migration function (for testing) ─────────────────────────────────
 export function migrateReactStore(persistedState: unknown, version: number): Record<string, unknown> {
   const rawState = (persistedState ?? {}) as Record<string, unknown>
-  const originalLegacySelection = normalizeCinemaLegacySelectionMigration(
-    rawState.activeReactEngineId,
-    rawState.activeReactPresetId,
-  )
+  const normalizedOriginalPresetId = replaceLockedLaserDmxPresetId(rawState.activeReactPresetId)
+  const originalPreset = normalizedOriginalPresetId
+    ? DEFAULT_REACT_PRESETS.find(preset => preset.id === normalizedOriginalPresetId) ?? null
+    : null
+  const originalLegacySelection = originalPreset && isSelectableReactEngineId(originalPreset.engine)
+    ? null
+    : normalizeCinemaLegacySelectionMigration(
+        rawState.activeReactEngineId,
+        rawState.activeReactPresetId,
+      )
   let state: Record<string, unknown> = {
     ...rawState,
     ...(rawState.pixGridState !== undefined
@@ -5853,6 +5910,11 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
       canvasOrchestrationSettings: normalizeCanvasOrchestrationSettings(state.canvasOrchestrationSettings),
     }
   }
+  if (version < 78) {
+    // Phase 4 makes Cinema 2.0 the durable destination for every historical
+    // Cinema identity and removes the Stage-23 legacy-composition handoff.
+    state = retireLegacyReactEngineState(state, originalLegacySelection)
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -6084,7 +6146,6 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
     headlinerSettings:                   normalizeHeadlinerSettings(s.headlinerSettings),
-    pendingCinemaLegacySelectionMigration: s.pendingCinemaLegacySelectionMigration,
     cinema2Workspace:                   normalizeCinema2WorkspaceDocument(s.cinema2Workspace),
     reactPresets:                       coherentReactPresets,
     pixGridState:                       coherentPixGridState,
@@ -6161,7 +6222,6 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
  */
 export const REACT_PROJECT_STATE_KEYS = [
   'headlinerSettings',
-  'pendingCinemaLegacySelectionMigration',
   'cinema2Workspace',
   'reactPresets',
   'pixGridState',
@@ -6225,11 +6285,15 @@ export function mergeReactStoreState(
       .filter(preset => !RETIRED_NEON_LATTICE_BUILT_IN_PRESET_IDS.has(preset.id))
       .map(preset => preset.id),
   )
-  const mergedPerformancePads = migrateLegacyPerformancePadsToCinema(normalizeLockedLaserDmxPadAssignments(repairRetiredReactPresetPadAssignments(
-    mergeCollectionsById(currentState.performancePads, persisted.performancePads),
-  )))
-  const mergedPresetAutomationCues = migrateLegacyPresetAutomationCuesToCinema(
+  const mergedPerformancePads = migrateLegacyPerformancePadsToCinema2(
+    normalizeLockedLaserDmxPadAssignments(repairRetiredReactPresetPadAssignments(
+      mergeCollectionsById(currentState.performancePads, persisted.performancePads),
+    )),
+    resolveCinema2SourceForLegacyComposition,
+  )
+  const mergedPresetAutomationCues = migrateLegacyPresetAutomationCuesToCinema2(
     persisted.presetAutomationCuesByTrackId ?? currentState.presetAutomationCuesByTrackId,
+    resolveCinema2SourceForLegacyComposition,
   )
   const danglingGeneratedPresetIds = collectInvalidPixGridDeckGeneratedPresetIds(
     validPixGridDeckGeneratedPresetIds(normalizedDecks),
@@ -6450,7 +6514,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 77
+const REACT_STORE_PERSISTENCE_VERSION = 78
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'
@@ -6670,7 +6734,7 @@ export const useReactStore = create<ReactStoreState>()(
       pixGridActionCuesByTrackId: {},
       soundDrawingLayersByTrackId: {},
       soundDrawingClipsByTrackId:  {},
-      performancePads: migrateLegacyPerformancePadsToCinema(DEFAULT_PERFORMANCE_PADS),
+      performancePads: migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS),
       activePadId: null,
       oscillatorSettings: DEFAULT_OSCILLATOR_SETTINGS,
       soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),
@@ -9297,15 +9361,19 @@ export const useReactStore = create<ReactStoreState>()(
               return { ...buildPresetPatchForState(preset, s), performancePadTransition: null }
             }
             const legacySelection = resolveLegacyPresetSelectionMigration(s.reactPresets, id)
-            return legacySelection
-              ? {
-                  activeReactPresetId: null,
-                  activeReactEngineId: 'cinema' as const,
-                  pendingCinemaLegacySelectionMigration: legacySelection,
-                  performancePadTransition: null,
-                  ...clearPerformanceActionPatch(),
-                }
-              : {}
+            if (!legacySelection?.legacySourceId) return {}
+            const destination = resolveCinema2LegacyDestination(
+              legacySelection.legacyEngineId,
+              legacySelection.legacySourceId,
+            )
+            return destination ? {
+              activeReactPresetId: null,
+              activeReactEngineId: 'cinema2' as const,
+              cinema2Workspace: activateCinema2LegacyDestination(s.cinema2Workspace, destination),
+              pendingCinemaLegacySelectionMigration: null,
+              performancePadTransition: null,
+              ...clearPerformanceActionPatch(),
+            } : {}
           }
 
           if (s.activeReactEngineId === 'oscilloscope') {
@@ -9364,10 +9432,16 @@ export const useReactStore = create<ReactStoreState>()(
               engineId,
               engineId === 'cinematicPortal' ? s.activeReactPresetId : null,
             )
+            const destination = legacySelection?.legacySourceId
+              ? resolveCinema2LegacyDestination(legacySelection.legacyEngineId, legacySelection.legacySourceId)
+              : null
             return {
               activeReactEngineId: INITIAL_ENGINE_ID,
               activeReactPresetId: INITIAL_PRESET_ID,
-              ...(legacySelection ? { pendingCinemaLegacySelectionMigration: legacySelection } : {}),
+              ...(destination
+                ? { cinema2Workspace: activateCinema2LegacyDestination(s.cinema2Workspace, destination) }
+                : {}),
+              pendingCinemaLegacySelectionMigration: null,
               performancePadTransition: null,
               ...clearPerformanceActionPatch(),
               ...pixGridCleanup,
@@ -9451,15 +9525,19 @@ export const useReactStore = create<ReactStoreState>()(
           if (!selected) return {}
           if (!isSelectableReactEngineId(selected.engine)) {
             const legacySelection = resolveLegacyPresetSelectionMigration(s.reactPresets, selected.id)
-            return legacySelection
-              ? {
-                  activeReactEngineId: 'cinema' as const,
-                  activeReactPresetId: null,
-                  pendingCinemaLegacySelectionMigration: legacySelection,
-                  performancePadTransition: null,
-                  ...clearPerformanceActionPatch(),
-                }
-              : {}
+            if (!legacySelection?.legacySourceId) return {}
+            const destination = resolveCinema2LegacyDestination(
+              legacySelection.legacyEngineId,
+              legacySelection.legacySourceId,
+            )
+            return destination ? {
+              activeReactEngineId: 'cinema2' as const,
+              activeReactPresetId: null,
+              cinema2Workspace: activateCinema2LegacyDestination(s.cinema2Workspace, destination),
+              pendingCinemaLegacySelectionMigration: null,
+              performancePadTransition: null,
+              ...clearPerformanceActionPatch(),
+            } : {}
           }
           const pixGridCleanup = selected.engine === 'pixGrid'
             ? {}
@@ -10015,14 +10093,14 @@ export const useReactStore = create<ReactStoreState>()(
         set((s) => {
           if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
-          if (pad?.cinemaCompositionId) {
-            const compositionId = pad.cinemaCompositionId as CinemaCompositionId
-            const result = useCinemaStore.getState().setActiveCinemaComposition(compositionId)
-            return result.ok
+          if (pad?.destination?.engineId === 'cinema2') {
+            const workspace = activateCinema2LegacyDestination(s.cinema2Workspace, pad.destination)
+            return workspace !== s.cinema2Workspace
               ? {
                   activePadId: id,
-                  activeReactEngineId: 'cinema' as const,
+                  activeReactEngineId: 'cinema2' as const,
                   activeReactPresetId: null,
+                  cinema2Workspace: workspace,
                   performancePadTransition: null,
                   ...clearPerformanceActionPatch(),
                 }
@@ -10055,28 +10133,29 @@ export const useReactStore = create<ReactStoreState>()(
       updatePerformancePad: (id, patch) =>
         set((s) => {
           let safePatch: Partial<ReactPerformancePad> = { ...patch }
-          if ('cinemaCompositionId' in patch && patch.cinemaCompositionId) {
-            const exists = useCinemaStore.getState().compositions.some(
-              composition => composition.id === patch.cinemaCompositionId,
-            )
-            safePatch = exists
-              ? { ...safePatch, presetId: null, cinemaCompositionId: patch.cinemaCompositionId }
-              : { ...safePatch, presetId: null, cinemaCompositionId: null, label: 'Empty', color: '#3a4650' }
+          if ('destination' in patch && patch.destination) {
+            const destinationIsValid = isLiveAutomationCueDestination(s.reactPresets, {
+              presetId: null,
+              destination: patch.destination,
+            })
+            safePatch = destinationIsValid
+              ? { ...safePatch, presetId: null, destination: patch.destination }
+              : { ...safePatch, presetId: null, destination: null, label: 'Empty', color: '#3a4650' }
           } else if ('presetId' in patch) {
             const requestedPresetId = patch.presetId
               ? replaceLockedLaserDmxPresetId(patch.presetId) ?? patch.presetId
               : null
-            const legacyCompositionId = requestedPresetId
-              ? resolveCinemaLegacyCompositionId('cinematicPortal', requestedPresetId)
+            const legacyDestination = requestedPresetId
+              ? resolveCinema2LegacyDestination('cinematicPortal', requestedPresetId)
               : null
             const requestedPreset = requestedPresetId
               ? s.reactPresets.find(preset => preset.id === requestedPresetId && isSelectableReactEngineId(preset.engine))
               : null
-            safePatch = legacyCompositionId
-              ? { ...safePatch, presetId: null, cinemaCompositionId: legacyCompositionId }
+            safePatch = legacyDestination
+              ? { ...safePatch, presetId: null, destination: legacyDestination }
               : requestedPreset
-                ? { ...safePatch, presetId: requestedPreset.id, cinemaCompositionId: null }
-                : { ...safePatch, presetId: null, cinemaCompositionId: null, label: 'Empty', color: '#3a4650' }
+                ? { ...safePatch, presetId: requestedPreset.id, destination: null }
+                : { ...safePatch, presetId: null, destination: null, label: 'Empty', color: '#3a4650' }
           }
           return {
             performancePads: s.performancePads.map((pad) =>
@@ -12448,7 +12527,10 @@ export const useReactStore = create<ReactStoreState>()(
       addPresetAutomationCue: (trackId, cue) =>
         set((s) => {
           const existing = s.presetAutomationCuesByTrackId[trackId] ?? []
-          const migratedCue = migrateLegacyPresetAutomationCuesToCinema({ [trackId]: [cue] })[trackId]?.[0] ?? cue
+          const migratedCue = migrateLegacyPresetAutomationCuesToCinema2(
+            { [trackId]: [cue] },
+            resolveCinema2SourceForLegacyComposition,
+          )[trackId]?.[0] ?? cue
           if (existing.some(c => c.id === cue.id) || !isLiveAutomationCueDestination(s.reactPresets, migratedCue)) return {}
           const safe: ReactPresetAutomationCue = { ...migratedCue, timeSec: Math.max(0, migratedCue.timeSec) }
           return {
@@ -12468,7 +12550,10 @@ export const useReactStore = create<ReactStoreState>()(
               [trackId]: existing.map((c) => {
                 if (c.id !== id) return c
                 const merged = { ...c, ...patch }
-                const migrated = migrateLegacyPresetAutomationCuesToCinema({ [trackId]: [merged] })[trackId]?.[0] ?? merged
+                const migrated = migrateLegacyPresetAutomationCuesToCinema2(
+                  { [trackId]: [merged] },
+                  resolveCinema2SourceForLegacyComposition,
+                )[trackId]?.[0] ?? merged
                 if (!isLiveAutomationCueDestination(s.reactPresets, migrated)) return c
                 return { ...migrated, timeSec: Math.max(0, migrated.timeSec) }
               }),
@@ -12981,7 +13066,7 @@ export const useReactStore = create<ReactStoreState>()(
             pixGridActionCuesByTrackId: {},
             soundDrawingLayersByTrackId: {},
             soundDrawingClipsByTrackId: {},
-            performancePads: migrateLegacyPerformancePadsToCinema(DEFAULT_PERFORMANCE_PADS),
+            performancePads: migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS),
             activePadId: null,
             laserDmxSettings: createDefaultLaserDmxSettings(),
             selectedLaserDmxProductionCueId: null,
@@ -13065,7 +13150,7 @@ export const useReactStore = create<ReactStoreState>()(
           pixGridActionCuesByTrackId: {},
           soundDrawingLayersByTrackId:  {},
           soundDrawingClipsByTrackId:   {},
-          performancePads:           migrateLegacyPerformancePadsToCinema(DEFAULT_PERFORMANCE_PADS),
+          performancePads:           migrateLegacyPerformancePadsToCinema2(DEFAULT_PERFORMANCE_PADS),
           activePadId:               null,
           oscillatorSettings:        DEFAULT_OSCILLATOR_SETTINGS,
           soundDrawingPerformanceSettings: normalizeSoundDrawingPerformanceSettings(DEFAULT_SOUND_DRAWING_PERFORMANCE_SETTINGS),

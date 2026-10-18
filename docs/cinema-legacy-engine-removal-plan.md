@@ -18,7 +18,7 @@ discarded merely because the built-in presets have been ported.
 | Field | Value |
 | --- | --- |
 | Overall status | **In progress** |
-| Current phase | Phase 4 |
+| Current phase | Phase 5 |
 | Last updated | 2026-10-18 |
 | Target live engine | `cinema2` |
 | Legacy live engine | `cinema` |
@@ -41,7 +41,7 @@ discarded merely because the built-in presets have been ported.
 | 1 | Freeze scope and build the migration manifest | **Complete** | None |
 | 2 | Establish Cinema 2.0 persistence and content parity | **Complete** | Phase 1 |
 | 3 | Decouple Cinema 2.0 from legacy Cinema | **Complete** | Phase 1 |
-| 4 | Migrate persisted state and cross-engine references | **Pending** | Phases 1-3 |
+| 4 | Migrate persisted state and cross-engine references | **Complete** | Phases 1-3 |
 | 5 | Cut over the application shell and runtime | **Pending** | Phase 4 |
 | 6 | Delete the legacy implementation and artifacts | **Pending** | Phase 5 |
 | 7 | Stabilize and retire temporary compatibility code | **Pending** | Phase 6 |
@@ -345,7 +345,7 @@ Completed 2026-10-18.
 
 ## Phase 4: Migrate persisted state and cross-engine references
 
-**Status:** Pending
+**Status:** Complete
 
 ### Desired result
 
@@ -383,19 +383,19 @@ introduce another legacy-specific one-off field.
 
 ### Checklist
 
-- [ ] Define and adopt the generic destination schema.
-- [ ] Add the React store version migration.
-- [ ] Change the initial/default engine to Cinema 2.0.
-- [ ] Migrate active engine and legacy alias selections.
-- [ ] Migrate performance-pad destinations.
-- [ ] Migrate automation-cue destinations.
-- [ ] Migrate track-section destinations.
-- [ ] Update all older migration endpoints that currently resolve to `cinema`.
-- [ ] Migrate supported `drmvyz:cinema-store` data.
-- [ ] Add local-state, project-import, and package-import fixtures.
-- [ ] Test missing, renamed, and consolidated preset destinations.
-- [ ] Prove that rerunning the migration produces the same result.
-- [ ] Record validation evidence below.
+- [x] Define and adopt the generic destination schema.
+- [x] Add the React store version migration.
+- [x] Change the initial/default engine to Cinema 2.0.
+- [x] Migrate active engine and legacy alias selections.
+- [x] Migrate performance-pad destinations.
+- [x] Migrate automation-cue destinations.
+- [x] Migrate track-section destinations.
+- [x] Update all older migration endpoints that currently resolve to `cinema`.
+- [x] Migrate supported `drmvyz:cinema-store` data.
+- [x] Add local-state, project-import, and package-import fixtures.
+- [x] Test missing, renamed, and consolidated preset destinations.
+- [x] Prove that rerunning the migration produces the same result.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -405,7 +405,29 @@ destinations. No live persisted reference requires the legacy runtime.
 
 ### Evidence / notes
 
-_Pending._
+Completed 2026-10-18.
+
+- React persistence is version 78 and defaults to `cinema2`. The defensive
+  current-version decoder applies the same migration to local hydration and
+  imported project/package snapshots, so import paths cannot bypass the gate.
+- `ReactEngineDestination` is the versioned cross-engine contract. Pads, cues,
+  and track sections now store Cinema 2.0 preset/parameter destinations; the
+  legacy-only `cinemaCompositionId` field exists only in isolated decoders and
+  legacy-runtime compatibility code scheduled for Phase 6 deletion.
+- Active `cinema`, `shaderPads`, and `cinematicPortal` selections resolve to
+  Cinema 2.0. Consolidated source identities retain their manifest parameter
+  patches; unsupported or unknown sources are not silently substituted.
+- The Phase-4 data bridge snapshots `drmvyz:cinema-store`, stores its complete
+  JSON document in `cinema2Workspace.legacyArchive`, translates a known active
+  built-in, and commits `legacyMigrationVersion: 1` plus a source fingerprint
+  in the same immutable update. Repeated migration is value-idempotent for the
+  same document while a newly imported legacy package is archived and migrated.
+- Focused migration, workspace, selection, cue, project/import, and historical
+  compatibility validation passed 120 tests across 9 files. Focused ESLint and
+  `git diff --check` passed. The repository-wide TypeScript check remains red
+  on the previously documented unrelated Cinema, Cinema 2.0, output, PixGrid,
+  Show Manager, and browser-harness diagnostics; it reported no remaining
+  Phase-4 implementation diagnostic after the focused fixes.
 
 ---
 

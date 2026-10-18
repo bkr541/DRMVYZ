@@ -95,9 +95,9 @@ describe('selectReactEngine', () => {
   it('routes the retired Cinematic Worlds engine identity to Cinema', () => {
     useReactStore.getState().selectReactEngine('cinematicPortal')
     const state = useReactStore.getState()
-    expect(state.activeReactEngineId).toBe('cinema')
+    expect(state.activeReactEngineId).toBe('cinema2')
     expect(state.activeReactPresetId).toBeNull()
-    expect(state.pendingCinemaLegacySelectionMigration?.legacyEngineId).toBe('cinematicPortal')
+    expect(state.pendingCinemaLegacySelectionMigration).toBeNull()
   })
 
   it('selecting oscilloscope: sets activeReactEngineId to oscilloscope', () => {
@@ -178,7 +178,7 @@ describe('selectReactEngine', () => {
   it('rejects the retired Neon engine and restores the startup pair', () => {
     useReactStore.getState().selectReactEngine('neonLattice' as never)
     const { activeReactPresetId, activeReactEngineId } = useReactStore.getState()
-    expect(activeReactEngineId).toBe('cinema')
+    expect(activeReactEngineId).toBe('cinema2')
     expect(activeReactPresetId).toBeNull()
   })
 })
@@ -191,9 +191,10 @@ describe('selectReactPreset', () => {
   it('routes a retired Cinematic Worlds preset selection to its Cinema handoff', () => {
     useReactStore.getState().selectReactPreset(cinPreset.id)
     const state = useReactStore.getState()
-    expect(state.activeReactEngineId).toBe('cinema')
+    expect(state.activeReactEngineId).toBe('cinema2')
     expect(state.activeReactPresetId).toBeNull()
-    expect(state.pendingCinemaLegacySelectionMigration).toMatchObject({ legacyEngineId: 'cinematicPortal', legacySourceId: cinPreset.id })
+    expect(state.pendingCinemaLegacySelectionMigration).toBeNull()
+    expect(state.cinema2Workspace.activePresetId).not.toBeNull()
   })
 
   it('invariant: activePreset.engine === activeReactEngineId after any preset selection', () => {
