@@ -28,6 +28,7 @@ import type { SavedAudioTrack } from '../../stores/audioStore'
 import { analyzeSvgCapabilities } from './react/renderers/svgCapabilityAnalysis'
 import { Dropdown } from '../shared/Dropdown/Dropdown'
 import { useReactStore } from '../../stores/reactStore'
+import { notify, useNotificationPage } from '../../stores/notificationStore'
 import { describeFontFile } from './react/renderers/fontGlyphUtils'
 import { FontUploadFields } from './MediaUploadFontFields'
 import {
@@ -190,6 +191,11 @@ export function MediaUploadModal({
   onClose, editItem, audioOnly = false, onAudioUploaded, preserveQueuedFiles = false, initialFiles,
 }: MediaUploadModalProps) {
   const isEdit = !!editItem
+  const notificationPage = useNotificationPage()
+  /** Success card in the page's Notifications drawer; a dialog opened outside any page has no drawer to post to. */
+  const notifyUploaded = useCallback((title: string, message: string) => {
+    if (notificationPage) notify(notificationPage, { tone: 'success', title, message })
+  }, [notificationPage])
 
   const {
     uploadQueue,
@@ -644,6 +650,7 @@ export function MediaUploadModal({
     setProgress({ completed: 0, total: pending.length })
     let completed = 0
     let failed = 0
+    let firstUploadedName = ''
     for (const entry of pending) {
       setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'uploading', uploadError: undefined } : item)))
       const id = await useReactStore.getState().uploadOscillatorFont(entry.file, {
@@ -653,6 +660,7 @@ export function MediaUploadModal({
       })
       if (id) {
         completed += 1
+        if (!firstUploadedName) firstUploadedName = entry.name.trim() || entry.file.name
         setFontQueue(prev => prev.map(item => (item.id === entry.id ? { ...item, status: 'done' } : item)))
       } else {
         failed += 1
@@ -662,6 +670,12 @@ export function MediaUploadModal({
       setProgress({ completed: completed + failed, total: pending.length })
     }
     setUploading(false)
+    if (completed > 0) {
+      notifyUploaded(
+        completed === 1 ? 'Font uploaded' : 'Fonts uploaded',
+        completed === 1 ? `"${firstUploadedName}" was added to your font library.` : `${completed} fonts were added to your font library.`,
+      )
+    }
     if (failed === 0) { onClose(); return }
     setBatchError(completed > 0
       ? `${completed} font${completed === 1 ? '' : 's'} uploaded. ${failed} failed and can be retried.`
@@ -685,6 +699,8 @@ export function MediaUploadModal({
     })
 
     const beforeIds = new Set(useAudioStore.getState().savedTracks.map(track => track.dbId))
+    const queuedAudio = uploadQueue.every(q => q.isAudio)
+    const queuedName = uploadQueue[0]?.file.name ?? ''
     try {
       const result = await uploadQueuedMedia({
         signal: controller.signal,
@@ -700,6 +716,16 @@ export function MediaUploadModal({
       })
       const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
       if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
+
+      if (result.succeeded > 0) {
+        const noun = queuedAudio ? 'audio' : 'media'
+        notifyUploaded(
+          result.succeeded === 1 ? (queuedAudio ? 'Audio uploaded' : 'Media uploaded') : (queuedAudio ? 'Audio tracks uploaded' : 'Media items uploaded'),
+          result.succeeded === 1 && result.total === 1
+            ? `"${queuedName}" was uploaded to your ${noun} library.`
+            : `${result.succeeded} ${queuedAudio ? 'audio track' : 'media item'}${result.succeeded === 1 ? ' was' : 's were'} uploaded to your ${noun} library.`,
+        )
+      }
 
       if (result.failures.length > 0) {
         setBatchError(result.succeeded > 0

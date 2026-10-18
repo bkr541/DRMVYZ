@@ -44,6 +44,8 @@ vi.mock('./react/renderers/fontGlyphUtils', () => ({ describeFontFile: mocks.des
 vi.mock('./react/renderers/svgCapabilityAnalysis', () => ({ analyzeSvgCapabilities: () => ({ isValidSvg: true, hasVectorGeometry: true }) }))
 
 import { MediaUploadModal } from './MediaUploadModal'
+import { NotificationPageProvider, useNotificationStore } from '../../stores/notificationStore'
+import { useMediaStore } from '../../stores/mediaStore'
 
 const details = {
   name: 'Headline Display Regular', fileName: 'Headline.ttf', fontFamilyName: 'Headline Display', styleName: 'Regular',
@@ -187,6 +189,65 @@ describe('media upload dialog with a font', () => {
     await act(async () => { root.render(<MediaUploadModal audioOnly onClose={() => undefined} />) })
     await chooseFiles([fontFile()])
     expect(text()).toContain('Only audio files can be uploaded here.')
+  })
+})
+
+describe('upload success card in the page Notifications drawer', () => {
+  const events = () => useNotificationStore.getState().events['media-manager']
+  const renderInMediaManager = async () => {
+    await act(async () => {
+      root.render(<NotificationPageProvider value="media-manager"><MediaUploadModal onClose={() => undefined} /></NotificationPageProvider>)
+    })
+  }
+  const clickUpload = async (label: RegExp) => {
+    const upload = [...container.querySelectorAll('button')].find(button => label.test(button.textContent ?? ''))!
+    await act(async () => { upload.click() })
+    await act(async () => { await Promise.resolve() })
+  }
+  beforeEach(() => { useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, 'media-manager': [] } }) })
+
+  it('posts a success card naming the font after it uploads', async () => {
+    await renderInMediaManager()
+    await chooseFiles([fontFile()])
+    await clickUpload(/Upload 1 Font/)
+    expect(events()).toHaveLength(1)
+    expect(events()[0]).toMatchObject({ tone: 'success', title: 'Font uploaded', unread: true })
+    expect(events()[0]!.message).toContain('was added to your font library')
+  })
+
+  it('posts no card when the font fails to upload', async () => {
+    mocks.uploadOscillatorFont.mockResolvedValue(null)
+    await renderInMediaManager()
+    await chooseFiles([fontFile()])
+    await clickUpload(/Upload 1 Font/)
+    expect(events()).toHaveLength(0)
+  })
+
+  it('posts a success card for uploaded media, and reports the count for a batch', async () => {
+    const state = useMediaStore.getState() as unknown as { uploadQueuedMedia: ReturnType<typeof vi.fn> }
+    const item = (name: string) => ({ tempId: `t-${name}`, file: new File([new Uint8Array(4)], name, { type: 'image/png' }), previewUrl: `blob:${name}`, isAudio: false, suggestedRole: 'background_image' })
+    mocks.queue = [item('logo.png')]
+    mocks.activeKey = 't-logo.png'
+    state.uploadQueuedMedia.mockResolvedValue({ total: 1, succeeded: 1, failures: [] })
+    await renderInMediaManager()
+    await clickUpload(/Upload 1 Media/)
+    expect(events()[0]).toMatchObject({ tone: 'success', title: 'Media uploaded', message: '"logo.png" was uploaded to your media library.' })
+
+    act(() => root.unmount())
+    root = createRoot(container)
+    mocks.queue = [item('a.png'), item('b.png')]
+    mocks.activeKey = 't-a.png'
+    state.uploadQueuedMedia.mockResolvedValue({ total: 2, succeeded: 2, failures: [] })
+    await renderInMediaManager()
+    await clickUpload(/Upload 2 Media/)
+    expect(events()[0]).toMatchObject({ title: 'Media items uploaded', message: '2 media items were uploaded to your media library.' })
+  })
+
+  it('posts nothing when the dialog is not inside a page with a Notifications drawer', async () => {
+    await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
+    await chooseFiles([fontFile()])
+    await clickUpload(/Upload 1 Font/)
+    expect(events()).toHaveLength(0)
   })
 })
 
