@@ -2,6 +2,15 @@ import type {
   CanvasOrchestrationSettings,
   CanvasResolvedPerformanceFrame,
 } from './CanvasPerformanceTypes'
+import type { CanvasPresetRendererKind } from '../ReactTypes'
+
+/** Specialized direct presets yield to an active Show Manager composition. */
+export function canRenderShiftgridDirectPreset(
+  rendererKind: CanvasPresetRendererKind,
+  hasRuntimeCanvasShow: boolean,
+): boolean {
+  return rendererKind === 'shiftgrid' && !hasRuntimeCanvasShow
+}
 
 /**
  * Active resolved orchestration owns show rendering. The selected Canvas preset

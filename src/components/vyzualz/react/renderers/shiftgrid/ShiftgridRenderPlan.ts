@@ -24,6 +24,7 @@ export interface ShiftgridRenderPlan {
   sources: readonly ShiftgridRenderSource[]
   effects: ShiftgridEffectPlan
   cleanEffects: boolean
+  backdrop: ShiftgridRenderTile | null
   trails: readonly ShiftgridRenderTile[]
   assembled: boolean; tiles: readonly ShiftgridRenderTile[]
 }
@@ -152,15 +153,29 @@ export function createShiftgridRenderPlan({ geometry, runtime, width, height, so
     && !sourceRuntime?.moving
     && runtime.state.currentSlotsByTile.every((slot, tile) => slot === tile)
     && (!sourceRuntime || sourceRuntime.currentSourceIndicesByTile.every(source => source === sourceRuntime.currentSourceIndicesByTile[0]))
+  // Sliding interpolation can temporarily uncover a cell even though both
+  // endpoints are complete permutations. Keep the composition occupied with
+  // source-aligned artwork beneath moving tiles; settled frames omit this quad.
+  const backdropSourceIndex = Math.min(normalizedSources.length - 1, Math.max(0, assembledSourceIndex))
+  const backdropDraw = sourceDraws[backdropSourceIndex] ?? sourceDraw
+  const backdrop = runtime.moving ? Object.freeze({
+    tileId: 'shiftgrid:motion-backdrop',
+    source: Object.freeze({ x: (bounds.x - backdropDraw.x) / backdropDraw.width, y: (bounds.y - backdropDraw.y) / backdropDraw.height,
+      width: bounds.width / backdropDraw.width, height: bounds.height / backdropDraw.height }),
+    pendingSource: Object.freeze({ x: (bounds.x - backdropDraw.x) / backdropDraw.width, y: (bounds.y - backdropDraw.y) / backdropDraw.height,
+      width: bounds.width / backdropDraw.width, height: bounds.height / backdropDraw.height }),
+    sourceIndex: backdropSourceIndex, pendingSourceIndex: backdropSourceIndex, sourceTransitionProgress: 1,
+    destination: Object.freeze({ ...bounds }), motionX: 0, motionY: 0, opacity: 1, snapFlash: 0,
+  }) : null
   return Object.freeze({ width, height, sourceWidth, sourceHeight, fitMode,
     compositionBounds: Object.freeze(bounds), sourceDraw: Object.freeze(sourceDraws[assembledSourceIndex] ?? sourceDraw), sources: Object.freeze(normalizedSources), assembled,
-    effects: Object.freeze({ ...effects }), cleanEffects, trails: Object.freeze(trails),
+    effects: Object.freeze({ ...effects }), cleanEffects, backdrop, trails: Object.freeze(trails),
     tiles: Object.freeze(tiles) })
 }
 
 /** Six vertices per tile, one interleaved position/dual-UV/source/local-UV/motion/effect buffer. */
 export function buildShiftgridVertexBatch(plan: ShiftgridRenderPlan): Float32Array {
-  const renderTiles = [...plan.trails, ...plan.tiles]
+  const renderTiles = [...(plan.backdrop ? [plan.backdrop] : []), ...plan.trails, ...plan.tiles]
   const result = new Float32Array(renderTiles.length * 6 * 15); let offset = 0
   for (const tile of renderTiles) {
     const d = tile.destination; const s = tile.source; const p = tile.pendingSource

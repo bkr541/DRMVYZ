@@ -90,6 +90,7 @@ import {
   getCanvasPerformanceShow,
   canRenderCanvasAuthoredLayerFrame,
   canRenderCanvasOrchestrationFrame,
+  canRenderShiftgridDirectPreset,
   resolveCanvasAuthoredLayerFrame,
   resolveCanvasEffectiveAuthoredLayers,
   resolveCanvasEnabledAuthoredLayers,
@@ -1572,7 +1573,7 @@ export function CanvasEngineSurface({
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
   const cutbankActive = rendererKind === 'cutbank'
-  const shiftgridActive = rendererKind === 'shiftgrid'
+  const shiftgridDirectActive = canRenderShiftgridDirectPreset(rendererKind, runtimeCanvasShow != null)
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
   const singleLayerEffectOwner = useMemo(() => {
     if (orchestrationSettings.renderMode !== 'single') return null
@@ -1626,7 +1627,7 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
-    if (shiftgridActive) {
+    if (shiftgridDirectActive) {
       orchestrationPreloadManager.releaseAll()
       orchestrationMediaRetryRef.current.clear()
       previousOrchestrationContextRef.current = null
@@ -1638,15 +1639,15 @@ export function CanvasEngineSurface({
     }
     // CUTBANK owns its own pool-driven performance; the generic authored/pool
     // automation runtimes stay idle so nothing else changes the same output.
-    const authoredLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridActive && orchestrationSettings.renderMode === 'layers'
-    const singleEffectLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridActive && singleLayerEffectRuntime
+    const authoredLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridDirectActive && orchestrationSettings.renderMode === 'layers'
+    const singleEffectLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridDirectActive && singleLayerEffectRuntime
     const compositedAuthoredRuntime = authoredLayerRuntime || singleEffectLayerRuntime
     const authoredRuntimeLayers = singleEffectLayerRuntime && singleLayerEffectOwner
       ? [singleLayerEffectOwner]
       : orchestrationSettings.authoredLayers
     const performanceRuntime = !runtimeCanvasShow
       && !cutbankActive
-      && !shiftgridActive
+      && !shiftgridDirectActive
       && orchestrationSettings.renderMode === 'performance'
       && orchestrationSettings.enabled
     if (!runtimeCanvasShow && (showPreviewMode || (!compositedAuthoredRuntime && !performanceRuntime))) {
@@ -1862,7 +1863,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, shiftgridActive, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
+  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, shiftgridDirectActive, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -1870,7 +1871,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive && !shiftgridActive) {
+    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive && !shiftgridDirectActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1900,7 +1901,7 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive, shiftgridActive])
+  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive, shiftgridDirectActive])
 
   // Keep the direct renderer visible only while every authored source is still
   // preloading. Once a source is drawable, or all authored sources have failed,
@@ -1929,14 +1930,14 @@ export function CanvasEngineSurface({
 
   useEffect(() => {
     // CUTBANK publishes its own capture canvas from CanvasCutbankLayer.
-    if (orchestrationRenderable || !outputAvailable || cutbankActive || shiftgridActive) return
+    if (orchestrationRenderable || !outputAvailable || cutbankActive || shiftgridDirectActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable, shiftgridActive])
+  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable, shiftgridDirectActive])
 
   useEffect(() => {
-    if (orchestrationRenderable || fragmentCollageActive || cutbankActive || shiftgridActive) return
+    if (orchestrationRenderable || fragmentCollageActive || cutbankActive || shiftgridDirectActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -2138,7 +2139,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridActive])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2489,7 +2490,7 @@ export function CanvasEngineSurface({
     />
   )
 
-  if (shiftgridActive) {
+  if (shiftgridDirectActive) {
     return (
       <CanvasShiftgridLayer
         settings={canvasPresetSettings.shiftgrid}

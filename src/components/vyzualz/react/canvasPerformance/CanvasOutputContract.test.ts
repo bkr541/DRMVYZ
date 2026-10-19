@@ -3,8 +3,15 @@ import { CANVAS_PRESET_SETTINGS_SCHEMA_VERSION, DEFAULT_CANVAS_PRESET_SETTINGS }
 import { makeCanvasCaptureFilter, resolveCanvasEffectOpacity } from '../canvasMediaFidelity'
 import { normalizeCanvasPresetSettings } from '../../../../stores/reactStore'
 import { resolveCanvasLayerAlphaHierarchy, resolveCanvasOutputContract } from './CanvasOutputContract'
+import { canRenderShiftgridDirectPreset } from './CanvasRenderRouting'
 
 describe('CANVAS output ownership contract', () => {
+  it('lets Show Manager own output while SHIFTGRID remains the selected direct preset', () => {
+    expect(canRenderShiftgridDirectPreset('shiftgrid', false)).toBe(true)
+    expect(canRenderShiftgridDirectPreset('shiftgrid', true)).toBe(false)
+    expect(canRenderShiftgridDirectPreset('standard', false)).toBe(false)
+  })
+
   it('migrates legacy Source Visibility exactly once into Dry Source Mix', () => {
     const migrated = normalizeCanvasPresetSettings({ sourceVisibility: 0.37 })
     expect(migrated.schemaVersion).toBe(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION)

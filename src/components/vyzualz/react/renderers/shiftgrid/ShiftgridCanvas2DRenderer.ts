@@ -67,6 +67,7 @@ export class ShiftgridCanvas2DRenderer implements ShiftgridRenderer {
       if (current) drawTile(current, tile.source, tile.destination, tile.opacity * (1 - mix))
       if (pending && mix > 0) drawTile(pending, tile.pendingSource, tile.destination, tile.opacity * mix)
     }
+    if (plan.backdrop) renderTile(plan.backdrop)
     for (const trail of plan.trails) renderTile(trail)
     for (const tile of plan.tiles) renderTile(tile)
     if (plan.effects.rgbSeparation > 0) {

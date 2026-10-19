@@ -96,8 +96,9 @@ Effects and transitions must:
 generic authored-layer renderer. One SHIFTGRID renderer owns the complete tile
 grid, so its source count is independent of the four-layer CANVAS compositor.
 
-Phase 5 adds the complete Design inspector and motion-derived rendering effects
-on top of the deterministic P0-P4 tile, mosaic, and performance systems:
+SHIFTGRID is a dedicated Canvas preset with a complete Design inspector,
+deterministic puzzle choreography, multi-image mosaics, shared Audio
+Intelligence routing, and motion-derived rendering effects:
 
 - `ShiftgridSettings.ts` owns the versioned persistent preferences and strict normalization.
 - `ShiftgridTileGeometry.ts` owns stable row/column tile identity, supported/automatic grid selection, and square or rectangular geometry.
@@ -132,6 +133,55 @@ Master Intensity scales performance motion and transient effect accents but does
 not alter source identity, crop coordinates, grid dimensions, or authored tile
 gap. Every P5 effect is opt-in; with Effects disabled (the default), assembled
 output takes the clean source-image path with no overlays or sampling shifts.
+
+### SHIFTGRID patterns
+
+| Pattern | Visible behavior |
+| --- | --- |
+| Row Runner | Whole rows cycle horizontally in alternating directions with staggered starts. |
+| Column Cascade | Columns cycle vertically in a progressive cascade. |
+| Checker Shift | Alternating checkerboard groups exchange horizontally and vertically across multiple phases. |
+| Domino Chain | Neighbor swaps propagate along a deterministic serpentine route. |
+| Center Collapse | Outer tiles exchange toward central positions before reconstruction. |
+| Edge Expansion | Coordinated exchange bands expand from the center toward the edges. |
+| Wave Relay | A relay wave passes coordinated swaps from column to column. |
+| Magnetic Resolve | A deterministic scatter progressively locks every tile back into its original slot. |
+
+### SHIFTGRID Mosaic Types
+
+| Mosaic Type | Visible behavior |
+| --- | --- |
+| Image Takeover | Corresponding regions are replaced in groups until one target owns the complete grid. |
+| Hybrid Mosaic | Checker-distributed regions retain multiple source identities in one occupied composition. |
+| Traveling Image Wave | A horizontal, vertical, or serpentine wave replaces corresponding source regions. |
+| Visual Call-and-Response | Alternating tile groups trade dominance between sources before resolving. |
+| Progressive Identity Reveal | Many source identities are reduced step-by-step until only the target remains. |
+| Auto Mosaic | Deterministically selects among the five authored modes without immediately repeating one. |
+
+Single Image remains a separate Media Mode. Mosaic Type changes source
+assignment only; the selected Pattern continues to control spatial motion.
+Show Manager shows and previews retain compositor authority while active, so a
+selected SHIFTGRID direct preset cannot hide authored show output.
+
+SHIFTGRID and Fractures intentionally have different visual contracts.
+SHIFTGRID always uses a regular, fully occupied grid, moves stable tile
+identities through validated permutations, and can reconstruct one exact image
+or exchange corresponding regions across sources. Fractures retains its own
+fragment geometry and runtime; SHIFTGRID imports none of it and does not use
+mask rectangles to imitate it.
+
+### SHIFTGRID production validation
+
+Run the focused unit and regression suite with Vitest. For driver-level WebGL2
+captures and timing, start Vite and run
+`node scripts/validate-shiftgrid-p7-browser.mjs`. The validator creates
+synthetic graffiti, glitch, chrome, neon, transparent SVG, low-contrast, wide,
+and portrait fixtures and uses the repository wordmark and neon mockup when
+available. It writes individual captures, pattern and mosaic contact sheets,
+pixel comparisons, texture-atlas memory, and GPU timing to
+`/tmp/shiftgrid-p7-validation` by default. Set `SHIFTGRID_P7_OUTPUT_DIR` to use
+another destination. The command fails if a clean WebGL capture exceeds the
+configured tolerance or if an opaque moving-pattern fixture exposes a hole.
 
 ## Persistence
 

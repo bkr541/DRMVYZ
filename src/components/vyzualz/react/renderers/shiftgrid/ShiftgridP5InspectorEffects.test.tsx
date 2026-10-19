@@ -158,6 +158,6 @@ describe('SHIFTGRID P5 rendered effects', () => {
     expect(plan.tiles.some(tile => tile.snapFlash > 0)).toBe(true)
     expect(plan.tiles[0]!.destination.width).toBeLessThan(geometry.tiles[0]!.width)
     expect(plan.tiles[0]!.source).toEqual({ x: 0, y: 0, width: 0.25, height: 0.25 })
-    expect(buildShiftgridVertexBatch(plan)).toHaveLength((plan.tiles.length + plan.trails.length) * 6 * 15)
+    expect(buildShiftgridVertexBatch(plan)).toHaveLength((plan.tiles.length + plan.trails.length + 1) * 6 * 15)
   })
 })
