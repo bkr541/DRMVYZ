@@ -133,6 +133,15 @@ fall into these ownership groups:
 | Browser/E2E tests | Legacy runtime harness and scripts | Phase 6 |
 | CSS/help/docs/layout lab | Legacy presentation and guidance | Phase 6/7 |
 
+### Phase 5 consumer audit
+
+The React View shell, React store, performance pads, preset-name/inspector
+helpers, output/recording panels, and live Layout Lab navigation are now cut
+over. The boundary check walks the production import graph from `src/main.tsx`
+and confirms it cannot reach the legacy Cinema directory. The 15 remaining
+direct importers are isolated legacy workspace files, legacy-focused tests, and
+browser acceptance harnesses retained for physical deletion in Phase 6.
+
 ## Persisted data policy
 
 The legacy store can contain more than built-in presets. Its data must be

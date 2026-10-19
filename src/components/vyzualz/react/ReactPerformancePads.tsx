@@ -4,7 +4,6 @@ import { DualRailCollapsible } from './DualRailCollapsible'
 import { resolveActivePerformanceActionTarget, useReactStore } from '../../../stores/reactStore'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { resolveEffectiveReactPresets } from '../../../features/personalization/effectivePalette'
-import { useCinemaStore } from '../cinema/CinemaStore'
 import {
   getReactPerformanceActionsForTarget,
   isFormFieldKeyboardTarget,
@@ -79,7 +78,6 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
   )
 
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
-  const activeCinemaCompositionId = useCinemaStore(state => state.activeCompositionId)
   const effectivePresets = useMemo(
     () => resolveEffectiveReactPresets(reactPresets, activeBrandKit),
     [reactPresets, activeBrandKit],
@@ -95,9 +93,8 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
       activeReactPresetId,
       reactPresets,
       cinematicConfigsByPresetId,
-      activeCinemaCompositionId,
     }),
-    [activeCinemaCompositionId, activeReactEngineId, activeReactPresetId, reactPresets, cinematicConfigsByPresetId],
+    [activeReactEngineId, activeReactPresetId, reactPresets, cinematicConfigsByPresetId],
   )
   const contextualActions = useMemo(() => getReactPerformanceActionsForTarget(target), [target])
   const actionsByPadId = useMemo(

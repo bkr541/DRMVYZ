@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 // disconnected — owns its own open state and selection.
 
 const SAMPLE_ENGINES = [
-  { id: 'cinema', label: 'Cinema', icon: '◇', description: 'Composition-native visual graphs with one canonical Cinema runtime.' },
+  { id: 'cinema2', label: 'Cinema 2.0', icon: '◆', description: 'Native cinematic presets with real-time audio-reactive rendering.' },
   { id: 'oscilloscope', label: 'Sound Drawing', icon: '〜', description: 'Live audio waveform drawing with glyph, SVG and text rendering.' },
   { id: 'canvas', label: 'CANVAS', icon: '▣', description: 'Uploaded videos, images, and SVGs for audio-reactive shows.' },
   { id: 'laserDmx', label: 'LaserDMX', icon: '✦', description: 'DMX Beam Matrix control with cues, fog, and audio-reactive looks.' },

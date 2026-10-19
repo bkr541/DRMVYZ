@@ -34,7 +34,6 @@ export function resolveReactWorkspaceComposition(
   const isShader = engineId === 'shaderPads'
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
-  const isCinema = engineId === 'cinema'
   const isCinema2 = engineId === 'cinema2'
   const isLaser = engineId === 'laserDmx'
   const isCanvas = engineId === 'canvas'
@@ -49,7 +48,7 @@ export function resolveReactWorkspaceComposition(
     // Headliner owns a minimal setup workspace while Track Map and performance
     // pads remain intentionally absent from its fullscreen camera foundation.
     leftTabs = ['workspace']
-  } else if (isCinema || isCinema2) {
+  } else if (isCinema2) {
     leftTabs = ['workspace', 'layers']
     workspaceTabLabel = 'SOURCE'
   } else if (isCinematic) {
@@ -74,7 +73,7 @@ export function resolveReactWorkspaceComposition(
   return {
     // React performance pads target live React presets and contextual production actions.
     // Shader uses its independent scene system and has no compatible React presets.
-    showPerformancePads: !isShader && !isCinema && !isCinema2 && !isHeadliner,
+    showPerformancePads: !isShader && !isCinema2 && !isHeadliner,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine,
     // except Headliner's minimal fullscreen camera workspace.

@@ -360,7 +360,7 @@ const SECTION_OPTIONS: Array<{ value: CanvasSectionTriggerType; label: string }>
 
 
 const CROSS_ENGINE_PRESETS: Array<{ engineId: Exclude<ReactEngineId, 'canvas'>; label: string; icon: string; preset: string; description: string }> = [
-  { engineId: 'cinema', label: 'Cinema', icon: '◉', preset: 'Visual Composition', description: 'Composition-native visual performance engine.' },
+  { engineId: 'cinema2', label: 'Cinema 2.0', icon: '◆', preset: 'Native Preset', description: 'Native cinematic visual performance engine.' },
   { engineId: 'oscilloscope', label: 'Sound Drawing', icon: '〰', preset: 'XY Cyan Scope', description: 'Classic scope preset.' },
   { engineId: 'laserDmx', label: 'LaserDMX', icon: '⌬', preset: 'Beam Matrix', description: 'LaserDMX performance preset.' },
   { engineId: 'pixGrid', label: 'PixGrid', icon: '▦', preset: 'Bass Beacon', description: 'Pixel-grid performance preset.' },

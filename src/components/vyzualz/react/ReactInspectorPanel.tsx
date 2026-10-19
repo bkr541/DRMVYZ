@@ -28,8 +28,6 @@ import {
 } from './svgSourceLifecycle'
 import type { UnifiedSvgStatus } from './svgSourceLifecycle'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
-import { CinemaInspectorPanel } from './CinemaInspectorPanel'
-import { getCinemaEditorSelection, useCinemaStore } from '../cinema'
 
 // ── Display maps ──────────────────────────────────────────────────────────────
 
@@ -206,8 +204,6 @@ export function ReactInspectorPanel() {
   })))
   const activeShaderId = useShaderPanelStore(s => s.activeShaderId)
   const allMediaItems = useMediaStore(state => state.items)
-  const cinemaActiveCompositionId = useCinemaStore(state => state.activeCompositionId)
-  const cinemaEditorMetadata = useCinemaStore(state => state.editorMetadata)
   useSyncExternalStore(
     subscribeSvgVisualCache,
     getSvgVisualCacheVersion,
@@ -217,15 +213,11 @@ export function ReactInspectorPanel() {
   const preset = activeReactPresetId
     ? reactPresets.find(p => p.id === activeReactPresetId && p.engine === activeReactEngineId) ?? null
     : null
-  const cinemaSelectedNodeId = cinemaActiveCompositionId
-    ? getCinemaEditorSelection(cinemaEditorMetadata, cinemaActiveCompositionId)
-    : null
   const inspectableSelection = resolveReactInspectorSelection({
     activeReactEngineId,
     activeShaderId,
     oscillatorSettings,
     selectedCanvasLayerId,
-    cinemaSelectedNodeId,
     laserDmxWorkspaceMode,
     laserDmxBeamMatrix,
   })
@@ -241,15 +233,6 @@ export function ReactInspectorPanel() {
       <KvRow label="Active Preset" value={activePresetName} />
     </div>
   )
-
-  if (activeReactEngineId === 'cinema') {
-    return (
-      <>
-        {engineSummary}
-        <CinemaInspectorPanel />
-      </>
-    )
-  }
 
   if (activeReactEngineId === 'shaderPads') {
     return (

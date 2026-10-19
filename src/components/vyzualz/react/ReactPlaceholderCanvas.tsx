@@ -52,10 +52,9 @@ import {
   resolveProfessionalScopeLayerSettings,
 } from './soundDrawing/SoundDrawingProfessionalScopeLayer'
 
-const ENGINE_ACCESSIBLE_LABELS: Record<ReactEngineId, string> = {
+const ENGINE_ACCESSIBLE_LABELS: Partial<Record<ReactEngineId, string>> = {
   shaderPads:      'Shader',
   cinematicPortal: 'Cinematic Worlds',
-  cinema:          'Cinema',
   cinema2:         'Cinema 2.0',
   oscilloscope:    'Sound Drawing',
   canvas:          'CANVAS',
@@ -187,7 +186,7 @@ export function ReactPlaceholderCanvas({
 }: Props) {
   const canvasLabel =
     activePreset && isSelectableReactEngineId(activePreset.engine)
-    ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine]} visualization: ${activePreset.name}`
+    ? `${ENGINE_ACCESSIBLE_LABELS[activePreset.engine] ?? 'Visual'} visualization: ${activePreset.name}`
     : 'React visualization preview'
   const canvasRef      = useRef<HTMLCanvasElement>(null)
   const animRef        = useRef<number>(0)

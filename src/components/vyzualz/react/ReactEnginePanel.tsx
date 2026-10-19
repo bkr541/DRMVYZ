@@ -5,9 +5,6 @@ import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
 import { Cinema2MediaSourcePanel } from './Cinema2MediaSourcePanel'
-import { CinemaWorkspace } from './CinemaWorkspace'
-import type { CinemaWorkspaceFrameBridgeResult } from './CinemaWorkspaceFrameBridge'
-import type { CinemaRuntimeSnapshot } from '../cinema'
 import type { Cinema2Runtime } from '../cinema2'
 import { useShallow } from 'zustand/react/shallow'
 import { resolveCinematicConfigForPreset, useReactStore } from '../../../stores/reactStore'
@@ -360,13 +357,9 @@ export function OscillatorSourceDiagnostics({
 // ── Contextual engine workspace ──────────────────────────────────────────────────────────────
 
 export function ReactEnginePanel({
-  cinemaFrameBridge = null,
-  cinemaRuntimeSnapshot = null,
   cinema2Runtime = null,
   onOpenMediaManager,
 }: {
-  cinemaFrameBridge?: CinemaWorkspaceFrameBridgeResult | null
-  cinemaRuntimeSnapshot?: CinemaRuntimeSnapshot | null
   cinema2Runtime?: Cinema2Runtime | null
   onOpenMediaManager?: () => void
 } = {}) {
@@ -486,14 +479,6 @@ export function ReactEnginePanel({
 
   return (
     <div className="rv-ctrl-group">
-      {activeReactEngineId === 'cinema' && (
-        <CinemaWorkspace
-          surface="panel"
-          frameBridge={cinemaFrameBridge}
-          runtimeSnapshot={cinemaRuntimeSnapshot}
-        />
-      )}
-
       {activeReactEngineId === 'cinema2' && (
         <Cinema2MediaSourcePanel runtime={cinema2Runtime} onOpenMediaManager={onOpenMediaManager} />
       )}

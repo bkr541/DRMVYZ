@@ -18,7 +18,7 @@ discarded merely because the built-in presets have been ported.
 | Field | Value |
 | --- | --- |
 | Overall status | **In progress** |
-| Current phase | Phase 5 |
+| Current phase | Phase 6 |
 | Last updated | 2026-10-18 |
 | Target live engine | `cinema2` |
 | Legacy live engine | `cinema` |
@@ -42,7 +42,7 @@ discarded merely because the built-in presets have been ported.
 | 2 | Establish Cinema 2.0 persistence and content parity | **Complete** | Phase 1 |
 | 3 | Decouple Cinema 2.0 from legacy Cinema | **Complete** | Phase 1 |
 | 4 | Migrate persisted state and cross-engine references | **Complete** | Phases 1-3 |
-| 5 | Cut over the application shell and runtime | **Pending** | Phase 4 |
+| 5 | Cut over the application shell and runtime | **Complete** | Phase 4 |
 | 6 | Delete the legacy implementation and artifacts | **Pending** | Phase 5 |
 | 7 | Stabilize and retire temporary compatibility code | **Pending** | Phase 6 |
 
@@ -433,7 +433,7 @@ Completed 2026-10-18.
 
 ## Phase 5: Cut over the application shell and runtime
 
-**Status:** Pending
+**Status:** Complete
 
 ### Desired result
 
@@ -458,16 +458,16 @@ data-only compatibility readers needed for historical state.
 
 ### Checklist
 
-- [ ] Remove `cinema` from public/live engine registration.
-- [ ] Remove the legacy React view bridge and store subscriptions.
-- [ ] Remove the legacy workspace and all legacy panels from the shell.
-- [ ] Route performance integrations through Cinema 2.0.
-- [ ] Update workspace/layout/selection helpers.
-- [ ] Update lifecycle, diagnostics, and brand-kit branches.
-- [ ] Verify output and recording with Cinema 2.0.
-- [ ] Verify engine switching and restoration for every other engine.
-- [ ] Add a production-import check for the legacy runtime.
-- [ ] Record validation evidence below.
+- [x] Remove `cinema` from public/live engine registration.
+- [x] Remove the legacy React view bridge and store subscriptions.
+- [x] Remove the legacy workspace and all legacy panels from the shell.
+- [x] Route performance integrations through Cinema 2.0.
+- [x] Update workspace/layout/selection helpers.
+- [x] Update lifecycle, diagnostics, and brand-kit branches.
+- [x] Verify output and recording with Cinema 2.0.
+- [x] Verify engine switching and restoration for every other engine.
+- [x] Add a production-import check for the legacy runtime.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -478,7 +478,29 @@ data-only compatibility readers needed for historical state.
 
 ### Evidence / notes
 
-_Pending._
+- `REACT_ENGINE_IDS` and the new `ReactLiveEngineId` exclude `cinema`; attempts
+  to restore or select that historical identity are routed to `cinema2`.
+- `ReactView`, the engine/source panel, shared inspector/reactivity/output
+  panels, performance pads, preset-name lookup, and the React store no longer
+  import the legacy Cinema store or runtime.
+- The former live retirement subscription was replaced by a one-shot,
+  data-only split-persistence reader. It archives the raw historical document
+  and resolves built-in provenance without constructing `useCinemaStore` or
+  `CinemaRuntime`.
+- Cinema 2.0 remains the owner of the stage canvas supplied to generic
+  recording/output controls and of the runtime diagnostics shown in Output.
+- Layout Lab samples and Brand Kit engine rules now target `cinema2`; persisted
+  `cinema` Brand Kit rules normalize forward to `cinema2`.
+- `node scripts/check-cinema-legacy-boundary.mjs` passes: 15 isolated
+  compatibility/test importers remain for Phase 6, and the full production
+  import graph from `src/main.tsx` cannot reach `src/components/vyzualz/cinema`.
+- Focused Phase 5 validation passed 54 assertions covering migration/archive,
+  engine switching/restoration, inspector selection, preset naming, workspace
+  persistence, and Brand Kit normalization. The legacy-only
+  `CinemaProductionBoundary` file still has its pre-existing catalog-count
+  assertion (`12` expected versus `14` current entries); its Phase 5
+  non-selectable-engine assertion passes. Repository-wide typecheck remains red
+  on the previously documented unrelated baseline errors.
 
 ---
 

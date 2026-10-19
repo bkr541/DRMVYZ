@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
-import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -10,7 +9,6 @@ import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDia
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
 import { useMediaStore } from '../../../stores/mediaStore'
-import { selectEffectiveRuntimeCues, selectEffectiveRuntimeGlobalOffsetMs, useLyricsStore } from '../../../stores/lyricsStore'
 import { ReactPresetsPanel, ReactEnginePanel } from './panels/ReactRightPanels'
 import { ReactPlaceholderCanvas } from './ReactPlaceholderCanvas'
 import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell'
@@ -64,12 +62,6 @@ import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
 import { Cinema2LayersPanel } from './Cinema2LayersPanel'
 import { Cinema2PresetsPanel } from './Cinema2PresetsPanel'
 import { Cinema2Stage } from './Cinema2Stage'
-import { CinemaWorkspace } from './CinemaWorkspace'
-import { CinemaLayersPanel, CinemaPresetsPanel } from './CinemaWorkspacePanels'
-import { createCinemaFontLibrarySnapshot, createCinemaMediaLibrarySnapshot } from './CinemaMediaLibraryBridge'
-import { buildCinemaWorkspaceFrameBridge } from './CinemaWorkspaceFrameBridge'
-import type { CinemaWorkspaceRuntimeFrameConfig } from './CinemaWorkspaceRuntimeFrameSource'
-import type { CinemaFrameBuilderState, CinemaRuntimeSnapshot } from '../cinema'
 import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
   cinema2NativePresetRegistry,
@@ -81,10 +73,8 @@ import {
 } from '../cinema2'
 import { readCinema2LastPresetId, writeCinema2LastPresetId } from './cinema2WorkspacePreferences'
 import { useCinema2WorkspaceRestoreState } from './useCinema2WorkspaceRestoreState'
-import { getCinemaEditorSelection, snapshotCinemaPersistedState, useCinemaStore } from '../cinema'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
-import { isCinemaLegacyEngineId } from '../cinema/CinemaLegacyRetirement'
-import { useCinemaLegacyRetirement } from './useCinemaLegacyRetirement'
+import { useCinema2LegacyPersistenceMigration } from './useCinema2LegacyPersistenceMigration'
 import { useSvgVisualRehydration } from './useSvgVisualRehydration'
 import { useFontLibraryHydration } from './useFontLibraryHydration'
 import { useReactPresetAutomation } from './useReactPresetAutomation'
@@ -105,7 +95,6 @@ import {
 } from './reactWorkspaceComposition'
 import { useBrandKitStore } from '../../../features/personalization/brandKitStore'
 import { useActiveBrandOverlay } from '../../../features/personalization/useActiveBrandOverlay'
-import { useLyricPlaybackSelector } from '../../../features/lyrics/runtime/useLyricPlayback'
 import { useReactWorkspacePreferences } from './reactWorkspacePreferences'
 import {
   getReactMediaDisabledReason,
@@ -214,7 +203,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Placed here so it runs regardless of which right-panel tab is open.
   useSvgVisualRehydration()
   useFontLibraryHydration()
-  useCinemaLegacyRetirement()
+  useCinema2LegacyPersistenceMigration()
   useReactPresetAutomation()
 
   const {
@@ -263,7 +252,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     cinema2Workspace,
     activateCinema2Workspace,
     storeCinema2WorkspacePresetState,
-    archiveLegacyCinemaDocument,
   } = useReactStore(
     useShallow((s) => ({
     reactPresets:           s.reactPresets,
@@ -311,20 +299,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     cinema2Workspace:                s.cinema2Workspace,
     activateCinema2Workspace:        s.activateCinema2Workspace,
     storeCinema2WorkspacePresetState: s.storeCinema2WorkspacePresetState,
-    archiveLegacyCinemaDocument:     s.archiveLegacyCinemaDocument,
     })),
   )
   const bpmSync = useVisualStore((s) => s.bpmSync)
   const activeShaderId = useShaderPanelStore((s) => s.activeShaderId)
   const activeBrandKit = useBrandKitStore((s) => s.activeKit)
-  const mediaAssets = useMediaStore((s) => s.items)
-  const cinemaAssetSources = useMemo(() => Object.freeze([
-    ...createCinemaMediaLibrarySnapshot(mediaAssets),
-    ...createCinemaFontLibrarySnapshot(oscillatorFontAssets),
-  ]), [mediaAssets, oscillatorFontAssets])
-  const lyricPlayback = useLyricPlaybackSelector((state) => state)
-  const runtimeLyricCues = useLyricsStore(selectEffectiveRuntimeCues)
-  const runtimeLyricGlobalOffsetMs = useLyricsStore(selectEffectiveRuntimeGlobalOffsetMs)
   const activeLaserDmxManagedShow = useMemo(
     () => laserDmxShowManagerShows.find(show => show.id === laserDmxShowManagerActiveShowId) ?? null,
     [laserDmxShowManagerActiveShowId, laserDmxShowManagerShows],
@@ -341,7 +320,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       : null,
     [activeLaserDmxManagedShow],
   )
-  const cinemaFrameStateRef = useRef<CinemaFrameBuilderState | null>(null)
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
   const workspaceComposition = useMemo(
@@ -472,15 +450,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     setPixGridOutputCanvas(canvas)
   }, [])
   const [liveFps, setLiveFps]           = useState(0)
-  const [cinemaRuntimeSnapshot, setCinemaRuntimeSnapshot] = useState<CinemaRuntimeSnapshot | null>(null)
-
   // Engine swaps are semantic diagnostics boundaries. Clear immediately rather
   // than showing the previous renderer's FPS until the new renderer samples.
   useEffect(() => {
     setLiveFps(0)
-    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) {
-      setCinemaRuntimeSnapshot(null)
-    }
   }, [activeReactEngineId])
   useEffect(() => {
     if (activeReactEngineId !== 'pixGrid') {
@@ -542,60 +515,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     [activeReactEngineId, activeReactPresetId, reactPresets],
   )
 
-  const {
-    cinemaActiveCompositionId,
-    cinemaActiveInstanceId,
-    cinemaDefinitions,
-    cinemaCompositions,
-    cinemaInstances,
-    cinemaCollections,
-    cinemaEditorMetadata,
-    cinemaMigrationProvenance,
-    cinemaSchemaId,
-    cinemaSchemaVersion,
-  } = useCinemaStore(useShallow(state => ({
-    cinemaActiveCompositionId: state.activeCompositionId,
-    cinemaActiveInstanceId: state.activeInstanceId,
-    cinemaDefinitions: state.definitions,
-    cinemaCompositions: state.compositions,
-    cinemaInstances: state.instances,
-    cinemaCollections: state.collections,
-    cinemaEditorMetadata: state.editorMetadata,
-    cinemaMigrationProvenance: state.migrationProvenance,
-    cinemaSchemaId: state.schemaId,
-    cinemaSchemaVersion: state.schemaVersion,
-  })))
-  const cinemaLegacyArchiveSource = useMemo(() => snapshotCinemaPersistedState({
-    schemaId: cinemaSchemaId,
-    schemaVersion: cinemaSchemaVersion,
-    definitions: cinemaDefinitions,
-    compositions: cinemaCompositions,
-    instances: cinemaInstances,
-    collections: cinemaCollections,
-    activeCompositionId: cinemaActiveCompositionId,
-    activeInstanceId: cinemaActiveInstanceId,
-    editorMetadata: cinemaEditorMetadata,
-    migrationProvenance: cinemaMigrationProvenance,
-  }), [
-    cinemaActiveCompositionId,
-    cinemaActiveInstanceId,
-    cinemaCollections,
-    cinemaCompositions,
-    cinemaDefinitions,
-    cinemaEditorMetadata,
-    cinemaInstances,
-    cinemaMigrationProvenance,
-    cinemaSchemaId,
-    cinemaSchemaVersion,
-  ])
-  useEffect(() => {
-    archiveLegacyCinemaDocument(cinemaLegacyArchiveSource)
-  }, [archiveLegacyCinemaDocument, cinemaLegacyArchiveSource])
-  const cinemaSelectedNodeId = useMemo(
-    () => cinemaActiveCompositionId ? getCinemaEditorSelection(cinemaEditorMetadata, cinemaActiveCompositionId) : null,
-    [cinemaActiveCompositionId, cinemaEditorMetadata],
-  )
-
   const inspectableSelection = useMemo(
     () =>
       resolveReactInspectorSelection({
@@ -603,11 +522,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       activeShaderId,
       oscillatorSettings,
       selectedCanvasLayerId,
-      cinemaSelectedNodeId,
         laserDmxWorkspaceMode,
       laserDmxBeamMatrix,
     }),
-    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, cinemaSelectedNodeId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
+    [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
   const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
@@ -640,7 +558,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset =
-    isCinemaLegacyEngineId(activeReactEngineId) || activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema' || activeReactEngineId === 'headliner'
+    activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema2' || activeReactEngineId === 'headliner'
       ? null
       : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
@@ -716,112 +634,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       downbeats: beatGrid.filter((marker) => marker.isDownbeat),
     }
   }, [engine.currentAnalysis, engine.currentEffectiveBeatGrid, engine.currentEffectiveBpm])
-
-
-  const cinemaFrameBridge = useMemo(() => {
-    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) return null
-    return buildCinemaWorkspaceFrameBridge({
-      width: 1,
-      height: 1,
-      dpr: typeof window === 'undefined' ? 1 : window.devicePixelRatio,
-      audioTimeSec: engine.currentTime,
-      durationSec: audioDurationSec,
-      elapsedTimeSec: engine.currentTime,
-      deltaTimeSec: 1 / 60,
-      trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
-      playing: engine.isPlaying,
-      analysisActive: engine.analysisActive,
-      paused: transportPaused,
-      bpm: engine.currentEffectiveBpm,
-      visibilitySuspended: typeof document !== 'undefined' && document.visibilityState === 'hidden',
-      musicIntelligence: AudioFeatureBus.getFrame(),
-      authoritativeSections: resolvedTrackSections,
-      beatGrid: engine.currentEffectiveBeatGrid ?? [],
-      phraseMarkers: effectiveTrackAnalysis?.phrases ?? [],
-      lyricCues: runtimeLyricCues,
-      lyricGlobalOffsetMs: runtimeLyricGlobalOffsetMs,
-      lyrics: lyricPlayback,
-      performanceEvents: performanceActionEvents,
-      performanceToggleStates: performanceActionToggleStates,
-      brandKit: activeBrandKit,
-      mediaAssetsAvailable: cinemaAssetSources.length > 0,
-      previousState: cinemaFrameStateRef.current,
-    })
-  }, [
-    activeBrandKit,
-    activeReactEngineId,
-    audioDurationSec,
-    engine.currentAudioTrackId,
-    engine.currentEffectiveBpm,
-    engine.currentEffectiveBeatGrid,
-    effectiveTrackAnalysis,
-    engine.currentTime,
-    engine.currentTrackId,
-    engine.analysisActive,
-    engine.isPlaying,
-    lyricPlayback,
-    runtimeLyricCues,
-    runtimeLyricGlobalOffsetMs,
-    cinemaAssetSources.length,
-    performanceActionEvents,
-    performanceActionToggleStates,
-    resolvedTrackSections,
-    transportPaused,
-  ])
-
-  const cinemaRuntimeFrameConfig = useMemo<Readonly<CinemaWorkspaceRuntimeFrameConfig> | null>(() => {
-    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) return null
-    return {
-      analyser,
-      getAudioTime: engine.getCurrentTime,
-      getMusicIntelligence: AudioFeatureBus.getFrame,
-      getLyrics: () => musicIntelligenceEngine.getLyricPlaybackState(),
-      durationSec: audioDurationSec,
-      trackId: engine.currentAudioTrackId ?? engine.currentTrackId,
-      playing: engine.isPlaying,
-      analysisActive: engine.analysisActive,
-      paused: transportPaused,
-      bpm: engine.currentEffectiveBpm,
-      authoritativeSections: resolvedTrackSections,
-      beatGrid: engine.currentEffectiveBeatGrid ?? [],
-      phraseMarkers: effectiveTrackAnalysis?.phrases ?? [],
-      lyricCues: runtimeLyricCues,
-      lyricGlobalOffsetMs: runtimeLyricGlobalOffsetMs,
-      performanceEvents: performanceActionEvents,
-      performanceToggleStates: performanceActionToggleStates,
-      brandKit: activeBrandKit,
-      mediaAssetsAvailable: cinemaAssetSources.length > 0,
-    }
-  }, [
-    activeBrandKit,
-    activeReactEngineId,
-    analyser,
-    audioDurationSec,
-    cinemaAssetSources.length,
-    effectiveTrackAnalysis,
-    engine.currentAudioTrackId,
-    engine.currentEffectiveBeatGrid,
-    engine.currentEffectiveBpm,
-    engine.currentTrackId,
-    engine.getCurrentTime,
-    engine.analysisActive,
-    engine.isPlaying,
-    performanceActionEvents,
-    performanceActionToggleStates,
-    resolvedTrackSections,
-    runtimeLyricCues,
-    runtimeLyricGlobalOffsetMs,
-    transportPaused,
-  ])
-
-  useLayoutEffect(() => {
-    if (activeReactEngineId !== 'cinema' && !isCinemaLegacyEngineId(activeReactEngineId)) {
-      cinemaFrameStateRef.current = null
-      return
-    }
-    if (cinemaFrameBridge) cinemaFrameStateRef.current = cinemaFrameBridge.state
-  }, [activeReactEngineId, cinemaFrameBridge])
-
   const trackTimelineAnalysisKey = engine.currentTrack?.analysisRuntime.analysisKey ?? ''
   const trackTimelineWaveformEntry = useRgbWaveformStore((state) =>
     trackTimelineAnalysisKey ? state.waveforms[trackTimelineAnalysisKey] : undefined,
@@ -945,8 +757,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
                   {leftTab === 'workspace' && (
                     <ReactEnginePanel
-                      cinemaFrameBridge={cinemaFrameBridge}
-                      cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
                       cinema2Runtime={cinema2Runtime}
                       onOpenMediaManager={onOpenMediaManager}
                     />
@@ -966,7 +776,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       getDisabledReason={getMediaDisabledReason}
                     />
                   )}
-                  {leftTab === 'layers' && (activeReactEngineId === 'cinema' ? <CinemaLayersPanel /> : activeReactEngineId === 'cinema2' ? <Cinema2LayersPanel runtime={cinema2Runtime} /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
+                  {leftTab === 'layers' && (activeReactEngineId === 'cinema2' ? <Cinema2LayersPanel runtime={cinema2Runtime} /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
                   {leftTab === 'fonts' && <FontLibraryPanel />}
@@ -979,18 +789,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         {/* Center — canvas + pads + track map */}
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            {activeReactEngineId === 'cinema' || isCinemaLegacyEngineId(activeReactEngineId) ? (
-              <CinemaWorkspace
-                surface="stage"
-                frameBridge={cinemaFrameBridge}
-                runtimeFrameConfig={cinemaRuntimeFrameConfig}
-                assetSources={cinemaAssetSources}
-                runtimeSnapshot={cinemaRuntimeSnapshot}
-                onRuntimeSnapshot={setCinemaRuntimeSnapshot}
-                onCanvasReady={setOutputCanvas}
-                onLiveFps={setLiveFps}
-              />
-            ) : activeReactEngineId === 'cinema2' ? (
+            {activeReactEngineId === 'cinema2' ? (
               <Cinema2Stage
                 presetId={cinema2PresetId}
                 restoreState={cinema2RestoreState}
@@ -1059,7 +858,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   trackIdentity: engine.currentAudioTrackId ?? engine.currentTrackId,
                 }}
               />
-            ) : (
+            ) : activeReactEngineId === 'oscilloscope' || activeReactEngineId === 'laserDmx' ? (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
                 analyser={analyser}
@@ -1102,7 +901,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 laserDmxSectionRuntimePrograms={activeReactEngineId === 'laserDmx' ? activeLaserDmxSectionRuntimePrograms : undefined}
                 laserDmxEmptyRuntimeShowDirector={activeReactEngineId === 'laserDmx' ? activeLaserDmxEmptyRuntimeShowDirector : null}
               />
-            )}
+            ) : null}
             {shouldShowPixGridEditorOverlay(activeReactEngineId, pixGridState.authoringOverlayVisible) && (
               <PixGridEditorOverlay liveCanvas={pixGridOutputCanvas} />
             )}
@@ -1269,8 +1068,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   <Suspense fallback={<LazyWorkspaceFallback label="Shader scenes" />}>
                     <ShaderLibraryPanel />
                   </Suspense>
-              ) : activeReactEngineId === 'cinema' ? (
-                <CinemaPresetsPanel />
               ) : activeReactEngineId === 'cinema2' ? (
                 <Cinema2PresetsPanel activePresetId={cinema2PresetId} onSelectPreset={handleCinema2PresetSelect} />
               ) : activeReactEngineId === 'headliner' ? (
@@ -1290,7 +1087,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="react" />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerReactivityPanel />
-                  : <ReactReactivityWorkspacePanel cinemaFrameBridge={cinemaFrameBridge} />
+                  : <ReactReactivityWorkspacePanel />
             )}
             {activeRightPanel === 'output' && (
               <ReactOutputWorkspacePanel
@@ -1300,8 +1097,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 liveFps={liveFps}
                 hasActiveProgramAudio={hasActiveProgramAudio}
                 onStartRecording={handleStartRecording}
-                cinemaFrameBridge={cinemaFrameBridge}
-                cinemaRuntimeSnapshot={cinemaRuntimeSnapshot}
                 cinema2Runtime={activeReactEngineId === 'cinema2' ? cinema2Runtime : null}
                 cinema2RuntimeSnapshot={activeReactEngineId === 'cinema2' ? cinema2RuntimeSnapshot : null}
               />

@@ -30,7 +30,7 @@ const oscPreset       = DEFAULT_REACT_PRESETS.find(p => p.engine === 'oscillosco
 const enhancedOscPreset = DEFAULT_REACT_PRESETS.find(
   p => p.engine === 'oscilloscope' && p.oscillatorSettings != null,
 )
-const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema', 'cinema2', 'oscilloscope', 'headliner'])
+const PRESET_FREE_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema2', 'oscilloscope', 'headliner'])
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,9 +124,10 @@ describe('selectReactEngine', () => {
     expect(oscillatorSettings).toEqual(DEFAULT_OSCILLATOR_SETTINGS)
   })
 
-  it('re-selecting Cinema keeps it preset-free', () => {
+  it('routes the retired Cinema identity to preset-free Cinema 2.0', () => {
     useReactStore.getState().selectReactEngine('cinema')
     useReactStore.getState().selectReactEngine('cinema')
+    expect(useReactStore.getState().activeReactEngineId).toBe('cinema2')
     expect(useReactStore.getState().activeReactPresetId).toBeNull()
   })
 
@@ -143,13 +144,6 @@ describe('selectReactEngine', () => {
     const preset = activePreset(reactPresets, activeReactPresetId)
     expect(activeReactEngineId).toBe('laserDmx')
     expect(preset?.engine).toBe(activeReactEngineId)
-  })
-
-  it('selecting cinema: sets the standalone foundation engine with no legacy preset', () => {
-    useReactStore.getState().selectReactEngine('cinema')
-    const { activeReactEngineId, activeReactPresetId } = useReactStore.getState()
-    expect(activeReactEngineId).toBe('cinema')
-    expect(activeReactPresetId).toBeNull()
   })
 
   it('selecting canvas: sets a standalone engine with no preset', () => {

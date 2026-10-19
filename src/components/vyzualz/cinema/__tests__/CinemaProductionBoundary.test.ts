@@ -82,7 +82,7 @@ describe('Cinema production boundary through Stage 23', () => {
       'pixGrid',
       'headliner',
     ])
-    expect(isSelectableReactEngineId('cinema')).toBe(true)
+    expect(isSelectableReactEngineId('cinema')).toBe(false)
     expect(REACT_ENGINE_CATALOG.cinema.label).toBe('Cinema')
   })
 

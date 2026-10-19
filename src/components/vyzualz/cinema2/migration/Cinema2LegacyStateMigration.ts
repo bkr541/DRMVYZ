@@ -6,6 +6,7 @@ import {
   type Cinema2WorkspaceDocument,
 } from '../runtime/Cinema2WorkspacePersistence'
 import {
+  CINEMA2_LEGACY_SOURCE_MIGRATIONS,
   resolveCinema2LegacySourceMigration,
   type Cinema2LegacySourceEngineId,
 } from './Cinema2LegacyMigrationManifest'
@@ -15,6 +16,46 @@ export const REACT_ENGINE_DESTINATION_SCHEMA_VERSION = 1 as const
 export interface Cinema2LegacySourceIdentity {
   sourceEngineId: Cinema2LegacySourceEngineId
   sourceId: string
+}
+
+export interface Cinema2LegacySelectionMigration {
+  legacyEngineId: Cinema2LegacySourceEngineId
+  legacySourceId: string | null
+}
+
+export function isCinema2LegacySourceEngineId(value: unknown): value is Cinema2LegacySourceEngineId {
+  return value === 'shaderPads' || value === 'cinematicPortal'
+}
+
+export function normalizeCinema2LegacySelectionMigration(
+  engineId: unknown,
+  sourceId: unknown,
+): Cinema2LegacySelectionMigration | null {
+  if (!isCinema2LegacySourceEngineId(engineId)) return null
+  const requested = typeof sourceId === 'string' && sourceId ? sourceId : null
+  if (requested && resolveCinema2LegacySourceMigration(engineId, requested)) {
+    return { legacyEngineId: engineId, legacySourceId: requested }
+  }
+  if (engineId === 'shaderPads' && requested == null) {
+    return { legacyEngineId: engineId, legacySourceId: null }
+  }
+  const fallback = CINEMA2_LEGACY_SOURCE_MIGRATIONS.find(candidate => (
+    candidate.sourceEngineId === engineId && candidate.availability === 'cinema-catalog'
+  ))
+  return { legacyEngineId: engineId, legacySourceId: fallback?.sourceId ?? null }
+}
+
+/** Resolves deterministic composition IDs emitted by the retired Cinema catalog. */
+export function resolveCinema2LegacySourceForComposition(
+  compositionId: string,
+): Cinema2LegacySourceIdentity | null {
+  const migration = CINEMA2_LEGACY_SOURCE_MIGRATIONS.find(candidate => {
+    const kind = candidate.sourceEngineId === 'shaderPads' ? 'shader' : 'cinematic'
+    return `legacy-${kind}-${stableLegacySegment(candidate.sourceId)}` === compositionId
+  })
+  return migration
+    ? { sourceEngineId: migration.sourceEngineId, sourceId: migration.sourceId }
+    : null
 }
 
 export type Cinema2LegacyCompositionSourceResolver = (
@@ -196,7 +237,11 @@ function legacySourceFromRecord(
 }
 
 function isLegacySourceEngineId(value: unknown): value is Cinema2LegacySourceEngineId {
-  return value === 'shaderPads' || value === 'cinematicPortal'
+  return isCinema2LegacySourceEngineId(value)
+}
+
+function stableLegacySegment(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'legacy'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

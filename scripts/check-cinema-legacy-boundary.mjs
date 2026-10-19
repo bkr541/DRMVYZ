@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -7,8 +7,8 @@ const sourceRoot = path.join(repositoryRoot, 'src')
 const legacyRoot = path.join(sourceRoot, 'components', 'vyzualz', 'cinema')
 const cinema2Root = path.join(sourceRoot, 'components', 'vyzualz', 'cinema2')
 
-// Phase 1 baseline. Removing an importer requires updating this list in the same
-// change; adding an importer fails the check because legacy Cinema is frozen.
+// Frozen compatibility files retained until Phase 6. Live application modules
+// are intentionally absent and are checked transitively below.
 const allowedExternalImporters = new Set([
   'src/components/vyzualz/react/CinemaAdvancedGraphEditor.tsx',
   'src/components/vyzualz/react/CinemaCanvas.tsx',
@@ -21,20 +21,13 @@ const allowedExternalImporters = new Set([
   'src/components/vyzualz/react/CinemaWorkspaceFrameBridge.ts',
   'src/components/vyzualz/react/CinemaWorkspacePanels.tsx',
   'src/components/vyzualz/react/CinemaWorkspaceRuntimeFrameSource.ts',
-  'src/components/vyzualz/react/ReactEnginePanel.tsx',
-  'src/components/vyzualz/react/ReactInspectorPanel.tsx',
-  'src/components/vyzualz/react/ReactPerformancePads.tsx',
-  'src/components/vyzualz/react/ReactView.tsx',
   'src/components/vyzualz/react/__tests__/CinemaLiveOverrides.test.ts',
-  'src/components/vyzualz/react/__tests__/finalReactEngineIntegrity.test.ts',
-  'src/components/vyzualz/react/activeEnginePresetName.ts',
-  'src/components/vyzualz/react/panels/ReactWorkspacePanels.tsx',
   'src/components/vyzualz/react/useCinemaLegacyRetirement.ts',
-  'src/components/vyzualz/react/useReactPresetAutomation.ts',
-  'src/stores/reactStore.ts',
   'src/test/browser/AfterhoursVisualAcceptanceBrowserHarness.ts',
   'src/test/browser/CinemaRuntimeBrowserHarness.ts',
 ])
+
+const productionEntries = [path.join(sourceRoot, 'main.tsx')]
 
 function sourceFiles(directory) {
   const files = []
@@ -65,6 +58,44 @@ function targetsLegacyCinema(importer, specifier) {
   return resolved === legacyRoot || resolved.startsWith(`${legacyRoot}${path.sep}`)
 }
 
+function resolveSourceImport(importer, specifier) {
+  if (!specifier.startsWith('.')) return null
+  const candidate = path.resolve(path.dirname(importer), specifier)
+  for (const resolved of [
+    candidate,
+    `${candidate}.ts`,
+    `${candidate}.tsx`,
+    `${candidate}.js`,
+    `${candidate}.jsx`,
+    path.join(candidate, 'index.ts'),
+    path.join(candidate, 'index.tsx'),
+    path.join(candidate, 'index.js'),
+    path.join(candidate, 'index.jsx'),
+  ]) {
+    if (existsSync(resolved) && statSync(resolved).isFile()) return resolved
+  }
+  return null
+}
+
+const productionLegacyImporters = new Set()
+const visitedProductionFiles = new Set()
+const pendingProductionFiles = [...productionEntries]
+while (pendingProductionFiles.length > 0) {
+  const file = pendingProductionFiles.pop()
+  if (!file || visitedProductionFiles.has(file) || !existsSync(file)) continue
+  visitedProductionFiles.add(file)
+  const source = readFileSync(file, 'utf8')
+  for (const specifier of importSpecifiers(source)) {
+    const resolved = resolveSourceImport(file, specifier)
+    if (!resolved) continue
+    if (resolved === legacyRoot || resolved.startsWith(`${legacyRoot}${path.sep}`)) {
+      productionLegacyImporters.add(path.relative(repositoryRoot, file).split(path.sep).join('/'))
+      continue
+    }
+    if (resolved.startsWith(`${sourceRoot}${path.sep}`)) pendingProductionFiles.push(resolved)
+  }
+}
+
 const actualImporters = new Set()
 for (const file of sourceFiles(sourceRoot)) {
   if (file === legacyRoot || file.startsWith(`${legacyRoot}${path.sep}`)) continue
@@ -81,7 +112,11 @@ const cinema2Importers = [...actualImporters].filter(file => {
   return absolutePath === cinema2Root || absolutePath.startsWith(`${cinema2Root}${path.sep}`)
 }).sort()
 
-if (unexpected.length > 0 || stale.length > 0 || cinema2Importers.length > 0) {
+if (unexpected.length > 0 || stale.length > 0 || cinema2Importers.length > 0 || productionLegacyImporters.size > 0) {
+  if (productionLegacyImporters.size > 0) {
+    console.error('Production import graph must not reach legacy Cinema code:')
+    for (const file of [...productionLegacyImporters].sort()) console.error(`  ! ${file}`)
+  }
   if (cinema2Importers.length > 0) {
     console.error('Cinema 2.0 must not import legacy Cinema code:')
     for (const file of cinema2Importers) console.error(`  ! ${file}`)
@@ -97,5 +132,5 @@ if (unexpected.length > 0 || stale.length > 0 || cinema2Importers.length > 0) {
   console.error('Update the implementation and the Phase 1 inventory together.')
   process.exitCode = 1
 } else {
-  console.log(`Legacy Cinema boundary verified (${actualImporters.size} external importers, no additions).`)
+  console.log(`Legacy Cinema boundary verified (${actualImporters.size} isolated compatibility importers; production graph clean).`)
 }

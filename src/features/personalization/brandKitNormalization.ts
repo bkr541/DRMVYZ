@@ -27,7 +27,7 @@ import {
 import { normalizeHexColor } from './paletteColorSpace'
 
 const ENGINE_TARGETS = new Set<BrandKitEngineTarget>([
-  'shaderPads', 'cinematicPortal', 'cinema', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'reactiveConstellation',
+  'shaderPads', 'cinematicPortal', 'cinema2', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid', 'reactiveConstellation',
 ])
 const RETIRED_NEON_LATTICE_ENGINE_ID = 'neonLattice'
 
@@ -100,6 +100,10 @@ export function normalizeBrandKitEngineRules(value: unknown): BrandKitEngineRule
   if (!isRecord(value)) return {}
   const rules: BrandKitEngineRules = {}
   for (const [key, rule] of Object.entries(value)) {
+    if (key === 'cinema') {
+      if (rules.cinema2 == null) rules.cinema2 = normalizeEngineRule(rule)
+      continue
+    }
     if (isRetiredBrandKitEngineTarget(key)) continue
     if (!ENGINE_TARGETS.has(key as BrandKitEngineTarget)) continue
     rules[key as BrandKitEngineTarget] = normalizeEngineRule(rule)

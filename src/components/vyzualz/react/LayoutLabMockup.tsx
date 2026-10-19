@@ -15,7 +15,6 @@ import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
 import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
 import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
-import { HeaderStatusStyleGallery } from './layoutLab/HeaderStatusStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
 import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
@@ -74,7 +73,7 @@ function MockStageFocusIcon() {
 }
 
 export function LayoutLabMockup() {
-  const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinematicPortal')
+  const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinema2')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
@@ -142,11 +141,6 @@ export function LayoutLabMockup() {
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
-            {engineId === 'cinema' && (
-              <div className="llcm-stage-gallery">
-                <HeaderStatusStyleGallery />
-              </div>
-            )}
           </div>
 
           {composition && <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>

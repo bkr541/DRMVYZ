@@ -1,5 +1,7 @@
 import type { ReactEngineId } from './ReactTypes'
 
+export type ReactLiveEngineId = Exclude<ReactEngineId, 'shaderPads' | 'cinematicPortal' | 'cinema'>
+
 export interface ReactEngineCatalogEntry {
   id: ReactEngineId
   label: string
@@ -20,10 +22,15 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
   'headliner',
 ]
 
-/** User-facing engine choices. Legacy Shader Pads/Cinematic Worlds IDs remain known only for restore/import compatibility. */
-export const REACT_ENGINE_IDS: ReactEngineId[] = REACT_KNOWN_ENGINE_IDS.filter(
-  engineId => engineId !== 'shaderPads' && engineId !== 'cinematicPortal',
-)
+/** User-facing engine choices. Retired identities remain known only for restore/import compatibility. */
+export const REACT_ENGINE_IDS: ReactLiveEngineId[] = [
+  'cinema2',
+  'oscilloscope',
+  'canvas',
+  'laserDmx',
+  'pixGrid',
+  'headliner',
+]
 
 export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry> = {
   shaderPads: {
@@ -98,6 +105,6 @@ export function isKnownReactEngineId(value: unknown): value is ReactEngineId {
   return typeof value === 'string' && REACT_KNOWN_ENGINE_ID_SET.has(value)
 }
 
-export function isSelectableReactEngineId(value: unknown): value is ReactEngineId {
+export function isSelectableReactEngineId(value: unknown): value is ReactLiveEngineId {
   return typeof value === 'string' && REACT_ENGINE_ID_SET.has(value)
 }

@@ -8,8 +8,10 @@ import {
   migrateLegacyPresetAutomationCuesToCinema2,
   migrateLegacyReactSelectionToCinema2,
   migrateLegacyTrackSectionsToCinema2,
+  resolveCinema2LegacySourceForComposition,
   resolveCinema2LegacyDestination,
 } from '../migration/Cinema2LegacyStateMigration'
+import { resolveLegacyCinemaPersistedActiveSource } from '../migration/Cinema2LegacyPersistenceReader'
 import { createEmptyCinema2WorkspaceDocument } from '../runtime/Cinema2WorkspacePersistence'
 
 describe('Cinema 2.0 Phase 4 legacy state migration', () => {
@@ -25,6 +27,20 @@ describe('Cinema 2.0 Phase 4 legacy state migration', () => {
     })
     expect(resolveCinema2LegacyDestination('cinematicPortal', 'preset-does-not-exist')).toBeNull()
     expect(resolveCinema2LegacyDestination('cinematicPortal', 'preset-neon-transit')).toBeNull()
+  })
+
+  it('decodes persisted legacy identities without loading the legacy runtime', () => {
+    expect(resolveCinema2LegacySourceForComposition('legacy-shader-shader-reactor')).toEqual({
+      sourceEngineId: 'shaderPads',
+      sourceId: 'shader-reactor',
+    })
+    expect(resolveLegacyCinemaPersistedActiveSource({
+      activeCompositionId: 'legacy-cinematic-preset-quasar-maw',
+      compositions: [{
+        id: 'legacy-cinematic-preset-quasar-maw',
+        metadata: { provenance: { sourceEngine: 'cinematicPortal', sourceId: 'preset-quasar-maw' } },
+      }],
+    })).toEqual({ sourceEngineId: 'cinematicPortal', sourceId: 'preset-quasar-maw' })
   })
 
   it('replaces legacy pad, cue, and track references with versioned destinations', () => {

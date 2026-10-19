@@ -50,7 +50,7 @@ describe('Brand Kit normalization and cache', () => {
       unknownEngine: { mode: 'brand', strength: 1 },
     })).toEqual({
       laserDmx: { mode: 'brand', strength: 0.4, preserveTriggerSemantics: false, semanticRoleMapping: { bass: 'accent' } },
-      cinema: { mode: 'hybrid', strength: 0.65 },
+      cinema2: { mode: 'hybrid', strength: 0.65 },
       reactiveConstellation: {
         mode: 'custom', strength: 1,
         customPalette: expect.objectContaining({ primary: '#AABBCC' }),
