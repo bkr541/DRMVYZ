@@ -7,7 +7,8 @@
  */
 
 export type CanvasShiftgridSourceMode = 'auto' | 'single' | 'pool'
-export type CanvasShiftgridMosaicType = 'reconstruction' | 'patchwork' | 'strips'
+export type CanvasShiftgridMosaicType = 'singleImage' | 'imageTakeover' | 'hybridMosaic' | 'travelingImageWave' | 'callAndResponse' | 'progressiveIdentityReveal' | 'autoMosaic'
+export type CanvasShiftgridWaveRoute = 'auto' | 'horizontal' | 'vertical' | 'serpentine'
 export type CanvasShiftgridGridMode = 'auto' | 'fixed'
 export type CanvasShiftgridTileShape = 'square' | 'rectangular'
 export type CanvasShiftgridGridPreset = 'auto' | 'custom' | '3x3' | '4x4' | '5x5' | '6x6' | '8x8' | '10x6' | '16x9'
@@ -19,7 +20,7 @@ export type CanvasShiftgridReconstructionMode = 'continuousPuzzle' | 'phraseReso
 export type CanvasShiftgridPoolSelectionMode = 'sequential' | 'shuffle' | 'random'
 export type CanvasShiftgridQuality = 'auto' | 'low' | 'balanced' | 'high'
 
-export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 3 as const
+export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 4 as const
 
 export interface CanvasShiftgridSettings {
   version: typeof CANVAS_SHIFTGRID_SETTINGS_VERSION
@@ -52,6 +53,9 @@ export interface CanvasShiftgridSettings {
   poolSelectionMode: CanvasShiftgridPoolSelectionMode
   avoidImmediateRepeat: boolean
   poolSourceLimit: number
+  primaryTargetMediaId: string | null
+  sourceHoldDurationSec: number
+  waveRoute: CanvasShiftgridWaveRoute
   enhancedEffects: boolean
   depthAmount: number
   edgeGlow: number
@@ -67,7 +71,7 @@ export interface CanvasShiftgridSettings {
 export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
   sourceMode: 'single',
-  mosaicType: 'reconstruction',
+  mosaicType: 'singleImage',
   gridMode: 'auto',
   gridColumns: 6,
   gridRows: 6,
@@ -94,7 +98,10 @@ export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   progressiveResolveDurationSec: 8,
   poolSelectionMode: 'shuffle',
   avoidImmediateRepeat: true,
-  poolSourceLimit: 24,
+  poolSourceLimit: 10,
+  primaryTargetMediaId: null,
+  sourceHoldDurationSec: 4,
+  waveRoute: 'auto',
   enhancedEffects: false,
   depthAmount: 0,
   edgeGlow: 0,
@@ -114,9 +121,20 @@ export const CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS = [
 ] as const
 
 export const CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS = [
-  { value: 'reconstruction', label: 'Reconstruction' },
-  { value: 'patchwork', label: 'Patchwork' },
-  { value: 'strips', label: 'Strips' },
+  { value: 'singleImage', label: 'Single Image' },
+  { value: 'imageTakeover', label: 'Image Takeover' },
+  { value: 'hybridMosaic', label: 'Hybrid Mosaic' },
+  { value: 'travelingImageWave', label: 'Traveling Image Wave' },
+  { value: 'callAndResponse', label: 'Visual Call-and-Response' },
+  { value: 'progressiveIdentityReveal', label: 'Progressive Identity Reveal' },
+  { value: 'autoMosaic', label: 'Auto Mosaic' },
+] as const
+
+export const CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS = [
+  { value: 'auto', label: 'Automatic' },
+  { value: 'horizontal', label: 'Horizontal' },
+  { value: 'vertical', label: 'Vertical' },
+  { value: 'serpentine', label: 'Authored Serpentine' },
 ] as const
 
 export const CANVAS_SHIFTGRID_GRID_MODE_OPTIONS = [
@@ -238,10 +256,13 @@ export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgri
   const legacyReconstruction: Record<string, CanvasShiftgridReconstructionMode> = {
     continuous: 'continuousPuzzle', onTrigger: 'phraseResolve', holdThenReturn: 'progressiveResolve',
   }
+  const legacyMosaic: Record<string, CanvasShiftgridMosaicType> = {
+    reconstruction: 'singleImage', patchwork: 'hybridMosaic', strips: 'travelingImageWave',
+  }
   return {
     version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
     sourceMode: pick(source.sourceMode, CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS, defaults.sourceMode),
-    mosaicType: pick(source.mosaicType, CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS, defaults.mosaicType),
+    mosaicType: pick(source.mosaicType, CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS, legacyMosaic[String(source.mosaicType)] ?? defaults.mosaicType),
     gridMode: gridPreset === 'auto' ? 'auto' : 'fixed',
     gridColumns: integer(source.gridColumns, defaults.gridColumns, 2, 32),
     gridRows: integer(source.gridRows, defaults.gridRows, 2, 24),
@@ -268,7 +289,10 @@ export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgri
     progressiveResolveDurationSec: clamp(source.progressiveResolveDurationSec, defaults.progressiveResolveDurationSec, 1, 60),
     poolSelectionMode: pick(source.poolSelectionMode, CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS, defaults.poolSelectionMode),
     avoidImmediateRepeat: boolean(source.avoidImmediateRepeat, defaults.avoidImmediateRepeat),
-    poolSourceLimit: integer(source.poolSourceLimit, defaults.poolSourceLimit, 1, 64),
+    poolSourceLimit: integer(source.poolSourceLimit, defaults.poolSourceLimit, 1, 10),
+    primaryTargetMediaId: typeof source.primaryTargetMediaId === 'string' && source.primaryTargetMediaId.trim() ? source.primaryTargetMediaId.trim() : null,
+    sourceHoldDurationSec: clamp(source.sourceHoldDurationSec, defaults.sourceHoldDurationSec, 0.5, 30),
+    waveRoute: pick(source.waveRoute, CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS, defaults.waveRoute),
     enhancedEffects: boolean(source.enhancedEffects, defaults.enhancedEffects),
     depthAmount: clamp(source.depthAmount, defaults.depthAmount, 0, 1),
     edgeGlow: clamp(source.edgeGlow, defaults.edgeGlow, 0, 1),

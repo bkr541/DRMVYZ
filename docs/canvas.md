@@ -96,17 +96,18 @@ Effects and transitions must:
 generic authored-layer renderer. One SHIFTGRID renderer owns the complete tile
 grid, so its source count is independent of the four-layer CANVAS compositor.
 
-Phase 2 implements deterministic advanced choreography on the durable P0/P1 boundaries:
+Phase 3 adds multi-image mosaics to the deterministic P0-P2 tile system:
 
 - `ShiftgridSettings.ts` owns the versioned persistent preferences and strict normalization.
 - `ShiftgridTileGeometry.ts` owns stable row/column tile identity, supported/automatic grid selection, and square or rectangular geometry.
-- `ShiftgridSourceMedia.ts` resolves the existing active CANVAS media and active Media Pool without adding a media library or pool pointer.
+- `ShiftgridSourceMedia.ts` resolves up to ten eligible images from the existing active CANVAS Media Pool, preserving pool order or deterministic selection without adding a media library or pool pointer.
 - `ShiftgridGridState.ts` owns deterministic, validated permutations and transient animated movement state that is never persisted.
 - `ShiftgridChoreography.ts` owns eight distinct permutation planners, staggered movement queues, timeline playback, seeking, pausing, interruption safety, and magnetic reconstruction. `ShiftgridAudioIntelligence.ts` remains the P4 integration boundary and does not drive P2 timing.
+- `ShiftgridMosaic.ts` owns the independent per-tile source-assignment timeline, deterministic target selection, six mosaic behaviors, and complete-image source resolution. Source ownership never mutates spatial tile position.
 - `ShiftgridEffects.ts` defines the renderer-neutral enhanced-effect plan.
-- `ShiftgridRenderPlan.ts` maps stable source coordinates to animated destination slots without changing source artwork.
-- `ShiftgridWebGLRenderer.ts` draws the entire grid as one batched WebGL2 call; `ShiftgridCanvas2DRenderer.ts` is the alpha-aware fallback.
-- `CanvasShiftgridLayer.tsx` owns original-image decoding, high-DPI resize, output publication, context-loss fallback, and cleanup.
+- `ShiftgridRenderPlan.ts` maps stable, per-source crop coordinates to animated destination slots and carries current/pending source identity independently from spatial movement.
+- `ShiftgridTextureAtlas.ts` bounds one shared RGBA atlas to the device texture limit; `ShiftgridWebGLRenderer.ts` draws dual-source tile transitions in one batched WebGL2 call and `ShiftgridCanvas2DRenderer.ts` is the alpha-aware fallback.
+- `CanvasShiftgridLayer.tsx` uses the canonical Canvas preload manager, stages its five-item queue up to the ten-handle budget, handles source/pool revisions and failures, publishes output, falls back on context loss, and cleans up retained resources.
 - `ShiftgridControls.tsx` routes independent settings through the existing DESIGN and REACT panels.
 
 P2 adds Row Runner, Column Cascade, Checker Shift, Domino Chain, Center Collapse,
@@ -114,7 +115,11 @@ Edge Expansion, Wave Relay, and Magnetic Resolve. Each produces a distinct,
 validated movement topology. Continuous Puzzle, Phrase Resolve, Drop Resolve,
 Progressive Resolve, and Manual Resolve share the same deterministic timeline;
 phrase/drop boundary commands are ready for P4 Audio Intelligence routing.
-Pool-wide multi-image choreography remains out of scope.
+P3 adds Image Takeover, Hybrid Mosaic, Traveling Image Wave, Visual
+Call-and-Response, Progressive Identity Reveal, and Auto Mosaic. These source
+assignment modes remain combinable with every P2 choreography pattern. PNG,
+JPEG, WebP, SVG, and transparency are supported; pool video sources are ignored.
+Audio Intelligence remains the P4 integration boundary.
 
 ## Persistence
 

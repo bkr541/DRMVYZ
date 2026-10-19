@@ -71,7 +71,7 @@ describe('SHIFTGRID Phase 0 foundation', () => {
       gridColumns: 32,
       gridRows: 2,
       movementSpeed: 2,
-      poolSourceLimit: 64,
+      poolSourceLimit: 10,
       deterministicSeed: 43,
     })
     expect('runtimeTiles' in normalized).toBe(false)
@@ -91,10 +91,16 @@ describe('SHIFTGRID Phase 0 foundation', () => {
       snapStrength: DEFAULT_CANVAS_SHIFTGRID_SETTINGS.snapStrength,
       scrambleComplexity: DEFAULT_CANVAS_SHIFTGRID_SETTINGS.scrambleComplexity,
     })
+    expect(normalizeCanvasShiftgridSettings({ version: 3, mosaicType: 'patchwork', poolSourceLimit: 24 })).toMatchObject({
+      version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
+      mosaicType: 'hybridMosaic',
+      poolSourceLimit: 10,
+      primaryTargetMediaId: null,
+    })
   })
 
-  it('backfills schema v10 and SHIFTGRID defaults while preserving existing preset state', () => {
-    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(10)
+  it('backfills schema v11 and SHIFTGRID defaults while preserving existing preset state', () => {
+    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(11)
     const migrated = migrateReactStore({
       selectedCanvasPresetId: 'canvas-fractures',
       canvasPresetSettings: {
@@ -105,7 +111,7 @@ describe('SHIFTGRID Phase 0 foundation', () => {
     }, 79)
     const normalized = migrated.canvasPresetSettings as typeof DEFAULT_CANVAS_PRESET_SETTINGS
     expect(migrated.selectedCanvasPresetId).toBe('canvas-fractures')
-    expect(normalized.schemaVersion).toBe(10)
+    expect(normalized.schemaVersion).toBe(11)
     expect(normalized.fractureVariationSeed).toBe(4242)
     expect(normalized.cutbank.chaos).toBe(0.9)
     expect(normalized.shiftgrid).toEqual(DEFAULT_CANVAS_SHIFTGRID_SETTINGS)

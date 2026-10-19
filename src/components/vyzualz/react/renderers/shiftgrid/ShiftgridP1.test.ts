@@ -75,7 +75,7 @@ describe('SHIFTGRID P1 tile system', () => {
   it('emits one batched vertex buffer and pixel-perfect assembled identity including alpha', () => {
     const grid = geometry(3, 3, 6, 6); const runtime = new ShiftgridGridRuntime(grid, 'pixels')
     const plan = createShiftgridRenderPlan({ geometry: grid, runtime, width: 6, height: 6, sourceWidth: 6, sourceHeight: 6, fitMode: 'cover', easing: 'linear' })
-    expect(buildShiftgridVertexBatch(plan)).toHaveLength(9 * 6 * 4)
+    expect(buildShiftgridVertexBatch(plan)).toHaveLength(9 * 6 * 9)
     const source = new Uint8Array(6 * 6 * 4)
     for (let index = 0; index < 36; index += 1) { source[index * 4] = index; source[index * 4 + 1] = 255 - index; source[index * 4 + 2] = index % 3; source[index * 4 + 3] = index % 5 === 0 ? 0 : 255 }
     const restored = new Uint8Array(source.length)

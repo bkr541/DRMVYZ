@@ -53,17 +53,17 @@ export function resolveShiftgridSourceSet({
   const byId = new Map(mediaItems.map(item => [item.id, item]))
   const activeMedia = activeMediaId ? byId.get(activeMediaId) ?? null : null
   const poolMedia = activePool
-    ? Array.from(new Set(activePool.mediaIds)).flatMap(id => byId.get(id) ?? [])
+    ? Array.from(new Set(activePool.mediaIds)).flatMap(id => byId.get(id) ?? []).filter(isShiftgridP1ImageSource)
     : []
   const wantsPool = settings.sourceMode === 'pool' || (settings.sourceMode === 'auto' && poolMedia.length > 1)
-  let selected = wantsPool ? poolMedia : activeMedia ? [activeMedia] : poolMedia.slice(0, 1)
+  let selected = wantsPool ? poolMedia : activeMedia && isShiftgridP1ImageSource(activeMedia) ? [activeMedia] : poolMedia.slice(0, 1)
   if (wantsPool && settings.poolSelectionMode !== 'sequential') {
     const seed = settings.poolSelectionMode === 'random'
       ? settings.deterministicSeed ^ 0x51f15e
       : settings.deterministicSeed
     selected = deterministicShuffle(selected, seed)
   }
-  selected = selected.slice(0, settings.poolSourceLimit)
+  selected = selected.slice(0, Math.min(10, settings.poolSourceLimit))
   const mode = wantsPool ? 'pool' : 'single'
   const poolId = wantsPool ? activePool?.id ?? null : null
   return Object.freeze({

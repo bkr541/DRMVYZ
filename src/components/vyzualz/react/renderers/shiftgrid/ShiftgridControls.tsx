@@ -14,6 +14,7 @@ import {
   CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS,
   CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS,
   CANVAS_SHIFTGRID_TRIGGER_OPTIONS,
+  CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS,
   type CanvasShiftgridEasing,
   type CanvasShiftgridGridPreset,
   type CanvasShiftgridFitMode,
@@ -25,22 +26,30 @@ import {
   type CanvasShiftgridSourceMode,
   type CanvasShiftgridTileShape,
   type CanvasShiftgridTrigger,
+  type CanvasShiftgridWaveRoute,
 } from './ShiftgridSettings'
 
 export function ShiftgridDesignControls() {
   const settings = useReactStore(state => state.canvasPresetSettings.shiftgrid)
   const setPresetSettings = useReactStore(state => state.setCanvasPresetSettings)
   const reset = useReactStore(state => state.resetCanvasPresetSettings)
+  const activeMediaId = useReactStore(state => state.activeCanvasMediaId)
   const set = (patch: Partial<typeof settings>) => setPresetSettings({ shiftgrid: { ...settings, ...patch } })
 
   return (
     <>
       <Collapsible label="SHIFTGRID Source" defaultOpen>
         <SelectRow label="Source Mode" value={settings.sourceMode} onChange={value => set({ sourceMode: value as CanvasShiftgridSourceMode })} options={[...CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS]} description="Single uses active CANVAS media. Pool uses the active Media Pool. Auto prefers a populated active pool." />
-        <SelectRow label="Mosaic Type" value={settings.mosaicType} onChange={value => set({ mosaicType: value as CanvasShiftgridMosaicType })} options={[...CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS]} />
+        <SelectRow label="Mosaic Type" value={settings.mosaicType} onChange={value => set({ mosaicType: value as CanvasShiftgridMosaicType })} options={[...CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS]} description="Combines independently with the selected tile choreography pattern." />
         <SelectRow label="Pool Selection" value={settings.poolSelectionMode} onChange={value => set({ poolSelectionMode: value as CanvasShiftgridPoolSelectionMode })} options={[...CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS]} disabled={settings.sourceMode === 'single'} />
         <ToggleRow label="Avoid Immediate Repeat" value={settings.avoidImmediateRepeat} onChange={avoidImmediateRepeat => set({ avoidImmediateRepeat })} disabled={settings.sourceMode === 'single'} />
-        <NumberInputRow label="Pool Source Limit" value={settings.poolSourceLimit} onChange={poolSourceLimit => set({ poolSourceLimit })} min={1} max={64} step={1} disabled={settings.sourceMode === 'single'} description="Independent of CANVAS's four authored-layer compositor limit." />
+        <NumberInputRow label="Pool Source Limit" value={settings.poolSourceLimit} onChange={poolSourceLimit => set({ poolSourceLimit })} min={1} max={10} step={1} disabled={settings.sourceMode === 'single'} description="Bounded by the canonical ten-handle Canvas media budget, independent of the authored-layer limit." />
+        <NumberInputRow label="Source Hold" value={settings.sourceHoldDurationSec} onChange={sourceHoldDurationSec => set({ sourceHoldDurationSec })} min={0.5} max={30} step={0.5} unit="sec" disabled={settings.mosaicType === 'singleImage'} />
+        <SelectRow label="Wave Route" value={settings.waveRoute} onChange={value => set({ waveRoute: value as CanvasShiftgridWaveRoute })} options={[...CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS]} disabled={settings.mosaicType !== 'travelingImageWave' && settings.mosaicType !== 'autoMosaic'} />
+        <div className="rv-ctrl-action-row" aria-label="SHIFTGRID primary target selection">
+          <IconChipButton onClick={() => set({ primaryTargetMediaId: activeMediaId })} disabled={!activeMediaId}>Use Active as Target</IconChipButton>
+          <IconChipButton onClick={() => set({ primaryTargetMediaId: null })} disabled={!settings.primaryTargetMediaId}>Automatic Target</IconChipButton>
+        </div>
       </Collapsible>
       <Collapsible label="Grid" defaultOpen>
         <SelectRow label="Layout" value={settings.gridPreset} onChange={value => set({ gridPreset: value as CanvasShiftgridGridPreset, gridMode: value === 'auto' ? 'auto' : 'fixed' })} options={[...CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS]} />
