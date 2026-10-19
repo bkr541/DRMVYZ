@@ -22,6 +22,7 @@ The React View engine ID is `canvas`.
 | Transitions | `src/components/vyzualz/react/canvasPerformance/CanvasTransitions.ts` |
 | Orchestration stage | `src/components/vyzualz/react/canvasPerformance/CanvasOrchestrationStage.tsx` |
 | Validation | `src/components/vyzualz/react/canvasPerformance/CanvasPerformanceValidation.ts` |
+| SHIFTGRID foundation | `src/components/vyzualz/react/renderers/shiftgrid/` |
 
 ## React View composition
 
@@ -88,11 +89,38 @@ Effects and transitions must:
 - Keep video playback and visibility synchronized
 - Release media listeners and timers on replacement
 
+## SHIFTGRID
+
+`canvas-shiftgrid` is a dedicated CANVAS preset with renderer kind
+`shiftgrid`. It does not reuse Fractures geometry, CUTBANK composition, or the
+generic authored-layer renderer. One SHIFTGRID renderer owns the complete tile
+grid, so its source count is independent of the four-layer CANVAS compositor.
+
+Phase 0 establishes the durable and runtime boundaries:
+
+- `ShiftgridSettings.ts` owns the versioned persistent preferences and strict normalization.
+- `ShiftgridTileGeometry.ts` owns stable row/column tile identity and square, rectangular, or mixed geometry.
+- `ShiftgridSourceMedia.ts` resolves the existing active CANVAS media and active Media Pool without adding a media library or pool pointer.
+- `ShiftgridGridState.ts` defines transient reconstruction state that is never persisted.
+- `ShiftgridChoreography.ts` and `ShiftgridAudioIntelligence.ts` define deterministic pattern and Shared Performance inputs without adding an audio clock.
+- `ShiftgridEffects.ts` defines the renderer-neutral enhanced-effect plan.
+- `CanvasShiftgridLayer.tsx` owns the React renderer lifecycle boundary.
+- `ShiftgridControls.tsx` routes independent settings through the existing DESIGN and REACT panels.
+
+The Phase 0 renderer intentionally publishes no output canvas and displays a
+clear development notice instead of fallback artwork. Tile drawing, decoded
+source management, animation, context recovery, adaptive rendering, and output
+publication remain Phase 1 work.
+
 ## Persistence
 
 CANVAS settings, selected media, pool membership, role assignments, authored-show settings, and timing metadata use the React engine store and shared media records.
 
-Any persisted schema change requires normalization or migration. Runtime media elements, blob URLs, object references, preload handles, and diagnostics must not be persisted.
+Any persisted schema change requires normalization or migration. SHIFTGRID's
+settings are nested in the normalized CANVAS preset document; its tile state,
+pattern cursor, source handles, and audio envelopes are runtime-only. Runtime
+media elements, blob URLs, object references, preload handles, and diagnostics
+must not be persisted.
 
 ## Diagnostics and validation
 

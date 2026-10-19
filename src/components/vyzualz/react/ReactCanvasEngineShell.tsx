@@ -59,6 +59,8 @@ import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendere
 import { CanvasLaserImageFxLayer } from './renderers/laserImageFx/CanvasLaserImageFxLayer'
 import { CanvasCutbankLayer } from './renderers/cutbank/CanvasCutbankLayer'
 import { CutbankDesignControls } from './renderers/cutbank/CutbankDesignControls'
+import { CanvasShiftgridLayer } from './renderers/shiftgrid/CanvasShiftgridLayer'
+import { ShiftgridDesignControls } from './renderers/shiftgrid/ShiftgridControls'
 import {
   isCanvasOutputAvailable,
   resolveCanvasOutputCapability,
@@ -1554,7 +1556,7 @@ export function CanvasEngineSurface({
   const presetStyle = useMemo(() => makeCanvasPresetStyle(canvasPresetSettings), [canvasPresetSettings])
   const selectedPreset = CANVAS_PRESET_BY_ID[selectedCanvasPresetId] ?? CANVAS_PRESET_BY_ID[DEFAULT_CANVAS_PRESET_ID]
   const rendererKind = selectedPreset.rendererKind
-  const cutbankPool = useMemo(
+  const activeMediaPool = useMemo(
     () => orchestrationSettings.mediaPools.find(pool => pool.id === orchestrationSettings.activeMediaPoolId) ?? null,
     [orchestrationSettings.activeMediaPoolId, orchestrationSettings.mediaPools],
   )
@@ -1570,6 +1572,7 @@ export function CanvasEngineSurface({
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
   const cutbankActive = rendererKind === 'cutbank'
+  const shiftgridActive = rendererKind === 'shiftgrid'
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
   const singleLayerEffectOwner = useMemo(() => {
     if (orchestrationSettings.renderMode !== 'single') return null
@@ -1623,16 +1626,27 @@ export function CanvasEngineSurface({
   getAudioTimeRef.current = getAudioTime
 
   useEffect(() => {
+    if (shiftgridActive) {
+      orchestrationPreloadManager.releaseAll()
+      orchestrationMediaRetryRef.current.clear()
+      previousOrchestrationContextRef.current = null
+      previousOrchestrationFrameRef.current = null
+      poolAutomationRuntimeRef.current = EMPTY_CANVAS_POOL_AUTOMATION_RUNTIME_STATE
+      setOrchestrationFrame(null)
+      clearSharedPerformanceDiagnostics('canvas')
+      return
+    }
     // CUTBANK owns its own pool-driven performance; the generic authored/pool
     // automation runtimes stay idle so nothing else changes the same output.
-    const authoredLayerRuntime = !runtimeCanvasShow && !cutbankActive && orchestrationSettings.renderMode === 'layers'
-    const singleEffectLayerRuntime = !runtimeCanvasShow && !cutbankActive && singleLayerEffectRuntime
+    const authoredLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridActive && orchestrationSettings.renderMode === 'layers'
+    const singleEffectLayerRuntime = !runtimeCanvasShow && !cutbankActive && !shiftgridActive && singleLayerEffectRuntime
     const compositedAuthoredRuntime = authoredLayerRuntime || singleEffectLayerRuntime
     const authoredRuntimeLayers = singleEffectLayerRuntime && singleLayerEffectOwner
       ? [singleLayerEffectOwner]
       : orchestrationSettings.authoredLayers
     const performanceRuntime = !runtimeCanvasShow
       && !cutbankActive
+      && !shiftgridActive
       && orchestrationSettings.renderMode === 'performance'
       && orchestrationSettings.enabled
     if (!runtimeCanvasShow && (showPreviewMode || (!compositedAuthoredRuntime && !performanceRuntime))) {
@@ -1848,7 +1862,7 @@ export function CanvasEngineSurface({
     resolveFrame()
     const intervalId = window.setInterval(resolveFrame, 80)
     return () => window.clearInterval(intervalId)
-  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
+  }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, shiftgridActive, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
     orchestrationPreloadManager.dispose()
@@ -2475,6 +2489,17 @@ export function CanvasEngineSurface({
     />
   )
 
+  if (shiftgridActive) {
+    return (
+      <CanvasShiftgridLayer
+        settings={canvasPresetSettings.shiftgrid}
+        activeMediaId={activeCanvasMediaId}
+        activePool={activeMediaPool}
+        mediaItems={mediaItems}
+      />
+    )
+  }
+
   if (cutbankActive && !runtimeCanvasShow) {
     return (
       <div
@@ -2486,7 +2511,7 @@ export function CanvasEngineSurface({
         <CanvasCutbankLayer
           active
           settings={canvasPresetSettings}
-          pool={cutbankPool}
+          pool={activeMediaPool}
           poolRevision={orchestrationSettings.poolRevision}
           mediaItems={mediaItems}
           trackIdentity={activeAudioTrackId}
@@ -3292,10 +3317,11 @@ export function CanvasPerformanceAutomationControls() {
     .filter((item): item is CanvasMediaItem => item !== null)
   const selectedShow = getCanvasPerformanceShow(settings.programId)
   const autoPerformanceActive = settings.enabled && settings.renderMode === 'performance'
-  const cutbankSelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-cutbank')
+  const specializedGridSelected = useReactStore(s => s.selectedCanvasPresetId === 'canvas-cutbank' || s.selectedCanvasPresetId === 'canvas-shiftgrid')
 
-  // CUTBANK runs its own pool-driven performance; generic automation would only fight it.
-  if (cutbankSelected) return null
+  // Dedicated grid renderers own their pool-driven performance; generic
+  // authored-layer automation would otherwise compete for the same stage.
+  if (specializedGridSelected) return null
 
   return (
     <Collapsible label="Performance Automation" defaultOpen>
@@ -4679,6 +4705,7 @@ export function CanvasEngineFxPanel() {
   const { settings, updateSettings, scope } = useCanvasScopedEngineSettings()
   const layerScopeActive = scope.kind === 'layer'
   const selectedCutbank = useReactStore(state => state.selectedCanvasPresetId === 'canvas-cutbank')
+  const selectedShiftgrid = useReactStore(state => state.selectedCanvasPresetId === 'canvas-shiftgrid')
 
   const setSettings = (patch: Partial<CanvasLayerEngineBaseline>) => {
     updateSettings(patch)
@@ -4690,6 +4717,16 @@ export function CanvasEngineFxPanel() {
     return (
       <div className="rv-ctrl-group">
         <CutbankDesignControls />
+      </div>
+    )
+  }
+
+  // SHIFTGRID owns one renderer-level tile grid and its own persistent recipe.
+  // Generic Display, Auto Role, authored layers, and video timing do not feed it.
+  if (selectedShiftgrid) {
+    return (
+      <div className="rv-ctrl-group">
+        <ShiftgridDesignControls />
       </div>
     )
   }

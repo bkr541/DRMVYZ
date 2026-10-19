@@ -40,10 +40,10 @@ describe('CANVAS CUTBANK registration and persistence', () => {
     expect(resolveCanvasPresetRendererKind('canvas-clean-playback')).toBe('standard')
   })
 
-  it('normalizes CUTBANK settings inside Canvas preset settings and bumps the schema', () => {
-    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(7)
+  it('normalizes CUTBANK settings inside the current Canvas preset schema', () => {
+    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(8)
     const normalized = normalizeCanvasPresetSettings({ cutbank: { chaos: 9, layoutMode: 'poster', layerCount: 0, paletteMode: 'bogus' } })
-    expect(normalized.schemaVersion).toBe(7)
+    expect(normalized.schemaVersion).toBe(8)
     expect(normalized.cutbank.chaos).toBe(1)
     expect(normalized.cutbank.layoutMode).toBe('poster')
     expect(normalized.cutbank.layerCount).toBe(1)
@@ -55,7 +55,7 @@ describe('CANVAS CUTBANK registration and persistence', () => {
       selectedCanvasPresetId: 'canvas-fractures',
       canvasPresetSettings: { schemaVersion: 6, fractureVariationSeed: 4242, intensity: 0.4 },
     }, store())
-    expect(merged.canvasPresetSettings.schemaVersion).toBe(7)
+    expect(merged.canvasPresetSettings.schemaVersion).toBe(8)
     expect(merged.canvasPresetSettings.fractureVariationSeed).toBe(4242)
     expect(merged.canvasPresetSettings.cutbank).toEqual(DEFAULT_CANVAS_CUTBANK_SETTINGS)
     expect(merged.selectedCanvasPresetId).toBe('canvas-fractures')

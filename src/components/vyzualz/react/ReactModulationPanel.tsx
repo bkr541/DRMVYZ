@@ -23,6 +23,7 @@ import { laserDmxRouteConsumesCurve, laserDmxRouteConsumesSmoothing } from './la
 import { getUnifiedSvgPointCount, resolveSvgUiCapabilities, resolveUnifiedSvgSource } from './svgSourceLifecycle'
 import { resolveSoundDrawingControlCapabilities } from './soundDrawing/SoundDrawingControlVisibility'
 import { CanvasAddEffectsControls, CanvasPerformanceAutomationControls, CanvasPresetFxControls, CanvasPresetMotionControls, CanvasPresetParticleControls, FracturesReactControls, LaserImageFxReactControls } from './ReactCanvasEngineShell'
+import { ShiftgridReactControls } from './renderers/shiftgrid/ShiftgridControls'
 
 // ── Source / target option lists ──────────────────────────────────────────────
 
@@ -710,6 +711,7 @@ export function ReactModulationPanel() {
             renders nothing for the base Clean Playback look. */}
         <FracturesReactControls />
         <LaserImageFxReactControls />
+        <ShiftgridReactControls />
         <CanvasPresetParticleControls />
         <CanvasAddEffectsControls />
         <CanvasPerformanceAutomationControls />

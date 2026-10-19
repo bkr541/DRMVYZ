@@ -256,6 +256,7 @@ import {
   removeCanvasPoolTextItemState,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
+import { normalizeCanvasShiftgridSettings } from '../components/vyzualz/react/renderers/shiftgrid/ShiftgridSettings'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import { CANVAS_TRANSITIONS } from '../components/vyzualz/react/canvasPerformance/CanvasTransitions'
 import { normalizeCanvasFracturesOverrideProfile } from '../components/vyzualz/react/canvasPerformance/CanvasFracturesPerformance'
@@ -4882,6 +4883,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureTransientGlitch: clampCanvasNumber(source.fractureTransientGlitch, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransientGlitch, 0, 1),
     fractureStructuralResponse: clampCanvasNumber(source.fractureStructuralResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStructuralResponse, 0, 1),
     cutbank: normalizeCanvasCutbankSettings(source.cutbank),
+    shiftgrid: normalizeCanvasShiftgridSettings(source.shiftgrid),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,
     dissolveAmount: turbulence,
@@ -5899,6 +5901,15 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     // Cinema identity and removes the Stage-23 legacy-composition handoff.
     state = retireLegacyReactEngineState(state, originalLegacySelection)
   }
+  if (version < 80) {
+    // SHIFTGRID P0 adds an isolated, versioned settings document to CANVAS.
+    // Normalization backfills defaults without altering existing preset IDs,
+    // Fractures settings, CUTBANK settings, media pools, or active media.
+    state = {
+      ...state,
+      canvasPresetSettings: normalizeCanvasPresetSettings(state.canvasPresetSettings),
+    }
+  }
   if (Array.isArray(state.reactPresets)) {
     state = {
       ...state,
@@ -6498,7 +6509,7 @@ export function mergeReactStoreState(
 }
 
 const REACT_STORE_PERSISTENCE_NAME = 'drmvyz:react-store'
-const REACT_STORE_PERSISTENCE_VERSION = 79
+const REACT_STORE_PERSISTENCE_VERSION = 80
 let showManagerLibraryMutationInFlight = false
 const showManagerCloudRevisions = new Map<string, number>()
 const SHOW_MANAGER_CLOUD_MIGRATION_MARKER_KEY = 'drmvyz:show-manager-cloud-migration-users:v1'

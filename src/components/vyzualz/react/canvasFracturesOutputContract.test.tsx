@@ -129,7 +129,7 @@ describe('effective Canvas output capability', () => {
 
     expect(isCanvasFracturesOutputDeferred(CANVAS_FRACTURES_OUTPUT_DEFERRED)).toBe(true)
     expect(host.querySelector('[aria-label="Fractures recording unavailable"]')).not.toBeNull()
-    expect(host.querySelector<HTMLButtonElement>('button[disabled]')?.textContent).toContain('Recording unavailable')
+    expect(host.querySelector<HTMLButtonElement>('[aria-label="Fractures recording unavailable"] button[disabled]')?.textContent).toContain('Recording unavailable')
     expect(host.querySelector('[aria-label="standard recording controls"]')).toBeNull()
 
     renderOutputPanel(CANVAS_OUTPUT_AVAILABLE)
