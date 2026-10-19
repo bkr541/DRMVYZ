@@ -14,16 +14,17 @@ export type CanvasShiftgridTileShape = 'square' | 'rectangular'
 export type CanvasShiftgridGridPreset = 'auto' | 'custom' | '3x3' | '4x4' | '5x5' | '6x6' | '8x8' | '10x6' | '16x9'
 export type CanvasShiftgridFitMode = 'contain' | 'cover'
 export type CanvasShiftgridPattern = 'rowRunner' | 'columnCascade' | 'checkerShift' | 'dominoChain' | 'centerCollapse' | 'edgeExpansion' | 'waveRelay' | 'magneticResolve'
-export type CanvasShiftgridTrigger = 'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase' | 'section' | 'drop'
+export type CanvasShiftgridTrigger = 'beat' | 'kick' | 'snare' | 'downbeat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase' | 'drop'
 export type CanvasShiftgridEasing = 'linear' | 'easeOut' | 'spring'
 export type CanvasShiftgridReconstructionMode = 'continuousPuzzle' | 'phraseResolve' | 'dropResolve' | 'progressiveResolve' | 'manualResolve'
 export type CanvasShiftgridPoolSelectionMode = 'sequential' | 'shuffle' | 'random'
 export type CanvasShiftgridQuality = 'auto' | 'low' | 'balanced' | 'high'
 
-export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 4 as const
+export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 6 as const
 
 export interface CanvasShiftgridSettings {
   version: typeof CANVAS_SHIFTGRID_SETTINGS_VERSION
+  masterIntensity: number
   sourceMode: CanvasShiftgridSourceMode
   mosaicType: CanvasShiftgridMosaicType
   gridMode: CanvasShiftgridGridMode
@@ -57,10 +58,21 @@ export interface CanvasShiftgridSettings {
   sourceHoldDurationSec: number
   waveRoute: CanvasShiftgridWaveRoute
   enhancedEffects: boolean
+  tileEdgeGlowEnabled: boolean
   depthAmount: number
   edgeGlow: number
+  lightTrailsEnabled: boolean
+  lightTrails: number
+  motionBlurEnabled: boolean
   chromaticSplit: number
+  rgbSeparationEnabled: boolean
   motionBlur: number
+  beatPulseEnabled: boolean
+  beatPulse: number
+  snapFlashEnabled: boolean
+  snapFlash: number
+  tileGapEnabled: boolean
+  tileGap: number
   edgeFeather: number
   quality: CanvasShiftgridQuality
   renderScale: number
@@ -70,6 +82,7 @@ export interface CanvasShiftgridSettings {
 
 export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
+  masterIntensity: 1,
   sourceMode: 'single',
   mosaicType: 'singleImage',
   gridMode: 'auto',
@@ -81,7 +94,7 @@ export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   choreographyPattern: 'rowRunner',
   patternChange: true,
   trigger: 'bar4',
-  autoPerformance: true,
+  autoPerformance: false,
   bpmSync: true,
   movementAmount: 0.65,
   movementSpeed: 0.5,
@@ -103,10 +116,21 @@ export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   sourceHoldDurationSec: 4,
   waveRoute: 'auto',
   enhancedEffects: false,
+  tileEdgeGlowEnabled: false,
   depthAmount: 0,
   edgeGlow: 0,
+  lightTrailsEnabled: false,
+  lightTrails: 0,
+  motionBlurEnabled: false,
   chromaticSplit: 0,
+  rgbSeparationEnabled: false,
   motionBlur: 0,
+  beatPulseEnabled: false,
+  beatPulse: 0,
+  snapFlashEnabled: false,
+  snapFlash: 0,
+  tileGapEnabled: false,
+  tileGap: 0,
   edgeFeather: 0,
   quality: 'auto',
   renderScale: 1,
@@ -116,8 +140,8 @@ export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
 
 export const CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS = [
   { value: 'auto', label: 'Auto' },
-  { value: 'single', label: 'Single' },
-  { value: 'pool', label: 'Pool' },
+  { value: 'single', label: 'Single Image' },
+  { value: 'pool', label: 'Media Pool' },
 ] as const
 
 export const CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS = [
@@ -129,6 +153,8 @@ export const CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS = [
   { value: 'progressiveIdentityReveal', label: 'Progressive Identity Reveal' },
   { value: 'autoMosaic', label: 'Auto Mosaic' },
 ] as const
+
+export const CANVAS_SHIFTGRID_MULTI_MOSAIC_TYPE_OPTIONS = CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS.filter(option => option.value !== 'singleImage')
 
 export const CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS = [
   { value: 'auto', label: 'Automatic' },
@@ -154,6 +180,8 @@ export const CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS = [
   { value: 'custom', label: 'Custom' },
 ] as const
 
+export const CANVAS_SHIFTGRID_INSPECTOR_GRID_PRESET_OPTIONS = CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS.filter(option => option.value !== 'custom')
+
 export const CANVAS_SHIFTGRID_FIT_MODE_OPTIONS = [
   { value: 'contain', label: 'Contain' },
   { value: 'cover', label: 'Cover' },
@@ -161,7 +189,7 @@ export const CANVAS_SHIFTGRID_FIT_MODE_OPTIONS = [
 
 export const CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS = [
   { value: 'square', label: 'Square' },
-  { value: 'rectangular', label: 'Rectangular' },
+  { value: 'rectangular', label: 'Fit Grid' },
 ] as const
 
 export const CANVAS_SHIFTGRID_PATTERN_OPTIONS = [
@@ -177,13 +205,15 @@ export const CANVAS_SHIFTGRID_PATTERN_OPTIONS = [
 
 export const CANVAS_SHIFTGRID_TRIGGER_OPTIONS = [
   { value: 'beat', label: 'Beat' },
+  { value: 'kick', label: 'Kick' },
+  { value: 'snare', label: 'Snare' },
+  { value: 'downbeat', label: 'Downbeat' },
   { value: 'beat2', label: 'Every 2 Beats' },
   { value: 'beat4', label: 'Every 4 Beats' },
   { value: 'bar', label: 'Bar' },
   { value: 'bar4', label: 'Every 4 Bars' },
   { value: 'bar8', label: 'Every 8 Bars' },
   { value: 'phrase', label: 'Phrase' },
-  { value: 'section', label: 'Section' },
   { value: 'drop', label: 'Drop' },
 ] as const
 
@@ -204,7 +234,6 @@ export const CANVAS_SHIFTGRID_RECONSTRUCTION_MODE_OPTIONS = [
 export const CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS = [
   { value: 'sequential', label: 'Sequential' },
   { value: 'shuffle', label: 'Shuffle' },
-  { value: 'random', label: 'Random' },
 ] as const
 
 export const CANVAS_SHIFTGRID_QUALITY_OPTIONS = [
@@ -213,6 +242,29 @@ export const CANVAS_SHIFTGRID_QUALITY_OPTIONS = [
   { value: 'balanced', label: 'Balanced' },
   { value: 'high', label: 'High' },
 ] as const
+
+/** Shared by the inspector and tests so authority changes cannot drift from runtime policy. */
+export function applyShiftgridManualPattern(settings: CanvasShiftgridSettings, choreographyPattern: CanvasShiftgridPattern): CanvasShiftgridSettings {
+  return { ...settings, choreographyPattern, autoPerformance: false }
+}
+
+export function applyShiftgridPatternChange(settings: CanvasShiftgridSettings, patternChange: boolean): CanvasShiftgridSettings {
+  return { ...settings, patternChange, ...(patternChange ? { autoPerformance: false } : {}) }
+}
+
+export function applyShiftgridAutoPerformance(settings: CanvasShiftgridSettings, autoPerformance: boolean): CanvasShiftgridSettings {
+  return { ...settings, autoPerformance, ...(autoPerformance ? { patternChange: false } : {}) }
+}
+
+export function applyShiftgridSourceMode(settings: CanvasShiftgridSettings, sourceMode: CanvasShiftgridSourceMode): CanvasShiftgridSettings {
+  return {
+    ...settings,
+    sourceMode,
+    mosaicType: sourceMode === 'single'
+      ? 'singleImage'
+      : settings.mosaicType === 'singleImage' ? 'autoMosaic' : settings.mosaicType,
+  }
+}
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -259,10 +311,28 @@ export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgri
   const legacyMosaic: Record<string, CanvasShiftgridMosaicType> = {
     reconstruction: 'singleImage', patchwork: 'hybridMosaic', strips: 'travelingImageWave',
   }
+  const patternChange = boolean(source.patternChange, defaults.patternChange)
+  // P4 makes Pattern Change the explicit manual authority. Older P0-P3
+  // snapshots could persist both toggles; migrate that ambiguous state by
+  // giving the user's enabled Pattern Change toggle precedence.
+  const autoPerformance = patternChange ? false : boolean(source.autoPerformance, defaults.autoPerformance)
+  const persistedMosaicType = pick(source.mosaicType, CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS, legacyMosaic[String(source.mosaicType)] ?? defaults.mosaicType)
+  // P3 snapshots could persist a multi-image Mosaic Type before Media Mode
+  // became explicit. Preserve that authored intent instead of coercing it to
+  // the new Single Image default.
+  const sourceMode = source.sourceMode === undefined && persistedMosaicType !== 'singleImage'
+    ? 'pool'
+    : pick(source.sourceMode, CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS, defaults.sourceMode)
+  const poolSelectionMode: CanvasShiftgridPoolSelectionMode = source.poolSelectionMode === 'random'
+    ? 'shuffle'
+    : pick(source.poolSelectionMode, CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS, defaults.poolSelectionMode)
   return {
     version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
-    sourceMode: pick(source.sourceMode, CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS, defaults.sourceMode),
-    mosaicType: pick(source.mosaicType, CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS, legacyMosaic[String(source.mosaicType)] ?? defaults.mosaicType),
+    masterIntensity: clamp(source.masterIntensity, defaults.masterIntensity, 0, 1),
+    sourceMode,
+    mosaicType: sourceMode === 'single'
+      ? 'singleImage'
+      : persistedMosaicType === 'singleImage' ? 'autoMosaic' : persistedMosaicType,
     gridMode: gridPreset === 'auto' ? 'auto' : 'fixed',
     gridColumns: integer(source.gridColumns, defaults.gridColumns, 2, 32),
     gridRows: integer(source.gridRows, defaults.gridRows, 2, 24),
@@ -270,9 +340,9 @@ export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgri
     tileShape: pick(source.tileShape, CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS, defaults.tileShape),
     fitMode: pick(source.fitMode, CANVAS_SHIFTGRID_FIT_MODE_OPTIONS, defaults.fitMode),
     choreographyPattern: pick(source.choreographyPattern, CANVAS_SHIFTGRID_PATTERN_OPTIONS, legacyPattern[String(source.choreographyPattern)] ?? defaults.choreographyPattern),
-    patternChange: boolean(source.patternChange, defaults.patternChange),
+    patternChange,
     trigger: pick(source.trigger, CANVAS_SHIFTGRID_TRIGGER_OPTIONS, defaults.trigger),
-    autoPerformance: boolean(source.autoPerformance, defaults.autoPerformance),
+    autoPerformance,
     bpmSync: boolean(source.bpmSync, defaults.bpmSync),
     movementAmount: clamp(source.movementAmount, defaults.movementAmount, 0, 1),
     movementSpeed: clamp(source.movementSpeed, defaults.movementSpeed, 0, 2),
@@ -287,17 +357,28 @@ export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgri
     holdBeats: integer(source.holdBeats, defaults.holdBeats, 0, 32),
     reconstructionSpeed: clamp(source.reconstructionSpeed, defaults.reconstructionSpeed, 0, 1),
     progressiveResolveDurationSec: clamp(source.progressiveResolveDurationSec, defaults.progressiveResolveDurationSec, 1, 60),
-    poolSelectionMode: pick(source.poolSelectionMode, CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS, defaults.poolSelectionMode),
+    poolSelectionMode,
     avoidImmediateRepeat: boolean(source.avoidImmediateRepeat, defaults.avoidImmediateRepeat),
     poolSourceLimit: integer(source.poolSourceLimit, defaults.poolSourceLimit, 1, 10),
     primaryTargetMediaId: typeof source.primaryTargetMediaId === 'string' && source.primaryTargetMediaId.trim() ? source.primaryTargetMediaId.trim() : null,
     sourceHoldDurationSec: clamp(source.sourceHoldDurationSec, defaults.sourceHoldDurationSec, 0.5, 30),
     waveRoute: pick(source.waveRoute, CANVAS_SHIFTGRID_WAVE_ROUTE_OPTIONS, defaults.waveRoute),
     enhancedEffects: boolean(source.enhancedEffects, defaults.enhancedEffects),
+    tileEdgeGlowEnabled: boolean(source.tileEdgeGlowEnabled, sourceVersion < 6 ? finite(source.edgeGlow, 0) > 0 : defaults.tileEdgeGlowEnabled),
     depthAmount: clamp(source.depthAmount, defaults.depthAmount, 0, 1),
     edgeGlow: clamp(source.edgeGlow, defaults.edgeGlow, 0, 1),
+    lightTrailsEnabled: boolean(source.lightTrailsEnabled, defaults.lightTrailsEnabled),
+    lightTrails: clamp(source.lightTrails, defaults.lightTrails, 0, 1),
+    motionBlurEnabled: boolean(source.motionBlurEnabled, sourceVersion < 6 ? finite(source.motionBlur, 0) > 0 : defaults.motionBlurEnabled),
     chromaticSplit: clamp(source.chromaticSplit, defaults.chromaticSplit, 0, 1),
+    rgbSeparationEnabled: boolean(source.rgbSeparationEnabled, sourceVersion < 6 ? finite(source.chromaticSplit, 0) > 0 : defaults.rgbSeparationEnabled),
     motionBlur: clamp(source.motionBlur, defaults.motionBlur, 0, 1),
+    beatPulseEnabled: boolean(source.beatPulseEnabled, defaults.beatPulseEnabled),
+    beatPulse: clamp(source.beatPulse, defaults.beatPulse, 0, 1),
+    snapFlashEnabled: boolean(source.snapFlashEnabled, defaults.snapFlashEnabled),
+    snapFlash: clamp(source.snapFlash, defaults.snapFlash, 0, 1),
+    tileGapEnabled: boolean(source.tileGapEnabled, defaults.tileGapEnabled),
+    tileGap: clamp(source.tileGap, defaults.tileGap, 0, 0.2),
     edgeFeather: clamp(source.edgeFeather, defaults.edgeFeather, 0, 0.5),
     quality: pick(source.quality, CANVAS_SHIFTGRID_QUALITY_OPTIONS, defaults.quality),
     renderScale: clamp(source.renderScale, defaults.renderScale, 0.5, 1),

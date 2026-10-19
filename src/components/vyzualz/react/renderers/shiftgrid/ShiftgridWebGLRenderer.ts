@@ -10,11 +10,19 @@ layout(location=1) in vec2 aUv;
 layout(location=2) in vec2 aPendingUv;
 layout(location=3) in vec2 aSourcePair;
 layout(location=4) in float aSourceMix;
+layout(location=5) in vec2 aTileUv;
+layout(location=6) in vec2 aMotion;
+layout(location=7) in float aOpacity;
+layout(location=8) in float aSnapFlash;
 uniform vec2 uViewport;
 out vec2 vUv;
 out vec2 vPendingUv;
 flat out vec2 vSourcePair;
 out float vSourceMix;
+out vec2 vTileUv;
+out vec2 vMotion;
+out float vOpacity;
+out float vSnapFlash;
 void main() {
   vec2 clip = vec2((aPosition.x / uViewport.x) * 2.0 - 1.0, 1.0 - (aPosition.y / uViewport.y) * 2.0);
   gl_Position = vec4(clip, 0.0, 1.0);
@@ -22,16 +30,29 @@ void main() {
   vPendingUv = aPendingUv;
   vSourcePair = aSourcePair;
   vSourceMix = aSourceMix;
+  vTileUv = aTileUv;
+  vMotion = aMotion;
+  vOpacity = aOpacity;
+  vSnapFlash = aSnapFlash;
 }`
 const FRAGMENT = `#version 300 es
 precision highp float;
 uniform sampler2D uAtlas;
 uniform vec2 uAtlasGrid;
 uniform float uAtlasCellInset;
+uniform float uEdgeGlow;
+uniform float uMotionBlur;
+uniform float uRgbSeparation;
+uniform float uBeatPulse;
+uniform float uSnapFlash;
 in vec2 vUv;
 in vec2 vPendingUv;
 flat in vec2 vSourcePair;
 in float vSourceMix;
+in vec2 vTileUv;
+in vec2 vMotion;
+in float vOpacity;
+in float vSnapFlash;
 out vec4 outColor;
 vec4 sampleSource(vec2 uv, float sourceIndex) {
   if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec4(0.0);
@@ -41,10 +62,28 @@ vec4 sampleSource(vec2 uv, float sourceIndex) {
   vec2 atlasUv = (vec2(column, row) + safeUv) / uAtlasGrid;
   return texture(uAtlas, vec2(atlasUv.x, 1.0 - atlasUv.y));
 }
+vec4 sampleMixed(vec2 currentUv, vec2 pendingUv) {
+  return mix(sampleSource(currentUv, vSourcePair.x), sampleSource(pendingUv, vSourcePair.y), clamp(vSourceMix, 0.0, 1.0));
+}
 void main() {
-  vec4 current = sampleSource(vUv, vSourcePair.x);
-  vec4 pending = sampleSource(vPendingUv, vSourcePair.y);
-  outColor = mix(current, pending, clamp(vSourceMix, 0.0, 1.0));
+  float motionLength = length(vMotion);
+  vec2 direction = motionLength > 0.0001 ? vMotion / motionLength : vec2(0.0);
+  vec2 blurOffset = direction * uMotionBlur * 0.006;
+  vec4 base = sampleMixed(vUv, vPendingUv);
+  vec4 blurA = sampleMixed(vUv - blurOffset, vPendingUv - blurOffset);
+  vec4 blurB = sampleMixed(vUv + blurOffset, vPendingUv + blurOffset);
+  outColor = mix(base, (base * 0.5 + blurA * 0.25 + blurB * 0.25), uMotionBlur * step(0.0001, motionLength));
+  vec2 rgbOffset = direction * uRgbSeparation * 0.007;
+  vec4 redSample = sampleMixed(vUv - rgbOffset, vPendingUv - rgbOffset);
+  vec4 blueSample = sampleMixed(vUv + rgbOffset, vPendingUv + rgbOffset);
+  float rgbAmount = uRgbSeparation * step(0.0001, motionLength);
+  outColor.r = mix(outColor.r, redSample.r, rgbAmount);
+  outColor.b = mix(outColor.b, blueSample.b, rgbAmount);
+  float edgeDistance = min(min(vTileUv.x, 1.0 - vTileUv.x), min(vTileUv.y, 1.0 - vTileUv.y));
+  float edge = 1.0 - smoothstep(0.0, 0.075, edgeDistance);
+  outColor.rgb = outColor.rgb * (1.0 + uBeatPulse * 0.06) + vec3(edge * uEdgeGlow * outColor.a * 0.3);
+  outColor.rgb += vec3(edge * vSnapFlash * uSnapFlash * outColor.a * 0.55);
+  outColor.a *= vOpacity;
 }`
 
 export class ShiftgridWebGLRenderer implements ShiftgridRenderer {
@@ -62,8 +101,9 @@ export class ShiftgridWebGLRenderer implements ShiftgridRenderer {
     const gl = canvas.getContext('webgl2', { alpha: true, antialias: true, premultipliedAlpha: false, preserveDrawingBuffer: false })
     if (!gl) throw new Error('SHIFTGRID WebGL2 is unavailable')
     this.gl = gl
-    const result = ShaderProgram.create(gl, new ShaderCompiler(gl), { label: 'SHIFTGRID/P3', vertSrc: VERTEX, fragSrc: FRAGMENT,
-      attributes: { aPosition: 0, aUv: 1, aPendingUv: 2, aSourcePair: 3, aSourceMix: 4 }, requiredUniforms: ['uViewport', 'uAtlas', 'uAtlasGrid', 'uAtlasCellInset'] })
+    const result = ShaderProgram.create(gl, new ShaderCompiler(gl), { label: 'SHIFTGRID/P5', vertSrc: VERTEX, fragSrc: FRAGMENT,
+      attributes: { aPosition: 0, aUv: 1, aPendingUv: 2, aSourcePair: 3, aSourceMix: 4, aTileUv: 5, aMotion: 6, aOpacity: 7, aSnapFlash: 8 },
+      requiredUniforms: ['uViewport', 'uAtlas', 'uAtlasGrid', 'uAtlasCellInset', 'uEdgeGlow', 'uMotionBlur', 'uRgbSeparation', 'uBeatPulse', 'uSnapFlash'] })
     if (!result.program) throw new Error(result.error.log)
     this.program = result.program
     const vao = gl.createVertexArray(); const buffer = gl.createBuffer(); const texture = gl.createTexture()
@@ -76,12 +116,16 @@ export class ShiftgridWebGLRenderer implements ShiftgridRenderer {
     }
     this.vao = vao; this.buffer = buffer; this.texture = texture
     gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    const stride = 36
+    const stride = 60
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, stride, 0)
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 8)
     gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 16)
     gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 2, gl.FLOAT, false, stride, 24)
     gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 32)
+    gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5, 2, gl.FLOAT, false, stride, 36)
+    gl.enableVertexAttribArray(6); gl.vertexAttribPointer(6, 2, gl.FLOAT, false, stride, 44)
+    gl.enableVertexAttribArray(7); gl.vertexAttribPointer(7, 1, gl.FLOAT, false, stride, 52)
+    gl.enableVertexAttribArray(8); gl.vertexAttribPointer(8, 1, gl.FLOAT, false, stride, 56)
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
@@ -119,9 +163,14 @@ export class ShiftgridWebGLRenderer implements ShiftgridRenderer {
     this.program.activate(); this.program.setVec2('uViewport', this.cssWidth, this.cssHeight); this.program.setInt('uAtlas', 0)
     this.program.setVec2('uAtlasGrid', this.atlasLayout.columns, this.atlasLayout.rows)
     this.program.setFloat('uAtlasCellInset', 0.5 / this.atlasLayout.cellSize)
+    this.program.setFloat('uEdgeGlow', plan.effects.edgeGlow)
+    this.program.setFloat('uMotionBlur', plan.effects.motionBlur)
+    this.program.setFloat('uRgbSeparation', plan.effects.rgbSeparation)
+    this.program.setFloat('uBeatPulse', plan.effects.beatPulse)
+    this.program.setFloat('uSnapFlash', plan.effects.snapFlash)
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.texture)
     gl.bindVertexArray(this.vao); gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer); gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.DYNAMIC_DRAW)
-    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 4)
+    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 15)
     gl.bindVertexArray(null); gl.bindTexture(gl.TEXTURE_2D, null); gl.useProgram(null)
   }
 

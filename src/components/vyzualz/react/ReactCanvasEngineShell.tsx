@@ -1870,7 +1870,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive) {
+    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive && !shiftgridActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1900,7 +1900,7 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive])
+  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive, shiftgridActive])
 
   // Keep the direct renderer visible only while every authored source is still
   // preloading. Once a source is drawable, or all authored sources have failed,
@@ -2499,6 +2499,8 @@ export function CanvasEngineSurface({
         poolRevision={orchestrationSettings.poolRevision}
         trackIdentity={activeAudioTrackId}
         isPaused={isPaused}
+        audioActive={reactivityActive}
+        performanceContextRef={particlePerformanceContextRef}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
       />

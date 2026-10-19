@@ -1,20 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { SharedPerformanceContext } from '../../../../../features/performanceCore'
 import { DrawerNotice } from '../../../shared/DrawerNotice'
 import { CanvasPreloadManager, MAX_CANVAS_MEDIA_HANDLES, MAX_CANVAS_PRELOAD_QUEUE, type CanvasMediaPool } from '../../canvasPerformance'
 import type { CanvasMediaItem } from '../../ReactTypes'
 import { subscribeShiftgridCommand } from './ShiftgridCommandBus'
-import { createShiftgridChoreographyPlan, createShiftgridPatternCycle, createShiftgridReconstructionPlan, createShiftgridScramblePlan, createShiftgridStaticPlan, ShiftgridChoreographyPlayback, shouldShiftgridResolve } from './ShiftgridChoreography'
+import { createShiftgridChoreographyPlan, createShiftgridDirectionalImpulsePlan, createShiftgridReconstructionPlan, createShiftgridScramblePlan, createShiftgridStaticPlan, ShiftgridChoreographyPlayback, shouldShiftgridResolve } from './ShiftgridChoreography'
+import { resolveShiftgridEffectPlan } from './ShiftgridEffects'
 import { createShiftgridRenderPlan } from './ShiftgridRenderPlan'
 import { createShiftgridRenderer, type ShiftgridRenderer, type ShiftgridRendererBackend } from './ShiftgridRenderer'
 import { createShiftgridMosaicPlan, createShiftgridMosaicResolvePlan, ShiftgridMosaicPlayback, type ShiftgridImplementedMosaicType } from './ShiftgridMosaic'
 import { isShiftgridP1ImageSource, resolveShiftgridSourceSet } from './ShiftgridSourceMedia'
 import type { CanvasShiftgridSettings } from './ShiftgridSettings'
 import { createShiftgridTileGeometry, resolveShiftgridGridDimensions } from './ShiftgridTileGeometry'
+import { resolveShiftgridBpmDurationScale, ShiftgridPerformanceController, type ShiftgridPerformanceDecision } from './ShiftgridPerformanceController'
 
 interface LoadedShiftgridSource { media: CanvasMediaItem; image: HTMLImageElement }
 type LoadState = { status: 'idle' | 'loading' | 'ready' | 'error'; sources: readonly LoadedShiftgridSource[]; failedNames: readonly string[]; message?: string }
 
-export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, mediaItems, poolRevision = 0, trackIdentity = null, isPaused = false, onCanvasReady, onLiveFps }: {
+export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, mediaItems, poolRevision = 0, trackIdentity = null, isPaused = false, audioActive = false, performanceContextRef, onCanvasReady, onLiveFps }: {
   settings: CanvasShiftgridSettings
   activeMediaId: string | null
   activePool: CanvasMediaPool | null
@@ -22,6 +25,8 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
   poolRevision?: number
   trackIdentity?: string | null
   isPaused?: boolean
+  audioActive?: boolean
+  performanceContextRef?: { current: SharedPerformanceContext | null }
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
 }) {
@@ -88,10 +93,13 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
     }
     setBackend(renderer.backend); onCanvasReady?.(canvas)
     let frameId = 0; let previousAt = performance.now(); let runtime: ShiftgridChoreographyPlayback | null = null; let mosaic: ShiftgridMosaicPlayback | null = null
-    let geometryKey = ''; let choreographyKey = ''; let mosaicKey = ''; let actionRevision = 0; let cycleRevision = 0; let mosaicRevision = 0; let mosaicHoldMs = 0
+    let geometryKey = ''; let choreographyKey = ''; let motionSettingsKey = ''; let reconstructionSettingsKey = ''; let mosaicKey = ''; let actionRevision = 0; let mosaicRevision = 0; let mosaicHoldMs = 0; let pendingMosaicAdvance = false
     let previousTargetIndex = -1; let previousAutoType: ShiftgridImplementedMosaicType | null = null
     let phase: 'choreography' | 'resolve' = 'choreography'; let manualHold = false; let fpsFrames = 0; let fpsStartedAt = previousAt
     const sourceIds = loadedSources.map(source => source.media.id)
+    let performanceSeed = settingsRef.current.deterministicSeed
+    let performanceController = new ShiftgridPerformanceController(performanceSeed, settingsRef.current.choreographyPattern)
+    let performanceDecision: ShiftgridPerformanceDecision | null = null
     const initialPrimaryIndex = Math.max(0, settingsRef.current.primaryTargetMediaId ? sourceIds.indexOf(settingsRef.current.primaryTargetMediaId) : 0)
     const replaceMosaic = () => {
       if (!mosaic || !runtime) return
@@ -102,13 +110,19 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
       if (plan.resolvedType !== 'singleImage') previousAutoType = plan.resolvedType
       mosaic.replacePlan(plan)
     }
-    const replaceWithChoreography = () => {
+    const replaceWithChoreography = (pattern = settingsRef.current.choreographyPattern, routing?: ShiftgridPerformanceDecision['routing']) => {
       if (!runtime) return
-      const live = settingsRef.current; cycleRevision += 1; phase = 'choreography'; manualHold = false
-      const cycle = createShiftgridPatternCycle(live.deterministicSeed)
-      const pattern = live.patternChange ? cycle[cycleRevision % cycle.length]! : live.choreographyPattern
-      runtime.replacePlan(createShiftgridChoreographyPlan({ columns: runtime.state.columns, rows: runtime.state.rows, settings: { ...live, choreographyPattern: pattern },
-        initialSlotsByTile: runtime.state.currentSlotsByTile, seed: live.deterministicSeed + cycleRevision }))
+      const live = settingsRef.current; actionRevision += 1; phase = 'choreography'; manualHold = false
+      if (live.masterIntensity <= 0) {
+        runtime.replacePlan(createShiftgridStaticPlan(runtime.state.columns, runtime.state.rows, runtime.state.currentSlotsByTile, live.deterministicSeed + actionRevision))
+        return
+      }
+      const movementAmount = Math.min(live.movementAmount, live.movementAmount * live.masterIntensity * (0.4 + (routing?.movementAmplitude ?? 0.8) * 0.35 + (routing?.movementDensity ?? 0.8) * 0.25))
+      const scrambleComplexity = Math.min(live.scrambleComplexity, live.scrambleComplexity * live.masterIntensity * (0.55 + (routing?.puzzleComplexity ?? 0.8) * 0.45))
+      const durationScale = resolveShiftgridBpmDurationScale(performanceContextRef?.current ?? null, live.bpmSync)
+      runtime.replacePlan(createShiftgridChoreographyPlan({ columns: runtime.state.columns, rows: runtime.state.rows,
+        settings: { ...live, choreographyPattern: pattern, movementAmount, scrambleComplexity, durationScale },
+        initialSlotsByTile: runtime.state.currentSlotsByTile, seed: live.deterministicSeed + actionRevision }))
     }
     const unsubscribe = subscribeShiftgridCommand(command => {
       if (!runtime) return
@@ -138,7 +152,7 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
             targetSourceIndex: target, initialSourceIndicesByTile: mosaic.currentSourceIndicesByTile, settings: live }))
         }
       }
-      else replaceWithChoreography()
+      else replaceWithChoreography(performanceDecision?.activePattern ?? live.choreographyPattern, performanceDecision?.routing)
     })
     const contextLost = (event: Event) => { event.preventDefault(); renderer.dispose(); setForceCanvas2D(true); setCanvasRevision(value => value + 1) }
     canvas.addEventListener('webglcontextlost', contextLost)
@@ -152,43 +166,87 @@ export function CanvasShiftgridLayer({ settings, activeMediaId, activePool, medi
       const primary = loadedSources[Math.max(0, live.primaryTargetMediaId ? sourceIds.indexOf(live.primaryTargetMediaId) : initialPrimaryIndex)] ?? loadedSources[0]!
       const dimensions = resolveShiftgridGridDimensions({ settings: live, sourceWidth: primary.image.naturalWidth, sourceHeight: primary.image.naturalHeight, viewportWidth: width, viewportHeight: height })
       const nextKey = `${dimensions.columns}x${dimensions.rows}:${live.tileShape}`
-      const nextChoreographyKey = `${live.choreographyPattern}:${live.deterministicSeed}`
+      const nextChoreographyKey = `${live.choreographyPattern}:${live.patternChange}:${live.trigger}:${live.autoPerformance}:${live.deterministicSeed}`
+      const nextMotionSettingsKey = `${live.masterIntensity}:${live.movementAmount}:${live.movementSpeed}:${live.stagger}:${live.snapStrength}:${live.scrambleComplexity}:${live.easing}:${live.bpmSync}`
+      const nextReconstructionSettingsKey = `${live.reconstructionMode}:${live.reconstructionSpeed}:${live.progressiveResolveDurationSec}`
       const nextMosaicKey = `${live.mosaicType}:${live.deterministicSeed}:${live.primaryTargetMediaId ?? 'auto'}:${live.waveRoute}:${live.movementSpeed}:${live.stagger}:${live.scrambleComplexity}:${sourceIds.join('|')}`
       const geometry = createShiftgridTileGeometry({ ...live, gridColumns: dimensions.columns, gridRows: dimensions.rows }, width, height)
       if (!runtime || nextKey !== geometryKey) {
-        geometryKey = nextKey; choreographyKey = nextChoreographyKey; mosaicKey = nextMosaicKey; cycleRevision = 0; mosaicRevision = 0; phase = 'choreography'
-        const plan = createShiftgridChoreographyPlan({ columns: dimensions.columns, rows: dimensions.rows, settings: live })
+        geometryKey = nextKey; choreographyKey = nextChoreographyKey; motionSettingsKey = nextMotionSettingsKey; reconstructionSettingsKey = nextReconstructionSettingsKey; mosaicKey = nextMosaicKey; mosaicRevision = 0; phase = 'choreography'
+        const plan = live.masterIntensity <= 0
+          ? createShiftgridStaticPlan(dimensions.columns, dimensions.rows, Array.from({ length: dimensions.columns * dimensions.rows }, (_, index) => index), live.deterministicSeed)
+          : createShiftgridChoreographyPlan({ columns: dimensions.columns, rows: dimensions.rows,
+            settings: { ...live, movementAmount: live.movementAmount * live.masterIntensity } })
         runtime = new ShiftgridChoreographyPlayback(geometry, plan, `${sources.identity}:${nextKey}`)
         const initialSources = Array(dimensions.columns * dimensions.rows).fill(initialPrimaryIndex)
         const mosaicPlan = createShiftgridMosaicPlan({ columns: dimensions.columns, rows: dimensions.rows, sourceIds, settings: live,
           initialSourceIndicesByTile: initialSources, sequenceIndex: live.mosaicType === 'singleImage' ? 0 : 1 })
         mosaic = new ShiftgridMosaicPlayback(mosaicPlan); previousTargetIndex = mosaicPlan.targetSourceIndex
         if (mosaicPlan.resolvedType !== 'singleImage') previousAutoType = mosaicPlan.resolvedType
-      } else if (nextChoreographyKey !== choreographyKey) { choreographyKey = nextChoreographyKey; replaceWithChoreography() }
+      } else {
+        if (nextChoreographyKey !== choreographyKey) choreographyKey = nextChoreographyKey
+        if (nextMotionSettingsKey !== motionSettingsKey) {
+          motionSettingsKey = nextMotionSettingsKey
+          replaceWithChoreography(performanceDecision?.activePattern ?? live.choreographyPattern, performanceDecision?.routing)
+        }
+        if (nextReconstructionSettingsKey !== reconstructionSettingsKey) {
+          reconstructionSettingsKey = nextReconstructionSettingsKey
+          if (phase === 'resolve') runtime.replacePlan(createShiftgridReconstructionPlan({ columns: runtime.state.columns, rows: runtime.state.rows, settings: live, initialSlotsByTile: runtime.state.currentSlotsByTile }))
+        }
+      }
       if (mosaic && nextMosaicKey !== mosaicKey) { mosaicKey = nextMosaicKey; replaceMosaic() }
+      if (performanceSeed !== live.deterministicSeed) {
+        performanceSeed = live.deterministicSeed
+        performanceController = new ShiftgridPerformanceController(performanceSeed, live.choreographyPattern)
+      }
+      performanceDecision = performanceController.update({ settings: live, context: performanceContextRef?.current ?? null, audioActive, paused: pausedRef.current })
       runtime.setPaused(pausedRef.current); runtime.advance(deltaMs)
       mosaic?.setPaused(pausedRef.current); mosaic?.advance(deltaMs); previousAt = now
-      if (runtime.complete && live.autoPerformance && !pausedRef.current && !manualHold) {
-        if (live.reconstructionMode === 'progressiveResolve' && phase === 'choreography') {
+      if (!pausedRef.current && performanceDecision.reconstructNow) {
+        phase = 'resolve'; manualHold = false
+        runtime.replacePlan(createShiftgridReconstructionPlan({ columns: runtime.state.columns, rows: runtime.state.rows, settings: live, initialSlotsByTile: runtime.state.currentSlotsByTile }))
+        if (mosaic && performanceDecision.events.drop) {
+          const target = live.primaryTargetMediaId ? Math.max(0, sourceIds.indexOf(live.primaryTargetMediaId)) : Math.max(0, previousTargetIndex)
+          mosaic.replacePlan(createShiftgridMosaicResolvePlan({ columns: runtime.state.columns, rows: runtime.state.rows, sourceCount: sourceIds.length,
+            targetSourceIndex: target, initialSourceIndicesByTile: mosaic.currentSourceIndicesByTile, settings: live }))
+        }
+      } else if (!pausedRef.current && performanceDecision.patternChanged) {
+        replaceWithChoreography(performanceDecision.activePattern, performanceDecision.routing)
+      } else if (!pausedRef.current && live.masterIntensity > 0 && !manualHold && !performanceDecision.routing.preDropHold && performanceDecision.events.kick && performanceDecision.routing.horizontalImpulse > 0) {
+        actionRevision += 1
+        runtime.replacePlan(createShiftgridDirectionalImpulsePlan({ columns: runtime.state.columns, rows: runtime.state.rows,
+          settings: { ...live, movementAmount: live.movementAmount * live.masterIntensity, choreographyPattern: performanceDecision.activePattern, durationScale: resolveShiftgridBpmDurationScale(performanceContextRef?.current ?? null, live.bpmSync) }, initialSlotsByTile: runtime.state.currentSlotsByTile,
+          axis: 'horizontal', seed: live.deterministicSeed + actionRevision }))
+      } else if (!pausedRef.current && live.masterIntensity > 0 && !manualHold && !performanceDecision.routing.preDropHold && performanceDecision.events.snare && performanceDecision.routing.verticalImpulse > 0) {
+        actionRevision += 1
+        runtime.replacePlan(createShiftgridDirectionalImpulsePlan({ columns: runtime.state.columns, rows: runtime.state.rows,
+          settings: { ...live, movementAmount: live.movementAmount * live.masterIntensity, choreographyPattern: performanceDecision.activePattern, durationScale: resolveShiftgridBpmDurationScale(performanceContextRef?.current ?? null, live.bpmSync) }, initialSlotsByTile: runtime.state.currentSlotsByTile,
+          axis: 'vertical', seed: live.deterministicSeed + actionRevision }))
+      } else if (runtime.complete && !pausedRef.current && !manualHold && performanceDecision.authority === 'autoPerformance'
+        && !performanceDecision.routing.preDropHold && (performanceDecision.events.beat || performanceDecision.events.downbeat || performanceDecision.events.bar)) {
+        if (live.reconstructionMode === 'progressiveResolve' && phase === 'choreography' && performanceDecision.events.bar) {
           phase = 'resolve'; runtime.replacePlan(createShiftgridReconstructionPlan({ columns: runtime.state.columns, rows: runtime.state.rows, settings: live, initialSlotsByTile: runtime.state.currentSlotsByTile }))
-        } else if (live.reconstructionMode === 'progressiveResolve' && phase === 'resolve') replaceWithChoreography()
-        else if (shouldShiftgridResolve(live.reconstructionMode, 'continuous')) replaceWithChoreography()
+        } else replaceWithChoreography(performanceDecision.activePattern, performanceDecision.routing)
       }
-      if (mosaic?.complete && sourceIds.length > 1 && live.mosaicType !== 'singleImage' && live.autoPerformance && !pausedRef.current && !manualHold) {
+      if (performanceDecision.advanceMosaic) pendingMosaicAdvance = true
+      if (mosaic?.complete && sourceIds.length > 1 && live.mosaicType !== 'singleImage' && performanceDecision.authority === 'autoPerformance' && !pausedRef.current && !manualHold) {
         mosaicHoldMs += deltaMs
-        if (mosaicHoldMs >= live.sourceHoldDurationSec * 1000) replaceMosaic()
+        if (pendingMosaicAdvance && mosaicHoldMs >= live.sourceHoldDurationSec * 1000) { pendingMosaicAdvance = false; replaceMosaic() }
       }
+      const effectPlan = resolveShiftgridEffectPlan(live, performanceDecision?.routing ?? null)
       renderer.render(createShiftgridRenderPlan({ geometry, runtime, sourceRuntime: mosaic ?? undefined, width, height,
         sourceWidth: primary.image.naturalWidth, sourceHeight: primary.image.naturalHeight,
         sources: loadedSources.map(source => ({ id: source.media.id, width: source.image.naturalWidth, height: source.image.naturalHeight })),
-        fitMode: live.fitMode, easing: live.easing, snapStrength: live.snapStrength }))
+        fitMode: live.fitMode, easing: live.easing,
+        snapStrength: Math.min(1, live.snapStrength + (performanceDecision?.routing.snapAccent ?? 0) * live.masterIntensity * 0.2),
+        effects: effectPlan }))
       fpsFrames += 1
       if (now - fpsStartedAt >= 1000) { onLiveFps?.(Math.round(fpsFrames * 1000 / (now - fpsStartedAt))); fpsFrames = 0; fpsStartedAt = now }
       frameId = requestAnimationFrame(frame)
     }
     frameId = requestAnimationFrame(frame)
     return () => { cancelAnimationFrame(frameId); unsubscribe(); canvas.removeEventListener('webglcontextlost', contextLost); renderer.dispose(); onCanvasReady?.(null); onLiveFps?.(0) }
-  }, [canvasRevision, forceCanvas2D, loadState.sources, loadState.status, onCanvasReady, onLiveFps, settings.quality, sources.identity])
+  }, [audioActive, canvasRevision, forceCanvas2D, loadState.sources, loadState.status, onCanvasReady, onLiveFps, performanceContextRef, settings.quality, sources.identity])
 
   const emptyMessage = loadState.status === 'idle'
     ? sources.media.length > 0 ? 'SHIFTGRID supports PNG, JPEG, WebP, and SVG pool sources; video sources are ignored.' : 'Select an image or SVG in CANVAS Media, or add images to the active Media Pool.'

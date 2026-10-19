@@ -99,8 +99,8 @@ describe('SHIFTGRID Phase 0 foundation', () => {
     })
   })
 
-  it('backfills schema v11 and SHIFTGRID defaults while preserving existing preset state', () => {
-    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(11)
+  it('backfills schema v13 and SHIFTGRID defaults while preserving existing preset state', () => {
+    expect(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION).toBe(13)
     const migrated = migrateReactStore({
       selectedCanvasPresetId: 'canvas-fractures',
       canvasPresetSettings: {
@@ -111,7 +111,7 @@ describe('SHIFTGRID Phase 0 foundation', () => {
     }, 79)
     const normalized = migrated.canvasPresetSettings as typeof DEFAULT_CANVAS_PRESET_SETTINGS
     expect(migrated.selectedCanvasPresetId).toBe('canvas-fractures')
-    expect(normalized.schemaVersion).toBe(11)
+    expect(normalized.schemaVersion).toBe(13)
     expect(normalized.fractureVariationSeed).toBe(4242)
     expect(normalized.cutbank.chaos).toBe(0.9)
     expect(normalized.shiftgrid).toEqual(DEFAULT_CANVAS_SHIFTGRID_SETTINGS)

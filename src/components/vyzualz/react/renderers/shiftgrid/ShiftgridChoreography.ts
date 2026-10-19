@@ -1,6 +1,5 @@
-import type { ShiftgridAudioFrame } from './ShiftgridAudioIntelligence'
 import { createDeterministicShiftgridPermutation, createShiftgridRuntimeGridState, isValidShiftgridPermutation, type ShiftgridRuntimeGridState } from './ShiftgridGridState'
-import { CANVAS_SHIFTGRID_PATTERN_OPTIONS, type CanvasShiftgridPattern, type CanvasShiftgridReconstructionMode, type CanvasShiftgridSettings, type CanvasShiftgridTrigger } from './ShiftgridSettings'
+import { CANVAS_SHIFTGRID_PATTERN_OPTIONS, type CanvasShiftgridPattern, type CanvasShiftgridReconstructionMode, type CanvasShiftgridSettings } from './ShiftgridSettings'
 import type { ShiftgridGridGeometry } from './ShiftgridTileGeometry'
 
 export type ShiftgridRouteAxis = 'horizontal' | 'vertical' | 'mixed' | 'radial' | 'resolve'
@@ -27,7 +26,10 @@ export interface ShiftgridChoreographyPlan {
 }
 
 type PlannerSettings = Pick<CanvasShiftgridSettings,
-  'choreographyPattern' | 'movementSpeed' | 'movementAmount' | 'stagger' | 'scrambleComplexity' | 'reconstructionMode' | 'reconstructionSpeed' | 'progressiveResolveDurationSec' | 'deterministicSeed'>
+  'choreographyPattern' | 'movementSpeed' | 'movementAmount' | 'stagger' | 'scrambleComplexity' | 'reconstructionMode' | 'reconstructionSpeed' | 'progressiveResolveDurationSec' | 'deterministicSeed'> & {
+    /** Runtime-only beat-duration scale; never persisted. */
+    durationScale?: number
+  }
 
 function seededUnit(seed: number, index: number): number {
   let value = (seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0
@@ -69,7 +71,8 @@ function affectedTiles(from: readonly number[], to: readonly number[]): number[]
 }
 
 function baseDuration(settings: PlannerSettings): number {
-  return Math.round(760 - Math.min(2, Math.max(0, settings.movementSpeed)) * 285)
+  const scale = Number.isFinite(settings.durationScale) ? Math.min(2, Math.max(0.5, settings.durationScale ?? 1)) : 1
+  return Math.round((760 - Math.min(2, Math.max(0, settings.movementSpeed)) * 285) * scale)
 }
 
 class PlanBuilder {
@@ -266,6 +269,23 @@ export function createShiftgridScramblePlan({ columns, rows, settings, initialSl
   return builder.finish(initialSlotsByTile)
 }
 
+/** Audio accents preserve the active pattern identity while adding one valid row/column exchange. */
+export function createShiftgridDirectionalImpulsePlan({ columns, rows, settings, initialSlotsByTile, axis, seed = settings.deterministicSeed }: {
+  columns: number; rows: number; settings: PlannerSettings; initialSlotsByTile: readonly number[]
+  axis: 'horizontal' | 'vertical'; seed?: number
+}): ShiftgridChoreographyPlan {
+  const builder = new PlanBuilder(settings.choreographyPattern, seed, columns, rows, initialSlotsByTile)
+  const unitCount = axis === 'horizontal' ? rows : columns
+  const unit = Math.min(unitCount - 1, Math.floor(seededUnit(seed, 41) * unitCount))
+  const slots = axis === 'horizontal'
+    ? Array.from({ length: columns }, (_, column) => unit * columns + column)
+    : Array.from({ length: rows }, (_, row) => row * columns + unit)
+  const direction = seededUnit(seed, 42) < 0.5 ? -1 : 1
+  const target = cycleSlots(initialSlotsByTile, slots, direction)
+  builder.add(target, 0, baseDuration(settings) * 0.55, `audio-${axis}-impulse`, axis, unit)
+  return builder.finish(initialSlotsByTile)
+}
+
 export function createShiftgridStaticPlan(columns: number, rows: number, slotsByTile: readonly number[], seed = 0): ShiftgridChoreographyPlan {
   if (!isValidShiftgridPermutation(slotsByTile, columns * rows)) throw new Error('SHIFTGRID static plan requires a valid permutation')
   return Object.freeze({ pattern: 'magneticResolve', seed, columns, rows, initialSlotsByTile: Object.freeze([...slotsByTile]),
@@ -342,16 +362,4 @@ export function createShiftgridPatternCycle(seed: number): readonly CanvasShiftg
     const swap = Math.floor(seededUnit(seed, index) * (index + 1)); [cycle[index], cycle[swap]] = [cycle[swap]!, cycle[index]!]
   }
   return Object.freeze(cycle)
-}
-
-export function resolveShiftgridTriggerIdentity(frame: ShiftgridAudioFrame, trigger: CanvasShiftgridTrigger): string | null {
-  if (trigger === 'drop') return frame.drop ? `drop:${frame.sectionIdentity}:${Math.floor(frame.absoluteBeat)}` : null
-  if (trigger === 'section') return frame.sectionBoundary ? `section:${frame.sectionIdentity}` : null
-  if (trigger === 'phrase') return frame.barBoundary ? `phrase:${frame.phraseIndex}` : null
-  if (trigger === 'beat') return frame.beatBoundary ? `beat:${Math.floor(frame.absoluteBeat)}` : null
-  if (trigger === 'beat2') return frame.beatBoundary && Math.floor(frame.absoluteBeat) % 2 === 0 ? `beat2:${Math.floor(frame.absoluteBeat / 2)}` : null
-  if (trigger === 'beat4') return frame.beatBoundary && Math.floor(frame.absoluteBeat) % 4 === 0 ? `beat4:${Math.floor(frame.absoluteBeat / 4)}` : null
-  if (trigger === 'bar') return frame.barBoundary ? `bar:${Math.floor(frame.absoluteBar)}` : null
-  if (trigger === 'bar4') return frame.fourBarBoundary ? `bar4:${Math.floor(frame.absoluteBar / 4)}` : null
-  return frame.eightBarBoundary ? `bar8:${Math.floor(frame.absoluteBar / 8)}` : null
 }
