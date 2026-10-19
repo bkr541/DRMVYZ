@@ -62,7 +62,7 @@ describe('repairReactEnginePresetSelection', () => {
     })
   })
 
-  it('retires the standalone Shader compatibility identity to Cinema', () => {
+  it('retires the standalone Shader compatibility identity to Cinema 2.0', () => {
     const stalePreset = firstFor('cinematicPortal')
     expect(repairReactEnginePresetSelection(stalePreset.id, 'shaderPads')).toEqual({
       activeReactPresetId: null,

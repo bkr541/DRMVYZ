@@ -20,11 +20,14 @@ npm run verify:fast
 `verify:fast` runs:
 
 1. Repository hygiene
-2. ESLint
-3. TypeScript type-checking
-4. Node native tests
-5. The partitioned Vitest suite
-6. The production build
+2. The zero-import legacy Cinema boundary check
+3. Cinema 2.0 asset and decoder integrity checks
+4. Asset-tool tests
+5. ESLint
+6. TypeScript type-checking
+7. Node native tests
+8. The partitioned Vitest suite
+9. The production build
 
 ### Full verification
 
@@ -49,6 +52,10 @@ The equivalent explicit sequence is:
 ```bash
 npm ci
 npm run repo:hygiene
+npm run cinema:legacy-boundary:check
+npm run assets:check
+npm run cinema2:decoders:check
+npm run test:assets
 npm run lint
 npm run typecheck
 npm run test:native
@@ -60,6 +67,11 @@ npm run audit
 ```
 
 The scripts in `package.json` are the command authority. Update this document and CI in the same patch whenever the sequence changes.
+
+The Cinema boundary check must continue to report zero importers even while the
+data-only historical persistence decoder is retained. It rejects source imports
+of the deleted runtime; migration identifiers and archived fixture data are not
+runtime imports.
 
 ## Test partitioning and concurrency
 

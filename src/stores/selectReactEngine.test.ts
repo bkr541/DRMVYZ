@@ -2,8 +2,9 @@
  * Tests for the React store's engine/preset synchronisation invariant:
  *
  * Preset-backed engines keep engine/preset IDs synchronized. Sound Drawing,
- * CANVAS, and Cinema may intentionally run with no active preset. Legacy
- * Shader Pads/Cinematic Worlds selections retire through Cinema aliases.
+ * CANVAS, Cinema 2.0, and Headliner may intentionally run with no active
+ * preset. Retired Shader Pads/Cinematic Worlds/Cinema selections normalize to
+ * Cinema 2.0.
  *
  * Covers:
  *   1. buildPresetPatch pure-function correctness
@@ -92,7 +93,7 @@ describe('buildPresetPatch', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('selectReactEngine', () => {
-  it('routes the retired Cinematic Worlds engine identity to Cinema', () => {
+  it('routes the retired Cinematic Worlds engine identity to Cinema 2.0', () => {
     useReactStore.getState().selectReactEngine('cinematicPortal')
     const state = useReactStore.getState()
     expect(state.activeReactEngineId).toBe('cinema2')

@@ -27,6 +27,10 @@ React View owns one recorder instance and records the active engine's published 
 
 Each engine surface must publish the canvas that corresponds to the visible stage. Engine changes must update the target without leaving a stale canvas reference.
 
+Cinema 2.0 publishes the visible `Cinema2Stage` canvas. The removed legacy
+Cinema runtime has no recording or casting target and must never be used as a
+fallback canvas source.
+
 ### Video capture
 
 `useRecorder` uses `HTMLCanvasElement.captureStream()` and `MediaRecorder`.

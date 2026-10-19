@@ -56,7 +56,7 @@ describe('Cinema 2.0 native preset manifest contract', () => {
     })
     expect(CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST.scene?.nodes[1]).toMatchObject({
       kind: 'module',
-      module: { id: 'foundation-fullscreen' },
+      module: { $ref: 'foundation-fullscreen' },
     })
   })
 

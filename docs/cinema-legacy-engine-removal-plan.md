@@ -44,7 +44,7 @@ discarded merely because the built-in presets have been ported.
 | 4 | Migrate persisted state and cross-engine references | **Complete** | Phases 1-3 |
 | 5 | Cut over the application shell and runtime | **Complete** | Phase 4 |
 | 6 | Delete the legacy implementation and artifacts | **Complete** | Phase 5 |
-| 7 | Stabilize and retire temporary compatibility code | **Pending** | Phase 6 |
+| 7 | Stabilize and retire temporary compatibility code | **In progress** | Phase 6 |
 
 ## Current architectural boundary
 
@@ -579,7 +579,7 @@ historical release notes, and no legacy Cinema code is included in production.
 
 ## Phase 7: Stabilize and retire temporary compatibility code
 
-**Status:** Pending
+**Status:** In progress
 
 ### Desired result
 
@@ -603,18 +603,18 @@ compatibility window has elapsed.
 
 ### Checklist
 
-- [ ] Run the focused Cinema 2.0 preset matrix.
-- [ ] Verify audio-reactive playback and media assignments.
-- [ ] Verify pads, cues, track switching, and project round trips.
-- [ ] Verify output and recording.
+- [x] Run the focused Cinema 2.0 preset matrix.
+- [x] Verify audio-reactive playback and media assignments.
+- [x] Verify pads, cues, track switching, and project round trips.
+- [x] Verify output and recording.
 - [ ] Verify all unrelated engines.
 - [ ] Verify Media Manager and Show Manager workflows.
-- [ ] Update all applicable canonical documentation.
-- [ ] Record the compatibility support window and removal decision.
-- [ ] Remove or retain the isolated compatibility reader according to that decision.
+- [x] Update all applicable canonical documentation.
+- [x] Record the compatibility support window and removal decision.
+- [x] Remove or retain the isolated compatibility reader according to that decision.
 - [ ] Run the final proportional build and test suite.
-- [ ] Review the working tree and final diff.
-- [ ] Record validation evidence below.
+- [x] Review the working tree and final diff.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -625,7 +625,28 @@ production artifact.
 
 ### Evidence / notes
 
-_Pending._
+- Compatibility-reader decision: retain
+  `Cinema2LegacyPersistenceReader.ts` for at least two stable releases and no
+  earlier than 2027-01-16 (90 days after removal). Review removal only after
+  the most recent stable release has no unresolved migration reports and all
+  retained historical fixtures remain green. The reader remains data-only,
+  leaves the original storage intact, and archives the complete raw document.
+- The first-party catalog/authoring/compiler gate passes for every registered
+  Cinema 2.0 declaration. Audio Intelligence, media-slot lifecycle, migration,
+  archive/save-as recovery, engine selection, automation cues, manual track
+  sections, recording, output casting, and Media Manager focused coverage pass.
+- Stale tests that still expected `cinema` restore output or live Cinematic
+  performance actions now assert the shipped `cinema2` normalization and
+  current LaserDMX/CANVAS performance bus.
+- Focused lint passes. `npm run cinema:legacy-boundary:check` reports zero
+  importers, and `npx vite build` passes with 6,814 modules.
+- The combined stabilization matrix currently has 290 passing and 19 failing
+  assertions. The remaining failures are outside the Cinema removal diff: 12
+  stale `ShowManagerView` UI assertions, four linked-track Show Manager fixture
+  setup failures, two LaserDMX Show Manager cloud-save baseline failures, and
+  one LaserDMX RAF-count lifecycle assertion. Core Show Manager domain coverage
+  passes, but Phase 7 and the overall plan remain open until the unrelated
+  engine/Show Manager gate is green or its owning baseline is formally revised.
 
 ---
 
@@ -635,16 +656,16 @@ The overall status may be changed to **Complete** only when all of the following
 are true:
 
 - [ ] All seven phases are complete.
-- [ ] `cinema` is no longer a selectable or live engine.
-- [ ] `CinemaRuntime`, `CinemaStore`, and `useCinemaStore` are absent from
+- [x] `cinema` is no longer a selectable or live engine.
+- [x] `CinemaRuntime`, `CinemaStore`, and `useCinemaStore` are absent from
   production paths.
-- [ ] Cinema 2.0 has no legacy production or test imports.
-- [ ] Historical fixtures migrate to the correct Cinema 2.0 preset and look.
-- [ ] Performance pads, automation cues, and track destinations retain behavior.
-- [ ] Custom data is migrated or recoverably archived.
+- [x] Cinema 2.0 has no legacy production or test imports.
+- [x] Historical fixtures migrate to the correct Cinema 2.0 preset and look.
+- [x] Performance pads, automation cues, and track destinations retain behavior.
+- [x] Custom data is migrated or recoverably archived.
 - [ ] Output, recording, audio reaction, and unrelated engines remain functional.
-- [ ] No legacy Cinema runtime code is present in the production bundle.
-- [ ] Canonical documentation and verification instructions are current.
+- [x] No legacy Cinema runtime code is present in the production bundle.
+- [x] Canonical documentation and verification instructions are current.
 
 ## Decision log
 
@@ -655,6 +676,7 @@ removal boundary.
 | --- | --- | --- | --- | --- |
 | 2026-10-18 | Planning | Use a seven-phase migrate-before-delete plan. | Direct deletion would strand persisted state and break current Cinema 2.0 dependencies. | Codex analysis |
 | 2026-10-18 | 1 | Retire unselected sources into a recoverable archive instead of substituting unrelated visuals. | The owner has completed the ports they intend to carry forward; silent data loss remains prohibited. | Phase 1 implementation |
+| 2026-10-18 | 7 | Retain the isolated data-only compatibility reader for at least two stable releases and until 2027-01-16 at the earliest. | Direct upgrades and imported historical projects still require recoverable decoding; the reader has no runtime dependency. | Phase 7 implementation |
 
 ## Change log
 
@@ -662,3 +684,5 @@ removal boundary.
 | --- | --- |
 | 2026-10-18 | Created the initial seven-phase removal tracker; all phases are pending. |
 | 2026-10-18 | Completed Phase 1: froze the boundary, added the typed source manifest and validation, and documented the deletion and data policies. |
+| 2026-10-18 | Completed Phases 2-6: established Cinema 2.0 parity and persistence, decoupled production, migrated historical state, cut over the shell, and physically removed the legacy runtime and artifacts. |
+| 2026-10-18 | Began Phase 7 stabilization; Cinema-specific gates pass, while unrelated Show Manager/Laser lifecycle baseline failures keep the final gate open. |

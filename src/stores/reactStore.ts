@@ -2804,8 +2804,8 @@ export interface ReactStoreState {
   /**
    * Compatibility setter. Selecting a real preset applies it through the same
    * invariant-preserving path as selectReactPreset. Null is valid only for the
-   * standalone CANVAS or Cinema engine; preset-backed engines fall back to a compatible
-   * preset instead of entering an invalid state.
+   * preset-free live engines; preset-backed engines fall back to a compatible preset
+   * instead of entering an invalid state. Retired engine identities normalize to Cinema 2.0.
    */
   setActiveReactPresetId: (id: string | null) => void
   /**

@@ -51,9 +51,9 @@ describe('retired React presets', () => {
 
   it('repairs persisted selections to a live preset without reviving retired definitions', () => {
     expect(repairReactEnginePresetSelection('preset-dream-gate', 'cinematicPortal'))
-      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema' })
+      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema2' })
     expect(repairReactEnginePresetSelection('preset-placid-veil', 'cinematicPortal'))
-      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema' })
+      .toEqual({ activeReactPresetId: null, activeReactEngineId: 'cinema2' })
     expect(repairReactEnginePresetSelection('preset-white-fog-cathedral', 'laserDmx'))
       .toEqual({ activeReactPresetId: LASER_DMX_BEAM_MATRIX_REACT_PRESET_ID, activeReactEngineId: 'laserDmx' })
   })

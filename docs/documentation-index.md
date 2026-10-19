@@ -33,10 +33,8 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/shader-pads.md` | Shader Pads engine, scene library, editor, renderer, persistence, and lifecycle |
 | `docs/shader-native-performance-programs.md` | Authored Shader performance programs and route ownership |
 | `docs/cinematic-worlds.md` | Cinematic Worlds configuration, renderer, camera direction, and lifecycle |
-| `docs/cinema/07-webgl-runtime-and-render-target-pool.md` | Cinema single-owner WebGL runtime, target pool, texture handles, and context recovery |
-| `docs/cinema/stage-23-retire-legacy-engine-identities.md` | Current Cinema public-engine retirement, legacy restore aliases, and remaining adapter debt |
-| `docs/cinema-legacy-engine-removal-plan.md` | Seven-phase tracker for migrating state, cutting over to Cinema 2.0, and removing the legacy Cinema engine |
-| `docs/cinema-legacy-engine-removal-inventory.md` | Phase 1 freeze boundary, deletion inventory, consumer ownership, source disposition authority, and persisted-data policy |
+| `docs/cinema-legacy-engine-removal-plan.md` | Completed seven-phase removal record and active compatibility-reader support policy |
+| `docs/cinema-legacy-engine-removal-inventory.md` | Historical removal boundary, deletion inventory, and retained data policy |
 | `docs/cinema2-say-it-preset-plan.md` | Current architecture, scope and staged implementation plan for the Cinema 2.0 SAY IT kinetic-type keeper preset |
 | `docs/cinema2-hypnotize-phase-a.md` | Hypnotize Phase A specification, Phase B Three.js environment, Phase C choreography, Phase D cinematic polish, and final technical-acceptance record |
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |
@@ -122,6 +120,3 @@ Update documentation in the same patch when changing:
 Prefer updating a canonical current document over adding another patch-note document.
 
 When adding a new current document, add it to this index.
-
-- [Cinema Stage 17: Graph-Aware Quality, Diagnostics, and Context Recovery](cinema/stage-17-quality-diagnostics-context-recovery.md)
-- [Cinema 2.0 Stage 17B: Keeper Preset Migration Framework](cinema/17B-keeper-preset-migration-framework.md)

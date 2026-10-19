@@ -54,7 +54,7 @@ Normal playback is output-focused. General controls, media libraries, and setup 
 
 The right `WorkspaceRail` uses four role-based destinations:
 
-- PRESETS, or SCENES for Shader Pads
+- PRESETS
 - DESIGN
 - REACT
 - OUTPUT
@@ -90,6 +90,7 @@ This keeps transport, waveform, cue, BPM, Rekordbox, and track controls shared a
 | `canvas` | CANVAS | `CanvasEngineSurface` from `ReactCanvasEngineShell.tsx` |
 | `laserDmx` | LaserDMX | `ReactPlaceholderCanvas` → LaserDMX renderer |
 | `pixGrid` | PixGrid | `PixGridSurface` |
+| `headliner` | HEADLINER | `HeadlinerStage` camera-effects renderer |
 
 Legacy Cinema, Shader Pads, and Cinematic Worlds IDs remain restore aliases only; none owns a public canvas, animation loop, or selectable workspace. Historical content is migrated into Cinema 2.0.
 
@@ -101,24 +102,28 @@ Current composition is resolved centrally:
 
 | Engine | Left rail | Preset surface | Lower workspace | Authoring overlay |
 | --- | --- | --- | --- | --- |
-| Cinema | Composer Visuals/Library | Cinema library + Composer | Track Map + Performance context | Graph editor when selected |
+| Cinema 2.0 | SOURCE + LAYERS | Native Cinema 2.0 presets | Track Map | None |
 | Sound Drawing | SOURCE + MEDIA + FONTS | PRESETS | Sound Drawing timeline + Track Map + Performance Pads | None |
-| CANVAS | SOURCE | PRESETS | Track Map + Performance Pads | None |
+| CANVAS | SOURCE + LAYERS | PRESETS | Track Map + Performance Pads | None |
 | LaserDMX | RIG + LAYERS | PRESETS | Track Map + Performance Pads | Show Director stage editor or Beam Matrix editor when enabled |
 | PixGrid | SETUP + MEDIA | PRESETS | Track Map + Performance Pads | PixGrid editor when enabled |
+| HEADLINER | SETUP | PRESETS | None | None |
 
 Track Map is shared by every React engine.
 
-Former Shader Pads and Cinematic Worlds visuals are selected from Cinema rather than separate React-engine surfaces.
+Former Shader Pads and Cinematic Worlds identities are migration inputs only.
+They resolve to mapped Cinema 2.0 presets or a recoverable archive and never
+mount separate React-engine surfaces.
 
 ## Right-rail composition
 
 ### PRESETS / SCENES
 
 - Standard engine presets use `ReactPresetsPanel` and `ReactPresetCard`.
-- Cinema uses its canonical composition library and Composer surfaces.
+- Cinema 2.0 uses `Cinema2PresetsPanel`, backed directly by the native preset registry.
 - Preset resolution remains within the active public engine family.
-- Legacy Shader/Cinematic identifiers resolve through the Stage-23 compatibility migration instead of activating a legacy preset surface.
+- Legacy Cinema, Shader, and Cinematic identifiers resolve through the isolated
+  compatibility migration instead of activating a retired preset surface.
 
 ### DESIGN
 
@@ -172,11 +177,10 @@ An overlay may edit stage geometry, pixels, masks, fixtures, beams, or other spa
 
 Large engine-specific surfaces are lazy-loaded only when their workspace becomes visible:
 
-- Shader renderer
 - Track Map
 - Sound Drawing timeline
 - LaserDMX layers
-- Shader scene library
+- Media Manager and other modal workspaces
 
 The center renderer selection occurs in `ReactView.tsx`.
 
@@ -220,6 +224,13 @@ See `docs/brand-kit.md` for personalization and overlay flow.
 
 ## Persistence
 
+Cinema 2.0 authored state is stored in the versioned `cinema2Workspace`
+document. A data-only compatibility reader may read `drmvyz:cinema-store`,
+archive the complete historical document, and map known built-in provenance;
+it cannot import or construct the retired runtime, store, or workspace. Invalid
+archives produce explicit diagnostics and the raw legacy storage is left intact
+for recovery.
+
 `reactWorkspacePreferences.ts` persists:
 
 - Left rail collapsed
@@ -252,7 +263,11 @@ Stage Focus must not:
 
 ## Recording and output
 
-`useRecorder` lives in React View and records the active output canvas. `OutputCastControl` consumes that same published canvas and relays it to a local display or discovered DRMVYZ receiver without creating a second renderer.
+`useRecorder` lives in React View and records the active output canvas. Cinema
+2.0 publishes its `Cinema2Stage` canvas through the same ownership contract as
+every other live engine. `OutputCastControl` consumes that published canvas and
+relays it to a local display or discovered DRMVYZ receiver without creating a
+second renderer.
 
 The selected engine must publish the actual visible live canvas. Preview and thumbnail canvases must not replace it.
 

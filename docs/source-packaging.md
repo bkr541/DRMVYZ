@@ -7,8 +7,13 @@ From a clean Git checkout:
 
 ```bash
 npm run repo:hygiene
+npm run cinema:legacy-boundary:check
 npm run package:source
 ```
+
+The boundary check prevents a source archive from reintroducing an import of
+the removed legacy Cinema runtime. The small Cinema 2.0-owned compatibility
+decoder remains source code intentionally for the documented support window.
 
 The archive is written to `artifacts/drmvyz-source-<commit>.zip` and contains
 tracked source files only. The command refuses to package generated or

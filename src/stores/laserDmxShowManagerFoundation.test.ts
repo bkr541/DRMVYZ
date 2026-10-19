@@ -430,7 +430,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
   it('persists the complete activation candidate before mutating live engine state', async () => {
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('Atomic Activation')
     useReactStore.setState({
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'canvas',
       activeReactPresetId: null,
       laserDmxShowManagerActiveShowId: null,
     })
@@ -441,7 +441,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
     const persistSpy = vi.spyOn(reactPersistStorage, 'setItem').mockImplementation(async (name: string, envelope: PersistEnvelope) => {
       if (persistedStates.length === 0) {
         persistedStates.push(envelope.state as ReturnType<typeof reactStorePartialize>)
-        expect(useReactStore.getState().activeReactEngineId).toBe('cinema')
+        expect(useReactStore.getState().activeReactEngineId).toBe('canvas')
         expect(useReactStore.getState().laserDmxShowManagerActiveShowId).toBeNull()
       }
       await originalSetItem(name, envelope)
@@ -462,7 +462,7 @@ describe('LaserDMX Show Manager Part 1 store integration', () => {
   it('leaves live activation state untouched when Save + Make Active persistence fails', async () => {
     const showId = useReactStore.getState().createLaserDmxShowManagerShow('Failed Activation')
     useReactStore.setState({
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'canvas',
       activeReactPresetId: null,
       laserDmxShowManagerActiveShowId: null,
     })

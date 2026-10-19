@@ -463,10 +463,10 @@ describe('OutputCastControl', () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
 
-    expect(document.body.textContent).toContain('AirPlay / Wireless Displays')
+    expect(document.body.textContent).toContain('Wireless Displays')
     await act(async () => buttonWithText('Open macOS Displays').click())
 
-    expect(performProviderAction).toHaveBeenCalledWith('airplay', 'open-system-picker')
+    expect(performProviderAction).toHaveBeenCalledWith('airplay', 'open-system-picker', undefined)
     expect(startCast).not.toHaveBeenCalled()
   })
 
@@ -485,10 +485,10 @@ describe('OutputCastControl', () => {
     const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Cast visual output"]')
     await act(async () => trigger?.click())
 
-    expect(document.body.textContent).toContain('Windows Wireless Displays')
+    expect(document.body.textContent).toContain('Wireless Displays')
     await act(async () => buttonWithText('Open Windows Displays').click())
 
-    expect(performProviderAction).toHaveBeenCalledWith('miracast', 'open-system-picker')
+    expect(performProviderAction).toHaveBeenCalledWith('miracast', 'open-system-picker', undefined)
     expect(startCast).not.toHaveBeenCalled()
   })
 
