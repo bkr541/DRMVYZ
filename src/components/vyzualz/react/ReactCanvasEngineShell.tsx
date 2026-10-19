@@ -2496,6 +2496,7 @@ export function CanvasEngineSurface({
         activeMediaId={activeCanvasMediaId}
         activePool={activeMediaPool}
         mediaItems={mediaItems}
+        isPaused={isPaused}
         onCanvasReady={onCanvasReady}
         onLiveFps={onLiveFps}
       />

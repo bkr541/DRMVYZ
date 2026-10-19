@@ -96,23 +96,25 @@ Effects and transitions must:
 generic authored-layer renderer. One SHIFTGRID renderer owns the complete tile
 grid, so its source count is independent of the four-layer CANVAS compositor.
 
-Phase 1 implements single-image reconstruction on the durable P0 boundaries:
+Phase 2 implements deterministic advanced choreography on the durable P0/P1 boundaries:
 
 - `ShiftgridSettings.ts` owns the versioned persistent preferences and strict normalization.
 - `ShiftgridTileGeometry.ts` owns stable row/column tile identity, supported/automatic grid selection, and square or rectangular geometry.
 - `ShiftgridSourceMedia.ts` resolves the existing active CANVAS media and active Media Pool without adding a media library or pool pointer.
 - `ShiftgridGridState.ts` owns deterministic, validated permutations and transient animated movement state that is never persisted.
-- `ShiftgridChoreography.ts` and `ShiftgridAudioIntelligence.ts` define deterministic pattern and Shared Performance inputs without adding an audio clock.
+- `ShiftgridChoreography.ts` owns eight distinct permutation planners, staggered movement queues, timeline playback, seeking, pausing, interruption safety, and magnetic reconstruction. `ShiftgridAudioIntelligence.ts` remains the P4 integration boundary and does not drive P2 timing.
 - `ShiftgridEffects.ts` defines the renderer-neutral enhanced-effect plan.
 - `ShiftgridRenderPlan.ts` maps stable source coordinates to animated destination slots without changing source artwork.
 - `ShiftgridWebGLRenderer.ts` draws the entire grid as one batched WebGL2 call; `ShiftgridCanvas2DRenderer.ts` is the alpha-aware fallback.
 - `CanvasShiftgridLayer.tsx` owns original-image decoding, high-DPI resize, output publication, context-loss fallback, and cleanup.
 - `ShiftgridControls.tsx` routes independent settings through the existing DESIGN and REACT panels.
 
-P1 accepts one PNG, JPEG, WebP, or SVG selected through existing CANVAS media
-ownership. Show Original, Scramble, Slide / Swap, and Reconstruct are animated
-through a fully occupied tile permutation. Pool-wide multi-image choreography,
-advanced audio choreography, and enhanced visual effects remain later-phase work.
+P2 adds Row Runner, Column Cascade, Checker Shift, Domino Chain, Center Collapse,
+Edge Expansion, Wave Relay, and Magnetic Resolve. Each produces a distinct,
+validated movement topology. Continuous Puzzle, Phrase Resolve, Drop Resolve,
+Progressive Resolve, and Manual Resolve share the same deterministic timeline;
+phrase/drop boundary commands are ready for P4 Audio Intelligence routing.
+Pool-wide multi-image choreography remains out of scope.
 
 ## Persistence
 

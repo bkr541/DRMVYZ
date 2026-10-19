@@ -50,10 +50,9 @@ export function ShiftgridDesignControls() {
         <SelectRow label="Image Fit" value={settings.fitMode} onChange={value => set({ fitMode: value as CanvasShiftgridFitMode })} options={[...CANVAS_SHIFTGRID_FIT_MODE_OPTIONS]} description="Contain preserves the complete source; Cover crops without distortion." />
       </Collapsible>
       <Collapsible label="Reconstruction" defaultOpen>
-        <SelectRow label="Behavior" value={settings.reconstructionMode} onChange={value => set({ reconstructionMode: value as CanvasShiftgridReconstructionMode })} options={[...CANVAS_SHIFTGRID_RECONSTRUCTION_MODE_OPTIONS]} />
-        <SliderRow label="Strength" value={settings.reconstructionStrength} onChange={reconstructionStrength => set({ reconstructionStrength })} color="#61d6aa" />
-        <SliderRow label="Return Rate" value={settings.reconstructionRate} onChange={reconstructionRate => set({ reconstructionRate })} color="#4ac7db" />
-        <NumberInputRow label="Hold" value={settings.holdBeats} onChange={holdBeats => set({ holdBeats })} min={0} max={32} step={1} unit="beats" />
+        <SelectRow label="Strategy" value={settings.reconstructionMode} onChange={value => set({ reconstructionMode: value as CanvasShiftgridReconstructionMode })} options={[...CANVAS_SHIFTGRID_RECONSTRUCTION_MODE_OPTIONS]} description="Phrase and Drop boundaries are exposed now; Audio Intelligence will drive them in P4." />
+        <SliderRow label="Reconstruction Speed" value={settings.reconstructionSpeed} onChange={reconstructionSpeed => set({ reconstructionSpeed })} color="#4ac7db" />
+        <NumberInputRow label="Progressive Duration" value={settings.progressiveResolveDurationSec} onChange={progressiveResolveDurationSec => set({ progressiveResolveDurationSec })} min={1} max={60} step={1} unit="sec" disabled={settings.reconstructionMode !== 'progressiveResolve'} />
       </Collapsible>
       <Collapsible label="Visual Quality" defaultOpen={false}>
         <SelectRow label="Quality" value={settings.quality} onChange={value => set({ quality: value as CanvasShiftgridQuality })} options={[...CANVAS_SHIFTGRID_QUALITY_OPTIONS]} />
@@ -84,17 +83,18 @@ export function ShiftgridReactControls() {
         <IconChipButton onClick={() => dispatchShiftgridCommand('showOriginal')}>Show Original</IconChipButton>
         <IconChipButton onClick={() => dispatchShiftgridCommand('scramble')}>Scramble</IconChipButton>
         <IconChipButton onClick={() => dispatchShiftgridCommand('slideSwap')}>Slide / Swap</IconChipButton>
-        <IconChipButton tone="primary" onClick={() => dispatchShiftgridCommand('reconstruct')}>Reconstruct</IconChipButton>
+        <IconChipButton tone="primary" onClick={() => dispatchShiftgridCommand('reconstruct')}>Reconstruct Now</IconChipButton>
       </div>
       <ToggleRow label="Auto Performance" value={settings.autoPerformance} onChange={autoPerformance => set({ autoPerformance })} />
-      <ToggleRow label="BPM Sync" value={settings.bpmSync} onChange={bpmSync => set({ bpmSync })} />
+      <ToggleRow label="BPM Sync" value={settings.bpmSync} onChange={bpmSync => set({ bpmSync })} disabled description="Audio Intelligence timing arrives in P4; P2 playback is deterministic on its own timeline." />
       <SelectRow label="Pattern" value={settings.choreographyPattern} onChange={value => set({ choreographyPattern: value as CanvasShiftgridPattern })} options={[...CANVAS_SHIFTGRID_PATTERN_OPTIONS]} />
       <ToggleRow label="Pattern Change" value={settings.patternChange} onChange={patternChange => set({ patternChange })} />
       <SelectRow label="Trigger" value={settings.trigger} onChange={value => set({ trigger: value as CanvasShiftgridTrigger })} options={[...CANVAS_SHIFTGRID_TRIGGER_OPTIONS]} disabled={!settings.patternChange} />
-      <SliderRow label="Movement" value={settings.movementAmount} onChange={movementAmount => set({ movementAmount })} color="#61d6aa" />
-      <SliderRow label="Speed" value={settings.movementSpeed} onChange={movementSpeed => set({ movementSpeed })} min={0} max={2} step={0.01} color="#4ac7db" />
-      <SliderRow label="Travel Distance" value={settings.travelDistance} onChange={travelDistance => set({ travelDistance })} min={0} max={2} step={0.01} color="#d8b95a" />
-      <SliderRow label="Stagger" value={settings.stagger} onChange={stagger => set({ stagger })} color="#ff4fd8" />
+      <SliderRow label="Motion Intensity" value={settings.movementAmount} onChange={movementAmount => set({ movementAmount })} color="#61d6aa" />
+      <SliderRow label="Slide Speed" value={settings.movementSpeed} onChange={movementSpeed => set({ movementSpeed })} min={0} max={2} step={0.01} color="#4ac7db" />
+      <SliderRow label="Movement Stagger" value={settings.stagger} onChange={stagger => set({ stagger })} color="#ff4fd8" />
+      <SliderRow label="Snap Strength" value={settings.snapStrength} onChange={snapStrength => set({ snapStrength })} color="#d8b95a" />
+      <SliderRow label="Scramble Complexity" value={settings.scrambleComplexity} onChange={scrambleComplexity => set({ scrambleComplexity })} color="#8de7ff" />
       <SelectRow label="Easing" value={settings.easing} onChange={value => set({ easing: value as CanvasShiftgridEasing })} options={[...CANVAS_SHIFTGRID_EASING_OPTIONS]} />
     </Collapsible>
   )

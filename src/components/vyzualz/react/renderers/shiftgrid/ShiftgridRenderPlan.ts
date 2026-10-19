@@ -1,4 +1,4 @@
-import type { ShiftgridGridRuntime } from './ShiftgridGridState'
+import type { ShiftgridRuntimeGridState } from './ShiftgridGridState'
 import type { CanvasShiftgridEasing, CanvasShiftgridFitMode } from './ShiftgridSettings'
 import type { ShiftgridGridGeometry } from './ShiftgridTileGeometry'
 
@@ -12,11 +12,19 @@ export interface ShiftgridRenderPlan {
   assembled: boolean; tiles: readonly ShiftgridRenderTile[]
 }
 
-export function applyShiftgridEasing(progress: number, easing: CanvasShiftgridEasing): number {
+export interface ShiftgridTilePositionRuntime {
+  readonly state: ShiftgridRuntimeGridState
+  readonly moving: boolean
+  getTileSlot(tileIndex: number): { from: number; to: number; progress: number }
+}
+
+export function applyShiftgridEasing(progress: number, easing: CanvasShiftgridEasing, snapStrength = 0): number {
   const value = Math.min(1, Math.max(0, progress))
-  if (easing === 'linear') return value
-  if (easing === 'spring') return 1 - Math.cos(value * Math.PI * 4.5) * Math.exp(-value * 7)
-  return 1 - (1 - value) ** 3
+  const base = easing === 'linear' ? value
+    : easing === 'spring' ? 1 - Math.cos(value * Math.PI * 4.5) * Math.exp(-value * 7)
+      : 1 - (1 - value) ** 3
+  const snap = value < 0.78 ? value * 0.62 : 0.4836 + ((value - 0.78) / 0.22) * 0.5164
+  return base + (snap - base) * Math.min(1, Math.max(0, snapStrength))
 }
 
 export function resolveShiftgridSourceDrawRect(width: number, height: number, sourceWidth: number, sourceHeight: number, fitMode: CanvasShiftgridFitMode): ShiftgridRect {
@@ -27,10 +35,10 @@ export function resolveShiftgridSourceDrawRect(width: number, height: number, so
   return { x: (width - drawWidth) / 2, y: (height - drawHeight) / 2, width: drawWidth, height: drawHeight }
 }
 
-export function createShiftgridRenderPlan({ geometry, runtime, width, height, sourceWidth, sourceHeight, fitMode, easing }: {
-  geometry: ShiftgridGridGeometry; runtime: ShiftgridGridRuntime
+export function createShiftgridRenderPlan({ geometry, runtime, width, height, sourceWidth, sourceHeight, fitMode, easing, snapStrength = 0 }: {
+  geometry: ShiftgridGridGeometry; runtime: ShiftgridTilePositionRuntime
   width: number; height: number; sourceWidth: number; sourceHeight: number
-  fitMode: CanvasShiftgridFitMode; easing: CanvasShiftgridEasing
+  fitMode: CanvasShiftgridFitMode; easing: CanvasShiftgridEasing; snapStrength?: number
 }): ShiftgridRenderPlan {
   const first = geometry.tiles[0]
   const last = geometry.tiles[geometry.tiles.length - 1]
@@ -41,7 +49,7 @@ export function createShiftgridRenderPlan({ geometry, runtime, width, height, so
   const sourceDraw = { ...localSourceDraw, x: localSourceDraw.x + bounds.x, y: localSourceDraw.y + bounds.y }
   const tiles = runtime.state.tiles.map((identity, tileIndex) => {
     const sourceSlot = geometry.tiles[identity.originalSlot]!
-    const position = runtime.getTileSlot(tileIndex); const progress = applyShiftgridEasing(position.progress, easing)
+    const position = runtime.getTileSlot(tileIndex); const progress = applyShiftgridEasing(position.progress, easing, snapStrength)
     const from = geometry.tiles[position.from]!; const to = geometry.tiles[position.to]!
     return Object.freeze({
       tileId: identity.id,
@@ -59,7 +67,7 @@ export function createShiftgridRenderPlan({ geometry, runtime, width, height, so
       }),
     })
   })
-  const assembled = runtime.state.pendingMovement === null
+  const assembled = !runtime.moving
     && runtime.state.currentSlotsByTile.every((slot, tile) => slot === tile)
   return Object.freeze({ width, height, sourceWidth, sourceHeight, fitMode,
     compositionBounds: Object.freeze(bounds), sourceDraw: Object.freeze(sourceDraw), assembled,

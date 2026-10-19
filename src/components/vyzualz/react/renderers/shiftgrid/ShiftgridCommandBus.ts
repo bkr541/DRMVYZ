@@ -1,4 +1,4 @@
-export type ShiftgridCommand = 'showOriginal' | 'scramble' | 'slideSwap' | 'reconstruct'
+export type ShiftgridCommand = 'showOriginal' | 'scramble' | 'slideSwap' | 'reconstruct' | 'phraseBoundary' | 'dropBoundary'
 type Listener = (command: ShiftgridCommand) => void
 const listeners = new Set<Listener>()
 
