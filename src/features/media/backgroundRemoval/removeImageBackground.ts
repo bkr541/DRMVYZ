@@ -1,4 +1,5 @@
 import type { InferenceSession } from 'onnxruntime-web'
+import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.wasm?url'
 import { loadImageElement, MAX_IMAGE_EXPORT_EDGE, MediaEditAbortError } from '../edit/mediaEditImageExport'
 
 const MODEL_SIZE = 320
@@ -7,6 +8,13 @@ const CHANNEL_MEAN = [0.485, 0.456, 0.406] as const
 const CHANNEL_STD = [0.229, 0.224, 0.225] as const
 
 let sessionPromise: Promise<InferenceSession> | null = null
+
+/** Resolves Vite's emitted ONNX runtime binary for both HTTP dev and Electron's app protocol. */
+export function resolveBackgroundRemovalWasmUrl(baseUrl?: string): string {
+  if (/^[a-z][a-z\d+.-]*:/i.test(ortWasmUrl)) return ortWasmUrl
+  const runtimeBaseUrl = baseUrl ?? globalThis.location?.href
+  return runtimeBaseUrl ? new URL(ortWasmUrl, runtimeBaseUrl).href : ortWasmUrl
+}
 
 export interface RemovedImageBackground {
   blob: Blob
@@ -37,6 +45,9 @@ async function getSession(): Promise<InferenceSession> {
   if (!sessionPromise) {
     sessionPromise = import('onnxruntime-web/wasm').then(async ort => {
       // Keep the CPU-heavy inference work out of the renderer's UI thread.
+      // Without an explicit URL, the proxied worker infers a nonexistent path
+      // from Vite's optimized dependency and receives the SPA HTML fallback.
+      ort.env.wasm.wasmPaths = { wasm: resolveBackgroundRemovalWasmUrl() }
       ort.env.wasm.proxy = true
       return ort.InferenceSession.create(MODEL_URL, {
         executionProviders: ['wasm'],
