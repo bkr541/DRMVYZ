@@ -9,7 +9,9 @@
 export type CanvasShiftgridSourceMode = 'auto' | 'single' | 'pool'
 export type CanvasShiftgridMosaicType = 'reconstruction' | 'patchwork' | 'strips'
 export type CanvasShiftgridGridMode = 'auto' | 'fixed'
-export type CanvasShiftgridTileShape = 'square' | 'rectangular' | 'mixed'
+export type CanvasShiftgridTileShape = 'square' | 'rectangular'
+export type CanvasShiftgridGridPreset = 'auto' | 'custom' | '3x3' | '4x4' | '5x5' | '6x6' | '8x8' | '10x6' | '16x9'
+export type CanvasShiftgridFitMode = 'contain' | 'cover'
 export type CanvasShiftgridPattern = 'rowSlide' | 'columnSlide' | 'cascade' | 'spiral' | 'randomWalk' | 'reconstruct'
 export type CanvasShiftgridTrigger = 'beat' | 'beat2' | 'beat4' | 'bar' | 'bar4' | 'bar8' | 'phrase' | 'section' | 'drop'
 export type CanvasShiftgridEasing = 'linear' | 'easeOut' | 'spring'
@@ -17,7 +19,7 @@ export type CanvasShiftgridReconstructionMode = 'continuous' | 'onTrigger' | 'ho
 export type CanvasShiftgridPoolSelectionMode = 'sequential' | 'shuffle' | 'random'
 export type CanvasShiftgridQuality = 'auto' | 'low' | 'balanced' | 'high'
 
-export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 1 as const
+export const CANVAS_SHIFTGRID_SETTINGS_VERSION = 2 as const
 
 export interface CanvasShiftgridSettings {
   version: typeof CANVAS_SHIFTGRID_SETTINGS_VERSION
@@ -26,7 +28,9 @@ export interface CanvasShiftgridSettings {
   gridMode: CanvasShiftgridGridMode
   gridColumns: number
   gridRows: number
+  gridPreset: CanvasShiftgridGridPreset
   tileShape: CanvasShiftgridTileShape
+  fitMode: CanvasShiftgridFitMode
   choreographyPattern: CanvasShiftgridPattern
   patternChange: boolean
   trigger: CanvasShiftgridTrigger
@@ -58,12 +62,14 @@ export interface CanvasShiftgridSettings {
 
 export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
-  sourceMode: 'auto',
+  sourceMode: 'single',
   mosaicType: 'reconstruction',
-  gridMode: 'fixed',
-  gridColumns: 12,
-  gridRows: 8,
-  tileShape: 'rectangular',
+  gridMode: 'auto',
+  gridColumns: 6,
+  gridRows: 6,
+  gridPreset: 'auto',
+  tileShape: 'square',
+  fitMode: 'contain',
   choreographyPattern: 'rowSlide',
   patternChange: true,
   trigger: 'bar4',
@@ -81,12 +87,12 @@ export const DEFAULT_CANVAS_SHIFTGRID_SETTINGS: CanvasShiftgridSettings = {
   poolSelectionMode: 'shuffle',
   avoidImmediateRepeat: true,
   poolSourceLimit: 24,
-  enhancedEffects: true,
-  depthAmount: 0.25,
-  edgeGlow: 0.2,
-  chromaticSplit: 0.08,
-  motionBlur: 0.18,
-  edgeFeather: 0.04,
+  enhancedEffects: false,
+  depthAmount: 0,
+  edgeGlow: 0,
+  chromaticSplit: 0,
+  motionBlur: 0,
+  edgeFeather: 0,
   quality: 'auto',
   renderScale: 1,
   tileBudget: 256,
@@ -110,10 +116,26 @@ export const CANVAS_SHIFTGRID_GRID_MODE_OPTIONS = [
   { value: 'fixed', label: 'Fixed' },
 ] as const
 
+export const CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS = [
+  { value: 'auto', label: 'Automatic' },
+  { value: '3x3', label: '3 × 3' },
+  { value: '4x4', label: '4 × 4' },
+  { value: '5x5', label: '5 × 5' },
+  { value: '6x6', label: '6 × 6' },
+  { value: '8x8', label: '8 × 8' },
+  { value: '10x6', label: '10 × 6' },
+  { value: '16x9', label: '16 × 9' },
+  { value: 'custom', label: 'Custom' },
+] as const
+
+export const CANVAS_SHIFTGRID_FIT_MODE_OPTIONS = [
+  { value: 'contain', label: 'Contain' },
+  { value: 'cover', label: 'Cover' },
+] as const
+
 export const CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS = [
   { value: 'square', label: 'Square' },
   { value: 'rectangular', label: 'Rectangular' },
-  { value: 'mixed', label: 'Mixed' },
 ] as const
 
 export const CANVAS_SHIFTGRID_PATTERN_OPTIONS = [
@@ -188,18 +210,25 @@ function pick<T extends string>(value: unknown, options: ReadonlyArray<{ value: 
   return options.some(option => option.value === value) ? value as T : fallback
 }
 
-/** Safe for absent P0 settings and forward-compatible imported documents. */
+/** Safe for absent P0 settings, P0-to-P1 migration, and forward-compatible imports. */
 export function normalizeCanvasShiftgridSettings(value: unknown): CanvasShiftgridSettings {
   const source = record(value)
   const defaults = DEFAULT_CANVAS_SHIFTGRID_SETTINGS
+  const sourceVersion = integer(source.version, 1, 1, CANVAS_SHIFTGRID_SETTINGS_VERSION)
+  const legacyGridMode = pick(source.gridMode, CANVAS_SHIFTGRID_GRID_MODE_OPTIONS, defaults.gridMode)
+  const gridPreset = sourceVersion >= 2
+    ? pick(source.gridPreset, CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS, defaults.gridPreset)
+    : legacyGridMode === 'auto' ? 'auto' : 'custom'
   return {
     version: CANVAS_SHIFTGRID_SETTINGS_VERSION,
     sourceMode: pick(source.sourceMode, CANVAS_SHIFTGRID_SOURCE_MODE_OPTIONS, defaults.sourceMode),
     mosaicType: pick(source.mosaicType, CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS, defaults.mosaicType),
-    gridMode: pick(source.gridMode, CANVAS_SHIFTGRID_GRID_MODE_OPTIONS, defaults.gridMode),
+    gridMode: gridPreset === 'auto' ? 'auto' : 'fixed',
     gridColumns: integer(source.gridColumns, defaults.gridColumns, 2, 32),
     gridRows: integer(source.gridRows, defaults.gridRows, 2, 24),
+    gridPreset,
     tileShape: pick(source.tileShape, CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS, defaults.tileShape),
+    fitMode: pick(source.fitMode, CANVAS_SHIFTGRID_FIT_MODE_OPTIONS, defaults.fitMode),
     choreographyPattern: pick(source.choreographyPattern, CANVAS_SHIFTGRID_PATTERN_OPTIONS, defaults.choreographyPattern),
     patternChange: boolean(source.patternChange, defaults.patternChange),
     trigger: pick(source.trigger, CANVAS_SHIFTGRID_TRIGGER_OPTIONS, defaults.trigger),

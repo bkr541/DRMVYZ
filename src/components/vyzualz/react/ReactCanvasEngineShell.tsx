@@ -1929,14 +1929,14 @@ export function CanvasEngineSurface({
 
   useEffect(() => {
     // CUTBANK publishes its own capture canvas from CanvasCutbankLayer.
-    if (orchestrationRenderable || !outputAvailable || cutbankActive) return
+    if (orchestrationRenderable || !outputAvailable || cutbankActive || shiftgridActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable])
+  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable, shiftgridActive])
 
   useEffect(() => {
-    if (orchestrationRenderable || fragmentCollageActive || cutbankActive) return
+    if (orchestrationRenderable || fragmentCollageActive || cutbankActive || shiftgridActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -2138,7 +2138,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive])
+  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2496,6 +2496,8 @@ export function CanvasEngineSurface({
         activeMediaId={activeCanvasMediaId}
         activePool={activeMediaPool}
         mediaItems={mediaItems}
+        onCanvasReady={onCanvasReady}
+        onLiveFps={onLiveFps}
       />
     )
   }

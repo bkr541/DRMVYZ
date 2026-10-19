@@ -9,6 +9,14 @@ export interface ShiftgridSourceSet {
   identity: string
 }
 
+export function isShiftgridP1ImageSource(item: CanvasMediaItem): boolean {
+  if (item.type === 'svg') return true
+  if (item.type !== 'image') return false
+  const mime = item.mimeType?.toLowerCase() ?? ''
+  if (mime) return mime === 'image/png' || mime === 'image/jpeg' || mime === 'image/jpg' || mime === 'image/webp' || mime === 'image/svg+xml'
+  return /\.(png|jpe?g|webp|svg)(?:$|[?#])/i.test(item.objectUrl) || item.objectUrl.startsWith('blob:') || item.objectUrl.startsWith('data:image/')
+}
+
 function seededUnit(seed: number, index: number): number {
   let value = (seed ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0
   value = Math.imul(value ^ (value >>> 16), 0x21f0aaad)

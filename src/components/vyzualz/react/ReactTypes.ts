@@ -322,7 +322,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 8 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 9 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -407,7 +407,7 @@ export interface CanvasPresetSettings {
   fractureStructuralResponse: number
   /** CUTBANK's dedicated settings block (schema v7). Consumed only by the CUTBANK renderer. */
   cutbank: CanvasCutbankSettings
-  /** SHIFTGRID's dedicated durable preferences (schema v8). Runtime grid state is never persisted here. */
+  /** SHIFTGRID's dedicated durable preferences (schema v9). Runtime grid state is never persisted here. */
   shiftgrid: CanvasShiftgridSettings
   /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
   motionTrailAmount: number

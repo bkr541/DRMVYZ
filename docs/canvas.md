@@ -96,21 +96,23 @@ Effects and transitions must:
 generic authored-layer renderer. One SHIFTGRID renderer owns the complete tile
 grid, so its source count is independent of the four-layer CANVAS compositor.
 
-Phase 0 establishes the durable and runtime boundaries:
+Phase 1 implements single-image reconstruction on the durable P0 boundaries:
 
 - `ShiftgridSettings.ts` owns the versioned persistent preferences and strict normalization.
-- `ShiftgridTileGeometry.ts` owns stable row/column tile identity and square, rectangular, or mixed geometry.
+- `ShiftgridTileGeometry.ts` owns stable row/column tile identity, supported/automatic grid selection, and square or rectangular geometry.
 - `ShiftgridSourceMedia.ts` resolves the existing active CANVAS media and active Media Pool without adding a media library or pool pointer.
-- `ShiftgridGridState.ts` defines transient reconstruction state that is never persisted.
+- `ShiftgridGridState.ts` owns deterministic, validated permutations and transient animated movement state that is never persisted.
 - `ShiftgridChoreography.ts` and `ShiftgridAudioIntelligence.ts` define deterministic pattern and Shared Performance inputs without adding an audio clock.
 - `ShiftgridEffects.ts` defines the renderer-neutral enhanced-effect plan.
-- `CanvasShiftgridLayer.tsx` owns the React renderer lifecycle boundary.
+- `ShiftgridRenderPlan.ts` maps stable source coordinates to animated destination slots without changing source artwork.
+- `ShiftgridWebGLRenderer.ts` draws the entire grid as one batched WebGL2 call; `ShiftgridCanvas2DRenderer.ts` is the alpha-aware fallback.
+- `CanvasShiftgridLayer.tsx` owns original-image decoding, high-DPI resize, output publication, context-loss fallback, and cleanup.
 - `ShiftgridControls.tsx` routes independent settings through the existing DESIGN and REACT panels.
 
-The Phase 0 renderer intentionally publishes no output canvas and displays a
-clear development notice instead of fallback artwork. Tile drawing, decoded
-source management, animation, context recovery, adaptive rendering, and output
-publication remain Phase 1 work.
+P1 accepts one PNG, JPEG, WebP, or SVG selected through existing CANVAS media
+ownership. Show Original, Scramble, Slide / Swap, and Reconstruct are animated
+through a fully occupied tile permutation. Pool-wide multi-image choreography,
+advanced audio choreography, and enhanced visual effects remain later-phase work.
 
 ## Persistence
 

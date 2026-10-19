@@ -18,7 +18,6 @@ import { getRequestedPixGridWorkspace, subscribePixGridWorkspace } from '../pixG
 import { DrawerNotice } from '../../shared/DrawerNotice'
 import {
   isCanvasFracturesOutputDeferred,
-  isCanvasShiftgridOutputDeferred,
   type CanvasOutputCapability,
 } from '../canvasFracturesOutputContract'
 
@@ -158,7 +157,6 @@ export function ReactOutputWorkspacePanel({
   const isLaserDmx = activeReactEngineId === 'laserDmx'
   const isCinema2 = activeReactEngineId === 'cinema2'
   const fracturesOutputDeferred = isCanvasFracturesOutputDeferred(outputCapability)
-  const shiftgridOutputDeferred = isCanvasShiftgridOutputDeferred(outputCapability)
   const [surface, setSurface] = useState<OutputSurface>('recording')
 
   useEffect(() => {
@@ -186,11 +184,6 @@ export function ReactOutputWorkspacePanel({
           )}
           {surface === 'production' && isLaserDmx ? (
             <div className="rv-ctrl-group"><ProductionOutputPanel /></div>
-          ) : shiftgridOutputDeferred ? (
-            <DrawerNotice tone="info" title="SHIFTGRID recording arrives in Phase 1" ariaLabel="SHIFTGRID recording unavailable">
-              <p>Phase 0 establishes the renderer, media, settings, and lifecycle contracts without publishing placeholder artwork as output.</p>
-              <IconChipButton disabled>Recording unavailable</IconChipButton>
-            </DrawerNotice>
           ) : fracturesOutputDeferred ? (
             <DrawerNotice tone="info" title="Fractures recording is unavailable" ariaLabel="Fractures recording unavailable">
               <p>The effective Fractures renderer is active for preview and performance, but capture is intentionally disabled in the current MVP.</p>

@@ -1,8 +1,11 @@
 import { useReactStore } from '../../../../../stores/reactStore'
 import { Collapsible, NumberInputRow, SelectRow, SliderRow, ToggleRow } from '../../ReactControlRows'
+import { IconChipButton } from '../../controls/IconChipButton'
+import { dispatchShiftgridCommand } from './ShiftgridCommandBus'
 import {
   CANVAS_SHIFTGRID_EASING_OPTIONS,
-  CANVAS_SHIFTGRID_GRID_MODE_OPTIONS,
+  CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS,
+  CANVAS_SHIFTGRID_FIT_MODE_OPTIONS,
   CANVAS_SHIFTGRID_MOSAIC_TYPE_OPTIONS,
   CANVAS_SHIFTGRID_PATTERN_OPTIONS,
   CANVAS_SHIFTGRID_POOL_SELECTION_MODE_OPTIONS,
@@ -12,7 +15,8 @@ import {
   CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS,
   CANVAS_SHIFTGRID_TRIGGER_OPTIONS,
   type CanvasShiftgridEasing,
-  type CanvasShiftgridGridMode,
+  type CanvasShiftgridGridPreset,
+  type CanvasShiftgridFitMode,
   type CanvasShiftgridMosaicType,
   type CanvasShiftgridPattern,
   type CanvasShiftgridPoolSelectionMode,
@@ -39,10 +43,11 @@ export function ShiftgridDesignControls() {
         <NumberInputRow label="Pool Source Limit" value={settings.poolSourceLimit} onChange={poolSourceLimit => set({ poolSourceLimit })} min={1} max={64} step={1} disabled={settings.sourceMode === 'single'} description="Independent of CANVAS's four authored-layer compositor limit." />
       </Collapsible>
       <Collapsible label="Grid" defaultOpen>
-        <SelectRow label="Grid Mode" value={settings.gridMode} onChange={value => set({ gridMode: value as CanvasShiftgridGridMode })} options={[...CANVAS_SHIFTGRID_GRID_MODE_OPTIONS]} />
-        <NumberInputRow label="Columns" value={settings.gridColumns} onChange={gridColumns => set({ gridColumns })} min={2} max={32} step={1} disabled={settings.gridMode === 'auto'} />
-        <NumberInputRow label="Rows" value={settings.gridRows} onChange={gridRows => set({ gridRows })} min={2} max={24} step={1} disabled={settings.gridMode === 'auto'} />
+        <SelectRow label="Layout" value={settings.gridPreset} onChange={value => set({ gridPreset: value as CanvasShiftgridGridPreset, gridMode: value === 'auto' ? 'auto' : 'fixed' })} options={[...CANVAS_SHIFTGRID_GRID_PRESET_OPTIONS]} />
+        <NumberInputRow label="Columns" value={settings.gridColumns} onChange={gridColumns => set({ gridColumns })} min={2} max={32} step={1} disabled={settings.gridPreset !== 'custom'} />
+        <NumberInputRow label="Rows" value={settings.gridRows} onChange={gridRows => set({ gridRows })} min={2} max={24} step={1} disabled={settings.gridPreset !== 'custom'} />
         <SelectRow label="Tile Shape" value={settings.tileShape} onChange={value => set({ tileShape: value as CanvasShiftgridTileShape })} options={[...CANVAS_SHIFTGRID_TILE_SHAPE_OPTIONS]} />
+        <SelectRow label="Image Fit" value={settings.fitMode} onChange={value => set({ fitMode: value as CanvasShiftgridFitMode })} options={[...CANVAS_SHIFTGRID_FIT_MODE_OPTIONS]} description="Contain preserves the complete source; Cover crops without distortion." />
       </Collapsible>
       <Collapsible label="Reconstruction" defaultOpen>
         <SelectRow label="Behavior" value={settings.reconstructionMode} onChange={value => set({ reconstructionMode: value as CanvasShiftgridReconstructionMode })} options={[...CANVAS_SHIFTGRID_RECONSTRUCTION_MODE_OPTIONS]} />
@@ -75,6 +80,12 @@ export function ShiftgridReactControls() {
   const set = (patch: Partial<typeof settings>) => setPresetSettings({ shiftgrid: { ...settings, ...patch } })
   return (
     <Collapsible label="SHIFTGRID Choreography" defaultOpen>
+      <div className="rv-ctrl-action-row" aria-label="SHIFTGRID prototype actions">
+        <IconChipButton onClick={() => dispatchShiftgridCommand('showOriginal')}>Show Original</IconChipButton>
+        <IconChipButton onClick={() => dispatchShiftgridCommand('scramble')}>Scramble</IconChipButton>
+        <IconChipButton onClick={() => dispatchShiftgridCommand('slideSwap')}>Slide / Swap</IconChipButton>
+        <IconChipButton tone="primary" onClick={() => dispatchShiftgridCommand('reconstruct')}>Reconstruct</IconChipButton>
+      </div>
       <ToggleRow label="Auto Performance" value={settings.autoPerformance} onChange={autoPerformance => set({ autoPerformance })} />
       <ToggleRow label="BPM Sync" value={settings.bpmSync} onChange={bpmSync => set({ bpmSync })} />
       <SelectRow label="Pattern" value={settings.choreographyPattern} onChange={value => set({ choreographyPattern: value as CanvasShiftgridPattern })} options={[...CANVAS_SHIFTGRID_PATTERN_OPTIONS]} />
