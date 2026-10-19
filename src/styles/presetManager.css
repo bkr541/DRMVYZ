@@ -44,7 +44,7 @@
 
 .pmv-content {
   --vz-left-width: 400px;
-  --vz-right-width: 0px;
+  --vz-right-width: 400px;
 }
 
 .pmv-content > .vz-inspector > .vz-inspector-inner {
@@ -78,6 +78,67 @@
   background: #070c14;
 }
 
+.pmv-stage > .rv-cinema2-stage {
+  width: 100%;
+  height: 100%;
+}
+
+.pmv-selection-summary {
+  width: min(520px, calc(100% - 48px));
+  margin: auto;
+  display: grid;
+  grid-template-columns: minmax(120px, 190px) minmax(0, 1fr);
+  gap: 22px;
+  align-items: center;
+  padding: 22px;
+  border: 1px solid rgba(74, 199, 219, 0.16);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(12, 30, 39, 0.84), rgba(5, 10, 16, 0.94));
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+.pmv-selection-art {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid rgba(57, 232, 244, 0.38);
+  border-radius: 8px;
+}
+
+.pmv-selection-summary span:not(.pmv-selection-art) {
+  color: rgba(57, 232, 244, 0.76);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pmv-selection-summary h2 {
+  margin: 7px 0 10px;
+  color: rgba(243, 247, 249, 0.96);
+  font-size: clamp(18px, 2vw, 28px);
+}
+
+.pmv-selection-summary p {
+  margin: 0;
+  color: rgba(184, 205, 214, 0.72);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.pmv-inspector-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pmv-inspector-body > .rv-engine-panel-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .pmv-card {
   position: relative;
   min-height: 96px;
@@ -100,8 +161,16 @@
 .pmv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
 .pmv-empty { padding: 32px 14px; color: rgba(144, 170, 180, 0.58); text-align: center; font-size: 9px; }
 
-@media (max-width: 760px) {
-  .pmv-content { --vz-left-width: 100%; }
+@media (max-width: 1180px) {
+  .pmv-content { --vz-left-width: 320px; --vz-right-width: 340px; }
+}
+
+@media (max-width: 900px) {
+  .pmv-content { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .pmv-stage { display: none; }
+}
+
+@media (max-width: 760px) {
   .pmv-category { width: 118px; flex-basis: 118px; }
+  .pmv-selection-summary { grid-template-columns: 1fr; }
 }

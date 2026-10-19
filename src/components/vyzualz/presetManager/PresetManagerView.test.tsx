@@ -6,6 +6,9 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PresetManagerView } from './PresetManagerView'
 import { PRESET_MANAGER_PRESETS } from './presetManagerCatalog'
+import { useReactStore } from '../../../stores/reactStore'
+import { cinema2NativePresetRegistry } from '../cinema2'
+import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -25,6 +28,21 @@ afterEach(() => {
 })
 
 describe('Preset Manager view', () => {
+  it('excludes retired Cinema presets while retaining public Cinema 2.0 presets', () => {
+    const legacyCinemaPresetIds = new Set(DEFAULT_REACT_PRESETS
+      .filter(preset => preset.engine === 'cinema' || preset.engine === 'cinematicPortal')
+      .map(preset => preset.id))
+    const publicCinema2PresetIds = cinema2NativePresetRegistry.list()
+      .filter(manifest => !manifest.metadata.tags?.includes('internal'))
+      .map(manifest => manifest.id)
+
+    expect(PRESET_MANAGER_PRESETS.some(preset => legacyCinemaPresetIds.has(preset.sourceId))).toBe(false)
+    expect(PRESET_MANAGER_PRESETS
+      .filter(preset => preset.activation === 'cinema2')
+      .map(preset => preset.sourceId))
+      .toEqual(publicCinema2PresetIds)
+  })
+
   it('renders the reference library structure and searchable preset metadata', () => {
     renderView()
     expect(container?.querySelector('[aria-label="Preset Library"]')).not.toBeNull()
@@ -65,5 +83,28 @@ describe('Preset Manager view', () => {
     act(() => tabs.find(tab => tab.textContent?.toLowerCase() === 'custom')?.click())
     expect(container?.querySelectorAll('.pmv-card')).toHaveLength(0)
     expect(container?.textContent).toContain('No presets match this view.')
+  })
+
+  it('loads a selected preset into the matching React inspector configuration', () => {
+    renderView()
+    const inspectorTabs = [...(container?.querySelectorAll<HTMLButtonElement>('[aria-label="Preset Manager inspector panels"] [role="tab"]') ?? [])]
+    expect(inspectorTabs.map(tab => tab.textContent)).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
+
+    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')
+    expect(preset).toBeDefined()
+    const card = container?.querySelector<HTMLElement>(`.pmv-card[data-preset-id="${preset?.sourceId}"]`)
+    act(() => card?.querySelector<HTMLButtonElement>('.pmv-card-main')?.click())
+
+    expect(useReactStore.getState().activeReactEngineId).toBe('oscilloscope')
+    expect(useReactStore.getState().activeReactPresetId).toBe(preset?.sourceId)
+    expect(card?.classList.contains('is-active')).toBe(true)
+    expect(container?.querySelector('.pmv-inspector-body')?.getAttribute('data-selected-preset')).toBe(preset?.sourceId)
+    expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()
+    expect(container?.querySelectorAll('.pmv-inspector-body .rv-ctrl-group').length).toBeGreaterThan(0)
+
+    act(() => inspectorTabs.find(tab => tab.textContent === 'REACT')?.click())
+    expect(container?.querySelector('[aria-label="Reactivity surfaces"]')).not.toBeNull()
+    expect(container?.textContent).toContain('ROUTING')
+    expect(container?.textContent).toContain('ANALYSIS')
   })
 })

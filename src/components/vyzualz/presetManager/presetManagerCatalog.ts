@@ -11,6 +11,14 @@ import { LASER_DMX_SHOW_DIRECTOR_TEMPLATES } from '../react/laserDmxShowDirector
 import { resolvePresetDiscoveryMetadata } from '../react/presetDiscovery'
 
 export type PresetManagerArtwork = 'cinema2' | 'soundDrawing' | 'canvas' | 'laserDmx' | 'pixGrid' | 'headliner'
+export type PresetManagerActivation =
+  | 'cinema2'
+  | 'react'
+  | 'canvas'
+  | 'laserDmxBeamMatrix'
+  | 'laserDmxPerformance'
+  | 'laserDmxTemplate'
+  | 'headliner'
 
 export interface PresetManagerRecord {
   id: string
@@ -21,6 +29,7 @@ export interface PresetManagerRecord {
   category: string
   tags: readonly string[]
   artwork: PresetManagerArtwork
+  activation: PresetManagerActivation
   custom?: boolean
 }
 
@@ -32,6 +41,7 @@ function record(
   engineName: string,
   category: string,
   tags: readonly string[],
+  activation: PresetManagerActivation = 'react',
 ): PresetManagerRecord {
   return {
     id: `${source}:${sourceId}`,
@@ -42,8 +52,16 @@ function record(
     category,
     tags,
     artwork: source,
+    activation,
   }
 }
+
+// Cinema 2.0 presets come exclusively from the native registry above. Keep the
+// retired Cinema/Cinematic Worlds compatibility records out of this manager,
+// even while they remain in DEFAULT_REACT_PRESETS for persisted-data migration.
+const currentReactPresets = DEFAULT_REACT_PRESETS.filter(preset => (
+  preset.engine !== 'cinema' && preset.engine !== 'cinematicPortal'
+))
 
 const cinema2Presets = cinema2NativePresetRegistry.list().flatMap(manifest => {
   if (manifest.metadata.tags?.includes('internal')) return []
@@ -56,10 +74,11 @@ const cinema2Presets = cinema2NativePresetRegistry.list().flatMap(manifest => {
     'Cinema 2.0',
     discovery.category,
     discovery.tags,
+    'cinema2',
   )]
 })
 
-const soundDrawingPresets = DEFAULT_REACT_PRESETS
+const soundDrawingPresets = currentReactPresets
   .filter(preset => preset.engine === 'oscilloscope')
   .map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(
@@ -73,12 +92,12 @@ const canvasPresets = CANVAS_VISIBLE_PRESETS
   .filter(preset => preset.id !== DEFAULT_CANVAS_PRESET_ID)
   .map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(preset, preset.rendererKind)
-    return record('canvas', preset.id, preset.name, preset.description, 'CANVAS', discovery.category, discovery.tags)
+    return record('canvas', preset.id, preset.name, preset.description, 'CANVAS', discovery.category, discovery.tags, 'canvas')
   })
 
 const laserDmxPresets = [
   ...LASER_DMX_BEAM_MATRIX_PRESETS.map(preset => record(
-    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags,
+    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags, 'laserDmxBeamMatrix',
   )),
   ...LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(
@@ -86,14 +105,14 @@ const laserDmxPresets = [
       'performance-show',
       [...preset.genreTags, ...preset.behaviorTags, ...preset.musicIntelligenceCapabilities],
     )
-    return record('laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', discovery.category, discovery.tags)
+    return record('laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', discovery.category, discovery.tags, 'laserDmxPerformance')
   }),
   ...LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(preset => record(
-    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags,
+    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags, 'laserDmxTemplate',
   )),
 ]
 
-const pixGridPresets = DEFAULT_REACT_PRESETS
+const pixGridPresets = currentReactPresets
   .filter(preset => preset.engine === 'pixGrid')
   .map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(preset, preset.pixGridDeck ? 'media-deck' : 'pixel-art')
@@ -102,7 +121,7 @@ const pixGridPresets = DEFAULT_REACT_PRESETS
 
 const headlinerPresets = HEADLINER_PRESETS.map(preset => {
   const discovery = resolvePresetDiscoveryMetadata(preset, 'camera-effects')
-  return record('headliner', preset.id, preset.name, preset.description, 'HEADLINER', discovery.category, discovery.tags)
+  return record('headliner', preset.id, preset.name, preset.description, 'HEADLINER', discovery.category, discovery.tags, 'headliner')
 })
 
 /** Every preset exposed by a current React engine. Legacy Cinema is intentionally excluded. */

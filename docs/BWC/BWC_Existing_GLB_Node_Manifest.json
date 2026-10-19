@@ -1,0 +1,940 @@
+{
+  "description": "Original user-provided BWC GLB node and material metadata, for Cinema 2.0 asset planning; names are source-authored and may need remapping",
+  "assets": [
+    {
+      "file": "energy_banks.glb",
+      "source": {
+        "author": "igor.rizaev00 (https://sketchfab.com/igor.rizaev00)",
+        "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+        "source": "https://sketchfab.com/3d-models/energy-banks-119bf6e735414700913cb45a1af86ec1",
+        "title": "energy banks"
+      },
+      "nodes": [
+        {
+          "index": 0,
+          "name": "Sketchfab_model",
+          "mesh": null,
+          "children": [
+            1
+          ]
+        },
+        {
+          "index": 1,
+          "name": "Collada visual scene group",
+          "mesh": null,
+          "children": [
+            2,
+            4
+          ]
+        },
+        {
+          "index": 2,
+          "name": "MonsterSubs",
+          "mesh": null,
+          "children": [
+            3
+          ]
+        },
+        {
+          "index": 3,
+          "name": "initialShadingGroup-material",
+          "mesh": 0,
+          "children": []
+        },
+        {
+          "index": 4,
+          "name": "Cylinder001",
+          "mesh": null,
+          "children": [
+            5
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Material__25-material",
+          "mesh": 1,
+          "children": []
+        }
+      ],
+      "meshes": [
+        {
+          "index": 0,
+          "name": "initialShadingGroup-material",
+          "primitives": 1,
+          "triangleCount": 4328
+        },
+        {
+          "index": 1,
+          "name": "Material__25-material",
+          "primitives": 1,
+          "triangleCount": 456
+        }
+      ],
+      "materials": [
+        {
+          "index": 0,
+          "name": "Material",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 1,
+          "name": "initialShadingGroup",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        }
+      ],
+      "animations": [],
+      "extensionsUsed": [],
+      "imageCount": 1
+    },
+    {
+      "file": "sci-fi_assembly_line.glb",
+      "source": {
+        "author": "meeww (https://sketchfab.com/meeww)",
+        "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+        "source": "https://sketchfab.com/3d-models/sci-fi-assembly-line-d30366ad73af49f6b7279923fe89faee",
+        "title": "Sci-fi Assembly Line"
+      },
+      "nodes": [
+        {
+          "index": 0,
+          "name": "Sketchfab_model",
+          "mesh": null,
+          "children": [
+            1
+          ]
+        },
+        {
+          "index": 1,
+          "name": "root",
+          "mesh": null,
+          "children": [
+            2
+          ]
+        },
+        {
+          "index": 2,
+          "name": "GLTF_SceneRootNode",
+          "mesh": null,
+          "children": [
+            3,
+            4,
+            6,
+            8,
+            10,
+            12,
+            14,
+            17,
+            19,
+            22,
+            30,
+            33,
+            35,
+            37,
+            39,
+            41,
+            43,
+            45,
+            47,
+            49,
+            51,
+            53,
+            55,
+            57,
+            58,
+            60
+          ]
+        },
+        {
+          "index": 3,
+          "name": "Constraint_0",
+          "mesh": null,
+          "children": []
+        },
+        {
+          "index": 4,
+          "name": "driveShaft_3",
+          "mesh": null,
+          "children": [
+            5
+          ]
+        },
+        {
+          "index": 5,
+          "name": "Object_5",
+          "mesh": 0,
+          "children": []
+        },
+        {
+          "index": 6,
+          "name": "clampR_4",
+          "mesh": null,
+          "children": [
+            7
+          ]
+        },
+        {
+          "index": 7,
+          "name": "Object_7",
+          "mesh": 1,
+          "children": []
+        },
+        {
+          "index": 8,
+          "name": "Circle_5",
+          "mesh": null,
+          "children": [
+            9
+          ]
+        },
+        {
+          "index": 9,
+          "name": "Object_9",
+          "mesh": 2,
+          "children": []
+        },
+        {
+          "index": 10,
+          "name": "clampR.001_6",
+          "mesh": null,
+          "children": [
+            11
+          ]
+        },
+        {
+          "index": 11,
+          "name": "Object_11",
+          "mesh": 3,
+          "children": []
+        },
+        {
+          "index": 12,
+          "name": "Sphere_7",
+          "mesh": null,
+          "children": [
+            13
+          ]
+        },
+        {
+          "index": 13,
+          "name": "Object_13",
+          "mesh": 4,
+          "children": []
+        },
+        {
+          "index": 14,
+          "name": "box.002_8",
+          "mesh": null,
+          "children": [
+            15,
+            16
+          ]
+        },
+        {
+          "index": 15,
+          "name": "Object_15",
+          "mesh": 5,
+          "children": []
+        },
+        {
+          "index": 16,
+          "name": "Object_16",
+          "mesh": 6,
+          "children": []
+        },
+        {
+          "index": 17,
+          "name": "box.001_9",
+          "mesh": null,
+          "children": [
+            18
+          ]
+        },
+        {
+          "index": 18,
+          "name": "Object_18",
+          "mesh": 7,
+          "children": []
+        },
+        {
+          "index": 19,
+          "name": "Cube_11",
+          "mesh": null,
+          "children": [
+            20,
+            21
+          ]
+        },
+        {
+          "index": 20,
+          "name": "Object_20",
+          "mesh": 8,
+          "children": []
+        },
+        {
+          "index": 21,
+          "name": "Object_21",
+          "mesh": 9,
+          "children": []
+        },
+        {
+          "index": 22,
+          "name": "Cylinder_12",
+          "mesh": null,
+          "children": [
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29
+          ]
+        },
+        {
+          "index": 23,
+          "name": "Object_23",
+          "mesh": 10,
+          "children": []
+        },
+        {
+          "index": 24,
+          "name": "Object_24",
+          "mesh": 11,
+          "children": []
+        },
+        {
+          "index": 25,
+          "name": "Object_25",
+          "mesh": 12,
+          "children": []
+        },
+        {
+          "index": 26,
+          "name": "Object_26",
+          "mesh": 13,
+          "children": []
+        },
+        {
+          "index": 27,
+          "name": "Object_27",
+          "mesh": 14,
+          "children": []
+        },
+        {
+          "index": 28,
+          "name": "Object_28",
+          "mesh": 15,
+          "children": []
+        },
+        {
+          "index": 29,
+          "name": "Object_29",
+          "mesh": 16,
+          "children": []
+        },
+        {
+          "index": 30,
+          "name": "box.003_13",
+          "mesh": null,
+          "children": [
+            31,
+            32
+          ]
+        },
+        {
+          "index": 31,
+          "name": "Object_31",
+          "mesh": 17,
+          "children": []
+        },
+        {
+          "index": 32,
+          "name": "Object_32",
+          "mesh": 18,
+          "children": []
+        },
+        {
+          "index": 33,
+          "name": "Cube.001_14",
+          "mesh": null,
+          "children": [
+            34
+          ]
+        },
+        {
+          "index": 34,
+          "name": "Object_34",
+          "mesh": 19,
+          "children": []
+        },
+        {
+          "index": 35,
+          "name": "Cube.003_15",
+          "mesh": null,
+          "children": [
+            36
+          ]
+        },
+        {
+          "index": 36,
+          "name": "Object_36",
+          "mesh": 20,
+          "children": []
+        },
+        {
+          "index": 37,
+          "name": "Cube.004_16",
+          "mesh": null,
+          "children": [
+            38
+          ]
+        },
+        {
+          "index": 38,
+          "name": "Object_38",
+          "mesh": 21,
+          "children": []
+        },
+        {
+          "index": 39,
+          "name": "Cube.005_17",
+          "mesh": null,
+          "children": [
+            40
+          ]
+        },
+        {
+          "index": 40,
+          "name": "Object_40",
+          "mesh": 22,
+          "children": []
+        },
+        {
+          "index": 41,
+          "name": "Cube.006_18",
+          "mesh": null,
+          "children": [
+            42
+          ]
+        },
+        {
+          "index": 42,
+          "name": "Object_42",
+          "mesh": 23,
+          "children": []
+        },
+        {
+          "index": 43,
+          "name": "Cube.007_19",
+          "mesh": null,
+          "children": [
+            44
+          ]
+        },
+        {
+          "index": 44,
+          "name": "Object_44",
+          "mesh": 24,
+          "children": []
+        },
+        {
+          "index": 45,
+          "name": "Cube.008_20",
+          "mesh": null,
+          "children": [
+            46
+          ]
+        },
+        {
+          "index": 46,
+          "name": "Object_46",
+          "mesh": 25,
+          "children": []
+        },
+        {
+          "index": 47,
+          "name": "Cube.009_21",
+          "mesh": null,
+          "children": [
+            48
+          ]
+        },
+        {
+          "index": 48,
+          "name": "Object_48",
+          "mesh": 26,
+          "children": []
+        },
+        {
+          "index": 49,
+          "name": "Cube.010_22",
+          "mesh": null,
+          "children": [
+            50
+          ]
+        },
+        {
+          "index": 50,
+          "name": "Object_50",
+          "mesh": 27,
+          "children": []
+        },
+        {
+          "index": 51,
+          "name": "Cube.011_23",
+          "mesh": null,
+          "children": [
+            52
+          ]
+        },
+        {
+          "index": 52,
+          "name": "Object_52",
+          "mesh": 28,
+          "children": []
+        },
+        {
+          "index": 53,
+          "name": "Cube.012_24",
+          "mesh": null,
+          "children": [
+            54
+          ]
+        },
+        {
+          "index": 54,
+          "name": "Object_54",
+          "mesh": 29,
+          "children": []
+        },
+        {
+          "index": 55,
+          "name": "Sphere.001_26",
+          "mesh": null,
+          "children": [
+            56
+          ]
+        },
+        {
+          "index": 56,
+          "name": "Object_56",
+          "mesh": 30,
+          "children": []
+        },
+        {
+          "index": 57,
+          "name": "Constraint.001_27",
+          "mesh": null,
+          "children": []
+        },
+        {
+          "index": 58,
+          "name": "Circle.001_28",
+          "mesh": null,
+          "children": [
+            59
+          ]
+        },
+        {
+          "index": 59,
+          "name": "Object_59",
+          "mesh": 31,
+          "children": []
+        },
+        {
+          "index": 60,
+          "name": "Sphere.002_29",
+          "mesh": null,
+          "children": [
+            61
+          ]
+        },
+        {
+          "index": 61,
+          "name": "Object_61",
+          "mesh": 32,
+          "children": []
+        }
+      ],
+      "meshes": [
+        {
+          "index": 0,
+          "name": "Object_0",
+          "primitives": 1,
+          "triangleCount": 96
+        },
+        {
+          "index": 1,
+          "name": "Object_1",
+          "primitives": 1,
+          "triangleCount": 704
+        },
+        {
+          "index": 2,
+          "name": "Object_2",
+          "primitives": 1,
+          "triangleCount": 848
+        },
+        {
+          "index": 3,
+          "name": "Object_3",
+          "primitives": 1,
+          "triangleCount": 704
+        },
+        {
+          "index": 4,
+          "name": "Object_4",
+          "primitives": 1,
+          "triangleCount": 960
+        },
+        {
+          "index": 5,
+          "name": "Object_5",
+          "primitives": 1,
+          "triangleCount": 1316
+        },
+        {
+          "index": 6,
+          "name": "Object_6",
+          "primitives": 1,
+          "triangleCount": 16
+        },
+        {
+          "index": 7,
+          "name": "Object_7",
+          "primitives": 1,
+          "triangleCount": 4
+        },
+        {
+          "index": 8,
+          "name": "Object_8",
+          "primitives": 1,
+          "triangleCount": 6208
+        },
+        {
+          "index": 9,
+          "name": "Object_9",
+          "primitives": 1,
+          "triangleCount": 768
+        },
+        {
+          "index": 10,
+          "name": "Object_10",
+          "primitives": 1,
+          "triangleCount": 3488
+        },
+        {
+          "index": 11,
+          "name": "Object_11",
+          "primitives": 1,
+          "triangleCount": 174
+        },
+        {
+          "index": 12,
+          "name": "Object_12",
+          "primitives": 1,
+          "triangleCount": 2
+        },
+        {
+          "index": 13,
+          "name": "Object_13",
+          "primitives": 1,
+          "triangleCount": 2
+        },
+        {
+          "index": 14,
+          "name": "Object_14",
+          "primitives": 1,
+          "triangleCount": 2
+        },
+        {
+          "index": 15,
+          "name": "Object_15",
+          "primitives": 1,
+          "triangleCount": 1416
+        },
+        {
+          "index": 16,
+          "name": "Object_16",
+          "primitives": 1,
+          "triangleCount": 1056
+        },
+        {
+          "index": 17,
+          "name": "Object_17",
+          "primitives": 1,
+          "triangleCount": 1316
+        },
+        {
+          "index": 18,
+          "name": "Object_18",
+          "primitives": 1,
+          "triangleCount": 16
+        },
+        {
+          "index": 19,
+          "name": "Object_19",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 20,
+          "name": "Object_20",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 21,
+          "name": "Object_21",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 22,
+          "name": "Object_22",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 23,
+          "name": "Object_23",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 24,
+          "name": "Object_24",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 25,
+          "name": "Object_25",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 26,
+          "name": "Object_26",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 27,
+          "name": "Object_27",
+          "primitives": 1,
+          "triangleCount": 512
+        },
+        {
+          "index": 28,
+          "name": "Object_28",
+          "primitives": 1,
+          "triangleCount": 512
+        },
+        {
+          "index": 29,
+          "name": "Object_29",
+          "primitives": 1,
+          "triangleCount": 12
+        },
+        {
+          "index": 30,
+          "name": "Object_30",
+          "primitives": 1,
+          "triangleCount": 960
+        },
+        {
+          "index": 31,
+          "name": "Object_31",
+          "primitives": 1,
+          "triangleCount": 848
+        },
+        {
+          "index": 32,
+          "name": "Object_32",
+          "primitives": 1,
+          "triangleCount": 960
+        }
+      ],
+      "materials": [
+        {
+          "index": 0,
+          "name": "tightGlass",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 1,
+          "name": "metal",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 2,
+          "name": "grid",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 3,
+          "name": "smoothGlass",
+          "emissiveFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "alphaMode": "BLEND",
+          "transmissionFactor": null
+        },
+        {
+          "index": 4,
+          "name": "plasticPipes",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 5,
+          "name": "softMetal",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 6,
+          "name": "metalPlates",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 7,
+          "name": "screen1",
+          "emissiveFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 8,
+          "name": "screen2",
+          "emissiveFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 9,
+          "name": "screen3",
+          "emissiveFactor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 10,
+          "name": "emissiveColor",
+          "emissiveFactor": [
+            0.19290438336120147,
+            1.0,
+            1.0
+          ],
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 11,
+          "name": "Material.001",
+          "emissiveFactor": null,
+          "alphaMode": "BLEND",
+          "transmissionFactor": 0.8977286316530172
+        },
+        {
+          "index": 12,
+          "name": "emission",
+          "emissiveFactor": [
+            0.18538740116892927,
+            1.0,
+            1.0
+          ],
+          "alphaMode": null,
+          "transmissionFactor": null
+        },
+        {
+          "index": 13,
+          "name": "metal.001",
+          "emissiveFactor": null,
+          "alphaMode": null,
+          "transmissionFactor": null
+        }
+      ],
+      "animations": [
+        {
+          "name": "Animation",
+          "channels": [
+            {
+              "node": 8,
+              "nodeName": "Circle_5",
+              "path": "translation",
+              "keyframes": 161,
+              "timeStart": 0.0416666679084301,
+              "timeEnd": 10.0
+            },
+            {
+              "node": 12,
+              "nodeName": "Sphere_7",
+              "path": "translation",
+              "keyframes": 240,
+              "timeStart": 0.0416666679084301,
+              "timeEnd": 10.0
+            },
+            {
+              "node": 12,
+              "nodeName": "Sphere_7",
+              "path": "rotation",
+              "keyframes": 240,
+              "timeStart": 0.0416666679084301,
+              "timeEnd": 10.0
+            },
+            {
+              "node": 12,
+              "nodeName": "Sphere_7",
+              "path": "scale",
+              "keyframes": 3,
+              "timeStart": 0.0416666679084301,
+              "timeEnd": 10.0
+            },
+            {
+              "node": 58,
+              "nodeName": "Circle.001_28",
+              "path": "translation",
+              "keyframes": 161,
+              "timeStart": 0.0416666679084301,
+              "timeEnd": 10.0
+            }
+          ]
+        }
+      ],
+      "extensionsUsed": [
+        "KHR_materials_transmission"
+      ],
+      "imageCount": 4
+    }
+  ]
+}

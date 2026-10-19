@@ -1,8 +1,38 @@
-import { useMemo, useState } from 'react'
-import { Add01Icon, FavouriteIcon, Layers01Icon } from 'hugeicons-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Add01Icon, FavouriteIcon, Layers01Icon, Settings02Icon } from 'hugeicons-react'
+import { useShallow } from 'zustand/react/shallow'
+import { useRecorder } from '../../../hooks/useRecorder'
+import { useReactStore } from '../../../stores/reactStore'
 import { PageHeadingPlate, PresetHeadingIcon } from '../layout/PageHeadingPlate'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
+import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
+import {
+  getCinema2WorkspacePresetState,
+  type Cinema2PresetId,
+  type Cinema2Runtime,
+  type Cinema2RuntimeSnapshot,
+  type Cinema2WorkspacePresetState,
+} from '../cinema2'
+import { Cinema2InspectorPanel } from '../react/Cinema2InspectorPanel'
+import { Cinema2PresetsPanel } from '../react/Cinema2PresetsPanel'
+import { Cinema2Stage } from '../react/Cinema2Stage'
+import {
+  HeadlinerDesignPanel,
+  HeadlinerPresetsPanel,
+  HeadlinerReactivityPanel,
+} from '../react/headliner/HeadlinerWorkspace'
+import type { HeadlinerPresetId } from '../react/headliner/HeadlinerEffectCatalog'
+import { LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS } from '../react/LaserDmxShowDirectorPerformancePresets'
+import { ReactPresetsPanel } from '../react/ReactPresetsPanel'
+import {
+  ReactDesignWorkspacePanel,
+  ReactOutputWorkspacePanel,
+  ReactReactivityWorkspacePanel,
+} from '../react/panels/ReactWorkspacePanels'
+import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
+import type { ReactRightPanel } from '../react/reactRightPanelPersistence'
+import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
 import { Badge } from '../react/controls/Badge'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
@@ -13,6 +43,7 @@ import {
   type PresetManagerArtwork,
   type PresetManagerRecord,
 } from './presetManagerCatalog'
+import '../../../styles/reactView.css'
 
 type PresetManagerTab = 'presets' | 'favorites' | 'custom'
 
@@ -21,6 +52,15 @@ const PRESET_MANAGER_TABS = [
   { id: 'favorites', label: 'Favorites' },
   { id: 'custom', label: 'Custom' },
 ] as const
+
+const PRESET_MANAGER_INSPECTOR_TABS: RailTabOption<ReactRightPanel>[] = [
+  { id: 'presets', label: 'PRESETS' },
+  { id: 'design', label: 'DESIGN' },
+  { id: 'react', label: 'REACT' },
+  { id: 'output', label: 'OUTPUT' },
+]
+
+const CAN_HOST_CINEMA2_STAGE = typeof window !== 'undefined' && 'WebGL2RenderingContext' in window
 
 const CATEGORY_OPTIONS = [
   { value: 'all', label: 'All Categories' },
@@ -75,6 +115,54 @@ export function PresetManagerView() {
   const [selectedId, setSelectedId] = useState(PRESET_MANAGER_PRESETS[0]?.id ?? '')
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set(PRESET_MANAGER_PRESETS[0] ? [PRESET_MANAGER_PRESETS[0].id] : []))
   const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
+  const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>('design')
+  const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
+  const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
+  const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
+  const recorder = useRecorder()
+
+  const selectedPreset = useMemo(
+    () => PRESET_MANAGER_PRESETS.find(preset => preset.id === selectedId) ?? PRESET_MANAGER_PRESETS[0] ?? null,
+    [selectedId],
+  )
+  const {
+    activeReactEngineId,
+    activeReactPresetId,
+    selectedCanvasPresetId,
+    activeLaserDmxBeamMatrixPresetId,
+    laserDmxBeamMatrixAuthoringMode,
+    laserDmxShowDirectorSourceTemplateId,
+    laserDmxShowDirectorPerformancePresetId,
+    headlinerPresetId,
+    cinema2Workspace,
+  } = useReactStore(useShallow(state => ({
+    activeReactEngineId: state.activeReactEngineId,
+    activeReactPresetId: state.activeReactPresetId,
+    selectedCanvasPresetId: state.selectedCanvasPresetId,
+    activeLaserDmxBeamMatrixPresetId: state.activeLaserDmxBeamMatrixPresetId,
+    laserDmxBeamMatrixAuthoringMode: state.laserDmxBeamMatrixAuthoringMode,
+    laserDmxShowDirectorSourceTemplateId: state.laserDmxShowDirector.sourceTemplateId,
+    laserDmxShowDirectorPerformancePresetId: state.laserDmxShowDirectorPerformance.activePresetId,
+    headlinerPresetId: state.headlinerSettings.presetId,
+    cinema2Workspace: state.cinema2Workspace,
+  })))
+
+  const fallbackCinema2PresetId = useMemo(
+    () => PRESET_MANAGER_PRESETS.find(preset => preset.activation === 'cinema2')?.sourceId as Cinema2PresetId | undefined,
+    [],
+  )
+  const selectedCinema2PresetId = selectedPreset?.activation === 'cinema2'
+    ? selectedPreset.sourceId as Cinema2PresetId
+    : fallbackCinema2PresetId
+  const selectedCinema2WorkspaceState = selectedCinema2PresetId
+    ? getCinema2WorkspacePresetState(cinema2Workspace, selectedCinema2PresetId)
+    : null
+  const cinema2RestoreState = useCinema2WorkspaceRestoreState(
+    selectedCinema2PresetId ?? ('' as Cinema2PresetId),
+    selectedCinema2WorkspaceState,
+    cinema2Workspace.activationRevision,
+  )
 
   const visiblePresets = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -93,6 +181,135 @@ export function PresetManagerView() {
     return next
   })
 
+  const activatePreset = useCallback((preset: PresetManagerRecord) => {
+    const state = useReactStore.getState()
+    switch (preset.activation) {
+      case 'cinema2':
+        state.selectReactEngine('cinema2')
+        state.activateCinema2Workspace({ presetId: preset.sourceId as Cinema2PresetId })
+        break
+      case 'canvas':
+        state.selectReactEngine('canvas')
+        state.selectCanvasPreset(preset.sourceId as Parameters<typeof state.selectCanvasPreset>[0])
+        break
+      case 'laserDmxBeamMatrix':
+        state.applyLaserDmxBeamMatrixPreset(preset.sourceId)
+        break
+      case 'laserDmxPerformance': {
+        const definition = LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS.find(candidate => candidate.id === preset.sourceId)
+        if (definition) state.applyLaserDmxShowDirectorPerformancePreset(definition)
+        break
+      }
+      case 'laserDmxTemplate':
+        state.selectReactEngine('laserDmx')
+        state.applyLaserDmxShowDirectorTemplate(preset.sourceId)
+        state.setLaserDmxBeamMatrixAuthoringMode('showDirector')
+        break
+      case 'headliner':
+        state.selectReactEngine('headliner')
+        state.setHeadlinerSettings({ presetId: preset.sourceId as HeadlinerPresetId })
+        break
+      default:
+        state.selectReactPreset(preset.sourceId)
+        break
+    }
+    setSelectedId(preset.id)
+    setActiveRightPanel('design')
+    setRightCollapsed(false)
+  }, [])
+
+  useEffect(() => {
+    let sourceId: string | null = null
+    let activation: PresetManagerRecord['activation'] | null = null
+    if (activeReactEngineId === 'cinema2') {
+      sourceId = cinema2Workspace.activePresetId
+      activation = 'cinema2'
+    } else if (activeReactEngineId === 'canvas') {
+      sourceId = selectedCanvasPresetId
+      activation = 'canvas'
+    } else if (activeReactEngineId === 'headliner') {
+      sourceId = headlinerPresetId
+      activation = 'headliner'
+    } else if (activeReactEngineId === 'laserDmx') {
+      if (laserDmxBeamMatrixAuthoringMode === 'showDirector') {
+        sourceId = laserDmxShowDirectorPerformancePresetId ?? laserDmxShowDirectorSourceTemplateId ?? null
+        activation = laserDmxShowDirectorPerformancePresetId ? 'laserDmxPerformance' : 'laserDmxTemplate'
+      } else {
+        sourceId = activeLaserDmxBeamMatrixPresetId
+        activation = 'laserDmxBeamMatrix'
+      }
+    } else {
+      sourceId = activeReactPresetId
+      activation = 'react'
+    }
+    if (!sourceId || !activation) return
+    const matchingPreset = PRESET_MANAGER_PRESETS.find(preset => (
+      preset.sourceId === sourceId && preset.activation === activation
+    ))
+    if (matchingPreset && matchingPreset.id !== selectedId) setSelectedId(matchingPreset.id)
+  }, [
+    activeLaserDmxBeamMatrixPresetId,
+    activeReactEngineId,
+    activeReactPresetId,
+    cinema2Workspace.activePresetId,
+    headlinerPresetId,
+    laserDmxBeamMatrixAuthoringMode,
+    laserDmxShowDirectorPerformancePresetId,
+    laserDmxShowDirectorSourceTemplateId,
+    selectedCanvasPresetId,
+    selectedId,
+  ])
+
+  useEffect(() => {
+    setCinema2Runtime(null)
+    setCinema2RuntimeSnapshot(null)
+    setOutputCanvas(null)
+  }, [selectedId])
+
+  const renderPresetBrowser = () => {
+    if (!selectedPreset) return null
+    if (selectedPreset.activation === 'cinema2') {
+      return (
+        <Cinema2PresetsPanel
+          activePresetId={selectedPreset.sourceId as Cinema2PresetId}
+          onSelectPreset={presetId => {
+            const next = PRESET_MANAGER_PRESETS.find(preset => preset.activation === 'cinema2' && preset.sourceId === presetId)
+            if (next) activatePreset(next)
+          }}
+        />
+      )
+    }
+    if (selectedPreset.activation === 'headliner') return <HeadlinerPresetsPanel />
+    return <ReactPresetsPanel />
+  }
+
+  const renderInspectorPanel = () => {
+    if (!selectedPreset) return null
+    if (activeRightPanel === 'presets') return renderPresetBrowser()
+    if (activeRightPanel === 'design') {
+      if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
+      if (selectedPreset.activation === 'headliner') return <HeadlinerDesignPanel />
+      return <ReactDesignWorkspacePanel hasSelection={selectedPreset.artwork === 'soundDrawing'} />
+    }
+    if (activeRightPanel === 'react') {
+      if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="react" />
+      if (selectedPreset.activation === 'headliner') return <HeadlinerReactivityPanel />
+      return <ReactReactivityWorkspacePanel />
+    }
+    return (
+      <ReactOutputWorkspacePanel
+        canvas={outputCanvas}
+        outputCapability={CANVAS_OUTPUT_AVAILABLE}
+        recorder={recorder}
+        liveFps={0}
+        hasActiveProgramAudio={false}
+        onStartRecording={canvas => recorder.startVideoRecording(canvas, null)}
+        cinema2Runtime={selectedPreset.activation === 'cinema2' ? cinema2Runtime : null}
+        cinema2RuntimeSnapshot={selectedPreset.activation === 'cinema2' ? cinema2RuntimeSnapshot : null}
+      />
+    )
+  }
+
   return (
     <main className="pmv-root" aria-labelledby="preset-manager-title">
       <header className="pmv-header">
@@ -101,7 +318,11 @@ export function PresetManagerView() {
         </div>
       </header>
       <section className="pmv-workspace" aria-label="Preset Manager workspace">
-        <div className="vz-content pmv-content" data-left-collapsed={leftCollapsed ? 'true' : 'false'}>
+        <div
+          className="vz-content pmv-content"
+          data-left-collapsed={leftCollapsed ? 'true' : 'false'}
+          data-right-collapsed={rightCollapsed ? 'true' : 'false'}
+        >
           <WorkspaceRail
             side="left"
             label="Preset Library"
@@ -152,13 +373,57 @@ export function PresetManagerView() {
               />
               <div className="vz-media-scroll pmv-list" aria-live="polite">
                 <div className="pmv-card-list">
-                  {visiblePresets.map(preset => <PresetCard key={preset.id} preset={preset} active={preset.id === selectedId} favorite={favoriteIds.has(preset.id)} onSelect={() => setSelectedId(preset.id)} onToggleFavorite={() => toggleFavorite(preset.id)} />)}
+                  {visiblePresets.map(preset => <PresetCard key={preset.id} preset={preset} active={preset.id === selectedId} favorite={favoriteIds.has(preset.id)} onSelect={() => activatePreset(preset)} onToggleFavorite={() => toggleFavorite(preset.id)} />)}
                   {visiblePresets.length === 0 && <div className="pmv-empty">No presets match this view.</div>}
                 </div>
               </div>
             </div>
           </WorkspaceRail>
-          <div className="pmv-stage" aria-label="Preset Manager detail workspace" />
+          <div className="pmv-stage" aria-label="Preset Manager detail workspace">
+            {selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
+              <Cinema2Stage
+                presetId={selectedCinema2PresetId}
+                restoreState={cinema2RestoreState as Readonly<Cinema2WorkspacePresetState> | null}
+                onCanvasReady={setOutputCanvas}
+                onRuntimeReady={setCinema2Runtime}
+                onRuntimeSnapshot={setCinema2RuntimeSnapshot}
+                onRuntimeRetiring={state => useReactStore.getState().storeCinema2WorkspacePresetState(state)}
+              />
+            ) : selectedPreset ? (
+              <section className="pmv-selection-summary" aria-label={`${selectedPreset.name} selection`}>
+                <span className="pmv-selection-art"><PresetArtwork kind={selectedPreset.artwork} /></span>
+                <div>
+                  <span>{selectedPreset.engineName}</span>
+                  <h2>{selectedPreset.name}</h2>
+                  <p>{selectedPreset.description}</p>
+                </div>
+              </section>
+            ) : null}
+          </div>
+          <WorkspaceRail
+            side="right"
+            label="Preset Inspector"
+            collapsed={rightCollapsed}
+            onToggleCollapsed={() => setRightCollapsed(value => !value)}
+            className="rw-frame--right pmv-inspector"
+          >
+            <RailWindowHeader
+              side="right"
+              icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+              label="Inspector"
+            />
+            <RailTabs
+              tabs={PRESET_MANAGER_INSPECTOR_TABS}
+              activeTab={activeRightPanel}
+              onChange={setActiveRightPanel}
+              ariaLabel="Preset Manager inspector panels"
+              className="rv-main-workspace-tabs"
+              variant="underline"
+            />
+            <div className="vz-panel-body pmv-inspector-body" data-selected-preset={selectedPreset?.sourceId ?? ''}>
+              {renderInspectorPanel()}
+            </div>
+          </WorkspaceRail>
         </div>
       </section>
     </main>
