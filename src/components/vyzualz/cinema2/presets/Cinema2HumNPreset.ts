@@ -77,7 +77,7 @@ export const CINEMA2_HUMN_FRAGMENT_EVENT_INTENT_ID = cinema2StableId<Cinema2Para
 const choreographyRuleId = (id: string) => cinema2StableId<Cinema2ChoreographyRuleId>(id)
 const choreographyActionId = (id: string) => cinema2StableId<Cinema2ChoreographyActionId>(id)
 
-const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'section' | 'fallback') => Object.freeze({
+const structuralEventSpawnAction = (id: string, kind: 'drop' | 'phrase' | 'section' | 'performance') => Object.freeze({
   id: choreographyActionId(id),
   target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_HUMN_STRUCTURAL_EVENT_INTENT_ID) }),
   operation: 'spawn' as const,
@@ -142,7 +142,7 @@ const CINEMA2_HUMN_COMPOSITION_OUTPUT_PARAMETERS = Object.freeze([
   Object.freeze({
     id: CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
     label: 'Auto Performance',
-    description: 'Lets the shared Visual Director choose the figure\'s poses and gestures: reaching toward the camera, sweeping an arm across the body, recoiling, grabbing its head or lunging on a drop, and looking around, looking up or turning to look back over a shoulder at phrase and section changes. Tracks without authored drop markers receive a restrained gesture every eight bars so the performance does not remain stuck in its idle pose. Off, the figure only performs its idle body and arm motion.',
+    description: 'Lets the shared Visual Director choose the figure\'s poses and gestures: reaching toward the camera, sweeping an arm across the body, recoiling, grabbing its head or lunging, and looking around, looking up or turning to look back over a shoulder at phrase and section changes. Phrase cadence guarantees regular full-body performance even when a track has no strong drops; real impacts make those poses more forceful. Off, the figure only performs its idle body and arm motion.',
     type: 'boolean' as const,
     defaultValue: true,
     section: 'Design',
@@ -590,10 +590,10 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
-  revision: 22,
+  revision: 23,
   metadata: Object.freeze({
     name: 'HUM:N',
-    description: 'A faceted low-poly human, head and shoulders, drawn as fine white wire over black facets with a scatter of cyan-to-magenta gradient panels. It breathes and sways on the beat, and on drops, phrases and sections it reaches for the lens with an open hand, sweeps an arm across its body, looks up past the camera, turns to look back over its shoulder, recoils, grabs its head or lunges, with the framing moving to match. Striped and halftone fills, fragmentation and Auto Color remain in Design.',
+    description: 'A faceted low-poly human, head and shoulders, drawn as fine white wire over black facets with a scatter of cyan-to-magenta gradient panels. It breathes and sways on the beat, performs full-body gestures on musical phrase cadence, and gives drops extra emphasis as it reaches for the lens, sweeps an arm, looks up, turns over a shoulder, recoils, grabs its head or lunges, with the framing moving to match. Striped and halftone fills, fragmentation and Auto Color remain in Design.',
     tags: Object.freeze(['hum-n', 'native', 'humanoid', 'low-poly', 'wireframe', '3d', 'keeper']),
   }),
   capabilities: Object.freeze([
@@ -656,7 +656,7 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
       dropStrength: 0,
       phraseStrength: 0,
       sectionStrength: 0,
-      fallbackStrength: 0,
+      performanceStrength: 0,
       autoPerformance: true,
       beatFlicker: 0,
       downbeatReveal: 0,
@@ -826,17 +826,17 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
         ]),
       }),
       Object.freeze({
-        id: choreographyRuleId('hum-n-fallback-performance-cadence'),
+        id: choreographyRuleId('hum-n-expressive-performance-cadence'),
         enabledParameter: cinema2Ref(CINEMA2_HUMN_AUTO_PERFORMANCE_ID),
         priority: 39,
         source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
-        // The module suppresses this shared-clock event when the track has authored
-        // drop markers. Otherwise, every second 16-beat phrase supplies a restrained
-        // arm/body gesture instead of leaving the figure in idle motion indefinitely.
-        conditions: Object.freeze([Object.freeze({ kind: 'beat-interval' as const, unit: 'phrase' as const, every: 2, phase: 0 })]),
+        // Every phrase is an opportunity, but the module's liveness clock admits
+        // one only after a quiet phrase and resets only when a full gesture really
+        // plays. Authored or rejected future drop markers cannot suppress it.
+        conditions: Object.freeze([Object.freeze({ kind: 'beat-interval' as const, unit: 'phrase' as const, every: 1, phase: 0 })]),
         actions: Object.freeze([
-          structuralEventSpawnAction('hum-n-fallback-performance-event', 'fallback'),
-          structuralStrengthAction('hum-n-fallback-performance-strength', 'fallbackStrength', 0.55),
+          structuralEventSpawnAction('hum-n-expressive-performance-event', 'performance'),
+          structuralStrengthAction('hum-n-expressive-performance-strength', 'performanceStrength'),
         ]),
       }),
       Object.freeze({

@@ -101,11 +101,19 @@ function family(h: Harness): 'reach' | 'shock' | 'headGrab' | 'lunge' | 'sweep' 
   return 'none'
 }
 
+function armShapeDelta(h: Harness): number {
+  const distance = (a: readonly number[], b: readonly number[]) => Math.hypot(...a.map((value, index) => value - b[index]!))
+  const chest = joint(h, CINEMA2_HUMN_BONE.spine)
+  const restChest = restJoint(CINEMA2_HUMN_BONE.spine)
+  return Math.abs(distance(joint(h, CINEMA2_HUMN_BONE.leftHand), chest) - distance(restJoint(CINEMA2_HUMN_BONE.leftHand), restChest))
+    + Math.abs(distance(joint(h, CINEMA2_HUMN_BONE.rightHand), chest) - distance(restJoint(CINEMA2_HUMN_BONE.rightHand), restChest))
+}
+
 // ── Manifest contract ───────────────────────────────────────────────────────
 
 describe('HUM:N manifest contract', () => {
-  it('is revision 22, a 3D scene with a camera, and compiles when the 3D capabilities are available', () => {
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(22)
+  it('is revision 23, a 3D scene with a camera, and compiles when the 3D capabilities are available', () => {
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(23)
     expect(CINEMA2_HUMN_PRESET_MANIFEST.cameras).toHaveLength(1)
     const compiled = cinema2NativePresetRegistry.compile(CINEMA2_HUMN_PRESET_ID, { availableCapabilities: ['render.webgl2', 'render.depth', 'scene.3d', 'camera.world'] })
     expect(compiled.ok, compiled.ok ? '' : compiled.diagnostics.map(diagnostic => `${diagnostic.path}: ${diagnostic.message}`).join('\n')).toBe(true)
@@ -150,7 +158,7 @@ describe('HUM:N manifest contract', () => {
 
   it('gates the structural pose rules with Auto Performance and never uses the retired Master Reactivity', () => {
     const rules = CINEMA2_HUMN_PRESET_MANIFEST.choreography?.rules ?? []
-    for (const ruleId of ['hum-n-drop-gesture', 'hum-n-phrase-look', 'hum-n-section-look']) {
+    for (const ruleId of ['hum-n-drop-gesture', 'hum-n-expressive-performance-cadence', 'hum-n-phrase-look', 'hum-n-section-look']) {
       expect(rules.find(rule => rule.id === ruleId)?.enabledParameter, ruleId).toEqual(cinema2Ref(P.auto))
     }
     expect(JSON.stringify(CINEMA2_HUMN_PRESET_MANIFEST)).not.toContain('master-reactivity')
@@ -487,6 +495,23 @@ describe('Auto Performance owns every pose', () => {
     expect(reach(0)).toBeLessThan(1e-5)
     expect(reach(1)).toBeGreaterThan(reach(0.5))
     expect(reach(0.5)).toBeGreaterThan(0)
+  })
+
+  it('stages a full arm/body gesture on phrase cadence even when the track contains a future drop marker', () => {
+    const h = harness({ state: { [P.motion]: 0, [P.intensity]: 1 } })
+    // Sample across two analyzed phrases. The future marker used to suppress
+    // every fallback for the whole track, even though it has not happened yet.
+    let peakArmShapeDelta = 0
+    for (let frame = 0; frame < 90; frame += 1) {
+      h.step({ ...(frame === 0 ? {
+        dropMoments: [{ id: 'future-drop', timeSec: 100 }],
+        phrases: [{ id: 'phrase-a', timeSec: 10.2 }, { id: 'phrase-b', timeSec: 18.2 }],
+      } : {}), frames: 1, dt: 0.1 })
+      peakArmShapeDelta = Math.max(peakArmShapeDelta, armShapeDelta(h))
+    }
+    // Looking or turning at a phrase boundary preserves hand-to-torso distance;
+    // this verifies that a real articulated arm/body gesture also played.
+    expect(peakArmShapeDelta).toBeGreaterThan(0.005)
   })
 
   it('resets on a seek and starts from the rest pose again', () => {

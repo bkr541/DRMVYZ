@@ -11,11 +11,13 @@ import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { buildCinema2HumNMesh, type Cinema2HumNMeshDensity } from './humn/Cinema2HumNMesh'
 import {
   Cinema2HumNPerformanceRuntime,
+  Cinema2HumNExpressiveCadence,
   CINEMA2_HUMN_NEUTRAL_POSE,
   cinema2HumNAutoDropStrength,
   cinema2HumNDirectorContext,
   cinema2HumNDirectionFromUnit,
   selectCinema2HumNDropGesture,
+  selectCinema2HumNCadenceGesture,
   selectCinema2HumNStructuralVariant,
   type Cinema2HumNStructuralKind,
 } from './humn/Cinema2HumNPerformance'
@@ -33,9 +35,7 @@ export const CINEMA2_HUMN_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleT
 export const CINEMA2_HUMN_NATIVE_MODULE_VERSION = 2 as const
 
 export type Cinema2HumNFragmentEventKind = 'beat' | 'downbeat' | 'kick' | 'snare'
-type Cinema2HumNQueuedStructuralKind = Cinema2HumNStructuralKind | 'fallback'
-
-const HUMN_DROP_MOMENT_TYPES = new Set(['drop', 'drop_impact', 'major_impact', 'high_impact'])
+type Cinema2HumNQueuedStructuralKind = Cinema2HumNStructuralKind | 'performance'
 
 /** The point of the figure Figure Scale grows about (metres, bind pose): the middle of the head, so a close-up keeps the face in frame. */
 export const CINEMA2_HUMN_FRAMING_ANCHOR = Object.freeze({ x: 0, y: 0.69, z: 0 })
@@ -67,12 +67,7 @@ function parseFragmentEventKind(payload: unknown): Cinema2HumNFragmentEventKind 
 function parseStructuralEventKind(payload: unknown): Cinema2HumNQueuedStructuralKind | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
   const kind = (payload as { kind?: unknown }).kind
-  return kind === 'drop' || kind === 'phrase' || kind === 'section' || kind === 'fallback' ? kind : null
-}
-
-function hasAuthoredDropTimeline(frame: Cinema2ModuleUpdateContext['frame']): boolean {
-  const moments = frame.audio?.structure.semanticMoments
-  return Boolean(moments?.available && moments.value?.some(moment => HUMN_DROP_MOMENT_TYPES.has(moment.type)))
+  return kind === 'drop' || kind === 'phrase' || kind === 'section' || kind === 'performance' ? kind : null
 }
 
 function frameTimeSec(frame: { transport?: { timeSec: number }; audio: { upstream: { timeSec: number } } | null; elapsedTimeSec: number }): number {
@@ -141,6 +136,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
     const beatClock = new Cinema2BeatClock()
     const autoColor = new Cinema2HumNAutoColor()
     const performance = new Cinema2HumNPerformanceRuntime()
+    const expressiveCadence = new Cinema2HumNExpressiveCadence()
     const rig = createCinema2HumNRigState()
     const eventSeeds: Record<Cinema2HumNFragmentEventKind, number> = { beat: 0, downbeat: 0, kick: 0, snare: 0 }
     const pendingStructural: { eventId: string; kind: Cinema2HumNQueuedStructuralKind }[] = []
@@ -153,6 +149,7 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
 
     const resetPerformance = () => {
       performance.reset()
+      expressiveCadence.reset()
       pendingStructural.length = 0
     }
     const resetEventState = () => {
@@ -215,29 +212,37 @@ export const cinema2HumNNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefini
           // Auto Performance owns every pose the figure strikes. Without analysis there is no musical time, so nothing stays posed.
           if (!autoOn || frame.audio == null) {
             if (performance.activeCount > 0 || pendingStructural.length > 0) resetPerformance()
+            else expressiveCadence.reset()
           } else if (pendingStructural.length > 0) {
             const nowSec = frameTimeSec(frame)
             const beatSec = frameBeatSec(frame)
             const director = cinema2HumNDirectorContext(frame.director as never)
-            for (const pending of pendingStructural.splice(0)) {
+            expressiveCadence.begin(beat.beats)
+            // A drop at a phrase boundary owns that moment and resets the
+            // cadence before the lower-priority phrase opportunity is assessed.
+            const queued = pendingStructural.splice(0).sort((a, b) => Number(b.kind === 'drop') - Number(a.kind === 'drop'))
+            for (const pending of queued) {
               if (beatSec == null) continue // no musical time: never fabricate a tempo
-              if (pending.kind === 'fallback' && hasAuthoredDropTimeline(frame)) continue
               const strength = clampNumber(number(`${pending.kind}Strength`, 0), 0, 1)
               if (strength <= 0.001) continue
               const stream = context.randomness.eventStream(pending.eventId, `hum-n-structural-${pending.kind}`)
               const family = stream.next()
               const direction = cinema2HumNDirectionFromUnit(stream.next())
               const alt = stream.next()
-              if (pending.kind === 'drop' || pending.kind === 'fallback') {
-                // A real drop is additionally governed by Director impact. The
-                // fallback is already deliberately restrained by its authored
-                // strength and must not be rejected for lacking drop impact.
+              if (pending.kind === 'drop' || pending.kind === 'performance') {
+                // Drops control emphasis, not access to the full pose vocabulary.
+                // Phrase opportunities use their own liveness clock and calm-track
+                // selection weights, with no dependency on drop impact authority.
                 const gatedStrength = pending.kind === 'drop'
                   ? cinema2HumNAutoDropStrength(strength, director?.impact ?? null)
-                  : strength
+                  : expressiveCadence.strengthForOpportunity(beat.beats, director?.intensity ?? null)
                 if (gatedStrength == null) continue
-                const gesture = selectCinema2HumNDropGesture(family, { auto: director, previous: performance.previousDropGesture })
-                performance.trigger({ eventId: pending.eventId, kind: 'drop', gesture, strength: gatedStrength, startSec: nowSec, beatSec }, nowSec)
+                const gesture = pending.kind === 'drop'
+                  ? selectCinema2HumNDropGesture(family, { auto: director, previous: performance.previousDropGesture })
+                  : selectCinema2HumNCadenceGesture(family, { auto: director, previous: performance.previousDropGesture })
+                if (performance.trigger({ eventId: pending.eventId, kind: 'drop', gesture, strength: gatedStrength, startSec: nowSec, beatSec }, nowSec)) {
+                  expressiveCadence.markGesture(beat.beats)
+                }
               } else {
                 const variant = selectCinema2HumNStructuralVariant(pending.kind, family, director)
                 const resolved = variant === 'lookLeft' && direction > 0 ? 'lookRight' : variant

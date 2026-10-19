@@ -77,8 +77,8 @@ const within = (value: number, [min, max]: readonly [number, number] | readonly 
 describe('Glow and Trails manifest contract', () => {
   const byId = new Map((CINEMA2_HUMN_PRESET_MANIFEST.parameters ?? []).map(parameter => [parameter.id, parameter]))
 
-  it('is revision 22 and the two finishing controls have the approved identity, range, hierarchy and authority', () => {
-    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(22)
+  it('is revision 23 and the two finishing controls have the approved identity, range, hierarchy and authority', () => {
+    expect(CINEMA2_HUMN_PRESET_MANIFEST.revision).toBe(23)
     expect(byId.get(GLOW)).toMatchObject({
       label: 'Glow', type: 'float', defaultValue: 0.35, min: 0, max: 1, step: 0.01,
       section: 'Design', group: 'Light Treatment', designParentGroup: 'effects',

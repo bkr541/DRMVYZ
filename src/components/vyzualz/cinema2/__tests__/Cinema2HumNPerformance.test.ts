@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import {
   CINEMA2_HUMN_DROP_GESTURES,
   CINEMA2_HUMN_DROP_GESTURE_TIMINGS,
+  CINEMA2_HUMN_EXPRESSIVE_CADENCE,
   CINEMA2_HUMN_STRUCTURAL_TIMINGS,
+  Cinema2HumNExpressiveCadence,
   Cinema2HumNPerformanceRuntime,
   cinema2HumNAutoDropStrength,
   cinema2HumNEnvelope,
   cinema2HumNStructuralAmplitude,
   selectCinema2HumNDropGesture,
+  selectCinema2HumNCadenceGesture,
   selectCinema2HumNStructuralVariant,
   type Cinema2HumNDirectorContext,
   type Cinema2HumNDropGesture,
@@ -89,6 +92,13 @@ describe('deterministic gesture selection', () => {
     }
   })
 
+  it('uses the full gesture vocabulary on cadence while favoring reach and sweep in calm passages', () => {
+    const calm = tally(1000, unit => selectCinema2HumNCadenceGesture(unit, { auto: context({ phase: 'steady', intensity: 0.25, momentum: 0.25 }) }))
+    expect(Object.keys(calm).sort()).toEqual([...CINEMA2_HUMN_DROP_GESTURES].sort())
+    expect((calm.reach ?? 0) + (calm.sweep ?? 0)).toBeGreaterThan((calm.lunge ?? 0) + (calm.shock ?? 0) + (calm.headGrab ?? 0))
+    expect(selectCinema2HumNCadenceGesture(0.37, { auto: null, previous: 'reach' })).not.toBe('reach')
+  })
+
   it('high variation authority never repeats the previous family; low variation may', () => {
     const noRepeat = tally(200, unit => selectCinema2HumNDropGesture(unit, { auto: context({ variation: 0.9 }), previous: 'reach' }))
     expect(noRepeat.reach).toBeUndefined()
@@ -119,6 +129,20 @@ describe('Auto Performance impact gating', () => {
     expect(mid).toBeGreaterThan(0.6)
     expect(strong).toBe(1)
     expect(mid).toBeLessThan(strong)
+  })
+})
+
+describe('expressive performance cadence', () => {
+  it('waits one phrase, grows toward the two-phrase guarantee, and resets after a real gesture', () => {
+    const cadence = new Cinema2HumNExpressiveCadence()
+    cadence.begin(20)
+    expect(cadence.strengthForOpportunity(20 + CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats - 0.01, 0.5)).toBeNull()
+    const first = cadence.strengthForOpportunity(20 + CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats, 0.5)!
+    const overdue = cadence.strengthForOpportunity(20 + CINEMA2_HUMN_EXPRESSIVE_CADENCE.guaranteeBeats, 0.5)!
+    expect(first).toBeGreaterThan(0.5)
+    expect(overdue).toBeGreaterThan(first)
+    cadence.markGesture(52)
+    expect(cadence.strengthForOpportunity(52 + CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats - 1, 1)).toBeNull()
   })
 })
 

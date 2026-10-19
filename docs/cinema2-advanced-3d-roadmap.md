@@ -573,7 +573,7 @@ Not done / honest limits: verified with synthetic-but-realistic music frames (a 
 ### HUM:N 3D figure rebuild (owner request 2026-09-25, uncommitted until the owner commits)
 The owner showed the old HUM:N (a flat, hand-traced 2D drawing: ~100 line segments and 41 triangles in one front view, moved by 2D warps) next to the wanted look (a full low-poly 3D character that
 moves, turns and reaches, with hundreds of triangles, gradient fills that change places) and asked for the EXISTING preset to be rebuilt, not a new one. Nine control problems were reported at the same time.
-What was built (all under `modules/humn/` unless noted; preset `presets/Cinema2HumNPreset.ts` revision 22, module `hum-n-native-render` version 2):
+What was built (all under `modules/humn/` unless noted; preset `presets/Cinema2HumNPreset.ts` revision 23, module `hum-n-native-render` version 2):
 - `Cinema2HumNMesh.ts`: the figure is GENERATED in code (no shipped model, no licence): head (9 rings x 12 around, faceted features: brow, eye sockets, nose, cheekbones, lips, chin, ears, two eye discs),
   neck, torso, two arms, two open hands (fingers + thumb, drawn 1.3x life size so a reaching hand reads). Triangle soup with per-vertex 2-bone skin, per-triangle stable rank/seed and per-EDGE stable rank + walking
   direction (shared edges agree, so fragmented edges are open from both sides). Density 1 = 942 triangles and density 2 (Mesh Detail Dense) = 2,378. Winding is verified outward (back faces are culled).

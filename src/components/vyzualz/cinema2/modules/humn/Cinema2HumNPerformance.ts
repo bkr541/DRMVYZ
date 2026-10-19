@@ -18,6 +18,13 @@
 export const CINEMA2_HUMN_DROP_GESTURES = Object.freeze(['reach', 'shock', 'headGrab', 'lunge', 'sweep'] as const)
 export type Cinema2HumNDropGesture = typeof CINEMA2_HUMN_DROP_GESTURES[number]
 
+/**
+ * A musical phrase is four bars in HUM:N's shared clock. Full-body movement is
+ * allowed after one quiet phrase and becomes progressively more authoritative
+ * until the two-phrase guarantee. A successfully staged drop resets the clock.
+ */
+export const CINEMA2_HUMN_EXPRESSIVE_CADENCE = Object.freeze({ minBeats: 16, guaranteeBeats: 32 })
+
 export const CINEMA2_HUMN_STRUCTURAL_VARIANTS = Object.freeze(['lookLeft', 'lookRight', 'bodyTurn', 'scan', 'center', 'lookUp'] as const)
 export type Cinema2HumNStructuralVariant = typeof CINEMA2_HUMN_STRUCTURAL_VARIANTS[number]
 
@@ -155,6 +162,35 @@ export function selectCinema2HumNDropGesture(
   return weightedChoice(CINEMA2_HUMN_DROP_GESTURES.map(gesture => [gesture, weights[gesture]] as const), unit)
 }
 
+/**
+ * Phrase-cadence gestures use the complete arm/body vocabulary without
+ * pretending that a calm passage was a drop. Reach and sweep lead in restrained
+ * passages; the more abrupt families become likelier as the track gains energy.
+ */
+export function selectCinema2HumNCadenceGesture(
+  unit: number,
+  options: { auto: Cinema2HumNDirectorContext | null; previous?: Cinema2HumNDropGesture | null } = { auto: null },
+): Cinema2HumNDropGesture {
+  const weights: Record<Cinema2HumNDropGesture, number> = { reach: 1.6, sweep: 1.6, lunge: 0.45, shock: 0.3, headGrab: 0.25 }
+  const context = options.auto
+  if (context) {
+    const energy = context.intensity ?? 0.5
+    const momentum = context.momentum ?? 0.5
+    if (context.phase === 'rising' || context.phase === 'building') { weights.reach *= 1.35; weights.lunge *= 1.4 }
+    if (context.phase === 'peak' || energy >= 0.72 || momentum >= 0.72) {
+      weights.lunge *= 2.4
+      weights.shock *= 1.8
+      weights.headGrab *= 1.5
+    }
+    if (context.phase === 'low' || context.phase === 'steady' || context.phase === 'release') {
+      weights.reach *= 1.25
+      weights.sweep *= 1.35
+    }
+  }
+  if (options.previous) weights[options.previous] = 0
+  return weightedChoice(CINEMA2_HUMN_DROP_GESTURES.map(gesture => [gesture, weights[gesture]] as const), unit)
+}
+
 export function selectCinema2HumNStructuralVariant(
   kind: 'phrase' | 'section',
   unit: number,
@@ -186,6 +222,43 @@ export function cinema2HumNAutoDropStrength(strength: number, impact: number | n
   if (impact == null) return strength
   if (impact < 0.15) return null
   return strength * (0.6 + 0.4 * clamp01(impact))
+}
+
+/**
+ * Tracks the last full-body performance independently of authored drop markers.
+ * Callers ask only at phrase opportunities; therefore this is a liveness guard,
+ * not another clock or audio detector.
+ */
+export class Cinema2HumNExpressiveCadence {
+  private anchorBeat: number | null = null
+
+  begin(beat: number): void {
+    if (this.anchorBeat == null && Number.isFinite(beat)) this.anchorBeat = beat
+  }
+
+  reset(): void {
+    this.anchorBeat = null
+  }
+
+  markGesture(beat: number): void {
+    if (Number.isFinite(beat)) this.anchorBeat = beat
+  }
+
+  strengthForOpportunity(beat: number, intensity: number | null): number | null {
+    if (!Number.isFinite(beat)) return null
+    if (this.anchorBeat == null || beat < this.anchorBeat) {
+      this.anchorBeat = beat
+      return null
+    }
+    const elapsed = beat - this.anchorBeat
+    if (elapsed + 1e-6 < CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats) return null
+    const overdue = clamp01(
+      (elapsed - CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats)
+      / (CINEMA2_HUMN_EXPRESSIVE_CADENCE.guaranteeBeats - CINEMA2_HUMN_EXPRESSIVE_CADENCE.minBeats),
+    )
+    const musicalEnergy = intensity == null ? 0.5 : clamp01(intensity)
+    return clamp01(0.55 + 0.15 * musicalEnergy + 0.2 * overdue)
+  }
 }
 
 /** A second, independent draw picks direction so look/scan sides are not correlated with the family choice. */
