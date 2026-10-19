@@ -14,13 +14,9 @@ The machine-enforced importer baseline is maintained in
 npm run cinema:legacy-boundary:check
 ```
 
-Any change that removes a legacy import must reduce that allowlist in the same
-patch. A new importer is a Phase 1 boundary violation.
-
-As of Phase 3, that check additionally enforces a hard invariant: no production
-or test file under `src/components/vyzualz/cinema2` may import anything from the
-legacy Cinema directory. The remaining external-import baseline is 24 files,
-all owned by later React-shell, migration, browser-harness, or deletion phases.
+As of Phase 6 the legacy directory is absent and the check enforces zero source
+importers. It also walks the production import graph from `src/main.tsx`;
+neither production nor tests may resolve an import into the removed directory.
 
 ## Source disposition authority
 
@@ -35,14 +31,13 @@ is the canonical source-disposition manifest. It covers:
 - an explicit archive-only disposition where no native replacement was selected.
 
 The manifest is intentionally Cinema 2.0-owned and has no import from the
-legacy Cinema directory. The parity test in
-`src/components/vyzualz/cinema/__tests__/Cinema2LegacyMigrationManifest.test.ts`
-compares it with the current legacy catalogs while those catalogs still exist.
+legacy Cinema directory. It is exercised by the retained Cinema 2.0 migration
+and persistence tests without importing the deleted catalogs.
 
 ## Intended deletion set
 
-The following items are candidates for deletion only after their owning phase
-gate passes. This list describes the boundary; Phase 1 does not delete them.
+The following approved deletion set was executed in Phase 6 after its owning
+gates passed.
 
 ### Legacy domain, runtime, persistence, and tests
 
@@ -74,6 +69,7 @@ legacy-retirement bridge, and the legacy unit tests.
 - `src/test/e2e/cinemaRuntimeRendering.spec.ts`
 - `scripts/run-cinema-runtime-browser.mjs`
 - the `test:e2e:cinema-runtime` package script
+- the legacy Afterhours browser/perceptual harnesses, specs, scripts, and package scripts
 
 ### Presentation and documentation
 
@@ -103,7 +99,6 @@ outside `src/components/vyzualz/cinema`, including:
   renderer registry/host path;
 - Music Intelligence publication tests that exercise
   `cinematicInputFromReactFrame`;
-- Afterhours browser and perceptual-acceptance harnesses;
 - Cinematic world shader E2E coverage; and
 - the world implementations and their own lifecycle/settings tests.
 
@@ -133,14 +128,14 @@ fall into these ownership groups:
 | Browser/E2E tests | Legacy runtime harness and scripts | Phase 6 |
 | CSS/help/docs/layout lab | Legacy presentation and guidance | Phase 6/7 |
 
-### Phase 5 consumer audit
+### Phase 6 removal audit
 
 The React View shell, React store, performance pads, preset-name/inspector
-helpers, output/recording panels, and live Layout Lab navigation are now cut
-over. The boundary check walks the production import graph from `src/main.tsx`
-and confirms it cannot reach the legacy Cinema directory. The 15 remaining
-direct importers are isolated legacy workspace files, legacy-focused tests, and
-browser acceptance harnesses retained for physical deletion in Phase 6.
+helpers, output/recording panels, and live Layout Lab navigation are cut over.
+The legacy directory and all direct importers are deleted. The boundary check
+walks the production import graph from `src/main.tsx` and reports zero source
+importers. Historical data support remains isolated in the Cinema 2.0-owned,
+data-only persistence reader and migration manifest.
 
 ## Persisted data policy
 

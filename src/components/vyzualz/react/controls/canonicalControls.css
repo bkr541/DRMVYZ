@@ -1029,7 +1029,7 @@
 }
 
 /* Mini section divider between the CANVAS row and the authored layers when
-   any layer holds an Engine override -- matches rv-cinema-panel-list__hint's
+   any layer holds an Engine override -- matches rv-engine-panel-list__hint's
    muted register, just smaller, since it labels a subsection rather than
    the whole panel. */
 .rv-canvas-layer-tree-section-label {

@@ -28,8 +28,7 @@ export interface ReactPresetCardSecondaryAction {
 
 /**
  * How the card is laid out. `poster` is the standard (Layout Lab → Presets → 01 · Poster Tile): a 3:2 tile for a two-column grid, the picture
- * filling the card and the name centred at its foot. `row` is the older single-column row with a small thumbnail; only the legacy Cinema engine
- * still uses it.
+ * filling the card and the name centred at its foot. `row` is the older single-column row with a small thumbnail used by compatibility browsers.
  */
 export type ReactPresetCardLayout = 'poster' | 'row'
 

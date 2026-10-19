@@ -306,7 +306,7 @@ export async function compileCinemaSvgAssetSource(
   return cache.getOrCompile({ assetId, revision: source.revision, rawSvg: source.text, options })
 }
 
-/** Structural boundary used by both legacy Cinema and Cinema 2.0 callers. */
+/** Structural boundary used by Cinema 2.0 and shared vector callers. */
 export interface CinemaSvgAssetSourceLoader {
   loadRawSource?: (
     assetId: string,

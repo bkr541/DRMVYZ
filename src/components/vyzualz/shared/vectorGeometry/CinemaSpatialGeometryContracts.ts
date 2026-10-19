@@ -1,4 +1,4 @@
-/** Neutral tuple used by legacy Cinema, Cinema 2.0, and older world renderers. */
+/** Neutral tuple shared by Cinema 2.0 and older world renderers. */
 export type CinemaSpatialVector3 = readonly [number, number, number]
 export type CinemaSpatialColor = readonly [number, number, number, number]
 

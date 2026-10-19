@@ -18,7 +18,7 @@ discarded merely because the built-in presets have been ported.
 | Field | Value |
 | --- | --- |
 | Overall status | **In progress** |
-| Current phase | Phase 6 |
+| Current phase | Phase 7 |
 | Last updated | 2026-10-18 |
 | Target live engine | `cinema2` |
 | Legacy live engine | `cinema` |
@@ -43,7 +43,7 @@ discarded merely because the built-in presets have been ported.
 | 3 | Decouple Cinema 2.0 from legacy Cinema | **Complete** | Phase 1 |
 | 4 | Migrate persisted state and cross-engine references | **Complete** | Phases 1-3 |
 | 5 | Cut over the application shell and runtime | **Complete** | Phase 4 |
-| 6 | Delete the legacy implementation and artifacts | **Pending** | Phase 5 |
+| 6 | Delete the legacy implementation and artifacts | **Complete** | Phase 5 |
 | 7 | Stabilize and retire temporary compatibility code | **Pending** | Phase 6 |
 
 ## Current architectural boundary
@@ -506,7 +506,7 @@ data-only compatibility readers needed for historical state.
 
 ## Phase 6: Delete the legacy implementation and artifacts
 
-**Status:** Pending
+**Status:** Complete
 
 ### Desired result
 
@@ -532,17 +532,17 @@ orphaned after the cutover.
 
 ### Checklist
 
-- [ ] Confirm the Phase 1 deletion manifest against the current tree.
-- [ ] Delete the legacy Cinema domain, runtime, store, and tests.
-- [ ] Delete legacy React UI and bridge files.
-- [ ] Delete legacy-only browser/E2E infrastructure and package scripts.
-- [ ] Remove legacy styles and UI documentation.
-- [ ] Remove only those older renderers proven to be unreachable.
-- [ ] Remove orphaned dependencies.
-- [ ] Verify that the production bundle contains no legacy Cinema runtime code.
-- [ ] Search for unexpected legacy identifiers and imports.
-- [ ] Review the complete deletion diff for unintended files.
-- [ ] Record validation evidence below.
+- [x] Confirm the Phase 1 deletion manifest against the current tree.
+- [x] Delete the legacy Cinema domain, runtime, store, and tests.
+- [x] Delete legacy React UI and bridge files.
+- [x] Delete legacy-only browser/E2E infrastructure and package scripts.
+- [x] Remove legacy styles and UI documentation.
+- [x] Remove only those older renderers proven to be unreachable.
+- [x] Remove orphaned dependencies.
+- [x] Verify that the production bundle contains no legacy Cinema runtime code.
+- [x] Search for unexpected legacy identifiers and imports.
+- [x] Review the complete deletion diff for unintended files.
+- [x] Record validation evidence below.
 
 ### Completion gate
 
@@ -552,7 +552,28 @@ historical release notes, and no legacy Cinema code is included in production.
 
 ### Evidence / notes
 
-_Pending._
+- The full legacy domain/runtime/store/test tree, its React workspace and
+  bridges, and its browser/E2E harnesses and commands have been deleted.
+- Superseded `docs/cinema/**` and Stage 9/10 documents were removed. The
+  orphaned Header Status Layout Lab example and its test/styles were removed.
+- 225 `.rv-cinema-*` selectors across 184 rules were removed while
+  `.rv-cinema2-*` and `.rv-cinematic-*` styles were preserved. Active Cinema
+  2.0, Canvas, and Headliner panel hooks that had reused legacy names now use
+  neutral `.rv-engine-*` selectors with the same presentation.
+- `npm run cinema:legacy-boundary:check` passes with zero source importers and
+  a clean production graph. The check is now a permanent zero-import guard.
+- `npx vite build` passes (6,814 modules). Bundle inspection finds no
+  `useCinemaStore`, `new CinemaRuntime`, or `.rv-cinema-*` payload. The retained
+  `drmvyz:cinema-store` string belongs only to the data-only compatibility
+  reader required by the migration support window.
+- Focused persistence, migration, engine-selection, and engine-registration
+  validation passes 115 assertions across seven test files. One stale assertion
+  was updated to expect the already-implemented `cinema` → `cinema2` repair.
+- No dependency was removed: `earcut`, `opentype.js`, `svg-path-properties`,
+  and `three` all retain Cinema 2.0 or shared-renderer importers.
+- The older Shader/Cinematic renderer tree remains because the Phase 3 audit
+  proved active non-Cinema consumers; deleting it would violate this phase's
+  no-downstream-impact requirement.
 
 ---
 

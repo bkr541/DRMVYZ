@@ -3,11 +3,10 @@
 // Layout Lab / Template engine only. Inline Flag: no card chrome at all —
 // just a thin accent line and a small icon inline with the title, for
 // lower-emphasis contexts where a full box would feel heavy. This is the
-// winning treatment status/warning/info messages (like the Cinema runtime
-// notice) converge on, shown with the same real Cinema copy the app uses.
+// winning treatment status/warning/info messages converge on.
 
-const SAMPLE_TITLE = 'Stage 19 Composer authoring wired to canonical Cinema state'
-const SAMPLE_BODY = 'Structured visuals now share one authored model with modulation routes, performance rules, cameras, and authoritative musical/lyric timeline context. Runtime previews remain transient.'
+const SAMPLE_TITLE = 'Runtime state synchronized'
+const SAMPLE_BODY = 'Structured visuals share one authored model with modulation routes, performance rules, cameras, and authoritative timeline context.'
 
 function NoticeInfoIcon() {
   return (

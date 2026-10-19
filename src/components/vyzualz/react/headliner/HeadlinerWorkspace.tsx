@@ -313,7 +313,7 @@ export function HeadlinerPresetsPanel() {
   ))
 
   return (
-    <section className="rv-cinema-panel-list" aria-label="Headliner presets" data-preset-scope={scope}>
+    <section className="rv-engine-panel-list" aria-label="Headliner presets" data-preset-scope={scope}>
       <PanelSubtabs
         value={scope}
         options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}

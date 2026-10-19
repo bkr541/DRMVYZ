@@ -54,11 +54,11 @@ describe('repairReactEnginePresetSelection', () => {
     })
   })
 
-  it('keeps the standalone Cinema engine preset-free', () => {
+  it('retires the standalone Cinema engine to Cinema 2.0', () => {
     const stalePreset = firstFor('cinematicPortal')
     expect(repairReactEnginePresetSelection(stalePreset.id, 'cinema')).toEqual({
       activeReactPresetId: null,
-      activeReactEngineId: 'cinema',
+      activeReactEngineId: 'cinema2',
     })
   })
 

@@ -29,7 +29,7 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
   })
 
   return (
-    <section className="rv-cinema-panel-list" aria-label="Cinema 2.0 presets" data-preset-scope={scope}>
+    <section className="rv-engine-panel-list" aria-label="Cinema 2.0 presets" data-preset-scope={scope}>
       <PanelSubtabs
         value={scope}
         options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]}

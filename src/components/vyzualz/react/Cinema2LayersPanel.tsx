@@ -14,9 +14,9 @@ export function Cinema2LayersPanel({ runtime }: Cinema2LayersPanelProps) {
   if (scene.layers.length === 0) return <EmptyCinema2Layers copy="This Cinema 2.0 preset does not declare user-facing layers." />
 
   return (
-    <section className="rv-cinema-panel-list" aria-label="Cinema 2.0 layers" data-cinema2-layers="scene">
-      <div className="rv-cinema-panel-list__header"><strong>Layers</strong><span>{scene.layers.length}</span></div>
-      <div className="rv-cinema-layer-tree">
+    <section className="rv-engine-panel-list" aria-label="Cinema 2.0 layers" data-cinema2-layers="scene">
+      <div className="rv-engine-panel-list__header"><strong>Layers</strong><span>{scene.layers.length}</span></div>
+      <div className="rv-engine-layer-tree">
         {scene.layers.map((layer, index) => {
           const role = layer.role ? `${layer.role} · ` : ''
           const status = `${role}${layer.visible ? `${Math.round(layer.opacity * 100)}%` : 'Hidden'} · ${layer.blendMode}`

@@ -52,14 +52,14 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     label: 'Cinema',
     shortLabel: 'Cinema',
     icon: '◇',
-    description: 'Composition-native visual graphs with one canonical Cinema runtime.',
+    description: 'Retired compatibility identity migrated to Cinema 2.0.',
   },
   cinema2: {
     id: 'cinema2',
     label: 'Cinema 2.0',
     shortLabel: 'Cinema 2',
     icon: '◆',
-    description: 'Next-generation Cinema workspace (in progress).',
+    description: 'Composition-native visuals powered by the canonical Cinema 2.0 runtime.',
   },
   oscilloscope: {
     id: 'oscilloscope',

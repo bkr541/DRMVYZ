@@ -81,17 +81,17 @@ This keeps transport, waveform, cue, BPM, Rekordbox, and track controls shared a
 
 ## Selectable engine registry
 
-`REACT_ENGINE_IDS` is the user-facing engine registry. `REACT_KNOWN_ENGINE_IDS` additionally contains the retired `shaderPads` and `cinematicPortal` identifiers for persisted-project and import compatibility; those aliases must not be rendered as selector choices. `REACT_ENGINE_CATALOG` retains metadata for both public and compatibility IDs.
+`REACT_ENGINE_IDS` is the user-facing engine registry. `REACT_KNOWN_ENGINE_IDS` additionally contains the retired `shaderPads`, `cinematicPortal`, and `cinema` identifiers for persisted-project and import compatibility; those aliases must not be rendered as selector choices. `REACT_ENGINE_CATALOG` retains metadata for both public and compatibility IDs.
 
 | ID | Label | Live renderer ownership |
 | --- | --- | --- |
-| `cinema` | Cinema | `CinemaWorkspace` → single Cinema canvas/WebGL runtime |
+| `cinema2` | Cinema 2.0 | `Cinema2Stage` → `Cinema2Runtime` |
 | `oscilloscope` | Sound Drawing | `ReactPlaceholderCanvas` → Sound Drawing renderer |
 | `canvas` | CANVAS | `CanvasEngineSurface` from `ReactCanvasEngineShell.tsx` |
 | `laserDmx` | LaserDMX | `ReactPlaceholderCanvas` → LaserDMX renderer |
 | `pixGrid` | PixGrid | `PixGridSurface` |
 
-Shader Pads and Cinematic Worlds content is cataloged as stable Cinema compositions. Their old IDs remain restore aliases only; neither owns a public canvas, animation loop, or selectable workspace after Cinema Stage 23.
+Legacy Cinema, Shader Pads, and Cinematic Worlds IDs remain restore aliases only; none owns a public canvas, animation loop, or selectable workspace. Historical content is migrated into Cinema 2.0.
 
 Adding an engine requires updating the typed engine ID, catalog, workspace composition, state defaults and migrations, renderer routing, controls, presets or scene surface, diagnostics, tests, and documentation.
 
