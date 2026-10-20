@@ -148,10 +148,39 @@
   margin-top: 6px;
 }
 
+.pmv-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.pmv-info-row {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pmv-info-row--wide {
+  grid-column: 1 / -1;
+}
+
+.pmv-info-label,
 .pmv-info-value {
+  min-width: 0;
+}
+
+.pmv-info-label {
+  color: var(--ui-text-secondary, rgba(245, 248, 250, 0.7));
+  font: 600 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  white-space: nowrap;
+}
+
+.pmv-info-value {
+  color: var(--color-text-strong, rgba(245, 248, 250, 0.94));
+  font: 700 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
+  overflow-wrap: break-word;
 }
 
 .pmv-card {

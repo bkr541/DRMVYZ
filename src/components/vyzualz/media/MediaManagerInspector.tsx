@@ -38,16 +38,18 @@ export interface MediaHeaderActions {
 
 type HeaderActionsSink = (actions: MediaHeaderActions | null) => void
 
-function TagsCollectionsGroup({
+export function TagsCollectionsGroup({
   tags,
   onTagsChange,
   collectionIds,
   onCollectionIdsChange,
+  idPrefix = 'mmi',
 }: {
   tags: string[]
   onTagsChange: (tags: string[]) => void
   collectionIds: string[]
   onCollectionIdsChange: (collectionIds: string[]) => void
+  idPrefix?: string
 }) {
   const { collections, createCollection } = useMediaStore(useShallow(state => ({
     collections: state.collections,
@@ -82,10 +84,10 @@ function TagsCollectionsGroup({
     <Collapsible label="Tags &amp; Collections" defaultOpen>
       <div className="rv-ctrl-row">
         <span className="rv-ctrl-label-cluster">
-          <label className="rv-ctrl-label" htmlFor="mmi-tags">Tags</label>
+          <label className="rv-ctrl-label" htmlFor={`${idPrefix}-tags`}>Tags</label>
         </span>
         <DreamVizTextInput
-          id="mmi-tags"
+          id={`${idPrefix}-tags`}
           className="mmi-chip-input"
           placeholder="Type to add tags…"
           value={tagInput}
@@ -103,10 +105,10 @@ function TagsCollectionsGroup({
       </div>
       <div className="rv-ctrl-row">
         <span className="rv-ctrl-label-cluster">
-          <label className="rv-ctrl-label" htmlFor="mmi-collections">Collections</label>
+          <label className="rv-ctrl-label" htmlFor={`${idPrefix}-collections`}>Collections</label>
         </span>
         <Dropdown
-          id="mmi-collections"
+          id={`${idPrefix}-collections`}
           searchable
           searchValue={collInput}
           onSearchChange={setCollInput}

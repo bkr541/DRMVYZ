@@ -30,6 +30,9 @@ export interface PresetManagerRecord {
   tags: readonly string[]
   artwork: PresetManagerArtwork
   activation: PresetManagerActivation
+  hasCamera: boolean
+  canIntegrateUserMedia: boolean
+  is3dEnvironment: boolean
   /** The complete source definition, exposed read-only by the Info inspector. */
   sourceData: Readonly<Record<string, unknown>>
   custom?: boolean
@@ -45,6 +48,11 @@ function record(
   tags: readonly string[],
   activation: PresetManagerActivation = 'react',
   sourceData: Readonly<Record<string, unknown>> = {},
+  capabilities: Pick<PresetManagerRecord, 'hasCamera' | 'canIntegrateUserMedia' | 'is3dEnvironment'> = {
+    hasCamera: false,
+    canIntegrateUserMedia: false,
+    is3dEnvironment: false,
+  },
 ): PresetManagerRecord {
   return {
     id: `${source}:${sourceId}`,
@@ -56,6 +64,7 @@ function record(
     tags,
     artwork: source,
     activation,
+    ...capabilities,
     sourceData,
   }
 }
@@ -66,6 +75,21 @@ function record(
 const currentReactPresets = DEFAULT_REACT_PRESETS.filter(preset => (
   preset.engine !== 'cinema' && preset.engine !== 'cinematicPortal'
 ))
+
+function cinema2Capabilities(manifest: ReturnType<typeof cinema2NativePresetRegistry.list>[number]) {
+  return {
+    hasCamera: manifest.cameras?.some(camera => (
+      (camera.rig != null && camera.rig.kind !== 'static')
+      || camera.motion != null
+      || camera.transition != null
+    )) ?? false,
+    canIntegrateUserMedia: Boolean(
+      manifest.mediaSlots?.length
+      || manifest.parameters?.some(parameter => parameter.type === 'media'),
+    ),
+    is3dEnvironment: manifest.capabilities?.some(capability => capability.id === 'scene.3d') ?? false,
+  }
+}
 
 const cinema2Presets = cinema2NativePresetRegistry.list().flatMap(manifest => {
   if (manifest.metadata.tags?.includes('internal')) return []
@@ -80,6 +104,7 @@ const cinema2Presets = cinema2NativePresetRegistry.list().flatMap(manifest => {
     discovery.tags,
     'cinema2',
     manifest as unknown as Readonly<Record<string, unknown>>,
+    cinema2Capabilities(manifest),
   )]
 })
 
@@ -90,14 +115,22 @@ const soundDrawingPresets = currentReactPresets
       preset,
       preset.oscillatorSettings?.sourceType ?? 'sound-drawing',
     )
-    return record('soundDrawing', preset.id, preset.name, preset.description, 'Sound Drawing', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>)
+    return record('soundDrawing', preset.id, preset.name, preset.description, 'Sound Drawing', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    })
   })
 
 const canvasPresets = CANVAS_VISIBLE_PRESETS
   .filter(preset => preset.id !== DEFAULT_CANVAS_PRESET_ID)
   .map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(preset, preset.rendererKind)
-    return record('canvas', preset.id, preset.name, preset.description, 'CANVAS', discovery.category, discovery.tags, 'canvas', preset as unknown as Readonly<Record<string, unknown>>)
+    return record('canvas', preset.id, preset.name, preset.description, 'CANVAS', discovery.category, discovery.tags, 'canvas', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    })
   })
 
 const laserDmxPresets = [
@@ -110,10 +143,18 @@ const laserDmxPresets = [
       'performance-show',
       [...preset.genreTags, ...preset.behaviorTags, ...preset.musicIntelligenceCapabilities],
     )
-    return record('laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', discovery.category, discovery.tags, 'laserDmxPerformance', preset as unknown as Readonly<Record<string, unknown>>)
+    return record('laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', discovery.category, discovery.tags, 'laserDmxPerformance', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    })
   }),
   ...LASER_DMX_SHOW_DIRECTOR_TEMPLATES.map(preset => record(
-    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags, 'laserDmxTemplate', preset as unknown as Readonly<Record<string, unknown>>,
+    'laserDmx', preset.id, preset.name, preset.description, 'LaserDMX', preset.category, preset.tags, 'laserDmxTemplate', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    },
   )),
 ]
 
@@ -121,7 +162,11 @@ const pixGridPresets = currentReactPresets
   .filter(preset => preset.engine === 'pixGrid')
   .map(preset => {
     const discovery = resolvePresetDiscoveryMetadata(preset, preset.pixGridDeck ? 'media-deck' : 'pixel-art')
-    return record('pixGrid', preset.id, preset.name, preset.description, 'PixGrid', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>)
+    return record('pixGrid', preset.id, preset.name, preset.description, 'PixGrid', discovery.category, discovery.tags, 'react', preset as unknown as Readonly<Record<string, unknown>>, {
+      hasCamera: false,
+      canIntegrateUserMedia: Boolean(preset.pixGridDeck),
+      is3dEnvironment: false,
+    })
   })
 
 const headlinerPresets = HEADLINER_PRESETS.map(preset => {

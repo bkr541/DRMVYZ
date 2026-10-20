@@ -590,6 +590,19 @@ export interface UserPresetRow {
   updated_at: string
 }
 
+/** Per-user organization for a preset, separate from built-in discovery metadata. */
+export interface PresetOrganizationRow {
+  user_id: string
+  preset_key: string
+  tags: string[]
+  collection_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export type PresetOrganizationInsert = Omit<PresetOrganizationRow, 'created_at' | 'updated_at'>
+export type PresetOrganizationUpdate = Partial<Omit<PresetOrganizationRow, 'user_id' | 'preset_key' | 'created_at' | 'updated_at'>>
+
 export interface VisualSessionRow {
   id: string
   user_id: string | null
@@ -896,6 +909,14 @@ export interface Database {
         Relationships: [
           { foreignKeyName: 'user_presets_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
           { foreignKeyName: 'user_presets_preset_id_fkey'; columns: ['preset_id']; isOneToOne: false; referencedRelation: 'presets'; referencedColumns: ['id'] },
+        ]
+      }
+      preset_organization: {
+        Row: DBRec<PresetOrganizationRow>
+        Insert: DBRec<PresetOrganizationInsert>
+        Update: DBRec<PresetOrganizationUpdate>
+        Relationships: [
+          { foreignKeyName: 'preset_organization_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
         ]
       }
       visual_sessions:          { Row: DBRec<VisualSessionRow>;       Insert: DBRec<Omit<VisualSessionRow,'id'|'created_at'|'updated_at'>>;    Update: DBRec<Partial<Omit<VisualSessionRow,'id'>>>; Relationships: [] }

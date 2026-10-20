@@ -3,15 +3,20 @@
 
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { PresetManagerView } from './PresetManagerView'
 import { PRESET_MANAGER_PRESETS } from './presetManagerCatalog'
+import { usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { cinema2NativePresetRegistry } from '../cinema2'
 import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
+
+beforeEach(() => {
+  usePresetOrganizationStore.setState({ records: {}, status: 'ready', error: null })
+})
 
 function renderView() {
   container = document.createElement('div')
@@ -60,6 +65,29 @@ describe('Preset Manager view', () => {
       expect(cinema2Names.has(name)).toBe(true)
       expect(cinema2Names.has(`${name} 2.0`)).toBe(false)
     }
+  })
+
+  it('derives preset capabilities from their engine definitions', () => {
+    expect(PRESET_MANAGER_PRESETS.find(preset => preset.name === 'Constellation')).toMatchObject({
+      hasCamera: true,
+      canIntegrateUserMedia: false,
+      is3dEnvironment: true,
+    })
+    expect(PRESET_MANAGER_PRESETS.find(preset => preset.name === 'Reactor' && preset.activation === 'cinema2')).toMatchObject({
+      hasCamera: false,
+      canIntegrateUserMedia: true,
+      is3dEnvironment: false,
+    })
+    expect(PRESET_MANAGER_PRESETS.find(preset => preset.activation === 'laserDmxBeamMatrix')).toMatchObject({
+      hasCamera: false,
+      canIntegrateUserMedia: false,
+      is3dEnvironment: false,
+    })
+    expect(PRESET_MANAGER_PRESETS.every(preset => (
+      typeof preset.hasCamera === 'boolean'
+      && typeof preset.canIntegrateUserMedia === 'boolean'
+      && typeof preset.is3dEnvironment === 'boolean'
+    ))).toBe(true)
   })
 
   it('renders the reference library structure and searchable preset metadata', () => {
@@ -112,6 +140,9 @@ describe('Preset Manager view', () => {
 
     const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')
     expect(preset).toBeDefined()
+    act(() => usePresetOrganizationStore.setState({
+      records: preset ? { [preset.id]: { tags: ['user-authored'], collectionIds: [] } } : {},
+    }))
     const card = container?.querySelector<HTMLElement>(`.pmv-card[data-preset-id="${preset?.sourceId}"]`)
     act(() => card?.querySelector<HTMLButtonElement>('.pmv-card-main')?.click())
 
@@ -121,17 +152,25 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-inspector-body')?.getAttribute('data-selected-preset')).toBe(preset?.sourceId)
     expect(container?.querySelector('.pmv-info-panel')?.getAttribute('aria-label')).toBe(`${preset?.name} preset information`)
     expect(container?.querySelectorAll('.pmv-inspector-body .rv-ctrl-group').length).toBeGreaterThan(0)
-    expect(container?.querySelectorAll('.pmv-info-panel .rv-ctrl-group > .drc-group')).toHaveLength(1)
+    expect(container?.querySelectorAll('.pmv-info-panel .rv-ctrl-group > .drc-group')).toHaveLength(2)
     expect(container?.querySelector('.pmv-info-panel .rv-ctrl-group > .drc-group > .drc-header')?.textContent).toContain('Preset Info')
     expect(container?.querySelector('.pmv-info-panel .rv-ctrl-section-label')).toBeNull()
-    expect([...(container?.querySelectorAll('.pmv-info-panel .rv-insp-key') ?? [])].map(row => row.textContent)).toEqual([
+    expect(container?.querySelector('.pmv-info-grid')).not.toBeNull()
+    expect([...(container?.querySelectorAll('.pmv-info-row--wide .pmv-info-label') ?? [])].map(row => row.textContent)).toEqual(['Name', 'Description'])
+    expect([...(container?.querySelectorAll('.pmv-info-panel .pmv-info-label') ?? [])].map(row => row.textContent)).toEqual([
       'Name',
       'Description',
       'Engine',
       'Category',
-      'Tags',
+      'Has Camera',
+      'Can Integrate User Media',
+      '3D Environment',
       'Custom',
     ])
+    expect(container?.querySelector('#pmv-preset-tags')).not.toBeNull()
+    expect(container?.querySelector('#pmv-preset-collections-trigger')).not.toBeNull()
+    expect(container?.querySelector('.pmv-info-panel .mmi-chip-field')?.textContent).toContain('user-authored')
+    expect([...(container?.querySelectorAll('.pmv-info-panel .drc-header') ?? [])].map(header => header.textContent?.replace('▾', '').trim())).toContain('Tags & Collections')
 
     act(() => inspectorTabs.find(tab => tab.textContent === 'DESIGN')?.click())
     expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()

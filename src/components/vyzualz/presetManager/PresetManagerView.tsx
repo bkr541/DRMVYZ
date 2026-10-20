@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Add01Icon, FavouriteIcon, Layers01Icon, Settings02Icon } from 'hugeicons-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
+import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
+import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { PageHeadingPlate, PresetHeadingIcon } from '../layout/PageHeadingPlate'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
@@ -34,6 +36,7 @@ import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { TagsCollectionsGroup } from '../media/MediaManagerInspector'
 import {
   PRESET_MANAGER_PRESETS,
   type PresetManagerArtwork,
@@ -65,30 +68,51 @@ function infoValue(value: unknown): string {
   return String(value)
 }
 
-function InfoRow({ label, value }: { label: string; value: unknown }) {
+function InfoRow({ label, value, wide = false }: { label: string; value: unknown; wide?: boolean }) {
   const displayValue = infoValue(value)
   return (
-    <div className="rv-insp-kv">
-      <span className="rv-insp-key">{label}</span>
-      <span className="rv-insp-val pmv-info-value" title={displayValue}>{displayValue}</span>
+    <div className={`pmv-info-row${wide ? ' pmv-info-row--wide' : ''}`}>
+      <span className="pmv-info-label">{label}</span>
+      <span className="pmv-info-value" title={displayValue}>{displayValue}</span>
     </div>
   )
 }
 
 function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
+  const organization = usePresetOrganizationStore(state => state.records[preset.id]) ?? EMPTY_PRESET_ORGANIZATION
+  const loadOrganization = usePresetOrganizationStore(state => state.load)
+  const updateOrganization = usePresetOrganizationStore(state => state.update)
+  const loadCollections = useMediaStore(state => state.loadCollections)
+
+  useEffect(() => {
+    void loadOrganization()
+    void loadCollections()
+  }, [loadCollections, loadOrganization])
+
   return (
     <div className="rv-workspace-panel pmv-info-panel" aria-label={`${preset.name} preset information`}>
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-group">
             <Collapsible label="Preset Info">
-              <InfoRow label="Name" value={preset.name} />
-              <InfoRow label="Description" value={preset.description} />
-              <InfoRow label="Engine" value={preset.engineName} />
-              <InfoRow label="Category" value={preset.category} />
-              <InfoRow label="Tags" value={preset.tags.length ? preset.tags.join(', ') : 'None'} />
-              <InfoRow label="Custom" value={preset.custom ?? false} />
+              <div className="pmv-info-grid">
+                <InfoRow label="Name" value={preset.name} wide />
+                <InfoRow label="Description" value={preset.description} wide />
+                <InfoRow label="Engine" value={preset.engineName} />
+                <InfoRow label="Category" value={preset.category} />
+                <InfoRow label="Has Camera" value={preset.hasCamera} />
+                <InfoRow label="Can Integrate User Media" value={preset.canIntegrateUserMedia} />
+                <InfoRow label="3D Environment" value={preset.is3dEnvironment} />
+                <InfoRow label="Custom" value={preset.custom ?? false} />
+              </div>
             </Collapsible>
+            <TagsCollectionsGroup
+              idPrefix="pmv-preset"
+              tags={[...organization.tags]}
+              onTagsChange={tags => { void updateOrganization(preset.id, { ...organization, tags }) }}
+              collectionIds={[...organization.collectionIds]}
+              onCollectionIdsChange={collectionIds => { void updateOrganization(preset.id, { ...organization, collectionIds }) }}
+            />
           </div>
         </div>
       </div>
