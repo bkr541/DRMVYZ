@@ -22779,6 +22779,179 @@ path.llni-accent[fill='currentColor'], circle.llni-accent[fill='currentColor'], 
 .llni-item:not(.is-active):hover { color: rgba(196, 207, 211, 0.78); }
 .llni-stage--hex-seal .llni-item.is-active .llni-icon { background: rgba(74, 199, 219, 0.1); box-shadow: 0 0 16px rgba(74, 199, 219, 0.16); }
 
+/* Layout Lab · Template canvas: five FPS-over-frame-time group studies. */
+.llft-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  box-sizing: border-box;
+  padding: 28px;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(74, 199, 219, 0.08), transparent 38%),
+    #070c0f;
+}
+
+.llft-stage > header { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; text-transform: uppercase; }
+.llft-stage > header > span { color: rgba(232, 244, 248, 0.86); font: 800 12px/1 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.14em; }
+.llft-stage > header > small { color: rgba(154, 178, 188, 0.48); font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.12em; }
+
+.llft-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.llft-concept {
+  position: relative;
+  display: flex;
+  width: 126px;
+  min-width: 126px;
+  height: 118px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  border: 1px solid rgba(154, 178, 188, 0.12);
+  border-radius: 10px;
+  background: rgba(12, 17, 20, 0.9);
+}
+
+.llft-index,
+.llft-concept > small { color: rgba(154, 178, 188, 0.52); font: 700 7px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.08em; text-transform: uppercase; }
+.llft-group { display: grid; width: 112px; grid-template-rows: repeat(2, 22px); gap: 3px; box-sizing: border-box; }
+.llft-metric { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 3px; box-sizing: border-box; padding: 0 5px; white-space: nowrap; }
+.llft-metric > span { overflow: hidden; color: rgba(196, 207, 211, 0.72); font: 700 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.02em; text-overflow: ellipsis; text-transform: uppercase; }
+.llft-metric > strong { flex: none; color: #61d6aa; font: 800 11px/1 var(--az-font-data, Inter, system-ui, sans-serif); font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: uppercase; }
+
+.llft-concept--separate-chips .llft-metric { border: 1px solid rgba(154, 178, 188, 0.2); border-radius: 5px; background: rgba(255, 255, 255, 0.035); }
+.llft-concept--unified-stack .llft-group { gap: 0; overflow: hidden; border: 1px solid rgba(154, 178, 188, 0.2); border-radius: 7px; background: rgba(255, 255, 255, 0.025); }
+.llft-concept--unified-stack .llft-metric:first-child { border-bottom: 1px solid rgba(154, 178, 188, 0.14); }
+.llft-concept--signal-rail .llft-group { position: relative; gap: 0; padding-left: 4px; border-radius: 4px; background: rgba(74, 199, 219, 0.035); }
+.llft-concept--signal-rail .llft-group::before { position: absolute; inset: 0 auto 0 0; width: 2px; border-radius: 2px; background: #4ac7db; box-shadow: 0 0 8px rgba(74, 199, 219, 0.52); content: ''; }
+.llft-concept--glass-deck .llft-group { gap: 2px; padding: 4px; grid-template-rows: repeat(2, 20px); border: 1px solid rgba(103, 247, 255, 0.2); border-radius: 10px; background: linear-gradient(135deg, rgba(103, 247, 255, 0.08), rgba(255, 255, 255, 0.015)); box-shadow: inset 0 0 14px rgba(103, 247, 255, 0.035); }
+.llft-concept--glass-deck .llft-metric { padding: 0 3px; }
+.llft-concept--edge-readout .llft-group { gap: 0; border-right: 2px solid #67f7ff; background: rgba(0, 0, 0, 0.18); }
+.llft-concept--edge-readout .llft-metric { padding-right: 8px; }
+.llft-concept--edge-readout .llft-metric:first-child { border-bottom: 1px dotted rgba(154, 178, 188, 0.2); }
+
+/* Second row: the production ReactPresetCard poster component, adapted into
+   five compact server-output monitoring treatments. */
+.llft-monitor-row { display: flex; width: 100%; align-items: center; justify-content: center; gap: 12px; }
+.llft-monitor-shell { flex: 0 0 126px; width: 126px; }
+.llft-monitor-shell > .rv-preset-card.llft-monitor-card { width: 126px; border-color: color-mix(in srgb, var(--rv-preset-tone) 34%, rgba(154, 178, 188, 0.16)); background: #090e11; }
+.llft-monitor-card .rv-preset-spotlight-thumb { overflow: hidden; }
+.llft-monitor-card .rv-preset-spotlight-caption { gap: 1px; padding: 18px 5px 5px; }
+.llft-monitor-card .rv-preset-spotlight-name { font-size: 8px; line-height: 1; }
+.llft-monitor-card .rv-preset-poster-chip { font-size: 6px; letter-spacing: 0.09em; }
+
+.llft-monitor-visual { position: absolute; inset: 0; display: block; overflow: hidden; background: radial-gradient(circle at 50% 15%, color-mix(in srgb, var(--rv-preset-tone) 24%, transparent), transparent 58%), #080d10; }
+.llft-monitor-group { position: absolute; z-index: 2; top: 7px; left: 8px; right: 8px; display: grid; grid-template-rows: repeat(2, 18px); overflow: hidden; border: 1px solid color-mix(in srgb, var(--rv-preset-tone) 40%, rgba(154, 178, 188, 0.18)); border-radius: 5px; background: rgba(4, 8, 10, 0.82); box-shadow: 0 5px 12px rgba(0, 0, 0, 0.24); }
+.llft-monitor-group .llft-metric { padding: 0 5px; }
+.llft-monitor-group .llft-metric:first-child { border-bottom: 1px solid rgba(154, 178, 188, 0.12); }
+.llft-monitor-group .llft-metric > span { font-size: 7.5px; }
+.llft-monitor-group .llft-metric > strong { font-size: 10px; color: color-mix(in srgb, var(--rv-preset-tone) 72%, white); }
+.llft-monitor-decoration { position: absolute; inset: 48px 8px auto; display: flex; height: 12px; align-items: flex-end; gap: 3px; opacity: 0.72; }
+.llft-monitor-decoration i { display: block; flex: 1; min-width: 0; }
+
+/* Macro overview: three dedicated overview-stat tiles. */
+.llft-monitor-visual--macro-overview .llft-monitor-decoration i { height: 9px; border: 1px solid rgba(199, 176, 202, 0.28); border-radius: 2px; background: rgba(76, 40, 203, 0.2); }
+.llft-monitor-visual--macro-overview .llft-monitor-decoration i:nth-child(2) { height: 12px; }
+
+/* Delta KPI: a violet trend line and endpoint emphasize change at a glance. */
+.llft-monitor-visual--delta-kpi .llft-monitor-decoration { height: 14px; align-items: center; border-bottom: 1px solid rgba(110, 76, 255, 0.28); transform: skewY(-5deg); }
+.llft-monitor-visual--delta-kpi .llft-monitor-decoration i { height: 2px; background: #6e4cff; box-shadow: 0 0 6px rgba(110, 76, 255, 0.5); }
+.llft-monitor-visual--delta-kpi .llft-monitor-decoration i:last-child { height: 6px; flex: 0 0 6px; border-radius: 50%; }
+
+/* Resource bars: compact CPU / RAM / bandwidth-style usage tracks. */
+.llft-monitor-visual--resource-bars .llft-monitor-decoration { flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; }
+.llft-monitor-visual--resource-bars .llft-monitor-decoration i { width: 100%; height: 2px; flex: none; border-radius: 2px; background: linear-gradient(90deg, #89ae5d 0 68%, rgba(137, 174, 93, 0.13) 68%); }
+.llft-monitor-visual--resource-bars .llft-monitor-decoration i:nth-child(2) { background: linear-gradient(90deg, #89ae5d 0 44%, rgba(137, 174, 93, 0.13) 44%); }
+.llft-monitor-visual--resource-bars .llft-monitor-decoration i:nth-child(3) { background: linear-gradient(90deg, #89ae5d 0 82%, rgba(137, 174, 93, 0.13) 82%); }
+
+/* Threshold stack: compact segmented usage with a contrasting capacity mark. */
+.llft-monitor-visual--threshold-stack .llft-monitor-decoration { align-items: stretch; gap: 2px; border-right: 2px solid #b00104; }
+.llft-monitor-visual--threshold-stack .llft-monitor-decoration i { height: 100%; background: #0fb24c; opacity: 0.75; }
+.llft-monitor-visual--threshold-stack .llft-monitor-decoration i:nth-child(2) { background: #593ab1; }
+.llft-monitor-visual--threshold-stack .llft-monitor-decoration i:nth-child(3) { background: rgba(159, 160, 160, 0.25); }
+
+/* Topology planes: layered infrastructure planes recede into the card. */
+.llft-monitor-visual--topology-planes .llft-monitor-decoration { inset: 49px 23px auto; display: block; height: 13px; transform: perspective(40px) rotateX(45deg); }
+.llft-monitor-visual--topology-planes .llft-monitor-decoration i { position: absolute; inset: 0; border: 1px solid rgba(25, 155, 248, 0.6); background: rgba(25, 155, 248, 0.08); box-shadow: 0 0 7px rgba(25, 155, 248, 0.18); }
+.llft-monitor-visual--topology-planes .llft-monitor-decoration i:nth-child(2) { transform: translate(5px, -4px); opacity: 0.7; }
+.llft-monitor-visual--topology-planes .llft-monitor-decoration i:nth-child(3) { transform: translate(10px, -8px); opacity: 0.4; }
+
+/* Composition overrides: each study changes hierarchy and silhouette rather
+   than applying another skin to the same two-row rectangle. */
+.llft-concept--unified-stack { border-radius: 28px 8px 28px 8px; }
+.llft-concept--unified-stack .llft-group { width: 106px; transform: translateY(2px); }
+.llft-concept--unified-stack .llft-metric { padding-inline: 3px; }
+
+.llft-concept--signal-rail { border-width: 0 1px; border-radius: 0; background: linear-gradient(90deg, rgba(74, 199, 219, 0.04), transparent); }
+.llft-concept--signal-rail .llft-group { width: 110px; grid-template-rows: 27px 17px; }
+.llft-concept--signal-rail .llft-metric { padding-inline: 3px; }
+.llft-concept--signal-rail .llft-metric:first-child strong { font-size: 17px; line-height: 0.8; }
+.llft-concept--signal-rail .llft-metric:last-child { border-top: 1px solid rgba(74, 199, 219, 0.16); }
+
+.llft-concept--glass-deck { border: 0; border-radius: 50%; background: radial-gradient(circle, rgba(103, 247, 255, 0.08), rgba(7, 12, 15, 0.96) 64%); box-shadow: inset 0 0 0 1px rgba(103, 247, 255, 0.18), 0 0 18px rgba(74, 199, 219, 0.08); }
+.llft-concept--glass-deck .llft-index { display: none; }
+.llft-concept--glass-deck .llft-group { width: 76px; height: 76px; grid-template-rows: 43px 27px; gap: 0; padding: 3px; border-radius: 50%; }
+.llft-concept--glass-deck .llft-metric { flex-direction: column; justify-content: center; gap: 2px; padding: 0; }
+.llft-concept--glass-deck .llft-metric:first-child { border-bottom: 1px solid rgba(103, 247, 255, 0.18); }
+.llft-concept--glass-deck .llft-metric:first-child strong { font-size: 18px; line-height: 0.8; }
+.llft-concept--glass-deck .llft-metric:last-child span { display: none; }
+.llft-concept--glass-deck > small { position: absolute; transform: translateY(52px); }
+
+.llft-concept--edge-readout { border-radius: 0; clip-path: polygon(0 0, 88% 0, 100% 15%, 100% 100%, 12% 100%, 0 85%); background: #05090b; }
+.llft-concept--edge-readout .llft-group { width: 108px; grid-template-rows: 26px 20px; border: 1px solid rgba(103, 247, 255, 0.2); border-right-width: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.llft-concept--edge-readout .llft-metric { padding-inline: 4px; }
+.llft-concept--edge-readout .llft-metric:first-child strong { color: #67f7ff; font-size: 15px; line-height: 0.8; }
+
+.llft-monitor-card[data-monitor-concept='macro-overview'] { border-radius: 14px 14px 5px 5px; }
+.llft-monitor-visual--macro-overview .llft-monitor-group { top: 6px; left: 7px; right: auto; width: 58px; height: 50px; grid-template-rows: 31px 18px; border: 0; background: transparent; box-shadow: none; }
+.llft-monitor-visual--macro-overview .llft-monitor-group .llft-metric { padding: 0; }
+.llft-monitor-visual--macro-overview .llft-monitor-group .llft-metric:first-child { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; border: 0; }
+.llft-monitor-visual--macro-overview .llft-monitor-group .llft-metric:first-child strong { font-size: 20px; line-height: 0.8; }
+.llft-monitor-visual--macro-overview .llft-monitor-group .llft-metric:last-child { justify-content: flex-start; gap: 4px; }
+.llft-monitor-visual--macro-overview .llft-monitor-group .llft-metric:last-child span { display: none; }
+.llft-monitor-visual--macro-overview .llft-monitor-decoration { inset: 8px 7px auto auto; display: grid; width: 45px; height: 46px; grid-template-columns: repeat(2, 1fr); gap: 3px; }
+.llft-monitor-visual--macro-overview .llft-monitor-decoration i { width: auto; height: auto; }
+.llft-monitor-visual--macro-overview .llft-monitor-decoration i:first-child { grid-row: 1 / -1; }
+
+.llft-monitor-card[data-monitor-concept='delta-kpi'] { border-radius: 2px; clip-path: polygon(0 0, 92% 0, 100% 12%, 100% 100%, 0 100%); }
+.llft-monitor-visual--delta-kpi .llft-monitor-group { top: 4px; left: 8px; right: 8px; grid-template-rows: 29px 17px; border: 0; background: transparent; box-shadow: none; }
+.llft-monitor-visual--delta-kpi .llft-monitor-group .llft-metric { padding: 0; }
+.llft-monitor-visual--delta-kpi .llft-monitor-group .llft-metric:first-child { align-items: flex-end; border: 0; }
+.llft-monitor-visual--delta-kpi .llft-monitor-group .llft-metric:first-child strong { font-size: 22px; line-height: 0.8; }
+.llft-monitor-visual--delta-kpi .llft-monitor-decoration { inset: 43px 7px auto; height: 15px; }
+.llft-monitor-card[data-monitor-concept='delta-kpi'] .rv-preset-spotlight-caption { align-items: flex-start; text-align: left; }
+
+.llft-monitor-card[data-monitor-concept='resource-bars'] { border-radius: 3px; border-left-width: 3px; }
+.llft-monitor-visual--resource-bars .llft-monitor-group { top: 5px; left: 7px; right: 7px; grid-template-rows: repeat(2, 24px); gap: 2px; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+.llft-monitor-visual--resource-bars .llft-monitor-group .llft-metric { position: relative; align-items: flex-start; padding: 1px 0 0; border: 0; }
+.llft-monitor-visual--resource-bars .llft-monitor-group .llft-metric::after { position: absolute; left: 0; right: 0; bottom: 2px; height: 5px; border-radius: 1px; background: linear-gradient(90deg, #89ae5d 0 74%, rgba(137, 174, 93, 0.15) 74%); content: ''; }
+.llft-monitor-visual--resource-bars .llft-monitor-group .llft-metric:last-child::after { background: linear-gradient(90deg, #bed5ba 0 47%, rgba(137, 174, 93, 0.15) 47%); }
+.llft-monitor-visual--resource-bars .llft-monitor-decoration { display: none; }
+.llft-monitor-card[data-monitor-concept='resource-bars'] .rv-preset-spotlight-caption { padding-top: 13px; background: linear-gradient(to top, rgba(4, 8, 6, 0.98) 45%, transparent); }
+
+.llft-monitor-card[data-monitor-concept='threshold-stack'] { border-width: 3px 1px 1px; border-radius: 0 0 10px 10px; }
+.llft-monitor-visual--threshold-stack .llft-monitor-group { top: 5px; left: 7px; right: 7px; grid-template-rows: repeat(2, 23px); gap: 2px; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+.llft-monitor-visual--threshold-stack .llft-monitor-group .llft-metric { padding: 0 5px; border: 0; border-left: 4px solid #0fb24c; background: repeating-linear-gradient(90deg, rgba(15, 178, 76, 0.22) 0 10px, transparent 10px 13px); }
+.llft-monitor-visual--threshold-stack .llft-monitor-group .llft-metric:last-child { border-left-color: #b00104; background: repeating-linear-gradient(90deg, rgba(176, 1, 4, 0.16) 0 10px, transparent 10px 13px); }
+.llft-monitor-visual--threshold-stack .llft-monitor-decoration { display: none; }
+
+.llft-monitor-card[data-monitor-concept='topology-planes'] { border-radius: 0; clip-path: polygon(8% 0, 92% 0, 100% 18%, 92% 100%, 8% 100%, 0 82%); }
+.llft-monitor-visual--topology-planes .llft-monitor-group { top: 7px; left: 10px; right: 10px; grid-template-rows: repeat(2, 20px); gap: 4px; overflow: visible; border: 0; background: transparent; box-shadow: none; transform: perspective(80px) rotateX(22deg); }
+.llft-monitor-visual--topology-planes .llft-monitor-group .llft-metric { border: 1px solid rgba(25, 155, 248, 0.5); background: rgba(12, 49, 88, 0.68); box-shadow: 0 4px 0 rgba(18, 118, 212, 0.2), 0 0 9px rgba(25, 155, 248, 0.18); }
+.llft-monitor-visual--topology-planes .llft-monitor-decoration { display: none; }
+.llft-monitor-card[data-monitor-concept='topology-planes'] .rv-preset-spotlight-caption { background: linear-gradient(to top, rgba(3, 4, 5, 0.98) 52%, transparent); }
+
 /* Layout Lab · Template: rail collapse / expand control concepts. */
 .llrt-gallery { display: flex; flex-direction: column; gap: 22px; padding: 4px 0 24px; }
 .llrt-concept { display: flex; flex-direction: column; gap: 9px; }

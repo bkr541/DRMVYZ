@@ -19,6 +19,7 @@ import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
 import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
 import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
+import { TemplateFpsFrameTimeMockups } from './layoutLab/TemplateFpsFrameTimeMockups'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
 import { useCinema2MockState } from './layoutLab/useCinema2MockState'
@@ -140,6 +141,7 @@ export function LayoutLabMockup() {
 
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
+            {engineId === 'template' && <TemplateFpsFrameTimeMockups />}
             {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
           </div>
 
