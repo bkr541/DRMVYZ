@@ -1,0 +1,92 @@
+{
+  "BWC_Enhanced_Factory.glb": {
+    "bytes": 12006904,
+    "sha256": "624c4ec46feeab4bbd1fc4b1949214c0a99d9e84e87b40173f590a93f5e69e31",
+    "meshCount": 1176,
+    "nodes": 1192,
+    "materials": 30,
+    "images": 6,
+    "animations": 0,
+    "extents_m": [
+      49.965,
+      12.29,
+      18.17
+    ],
+    "geometryTriangles": 316408,
+    "retainsTransparencyExtension": false
+  },
+  "BWC_Can_Branded_Ready.glb": {
+    "bytes": 730128,
+    "sha256": "52ba9e42663e164d89524138975e89cbfa4116de8feae14e555ade89e02f890c",
+    "meshCount": 1,
+    "nodes": 2,
+    "materials": 1,
+    "images": 1,
+    "animations": 0,
+    "extents_m": [
+      0.06722,
+      0.168,
+      0.06722
+    ],
+    "geometryTriangles": 4328,
+    "retainsTransparencyExtension": false
+  },
+  "BWC_Can_Plain_Ready.glb": {
+    "bytes": 15488,
+    "sha256": "12180516eb98203c473d10f825c8c6e379b63ac4a3ff62101fd765275b608757",
+    "meshCount": 1,
+    "nodes": 2,
+    "materials": 1,
+    "images": 0,
+    "animations": 0,
+    "extents_m": [
+      0.06102,
+      0.168,
+      0.06187
+    ],
+    "geometryTriangles": 456,
+    "retainsTransparencyExtension": false
+  },
+  "BWC_Can_Variants_Ready.glb": {
+    "bytes": 745468,
+    "sha256": "0e03c7ac90e59aa6d6d724b5a062a2074982e0cec33a75ed1236fc465e932313",
+    "meshCount": 2,
+    "nodes": 3,
+    "materials": 2,
+    "images": 1,
+    "animations": 0,
+    "extents_m": [
+      0.34412,
+      0.168,
+      0.06722
+    ],
+    "geometryTriangles": 4784,
+    "retainsTransparencyExtension": false
+  },
+  "BWC_Scifi_Assembly_Green_Animated_Ready.glb": {
+    "bytes": 10081080,
+    "sha256": "4548a1f90f879c4b3d4db022409273fc260185e7550da2823cc65d5e48e835da",
+    "meshCount": 33,
+    "nodes": 63,
+    "materials": 14,
+    "images": 4,
+    "animations": 1,
+    "extents_m": [
+      5.87512,
+      2.6163,
+      3.21075
+    ],
+    "geometryTriangles": 22996,
+    "retainsTransparencyExtension": true
+  },
+  "BWC_Enhanced_Factory.gltf": {
+    "bytes": 12006905,
+    "meshCount": 1176,
+    "extents_m": [
+      49.965,
+      12.29,
+      18.17
+    ],
+    "geometryTriangles": 316408
+  }
+}

@@ -20,7 +20,7 @@ export function createCinema2BwcNativeModuleDefinition(
     version: CINEMA2_BWC_NATIVE_MODULE_VERSION,
     validate: validateModule,
     create(context: Cinema2ModuleCreateContext) {
-      const renderer = context.resources.acquire('bwc:static-scene-v1', 'Cinema2BwcRenderer', gl => createRenderer(gl), value => value.dispose())
+      const renderer = context.resources.acquire('bwc:factory-corridor-v2', 'Cinema2BwcRenderer', gl => createRenderer(gl), value => value.dispose())
       context.resources.reportGpuBytes(renderer.estimateGpuBytes())
       const provider = Object.freeze({
         id: `${context.module.id}:bwc`, moduleId: context.module.id, intent: 'fullscreen' as const,
@@ -28,16 +28,16 @@ export function createCinema2BwcNativeModuleDefinition(
           const p = context.parameters
           renderer.draw({
             target: execution.target, width: execution.width, height: execution.height,
-            intensity: clamp(readNumber(p, 'intensity', 1), 0, 2),
+            intensity: clamp(readNumber(p, 'intensity', 1.1), 0, 2),
             portalScale: clamp(readNumber(p, 'portalScale', 1), 0.7, 1.35),
             canScale: clamp(readNumber(p, 'canScale', 1), 0.7, 1.35),
             conveyorWidth: clamp(readNumber(p, 'conveyorWidth', 1), 0.75, 1.35),
             ledStrength: clamp(readNumber(p, 'ledStrength', 0.85), 0, 1.5),
-            background: rgb(readColor(p, 'backgroundColor', [0.025, 0.04, 0.055, 1])),
-            structure: rgb(readColor(p, 'structureColor', [0.38, 0.46, 0.52, 1])),
-            canWhite: rgb(readColor(p, 'canWhiteColor', [0.94, 0.97, 1, 1])),
-            energy: rgb(readColor(p, 'energyColor', [0.22, 1, 0.12, 1])),
-            darkMetal: rgb(readColor(p, 'darkMetalColor', [0.025, 0.035, 0.042, 1])),
+            background: rgb(readColor(p, 'backgroundColor', [0.035, 0.055, 0.058, 1])),
+            structure: rgb(readColor(p, 'structureColor', [0.52, 0.59, 0.62, 1])),
+            canWhite: rgb(readColor(p, 'canWhiteColor', [0.86, 0.88, 0.86, 1])),
+            energy: rgb(readColor(p, 'energyColor', [0.28, 0.62, 0.18, 1])),
+            darkMetal: rgb(readColor(p, 'darkMetalColor', [0.018, 0.028, 0.032, 1])),
           })
         },
       })

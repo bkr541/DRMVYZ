@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "project": "DRMVYZ Cinema 2.0 BWC",
+  "coordinateSystem": "+Y up, +X downstream, +Z camera side",
+  "units": "meters",
+  "factoryDimensions_m": [
+    48,
+    12,
+    18
+  ],
+  "reactor": {
+    "center_m": [
+      0.0,
+      3.8,
+      0.0
+    ],
+    "outerDiameter_m": 6.45,
+    "axis": "X",
+    "coreDiameter_m": 3.76
+  },
+  "conveyor": {
+    "primaryStartX_m": -18,
+    "primaryEndX_m": 28,
+    "deckTopY_m": 1.495,
+    "secondaryY_m": 5.24,
+    "secondaryZ_m": -5.1
+  },
+  "can": {
+    "preparedAssetHeight_m": 0.168,
+    "factoryArtDirectedHeight_m": 1.0,
+    "scaleFactorInFactory": 5.952380952380952,
+    "note": "Intentionally enlarged in hero factory for visual readability. Change scale in Cinema 2.0 to prefer physically accurate 168 mm."
+  },
+  "sourceAssets": [
+    {
+      "name": "energy banks",
+      "file": "energy_banks.glb",
+      "license": "CC BY 4.0",
+      "author": "igor.rizaev00",
+      "original": "https://sketchfab.com/3d-models/energy-banks-119bf6e735414700913cb45a1af86ec1"
+    },
+    {
+      "name": "Sci-fi Assembly Line",
+      "file": "sci-fi_assembly_line.glb",
+      "license": "CC BY 4.0",
+      "author": "meeww",
+      "original": "https://sketchfab.com/3d-models/sci-fi-assembly-line-d30366ad73af49f6b7279923fe89faee"
+    }
+  ],
+  "sceneFunctionalGroups": [
+    "BWC_FACTORY_SHELL",
+    "BWC_CONVEYOR_PRIMARY",
+    "BWC_CONVEYOR_SECONDARY",
+    "BWC_REACTOR_HOUSING",
+    "BWC_REACTOR_EMISSIVES",
+    "BWC_REACTOR_CORE",
+    "BWC_REACTOR_CLAMPS",
+    "BWC_ENERGY_PIPES",
+    "BWC_ENERGY_TANKS",
+    "BWC_CATWALKS",
+    "BWC_FACTORY_LIGHTS",
+    "BWC_CANS_PRIMARY",
+    "BWC_CANS_SECONDARY",
+    "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "BWC_DETAIL_PROPS"
+  ],
+  "partCount": 1176,
+  "triangles": 316408,
+  "audioReactiveGroups": {
+    "kick": "BWC_REACTOR_EMISSIVES",
+    "sub": "BWC_REACTOR_CORE",
+    "beat": "BWC_AUDIO_BEAT_RING_PIXEL_*",
+    "build": "BWC_AUDIO_BUILD_PIPE_*",
+    "phrase": "BWC_AUDIO_PHRASE_TANK_*",
+    "drop": "BWC_AUDIO_DROP_*"
+  },
+  "artNotes": [
+    "Reference render is a conceptual art target, not proof of runtime appearance.",
+    "Rendered emissive bloom and illustrated/cel outlines must be implemented in renderer.",
+    "Merged factory preserves visible source geometry/materials but does not preserve source sci-fi animation. Use BWC_Scifi_Assembly_Ready.glb to keep animation."
+  ]
+}

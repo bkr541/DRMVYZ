@@ -1,0 +1,7058 @@
+[
+  {
+    "name": "BWC_FLOOR_PANEL_00_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_00_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_00_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_00_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_00_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_00_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_01_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_02_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_03_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_04_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_05_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_06_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_07_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_08_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_09_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_10_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_11_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_12_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_13_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_14_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FLOOR_PANEL_15_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "factory_concrete",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-18_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-18_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-18_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-18_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X-18",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-12_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-12_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-12_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-12_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X-12",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-6_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-6_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X-6_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X-6_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X-6",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X0_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X0_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X0_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X0_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X0",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X6_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X6_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X6_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X6_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X6",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X12_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X12_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X12_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X12_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X12",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X18_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X18_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X18_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X18_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X18",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X24_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X24_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X24_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X24_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X24",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X30_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X30_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_X30_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_COLUMN_BASE_X30_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_CROSSBEAM_X30",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_LONG_BEAM_Z-8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CEILING_LONG_BEAM_Z8",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_06",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_06",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_07",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_07",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_08",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_08",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_09",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_09",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_10",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_10",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_11",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_11",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_12",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_12",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_13",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_13",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_14",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_14",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_15",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_15",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_PANEL_16",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_LOWER_TRIM_16",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_CROSS_RIB_Y2.4",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_CROSS_RIB_Y5.4",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_FAR_WALL_CROSS_RIB_Y8.4",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_06",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_07",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_08",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_09",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_10",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_11",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_12",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_13",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_14",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_15",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WALL_VERTICAL_RIB_16",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_00",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_01",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_02",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_03",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_04",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_05",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_END_WALL_PANEL_06",
+    "group": "BWC_FACTORY_SHELL",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_00",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_0_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_0_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-19.4_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-17.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-14.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_0_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_0_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-19.4_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-17.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_0_-14.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_0",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_0_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_0_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_01",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_1_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_1_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-14.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-12.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-9.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_1_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_1_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-14.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-12.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_1_-9.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_1",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_1_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_1_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_02",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_2_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_2_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-9.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-7.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-4.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_2_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_2_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-9.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-7.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_2_-4.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_2",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_2_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_2_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_03",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_3_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_3_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_-4.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_-2.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_0.4_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_3_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_3_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_-4.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_-2.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_3_0.4_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_3",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_3_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_3_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_04",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_4_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_4_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_0.6_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_3.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_5.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_4_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_4_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_0.6_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_3.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_4_5.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_4",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_4_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_4_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_05",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_5_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_5_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_5.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_8.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_10.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_5_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_5_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_5.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_8.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_5_10.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_5",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_5_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_5_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_06",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_6_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_6_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_10.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_13.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_15.3_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_6_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_6_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_10.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_13.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_6_15.3_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_6",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_6_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_6_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_07",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_7_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_7_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_15.7_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_18.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_20.4_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_7_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_7_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_15.7_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_18.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_7_20.4_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_7",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_7_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_7_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_08",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_8_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_8_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_20.6_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_23.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_25.4_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_8_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_8_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_20.6_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_23.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_8_25.4_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_8",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_8_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_8_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_FAR_09",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_9_-8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_9_-8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_25.6_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_28.0_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_30.4_-8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_9_-6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_FAR_9_-6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_25.6_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_28.0_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_FAR_9_30.4_-6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_FAR_9",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_9_-7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_FAR_9_-6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_00",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_0_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_0_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-19.4_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-17.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-14.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_0_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_0_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-19.4_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-17.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_0_-14.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_0",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_0_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_0_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_01",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_1_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_1_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-14.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-12.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-9.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_1_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_1_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-14.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-12.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_1_-9.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_1",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_1_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_1_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_02",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_2_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_2_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-9.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-7.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-4.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_2_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_2_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-9.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-7.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_2_-4.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_2",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_2_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_2_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_03",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_3_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_3_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_-4.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_-2.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_0.4_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_3_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_3_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_-4.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_-2.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_3_0.4_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_3",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_3_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_3_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_04",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_4_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_4_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_0.6_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_3.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_5.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_4_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_4_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_0.6_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_3.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_4_5.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_4",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_4_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_4_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_05",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_5_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_5_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_5.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_8.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_10.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_5_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_5_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_5.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_8.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_5_10.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_5",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_5_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_5_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_06",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_6_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_6_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_10.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_13.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_15.3_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_6_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_6_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_10.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_13.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_6_15.3_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_6",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_6_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_6_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_07",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_7_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_7_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_15.7_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_18.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_20.4_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_7_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_7_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_15.7_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_18.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_7_20.4_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_7",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_7_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_7_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_08",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_8_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_8_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_20.6_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_23.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_25.4_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_8_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_8_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_20.6_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_23.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_8_25.4_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_8",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_8_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_8_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_DECK_CAMERA_09",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_9_6.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_9_6.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_25.6_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_28.0_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_30.4_6.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_9_8.2_6.0",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_HORIZONTAL_CAMERA_9_8.2_6.6",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_25.6_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_28.0_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_RAIL_POST_CAMERA_9_30.4_8.2",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CATWALK_UNDERBEAM_CAMERA_9",
+    "group": "BWC_CATWALKS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_9_6.5",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_SUPPORT_CAMERA_9_7.9",
+    "group": "BWC_CATWALKS",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_00",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_01",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_02",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_03",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_04",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_05",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_06",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_07",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_08",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_09",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_10",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_11",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_12",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CATWALK_STAIRSTEP_13",
+    "group": "BWC_CATWALKS",
+    "material": "grate",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_STAIRS_GUARD_5.62_00",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_STAIRS_GUARD_6.78_00",
+    "group": "BWC_CATWALKS",
+    "material": "yellow_safety",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_0_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_0_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_0_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_0_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_1_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_1_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_1_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_1_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_2_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_2_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_2_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_2_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_3_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_3_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_3_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_3_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_4_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_4_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_4_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_4_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_5_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_5_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_5_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_5_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_6_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_6_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_6_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_6_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_7_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_7_-4.5",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_WHITE_OVERHEAD_STRIP_7_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "white_light",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_OVERHEAD_STRIP_HOUSING_7_3.6",
+    "group": "BWC_FACTORY_LIGHTS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_MAIN_BELT",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "shadow_rubber",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_GUIDE_RAIL_-0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SIDE_PANEL_-0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LED_STRIP_-0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_GUIDE_RAIL_+0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SIDE_PANEL_+0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LED_STRIP_+0.62",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_00_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_00_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_00_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_00",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_01_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_01_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_01_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_01",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_02_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_02_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_02_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_02",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_03_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_03_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_03_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_03",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_04_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_04_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_04_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_04",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_05_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_05_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_05_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_05",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_06_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_06_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_06_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_06",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_07_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_07_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_07_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_07",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_08_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_08_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_08_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_08",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_09_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_09_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_09_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_09",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_10_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_10_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_10_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_10",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_11_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_11_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_11_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_11",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_12_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_12_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_12_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_12",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_13_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_13_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_13_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_13",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_14_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_14_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_14_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_14",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_15_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_15_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_15_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_15",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_16_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_16_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_16_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_16",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_17_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_17_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_17_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_17",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_18_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_18_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_18_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_18",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_19_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_19_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_19_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_19",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_ROLLER_20_-0.5",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_20_-0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_LEG_20_+0.49",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CONVEYOR_SENSOR_20",
+    "group": "BWC_CONVEYOR_PRIMARY",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BELT",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "shadow_rubber",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_RAIL_-5.58",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_RAIL_-4.62",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_0",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_1",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_2",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_3",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_4",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_5",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_SECONDARY_CONVEYOR_BRACKET_6",
+    "group": "BWC_CONVEYOR_SECONDARY",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_RING_00_midnight_steel",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_01_edge_silver",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "edge_silver",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_02_neon_green",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_03_blue_steel",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "blue_steel",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_04_lime_hot",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "lime_hot",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_05_midnight_steel",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_06_neon_green",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_RING_07_blue_steel",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "blue_steel",
+    "triangles": 1920
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_00",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_00",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_00",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_01",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_02",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_02",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_02",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_03",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_04",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_04",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_04",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_05",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_06",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_06",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_06",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_07",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_08",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_08",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_08",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_09",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_10",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_10",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_10",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_11",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_12",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_12",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_12",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_13",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_14",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_14",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "edge_silver",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_CLAMP_BOLT_14",
+    "group": "BWC_REACTOR_CLAMPS",
+    "material": "midnight_steel",
+    "triangles": 40
+  },
+  {
+    "name": "BWC_REACTOR_ARMOR_PLATE_15",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "panel_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_DROP_REACTOR_ENERGY_FIELD",
+    "group": "BWC_REACTOR_CORE",
+    "material": "plasma_glow",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_00_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_01_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_02_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_03_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_04_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_05_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_06_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_07_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_08_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_00",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_01",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_02",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_03",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_04",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_05",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_06",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_07",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_08",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_09",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_DROP_PLASMA_ARC_09_10",
+    "group": "BWC_REACTOR_CORE",
+    "material": "lime_hot",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_00",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_01",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_02",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_03",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_04",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_05",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_06",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_07",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_08",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_09",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_10",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_11",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_12",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_13",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_14",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_15",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_16",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_17",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_18",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_19",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_20",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_21",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_22",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_AUDIO_BEAT_RING_PIXEL_23",
+    "group": "BWC_REACTOR_EMISSIVES",
+    "material": "neon_green",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_FOUNDATION",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "blue_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_PEDESTAL_-1.4_-1.8",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_PEDESTAL_-1.4_+1.8",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_PEDESTAL_+1.4_-1.8",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_PEDESTAL_+1.4_+1.8",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_0_00",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_0_01",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_0_02",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_1_00",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_1_01",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_1_02",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_2_00",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_2_01",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_2_02",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_3_00",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_3_01",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_REACTOR_BRAIDED_POWER_3_02",
+    "group": "BWC_REACTOR_HOUSING",
+    "material": "shadow_rubber",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_PIPE_00_00_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_00_00_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_00_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_00_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_00_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_00_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_01_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_00_01_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_01_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_01_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_01_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_00_01_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_00_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_01_00_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_00_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_00_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_00_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_00_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_01_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_01_01_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_01_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_01_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_01_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_01_01_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_00_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_02_00_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_00_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_00_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_00_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_00_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_01_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_02_01_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_01_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_01_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_01_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_02_01_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_00_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_03_00_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_00_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_00_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_00_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_00_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_01_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_03_01_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_01_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_01_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_01_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_03_01_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_00_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_04_00_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_00_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_00_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_00_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_00_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_01_OUTER_GLASS",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "glass_smoke",
+    "triangles": 80
+  },
+  {
+    "name": "BWC_AUDIO_BUILD_PIPE_04_01_ENERGY",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "neon_green",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_01_CLAMP_8",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_01_CLAMP_36",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_01_CLAMP_64",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_PIPE_04_01_CLAMP_92",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "midnight_steel",
+    "triangles": 72
+  },
+  {
+    "name": "BWC_TANK_00_STEEL_BODY",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "midnight_steel",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_00_GLASS_WINDOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "glass_smoke",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_INNER_GLOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "deep_green",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_00_RIM_5.8",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_00_RIM_6.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_00_RIM_8.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_00_RIM_9.0",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_0_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_1_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_00_SIGNAL_2_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_TANK_00_SUPPLY_00",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_00_SUPPLY_01",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_01_STEEL_BODY",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "midnight_steel",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_01_GLASS_WINDOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "glass_smoke",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_INNER_GLOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "deep_green",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_01_RIM_5.8",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_01_RIM_6.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_01_RIM_8.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_01_RIM_9.0",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_0_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_1_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_01_SIGNAL_2_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_TANK_01_SUPPLY_00",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_01_SUPPLY_01",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_02_STEEL_BODY",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "midnight_steel",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_02_GLASS_WINDOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "glass_smoke",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_INNER_GLOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "deep_green",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_02_RIM_5.8",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_02_RIM_6.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_02_RIM_8.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_02_RIM_9.0",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_0_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_1_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_02_SIGNAL_2_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_TANK_02_SUPPLY_00",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_02_SUPPLY_01",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_03_STEEL_BODY",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "midnight_steel",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_03_GLASS_WINDOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "glass_smoke",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_INNER_GLOW",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "deep_green",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_03_RIM_5.8",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_03_RIM_6.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_03_RIM_8.5",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_TANK_03_RIM_9.0",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "edge_silver",
+    "triangles": 96
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_0_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_1_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_00",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_01",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_02",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_03",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_04",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_AUDIO_PHRASE_TANK_03_SIGNAL_2_05",
+    "group": "BWC_ENERGY_TANKS",
+    "material": "neon_green",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_TANK_03_SUPPLY_00",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_TANK_03_SUPPLY_01",
+    "group": "BWC_ENERGY_PIPES",
+    "material": "panel_steel",
+    "triangles": 48
+  },
+  {
+    "name": "BWC_CABLE_TRAY_0_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_0_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_0_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_0_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_0_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_0_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_0_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_0_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_1_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_1_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_1_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_1_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_1_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_1_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_1_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_1_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_2_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_2_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_2_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_2_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_2_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_2_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_2_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_2_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_3_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_3_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_3_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_3_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_3_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_3_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_3_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_3_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_4_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_4_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_4_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_4_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_4_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_4_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_4_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_4_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_5_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_5_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_5_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_5_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_5_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_5_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_5_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_5_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_6_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_6_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_6_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_6_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_6_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_6_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_6_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_6_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_7_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_7_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_7_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_7_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_7_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_7_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_7_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_7_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_8_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_8_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_8_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_8_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_8_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_8_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_8_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_8_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_9_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_9_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_9_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_9_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_9_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_9_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_9_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_9_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_10_-2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_10_-2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_10_-2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_10_-2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_TRAY_10_2.15",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "midnight_steel",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_CABLE_10_2.15_0",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_10_2.15_1",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CABLE_10_2.15_2",
+    "group": "BWC_DETAIL_PROPS",
+    "material": "shadow_rubber",
+    "triangles": 32
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_00_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_01_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_02_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_03_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_04_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_05_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_06_PLAIN",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "Material",
+    "triangles": 456
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_07_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_08_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_09_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_10_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_11_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_12_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_13_PLAIN",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "Material",
+    "triangles": 456
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_14_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_15_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_16_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_17_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_18_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_19_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_20_PLAIN",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "Material",
+    "triangles": 456
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_21_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_22_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_23_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_24_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_25_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_26_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_27_PLAIN",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "Material",
+    "triangles": 456
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_28_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_29_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_30_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_31_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_32_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_33_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_34_PLAIN",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "Material",
+    "triangles": 456
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_35_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_36_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_37_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_38_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_PRIMARY_39_BRANDED",
+    "group": "BWC_CANS_PRIMARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_00_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_01_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_02_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_03_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_04_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_05_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_06_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_07_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_08_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_09_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_10_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_11_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_12_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_13_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_14_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_15_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_16_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_17_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_18_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_19_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_20_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_CAN_SECONDARY_21_BRANDED",
+    "group": "BWC_CANS_SECONDARY",
+    "material": "initialShadingGroup",
+    "triangles": 4328
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_00_Object_61",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal.001",
+    "triangles": 960
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_01_Object_59",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal.001",
+    "triangles": 848
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_02_Object_56",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emission",
+    "triangles": 960
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_03_Object_54",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "Material.001",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_04_Object_52",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 512
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_05_Object_50",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 512
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_06_Object_48",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_07_Object_46",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_08_Object_44",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_09_Object_42",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_10_Object_40",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_11_Object_38",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_12_Object_36",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_13_Object_34",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 12
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_14_Object_32",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "grid",
+    "triangles": 16
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_15_Object_31",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 1316
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_16_Object_29",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 1056
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_17_Object_28",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "emissiveColor",
+    "triangles": 1416
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_18_Object_27",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "screen3",
+    "triangles": 2
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_19_Object_26",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "screen2",
+    "triangles": 2
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_20_Object_25",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "screen1",
+    "triangles": 2
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_21_Object_24",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metalPlates",
+    "triangles": 174
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_22_Object_23",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "softMetal",
+    "triangles": 3488
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_23_Object_21",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "plasticPipes",
+    "triangles": 768
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_24_Object_20",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 6208
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_25_Object_18",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "smoothGlass",
+    "triangles": 4
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_26_Object_16",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "grid",
+    "triangles": 16
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_27_Object_15",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 1316
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_28_Object_13",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 960
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_29_Object_11",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 704
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_30_Object_9",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 848
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_31_Object_7",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "metal",
+    "triangles": 704
+  },
+  {
+    "name": "BWC_IMPORTED_SCIFI_PROCESSING_32_Object_5",
+    "group": "BWC_IMPORTED_SKETCHFAB_MACHINE",
+    "material": "tightGlass",
+    "triangles": 96
+  }
+]
