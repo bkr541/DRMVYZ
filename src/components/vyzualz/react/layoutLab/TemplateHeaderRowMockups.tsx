@@ -38,12 +38,12 @@ export const STACKED_HEADER_ROW_CONCEPTS = [
   { id: 'mini-gauges', label: 'Mini Gauges', note: 'Slim gauge bars stacked in threes', groups: [['saved'], ['fps', 'frame-time', 'cpu'], ['quality'], ['loading', 'notifications']] },
   { id: 'spine-tabs', label: 'Spine Tabs', note: 'Square tabs with a tone spine', groups: [['saved', 'quality'], ['fps', 'frame-time'], ['cpu'], ['loading', 'notifications']] },
   { id: 'terminal-stack', label: 'Terminal Stack', note: 'Prompt lines, no boxes', groups: [['saved', 'quality'], ['fps', 'frame-time'], ['cpu', 'loading'], ['notifications']] },
-  { id: 'layered-cards', label: 'Layered Cards', note: 'Offset cards that overlap', groups: [['saved'], ['fps', 'frame-time'], ['quality', 'cpu'], ['loading', 'notifications']] },
+  { id: 'layered-cards', label: 'Layered Cards', note: 'Plain aligned columns, Saved under production Loading', groups: [['loading', 'saved'], ['fps', 'frame-time'], ['quality', 'cpu'], ['notifications']], productionIcons: true },
   { id: 'neon-edge-stack', label: 'Neon Edge Stack', note: 'Glowing left edge per line', groups: [['saved', 'quality'], ['fps', 'frame-time', 'cpu'], ['loading', 'notifications']] },
   { id: 'ticket-stubs', label: 'Ticket Stubs', note: 'Notched stubs with a perforation', groups: [['saved', 'loading'], ['fps', 'frame-time'], ['quality', 'cpu'], ['notifications']] },
   { id: 'gradient-stack', label: 'Gradient Stack', note: 'Violet to cyan hairlines, two deep', groups: [['saved'], ['fps', 'frame-time'], ['quality', 'cpu'], ['loading', 'notifications']] },
   { id: 'relief-stack', label: 'Relief Stack', note: 'Raised chips, recessed values', groups: [['saved', 'cpu'], ['fps', 'frame-time'], ['quality'], ['loading', 'notifications']] },
-] as const satisfies readonly { id: string; label: string; note: string; groups: readonly (readonly MetricId[])[] }[]
+] as const satisfies readonly { id: string; label: string; note: string; groups: readonly (readonly MetricId[])[]; productionIcons?: boolean }[]
 
 /** Sample readings, shared by every concept so only the styling differs. `fill` feeds the gauge-style concepts. */
 const READINGS: Record<Exclude<MetricId, 'loading' | 'notifications'>, { label: string; value: string; fill: number; title: string }> = {
@@ -109,20 +109,45 @@ function HeaderCluster({ concept }: { concept: string }) {
  * only a layout wrapper: it never carries a border, background, shadow or outline of its own (the elements keep their
  * own styling), and the same goes for the cluster that holds the columns.
  */
-function StackedCluster({ concept, groups }: { concept: string; groups: readonly (readonly MetricId[])[] }) {
+function StackedCluster({ concept, groups, productionIcons = false }: { concept: string; groups: readonly (readonly MetricId[])[]; productionIcons?: boolean }) {
   return (
     <div className="llhr-right">
       <div className="llhr-cluster llhr-cluster--stacked" data-header-cluster={concept}>
         {groups.map(group => group.length === 1
-          ? <HeaderMetric key={group[0]} id={group[0]!} />
+          ? productionIcons && group[0] === 'loading' ? <ProductionLoadingChip key="loading" />
+            : productionIcons && group[0] === 'notifications' ? <ProductionNotificationsChip key="notifications" />
+            : <HeaderMetric key={group[0]} id={group[0]!} />
           : (
             <div key={group.join('+')} className="llhr-stack" data-header-stack={group.join('+')} data-stack-count={group.length}>
-              {group.map(id => <HeaderMetric key={id} id={id} />)}
+              {group.map(id => (
+                productionIcons && id === 'loading' ? <ProductionLoadingChip key={id} />
+                  : productionIcons && id === 'notifications' ? <ProductionNotificationsChip key={id} />
+                  : <HeaderMetric key={id} id={id} />
+              ))}
             </div>
           ))}
       </div>
       <span className="vz-header-avatar llhr-avatar" aria-hidden="true">KR</span>
     </div>
+  )
+}
+
+/** Loading and Notifications exactly as the production header draws them (labeled chips), shared with the reference row. */
+function ProductionLoadingChip() {
+  return (
+    <span className="vz-header-chip vz-header-chip--labeled vz-header-activity" data-header-metric="loading" data-busy="false" style={{ width: 'auto', padding: '0 8px' }}>
+      <span className="vz-header-state-label">Loading</span>
+      <ActivityRing />
+    </span>
+  )
+}
+
+function ProductionNotificationsChip() {
+  return (
+    <span className="vz-header-chip vz-header-chip--labeled vz-header-notifications" data-header-metric="notifications" style={{ width: 'auto', padding: '0 8px', color: '#67f7ff' }}>
+      <span className="vz-header-state-label">Notifications</span>
+      <NotificationBellIcon />
+    </span>
   )
 }
 
@@ -145,14 +170,8 @@ function ProductionReferenceRow() {
               <span className="vz-header-cpu-value">{value}</span>
             </span>
           ))}
-          <span className="vz-header-chip vz-header-chip--labeled vz-header-activity" data-busy="false" style={{ width: 'auto', padding: '0 8px' }}>
-            <span className="vz-header-state-label">Loading</span>
-            <ActivityRing />
-          </span>
-          <span className="vz-header-chip vz-header-chip--labeled vz-header-notifications" style={{ width: 'auto', padding: '0 8px', color: '#67f7ff' }}>
-            <span className="vz-header-state-label">Notifications</span>
-            <NotificationBellIcon />
-          </span>
+          <ProductionLoadingChip />
+          <ProductionNotificationsChip />
         </div>
         <span className="vz-header-avatar llhr-avatar" aria-hidden="true">KR</span>
         </div>
@@ -187,7 +206,7 @@ export function TemplateHeaderRowMockups() {
           <small><b>{String(index + 11).padStart(2, '0')}</b> {concept.label} <em>{concept.note}</em></small>
           <div className={`vz-header llhr-row llhr-row--${concept.id}`}>
             <span className="llhr-tag">REACT</span>
-            <StackedCluster concept={concept.id} groups={concept.groups} />
+            <StackedCluster concept={concept.id} groups={concept.groups} productionIcons={'productionIcons' in concept && concept.productionIcons === true} />
           </div>
         </article>
       ))}

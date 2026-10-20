@@ -89,6 +89,38 @@ describe('React header row mockups', () => {
     expect(layouts.size).toBeGreaterThanOrEqual(5)
   })
 
+  it('draws Layered Cards with production Loading over Saved, FPS over Frame Time, and Quality over CPU', () => {
+    const concept = container.querySelector<HTMLElement>('[data-header-stacked-concept="layered-cards"]')!
+    const stacks = [...concept.querySelectorAll<HTMLElement>('.llhr-stack')]
+    expect(stacks.map(stack => stack.getAttribute('data-header-stack'))).toEqual(['loading+saved', 'fps+frame-time', 'quality+cpu'])
+    // Loading sits on top of Saved, and is still the production chip.
+    const [loadingStack] = stacks
+    expect([...loadingStack!.children].map(node => node.getAttribute('data-header-metric'))).toEqual(['loading', 'saved'])
+    const loading = concept.querySelector('[data-header-metric="loading"]')!
+    expect(loading.classList.contains('vz-header-activity')).toBe(true)
+    expect(loading.querySelector('.vz-header-state-label')?.textContent).toBe('Loading')
+    // Notifications stays a single production chip at the end of the cluster.
+    const notifications = concept.querySelector('[data-header-metric="notifications"]')!
+    expect(notifications.classList.contains('vz-header-notifications')).toBe(true)
+    expect(notifications.closest('.llhr-stack')).toBeNull()
+    expect(notifications.nextElementSibling).toBeNull()
+    expect(notifications.querySelector('.vz-header-state-label')?.textContent).toBe('Notifications')
+    // Same markup as the production reference row.
+    const reference = container.querySelector('[data-header-reference="production"]')!
+    expect(loading.className).toBe(reference.querySelector('[data-header-metric="loading"]')?.className)
+    expect(notifications.className).toBe(reference.querySelector('[data-header-metric="notifications"]')?.className)
+  })
+
+  it('strips the Layered Cards columns of border and background, hides the Saved dot, and aligns the values', () => {
+    const css = readFileSync(resolve(__dirname, '../../../../../styles/reactView.css'), 'utf8')
+    expect(css).toMatch(/\.llhr-row--layered-cards \.llhr-stack > \.llhr-chip \{[^}]*border: 0;[^}]*background: none;[^}]*box-shadow: none;/)
+    expect(css).toMatch(/\.llhr-row--layered-cards \.llhr-dot \{ display: none; \}/)
+    expect(css).toContain(".llhr-row--layered-cards .llhr-stack[data-header-stack='fps+frame-time']")
+    expect(css).toContain(".llhr-row--layered-cards .llhr-stack[data-header-stack='quality+cpu']")
+    const layered = css.slice(css.indexOf('/* 16 · Layered Cards'), css.indexOf('/* 17 · Neon Edge Stack'))
+    expect(layered).not.toMatch(/margin-left:\s*\d/)
+  })
+
   it('never gives a stacked column or its cluster a border, background, shadow or outline', () => {
     const css = readFileSync(resolve(__dirname, '../../../../../styles/reactView.css'), 'utf8')
     const groupRules = [...css.matchAll(/(^|\n)([^{}\n]*\.llhr-(?:stack|cluster--stacked)(?![\w-]|\s+[>.\w])[^{}\n]*)\{([^}]*)\}/g)]

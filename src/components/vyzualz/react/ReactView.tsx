@@ -4,8 +4,8 @@ import { musicIntelligenceEngine } from '../../../features/musicIntelligence/Mus
 import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
-import { ReactPersistenceStatus } from './ReactPersistenceStatus'
-import { ReactHeaderPerformanceStatus, qualityTierForFps } from './ReactHeaderPerformanceStatus'
+import { qualityTierForFps } from './ReactHeaderPerformanceStatus'
+import { ReactHeaderStatusCluster } from './ReactHeaderStatusCluster'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -701,9 +701,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <path d="M21 7h-2V3c0-1.105-.895-2-2-2H7c-1.105 0-2 .895-2 2v2H3c-1.105 0-2 .895-2 2v4c0 1.105.895 2 2 2h2v8c0 1.105.895 2 2 2h10c1.105 0 2-.895 2-2v-2h2c1.105 0 2-.895 2-2V9c0-1.105-.895-2-2-2zm-4 14H7v-8h2c1.105 0 2-.895 2-2V7c0-1.105-.895-2-2-2H7V3h10v4h-2c-1.105 0-2 .895-2 2v8c0 1.105.895 2 2 2h2v2zm4-4h-6V9h6v8z" />
           </svg>
         </button>
-        <ReactPersistenceStatus />
-        <ReactHeaderPerformanceStatus fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />
-        <VyzualzHeaderActions page="react" />
+        <VyzualzHeaderActions
+          page="react"
+          status={<ReactHeaderStatusCluster fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />}
+        />
       </div>
       {trackTimelineOpen
         && trackTimelineAvailability.enabled

@@ -23115,11 +23115,22 @@ button.llhr-chip { cursor: pointer; }
 .llhr-row--terminal-stack .llhr-stack > .llhr-chip--icon { justify-content: flex-start; }
 .llhr-row--terminal-stack .llhr-stack .llhr-chip--icon .llhr-label { display: inline; }
 
-/* 16 · Layered Cards ─ offset cards that overlap */
-.llhr-row--layered-cards .llhr-stack { gap: 0; align-items: flex-start; }
-.llhr-row--layered-cards .llhr-chip { gap: 8px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 6px; background: linear-gradient(180deg, #1a2228, #11171b); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
-.llhr-row--layered-cards .llhr-stack > .llhr-chip { height: 26px; }
-.llhr-row--layered-cards .llhr-stack > .llhr-chip + .llhr-chip { z-index: 1; margin-top: -4px; margin-left: 12px; }
+/* 16 · Layered Cards ─ borderless, backgroundless lines in aligned columns (Loading and Saved included); production Notifications */
+.llhr-row--layered-cards .llhr-cluster--stacked { gap: 8px; }
+.llhr-row--layered-cards .llhr-stack { gap: 0; align-items: stretch; }
+.llhr-row--layered-cards .llhr-chip { justify-content: flex-start; gap: 8px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 6px; background: linear-gradient(180deg, #1a2228, #11171b); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
+/* FPS, Frame Time, Quality and CPU have no border, background or shadow of their own, so each column is plain text. */
+.llhr-row--layered-cards .llhr-stack > .llhr-chip { height: var(--llhr-line-h, 20px); border: 0; background: none; box-shadow: none; }
+/* Loading (the production chip, flattened) sits over Saved, both as plain lines without the status dot. */
+.llhr-row--layered-cards .llhr-stack > .vz-header-activity { height: var(--llhr-line-h, 20px); justify-content: flex-start; gap: 8px; padding: 0 10px !important; border: 0; border-radius: 6px; background: none; box-shadow: none; }
+.llhr-row--layered-cards .llhr-stack .vz-header-state-label { flex: 0 0 var(--llhr-label-col, auto); }
+.llhr-row--layered-cards .llhr-stack .vz-header-activity .vz-header-state-label { color: rgba(196, 207, 211, 0.58); }
+.llhr-row--layered-cards .llhr-stack[data-header-stack='loading+saved'] { --llhr-label-col: 52px; }
+.llhr-row--layered-cards .llhr-dot { display: none; }
+/* One label column per stack, so both values start at the same x. */
+.llhr-row--layered-cards .llhr-stack .llhr-label { flex: 0 0 var(--llhr-label-col, auto); }
+.llhr-row--layered-cards .llhr-stack[data-header-stack='fps+frame-time'] { --llhr-label-col: 68px; }
+.llhr-row--layered-cards .llhr-stack[data-header-stack='quality+cpu'] { --llhr-label-col: 50px; }
 .llhr-row--layered-cards .llhr-value { color: var(--tone); }
 
 /* 17 · Neon Edge Stack ─ a glowing left edge per line, three deep */
@@ -23154,3 +23165,53 @@ button.llhr-chip { cursor: pointer; }
 .llhr-row--relief-stack .llhr-value { color: #f1f7f9; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
 .llhr-row--relief-stack .llhr-dot { box-shadow: 0 0 6px color-mix(in srgb, var(--tone) 70%, transparent), 0 0 0 2px rgba(0, 0, 0, 0.35); }
 .llhr-row--relief-stack .llhr-stack > .llhr-chip--icon { padding: 0 9px; }
+
+/* ── React header status cluster ───────────────────────────────────────────────────────────────────────────────
+   Layout Lab → Template → "16 Layered Cards": Loading over Saved, FPS over Frame Time, Quality over CPU, then the
+   Notifications bell. The stacks are layout only (no border, background, shadow or outline). FPS, Frame Time,
+   Quality and CPU are plain lines with no border, background or shadow of their own; each stack shares one label
+   column so its values start at the same x. Loading and Saved are plain lines too; Notifications is the production chip.
+   Selectors are one class above the shared `.vz-header-chip` shape rules so the chips can be reshaped here only. */
+.rv-header-status { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.rv-header-status-stack { --rv-header-line-h: 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 0; }
+
+.rv-header-status .rv-header-status-stack > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-cpu {
+  height: var(--rv-header-line-h);
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+}
+.rv-header-status-stack .vz-header-cpu-label { flex: 0 0 var(--rv-header-label-col, auto); }
+.rv-header-status-stack[data-header-stack='fps+frame-time'] { --rv-header-label-col: 68px; }
+.rv-header-status-stack[data-header-stack='quality+cpu'] { --rv-header-label-col: 50px; }
+.rv-header-status-stack .vz-header-cpu-value { min-width: 0; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Loading and Saved are plain lines like the readings: no border, background or shadow, label column first, value after it. */
+.rv-header-status .rv-header-status-stack > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity,
+.rv-header-status .rv-header-status-stack > .rv-persistence-status.vsm-settings-btn.vz-header-status-chip.vz-header-chip {
+  height: var(--rv-header-line-h);
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  box-shadow: none;
+}
+.rv-header-status-stack .vz-header-state-label { flex: 0 0 var(--rv-header-label-col, auto); }
+.rv-header-status-stack[data-header-stack='loading+saved'] { --rv-header-label-col: 52px; }
+/* The Loading label takes the same dim as the other labels (the shared labeled-chip rule would make it a shade brighter). */
+.rv-header-status-stack .vz-header-activity .vz-header-state-label { color: rgba(196, 207, 211, 0.58); }
+.rv-header-status-stack .rv-persistence-status .vz-header-state-value { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Each performance reading has its own tone. Health still shows: a middling reading turns amber, a poor one red. */
+.rv-header-status .vz-header-performance-metric { --rv-metric-tone: #61d6aa; --vz-cpu-tone: var(--rv-metric-tone); }
+.rv-header-status .vz-header-performance-metric[data-performance-metric='frame-time'] { --rv-metric-tone: #67f7ff; }
+.rv-header-status .vz-header-performance-metric[data-performance-metric='quality'] { --rv-metric-tone: #a78bfa; }
+.rv-header-status .vz-header-performance-metric[data-cpu-level='high'] { --vz-cpu-tone: var(--rv-metric-tone); }
+.rv-header-status .vz-header-performance-metric[data-cpu-level='medium'] { --vz-cpu-tone: #e0b95a; }
+.rv-header-status .vz-header-performance-metric[data-cpu-level='low'] { --vz-cpu-tone: #f87171; }

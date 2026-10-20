@@ -5,8 +5,11 @@ import { getProfile } from '../../../lib/profileDb'
 import { HeaderSystemStatus } from './HeaderSystemStatus'
 import type { AppPageId } from '../../../stores/pageActivityStore'
 
-/** Header tail shared by every page: optional page status (`leading`), CPU + activity status, then the profile / settings button. */
-export function VyzualzHeaderActions({ page, leading }: { page: AppPageId; leading?: ReactNode }) {
+/**
+ * Header tail shared by every page: optional page status (`leading`), CPU + activity status, then the profile / settings button.
+ * A page that arranges the status elements itself (React) passes them as `status`, which replaces the default cluster.
+ */
+export function VyzualzHeaderActions({ page, leading, status }: { page: AppPageId; leading?: ReactNode; status?: ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [avatarUrl,    setAvatarUrl]    = useState<string | null>(null)
   const [initials,     setInitials]     = useState('')
@@ -31,7 +34,7 @@ export function VyzualzHeaderActions({ page, leading }: { page: AppPageId; leadi
   return (
     <>
       {leading}
-      <HeaderSystemStatus page={page} />
+      {status ?? <HeaderSystemStatus page={page} />}
       {supabaseConfigured ? (
         <button
           type="button"
