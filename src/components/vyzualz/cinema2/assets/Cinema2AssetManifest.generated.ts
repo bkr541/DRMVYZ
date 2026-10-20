@@ -75,6 +75,32 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-bwc-creature-label",
+    "kind": "texture",
+    "layout": "color",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/textures/bwc-creature-label-2048.webp",
+        "bytes": 593212,
+        "width": 2048,
+        "height": 2048
+      },
+      "low": {
+        "url": "/cinema2/textures/bwc-creature-label-1024.webp",
+        "bytes": 81788,
+        "width": 1024,
+        "height": 1024
+      }
+    },
+    "gpuBytes": {
+      "high": 22369621,
+      "medium": 22369621,
+      "low": 5592405
+    }
+  },
+  {
     "id": "cinema2-conduit-chamber",
     "kind": "model",
     "compression": "none",

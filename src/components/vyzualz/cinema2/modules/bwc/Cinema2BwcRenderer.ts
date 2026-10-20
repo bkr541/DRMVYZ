@@ -2,6 +2,7 @@ import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../../react/shaders/runt
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { bwcCanGlsl } from './Cinema2BwcCanModel'
+import { bwcCreatureGlsl } from './Cinema2BwcCreatureModel'
 import { BWC_EMBLEM_TEXTURE_BYTES, BWC_EMBLEM_TEXTURE_HEIGHT, BWC_EMBLEM_TEXTURE_WIDTH, bwcEmblemGlsl, rasterizeBwcEmblem } from './Cinema2BwcEmblem'
 
 export interface Cinema2BwcRenderState {
@@ -18,6 +19,8 @@ export interface Cinema2BwcRenderState {
   canWhite: readonly [number, number, number]
   energy: readonly [number, number, number]
   darkMetal: readonly [number, number, number]
+  /** The creature's printed label once the shipped texture has loaded; until then the body is plain ivory fleece. */
+  creatureLabel?: WebGLTexture | null
 }
 
 /* Authored from the dimensions and functional groups in docs/BWC. */
@@ -36,6 +39,8 @@ uniform vec3 u_canWhite;
 uniform vec3 u_energy;
 uniform vec3 u_darkMetal;
 uniform sampler2D u_canEmblem;
+uniform sampler2D u_creatureLabel;
+uniform float u_creatureLabelReady;
 out vec4 outColor;
 
 #define MAX_STEPS 144
@@ -65,6 +70,17 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
   return length(pa - ba * h) - r;
 }
 vec2 nearest(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
+${bwcCreatureGlsl()}
+
+/* A point in the space of the creature that owns it: metres, feet on the floor, facing +Z, each turned a little toward the camera. */
+vec3 creatureSpace(vec3 p, out float cell) {
+  float last = floor((CREATURE_Z_LAST - CREATURE_Z_FIRST) / CREATURE_PITCH);
+  cell = clamp(floor((p.z - CREATURE_Z_FIRST) / CREATURE_PITCH + 0.5), 0.0, last);
+  vec3 offset = vec3(p.x - CREATURE_CENTER_X, p.y - CREATURE_BASE_Y, p.z - (CREATURE_Z_FIRST + cell * CREATURE_PITCH));
+  float yaw = CREATURE_YAW_BIAS + (fract(sin(cell * 12.9898) * 43758.5453) - 0.5) * 2.0 * CREATURE_YAW_JITTER;
+  float c = cos(yaw), s = sin(yaw);
+  return vec3(c * offset.x - s * offset.z, offset.y, s * offset.x + c * offset.z) / CREATURE_SCALE;
+}
 
 vec2 mapScene(vec3 p) {
   vec2 result = vec2(100.0, 0.0);
@@ -113,6 +129,14 @@ vec2 mapScene(vec3 p) {
     vec3 canPoint = p - vec3(-1.92, 0.865, 0.0);
     canPoint.z = mod(canPoint.z + 0.64, 1.28) - 0.64;
     result = nearest(result, vec2(sdBwcCan(canPoint / canSize) * canSize, 5.0));
+  }
+
+  // BWC_CREATURES — the plush creature (docs/BWC/Ultra_White_Plush_Creature_Cinema2.glb) filling the right conveyor.
+  if (p.x > 1.5 && p.x < 4.9 && p.z > CREATURE_Z_FIRST - 1.0 && p.z < CREATURE_Z_LAST + 1.0) {
+    float cell;
+    vec3 creaturePoint = creatureSpace(p, cell);
+    vec2 creature = sdBwcCreature(creaturePoint);
+    result = nearest(result, vec2(creature.x * CREATURE_SCALE, creature.y));
   }
 
   // Low right service walk matching the target's long perspective runway.
@@ -218,7 +242,38 @@ vec3 canColor(vec3 p) {
   return mix(u_canWhite, print.rgb, print.a * onPrint);
 }
 
+const vec3 CREATURE_IVORY = vec3(0.894, 0.886, 0.867);
+const vec3 CREATURE_STITCH = vec3(0.761, 0.749, 0.710);
+const vec3 CREATURE_COTTON = vec3(0.933, 0.925, 0.910);
+const vec3 CREATURE_EYE = vec3(0.043, 0.051, 0.055);
+const vec3 CREATURE_GLINT = vec3(1.0, 1.0, 0.992);
+const vec3 CREATURE_THREAD = vec3(0.149, 0.157, 0.149);
+
+/*
+ * The creature's materials, from the artifact. The body wears its printed label, mapped with the mesh's own UVs
+ * (u = 0.5 + atan2(x, z) / 2π, v = V0 - V1 y) and sampled at a level chosen from the distance, so there is no
+ * dependence on screen-space derivatives across the edge of the creature.
+ */
+vec3 creatureColor(float material, vec3 p) {
+  if (material < 10.5) {
+    float cell;
+    vec3 q = creatureSpace(p, cell);
+    vec2 uv = vec2(0.5 + atan(q.x, q.z) / (2.0 * PI), clamp(CREATURE_LABEL_V0 - CREATURE_LABEL_V1 * q.y, 0.0, 1.0));
+    float footprint = length(p - CAMERA_POSITION) * (2.0 / max(u_resolution.y, 1.0)) / 2.22 / CREATURE_SCALE;
+    float lod = max(log2(footprint / 0.0014), 0.0);
+    vec3 printed = textureLod(u_creatureLabel, uv, lod).rgb;
+    return mix(CREATURE_IVORY, printed, u_creatureLabelReady);
+  }
+  if (material < 11.5) return CREATURE_IVORY;
+  if (material < 12.5) return CREATURE_STITCH;
+  if (material < 13.5) return CREATURE_COTTON;
+  if (material < 14.5) return CREATURE_EYE;
+  if (material < 15.5) return CREATURE_GLINT;
+  return CREATURE_THREAD;
+}
+
 vec3 materialColor(float material, vec3 p) {
+  if (material > 9.5) return creatureColor(material, p);
   if (material < 1.5) {
     vec2 tile = abs(fract((p.xz + vec2(0.0, 0.18)) * vec2(0.42, 0.36)) - 0.5);
     float seams = smoothstep(0.465, 0.492, max(tile.x, tile.y));
@@ -260,10 +315,15 @@ void main() {
     vec3 base = materialColor(hit.y, point);
     vec3 halfVector = normalize(keyDirection - ray);
     bool plainCan = hit.y > 4.5 && hit.y < 5.5;
-    float gloss = plainCan ? 16.0 : 42.0;
+    bool plush = hit.y > 9.5 && hit.y < 13.5;
+    bool beadEye = hit.y > 13.5 && hit.y < 14.5;
+    float gloss = plainCan ? 16.0 : beadEye ? 120.0 : plush ? 8.0 : 42.0;
     float specular = pow(max(dot(normal, halfVector), 0.0), gloss);
     color = base * (0.24 + key * shadow * 0.82 + fill * 0.30);
-    color += vec3(0.70, 0.88, 1.0) * specular * (plainCan ? 0.30 : 0.64);
+    color += vec3(0.70, 0.88, 1.0) * specular * (plainCan ? 0.30 : beadEye ? 1.1 : plush ? 0.06 : 0.64);
+    // Fleece: a soft sheen at grazing angles, and the catchlights glow.
+    color += base * (plush ? 1.0 : 0.0) * pow(1.0 - max(dot(normal, -ray), 0.0), 3.0) * 0.20;
+    color += base * step(14.5, hit.y) * (1.0 - step(15.5, hit.y)) * 0.9;
     float energySurface = step(3.5, hit.y) * (1.0 - step(4.5, hit.y)) + step(5.5, hit.y) * (1.0 - step(6.5, hit.y));
     float whiteLight = step(6.5, hit.y) * (1.0 - step(7.5, hit.y));
     color += base * energySurface * (0.32 + u_ledStrength * 0.42);
@@ -283,11 +343,12 @@ export class Cinema2BwcRenderer {
   private readonly program: ShaderProgram
   private readonly pass: FullscreenPass
   private readonly emblem: WebGLTexture | null
+  private readonly labelPlaceholder: WebGLTexture | null
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const uniforms = [
       'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_ledStrength',
-      'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal', 'u_canEmblem',
+      'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal', 'u_canEmblem', 'u_creatureLabel', 'u_creatureLabelReady',
     ]
     const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema 2.0 BWC factory corridor v2',
@@ -299,6 +360,7 @@ export class Cinema2BwcRenderer {
     this.program = compiled.program
     this.pass = new FullscreenPass(gl)
     this.emblem = createEmblemTexture(gl)
+    this.labelPlaceholder = createPlaceholderTexture(gl)
   }
 
   draw(state: Readonly<Cinema2BwcRenderState>): void {
@@ -315,12 +377,18 @@ export class Cinema2BwcRenderer {
     p.setVec3('u_canWhite', ...state.canWhite)
     p.setVec3('u_energy', ...state.energy)
     p.setVec3('u_darkMetal', ...state.darkMetal)
-    this.pass.run(p, state.target, state.width, state.height, this.emblem ? [{ unit: 0, texture: this.emblem, uniformName: 'u_canEmblem' }] : [])
+    p.setFloat('u_creatureLabelReady', state.creatureLabel ? 1 : 0)
+    const label = state.creatureLabel ?? this.labelPlaceholder
+    this.pass.run(p, state.target, state.width, state.height, [
+      ...(this.emblem ? [{ unit: 0, texture: this.emblem, uniformName: 'u_canEmblem' }] : []),
+      ...(label ? [{ unit: 1, texture: label, uniformName: 'u_creatureLabel' }] : []),
+    ])
   }
 
   estimateGpuBytes(): number { return 16 * 1024 + BWC_EMBLEM_TEXTURE_BYTES }
   dispose(): void {
     if (this.emblem) this.gl.deleteTexture(this.emblem)
+    if (this.labelPlaceholder) this.gl.deleteTexture(this.labelPlaceholder)
     this.pass.dispose()
     this.program.dispose()
   }
@@ -345,6 +413,18 @@ function createEmblemTexture(gl: WebGL2RenderingContext): WebGLTexture | null {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+  return texture
+}
+
+/** One ivory texel, bound to the label sampler until the shipped label has loaded. */
+function createPlaceholderTexture(gl: WebGL2RenderingContext): WebGLTexture | null {
+  const texture = gl.createTexture()
+  if (!texture) return null
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([228, 226, 221, 255]))
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
   gl.bindTexture(gl.TEXTURE_2D, null)
   return texture
 }

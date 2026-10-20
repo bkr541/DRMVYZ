@@ -70,7 +70,7 @@ export const BWC_CAN_TAB_POLYGON_M: readonly (readonly [number, number])[] = Obj
 )
 
 /** Signed distance to a closed 2D polygon (Inigo Quilez's `sdPolygon`), negative inside. */
-function sdPolygon(px: number, py: number, vertices: readonly (readonly [number, number])[]): number {
+export function sdPolygon(px: number, py: number, vertices: readonly (readonly [number, number])[]): number {
   const n = vertices.length
   let d = (px - vertices[0]![0]) ** 2 + (py - vertices[0]![1]) ** 2
   let sign = 1

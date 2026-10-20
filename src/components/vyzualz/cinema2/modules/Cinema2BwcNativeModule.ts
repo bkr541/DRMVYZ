@@ -1,6 +1,8 @@
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { Cinema2BwcRenderer, type Cinema2BwcRenderState } from './bwc/Cinema2BwcRenderer'
+import { CINEMA2_BWC_CREATURE_LABEL_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
+import type { Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
 
 export const CINEMA2_BWC_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('bwc-native')
 export const CINEMA2_BWC_NATIVE_MODULE_VERSION = 1 as const
@@ -22,6 +24,19 @@ export function createCinema2BwcNativeModuleDefinition(
     create(context: Cinema2ModuleCreateContext) {
       const renderer = context.resources.acquire('bwc:factory-corridor-v2', 'Cinema2BwcRenderer', gl => createRenderer(gl), value => value.dispose())
       context.resources.reportGpuBytes(renderer.estimateGpuBytes())
+      // The creature's printed label is a shipped texture from the shared texture service. The creature draws as plain ivory
+      // fleece until it has loaded; the rest of the scene never waits for it.
+      let labelHandle: Cinema2TextureHandle | null = null
+      let labelQuality: string | null = null
+      const creatureLabel = (quality: 'low' | 'medium' | 'high'): WebGLTexture | null => {
+        if (!context.textures) return null
+        if (labelQuality !== quality) {
+          labelHandle?.release()
+          labelHandle = context.textures.acquire(CINEMA2_BWC_CREATURE_LABEL_TEXTURE_ASSET_ID, quality)
+          labelQuality = quality
+        }
+        return labelHandle?.status === 'ready' ? labelHandle.texture : null
+      }
       const provider = Object.freeze({
         id: `${context.module.id}:bwc`, moduleId: context.module.id, intent: 'fullscreen' as const,
         execute(execution: Cinema2ModuleRenderExecutionContext) {
@@ -38,10 +53,11 @@ export function createCinema2BwcNativeModuleDefinition(
             canWhite: rgb(readColor(p, 'canWhiteColor', [0.86, 0.88, 0.86, 1])),
             energy: rgb(readColor(p, 'energyColor', [0.28, 0.62, 0.18, 1])),
             darkMetal: rgb(readColor(p, 'darkMetalColor', [0.018, 0.028, 0.032, 1])),
+            creatureLabel: creatureLabel(execution.lightingEnvironment?.quality ?? 'high'),
           })
         },
       })
-      return { lifecycle: { update() {}, dispose() {} }, render: { providers: Object.freeze([provider]) } }
+      return { lifecycle: { update() {}, dispose() { labelHandle?.release(); labelHandle = null } }, render: { providers: Object.freeze([provider]) } }
     },
   })
 }

@@ -5,6 +5,8 @@ import { Cinema2TextureAssetRegistry } from './Cinema2TextureAssetRegistry'
 export const CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-wet-concrete'
 /** 2x2 sheet of soft smoke puffs used by Threshold's ground-smoke billboards (generated in house, see `assets/cinema2/cinema2-smoke-sprites`). */
 export const CINEMA2_SMOKE_SPRITES_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-smoke-sprites'
+/** The printed label (ZERO SUGAR, claw emblem, ULTRA WHITE) wrapped around the BWC plush creature's body (see `assets/cinema2/cinema2-bwc-creature-label`). */
+export const CINEMA2_BWC_CREATURE_LABEL_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-bwc-creature-label'
 /** Tileable 3D smoke/noise volume used by the volumetric atmosphere (generated in house, see `assets/cinema2/cinema2-smoke-volume`). */
 export const CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-smoke-volume'
 

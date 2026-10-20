@@ -8,6 +8,8 @@ The prepared files include third-party models provided by the user from Sketchfa
 
 **Can emblem:** `Claw_Marks_Filled.svg` is the three-claw emblem printed on the BWC cans, supplied by the project owner as the master vector with its correct colours (black outline, three grey claw interiors, transparent background). The preset reads its path data from `src/components/vyzualz/cinema2/modules/bwc/Cinema2BwcEmblem.generated.ts`, which is generated from this file and checked against it by `Cinema2BwcEmblem.test.ts`. The same trademark caution as above applies to the emblem.
 
+**Creature:** `Ultra_White_Plush_Creature_Cinema2.glb`, supplied by the project owner, is the plush creature that fills the right-hand conveyor. The preset rebuilds its body, lid, arms, feet, eyes and smile as analytic distance fields in `Cinema2BwcCreatureModel.ts` (checked against the GLB's vertices by `Cinema2BwcCreatureModel.test.ts`) and wraps its embedded label texture, shipped as the `cinema2-bwc-creature-label` asset, around the body. The same trademark caution as above applies to the label.
+
 **Example credit for documentation or published builds:**
 
 > Contains modified assets from “energy banks” by igor.rizaev00 and “Sci-fi Assembly Line” by meeww, licensed under Creative Commons Attribution 4.0. Source URLs and modification descriptions are documented in `BWC_Asset_Attribution.md`.

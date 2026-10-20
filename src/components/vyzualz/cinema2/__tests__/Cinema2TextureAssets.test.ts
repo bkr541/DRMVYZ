@@ -344,6 +344,8 @@ describe('Cinema 2.0 shipped asset manifest', () => {
       // Threshold's ground smoke loads its sprite sheet itself (unless its detail is switched off).
       for (const module of manifest.modules ?? []) {
         if (module.typeId === 'threshold-native-render' && module.config?.extras !== false) referenced.add('cinema2-smoke-sprites')
+        // BWC's plush creature loads its printed label itself.
+        if (module.typeId === 'bwc-native') referenced.add('cinema2-bwc-creature-label')
       }
       for (const id of referenced) expect(byId.has(id), `${manifest.id} references unknown asset "${id}"`).toBe(true)
       for (const tier of ['low', 'medium', 'high'] as const) {

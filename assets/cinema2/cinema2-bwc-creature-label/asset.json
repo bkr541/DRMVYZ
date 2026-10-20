@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-bwc-creature-label",
+  "kind": "texture",
+  "layout": "color",
+  "license": "generated-in-house",
+  "origin": "Embedded base-colour label of docs/BWC/Ultra_White_Plush_Creature_Cinema2.glb (ZERO SUGAR / claw emblem / ULTRA WHITE wordmark on off-white fleece), supplied by the project owner; extracted at 2048 px and converted to WebP, the 1024 px file is a lanczos downscale. Wrapped around the creature body as u = 0.5 + atan2(x, z) / 2π, v = 1.08453 - 0.35971 y (the GLB's own UV mapping).",
+  "files": {
+    "high": "public/cinema2/textures/bwc-creature-label-2048.webp",
+    "low": "public/cinema2/textures/bwc-creature-label-1024.webp"
+  }
+}
