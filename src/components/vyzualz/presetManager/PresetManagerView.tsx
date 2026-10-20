@@ -15,25 +15,21 @@ import {
   type Cinema2WorkspacePresetState,
 } from '../cinema2'
 import { Cinema2InspectorPanel } from '../react/Cinema2InspectorPanel'
-import { Cinema2PresetsPanel } from '../react/Cinema2PresetsPanel'
 import { Cinema2Stage } from '../react/Cinema2Stage'
 import {
   HeadlinerDesignPanel,
-  HeadlinerPresetsPanel,
   HeadlinerReactivityPanel,
 } from '../react/headliner/HeadlinerWorkspace'
 import type { HeadlinerPresetId } from '../react/headliner/HeadlinerEffectCatalog'
 import { LASER_DMX_SHOW_DIRECTOR_PERFORMANCE_PRESETS } from '../react/LaserDmxShowDirectorPerformancePresets'
-import { ReactPresetsPanel } from '../react/ReactPresetsPanel'
 import {
   ReactDesignWorkspacePanel,
   ReactOutputWorkspacePanel,
   ReactReactivityWorkspacePanel,
 } from '../react/panels/ReactWorkspacePanels'
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
-import type { ReactRightPanel } from '../react/reactRightPanelPersistence'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
-import { Badge } from '../react/controls/Badge'
+import { Collapsible } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
@@ -46,6 +42,7 @@ import {
 import '../../../styles/reactView.css'
 
 type PresetManagerTab = 'presets' | 'favorites' | 'custom'
+type PresetManagerInspectorTab = 'info' | 'design' | 'react' | 'output'
 
 const PRESET_MANAGER_TABS = [
   { id: 'presets', label: 'Presets' },
@@ -53,12 +50,101 @@ const PRESET_MANAGER_TABS = [
   { id: 'custom', label: 'Custom' },
 ] as const
 
-const PRESET_MANAGER_INSPECTOR_TABS: RailTabOption<ReactRightPanel>[] = [
-  { id: 'presets', label: 'PRESETS' },
+const PRESET_MANAGER_INSPECTOR_TABS: RailTabOption<PresetManagerInspectorTab>[] = [
+  { id: 'info', label: 'INFO' },
   { id: 'design', label: 'DESIGN' },
   { id: 'react', label: 'REACT' },
   { id: 'output', label: 'OUTPUT' },
 ]
+
+function infoLabel(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, character => character.toUpperCase())
+}
+
+function isInfoObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function infoValue(value: unknown): string {
+  if (value === null) return 'None'
+  if (value === undefined) return 'Not set'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'function') return 'Runtime function'
+  return String(value)
+}
+
+function InfoRow({ label, value }: { label: string; value: unknown }) {
+  const displayValue = infoValue(value)
+  return (
+    <div className="rv-insp-kv">
+      <span className="rv-insp-key">{label}</span>
+      <span className="rv-insp-val pmv-info-value" title={displayValue}>{displayValue}</span>
+    </div>
+  )
+}
+
+function InfoEntries({ value, depth = 0 }: { value: Readonly<Record<string, unknown>>; depth?: number }) {
+  return <>{Object.entries(value).map(([key, entry]) => {
+    const label = infoLabel(key)
+    if (Array.isArray(entry)) {
+      if (entry.every(item => item === null || ['string', 'number', 'boolean'].includes(typeof item))) {
+        return <InfoRow key={key} label={label} value={entry.length ? entry.map(infoValue).join(', ') : 'None'} />
+      }
+      return (
+        <Collapsible key={key} label={`${label} (${entry.length})`} defaultOpen={depth === 0 && entry.length <= 4}>
+          {entry.length === 0
+            ? <InfoRow label="Items" value="None" />
+            : entry.map((item, index) => isInfoObject(item)
+              ? <Collapsible key={index} label={`${label} ${index + 1}`} defaultOpen={false}><InfoEntries value={item} depth={depth + 1} /></Collapsible>
+              : <InfoRow key={index} label={`${label} ${index + 1}`} value={item} />)}
+        </Collapsible>
+      )
+    }
+    if (isInfoObject(entry)) {
+      return (
+        <Collapsible key={key} label={label} defaultOpen={depth === 0}>
+          <InfoEntries value={entry} depth={depth + 1} />
+        </Collapsible>
+      )
+    }
+    return <InfoRow key={key} label={label} value={entry} />
+  })}</>
+}
+
+function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
+  return (
+    <div className="rv-workspace-panel pmv-info-panel" aria-label={`${preset.name} preset information`}>
+      <div className="rv-workspace-panel-body">
+        <div className="rv-inspector rv-inspector-scroll">
+          <div className="rv-ctrl-group">
+            <Collapsible label="Overview">
+              <InfoRow label="Name" value={preset.name} />
+              <InfoRow label="Description" value={preset.description} />
+            </Collapsible>
+            <Collapsible label="Classification">
+              <InfoRow label="Engine" value={preset.engineName} />
+              <InfoRow label="Category" value={preset.category} />
+              <InfoRow label="Tags" value={preset.tags.length ? preset.tags.join(', ') : 'None'} />
+            </Collapsible>
+            <Collapsible label="Source">
+              <InfoRow label="Manager ID" value={preset.id} />
+              <InfoRow label="Preset ID" value={preset.sourceId} />
+              <InfoRow label="Activation" value={infoLabel(preset.activation)} />
+              <InfoRow label="Artwork" value={infoLabel(preset.artwork)} />
+              <InfoRow label="Custom" value={preset.custom ?? false} />
+            </Collapsible>
+            <Collapsible label="Stored Configuration" defaultOpen={false}>
+              <InfoEntries value={preset.sourceData} />
+            </Collapsible>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const CAN_HOST_CINEMA2_STAGE = typeof window !== 'undefined' && 'WebGL2RenderingContext' in window
 
@@ -98,7 +184,6 @@ function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { 
         <span className="pmv-card-copy">
           <strong>{preset.name}</strong>
           <span className="pmv-card-type">{preset.engineName}</span>
-          <span className="pmv-tags">{preset.tags.slice(0, 3).map(tag => <Badge key={tag} label={tag} tone="#4ac7db" />)}</span>
         </span>
       </button>
       <button className={`vz-media-star${favorite ? ' vz-media-star--active' : ''}`} type="button" onClick={onToggleFavorite} aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.name} ${favorite ? 'from' : 'to'} favorites`}>
@@ -116,7 +201,7 @@ export function PresetManagerView() {
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set(PRESET_MANAGER_PRESETS[0] ? [PRESET_MANAGER_PRESETS[0].id] : []))
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [activeRightPanel, setActiveRightPanel] = useState<ReactRightPanel>('design')
+  const [activeRightPanel, setActiveRightPanel] = useState<PresetManagerInspectorTab>('info')
   const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
   const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
@@ -214,7 +299,7 @@ export function PresetManagerView() {
         break
     }
     setSelectedId(preset.id)
-    setActiveRightPanel('design')
+    setActiveRightPanel('info')
     setRightCollapsed(false)
   }, [])
 
@@ -266,26 +351,9 @@ export function PresetManagerView() {
     setOutputCanvas(null)
   }, [selectedId])
 
-  const renderPresetBrowser = () => {
-    if (!selectedPreset) return null
-    if (selectedPreset.activation === 'cinema2') {
-      return (
-        <Cinema2PresetsPanel
-          activePresetId={selectedPreset.sourceId as Cinema2PresetId}
-          onSelectPreset={presetId => {
-            const next = PRESET_MANAGER_PRESETS.find(preset => preset.activation === 'cinema2' && preset.sourceId === presetId)
-            if (next) activatePreset(next)
-          }}
-        />
-      )
-    }
-    if (selectedPreset.activation === 'headliner') return <HeadlinerPresetsPanel />
-    return <ReactPresetsPanel />
-  }
-
   const renderInspectorPanel = () => {
     if (!selectedPreset) return null
-    if (activeRightPanel === 'presets') return renderPresetBrowser()
+    if (activeRightPanel === 'info') return <PresetInfoPanel preset={selectedPreset} />
     if (activeRightPanel === 'design') {
       if (selectedPreset.activation === 'cinema2') return <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
       if (selectedPreset.activation === 'headliner') return <HeadlinerDesignPanel />

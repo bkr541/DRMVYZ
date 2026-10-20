@@ -61,6 +61,7 @@ describe('Preset Manager view', () => {
     expect(container?.textContent).toContain('PixGrid')
     expect(container?.textContent).toContain('HEADLINER')
     expect(container?.textContent).not.toMatch(/\d+ BPM|Reactivity/)
+    expect(container?.querySelector('.pmv-card .dv-badge')).toBeNull()
 
     const search = container?.querySelector<HTMLInputElement>('[placeholder="Search presets…"]')
     act(() => {
@@ -88,7 +89,7 @@ describe('Preset Manager view', () => {
   it('loads a selected preset into the matching React inspector configuration', () => {
     renderView()
     const inspectorTabs = [...(container?.querySelectorAll<HTMLButtonElement>('[aria-label="Preset Manager inspector panels"] [role="tab"]') ?? [])]
-    expect(inspectorTabs.map(tab => tab.textContent)).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
+    expect(inspectorTabs.map(tab => tab.textContent)).toEqual(['INFO', 'DESIGN', 'REACT', 'OUTPUT'])
 
     const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')
     expect(preset).toBeDefined()
@@ -99,8 +100,13 @@ describe('Preset Manager view', () => {
     expect(useReactStore.getState().activeReactPresetId).toBe(preset?.sourceId)
     expect(card?.classList.contains('is-active')).toBe(true)
     expect(container?.querySelector('.pmv-inspector-body')?.getAttribute('data-selected-preset')).toBe(preset?.sourceId)
-    expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()
+    expect(container?.querySelector('.pmv-info-panel')?.getAttribute('aria-label')).toBe(`${preset?.name} preset information`)
     expect(container?.querySelectorAll('.pmv-inspector-body .rv-ctrl-group').length).toBeGreaterThan(0)
+    expect(container?.textContent).toContain('Classification')
+    expect(container?.textContent).toContain('Stored Configuration')
+
+    act(() => inspectorTabs.find(tab => tab.textContent === 'DESIGN')?.click())
+    expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()
 
     act(() => inspectorTabs.find(tab => tab.textContent === 'REACT')?.click())
     expect(container?.querySelector('[aria-label="Reactivity surfaces"]')).not.toBeNull()

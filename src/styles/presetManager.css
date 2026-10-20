@@ -139,6 +139,21 @@
   overflow: auto;
 }
 
+.pmv-info-panel .rv-ctrl-group {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pmv-info-panel .drc-body > .drc-group {
+  margin-top: 6px;
+}
+
+.pmv-info-value {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
 .pmv-card {
   position: relative;
   min-height: 96px;
@@ -158,7 +173,6 @@
 .pmv-card-copy strong { overflow: hidden; color: rgba(243, 246, 248, 0.96); font-size: 11px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 .pmv-card-type { margin-top: 4px; color: rgba(65, 207, 222, 0.76); font-size: 9px; }
 .pmv-card-meta { margin-top: 3px; color: rgba(139, 168, 182, 0.62); font-size: 9px; }
-.pmv-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
 .pmv-empty { padding: 32px 14px; color: rgba(144, 170, 180, 0.58); text-align: center; font-size: 9px; }
 
 @media (max-width: 1180px) {
