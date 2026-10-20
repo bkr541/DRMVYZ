@@ -1,4 +1,13 @@
 {
-  "installerBytes": 75497472,
-  "maxFileBytes": 9437184
+  "installerBytes": 134217728,
+  "maxFileBytes": 16777216,
+  "maxTrianglesPerAsset": 250000,
+  "maxTextureDimension": 4096,
+  "maxVolumeDimension": 128,
+  "maxEnvironmentWidth": 2048,
+  "assetGpuBytes": {
+    "low": 33554432,
+    "medium": 50331648,
+    "high": 83886080
+  }
 }

@@ -6181,6 +6181,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .vz-header-cpu[data-cpu-level='high'] { --vz-cpu-tone: #f87171; }
 .vz-header-cpu-label { opacity: 0.7; font-size: 9px; letter-spacing: 0.1em; }
 .vz-header-cpu-value { min-width: 3ch; text-align: right; color: var(--vz-cpu-tone); }
+.vz-header-performance-metric[data-performance-metric='quality'] .vz-header-cpu-value { text-transform: uppercase; }
 .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity,
 [data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity { width: 28px; padding: 0; }
 .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity.vz-header-chip--labeled,

@@ -3,6 +3,8 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_BUDGETS, ENVIRONMENT_GPU_BYTES, SUPPORTED_GLTF_EXTENSIONS, analyzeAssets, readExrSize, readHdrSize, estimateTextureGpuBytes, generateAttributions, generateManifestSource, inspectGlb, readImageSize } from './assets-core.mjs'
 
+const PROJECT_BUDGETS = JSON.parse(readFileSync(new URL('../../assets/cinema2/budgets.json', import.meta.url), 'utf8'))
+
 // ---- fixtures: header-only images and a tiny GLB, built in memory
 
 function png(width, height, padding = 0) {
@@ -223,6 +225,58 @@ test('fails per tier when a single asset is over that tier GPU budget', () => {
 test('fails when all shipped assets exceed the installer budget', () => {
   const result = analyzeAssets([{ directory: 'ok-texture', record: texture() }, { directory: 'ok-model', record: model() }], read, { installerBytes: 1000 })
   assert.deepEqual(codes(result), ['ASSETS_INSTALLER_OVER_BUDGET'])
+})
+
+test('loads and merges the Cinema 2.0 project budget overrides', () => {
+  assert.deepEqual(PROJECT_BUDGETS, {
+    installerBytes: 128 * 1024 * 1024,
+    maxFileBytes: 16 * 1024 * 1024,
+    maxTrianglesPerAsset: 250000,
+    maxTextureDimension: 4096,
+    maxVolumeDimension: 128,
+    maxEnvironmentWidth: 2048,
+    assetGpuBytes: { low: 32 * 1024 * 1024, medium: 48 * 1024 * 1024, high: 80 * 1024 * 1024 },
+  })
+  const result = analyze(texture(), PROJECT_BUDGETS)
+  assert.deepEqual(result.budgets, { ...DEFAULT_BUDGETS, ...PROJECT_BUDGETS, assetGpuBytes: PROJECT_BUDGETS.assetGpuBytes })
+})
+
+test('project overrides admit assets above the former limits', () => {
+  const paths = {
+    'public/cinema2/textures/project-high.png': png(3072, 3072, 10 * 1024 * 1024 - 33),
+    'public/cinema2/textures/project-medium.png': png(2048, 2048),
+    'public/cinema2/textures/project-low.png': png(2048, 2048),
+  }
+  const record = texture({ files: { high: 'public/cinema2/textures/project-high.png', medium: 'public/cinema2/textures/project-medium.png', low: 'public/cinema2/textures/project-low.png' } })
+  const readProjectTexture = path => paths[path]
+  const projectResult = analyzeAssets([{ directory: record.id, record }], readProjectTexture, PROJECT_BUDGETS)
+  assert.deepEqual(projectResult.issues, [])
+  assert.deepEqual(analyze(model({ files: { high: 'public/cinema2/models/dense.glb' } }), PROJECT_BUDGETS).issues, [])
+  assert.ok(codes(analyzeAssets([{ directory: record.id, record }], readProjectTexture)).includes('ASSET_FILE_TOO_LARGE'))
+  assert.ok(codes(analyze(model({ files: { high: 'public/cinema2/models/dense.glb' } }))).includes('ASSET_TRIANGLES_OVER_BUDGET'))
+})
+
+test('project overrides still reject assets above every new threshold', () => {
+  const fileRecord = texture({ files: { high: 'public/cinema2/textures/over-file-budget.png' } })
+  const overFile = analyzeAssets([{ directory: fileRecord.id, record: fileRecord }], () => png(1, 1, 16 * 1024 * 1024 - 32), PROJECT_BUDGETS)
+  assert.ok(codes(overFile).includes('ASSET_FILE_TOO_LARGE'))
+
+  const overTexture = texture({ files: { high: 'public/cinema2/textures/over-dimension.png' } })
+  assert.ok(codes(analyzeAssets([{ directory: overTexture.id, record: overTexture }], () => png(4097, 4096), PROJECT_BUDGETS)).includes('ASSET_TEXTURE_TOO_LARGE'))
+
+  const overTriangles = model({ files: { high: 'public/cinema2/models/over-triangles.glb' } })
+  assert.ok(codes(analyzeAssets([{ directory: overTriangles.id, record: overTriangles }], () => glb({ triangles: 250001 }), PROJECT_BUDGETS)).includes('ASSET_TRIANGLES_OVER_BUDGET'))
+
+  const overGpu = analyze(model({ files: { high: 'public/cinema2/models/textured.glb' } }), PROJECT_BUDGETS)
+  assert.deepEqual(overGpu.issues.filter(issue => issue.code === 'ASSET_GPU_OVER_BUDGET').map(issue => issue.message.match(/on (\w+),/)?.[1]), ['low', 'medium', 'high'])
+
+  const fifteenMiBTexture = png(1, 1, 15 * 1024 * 1024 - 33)
+  const records = Array.from({ length: 9 }, (_, index) => ({
+    directory: `installer-${index}`,
+    record: texture({ id: `installer-${index}`, files: { high: `public/cinema2/textures/installer-${index}.png` } }),
+  }))
+  const overInstaller = analyzeAssets(records, () => fifteenMiBTexture, PROJECT_BUDGETS)
+  assert.ok(codes(overInstaller).includes('ASSETS_INSTALLER_OVER_BUDGET'))
 })
 
 test('generates a deterministic manifest source and an attribution list', () => {

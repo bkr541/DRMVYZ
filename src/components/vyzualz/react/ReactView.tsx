@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
+import { ReactHeaderPerformanceStatus, qualityTierForFps } from './ReactHeaderPerformanceStatus'
 import { retainSharedPerformanceDiagnosticsEngine } from './SharedPerformanceDiagnosticsStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { useVisualStore } from '../../../stores/visualStore'
@@ -670,6 +671,13 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     ],
   )
   const showDirectorStageEditorVisible = laserDmxAuthoringOverlayVisibility.showDirectorStageEditor
+  const cinema2FrameTimeMs = activeReactEngineId === 'cinema2'
+    ? cinema2RuntimeSnapshot?.performance?.cpuFrameTimeAverageMs ?? null
+    : null
+  const headerFps = cinema2FrameTimeMs && cinema2FrameTimeMs > 0 ? 1000 / cinema2FrameTimeMs : liveFps
+  const headerQualityTier = activeReactEngineId === 'cinema2'
+    ? cinema2RuntimeSnapshot?.performance?.resolvedQuality ?? 'high'
+    : qualityTierForFps(headerFps)
 
   return (
     <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
@@ -694,6 +702,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           </svg>
         </button>
         <ReactPersistenceStatus />
+        <ReactHeaderPerformanceStatus fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />
         <VyzualzHeaderActions page="react" />
       </div>
       {trackTimelineOpen
