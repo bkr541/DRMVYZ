@@ -5,8 +5,6 @@ import { cinema2ReactorNativeModuleDefinition } from './Cinema2ReactorNativeModu
 import { cinema2Object3DModuleDefinition } from './Cinema2Object3DModule'
 import { cinema2ElectricStormNativeModuleDefinition } from './Cinema2ElectricStormNativeModule'
 import { cinema2AfterhoursNativeModuleDefinition } from './Cinema2AfterhoursNativeModule'
-import { cinema2InterlockNativeModuleDefinition } from './Cinema2InterlockNativeModule'
-import { cinema2InterlockLiquidLightModuleDefinition } from './Cinema2InterlockLiquidLightModule'
 import { cinema2HumNNativeModuleDefinition } from './Cinema2HumNNativeModule'
 import { cinema2ThresholdNativeModuleDefinition } from './Cinema2ThresholdNativeModule'
 import { cinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModule'
@@ -115,14 +113,6 @@ if (!electricStormRegistration.ok) {
 const afterhoursNativeRegistration = cinema2NativeModuleRegistry.register(cinema2AfterhoursNativeModuleDefinition)
 if (!afterhoursNativeRegistration.ok) {
   throw new Error(`Cinema 2.0 Afterhours native module registration failed: ${afterhoursNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const interlockNativeRegistration = cinema2NativeModuleRegistry.register(cinema2InterlockNativeModuleDefinition)
-if (!interlockNativeRegistration.ok) {
-  throw new Error(`Cinema 2.0 Interlock native module registration failed: ${interlockNativeRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
-}
-const interlockLiquidLightRegistration = cinema2NativeModuleRegistry.register(cinema2InterlockLiquidLightModuleDefinition)
-if (!interlockLiquidLightRegistration.ok) {
-  throw new Error(`Cinema 2.0 Interlock liquid-light module registration failed: ${interlockLiquidLightRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 const humNNativeRegistration = cinema2NativeModuleRegistry.register(cinema2HumNNativeModuleDefinition)
 if (!humNNativeRegistration.ok) {

@@ -17,8 +17,7 @@ export interface Cinema2SyncedMotionClockFrame {
   readonly syncedTimeSec: number
 }
 
-// Matches Cinema2InterlockClock's FALLBACK_BPM so a synced preset at the
-// reference tempo advances at the same visual rate as an un-synced one.
+// A synced preset at the reference tempo advances at the same visual rate as an un-synced one.
 const REFERENCE_BPM = 120
 const MIN_VALID_BPM = 20
 const MAX_VALID_BPM = 400
