@@ -24,7 +24,6 @@ import { CINEMA2_CATHEDRAL_PRESET_MANIFEST } from './Cinema2CathedralPreset'
 import { CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST } from './Cinema2AncientMachinePreset'
 import { CINEMA2_EVENT_HORIZON_PRESET_MANIFEST } from './Cinema2EventHorizonPreset'
 import { CINEMA2_CONSTELLATION_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
-import { CINEMA2_BOSS_BATTLE_PRESET_MANIFEST } from './Cinema2BossBattlePreset'
 import { CINEMA2_SIXFOLD_PRESET_MANIFEST } from './Cinema2SixfoldPreset'
 import { CINEMA2_HYPNOTIZE_PRESET_MANIFEST } from './Cinema2HypnotizePreset'
 import { CINEMA2_STARTERS_PRESET_MANIFEST } from './Cinema2StartersPreset'
@@ -136,10 +135,6 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_CONSTELLATION_PRESET_MANIFEST,
-  }),
-  defineCinema2FirstPartyPreset({
-    role: 'keeper',
-    manifest: CINEMA2_BOSS_BATTLE_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'keeper',

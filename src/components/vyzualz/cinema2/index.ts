@@ -1488,18 +1488,6 @@ export {
 } from './presets/Cinema2ConstellationPreset'
 
 export {
-  CINEMA2_BOSS_BATTLE_PRESET_ID,
-  CINEMA2_BOSS_BATTLE_PRESET_MANIFEST,
-} from './presets/Cinema2BossBattlePreset'
-
-export {
-  CINEMA2_BOSS_BATTLE_NATIVE_MODULE_TYPE_ID,
-  CINEMA2_BOSS_BATTLE_NATIVE_MODULE_VERSION,
-  CINEMA2_BOSS_BATTLE_IMAGE_URL,
-  cinema2BossBattleNativeModuleDefinition,
-} from './modules/Cinema2BossBattleNativeModule'
-
-export {
   CINEMA2_SIXFOLD_PRESET_ID,
   CINEMA2_SIXFOLD_PRESET_MANIFEST,
   CINEMA2_SIXFOLD_PATTERN_ID,
