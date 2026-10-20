@@ -121,8 +121,17 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-inspector-body')?.getAttribute('data-selected-preset')).toBe(preset?.sourceId)
     expect(container?.querySelector('.pmv-info-panel')?.getAttribute('aria-label')).toBe(`${preset?.name} preset information`)
     expect(container?.querySelectorAll('.pmv-inspector-body .rv-ctrl-group').length).toBeGreaterThan(0)
-    expect(container?.textContent).toContain('Classification')
-    expect(container?.textContent).toContain('Stored Configuration')
+    expect(container?.querySelectorAll('.pmv-info-panel .rv-ctrl-group > .drc-group')).toHaveLength(1)
+    expect(container?.querySelector('.pmv-info-panel .rv-ctrl-group > .drc-group > .drc-header')?.textContent).toContain('Preset Info')
+    expect(container?.querySelector('.pmv-info-panel .rv-ctrl-section-label')).toBeNull()
+    expect([...(container?.querySelectorAll('.pmv-info-panel .rv-insp-key') ?? [])].map(row => row.textContent)).toEqual([
+      'Name',
+      'Description',
+      'Engine',
+      'Category',
+      'Tags',
+      'Custom',
+    ])
 
     act(() => inspectorTabs.find(tab => tab.textContent === 'DESIGN')?.click())
     expect(container?.querySelector('.pmv-inspector-body .rv-workspace-panel')).not.toBeNull()

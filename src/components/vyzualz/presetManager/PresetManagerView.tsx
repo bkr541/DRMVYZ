@@ -57,17 +57,6 @@ const PRESET_MANAGER_INSPECTOR_TABS: RailTabOption<PresetManagerInspectorTab>[] 
   { id: 'output', label: 'OUTPUT' },
 ]
 
-function infoLabel(key: string): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, character => character.toUpperCase())
-}
-
-function isInfoObject(value: unknown): value is Readonly<Record<string, unknown>> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 function infoValue(value: unknown): string {
   if (value === null) return 'None'
   if (value === undefined) return 'Not set'
@@ -86,58 +75,19 @@ function InfoRow({ label, value }: { label: string; value: unknown }) {
   )
 }
 
-function InfoEntries({ value, depth = 0 }: { value: Readonly<Record<string, unknown>>; depth?: number }) {
-  return <>{Object.entries(value).map(([key, entry]) => {
-    const label = infoLabel(key)
-    if (Array.isArray(entry)) {
-      if (entry.every(item => item === null || ['string', 'number', 'boolean'].includes(typeof item))) {
-        return <InfoRow key={key} label={label} value={entry.length ? entry.map(infoValue).join(', ') : 'None'} />
-      }
-      return (
-        <Collapsible key={key} label={`${label} (${entry.length})`} defaultOpen={depth === 0 && entry.length <= 4}>
-          {entry.length === 0
-            ? <InfoRow label="Items" value="None" />
-            : entry.map((item, index) => isInfoObject(item)
-              ? <Collapsible key={index} label={`${label} ${index + 1}`} defaultOpen={false}><InfoEntries value={item} depth={depth + 1} /></Collapsible>
-              : <InfoRow key={index} label={`${label} ${index + 1}`} value={item} />)}
-        </Collapsible>
-      )
-    }
-    if (isInfoObject(entry)) {
-      return (
-        <Collapsible key={key} label={label} defaultOpen={depth === 0}>
-          <InfoEntries value={entry} depth={depth + 1} />
-        </Collapsible>
-      )
-    }
-    return <InfoRow key={key} label={label} value={entry} />
-  })}</>
-}
-
 function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
   return (
     <div className="rv-workspace-panel pmv-info-panel" aria-label={`${preset.name} preset information`}>
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-group">
-            <Collapsible label="Overview">
+            <Collapsible label="Preset Info">
               <InfoRow label="Name" value={preset.name} />
               <InfoRow label="Description" value={preset.description} />
-            </Collapsible>
-            <Collapsible label="Classification">
               <InfoRow label="Engine" value={preset.engineName} />
               <InfoRow label="Category" value={preset.category} />
               <InfoRow label="Tags" value={preset.tags.length ? preset.tags.join(', ') : 'None'} />
-            </Collapsible>
-            <Collapsible label="Source">
-              <InfoRow label="Manager ID" value={preset.id} />
-              <InfoRow label="Preset ID" value={preset.sourceId} />
-              <InfoRow label="Activation" value={infoLabel(preset.activation)} />
-              <InfoRow label="Artwork" value={infoLabel(preset.artwork)} />
               <InfoRow label="Custom" value={preset.custom ?? false} />
-            </Collapsible>
-            <Collapsible label="Stored Configuration" defaultOpen={false}>
-              <InfoEntries value={preset.sourceData} />
             </Collapsible>
           </div>
         </div>
