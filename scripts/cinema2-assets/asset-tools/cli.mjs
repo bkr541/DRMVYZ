@@ -16,8 +16,11 @@ import { readAsset } from './io.mjs'
 import { TIERS, optimizeAsset } from './optimize.mjs'
 import { renderAssetReport } from './report.mjs'
 import { validateFile } from './validate.mjs'
+import { resolveAssetBudgets } from '../assets-core.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const budgetsPath = join(root, 'assets/cinema2/budgets.json')
+const projectBudgets = resolveAssetBudgets(existsSync(budgetsPath) ? JSON.parse(await readFile(budgetsPath, 'utf8')) : {})
 
 function parseArgs(argv) {
   const positional = []
@@ -49,7 +52,7 @@ const fileMb = bytes => `${(bytes / 1048576).toFixed(2)} MB`
 async function inspectPath(path) {
   const source = await readAsset(path)
   const fileBytes = (await stat(path)).size
-  return { source, inspection: inspectDocument(source.document, { name: source.name, container: source.container, fileBytes }) }
+  return { source, inspection: inspectDocument(source.document, { name: source.name, container: source.container, fileBytes, budgets: projectBudgets }) }
 }
 
 function printInspection(inspection) {
@@ -126,13 +129,13 @@ async function main() {
 
     const source = await readAsset(path)
     const sourceBytes = (await stat(path)).size
-    const original = inspectDocument(source.document, { name: source.name, container: source.container, fileBytes: sourceBytes })
+    const original = inspectDocument(source.document, { name: source.name, container: source.container, fileBytes: sourceBytes, budgets: projectBudgets })
     if (!original.ok) {
       console.error('The source model has errors; fix them before optimizing:')
       for (const issue of original.issues.filter(entry => entry.severity === 'error')) console.error(`  ${issue.code}: ${issue.message}`)
       process.exit(1)
     }
-    const results = await optimizeAsset(source, { tiers, geometry, textures, simplify, maxTexture })
+    const results = await optimizeAsset(source, { tiers, geometry, textures, simplify, maxTexture, budgets: projectBudgets })
     await mkdir(out, { recursive: true })
     const summary = { geometry, textures, simplify: Boolean(simplify), tiers: [] }
     let failed = false

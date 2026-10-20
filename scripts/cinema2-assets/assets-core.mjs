@@ -67,6 +67,11 @@ export const DEFAULT_BUDGETS = Object.freeze({
   assetGpuBytes: Object.freeze({ low: 20132659, medium: 33554432, high: 53687091 }),
 })
 
+/** Merge project-specific asset limits over the owner-adjustable defaults, including per-tier GPU limits. */
+export function resolveAssetBudgets(budgetOverrides = {}) {
+  return { ...DEFAULT_BUDGETS, ...budgetOverrides, assetGpuBytes: { ...DEFAULT_BUDGETS.assetGpuBytes, ...(budgetOverrides.assetGpuBytes ?? {}) } }
+}
+
 const MIP_CHAIN_FACTOR = 4 / 3
 /** Three's PMREM environment is a 256 px cube-UV map in half float (8 bytes per texel) with a mip chain, whatever the source size. */
 export const ENVIRONMENT_GPU_BYTES = Math.round(256 * 256 * 6 * 8 * MIP_CHAIN_FACTOR)
@@ -204,7 +209,7 @@ export function inspectGlb(bytes) {
  * Returns `{ assets, issues, totalBytes }`; `issues` is empty when the assets may ship.
  */
 export function analyzeAssets(records, readFileBytes, budgetOverrides = {}) {
-  const budgets = { ...DEFAULT_BUDGETS, ...budgetOverrides, assetGpuBytes: { ...DEFAULT_BUDGETS.assetGpuBytes, ...(budgetOverrides.assetGpuBytes ?? {}) } }
+  const budgets = resolveAssetBudgets(budgetOverrides)
   const issues = []
   const assets = []
   const seenIds = new Set()

@@ -122,7 +122,7 @@ export async function optimizeAsset(source, options = {}) {
     // Round trip: read the bytes that will actually ship and compare them with the original.
     const reread = await io.readBinary(bytes)
     const comparison = compareDocuments(original, reread, { simplified: ratio < 1, lossyGeometry: geometry === 'draco', tolerance: 2e-4 })
-    const inspection = inspectDocument(reread, { name: source.name, container: 'glb', fileBytes: bytes.byteLength })
+    const inspection = inspectDocument(reread, { name: source.name, container: 'glb', fileBytes: bytes.byteLength, budgets: options.budgets })
     results.push({ tier, ok: comparison.ok && inspection.ok, bytes, failures: [...comparison.failures, ...inspection.issues.filter(entry => entry.severity === 'error').map(entry => entry.message)], warnings: comparison.warnings, inspection, notes, ratio })
   }
   return results

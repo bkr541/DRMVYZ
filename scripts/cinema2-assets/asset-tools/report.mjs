@@ -8,6 +8,7 @@ const table = (headers, rows) => [row(headers), row(headers.map(() => '---')), .
 const icon = severity => ({ error: 'ERROR', warning: 'warning', info: 'info', hint: 'hint' }[severity] ?? severity)
 
 export function renderAssetReport({ inspection, validation, optimization }) {
+  const budgets = inspection.budgets ?? DEFAULT_BUDGETS
   const lines = []
   const verdict = inspection.ok && (!validation || validation.numErrors === 0) ? 'PASS' : 'FAIL'
   lines.push(`# Asset report: ${inspection.name ?? 'model'}`, '')
@@ -15,7 +16,7 @@ export function renderAssetReport({ inspection, validation, optimization }) {
 
   lines.push('## Summary', '')
   lines.push(table(['Measure', 'Value'], [
-    ['Triangles', `${num(inspection.geometry.triangles)} (limit ${num(DEFAULT_BUDGETS.maxTrianglesPerAsset)})`],
+    ['Triangles', `${num(inspection.geometry.triangles)} (limit ${num(budgets.maxTrianglesPerAsset)})`],
     ['Vertices', num(inspection.geometry.vertices)],
     ['Meshes / primitives (draw calls)', `${inspection.counts.meshes} / ${inspection.counts.primitives}`],
     ['Materials / textures', `${inspection.counts.materials} / ${inspection.counts.textures}`],
@@ -26,7 +27,7 @@ export function renderAssetReport({ inspection, validation, optimization }) {
     ['Custom vertex attributes', inspection.geometry.customAttributes.join(', ') || 'none'],
     ['Estimated geometry memory', mb(inspection.memory.geometryBytes)],
     ['Estimated texture memory (with mips)', mb(inspection.memory.textureBytes)],
-    ['Estimated GPU memory', `${mb(inspection.memory.totalBytes)} (asset budgets: low ${mb(DEFAULT_BUDGETS.assetGpuBytes.low)}, medium ${mb(DEFAULT_BUDGETS.assetGpuBytes.medium)}, high ${mb(DEFAULT_BUDGETS.assetGpuBytes.high)})`],
+    ['Estimated GPU memory', `${mb(inspection.memory.totalBytes)} (asset budgets: low ${mb(budgets.assetGpuBytes.low)}, medium ${mb(budgets.assetGpuBytes.medium)}, high ${mb(budgets.assetGpuBytes.high)})`],
   ]), '')
 
   lines.push('## Extensions', '')

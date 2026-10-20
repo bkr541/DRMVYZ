@@ -1,7 +1,7 @@
 // Inspects a model for the Cinema 2.0 pipeline: geometry and texture cost, compression, extensions, animation, custom vertex attributes and the
 // problems that would make `npm run assets:check` or the runtime loader complain. Pure over a glTF Transform document.
 import { getTextureColorSpace, listTextureSlots } from '@gltf-transform/functions'
-import { DEFAULT_BUDGETS, SUPPORTED_GLTF_EXTENSIONS } from '../assets-core.mjs'
+import { SUPPORTED_GLTF_EXTENSIONS, resolveAssetBudgets } from '../assets-core.mjs'
 
 const MIP = 4 / 3
 
@@ -67,6 +67,7 @@ function checkGeometry(primitive) {
 
 export function inspectDocument(document, options = {}) {
   const root = document.getRoot()
+  const budgets = resolveAssetBudgets(options.budgets)
   const issues = []
   const issue = (severity, code, message) => issues.push({ severity, code, message })
 
@@ -152,7 +153,7 @@ export function inspectDocument(document, options = {}) {
   })
   const textureGpuBytes = textures.reduce((sum, texture) => sum + texture.gpuBytes, 0)
   for (const texture of textures) {
-    if (texture.width && Math.max(texture.width, texture.height) > DEFAULT_BUDGETS.maxTextureDimension) issue('warning', 'TEXTURE_TOO_LARGE', `Texture "${texture.name}" is ${texture.width}x${texture.height}, above the ${DEFAULT_BUDGETS.maxTextureDimension}px asset limit.`)
+    if (texture.width && Math.max(texture.width, texture.height) > budgets.maxTextureDimension) issue('warning', 'TEXTURE_TOO_LARGE', `Texture "${texture.name}" is ${texture.width}x${texture.height}, above the ${budgets.maxTextureDimension}px asset limit.`)
   }
 
   // ---- animation, skeletons, scene
@@ -173,7 +174,6 @@ export function inspectDocument(document, options = {}) {
 
   // ---- budgets
   const gpuBytes = geometryBytes + textureGpuBytes
-  const budgets = DEFAULT_BUDGETS
   if (triangles > budgets.maxTrianglesPerAsset) issue('error', 'OVER_TRIANGLE_BUDGET', `${triangles} triangles is above the ${budgets.maxTrianglesPerAsset} per-asset limit.`)
   for (const tier of ['low', 'medium', 'high']) {
     if (gpuBytes > budgets.assetGpuBytes[tier]) issue('warning', 'OVER_GPU_BUDGET', `Estimated ${(gpuBytes / 1048576).toFixed(1)} MB of GPU memory exceeds the ${(budgets.assetGpuBytes[tier] / 1048576).toFixed(1)} MB ${tier}-tier asset budget (a tier variant should be smaller).`)
@@ -204,6 +204,7 @@ export function inspectDocument(document, options = {}) {
     animations,
     skins,
     bounds,
+    budgets,
     issues,
     ok: !issues.some(entry => entry.severity === 'error'),
   }

@@ -99,6 +99,14 @@ test('inspect flags missing normals and an unsupported required extension', asyn
   } finally { rmSync(folder, { recursive: true, force: true }) }
 })
 
+test('inspect merges project budget overrides instead of requiring global default changes', () => {
+  const document = fixtureDocument()
+  const relaxed = inspectDocument(document, { budgets: { maxTrianglesPerAsset: 3000 } })
+  const restricted = inspectDocument(document, { budgets: { maxTrianglesPerAsset: 2000 } })
+  assert.ok(relaxed.ok)
+  assert.ok(restricted.issues.some(issue => issue.code === 'OVER_TRIANGLE_BUDGET'))
+})
+
 test('the Khronos validator accepts the fixture', async () => {
   const folder = scratch()
   try {
