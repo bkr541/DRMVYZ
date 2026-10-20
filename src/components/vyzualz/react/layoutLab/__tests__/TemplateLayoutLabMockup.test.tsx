@@ -52,24 +52,9 @@ describe('Template Layout Lab workspace', () => {
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
-    const fpsGallery = container.querySelector('[aria-label="FPS and frame time header mockups"]')
-    expect(fpsGallery).not.toBeNull()
-    expect(fpsGallery?.querySelectorAll('[data-fps-concept]')).toHaveLength(5)
-    for (const concept of fpsGallery?.querySelectorAll<HTMLElement>('[data-fps-concept]') ?? []) {
-      const group = concept.querySelector('.llft-group')
-      expect(group?.children).toHaveLength(2)
-      expect(group?.children[0]?.getAttribute('data-metric')).toBe('fps')
-      expect(group?.children[1]?.getAttribute('data-metric')).toBe('frame-time')
-    }
-    const monitoringRow = container.querySelector('[aria-label="Preset-inspired server monitoring mockups"]')
-    expect(monitoringRow?.querySelectorAll('[data-preset-card][data-monitor-concept]')).toHaveLength(5)
-    for (const card of monitoringRow?.querySelectorAll<HTMLElement>('[data-monitor-concept]') ?? []) {
-      expect(card.getAttribute('data-monitor-reference')).toBeTruthy()
-      const metrics = card.querySelectorAll('.llft-monitor-group [data-metric]')
-      expect(metrics).toHaveLength(2)
-      expect(metrics[0]?.getAttribute('data-metric')).toBe('fps')
-      expect(metrics[1]?.getAttribute('data-metric')).toBe('frame-time')
-    }
+    // The Template canvas holds the React header-row studies and nothing else.
+    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(1)
+    expect(container.querySelector('.rv-canvas-wrap > [aria-label="React header row mockups"]')).not.toBeNull()
 
     const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
       .find(button => button.textContent?.trim() === 'REACT')
