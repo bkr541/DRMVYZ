@@ -3263,7 +3263,7 @@ describe('ShowManagerView production shell', () => {
       await Promise.resolve()
     })
 
-    expect(container.querySelector('.sm-title-block')?.textContent).toContain('DECK BUILDER')
+    expect(container.querySelector('.vz-page-heading')).toBeNull()
     expect(container.querySelector('[aria-label="Show Manager Deck images"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="Show Manager Deck Builder inspector"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="pix-grid-surface"]')).not.toBeNull()

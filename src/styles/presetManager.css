@@ -24,14 +24,6 @@
   border-bottom: 1px solid rgba(154, 178, 188, 0.14);
 }
 
-.pmv-header-left {
-  align-self: stretch;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
 .pmv-workspace {
   flex: 1;
   min-width: 0;

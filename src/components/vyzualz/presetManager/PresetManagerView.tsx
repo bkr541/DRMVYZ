@@ -5,7 +5,6 @@ import { useRecorder } from '../../../hooks/useRecorder'
 import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
-import { PageHeadingPlate, PresetHeadingIcon } from '../layout/PageHeadingPlate'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -353,12 +352,8 @@ export function PresetManagerView() {
   }
 
   return (
-    <main className="pmv-root" aria-labelledby="preset-manager-title">
-      <header className="pmv-header">
-        <div className="pmv-header-left">
-          <PageHeadingPlate titleAs="h1" titleId="preset-manager-title" title="Preset Manager" icon={<PresetHeadingIcon />} />
-        </div>
-      </header>
+    <main className="pmv-root" aria-label="Preset Manager">
+      <header className="pmv-header" />
       <section className="pmv-workspace" aria-label="Preset Manager workspace">
         <div
           className="vz-content pmv-content"

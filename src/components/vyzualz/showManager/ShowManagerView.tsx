@@ -21,7 +21,6 @@ import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputR
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
-import { PageHeadingPlate, ShowHeadingIcon } from '../layout/PageHeadingPlate'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
@@ -2123,10 +2122,7 @@ export function ShowManagerView() {
   return (
     <section className="sm-root rv-shell" aria-label="Show Manager workspace">
       <header className="sm-topbar">
-        <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef}>
-          <PageHeadingPlate title={workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE ? 'DECK BUILDER' : 'SHOW MANAGER'} icon={<ShowHeadingIcon />} />
-        </div>
-
+        <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef} />
         <HeaderControlGroup label="Show Manager controls">
           {workspaceMode === 'default' && (
             <div className="sm-header-show-actions" aria-label="Show file actions">

@@ -1,7 +1,6 @@
 import { SubtitleIcon } from 'hugeicons-react'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import { SaveActiveGlyph, SaveGlyph } from '../../../components/vyzualz/layout/HeaderGlyphs'
-import { PageHeadingPlate, LyricHeadingIcon } from '../../../components/vyzualz/layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
@@ -48,10 +47,6 @@ export function LyricManagerHeader({
 
   return (
     <header className="lmv-header">
-      <div className="lmv-header-left">
-        <PageHeadingPlate title="LYRIC MANAGER" icon={<LyricHeadingIcon />} />
-      </div>
-
       <HeaderControlGroup label="Lyric Manager controls">
         <HeaderIconKey
           label="Show Lyrics"

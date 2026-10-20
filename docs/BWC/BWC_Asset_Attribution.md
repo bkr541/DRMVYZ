@@ -6,6 +6,8 @@ The prepared files include third-party models provided by the user from Sketchfa
 
 **Machinery model:** *Sci-fi Assembly Line*, by **meeww**. Original: https://sketchfab.com/3d-models/sci-fi-assembly-line-d30366ad73af49f6b7279923fe89faee . License: https://creativecommons.org/licenses/by/4.0/ . **Modifications:** added normalized parent transform, adapted source cyan emissive material factors to green, included a scaled static source-derived copy in the larger factory. The separate prepared GLB retains animation and its original glass extension.
 
+**Can emblem:** `Claw_Marks_Filled.svg` is the three-claw emblem printed on the BWC cans, supplied by the project owner as the master vector with its correct colours (black outline, three grey claw interiors, transparent background). The preset reads its path data from `src/components/vyzualz/cinema2/modules/bwc/Cinema2BwcEmblem.generated.ts`, which is generated from this file and checked against it by `Cinema2BwcEmblem.test.ts`. The same trademark caution as above applies to the emblem.
+
 **Example credit for documentation or published builds:**
 
 > Contains modified assets from “energy banks” by igor.rizaev00 and “Sci-fi Assembly Line” by meeww, licensed under Creative Commons Attribution 4.0. Source URLs and modification descriptions are documented in `BWC_Asset_Attribution.md`.

@@ -61,9 +61,9 @@ describe('MediaManagerView', () => {
       root?.render(<MediaManagerView onOpenLyricManager={vi.fn()} />)
     })
 
-    expect(container.querySelector('#media-manager-title')?.textContent).toBe('Media Manager')
+    expect(container.querySelector('.vz-page-heading')).toBeNull()
     expect(container.querySelector('[data-testid="media-library-browser"]')).not.toBeNull()
-    // The library counts were removed from the header; the header holds only the heading and the profile control.
+    // The library counts and decorative page heading are absent from the header.
     expect(container.querySelector('.mmv-header')?.textContent).not.toMatch(/visual asset|audio track|collection/)
     expect(mocks.browserProps).toHaveBeenCalledWith(expect.objectContaining({
       activeMediaId: null,

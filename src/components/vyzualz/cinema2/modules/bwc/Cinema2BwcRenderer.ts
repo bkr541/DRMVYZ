@@ -1,6 +1,8 @@
 import { FULLSCREEN_VERT_SRC, FullscreenPass } from '../../../react/shaders/runtime/FullscreenPass'
 import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
+import { bwcCanGlsl } from './Cinema2BwcCanModel'
+import { BWC_EMBLEM_TEXTURE_BYTES, BWC_EMBLEM_TEXTURE_HEIGHT, BWC_EMBLEM_TEXTURE_WIDTH, bwcEmblemGlsl, rasterizeBwcEmblem } from './Cinema2BwcEmblem'
 
 export interface Cinema2BwcRenderState {
   target: WebGLFramebuffer | null
@@ -33,6 +35,7 @@ uniform vec3 u_structure;
 uniform vec3 u_canWhite;
 uniform vec3 u_energy;
 uniform vec3 u_darkMetal;
+uniform sampler2D u_canEmblem;
 out vec4 outColor;
 
 #define MAX_STEPS 144
@@ -51,6 +54,8 @@ float sdCylinderZ(vec3 p, float r, float h) {
   vec2 d = abs(vec2(length(p.xy), p.z)) - vec2(r, h);
   return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
+${bwcCanGlsl()}
+${bwcEmblemGlsl()}
 float sdTorusZ(vec3 p, float majorRadius, float minorRadius) {
   return length(vec2(length(p.xy) - majorRadius, p.z)) - minorRadius;
 }
@@ -101,14 +106,13 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdRoundBox(conveyorSupport - vec3(-1.92 - conveyorHalf, 0.34, 0.0), vec3(0.075, 0.34, 0.10), 0.025), 3.0));
   result = nearest(result, vec2(sdRoundBox(conveyorSupport - vec3(-1.92 + conveyorHalf, 0.34, 0.0), vec3(0.075, 0.34, 0.10), 0.025), 3.0));
 
-  // BWC_CANS_PRIMARY — the manifest's intentionally hero-scaled 1 m cans.
+  // BWC_CANS_PRIMARY — the BWC_CAN_PLAIN artifact (docs/BWC/BWC_Can_Plain_Ready.glb), enlarged to the manifest's 1 m
+  // hero height at Can Scale 1, standing on the belt. Its own coordinates are metres with the origin at the base centre.
   if (p.z > -10.2 && p.z < 8.0) {
-    vec3 canPoint = p - vec3(-1.92, 1.44, 0.0);
+    float canSize = CAN_HERO_SCALE * u_canScale;
+    vec3 canPoint = p - vec3(-1.92, 0.865, 0.0);
     canPoint.z = mod(canPoint.z + 0.64, 1.28) - 0.64;
-    canPoint /= u_canScale;
-    result = nearest(result, vec2(sdCylinderY(canPoint, 0.31, 0.56) * u_canScale, 5.0));
-    result = nearest(result, vec2(sdCylinderY(canPoint - vec3(0.0, 0.565, 0.0), 0.275, 0.018) * u_canScale, 3.0));
-    result = nearest(result, vec2(sdCylinderY(canPoint + vec3(0.0, 0.565, 0.0), 0.278, 0.018) * u_canScale, 3.0));
+    result = nearest(result, vec2(sdBwcCan(canPoint / canSize) * canSize, 5.0));
   }
 
   // Low right service walk matching the target's long perspective runway.
@@ -192,6 +196,28 @@ float softShadow(vec3 origin, vec3 direction) {
   return clamp(shade, 0.16, 1.0);
 }
 
+const vec3 CAMERA_POSITION = vec3(4.55, 3.18, 8.85);
+const float PI = 3.14159265;
+
+/*
+ * The plain can's white with the three-claw emblem printed on the body, wrapped around it by arc length and turned to
+ * face the camera (each can is a rotated copy of the same print, as on a real line). The emblem texture is sampled
+ * unconditionally so its mip level is stable across the edge of the print.
+ */
+vec3 canColor(vec3 p) {
+  float canSize = CAN_HERO_SCALE * u_canScale;
+  vec3 local = p - vec3(-1.92, 0.865, 0.0);
+  float zInCell = mod(local.z + 0.64, 1.28) - 0.64;
+  vec3 q = vec3(local.x, local.y, zInCell) / canSize;
+  vec2 toCamera = CAMERA_POSITION.xz - vec2(-1.92, local.z - zInCell);
+  float theta = atan(q.z, q.x) - atan(toCamera.y, toCamera.x);
+  theta = mod(theta + PI, 2.0 * PI) - PI;
+  vec2 uv = vec2(theta * EMBLEM_WRAP_RADIUS / EMBLEM_WIDTH + 0.5, 0.5 - (q.y - EMBLEM_CENTER_Y) / EMBLEM_HEIGHT);
+  vec4 print = texture(u_canEmblem, clamp(uv, 0.001, 0.999));
+  float onPrint = step(0.0, uv.x) * step(uv.x, 1.0) * step(0.0, uv.y) * step(uv.y, 1.0) * step(abs(theta), 1.4);
+  return mix(u_canWhite, print.rgb, print.a * onPrint);
+}
+
 vec3 materialColor(float material, vec3 p) {
   if (material < 1.5) {
     vec2 tile = abs(fract((p.xz + vec2(0.0, 0.18)) * vec2(0.42, 0.36)) - 0.5);
@@ -205,14 +231,8 @@ vec3 materialColor(float material, vec3 p) {
     float latticeB = 1.0 - smoothstep(0.020, 0.055, abs(sin(p.y * 7.5 - p.x * 1.8)));
     return mix(u_energy * 0.10, u_energy * 0.55, max(latticeA * 0.36, latticeB * 0.25));
   }
-  if (material < 5.5) {
-    float bodyY = p.y - 1.44, bodyX = p.x + 1.92;
-    float a = 1.0 - smoothstep(0.026, 0.055, abs(bodyX + 0.13 + sin(bodyY * 7.0) * 0.018));
-    float b = 1.0 - smoothstep(0.026, 0.055, abs(bodyX + sin(bodyY * 7.8 + 1.0) * 0.018));
-    float c = 1.0 - smoothstep(0.026, 0.055, abs(bodyX - 0.13 + sin(bodyY * 7.2 + 2.0) * 0.018));
-    float logo = max(a, max(b, c)) * smoothstep(0.47, 0.28, abs(bodyY));
-    return mix(u_canWhite, u_darkMetal * 1.8, logo);
-  }
+  // The can: one matte material (the artifact's roughness 0.6, metallic 0) with the emblem printed on it.
+  if (material < 5.5) return canColor(p);
   if (material < 6.5) return mix(u_energy * 0.42, u_energy * 0.96, u_ledStrength / 1.5);
   if (material < 7.5) return vec3(0.82, 0.94, 1.0) * (0.72 + 0.28 * u_ledStrength);
   return vec3(0.52, 0.43, 0.12);
@@ -220,7 +240,7 @@ vec3 materialColor(float material, vec3 p) {
 
 void main() {
   vec2 pixel = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / max(u_resolution.y, 1.0);
-  vec3 camera = vec3(4.55, 3.18, 8.85);
+  vec3 camera = CAMERA_POSITION;
   vec3 target = vec3(-0.48, 2.22, -3.05);
   vec3 forward = normalize(target - camera);
   vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
@@ -239,10 +259,11 @@ void main() {
     float shadow = softShadow(point + normal * 0.012, keyDirection);
     vec3 base = materialColor(hit.y, point);
     vec3 halfVector = normalize(keyDirection - ray);
-    float gloss = hit.y > 4.5 && hit.y < 5.5 ? 82.0 : 42.0;
+    bool plainCan = hit.y > 4.5 && hit.y < 5.5;
+    float gloss = plainCan ? 16.0 : 42.0;
     float specular = pow(max(dot(normal, halfVector), 0.0), gloss);
     color = base * (0.24 + key * shadow * 0.82 + fill * 0.30);
-    color += vec3(0.70, 0.88, 1.0) * specular * 0.64;
+    color += vec3(0.70, 0.88, 1.0) * specular * (plainCan ? 0.30 : 0.64);
     float energySurface = step(3.5, hit.y) * (1.0 - step(4.5, hit.y)) + step(5.5, hit.y) * (1.0 - step(6.5, hit.y));
     float whiteLight = step(6.5, hit.y) * (1.0 - step(7.5, hit.y));
     color += base * energySurface * (0.32 + u_ledStrength * 0.42);
@@ -261,11 +282,12 @@ void main() {
 export class Cinema2BwcRenderer {
   private readonly program: ShaderProgram
   private readonly pass: FullscreenPass
+  private readonly emblem: WebGLTexture | null
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const uniforms = [
       'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_ledStrength',
-      'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal',
+      'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal', 'u_canEmblem',
     ]
     const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema 2.0 BWC factory corridor v2',
@@ -276,6 +298,7 @@ export class Cinema2BwcRenderer {
     if (!compiled.program) throw new Error(`BWC shader compilation failed: ${compiled.error.log}`)
     this.program = compiled.program
     this.pass = new FullscreenPass(gl)
+    this.emblem = createEmblemTexture(gl)
   }
 
   draw(state: Readonly<Cinema2BwcRenderState>): void {
@@ -292,9 +315,36 @@ export class Cinema2BwcRenderer {
     p.setVec3('u_canWhite', ...state.canWhite)
     p.setVec3('u_energy', ...state.energy)
     p.setVec3('u_darkMetal', ...state.darkMetal)
-    this.pass.run(p, state.target, state.width, state.height, [])
+    this.pass.run(p, state.target, state.width, state.height, this.emblem ? [{ unit: 0, texture: this.emblem, uniformName: 'u_canEmblem' }] : [])
   }
 
-  estimateGpuBytes(): number { return 16 * 1024 }
-  dispose(): void { this.pass.dispose(); this.program.dispose() }
+  estimateGpuBytes(): number { return 16 * 1024 + BWC_EMBLEM_TEXTURE_BYTES }
+  dispose(): void {
+    if (this.emblem) this.gl.deleteTexture(this.emblem)
+    this.pass.dispose()
+    this.program.dispose()
+  }
+}
+
+/** The emblem as a mipmapped RGBA texture; where it cannot be drawn (no canvas) a single transparent texel, so no print. */
+function createEmblemTexture(gl: WebGL2RenderingContext): WebGLTexture | null {
+  const texture = gl.createTexture()
+  if (!texture) return null
+  const art = rasterizeBwcEmblem()
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+  if (art) {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, BWC_EMBLEM_TEXTURE_WIDTH, BWC_EMBLEM_TEXTURE_HEIGHT, 0, gl.RGBA, gl.UNSIGNED_BYTE, art as TexImageSource)
+    gl.generateMipmap(gl.TEXTURE_2D)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+  } else {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]))
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+  }
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.bindTexture(gl.TEXTURE_2D, null)
+  return texture
 }

@@ -19,8 +19,7 @@
   align-items: stretch;
   gap: 0;
   box-sizing: border-box;
-  /* Never run under the page heading (which is as wide as the left window) or its mirror on the right. */
-  max-width: calc(100% - 2 * (var(--vz-page-heading-width, 300px) + 16px));
+  max-width: calc(100% - 32px);
   height: 42px;
   padding: 0;
   /* Segmented Deck (Layout Lab → Cinema → 01): one bordered instrument split into segments by hairlines. */

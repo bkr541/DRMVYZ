@@ -31,7 +31,6 @@
   gap: 16px;
 }
 
-.lmv-header-left  { display: flex; align-self: stretch; align-items: center; gap: 14px; min-width: 0; }
 .lmv-header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 /* Save state sits left of the CPU readout; it appears/disappears without moving the other header controls. */
 .lmv-save-status-badge { flex-shrink: 0; }
@@ -3171,20 +3170,7 @@
   margin: 0 auto;
 }
 
-.lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading {
-  width: auto;
-  min-width: 0;
-}
-
-.lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-traces { display: none; }
 .lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0 9px; }
-
-.lmv-root[data-layout='narrow'] .lmv-header .vz-page-heading-title {
-  font-size: 16px;
-  letter-spacing: 0.08em;
-}
-
-.lmv-root[data-layout='narrow'] .lmv-header-left { flex: 0 0 auto; }
 
 /* Timeline rows: a fixed label gutter, then the content area. Every row measures its own content width, so
    ruler, sections, waveform, lyric lanes and beats stay pixel-aligned. */

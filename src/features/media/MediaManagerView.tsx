@@ -7,7 +7,6 @@ import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
-import { PageHeadingPlate, MediaHeadingIcon } from '../../components/vyzualz/layout/PageHeadingPlate'
 import { MediaManagerInspector, type MediaHeaderActions } from '../../components/vyzualz/media/MediaManagerInspector'
 import { UnsavedMediaChangesDialog } from '../../components/vyzualz/media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
@@ -83,11 +82,8 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
   }, [needsGuard])
 
   return (
-    <main className="mmv-root" aria-labelledby="media-manager-title">
+    <main className="mmv-root" aria-label="Media Manager">
       <header className="mmv-header">
-        <div className="mmv-header-left">
-          <PageHeadingPlate titleAs="h1" titleId="media-manager-title" title="Media Manager" icon={<MediaHeadingIcon />} />
-        </div>
         <HeaderControlGroup label="Media Manager controls">
           <HeaderIconKey
             label="Save Changes"

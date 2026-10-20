@@ -48,7 +48,6 @@ import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStora
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
 import { RailTabs } from '../layout/RailTabs'
-import { PageHeadingPlate, ReactHeadingIcon } from '../layout/PageHeadingPlate'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
@@ -683,8 +682,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
       {activeReactEngineId === 'laserDmx' && <LaserDmxRendererNotice />}
       <div className="vz-header">
-        <PageHeadingPlate title="REACT" icon={<ReactHeadingIcon />} />
-
         <HeaderControlGroup label="React controls">
           <ReactGlobalOutputControls />
         </HeaderControlGroup>

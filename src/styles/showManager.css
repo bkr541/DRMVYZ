@@ -29,18 +29,6 @@
   background: rgba(10, 14, 17, 0.98);
 }
 
-.sm-title-block {
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-}
-
-.sm-title-block strong {
-  font-size: 14px;
-  letter-spacing: 0.1em;
-  color: rgba(240, 247, 249, 0.94);
-}
-
 .sm-topbar-spacer { flex: 1; }
 
 .sm-header-show-actions {
