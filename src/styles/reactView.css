@@ -23047,3 +23047,110 @@ button.llhr-chip { cursor: pointer; }
 .llhr-row--led-panel .llhr-value { letter-spacing: 0.1em; text-shadow: 0 0 8px rgba(255, 180, 84, 0.55); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 700; }
 .llhr-row--led-panel .llhr-chip--icon { --tone: #ffb454; }
 .llhr-row--led-panel .llhr-bell-dot { background: #ff5b4d; box-shadow: 0 0 6px rgba(255, 91, 77, 0.9); }
+
+/* ── Layout Lab · Template canvas: ten stacked-group header-row studies (11–20) ─────────────────────────────────
+   Elements are stacked in columns to save width. A column (`.llhr-stack`) and its cluster are layout wrappers only:
+   no rule below gives them a border, background, shadow or outline. Chips keep their own styling, per concept. */
+.llhr-section { margin-top: 10px; align-items: center; }
+.llhr-stage > header.llhr-section { display: flex; flex-direction: column; gap: 6px; text-align: center; text-transform: uppercase; }
+.llhr-stage > header.llhr-section > span { color: rgba(232, 244, 248, 0.86); font: 800 12px/1 var(--az-font, Inter, system-ui, sans-serif); letter-spacing: 0.14em; }
+.llhr-stage > header.llhr-section > small { color: rgba(154, 178, 188, 0.5); font: 700 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.12em; }
+
+.llhr-cluster--stacked { gap: 12px; }
+.llhr-stack { display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 4px; }
+.llhr-stack[data-stack-count='3'] { gap: 2px; }
+.llhr-stack > .llhr-chip { height: 24px; justify-content: space-between; }
+.llhr-stack[data-stack-count='3'] > .llhr-chip { height: 17px; }
+.llhr-stack > .llhr-chip--icon { justify-content: center; }
+.llhr-stack .llhr-chip--icon .llhr-label { display: none; }
+.llhr-stack > .llhr-chip svg { width: 14px; height: 14px; }
+.llhr-stack > .llhr-chip .llhr-ring { width: 16px; height: 16px; }
+.llhr-stack > .llhr-chip .llhr-bell-dot { top: 3px; right: 3px; }
+
+/* 11 · Twin Tiles ─ flat tiles, two to a column */
+.llhr-row--twin-tiles .llhr-chip { gap: 8px; padding: 0 9px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); box-shadow: inset 0 0 0 1px rgba(154, 178, 188, 0.18); }
+.llhr-row--twin-tiles .llhr-value { color: var(--tone); }
+.llhr-row--twin-tiles .llhr-stack > .llhr-chip--icon { padding: 0 8px; }
+
+/* 12 · Ledger Lines ─ chrome-free lines separated by hairlines, up to three deep */
+.llhr-row--ledger-lines .llhr-cluster--stacked { gap: 18px; }
+.llhr-row--ledger-lines .llhr-chip { gap: 12px; padding: 0 2px; border-radius: 0; }
+.llhr-row--ledger-lines .llhr-stack > .llhr-chip:not(:last-child) { border-bottom: 1px solid rgba(154, 178, 188, 0.2); }
+.llhr-row--ledger-lines .llhr-label { font-size: 8px; letter-spacing: 0.12em; }
+.llhr-row--ledger-lines .llhr-value { color: var(--tone); font-size: 10.5px; }
+.llhr-row--ledger-lines .llhr-stack > .llhr-chip--icon { justify-content: flex-end; }
+
+/* 13 · Mini Gauges ─ slim gauge bars, three deep */
+.llhr-row--mini-gauges .llhr-chip { overflow: hidden; gap: 8px; padding: 0 8px; border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent); border-radius: 4px; background: rgba(255, 255, 255, 0.03); }
+.llhr-row--mini-gauges .llhr-meter {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  display: block;
+  width: calc(var(--llhr-fill, 0) * 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tone) 46%, transparent), color-mix(in srgb, var(--tone) 10%, transparent));
+}
+.llhr-row--mini-gauges .llhr-stack[data-stack-count='3'] .llhr-label { font-size: 7.5px; }
+.llhr-row--mini-gauges .llhr-stack[data-stack-count='3'] .llhr-value { font-size: 9.5px; }
+.llhr-row--mini-gauges .llhr-value { color: #fff; }
+
+/* 14 · Spine Tabs ─ square-edged tabs with a tone spine */
+.llhr-row--spine-tabs .llhr-chip { gap: 8px; padding: 0 9px 0 12px; border-radius: 2px 6px 6px 2px; background: color-mix(in srgb, var(--tone) 10%, rgba(255, 255, 255, 0.02)); box-shadow: inset 3px 0 0 var(--tone); }
+.llhr-row--spine-tabs .llhr-value { color: color-mix(in srgb, var(--tone) 55%, #fff); }
+.llhr-row--spine-tabs .llhr-stack > .llhr-chip--icon { padding: 0 9px 0 12px; }
+
+/* 15 · Terminal Stack ─ prompt lines with no boxes */
+.llhr-row--terminal-stack .llhr-cluster--stacked { gap: 16px; }
+.llhr-row--terminal-stack .llhr-chip {
+  --llhr-label: rgba(103, 247, 255, 0.5);
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0 2px;
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.06em;
+}
+.llhr-row--terminal-stack .llhr-chip::before { content: '›'; color: var(--tone); font-size: 12px; font-weight: 800; }
+.llhr-row--terminal-stack .llhr-value { margin-left: auto; padding-left: 8px; color: var(--tone); text-shadow: 0 0 8px color-mix(in srgb, var(--tone) 40%, transparent); }
+.llhr-row--terminal-stack .llhr-label { font-size: 8.5px; }
+.llhr-row--terminal-stack .llhr-stack > .llhr-chip--icon { justify-content: flex-start; }
+.llhr-row--terminal-stack .llhr-stack .llhr-chip--icon .llhr-label { display: inline; }
+
+/* 16 · Layered Cards ─ offset cards that overlap */
+.llhr-row--layered-cards .llhr-stack { gap: 0; align-items: flex-start; }
+.llhr-row--layered-cards .llhr-chip { gap: 8px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.09); border-radius: 6px; background: linear-gradient(180deg, #1a2228, #11171b); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.5); }
+.llhr-row--layered-cards .llhr-stack > .llhr-chip { height: 26px; }
+.llhr-row--layered-cards .llhr-stack > .llhr-chip + .llhr-chip { z-index: 1; margin-top: -4px; margin-left: 12px; }
+.llhr-row--layered-cards .llhr-value { color: var(--tone); }
+
+/* 17 · Neon Edge Stack ─ a glowing left edge per line, three deep */
+.llhr-row--neon-edge-stack .llhr-cluster--stacked { gap: 16px; }
+.llhr-row--neon-edge-stack .llhr-chip { gap: 10px; padding: 0 6px 0 9px; border-left: 2px solid var(--tone); box-shadow: -8px 0 12px -9px var(--tone); }
+.llhr-row--neon-edge-stack .llhr-label { opacity: 0.8; }
+.llhr-row--neon-edge-stack .llhr-value { color: var(--tone); text-shadow: 0 0 10px color-mix(in srgb, var(--tone) 55%, transparent); }
+.llhr-row--neon-edge-stack .llhr-stack > .llhr-chip--icon { justify-content: flex-start; }
+
+/* 18 · Ticket Stubs ─ notched stubs with a dashed perforation */
+.llhr-row--ticket-stubs .llhr-cluster--stacked { gap: 14px; }
+.llhr-row--ticket-stubs .llhr-chip { gap: 0; padding: 0 12px; border: 1px solid rgba(154, 178, 188, 0.22); border-radius: 4px; background: rgba(255, 255, 255, 0.05); }
+.llhr-row--ticket-stubs .llhr-chip::before,
+.llhr-row--ticket-stubs .llhr-chip::after { content: ''; position: absolute; top: 50%; z-index: 2; width: 7px; height: 7px; border: 1px solid rgba(154, 178, 188, 0.22); border-radius: 50%; background: #0c1013; transform: translateY(-50%); }
+.llhr-row--ticket-stubs .llhr-chip::before { left: -4px; }
+.llhr-row--ticket-stubs .llhr-chip::after { right: -4px; }
+.llhr-row--ticket-stubs .llhr-label { margin-right: 8px; padding-right: 8px; border-right: 1px dashed rgba(154, 178, 188, 0.4); }
+.llhr-row--ticket-stubs .llhr-value { color: var(--tone); }
+.llhr-row--ticket-stubs .llhr-chip--icon { padding: 0 11px; }
+.llhr-row--ticket-stubs .llhr-dot { margin-right: 7px; }
+
+/* 19 · Gradient Stack ─ amber to magenta hairlines, two deep */
+.llhr-row--gradient-stack .llhr-chip { gap: 8px; padding: 0 9px; border: 1px solid transparent; border-radius: 6px; background: linear-gradient(#0d1316, #0d1316) padding-box, linear-gradient(120deg, #f59e0b, #ec4899) border-box; }
+.llhr-row--gradient-stack .llhr-value { background: linear-gradient(90deg, #fcd34d, #f9a8d4); -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.llhr-row--gradient-stack .llhr-chip--icon { color: #f9a8d4; }
+.llhr-row--gradient-stack .llhr-dot { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.7); }
+.llhr-row--gradient-stack .llhr-bell-dot { background: #ec4899; }
+
+/* 20 · Relief Stack ─ keycap-like raised chips with engraved labels */
+.llhr-row--relief-stack .llhr-chip { gap: 8px; padding: 0 9px; border-radius: 5px; background: linear-gradient(180deg, #26323a, #182026); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #070b0d; }
+.llhr-row--relief-stack .llhr-label { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7); }
+.llhr-row--relief-stack .llhr-value { color: #f1f7f9; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
+.llhr-row--relief-stack .llhr-dot { box-shadow: 0 0 6px color-mix(in srgb, var(--tone) 70%, transparent), 0 0 0 2px rgba(0, 0, 0, 0.35); }
+.llhr-row--relief-stack .llhr-stack > .llhr-chip--icon { padding: 0 9px; }

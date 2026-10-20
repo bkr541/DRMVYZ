@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HEADER_ROW_CONCEPTS, HEADER_ROW_METRICS, TemplateHeaderRowMockups } from '../TemplateHeaderRowMockups'
+import { HEADER_ROW_CONCEPTS, HEADER_ROW_METRICS, STACKED_HEADER_ROW_CONCEPTS, TemplateHeaderRowMockups } from '../TemplateHeaderRowMockups'
 
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -45,7 +45,7 @@ describe('React header row mockups', () => {
 
   it('builds every row on the production header rule, with a production reference row to compare against', () => {
     const rows = [...container.querySelectorAll<HTMLElement>('.llhr-row')]
-    expect(rows).toHaveLength(11)
+    expect(rows).toHaveLength(21)
     for (const row of rows) {
       expect(row.classList.contains('vz-header')).toBe(true)
       expect(row.getAttribute('style')).toBeNull()
@@ -66,8 +66,41 @@ describe('React header row mockups', () => {
     expect(production).toMatch(/\.vz-header \{\s*height: 60px;/)
   })
 
+  it('shows ten more concepts that stack elements in columns, each with all seven elements', () => {
+    const stacked = [...container.querySelectorAll<HTMLElement>('[data-header-stacked-concept]')]
+    expect(stacked).toHaveLength(10)
+    expect(stacked.map(node => node.getAttribute('data-header-stacked-concept'))).toEqual(STACKED_HEADER_ROW_CONCEPTS.map(concept => concept.id))
+    const layouts = new Set<string>()
+    for (const concept of stacked) {
+      const metrics = [...concept.querySelectorAll('.llhr-cluster [data-header-metric]')].map(node => node.getAttribute('data-header-metric')).sort()
+      expect(metrics).toEqual([...HEADER_ROW_METRICS].sort())
+      const columns = [...concept.querySelectorAll<HTMLElement>('.llhr-stack')]
+      expect(columns.length).toBeGreaterThanOrEqual(2)
+      for (const column of columns) {
+        const count = column.querySelectorAll(':scope > [data-header-metric]').length
+        expect(count).toBeGreaterThanOrEqual(2)
+        expect(count).toBeLessThanOrEqual(3)
+        expect(column.getAttribute('data-stack-count')).toBe(String(count))
+      }
+      layouts.add(columns.map(column => column.getAttribute('data-header-stack')).join('|'))
+      expect(concept.querySelector('.vz-header')?.classList.contains('llhr-row')).toBe(true)
+    }
+    // The studies differ in how they group elements, not only in how they are styled.
+    expect(layouts.size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('never gives a stacked column or its cluster a border, background, shadow or outline', () => {
+    const css = readFileSync(resolve(__dirname, '../../../../../styles/reactView.css'), 'utf8')
+    const groupRules = [...css.matchAll(/(^|\n)([^{}\n]*\.llhr-(?:stack|cluster--stacked)(?![\w-]|\s+[>.\w])[^{}\n]*)\{([^}]*)\}/g)]
+    expect(groupRules.length).toBeGreaterThan(0)
+    for (const [, , selector, body] of groupRules) {
+      expect(body, selector).not.toMatch(/(^|[;\s])(background[a-z-]*|border[a-z-]*|box-shadow|outline[a-z-]*|filter|backdrop-filter)\s*:/)
+    }
+  })
+
   it('gives each concept its own style block', () => {
     const css = readFileSync(resolve(__dirname, '../../../../../styles/reactView.css'), 'utf8')
     for (const concept of HEADER_ROW_CONCEPTS) expect(css, concept.id).toContain(`.llhr-row--${concept.id} .llhr-chip`)
+    for (const concept of STACKED_HEADER_ROW_CONCEPTS) expect(css, concept.id).toContain(`.llhr-row--${concept.id} .llhr-chip`)
   })
 })
