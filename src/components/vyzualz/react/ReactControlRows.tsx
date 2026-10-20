@@ -301,13 +301,14 @@ export interface TextAreaRowProps {
   disabled?: boolean
   spellCheck?: boolean
   description?: string
+  readOnly?: boolean
   /** Validation message: marks the field invalid and is announced to assistive tech. */
   error?: string | null
 }
 
 /** The multi-line sibling of TextInputRow: the same label-above-field row, with the shared underline field on a textarea. */
 export function TextAreaRow({
-  label, value, onChange, onBlur, onKeyDown, rows = 3, placeholder = '', id, disabled = false, spellCheck = false, description, error,
+  label, value, onChange, onBlur, onKeyDown, rows = 3, placeholder = '', id, disabled = false, spellCheck = false, description, readOnly = false, error,
 }: TextAreaRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
@@ -323,6 +324,7 @@ export function TextAreaRow({
         value={value}
         placeholder={placeholder}
         spellCheck={spellCheck}
+        readOnly={readOnly}
         disabled={disabled}
         aria-invalid={error ? true : undefined}
         aria-describedby={description ? `${inputId}-description` : undefined}

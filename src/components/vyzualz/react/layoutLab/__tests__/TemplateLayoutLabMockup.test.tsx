@@ -38,7 +38,7 @@ function tabLabels(ariaLabel: string): string[] {
 }
 
 describe('Template Layout Lab workspace', () => {
-  it('keeps the Template inspector tabs while Design and React remain empty', async () => {
+  it('keeps the Template inspector tabs with the card studies in Design while React stays empty', async () => {
     await selectEngine('Template')
 
     expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
@@ -48,7 +48,8 @@ describe('Template Layout Lab workspace', () => {
 
     const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')
     expect(tabLabels('Layout Lab inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    expect(rightRail?.querySelector('.vz-panel-body')?.childElementCount).toBe(0)
+    // Design is the tab that opens first and holds the five Preset Manager card studies.
+    expect(rightRail?.querySelector('[aria-label="Preset Manager card mockups"]')).not.toBeNull()
 
     expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()

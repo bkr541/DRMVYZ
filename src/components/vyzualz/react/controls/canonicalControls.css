@@ -217,7 +217,7 @@
   font-weight: 600 !important;
 }
 
-.dv-text-input:hover:not(:disabled) {
+.dv-text-input:hover:not(:disabled):not(:read-only) {
   border-bottom-color: var(--dv-control-accent, #4ac7db) !important;
 }
 

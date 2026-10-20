@@ -156,11 +156,13 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-info-panel .rv-ctrl-group > .drc-group > .drc-header')?.textContent).toContain('Preset Info')
     expect(container?.querySelector('.pmv-info-panel .rv-ctrl-section-label')).toBeNull()
     expect(container?.querySelector('.pmv-info-grid')).not.toBeNull()
-    expect([...(container?.querySelectorAll('.pmv-info-row--wide .pmv-info-label') ?? [])].map(row => row.textContent)).toEqual(['Name', 'Description'])
-    expect([...(container?.querySelectorAll('.pmv-info-panel .pmv-info-label') ?? [])].map(row => row.textContent)).toEqual([
+    expect([...(container?.querySelectorAll('.pmv-info-wide .rv-ctrl-label') ?? [])].map(row => row.textContent)).toEqual(['Name', 'Description'])
+    expect(container?.querySelector('.pmv-info-panel .rv-ctrl-row input[readonly]')).not.toBeNull()
+    expect([...(container?.querySelectorAll('.pmv-info-panel .pmv-info-grid .rv-ctrl-label') ?? [])].map(row => row.textContent)).toEqual([
       'Name',
       'Description',
       'Engine',
+      'OWNER',
       'Category',
       'Has Camera',
       'Can Integrate User Media',

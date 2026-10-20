@@ -3,6 +3,7 @@ import { Add01Icon, FavouriteIcon, Layers01Icon, Settings02Icon } from 'hugeicon
 import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
+import { usePresetCatalogStore, usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
@@ -30,7 +31,7 @@ import {
 } from '../react/panels/ReactWorkspacePanels'
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
-import { Collapsible } from '../react/ReactControlRows'
+import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
@@ -67,17 +68,30 @@ function infoValue(value: unknown): string {
   return String(value)
 }
 
+const NOOP = () => undefined
+
+/** One read-only Preset Info field: the shared label-above-value row used by the other right-window groups. */
 function InfoRow({ label, value, wide = false }: { label: string; value: unknown; wide?: boolean }) {
-  const displayValue = infoValue(value)
+  const text = infoValue(value)
   return (
-    <div className={`pmv-info-row${wide ? ' pmv-info-row--wide' : ''}`}>
-      <span className="pmv-info-label">{label}</span>
-      <span className="pmv-info-value" title={displayValue}>{displayValue}</span>
+    <div className={wide ? 'pmv-info-wide' : undefined}>
+      {wide && text.length > 48
+        ? <TextAreaRow label={label} value={text} onChange={NOOP} readOnly rows={2} />
+        : <TextInputRow label={label} value={text} onChange={NOOP} readOnly maxLength={400} />}
     </div>
   )
 }
 
+/** SYSTEM, or USER for a private preset (held by the signed-in account or not). Blank until the catalog has loaded. */
+function usePresetOwnerLabel(preset: PresetManagerRecord): string {
+  const isSystem = usePresetScopeFilter(preset.artwork, 'system')(preset.sourceId)
+  const ready = usePresetCatalogStore(state => state.status === 'ready')
+  if (!ready) return 'Loading'
+  return isSystem ? 'SYSTEM' : 'USER'
+}
+
 function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
+  const owner = usePresetOwnerLabel(preset)
   const organization = usePresetOrganizationStore(state => state.records[preset.id]) ?? EMPTY_PRESET_ORGANIZATION
   const loadOrganization = usePresetOrganizationStore(state => state.load)
   const updateOrganization = usePresetOrganizationStore(state => state.update)
@@ -98,6 +112,7 @@ function PresetInfoPanel({ preset }: { preset: PresetManagerRecord }) {
                 <InfoRow label="Name" value={preset.name} wide />
                 <InfoRow label="Description" value={preset.description} wide />
                 <InfoRow label="Engine" value={preset.engineName} />
+                <InfoRow label="OWNER" value={owner} />
                 <InfoRow label="Category" value={preset.category} />
                 <InfoRow label="Has Camera" value={preset.hasCamera} />
                 <InfoRow label="Can Integrate User Media" value={preset.canIntegrateUserMedia} />

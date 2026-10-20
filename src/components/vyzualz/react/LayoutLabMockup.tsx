@@ -19,6 +19,7 @@ import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
 import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
 import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
 import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
+import { PresetManagerCardStyleGallery } from './layoutLab/PresetManagerCardStyleGallery'
 import { TemplateHeaderRowMockups } from './layoutLab/TemplateHeaderRowMockups'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
@@ -226,7 +227,12 @@ export function LayoutLabMockup() {
                     <PresetTwoColumnConceptsGallery />
                   </div>
                 )}
-                {/* Design, React, and Output are intentionally blank in the Template engine. */}
+                {templateRightTab === 'design' && (
+                  <div className="rv-inspector rv-inspector-scroll">
+                    <PresetManagerCardStyleGallery />
+                  </div>
+                )}
+                {/* React and Output are intentionally blank in the Template engine. */}
               </div>
             </>
           ) : EMPTY_ENGINE_MOCKUPS.has(engineId) ? (

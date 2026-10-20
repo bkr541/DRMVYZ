@@ -23014,6 +23014,7 @@ button.llhr-chip { cursor: pointer; }
 }
 .llhr-row--soft-relief .llhr-value { padding: 5px 6px; border-radius: 6px; background: #0a1013; box-shadow: inset 1px 1px 4px rgba(0, 0, 0, 0.7), inset -1px -1px 2px rgba(255, 255, 255, 0.03); color: var(--tone); }
 .llhr-row--soft-relief .llhr-chip--icon { padding: 0 9px; }
+.llhr-row--soft-relief .llhr-glyph { position: relative; z-index: 1; display: inline-flex; align-items: center; color: var(--llhr-label); }
 .llhr-row--soft-relief .llhr-chip--icon svg { filter: drop-shadow(0 0 4px color-mix(in srgb, var(--tone) 45%, transparent)); }
 
 /* 09 · Gradient Outline ─ violet to cyan hairlines, gradient values */
@@ -23215,3 +23216,87 @@ button.llhr-chip { cursor: pointer; }
 .rv-header-status .vz-header-performance-metric[data-cpu-level='high'] { --vz-cpu-tone: var(--rv-metric-tone); }
 .rv-header-status .vz-header-performance-metric[data-cpu-level='medium'] { --vz-cpu-tone: #e0b95a; }
 .rv-header-status .vz-header-performance-metric[data-cpu-level='low'] { --vz-cpu-tone: #f87171; }
+
+/* ── Layout Lab · Template · Design tab: Preset Manager card studies ─────────────────────────────────────── */
+
+.llpm-gallery { display: flex; flex-direction: column; gap: 28px; padding: 18px 16px 32px; }
+.llpm-list { display: flex; flex-direction: column; gap: 8px; }
+.llpm-poster-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+.llpm-card {
+  --llpm-tone: #4ac7db;
+  --llpm-owner-user: #67f7ff;
+  --llpm-owner-system: rgba(170, 186, 194, 0.7);
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(87, 125, 143, 0.18);
+  border-radius: 7px;
+  background: linear-gradient(110deg, rgba(8, 17, 22, 0.9), rgba(11, 23, 29, 0.82));
+}
+.llpm-card.is-active { border-color: #39e8f4; box-shadow: inset 0 0 18px rgba(57, 232, 244, 0.06), 0 0 7px rgba(57, 232, 244, 0.18); }
+
+.llpm-thumb {
+  flex: 0 0 auto;
+  display: block;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(35, 184, 219, 0.45);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llpm-tone) 55%, transparent), transparent 62%),
+    linear-gradient(160deg, #0b1620, #02070c);
+}
+.llpm-copy { min-width: 0; flex: 1 1 auto; display: flex; flex-direction: column; gap: 4px; }
+.llpm-name { display: flex; align-items: center; gap: 6px; overflow: hidden; color: rgba(243, 246, 248, 0.96); font: 700 11px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
+.llpm-engine { color: rgba(65, 207, 222, 0.78); font: 600 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.04em; }
+.llpm-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.llpm-more { color: rgba(170, 186, 194, 0.6); font: 700 9px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llpm-heart { flex: 0 0 auto; display: inline-flex; color: #ff6b8b; }
+
+/* The scope word: USER reads cyan, SYSTEM reads slate, everywhere it appears. */
+.llpm-scope { font: 800 8.5px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.12em; }
+.llpm-scope[data-scope='USER'], .llpm-owner[data-scope='USER'] { color: var(--llpm-owner-user); }
+.llpm-scope[data-scope='SYSTEM'], .llpm-owner[data-scope='SYSTEM'] { color: var(--llpm-owner-system); }
+
+/* 01 · Header Strip */
+.llpm-strip-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 9px; border-bottom: 1px solid rgba(87, 125, 143, 0.16); background: rgba(255, 255, 255, 0.025); }
+.llpm-strip-body { display: flex; align-items: center; gap: 9px; padding: 8px 9px; }
+.llpm-strip .llpm-thumb { width: 52px; height: 52px; }
+
+/* 02 · Scope Spine */
+.llpm-spine { display: flex; align-items: center; gap: 9px; padding: 8px 9px 8px 0; }
+.llpm-spine-rail { align-self: stretch; flex: 0 0 18px; display: flex; align-items: center; justify-content: center; border-right: 1px solid rgba(87, 125, 143, 0.16); }
+.llpm-spine-rail[data-scope='USER'] { background: rgba(103, 247, 255, 0.1); box-shadow: inset -2px 0 var(--llpm-owner-user); }
+.llpm-spine-rail[data-scope='SYSTEM'] { background: rgba(170, 186, 194, 0.06); box-shadow: inset -2px 0 rgba(170, 186, 194, 0.35); }
+.llpm-spine-rail span { writing-mode: vertical-rl; transform: rotate(180deg); font: 800 8px/1 var(--az-font-data, Inter, system-ui, sans-serif); letter-spacing: 0.16em; }
+.llpm-spine-rail[data-scope='USER'] span { color: var(--llpm-owner-user); }
+.llpm-spine-rail[data-scope='SYSTEM'] span { color: var(--llpm-owner-system); }
+
+/* 03 · Poster */
+.llpm-poster { display: flex; flex-direction: column; }
+.llpm-poster-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--llpm-tone) 55%, transparent), transparent 62%),
+    linear-gradient(160deg, #0b1620, #02070c);
+}
+.llpm-engine--float, .llpm-scope--float { position: absolute; top: 6px; padding: 3px 6px; border-radius: 4px; background: rgba(2, 7, 12, 0.72); backdrop-filter: blur(4px); }
+.llpm-engine--float { left: 6px; }
+.llpm-scope--float { right: 6px; }
+.llpm-poster-copy { display: flex; flex-direction: column; gap: 5px; padding: 7px 8px 8px; }
+
+/* 04 · Footer Meta */
+.llpm-footer-main { display: flex; align-items: center; gap: 9px; padding: 8px 9px; }
+.llpm-footer-bar { display: flex; align-items: center; justify-content: space-between; padding: 5px 9px; border-top: 1px solid rgba(87, 125, 143, 0.16); background: rgba(255, 255, 255, 0.02); }
+.llpm-scope--text { padding: 2px 6px; border: 1px solid currentColor; border-radius: 4px; }
+
+/* 05 · Spec Sheet */
+.llpm-spec { display: flex; align-items: flex-start; gap: 9px; padding: 8px 9px; }
+.llpm-kv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.llpm-kv-cell { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-bottom: 3px; border-bottom: 1px solid rgba(154, 178, 188, 0.22); }
+.llpm-kv-cell small { color: rgba(170, 186, 194, 0.55); font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llpm-kv-cell b { overflow: hidden; color: rgba(243, 246, 248, 0.9); font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
+.llpm-kv-cell b.llpm-owner { letter-spacing: 0.08em; }

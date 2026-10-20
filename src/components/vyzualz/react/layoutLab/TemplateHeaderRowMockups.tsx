@@ -1,4 +1,5 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { CpuIcon, FloppyDiskIcon, Film01Icon, StopWatchIcon } from 'hugeicons-react'
 import { NotificationBellIcon } from '../../shared/NotificationDrawer'
 
 /**
@@ -21,7 +22,7 @@ export const HEADER_ROW_CONCEPTS = [
   { id: 'stacked-label', label: 'Stacked Label', note: 'Label over value, tone spine' },
   { id: 'pill-meter', label: 'Pill Meter', note: 'Each pill fills like a gauge' },
   { id: 'chamfer-tick', label: 'Chamfer Tick', note: 'Cut corners with corner ticks' },
-  { id: 'soft-relief', label: 'Soft Relief', note: 'Raised chips, recessed values' },
+  { id: 'soft-relief', label: 'Soft Relief', note: 'Raised chips, recessed values, icon-only readings' },
   { id: 'gradient-outline', label: 'Gradient Outline', note: 'Violet to cyan hairlines' },
   { id: 'led-panel', label: 'LED Panel', note: 'Recessed panels with amber LEDs' },
 ] as const
@@ -54,6 +55,26 @@ const READINGS: Record<Exclude<MetricId, 'loading' | 'notifications'>, { label: 
   cpu: { label: 'CPU', value: '1%', fill: 0.06, title: 'App CPU usage 1%' },
 }
 
+/** A rounded "HD" badge: the quality tier has no stock icon, and a resolution badge is what quality reads as in a player. */
+function QualityBadgeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2.5" y="5" width="19" height="14" rx="3" />
+      <path d="M7 9.5v5M11 9.5v5M7 12h4" />
+      <path d="M14.5 9.5v5h1.6a2.5 2.5 0 0 0 0-5Z" />
+    </svg>
+  )
+}
+
+/** Concept 08 shows the five readings as an icon only: floppy disk (saved), film frame (FPS), stopwatch (frame time), HD badge (quality), chip (CPU). */
+const READING_ICONS: Record<keyof typeof READINGS, ReactNode> = {
+  saved: <FloppyDiskIcon size={16} aria-hidden="true" />,
+  fps: <Film01Icon size={16} aria-hidden="true" />,
+  'frame-time': <StopWatchIcon size={16} aria-hidden="true" />,
+  quality: <QualityBadgeIcon />,
+  cpu: <CpuIcon size={16} aria-hidden="true" />,
+}
+
 function ActivityRing() {
   return (
     <svg className="llhr-ring" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
@@ -64,7 +85,7 @@ function ActivityRing() {
 }
 
 /** One element of the row (any of the seven), identical markup in the flat and the stacked studies. */
-function HeaderMetric({ id }: { id: MetricId }) {
+function HeaderMetric({ id, iconLabels = false }: { id: MetricId; iconLabels?: boolean }) {
   if (id === 'loading') {
     return (
       <span className="llhr-chip llhr-chip--icon" data-header-metric="loading" role="status" title="Loading">
@@ -84,10 +105,12 @@ function HeaderMetric({ id }: { id: MetricId }) {
   }
   const reading = READINGS[id]
   return (
-    <span className="llhr-chip" data-header-metric={id} title={reading.title} style={{ '--llhr-fill': reading.fill } as CSSProperties}>
+    <span className={`llhr-chip${iconLabels ? ' llhr-chip--glyph' : ''}`} data-header-metric={id} title={reading.title} style={{ '--llhr-fill': reading.fill } as CSSProperties}>
       <i className="llhr-meter" aria-hidden="true" />
-      {id === 'saved' && <i className="llhr-dot" aria-hidden="true" />}
-      <span className="llhr-label">{reading.label}</span>
+      {!iconLabels && id === 'saved' && <i className="llhr-dot" aria-hidden="true" />}
+      {iconLabels
+        ? <span className="llhr-glyph" role="img" aria-label={reading.label}>{READING_ICONS[id]}</span>
+        : <span className="llhr-label">{reading.label}</span>}
       <span className="llhr-value">{reading.value}</span>
     </span>
   )
@@ -97,7 +120,7 @@ function HeaderCluster({ concept }: { concept: string }) {
   return (
     <div className="llhr-right">
       <div className="llhr-cluster" data-header-cluster={concept}>
-        {HEADER_ROW_METRICS.map(id => <HeaderMetric key={id} id={id} />)}
+        {HEADER_ROW_METRICS.map(id => <HeaderMetric key={id} id={id} iconLabels={concept === 'soft-relief'} />)}
       </div>
       <span className="vz-header-avatar llhr-avatar" aria-hidden="true">KR</span>
     </div>
