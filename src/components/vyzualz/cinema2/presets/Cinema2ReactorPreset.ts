@@ -96,7 +96,7 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   id: CINEMA2_REACTOR_PRESET_ID,
   revision: 3,
   metadata: Object.freeze({
-    name: 'Reactor 2.0',
+    name: 'Reactor',
     description: 'Production Cinema 2.0 Reactor with full-stage shrapnel, procedural core motion, impact shockwaves, media refraction, feedback trails, and bloom.',
     tags: Object.freeze(['reactor', 'native', 'multipass', 'keeper']),
   }),

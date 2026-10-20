@@ -209,7 +209,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
   it('registers as a first-party keeper and passes the shared authoring/compiler gates', () => {
     const declaration = CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS.find(candidate => candidate.manifest.id === CINEMA2_AFTERHOURS_PRESET_ID)
     expect(declaration).toMatchObject({ role: 'keeper' })
-    expect(declaration?.manifest.metadata.name).toBe('Afterhours 2.0')
+    expect(declaration?.manifest.metadata.name).toBe('Afterhours')
     expect(validateCinema2PresetAuthoringConventions({ role: 'keeper', manifest: CINEMA2_AFTERHOURS_PRESET_MANIFEST })).toMatchObject({ ok: true })
     expect(cinema2NativePresetRegistry.has(CINEMA2_AFTERHOURS_PRESET_ID)).toBe(true)
 

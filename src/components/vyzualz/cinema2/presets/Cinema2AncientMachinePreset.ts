@@ -76,7 +76,7 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, input: 
 
 export const CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_ANCIENT_MACHINE_PRESET_ID, revision: 1,
-  metadata: Object.freeze({ name: 'Ancient Machine 2.0', description: 'A monumental concentric mechanism combining Oracle Lock, Gear Sun and Epoch Engine as native authored looks.', tags: Object.freeze(['keeper', '3d', 'mechanical', 'architecture', 'choreography']), metadata: Object.freeze({ legacySources: Object.freeze(['preset-oracle-lock', 'preset-gear-sun', 'preset-epoch-engine']) }) }),
+  metadata: Object.freeze({ name: 'Ancient Machine', description: 'A monumental concentric mechanism combining Oracle Lock, Gear Sun and Epoch Engine as native authored looks.', tags: Object.freeze(['keeper', '3d', 'mechanical', 'architecture', 'choreography']), metadata: Object.freeze({ legacySources: Object.freeze(['preset-oracle-lock', 'preset-gear-sun', 'preset-epoch-engine']) }) }),
   capabilities: Object.freeze([
     Object.freeze({ id: 'render.webgl2' as const, requirement: 'required' as const, purpose: 'Instanced native mechanical geometry.' }),
     Object.freeze({ id: 'render.depth' as const, requirement: 'required' as const, purpose: 'Mechanical layer occlusion and depth atmosphere.' }),

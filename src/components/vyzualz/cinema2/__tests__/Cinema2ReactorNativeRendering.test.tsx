@@ -112,7 +112,7 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
   it('compiles native Reactor with shared media slots and shared choreography targets', () => {
     const manifest = cinema2NativePresetRegistry.get(CINEMA2_REACTOR_PRESET_ID)
     expect(manifest).not.toBeNull()
-    expect(manifest?.metadata.name).toBe('Reactor 2.0')
+    expect(manifest?.metadata.name).toBe('Reactor')
     expect(manifest?.modules).toHaveLength(2)
     expect(manifest?.effects).toHaveLength(2)
     expect(manifest?.mediaSlots?.map(slot => slot.id)).toEqual([
@@ -465,7 +465,7 @@ describe('Cinema 2.0 Reactor production selection path', () => {
 
     await act(async () => root?.render(<ProductionPresetHarness />))
     const reactorButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`)
-    expect(reactorButton?.textContent).toContain('Reactor 2.0')
+    expect(reactorButton?.textContent).toContain('Reactor')
 
     await act(async () => reactorButton?.click())
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_REACTOR_PRESET_ID)

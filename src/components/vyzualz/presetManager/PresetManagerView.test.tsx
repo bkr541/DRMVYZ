@@ -43,6 +43,25 @@ describe('Preset Manager view', () => {
       .toEqual(publicCinema2PresetIds)
   })
 
+  it('uses concise public names for the renamed Cinema 2.0 presets', () => {
+    const cinema2Names = new Set(PRESET_MANAGER_PRESETS
+      .filter(preset => preset.activation === 'cinema2')
+      .map(preset => preset.name))
+
+    for (const name of [
+      'Afterhours',
+      'Ancient Machine',
+      'Cathedral',
+      'Constellation',
+      'Electric Storm',
+      'Event Horizon',
+      'Reactor',
+    ]) {
+      expect(cinema2Names.has(name)).toBe(true)
+      expect(cinema2Names.has(`${name} 2.0`)).toBe(false)
+    }
+  })
+
   it('renders the reference library structure and searchable preset metadata', () => {
     renderView()
     expect(container?.querySelector('[aria-label="Preset Library"]')).not.toBeNull()

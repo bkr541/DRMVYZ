@@ -375,7 +375,7 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
 
     await act(async () => root?.render(<Harness />))
     const button = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_ELECTRIC_STORM_PRESET_ID}"]`)
-    expect(button?.textContent).toContain('Electric Storm 2.0')
+    expect(button?.textContent).toContain('Electric Storm')
     await act(async () => button?.click())
 
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_ELECTRIC_STORM_PRESET_ID)

@@ -76,7 +76,7 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
   id: CINEMA2_ELECTRIC_STORM_PRESET_ID,
   revision: 2,
   metadata: Object.freeze({
-    name: 'Electric Storm 2.0',
+    name: 'Electric Storm',
     description: 'Production Cinema 2.0 procedural lightning with deterministic topology, musical strike tiers, atmosphere, and shaped thunder illumination.',
     tags: Object.freeze(['electric-storm', 'native', 'procedural-lightning', 'keeper']),
   }),

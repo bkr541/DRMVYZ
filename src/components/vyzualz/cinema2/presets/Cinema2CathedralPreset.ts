@@ -216,7 +216,7 @@ export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   id: CINEMA2_CATHEDRAL_PRESET_ID,
   revision: 1,
   metadata: Object.freeze({
-    name: 'Cathedral 2.0',
+    name: 'Cathedral',
     description: 'A monumental cyan-and-gold Gothic aisle of pointed arches, addressable ribs, volumetric shafts and music-driven structural rupture.',
     tags: Object.freeze(['keeper', '3d', 'architecture', 'gothic', 'cathedral', 'choreography']),
     metadata: Object.freeze({ legacySources: Object.freeze(['shader-bass-cathedral', 'preset-cathedral-run']) }),

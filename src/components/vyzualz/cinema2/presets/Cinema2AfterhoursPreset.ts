@@ -203,7 +203,7 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   id: CINEMA2_AFTERHOURS_PRESET_ID,
   revision: 7,
   metadata: Object.freeze({
-    name: 'Afterhours 2.0',
+    name: 'Afterhours',
     description: 'Native Cinema 2.0 world-space DJ laser rig with fixed 3D fixtures, disciplined topology, real symmetry, and renderer-owned atmosphere.',
     tags: Object.freeze(['afterhours', 'native', 'laser', '3d', 'keeper']),
   }),
