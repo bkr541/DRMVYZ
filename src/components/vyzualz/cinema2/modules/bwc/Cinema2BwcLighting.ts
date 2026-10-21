@@ -83,6 +83,24 @@ export function neutralBwcLighting(): Readonly<Cinema2BwcLightingState> {
   })
 }
 
+/**
+ * Pulls a choreographed look back toward the authored one: 1 keeps every level as the pattern set it, 0 holds the scene at its authored
+ * brightness. The pulses (ring chase, pipe flow) fade out with it.
+ */
+export function blendBwcLightingReactivity(state: Readonly<Cinema2BwcLightingState>, reactivity: number): Readonly<Cinema2BwcLightingState> {
+  const r = Number.isFinite(reactivity) ? Math.min(1, Math.max(0, reactivity)) : 1
+  if (r >= 1) return state
+  if (r <= 0) return neutralBwcLighting()
+  const toward = (level: number): number => 1 + (level - 1) * r
+  const all = (levels: readonly number[]): readonly number[] => Object.freeze(levels.map(toward))
+  return Object.freeze({
+    reactorCore: toward(state.reactorCore), reactorRing: toward(state.reactorRing), hood: toward(state.hood),
+    ringChase: Object.freeze([state.ringChase[0], state.ringChase[1] * r] as const),
+    pipes: all(state.pipes), pipeFlow: Object.freeze([state.pipeFlow[0], state.pipeFlow[1] * r] as const),
+    wallLeft: all(state.wallLeft), wallRight: all(state.wallRight), ceiling: all(state.ceiling),
+  })
+}
+
 export const NEUTRAL_BWC_LIGHT_COLORS: Readonly<Cinema2BwcLightColors> = Object.freeze({
   reactor: Object.freeze([0.28, 0.62, 0.18] as const),
   pipes: Object.freeze([0.28, 0.62, 0.18] as const),

@@ -2,8 +2,8 @@ import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Ci
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { Cinema2BwcRenderer, type Cinema2BwcRenderState } from './bwc/Cinema2BwcRenderer'
 import { Cinema2BwcConveyorClock } from './bwc/Cinema2BwcLoop'
-import { neutralBwcLighting, type Cinema2BwcLightingState } from './bwc/Cinema2BwcLighting'
-import { CINEMA2_BWC_DEFAULT_PATTERN, CINEMA2_BWC_PATTERN_IDS, evaluateCinema2BwcPattern, type Cinema2BwcPatternId } from './bwc/Cinema2BwcPatternEngine'
+import { blendBwcLightingReactivity, neutralBwcLighting, type Cinema2BwcLightColors, type Cinema2BwcLightingState } from './bwc/Cinema2BwcLighting'
+import { CINEMA2_BWC_DEFAULT_PATTERN, CINEMA2_BWC_PATTERN_IDS, evaluateCinema2BwcPattern, type Cinema2BwcPatternId, type Cinema2BwcPatternStyle } from './bwc/Cinema2BwcPatternEngine'
 import { Cinema2MainframeBeatClockResolver, Cinema2MainframeReactivityEngine, resolveCinema2MainframeTimeSec } from './mainframe/Cinema2MainframePatternEngine'
 import {
   CINEMA2_MAINFRAME_TRIGGER_IDS,
@@ -22,6 +22,12 @@ import type { Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
 
 export const CINEMA2_BWC_NATIVE_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('bwc-native')
 export const CINEMA2_BWC_NATIVE_MODULE_VERSION = 1 as const
+/** Light above white the lit elements feed the bloom pass with; the preset's bloom decides how much of it shows. */
+const GLOW_GAIN = 1.2
+/** The hall's fixed materials, which are not part of the palette. */
+const HALL_BACKGROUND: Cinema2Color = [0.035, 0.055, 0.058, 1]
+const CAN_WHITE: Cinema2Color = [0.86, 0.88, 0.86, 1]
+const DARK_METAL: Cinema2Color = [0.018, 0.028, 0.032, 1]
 
 export interface Cinema2BwcRendererLike {
   draw(state: Readonly<Cinema2BwcRenderState>): void
@@ -87,13 +93,15 @@ export function createCinema2BwcNativeModuleDefinition(
             conveyorWidth: clamp(readNumber(p, 'conveyorWidth', 1), 0.75, 1.35),
             loopPhase: conveyorClock.resolve(execution.frame, bpmSync, clamp(readNumber(p, 'conveyorSpeed', 1), 0, 2)),
             ledStrength: clamp(readNumber(p, 'ledStrength', 0.85), 0, 1.5),
-            background: rgb(readColor(p, 'backgroundColor', [0.035, 0.055, 0.058, 1])),
+            glow: GLOW_GAIN,
+            background: rgb(HALL_BACKGROUND),
             structure: rgb(readColor(p, 'structureColor', [0.52, 0.59, 0.62, 1])),
-            canWhite: rgb(readColor(p, 'canWhiteColor', [0.86, 0.88, 0.86, 1])),
-            energy: rgb(readColor(p, 'energyColor', [0.28, 0.62, 0.18, 1])),
-            darkMetal: rgb(readColor(p, 'darkMetalColor', [0.018, 0.028, 0.032, 1])),
+            canWhite: rgb(CAN_WHITE),
+            energy: rgb(readColor(p, 'reactorColor', [0.28, 0.62, 0.18, 1])),
+            darkMetal: rgb(DARK_METAL),
             creatureLabel: creatureLabel(execution.lightingEnvironment?.quality ?? 'high'),
             lighting,
+            lightColors: lightColors(p),
           })
         },
       })
@@ -123,10 +131,10 @@ export function createCinema2BwcNativeModuleDefinition(
             })
             // The shared engine's own pattern output is not used; it supplies the envelopes, signals and buildup the BWC programs read.
             const music = reactivity.update(updateFrame, 'outward-bus', design.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
-            lighting = evaluateCinema2BwcPattern({
+            lighting = blendBwcLightingReactivity(evaluateCinema2BwcPattern({
               pattern: selection.activePattern, beats: music.beats, level: music.level, buildCharge: music.buildCharge,
-              signals: music.signals, impulses: music.impulses, active: music.active,
-            })
+              signals: music.signals, impulses: music.impulses, active: music.active, style: design.style,
+            }), design.lightReactivity)
             triggerPreviousTimeSec = timeSec
             triggerPreviousBeat = timing.beats
             triggerSourceIdentity = sourceIdentity
@@ -152,7 +160,7 @@ export function createCinema2BwcNativeModuleDefinition(
         render: { providers: Object.freeze([provider]) },
         inspect: () => Object.freeze({
           authoredPattern: design.pattern, activePattern: selection.activePattern, patternChange: design.patternChange, trigger: design.trigger,
-          patternStartBeat: selection.patternStartBeat, bpmSync: design.bpmSync, lighting,
+          patternStartBeat: selection.patternStartBeat, bpmSync: design.bpmSync, lightReactivity: design.lightReactivity, style: design.style, lighting,
         }),
       }
     },
@@ -160,7 +168,15 @@ export function createCinema2BwcNativeModuleDefinition(
 }
 
 export const cinema2BwcNativeModuleDefinition = createCinema2BwcNativeModuleDefinition()
-function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPatternId; patternChange: boolean; trigger: Cinema2MainframeTriggerId; bpmSync: boolean }> {
+function lightColors(parameters: Parameters): Readonly<Cinema2BwcLightColors> {
+  return Object.freeze({
+    reactor: rgb(readColor(parameters, 'reactorColor', [0.28, 0.62, 0.18, 1])),
+    pipes: rgb(readColor(parameters, 'pipeColor', [0.28, 0.62, 0.18, 1])),
+    wall: rgb(readColor(parameters, 'wallColor', [0.82, 0.94, 1, 1])),
+    ceiling: rgb(readColor(parameters, 'ceilingColor', [0.82, 0.94, 1, 1])),
+  })
+}
+function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPatternId; patternChange: boolean; trigger: Cinema2MainframeTriggerId; bpmSync: boolean; lightReactivity: number; style: Readonly<Cinema2BwcPatternStyle> }> {
   const pattern = parameters.get('pattern')
   const trigger = parameters.get('trigger')
   return Object.freeze({
@@ -168,6 +184,12 @@ function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPa
     patternChange: readBoolean(parameters, 'patternChange', false),
     trigger: typeof trigger === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(trigger as Cinema2MainframeTriggerId) ? trigger as Cinema2MainframeTriggerId : 'bar4',
     bpmSync: readBoolean(parameters, 'bpmSync', true),
+    lightReactivity: clamp(readNumber(parameters, 'lightReactivity', 1), 0, 1),
+    style: Object.freeze({
+      pulseWidth: clamp(readNumber(parameters, 'pulseWidth', 0.5), 0, 1),
+      dropIntensity: clamp(readNumber(parameters, 'dropIntensity', 1), 0, 1),
+      flicker: clamp(readNumber(parameters, 'flicker', 0.15), 0, 1),
+    }),
   })
 }
 function validateModule(_module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] { return Object.freeze([]) }

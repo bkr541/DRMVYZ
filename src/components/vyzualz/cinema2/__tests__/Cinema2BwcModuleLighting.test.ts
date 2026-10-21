@@ -53,7 +53,7 @@ function setup(overrides: Record<string, Cinema2JsonValue> = {}) {
     return draw.mock.calls[draw.mock.calls.length - 1]![0].lighting
   }
   const inspect = () => (instance as unknown as { inspect: () => unknown }).inspect() as { activePattern: string; authoredPattern: string; patternChange: boolean; trigger: string }
-  return { instance, values, update, drawn, inspect }
+  return { instance, values, update, drawn, inspect, draw }
 }
 
 describe('BWC module lighting', () => {
@@ -115,6 +115,53 @@ describe('BWC module lighting', () => {
     expect(() => cued.instance.handleAction!('musicalCue', { eventId: 'cue:2', payload: { kind: 'nonsense' } } as never)).not.toThrow()
     expect(() => cued.instance.handleAction!('musicalCue', { eventId: '', payload: null } as never)).not.toThrow()
     expect(() => cued.instance.handleAction!('somethingElse', { eventId: 'x', payload: {} } as never)).not.toThrow()
+  })
+
+  describe('controls reach the picture', () => {
+    const playing = (overrides: Record<string, Cinema2JsonValue>, beatTime = 1.3) => {
+      const rig = setup({ pattern: 'flow', ...overrides })
+      rig.update(frame({ time: 1 })); rig.update(frame({ time: beatTime }))
+      return rig
+    }
+    const drawArgs = (rig: ReturnType<typeof setup>) => {
+      rig.drawn()
+      return rig.draw.mock.calls[rig.draw.mock.calls.length - 1]![0]
+    }
+
+    it('hands the renderer the five palette colours, the bloom glow and the fixed hall materials', () => {
+      const rig = setup({ reactorColor: [1, 0, 0, 1], pipeColor: [0, 1, 0, 1], wallColor: [0, 0, 1, 1], ceilingColor: [1, 1, 0, 1], structureColor: [0.1, 0.2, 0.3, 1] })
+      const args = drawArgs(rig)
+      expect(args.lightColors).toEqual({ reactor: [1, 0, 0], pipes: [0, 1, 0], wall: [0, 0, 1], ceiling: [1, 1, 0] })
+      expect(args.structure).toEqual([0.1, 0.2, 0.3])
+      expect(args.energy).toEqual([1, 0, 0])
+      expect(args.glow).toBeGreaterThan(0)
+      expect(args.background).toHaveLength(3)
+    })
+
+    it('Light Reactivity pulls the choreography back to the authored look, and 0 holds it there', () => {
+      const full = playing({ lightReactivity: 1 }).drawn()
+      const half = playing({ lightReactivity: 0.5 }).drawn()
+      const none = playing({ lightReactivity: 0 }).drawn()
+      expect(none).toEqual(neutralBwcLighting())
+      expect(full).not.toEqual(neutralBwcLighting())
+      expect(Math.abs(half.reactorCore - 1)).toBeCloseTo(Math.abs(full.reactorCore - 1) / 2, 6)
+    })
+
+    it('Pulse Width changes the wave, Flicker stutters the panels, and Drop Intensity scales a drop', () => {
+      expect(playing({ pulseWidth: 0 }).drawn().wallLeft).not.toEqual(playing({ pulseWidth: 1 }).drawn().wallLeft)
+      const steady = playing({ flicker: 0 }).drawn()
+      const stutter = playing({ flicker: 1 }).drawn()
+      expect([...stutter.wallLeft, ...stutter.ceiling]).not.toEqual([...steady.wallLeft, ...steady.ceiling])
+      expect(Math.max(...stutter.wallLeft, ...stutter.ceiling)).toBeLessThanOrEqual(Math.max(...steady.wallLeft, ...steady.ceiling))
+      const dropped = (dropIntensity: number) => {
+        const rig = setup({ pattern: 'surge', dropIntensity })
+        rig.update(frame({ time: 1 }))
+        rig.instance.handleAction!('musicalCue', { eventId: 'beat:9:mainframe-kick-cue', payload: { kind: 'kick' } } as never)
+        rig.update(frame({ time: 1.016, event: { kind: 'kick', id: 'beat:9' } }))
+        return rig.drawn()
+      }
+      expect(dropped(1).reactorCore).toBeGreaterThanOrEqual(dropped(0).reactorCore)
+    })
   })
 
   it('disposes cleanly and can be updated afterwards without throwing', () => {

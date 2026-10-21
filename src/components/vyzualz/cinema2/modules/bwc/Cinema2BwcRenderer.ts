@@ -22,6 +22,8 @@ export interface Cinema2BwcRenderState {
   /** Metres the production line has advanced, wrapped to the loop's length (see Cinema2BwcLoop). */
   loopPhase: number
   ledStrength: number
+  /** Light above white that the lit elements feed the bloom pass with (0, the default, adds none, so the picture is as it was before bloom). */
+  glow?: number
   background: readonly [number, number, number]
   structure: readonly [number, number, number]
   canWhite: readonly [number, number, number]
@@ -46,6 +48,7 @@ uniform float u_canScale;
 uniform float u_conveyorWidth;
 uniform float u_loopPhase;
 uniform float u_ledStrength;
+uniform float u_glow;
 uniform vec3 u_background;
 uniform vec3 u_structure;
 uniform vec3 u_canWhite;
@@ -404,6 +407,8 @@ void main() {
 
   vec2 hit = raymarch(camera, ray);
   vec3 color = u_background * vec3(0.45, 0.68, 0.78);
+  // Light above white for the bloom pass: the lit elements add it on top of the tone-mapped picture, so the picture itself keeps its curve.
+  vec3 hdrGlow = vec3(0.0);
   if (hit.x < MAX_DISTANCE) {
     vec3 point = camera + ray * hit.x;
     vec3 normal = sceneNormal(point);
@@ -429,6 +434,8 @@ void main() {
     float energySurface = (isReactorChamber(hit.y) || isEnergyLight(hit.y)) ? 1.0 : 0.0;
     float whiteLight = isWhiteLight(hit.y) ? 1.0 : 0.0;
     float level = lightLevel(hit.y, point);
+    // The chamber glows less than the rest: it is a large lit area, and at full glow it loses its lattice and reads as a flat disc.
+    hdrGlow = lightColor(hit.y) * max(energySurface, whiteLight) * pow(level, 1.5) * u_glow * (isReactorChamber(hit.y) ? 0.35 : 1.0);
     float levelGain = mix(0.22, 1.0, min(level, 1.0)) + max(level - 1.0, 0.0) * 0.6;
     color *= mix(1.0, levelGain, max(energySurface, whiteLight));
     color += base * energySurface * (0.32 + u_ledStrength * 0.42) * level;
@@ -440,6 +447,7 @@ void main() {
   color *= vignette * u_intensity;
   color = color / (color + vec3(0.72));
   color = pow(max(color, 0.0), vec3(0.88));
+  color += hdrGlow * vignette * u_intensity;
   outColor = vec4(color, 1.0);
 }
 `
@@ -452,7 +460,7 @@ export class Cinema2BwcRenderer {
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const uniforms = [
-      'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_loopPhase', 'u_ledStrength',
+      'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_loopPhase', 'u_ledStrength', 'u_glow',
       'u_background', 'u_structure', 'u_canWhite', 'u_darkMetal', 'u_canEmblem', 'u_creatureLabel', 'u_creatureLabelReady',
       ...BWC_LIGHTING_UNIFORMS,
     ]
@@ -479,6 +487,7 @@ export class Cinema2BwcRenderer {
     p.setFloat('u_conveyorWidth', state.conveyorWidth)
     p.setFloat('u_loopPhase', state.loopPhase)
     p.setFloat('u_ledStrength', state.ledStrength)
+    p.setFloat('u_glow', Number.isFinite(state.glow) ? Math.max(0, state.glow ?? 0) : 0)
     p.setVec3('u_background', ...state.background)
     p.setVec3('u_structure', ...state.structure)
     p.setVec3('u_canWhite', ...state.canWhite)

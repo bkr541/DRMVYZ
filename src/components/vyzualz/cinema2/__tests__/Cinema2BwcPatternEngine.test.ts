@@ -4,11 +4,13 @@ import {
   BWC_LIGHT_LEVEL_MAX,
   BWC_PIPE_COUNT,
   BWC_WALL_BAY_COUNT,
+  blendBwcLightingReactivity,
   neutralBwcLighting,
   type Cinema2BwcLightingState,
 } from '../modules/bwc/Cinema2BwcLighting'
 import {
   CINEMA2_BWC_DEFAULT_PATTERN,
+  CINEMA2_BWC_DEFAULT_STYLE,
   CINEMA2_BWC_PATTERN_IDS,
   CINEMA2_BWC_PATTERN_LABELS,
   evaluateCinema2BwcPattern,
@@ -268,5 +270,52 @@ describe('BWC pattern change (the shared controller on BWC patterns)', () => {
     controller.update(base)
     const changedTrigger = controller.update({ ...base, trigger: 'beat', triggerEventId: 'beat:9', absoluteBeat: 9 })
     expect(changedTrigger.activePattern).toBe('flow')
+  })
+})
+
+describe('BWC pattern style controls and reactivity blend', () => {
+  it('Pulse Width widens the wave: more wall bays are lit at 1 than at 0', () => {
+    const lit80 = (pulseWidth: number) => evaluateCinema2BwcPattern(input('flow', 1.8, { style: { pulseWidth, dropIntensity: 1, flicker: 0 } })).wallLeft.filter(level => level > 0.6).length
+    expect(lit80(1)).toBeGreaterThan(lit80(0))
+  })
+
+  it('leaves the patterns as authored at the default style', () => {
+    expect(evaluateCinema2BwcPattern(input('flow', 1.8))).toEqual(evaluateCinema2BwcPattern(input('flow', 1.8, { style: CINEMA2_BWC_DEFAULT_STYLE })))
+  })
+
+  it('Drop Intensity scales what a drop adds, and 0 removes it', () => {
+    const drop = { ...CINEMA2_MAINFRAME_ZERO_IMPULSES, drop: 1 }
+    const at = (dropIntensity: number) => evaluateCinema2BwcPattern(input('surge', 3, { impulses: drop, style: { pulseWidth: 0.5, dropIntensity, flicker: 0 } }))
+    expect(at(1).ceiling[2]!).toBeGreaterThan(at(0.5).ceiling[2]!)
+    expect(at(0.5).ceiling[2]!).toBeGreaterThan(at(0).ceiling[2]!)
+    expect(at(0)).toEqual(evaluateCinema2BwcPattern(input('surge', 3)))
+  })
+
+  it('Flicker only ever dims, differently for each element and over time, and the same way every time it is asked', () => {
+    const steady = evaluateCinema2BwcPattern(input('alternate', 0.3))
+    const stutter = (beats: number) => evaluateCinema2BwcPattern(input('alternate', beats, { style: { pulseWidth: 0.5, dropIntensity: 1, flicker: 1 } }))
+    const a = stutter(0.3)
+    steady.wallLeft.forEach((level, i) => expect(a.wallLeft[i]!).toBeLessThanOrEqual(level + 1e-12))
+    expect(a.wallLeft.some((level, i) => level < steady.wallLeft[i]! - 1e-9)).toBe(true)
+    expect(a.wallLeft.some((level, i) => Math.abs(level - steady.wallLeft[i]!) < 1e-9)).toBe(true)
+    expect(a).toEqual(stutter(0.3))
+    // Within the same beat the dropouts move on.
+    const dropouts = (beats: number) => stutter(beats).wallLeft.map((level, i) => Math.round((level / evaluateCinema2BwcPattern(input('alternate', beats)).wallLeft[i]!) * 1000))
+    expect(dropouts(0.3)).not.toEqual(dropouts(0.3 + 1 / 6))
+    // The reactor, ring, hood and pipes do not flicker.
+    expect(a.reactorCore).toBe(steady.reactorCore)
+    expect(a.pipes).toEqual(steady.pipes)
+  })
+
+  it('Light Reactivity blends toward the authored look and is exactly neutral at 0', () => {
+    const state = evaluateCinema2BwcPattern(input('core-burst', 2.1))
+    expect(blendBwcLightingReactivity(state, 1)).toBe(state)
+    expect(blendBwcLightingReactivity(state, 0)).toEqual(neutralBwcLighting())
+    const half = blendBwcLightingReactivity(state, 0.5)
+    expect(half.reactorCore).toBeCloseTo(1 + (state.reactorCore - 1) / 2, 9)
+    half.ceiling.forEach((level, i) => expect(level).toBeCloseTo(1 + (state.ceiling[i]! - 1) / 2, 9))
+    expect(half.ringChase[1]).toBeCloseTo(state.ringChase[1] / 2, 9)
+    expect(half.pipeFlow[1]).toBeCloseTo(state.pipeFlow[1] / 2, 9)
+    expect(blendBwcLightingReactivity(state, Number.NaN)).toBe(state)
   })
 })

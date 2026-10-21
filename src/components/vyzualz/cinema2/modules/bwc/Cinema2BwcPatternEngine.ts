@@ -30,6 +30,17 @@ export const CINEMA2_BWC_PATTERN_LABELS: Readonly<Record<Cinema2BwcPatternId, st
   flow: 'Flow', 'core-burst': 'Core Burst', alternate: 'Alternate', 'center-out': 'Center Out', 'ceiling-sweep': 'Ceiling Sweep', surge: 'Surge',
 })
 
+/** The Effects-group controls that shape every pattern. The defaults leave the patterns exactly as authored. */
+export interface Cinema2BwcPatternStyle {
+  /** 0..1; 0.5 is the authored width of the travelling waves (Flow, Center Out, Ceiling Sweep) and of Surge's fill edge. */
+  readonly pulseWidth: number
+  /** 0..1 scale on how hard a drop lights the hall. */
+  readonly dropIntensity: number
+  /** 0..1 how often the wall panels and ceiling tubes cut out and stutter, each on its own. 0 keeps them steady. */
+  readonly flicker: number
+}
+export const CINEMA2_BWC_DEFAULT_STYLE: Readonly<Cinema2BwcPatternStyle> = Object.freeze({ pulseWidth: 0.5, dropIntensity: 1, flicker: 0 })
+
 export interface Cinema2BwcPatternInput {
   readonly pattern: Cinema2BwcPatternId
   /** Beats since the pattern started. */
@@ -42,6 +53,7 @@ export interface Cinema2BwcPatternInput {
   readonly impulses: Cinema2MainframeImpulses
   /** False when nothing is playing: the scene then keeps its authored, unchoreographed look. */
   readonly active: boolean
+  readonly style?: Readonly<Cinema2BwcPatternStyle>
 }
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
@@ -51,6 +63,9 @@ const bump = (offset: number, width: number): number => { const t = Math.max(0, 
 /** A hit at phase 0 that dies away over the beat. */
 const decay = (phase: number, rate: number): number => Math.exp(-rate * fract(phase))
 const triangle = (phase: number): number => 1 - Math.abs(2 * fract(phase) - 1)
+
+/** A repeatable pseudo-random number in [0, 1) from a seed; the same seed always gives the same number. */
+const hash = (seed: number): number => fract(Math.sin(seed * 12.9898 + 78.233) * 43758.5453)
 
 /** Where each element stands, along the hall (0 at the back wall, 1 at the front) and by distance from the reactor (0 at it, 1 at the ends). */
 const HALL_Z_MIN = -15.5
@@ -97,7 +112,9 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
   const charge = clamp01(input.buildCharge)
   // What an unlit element rests at: dim, but rising with the music so a quiet passage is darker than a loud one.
   const rest = 0.14 + 0.3 * level
-  const drop = clamp01(e.drop)
+  const style = input.style ?? CINEMA2_BWC_DEFAULT_STYLE
+  const width = 0.5 + clamp01(style.pulseWidth)
+  const drop = clamp01(e.drop) * clamp01(style.dropIntensity)
   const draft: Draft = {
     core: 0.6 + 0.4 * level, ring: 0.6 + 0.3 * level, hood: rest + 0.3,
     ringChase: [fract(beats / 4), 0.7], pipes: Array(BWC_PIPE_COUNT).fill(0.55 + 0.35 * s.bass),
@@ -118,12 +135,12 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
     case 'flow': {
       // Front to back, a little over one hall length per bar.
       const front = 1.12 - fract(beats / 4) * 1.3
-      const wave = (z: number): number => bump(alongHall(z) - front, 0.16)
+      const wave = (z: number): number => bump(alongHall(z) - front, 0.16 * width)
       eachWall((z) => rest + wave(z) * (0.95 + 0.5 * e.downbeat))
       eachCeiling((z) => rest + wave(z) * (1 + 0.4 * e.beat))
       draft.core = 0.62 + 0.5 * level + 0.5 * e.kick + 0.6 * drop
       draft.ring = 0.7 + 0.5 * level + 0.4 * e.snare
-      draft.hood = rest + 0.3 + 0.9 * bump(REACTOR_ALONG - front, 0.12)
+      draft.hood = rest + 0.3 + 0.9 * bump(REACTOR_ALONG - front, 0.12 * width)
       draft.pipes = draft.pipes.map(() => 0.65 + 0.5 * s.bass + 0.4 * e.kick)
       break
     }
@@ -158,7 +175,7 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
     case 'center-out': {
       // Two rings in flight, half a launch apart, each crossing the hall in two beats.
       const launch = fract(beats / 2)
-      const rings = (z: number): number => Math.max(bump(fromReactor(z) - launch * 1.2, 0.16), 0.7 * bump(fromReactor(z) - fract(beats / 2 + 0.5) * 1.2, 0.16))
+      const rings = (z: number): number => Math.max(bump(fromReactor(z) - launch * 1.2, 0.16 * width), 0.7 * bump(fromReactor(z) - fract(beats / 2 + 0.5) * 1.2, 0.16 * width))
       eachWall((z) => rest + rings(z) * (0.95 + 0.4 * e.beat))
       eachCeiling((z) => rest + rings(z) * (1 + 0.4 * e.beat))
       draft.core = 0.55 + 0.35 * level + 0.9 * decay(beats / 2, 3) + 0.5 * e.kick + 0.6 * drop
@@ -171,8 +188,8 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
     case 'ceiling-sweep': {
       // End to end and back every eight beats.
       const position = triangle(beats / 8)
-      eachCeiling((z) => rest + bump(alongHall(z) - position, 0.2) * (1.05 + 0.4 * e.beat))
-      eachWall((z) => rest * 0.8 + 0.45 * bump(alongHall(z) - position, 0.3) + 0.25 * e.downbeat)
+      eachCeiling((z) => rest + bump(alongHall(z) - position, 0.2 * width) * (1.05 + 0.4 * e.beat))
+      eachWall((z) => rest * 0.8 + 0.45 * bump(alongHall(z) - position, 0.3 * width) + 0.25 * e.downbeat)
       draft.core = 0.55 + 0.5 * level + 0.4 * e.kick + 0.6 * drop
       draft.ring = 0.55 + 0.4 * level + 0.4 * e.snare
       draft.hood = rest + 0.25
@@ -184,7 +201,7 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
     case 'surge': {
       // The buildup fills the hall outward from the reactor. Only a detected buildup does this, so a track without one stays at rest.
       const strobe = charge > 0.8 ? 0.5 * (1 - fract(beats * 2)) * (charge - 0.8) / 0.2 : 0
-      const filled = (z: number): number => clamp01((charge * 1.1 - fromReactor(z)) / 0.18)
+      const filled = (z: number): number => clamp01((charge * 1.1 - fromReactor(z)) / (0.18 * width))
       eachWall((z) => rest + filled(z) * (0.9 + strobe) + 1.1 * drop)
       eachCeiling((z) => rest + filled(z) * (0.95 + strobe) + 1.1 * drop)
       draft.core = 0.45 + 1.1 * charge + strobe + 0.5 * e.kick + 1.2 * drop
@@ -195,6 +212,15 @@ export function evaluateCinema2BwcPattern(input: Readonly<Cinema2BwcPatternInput
       draft.ringChase = [fract(beats / 2), 0.3 + 0.6 * charge]
       break
     }
+  }
+  // Flicker: each wall panel and ceiling tube drops out on its own for a moment, about six times a beat, chosen by a repeatable hash.
+  const flicker = clamp01(style.flicker)
+  if (flicker > 0) {
+    const step = Math.floor(beats * 6)
+    const stutter = (index: number, salt: number): number => (hash(index * 7.31 + salt * 19.7 + step * 1.618) < flicker * 0.4 ? 0.12 : 1)
+    draft.wallLeft = draft.wallLeft.map((level, i) => level * stutter(i, 1))
+    draft.wallRight = draft.wallRight.map((level, i) => level * stutter(i, 2))
+    draft.ceiling = draft.ceiling.map((level, i) => level * stutter(i, 3))
   }
   return freeze(draft)
 }
