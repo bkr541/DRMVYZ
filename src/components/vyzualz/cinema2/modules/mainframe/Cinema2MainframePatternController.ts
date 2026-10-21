@@ -16,14 +16,15 @@ import {
 export const CINEMA2_MAINFRAME_TRIGGER_IDS = CINEMA2_AFTERHOURS_TRIGGER_IDS
 export type Cinema2MainframeTriggerId = Cinema2AfterhoursTriggerId
 
-export interface Cinema2MainframePatternSelection {
-  readonly activePattern: Cinema2MainframePatternId
+/** The controller works on any list of pattern ids; Mainframe's own six are the default. */
+export interface Cinema2MainframePatternSelection<Pattern extends string = Cinema2MainframePatternId> {
+  readonly activePattern: Pattern
   readonly patternStartBeat: number
   readonly changed: boolean
 }
 
-export interface Cinema2MainframePatternControllerInput {
-  readonly authoredPattern: Cinema2MainframePatternId
+export interface Cinema2MainframePatternControllerInput<Pattern extends string = Cinema2MainframePatternId> {
+  readonly authoredPattern: Pattern
   readonly patternChange: boolean
   readonly trigger: Cinema2MainframeTriggerId
   readonly triggerEventId: string | null
@@ -32,8 +33,11 @@ export interface Cinema2MainframePatternControllerInput {
 }
 
 /** Fisher-Yates with engine-owned indexed samples: stable per activation and independent of frame consumption. */
-export function createCinema2MainframePatternCycle(sample: (index: number) => number): readonly Cinema2MainframePatternId[] {
-  const cycle = [...CINEMA2_MAINFRAME_PATTERN_IDS]
+export function createCinema2MainframePatternCycle<Pattern extends string = Cinema2MainframePatternId>(
+  sample: (index: number) => number,
+  patterns: readonly Pattern[] = CINEMA2_MAINFRAME_PATTERN_IDS as unknown as readonly Pattern[],
+): readonly Pattern[] {
+  const cycle = [...patterns]
   let sampleIndex = 0
   for (let index = cycle.length - 1; index > 0; index -= 1) {
     const unit = Math.min(0.999999, Math.max(0, sample(sampleIndex)))
@@ -44,33 +48,33 @@ export function createCinema2MainframePatternCycle(sample: (index: number) => nu
   return Object.freeze(cycle)
 }
 
-export function nextCinema2MainframePattern(
-  cycle: readonly Cinema2MainframePatternId[],
-  current: Cinema2MainframePatternId,
-): Cinema2MainframePatternId {
+export function nextCinema2MainframePattern<Pattern extends string = Cinema2MainframePatternId>(
+  cycle: readonly Pattern[],
+  current: Pattern,
+): Pattern {
   if (cycle.length < 2) return current
   const index = cycle.indexOf(current)
   const next = cycle[(index < 0 ? 0 : index + 1) % cycle.length]
-  return next === current ? cycle[(index + 2) % cycle.length] ?? CINEMA2_MAINFRAME_DEFAULT_PATTERN : next ?? CINEMA2_MAINFRAME_DEFAULT_PATTERN
+  return next === current ? cycle[(index + 2) % cycle.length] ?? cycle[0] ?? current : next ?? cycle[0] ?? current
 }
 
 /** Runtime-only pattern authority. Persistent authored parameters remain in Cinema2ParameterState. */
-export class Cinema2MainframePatternController {
-  private activePattern: Cinema2MainframePatternId
-  private authoredPattern: Cinema2MainframePatternId | null = null
+export class Cinema2MainframePatternController<Pattern extends string = Cinema2MainframePatternId> {
+  private activePattern: Pattern
+  private authoredPattern: Pattern | null = null
   private patternChange: boolean | null = null
   private trigger: Cinema2MainframeTriggerId | null = null
   private patternStartBeat = 0
   private lastTriggerEventId: string | null = null
 
   constructor(
-    private readonly cycle: readonly Cinema2MainframePatternId[],
-    initialPattern: Cinema2MainframePatternId = CINEMA2_MAINFRAME_DEFAULT_PATTERN,
+    private readonly cycle: readonly Pattern[],
+    initialPattern: Pattern = CINEMA2_MAINFRAME_DEFAULT_PATTERN as unknown as Pattern,
   ) {
     this.activePattern = initialPattern
   }
 
-  update(input: Readonly<Cinema2MainframePatternControllerInput>): Readonly<Cinema2MainframePatternSelection> {
+  update(input: Readonly<Cinema2MainframePatternControllerInput<Pattern>>): Readonly<Cinema2MainframePatternSelection<Pattern>> {
     const absoluteBeat = Number.isFinite(input.absoluteBeat) ? Math.max(0, input.absoluteBeat) : 0
     const authoredChanged = this.authoredPattern != null && input.authoredPattern !== this.authoredPattern
     const toggled = this.patternChange != null && input.patternChange !== this.patternChange

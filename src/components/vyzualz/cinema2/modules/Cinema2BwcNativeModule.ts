@@ -1,7 +1,22 @@
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
-import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
+import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { Cinema2BwcRenderer, type Cinema2BwcRenderState } from './bwc/Cinema2BwcRenderer'
 import { Cinema2BwcConveyorClock } from './bwc/Cinema2BwcLoop'
+import { neutralBwcLighting, type Cinema2BwcLightingState } from './bwc/Cinema2BwcLighting'
+import { CINEMA2_BWC_DEFAULT_PATTERN, CINEMA2_BWC_PATTERN_IDS, evaluateCinema2BwcPattern, type Cinema2BwcPatternId } from './bwc/Cinema2BwcPatternEngine'
+import { Cinema2MainframeBeatClockResolver, Cinema2MainframeReactivityEngine, resolveCinema2MainframeTimeSec } from './mainframe/Cinema2MainframePatternEngine'
+import {
+  CINEMA2_MAINFRAME_TRIGGER_IDS,
+  Cinema2MainframePatternController,
+  createCinema2MainframePatternCycle,
+  resolveCinema2MainframeTriggerEventIdentity,
+  type Cinema2MainframePatternSelection,
+  type Cinema2MainframeTriggerId,
+} from './mainframe/Cinema2MainframePatternController'
+import { resolveCinema2MainframePlaybackState, resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio } from './mainframe/Cinema2MainframeAudioDelivery'
+import { Cinema2MainframeDropCoordinator, resolveCinema2MainframeMusicalEvents, shouldResetCinema2MainframeDropState, type Cinema2MainframeMusicalCue, type Cinema2MainframeMusicalCueKind } from './mainframe/Cinema2MainframeMusicAdapter'
+import { CINEMA2_MAINFRAME_IMPULSE_IDS } from './mainframe/Cinema2MainframeReactivity'
+import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 import { CINEMA2_BWC_CREATURE_LABEL_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 import type { Cinema2TextureHandle } from '../assets/Cinema2AssetTextureService'
 
@@ -39,6 +54,26 @@ export function createCinema2BwcNativeModuleDefinition(
         return labelHandle?.status === 'ready' ? labelHandle.texture : null
       }
       const conveyorClock = new Cinema2BwcConveyorClock()
+      // The lighting programs reuse the shared musical infrastructure Backstreet and Mainframe use: the beat clock, the drop coordinator, the
+      // reactivity engine (envelopes, signals, buildup) and the pattern controller. Only the six programs themselves are BWC's.
+      const reactivity = new Cinema2MainframeReactivityEngine()
+      const beatClock = new Cinema2MainframeBeatClockResolver()
+      const dropCoordinator = new Cinema2MainframeDropCoordinator()
+      // Filled only by the engine-owned choreography dispatcher before module.update; there is no second subscription to the audio bus.
+      const musicalCues: Cinema2MainframeMusicalCue[] = []
+      let design = resolveDesign(context.parameters)
+      const patternController = new Cinema2MainframePatternController<Cinema2BwcPatternId>(
+        createCinema2MainframePatternCycle<Cinema2BwcPatternId>(index => context.randomness.sample('bwc-pattern-cycle', index), CINEMA2_BWC_PATTERN_IDS),
+        design.pattern,
+      )
+      let selection: Readonly<Cinema2MainframePatternSelection<Cinema2BwcPatternId>> = Object.freeze({ activePattern: design.pattern, patternStartBeat: 0, changed: false })
+      let lighting: Readonly<Cinema2BwcLightingState> = neutralBwcLighting()
+      let triggerPreviousTimeSec: number | null = null
+      let triggerPreviousBeat: number | null = null
+      let triggerSourceIdentity: string | null = null
+      let triggerTrackId: string | null | undefined
+      let triggerContextGeneration: number | null = null
+      let previousPlayback: ReturnType<typeof resolveCinema2MainframePlaybackState> | null = null
       const provider = Object.freeze({
         id: `${context.module.id}:bwc`, moduleId: context.module.id, intent: 'fullscreen' as const,
         execute(execution: Cinema2ModuleRenderExecutionContext) {
@@ -58,15 +93,83 @@ export function createCinema2BwcNativeModuleDefinition(
             energy: rgb(readColor(p, 'energyColor', [0.28, 0.62, 0.18, 1])),
             darkMetal: rgb(readColor(p, 'darkMetalColor', [0.018, 0.028, 0.032, 1])),
             creatureLabel: creatureLabel(execution.lightingEnvironment?.quality ?? 'high'),
+            lighting,
           })
         },
       })
-      return { lifecycle: { update() {}, dispose() { labelHandle?.release(); labelHandle = null; conveyorClock.reset() } }, render: { providers: Object.freeze([provider]) } }
+      return {
+        lifecycle: {
+          update: ({ parameters, frame: updateFrame }: Cinema2ModuleUpdateContext) => {
+            design = resolveDesign(parameters)
+            const audio = selectCinema2MainframeAudio(updateFrame.audio, updateFrame.transport?.trackId)
+            const acceptedFrame = audio === updateFrame.audio ? updateFrame : { ...updateFrame, audio }
+            const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
+            const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
+            const sourceIdentity = updateFrame.transport?.paused && !audio && triggerSourceIdentity != null && updateFrame.transport.trackId === triggerTrackId
+              ? triggerSourceIdentity : resolveCinema2MainframeSourceIdentity(updateFrame, audio)
+            const reset = shouldResetCinema2MainframeDropState(acceptedFrame,
+              { timeSec, sourceIdentity, playback },
+              { timeSec: triggerPreviousTimeSec, sourceIdentity: triggerSourceIdentity, contextGeneration: triggerContextGeneration, playback: previousPlayback })
+            if (reset) { dropCoordinator.reset(); beatClock.reset() }
+            const cues = musicalCues.splice(0)
+            const dispatched = reset || playback !== 'playing' ? [] : resolveCinema2MainframeMusicalEvents(acceptedFrame, cues)
+            const coordinated = dropCoordinator.update(acceptedFrame, dispatched)
+            const timing = beatClock.resolve(acceptedFrame, design.bpmSync)
+            const triggerEventId = reset ? null : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, design.trigger, triggerPreviousTimeSec, coordinated.dropEventId, {
+              previousBeat: triggerPreviousBeat, current: timing,
+            })
+            selection = patternController.update({
+              authoredPattern: design.pattern, patternChange: design.patternChange, trigger: design.trigger, triggerEventId, absoluteBeat: timing.beats, reset,
+            })
+            // The shared engine's own pattern output is not used; it supplies the envelopes, signals and buildup the BWC programs read.
+            const music = reactivity.update(updateFrame, 'outward-bus', design.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+            lighting = evaluateCinema2BwcPattern({
+              pattern: selection.activePattern, beats: music.beats, level: music.level, buildCharge: music.buildCharge,
+              signals: music.signals, impulses: music.impulses, active: music.active,
+            })
+            triggerPreviousTimeSec = timeSec
+            triggerPreviousBeat = timing.beats
+            triggerSourceIdentity = sourceIdentity
+            triggerTrackId = updateFrame.transport?.trackId
+            triggerContextGeneration = updateFrame.contextGeneration
+            previousPlayback = playback
+          },
+          dispose() {
+            labelHandle?.release(); labelHandle = null
+            conveyorClock.reset(); reactivity.reset(); beatClock.reset(); dropCoordinator.reset(); patternController.reset()
+            musicalCues.splice(0)
+            triggerPreviousBeat = null
+          },
+        },
+        handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
+          if (action !== 'musicalCue' || !event.eventId || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
+          const kind = (event.payload as { kind?: unknown }).kind
+          if (typeof kind !== 'string' || kind === 'eightBeat' || !CINEMA2_MAINFRAME_IMPULSE_IDS.includes(kind as Cinema2MainframeMusicalCueKind)) return
+          if (musicalCues.some(cue => cue.dispatchedEventId === event.eventId)) return
+          if (musicalCues.length >= 128) musicalCues.shift()
+          musicalCues.push({ kind: kind as Cinema2MainframeMusicalCueKind, dispatchedEventId: event.eventId })
+        },
+        render: { providers: Object.freeze([provider]) },
+        inspect: () => Object.freeze({
+          authoredPattern: design.pattern, activePattern: selection.activePattern, patternChange: design.patternChange, trigger: design.trigger,
+          patternStartBeat: selection.patternStartBeat, bpmSync: design.bpmSync, lighting,
+        }),
+      }
     },
   })
 }
 
 export const cinema2BwcNativeModuleDefinition = createCinema2BwcNativeModuleDefinition()
+function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPatternId; patternChange: boolean; trigger: Cinema2MainframeTriggerId; bpmSync: boolean }> {
+  const pattern = parameters.get('pattern')
+  const trigger = parameters.get('trigger')
+  return Object.freeze({
+    pattern: typeof pattern === 'string' && CINEMA2_BWC_PATTERN_IDS.includes(pattern as Cinema2BwcPatternId) ? pattern as Cinema2BwcPatternId : CINEMA2_BWC_DEFAULT_PATTERN,
+    patternChange: readBoolean(parameters, 'patternChange', false),
+    trigger: typeof trigger === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(trigger as Cinema2MainframeTriggerId) ? trigger as Cinema2MainframeTriggerId : 'bar4',
+    bpmSync: readBoolean(parameters, 'bpmSync', true),
+  })
+}
 function validateModule(_module: Readonly<Cinema2ModuleManifest>): readonly Cinema2ModuleDiagnostic[] { return Object.freeze([]) }
 type Parameters = Cinema2ModuleCreateContext['parameters']
 function readNumber(parameters: Parameters, name: string, fallback: number): number { const value = parameters.get(name); return typeof value === 'number' && Number.isFinite(value) ? value : fallback }

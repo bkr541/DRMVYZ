@@ -31,7 +31,7 @@ describe('Cinema 2.0 BWC preset', () => {
     const renderer = { draw, dispose: vi.fn(), estimateGpuBytes: () => 16384 }
     const definition = createCinema2BwcNativeModuleDefinition({ createRenderer: () => renderer })
     const resources = { acquire: (_key: string, _kind: string, create: (gl: WebGL2RenderingContext) => typeof renderer) => create({} as WebGL2RenderingContext), reportGpuBytes: vi.fn(), getSnapshot: () => ({ activeLeaseCount: 1, disposedLeaseCount: 0, estimatedGpuBytes: 16384 }) }
-    const instance = definition.create({ module: moduleManifest, parameters, targets: {}, media: {}, resources, randomness: {} } as unknown as Cinema2ModuleCreateContext)
+    const instance = definition.create({ module: moduleManifest, parameters, targets: {}, media: {}, resources, randomness: { sample: () => 0.5 } } as unknown as Cinema2ModuleCreateContext)
     instance.render!.providers[0]!.execute({ target: null, width: 1280, height: 720, frame: { elapsedTimeSec: 2 } } as never)
     expect(draw.mock.calls[0]![0]).toMatchObject({ width: 1280, height: 720, portalScale: 1.2, canScale: 0.8, conveyorWidth: 1.15, ledStrength: 1.25 })
     expect(resources.reportGpuBytes).toHaveBeenCalledWith(16384)
