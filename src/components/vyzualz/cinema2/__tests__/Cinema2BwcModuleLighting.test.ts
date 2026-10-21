@@ -8,7 +8,7 @@ import type { Cinema2ModuleCreateContext, Cinema2ModuleFrameReadContext } from '
 const available = (value: number) => ({ available: true, value, confidence: 1, source: 'test', provenance: null })
 const unavailable = () => ({ available: false, value: null, confidence: null, source: null, provenance: null })
 
-function frame(options: { time: number; paused?: boolean; stopped?: boolean; event?: { kind: 'beat' | 'downbeat' | 'kick'; id: string }; beatIndex?: number; trackId?: string }): Readonly<Cinema2ModuleFrameReadContext> {
+function frame(options: { time: number; paused?: boolean; stopped?: boolean; event?: { kind: 'beat' | 'downbeat' | 'kick'; id: string }; beatIndex?: number; trackId?: string; build?: number; dropMoment?: string }): Readonly<Cinema2ModuleFrameReadContext> {
   const { time } = options
   const trackId = options.trackId ?? 'track'
   const event = options.event
@@ -25,13 +25,13 @@ function frame(options: { time: number; paused?: boolean; stopped?: boolean; eve
       capabilities: {},
       discontinuity: { occurred: false, id: null, generation: 1, reason: null },
       bands: { sub: available(0.4), bass: available(0.6), lowMid: available(0.35), mid: available(0.5), high: available(0.45), air: available(0.25) },
-      features: { overallEnergy: available(0.55), rms: available(0.5), spectralCentroid: unavailable(), spectralFlux: available(0.4), transientEnergy: available(0.3), vocalPresence: available(0.45), tension: unavailable(), complexity: unavailable(), buildProgress: available(0.35), trackEnergy: available(0.5) },
+      features: { overallEnergy: available(0.55), rms: available(0.5), spectralCentroid: unavailable(), spectralFlux: available(0.4), transientEnergy: available(0.3), vocalPresence: available(0.45), tension: unavailable(), complexity: unavailable(), buildProgress: available(options.build ?? 0.35), trackEnergy: available(0.5) },
       rhythm: {
         bpm: available(120), beatPhase: available((time * 2) % 1), beatIndex: available(options.beatIndex ?? Math.floor(time * 2)), beatInBar: available(Math.floor(time * 2) % 4), barIndex: available(Math.floor(time / 2)),
         beat: audioEvent('beat'), kick: audioEvent('kick'), snare: null, downbeat: audioEvent('downbeat'), transient: null,
         fixedClocks: { 4: fixed(4), 8: fixed(8), 16: fixed(16), 32: fixed(32) },
       },
-      structure: { analyzedPhrases: unavailable(), section: unavailable(), semanticMoments: { ...unavailable(), available: true, value: [] }, buildConfidence: available(0.3), dropConfidence: available(0) },
+      structure: { analyzedPhrases: unavailable(), section: unavailable(), semanticMoments: { ...unavailable(), available: true, value: options.dropMoment ? [{ id: options.dropMoment, timeSec: time, type: 'drop', confidence: 1, source: 'test' }] : [] }, buildConfidence: available(options.build ? 0.95 : 0.3), dropConfidence: available(0) },
       stems: unavailable(), lyrics: unavailable(), harmonic: unavailable(),
     } as never,
   } as unknown as Readonly<Cinema2ModuleFrameReadContext>
@@ -52,7 +52,7 @@ function setup(overrides: Record<string, Cinema2JsonValue> = {}) {
     instance.render!.providers[0]!.execute({ target: null, width: 640, height: 360, frame: frame({ time: 0 }) } as never)
     return draw.mock.calls[draw.mock.calls.length - 1]![0].lighting
   }
-  const inspect = () => (instance as unknown as { inspect: () => unknown }).inspect() as { activePattern: string; authoredPattern: string; patternChange: boolean; trigger: string }
+  const inspect = () => (instance as unknown as { inspect: () => unknown }).inspect() as { activePattern: string; authoredPattern: string; patternChange: boolean; trigger: string; onStage: string; performance: { pattern: string | null; reason: string | null } }
   return { instance, values, update, drawn, inspect, draw }
 }
 
@@ -161,6 +161,113 @@ describe('BWC module lighting', () => {
         return rig.drawn()
       }
       expect(dropped(1).reactorCore).toBeGreaterThanOrEqual(dropped(0).reactorCore)
+    })
+  })
+
+  describe('Auto Performance', () => {
+    /** Delivers a drop the way production does: the shared runtime names the cue `<event id>:<action id>` from the manifest's own rule. */
+    const dropCueId = (momentId: string): string => {
+      const rule = CINEMA2_BWC_PRESET_MANIFEST.choreography!.rules.find(candidate => candidate.source.signal === 'drop')!
+      return `${momentId}:${rule.actions[0]!.id}`
+    }
+    const deliverDrop = (rig: ReturnType<typeof setup>, momentId: string, time: number) => {
+      rig.instance.handleAction!('musicalCue', { eventId: dropCueId(momentId), payload: { kind: 'drop' } } as never)
+      rig.update(frame({ time, dropMoment: momentId }))
+    }
+    /** Plays on from `from` to `to` seconds in 0.1 s frames, as the host would; the beat clock advances at most 0.25 s a frame. */
+    const playTo = (rig: ReturnType<typeof setup>, from: number, to: number, extra: Parameters<typeof frame>[0] extends infer O ? Partial<O> : never = {}) => {
+      for (let t = from + 0.1; t <= to + 1e-9; t += 0.1) rig.update(frame({ ...extra, time: Math.round(t * 1000) / 1000 } as Parameters<typeof frame>[0]))
+    }
+    const started = (overrides: Record<string, Cinema2JsonValue> = {}) => {
+      const rig = setup({ pattern: 'flow', ...overrides })
+      rig.update(frame({ time: 1 })); rig.update(frame({ time: 1.1 }))
+      return rig
+    }
+
+    it('puts Core Burst on stage from a drop for two bars while the base pattern stays Flow, then resumes Flow', () => {
+      const rig = started()
+      deliverDrop(rig, 'drop-1', 2)
+      expect(rig.inspect()).toMatchObject({ authoredPattern: 'flow', activePattern: 'flow', onStage: 'core-burst', performance: { pattern: 'core-burst', reason: 'drop' } })
+      playTo(rig, 2, 4)
+      expect(rig.inspect().onStage).toBe('core-burst')
+      playTo(rig, 4, 6.3)
+      expect(rig.inspect()).toMatchObject({ onStage: 'flow', performance: { pattern: null } })
+    })
+
+    it('puts Surge on stage while a confident buildup charges and hands back when it ends', () => {
+      const rig = started()
+      playTo(rig, 1.1, 1.6, { build: 0.7 })
+      expect(rig.inspect()).toMatchObject({ onStage: 'surge', performance: { reason: 'build' } })
+      playTo(rig, 1.6, 2.5, { build: 0 })
+      expect(rig.inspect().onStage).toBe('flow')
+    })
+
+    it('does nothing when Auto Performance is off, and does not change the saved Pattern, Pattern Change or Trigger', () => {
+      const off = started({ autoPerformance: false })
+      deliverDrop(off, 'drop-1', 2)
+      off.update(frame({ time: 2.5, build: 0.7 }))
+      expect(off.inspect().onStage).toBe('flow')
+      const on = started({ patternChange: true, trigger: 'bar8' })
+      deliverDrop(on, 'drop-1', 2)
+      expect(on.inspect()).toMatchObject({ onStage: 'core-burst', authoredPattern: 'flow', patternChange: true, trigger: 'bar8' })
+      expect(on.values.get('pattern')).toBe('flow')
+      expect(on.values.get('patternChange')).toBe(true)
+      expect(on.values.get('trigger')).toBe('bar8')
+    })
+
+    it('keeps the Pattern Change controller running underneath an override, so the base that resumes includes what it advanced to', () => {
+      const rig = started({ patternChange: true, trigger: 'beat' })
+      deliverDrop(rig, 'drop-1', 2)
+      expect(rig.inspect().onStage).toBe('core-burst')
+      const baseDuring = new Set<string>()
+      let now = 2
+      for (let i = 0; i < 5; i += 1) {
+        playTo(rig, now, now + 0.4)
+        now += 0.5
+        rig.update(frame({ time: now, event: { kind: 'beat', id: `beat:${i}` } }))
+        baseDuring.add(rig.inspect().activePattern)
+        expect(rig.inspect().onStage).toBe('core-burst')
+      }
+      expect(baseDuring.size).toBeGreaterThan(1)
+      playTo(rig, now, 6.4)
+      const resumed = rig.inspect()
+      expect(resumed.performance.pattern).toBeNull()
+      expect(resumed.onStage).toBe(resumed.activePattern)
+      expect(resumed.activePattern).not.toBe('flow')
+    })
+
+    it('shows a manual Pattern choice at once, is not undone by the drop already on stage, and may override again only on a new drop', () => {
+      const rig = started({ patternChange: true, trigger: 'bar8' })
+      deliverDrop(rig, 'drop-1', 2)
+      expect(rig.inspect().onStage).toBe('core-burst')
+      rig.values.set('pattern', 'alternate')
+      rig.update(frame({ time: 2.1, dropMoment: 'drop-1' }))
+      expect(rig.inspect()).toMatchObject({ authoredPattern: 'alternate', activePattern: 'alternate', onStage: 'alternate', patternChange: true })
+      playTo(rig, 2.1, 3, { dropMoment: 'drop-1' })
+      expect(rig.inspect().onStage).toBe('alternate')
+      playTo(rig, 3, 3.9)
+      deliverDrop(rig, 'drop-2', 4)
+      expect(rig.inspect()).toMatchObject({ onStage: 'core-burst', activePattern: 'alternate' })
+    })
+
+    it('gives the stage back and forgets everything on a track change', () => {
+      const rig = started()
+      deliverDrop(rig, 'drop-1', 2)
+      expect(rig.inspect().onStage).toBe('core-burst')
+      rig.update(frame({ time: 2.1, trackId: 'other-track' }))
+      expect(rig.inspect().performance.pattern).toBeNull()
+    })
+
+    it('lights the hall differently when a drop arrives: kick cues named by the manifest reach the lighting engine', () => {
+      const kickRule = CINEMA2_BWC_PRESET_MANIFEST.choreography!.rules.find(candidate => candidate.source.signal === 'kick')!
+      const run = (cue: boolean) => {
+        const rig = setup({ pattern: 'alternate', autoPerformance: false })
+        rig.update(frame({ time: 1 }))
+        if (cue) rig.instance.handleAction!('musicalCue', { eventId: `kick:1:${kickRule.actions[0]!.id}`, payload: { kind: 'kick' } } as never)
+        rig.update(frame({ time: 1.016, event: { kind: 'kick', id: 'kick:1' } }))
+        return rig.drawn().reactorCore
+      }
+      expect(run(true)).toBeGreaterThan(run(false))
     })
   })
 

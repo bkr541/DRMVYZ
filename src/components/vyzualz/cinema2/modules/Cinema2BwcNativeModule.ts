@@ -3,6 +3,7 @@ import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2Module
 import { Cinema2BwcRenderer, type Cinema2BwcRenderState } from './bwc/Cinema2BwcRenderer'
 import { Cinema2BwcConveyorClock } from './bwc/Cinema2BwcLoop'
 import { blendBwcLightingReactivity, neutralBwcLighting, type Cinema2BwcLightColors, type Cinema2BwcLightingState } from './bwc/Cinema2BwcLighting'
+import { Cinema2BwcAutoPerformance, type Cinema2BwcPerformance } from './bwc/Cinema2BwcAutoPerformance'
 import { CINEMA2_BWC_DEFAULT_PATTERN, CINEMA2_BWC_PATTERN_IDS, evaluateCinema2BwcPattern, type Cinema2BwcPatternId, type Cinema2BwcPatternStyle } from './bwc/Cinema2BwcPatternEngine'
 import { Cinema2MainframeBeatClockResolver, Cinema2MainframeReactivityEngine, resolveCinema2MainframeTimeSec } from './mainframe/Cinema2MainframePatternEngine'
 import {
@@ -73,6 +74,10 @@ export function createCinema2BwcNativeModuleDefinition(
         design.pattern,
       )
       let selection: Readonly<Cinema2MainframePatternSelection<Cinema2BwcPatternId>> = Object.freeze({ activePattern: design.pattern, patternStartBeat: 0, changed: false })
+      // Auto Performance puts Surge on stage through a buildup and Core Burst on a drop; the pattern controller above keeps running beneath it.
+      const autoPerformance = new Cinema2BwcAutoPerformance()
+      let performance: Readonly<Cinema2BwcPerformance> = Object.freeze({ pattern: null, reason: null, startBeat: 0 })
+      let previousAuthoredPattern: Cinema2BwcPatternId | null = null
       let lighting: Readonly<Cinema2BwcLightingState> = neutralBwcLighting()
       let triggerPreviousTimeSec: number | null = null
       let triggerPreviousBeat: number | null = null
@@ -129,10 +134,18 @@ export function createCinema2BwcNativeModuleDefinition(
             selection = patternController.update({
               authoredPattern: design.pattern, patternChange: design.patternChange, trigger: design.trigger, triggerEventId, absoluteBeat: timing.beats, reset,
             })
-            // The shared engine's own pattern output is not used; it supplies the envelopes, signals and buildup the BWC programs read.
-            const music = reactivity.update(updateFrame, 'outward-bus', design.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+            // The shared engine's own pattern output is not used; it supplies the envelopes, signals and buildup the BWC programs read. Its clock
+            // runs from zero here so each program can be timed from its own start (the base pattern's, or an override's).
+            const music = reactivity.update(updateFrame, 'outward-bus', design.bpmSync, 0, coordinated.events, timing.beats)
+            performance = autoPerformance.update({
+              enabled: design.autoPerformance && music.active, absoluteBeat: timing.beats, buildCharge: music.buildCharge,
+              dropEventId: coordinated.dropEventId, patternEdited: previousAuthoredPattern != null && design.pattern !== previousAuthoredPattern, reset,
+            })
+            previousAuthoredPattern = design.pattern
+            const onStage = performance.pattern ?? selection.activePattern
+            const startBeat = performance.pattern ? performance.startBeat : selection.patternStartBeat
             lighting = blendBwcLightingReactivity(evaluateCinema2BwcPattern({
-              pattern: selection.activePattern, beats: music.beats, level: music.level, buildCharge: music.buildCharge,
+              pattern: onStage, beats: Math.max(0, music.beats - startBeat), level: music.level, buildCharge: music.buildCharge,
               signals: music.signals, impulses: music.impulses, active: music.active, style: design.style,
             }), design.lightReactivity)
             triggerPreviousTimeSec = timeSec
@@ -144,9 +157,10 @@ export function createCinema2BwcNativeModuleDefinition(
           },
           dispose() {
             labelHandle?.release(); labelHandle = null
-            conveyorClock.reset(); reactivity.reset(); beatClock.reset(); dropCoordinator.reset(); patternController.reset()
+            conveyorClock.reset(); reactivity.reset(); beatClock.reset(); dropCoordinator.reset(); patternController.reset(); autoPerformance.reset()
             musicalCues.splice(0)
             triggerPreviousBeat = null
+            previousAuthoredPattern = null
           },
         },
         handleAction: (action: string, event: Readonly<Cinema2DispatchedTargetAction>) => {
@@ -160,7 +174,7 @@ export function createCinema2BwcNativeModuleDefinition(
         render: { providers: Object.freeze([provider]) },
         inspect: () => Object.freeze({
           authoredPattern: design.pattern, activePattern: selection.activePattern, patternChange: design.patternChange, trigger: design.trigger,
-          patternStartBeat: selection.patternStartBeat, bpmSync: design.bpmSync, lightReactivity: design.lightReactivity, style: design.style, lighting,
+          patternStartBeat: selection.patternStartBeat, autoPerformance: design.autoPerformance, performance, onStage: performance.pattern ?? selection.activePattern, bpmSync: design.bpmSync, lightReactivity: design.lightReactivity, style: design.style, lighting,
         }),
       }
     },
@@ -176,7 +190,7 @@ function lightColors(parameters: Parameters): Readonly<Cinema2BwcLightColors> {
     ceiling: rgb(readColor(parameters, 'ceilingColor', [0.82, 0.94, 1, 1])),
   })
 }
-function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPatternId; patternChange: boolean; trigger: Cinema2MainframeTriggerId; bpmSync: boolean; lightReactivity: number; style: Readonly<Cinema2BwcPatternStyle> }> {
+function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPatternId; patternChange: boolean; trigger: Cinema2MainframeTriggerId; bpmSync: boolean; autoPerformance: boolean; lightReactivity: number; style: Readonly<Cinema2BwcPatternStyle> }> {
   const pattern = parameters.get('pattern')
   const trigger = parameters.get('trigger')
   return Object.freeze({
@@ -184,6 +198,7 @@ function resolveDesign(parameters: Parameters): Readonly<{ pattern: Cinema2BwcPa
     patternChange: readBoolean(parameters, 'patternChange', false),
     trigger: typeof trigger === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(trigger as Cinema2MainframeTriggerId) ? trigger as Cinema2MainframeTriggerId : 'bar4',
     bpmSync: readBoolean(parameters, 'bpmSync', true),
+    autoPerformance: readBoolean(parameters, 'autoPerformance', true),
     lightReactivity: clamp(readNumber(parameters, 'lightReactivity', 1), 0, 1),
     style: Object.freeze({
       pulseWidth: clamp(readNumber(parameters, 'pulseWidth', 0.5), 0, 1),

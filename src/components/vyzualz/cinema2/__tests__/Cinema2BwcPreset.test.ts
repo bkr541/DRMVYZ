@@ -8,7 +8,7 @@ import { CINEMA2_QUALITY_MODE_PARAMETER_ID } from '../parameters/Cinema2Performa
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import type { Cinema2ModuleCreateContext } from '../modules/Cinema2ModuleContracts'
 import { cinema2NativeModuleRegistry } from '../modules/Cinema2ModuleRegistry'
-import { CINEMA2_BWC_PARAMETER_IDS, CINEMA2_BWC_PRESET_ID, CINEMA2_BWC_PRESET_MANIFEST } from '../presets/Cinema2BwcPreset'
+import { CINEMA2_BWC_MUSICAL_CUE_ID, CINEMA2_BWC_PARAMETER_IDS, CINEMA2_BWC_PRESET_ID, CINEMA2_BWC_PRESET_MANIFEST } from '../presets/Cinema2BwcPreset'
 import { CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS } from '../presets/Cinema2FirstPartyPresetCatalog'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { validateCinema2PresetAuthoringConventions } from '../presets/Cinema2PresetAuthoring'
@@ -24,7 +24,7 @@ describe('Cinema 2.0 BWC preset', () => {
 
   describe('the four Design parent groups', () => {
     const parameters = CINEMA2_BWC_PRESET_MANIFEST.parameters ?? []
-    const design = parameters.filter(parameter => parameter.id !== CINEMA2_QUALITY_MODE_PARAMETER_ID)
+    const design = parameters.filter(parameter => parameter.id !== CINEMA2_QUALITY_MODE_PARAMETER_ID && parameter.exposure !== 'hidden')
     const inGroup = (group: string) => design.filter(parameter => parameter.designParentGroup === group)
 
     it('puts every user-facing Design parameter under exactly one of Master Controls, Design, Effects and Palette, and fills each', () => {
@@ -34,7 +34,7 @@ describe('Cinema 2.0 BWC preset', () => {
 
     it('has Master Intensity, BPM Sync and Conveyor Speed under Master Controls, with BPM Sync a primary boolean', () => {
       const master = inGroup('master-controls').map(parameter => parameter.label)
-      expect(master).toEqual(expect.arrayContaining(['Master Intensity', 'BPM Sync', 'Conveyor Speed', 'Light Reactivity']))
+      expect(master).toEqual(expect.arrayContaining(['Master Intensity', 'Auto Performance', 'BPM Sync', 'Conveyor Speed', 'Light Reactivity']))
       expect(design.find(parameter => parameter.id === CINEMA2_BWC_PARAMETER_IDS.bpmSync)).toMatchObject({ type: 'boolean', exposure: 'primary', designParentGroup: 'master-controls' })
     })
 
@@ -67,6 +67,43 @@ describe('Cinema 2.0 BWC preset', () => {
         const parameter = parameters.find(candidate => candidate.id === ref.$ref)
         expect(parameter, key).toBeDefined()
         expect(module.parameters?.[key], key).toEqual(parameter!.defaultValue)
+      }
+    })
+  })
+
+  describe('choreography and Auto Performance', () => {
+    const rules = CINEMA2_BWC_PRESET_MANIFEST.choreography?.rules ?? []
+
+    it('delivers the nine shared musical cues through a hidden runtime-only trigger bound to the module', () => {
+      const cue = CINEMA2_BWC_PRESET_MANIFEST.parameters!.find(parameter => parameter.id === CINEMA2_BWC_MUSICAL_CUE_ID)!
+      expect(cue).toMatchObject({ type: 'trigger', exposure: 'hidden', persistence: 'runtime-only', reset: 'none' })
+      expect(CINEMA2_BWC_PRESET_MANIFEST.modules![0]!.actionBindings).toEqual({ musicalCue: { $ref: CINEMA2_BWC_MUSICAL_CUE_ID } })
+      expect(rules.map(rule => rule.source.signal)).toEqual(['kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop'])
+      for (const rule of rules) {
+        expect(rule.actions).toHaveLength(1)
+        expect(rule.actions[0]).toMatchObject({ target: { kind: 'parameter', ref: { $ref: CINEMA2_BWC_MUSICAL_CUE_ID } }, operation: 'spawn' })
+      }
+    })
+
+    it('names each action the way the shared music adapter recognises a delivery', () => {
+      // The runtime delivers `<event id>:<action id>`, and the adapter accepts only `:mainframe-<kind>-cue`.
+      for (const rule of rules) {
+        const kind = (rule.actions[0]!.value as { kind: string }).kind
+        expect(rule.actions[0]!.id).toBe(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-cue`)
+      }
+    })
+
+    it('declares a capability for every signal a rule reads', () => {
+      const declared = new Set((CINEMA2_BWC_PRESET_MANIFEST.capabilities ?? []).map(capability => capability.id))
+      for (const rule of rules) expect(declared.has(rule.source.capability!), rule.id).toBe(true)
+    })
+
+    it('has Auto Performance on by default under Master Controls, and leaves Pattern, Pattern Change and Trigger independent of it', () => {
+      const parameters = CINEMA2_BWC_PRESET_MANIFEST.parameters!
+      expect(parameters.find(parameter => parameter.id === CINEMA2_BWC_PARAMETER_IDS.autoPerformance)).toMatchObject({ type: 'boolean', defaultValue: true, designParentGroup: 'master-controls' })
+      // Pattern edits must not switch Auto Performance off, and Pattern Change must not either: they are distinct controls.
+      for (const id of [CINEMA2_BWC_PARAMETER_IDS.pattern, CINEMA2_BWC_PARAMETER_IDS.patternChange, CINEMA2_BWC_PARAMETER_IDS.trigger]) {
+        expect(parameters.find(parameter => parameter.id === id)?.metadata?.userEditSetParameters, id).toBeUndefined()
       }
     })
   })

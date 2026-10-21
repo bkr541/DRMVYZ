@@ -4,6 +4,10 @@ import {
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
+  type Cinema2CapabilityId,
+  type Cinema2ChoreographyActionId,
+  type Cinema2ChoreographyRuleId,
+  type Cinema2ChoreographySignal,
   type Cinema2Color,
   type Cinema2EffectId,
   type Cinema2LayerId,
@@ -33,13 +37,34 @@ export const CINEMA2_BWC_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvy
 export const CINEMA2_BWC_MODULE_ID = cinema2StableId<Cinema2ModuleId>('bwc-scene')
 const pid = (name: string) => cinema2StableId<Cinema2ParameterId>(`bwc-${name}`)
 export const CINEMA2_BWC_PARAMETER_IDS = Object.freeze({
-  intensity: pid('intensity'), bpmSync: pid('bpm-sync'), conveyorSpeed: pid('conveyor-speed'), lightReactivity: pid('light-reactivity'),
+  intensity: pid('intensity'), autoPerformance: pid('auto-performance'), bpmSync: pid('bpm-sync'), conveyorSpeed: pid('conveyor-speed'), lightReactivity: pid('light-reactivity'),
   pattern: pid('pattern'), patternChange: pid('pattern-change'), trigger: pid('trigger'),
   portalScale: pid('portal-scale'), ledStrength: pid('led-strength'), canScale: pid('can-scale'), conveyorWidth: pid('conveyor-width'),
   pulseWidth: pid('pulse-width'), dropIntensity: pid('drop-intensity'), flicker: pid('flicker'), bloom: pid('bloom'), finish: pid('finish'),
   reactorColor: pid('reactor-color'), pipeColor: pid('pipe-color'), wallColor: pid('wall-color'), ceilingColor: pid('ceiling-color'), structure: pid('structure'),
 })
 const P = CINEMA2_BWC_PARAMETER_IDS
+/** Internal event-only parameter, never an Inspector control: the shared choreography runtime delivers musical cues through it. */
+export const CINEMA2_BWC_MUSICAL_CUE_ID = pid('musical-cue')
+
+/**
+ * The cues the lighting programs react to, selected (and deduplicated, with phrase, drop and section fallbacks) by the shared choreography
+ * runtime. Each rule has the same shape: source = that musical event; target = the hidden Musical Cue parameter; operation = spawn a cue
+ * event; no strength, attack or decay (the pattern engine's own envelopes shape the response); no conditions; no user-owned value is
+ * touched. The action id must be `mainframe-<kind>-cue`: the shared music adapter recognises a delivery by that suffix.
+ */
+const MUSIC_CUES = Object.freeze([
+  ['kick', 'kick', 'music.rhythm-events'],
+  ['snare', 'snare', 'music.rhythm-events'],
+  ['transient', 'transient', 'music.rhythm-events'],
+  ['beat', 'beat', 'music.beat'],
+  ['downbeat', 'downbeat', 'music.downbeat'],
+  ['fourBeat', 'bar', 'music.bar'],
+  ['phrase', 'phrase', 'music.phrase'],
+  ['section', 'section-change', 'music.section'],
+  ['drop', 'drop', 'music.drop'],
+] as const satisfies readonly (readonly [string, Cinema2ChoreographySignal, Cinema2CapabilityId])[])
+const cueName = (kind: string) => (kind === 'fourBeat' ? 'four-beat' : kind)
 
 const ROOT = cinema2StableId<Cinema2SceneNodeId>('bwc-root'), NODE = cinema2StableId<Cinema2SceneNodeId>('bwc-node'), LAYER = cinema2StableId<Cinema2LayerId>('bwc-layer')
 const SCENE_PASS = cinema2StableId<Cinema2RenderPassId>('bwc-pass'), BLOOM_PASS = cinema2StableId<Cinema2RenderPassId>('bwc-bloom-pass'), FINISH_PASS = cinema2StableId<Cinema2RenderPassId>('bwc-finish-pass')
@@ -67,7 +92,7 @@ const viewportTarget = (id: Cinema2RenderTargetId) => Object.freeze({
 })
 
 export const CINEMA2_BWC_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
-  schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_BWC_PRESET_ID, revision: 4,
+  schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_BWC_PRESET_ID, revision: 5,
   metadata: Object.freeze({
     name: 'BWC',
     description: 'A dim industrial canning hall: cans ride a belt through a green-energy reactor and come out as creatures, while the reactor, its pipes, the wall LED panels and the ceiling lights play six lighting programs with the music.',
@@ -84,11 +109,13 @@ export const CINEMA2_BWC_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> 
     Object.freeze({ id: 'music.bar' as const, requirement: 'optional' as const, purpose: 'Bar boundaries can advance the lighting program.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrase boundaries can advance the lighting program.' }),
     Object.freeze({ id: 'music.build' as const, requirement: 'optional' as const, purpose: 'A detected buildup charges the Surge program.' }),
-    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'A drop lights the whole hall.' }),
+    Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'A drop lights the whole hall and, with Auto Performance, puts Core Burst on stage.' }),
+    Object.freeze({ id: 'music.section' as const, requirement: 'optional' as const, purpose: 'Section changes reach the lighting through the shared choreography runtime.' }),
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     float(P.intensity, 'Master Intensity', 'Sets the overall brightness of the hall and everything lit in it.', 1.1, 0, 2, 0.01, 'master-controls', 'Presentation', 1),
+    toggle(P.autoPerformance, 'Auto Performance', 'Lets the music take the lighting program for a moment: Surge while a buildup charges, Core Burst for two bars after a drop, then your Pattern resumes. It never changes your Pattern, Pattern Change or Trigger, and never touches colours, intensity or effects. Choosing a Pattern during one ends it at once and the new Pattern shows.', true, 'master-controls', 'Timing', 5),
     toggle(P.bpmSync, 'BPM Sync', 'Locks the production line and the lighting programs to the music: with it on the line advances one slot every two beats at the analyzed (or Audio Dock) tempo, and the lighting follows the track\'s beat grid. The line also needs the Audio Dock Sync on. With it off both free-run at the 120 BPM rate.', true, 'master-controls', 'Timing', 2),
     float(P.conveyorSpeed, 'Conveyor Speed', 'Scales how fast the production line moves, with or without BPM Sync. 1 is one slot every two beats at the reference tempo; 0 stops the line.', 1, 0, 2, 0.01, 'master-controls', 'Timing', 3),
     float(P.lightReactivity, 'Light Reactivity', 'How far the lighting programs depart from the hall\'s authored look. At 1 the reactor, pipes, wall panels and ceiling lights follow the music fully; at 0 they hold their authored brightness.', 1, 0, 1, 0.01, 'master-controls', 'Timing', 4),
@@ -123,22 +150,41 @@ export const CINEMA2_BWC_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> 
     palette(P.wallColor, 'Wall LEDs', 'The colour of the LED panels on both side walls.', WALL_LEDS, 3),
     palette(P.ceilingColor, 'Ceiling Lights', 'The colour of the fluorescent tubes across the ceiling.', CEILING_LIGHTS, 4),
     palette(P.structure, 'Machine Structure', 'The colour of the hall\'s steel structure, reactor armour and cans\' surroundings.', STRUCTURE, 5),
+    Object.freeze({
+      id: CINEMA2_BWC_MUSICAL_CUE_ID, label: 'Musical Cue', type: 'trigger' as const,
+      section: 'React', group: 'Runtime', order: 999,
+      exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const,
+    }),
   ]),
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_BWC_MODULE_ID, typeId: CINEMA2_BWC_NATIVE_MODULE_TYPE_ID, version: 1, enabled: true,
     parameters: Object.freeze({
-      intensity: 1.1, bpmSync: true, conveyorSpeed: 1, lightReactivity: 1, pattern: CINEMA2_BWC_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
+      intensity: 1.1, autoPerformance: true, bpmSync: true, conveyorSpeed: 1, lightReactivity: 1, pattern: CINEMA2_BWC_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
       portalScale: 1, ledStrength: 0.85, canScale: 1, conveyorWidth: 1, pulseWidth: 0.5, dropIntensity: 1, flicker: 0.15,
       reactorColor: REACTOR, pipeColor: PIPES, wallColor: WALL_LEDS, ceilingColor: CEILING_LIGHTS, structureColor: STRUCTURE,
     }),
     parameterBindings: Object.freeze({
-      intensity: cinema2Ref(P.intensity), bpmSync: cinema2Ref(P.bpmSync), conveyorSpeed: cinema2Ref(P.conveyorSpeed), lightReactivity: cinema2Ref(P.lightReactivity),
+      intensity: cinema2Ref(P.intensity), autoPerformance: cinema2Ref(P.autoPerformance), bpmSync: cinema2Ref(P.bpmSync), conveyorSpeed: cinema2Ref(P.conveyorSpeed), lightReactivity: cinema2Ref(P.lightReactivity),
       pattern: cinema2Ref(P.pattern), patternChange: cinema2Ref(P.patternChange), trigger: cinema2Ref(P.trigger),
       portalScale: cinema2Ref(P.portalScale), ledStrength: cinema2Ref(P.ledStrength), canScale: cinema2Ref(P.canScale), conveyorWidth: cinema2Ref(P.conveyorWidth),
       pulseWidth: cinema2Ref(P.pulseWidth), dropIntensity: cinema2Ref(P.dropIntensity), flicker: cinema2Ref(P.flicker),
       reactorColor: cinema2Ref(P.reactorColor), pipeColor: cinema2Ref(P.pipeColor), wallColor: cinema2Ref(P.wallColor), ceilingColor: cinema2Ref(P.ceilingColor), structureColor: cinema2Ref(P.structure),
     }),
+    actionBindings: Object.freeze({ musicalCue: cinema2Ref(CINEMA2_BWC_MUSICAL_CUE_ID) }),
   })]),
+  choreography: Object.freeze({
+    rules: Object.freeze(MUSIC_CUES.map(([kind, signal, capability], index) => Object.freeze({
+      id: cinema2StableId<Cinema2ChoreographyRuleId>(`bwc-${cueName(kind)}-event`),
+      priority: 30 + index,
+      source: Object.freeze({ signal, capability }),
+      actions: Object.freeze([Object.freeze({
+        id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${cueName(kind)}-cue`),
+        target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_BWC_MUSICAL_CUE_ID) }),
+        operation: 'spawn' as const,
+        value: Object.freeze({ kind }),
+      })]),
+    }))),
+  }),
   scene: Object.freeze({
     nodes: Object.freeze([
       Object.freeze({ id: ROOT, kind: 'group' as const, coordinateSpace: 'normalized-screen' as const, visible: true }),
