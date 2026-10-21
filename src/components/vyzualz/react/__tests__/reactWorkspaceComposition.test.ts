@@ -21,6 +21,8 @@ describe('React workspace composition', () => {
       'canvas',
       'laserDmx',
       'pixGrid',
+      'cinema2',
+      'headliner',
     ]
 
     for (const engine of engines) {
@@ -144,13 +146,13 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
   })
 
-  it('gives Headliner its minimal setup rail and the performance pads while keeping Track Map absent', () => {
+  it('gives Headliner its minimal setup rail plus the same Track Map and performance pads as every other engine', () => {
     const headliner = resolveReactWorkspaceComposition('headliner', 'beamMatrix', false)
 
     expect(getReactLeftTabs(headliner)).toEqual(['workspace'])
     expect(getReactLeftTabLabel('workspace', headliner)).toBe('SETUP')
-    expect(getReactLowerSurfaces(headliner)).toEqual(['performancePads'])
-    expect(headliner.showTrackMap).toBe(false)
+    expect(getReactLowerSurfaces(headliner)).toEqual(['trackMap', 'performancePads'])
+    expect(headliner.showTrackMap).toBe(true)
     expect(headliner.showPerformancePads).toBe(true)
     expect(headliner.showSoundDrawingTimeline).toBe(false)
     expect(headliner.presetSurface).toBe('enginePresets')

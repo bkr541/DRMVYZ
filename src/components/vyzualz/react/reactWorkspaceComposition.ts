@@ -45,8 +45,8 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isHeadliner) {
-    // Headliner owns a minimal setup workspace; Track Map stays absent from its
-    // fullscreen camera foundation, but the performance pads do not.
+    // Headliner owns a minimal setup workspace; the lower workspace (Track Map and
+    // performance pads) is shared with every other engine.
     leftTabs = ['workspace']
   } else if (isCinema2) {
     leftTabs = ['workspace', 'layers']
@@ -76,9 +76,10 @@ export function resolveReactWorkspaceComposition(
     // including Shader Scenes, Cinema 2.0 and Headliner.
     showPerformancePads: true,
     showSoundDrawingTimeline: isSoundDrawing,
-    // Track sections and transport context are shared by every React engine,
-    // except Headliner's minimal fullscreen camera workspace.
-    showTrackMap: !isHeadliner,
+    // Track sections and transport context are shared by every React engine. ReactView resolves the
+    // loaded track's audio-intelligence sections once, whichever engine is active, and feeds them to
+    // the Track Map, the active renderer (Headliner included) and the music-intelligence engine.
+    showTrackMap: true,
     showLaserBeamEditor: isLaser && beamEditorVisible,
     showLaserLayersTab: isLaser,
     presetSurface: isShader ? 'shaderScenes' : 'enginePresets',
