@@ -38,6 +38,8 @@ vi.mock('../../../lib/audioPreparationDb', () => ({
 
 import { OFFLINE_LYRIC_EXTRACTION_MESSAGE, AiLyricExtractor, chooseRecoveredJob, lyricJobPollDelayMs } from './AiLyricExtractor'
 import { lyricTranscriptionProviderLabel } from '../services/lyricExtraction'
+import { HeaderActivityChip } from '../../../components/vyzualz/shared/HeaderSystemStatus'
+import { usePageActivityStore } from '../../../stores/pageActivityStore'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -191,19 +193,22 @@ async function renderExtractor(
   track: LyricManagerTrack | null = selectedTrack(),
   activeVersionId: string | null = null,
   extraProps: Partial<React.ComponentProps<typeof AiLyricExtractor>> = {},
+  withHeader = false,
 ): Promise<void> {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
   await act(async () => {
-    root!.render(React.createElement(AiLyricExtractor, {
+    root!.render(React.createElement(React.Fragment, null,
+      withHeader && React.createElement(HeaderActivityChip, { page: 'lyric-manager' }),
+      React.createElement(AiLyricExtractor, {
       selectedTrack: track,
       existingDocumentCount: 0,
       activeVersionId,
       onOpenCompletedDraft: vi.fn(),
       onActivateCompletedDraft: vi.fn(),
       ...extraProps,
-    }))
+    })))
   })
   await flush()
 }
@@ -241,6 +246,7 @@ function buttonByText(text: string): HTMLButtonElement {
 beforeEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
+  usePageActivityStore.setState({ pages: { react: {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
   recentRows = []
   setNavigatorOnline(true)
   setDocumentVisibility('visible')
@@ -265,6 +271,58 @@ afterEach(async () => {
   root = null
   container = null
   vi.useRealTimers()
+})
+
+describe('AI extraction header activity', () => {
+  const spinning = () => container!.querySelector('.vz-header-activity-arc--spinning') !== null
+
+  it('spins from local preparation through queued and processing jobs, then stops on completion', async () => {
+    vi.useFakeTimers()
+    const preparation = deferred<{ prepared: boolean }>()
+    mocks.ensurePreparedTranscriptionAudio.mockReturnValue(preparation.promise)
+    const onJobChange = vi.fn()
+    await renderExtractor(selectedTrack(), null, { onJobChange }, true)
+    expect(spinning()).toBe(false)
+
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    expect(spinning()).toBe(true)
+    expect(container!.querySelector('.vz-header-activity')?.getAttribute('aria-label')).toContain('Extracting lyrics')
+    await act(async () => preparation.resolve({ prepared: false }))
+    await flush()
+    expect(spinning()).toBe(true)
+    expect(onJobChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'queued' }))
+
+    mocks.functionsInvoke.mockResolvedValue({ data: { job: jobRow('started', 'processing') }, error: null })
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+    expect(spinning()).toBe(true)
+    expect(onJobChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'processing' }))
+
+    mocks.functionsInvoke.mockResolvedValue({ data: { job: jobRow('started', 'completed', { lyric_document_id: 'doc-completed' }) }, error: null })
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+    expect(spinning()).toBe(false)
+    expect(onJobChange).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'completed' }))
+  })
+
+  it.each(['failed', 'cancelled'] as const)('stops when a recovered processing job becomes %s', async status => {
+    vi.useFakeTimers()
+    recentRows = [jobRow('processing', 'processing')]
+    await renderExtractor(selectedTrack(), null, {}, true)
+    expect(spinning()).toBe(true)
+    mocks.functionsInvoke.mockResolvedValue({ data: { job: jobRow('processing', status) }, error: null })
+    await act(async () => { await vi.advanceTimersByTimeAsync(3_000) })
+    expect(spinning()).toBe(false)
+  })
+
+  it('clears preparation activity after a start failure and removes its sources on unmount', async () => {
+    mocks.ensurePreparedTranscriptionAudio.mockRejectedValue(new Error('Preparation failed'))
+    await renderExtractor(selectedTrack(), null, {}, true)
+    await act(async () => buttonByText('Start Automatic Extraction').click())
+    await flush()
+    expect(spinning()).toBe(false)
+    await act(async () => root?.unmount())
+    root = null
+    expect(Object.values(usePageActivityStore.getState().pages['lyric-manager'])).toEqual([])
+  })
 })
 
 describe('AI lyric polling policy', () => {

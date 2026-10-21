@@ -2183,6 +2183,7 @@ export function LyricManagerView({
                 existingDocumentCount={documents.length}
                 activeVersionId={activeVersionForSelectedTrack?.id ?? null}
                 onCompletedDraftResolved={handleCompletedDraftResolved}
+                onJobChange={setLatestTranscriptionJob}
                 onOpenCompletedDraft={handleOpenCompletedDraft}
                 onActivateCompletedDraft={handleActivateCompletedDraft}
                 availableTracks={tracks}

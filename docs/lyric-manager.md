@@ -12,6 +12,8 @@ Saving the open editor document and activating a runtime version are separate ac
 
 ## AI extraction and Cue Styles
 
+The header activity indicator animates while AI Extract recovers a job, prepares audio, starts or retries extraction, or waits for a queued or processing job. It returns to idle after completion, failure, or cancellation when no other page work is active. The extraction panel also updates the page's job summary as job status changes.
+
 AI extraction uses the configured Groq transcription provider and stores word timing when it is available. The user-facing Cue Styles are Hip-Hop / Rap, Balanced, Melodic, and Vocal Chops. Track Map beats, bars, phrases, and sections guide segmentation without changing authoritative word timestamps. **Reformat Cues** creates a new lyric version from existing word timing and leaves the source version unchanged.
 
 ## Vocal Reference

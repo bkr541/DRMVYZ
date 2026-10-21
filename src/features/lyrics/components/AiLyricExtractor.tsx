@@ -2,6 +2,7 @@ import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/Ic
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePageActivities } from '../../../stores/pageActivityStore'
 import type { LyricCue, LyricDocument, LyricTranscriptionJob } from '../../../types/lyrics'
 import { getFullLyricDocument } from '../../../lib/lyricsDb'
 import { LYRIC_CUE_STYLE_LABELS, type LyricCueStyle } from '../../../../supabase/functions/_shared/lyricCueSegmentation'
@@ -49,6 +50,7 @@ interface Props {
   existingDocumentCount: number
   activeVersionId: string | null
   onCompletedDraftResolved?: (document: LyricDocument) => void | Promise<void>
+  onJobChange?: (job: LyricTranscriptionJob | null) => void
   onOpenCompletedDraft: (documentId: string) => void | Promise<void>
   onActivateCompletedDraft: (documentId: string) => void | Promise<void>
   availableTracks?: readonly LyricManagerTrack[]
@@ -159,6 +161,7 @@ export function AiLyricExtractor({
   selectedTrack,
   existingDocumentCount,
   onCompletedDraftResolved,
+  onJobChange,
   onActivateCompletedDraft,
   availableTracks = [],
   uploadedVocalReferenceTrack = null,
@@ -189,6 +192,12 @@ export function AiLyricExtractor({
   jobOwnerRef.current = { jobId: job?.id ?? null, trackId: job?.audioTrackId ?? null, userId: job?.userId ?? null }
 
   const activeJobId = job && isActiveLyricTranscriptionJob(job) ? job.id : null
+  usePageActivities('lyric-manager', 'ai-extractor', {
+    recovery: loading && 'Checking lyric extraction',
+    extraction: (actionBusy || Boolean(activeJobId)) && 'Extracting lyrics',
+  })
+  // Keep the page's job summary current, including when the extraction panel is closed.
+  useEffect(() => { onJobChange?.(job) }, [job, onJobChange])
   const activeJobTrackId = activeJobId ? job?.audioTrackId ?? null : null
   const activeJobUserId = activeJobId ? job?.userId ?? null : null
   const jobFingerprintRef = useRef('')
@@ -333,9 +342,9 @@ export function AiLyricExtractor({
     }
     preparationAbortRef.current?.abort()
     preparationAbortRef.current = null
+    setLoading(Boolean(selectedTrackId))
     if (!selectedTrackId) return () => { cancelled = true }
 
-    setLoading(true)
     getRecentLyricTranscriptionJobs(selectedTrackId)
       .then(async jobs => {
         if (cancelled) return
