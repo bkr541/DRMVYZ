@@ -5,6 +5,7 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const { EventEmitter } = require('node:events')
 const { installDiagnosticsBridge } = require('./diagnosticsBridge.cjs')
 
 function fakeIpcMain() {
@@ -226,6 +227,71 @@ test('unwatch-main-log stops further pushes to that sender', async () => {
     await new Promise(resolve => setTimeout(resolve, 400))
 
     assert.equal(sender.sent.length, 0)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+function emitterSender() {
+  const sender = new EventEmitter()
+  sender.id = `${Date.now()}-${Math.random()}`
+  sender.send = () => {}
+  sender.isDestroyed = () => false
+  return sender
+}
+
+test('watch-main-log leaves no extra "destroyed" listener after unwatching, however many times it is reopened', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-diag-'))
+  try {
+    const filePath = path.join(dir, 'main.log')
+    fs.writeFileSync(filePath, 'initial\n')
+    const ipcMain = fakeIpcMain()
+    installDiagnosticsBridge({ ipcMain, log: fileLog(filePath) })
+    const sender = emitterSender()
+
+    for (let cycle = 0; cycle < 25; cycle += 1) {
+      ipcMain.emit('drmvyz:diagnostics:watch-main-log', { sender })
+      assert.equal(sender.listenerCount('destroyed'), 1)
+      ipcMain.emit('drmvyz:diagnostics:unwatch-main-log', { sender })
+      assert.equal(sender.listenerCount('destroyed'), 0)
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('watch-main-log keeps a single "destroyed" listener when watched again without unwatching', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-diag-'))
+  try {
+    const filePath = path.join(dir, 'main.log')
+    fs.writeFileSync(filePath, 'initial\n')
+    const ipcMain = fakeIpcMain()
+    installDiagnosticsBridge({ ipcMain, log: fileLog(filePath) })
+    const sender = emitterSender()
+
+    for (let i = 0; i < 12; i += 1) ipcMain.emit('drmvyz:diagnostics:watch-main-log', { sender })
+    assert.equal(sender.listenerCount('destroyed'), 1)
+    ipcMain.emit('drmvyz:diagnostics:unwatch-main-log', { sender })
+    assert.equal(sender.listenerCount('destroyed'), 0)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('watch-main-log still stops the watcher when the window is destroyed', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-diag-'))
+  try {
+    const filePath = path.join(dir, 'main.log')
+    fs.writeFileSync(filePath, 'initial\n')
+    const ipcMain = fakeIpcMain()
+    installDiagnosticsBridge({ ipcMain, log: fileLog(filePath) })
+    const sender = emitterSender()
+
+    ipcMain.emit('drmvyz:diagnostics:watch-main-log', { sender })
+    sender.emit('destroyed')
+    assert.equal(sender.listenerCount('destroyed'), 0)
+    // A second unwatch after destruction is a no-op rather than an error.
+    assert.doesNotThrow(() => ipcMain.emit('drmvyz:diagnostics:unwatch-main-log', { sender }))
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }

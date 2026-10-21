@@ -8,6 +8,7 @@ const log = require('./logging.cjs')
 const { installRekordboxUsbBridge } = require('../native/rekordbox/rekordboxUsbBridge.cjs')
 const { installOutputCastBridge } = require('../native/output/outputCastBridge.cjs')
 const { installDiagnosticsBridge } = require('../native/diagnostics/diagnosticsBridge.cjs')
+const { redactUrlForLog } = require('../native/diagnostics/redactUrl.cjs')
 const { installSystemMetricsBridge } = require('../native/system/systemMetricsBridge.cjs')
 const { installCameraAccessBridge, readCameraAccessStatus } = require('../native/system/cameraAccessBridge.cjs')
 
@@ -113,10 +114,12 @@ function configureSessionSecurity() {
 
   // Record network failures for the app's own backends (Supabase, casting
   // discovery, etc.) so issues like the auth-refresh ERR_TIMED_OUT leave a
-  // trace in the log file rather than only the renderer console.
+  // trace in the log file rather than only the renderer console. Signed
+  // Storage URLs carry their token in the query string, so only origin + path
+  // is logged.
   appSession.webRequest.onErrorOccurred(
     { urls: ['*://*.supabase.co/*', '*://*.supabase.io/*'] },
-    details => log.scope('system:network').warn('net-error', { url: details.url, error: details.error }),
+    details => log.scope('system:network').warn('net-error', { url: redactUrlForLog(details.url), error: details.error }),
   )
 }
 

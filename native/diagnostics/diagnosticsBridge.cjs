@@ -79,7 +79,7 @@ async function readRange(filePath, start, end) {
 function startWatching(sender, log) {
   stopWatcher(sender.id)
   const filePath = log.transports.file.getFile().path
-  const state = { offset: 0, ready: false, timer: null, watcher: null, disposed: false }
+  const state = { offset: 0, ready: false, timer: null, watcher: null, disposed: false, sender, onDestroyed: null }
   watchersBySenderId.set(sender.id, state)
 
   const readDelta = async () => {
@@ -115,7 +115,10 @@ function startWatching(sender, log) {
     log.scope('system:diagnostics').warn('watch-main-log failed to start:', error)
   }
 
-  sender.once('destroyed', () => stopWatcher(sender.id))
+  // Kept on the state so stopWatcher can take it off again: otherwise every watch/unwatch cycle (the panel mounting, StrictMode's second
+  // mount) leaves one more 'destroyed' listener on the same WebContents until Node warns about a leak.
+  state.onDestroyed = () => stopWatcher(sender.id)
+  sender.once('destroyed', state.onDestroyed)
 }
 
 function stopWatcher(senderId) {
@@ -124,6 +127,11 @@ function stopWatcher(senderId) {
   state.disposed = true
   if (state.timer) clearTimeout(state.timer)
   try { state.watcher?.close() } catch { /* already closed */ }
+  if (state.onDestroyed && typeof state.sender?.removeListener === 'function') {
+    try { state.sender.removeListener('destroyed', state.onDestroyed) } catch { /* sender already gone */ }
+  }
+  state.onDestroyed = null
+  state.sender = null
   watchersBySenderId.delete(senderId)
 }
 

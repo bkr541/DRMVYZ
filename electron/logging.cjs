@@ -15,6 +15,7 @@
 const path = require('node:path')
 const { app } = require('electron')
 const log = require('electron-log/main')
+const { disableRendererMirroring } = require('../native/diagnostics/logTransportPolicy.cjs')
 
 const inRepo = !app.isPackaged
 const LOG_LEVEL = process.env.DRMVYZ_LOG_LEVEL || 'info'
@@ -30,6 +31,10 @@ log.transports.file.resolvePathFn = () => inRepo
 // Keep terminal output during development; silence the console transport in a
 // packaged build (the file still records everything).
 log.transports.console.level = inRepo ? 'debug' : false
+
+// Do not mirror main-process logs into the renderers: with console redirected below, a renderer frame that is disposed while its window closes
+// makes Electron's own error report loop through this transport (see native/diagnostics/logTransportPolicy.cjs).
+disableRendererMirroring(log)
 
 // Redirect every console.* in the main process (including the native/*.cjs
 // bridges) into electron-log without touching those call sites.
