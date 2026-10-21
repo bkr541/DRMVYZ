@@ -205,6 +205,10 @@ export interface LyricsState {
   saveTimingChanges(): Promise<SaveLyricDocumentResult | null>
   retryActiveLyricWrite(): Promise<SaveLyricDocumentResult | ActivateLyricDocumentResult | null>
   resolveActiveLyricConflict(document: LyricDocument, cues: LyricCue[]): void
+  /** Conflict way out 1: discard the unsaved edits and load the server's current version of the open document. */
+  reloadLatestLyricDocument(): Promise<boolean>
+  /** Conflict way out 2: keep the edits by saving them as a new, inactive version on the same track; the conflicted version is left as the server has it. */
+  saveActiveLyricAsNewVersion(): Promise<SaveLyricDocumentResult | null>
   restoreRecoveredLyricDraft(recovery: LyricRecoveryRecord): void
 }
 
@@ -1561,6 +1565,97 @@ export const useLyricsStore = create<LyricsState>((set, get) => ({
       updateQueueUi(set, get, queue, 'queued')
       void drainQueue(set, get, queue)
     })
+  },
+
+  reloadLatestLyricDocument: async () => {
+    if (!supabaseConfigured) return false
+    const state = get()
+    const documentId = state.editorDocumentId
+    const logicalDocumentId = state.activeLogicalDocumentId
+    if (!documentId) return false
+    const accountId = accountScope(state)
+    let full: Awaited<ReturnType<typeof getFullLyricDocument>>
+    try {
+      full = await getFullLyricDocument(documentId)
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'The latest lyric version could not be loaded.' })
+      return false
+    }
+    const current = get()
+    if (
+      current.activeLogicalDocumentId !== logicalDocumentId
+      || current.editorDocumentId !== documentId
+      || accountScope(current) !== accountId
+    ) return false
+
+    // The queue stops treating the document as conflicted: it now agrees with the server, and any save held behind the conflict is dropped
+    // with the edits it carried.
+    const queue = ensureQueue(current, logicalDocumentId, full.document, full.cues)
+    for (const held of queue.jobs.splice(0)) held.resolve(null)
+    queue.blocked = null
+    queue.failedJob = null
+    queue.canonicalDocumentId = full.document.id
+    queue.revision = full.document.revision
+    queue.canonicalDocument = full.document
+    queue.canonicalCues = [...full.cues]
+    set(latest => {
+      const writeStates = { ...latest.writeStates }
+      delete writeStates[logicalDocumentId]
+      return {
+        ...editorDocumentState(full.document, full.cues, full.document.audioTrackId, null, logicalDocumentId),
+        writeStates,
+        isSaving: false,
+        isLoading: false,
+        activeWriteStatus: 'saved' as const,
+      }
+    })
+    return true
+  },
+
+  saveActiveLyricAsNewVersion: async () => {
+    if (!supabaseConfigured) {
+      set({ error: 'Supabase is not configured.' })
+      return null
+    }
+    const state = get()
+    const original = state.editorDocument
+    const audioTrackId = original?.audioTrackId ?? state.activeAudioTrackId
+    if (!audioTrackId) {
+      set({ error: 'Open a track before saving a new lyric version.' })
+      return null
+    }
+
+    // The editor moves to a fresh draft that carries every edit, and the stuck queue of the conflicted version is dropped. The draft then
+    // saves through the normal create path, which leaves the other session's version exactly as the server has it.
+    const previousLogicalId = state.activeLogicalDocumentId
+    const previousQueue = writeQueues.get(queueKey(accountScope(state), previousLogicalId))
+    if (previousQueue) disposeQueue(previousQueue)
+    const logicalDocumentId = uniqueId('draft')
+    const baseTitle = state.draftTitle.trim() || original?.title?.trim() || 'Untitled lyrics'
+    const cues = [...state.cues]
+    set(current => {
+      const writeStates = { ...current.writeStates }
+      delete writeStates[previousLogicalId]
+      return {
+        ...editorDocumentState(null, cues, audioTrackId, state.selectedCueId, logicalDocumentId),
+        draftTitle: `${baseTitle} (copy)`,
+        draftArtist: state.draftArtist,
+        draftDefaultStyle: state.draftDefaultStyle,
+        draftDefaultAnimation: state.draftDefaultAnimation,
+        draftDefaultEffects: state.draftDefaultEffects,
+        globalOffsetMs: state.globalOffsetMs,
+        draftSourceType: original?.sourceType ?? state.draftSourceType,
+        draftSourceFormat: original?.sourceFormat ?? state.draftSourceFormat,
+        draftRawSourceText: original ? original.rawSourceText : state.draftRawSourceText,
+        draftMetadata: original?.metadata ?? state.draftMetadata,
+        draftActivateOnSave: false,
+        editorDirty: true,
+        writeStates,
+        isSaving: false,
+        activeWriteStatus: 'unsaved' as const,
+      }
+    })
+    return get().saveActiveLyricDocument(cues, { makeActive: false })
   },
 
   resolveActiveLyricConflict: (document, cues) => {

@@ -43,6 +43,7 @@ import { ConfirmLyricActivationDialog } from './components/ConfirmLyricActivatio
 import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
+import { LyricConflictDialog } from './components/LyricConflictDialog'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
@@ -233,6 +234,8 @@ export function LyricManagerView({
     updateDraftDefaultAnimation,
     updateDraftDefaultEffects,
     saveActiveLyricDocument,
+    reloadLatestLyricDocument,
+    saveActiveLyricAsNewVersion,
     saveLyricDocumentMetadata,
     setEditorDocument,
     loadLyricDocument,
@@ -968,6 +971,50 @@ export function LyricManagerView({
         : 'Unsaved edits were discarded, but their recovery copy could not be removed.')
     }
   }, [queueRecoveryMutation, setError])
+
+  // A refused save (the version was changed elsewhere) blocks every later save of it: the user must pick a way out.
+  const conflictFailure = useLyricsStore(state => state.writeStates[state.activeLogicalDocumentId]?.failure ?? null)
+  const [conflictBusy, setConflictBusy] = useState<'reload' | 'copy' | null>(null)
+
+  const handleConflictReloadLatest = useCallback(async () => {
+    setConflictBusy('reload')
+    try {
+      const reloaded = await reloadLatestLyricDocument()
+      if (!reloaded) return
+      // The edits it discards are the same ones the local recovery copy holds.
+      await discardActiveRecovery()
+      if (selectedTrack) await refreshDocuments(selectedTrack)
+      showStatus('Loaded the latest saved version')
+    } finally {
+      if (mountedRef.current) setConflictBusy(null)
+    }
+  }, [discardActiveRecovery, refreshDocuments, reloadLatestLyricDocument, selectedTrack, showStatus])
+
+  const handleConflictSaveAsNewVersion = useCallback(async () => {
+    setConflictBusy('copy')
+    try {
+      const state = useLyricsStore.getState()
+      const accountId = accountIdRef.current
+      const conflictedRecoveryKey = accountId
+        ? lyricRecoveryKey({
+            userId: accountId,
+            trackId: state.activeAudioTrackId,
+            documentId: state.editorDocumentId,
+            logicalDocumentId: state.activeLogicalDocumentId,
+          })
+        : null
+      const result = await saveActiveLyricAsNewVersion()
+      if (!result?.ok) return
+      // The edits now live in the new version, so the recovery copy of the conflicted one is obsolete.
+      if (conflictedRecoveryKey) {
+        await queueRecoveryMutation(() => getLyricRecoveryRepository().delete(conflictedRecoveryKey)).catch(() => undefined)
+      }
+      if (selectedTrack) await refreshDocuments(selectedTrack)
+      showStatus('Saved your edits as a new version')
+    } finally {
+      if (mountedRef.current) setConflictBusy(null)
+    }
+  }, [queueRecoveryMutation, refreshDocuments, saveActiveLyricAsNewVersion, selectedTrack, showStatus])
 
   const openTrackWorkflow = useCallback((
     track: LyricManagerTrack,
@@ -2379,6 +2426,16 @@ export function LyricManagerView({
           />
         </WorkspaceRail>
       </div>
+
+      <LyricConflictDialog
+        open={activeWriteStatus === 'conflict' && editorDocumentId !== null}
+        documentTitle={editorDocument?.title ?? ''}
+        serverRevision={conflictFailure?.kind === 'conflict' ? conflictFailure.currentRevision : undefined}
+        yourRevision={editorDocument?.revision}
+        busy={conflictBusy}
+        onReloadLatest={() => { void handleConflictReloadLatest() }}
+        onSaveAsNewVersion={() => { void handleConflictSaveAsNewVersion() }}
+      />
 
       <LyricRecoveryDialog
         recovery={recoveryCandidate}

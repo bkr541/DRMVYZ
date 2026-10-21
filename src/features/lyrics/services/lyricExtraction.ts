@@ -190,6 +190,13 @@ export async function getRecentLyricTranscriptionJobs(
   audioTrackId: string,
   limit = 8,
 ): Promise<LyricTranscriptionJob[]> {
+  // A job the service stopped updating would show as running forever and hold the track's only active-job slot. The database marks such
+  // jobs failed (migration 0042); do it before reading so the list is never stale. Best effort: listing must work without it.
+  try {
+    await db.rpc('fail_stale_lyric_transcription_jobs')
+  } catch {
+    // The sweep is a courtesy; the edge function runs it again before every action.
+  }
   const { data, error } = await db
     .from('lyric_transcription_jobs')
     .select(JOB_COLUMNS)

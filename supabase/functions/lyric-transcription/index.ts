@@ -597,6 +597,16 @@ async function resolveRetryAnalysisSource(
   return { mode: 'vocal_reference', ownerTrack, sourceTrack, relationship, timingOffsetMs, compatibility }
 }
 
+/**
+ * A job untouched for 15 minutes is dead (every step of a live job rewrites its row, and one provider call times out after 3 minutes),
+ * and it would otherwise hold the track's only active-job slot forever. Marks it failed so the track can be extracted again.
+ * Best effort: a failed sweep must not block the request.
+ */
+async function failStaleJobs(adminClient: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await adminClient.rpc('fail_stale_lyric_transcription_jobs', { p_user_id: userId })
+  if (error) console.error('[lyric-transcription] stale job sweep failed', error.code)
+}
+
 async function activeJob(adminClient: SupabaseClient, userId: string, audioTrackId: string): Promise<JobRow | null> {
   const { data, error } = await adminClient
     .from('lyric_transcription_jobs')
@@ -659,6 +669,14 @@ async function createJob(
     if (error.code === '23505') {
       const raced = await activeJob(adminClient, userId, resolvedSource.ownerTrack.id)
       if (raced) return { job: raced, duplicate: true }
+    }
+    // The database refuses an account's 11th job inside 24 hours (migration 0042).
+    if (error.message?.includes('lyric_transcription_daily_limit')) {
+      throw new TranscriptionError(
+        'daily_limit_reached',
+        'You have reached the limit of 10 AI lyric extractions in 24 hours. Try again later.',
+        429,
+      )
     }
     throw new TranscriptionError('database_save_failure', 'The extraction job could not be created.', 500)
   }
@@ -1907,6 +1925,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { userId, userClient, adminClient } = await authenticatedClients(req)
+    await failStaleJobs(adminClient, userId)
     const body = await req.json() as RequestBody
     if (!body || typeof body !== 'object' || typeof body.action !== 'string') {
       throw new TranscriptionError('invalid_request', 'The transcription request is invalid.')

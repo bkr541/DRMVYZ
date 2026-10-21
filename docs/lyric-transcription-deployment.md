@@ -156,3 +156,8 @@ A source codec the browser cannot decode shows a browser-decode error before loc
 - Deleting a track first creates an owner-scoped tombstone containing server-derived exact paths. The database row and cascading lyric/job derivatives are finalized only after storage cleanup completes.
 - Partial track or preparation cleanup remains retryable and visible instead of silently orphaning storage objects.
 - A job is not marked complete unless `complete_lyric_transcription_job` atomically saves a lyric document and cues.
+
+## Job guards (migration 0042)
+
+- **Stale jobs.** A job that is `queued` or `processing` and has not been updated for 15 minutes is marked `failed` (`timed_out`) by `fail_stale_lyric_transcription_jobs()`, so a function that was killed mid-job no longer holds the track's only active-job slot. The Lyric Manager calls it whenever it lists a track's jobs, and the edge function calls it before every action. The failed job can be retried.
+- **Daily limit.** An account can start 10 transcription jobs per rolling 24 hours (retries count; a request that returns an existing active job does not). The limit is enforced by the `enforce_lyric_transcription_daily_limit` trigger, so it holds for every client. To change it, edit `v_limit` in that function with a new migration. The edge function turns the refusal into `daily_limit_reached` (HTTP 429); until the function is redeployed the refusal reaches the user as the generic "could not be created" message.
