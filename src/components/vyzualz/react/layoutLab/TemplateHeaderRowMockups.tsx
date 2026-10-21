@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import type { CSSProperties, ReactNode } from 'react'
-import { CpuIcon, FloppyDiskIcon, Film01Icon, StopWatchIcon } from 'hugeicons-react'
 import { NotificationBellIcon } from '../../shared/NotificationDrawer'
 
 /**
@@ -58,29 +58,22 @@ const READINGS: Record<Exclude<MetricId, 'loading' | 'notifications'>, { label: 
 /** A rounded "HD" badge: the quality tier has no stock icon, and a resolution badge is what quality reads as in a player. */
 function QualityBadgeIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2.5" y="5" width="19" height="14" rx="3" />
-      <path d="M7 9.5v5M11 9.5v5M7 12h4" />
-      <path d="M14.5 9.5v5h1.6a2.5 2.5 0 0 0 0-5Z" />
-    </svg>
+    <AppIcon kind="sliders" size="16" />
   )
 }
 
 /** Concept 08 shows the five readings as an icon only: floppy disk (saved), film frame (FPS), stopwatch (frame time), HD badge (quality), chip (CPU). */
 const READING_ICONS: Record<keyof typeof READINGS, ReactNode> = {
-  saved: <FloppyDiskIcon size={16} aria-hidden="true" />,
-  fps: <Film01Icon size={16} aria-hidden="true" />,
-  'frame-time': <StopWatchIcon size={16} aria-hidden="true" />,
+  saved: <AppIcon kind="save" size={16} aria-hidden="true" />,
+  fps: <AppIcon kind="cinema" size={16} aria-hidden="true" />,
+  'frame-time': <AppIcon kind="timeline" size={16} aria-hidden="true" />,
   quality: <QualityBadgeIcon />,
-  cpu: <CpuIcon size={16} aria-hidden="true" />,
+  cpu: <AppIcon kind="cpu" size={16} aria-hidden="true" />,
 }
 
 function ActivityRing() {
   return (
-    <svg className="llhr-ring" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" opacity="0.28" />
-      <path className="llhr-ring-arc" d="M12 3a9 9 0 0 1 9 9" />
-    </svg>
+    <AppIcon kind="loading" className="llhr-ring app-icon--spinning" size="18" />
   )
 }
 

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import type React from 'react'
 import type { ReactPreset } from './ReactTypes'
 import { ReactPresetThumbnail } from './ReactPresetThumbnail'
@@ -16,7 +17,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
   return (
     <div className="rv-preset-browser">
       <div className="rv-panel-header">
-        <span className="rv-panel-icon">◈</span>
+        <span className="rv-panel-icon"><AppIcon kind="shader" size={14} /></span>
         <span className="rv-panel-title">Visual Engines</span>
       </div>
       <div className="rv-preset-list">
@@ -39,7 +40,7 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
                 <div className="rv-preset-card-content">
                   <div className="rv-preset-card-header">
                     <span className="rv-preset-engine-icon" style={{ color: preset.palette.primary }}>
-                      {REACT_ENGINE_CATALOG[preset.engine].icon}
+                      <AppIcon kind={REACT_ENGINE_CATALOG[preset.engine].icon} />
                     </span>
                     <span className="rv-preset-name">{preset.name}</span>
                   </div>

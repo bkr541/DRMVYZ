@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { getReactEngineIconComponent } from '../reactEngineIcons'
 import {
@@ -10,9 +11,10 @@ import {
 // Sound Drawing full-fidelity preview) so both use the exact same dropdown
 // instead of two drifting copies.
 
-function MockEngineIcon({ engineId, glyph }: { engineId: LayoutLabEngineId, glyph: string }) {
-  const IconComponent = engineId === 'template' || engineId === 'lyricManager' ? null : getReactEngineIconComponent(engineId)
-  return IconComponent ? <IconComponent /> : <>{glyph}</>
+function MockEngineIcon({ engineId }: { engineId: LayoutLabEngineId }) {
+  if (engineId === 'template' || engineId === 'lyricManager') return <AppIcon kind={engineId === 'template' ? 'grid' : 'navLyrics'} />
+  const Icon = getReactEngineIconComponent(engineId)
+  return <Icon />
 }
 
 export function MockEngineDropdown({
@@ -41,7 +43,7 @@ export function MockEngineDropdown({
           <span className="rv-engine-dropdown-description">{activeEngine.description}</span>
         </span>
         <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          <MockEngineIcon engineId={engineId} glyph={activeEngine.icon} />
+          <MockEngineIcon engineId={engineId} />
         </span>
       </button>
 
@@ -63,13 +65,13 @@ export function MockEngineDropdown({
                 }}
               >
                 <span className="rv-engine-dropdown-option-icon" aria-hidden="true">
-                  <MockEngineIcon engineId={id} glyph={engine.icon} />
+                  <MockEngineIcon engineId={id} />
                 </span>
                 <span className="rv-engine-dropdown-option-copy">
                   <span>{engine.label}</span>
                   <small className="rv-control-helper-copy">{engine.description}</small>
                 </span>
-                {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true">✓</span>}
+                {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true"><AppIcon kind="check" size={14} /></span>}
               </button>
             )
           })}

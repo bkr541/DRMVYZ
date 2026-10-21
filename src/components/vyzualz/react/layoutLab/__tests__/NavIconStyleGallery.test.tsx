@@ -21,14 +21,14 @@ afterEach(async () => {
 })
 
 describe('NavIconStyleGallery', () => {
-  it('shows five concept rows, each with the four navigation destinations and React active', async () => {
+  it('shows the five approved destinations with React active', async () => {
     await act(async () => root.render(<NavIconStyleGallery />))
-    const rows = container.querySelectorAll('[data-testid^="nav-icon-concept-"]')
-    expect(rows).toHaveLength(5)
+    const rows = container.querySelectorAll('[data-testid="nav-icon-approved"]')
+    expect(rows).toHaveLength(1)
     for (const row of rows) {
-      expect([...row.querySelectorAll('[data-nav-icon]')].map(item => item.getAttribute('data-nav-icon'))).toEqual(['react', 'show', 'lyrics', 'media'])
+      expect([...row.querySelectorAll('[data-nav-icon]')].map(item => item.getAttribute('data-nav-icon'))).toEqual(['navReact', 'navPreset', 'navShow', 'navLyrics', 'navMedia'])
       expect(row.querySelectorAll('.llni-item.is-active')).toHaveLength(1)
-      expect(row.querySelectorAll('svg')).toHaveLength(4)
+      expect(row.querySelectorAll('[data-app-icon]')).toHaveLength(5)
     }
     expect(container.textContent).toContain('Lyric Manager')
     expect(container.textContent).toContain('Media Manager')

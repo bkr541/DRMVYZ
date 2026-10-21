@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useState } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
@@ -89,16 +90,16 @@ export function PixGridAuthoringPanel() {
                 type="button"
                 aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
                 onClick={() => applyState(updatePixGridLayer(state, layer.id, { visible: !layer.visible }))}
-              >{layer.visible ? '◉' : '○'}</button>
+              >{layer.visible ? <AppIcon kind="eyeOff" size={14} /> : <AppIcon kind="eye" size={14} />}</button>
               <button
                 type="button"
                 aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
                 onClick={() => applyState(updatePixGridLayer(state, layer.id, { locked: !layer.locked }))}
-              >{layer.locked ? '🔒' : '◇'}</button>
-              <button type="button" disabled={index === 0 || layer.locked} aria-label={`Move ${layer.name} down`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, -1))}>↓</button>
-              <button type="button" disabled={index === layers.length - 1 || layer.locked} aria-label={`Move ${layer.name} up`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, 1))}>↑</button>
-              <button type="button" disabled={layer.locked} aria-label={`Duplicate ${layer.name}`} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}>⧉</button>
-              <button type="button" disabled={layer.locked} aria-label={`Delete ${layer.name}`} onClick={() => applyState(deletePixGridLayer(state, layer.id))}>×</button>
+              >{layer.locked ? <AppIcon kind="unlock" size={14} /> : <AppIcon kind="lock" size={14} />}</button>
+              <button type="button" disabled={index === 0 || layer.locked} aria-label={`Move ${layer.name} down`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, -1))}><AppIcon kind="down" size={14} /></button>
+              <button type="button" disabled={index === layers.length - 1 || layer.locked} aria-label={`Move ${layer.name} up`} onClick={() => applyState(reorderPixGridLayer(state, layer.id, 1))}><AppIcon kind="up" size={14} /></button>
+              <button type="button" disabled={layer.locked} aria-label={`Duplicate ${layer.name}`} onClick={() => applyState(duplicatePixGridLayer(state, layer.id))}><AppIcon kind="copy" size={14} /></button>
+              <button type="button" disabled={layer.locked} aria-label={`Delete ${layer.name}`} onClick={() => applyState(deletePixGridLayer(state, layer.id))}><AppIcon kind="delete" size={14} /></button>
             </div>
           ))}
           {layers.length === 0 && <p>No layers in this scene.</p>}

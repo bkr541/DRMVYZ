@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
@@ -100,7 +101,7 @@ function ExpandHslPalette() {
             <button type="button" className="llpg-expand-hdr" onClick={() => setOpenKey(open ? null : field.key)}>
               <span className="llpg-swatch-dot" style={{ background: state[field.key] }} aria-hidden="true" />
               <span className="llpg-row-label">{field.label}</span>
-              <span className="llpg-expand-caret" aria-hidden="true">▾</span>
+              <span className="llpg-expand-caret" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
             </button>
             {open && (
               <div className="llpg-expand-body">

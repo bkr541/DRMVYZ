@@ -516,7 +516,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       >
         <div className="vsm-header">
           <div id="vsm-title" className="vsm-title">SETTINGS</div>
-          <button type="button" className="vsm-close" onClick={onClose} aria-label="Close settings">×</button>
+          <button type="button" className="vsm-close" onClick={onClose} aria-label="Close settings"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="vsm-body">
           <nav className="vsm-nav" role="tablist" aria-label="Settings sections">

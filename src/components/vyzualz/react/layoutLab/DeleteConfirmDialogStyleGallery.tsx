@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { IconChipButton } from '../controls/IconChipButton'
 import { NoticeCard } from '../controls/NoticeCard'
 
@@ -23,11 +24,7 @@ const NOTICE = 'Deleted media will not be available to use within DRMVYZ.'
 // warning icon — a circle-and-line exclamation mark, not a triangle.
 function WarnIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 11v5.5" />
-      <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
+    <AppIcon kind="info"  />
   )
 }
 

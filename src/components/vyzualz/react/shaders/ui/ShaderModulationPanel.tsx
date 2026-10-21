@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { IconMorphCheckbox } from '../../controls/IconMorphToggle'
 import { IconChipButton } from '../../controls/IconChipButton'
 import React, { useState } from 'react'
@@ -104,9 +105,7 @@ export function ShaderModulationPanel({
           title={modulatableParams.length === 0
             ? 'This shader has no modulatable parameters'
             : 'Add modulation route'}
-        >
-          + Route
-        </IconChipButton>
+        ><AppIcon kind="plus" size={14} /> Route</IconChipButton>
       </div>
 
       {performanceSnapshot?.active && (
@@ -147,7 +146,7 @@ export function ShaderModulationPanel({
               tabIndex={0}
               onKeyDown={e => e.key === 'Enter' && setExpandedId(isExpanded ? null : route.id)}
             >
-              <span className="shader-mod-summary-toggle">{isExpanded ? '▾' : '▸'}</span>
+              <span className="shader-mod-summary-toggle">{isExpanded ? <AppIcon kind="chevronDown" size={14} /> : <AppIcon kind="chevronRight" size={14} />}</span>
               <span className="shader-mod-summary-enabled">
                 <IconMorphCheckbox
                   checked={route.enabled}

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -89,24 +90,18 @@ export function LaserDmxReactionGroupInspector() {
         <IconChipButton
           aria-label="Add reaction group"
           onClick={() => useReactStore.getState().addLaserDmxReactionGroup()}
-        >
-          + Group
-        </IconChipButton>
+        ><AppIcon kind="plus" size={14} /> Group</IconChipButton>
         {group && (
           <>
             <IconChipButton
               aria-label={`Duplicate group ${group.name}`}
               onClick={() => duplicateLaserDmxReactionGroup(group.id)}
-            >
-              ⧉ Dupe
-            </IconChipButton>
+            ><AppIcon kind="copy" size={14} /> Dupe</IconChipButton>
             <IconChipButton
               className="rv-glyph-upload-btn--danger"
               aria-label={`Delete group ${group.name}`}
               onClick={() => setConfirmDelete(true)}
-            >
-              × Delete
-            </IconChipButton>
+            ><AppIcon kind="delete" size={14} /> Delete</IconChipButton>
           </>
         )}
         <IconChipButton

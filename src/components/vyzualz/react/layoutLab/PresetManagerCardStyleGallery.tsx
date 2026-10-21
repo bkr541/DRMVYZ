@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import type { CSSProperties } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from '../controls/Badge'
 import { StatusBadge } from '../controls/StatusBadge'
 
@@ -45,7 +45,7 @@ function Badges({ sample, limit = 3 }: { sample: CardSample; limit?: number }) {
 }
 
 function Heart({ sample }: { sample: CardSample }) {
-  return sample.favorite ? <span className="llpm-heart" aria-hidden="true"><FavouriteIcon size={13} color="currentColor" /></span> : null
+  return sample.favorite ? <span className="llpm-heart" aria-hidden="true"><AppIcon kind="star" size={13} color="currentColor" /></span> : null
 }
 
 // ── 01 · Header Strip ─────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ function SelectedDot({ sample }: { sample: CardSample }) {
 function FavoriteAction({ sample }: { sample: CardSample }) {
   return (
     <span className="vz-track-row-actions">
-      <span className={`vz-track-action-btn llpm-flat-fav${sample.favorite ? ' is-on' : ''}`} aria-hidden="true"><FavouriteIcon size={14} color="currentColor" /></span>
+      <span className={`vz-track-action-btn llpm-flat-fav${sample.favorite ? ' is-on' : ''}`} aria-hidden="true"><AppIcon kind="star" size={14} color="currentColor" /></span>
     </span>
   )
 }

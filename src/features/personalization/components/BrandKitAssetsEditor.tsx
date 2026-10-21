@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
@@ -82,13 +83,13 @@ function AssetPreview({ asset, media, onRemove }: {
       <div className="bk-linked-asset-preview">
         {preview
           ? <img src={preview} alt="" />
-          : <span aria-hidden="true">{missing ? '!' : '◇'}</span>}
+          : <span aria-hidden="true">{missing ? '!' : <AppIcon kind="shape" size={14} />}</span>}
       </div>
       <div className="bk-linked-asset-copy">
         <strong>{media?.title || media?.name || asset.media?.name || 'Missing media'}</strong>
         <span>{missing ? 'This linked media was deleted or is unavailable.' : (media?.mediaRole ?? asset.media?.mediaRole ?? 'image')}</span>
       </div>
-      <button type="button" className="bk-icon-button" onClick={onRemove} aria-label={`Remove ${media?.name ?? asset.media?.name ?? 'missing asset'}`}>×</button>
+      <button type="button" className="bk-icon-button" onClick={onRemove} aria-label={`Remove ${media?.name ?? asset.media?.name ?? 'missing asset'}`}><AppIcon kind="close" size={14} /></button>
     </div>
   )
 }
@@ -119,7 +120,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
           <div>
             <h3 id="bk-picker-title"><DialogTitleIcon name="image" />Choose {ROLE_LABELS[role]}</h3>
           </div>
-          <button type="button" className="bk-icon-button" onClick={onClose} aria-label="Close asset picker">×</button>
+          <button type="button" className="bk-icon-button" onClick={onClose} aria-label="Close asset picker"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="bk-picker-toolbar">
           <label className="bk-search-label">
@@ -158,7 +159,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
                 title={synced ? item.name : 'Waiting for cloud sync'}
               >
                 <div className="bk-media-card-preview">
-                  {preview ? <img src={preview} alt="" /> : <span aria-hidden="true">◇</span>}
+                  {preview ? <img src={preview} alt="" /> : <span aria-hidden="true"><AppIcon kind="shape" size={14} /></span>}
                 </div>
                 <strong>{item.title || item.name}</strong>
                 <span>{isSvg(item) ? 'SVG' : item.mediaRole.replace(/_/g, ' ')}{synced ? '' : ' · syncing'}</span>

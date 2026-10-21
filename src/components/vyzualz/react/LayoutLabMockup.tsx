@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
@@ -48,31 +49,11 @@ const MOCK_RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'output'>[
 
 const EMPTY_ENGINE_MOCKUPS = new Set<LayoutLabEngineId>(['canvas', 'pixGrid', 'oscilloscope', 'laserDmx'])
 
-function MockChevron({ expanded }: { expanded: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d={expanded ? 'm4 12 6-6 6 6' : 'm4 8 6 6 6-6'} />
-    </svg>
-  )
-}
+function MockChevron({ expanded }: { expanded: boolean }) { return <AppIcon kind={expanded ? 'chevronUp' : 'chevronDown'} /> }
 
-function MockCastIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 15.05C3.96089 15.246 4.84294 15.7202 5.53638 16.4136C6.22982 17.1071 6.70403 17.9891 6.9 18.95M3 11C5.03079 11.2259 6.92428 12.136 8.36911 13.5809M10.95 18.95C10.8756 18.2814 10.7271 17.6277 10.5097 17M3 18.95H3.01M3 8V5H21V8M14 19H21V12" />
-    </svg>
-  )
-}
+function MockCastIcon() { return <AppIcon kind="cast" /> }
 
-function MockStageFocusIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
-      <circle cx="12" cy="12" r="3.25" />
-      <path d="M12 7.5v1.25M12 15.25v1.25M7.5 12h1.25M15.25 12h1.25" />
-    </svg>
-  )
-}
+function MockStageFocusIcon() { return <AppIcon kind="cameraFocus" /> }
 
 export function LayoutLabMockup() {
   const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinema2')

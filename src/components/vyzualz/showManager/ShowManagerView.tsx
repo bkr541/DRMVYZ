@@ -131,21 +131,26 @@ import {
 import '../../../styles/showManager.css'
 import { DialogTitleIcon } from '../../shared/DialogTitleIcon'
 
+const STAGE_TOOL_LABELS = {
+  pointer: 'Select tool', move: 'Move tool', rotateRight: 'Rotate tool',
+  gridSnap: 'Snap to grid', grid: 'Grid', split: 'Split view',
+} as const
+
 const COMPONENTS = [
-  ['▦', 'Pixel Grid', '12'],
-  ['▥', 'Bars', '8'],
-  ['✦', 'Lights', '16'],
-  ['·', 'Particles', '24'],
-  ['ϟ', 'Strobe', '6'],
-  ['T', 'Text', '10'],
+  ['pixGrid', 'Pixel Grid', '12'],
+  ['bars', 'Bars', '8'],
+  ['movingHead', 'Lights', '16'],
+  ['particles', 'Particles', '24'],
+  ['strobe', 'Strobe', '6'],
+  ['text', 'Text', '10'],
 ] as const
 
 const ASSETS = [
-  ['▧', 'Textures', '28'],
-  ['◇', 'Materials', '14'],
-  ['▶', 'Media', '36'],
-  ['◈', 'Shaders', '18'],
-  ['Aa', 'Fonts', '9'],
+  ['texture', 'Textures', '28'],
+  ['shape', 'Materials', '14'],
+  ['image', 'Media', '36'],
+  ['shader', 'Shaders', '18'],
+  ['font', 'Fonts', '9'],
 ] as const
 
 const SHOW_MANAGER_SECTION_COLORS: Record<ReactSectionType, string> = {
@@ -2161,20 +2166,20 @@ export function ShowManagerView() {
                   onClick={activeSectionEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
                   disabled={(activeSectionEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
                   title="Undo Show edit"
-                >↶</button>
+                ><AppIcon kind="undo" size={14} /></button>
                 <button
                   type="button"
                   onClick={activeSectionEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
                   disabled={(activeSectionEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
                   title="Redo Show edit"
-                >↷</button>
-                {['↖', '✥', '⌗', '▦', '◫'].map(tool => (
-                  <button key={tool} type="button" disabled>{tool}</button>
+                ><AppIcon kind="redo" size={14} /></button>
+                {(['pointer', 'move', 'gridSnap', 'grid', 'split'] as const).map(tool => (
+                  <button key={tool} type="button" disabled aria-label={STAGE_TOOL_LABELS[tool]}><AppIcon kind={tool} size={14} /></button>
                 ))}
               </>
             ) : (
-              ['↖', '✥', '↻', '⌗', '▦', '◫', '20'].map(tool => (
-                <button key={tool} type="button" disabled>{tool}</button>
+              (['pointer', 'move', 'rotateRight', 'gridSnap', 'grid', 'split', '20'] as const).map(tool => (
+                <button key={tool} type="button" disabled aria-label={tool === '20' ? 'Zoom 20' : STAGE_TOOL_LABELS[tool]}>{tool === '20' ? tool : <AppIcon kind={tool} size={14} />}</button>
               ))
             )}
           </div>
@@ -2270,7 +2275,7 @@ export function ShowManagerView() {
                 {COMPONENTS.map(([icon, label, count], index) => (
                   <button key={label} type="button" className={`sm-library-row${index === 0 ? ' is-active' : ''}`} disabled>
                     <span className="sm-library-grip">⋮⋮</span>
-                    <span className="sm-library-icon">{icon}</span>
+                    <span className="sm-library-icon"><AppIcon kind={icon} /></span>
                     <span>{label}</span>
                     <small>{count}</small>
                   </button>
@@ -2281,7 +2286,7 @@ export function ShowManagerView() {
                 {ASSETS.map(([icon, label, count]) => (
                   <button key={label} type="button" className="sm-library-row" disabled>
                     <span className="sm-library-grip">⋮⋮</span>
-                    <span className="sm-library-icon">{icon}</span>
+                    <span className="sm-library-icon"><AppIcon kind={icon} /></span>
                     <span>{label}</span>
                     <small>{count}</small>
                   </button>
@@ -2310,7 +2315,7 @@ export function ShowManagerView() {
                     <span className="sm-library-grip">⋮⋮</span>
                     <span className="sm-layer-dot" />
                     <span>{layer.name}</span>
-                    <small>{layer.visible ? '●' : '○'}</small>
+                    <small>{layer.visible ? '●' : <AppIcon kind="eyeOff" size={14} />}</small>
                   </button>
                 ))}
                 {selectedLayers.length === 0 && <div className="sm-library-empty">No layers in this scene.</div>}
@@ -2723,7 +2728,7 @@ export function ShowManagerView() {
               <Collapsible label="Preset" defaultOpen>
                 <div className="sm-preset-browser">
                   <div className="sm-preset-browser-heading">
-                    <span aria-hidden="true">{REACT_ENGINE_CATALOG.pixGrid.icon}</span>
+                    <span aria-hidden="true"><AppIcon kind={REACT_ENGINE_CATALOG.pixGrid.icon} /></span>
                     <div>
                       <strong>PixGrid Presets</strong>
                       <small>{pixGridPresets.length} preset{pixGridPresets.length === 1 ? '' : 's'} available</small>
@@ -3339,7 +3344,7 @@ function CanvasShowManagerStage({
   if (!show) {
     return (
       <div className="sm-canvas-stage sm-canvas-stage--empty" data-testid="canvas-show-manager-empty-state">
-        <span aria-hidden="true">▣</span>
+        <span aria-hidden="true"><AppIcon kind="canvas" size={14} /></span>
         <strong>No Canvas Show open</strong>
         <p>Create a Show or open one using the header actions.</p>
         <button type="button" onClick={onCreate}>New Show</button>

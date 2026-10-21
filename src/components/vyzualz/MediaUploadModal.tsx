@@ -1021,7 +1021,7 @@ export function MediaUploadModal({
               {isEdit ? 'EDIT MEDIA' : isFontQueue ? 'FONT UPLOAD' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
           </div>
-          <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close">×</button>
+          <button className="mum-close" onClick={() => { if (!busy) onClose() }} aria-label="Close"><AppIcon kind="close" size={14} /></button>
         </div>
 
         {/* ── Body ───────────────────────────────────────────────────── */}

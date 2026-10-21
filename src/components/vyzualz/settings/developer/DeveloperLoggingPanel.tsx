@@ -237,7 +237,7 @@ export function DeveloperLoggingPanel() {
                     <td><span className={`vsm-dev-log-component vsm-dev-log-component--${entry.component}`}>{LOG_COMPONENT_LABELS[entry.component]}</span></td>
                     <td className="vsm-dev-log-scope">{entry.scope || '—'}</td>
                     <td className="vsm-dev-log-message">
-                      {hasMore && <span className="vsm-dev-log-expand-caret" aria-hidden="true">{expanded ? '▾' : '▸'}</span>}
+                      {hasMore && <span className="vsm-dev-log-expand-caret" aria-hidden="true">{expanded ? <AppIcon kind="chevronDown" size={14} /> : <AppIcon kind="chevronRight" size={14} />}</span>}
                       <span className="vsm-dev-log-message-first">{lines[0]}</span>
                       {hasMore && (
                         <div className={`vsm-dev-log-message-collapse${expanded ? ' is-expanded' : ''}`}>

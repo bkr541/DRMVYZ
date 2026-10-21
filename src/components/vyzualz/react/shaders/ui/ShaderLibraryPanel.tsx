@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../../controls/DreamVizTextInput'
 import React, { useCallback, useRef, useState } from 'react'
 import { useShaderLibraryStore } from '../library/ShaderLibraryStore'
@@ -91,7 +92,7 @@ function SceneCard({
         <div className="rv-shader-scene-meta">
           <span className="rv-shader-scene-category">{def.category}</span>
           {entry.bundled && <span className="rv-shader-scene-badge">bundled</span>}
-          {entry.favorite && <span className="rv-shader-scene-badge rv-shader-scene-badge--fav">★</span>}
+          {entry.favorite && <span className="rv-shader-scene-badge rv-shader-scene-badge--fav"><AppIcon kind="star" size={14} /></span>}
           {isActive && isModified && <span className="rv-shader-scene-badge">Modified from preset</span>}
         </div>
       </div>
@@ -104,27 +105,21 @@ function SceneCard({
           onClick={() => onFavorite(def.id)}
           title={entry.favorite ? 'Remove from favorites' : 'Add to favorites'}
           aria-label="Toggle favorite"
-        >
-          ★
-        </button>
+        ><AppIcon kind={entry.favorite ? 'starOff' : 'star'} size={14} /></button>
         <button
           type="button"
           className="rv-shader-scene-action"
           onClick={() => onDuplicate(def.id)}
           title="Duplicate scene"
           aria-label="Duplicate"
-        >
-          ⧉
-        </button>
+        ><AppIcon kind="copy" size={14} /></button>
         <button
           type="button"
           className="rv-shader-scene-action"
           onClick={() => onExport(def.id)}
           title="Export scene as JSON"
           aria-label="Export"
-        >
-          ↓
-        </button>
+        ><AppIcon kind="down" size={14} /></button>
         {!entry.bundled && (
           <>
             <button
@@ -142,9 +137,7 @@ function SceneCard({
               onClick={() => onDelete(def.id)}
               title="Delete scene"
               aria-label="Delete"
-            >
-              ✕
-            </button>
+            ><AppIcon kind="delete" size={14} /></button>
           </>
         )}
       </div>

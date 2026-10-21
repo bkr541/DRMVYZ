@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useId, useState } from 'react'
 import { IconChipButton } from './controls/IconChipButton'
 import { useShallow } from 'zustand/react/shallow'
@@ -280,7 +281,7 @@ function RouteRow({
     <div className="rv-ldx-route">
       <div className="rv-ldx-route-header">
         <ToggleRow label="Route Enabled" value={route.enabled} onChange={v => onChange({ enabled: v })} />
-        <button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={onDelete}>×</button>
+        <button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={onDelete}><AppIcon kind="delete" size={14} /></button>
       </div>
       <SelectRow label="Source" value={route.source} onChange={v => onChange({ source: v })} options={sources} />
       <SelectRow label="Target" value={route.target} onChange={v => onChange({ target: v as LaserDmxModulationRoute['target'] })} options={targets} />
@@ -429,9 +430,7 @@ function LaserDmxBeamMatrixModPanel() {
               onDelete={() => removeLaserDmxMatrixGlobalRoute(route.id)}
             />
           ))}
-          <IconChipButton style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}>
-            + Add Global Route
-          </IconChipButton>
+          <IconChipButton style={{ marginTop: 6 }} onClick={addLaserDmxMatrixGlobalRoute}><AppIcon kind="plus" size={14} /> Add Global Route</IconChipButton>
         </Collapsible>
       )}
 
@@ -453,9 +452,7 @@ function LaserDmxBeamMatrixModPanel() {
                   onDelete={() => removeLaserDmxReactionGroupRoute(selectedGroup.id, route.id)}
                 />
               ))}
-              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}>
-                + Add Group Route
-              </IconChipButton>
+              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxReactionGroupRoute(selectedGroup.id)}><AppIcon kind="plus" size={14} /> Add Group Route</IconChipButton>
             </Collapsible>
           )}
         </>
@@ -481,9 +478,7 @@ function LaserDmxBeamMatrixModPanel() {
                   onDelete={() => removeLaserDmxMatrixBeamRoute(primaryBeam.id, route.id)}
                 />
               ))}
-              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}>
-                + Add Beam Route
-              </IconChipButton>
+              <IconChipButton style={{ marginTop: 6 }} onClick={() => addLaserDmxMatrixBeamRoute(primaryBeam.id)}><AppIcon kind="plus" size={14} /> Add Beam Route</IconChipButton>
             </Collapsible>
           )}
         </>

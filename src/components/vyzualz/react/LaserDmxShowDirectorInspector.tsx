@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -928,9 +929,9 @@ export function LaserDmxShowDirectorInspector({ fixture }: LaserDmxShowDirectorI
                       <input aria-label={`Point ${index + 1} X`} type="number" value={point.x} min={0} max={gridBounds.maxX} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { x: clamp(finite(event.target.value, point.x), 0, gridBounds.maxX) }))} />
                       <input aria-label={`Point ${index + 1} Y`} type="number" value={point.y} min={0} max={gridBounds.maxY} step={settings.snapEnabled ? 1 : 0.01} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { y: clamp(finite(event.target.value, point.y), 0, gridBounds.maxY) }))} />
                       <label><IconMorphCheckbox checked={point.blanked} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { blanked: event.target.checked }))} /> Blank</label>
-                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, -1))} disabled={index === 0} aria-label={`Move point ${index + 1} earlier`}>↑</button>
-                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, 1))} disabled={index === scanner.path.points.length - 1} aria-label={`Move point ${index + 1} later`}>↓</button>
-                      <button type="button" onClick={() => commitScanner(removeLaserDmxScannerPoint(scanner, point.id))} disabled={scanner.path.points.length <= 1} aria-label={`Remove point ${index + 1}`}>×</button>
+                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, -1))} disabled={index === 0} aria-label={`Move point ${index + 1} earlier`}><AppIcon kind="up" size={14} /></button>
+                      <button type="button" onClick={() => commitScanner(reorderLaserDmxScannerPoint(scanner, point.id, 1))} disabled={index === scanner.path.points.length - 1} aria-label={`Move point ${index + 1} later`}><AppIcon kind="down" size={14} /></button>
+                      <button type="button" onClick={() => commitScanner(removeLaserDmxScannerPoint(scanner, point.id))} disabled={scanner.path.points.length <= 1} aria-label={`Remove point ${index + 1}`}><AppIcon kind="close" size={14} /></button>
                       <div className="rv-show-director-scanner-point__overrides">
                         <label>Dwell <input aria-label={`Point ${index + 1} dwell`} type="number" value={point.dwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { dwellMicros: clamp(finite(event.target.value, point.dwellMicros), 0, 1000000) }))} /></label>
                         <label>Corner <input aria-label={`Point ${index + 1} corner dwell`} type="number" value={point.cornerDwellMicros ?? scanner.path.cornerDwellMicros} min={0} max={1000000} step={1} onChange={event => commitScanner(updateLaserDmxScannerPoint(scanner, point.id, { cornerDwellMicros: clamp(finite(event.target.value, scanner.path.cornerDwellMicros), 0, 1000000) }))} /></label>

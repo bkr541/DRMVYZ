@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 
@@ -28,39 +29,19 @@ interface DockRightState {
 
 type KeyKind = 'tap' | 'sync' | 'cue' | 'source'
 
-const svgProps = {
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.8,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  'aria-hidden': true,
-} as const
 
 /** The metronome glyph the production Tap key uses. */
 const TapGlyph = ({ size = 16 }: { size?: number }) => (
-  <svg viewBox="0 0 32 32" width={size} height={size} fill="currentColor" aria-hidden="true">
-    <path d="M16,21c0.3,0,0.6-0.1,0.8-0.4l13-17c0.3-0.4,0.3-1.1-0.2-1.4c-0.4-0.3-1.1-0.3-1.4,0.2l-5.7,7.5l-1-4.8 c-0.4-1.8-2-3.1-3.8-3.1h-3.4c-1.8,0-3.4,1.2-3.8,3L5.8,25.5c-0.3,1.1,0,2.2,0.7,3.1C7.2,29.5,8.2,30,9.3,30h13.3 c1.1,0,2.2-0.5,2.9-1.4c0.7-0.9,0.9-2,0.7-3.1l-2.5-9.7c-0.1-0.5-0.7-0.9-1.2-0.7c-0.5,0.1-0.9,0.7-0.7,1.2l1.5,5.8H8.6l3.8-16.5 c0.2-0.9,1-1.5,1.8-1.5h3.4c0.9,0,1.7,0.6,1.8,1.5l1.4,6.5l-5.6,7.4c-0.3,0.4-0.3,1.1,0.2,1.4C15.6,20.9,15.8,21,16,21z" />
-    <path d="M15,8h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,8,15,8z" />
-    <path d="M15,11h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,11,15,11z" />
-    <path d="M15,14h2c0.6,0,1-0.4,1-1s-0.4-1-1-1h-2c-0.6,0-1,0.4-1,1S14.4,14,15,14z" />
-  </svg>
+  <AppIcon kind="tap" size={size} />
 )
 const SyncGlyph = ({ size = 16 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}>
-    <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0" />
-  </svg>
+  <AppIcon kind="sync" size={size} />
 )
 const CueGlyph = ({ size = 16 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}><path d="M5 21V4m0 1h11l-2.5 3L16 11H5" /></svg>
+  <AppIcon kind="cue" size={size} />
 )
 const SourceGlyph = ({ size = 16 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}>
-    <path d="M4 7h10M4 17h6M18 17h2M14 7h6" />
-    <circle cx="16" cy="7" r="2" />
-    <circle cx="12" cy="17" r="2" />
-  </svg>
+  <AppIcon kind="sliders" size={size} />
 )
 
 const KEY_META: Record<KeyKind, { glyph: (size: number) => ReactNode; text: string }> = {
@@ -143,9 +124,7 @@ function Readout({ state, className = '' }: { state: DockRightState; className?:
       <span className="lldr-label">BPM</span>
       <span className="lldr-value" aria-label="Current BPM">{bpmText(state)}</span>
       {isOverride(state) && (
-        <button type="button" className="lldr-reset" aria-label="Reset to analyzed BPM" title={`Reset to analyzed BPM (${ANALYZED_BPM.toFixed(2)})`} onClick={() => state.setBpm(ANALYZED_BPM)}>
-          ↺
-        </button>
+        <button type="button" className="lldr-reset" aria-label="Reset to analyzed BPM" title={`Reset to analyzed BPM (${ANALYZED_BPM.toFixed(2)})`} onClick={() => state.setBpm(ANALYZED_BPM)}><AppIcon kind="rotateLeft" size={14} /></button>
       )}
     </div>
   )

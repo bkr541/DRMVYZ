@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -317,9 +318,7 @@ export function LaserDmxBeamMatrixEditorOverlay() {
             title={atLimit ? `Beam limit reached` : 'Add a beam — click origin then target in the grid'}
             aria-label="Add beam"
             onClick={() => setEditorMode('chooseOrigin')}
-          >
-            + Add Beam
-          </button>
+          ><AppIcon kind="plus" size={14} /> Add Beam</button>
         ) : (
           <button
             type="button"

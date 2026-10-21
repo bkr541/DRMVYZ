@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NoticeCard } from '../controls/NoticeCard'
 import { UnderlineTabs } from '../controls/UnderlineTabs'
@@ -115,185 +116,37 @@ const RAIL_RECEIVERS: RailDevice[] = [
   { id: 'preview', category: 'receiver', name: 'Booth Mac · DRMVYZ — Preview', detail: '1920 × 1080 · Primary · Paired', action: 'Live' },
 ]
 
-function CastIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 5v3a13 13 0 0 1 13 13h3A16 16 0 0 0 3 5Z" />
-      <path d="M3 11v3a7 7 0 0 1 7 7h3a10 10 0 0 0-10-10Z" />
-      <circle cx="5" cy="19" r="1.6" />
-    </svg>
-  )
-}
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 12a8 8 0 0 1 13.66-5.66M20 12a8 8 0 0 1-13.66 5.66" />
-      <path d="M17 4v4h-4M7 20v-4h4" />
-    </svg>
-  )
-}
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  )
-}
+function CastIcon() { return <AppIcon kind="cast" /> }
+function RefreshIcon() { return <AppIcon kind="sync" /> }
+function CloseIcon() { return <AppIcon kind="close" /> }
 // Same glyph as NoticeCard's canonical warning icon (canonicalControls.css'
 // "Inline Flag" winner) — a circle-and-exclamation, not a triangle, so this
 // badge reads as the same warning language the rest of the app uses.
-function WarnIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 11v5.5" />
-      <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
-  )
-}
+function WarnIcon() { return <AppIcon kind="info" /> }
 // Simplified, single-tone brand marks (fill, not outline, like real logos)
 // so the wireless-provider options read as macOS/Windows/Google Cast at a
 // glance the same way an icon rail button reads as its glyph — currentColor
 // throughout so they pick up the same hover/selected tinting as every other
 // icon in this rail.
-function AppleLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        stroke="none"
-        d="M16.7 12.6c0-2.5 2-3.9 2.1-4-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.7.9-.8 0-2-.8-3.2-.8-1.7 0-3.2 1-4.1 2.5-1.7 3-.5 7.5 1.3 9.9.8 1.2 1.8 2.6 3.1 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.7-.9 1-1.9 1.3-2.9-1.7-.7-2.7-2.4-2.7-3.7Z"
-      />
-      <path
-        fill="currentColor"
-        stroke="none"
-        d="M14.2 5.2c.6-.8 1.1-1.9 1-3-.9.1-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.9 1.1.1 2.2-.5 2.8-1.4Z"
-      />
-    </svg>
-  )
-}
-function WindowsLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect fill="currentColor" stroke="none" x="3" y="3" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="13" y="3" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="3" y="13" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="13" y="13" width="8" height="8" />
-    </svg>
-  )
-}
+function AppleLogoIcon() { return <AppIcon kind="apple" /> }
+function WindowsLogoIcon() { return <AppIcon kind="windows" /> }
 // A "C" with an open right side plus a crossbar reaching to center — the
 // same simplified shorthand most monochrome renderings of the Google "G"
 // use, since the full four-color mark doesn't work as a single-tone icon.
-function GoogleLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M18.1 6.9A8 8 0 1 0 18.1 17.1" />
-      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M19 12h-7" />
-    </svg>
-  )
-}
-function DeviceIcon({ category }: { category: DeviceCategory }) {
-  if (category === 'local') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="12" rx="1.5" />
-        <path d="M9 20h6M12 16v4" />
-      </svg>
-    )
-  }
-  if (category === 'receiver') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="2" y="6" width="20" height="12" rx="1.5" />
-        <path d="M7 3l3 3M17 3l-3 3" />
-      </svg>
-    )
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 6a12 12 0 0 1 16 0" />
-      <path d="M7 9.5a8 8 0 0 1 10 0" />
-      <path d="M10 13a4 4 0 0 1 4 0" />
-      <circle cx="12" cy="17" r="1.4" />
-    </svg>
-  )
-}
+function GoogleLogoIcon() { return <AppIcon kind="google" /> }
+function DeviceIcon({ category }: { category: DeviceCategory }) { return <AppIcon kind={category === 'local' ? 'monitor' : 'cast'} /> }
 function AspectRatioIcon({ ratio }: { ratio: AspectRatioId }) {
-  const [w, h] = ratio.split(':').map(Number)
-  const box = 15
-  const scale = box / Math.max(w, h)
-  const rectW = Math.max(4, w * scale)
-  const rectH = Math.max(4, h * scale)
-  return (
-    <svg viewBox="0 0 18 18" aria-hidden="true">
-      <rect x={(18 - rectW) / 2} y={(18 - rectH) / 2} width={rectW} height={rectH} rx="1.5" />
-    </svg>
-  )
+  const kinds = { '16:9': 'ratio16x9', '16:10': 'ratio16x10', '4:3': 'ratio4x3', '3:2': 'ratio3x2', '1:1': 'ratio1x1', '9:16': 'ratio9x16' } as const
+  return <AppIcon kind={kinds[ratio]} />
 }
-function ScopeIcon({ scope }: { scope: CastScopeId }) {
-  if (scope === 'app') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="2" y="4" width="20" height="16" rx="1.5" />
-        <path d="M8 4v16M17 4v16" />
-      </svg>
-    )
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="4" y="6" width="16" height="12" rx="1.5" />
-    </svg>
-  )
-}
+function ScopeIcon({ scope }: { scope: CastScopeId }) { return <AppIcon kind={scope === 'app' ? 'window' : 'borderless'} /> }
 // Same glyph OutputCastControl.tsx uses above its real device list.
-function AvailableDevicesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="8" cy="7" r="2.5" />
-      <circle cx="17" cy="8" r="2" />
-      <path d="M3.5 18v-2.2A3.8 3.8 0 0 1 7.3 12h1.4a3.8 3.8 0 0 1 3.8 3.8V18M14 18v-1.6a3 3 0 0 1 3-3h.8a2.7 2.7 0 0 1 2.7 2.7V18" />
-    </svg>
-  )
-}
+function AvailableDevicesIcon() { return <AppIcon kind="people" /> }
 // Activity/pulse line — labels the Current Devices status log, distinct
 // from Available Devices' circle-and-people glyph.
-function CurrentDevicesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M2 12h4l2-7 4 14 3-10 2 3h5" />
-    </svg>
-  )
-}
-function CaretIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  )
-}
-function WindowModeIcon({ mode }: { mode: WindowModeId }) {
-  if (mode === 'windowed') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="8" width="13" height="10" rx="1.2" />
-        <rect x="8" y="4" width="13" height="10" rx="1.2" opacity="0.4" />
-      </svg>
-    )
-  }
-  if (mode === 'borderless') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="3" y="5" width="18" height="14" rx="1.2" strokeDasharray="3 2.5" />
-      </svg>
-    )
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-    </svg>
-  )
-}
+function CurrentDevicesIcon() { return <AppIcon kind="waveform" /> }
+function CaretIcon() { return <AppIcon kind="chevronDown" /> }
+function WindowModeIcon({ mode }: { mode: WindowModeId }) { return <AppIcon kind={mode === 'windowed' ? 'window' : mode === 'borderless' ? 'borderless' : 'expand'} /> }
 
 function HeaderActions() {
   return (

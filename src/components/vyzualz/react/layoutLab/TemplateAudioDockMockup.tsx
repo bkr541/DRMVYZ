@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 import { isDockBlankSpace } from '../../shared/dockBlankSpace'
@@ -62,9 +63,7 @@ export function TemplateAudioDockMockup() {
             disabled={trackIndex === 0}
             onClick={() => setTrackIndex(index => Math.max(0, index - 1))}
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-              <path d="M6 5h2v14H6V5zm3.5 7L18 5v14l-8.5-7z" />
-            </svg>
+            <AppIcon kind="previous" size="16" />
           </button>
           <button
             type="button"
@@ -75,8 +74,8 @@ export function TemplateAudioDockMockup() {
             onClick={() => setPlaying(value => !value)}
           >
             {playing
-              ? <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
-              : <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>}
+              ? <AppIcon kind="pause" size="26" />
+              : <AppIcon kind="play" size="26" />}
           </button>
           <button
             type="button"
@@ -86,16 +85,12 @@ export function TemplateAudioDockMockup() {
             disabled={trackIndex === 2}
             onClick={() => setTrackIndex(index => Math.min(2, index + 1))}
           >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-              <path d="M16 5h2v14h-2V5zM6 5l8.5 7L6 19V5z" />
-            </svg>
+            <AppIcon kind="next" size="16" />
           </button>
         </div>
 
         <label className="vz-dock-addtrack-btn" title="Replace Track (mockup)">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 15V4M8 8l4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-          </svg>
+          <AppIcon kind="upload" size="14" />
           <span>Replace Track</span>
         </label>
 
@@ -107,9 +102,7 @@ export function TemplateAudioDockMockup() {
 
           <div className="az-dock-volume vz-dock-volume-row">
             <span className="az-dock-vol-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="rgba(245,248,250,0.4)">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-              </svg>
+              <AppIcon kind="volume" size="14" />
             </span>
             <span className="az-dock-vol-db vz-dock-vol-db">
               {volume < 0.001 ? '-∞ dB' : `${(20 * Math.log10(volume)).toFixed(1)} dB`}
@@ -130,9 +123,7 @@ export function TemplateAudioDockMockup() {
         </div>
 
         <label className="vz-dock-addtrack-btn" title="Replace Track (mockup)">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 15V4M8 8l4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-          </svg>
+          <AppIcon kind="upload" size="14" />
           <span>Replace Track</span>
         </label>
       </div>
@@ -156,8 +147,8 @@ export function TemplateAudioDockMockup() {
           </div>
         </div>
         <div className="vz-dock-zoom-btns">
-          <button type="button" className="vz-dock-zoom-btn" title="Zoom in (mockup)">+</button>
-          <button type="button" className="vz-dock-zoom-btn" title="Zoom out (mockup)">−</button>
+          <button type="button" className="vz-dock-zoom-btn" title="Zoom in (mockup)"><AppIcon kind="plus" size={14} /></button>
+          <button type="button" className="vz-dock-zoom-btn" title="Zoom out (mockup)"><AppIcon kind="minus" size={14} /></button>
         </div>
       </div>
       </div>
@@ -170,7 +161,7 @@ export function TemplateAudioDockMockup() {
             <div className="vz-dock-bpm-block">
               <div className="vz-dock-bpm-block-top">
                 <span className="vz-dock-bpm-block-label">BPM</span>
-                <button type="button" className="vz-dock-bpm-reset-btn" title="Reset to analyzed BPM (mockup)">↺</button>
+                <button type="button" className="vz-dock-bpm-reset-btn" title="Reset to analyzed BPM (mockup)"><AppIcon kind="rotateLeft" size={14} /></button>
               </div>
               <div className="vz-dock-bpm-block-row">
                 <span
@@ -182,10 +173,10 @@ export function TemplateAudioDockMockup() {
                 </span>
                 <div className="vz-dock-bpm-chevrons">
                   <button type="button" className="vz-dock-bpm-chevron" title="BPM +1" onClick={() => setBpm(value => value + 1)}>
-                    <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 15l5-5 5 5z" /></svg>
+                    <AppIcon kind="up" size="8" />
                   </button>
                   <button type="button" className="vz-dock-bpm-chevron" title="BPM −1" onClick={() => setBpm(value => value - 1)}>
-                    <svg viewBox="0 0 24 24" width="8" height="8" fill="currentColor"><path d="M7 9l5 5 5-5z" /></svg>
+                    <AppIcon kind="down" size="8" />
                   </button>
                 </div>
               </div>
@@ -219,15 +210,11 @@ export function TemplateAudioDockMockup() {
 
         <div className="vz-dock-right-btns">
           <button type="button" className="vz-dock-tap-btn" title="Tap tempo (mockup)" aria-label="Tap tempo (mockup)">
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 16V8M12 16V4M18 16v-5" />
-            </svg>
+            <AppIcon kind="tap" className="vz-dock-action-icon" size="13" />
             <span className="vz-dock-tap-label">TAP</span>
           </button>
           <button type="button" className="vz-dock-cue-btn" title="Set cue point (mockup)" aria-label="Set cue point (mockup)">
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M5 21V4m0 1h11l-2.5 3L16 11H5" />
-            </svg>
+            <AppIcon kind="sync" className="vz-dock-action-icon" size="13" />
             <span className="vz-dock-cue-label">CUE</span>
           </button>
           <button
@@ -238,9 +225,7 @@ export function TemplateAudioDockMockup() {
             aria-label={bpmSync ? 'BPM Sync: ON (mockup)' : 'BPM Sync: OFF (mockup)'}
           >
             {bpmSync && <span className="vz-dock-sync-dot" />}
-            <svg className="vz-dock-action-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M10.5 13.5l3-3M7.2 16.8l-1 1a3.4 3.4 0 0 1-4.8-4.8l3.2-3.2a3.4 3.4 0 0 1 4.8 0M16.8 7.2l1-1a3.4 3.4 0 0 1 4.8 4.8l-3.2 3.2a3.4 3.4 0 0 1-4.8 0" />
-            </svg>
+            <AppIcon kind="mic" className="vz-dock-action-icon" size="13" />
             <span className="vz-dock-sync-master-label">SYNC</span>
           </button>
         </div>

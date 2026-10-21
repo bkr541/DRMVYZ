@@ -710,9 +710,9 @@ function TimelineGroup({ group, model, collapsed, viewport, onToggle }: {
         onClick={onToggle}
       >
         <span className="ttv-group-title">
-          <span className="ttv-chevron">⌄</span>
+          <span className="ttv-chevron"><AppIcon kind="chevronDown" size={14} /></span>
           <span>{group.title}</span>
-          <span className="ttv-group-toggle-mark" aria-hidden="true">▾</span>
+          <span className="ttv-group-toggle-mark" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
         </span>
         <span className="ttv-group-track" aria-hidden="true" />
       </button>

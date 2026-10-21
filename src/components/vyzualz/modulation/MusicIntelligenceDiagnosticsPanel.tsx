@@ -1218,7 +1218,7 @@ function MiSection({ title, children }: { title: string; children: React.ReactNo
           <MiSectionIcon title={title} />
           <span>{title}</span>
         </span>
-        <span className="vz-mi-section-arrow" aria-hidden="true">▾</span>
+        <span className="vz-mi-section-arrow" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
       {open && <div className="vz-mi-section-body">{children}</div>}
     </section>

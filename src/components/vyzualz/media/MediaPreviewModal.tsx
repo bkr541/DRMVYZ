@@ -118,7 +118,7 @@ export function MediaPreviewModal({
       >
         <div className="mpm-header">
           <span className="mpm-title" title={media.title ?? media.name}>{media.title ?? media.name}</span>
-          <button className="mpm-close" onClick={onClose} aria-label="Close preview">×</button>
+          <button className="mpm-close" onClick={onClose} aria-label="Close preview"><AppIcon kind="close" size={14} /></button>
         </div>
 
         <div className={`mpm-media-area${hasAlpha ? ' mpm-media-area--transparent' : ''}`}>

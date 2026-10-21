@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 
@@ -24,31 +25,19 @@ const EMPTY_TITLE = 'No track loaded'
 const EMPTY_ARTIST = 'Load a track to begin'
 const PROGRESS = 0.38
 
-const svgProps = {
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 1.8,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  'aria-hidden': true,
-} as const
 
 const PlayGlyph = ({ size }: { size: number }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+  <AppIcon kind="play" size={size} />
 )
 const PauseGlyph = ({ size }: { size: number }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+  <AppIcon kind="pause" size={size} />
 )
 /** Load / replace: an arrow rising out of a tray — "bring a file in". Not a swap or loop glyph, which would read as repeat in a player. */
 const LoadGlyph = ({ size = 14 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}><path d="M12 15V4M8 8l4-4 4 4M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></svg>
+  <AppIcon kind="upload" size={size} />
 )
 const VolumeGlyph = ({ size = 14 }: { size?: number }) => (
-  <svg {...svgProps} width={size} height={size}>
-    <path d="M4 9.5v5h3.5L12 19V5L7.5 9.5H4z" fill="currentColor" stroke="none" />
-    <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
-  </svg>
+  <AppIcon kind="volume" size={size} />
 )
 
 const dbLabel = (volume: number) => (volume < 0.001 ? '-∞ dB' : `${(20 * Math.log10(volume)).toFixed(1)} dB`)

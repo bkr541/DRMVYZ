@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { useMemo, useState, type ReactNode } from 'react'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { RecordingPanel } from '../../recording/RecordingPanel'
@@ -113,14 +114,14 @@ const PHRASE_SEGMENT_OPTIONS = ['Any phrase segment', 'Entry', 'Early', 'Middle'
 const CROSS_ENGINE_PRESET_GROUPS: Array<{
   engineId: Exclude<ReactEngineId, 'shaderPads' | 'pixGrid'>
   label: string
-  icon: string
+  icon: AppIconKind
   presetName: string
   description: string
 }> = [
-  { engineId: 'cinema2', label: 'Cinema 2.0', icon: '◆', presetName: 'Native Preset', description: 'Native cinematic visual performance engine.' },
-  { engineId: 'oscilloscope', label: 'Sound Drawing', icon: '〰', presetName: 'XY Cyan Scope', description: 'Classic cyan scope preset.' },
-  { engineId: 'laserDmx', label: 'LaserDMX', icon: '⌬', presetName: 'Beam Matrix', description: 'Beam Matrix look.' },
-  { engineId: 'canvas', label: 'CANVAS', icon: '▣', presetName: 'Clean Playback', description: 'Clean uploaded-media playback.' },
+  { engineId: 'cinema2', label: 'Cinema 2.0', icon: 'cinema', presetName: 'Native Preset', description: 'Native cinematic visual performance engine.' },
+  { engineId: 'oscilloscope', label: 'Sound Drawing', icon: 'waveform', presetName: 'XY Cyan Scope', description: 'Classic cyan scope preset.' },
+  { engineId: 'laserDmx', label: 'LaserDMX', icon: 'laser', presetName: 'Beam Matrix', description: 'Beam Matrix look.' },
+  { engineId: 'canvas', label: 'CANVAS', icon: 'canvas', presetName: 'Clean Playback', description: 'Clean uploaded-media playback.' },
 ]
 
 
@@ -147,10 +148,10 @@ function CrossEnginePresetGroup({
   return (
     <div className={`rv-preset-group${collapsed ? ' rv-preset-group--collapsed' : ''}`}>
       <button type="button" className="rv-preset-group-hdr" onClick={() => setCollapsed(value => !value)} aria-expanded={!collapsed}>
-        <span className="rv-preset-group-hdr-icon" aria-hidden="true">{group.icon}</span>
+        <span className="rv-preset-group-hdr-icon" aria-hidden="true"><AppIcon kind={group.icon} /></span>
         <span className="rv-preset-group-hdr-label">{group.label}</span>
         <span className="rv-preset-group-hdr-count">1</span>
-        <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
+        <span className="rv-preset-group-hdr-chevron" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
       {!collapsed && (
         <div className="rv-preset-group-cards" data-preset-grid>
@@ -158,7 +159,7 @@ function CrossEnginePresetGroup({
             id={`layout-lab-${group.engineId}-preset`}
             title={group.presetName}
             description={group.description}
-            thumbnail={<div className="rv-layout-lab-cross-engine-thumb" aria-hidden="true">{group.icon}</div>}
+            thumbnail={<div className="rv-layout-lab-cross-engine-thumb" aria-hidden="true"><AppIcon kind={group.icon} /></div>}
             chips={[{ label: group.label }]}
             activateLabel={`Load ${group.presetName}`}
             onActivate={() => onSelectEngine(group.engineId)}
@@ -201,7 +202,7 @@ function PresetsTabMockup({ state, onSelectEngine }: { state: PixGridMockState; 
           <div className="rv-presets-panel" data-layout-lab-pix-grid="presets">
             <header className="rv-preset-library-header">
               <div className="rv-preset-library-engine">
-                <span aria-hidden="true">▦</span>
+                <span aria-hidden="true"><AppIcon kind="pixGrid" size={14} /></span>
                 <div>
                   <strong>PixGrid</strong>
                   <small>{state.presetFilter === 'current' ? `${visible.length} presets for the selected engine` : `${shownCount} presets shown`}</small>
@@ -227,7 +228,7 @@ function PresetsTabMockup({ state, onSelectEngine }: { state: PixGridMockState; 
               {visible.length === 0 ? (
                 <div className="rv-preset-library-empty">
                   <strong>No favorite presets yet</strong>
-                  <span>Choose ☆ on a preset to pin it here.</span>
+                  <span>Choose <AppIcon kind="star" size={14} /> on a preset to pin it here.</span>
                 </div>
               ) : state.presetFilter === 'current' ? (
                 <div className="rv-preset-group-cards rv-preset-group-cards--current" data-preset-grid>{cards}</div>
@@ -235,10 +236,10 @@ function PresetsTabMockup({ state, onSelectEngine }: { state: PixGridMockState; 
                 <>
                   <div className="rv-preset-group">
                     <button type="button" className="rv-preset-group-hdr" aria-expanded="true">
-                      <span className="rv-preset-group-hdr-icon" aria-hidden="true">▦</span>
+                      <span className="rv-preset-group-hdr-icon" aria-hidden="true"><AppIcon kind="pixGrid" size={14} /></span>
                       <span className="rv-preset-group-hdr-label">PixGrid</span>
                       <span className="rv-preset-group-hdr-count">{visible.length}</span>
-                      <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
+                      <span className="rv-preset-group-hdr-chevron" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
                     </button>
                     <div className="rv-preset-group-cards" data-preset-grid>{cards}</div>
                   </div>

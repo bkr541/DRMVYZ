@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useId, useState } from 'react'
 import type { BrandPalette, BrandPaletteRole } from '../BrandKitTypes'
@@ -92,7 +93,7 @@ function PaletteField({ role, value, resetValue, onChange, compact }: {
           }}
           aria-label={`Reset ${ROLE_LABELS[role]} color`}
           title={`Reset ${ROLE_LABELS[role]}`}
-        >↺</button>
+        ><AppIcon kind="rotateLeft" size={14} /></button>
       </div>
       {!valid && <span id={`${id}-error`} className="bk-field-error">Use a six-digit hex color such as #19BFF2.</span>}
     </div>

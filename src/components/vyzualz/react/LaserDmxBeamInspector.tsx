@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -147,13 +148,11 @@ function SingleBeamInspector({ beam, groups }: SingleBeamProps) {
       )}
 
       <div className="rv-bm-button-row rv-bm-button-row--spaced">
-        <IconChipButton onClick={() => duplicateLaserDmxMatrixBeam(bid)}>⧉ Dupe</IconChipButton>
+        <IconChipButton onClick={() => duplicateLaserDmxMatrixBeam(bid)}><AppIcon kind="copy" size={14} /> Dupe</IconChipButton>
         <IconChipButton
           className="rv-glyph-upload-btn--danger"
           onClick={() => setConfirmDelete(true)}
-        >
-          × Delete
-        </IconChipButton>
+        ><AppIcon kind="delete" size={14} /> Delete</IconChipButton>
       </div>
 
       {confirmDelete && (
@@ -234,9 +233,7 @@ function MultiBeamBulkEditor({ beams, groups, maxBeams }: MultiBeamProps) {
           className="rv-glyph-upload-btn--danger"
           aria-label="Delete selected beams"
           onClick={() => setConfirmDeleteSelected(true)}
-        >
-          × Delete
-        </IconChipButton>
+        ><AppIcon kind="delete" size={14} /> Delete</IconChipButton>
       </div>
 
       <CtrlSection label="Assign Group" />

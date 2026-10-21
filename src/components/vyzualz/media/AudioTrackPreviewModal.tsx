@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useState } from 'react'
 import { useAudioStore } from '../../../stores/audioStore'
 import type { SavedAudioTrack } from '../../../stores/audioStore'
@@ -34,7 +35,7 @@ export function AudioTrackPreviewModal({ track, onClose }: { track: SavedAudioTr
           <div>
             <h2 id="audio-preview-title"><DialogTitleIcon name="play" />{track.title}</h2>
           </div>
-          <button type="button" className="mpm-close" onClick={onClose} aria-label="Close audio preview">×</button>
+          <button type="button" className="mpm-close" onClick={onClose} aria-label="Close audio preview"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="mmv-audio-preview-body">
           {loading ? (

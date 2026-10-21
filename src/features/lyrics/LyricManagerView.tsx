@@ -2096,7 +2096,7 @@ export function LyricManagerView({
           {drawers.left && (
             <div className="lmv-drawer-head">
               <span>Tracks &amp; Versions</span>
-              <button type="button" className="lmv-drawer-close" aria-label="Close tracks and versions" onClick={() => setOpenDrawer(null)}>×</button>
+              <button type="button" className="lmv-drawer-close" aria-label="Close tracks and versions" onClick={() => setOpenDrawer(null)}><AppIcon kind="close" size={14} /></button>
             </div>
           )}
           <div
@@ -2279,7 +2279,7 @@ export function LyricManagerView({
                   aria-expanded={openDrawer === 'right'}
                   onClick={() => toggleDrawer('right')}
                 >
-                  Inspector ▸
+                  Inspector <AppIcon kind="chevronRight" size={14} />
                 </button>
               )}
             </div>
@@ -2384,7 +2384,7 @@ export function LyricManagerView({
           {drawers.right && (
             <div className="lmv-drawer-head">
               <span>Inspector</span>
-              <button type="button" className="lmv-drawer-close" aria-label="Close inspector" onClick={() => setOpenDrawer(null)}>×</button>
+              <button type="button" className="lmv-drawer-close" aria-label="Close inspector" onClick={() => setOpenDrawer(null)}><AppIcon kind="close" size={14} /></button>
             </div>
           )}
           <RailWindowHeader

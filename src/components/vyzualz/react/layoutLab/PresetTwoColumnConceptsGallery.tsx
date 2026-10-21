@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from '../controls/Badge'
 import { ReactPresetCard } from '../ReactPresetCard'
 import { drawPosterArt, POSTER_ART_HEIGHT, POSTER_ART_SCALE, POSTER_ART_WIDTH, type PosterArtKind } from './presetPosterArt'
@@ -58,7 +58,7 @@ function Thumb({ preset, className = '' }: { preset: PresetSample; className?: s
 }
 
 function Heart({ on, className = '' }: { on?: boolean; className?: string }) {
-  return <span className={`llp4-heart${on ? ' is-on' : ''} ${className}`} aria-hidden="true"><FavouriteIcon size={12} color="currentColor" /></span>
+  return <span className={`llp4-heart${on ? ' is-on' : ''} ${className}`} aria-hidden="true"><AppIcon kind="star" size={12} color="currentColor" /></span>
 }
 
 function Chips({ preset }: { preset: PresetSample }) {
@@ -135,7 +135,7 @@ function InfoCards({ selected, onSelect }: ListProps) {
           <span className="llp4-info-head">
             <Thumb preset={preset} className="llp4-info-thumb" />
             <span className="llp4-info-name">{preset.name}</span>
-            {preset.favorite && <span className="llp4-info-fav" aria-hidden="true"><FavouriteIcon size={12} color="currentColor" /></span>}
+            {preset.favorite && <span className="llp4-info-fav" aria-hidden="true"><AppIcon kind="star" size={12} color="currentColor" /></span>}
           </span>
           <span className="llp4-info-desc">{preset.description}</span>
           <Chips preset={preset} />
@@ -165,7 +165,7 @@ function ColourBlocks({ selected, onSelect }: ListProps) {
           </span>
           <span className="llp4-block-meta">
             <span className="llp4-block-chip">{preset.chips[0]}</span>
-            {preset.favorite && <span className="llp4-block-fav" aria-hidden="true"><FavouriteIcon size={11} color="currentColor" /></span>}
+            {preset.favorite && <span className="llp4-block-fav" aria-hidden="true"><AppIcon kind="star" size={11} color="currentColor" /></span>}
           </span>
         </button>
       ))}

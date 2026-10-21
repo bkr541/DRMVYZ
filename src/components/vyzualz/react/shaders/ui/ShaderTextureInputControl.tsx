@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { useId } from 'react'
 import { DrawerNotice } from '../../../shared/DrawerNotice'
 import type { ShaderDefinition, TextureInputDef } from '../registry/shaderRegistryTypes'
@@ -93,9 +94,7 @@ function TextureInputRow({ input, selection, valid, onSelectionChange }: RowProp
             onClick={() => onSelectionChange(input.name, null)}
             title="Clear"
             aria-label={`Clear ${input.label} texture selection`}
-          >
-            ×
-          </button>
+          ><AppIcon kind="close" size={14} /></button>
         )}
       </div>
 

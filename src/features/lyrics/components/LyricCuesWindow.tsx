@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import type { KeyboardEvent } from 'react'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
@@ -153,7 +154,7 @@ export function LyricCuesWindow({ editor }: Props) {
                       <td className="lyric-cue-list__text">{cue.text || <em>Empty</em>}</td>
                       <td className="lyric-cue-list__status">
                         <span className={lowConfidence ? 'lyric-cue-list__low-confidence' : ''}>{cue.reviewStatus ?? 'unreviewed'}</span>
-                        {warningCount > 0 && <span aria-label="Cue has warnings"> ⚠ {warningCount}</span>}
+                        {warningCount > 0 && <span aria-label="Cue has warnings"><AppIcon kind="warning" size={14} />{warningCount}</span>}
                       </td>
                     </tr>
                   )

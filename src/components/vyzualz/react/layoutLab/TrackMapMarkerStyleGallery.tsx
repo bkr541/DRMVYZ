@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties } from 'react'
 
 // ── TrackMapMarkerStyleGallery ───────────────────────────────────────────
@@ -173,12 +174,7 @@ function RangeBars() {
   )
 }
 
-const GLYPHS: Record<Kind, string> = {
-  cue: 'M2 1h8l-4 8z',
-  phrase: 'M2 1h3M2 1v8M2 9h3M10 1H7M10 1v8M10 9H7',
-  moment: 'M7 0 2 6h3l-1 5 6-7H7z',
-  action: 'M2 2h8v8H2z',
-}
+const GLYPHS = { cue: 'cue', phrase: 'bars', moment: 'energy', action: 'grid' } as const
 
 /** 05 — a distinct shape per kind (flag, bracket, bolt, square) with a short monospace code; compact enough to stay legible when crowded. */
 function GlyphCodes() {
@@ -186,9 +182,7 @@ function GlyphCodes() {
     <Board>
       {(kind, items) => items.map((marker, index) => (
         <span key={marker.id} className="lltm-c5-mark" title={marker.label} style={style({ left: pct(marker.at), width: `${gapPct(items, index)}%`, '--c': marker.color })}>
-          <svg viewBox="0 0 12 11" aria-hidden="true">
-            <path d={GLYPHS[kind]} fill={kind === 'cue' || kind === 'moment' || kind === 'action' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
-          </svg>
+          <AppIcon kind={GLYPHS[kind]} size={12} />
           <b>{marker.code}</b>
         </span>
       ))}

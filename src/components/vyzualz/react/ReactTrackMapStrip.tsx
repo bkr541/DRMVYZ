@@ -971,12 +971,12 @@ export function EditSectionForm({
           />
           <div className="rv-boundary-action-grid">
             <span className="rv-form-label">Start</span>
-            <IconChipButton onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
-            <IconChipButton onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('start', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion"><AppIcon kind="left" size={14} /> Alt</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('start', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt <AppIcon kind="chevronRight" size={14} /></IconChipButton>
             <IconChipButton onClick={() => onSnapBoundary('start')} disabled={snapMode === 'free'}>Snap</IconChipButton>
             <span className="rv-form-label">End</span>
-            <IconChipButton onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion">‹ Alt</IconChipButton>
-            <IconChipButton onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt ›</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('end', 'previous')} disabled={boundaryAlternatives.length === 0} title="Previous boundary suggestion"><AppIcon kind="left" size={14} /> Alt</IconChipButton>
+            <IconChipButton onClick={() => onNavigateAlternative('end', 'next')} disabled={boundaryAlternatives.length === 0} title="Next boundary suggestion">Alt <AppIcon kind="chevronRight" size={14} /></IconChipButton>
             <IconChipButton onClick={() => onSnapBoundary('end')} disabled={snapMode === 'free'}>Snap</IconChipButton>
           </div>
         </div>
@@ -1049,9 +1049,7 @@ export function EditSectionForm({
           Save Changes
         </IconChipButton>
         {isEdited && onRestore && (
-          <IconChipButton onClick={onRestore} title="Restore original analyzed values">
-            ↺ Restore
-          </IconChipButton>
+          <IconChipButton onClick={onRestore} title="Restore original analyzed values"><AppIcon kind="rotateLeft" size={14} /> Restore</IconChipButton>
         )}
         {isAuto && onSuppress && (
           <IconChipButton className="rv-glyph-upload-btn--danger" onClick={onSuppress}>
@@ -1513,7 +1511,7 @@ export const SectionTimeline = forwardRef<SectionTimelineHandle, SectionTimeline
                   onClick={e => { e.stopPropagation(); onRemove(orig.id) }}
                   title="Remove section"
                   aria-label={`Remove section ${orig.label}`}
-                >×</button>
+                ><AppIcon kind="close" size={14} /></button>
               )}
             </div>
 
@@ -2474,16 +2472,16 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
             style={{ color: STATUS_COLORS[currentAnalysisStatus] }}
             title={STATUS_LABELS[currentAnalysisStatus]}
           >
-            {isWorking ? '◌' : currentAnalysisStatus === 'failed' ? '✕' : '●'}
+            {isWorking ? <AppIcon kind="loading" size={14} className="app-icon--spinning" /> : currentAnalysisStatus === 'failed' ? <AppIcon kind="close" size={14} /> : <AppIcon kind="check" size={14} />}
           </span>
         )}
         {isComplete && (
           currentBpmReanalysisStatus === 'reanalyzing' ? (
-            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--progress">◌ Reanalyzing…</span>
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--progress"><AppIcon kind="loading" size={14} className="app-icon--spinning" /> Reanalyzing…</span>
           ) : gridStale && currentBpmReanalysisStatus === 'failed' ? (
-            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--err" title="Reanalysis failed — adjust BPM and try again from the dock">✕ Failed</span>
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--err" title="Reanalysis failed — adjust BPM and try again from the dock"><AppIcon kind="close" size={14} /> Failed</span>
           ) : gridStale ? (
-            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--stale" title="Beat grid is out of sync with the current BPM">⚠ Grid stale</span>
+            <span className="rv-strip-analysis-badge rv-strip-analysis-badge--stale" title="Beat grid is out of sync with the current BPM"><AppIcon kind="warning" size={14} /> Grid stale</span>
           ) : null
         )}
         {(isComplete || isMicSource) && (
@@ -2498,7 +2496,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
             )}
           </span>
         )}
-        <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
+        <span className="rv-collapse-arrow">{collapsed ? <AppIcon kind="chevronRight" size={14} /> : <AppIcon kind="chevronDown" size={14} />}</span>
       </div>
       )}
 
@@ -2514,30 +2512,26 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
           )}
           {hasTrack && isWorking && (
             <div className="rv-strip-analyzing">
-              <span className="rv-analyzing-spinner">◌</span>
+              <span className="rv-analyzing-spinner"><AppIcon kind="loading" size={14} className="app-icon--spinning" /></span>
               <span className="rv-analyzing-label">{STATUS_LABELS[currentAnalysisStatus]}</span>
             </div>
           )}
           {hasTrack && currentAnalysisStatus === 'failed' && (
             <div className="rv-strip-failed">
-              <span className="rv-failed-icon">✕</span>
+              <span className="rv-failed-icon"><AppIcon kind="close" size={14} /></span>
               <span className="rv-failed-message">
                 {currentAnalysisError ?? 'Analysis failed'}
               </span>
-              <button className="rv-retry-btn" onClick={handleRetry} title="Retry analysis">
-                ↺ Retry
-              </button>
+              <button className="rv-retry-btn" onClick={handleRetry} title="Retry analysis"><AppIcon kind="rotateLeft" size={14} /> Retry</button>
             </div>
           )}
           {isComplete && !hasValidData && (
             <div className="rv-strip-failed">
-              <span className="rv-failed-icon">⚠</span>
+              <span className="rv-failed-icon"><AppIcon kind="warning" size={14} /></span>
               <span className="rv-failed-message">
                 Analysis completed but returned no beat or section data.
               </span>
-              <button className="rv-retry-btn" onClick={handleReanalyze} title="Run fresh analysis">
-                ↺ Reanalyze
-              </button>
+              <button className="rv-retry-btn" onClick={handleReanalyze} title="Run fresh analysis"><AppIcon kind="rotateLeft" size={14} /> Reanalyze</button>
             </div>
           )}
 
@@ -2810,7 +2804,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                             className="rv-timeline-editor-close"
                             onClick={closeSectionEditor}
                             aria-label="Close section editor"
-                          >×</button>
+                          ><AppIcon kind="close" size={14} /></button>
                         </div>
                         <AddSectionForm onAdd={handleAdd} onCancel={closeSectionEditor} />
                       </>

@@ -392,7 +392,8 @@
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' stroke='rgba(245,248,250,0.4)' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+  background-image: url('../components/shared/icons/css/chevronDown.svg');
+  background-size: 14px 14px;
   background-repeat: no-repeat;
   background-position: right 5px center;
 }
@@ -1212,7 +1213,8 @@
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5l3 3 3-3' stroke='rgba(245,248,250,0.4)' stroke-width='1.2' fill='none'/%3E%3C/svg%3E");
+  background-image: url('../components/shared/icons/css/chevronDown.svg');
+  background-size: 14px 14px;
   background-repeat: no-repeat;
   background-position: right 6px center;
 }

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { BubbleRevealSliderControl, IconMorphToggleControl, TemplateTextInputControl, UnderlineDropdownControl } from './layoutLabWinningControls'
 
@@ -90,7 +91,7 @@ function StepIndentGroup({ label = 'Master', nested = false }: NestableGroupProp
     <div className={`llcg-step${open ? ' is-open' : ''}`}>
       <button type="button" className="llcg-step-header" onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <span>{label}</span>
-        <span className="llcg-step-caret" aria-hidden="true">▾</span>
+        <span className="llcg-step-caret" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
       {open && (
         <div className="llcg-step-body">

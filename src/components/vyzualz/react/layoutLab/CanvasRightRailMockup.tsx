@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import { PanelSubtabs } from '../PanelSubtabs'
@@ -40,21 +41,7 @@ import {
  *  Canvas Layout Lab routing rows (replaces the trashcan). */
 function BackspaceIcon({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z" />
-      <path d="m12 9 6 6" />
-      <path d="m18 9-6 6" />
-    </svg>
+    <AppIcon kind="close" size={size} color={color} />
   )
 }
 
@@ -62,21 +49,7 @@ function BackspaceIcon({ size = 14, color = 'currentColor' }: { size?: number; c
  *  inline parameter rows. */
 function CircleXIcon({ size = 13 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="m15 9-6 6" />
-      <path d="m9 9 6 6" />
-    </svg>
+    <AppIcon kind="close" size={size} />
   )
 }
 
@@ -359,11 +332,11 @@ const SECTION_OPTIONS: Array<{ value: CanvasSectionTriggerType; label: string }>
 ]
 
 
-const CROSS_ENGINE_PRESETS: Array<{ engineId: Exclude<ReactEngineId, 'canvas'>; label: string; icon: string; preset: string; description: string }> = [
-  { engineId: 'cinema2', label: 'Cinema 2.0', icon: '◆', preset: 'Native Preset', description: 'Native cinematic visual performance engine.' },
-  { engineId: 'oscilloscope', label: 'Sound Drawing', icon: '〰', preset: 'XY Cyan Scope', description: 'Classic scope preset.' },
-  { engineId: 'laserDmx', label: 'LaserDMX', icon: '⌬', preset: 'Beam Matrix', description: 'LaserDMX performance preset.' },
-  { engineId: 'pixGrid', label: 'PixGrid', icon: '▦', preset: 'Bass Beacon', description: 'Pixel-grid performance preset.' },
+const CROSS_ENGINE_PRESETS: Array<{ engineId: Exclude<ReactEngineId, 'canvas'>; label: string; icon: AppIconKind; preset: string; description: string }> = [
+  { engineId: 'cinema2', label: 'Cinema 2.0', icon: 'cinema', preset: 'Native Preset', description: 'Native cinematic visual performance engine.' },
+  { engineId: 'oscilloscope', label: 'Sound Drawing', icon: 'waveform', preset: 'XY Cyan Scope', description: 'Classic scope preset.' },
+  { engineId: 'laserDmx', label: 'LaserDMX', icon: 'laser', preset: 'Beam Matrix', description: 'LaserDMX performance preset.' },
+  { engineId: 'pixGrid', label: 'PixGrid', icon: 'pixGrid', preset: 'Bass Beacon', description: 'Pixel-grid performance preset.' },
 ]
 
 const LAYER_OPTIONS: Array<{ id: CanvasMockLayerRole; label: string }> = [
@@ -394,7 +367,7 @@ function PresetsMockup({ state, onSelectEngine }: { state: CanvasMockState; onSe
       <div className="rv-presets-panel" data-layout-lab-canvas="presets">
         <header className="rv-preset-library-header">
           <div className="rv-preset-library-engine">
-            <span aria-hidden="true">▣</span>
+            <span aria-hidden="true"><AppIcon kind="canvas" size={14} /></span>
             <div>
               <strong>CANVAS</strong>
               <small>{state.presetFilter === 'current' ? `${visible.length} presets for the selected engine` : `${visible.length} presets shown`}</small>
@@ -409,14 +382,14 @@ function PresetsMockup({ state, onSelectEngine }: { state: CanvasMockState; onSe
         </header>
         <p className="rv-presets-hint">CANVAS presets transform active uploaded media. Auto Select can choose presets from Audio Intelligence.</p>
         {visible.length === 0 ? (
-          <div className="rv-preset-library-empty"><strong>No favorite presets yet</strong><span>Choose ☆ on a preset to pin it here.</span></div>
+          <div className="rv-preset-library-empty"><strong>No favorite presets yet</strong><span>Choose <AppIcon kind="star" size={14} /> on a preset to pin it here.</span></div>
         ) : (
           <div className="rv-preset-group">
             <button type="button" className="rv-preset-group-hdr" aria-expanded="true">
-              <span className="rv-preset-group-hdr-icon" aria-hidden="true">▣</span>
+              <span className="rv-preset-group-hdr-icon" aria-hidden="true"><AppIcon kind="canvas" size={14} /></span>
               <span className="rv-preset-group-hdr-label">CANVAS Media Presets</span>
               <span className="rv-preset-group-hdr-count">{visible.length}</span>
-              <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
+              <span className="rv-preset-group-hdr-chevron" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
             </button>
             <div className="rv-preset-group-cards" data-preset-grid>
               {visible.map(preset => (
@@ -441,17 +414,17 @@ function PresetsMockup({ state, onSelectEngine }: { state: CanvasMockState; onSe
         {state.presetFilter === 'all' && CROSS_ENGINE_PRESETS.map(group => (
           <div key={group.engineId} className="rv-preset-group">
             <button type="button" className="rv-preset-group-hdr" aria-expanded="true">
-              <span className="rv-preset-group-hdr-icon" aria-hidden="true">{group.icon}</span>
+              <span className="rv-preset-group-hdr-icon" aria-hidden="true"><AppIcon kind={group.icon} /></span>
               <span className="rv-preset-group-hdr-label">{group.label}</span>
               <span className="rv-preset-group-hdr-count">1</span>
-              <span className="rv-preset-group-hdr-chevron" aria-hidden="true">▾</span>
+              <span className="rv-preset-group-hdr-chevron" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
             </button>
             <div className="rv-preset-group-cards" data-preset-grid>
               <ReactPresetCard
                 id={`layout-lab-canvas-${group.engineId}`}
                 title={group.preset}
                 description={group.description}
-                thumbnail={<div className="rv-layout-lab-canvas-cross-engine-thumb" aria-hidden="true">{group.icon}</div>}
+                thumbnail={<div className="rv-layout-lab-canvas-cross-engine-thumb" aria-hidden="true"><AppIcon kind={group.icon} /></div>}
                 chips={[{ label: group.label }]}
                 activateLabel={`Load ${group.preset}`}
                 onActivate={() => onSelectEngine(group.engineId)}
@@ -1032,9 +1005,7 @@ function ConceptGroup({
 
 function DeckChevronGlyph({ size = 11 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m6 9 6 6 6-6" />
-    </svg>
+    <AppIcon kind="chevronDown" size={size} />
   )
 }
 
@@ -1169,12 +1140,7 @@ function AECardRoute({
  *  it does (an already-chosen effect). */
 function EffectFxIcon({ size = 14, color = 'currentColor', className }: { size?: number; color?: string; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
-      <path d="M2 15V9C2 5.68629 4.68629 3 8 3H16C19.3137 3 22 5.68629 22 9V15C22 18.3137 19.3137 21 16 21H8C4.68629 21 2 18.3137 2 15Z" />
-      <path d="M6 15V9L11 9" />
-      <path d="M5.99998 12H9.57141" />
-      <path d="M13 15L15.5 12M15.5 12L18 9M15.5 12L13 9M15.5 12L18 15" />
-    </svg>
+    <AppIcon kind="fx" size={size} color={color} className={className} />
   )
 }
 
@@ -1182,12 +1148,7 @@ function EffectFxIcon({ size = 14, color = 'currentColor', className }: { size?:
  *  media thumbnail and on the vertical connector. */
 function EffectLayersIcon({ size = 15, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="currentColor" className={className} aria-hidden="true">
-      <g transform="translate(36,-52)">
-        <path fillRule="evenodd" d="m -31,54 c -1.6447,0 -3,1.355301 -3,3 v 13.999997 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 1 v 1 c 0,1.6447 1.3553,3 3,3 h 14 c 1.6447,0 3,-1.3553 3,-3 V 65 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 h -1 v -1 c 0,-1.644699 -1.3553,-3 -3,-3 z m 0,2 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 57 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 h 14 c 0.57129,0 1,0.428706 1,1 v 1 h -11 c -1.6447,0 -3,1.355301 -3,3 v 10.999997 h -1 c -0.57129,0 -1,-0.4287 -1,-1 V 61 c 0,-0.571294 0.42871,-1 1,-1 z m 4,4 c 4.66667,0 9.33333,0 14,0 0.5713,0 1,0.428704 1,1 v 13.999997 c 0,0.5713 -0.4287,1 -1,1 h -14 c -0.5713,0 -1,-0.4287 -1,-1 0,-4.66666 0,-9.33333 0,-13.999997 0,-0.571296 0.4287,-1 1,-1 z" />
-        <path fillRule="evenodd" d="m -16,66 a 1,1 0 0 0 -1,1 v 3.999997 h -4 a 1,1 0 0 0 -1,1 1,1 0 0 0 1,1 h 4 v 4 a 1,1 0 0 0 1,1 1,1 0 0 0 1,-1 v -4 h 4 a 1,1 0 0 0 1,-1 1,1 0 0 0 -1,-1 h -4 V 67 a 1,1 0 0 0 -1,-1 z" />
-      </g>
-    </svg>
+    <AppIcon kind="layers" size={size} className={className} />
   )
 }
 
@@ -1196,20 +1157,14 @@ function EffectLayersIcon({ size = 15, className }: { size?: number; className?:
  *  Trigger" state), signalling it isn't reactive yet. */
 function EffectSparkleIcon({ size = 10, color = 'currentColor' }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill={color} aria-hidden="true">
-      <path d="M18,11a1,1,0,0,1-1,1,5,5,0,0,0-5,5,1,1,0,0,1-2,0,5,5,0,0,0-5-5,1,1,0,0,1,0-2,5,5,0,0,0,5-5,1,1,0,0,1,2,0,5,5,0,0,0,5,5A1,1,0,0,1,18,11Z" />
-      <path d="M19,24a1,1,0,0,1-1,1,2,2,0,0,0-2,2,1,1,0,0,1-2,0,2,2,0,0,0-2-2,1,1,0,0,1,0-2,2,2,0,0,0,2-2,1,1,0,0,1,2,0,2,2,0,0,0,2,2A1,1,0,0,1,19,24Z" />
-      <path d="M28,17a1,1,0,0,1-1,1,4,4,0,0,0-4,4,1,1,0,0,1-2,0,4,4,0,0,0-4-4,1,1,0,0,1,0-2,4,4,0,0,0,4-4,1,1,0,0,1,2,0,4,4,0,0,0,4,4A1,1,0,0,1,28,17Z" />
-    </svg>
+    <AppIcon kind="wand" size={size} color={color} />
   )
 }
 
 /** Plus glyph — the "add" affordance inside Nested Cards' dashed circle. */
 function PlusGlyphIcon({ size = 10 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
+    <AppIcon kind="plus" size={size} />
   )
 }
 

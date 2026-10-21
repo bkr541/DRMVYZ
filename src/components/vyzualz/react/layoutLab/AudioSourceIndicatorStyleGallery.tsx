@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import rekordboxLogoUrl from '../../../../assets/rekordbox_logo.svg'
 
 type SourceModeId = 'rekordbox' | 'file' | 'live' | 'stream' | 'empty'
 
@@ -26,21 +26,11 @@ const SOURCE_MODES: SourceMode[] = [
 
 function SourceName({ mode }: { mode: SourceMode }) {
   return mode.id === 'rekordbox'
-    ? <span className="llsi-rekordbox-name"><img src={rekordboxLogoUrl} alt="Rekordbox" /><small>USB</small></span>
+    ? <span className="llsi-rekordbox-name"><AppIcon kind="rekordbox" /><span>Rekordbox</span><small>USB</small></span>
     : <span>{mode.name}</span>
 }
 
-function SourceGlyph({ mode }: { mode: SourceMode }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      {mode.id === 'rekordbox' && <><path d="m12 2.5 7.5 4.25v8.5L12 19.5l-7.5-4.25v-8.5z" /><circle cx="12" cy="11" r="3" /><path d="M12 5v3M12 14v3" /></>}
-      {mode.id === 'file' && <><path d="M6 3.5h8l4 4v13H6zM14 3.5v4h4" /><path d="M9 13h6M9 16h4" /></>}
-      {mode.id === 'live' && <><path d="M8 5.5a7 7 0 0 0 0 13M16 5.5a7 7 0 0 1 0 13" /><circle cx="12" cy="12" r="2.5" /></>}
-      {mode.id === 'stream' && <><circle cx="12" cy="12" r="2" /><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.6 4.6a10.5 10.5 0 0 0 0 14.8M19.4 4.6a10.5 10.5 0 0 1 0 14.8" /></>}
-      {mode.id === 'empty' && <><circle cx="12" cy="12" r="8" /><path d="m6.5 6.5 11 11" /></>}
-    </svg>
-  )
-}
+function SourceGlyph({ mode }: { mode: SourceMode }) { return <AppIcon kind={mode.id === 'rekordbox' ? 'rekordbox' : mode.id === 'live' ? 'mic' : 'file'} /> }
 
 function DeckOled({ mode }: { mode: SourceMode }) {
   return (

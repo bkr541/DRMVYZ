@@ -426,11 +426,11 @@ function MediaCard({
     : (m.title ?? m.name)
 
   const badge = m.uploading ? (
-    <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}>↑ SYNC</span>
+    <span className="vz-media-type-badge" style={{ background: 'rgba(74,199,219,0.25)', color: '#4ac7db' }}><AppIcon kind="up" size={14} /> SYNC</span>
   ) : m.uploadError ? (
-    <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}>⚠ LOCAL</span>
+    <span className="vz-media-type-badge" style={{ background: 'rgba(248,113,113,0.22)', color: '#f87171' }} title={m.uploadError}><AppIcon kind="warning" size={14} /> LOCAL</span>
   ) : m.derivativeWarning ? (
-    <span className="vz-media-type-badge" style={{ background: 'rgba(251,191,36,0.22)', color: '#fbbf24' }} title={m.derivativeWarning}>⚠ DERIVATIVE</span>
+    <span className="vz-media-type-badge" style={{ background: 'rgba(251,191,36,0.22)', color: '#fbbf24' }} title={m.derivativeWarning}><AppIcon kind="warning" size={14} /> DERIVATIVE</span>
   ) : m.mediaRole && m.mediaRole !== 'other' ? (
     <span className="vz-media-type-badge" title={`Role: ${MEDIA_ROLE_LABELS[m.mediaRole]}`}>
       {MEDIA_ROLE_BADGE_LABELS[m.mediaRole]}
@@ -1579,7 +1579,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             onChange={e => setSearchQuery(e.target.value)}
           />
           {searchQuery.length > 0 && (
-            <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search">✕</button>
+            <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search"><AppIcon kind="close" size={14} /></button>
           )}
         </div>
         {libraryFilter !== 'tracks' && libraryFilter !== 'fonts' && (

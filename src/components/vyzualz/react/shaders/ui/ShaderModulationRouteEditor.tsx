@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import React from 'react'
 import { SliderRow, SelectRow, ToggleRow } from '../../../react/ReactControlRows'
 import type { ShaderDefinition } from '../registry/shaderRegistryTypes'
@@ -90,9 +91,7 @@ export function ShaderModulationRouteEditor({
             onClick={onRemove}
             title="Remove route"
             aria-label="Remove modulation route"
-          >
-            ×
-          </button>
+          ><AppIcon kind="close" size={14} /></button>
         </div>
       </div>
 

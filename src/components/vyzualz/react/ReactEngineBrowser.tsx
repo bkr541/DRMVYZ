@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -99,7 +100,7 @@ export function ReactEngineBrowser({ presetName = null }: {
                   <span>{engine.label}</span>
                   <small className="rv-control-helper-copy">{engine.description}</small>
                 </span>
-                {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true">✓</span>}
+                {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true"><AppIcon kind="check" size={14} /></span>}
               </button>
             )
           })}

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { IconMorphCheckbox } from '../controls/IconMorphToggle'
 import { useEffect, useMemo, useState } from 'react'
@@ -164,7 +165,7 @@ export function PixGridTrackMapCueEditor({ cue, state, isNew, onSave, onCancel, 
     <div className="rv-pix-grid-cue-editor" role="dialog" aria-label={`${isNew ? 'Create' : 'Edit'} PixGrid action cue`}>
       <div className="rv-timeline-editor-heading">
         <span>{isNew ? 'New PixGrid Cue' : 'PixGrid Cue'}</span>
-        <button type="button" className="rv-timeline-editor-close" onClick={onCancel} aria-label="Close PixGrid cue editor">×</button>
+        <button type="button" className="rv-timeline-editor-close" onClick={onCancel} aria-label="Close PixGrid cue editor"><AppIcon kind="close" size={14} /></button>
       </div>
       <div className="rv-pix-grid-cue-grid">
         <label className="rv-pix-grid-cue-field"><span>Label</span><DreamVizTextInput value={draft.label} onChange={event => setDraft(current => ({ ...current, label: event.target.value }))} /></label>

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import React from 'react'
 import type { QualityTier, ShaderDefinition, ShaderPassDef } from '../registry/shaderRegistryTypes'
 import type { PerformanceMetrics } from '../performance/shaderPerformanceTypes'
@@ -24,10 +25,10 @@ export interface ShaderPassInspectorProps {
   qualityTier?: QualityTier | null
 }
 
-function passCompileLabel(state: PassCompileState): string {
+function passCompileLabel(state: PassCompileState): React.ReactNode {
   switch (state) {
-    case 'ok':      return '✓ OK'
-    case 'error':   return '✕ Error'
+    case 'ok':      return <><AppIcon kind="check" size={14} /> OK</>
+    case 'error':   return <><AppIcon kind="close" size={14} /> Error</>
     case 'pending': return '… Pending'
     case 'unknown': return '— Unknown'
   }

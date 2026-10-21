@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useState } from 'react'
 import { BubbleRevealSlider } from '../controls/BubbleRevealSlider'
 
@@ -30,7 +31,7 @@ function Play({ state }: { state: MockState }) {
       title={state.playing ? 'Pause' : 'Play'}
       onClick={() => state.setPlaying(!state.playing)}
     >
-      {state.playing ? 'Ⅱ' : '▶'}
+      {state.playing ? <AppIcon kind="pause" size={14} /> : <AppIcon kind="play" size={14} />}
     </button>
   )
 }
@@ -77,7 +78,7 @@ function Zoom({ state }: { state: MockState }) {
 function Volume({ state }: { state: MockState }) {
   return (
     <label className="lltr-field lltr-field--volume">
-      <span className="lltr-label lltr-label--icon" aria-hidden="true">♬</span>
+      <span className="lltr-label lltr-label--icon" aria-hidden="true"><AppIcon kind="volume" size={14} /></span>
       <BubbleRevealSlider type="range" min={0} max={1} step={0.01} value={state.volume} aria-label="Volume (mockup)" onChange={event => state.setVolume(Number(event.target.value))} />
       <b className="lltr-value">{Math.round(state.volume * 100)}</b>
     </label>

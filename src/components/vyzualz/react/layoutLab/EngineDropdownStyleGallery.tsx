@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 // ── EngineDropdownStyleGallery ──────────────────────────────────────────────
@@ -15,12 +16,12 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 // disconnected — owns its own open state and selection.
 
 const SAMPLE_ENGINES = [
-  { id: 'cinema2', label: 'Cinema 2.0', icon: '◆', description: 'Native cinematic presets with real-time audio-reactive rendering.' },
-  { id: 'oscilloscope', label: 'Sound Drawing', icon: '〜', description: 'Live audio waveform drawing with glyph, SVG and text rendering.' },
-  { id: 'canvas', label: 'CANVAS', icon: '▣', description: 'Uploaded videos, images, and SVGs for audio-reactive shows.' },
-  { id: 'laserDmx', label: 'LaserDMX', icon: '✦', description: 'DMX Beam Matrix control with cues, fog, and audio-reactive looks.' },
-  { id: 'pixGrid', label: 'PixGrid', icon: '▦', description: 'Programmable LED-cell artwork, animation, and full-song pixel choreography.' },
-]
+  { id: 'cinema2', label: 'Cinema 2.0', icon: 'cinema', description: 'Native cinematic presets with real-time audio-reactive rendering.' },
+  { id: 'oscilloscope', label: 'Sound Drawing', icon: 'waveform', description: 'Live audio waveform drawing with glyph, SVG and text rendering.' },
+  { id: 'canvas', label: 'CANVAS', icon: 'canvas', description: 'Uploaded videos, images, and SVGs for audio-reactive shows.' },
+  { id: 'laserDmx', label: 'LaserDMX', icon: 'laser', description: 'DMX Beam Matrix control with cues, fog, and audio-reactive looks.' },
+  { id: 'pixGrid', label: 'PixGrid', icon: 'pixGrid', description: 'Programmable LED-cell artwork, animation, and full-song pixel choreography.' },
+] as const
 
 function useOutsideClose(open: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null)
@@ -48,7 +49,7 @@ function RadialSpotlightEngineDropdown() {
     <div className="lled-spotlight" ref={rootRef}>
       <button type="button" className={`lled-spotlight-trigger${open ? ' is-open' : ''}`} aria-expanded={open} onClick={() => setOpen(v => !v)}>
         <span className="lled-spotlight-glow" aria-hidden="true" />
-        <span className="lled-spotlight-icon" aria-hidden="true">{active.icon}</span>
+        <span className="lled-spotlight-icon" aria-hidden="true"><AppIcon kind={active.icon} size={32} /></span>
         <span className="lled-spotlight-copy">
           <span className="lled-spotlight-eyebrow">Engine</span>
           <span className="lled-spotlight-label">{active.label}</span>
@@ -67,12 +68,12 @@ function RadialSpotlightEngineDropdown() {
               style={{ '--lled-i': index } as CSSProperties}
               onClick={() => { setValueId(engine.id); setOpen(false) }}
             >
-              <span className="lled-spotlight-option-icon" aria-hidden="true">{engine.icon}</span>
+              <span className="lled-spotlight-option-icon" aria-hidden="true"><AppIcon kind={engine.icon} size={24} /></span>
               <span className="lled-spotlight-option-copy">
                 <span>{engine.label}</span>
                 <small>{engine.description}</small>
               </span>
-              {engine.id === valueId && <span className="lled-spotlight-option-check" aria-hidden="true">✓</span>}
+              {engine.id === valueId && <span className="lled-spotlight-option-check" aria-hidden="true"><AppIcon kind="check" size={14} /></span>}
             </button>
           ))}
         </div>

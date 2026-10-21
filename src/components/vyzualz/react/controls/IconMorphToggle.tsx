@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { forwardRef, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react'
 import './canonicalControls.css'
 
@@ -7,12 +8,7 @@ export interface IconMorphToggleProps extends Omit<ButtonHTMLAttributes<HTMLButt
 }
 
 export function ToggleGlyph({ checked }: { checked: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" className="dv-icon-morph-toggle__icon" aria-hidden="true">
-      <circle cx="10" cy="10" r="8" className="dv-icon-morph-toggle__ring" />
-      <path d="M6 10.5l2.5 2.5L14 7" className="dv-icon-morph-toggle__check" />
-    </svg>
-  )
+  return <AppIcon kind={checked ? 'check' : 'off'} size={13} className="dv-icon-morph-toggle__icon" />
 }
 
 /** Canonical DRMVYZ boolean switch from Layout Lab's “Icon Morph” treatment. */
@@ -69,7 +65,8 @@ export const IconMorphCheckbox = forwardRef<HTMLInputElement, IconMorphCheckboxP
         disabled={disabled}
         className={`dv-icon-morph-checkbox__input${className ? ` ${className}` : ''}`}
       />
-      <ToggleGlyph checked={Boolean(checked ?? defaultChecked)} />
+      <span className="dv-icon-morph-checkbox__off"><ToggleGlyph checked={false} /></span>
+      <span className="dv-icon-morph-checkbox__on"><ToggleGlyph checked /></span>
     </span>
   )
 })

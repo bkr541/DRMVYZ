@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
@@ -550,7 +551,7 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
       >
         <span className="rv-ctrl-palette-swatch-dot" style={{ background: value }} aria-hidden="true" />
         <span className="rv-ctrl-palette-row-label">{label}</span>
-        <span className="rv-ctrl-palette-caret" aria-hidden="true">▾</span>
+        <span className="rv-ctrl-palette-caret" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
       {open && !disabled && triggerRef.current && createPortal((
         <div

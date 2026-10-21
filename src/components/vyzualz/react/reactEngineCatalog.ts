@@ -1,3 +1,4 @@
+import type { AppIconKind } from '../../shared/icons/AppIcon'
 import type { ReactEngineId } from './ReactTypes'
 
 export type ReactLiveEngineId = Exclude<ReactEngineId, 'shaderPads' | 'cinematicPortal' | 'cinema'>
@@ -6,7 +7,7 @@ export interface ReactEngineCatalogEntry {
   id: ReactEngineId
   label: string
   shortLabel: string
-  icon: string
+  icon: AppIconKind
   description: string
 }
 
@@ -37,63 +38,63 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     id: 'shaderPads',
     label: 'Shader Pads',
     shortLabel: 'Shader',
-    icon: '◈',
+    icon: 'shader',
     description: 'Reactive shader fields driven by audio bands and beat timing.',
   },
   cinematicPortal: {
     id: 'cinematicPortal',
     label: 'Cinematic Worlds',
     shortLabel: 'Worlds',
-    icon: '◎',
+    icon: 'orbit',
     description: 'Immersive cinematic environments, portals, media worlds and directed cameras.',
   },
   cinema: {
     id: 'cinema',
     label: 'Cinema',
     shortLabel: 'Cinema',
-    icon: '◇',
+    icon: 'cinema',
     description: 'Retired compatibility identity migrated to Cinema 2.0.',
   },
   cinema2: {
     id: 'cinema2',
     label: 'Cinema 2.0',
     shortLabel: 'Cinema 2',
-    icon: '◆',
+    icon: 'cinema',
     description: 'Composition-native visuals powered by the canonical Cinema 2.0 runtime.',
   },
   oscilloscope: {
     id: 'oscilloscope',
     label: 'Sound Drawing',
     shortLabel: 'Draw',
-    icon: '〜',
+    icon: 'waveform',
     description: 'Live audio waveform drawing with glyph, SVG and text rendering.',
   },
   canvas: {
     id: 'canvas',
     label: 'CANVAS',
     shortLabel: 'Canvas',
-    icon: '▣',
+    icon: 'canvas',
     description: 'Uploaded videos, images, and SVGs for audio-reactive shows.',
   },
   laserDmx: {
     id: 'laserDmx',
     label: 'LaserDMX',
     shortLabel: 'Laser',
-    icon: '✦',
+    icon: 'laser',
     description: 'DMX Beam Matrix control with cues, fog, and audio-reactive looks.',
   },
   pixGrid: {
     id: 'pixGrid',
     label: 'PixGrid',
     shortLabel: 'PixGrid',
-    icon: '▦',
+    icon: 'pixGrid',
     description: 'Programmable LED-cell artwork, animation, and full-song pixel choreography.',
   },
   headliner: {
     id: 'headliner',
     label: 'HEADLINER',
     shortLabel: 'Headliner',
-    icon: '★',
+    icon: 'headliner',
     description: 'Headliner engine.',
   },
 }

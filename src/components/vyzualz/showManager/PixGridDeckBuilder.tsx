@@ -162,11 +162,11 @@ export function PixGridDeckBuilderLibrary({
               </span>
             </button>
             <div className="sm-deck-image-actions" aria-label={`${item.source.fileName ?? `Image ${index + 1}`} actions`}>
-              <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label="Move image earlier">↑</button>
-              <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === items.length - 1} aria-label="Move image later">↓</button>
+              <button type="button" onClick={() => onMove(item.id, -1)} disabled={index === 0} aria-label="Move image earlier"><AppIcon kind="up" size={14} /></button>
+              <button type="button" onClick={() => onMove(item.id, 1)} disabled={index === items.length - 1} aria-label="Move image later"><AppIcon kind="down" size={14} /></button>
               <button type="button" onClick={() => onDuplicate(item.id)} disabled={remainingSlots <= 0} aria-label="Duplicate image occurrence">＋</button>
               <button type="button" onClick={() => onToggle(item.id)} aria-pressed={item.enabled}>{item.enabled ? 'On' : 'Off'}</button>
-              <button type="button" onClick={() => onRemove(item.id)} disabled={items.length <= PIX_GRID_DECK_MIN_ITEMS} aria-label="Remove image">×</button>
+              <button type="button" onClick={() => onRemove(item.id)} disabled={items.length <= PIX_GRID_DECK_MIN_ITEMS} aria-label="Remove image"><AppIcon kind="close" size={14} /></button>
             </div>
           </article>
         ))}
@@ -548,8 +548,8 @@ export function PixGridDeckSequenceStrip({
       <header>
         <div><strong>DECK SEQUENCE</strong><span>{enabledItems.length} enabled images · musical preview</span></div>
         <div className="sm-deck-preview-nav">
-          <button type="button" onClick={onPrevious} disabled={enabledItems.length < 2} aria-label="Previous Deck image">‹</button>
-          <button type="button" onClick={onNext} disabled={enabledItems.length < 2} aria-label="Next Deck image">›</button>
+          <button type="button" onClick={onPrevious} disabled={enabledItems.length < 2} aria-label="Previous Deck image"><AppIcon kind="left" size={14} /></button>
+          <button type="button" onClick={onNext} disabled={enabledItems.length < 2} aria-label="Next Deck image"><AppIcon kind="chevronRight" size={14} /></button>
         </div>
       </header>
       <div className="sm-deck-sequence-items">

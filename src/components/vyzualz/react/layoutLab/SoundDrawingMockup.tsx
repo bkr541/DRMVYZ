@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useMemo, useState } from 'react'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { SliderRow, SelectRow, ToggleRow, TextInputRow, CtrlSection, Collapsible } from '../ReactControlRows'
@@ -48,31 +49,21 @@ const SOUND_DRAWING_SOURCE_OPTIONS: Array<{ value: SoundDrawingSourceChoice, lab
 function SoundDrawingSourceIcon({ source }: { source: SoundDrawingSourceChoice }) {
   if (source === 'classic') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M3 16h4l3-8 5 16 4-12 3 8h7" />
-      </svg>
+      <AppIcon kind="scope"  />
     )
   }
   if (source === 'builtinShape') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="m16 3 11 7v12l-11 7L5 22V10Z" />
-        <circle cx="16" cy="16" r="4" />
-      </svg>
+      <AppIcon kind="shape"  />
     )
   }
   if (source === 'text') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M7 7h18M16 7v18M11 25h10" />
-      </svg>
+      <AppIcon kind="text"  />
     )
   }
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M8 3h11l6 6v20H8Z" />
-      <path d="M19 3v7h6M11 22c3-8 7 3 11-7" />
-    </svg>
+    <AppIcon kind="svg"  />
   )
 }
 
@@ -454,9 +445,7 @@ export function SoundDrawingMockup({
                           className="rv-glyph-lost-dismiss"
                           onClick={clearGlyphLostNotice}
                           aria-label="Dismiss"
-                        >
-                          ×
-                        </button>
+                        ><AppIcon kind="close" size={14} /></button>
                       </div>
                     )}
 

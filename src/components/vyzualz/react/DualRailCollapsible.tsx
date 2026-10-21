@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useId, useState, type ReactNode } from 'react'
 import './DualRailCollapsible.css'
 
@@ -54,7 +55,7 @@ export function DualRailCollapsible({
       >
         <span>{label}</span>
         {headerAccessory != null && <span className="drc-header-accessory">{headerAccessory}</span>}
-        <span className="drc-arrow" aria-hidden="true">▾</span>
+        <span className="drc-arrow" aria-hidden="true"><AppIcon kind="chevronDown" size={14} /></span>
       </button>
       {open && <div id={contentId} className={`drc-body${bodyClassName ? ` ${bodyClassName}` : ''}`}>{children}</div>}
     </div>

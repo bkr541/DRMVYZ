@@ -1090,8 +1090,8 @@ export function VyzualzAudioDock({
           />
         </div>
         <div className="vz-dock-zoom-btns">
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={liveInputSelected || waveformZoom >= 16} title={liveInputSelected ? trackSourceLockTitle : 'Zoom in'}>+</button>
-          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={liveInputSelected || waveformZoom <= 1} title={liveInputSelected ? trackSourceLockTitle : 'Zoom out'}>−</button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom * 2)} disabled={liveInputSelected || waveformZoom >= 16} title={liveInputSelected ? trackSourceLockTitle : 'Zoom in'}><AppIcon kind="plus" size={14} /></button>
+          <button className="vz-dock-zoom-btn" onClick={() => setWaveformZoom(waveformZoom / 2)} disabled={liveInputSelected || waveformZoom <= 1} title={liveInputSelected ? trackSourceLockTitle : 'Zoom out'}><AppIcon kind="minus" size={14} /></button>
         </div>
       </div>
       </div>
@@ -1165,9 +1165,7 @@ export function VyzualzAudioDock({
                 className="vz-dock-bpm-reset-btn"
                 onClick={handleClearOverride}
                 title={`Reset to analyzed BPM${bpmState.kind === 'value' && bpmState.analyzed !== null ? ` (${bpmState.analyzed.toFixed(2)})` : ''}`}
-              >
-                ↺
-              </button>
+              ><AppIcon kind="rotateLeft" size={14} /></button>
             )}
           </div>
 
@@ -1233,7 +1231,7 @@ export function VyzualzAudioDock({
             </div>
             {isReanalyzing ? (
               <div className="vz-dock-bpm-stale-actions">
-                <span className="vz-dock-bpm-stale-status">◌ Reanalyzing…</span>
+                <span className="vz-dock-bpm-stale-status"><AppIcon kind="loading" size={14} className="app-icon--spinning" /> Reanalyzing…</span>
               </div>
             ) : bpmReanalysisStatus === 'failed' ? (
               <div className="vz-dock-bpm-stale-actions">

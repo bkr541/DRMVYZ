@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from '../controls/Badge'
 
 // ── PresetTwoColumnStyleGallery ───────────────────────────────────────────
@@ -47,7 +47,7 @@ function Thumb({ preset, className }: { preset: PresetSample; className: string 
 }
 
 function Heart({ on }: { on?: boolean }) {
-  return <span className={`llp2-heart${on ? ' is-on' : ''}`} aria-hidden="true"><FavouriteIcon size={12} color="currentColor" /></span>
+  return <span className={`llp2-heart${on ? ' is-on' : ''}`} aria-hidden="true"><AppIcon kind="star" size={12} color="currentColor" /></span>
 }
 
 function Chips({ preset }: { preset: PresetSample }) {
@@ -132,7 +132,7 @@ function SplitTiles({ selected, onSelect }: ListProps) {
             {/* Only the first chip: the row is narrow, and Modified is the dot beside the name. */}
             <span className="llp2-chips"><Badge label={preset.chips[0]!} tone={preset.tone} /></span>
           </span>
-          {preset.favorite && <span className="llp2-split-fav" aria-hidden="true"><FavouriteIcon size={12} color="currentColor" /></span>}
+          {preset.favorite && <span className="llp2-split-fav" aria-hidden="true"><AppIcon kind="star" size={12} color="currentColor" /></span>}
         </button>
       ))}
     </div>

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import type { ReactNode } from 'react'
 import './canonicalControls.css'
 
@@ -37,9 +38,7 @@ export function Badge({
           style={{ color: tone }}
           aria-label={typeof label === 'string' ? `${removeLabel} ${label}` : removeLabel}
           onClick={onRemove}
-        >
-          ×
-        </button>
+        ><AppIcon kind="close" size={14} /></button>
       )}
     </span>
   )

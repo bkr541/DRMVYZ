@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
@@ -207,7 +208,7 @@ function WordTimingEditor({
                 className="lmv-icon-btn lmv-icon-btn--danger"
                 aria-label={`Remove word ${index + 1}`}
                 onClick={() => commitWords(words.filter(item => item.id !== word.id))}
-              >×</button>
+              ><AppIcon kind="close" size={14} /></button>
               {(invalid || lowConfidence) && (
                 <span className="lyric-word-editor__status" role="status">
                   {invalid ? 'Invalid timing' : 'Low confidence'}

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -63,18 +64,14 @@ export function LaserDmxBeamMatrixPanel() {
             title={atLimit ? `Beam limit (${LASER_DMX_MATRIX_MAX_BEAMS}) reached` : 'Add a new beam (choose origin and target in the editor)'}
             aria-label="Add beam"
             onClick={() => addLaserDmxMatrixBeam()}
-          >
-            + Add Beam
-          </IconChipButton>
+          ><AppIcon kind="plus" size={14} /> Add Beam</IconChipButton>
           {primaryId && (
             <IconChipButton
               disabled={atLimit}
               title="Duplicate primary selected beam"
               aria-label="Duplicate selected beam"
               onClick={() => duplicateLaserDmxMatrixBeam(primaryId)}
-            >
-              ⧉ Dup
-            </IconChipButton>
+            ><AppIcon kind="copy" size={14} /> Dup</IconChipButton>
           )}
           {selCount > 0 && (
             <>
@@ -82,9 +79,7 @@ export function LaserDmxBeamMatrixPanel() {
                 className="rv-glyph-upload-btn--danger"
                 aria-label={`Delete ${selCount} selected beam${selCount !== 1 ? 's' : ''}`}
                 onClick={() => setConfirmDeleteSelected(true)}
-              >
-                × Del
-              </IconChipButton>
+              ><AppIcon kind="delete" size={14} /> Del</IconChipButton>
               <IconChipButton
                 aria-label="Clear beam selection"
                 onClick={clearLaserDmxMatrixSelection}

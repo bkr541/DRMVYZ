@@ -233,13 +233,13 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
           {result.documentPatch.defaultStyle && (
             <div className="lmv-validation-row">
               <span className="lmv-val-label">Default Style</span>
-              <span className="lmv-val-value lmv-val-yes">✓ Included</span>
+              <span className="lmv-val-value lmv-val-yes"><AppIcon kind="check" size={14} /> Included</span>
             </div>
           )}
           {result.documentPatch.defaultAnimation && (
             <div className="lmv-validation-row">
               <span className="lmv-val-label">Default Animation</span>
-              <span className="lmv-val-value lmv-val-yes">✓ Included</span>
+              <span className="lmv-val-value lmv-val-yes"><AppIcon kind="check" size={14} /> Included</span>
             </div>
           )}
           {result.documentPatch.metadata && Object.keys(result.documentPatch.metadata).length > 0 && (

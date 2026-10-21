@@ -135,7 +135,7 @@ export function FontLibraryPanel() {
         <div className="vz-md-search-wrap">
           <AppIcon kind="search" className="vz-md-search-icon" size="12" />
           <DreamVizTextInput className="vz-md-search-input" type="text" aria-label="Search fonts" placeholder="Search fonts…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-          {searchQuery.length > 0 && <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search" aria-label="Clear font search">✕</button>}
+          {searchQuery.length > 0 && <button className="vz-md-search-clear" onClick={() => setSearchQuery('')} title="Clear search" aria-label="Clear font search"><AppIcon kind="close" size={14} /></button>}
         </div>
       </div>
 

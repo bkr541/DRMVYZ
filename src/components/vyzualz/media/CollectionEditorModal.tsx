@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { useEffect, useState } from 'react'
@@ -56,7 +57,7 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
           <div>
             <h2 id="collection-editor-title"><DialogTitleIcon name="folder" />{collection ? 'Edit Collection' : 'New Collection'}</h2>
           </div>
-          <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close collection editor">×</button>
+          <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close collection editor"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="mmv-editor-body">
           <label className="mum-field">

@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import type { CSSProperties } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
 import { Badge } from '../controls/Badge'
 
 // ── PresetCardStyleGallery ────────────────────────────────────────────────
@@ -53,7 +53,7 @@ function FilmstripRows() {
             <span className="llpc-filmstrip-name">{preset.name}</span>
             <span className="llpc-filmstrip-meta"><PresetChips preset={preset} /></span>
           </span>
-          {preset.favorite && <span className="llpc-filmstrip-fav" aria-hidden="true"><FavouriteIcon size={15} color="currentColor" /></span>}
+          {preset.favorite && <span className="llpc-filmstrip-fav" aria-hidden="true"><AppIcon kind="star" size={15} color="currentColor" /></span>}
         </button>
       ))}
     </div>

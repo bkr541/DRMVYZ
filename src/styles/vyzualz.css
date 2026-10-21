@@ -6633,7 +6633,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 .bk-field-error { display: block; margin-top: 4px; color: #fca5a5; font-size: 9px; }
 .bk-contrast-list { display: flex; flex-direction: column; gap: 5px; margin: 11px 0 0; padding: 0; list-style: none; }
 .bk-contrast-warning { padding-left: 17px; color: #f7d887; font-size: 9px; line-height: 1.35; position: relative; }
-.bk-contrast-warning::before { content: '⚠'; position: absolute; left: 0; top: 0; }
+.bk-contrast-warning::before { content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: middle; background: currentColor; mask: url('../components/shared/icons/css/warning.svg') center / contain no-repeat; position: absolute; left: 0; top: 0; }
 .bk-engine-list { display: flex; flex-direction: column; gap: 9px; }
 .bk-engine-card { padding: 12px; border: 1px solid rgba(255,255,255,.06); border-radius: 7px; background: rgba(2,6,12,.26); }
 .bk-engine-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }

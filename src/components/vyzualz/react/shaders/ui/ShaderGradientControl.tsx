@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from '../../controls/BubbleRevealSlider'
 import React from 'react'
 import type { GradientStop, RGBA } from '../registry/shaderRegistryTypes'
@@ -71,9 +72,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
               disabled={sorted.length <= 2}
               title="Remove stop"
               aria-label={`Remove ${label} stop ${i + 1}`}
-            >
-              ×
-            </button>
+            ><AppIcon kind="close" size={14} /></button>
           </div>
         ))}
       </div>
@@ -81,9 +80,7 @@ export function ShaderGradientControl({ label, value, onChange }: ShaderGradient
         type="button"
         className="rv-shader-stop-add"
         onClick={addStop}
-      >
-        + Stop
-      </button>
+      ><AppIcon kind="plus" size={14} /> Stop</button>
     </div>
   )
 }

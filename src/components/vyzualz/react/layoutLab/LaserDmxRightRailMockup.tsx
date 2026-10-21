@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type ReactNode } from 'react'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import {
@@ -42,7 +43,7 @@ function PresetCard({ name, description, favorite, modified, active, onSelect, o
         <div className="rv-preset-card-thumb rv-layout-lab-laserdmx-preset-thumb" aria-hidden="true"><span /><span /><span /><span /></div>
         <div className="rv-preset-card-copy"><strong>{name}</strong><span>{description}</span><small>{modified ? 'MODIFIED' : 'BUILT-IN'} {active ? '· CURRENT' : ''}</small></div>
       </button>
-      <button type="button" className="rv-layout-lab-laserdmx-favorite" aria-label={`${favorite ? 'Remove' : 'Add'} ${name} ${favorite ? 'from' : 'to'} favorites`} aria-pressed={favorite} onClick={onToggleFavorite}>{favorite ? '★' : '☆'}</button>
+      <button type="button" className="rv-layout-lab-laserdmx-favorite" aria-label={`${favorite ? 'Remove' : 'Add'} ${name} ${favorite ? 'from' : 'to'} favorites`} aria-pressed={favorite} onClick={onToggleFavorite}>{favorite ? <AppIcon kind="starOff" size={14} /> : <AppIcon kind="star" size={14} />}</button>
     </div>
   )
 }
@@ -66,7 +67,7 @@ function PresetsTab({ state }: { state: LaserDmxMockState }) {
         ? 'Beam Matrix looks only. Switch to Show Director for Performance Shows and Rig Layouts.'
         : 'Performance Shows combine a deterministic program with a rig. Rig Layouts remain static, and Matrix mode contains Beam Matrix looks.'}</p>
       {state.presetFilter === 'all' && <div className="rv-ctrl-info">All Engines is a local browser state in Layout Lab. LaserDMX cards remain visible without switching production engines.</div>}
-      {state.visiblePresets.length === 0 && <div className="rv-preset-library-empty"><strong>No favorite presets yet</strong><span>Choose ☆ on a preset to pin it here.</span></div>}
+      {state.visiblePresets.length === 0 && <div className="rv-preset-library-empty"><strong>No favorite presets yet</strong><span>Choose <AppIcon kind="star" size={14} /> on a preset to pin it here.</span></div>}
       {state.mode === 'matrix' ? (
         <section className="rv-preset-group" aria-label="Beam Matrix Presets">
           <header className="rv-preset-group-hdr"><span className="rv-preset-group-hdr-label">Beam Matrix Presets</span><span>{matrixPresets.length}</span></header>
@@ -220,7 +221,7 @@ function SingleBeamSelection({ beam, state }: { beam: LaserDmxMockBeam; state: L
         <SliderRow label="White" value={beam.color.white} min={0} max={255} step={1} onChange={white => updateColor({ white: Math.round(white) })} />
         <SliderRow label="Alpha" value={beam.color.alpha} onChange={alpha => updateColor({ alpha })} />
       </Collapsible>}
-      <div className="rv-bm-button-row"><button type="button" className="rv-glyph-upload-btn" onClick={() => state.duplicateSelectedBeams(false)}>⧉ Dupe</button><button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={state.deleteSelectedBeams}>× Delete</button></div>
+      <div className="rv-bm-button-row"><button type="button" className="rv-glyph-upload-btn" onClick={() => state.duplicateSelectedBeams(false)}><AppIcon kind="copy" size={14} /> Dupe</button><button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={state.deleteSelectedBeams}><AppIcon kind="delete" size={14} /> Delete</button></div>
     </ControlGroup>
   )
 }
@@ -231,7 +232,7 @@ function MultiBeamSelection({ beams, state }: { beams: LaserDmxMockBeam[]; state
   return (
     <ControlGroup>
       <CtrlSection label={`${beams.length} Beams Selected`} />
-      <div className="rv-bm-button-row rv-bm-button-row--wrap"><button type="button" className="rv-glyph-upload-btn" onClick={() => bulk({ enabled: true })}>Enable All</button><button type="button" className="rv-glyph-upload-btn" onClick={() => bulk({ enabled: false })}>Disable All</button><button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label="Delete selected beams" onClick={state.deleteSelectedBeams}>× Delete</button></div>
+      <div className="rv-bm-button-row rv-bm-button-row--wrap"><button type="button" className="rv-glyph-upload-btn" onClick={() => bulk({ enabled: true })}>Enable All</button><button type="button" className="rv-glyph-upload-btn" onClick={() => bulk({ enabled: false })}>Disable All</button><button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label="Delete selected beams" onClick={state.deleteSelectedBeams}><AppIcon kind="delete" size={14} /> Delete</button></div>
       <CtrlSection label="Assign Group" />
       <SelectRow label="Group" value="" options={groupOptions} onChange={groupId => beams.forEach(beam => state.updateBeam(beam.id, { groupId: groupId || null }))} />
       <button type="button" className="rv-glyph-upload-btn" onClick={() => beams.forEach(beam => state.updateBeam(beam.id, { groupId: null }))}>Clear Group</button>
@@ -501,7 +502,7 @@ function ShowDirectorDesignTab({ state }: { state: LaserDmxMockState }) {
 function RouteEditor({ route, state }: { route: LaserDmxMockRoute; state: LaserDmxMockState }) {
   return (
     <Collapsible label={`${route.scope === 'global' ? 'Global' : route.scope === 'group' ? 'Group' : 'Beam'} Route`} defaultOpen>
-      <div className="rv-bm-button-row"><ToggleRow label="Route Enabled" value={route.enabled} onChange={enabled => state.updateRoute(route.id, { enabled })} /><button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={() => state.deleteRoute(route.id)}>×</button></div>
+      <div className="rv-bm-button-row"><ToggleRow label="Route Enabled" value={route.enabled} onChange={enabled => state.updateRoute(route.id, { enabled })} /><button type="button" className="rv-glyph-item-del" title="Delete route" aria-label="Delete modulation route" onClick={() => state.deleteRoute(route.id)}><AppIcon kind="delete" size={14} /></button></div>
       <SelectRow label="Source" value={route.source} options={SOURCE_OPTIONS} onChange={source => state.updateRoute(route.id, { source })} />
       <SelectRow label="Target" value={route.target} options={TARGET_OPTIONS} onChange={target => state.updateRoute(route.id, { target })} />
       <SelectRow label="Curve" value={route.curve} options={[{ value: 'linear', label: 'Linear' }, { value: 'smoothstep', label: 'Smoothstep' }, { value: 'easeOut', label: 'Ease Out' }]} onChange={curve => state.updateRoute(route.id, { curve })} />
@@ -536,9 +537,9 @@ function RoutingTab({ state }: { state: LaserDmxMockState }) {
       <Collapsible label="Scope" defaultOpen>
         <SelectRow label="Routes for" value={state.routeScope} options={[{ value: 'global', label: 'Global Matrix' }, { value: 'group', label: groupAvailable ? `Group · ${state.selectedGroup?.name}` : 'Group · select one', disabled: !groupAvailable }, { value: 'beam', label: beamAvailable ? `Beam · ${state.selectedBeams[0]?.name}` : state.selectedBeams.length > 1 ? 'Beam · multiple selected' : 'Beam · select one', disabled: !beamAvailable }]} onChange={value => state.setRouteScope(value as 'global' | 'group' | 'beam')} />
       </Collapsible>
-      {state.routeScope === 'global' && <Collapsible label="Global Matrix Routes" defaultOpen>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('global')}>+ Add Global Route</button></Collapsible>}
-      {state.routeScope === 'group' && (groupAvailable ? <Collapsible label="Group Routes" defaultOpen><div className="rv-ctrl-info">Routes for {state.selectedGroup?.name}</div>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('group')}>+ Add Group Route</button></Collapsible> : <div className="rv-ctrl-info">Select one reaction group to edit group routes.</div>)}
-      {state.routeScope === 'beam' && (state.selectedBeams.length === 0 ? <div className="rv-ctrl-info">Select one beam to edit beam routes.</div> : state.selectedBeams.length > 1 ? <div className="rv-ctrl-info">Beam routes require exactly one selected beam.</div> : <Collapsible label="Beam Routes" defaultOpen><div className="rv-ctrl-info">Routes for {state.selectedBeams[0].name}</div>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('beam')}>+ Add Beam Route</button></Collapsible>)}
+      {state.routeScope === 'global' && <Collapsible label="Global Matrix Routes" defaultOpen>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('global')}><AppIcon kind="plus" size={14} /> Add Global Route</button></Collapsible>}
+      {state.routeScope === 'group' && (groupAvailable ? <Collapsible label="Group Routes" defaultOpen><div className="rv-ctrl-info">Routes for {state.selectedGroup?.name}</div>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('group')}><AppIcon kind="plus" size={14} /> Add Group Route</button></Collapsible> : <div className="rv-ctrl-info">Select one reaction group to edit group routes.</div>)}
+      {state.routeScope === 'beam' && (state.selectedBeams.length === 0 ? <div className="rv-ctrl-info">Select one beam to edit beam routes.</div> : state.selectedBeams.length > 1 ? <div className="rv-ctrl-info">Beam routes require exactly one selected beam.</div> : <Collapsible label="Beam Routes" defaultOpen><div className="rv-ctrl-info">Routes for {state.selectedBeams[0].name}</div>{routes.map(route => <RouteEditor key={route.id} route={route} state={state} />)}<button type="button" className="rv-glyph-upload-btn" onClick={() => state.addRoute('beam')}><AppIcon kind="plus" size={14} /> Add Beam Route</button></Collapsible>)}
     </ControlGroup>
   )
 }

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 // ── NoticeStyleGallery ───────────────────────────────────────────────────────
 //
 // Layout Lab / Template engine only. Inline Flag: no card chrome at all —
@@ -10,11 +11,7 @@ const SAMPLE_BODY = 'Structured visuals share one authored model with modulation
 
 function NoticeInfoIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 11v5.5" />
-      <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
+    <AppIcon kind="info"  />
   )
 }
 

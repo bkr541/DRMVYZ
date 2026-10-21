@@ -37,7 +37,7 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
         >
           <span className="lmv-review-summary__label">{row.label}</span>
           <strong>{row.count}</strong>
-          <span aria-hidden="true">›</span>
+          <span aria-hidden="true"><AppIcon kind="chevronRight" size={14} /></span>
         </button>
       ))}
     </section>

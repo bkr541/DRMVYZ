@@ -1,3 +1,4 @@
+import { AppIcon } from '../shared/icons/AppIcon'
 import { IconMorphToggle } from './react/controls/IconMorphToggle'
 import { useState, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -118,7 +119,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       <div className="vsm-modal" role="dialog" aria-modal="true" onMouseDown={e => e.stopPropagation()}>
         <div className="vsm-header">
           <div className="vsm-title">SETTINGS</div>
-          <button className="vsm-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="vsm-close" onClick={onClose} aria-label="Close"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="vsm-body">
           <nav className="vsm-nav">

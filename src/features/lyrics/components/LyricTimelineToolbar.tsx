@@ -159,7 +159,7 @@ export function LyricTimelineToolbar({
         onClick={onTogglePlayback}
         aria-label={selectedTrackPlaying ? 'Pause lyric preview' : 'Play lyric preview'}
       >
-        {selectedTrackPlaying ? 'Ⅱ' : '▶'}
+        {selectedTrackPlaying ? <AppIcon kind="pause" size={14} /> : <AppIcon kind="play" size={14} />}
       </button>
 
       <label className="lltr-scrubber" aria-label="Playback position">
@@ -185,7 +185,7 @@ export function LyricTimelineToolbar({
         </label>
 
         <label className="lltr-field lltr-field--volume">
-          <span className="lltr-label lltr-label--icon" aria-hidden="true">♬</span>
+          <span className="lltr-label lltr-label--icon" aria-hidden="true"><AppIcon kind="volume" size={14} /></span>
           <BubbleRevealSlider
             type="range"
             min={0}

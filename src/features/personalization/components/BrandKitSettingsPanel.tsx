@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { IconMorphToggle } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
@@ -386,7 +387,7 @@ export function BrandKitSettingsPanel() {
       <div className="bk-settings">
         <SyncStatus />
         <div className="bk-empty">
-          <div className="bk-empty-mark" aria-hidden="true">◇</div>
+          <div className="bk-empty-mark" aria-hidden="true"><AppIcon kind="shape" size={14} /></div>
           <h2>Make DRMVYZ feel like your booth</h2>
           <p>Create a Brand Kit from your logos or artwork, then use it across Sound Drawing, Cinema, and LaserDMX.</p>
           <label className="bk-field-label" htmlFor="bk-first-name">Brand Kit name</label>

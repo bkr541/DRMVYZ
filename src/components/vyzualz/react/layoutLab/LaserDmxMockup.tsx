@@ -1,3 +1,5 @@
+import { FIXTURE_ICON_KINDS } from '../LaserDmxShowDirectorFixtureIcon'
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useMemo } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
@@ -36,9 +38,9 @@ function MatrixProgram({ state }: { state: LaserDmxMockState }) {
           {state.selectedBeamIds.length > 0 && <span className="rv-bm-sel-badge">{state.selectedBeamIds.length} selected</span>}
         </div>
         <div className="rv-bm-toolbar">
-          <button type="button" className="rv-glyph-upload-btn" aria-label="Add beam" onClick={state.addBeam}>+ Add Beam</button>
-          {state.selectedBeamIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" aria-label="Duplicate selected beam" onClick={() => state.duplicateSelectedBeams(false)}>⧉ Dup</button>}
-          {state.selectedBeamIds.length > 0 && <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label={`Delete ${state.selectedBeamIds.length} selected beams`} onClick={state.deleteSelectedBeams}>× Del</button>}
+          <button type="button" className="rv-glyph-upload-btn" aria-label="Add beam" onClick={state.addBeam}><AppIcon kind="plus" size={14} /> Add Beam</button>
+          {state.selectedBeamIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" aria-label="Duplicate selected beam" onClick={() => state.duplicateSelectedBeams(false)}><AppIcon kind="copy" size={14} /> Dup</button>}
+          {state.selectedBeamIds.length > 0 && <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" aria-label={`Delete ${state.selectedBeamIds.length} selected beams`} onClick={state.deleteSelectedBeams}><AppIcon kind="delete" size={14} /> Del</button>}
           {state.selectedBeamIds.length > 0 && <button type="button" className="rv-glyph-upload-btn" aria-label="Clear beam selection" onClick={state.clearMatrixSelection}>Desel</button>}
           <button type="button" className="rv-glyph-upload-btn" aria-label="Select all beams" onClick={state.selectAllBeams}>All</button>
         </div>
@@ -94,7 +96,7 @@ function ReactionGroups({ state }: { state: LaserDmxMockState }) {
         ))}
       </div>
       <div className="rv-bm-button-row rv-bm-button-row--wrap">
-        <button type="button" className="rv-glyph-upload-btn" aria-label="Add reaction group" onClick={state.addGroup}>+ Add Group</button>
+        <button type="button" className="rv-glyph-upload-btn" aria-label="Add reaction group" onClick={state.addGroup}><AppIcon kind="plus" size={14} /> Add Group</button>
         <button type="button" className="rv-glyph-upload-btn" disabled={!group} onClick={() => group && state.duplicateGroup(group.id)}>Duplicate</button>
         <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" disabled={!group} onClick={() => group && state.deleteGroup(group.id)}>Delete</button>
       </div>
@@ -169,20 +171,7 @@ function ShowDirectorRig({ state }: { state: LaserDmxMockState }) {
   )
 }
 
-function fixtureGlyph(kind: LaserDmxMockFixtureKind): string {
-  switch (kind) {
-    case 'laser': return '⌁'
-    case 'movingHead': return '◉'
-    case 'ledBar': return '▰'
-    case 'ledTube': return '▯'
-    case 'strobe': return '✦'
-    case 'blinder': return '✺'
-    case 'parWash': return '●'
-    case 'videoWall': return '▣'
-    case 'haze': return '≋'
-    case 'co2Jet': return '↑'
-  }
-}
+function fixtureGlyph(kind: LaserDmxMockFixtureKind) { return <AppIcon kind={FIXTURE_ICON_KINDS[kind]} /> }
 
 function ShowDirectorGlobalControls({ state }: { state: LaserDmxMockState }) {
   return (

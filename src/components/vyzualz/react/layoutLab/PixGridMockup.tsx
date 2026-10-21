@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
@@ -81,16 +82,16 @@ function PixGridSetupMockup({ state }: { state: PixGridMockState }) {
                 type="button"
                 aria-label={layer.visible ? `Hide ${layer.name}` : `Show ${layer.name}`}
                 onClick={() => state.updateLayer(layer.id, { visible: !layer.visible })}
-              >{layer.visible ? '◉' : '○'}</button>
+              >{layer.visible ? <AppIcon kind="eyeOff" size={14} /> : <AppIcon kind="eye" size={14} />}</button>
               <button
                 type="button"
                 aria-label={layer.locked ? `Unlock ${layer.name}` : `Lock ${layer.name}`}
                 onClick={() => state.updateLayer(layer.id, { locked: !layer.locked })}
-              >{layer.locked ? '🔒' : '◇'}</button>
-              <button type="button" disabled={index === 0 || layer.locked} aria-label={`Move ${layer.name} down`} onClick={() => state.moveLayer(layer.id, -1)}>↓</button>
-              <button type="button" disabled={index === state.activeLayers.length - 1 || layer.locked} aria-label={`Move ${layer.name} up`} onClick={() => state.moveLayer(layer.id, 1)}>↑</button>
-              <button type="button" disabled={layer.locked} aria-label={`Duplicate ${layer.name}`} onClick={() => state.duplicateLayer(layer.id)}>⧉</button>
-              <button type="button" disabled={layer.locked} aria-label={`Delete ${layer.name}`} onClick={() => state.deleteLayer(layer.id)}>×</button>
+              >{layer.locked ? <AppIcon kind="unlock" size={14} /> : <AppIcon kind="lock" size={14} />}</button>
+              <button type="button" disabled={index === 0 || layer.locked} aria-label={`Move ${layer.name} down`} onClick={() => state.moveLayer(layer.id, -1)}><AppIcon kind="down" size={14} /></button>
+              <button type="button" disabled={index === state.activeLayers.length - 1 || layer.locked} aria-label={`Move ${layer.name} up`} onClick={() => state.moveLayer(layer.id, 1)}><AppIcon kind="up" size={14} /></button>
+              <button type="button" disabled={layer.locked} aria-label={`Duplicate ${layer.name}`} onClick={() => state.duplicateLayer(layer.id)}><AppIcon kind="copy" size={14} /></button>
+              <button type="button" disabled={layer.locked} aria-label={`Delete ${layer.name}`} onClick={() => state.deleteLayer(layer.id)}><AppIcon kind="delete" size={14} /></button>
             </div>
           ))}
           {state.activeLayers.length === 0 && <p>No layers in this scene.</p>}
@@ -131,9 +132,7 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
   return (
     <div className="vz-panel vz-media-browser rv-layout-lab-media-browser" style={{ flex: 1, minHeight: 0 }} data-layout-lab-pix-grid="media">
       <div className="vz-panel-header">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-          <path d="M4 5h16v14H4zM4 10h16M9 5v14" />
-        </svg>
+        <AppIcon kind="image" size="14" />
         <span className="vz-panel-title" title="PixGrid Image & SVG Media">PixGrid Image &amp; SVG Media</span>
         <button
           type="button"
@@ -156,14 +155,12 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
 
       <div className="vz-md-search-row">
         <div className="vz-md-search-wrap">
-          <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
-            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-4.99z" />
-          </svg>
+          <AppIcon kind="search" className="vz-md-search-icon" size="12" />
           <DreamVizTextInput className="vz-md-search-input" type="text" placeholder="Search media…" value={state.mediaSearch} onChange={event => state.setMediaSearch(event.target.value)} />
-          {state.mediaSearch && <button type="button" className="vz-md-search-clear" title="Clear search" onClick={() => state.setMediaSearch('')}>✕</button>}
+          {state.mediaSearch && <button type="button" className="vz-md-search-clear" title="Clear search" onClick={() => state.setMediaSearch('')}><AppIcon kind="close" size={14} /></button>}
         </div>
         <div className="vz-md-view-toggles">
-          <button type="button" className={`vz-md-view-btn${state.mediaView === 'grid' ? ' vz-md-view-btn--active' : ''}`} title="Grid view" onClick={() => state.setMediaView('grid')}>▦</button>
+          <button type="button" className={`vz-md-view-btn${state.mediaView === 'grid' ? ' vz-md-view-btn--active' : ''}`} title="Grid view" onClick={() => state.setMediaView('grid')}><AppIcon kind="pixGrid" size={14} /></button>
           <button type="button" className={`vz-md-view-btn${state.mediaView === 'list' ? ' vz-md-view-btn--active' : ''}`} title="List view" onClick={() => state.setMediaView('list')}>☷</button>
         </div>
       </div>
@@ -176,7 +173,7 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
       {state.mediaNotice && (
         <div className="rv-ctrl-info rv-layout-lab-local-notice" role="status">
           {state.mediaNotice}
-          <button type="button" aria-label="Dismiss media notice" onClick={() => state.setMediaNotice(null)}>×</button>
+          <button type="button" aria-label="Dismiss media notice" onClick={() => state.setMediaNotice(null)}><AppIcon kind="close" size={14} /></button>
         </div>
       )}
 
@@ -192,7 +189,7 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
           <div className="vz-media-grid">
             {[...new Set(filtered.map(item => item.collection).filter(Boolean))].map(collection => (
               <button key={collection} type="button" className="vz-coll-folder" onClick={() => state.setMediaSearch(collection ?? '')}>
-                <div className="vz-coll-folder-hd"><span>▣</span><span className="vz-coll-folder-name">{collection}</span><span className="vz-coll-folder-count">{filtered.filter(item => item.collection === collection).length} items</span></div>
+                <div className="vz-coll-folder-hd"><span><AppIcon kind="canvas" size={14} /></span><span className="vz-coll-folder-name">{collection}</span><span className="vz-coll-folder-count">{filtered.filter(item => item.collection === collection).length} items</span></div>
                 <div className="vz-coll-thumb-strip"><div className="vz-coll-thumb-empty" /></div>
               </button>
             ))}
@@ -223,8 +220,8 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
                   </div>
                 </button>
                 <div className="rv-layout-lab-media-actions">
-                  <button type="button" title={item.favorite ? 'Unfavourite' : 'Favourite'} aria-label={`${item.favorite ? 'Remove' : 'Add'} ${item.name} ${item.favorite ? 'from' : 'to'} favorites`} onClick={() => state.toggleMediaFavorite(item.id)}>{item.favorite ? '★' : '☆'}</button>
-                  <button type="button" title="Preview media" aria-label={`Preview ${item.name}`} onClick={() => state.setMediaNotice(`${item.name} preview is visual-only in Layout Lab.`)}>◉</button>
+                  <button type="button" title={item.favorite ? 'Unfavourite' : 'Favourite'} aria-label={`${item.favorite ? 'Remove' : 'Add'} ${item.name} ${item.favorite ? 'from' : 'to'} favorites`} onClick={() => state.toggleMediaFavorite(item.id)}>{item.favorite ? <AppIcon kind="starOff" size={14} /> : <AppIcon kind="star" size={14} />}</button>
+                  <button type="button" title="Preview media" aria-label={`Preview ${item.name}`} onClick={() => state.setMediaNotice(`${item.name} preview is visual-only in Layout Lab.`)}><AppIcon kind="eye" size={14} /></button>
                 </div>
               </article>
             ))}

@@ -1,5 +1,5 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties, type ReactNode } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
 
 // ── MediaThumbnailStyleGallery ────────────────────────────────────────────
 //
@@ -67,7 +67,7 @@ function KindChip({ kind }: { kind: MediaKind }) {
 }
 
 function Heart({ on }: { on?: boolean }) {
-  return <span className={`llmt-heart${on ? ' is-on' : ''}`} aria-hidden="true"><FavouriteIcon size={12} color="currentColor" /></span>
+  return <span className={`llmt-heart${on ? ' is-on' : ''}`} aria-hidden="true"><AppIcon kind="star" size={12} color="currentColor" /></span>
 }
 
 interface GridProps {

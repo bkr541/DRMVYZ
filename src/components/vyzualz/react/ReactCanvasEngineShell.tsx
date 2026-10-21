@@ -308,7 +308,7 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
             >
               <div className="vz-media-thumb">
                 {item.type === 'video' ? (
-                  <span className="rv-canvas-media-card__video-mark">▶</span>
+                  <span className="rv-canvas-media-card__video-mark"><AppIcon kind="play" size={14} /></span>
                 ) : (
                   <img src={item.objectUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 )}
@@ -3494,7 +3494,7 @@ export function CanvasLayersPanel() {
                 setSelectedCanvasLayer(null)
               }}
             >
-              <span className="rv-canvas-scope-row-icon" aria-hidden="true">▣</span>
+              <span className="rv-canvas-scope-row-icon" aria-hidden="true"><AppIcon kind="canvas" size={14} /></span>
               <span className="rv-canvas-scope-row-label">CANVAS</span>
             </button>
             {canvasScopeLocked && (
@@ -3563,7 +3563,7 @@ export function CanvasLayersPanel() {
                   title="Duplicate layer"
                   aria-label={`Duplicate CANVAS layer ${label}`}
                   onClick={event => { event.stopPropagation(); duplicateLayer(layer.id) }}
-                >⧉</IconChipButton>
+                ><AppIcon kind="copy" size={14} /></IconChipButton>
                 {hasEngineOverrides && (
                   <IconChipButton
                     className="rv-canvas-layer-row-action"

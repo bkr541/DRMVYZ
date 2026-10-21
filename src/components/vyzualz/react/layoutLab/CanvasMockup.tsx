@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useMemo } from 'react'
 import { RailTabs } from '../../layout/RailTabs'
 import type { ReactEngineId } from '../ReactTypes'
@@ -40,7 +41,7 @@ function MediaCard({
     <article className={`rv-layout-lab-canvas-media-card${selected ? ' is-active' : ''}`}>
       <button type="button" className="rv-layout-lab-canvas-media-main" onClick={onSelect} aria-pressed={selected}>
         <span className={`rv-layout-lab-canvas-media-thumb is-${item.type}`} aria-hidden="true">
-          {item.type === 'video' ? '▶' : item.type === 'svg' ? '◇' : '▧'}
+          {item.type === 'video' ? <AppIcon kind="play" size={14} /> : item.type === 'svg' ? <AppIcon kind="shape" size={14} /> : <AppIcon kind="image" size={14} />}
         </span>
         <span>
           <strong>{item.name}</strong>
@@ -158,7 +159,7 @@ export function CanvasMockup({
                   {poolItems.map(item => (
                     <div key={item.id} className={state.activePoolMedia?.id === item.id ? 'is-active' : ''}>
                       <button type="button" onClick={() => state.selectPoolMedia(item.id)}>{item.name}</button>
-                      <button type="button" onClick={() => state.removeFromPool(item.id)} aria-label={`Remove ${item.name} from Performance Pool`}>×</button>
+                      <button type="button" onClick={() => state.removeFromPool(item.id)} aria-label={`Remove ${item.name} from Performance Pool`}><AppIcon kind="close" size={14} /></button>
                     </div>
                   ))}
                 </div>

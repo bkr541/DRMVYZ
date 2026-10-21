@@ -135,7 +135,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
               title="Rotate left 90°"
               aria-label="Rotate left 90 degrees"
             >
-              <span aria-hidden="true">↺ 90°</span>
+              <span aria-hidden="true"><AppIcon kind="rotateLeft" size={14} /> 90°</span>
             </IconChipButton>
             <IconChipButton
               disabled={transformDisabled}
@@ -143,7 +143,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
               title="Rotate right 90°"
               aria-label="Rotate right 90 degrees"
             >
-              <span aria-hidden="true">↻ 90°</span>
+              <span aria-hidden="true"><AppIcon kind="rotateRight" size={14} /> 90°</span>
             </IconChipButton>
           </span>
         </div>

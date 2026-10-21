@@ -48,9 +48,7 @@ export function PresetSearchRow({
             onClick={() => onQueryChange('')}
             title="Clear search"
             aria-label="Clear search"
-          >
-            ✕
-          </button>
+          ><AppIcon kind="close" size={14} /></button>
         )}
       </div>
       {trailing}

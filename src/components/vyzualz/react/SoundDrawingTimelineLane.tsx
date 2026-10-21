@@ -185,15 +185,9 @@ function LayerEditor({
       <div className="rv-sd-layer-editor-header">
         <span className="rv-sd-layer-editor-title">{layer.name}</span>
         <div className="rv-sd-layer-editor-actions">
-          <button type="button" className="rv-sd-action-btn" onClick={onDuplicate} title="Duplicate clip" aria-label={`Duplicate clip ${layer.name}`}>
-            ⧉
-          </button>
-          <button type="button" className="rv-sd-action-btn rv-sd-action-btn--danger" onClick={onDelete} title="Delete clip" aria-label={`Delete clip ${layer.name}`}>
-            ✕
-          </button>
-          <button type="button" className="rv-sd-action-btn" onClick={onClose} title="Close editor" aria-label="Close clip editor">
-            ↓
-          </button>
+          <button type="button" className="rv-sd-action-btn" onClick={onDuplicate} title="Duplicate clip" aria-label={`Duplicate clip ${layer.name}`}><AppIcon kind="copy" size={14} /></button>
+          <button type="button" className="rv-sd-action-btn rv-sd-action-btn--danger" onClick={onDelete} title="Delete clip" aria-label={`Delete clip ${layer.name}`}><AppIcon kind="delete" size={14} /></button>
+          <button type="button" className="rv-sd-action-btn" onClick={onClose} title="Close editor" aria-label="Close clip editor"><AppIcon kind="down" size={14} /></button>
         </div>
       </div>
 
@@ -880,11 +874,11 @@ export function SoundDrawingTimelineLane({
               onClick={() => setAddOpen(o => !o)}
               title={activeTrackId ? 'Add clip at playhead' : 'Load a track first'}
             >
-              {addOpen ? '✕ Cancel' : '+ Add'}
+              {addOpen ? <><AppIcon kind="close" size={14} /> Cancel</> : <><AppIcon kind="plus" size={14} /> Add</>}
             </button>
           </div>
         )}
-        <span className="rv-collapse-arrow">{collapsed ? '▶' : '▼'}</span>
+        <span className="rv-collapse-arrow">{collapsed ? <AppIcon kind="chevronRight" size={14} /> : <AppIcon kind="chevronDown" size={14} />}</span>
       </div>
 
       {/* Collapsed: just show header */}

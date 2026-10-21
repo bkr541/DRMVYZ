@@ -93,7 +93,7 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
     ['Remove image', 'close'], ['Pixel Grid', 'pixGrid'], ['Bars', 'bars'], ['Lights', 'movingHead'],
     ['Particles', 'particles'], ['Strobe', 'strobe'], ['Text', 'text'], ['Textures', 'texture'],
     ['Materials', 'shape'], ['Media', 'image'], ['Shaders', 'shader'], ['Fonts', 'font'],
-    ['↖', 'pointer'], ['✥', 'move'], ['↻', 'rotateRight'], ['⌗', 'gridSnap'], ['▦', 'grid'], ['◫', 'split'],
+    ['Select tool', 'pointer'], ['Move tool', 'move'], ['Rotate tool', 'rotateRight'], ['Snap to grid', 'gridSnap'], ['Grid', 'grid'], ['Split view', 'split'],
   ]),
   ...inventory('Lyric Manager', [
     'src/features/lyrics/LyricManagerView.tsx', 'src/features/lyrics/components/LyricManagerHeader.tsx',

@@ -123,8 +123,8 @@ function DocumentCard({
               }}
               aria-label="Lyric document name"
             />
-            <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name">✓</button>
-            <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename">×</button>
+            <button type="button" className="lmv-icon-btn" onClick={() => onCommitRename(renameValue.trim())} disabled={!renameValue.trim()} aria-label="Save lyric document name"><AppIcon kind="check" size={14} /></button>
+            <button type="button" className="lmv-icon-btn" onClick={onCancelRename} aria-label="Cancel lyric document rename"><AppIcon kind="close" size={14} /></button>
           </div>
         ) : (
           <button className="lmv-doc-card-main" onClick={onSelectDocument}>

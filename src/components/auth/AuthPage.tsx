@@ -546,9 +546,7 @@ export function AuthPage({ onAuth }: { onAuth: () => void }) {
     return (
       <div className="auth-root">
         <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', maxWidth: 400, padding: '0 24px' }}>
-          <div style={{ fontSize: 13, marginBottom: 12, color: '#f87171', fontFamily: 'monospace' }}>
-            ⚠ Supabase not configured
-          </div>
+          <div style={{ fontSize: 13, marginBottom: 12, color: '#f87171', fontFamily: 'monospace' }}><AppIcon kind="warning" size={14} /> Supabase not configured</div>
           <p style={{ fontSize: 12, lineHeight: 1.6 }}>
             Copy <code>.env.example</code> → <code>.env</code> and set{' '}
             <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>,

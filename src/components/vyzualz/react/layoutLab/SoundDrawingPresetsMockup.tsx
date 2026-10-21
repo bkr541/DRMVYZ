@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState, type CSSProperties } from 'react'
 import { getReactEngineIconComponent } from '../reactEngineIcons'
 import { ReactPresetCard } from '../ReactPresetCard'
@@ -130,7 +131,7 @@ export function SoundDrawingPresetsMockup() {
         {visiblePresets.length === 0 ? (
           <div className="rv-preset-library-empty">
             <strong>No favorite presets yet</strong>
-            <span>Choose ☆ on a preset to pin it here.</span>
+            <span>Choose <AppIcon kind="star" size={14} /> on a preset to pin it here.</span>
           </div>
         ) : libraryView === 'all' ? (
           <div className="rv-preset-group">

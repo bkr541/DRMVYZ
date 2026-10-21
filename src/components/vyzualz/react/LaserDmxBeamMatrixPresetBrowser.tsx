@@ -224,9 +224,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
               onClick={() => setSearchQuery('')}
               title="Clear search"
               aria-label="Clear preset search"
-            >
-              ✕
-            </button>
+            ><AppIcon kind="close" size={14} /></button>
           )}
         </div>
       )}
@@ -263,8 +261,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
                   onClick={() => toggleTag(tag)}
                   title={`Remove filter: ${tag}`}
                 >
-                  {tag} ×
-                </button>
+                  {tag}<AppIcon kind="close" size={14} /></button>
               ))}
               <button
                 type="button"
@@ -281,9 +278,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
               <IconChipButton
                 className="rv-laser-dmx-preset-nav-btn"
                 onClick={() => navigateTo(-1)}
-              >
-                ‹ Prev
-              </IconChipButton>
+              ><AppIcon kind="left" size={14} /> Prev</IconChipButton>
               <span className="rv-laser-dmx-preset-nav-count">
                 {activeIndex >= 0 ? `${activeIndex + 1} / ${filtered.length}` : `— / ${filtered.length}`}
               </span>
@@ -291,7 +286,7 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
                 className="rv-laser-dmx-preset-nav-btn"
                 onClick={() => navigateTo(1)}
               >
-                Next ›
+                Next <AppIcon kind="chevronRight" size={14} />
               </IconChipButton>
             </div>
           )}

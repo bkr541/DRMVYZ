@@ -753,7 +753,7 @@
 .lyric-cue-list tbody tr:hover { background: rgba(74,199,219,0.07); }
 .lyric-cue-list tbody tr:focus-visible { outline: 2px solid #4ac7db; outline-offset: -2px; }
 .lyric-cue-list__row--selected { background: rgba(74,199,219,0.12); box-shadow: inset 3px 0 #4ac7db; }
-.lyric-cue-list__row--active td:first-child::before { content: '▶ '; color: #61d6aa; }
+.lyric-cue-list__row--active td:first-child::before { content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: middle; background: currentColor; mask: url('../components/shared/icons/css/play.svg') center / contain no-repeat; color: #61d6aa; }
 .lyric-cue-list__low-confidence { color: #d8b95a; }
 .lyric-cue-list__empty { padding: 22px; text-align: center; color: rgba(196,207,211,0.4); }
 
@@ -1377,7 +1377,7 @@
 }
 
 .lmv-track-search-wrap::before {
-  content: '⌕';
+  content: ''; display: inline-block; width: 14px; height: 14px; vertical-align: middle; background: currentColor; mask: url('../components/shared/icons/css/search.svg') center / contain no-repeat;
   position: absolute;
   z-index: 1;
   left: 10px;

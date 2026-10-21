@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -904,7 +905,7 @@ export function LyricCueTimeline({
               {index + 1}
             </span>
             <span className="lyric-cue-block__state" aria-hidden="true">
-              {active ? "▶" : selected ? "●" : issues.length ? "!" : ""}
+              {active ? <AppIcon kind="play" size={14} /> : selected ? <AppIcon kind="check" size={14} /> : issues.length ? <AppIcon kind="warning" size={14} /> : ""}
             </span>
             <span className="lyric-cue-block__text">
               {cue.text || "Empty cue"}

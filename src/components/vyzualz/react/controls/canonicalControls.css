@@ -274,41 +274,11 @@
   box-shadow: 0 0 10px rgba(74, 199, 219, 0.35) !important;
 }
 
-.dv-icon-morph-toggle__icon {
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-}
-
-.dv-icon-morph-toggle__ring {
-  fill: none;
-  stroke: rgba(196, 207, 211, 0.35);
-  stroke-width: 1.4;
-  transition: stroke 160ms ease, opacity 160ms ease;
-}
-
-.dv-icon-morph-toggle.is-on .dv-icon-morph-toggle__ring,
-.dv-icon-morph-checkbox.is-on .dv-icon-morph-toggle__ring,
-.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-toggle__ring {
-  opacity: 0;
-}
-
-.dv-icon-morph-toggle__check {
-  fill: none;
-  stroke: #67f7ff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 12;
-  stroke-dashoffset: 12;
-  transition: stroke-dashoffset 220ms ease;
-}
-
-.dv-icon-morph-toggle.is-on .dv-icon-morph-toggle__check,
-.dv-icon-morph-checkbox.is-on .dv-icon-morph-toggle__check,
-.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-toggle__check {
-  stroke-dashoffset: 0;
-}
+.dv-icon-morph-toggle__icon { width: 13px; height: 13px; pointer-events: none; }
+.dv-icon-morph-checkbox__on { display: none; }
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-checkbox__off { display: none; }
+.dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-checkbox__on { display: contents; }
+.dv-icon-morph-checkbox.is-disabled .app-icon { --app-icon-accent: currentColor; }
 
 .dv-icon-morph-toggle:focus-visible,
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:focus-visible) {

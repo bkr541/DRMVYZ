@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { useEffect, useState } from 'react'
@@ -65,7 +66,7 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
           <div>
             <h2 id="audio-editor-title"><DialogTitleIcon name="edit" />Edit Audio Metadata</h2>
           </div>
-          <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close audio editor">×</button>
+          <button type="button" className="mpm-close" onClick={onClose} disabled={saving} aria-label="Close audio editor"><AppIcon kind="close" size={14} /></button>
         </div>
         <div className="mmv-editor-body">
           <label className="mum-field">

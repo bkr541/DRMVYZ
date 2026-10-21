@@ -20,9 +20,9 @@ The approved artwork now lives in `src/components/shared/icons/AppIcon.tsx`, wit
 | --- | --- | --- |
 | 1 | Shared renderer; sidebar; header loading, notification, settings and save icons; shared dialog/notice icons; all production Hugeicons and Carbon icon uses across managers, libraries, lyric editing, React rails and Audio Intelligence | Complete |
 | 2 | Remaining bespoke SVGs: transport, engine selectors, lighting fixture assets, output/casting, recording, timeline and account controls | Complete |
-| 3 | Remaining Unicode/CSS controls, toggle/checkbox artwork and legacy Layout Lab samples; final inventory consistency review | Pending |
+| 3 | Remaining Unicode/CSS controls, toggle/checkbox artwork and legacy Layout Lab samples; final inventory consistency review | Complete |
 
-Phase 1 migrates 100 third-party icon instances in 24 production files in addition to shared/navigation replacements. The header activity animation retains its existing busy/reduced-motion behavior and rotates around the new artwork’s 16px center. Active favorites use the approved unfavorite variant. Layout Lab samples still using third-party icons are deferred to phase 3; the packages remain installed until their final uses are removed.
+Phase 1 migrates 100 third-party icon instances in 24 production files in addition to shared/navigation replacements. The header activity animation retains its existing busy/reduced-motion behavior and rotates around the new artwork’s 16px center. Active favorites use the approved unfavorite variant. Phase 3 also migrates the remaining Layout Lab samples and removes the Hugeicons and Carbon dependencies.
 
 ## Screen coverage
 
@@ -78,3 +78,14 @@ Focused tests cover every SVG and label, valid source references, label/screen f
 - ESLint reports zero errors and six existing hook-dependency warnings. Focused typechecking found no unexpected diagnostics in changed files; the same nine repository diagnostics remain, including the two known Audio Dock `diagnostics` union errors. A full build was not repeated.
 - Browser review passed for all nine engine icons, ten palette/stage fixture pairs at their expected sizes and colors, all six aspect ratios including portrait selection, recording start/stop callbacks, and transport path equality with the approved gallery. No browser page errors occurred.
 - Phase 2 implementation and documentation are complete, the diff was reviewed, and changes remain uncommitted. Phase 3 has not started.
+
+### Phase 3 checkpoint
+
+- Replaced remaining Unicode control glyphs across managers, lyric editing, Sound Drawing, shader controls, Track Map, PixGrid, personalization, and Layout Lab. Engine metadata now uses typed approved icon kinds. Show Manager tool labels are readable accessible names and match the review inventory.
+- Toggle and checkbox artwork now uses the approved check/off drawings. Native checkbox state drives the visible drawing through CSS, preserving controlled and uncontrolled input behavior, keyboard activation, submission, disabled behavior, and form reset.
+- CSS search, warning, playback, active-tab and native-select artwork uses seven SVG assets in `src/components/shared/icons/css/`, copied from the approved renderer paths. Keep those paths synchronized with `AppIcon.tsx` when editing the artwork. Masks inherit semantic colors; select and Show Manager background images have explicit foreground colors and sizes.
+- Legacy Layout Lab transport, header, fixture, source, casting, engine, effect, marker and favorite samples use the shared renderer. Its navigation sample shows all five destinations in one row. The Cinema 2.0 review sheet keeps its five-column layout and existing labels, with the six former symbol-only Show Manager tool labels updated to their accessible names.
+- Removed the final Hugeicons and Carbon imports and their package dependencies. Historical unrendered artwork remains available in source; scene thumbnails, progress charts, user content, multiplication signs and data/status dots retain their original role.
+- Validation: all 42 focused tests pass after updating one assertion from the old warning character to the approved warning icon and count. Coverage includes gallery/inventory consistency, switches/native checkboxes, lyric toolbar/sidebar, header status, and Layout Lab header/navigation/rail samples. Changed TypeScript files pass ESLint with zero errors and five existing hook-dependency warnings. Focused typechecking found no new diagnostics; the two existing Audio Dock `diagnostics` union errors remain in changed files. The known unrelated repository-wide failures were not rerun.
+- Local browser checks passed for native keyboard checkbox changes/reset at 17px, switch callbacks/artwork, loading rotation around the 16px center, reduced-motion pulse, CSS mask sizes/colors, all seven CSS asset path pairs, engine selection, and the five-column navigation sample. No browser page errors occurred. A stale dependency-cache URL and an assertion that initially did not account for Vite inlining SVG URLs were corrected in the temporary browser harness.
+- Phase 3 implementation and documentation are complete. Changes are reviewed and remain uncommitted; no commit was requested. Full-project build/typecheck remains limited by the previously documented unrelated errors.

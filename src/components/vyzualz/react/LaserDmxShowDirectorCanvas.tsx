@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import {
   useCallback,
   useEffect,
@@ -1596,7 +1597,7 @@ export function LaserDmxShowDirectorCanvas({ fixtures, selectedFixtureId, select
                             x={(from.x + to.x) / 2}
                             y={(from.y + to.y) / 2 - 0.7}
                           >
-                            {blanked ? '×' : fixture.scanner?.direction === 'alternating' ? '↔' : fixture.scanner?.direction === 'reverse' || fixture.scanner?.reversePath ? '‹' : '›'}
+                            {blanked ? <AppIcon kind="close" size={14} /> : fixture.scanner?.direction === 'alternating' ? <AppIcon kind="move" size={14} /> : fixture.scanner?.direction === 'reverse' || fixture.scanner?.reversePath ? <AppIcon kind="left" size={14} /> : <AppIcon kind="chevronRight" size={14} />}
                           </text>
                         )}
                       </g>

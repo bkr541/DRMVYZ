@@ -1,15 +1,10 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useState } from 'react'
 
 type Variant = 'tucked' | 'edge-tab' | 'header' | 'seam' | 'footer'
 type Side = 'left' | 'right'
 
-function Chevron({ points }: { points: 'left' | 'right' }) {
-  return (
-    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-      <path d={points === 'left' ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
+function Chevron({ points }: { points: 'left' | 'right' }) { return <AppIcon kind={points === 'left' ? 'left' : 'chevronRight'} size={12} /> }
 
 /** Collapsing a rail points the chevron at the rail's own outer edge; expanding points it back at the visualizer. */
 const direction = (side: Side, collapsed: boolean): 'left' | 'right' => (side === 'left') === !collapsed ? 'left' : 'right'
