@@ -23300,3 +23300,27 @@ button.llhr-chip { cursor: pointer; }
 .llpm-kv-cell small { color: rgba(170, 186, 194, 0.55); font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
 .llpm-kv-cell b { overflow: hidden; color: rgba(243, 246, 248, 0.9); font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); text-overflow: ellipsis; white-space: nowrap; }
 .llpm-kv-cell b.llpm-owner { letter-spacing: 0.08em; }
+
+/* Layout Lab · Template · Design tab: flat-row Preset Manager card studies (06–10). The rows use the Lyric Manager track card's own
+   classes (.vz-track-row--list …); only what a preset adds (scope, badges, key/value) is styled here, and none of it draws a box. */
+.llpm-flat-list { display: flex; flex-direction: column; }
+.llpm-flat-list .vz-track-row.vz-track-row--list { cursor: default; }
+.llpm-flat-list .vz-track-row--list::after { left: 15px; right: 15px; }
+.llpm-scope-text { font-weight: 800; letter-spacing: 0.1em; }
+.llpm-scope-text[data-scope='USER'] { color: #67f7ff; }
+.llpm-scope-text[data-scope='SYSTEM'] { color: rgba(170, 186, 194, 0.7); }
+.llpm-flat-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
+.llpm-flat-badges--end { margin: 0 0 0 auto; }
+/* Bare badges: the same Badge, with its capsule border, fill and padding removed (as the track card does for the selected dot). */
+.llpm-flat-badges--bare .dv-badge { padding: 0; border-width: 0; background: none; gap: 4px; }
+.llpm-flat-fav { color: rgba(205, 216, 221, 0.4); }
+.llpm-flat-fav.is-on { color: #ff6b8b; }
+.llpm-flat-rail { box-shadow: inset 2px 0 0 rgba(170, 186, 194, 0.35); }
+.llpm-flat-rail[data-scope='USER'] { box-shadow: inset 2px 0 0 #67f7ff; }
+.llpm-flat-rail.vz-track-row--active { box-shadow: inset 2px 0 0 #67f7ff; }
+.llpm-flat-split-scope { margin-left: auto; font-size: 8.5px; }
+.llpm-flat-split .vz-track-row-title { flex: 0 1 auto; }
+.llpm-flat-kv { display: flex; gap: 22px; }
+.llpm-flat-kv span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.llpm-flat-kv small { color: rgba(170, 186, 194, 0.5); font: 600 9px/1 var(--az-font-data, Inter, system-ui, sans-serif); }
+.llpm-flat-kv b { color: rgba(243, 246, 248, 0.9); font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); }
