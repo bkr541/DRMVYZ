@@ -1,7 +1,7 @@
+import { AppIcon } from '../shared/icons/AppIcon'
 import { useEffect, useRef, useState } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { AppView } from './appView'
-import { DeckHardwareGlyph, IsometricStackGlyph, NavIconSvg } from './navIcons'
 
 interface Props {
   compact?: boolean
@@ -46,7 +46,7 @@ export function VyzualzSidebar({
         aria-expanded={!isCollapsed}
       >
         <div className="az-logo-icon">
-          <img src="/drmvyz_logo_icon.png" alt="DRMVYZ" />
+          <AppIcon kind="brand" size={32} />
         </div>
         <div className="az-logo-text">
           <span className="az-logo-mark">DRMVYZ</span>
@@ -64,7 +64,7 @@ export function VyzualzSidebar({
           aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <NavIconSvg size={28}><DeckHardwareGlyph kind="react" /></NavIconSvg>
+          <AppIcon kind="navReact" size={28} />
           <span className="az-nav-label">React</span>
         </button>
 
@@ -80,7 +80,7 @@ export function VyzualzSidebar({
           aria-current={appView === 'presetManager' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <NavIconSvg size={28}><IsometricStackGlyph kind="preset" /></NavIconSvg>
+          <AppIcon kind="navPreset" size={28} />
           <span className="az-nav-label">Preset Manager</span>
         </button>
 
@@ -100,7 +100,7 @@ export function VyzualzSidebar({
           disabled={showManagerUnavailable}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <NavIconSvg size={28}><IsometricStackGlyph kind="show" /></NavIconSvg>
+          <AppIcon kind="navShow" size={28} />
           <span className="az-nav-label">Show Manager</span>
         </button>
 
@@ -114,7 +114,7 @@ export function VyzualzSidebar({
           aria-current={appView === 'lyrics' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <NavIconSvg size={28}><DeckHardwareGlyph kind="lyrics" /></NavIconSvg>
+          <AppIcon kind="navLyrics" size={28} />
           <span className="az-nav-label">Lyric Manager</span>
         </button>
 
@@ -128,7 +128,7 @@ export function VyzualzSidebar({
           aria-current={appView === 'media' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <NavIconSvg size={28}><IsometricStackGlyph kind="media" /></NavIconSvg>
+          <AppIcon kind="navMedia" size={28} />
           <span className="az-nav-label">Media Manager</span>
         </button>
       </nav>

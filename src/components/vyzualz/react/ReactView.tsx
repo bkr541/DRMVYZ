@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
 import { musicIntelligenceEngine } from '../../../features/musicIntelligence/MusicIntelligenceEngine'
@@ -53,7 +54,7 @@ import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeRes
 import type { RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
-import { DashboardSquare01Icon, Settings02Icon } from 'hugeicons-react'
+
 import { MediaDeckPanel } from '../media/MediaDeckPanel'
 import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
@@ -739,7 +740,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         >
           <RailWindowHeader
             side="left"
-            icon={<DashboardSquare01Icon size={15} color="currentColor" aria-hidden="true" />}
+            icon={<AppIcon kind="grid" size={15} color="currentColor" aria-hidden="true" />}
             label="React Workspace"
           />
           <div className="rv-left-workspace-shell" data-description-density="compact">
@@ -1058,7 +1059,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
         >
           <RailWindowHeader
             side="right"
-            icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+            icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
             label="Inspector"
           />
           <RailTabs

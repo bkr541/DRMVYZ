@@ -1,17 +1,5 @@
-import {
-  Add01Icon,
-  AlignLeftIcon,
-  AlignRightIcon,
-  Analytics01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Copy01Icon,
-  Delete02Icon,
-  MoveIcon,
-  Redo02Icon,
-  Scissor01Icon,
-  Undo02Icon,
-} from 'hugeicons-react'
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
+
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { useLyricCueEditor } from '../editor/useLyricCueEditor'
@@ -44,49 +32,49 @@ export function LyricTimelineEditActions({ editor, analyze }: {
   const actionButtons = [
     {
       label: 'Set start to playhead',
-      icon: <AlignLeftIcon size={14} color="currentColor" />,
+      icon: <AppIcon kind="alignStart" size={14} color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.setStartToPlayhead,
     },
     {
       label: 'Set end to playhead',
-      icon: <AlignRightIcon size={14} color="currentColor" />,
+      icon: <AppIcon kind="alignEnd" size={14} color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.setEndToPlayhead,
     },
     {
       label: 'Move to playhead',
-      icon: <MoveIcon size={14} color="currentColor" />,
+      icon: <AppIcon kind="move" size={14} color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.moveToPlayhead,
     },
     {
       label: 'Duplicate cue',
-      icon: <Copy01Icon size={14} color="currentColor" />,
+      icon: <AppIcon kind="copy" size={14} color="currentColor" />,
       disabled: !actions,
       onClick: actions?.duplicate,
     },
     {
       label: 'Split at playhead',
-      icon: <Scissor01Icon size={14} color="currentColor" />,
+      icon: <AppIcon kind="scissors" size={14} color="currentColor" />,
       disabled: !actions || playheadUnavailable || !cue || editor.canonicalPlayheadMs! <= cue.startMs || editor.canonicalPlayheadMs! >= cue.endMs,
       onClick: actions?.split,
     },
     {
       label: 'Merge previous cue',
-      icon: <ArrowLeft01Icon size={14} color="currentColor" />,
+      icon: <AppIcon kind="left" size={14} color="currentColor" />,
       disabled: !actions || editor.selectedIndex <= 0,
       onClick: actions?.mergePrevious,
     },
     {
       label: 'Merge next cue',
-      icon: <ArrowRight01Icon size={14} color="currentColor" />,
+      icon: <AppIcon kind="right" size={14} color="currentColor" />,
       disabled: !actions || editor.selectedIndex < 0 || editor.selectedIndex >= editor.orderedCues.length - 1,
       onClick: actions?.mergeNext,
     },
     {
       label: 'Delete cue',
-      icon: <Delete02Icon size={14} color="currentColor" />,
+      icon: <AppIcon kind="delete" size={14} color="currentColor" />,
       disabled: !actions,
       onClick: actions?.delete,
       danger: true,
@@ -97,14 +85,14 @@ export function LyricTimelineEditActions({ editor, analyze }: {
     <div className="lmv-timeline-edit-actions" role="toolbar" aria-label="Cue editing">
       <IconChipButton
         className="lmv-icon-only-chip"
-        icon={<Add01Icon size={14} color="currentColor" />}
+        icon={<AppIcon kind="plus" size={14} color="currentColor" />}
         title="Add cue at playhead"
         aria-label="Add cue"
         onClick={editor.addAtPlayhead}
       />
       <IconChipButton
         className="lmv-icon-only-chip"
-        icon={<Undo02Icon size={14} color="currentColor" />}
+        icon={<AppIcon kind="undo" size={14} color="currentColor" />}
         title="Undo lyric edit"
         aria-label="Undo lyric edit"
         disabled={editor.cueHistoryPast.length === 0}
@@ -112,7 +100,7 @@ export function LyricTimelineEditActions({ editor, analyze }: {
       />
       <IconChipButton
         className="lmv-icon-only-chip"
-        icon={<Redo02Icon size={14} color="currentColor" />}
+        icon={<AppIcon kind="redo" size={14} color="currentColor" />}
         title="Redo lyric edit"
         aria-label="Redo lyric edit"
         disabled={editor.cueHistoryFuture.length === 0}
@@ -132,7 +120,7 @@ export function LyricTimelineEditActions({ editor, analyze }: {
       {analyze && (
         <IconChipButton
           className="lmv-icon-only-chip lmv-analyze-chip"
-          icon={<Analytics01Icon size={14} color="currentColor" />}
+          icon={<AppIcon kind="bars" size={14} color="currentColor" />}
           title={analyze.label}
           aria-label={analyze.label}
           onClick={analyze.onClick}

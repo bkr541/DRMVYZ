@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Add01Icon, FavouriteIcon, Layers01Icon, Settings02Icon } from 'hugeicons-react'
+
 import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
 import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
@@ -175,7 +176,7 @@ function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { 
         </span>
       </button>
       <button className={`vz-media-star${favorite ? ' vz-media-star--active' : ''}`} type="button" onClick={onToggleFavorite} aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.name} ${favorite ? 'from' : 'to'} favorites`}>
-        <FavouriteIcon size={12} color="currentColor" />
+        <AppIcon kind={favorite ? 'starOff' : 'star'} size={12} color="currentColor" />
       </button>
     </article>
   )
@@ -384,12 +385,12 @@ export function PresetManagerView() {
           >
             <RailWindowHeader
               side="left"
-              icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+              icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
               label="Preset Library"
               actions={
                 <IconChipButton
                   tone="primary"
-                  icon={<Add01Icon size={14} color="currentColor" />}
+                  icon={<AppIcon kind="plus" size={14} color="currentColor" />}
                   aria-label="Create preset"
                   title="Create preset"
                 />
@@ -461,7 +462,7 @@ export function PresetManagerView() {
           >
             <RailWindowHeader
               side="right"
-              icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+              icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
               label="Inspector"
             />
             <RailTabs

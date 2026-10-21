@@ -1,0 +1,27 @@
+.app-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+}
+.app-icon__signal {
+  stroke: var(--app-icon-accent, var(--llni-accent, var(--az-cyan, #4ac7db)));
+}
+/* Disabled and destructive controls keep their existing semantic colors. */
+:disabled .app-icon,
+[aria-disabled='true'] .app-icon,
+.vz-header-icon-key--danger .app-icon,
+.dv-icon-chip--danger .app-icon,
+.vz-media-remove .app-icon,
+.vz-track-remove-btn .app-icon,
+.lmv-icon-btn--danger .app-icon,
+.vz-media-star .app-icon,
+.vz-track-star .app-icon,
+.dv-notice .app-icon,
+.dv-confirm-icon .app-icon {
+  --app-icon-accent: currentColor;
+}
+/* Loading is neutral at rest and inherits the header's busy accent while active. */
+.vz-header-activity .app-icon {
+  --app-icon-accent: currentColor;
+}

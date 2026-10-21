@@ -1,4 +1,5 @@
-import { Delete02Icon } from 'hugeicons-react'
+import { AppIcon } from '../shared/icons/AppIcon'
+
 import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
 import { DreamVizTextInput } from './react/controls/DreamVizTextInput'
 import { UnderlineDropdown } from './react/controls/UnderlineDropdown'
@@ -1093,7 +1094,7 @@ export function MediaUploadModal({
                           disabled={uploading}
                           aria-label={`Remove ${entry.file.name}`}
                         >
-                          <Delete02Icon size={13} color="currentColor" />
+                          <AppIcon kind="delete" size={13} color="currentColor" />
                         </button>
                       </div>
                     )
@@ -1152,7 +1153,7 @@ export function MediaUploadModal({
                           disabled={uploading}
                           aria-label={`Remove ${q.file.name}`}
                         >
-                          <Delete02Icon size={13} color="currentColor" />
+                          <AppIcon kind="delete" size={13} color="currentColor" />
                         </button>
                       </div>
                     )

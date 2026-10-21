@@ -1,25 +1,10 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 // Live Music Intelligence diagnostics panel.
 // Uses requestAnimationFrame + direct DOM writes (refs) — zero React re-renders
 // after mount so it never pollutes the render budget during playback.
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  Analytics,
-  Category,
-  ChartMultiLine,
-  Event,
-  Flash,
-  Grid,
-  Meter,
-  Microphone,
-  Music,
-  Split,
-  TagGroup,
-  TextAlignLeft,
-  TreeView,
-  TreeViewAlt,
-  Waveform,
-} from '@carbon/icons-react'
+
 import { AudioFeatureBus } from '../../../features/musicIntelligence/AudioFeatureBus'
 import type { MusicIntelligenceFrame, TrackIntelligenceAnalysis } from '../../../features/musicIntelligence/types'
 import { Collapsible } from '../react/ReactControlRows'
@@ -1244,22 +1229,22 @@ function MiSectionIcon({ title }: { title: string }) {
   const props = { size: 16, className: 'vz-mi-section-icon', 'aria-hidden': true } as const
 
   switch (title) {
-    case 'Track': return <Music {...props} />
-    case 'Live Input': return <Microphone {...props} />
-    case 'Audio Bands': return <ChartMultiLine {...props} />
-    case 'Rhythm': return <Meter {...props} />
-    case 'Beat Grid': return <Grid {...props} />
-    case 'Musical Phrases': return <TreeView {...props} />
-    case 'Energy': return <Flash {...props} />
-    case 'Measurements': return <Analytics {...props} />
-    case 'Section': return <Category {...props} />
-    case 'Section & Structure': return <TreeViewAlt {...props} />
-    case 'Event Markers': return <Event {...props} />
-    case 'Harmonic': return <Waveform {...props} />
-    case 'Stems': return <Split {...props} />
-    case 'Lyrics': return <TextAlignLeft {...props} />
-    case 'Semantic': return <TagGroup {...props} />
-    default: return <Category {...props} />
+    case 'Track': return <AppIcon kind="music" {...props} />
+    case 'Live Input': return <AppIcon kind="mic" {...props} />
+    case 'Audio Bands': return <AppIcon kind="bars" {...props} />
+    case 'Rhythm': return <AppIcon kind="rhythm" {...props} />
+    case 'Beat Grid': return <AppIcon kind="gridSnap" {...props} />
+    case 'Musical Phrases': return <AppIcon kind="tree" {...props} />
+    case 'Energy': return <AppIcon kind="energy" {...props} />
+    case 'Measurements': return <AppIcon kind="sliders" {...props} />
+    case 'Section': return <AppIcon kind="layers" {...props} />
+    case 'Section & Structure': return <AppIcon kind="tree" {...props} />
+    case 'Event Markers': return <AppIcon kind="timeline" {...props} />
+    case 'Harmonic': return <AppIcon kind="waveform" {...props} />
+    case 'Stems': return <AppIcon kind="split" {...props} />
+    case 'Lyrics': return <AppIcon kind="lyrics" {...props} />
+    case 'Semantic': return <AppIcon kind="tag" {...props} />
+    default: return <AppIcon kind="layers" {...props} />
   }
 }
 

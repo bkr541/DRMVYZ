@@ -1,3 +1,4 @@
+import { AppIcon } from '../../components/shared/icons/AppIcon'
 // The shared control rows (rv-ctrl-*) and rail tab sizing live here; a lazy-loaded Lyric Manager must not depend on Sound Drawing having loaded it first.
 import '../../styles/reactView.css'
 import { DrawerNotice } from '../../components/vyzualz/shared/DrawerNotice'
@@ -50,7 +51,7 @@ import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/RailTabs'
-import { Add01Icon, AudioWave02Icon, File02Icon, FileAddIcon, FileImportIcon, SubtitleIcon } from 'hugeicons-react'
+
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
@@ -2112,12 +2113,12 @@ export function LyricManagerView({
           >
             <RailWindowHeader
               side="left"
-              icon={<AudioWave02Icon size={15} color="currentColor" aria-hidden="true" />}
+              icon={<AppIcon kind="waveform" size={15} color="currentColor" aria-hidden="true" />}
               label="Tracks"
               actions={
                 <IconChipButton
                   tone="primary"
-                  icon={<Add01Icon size={14} color="currentColor" />}
+                  icon={<AppIcon kind="plus" size={14} color="currentColor" />}
                   onClick={() => {
                     setUploadPurpose('canonical')
                     setUploadOpen(true)
@@ -2221,18 +2222,18 @@ export function LyricManagerView({
             />
             <RailWindowHeader
               side="left"
-              icon={<SubtitleIcon size={15} color="currentColor" aria-hidden="true" />}
+              icon={<AppIcon kind="lyrics" size={15} color="currentColor" aria-hidden="true" />}
               label="Versions"
               actions={
                 <>
                   <IconChipButton
-                    icon={<FileAddIcon size={14} color="currentColor" />}
+                    icon={<AppIcon kind="fileAdd" size={14} color="currentColor" />}
                     onClick={handleNewDocument}
                     title="New version"
                     aria-label="New lyric version"
                   />
                   <IconChipButton
-                    icon={<FileImportIcon size={14} color="currentColor" />}
+                    icon={<AppIcon kind="fileImport" size={14} color="currentColor" />}
                     onClick={handleImportDocument}
                     title="Import version"
                     aria-label="Import lyric version"
@@ -2388,7 +2389,7 @@ export function LyricManagerView({
           )}
           <RailWindowHeader
             side="right"
-            icon={<File02Icon size={15} color="currentColor" aria-hidden="true" />}
+            icon={<AppIcon kind="file" size={15} color="currentColor" aria-hidden="true" />}
             label="Document Workspace"
           />
           <LyricInspector

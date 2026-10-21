@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
-import { ReloadIcon, Delete02Icon } from 'hugeicons-react'
+
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from './controls/IconChipButton'
 import { LayerRow } from './controls/LayerRow'
@@ -323,7 +324,7 @@ function CanvasLegacySessionMedia({ compact = false }: { compact?: boolean }) {
                   onClick={e => { e.stopPropagation(); removeCanvasMediaItem(item.id) }}
                   aria-label={`Remove ${item.name} from legacy CANVAS session media`}
                 >
-                  <Delete02Icon size={15} color="currentColor" />
+                  <AppIcon kind="delete" size={15} color="currentColor" />
                 </button>
               </div>
               <div className="vz-media-info">
@@ -2475,7 +2476,6 @@ export function CanvasEngineSurface({
     }
   }, [activeMediaLoadError, activeVideo, canvasPresetSettings.glitchAmount, canvasPresetSettings.intensity, canvasPresetSettings.stutterRate, isPaused, isPlaying, selectedCanvasPresetId])
 
-
   const captureCanvasNode = <canvas ref={outputCaptureCanvasRef} className="rv-canvas-output-capture" aria-hidden="true" />
   const sourceEffectsCanvasNode = (
     <canvas
@@ -2736,7 +2736,6 @@ export function CanvasEngineSurface({
     </div>
   )
 }
-
 
 type CanvasPresetSliderControlKey = Exclude<CanvasPresetControlKey, 'particleColorMode' | 'particleQuality'>
 
@@ -3017,7 +3016,6 @@ export function resolveCanvasPresetControlGroups(
     }))
     .filter(group => group.controls.length > 0)
 }
-
 
 function CanvasAutoSelectControl() {
   const engine = useSharedAudio()
@@ -3504,7 +3502,7 @@ export function CanvasLayersPanel() {
                 className="rv-canvas-layer-row-action rv-canvas-scope-row-reset"
                 title="Reset all layer Engine overrides"
                 aria-label="Reset all CANVAS layer Engine overrides and unlock Canvas selection"
-                icon={<ReloadIcon size={12} color="currentColor" />}
+                icon={<AppIcon kind="rotateLeft" size={12} color="currentColor" />}
                 onClick={() => resetAllCanvasLayerEngineOverrides()}
               />
             )}
@@ -3571,7 +3569,7 @@ export function CanvasLayersPanel() {
                     className="rv-canvas-layer-row-action"
                     title="Reset layer Engine overrides"
                     aria-label={`Reset Engine overrides for CANVAS layer ${label}`}
-                    icon={<ReloadIcon size={12} color="currentColor" />}
+                    icon={<AppIcon kind="rotateLeft" size={12} color="currentColor" />}
                     onClick={event => {
                       event.stopPropagation()
                       const result = resetCanvasLayerEngineOverrides(layer.id)
@@ -3584,7 +3582,7 @@ export function CanvasLayersPanel() {
                   className="rv-canvas-layer-row-action rv-canvas-layer-row-action--delete"
                   title="Delete layer"
                   aria-label={`Delete CANVAS layer ${label}`}
-                  icon={<Delete02Icon size={12} color="currentColor" />}
+                  icon={<AppIcon kind="delete" size={12} color="currentColor" />}
                   onClick={event => { event.stopPropagation(); deleteLayer(layer.id) }}
                 />
               </div>
@@ -4622,7 +4620,6 @@ export function CanvasPresetMotionControls() {
 export function CanvasPresetParticleControls() {
   return <CanvasPresetControlGroupSection title="Particles" />
 }
-
 
 export function CanvasEnginePanel() {
   return (

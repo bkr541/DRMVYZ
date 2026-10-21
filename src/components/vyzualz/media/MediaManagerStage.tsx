@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { MusicNote01Icon, PauseIcon, PlayIcon } from 'hugeicons-react'
+
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
@@ -60,7 +61,7 @@ function VideoControlsOverlay({ targetRef, playing, currentTime, duration, onTog
         <div className="mms-float-frame" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
           <div className="mms-float-controls" role="group" aria-label="Video playback">
             <button className="mms-play-btn" onClick={onTogglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-              {playing ? <PauseIcon size={16} color="currentColor" /> : <PlayIcon size={16} color="currentColor" />}
+              {playing ? <AppIcon kind="pause" size={16} color="currentColor" /> : <AppIcon kind="play" size={16} color="currentColor" />}
             </button>
             <span className="mms-time mms-time--elapsed" aria-label="Elapsed time">{formatTime(currentTime)}</span>
             <BubbleRevealSlider
@@ -365,7 +366,7 @@ function AudioTrackStage({ track }: { track: SavedAudioTrack }) {
       <div className="mms-audio-top">
         <div className="mms-track-hero">
           <div className="mms-track-hero-art" aria-hidden="true">
-            <MusicNote01Icon size={28} color="currentColor" />
+            <AppIcon kind="music" size={28} color="currentColor" />
           </div>
           <div className="mms-track-hero-info">
             <div className="mms-track-hero-title">{track.title}</div>
@@ -379,7 +380,7 @@ function AudioTrackStage({ track }: { track: SavedAudioTrack }) {
 
         <div className="mms-controls">
           <button className="mms-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'} disabled={!signedUrl}>
-            {playing ? <PauseIcon size={13} color="currentColor" /> : <PlayIcon size={13} color="currentColor" />}
+            {playing ? <AppIcon kind="pause" size={13} color="currentColor" /> : <AppIcon kind="play" size={13} color="currentColor" />}
           </button>
           <div className="mms-waveform-wrap">
             <VzMiniWaveform

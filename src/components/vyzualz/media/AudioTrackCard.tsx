@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState, type ReactNode } from 'react'
-import { Download01Icon, SubtitleIcon, MagicWand01Icon, Delete02Icon, MoreHorizontalIcon } from 'hugeicons-react'
+
 import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
 import { StatusBadge } from '../react/controls/StatusBadge'
@@ -151,7 +152,7 @@ export function AudioTrackCard({
             title={loading ? 'Loading…' : loaded ? 'Reload this saved track without starting playback' : 'Load this saved track without starting playback'}
             aria-label={loading ? `Loading ${track.title}` : loaded ? `Reload ${track.title}` : `Load ${track.title}`}
           >
-            <Download01Icon size={iconSize} color="currentColor" />
+            <AppIcon kind="download" size={iconSize} color="currentColor" />
           </button>
         )}
         {canOpenLyrics && directAiExtract && onOpenAiExtract && (
@@ -162,7 +163,7 @@ export function AudioTrackCard({
             aria-label={`AI extract lyrics for ${track.title}`}
             onClick={event => { event.stopPropagation(); onOpenAiExtract() }}
           >
-            <MagicWand01Icon size={iconSize} color="currentColor" />
+            <AppIcon kind="wand" size={iconSize} color="currentColor" />
           </button>
         )}
         {canOpenLyrics && !directAiExtract && !actionsInOverflow && lyricsMenuItems.length > 0 && (
@@ -178,7 +179,7 @@ export function AudioTrackCard({
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
           >
-            <SubtitleIcon size={iconSize} color="currentColor" />
+            <AppIcon kind="lyrics" size={iconSize} color="currentColor" />
           </button>
         )}
         {actionsInOverflow && overflowItems.length > 0 && (
@@ -194,7 +195,7 @@ export function AudioTrackCard({
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
           >
-            <MoreHorizontalIcon size={iconSize} color="currentColor" />
+            <AppIcon kind="more" size={iconSize} color="currentColor" />
           </button>
         )}
         {!actionsInOverflow && canRemove && onRemove && (
@@ -208,7 +209,7 @@ export function AudioTrackCard({
             title="Delete track and linked lyric data"
             aria-label={`Delete ${track.title} and linked lyric data`}
           >
-            <Delete02Icon size={12} color="currentColor" />
+            <AppIcon kind="delete" size={12} color="currentColor" />
           </button>
         )}
       </div>

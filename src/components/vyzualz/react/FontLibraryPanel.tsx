@@ -1,8 +1,9 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Delete02Icon } from 'hugeicons-react'
+
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { useReactStore } from '../../../stores/reactStore'
 import { useFontPreviewPreload } from './useFontPreviewPreload'
@@ -178,7 +179,7 @@ export function FontLibraryPanel() {
                       {isSelecting ? 'Loading…' : isDeleting ? 'Removing…' : (previewText.trim() || asset.name)}
                     </span>
                     <button type="button" className="rv-glyph-item-del" title="Remove font" disabled={anyBusy} onClick={async e => { e.stopPropagation(); await removeOscillatorFontAsset(asset.id) }}>
-                      <Delete02Icon size={12} color="currentColor" />
+                      <AppIcon kind="delete" size={12} color="currentColor" />
                     </button>
                   </div>
                 )

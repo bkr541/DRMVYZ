@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import type { ReactNode } from 'react'
 import './canonicalControls.css'
 
@@ -21,13 +22,7 @@ export interface NoticeCardProps {
 }
 
 function NoticeCardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 11v5.5" />
-      <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
-  )
+  return <AppIcon kind="info" />
 }
 
 export function NoticeCard({
@@ -47,7 +42,7 @@ export function NoticeCard({
         <strong className="dv-notice-title">{title}</strong>
         {onDismiss && (
           <button type="button" className="dv-notice-dismiss" onClick={onDismiss} aria-label={dismissLabel}>
-            ×
+            <AppIcon kind="close" size={12} />
           </button>
         )}
       </div>

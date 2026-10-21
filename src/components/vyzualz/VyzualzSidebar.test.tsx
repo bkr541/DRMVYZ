@@ -63,10 +63,13 @@ describe('VyzualzSidebar workspace navigation', () => {
     const labels = navItems.map(item => item.getAttribute('aria-label'))
     expect(labels).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
     expect(labels).not.toContain('Visualizer')
+    expect(navItems.map(item => item.querySelector('svg')?.getAttribute('data-app-icon'))).toEqual([
+      'navReact', 'navPreset', 'navShow', 'navLyrics', 'navMedia',
+    ])
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 
     const presetManagerItem = navItems.find(item => item.getAttribute('aria-label') === 'Preset Manager')
-    expect(presetManagerItem?.querySelectorAll('svg rect').length).toBeGreaterThanOrEqual(3)
+    expect(presetManagerItem?.querySelector('[data-app-icon="navPreset"]')).not.toBeNull()
     act(() => presetManagerItem?.click())
     expect(onAppViewChange).toHaveBeenCalledWith('presetManager')
 

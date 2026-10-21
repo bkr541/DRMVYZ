@@ -1,6 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRight01Icon } from 'hugeicons-react'
 
 const MENU_MARGIN = 12
 // Delay before a hover-opened submenu closes, so moving the pointer from the
@@ -218,7 +218,7 @@ function SubmenuRow({ item }: { item: ContextActionMenuItem }) {
         onClick={openNow}
       >
         <span>{item.label}</span>
-        <ArrowRight01Icon size={12} color="currentColor" />
+        <AppIcon kind="right" size={12} color="currentColor" />
       </button>
       {open && (
         <SubmenuFlyout anchorRef={rowRef} registry={registry} onMouseEnter={openNow} onMouseLeave={closeSoon}>

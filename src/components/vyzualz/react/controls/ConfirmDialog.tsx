@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useId, type ReactNode } from 'react'
 import { IconChipButton } from './IconChipButton'
 import { NoticeCard, type NoticeCardTone } from './NoticeCard'
@@ -45,13 +46,7 @@ export interface ConfirmDialogProps {
 // up into a badge above the title — the Layout Lab "Centered Icon Focus"
 // winner (DeleteConfirmDialogStyleGallery.tsx, Concept 03).
 function ConfirmDialogIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.25" />
-      <path d="M12 11v5.5" />
-      <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
-    </svg>
-  )
+  return <AppIcon kind="info" />
 }
 
 /** Canonical DRMVYZ confirmation dialog — one backdrop + centered card with

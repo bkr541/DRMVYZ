@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { ConfirmDialog } from '../react/controls/ConfirmDialog'
@@ -26,7 +27,7 @@ import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
 import { MusicIntelligenceDiagnosticsPanel } from '../modulation/MusicIntelligenceDiagnosticsPanel'
 import { LaserDmxRoutingTriggersPanel } from './LaserDmxRoutingTriggersPanel'
-import { MoreVerticalIcon, Layers01Icon, Image01Icon, Settings02Icon } from 'hugeicons-react'
+
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from '../react/reactEngineCatalog'
 import { PixGridDesignPanel } from '../react/pixGrid/PixGridDesignPanel'
@@ -211,7 +212,6 @@ type PendingSectionEngineReplacement = {
     | { type: 'laserFixtureCopy'; sourceSectionId: string }
     | { type: 'canvasMedia'; mediaId: string; layer: CanvasShowManagerLayer }
 }
-
 
 interface ShowBrowserDialogProps {
   shows: readonly ShowBrowserEntry[]
@@ -796,7 +796,7 @@ function EmptyShowManagerWorkspace({
       <aside className="sm-library rw-frame--left" aria-label="Show Manager component library">
         <RailWindowHeader
           side="left"
-          icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+          icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
           label="Component Library"
         />
         <div className="sm-engine-picker">
@@ -821,7 +821,7 @@ function EmptyShowManagerWorkspace({
       <aside className="sm-inspector rw-frame--right" aria-label={`Show Manager ${REACT_ENGINE_CATALOG[selectedEngineId].label} inspector`}>
         <RailWindowHeader
           side="right"
-          icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+          icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
           label="Inspector"
         />
         <span className="sm-window-substatus">No Show open</span>
@@ -2255,7 +2255,7 @@ export function ShowManagerView() {
         <aside className="sm-library rw-frame--left" aria-label="Show Manager component library">
           <RailWindowHeader
             side="left"
-            icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+            icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
             label="Component Library"
           />
           <div className="sm-engine-picker">
@@ -2719,7 +2719,7 @@ export function ShowManagerView() {
         <aside className="sm-inspector rw-frame--right" aria-label={`Show Manager ${activeSectionEngineId ? REACT_ENGINE_CATALOG[activeSectionEngineId].label : 'section'} inspector`}>
           <RailWindowHeader
             side="right"
-            icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+            icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
             label="Inspector"
           />
           <RailTabs
@@ -3941,7 +3941,7 @@ function LaserDmxShowManagerFixtureInspector({
             setFixtureMenuAnchor({ x: rect.right, y: rect.bottom })
           }}
         >
-          <MoreVerticalIcon size={14} color="currentColor" />
+          <AppIcon kind="moreVertical" size={14} color="currentColor" />
         </IconChipButton>
         {fixtureMenuAnchor && (
           <ContextActionMenu

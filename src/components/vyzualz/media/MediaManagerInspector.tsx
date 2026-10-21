@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useRef, useState } from 'react'
-import { InformationCircleIcon } from 'hugeicons-react'
+
 import { useShallow } from 'zustand/react/shallow'
 import { Collapsible, NumberInputRow, SelectRow, TextInputRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -523,7 +524,7 @@ export function MediaManagerInspector({
     <>
       <RailWindowHeader
         side="right"
-        icon={<InformationCircleIcon size={15} color="currentColor" aria-hidden="true" />}
+        icon={<AppIcon kind="info" size={15} color="currentColor" aria-hidden="true" />}
         label="Media Details"
       />
       <RailTabs

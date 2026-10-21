@@ -1,10 +1,11 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { IconMorphCheckbox } from '../react/controls/IconMorphToggle'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { useId, useRef, type ChangeEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { Dropdown } from '../../shared/Dropdown/Dropdown'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
-import { Image01Icon, Settings02Icon } from 'hugeicons-react'
+
 import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
 import type { ReactPreset } from '../react/ReactTypes'
 import {
@@ -117,7 +118,7 @@ export function PixGridDeckBuilderLibrary({
     <div className="sm-deck-library" aria-label="Deck image library">
       <RailWindowHeader
         side="left"
-        icon={<Image01Icon size={15} color="currentColor" aria-hidden="true" />}
+        icon={<AppIcon kind="image" size={15} color="currentColor" aria-hidden="true" />}
         label="Deck Images"
       />
       <span className="sm-window-substatus">{deck ? `${items.length} of ${PIX_GRID_DECK_MAX_ITEMS} occurrences · sources prepared on demand` : 'Create a new Deck'}</span>
@@ -262,7 +263,7 @@ export function PixGridDeckBuilderInspector({
     <div className="sm-deck-inspector" aria-label="Deck Builder inspector">
       <RailWindowHeader
         side="right"
-        icon={<Settings02Icon size={15} color="currentColor" aria-hidden="true" />}
+        icon={<AppIcon kind="settings" size={15} color="currentColor" aria-hidden="true" />}
         label="Deck Builder"
       />
       <span className="sm-window-substatus">{deck ? 'Project Deck configuration' : 'New Deck'}</span>

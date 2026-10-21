@@ -1,6 +1,7 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
-import { ViewIcon } from 'hugeicons-react'
+
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
@@ -198,7 +199,7 @@ export function LyricLivePreviewPanel({
           disabled={!hasTimedCues}
           title={hasTimedCues ? `Preview Lyrics — auditions this version in ${previewDestination}. It does not become Active.` : 'No cues to preview. Import or create lyric cues first.'}
           aria-label="Preview Lyrics"
-          icon={<ViewIcon size={14} color="currentColor" />}
+          icon={<AppIcon kind="eye" size={14} color="currentColor" />}
         />
         <div className="lmv-preview-caption">
           <span>

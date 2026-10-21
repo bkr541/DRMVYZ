@@ -1,5 +1,6 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useMemo } from 'react'
-import { CheckListIcon } from 'hugeicons-react'
+
 import { RailWindowHeader } from '../../../components/vyzualz/layout/RailWindowHeader'
 import { getLyricReviewSummary } from '../utils/lyricReviewSummary'
 import type { LyricCue } from '../../../types/lyrics'
@@ -23,7 +24,7 @@ export function LyricReviewSummary({ cues, onOpenReview }: Props) {
     <section className="lmv-review-summary" aria-label="Review and validation summary">
       <RailWindowHeader
         side="right"
-        icon={<CheckListIcon size={15} color="currentColor" aria-hidden="true" />}
+        icon={<AppIcon kind="checklist" size={15} color="currentColor" aria-hidden="true" />}
         label="Review & Validation"
       />
       {rows.map(row => (

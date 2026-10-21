@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
-import { FavouriteIcon } from 'hugeicons-react'
+
 import { Badge } from './controls/Badge'
 
 export type ReactPresetCardChipTone = 'mode' | 'switch'
@@ -207,7 +208,7 @@ export function ReactPresetCard({
               aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
               title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <FavouriteIcon size={15} color="currentColor" />
+              <AppIcon kind={isFavorite ? 'starOff' : 'star'} size={15} color="currentColor" />
             </button>
           )}
           {secondaryActions.map(action => (

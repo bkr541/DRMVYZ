@@ -1,5 +1,6 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
-import { CropIcon } from 'hugeicons-react'
+
 import { Collapsible, SliderRow, ToggleRow } from '../react/ReactControlRows'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { DrawerNotice } from '../shared/DrawerNotice'
@@ -116,7 +117,7 @@ export function MediaEditPanel({ media, onMediaCreated }: MediaEditPanelProps) {
             )}
             <IconChipButton
               tone={cropMode ? 'primary' : 'default'}
-              icon={<CropIcon size={13} color="currentColor" />}
+              icon={<AppIcon kind="crop" size={13} color="currentColor" />}
               disabled={disabled}
               aria-pressed={cropMode}
               onClick={() => store.setCropMode(!cropMode)}

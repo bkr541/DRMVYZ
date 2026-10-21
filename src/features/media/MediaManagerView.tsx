@@ -1,5 +1,6 @@
+import { AppIcon } from '../../components/shared/icons/AppIcon'
 import { useCallback, useEffect, useState } from 'react'
-import { Layers01Icon, FolderAddIcon, Add01Icon, Delete02Icon } from 'hugeicons-react'
+
 import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import { useSharedDataActivity } from '../../stores/useSharedDataActivity'
@@ -95,7 +96,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           <HeaderIconKey
             label="Delete Media"
             title="Delete this media item"
-            icon={<Delete02Icon size={16} color="currentColor" />}
+            icon={<AppIcon kind="delete" size={16} color="currentColor" />}
             danger
             disabled={!headerActions?.onDelete || headerActions.deleting}
             onClick={() => headerActions?.onDelete?.()}
@@ -121,19 +122,19 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           >
             <RailWindowHeader
               side="left"
-              icon={<Layers01Icon size={15} color="currentColor" aria-hidden="true" />}
+              icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
               label="Media Library"
               actions={
                 <>
                   <IconChipButton
-                    icon={<FolderAddIcon size={14} color="currentColor" />}
+                    icon={<AppIcon kind="folderAdd" size={14} color="currentColor" />}
                     onClick={() => openCollectionEditor()}
                     title="New Collection"
                     aria-label="New Collection"
                   />
                   <IconChipButton
                     tone="primary"
-                    icon={<Add01Icon size={14} color="currentColor" />}
+                    icon={<AppIcon kind="plus" size={14} color="currentColor" />}
                     onClick={() => openImportMediaModal()}
                     title="New Media"
                     aria-label="New Media"

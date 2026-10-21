@@ -1,4 +1,5 @@
-import { SubtitleIcon } from 'hugeicons-react'
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
+
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import { SaveActiveGlyph, SaveGlyph } from '../../../components/vyzualz/layout/HeaderGlyphs'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
@@ -51,7 +52,7 @@ export function LyricManagerHeader({
         <HeaderIconKey
           label="Show Lyrics"
           title="Show or hide active lyrics in the visualizer"
-          icon={<SubtitleIcon size={16} color="currentColor" />}
+          icon={<AppIcon kind="lyrics" size={16} color="currentColor" />}
           pressed={lyricsDisplayEnabled}
           onClick={onToggleLyricsDisplay}
         />

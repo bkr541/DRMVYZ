@@ -1,9 +1,10 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from '../react/controls/BubbleRevealSlider'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { PlayIcon, PauseIcon } from 'hugeicons-react'
+
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia } from '../../../stores/mediaStore'
 
@@ -13,7 +14,6 @@ function formatTime(s: number): string {
   const sec = Math.floor(s % 60)
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
-
 
 export function restorePreviewPlaybackPosition(video: Pick<HTMLVideoElement, 'currentTime' | 'duration'>, resumeAt: number): boolean {
   if (!Number.isFinite(resumeAt) || resumeAt <= 0) return false
@@ -173,7 +173,7 @@ export function MediaPreviewModal({
         {isVideo && src && !videoError && (
           <div className="mpm-controls">
             <button className="mpm-play-btn" onClick={togglePlay} aria-label={playing ? 'Pause' : 'Play'}>
-              {playing ? <PauseIcon size={12} color="currentColor" /> : <PlayIcon size={12} color="currentColor" />}
+              {playing ? <AppIcon kind="pause" size={12} color="currentColor" /> : <AppIcon kind="play" size={12} color="currentColor" />}
             </button>
             <BubbleRevealSlider
               type="range"

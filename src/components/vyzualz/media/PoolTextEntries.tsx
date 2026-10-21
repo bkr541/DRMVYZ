@@ -1,6 +1,7 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { Delete02Icon, PencilEdit01Icon } from 'hugeicons-react'
+
 import { useReactStore } from '../../../stores/reactStore'
 import type { CanvasMediaPool } from '../react/canvasPerformance/CanvasPerformanceTypes'
 import { MAX_CANVAS_POOL_TEXT_LENGTH } from '../react/canvasPerformance/CanvasPerformanceTypes'
@@ -104,7 +105,7 @@ export function PoolTextEntries({ pool, query }: { pool: CanvasMediaPool; query:
                     aria-label={`Edit text ${item.text}`}
                     onClick={() => { setEditingId(item.id); setEditDraft(item.text); setError(null) }}
                   >
-                    <PencilEdit01Icon size={11} color="currentColor" />
+                    <AppIcon kind="edit" size={11} color="currentColor" />
                   </button>
                   <button
                     type="button"
@@ -117,7 +118,7 @@ export function PoolTextEntries({ pool, query }: { pool: CanvasMediaPool; query:
                       setError(result.ok ? null : result.message)
                     }}
                   >
-                    <Delete02Icon size={12} color="currentColor" />
+                    <AppIcon kind="delete" size={12} color="currentColor" />
                   </button>
                 </>
               )}

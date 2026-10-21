@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useAppCpuUsage } from '../../../native/useAppCpuUsage'
 import { usePageActivityLabels } from '../../../stores/pageActivityStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
@@ -9,23 +10,12 @@ function cpuLevel(percent: number) {
 }
 
 function ActivitySpinner({ busy }: { busy: boolean }) {
-  return (
-    <svg
-      className="vz-header-activity-ring"
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="9" opacity="0.28" />
-      <path className={busy ? 'vz-header-activity-arc vz-header-activity-arc--spinning' : 'vz-header-activity-arc'} d="M12 3a9 9 0 0 1 9 9" />
-    </svg>
-  )
+  return <AppIcon
+    kind="loading"
+    size={18}
+    className="vz-header-activity-ring"
+    signalClassName={busy ? 'vz-header-activity-arc vz-header-activity-arc--spinning' : 'vz-header-activity-arc'}
+  />
 }
 
 /** The app CPU readout chip. Exported on its own so a page can lay the status elements out differently. */

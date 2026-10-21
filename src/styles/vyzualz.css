@@ -6262,7 +6262,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   .vz-header-notifications[data-ringing='true'] svg { animation: none; }
 }
 .vz-header-activity-ring { display: block; }
-.vz-header-activity-arc { transform-origin: 12px 12px; }
+.vz-header-activity-arc { transform-origin: 16px 16px; }
 /* Specific enough to beat the theme stylesheet's [data-theme] .vsm-settings-btn gray. */
 .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity[data-busy='true'],
 [data-theme] .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity[data-busy='true'] {

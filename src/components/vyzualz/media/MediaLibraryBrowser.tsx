@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { PoolTextEntries } from './PoolTextEntries'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
@@ -7,17 +8,7 @@ import { Collapsible } from '../react/ReactControlRows'
 import { memo, useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { CSSProperties, ReactNode, RefObject } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import {
-  Layers01Icon,
-  FavouriteIcon,
-  Delete02Icon,
-  PencilEdit01Icon,
-  FolderLibraryIcon,
-  ArrowLeft01Icon,
-  GridViewIcon,
-  ListViewIcon,
-  PropertyViewIcon,
-} from 'hugeicons-react'
+
 import { useMediaStore } from '../../../stores/mediaStore'
 import type { UploadedMedia, MediaCollection, MediaMutationState } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
@@ -49,7 +40,6 @@ import type { OscillatorFontAsset } from '../react/ReactTypes'
 
 type MediaLibraryFilter = 'all' | 'tracks' | 'fonts' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
-
 
 /** Contact-sheet grid: four square tiles across, with this gap between tiles (px). Mirrors .vz-media-sheet in vyzualz.css. */
 export const MEDIA_SHEET_COLUMNS = 4
@@ -264,7 +254,6 @@ const PIX_GRID_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'svg',         label: 'SVG'         },
 ]
 
-
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
   { key: 'all',         label: 'All Visuals' },
   { key: 'tracks',      label: 'Audio Tracks' },
@@ -322,15 +311,15 @@ function CollectionFolder({
   const count  = items.length + textCount
   const actions = (onEdit || onRemove) ? (
     <div className="vz-coll-actions" onClick={event => event.stopPropagation()}>
-      {onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit collection"><PencilEdit01Icon size={11} color="currentColor" /></button>}
-      {onRemove && <button type="button" className="vz-media-remove" onClick={onRemove} title={removeTitle}><Delete02Icon size={12} color="currentColor" /></button>}
+      {onEdit && <button type="button" className="vz-media-edit-btn" onClick={onEdit} title="Edit collection"><AppIcon kind="edit" size={11} color="currentColor" /></button>}
+      {onRemove && <button type="button" className="vz-media-remove" onClick={onRemove} title={removeTitle}><AppIcon kind="delete" size={12} color="currentColor" /></button>}
     </div>
   ) : null
 
   if (viewMode === 'list') {
     return (
       <div className="vz-coll-folder-row" role="button" tabIndex={0} onClick={onClick} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick() } }}>
-        <FolderLibraryIcon size={13} color="currentColor" style={{ flexShrink: 0 }} />
+        <AppIcon kind="folder" size={13} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-coll-folder-name" style={{ flex: 1 }}>{collection.name}</span>
         <span className="vz-coll-folder-count">{count} {count === 1 ? 'item' : 'items'}</span>
         {headerExtra}
@@ -342,7 +331,7 @@ function CollectionFolder({
   return (
     <div className="vz-coll-folder" role="button" tabIndex={0} onClick={onClick} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick() } }}>
       <div className="vz-coll-folder-hd">
-        <FolderLibraryIcon size={13} color="currentColor" style={{ flexShrink: 0 }} />
+        <AppIcon kind="folder" size={13} color="currentColor" style={{ flexShrink: 0 }} />
         <span className="vz-coll-folder-name">{collection.name}</span>
         <span className="vz-coll-folder-count">{count} {count === 1 ? 'item' : 'items'}</span>
         {headerExtra}
@@ -498,7 +487,7 @@ function MediaCard({
               onClick={e => { e.stopPropagation(); onPreview() }}
               title="Preview media"
             >
-              <PropertyViewIcon size={11} color="currentColor" />
+              <AppIcon kind="eye" size={11} color="currentColor" />
             </button>
           )}
         </div>
@@ -519,7 +508,7 @@ function MediaCard({
               title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
               style={{ position: 'static' }}
             >
-              <FavouriteIcon size={14} color="currentColor" />
+              <AppIcon kind={m.favorite ? 'starOff' : 'star'} size={14} color="currentColor" />
             </button>
           )}
           {canRemove && onRemove && (
@@ -529,7 +518,7 @@ function MediaCard({
               title="Remove"
               style={{ position: 'static' }}
             >
-              <Delete02Icon size={13} color="currentColor" />
+              <AppIcon kind="delete" size={13} color="currentColor" />
             </button>
           )}
         </div>
@@ -599,7 +588,7 @@ function MediaCard({
           title={favoritePending ? 'Saving favorite…' : m.favorite ? 'Unfavourite' : 'Favourite'}
           aria-label={m.favorite ? 'Unfavourite' : 'Favourite'}
         >
-          <FavouriteIcon size={12} color="currentColor" />
+          <AppIcon kind={m.favorite ? 'starOff' : 'star'} size={12} color="currentColor" />
         </button>
       )}
       {hasRetry && <IconChipButton className="vz-media-retry" onClick={e => { e.stopPropagation(); onRetry() }}>{m.derivativeWarning ? 'Retry derivative' : 'Retry upload'}</IconChipButton>}
@@ -612,7 +601,7 @@ function MediaCard({
           title="Preview media"
           aria-label="Preview media"
         >
-          <PropertyViewIcon size={11} color="currentColor" />
+          <AppIcon kind="eye" size={11} color="currentColor" />
         </button>
       )}
       {canRemove && onRemove && (
@@ -622,7 +611,7 @@ function MediaCard({
           title="Remove"
           aria-label="Remove"
         >
-          <Delete02Icon size={11} color="currentColor" />
+          <AppIcon kind="delete" size={11} color="currentColor" />
         </button>
       )}
       <span className="vz-media-sheet-name">{m.title ?? m.name}</span>
@@ -1369,9 +1358,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         <>
           <div className="vz-coll-breadcrumb">
             <button className="vz-coll-back-btn" onClick={() => setOpenCollectionId(null)}>
-              <ArrowLeft01Icon size={12} color="currentColor" />
+              <AppIcon kind="left" size={12} color="currentColor" />
             </button>
-            <FolderLibraryIcon size={12} color="currentColor" style={{ flexShrink: 0 }} />
+            <AppIcon kind="folder" size={12} color="currentColor" style={{ flexShrink: 0 }} />
             <span className="vz-coll-breadcrumb-name">{openCollection.name}</span>
             <span className="vz-coll-folder-count">{openCollectionItems.length} {openCollectionItems.length === 1 ? 'item' : 'items'}</span>
           </div>
@@ -1493,9 +1482,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         <>
           <div className="vz-coll-breadcrumb">
             <button className="vz-coll-back-btn" onClick={() => setOpenPoolId(null)}>
-              <ArrowLeft01Icon size={12} color="currentColor" />
+              <AppIcon kind="left" size={12} color="currentColor" />
             </button>
-            <FolderLibraryIcon size={12} color="currentColor" style={{ flexShrink: 0 }} />
+            <AppIcon kind="folder" size={12} color="currentColor" style={{ flexShrink: 0 }} />
             <span className="vz-coll-breadcrumb-name">{openPool.name}</span>
             <span className="vz-coll-folder-count">{openPool.mediaIds.length + openPool.textItems.length} {openPool.mediaIds.length + openPool.textItems.length === 1 ? 'item' : 'items'}</span>
             {renderPoolActiveToggle(openPool.id, openPool.name)}
@@ -1607,14 +1596,14 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               onClick={() => setViewMode('grid')}
               title="Grid view"
             >
-              <GridViewIcon size={13} color="currentColor" />
+              <AppIcon kind="grid" size={13} color="currentColor" />
             </button>
             <button
               className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
               onClick={() => setViewMode('list')}
               title="List view"
             >
-              <ListViewIcon size={13} color="currentColor" />
+              <AppIcon kind="list" size={13} color="currentColor" />
             </button>
           </div>
         )}
@@ -1769,7 +1758,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           <>
             {!hideInternalHeader && (
               <div className="vz-panel-header">
-                <Layers01Icon size={14} color="currentColor" style={{ flexShrink: 0 }} />
+                <AppIcon kind="layers" size={14} color="currentColor" style={{ flexShrink: 0 }} />
                 <span className="vz-panel-title" title={title}>{title}</span>
                 {isManager && (
                   <>

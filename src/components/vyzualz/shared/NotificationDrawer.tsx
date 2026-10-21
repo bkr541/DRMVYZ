@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { NoticeCard } from '../react/controls/NoticeCard'
@@ -6,12 +7,7 @@ import type { AppPageId } from '../../../stores/pageActivityStore'
 import './notificationDrawer.css'
 
 export function NotificationBellIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M18 8.5a6 6 0 0 0-12 0c0 6.5-2.5 8.5-2.5 8.5h17S18 15 18 8.5" />
-      <path d="M13.7 20.5a2 2 0 0 1-3.4 0" />
-    </svg>
-  )
+  return <AppIcon kind="bell" />
 }
 
 const EXIT_FALLBACK_MS = 450
@@ -92,7 +88,7 @@ export function NotificationDrawer({ cards = [], page, onClose, scope = 'contain
       >
         <header className="vz-notifications-header">
           <span>Notifications</span>
-          <button type="button" className="vz-notifications-close" onClick={requestClose} aria-label="Close notifications">×</button>
+          <button type="button" className="vz-notifications-close" onClick={requestClose} aria-label="Close notifications"><AppIcon kind="close" size={12} /></button>
         </header>
         <div className="vz-notifications-list">
           {cards.length + registered.length + pageEvents.length === 0 && <p className="vz-notifications-empty">Nothing needs your attention.</p>}

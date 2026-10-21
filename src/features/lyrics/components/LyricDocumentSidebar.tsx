@@ -1,7 +1,8 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { Badge } from '../../../components/vyzualz/react/controls/Badge'
 import { LyricSearchFilterRow } from './LyricSearchFilterRow'
-import { Copy01Icon, Delete02Icon, PencilEdit01Icon, CheckmarkCircle02Icon } from 'hugeicons-react'
+
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
@@ -147,11 +148,11 @@ function DocumentCard({
         {!renaming && showActions && (
           <div className="lmv-doc-actions" role="group" aria-label={`Actions for ${doc.title || 'lyric version'}`}>
             <button type="button" className="lmv-doc-action" onClick={onStartRename} title="Rename" aria-label="Rename">
-              <PencilEdit01Icon size={15} color="currentColor" />
+              <AppIcon kind="edit" size={15} color="currentColor" />
             </button>
             {!legacy && (
               <button type="button" className="lmv-doc-action" onClick={onDuplicateDocument} title="Duplicate" aria-label="Duplicate">
-                <Copy01Icon size={15} color="currentColor" />
+                <AppIcon kind="copy" size={15} color="currentColor" />
               </button>
             )}
             {!legacy && !doc.isActive && (
@@ -163,11 +164,11 @@ function DocumentCard({
                 title={doc.cueCount === 0 && !isOpen ? 'No cues yet — add cues before making this version active' : 'Make Active'}
                 aria-label="Make Active"
               >
-                <CheckmarkCircle02Icon size={15} color="currentColor" />
+                <AppIcon kind="check" size={15} color="currentColor" />
               </button>
             )}
             <button type="button" className="lmv-doc-action lmv-doc-action--danger" onClick={onDeleteDocument} title="Delete" aria-label="Delete">
-              <Delete02Icon size={15} color="currentColor" />
+              <AppIcon kind="delete" size={15} color="currentColor" />
             </button>
           </div>
         )}
