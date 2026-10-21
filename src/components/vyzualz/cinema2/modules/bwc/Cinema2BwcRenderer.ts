@@ -158,7 +158,8 @@ vec2 mapScene(vec3 p) {
   vec3 roofBay = p;
   roofBay.z = mod(roofBay.z + 1.85, 3.70) - 1.85;
   result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.72, 0.0), vec3(5.35, 0.09, 0.12), 0.025), 3.0));
-  result = nearest(result, vec2(sdRoundBox(roofBay - vec3(-2.85, 5.66, -0.64), vec3(1.02, 0.035, 0.075), 0.018), 7.0));
+  // Fluorescent tubes: one per bay, running the full width of the ceiling from the left wall to the right.
+  result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.66, -0.64), vec3(5.2, 0.035, 0.075), 0.018), 7.0));
 
   // BWC_CATWALKS — high left gallery with slim brass safety rails.
   result = nearest(result, vec2(sdRoundBox(p - vec3(-4.25, 3.70, -2.4), vec3(1.15, 0.12, 11.6), 0.035), 2.0));
@@ -277,13 +278,20 @@ vec2 mapScene(vec3 p) {
 
   // BWC_ENERGY_PIPES — five green manifolds and dark steel collars.
   vec3 hub = vec3(-0.38, 4.72, -3.52);
-  vec3 pipeA = vec3(-4.70, 6.12, 0.10), pipeB = vec3(-4.50, 5.78, -4.55);
-  vec3 pipeC = vec3(-0.38, 7.25, -3.55), pipeD = vec3(3.55, 5.85, -4.72), pipeE = vec3(4.45, 5.68, -1.25);
+  // The four side pipes run under the ceiling tubes (centre line at most y 5.15, so their tops stay about 0.2 m below the tubes at
+  // y 5.66) and finish on mounting flanges against the side walls. The fifth rises straight to the roof slab and stops in it.
+  vec3 pipeA = vec3(-5.15, 5.15, 0.10), pipeB = vec3(-5.15, 5.10, -4.55);
+  vec3 pipeC = vec3(-0.38, 6.15, -3.55), pipeD = vec3(5.15, 5.10, -4.72), pipeE = vec3(5.15, 5.10, -1.25);
   result = nearest(result, vec2(sdCapsule(p, hub, pipeA, 0.25), 6.0));
   result = nearest(result, vec2(sdCapsule(p, hub, pipeB, 0.25), 6.0));
   result = nearest(result, vec2(sdCapsule(p, hub, pipeC, 0.27), 6.0));
   result = nearest(result, vec2(sdCapsule(p, hub, pipeD, 0.25), 6.0));
   result = nearest(result, vec2(sdCapsule(p, hub, pipeE, 0.25), 6.0));
+  // Wall flanges the four side pipes end on.
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-5.37, pipeA.y, pipeA.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-5.37, pipeB.y, pipeB.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(5.36, pipeD.y, pipeD.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(5.36, pipeE.y, pipeE.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
   result = nearest(result, vec2(length(p - hub) - 0.46, 3.0));
   result = nearest(result, vec2(length(p - mix(hub, pipeA, 0.36)) - 0.35, 3.0));
   result = nearest(result, vec2(length(p - mix(hub, pipeA, 0.72)) - 0.35, 3.0));
