@@ -348,7 +348,9 @@ export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
         priority: 30 + index,
         source: Object.freeze({ signal, capability }),
         actions: Object.freeze([Object.freeze({
-          id: cinema2StableId<Cinema2ChoreographyActionId>(`backstreet-${kind === 'fourBeat' ? 'four-beat' : kind}-cue`),
+          // The shared music adapter recognises a delivery (`<event id>:<action id>`) only by the suffix `:mainframe-<kind>-cue`, so these ids keep
+          // Mainframe's name whatever the preset is called. Named `backstreet-...` they were never recognised and every cue was dropped.
+          id: cinema2StableId<Cinema2ChoreographyActionId>(`mainframe-${kind === 'fourBeat' ? 'four-beat' : kind}-cue`),
           target: Object.freeze({ kind: 'parameter' as const, ref: cinema2Ref(CINEMA2_BACKSTREET_MUSICAL_CUE_ID) }),
           operation: 'spawn' as const,
           value: Object.freeze({ kind }),
