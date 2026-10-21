@@ -44,6 +44,8 @@ import { ConfirmTrackDeleteDialog } from './components/ConfirmTrackDeleteDialog'
 import { LyricWorkflowStatus } from './components/LyricWorkflowStatus'
 import { LyricRecoveryDialog } from './components/LyricRecoveryDialog'
 import { LyricConflictDialog } from './components/LyricConflictDialog'
+import { LyricLiveAnnouncer } from './components/LyricLiveAnnouncer'
+import { announceLyricSaveState } from './editor/lyricNotices'
 import { MediaUploadModal } from '../../components/vyzualz/MediaUploadModal'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
@@ -975,6 +977,37 @@ export function LyricManagerView({
   // A refused save (the version was changed elsewhere) blocks every later save of it: the user must pick a way out.
   const conflictFailure = useLyricsStore(state => state.writeStates[state.activeLogicalDocumentId]?.failure ?? null)
   const [conflictBusy, setConflictBusy] = useState<'reload' | 'copy' | null>(null)
+
+  // Save state is reported as a notice card (and read out), not only as the header label: saved, failed, and conflicted.
+  const previousWriteStatusRef = useRef(activeWriteStatus)
+  const previousWriteDocumentRef = useRef(activeLogicalDocumentId)
+  const savedDocumentTitle = editorDocument?.title ?? ''
+  useEffect(() => {
+    const previous = previousWriteStatusRef.current
+    const sameDocument = previousWriteDocumentRef.current === activeLogicalDocumentId
+    previousWriteStatusRef.current = activeWriteStatus
+    previousWriteDocumentRef.current = activeLogicalDocumentId
+    if (!sameDocument || previous === activeWriteStatus) return
+    if (activeWriteStatus === 'saved' && (previous === 'saving' || previous === 'queued')) {
+      announceLyricSaveState({
+        tone: 'success',
+        title: 'Lyrics saved',
+        message: savedDocumentTitle ? `“${savedDocumentTitle}” was saved.` : 'Your lyrics were saved.',
+      })
+    } else if (activeWriteStatus === 'failed') {
+      announceLyricSaveState({
+        tone: 'error',
+        title: 'Lyrics not saved',
+        message: conflictFailure?.message ?? 'The lyrics could not be saved. Your edits are still here; try saving again.',
+      })
+    } else if (activeWriteStatus === 'conflict') {
+      announceLyricSaveState({
+        tone: 'warning',
+        title: 'Save conflict',
+        message: 'This lyric version was changed elsewhere. Reload the latest version or save your edits as a new version.',
+      })
+    }
+  }, [activeLogicalDocumentId, activeWriteStatus, conflictFailure, savedDocumentTitle])
 
   const handleConflictReloadLatest = useCallback(async () => {
     setConflictBusy('reload')
@@ -2426,6 +2459,8 @@ export function LyricManagerView({
           />
         </WorkspaceRail>
       </div>
+
+      <LyricLiveAnnouncer />
 
       <LyricConflictDialog
         open={activeWriteStatus === 'conflict' && editorDocumentId !== null}

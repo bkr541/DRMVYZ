@@ -22,13 +22,20 @@ interface TimelineProps {
 /** Two lyric lanes are always visible; a third appears only while cues overlap three deep (see LyricCueTimeline). */
 const MAX_LYRIC_CUES_LANES = 3
 
-/** Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z for the cue editor, ignored while typing in a field. */
+/** Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y redo. Ignored while typing in a field. */
 export function handleLyricUndoRedoKey(
   event: KeyboardEvent,
   editor: Pick<Editor, 'undoCueEdit' | 'redoCueEdit'>,
 ): void {
   if (isKeyboardInputTarget(event.target)) return
-  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+  const key = event.key.toLowerCase()
+  if (key === 'y' && !event.shiftKey) {
+    event.preventDefault()
+    editor.redoCueEdit()
+    return
+  }
+  if (key !== 'z') return
   event.preventDefault()
   if (event.shiftKey) editor.redoCueEdit()
   else editor.undoCueEdit()

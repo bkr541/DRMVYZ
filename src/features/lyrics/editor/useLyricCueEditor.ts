@@ -32,6 +32,7 @@ import {
   type TimelineOverlayVisibility,
 } from '../../timeline/timelineOverlays'
 import { toCanonicalLyricTimeMs, toEffectiveLyricTimeMs } from '../runtime/lyricPlaybackResolver'
+import { announceCueEdit } from './lyricNotices'
 
 export type LyricCueFilter = 'all' | 'unreviewed' | 'low-confidence' | 'warnings' | 'empty-text'
 
@@ -55,6 +56,8 @@ export interface UseLyricCueEditorParams {
   onSnapModeChange?: (mode: LyricSnapMode) => void
   navigationTarget?: { cueId: string; wordId?: string | null; revision: number } | null
 }
+
+const cueNumber = (index: number) => index + 1
 
 export function createCueId(prefix = 'cue'): string {
   return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -213,35 +216,51 @@ export function useLyricCueEditor({
   const addAtPlayhead = useCallback(() => {
     const cue = addCueAtPlayhead(createCueId(), canonicalPlayheadMs ?? 0, durationMs)
     replaceCues([...cues, cue], cue.id)
+    announceCueEdit(`Cue added at ${formatMs(cue.startMs)}`)
   }, [canonicalPlayheadMs, cues, durationMs, replaceCues])
 
   const addAtTimelineTime = useCallback((displayedTimeMs: number) => {
     const canonicalTimeMs = Math.max(0, toCanonicalLyricTimeMs(displayedTimeMs, globalOffsetMs))
     const cue = addCueAtPlayhead(createCueId(), canonicalTimeMs, durationMs)
     replaceCues([...cues, cue], cue.id)
+    announceCueEdit(`Cue added at ${formatMs(cue.startMs)}`)
   }, [cues, durationMs, globalOffsetMs, replaceCues])
 
   const duplicateSelected = useCallback(() => {
     if (!selectedCue) return
     const copy = duplicateCue(selectedCue, createCueId(), durationMs)
     replaceCues([...cues, copy], copy.id)
-  }, [cues, durationMs, replaceCues, selectedCue])
+    announceCueEdit(`Cue ${cueNumber(selectedIndex)} duplicated`)
+  }, [cues, durationMs, replaceCues, selectedCue, selectedIndex])
 
   const splitSelected = useCallback(() => {
-    if (!selectedCue || canonicalPlayheadMs === null) return
+    if (!selectedCue) return
+    const number = cueNumber(selectedIndex)
+    if (canonicalPlayheadMs === null) {
+      announceCueEdit(`Cue ${number} was not split: there is no playhead position`, true)
+      return
+    }
     const split = splitCue(selectedCue, canonicalPlayheadMs, createCueId(), createCueId())
-    if (!split) return
+    if (!split) {
+      announceCueEdit(`Cue ${number} was not split: move the playhead inside the cue`, true)
+      return
+    }
     replaceCues(cues.flatMap(cue => cue.id === selectedCue.id ? split : [cue]), split[1].id)
-  }, [canonicalPlayheadMs, cues, replaceCues, selectedCue])
+    announceCueEdit(`Cue ${number} split into cues ${number} and ${number + 1}`)
+  }, [canonicalPlayheadMs, cues, replaceCues, selectedCue, selectedIndex])
 
   const mergeSelected = useCallback((direction: -1 | 1) => {
     if (!selectedCue || selectedIndex < 0) return
     const adjacent = orderedCues[selectedIndex + direction]
-    if (!adjacent) return
+    if (!adjacent) {
+      announceCueEdit(`Cue ${cueNumber(selectedIndex)} has no ${direction < 0 ? 'previous' : 'next'} cue to merge with`, true)
+      return
+    }
     const first = direction < 0 ? adjacent : selectedCue
     const second = direction < 0 ? selectedCue : adjacent
     const merged = mergeCues(first, second, selectedCue.id)
     replaceCues(cues.filter(cue => cue.id !== first.id && cue.id !== second.id).concat(merged), merged.id)
+    announceCueEdit(`Cue ${cueNumber(selectedIndex)} merged with cue ${cueNumber(selectedIndex + direction)}`)
   }, [cues, orderedCues, replaceCues, selectedCue, selectedIndex])
 
   const deleteSelected = useCallback(() => {
@@ -250,40 +269,72 @@ export function useLyricCueEditor({
     deleteCue(selectedCue.id)
     selectCue(fallback)
     focusCue(fallback)
+    announceCueEdit(`Cue ${cueNumber(selectedIndex)} deleted`)
   }, [deleteCue, focusCue, orderedCues, selectCue, selectedCue, selectedIndex])
 
   const handleCueContextAction = useCallback((cueId: string, action: LyricCueContextAction, displayedTimeMs: number) => {
     const cue = orderedCues.find(item => item.id === cueId)
     if (!cue) return
     const index = orderedCues.findIndex(item => item.id === cueId)
+    const number = cueNumber(index)
     if (action === 'delete') {
       const fallback = orderedCues[index + 1]?.id ?? orderedCues[index - 1]?.id ?? null
       deleteCue(cueId)
       selectCue(fallback)
+      announceCueEdit(`Cue ${number} deleted`)
       return
     }
     if (action === 'mark-reviewed') {
       updateCue(cueId, { reviewStatus: 'reviewed' })
+      announceCueEdit(`Cue ${number} marked reviewed`)
       return
     }
     if (action === 'duplicate') {
       const copy = duplicateCue(cue, createCueId(), durationMs)
       replaceCues([...cues, copy], copy.id)
+      announceCueEdit(`Cue ${number} duplicated`)
       return
     }
     if (action === 'split') {
       const canonicalTimeMs = Math.max(0, toCanonicalLyricTimeMs(displayedTimeMs, globalOffsetMs))
       const split = splitCue(cue, canonicalTimeMs, createCueId(), createCueId())
-      if (split) replaceCues(cues.flatMap(item => item.id === cueId ? split : [item]), split[1].id)
+      if (split) {
+        replaceCues(cues.flatMap(item => item.id === cueId ? split : [item]), split[1].id)
+        announceCueEdit(`Cue ${number} split into cues ${number} and ${number + 1}`)
+      } else {
+        announceCueEdit(`Cue ${number} was not split: that time is too close to the start or end of the cue`, true)
+      }
       return
     }
     const adjacent = action === 'merge-previous' ? orderedCues[index - 1] : orderedCues[index + 1]
-    if (!adjacent) return
+    if (!adjacent) {
+      announceCueEdit(`Cue ${number} has no ${action === 'merge-previous' ? 'previous' : 'next'} cue to merge with`, true)
+      return
+    }
     const first = action === 'merge-previous' ? adjacent : cue
     const second = action === 'merge-previous' ? cue : adjacent
     const merged = mergeCues(first, second, cue.id)
     replaceCues(cues.filter(item => item.id !== first.id && item.id !== second.id).concat(merged), merged.id)
+    announceCueEdit(`Cue ${number} merged with cue ${cueNumber(orderedCues.indexOf(adjacent))}`)
   }, [cues, deleteCue, durationMs, globalOffsetMs, orderedCues, replaceCues, selectCue, updateCue])
+
+  // Undo and redo say what happened, including when there is nothing to undo or redo.
+  const undoCueEditAnnounced = useCallback(() => {
+    if (cueHistoryPast.length === 0) {
+      announceCueEdit('Nothing to undo', true)
+      return
+    }
+    undoCueEdit()
+    announceCueEdit('Undid the last cue edit')
+  }, [cueHistoryPast.length, undoCueEdit])
+  const redoCueEditAnnounced = useCallback(() => {
+    if (cueHistoryFuture.length === 0) {
+      announceCueEdit('Nothing to redo', true)
+      return
+    }
+    redoCueEdit()
+    announceCueEdit('Redid the cue edit')
+  }, [cueHistoryFuture.length, redoCueEdit])
 
   const commitWords = useCallback((cueId: string, words: LyricWord[]) => {
     const cue = cues.find(item => item.id === cueId)
@@ -339,8 +390,8 @@ export function useLyricCueEditor({
     getCurrentTimeMs,
     cueHistoryPast,
     cueHistoryFuture,
-    undoCueEdit,
-    redoCueEdit,
+    undoCueEdit: undoCueEditAnnounced,
+    redoCueEdit: redoCueEditAnnounced,
     selectCue,
     updateCueWord,
     snapMode,

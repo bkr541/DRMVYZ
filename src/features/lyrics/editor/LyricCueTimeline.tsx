@@ -213,6 +213,9 @@ export function LyricCueTimeline({
     y: number;
     authoredTimeMs: number;
   } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  // The cue block to hand focus back to when the menu closes without the cue being removed.
+  const menuReturnFocusRef = useRef<HTMLElement | null>(null);
   const liveBoundsRef = useRef<typeof liveBounds>(null);
   const liveWordsRef = useRef<typeof liveWords>(null);
 
@@ -309,6 +312,12 @@ export function LyricCueTimeline({
     observer.observe(inner);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    // Move focus into the menu so a keyboard or screen-reader user lands on the first available action.
+    contextMenuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -581,6 +590,38 @@ export function LyricCueTimeline({
     [durationMs, onCommitCue, snapCanonical],
   );
 
+  const orderedCueIds = useMemo(
+    () => [...cues].sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)).map((cue) => cue.id),
+    [cues],
+  );
+
+  /**
+   * Opens the cue actions menu from the keyboard (Menu key / Shift+F10), anchored under the cue. There is no pointer position to
+   * split at, so "Split here" uses the playhead when it is inside the cue and otherwise the middle of the cue.
+   */
+  const openMenuFromKeyboard = useCallback(
+    (cueId: string, element: HTMLElement, bounds: CueBounds) => {
+      if (!onCueContextAction) return;
+      const playhead = currentTimeMs;
+      const splitAt =
+        playhead !== null && playhead !== undefined && playhead > bounds.startMs && playhead < bounds.endMs
+          ? playhead
+          : Math.round((bounds.startMs + bounds.endMs) / 2);
+      const rect = element.getBoundingClientRect();
+      menuReturnFocusRef.current = element;
+      onSelectCue(cueId);
+      setContextMenu({ cueId, x: rect.left, y: rect.bottom + 4, authoredTimeMs: splitAt });
+    },
+    [currentTimeMs, onCueContextAction, onSelectCue],
+  );
+
+  const closeContextMenu = useCallback((returnFocus: boolean) => {
+    setContextMenu(null);
+    const target = menuReturnFocusRef.current;
+    menuReturnFocusRef.current = null;
+    if (returnFocus && target?.isConnected) target.focus();
+  }, []);
+
   const rulerTicks = useMemo(() => {
     if (compact) return [];
     const count = 8;
@@ -815,6 +856,7 @@ export function LyricCueTimeline({
               event.preventDefault();
               event.stopPropagation();
               onSelectCue(cue.id);
+              menuReturnFocusRef.current = event.currentTarget;
               setContextMenu({
                 cueId: cue.id,
                 x: event.clientX,
@@ -823,6 +865,13 @@ export function LyricCueTimeline({
               });
             }}
             onKeyDown={(event) => {
+              if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                if (!onCueContextAction) return;
+                event.preventDefault();
+                event.stopPropagation();
+                openMenuFromKeyboard(cue.id, event.currentTarget, bounds);
+                return;
+              }
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 onSelectCue(cue.id);
@@ -880,42 +929,74 @@ export function LyricCueTimeline({
         </div>
       )}
 
-      {contextMenu && onCueContextAction && (
-        <div
-          className="lyric-cue-context-menu"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
-          role="menu"
-          aria-label="Lyric cue actions"
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          {(
-            [
-              ["split", "Split here"],
-              ["merge-previous", "Merge previous"],
-              ["merge-next", "Merge next"],
-              ["duplicate", "Duplicate"],
-              ["mark-reviewed", "Mark reviewed"],
-              ["delete", "Delete"],
-            ] as const
-          ).map(([action, label]) => (
-            <button
-              type="button"
-              role="menuitem"
-              key={action}
-              onClick={() => {
-                onCueContextAction(
-                  contextMenu.cueId,
-                  action,
-                  contextMenu.authoredTimeMs,
-                );
-                setContextMenu(null);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
+      {contextMenu && onCueContextAction && (() => {
+        const menuIndex = orderedCueIds.indexOf(contextMenu.cueId);
+        const items = [
+          ["split", "Split here", false],
+          ["merge-previous", "Merge previous", menuIndex <= 0],
+          ["merge-next", "Merge next", menuIndex < 0 || menuIndex >= orderedCueIds.length - 1],
+          ["duplicate", "Duplicate", false],
+          ["mark-reviewed", "Mark reviewed", false],
+          ["delete", "Delete", false],
+        ] as const;
+        const moveFocus = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+          const buttons = Array.from(
+            event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+          );
+          if (buttons.length === 0) return;
+          const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+          let next = at;
+          if (event.key === "ArrowDown") next = at < 0 ? 0 : (at + 1) % buttons.length;
+          else if (event.key === "ArrowUp") next = at <= 0 ? buttons.length - 1 : at - 1;
+          else if (event.key === "Home") next = 0;
+          else if (event.key === "End") next = buttons.length - 1;
+          else return;
+          event.preventDefault();
+          buttons[next]?.focus();
+        };
+        return (
+          <div
+            ref={contextMenuRef}
+            className="lyric-cue-context-menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            role="menu"
+            aria-label="Lyric cue actions"
+            aria-orientation="vertical"
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                closeContextMenu(true);
+                return;
+              }
+              if (event.key === "Tab") {
+                // The menu is not a place to tab through: leave it and carry on from the cue.
+                closeContextMenu(true);
+                return;
+              }
+              moveFocus(event);
+            }}
+          >
+            {items.map(([action, label, disabled]) => (
+              <button
+                type="button"
+                role="menuitem"
+                key={action}
+                disabled={disabled}
+                aria-disabled={disabled || undefined}
+                tabIndex={-1}
+                onClick={() => {
+                  onCueContextAction(contextMenu.cueId, action, contextMenu.authoredTimeMs);
+                  closeContextMenu(action !== "delete");
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 
