@@ -3,6 +3,7 @@ import { ShaderCompiler } from '../../../react/shaders/runtime/ShaderCompiler'
 import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { bwcCanGlsl } from './Cinema2BwcCanModel'
 import { bwcCreatureGlsl } from './Cinema2BwcCreatureModel'
+import { bwcLoopGlsl, bwcTurnGlsl } from './Cinema2BwcLoop'
 import { BWC_EMBLEM_TEXTURE_BYTES, BWC_EMBLEM_TEXTURE_HEIGHT, BWC_EMBLEM_TEXTURE_WIDTH, bwcEmblemGlsl, rasterizeBwcEmblem } from './Cinema2BwcEmblem'
 
 export interface Cinema2BwcRenderState {
@@ -13,6 +14,8 @@ export interface Cinema2BwcRenderState {
   portalScale: number
   canScale: number
   conveyorWidth: number
+  /** Metres the production line has advanced, wrapped to the loop's length (see Cinema2BwcLoop). */
+  loopPhase: number
   ledStrength: number
   background: readonly [number, number, number]
   structure: readonly [number, number, number]
@@ -32,6 +35,7 @@ uniform float u_intensity;
 uniform float u_portalScale;
 uniform float u_canScale;
 uniform float u_conveyorWidth;
+uniform float u_loopPhase;
 uniform float u_ledStrength;
 uniform vec3 u_background;
 uniform vec3 u_structure;
@@ -48,9 +52,7 @@ out vec4 outColor;
 #define EPSILON 0.0016
 // The U-turn at the back of the hall that joins the infeed belt (x -1.92) to the service walk (x 3.18): both lines end near z -10.6, so
 // the turn is a half circle about (TURN_CX, TURN_CZ) whose radius is half the distance between their centre lines.
-#define TURN_CX 0.63
-#define TURN_CZ -10.60
-#define TURN_R 2.55
+${bwcTurnGlsl()}
 
 float sdRoundBox(vec3 p, vec3 h, float r) {
   vec3 q = abs(p) - h + r;
@@ -77,67 +79,16 @@ float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
 vec2 nearest(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
 ${bwcCreatureGlsl()}
 
-/* A point in the space of the creature that owns it: metres, feet on the floor, facing +Z, each turned a little toward the camera. */
-vec3 creatureSpace(vec3 p, out float cell) {
-  float last = floor((CREATURE_Z_LAST - CREATURE_Z_FIRST) / CREATURE_PITCH);
-  cell = clamp(floor((p.z - CREATURE_Z_FIRST) / CREATURE_PITCH + 0.5), 0.0, last);
-  vec3 offset = vec3(p.x - CREATURE_CENTER_X, p.y - CREATURE_BASE_Y, p.z - (CREATURE_Z_FIRST + cell * CREATURE_PITCH));
-  float yaw = CREATURE_YAW_BIAS + (fract(sin(cell * 12.9898) * 43758.5453) - 0.5) * 2.0 * CREATURE_YAW_JITTER;
-  float c = cos(yaw), s = sin(yaw);
-  return vec3(c * offset.x - s * offset.z, offset.y, s * offset.x + c * offset.z) / CREATURE_SCALE;
-}
-
 /* A creature in the space of its own model, given where it stands and which way it is turned. */
 vec3 creatureLocal(vec3 p, vec3 center, float yaw) {
   vec3 offset = p - center;
   float c = cos(yaw), s = sin(yaw);
   return vec3(c * offset.x - s * offset.z, offset.y, s * offset.x + c * offset.z) / CREATURE_SCALE;
 }
-
-/*
- * Items riding the turn: three cans on its first half (the belt side) and four creatures on its second (the service-walk side), so the
- * line reads as one loop. Phi runs from pi at the infeed belt to 0 at the service walk; each item sits on the centre line at the slot
- * centre, at the height of the surface under it, and a creature faces the way the line is travelling.
- */
-#define TURN_CAN_STEP 0.502
-#define TURN_CREATURE_STEP 0.431
-float turnTop(float phi) {
-  return mix(0.865, 0.505, smoothstep(0.0, 1.0, clamp(1.0 - phi / 3.14159265, 0.0, 1.0)));
-}
-bool inTurn(vec3 p, out vec2 q) {
-  q = p.xz - vec2(TURN_CX, TURN_CZ);
-  return q.y < 0.05 && q.y > -TURN_R - 1.6 && abs(q.x) < TURN_R + 1.6 && abs(length(q) - TURN_R) < 1.3 && p.y < 2.6;
-}
-bool turnCanSlot(vec3 p, out vec3 center) {
-  center = vec3(0.0);
-  vec2 q;
-  if (!inTurn(p, q)) return false;
-  float phi = atan(-q.y, q.x);
-  if (phi < 1.5707963) return false;
-  float k = clamp(floor((3.14159265 - phi) / TURN_CAN_STEP), 0.0, 2.0);
-  float slot = 3.14159265 - (k + 0.5) * TURN_CAN_STEP;
-  center = vec3(TURN_CX + TURN_R * cos(slot), turnTop(slot), TURN_CZ - TURN_R * sin(slot));
-  return true;
-}
-bool turnCreatureSlot(vec3 p, out vec3 center, out float yaw) {
-  center = vec3(0.0);
-  yaw = 0.0;
-  vec2 q;
-  if (!inTurn(p, q)) return false;
-  float phi = atan(-q.y, q.x);
-  if (phi >= 1.5707963) return false;
-  float k = clamp(floor(phi / TURN_CREATURE_STEP), 0.0, 3.0);
-  float slot = (k + 0.5) * TURN_CREATURE_STEP;
-  center = vec3(TURN_CX + TURN_R * cos(slot), turnTop(slot), TURN_CZ - TURN_R * sin(slot));
-  yaw = slot + CREATURE_YAW_BIAS + (fract(sin((k + 17.0) * 12.9898) * 43758.5453) - 0.5) * 2.0 * CREATURE_YAW_JITTER;
-  return true;
-}
-vec3 creatureLocalAt(vec3 p) {
-  vec3 center;
-  float yaw;
-  if (turnCreatureSlot(p, center, yaw)) return creatureLocal(p, center, yaw);
-  float cell;
-  return creatureSpace(p, cell);
+${bwcLoopGlsl()}
+/* A creature faces the way the line carries it, turned a little toward the camera and a little differently from its neighbours. */
+float loopCreatureYaw(float travelYaw, float id) {
+  return travelYaw + CREATURE_YAW_BIAS + (fract(sin((id + 17.0) * 12.9898) * 43758.5453) - 0.5) * 2.0 * CREATURE_YAW_JITTER;
 }
 
 vec2 mapScene(vec3 p) {
@@ -189,21 +140,28 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdRoundBox(conveyorSupport - vec3(-1.92 - conveyorHalf, 0.34, 0.0), vec3(0.075, 0.34, 0.10), 0.025), 3.0));
   result = nearest(result, vec2(sdRoundBox(conveyorSupport - vec3(-1.92 + conveyorHalf, 0.34, 0.0), vec3(0.075, 0.34, 0.10), 0.025), 3.0));
 
-  // BWC_CANS_PRIMARY — the BWC_CAN_PLAIN artifact (docs/BWC/BWC_Can_Plain_Ready.glb), enlarged to the manifest's 1 m
-  // hero height at Can Scale 1, standing on the belt. Its own coordinates are metres with the origin at the base centre.
-  if (p.z > -10.2 && p.z < 8.0) {
-    float canSize = CAN_HERO_SCALE * u_canScale;
-    vec3 canPoint = p - vec3(-1.92, 0.865, 0.0);
-    canPoint.z = mod(canPoint.z + 0.64, 1.28) - 0.64;
-    result = nearest(result, vec2(sdBwcCan(canPoint / canSize) * canSize, 5.0));
-  }
-
-  // BWC_CREATURES — the plush creature (docs/BWC/Ultra_White_Plush_Creature_Cinema2.glb) filling the right conveyor.
-  if (p.x > 1.5 && p.x < 4.9 && p.z > CREATURE_Z_FIRST - 1.0 && p.z < CREATURE_Z_LAST + 1.0) {
-    float cell;
-    vec3 creaturePoint = creatureSpace(p, cell);
-    vec2 creature = sdBwcCreature(creaturePoint);
-    result = nearest(result, vec2(creature.x * CREATURE_SCALE, creature.y));
+  // BWC_LINE_ITEMS — the production line. Every can (BWC_CAN_PLAIN, docs/BWC/BWC_Can_Plain_Ready.glb, enlarged to the manifest's 1 m hero
+  // height at Can Scale 1) and every creature (docs/BWC/Ultra_White_Plush_Creature_Cinema2.glb) rides the one loop, advanced by u_loopPhase:
+  // cans on the belt up to the reactor's intake hood, creatures from the hood's far curtain round the back and down the service walk.
+  {
+    vec3 itemCenter;
+    float itemYaw;
+    bool itemIsCan;
+    float itemId;
+    if (loopItem(p, itemCenter, itemYaw, itemIsCan, itemId)) {
+      if (itemIsCan) {
+        float canSize = CAN_HERO_SCALE * u_canScale;
+        float canDistance = sdBwcCan((p - itemCenter) / canSize) * canSize;
+        // A can is seen only up to the entrance curtain: past it, it is inside the hood.
+        result = nearest(result, vec2(max(canDistance, LOOP_ENTER_CLIP - p.z), 5.0));
+      } else {
+        vec2 creature = sdBwcCreature(creatureLocal(p, itemCenter, loopCreatureYaw(itemYaw, itemId)));
+        float creatureDistance = creature.x * CREATURE_SCALE;
+        // On the belt behind the hood a creature is seen only from the exit curtain on.
+        if (p.x < TURN_CX && p.z > TURN_CZ) creatureDistance = max(creatureDistance, p.z - LOOP_EXIT_CLIP);
+        result = nearest(result, vec2(creatureDistance, creature.y));
+      }
+    }
   }
 
   // Low right service walk matching the target's long perspective runway.
@@ -250,38 +208,47 @@ vec2 mapScene(vec3 p) {
     result = nearest(result, vec2(max(sdRoundBox(turnLocal - vec3(0.0, 0.5 * bodyBottom, 0.0), vec3(0.075, 0.5 * bodyBottom, 0.10), 0.025), turnCap), 3.0));
     float postBottom = bodyY + bodyH;
     result = nearest(result, vec2(max(sdCylinderY(turnLocal - vec3(0.0, 0.5 * (postBottom + railY), 0.0), 0.052, max(0.5 * (railY - postBottom), 0.02)), turnCap), 3.0));
-    vec3 turnCanCenter;
-    if (turnCanSlot(p, turnCanCenter)) {
-      float turnCanSize = CAN_HERO_SCALE * u_canScale;
-      result = nearest(result, vec2(sdBwcCan((p - turnCanCenter) / turnCanSize) * turnCanSize, 5.0));
-    }
-    vec3 turnCreatureCenter;
-    float turnCreatureYaw;
-    if (turnCreatureSlot(p, turnCreatureCenter, turnCreatureYaw)) {
-      vec2 turnCreature = sdBwcCreature(creatureLocal(p, turnCreatureCenter, turnCreatureYaw));
-      result = nearest(result, vec2(turnCreature.x * CREATURE_SCALE, turnCreature.y));
-    }
   }
 
   // BWC_REACTOR_* — 6.45 m housing, green chamber and concentric armor.
+  vec2 portalResult = vec2(100.0, 0.0);
   vec3 portalPoint = p - vec3(-0.38, 2.72, -3.55);
   portalPoint.xy /= u_portalScale;
   float portalFactor = min(u_portalScale, 1.0);
-  result = nearest(result, vec2(sdCylinderZ(portalPoint - vec3(0.0, 0.0, 0.14), 1.46, 0.035) * portalFactor, 4.0));
-  result = nearest(result, vec2(sdTorusZ(portalPoint, 1.52, 0.075) * portalFactor, 6.0));
-  result = nearest(result, vec2(sdTorusZ(portalPoint, 1.72, 0.11) * portalFactor, 3.0));
-  result = nearest(result, vec2(sdTorusZ(portalPoint, 2.02, 0.24) * portalFactor, 2.0));
-  result = nearest(result, vec2(sdTorusZ(portalPoint, 2.30, 0.13) * portalFactor, 3.0));
-  result = nearest(result, vec2(sdTorusZ(portalPoint, 2.48, 0.17) * portalFactor, 2.0));
+  portalResult = nearest(portalResult, vec2(sdCylinderZ(portalPoint - vec3(0.0, 0.0, 0.14), 1.46, 0.035) * portalFactor, 4.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 1.52, 0.075) * portalFactor, 6.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 1.72, 0.11) * portalFactor, 3.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 2.02, 0.24) * portalFactor, 2.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 2.30, 0.13) * portalFactor, 3.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 2.48, 0.17) * portalFactor, 2.0));
   for (int i = 0; i < 8; i++) {
     float angle = float(i) * 0.785398;
     vec2 radial = vec2(cos(angle), sin(angle));
     vec3 clampPoint = portalPoint - vec3(radial * 2.23, -0.04);
     float c = cos(-angle), s = sin(-angle);
     clampPoint.xy = mat2(c, -s, s, c) * clampPoint.xy;
-    result = nearest(result, vec2(sdRoundBox(clampPoint, vec3(0.31, 0.13, 0.34), 0.045) * portalFactor, 2.0));
+    portalResult = nearest(portalResult, vec2(sdRoundBox(clampPoint, vec3(0.31, 0.13, 0.34), 0.045) * portalFactor, 2.0));
   }
-  result = nearest(result, vec2(sdRoundBox(p - vec3(-2.18, 0.72, -3.48), vec3(0.34, 0.72, 0.40), 0.055), 3.0));
+  // The belt passes through the reactor: the ring and its clamps are cut away inside the hood's opening.
+  float hoodHalfIn = 0.76 * u_conveyorWidth + 0.20;
+  vec3 hoodP = p - vec3(LOOP_BELT_X, 1.55, LOOP_HOOD_Z);
+  float hoodVoid = sdRoundBox(hoodP - vec3(0.0, 0.05, 0.0), vec3(hoodHalfIn, 0.95, LOOP_HOOD_HALF + 0.2), 0.02);
+  portalResult.x = max(portalResult.x, -hoodVoid);
+  result = nearest(result, portalResult);
+
+  // BWC_REACTOR_HOOD — the intake hood the belt runs through at the reactor. It stands in for the left foot the ring used to have.
+  // Cans go in behind the strip curtain at the front and creatures come out from behind the one at the back; each opening is framed in
+  // energy-green LED.
+  float hoodShell = max(sdRoundBox(hoodP, vec3(hoodHalfIn + 0.20, 1.15, LOOP_HOOD_HALF), 0.03),
+                        -sdRoundBox(hoodP - vec3(0.0, -0.10, 0.0), vec3(hoodHalfIn, 1.05, LOOP_HOOD_HALF + 0.3), 0.01));
+  result = nearest(result, vec2(hoodShell, 2.0));
+  float hoodFace = abs(p.z - LOOP_HOOD_Z) - LOOP_HOOD_HALF;
+  float hoodFrameSides = sdRoundBox(vec3(abs(p.x - LOOP_BELT_X) - (hoodHalfIn - 0.06), p.y - 1.65, hoodFace), vec3(0.05, 0.78, 0.035), 0.012);
+  float hoodFrameTop = sdRoundBox(vec3(p.x - LOOP_BELT_X, p.y - 2.40, hoodFace), vec3(hoodHalfIn, 0.05, 0.035), 0.012);
+  result = nearest(result, vec2(min(hoodFrameSides, hoodFrameTop), 6.0));
+  vec3 curtainP = vec3(mod(p.x - LOOP_BELT_X + 0.11, 0.22) - 0.11, p.y - 1.68, hoodFace);
+  float curtain = max(sdRoundBox(curtainP, vec3(0.045, 0.68, 0.02), 0.008), abs(p.x - LOOP_BELT_X) - (hoodHalfIn - 0.06));
+  result = nearest(result, vec2(curtain, 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(1.42, 0.72, -3.48), vec3(0.34, 0.72, 0.40), 0.055), 3.0));
 
   // BWC_ENERGY_PIPES — five green manifolds and dark steel collars.
@@ -348,18 +315,14 @@ const float PI = 3.14159265;
  */
 vec3 canColor(vec3 p) {
   float canSize = CAN_HERO_SCALE * u_canScale;
-  vec3 q;
-  vec2 toCamera;
-  vec3 turnCenter;
-  if (turnCanSlot(p, turnCenter)) {
-    q = (p - turnCenter) / canSize;
-    toCamera = CAMERA_POSITION.xz - turnCenter.xz;
-  } else {
-    vec3 local = p - vec3(-1.92, 0.865, 0.0);
-    float zInCell = mod(local.z + 0.64, 1.28) - 0.64;
-    q = vec3(local.x, local.y, zInCell) / canSize;
-    toCamera = CAMERA_POSITION.xz - vec2(-1.92, local.z - zInCell);
-  }
+  // The can that owns this point: its own coordinates, and where the camera is from it (so each print faces the camera).
+  vec3 center;
+  float travelYaw;
+  bool isCan;
+  float id;
+  loopItem(p, center, travelYaw, isCan, id);
+  vec3 q = (p - center) / canSize;
+  vec2 toCamera = CAMERA_POSITION.xz - center.xz;
   float theta = atan(q.z, q.x) - atan(toCamera.y, toCamera.x);
   theta = mod(theta + PI, 2.0 * PI) - PI;
   vec2 uv = vec2(theta * EMBLEM_WRAP_RADIUS / EMBLEM_WIDTH + 0.5, 0.5 - (q.y - EMBLEM_CENTER_Y) / EMBLEM_HEIGHT);
@@ -382,7 +345,12 @@ const vec3 CREATURE_THREAD = vec3(0.149, 0.157, 0.149);
  */
 vec3 creatureColor(float material, vec3 p) {
   if (material < 10.5) {
-    vec3 q = creatureLocalAt(p);
+    vec3 center;
+    float travelYaw;
+    bool isCan;
+    float id;
+    loopItem(p, center, travelYaw, isCan, id);
+    vec3 q = creatureLocal(p, center, loopCreatureYaw(travelYaw, id));
     vec2 uv = vec2(0.5 + atan(q.x, q.z) / (2.0 * PI), clamp(CREATURE_LABEL_V0 - CREATURE_LABEL_V1 * q.y, 0.0, 1.0));
     float footprint = length(p - CAMERA_POSITION) * (2.0 / max(u_resolution.y, 1.0)) / 2.22 / CREATURE_SCALE;
     float lod = max(log2(footprint / 0.0014), 0.0);
@@ -472,7 +440,7 @@ export class Cinema2BwcRenderer {
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const uniforms = [
-      'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_ledStrength',
+      'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_loopPhase', 'u_ledStrength',
       'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal', 'u_canEmblem', 'u_creatureLabel', 'u_creatureLabelReady',
     ]
     const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
@@ -496,6 +464,7 @@ export class Cinema2BwcRenderer {
     p.setFloat('u_portalScale', state.portalScale)
     p.setFloat('u_canScale', state.canScale)
     p.setFloat('u_conveyorWidth', state.conveyorWidth)
+    p.setFloat('u_loopPhase', state.loopPhase)
     p.setFloat('u_ledStrength', state.ledStrength)
     p.setVec3('u_background', ...state.background)
     p.setVec3('u_structure', ...state.structure)
