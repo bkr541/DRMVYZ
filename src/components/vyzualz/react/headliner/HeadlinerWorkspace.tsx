@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
 import { Collapsible, CtrlSection, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../ReactControlRows'
@@ -42,10 +43,7 @@ import { presetMatchesDiscoveryQuery, resolvePresetDiscoveryMetadata } from '../
 
 function HeadlinerFullscreenIcon() {
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7" />
-      <rect x="10" y="10" width="12" height="12" rx="2" />
-    </svg>
+    <AppIcon kind="borderless" />
   )
 }
 

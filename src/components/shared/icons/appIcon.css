@@ -25,3 +25,9 @@
 .vz-header-activity .app-icon {
   --app-icon-accent: currentColor;
 }
+
+/* Stateful output and playback controls keep their existing status/preset colors. */
+.rv-global-output .app-icon,
+.az-play-btn .app-icon {
+  --app-icon-accent: currentColor;
+}

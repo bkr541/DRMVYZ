@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
   useCallback,
   useEffect,
@@ -13,8 +14,6 @@ import {
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import type { RgbWaveformAnalysis } from '../../../../features/waveform/rgbWaveformTypes'
 import { useSharedAudio } from '../../../../context/AudioEngineContext'
-import collapseIconSvg from '../../../../assets/collapse.svg?raw'
-import expandIconSvg from '../../../../assets/expand.svg?raw'
 import {
   drawTrackTimelineCanvas,
   formatTime,
@@ -474,32 +473,10 @@ function TrackInfoRow({ label, value, valueRef }: {
 type RailIconName = 'expand' | 'collapse' | 'center'
 
 function RailIcon({ name }: { name: RailIconName }) {
-  if (name === 'expand' || name === 'collapse') {
-    return (
-      <span
-        className="ttv-detail-toolbar-icon"
-        aria-hidden="true"
-        dangerouslySetInnerHTML={{ __html: name === 'collapse' ? collapseIconSvg : expandIconSvg }}
-      />
-    )
-  }
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
-      <circle cx="12" cy="12" r="4.5" />
-    </svg>
-  )
+  return <span className="ttv-detail-toolbar-icon" aria-hidden="true"><AppIcon kind={name} size="100%" /></span>
 }
 
-function AudioIntelligenceIcon() {
-  return (
-    <svg className="ttv-analysis-panel-header-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 12h3l2.25-6 4.1 12 3.15-9 2 3H21" />
-      <circle cx="3" cy="12" r="1.25" />
-      <circle cx="21" cy="12" r="1.25" />
-    </svg>
-  )
-}
+function AudioIntelligenceIcon() { return <AppIcon kind="waveform" className="ttv-analysis-panel-header-icon" /> }
 
 function TrackTimelinePlayheadController({
   appShellRef,

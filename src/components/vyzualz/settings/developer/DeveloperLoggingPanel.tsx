@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { DreamVizTextInput } from '../../react/controls/DreamVizTextInput'
 import { UnderlineDropdown } from '../../react/controls/UnderlineDropdown'
@@ -12,9 +13,7 @@ type ComponentFilterValue = LogComponent | 'all'
 
 function CopyIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-      <path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 16H8V7h11v14Z"/>
-    </svg>
+    <AppIcon kind="copy" size="13" />
   )
 }
 

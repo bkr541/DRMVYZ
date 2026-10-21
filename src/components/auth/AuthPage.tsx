@@ -1,3 +1,4 @@
+import { AppIcon } from '../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
 import { AuthVisualizer } from './AuthVisualizer'
 import { useState } from 'react'
@@ -126,39 +127,27 @@ function EmblemPanel() {
 // ── Icon components ───────────────────────────────────────────────────────────
 
 const IconUser = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/>
-  </svg>
+  <AppIcon kind="user" size="15" />
 )
 
 const IconMail = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-  </svg>
+  <AppIcon kind="mail" size="15" />
 )
 
 const IconLock = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-  </svg>
+  <AppIcon kind="lock" size="15" />
 )
 
 const IconMic = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-  </svg>
+  <AppIcon kind="mic" size="15" />
 )
 
 const EyeOpen = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-  </svg>
+  <AppIcon kind="eye" size="15" />
 )
 
 const EyeClosed = () => (
-  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-    <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zm10.53 10.53l-1.55-1.55a3.01 3.01 0 01-.65-.08l-1.55 1.55c.67.33 1.41.53 2.2.53.22 0 .44-.03.65-.08l.9-.37z"/>
-  </svg>
+  <AppIcon kind="eyeOff" size="15" />
 )
 
 // ── Reusable field ────────────────────────────────────────────────────────────
@@ -330,11 +319,7 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
     return (
       <div className="auth-form auth-form--done">
         <div className="auth-done-icon">
-          <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
-            <circle cx="28" cy="28" r="26" stroke="#4ac7db" strokeWidth="1.5"/>
-            <path d="M17 28.5l7.5 7.5L39 21" stroke="#4ac7db" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <AppIcon kind="check" size="56" />
         </div>
         <h2 className="auth-form-title" style={{ textAlign: 'center' }}>Check your inbox</h2>
         <p className="auth-form-sub" style={{ textAlign: 'center' }}>

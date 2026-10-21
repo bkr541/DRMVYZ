@@ -653,18 +653,13 @@ export interface MediaLibraryCardActionAnchor {
 
 function AddCollectionIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M10 14H12M12 14H14M12 14V16M12 14V12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M2 6.94975C2 6.06722 2 5.62595 2.06935 5.25839C2.37464 3.64031 3.64031 2.37464 5.25839 2.06935C5.62595 2 6.06722 2 6.94975 2C7.33642 2 7.52976 2 7.71557 2.01738C8.51665 2.09229 9.27652 2.40704 9.89594 2.92051C10.0396 3.03961 10.1763 3.17633 10.4497 3.44975L11 4C11.8158 4.81578 12.2237 5.22367 12.7121 5.49543C12.9804 5.64471 13.2651 5.7626 13.5604 5.84678C14.0979 6 14.6747 6 15.8284 6H16.2021C18.8345 6 20.1506 6 21.0062 6.76946C21.0849 6.84024 21.1598 6.91514 21.2305 6.99383C22 7.84935 22 9.16554 22 11.7979V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V6.94975Z" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
+    <AppIcon kind="folderAdd" size={size} />
   )
 }
 
 function AddMediaIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
+    <AppIcon kind="imageAdd" size={size} />
   )
 }
 
@@ -1574,9 +1569,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
       <div className="vz-md-search-row">
         <div className="vz-md-search-wrap">
-          <svg className="vz-md-search-icon" viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-            <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
-          </svg>
+          <AppIcon kind="search" className="vz-md-search-icon" size="12" />
           <DreamVizTextInput
             className="vz-md-search-input"
             type="text"
@@ -1638,9 +1631,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             onClick={() => { setPreserveQueuedFiles(false); openImportMediaModal() }}
           >
             <div className="ref-empty-icon">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-              </svg>
+              <AppIcon kind="plus" size="22" />
             </div>
             <div className="ref-empty-title">{isCanvasMode ? 'Add media to library' : 'Import Media'}</div>
             <div className="ref-empty-sub" style={{ fontSize: 9 }}>{dragOver ? 'Drop here!' : isCanvasMode ? 'Saved visual media' : isReactMode ? 'SVGs, Logos & Overlays' : 'Images & Video'}</div>

@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import React, { useMemo, useSyncExternalStore } from 'react'
 import { IconChipButton } from './controls/IconChipButton'
 import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
@@ -72,34 +73,24 @@ const SOUND_DRAWING_SOURCE_OPTIONS: Array<{
 function SoundDrawingSourceIcon({ source }: { source: SoundDrawingSourceChoice }) {
   if (source === 'classic') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M3 16h4l3-8 5 16 4-12 3 8h7" />
-      </svg>
+      <AppIcon kind="scope" />
     )
   }
 
   if (source === 'builtinShape') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="m16 3 11 7v12l-11 7L5 22V10Z" />
-        <circle cx="16" cy="16" r="4" />
-      </svg>
+      <AppIcon kind="shape" />
     )
   }
 
   if (source === 'text') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M7 7h18M16 7v18M11 25h10" />
-      </svg>
+      <AppIcon kind="text" />
     )
   }
 
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M8 3h11l6 6v20H8Z" />
-      <path d="M19 3v7h6M11 22c3-8 7 3 11-7" />
-    </svg>
+    <AppIcon kind="svg" />
   )
 }
 
@@ -149,72 +140,46 @@ const CINEMATIC_WORLD_CATEGORY_ORDER = ['Cosmic', 'Architectural', 'Organic', 'M
 function CinematicWorldIcon({ mode }: { mode: CinematicWorldMode }) {
   if (mode === 'eventHorizon') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="16" cy="16" r="5" />
-        <ellipse cx="16" cy="16" rx="13" ry="7" transform="rotate(-18 16 16)" />
-      </svg>
+      <AppIcon kind="orbit" />
     )
   }
   if (mode === 'mirrorDimension') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M7 5h8v22H7zM17 5h8v22h-8zM15 9l2 2M15 16l2 2M15 23l2 2" />
-      </svg>
+      <AppIcon kind="mirror" />
     )
   }
   if (mode === 'reactiveConstellation') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="7" cy="21" r="2" />
-        <circle cx="15" cy="8" r="2" />
-        <circle cx="25" cy="18" r="2" />
-        <circle cx="19" cy="26" r="2" />
-        <path d="m8 19 6-9m3-1 7 8m-1 3-3 4M9 22l8 3" />
-      </svg>
+      <AppIcon kind="constellation" />
     )
   }
   if (mode === 'infiniteCorridor') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M4 5h24v22H4zM9 9h14v14H9zM13 13h6v6h-6z" />
-      </svg>
+      <AppIcon kind="corridor" />
     )
   }
   if (mode === 'fractureRift') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="m18 3-6 10 5 2-7 14 13-16-6-2z" />
-      </svg>
+      <AppIcon kind="energy" />
     )
   }
   if (mode === 'ancientMachine') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle cx="16" cy="16" r="9" />
-        <circle cx="16" cy="16" r="3" />
-        <path d="M16 3v4M16 25v4M3 16h4M25 16h4M7 7l3 3M22 22l3 3M25 7l-3 3M10 22l-3 3" />
-      </svg>
+      <AppIcon kind="settings" />
     )
   }
   if (mode === 'stormGateway') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M5 12c3-7 19-7 22 0M4 18c4 6 20 6 24 0M11 15h10M18 8l-5 9h5l-4 8" />
-      </svg>
+      <AppIcon kind="storm" />
     )
   }
   if (mode === 'electricStorm') {
     return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M19 3 8 17h7l-3 12 12-16h-7z" />
-      </svg>
+      <AppIcon kind="energy" />
     )
   }
   return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="11" />
-      <path d="M8 16h16M16 8v16" />
-    </svg>
+    <AppIcon kind="shape" />
   )
 }
 

@@ -11653,7 +11653,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   text-align: center;
 }
 
-.rv-renderer-diagnostics-empty img {
+.rv-renderer-diagnostics-empty .app-icon {
   width: 34px;
   height: 34px;
   opacity: 0.4;

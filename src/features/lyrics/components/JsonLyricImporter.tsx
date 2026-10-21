@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useState, useCallback, useRef } from 'react'
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
@@ -122,17 +123,13 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
       >
         {fileName ? (
           <>
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" style={{ color: 'rgba(74,199,219,0.7)', flexShrink: 0 }}>
-              <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-            </svg>
+            <AppIcon kind="file" size="22" style={{ color: 'rgba(74,199,219,0.7)', flexShrink: 0 }} />
             <span className="lmv-drop-zone-text" style={{ color: 'rgba(74,199,219,0.85)' }}>{fileName}</span>
             <span className="lmv-drop-zone-sub">Replace by dropping another file</span>
           </>
         ) : (
           <>
-            <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" opacity={0.35}>
-              <path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
-            </svg>
+            <AppIcon kind="upload" size="28" opacity={0.35} />
             <span className="lmv-drop-zone-text">Drop .json file here</span>
             <span className="lmv-drop-zone-or">or</span>
           </>

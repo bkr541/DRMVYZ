@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { IconMorphToggle } from './controls/IconMorphToggle'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback, useId, useMemo } from 'react'
@@ -852,14 +853,7 @@ export function SoundDrawingTimelineLane({
         onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setCollapsed(c => !c)}
         aria-expanded={!collapsed}
       >
-        <svg
-          className="rv-sd-lane-icon"
-          viewBox="0 0 211.007 211.007"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          <path d="M101.386,109.648c-6.895-6.894-14.969-12.173-23.76-15.683l38.207-53.184l75.343-40.753l19.831,19.831l-40.754,75.341l-53.213,38.227C113.596,124.765,108.384,116.648,101.386,109.648z M24.922,210.98c31.945,0,54.556-5.018,63.668-14.129c20.509-20.512,20.509-53.891-0.001-74.407c-9.936-9.935-23.149-15.407-37.202-15.407c-14.054,0-27.267,5.473-37.205,15.411c-14.06,14.06-15.646,58.354-13.281,87.623C6.613,210.497,15.209,210.98,24.922,210.98z"/>
-        </svg>
+        <AppIcon kind="waveform" className="rv-sd-lane-icon" />
         <span className="rv-sd-lane-title">Sound Drawing</span>
         <span className="rv-sd-clip-count">
           {clips.length > 0 ? `${clips.length} clip${clips.length !== 1 ? 's' : ''}` : ''}

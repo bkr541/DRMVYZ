@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import type { RecorderState, RecordingMode } from '../../../hooks/useRecorder'
 import { Badge } from '../react/controls/Badge'
 import { IconChipButton } from '../react/controls/IconChipButton'
@@ -92,7 +93,7 @@ export function RecordingPanel({
             onClick={handleStart}
             disabled={!canvas}
             title={canvas ? 'Start recording the visual output' : 'Waiting for canvas to initialise'}
-            icon={<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="8" /></svg>}
+            icon={<AppIcon kind="record" />}
           >
             Start Recording
           </IconChipButton>
@@ -100,7 +101,7 @@ export function RecordingPanel({
           <IconChipButton
             className="dv-icon-chip--danger"
             onClick={onStopRecording}
-            icon={<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" /></svg>}
+            icon={<AppIcon kind="stop" />}
           >
             Stop &amp; Save
           </IconChipButton>
@@ -138,10 +139,7 @@ export function RecordingPanel({
           disabled={!canvas}
           title="Export current frame as PNG"
           icon={(
-            <svg viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M7 16l3.5-4 3 3.5L16 13l3 4" />
-            </svg>
+            <AppIcon kind="camera" />
           )}
         >
           PNG Frame

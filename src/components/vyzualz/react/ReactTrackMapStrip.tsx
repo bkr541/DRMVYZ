@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
@@ -636,39 +637,14 @@ export function buildTimelineCueRowLayout(cueKinds: readonly TimelineCueItem['ki
 type TrackMapLaneIconKind = 'beats' | 'sections' | 'energy' | 'ruler'
 
 function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: string }) {
-  return (
-    <span className="rv-timeline-lane-icon" title={label}>
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        {kind === 'beats' && (
-          <>
-            <path d="M2.5 4v8M6.2 6v6M9.8 3v9M13.5 7v5" />
-            <path d="M1.5 12.5h13" />
-          </>
-        )}
-        {kind === 'sections' && (
-          <>
-            <rect x="2" y="4" width="5" height="8" rx="1" />
-            <rect x="8" y="4" width="6" height="8" rx="1" />
-          </>
-        )}
-        {kind === 'energy' && <path d="M1.5 9h2l1.4-4 2.2 7 2-8 1.7 5h3.7" />}
-        {kind === 'ruler' && (
-          <>
-            <path d="M2 4.5h12v7H2zM5 4.5v3M8 4.5v2M11 4.5v3" />
-          </>
-        )}
-      </svg>
-      <span>{label}</span>
-    </span>
-  )
+  const drawings = { beats: 'rhythm', sections: 'layers', energy: 'bars', ruler: 'timeline' } as const
+  return <span className="rv-timeline-lane-icon" title={label}><AppIcon kind={drawings[kind]} size={16} /><span>{label}</span></span>
 }
 
-const CUE_ROW_ICON_PATHS: Readonly<Record<TimelineCueRowId, { label: string; paths: React.ReactNode }>> = {
-  cues: { label: 'Cues', paths: (<><path d="M8 14s4-3.5 4-7.5a4 4 0 1 0-8 0C4 10.5 8 14 8 14Z" /><circle cx="8" cy="6.5" r="1.25" /></>) },
-  phrases: { label: 'Phrases', paths: (<path d="M3 4.5h10M5 8h8M3 11.5h10" />) },
-  moments: { label: 'Moments', paths: (<path d="m8 2 1.25 3.75L13 7l-3.75 1.25L8 12 6.75 8.25 3 7l3.75-1.25L8 2Z" />) },
-  actions: { label: 'Actions', paths: (<path d="m9 1.5-5 8h4l-1 5 5-8H8l1-5Z" />) },
-}
+const CUE_ROW_ICONS = {
+  cues: { label: 'Cues', kind: 'cue' }, phrases: { label: 'Phrases', kind: 'tree' },
+  moments: { label: 'Moments', kind: 'star' }, actions: { label: 'Actions', kind: 'route' },
+} as const
 
 function TrackMapCueLaneIcons({ rows }: { rows: ReadonlyArray<{ id: TimelineCueRowId; heightPx: number }> }) {
   const rowGrid = rows.map(row => `${row.heightPx}px`).join(' ')
@@ -684,13 +660,13 @@ function TrackMapCueLaneIcons({ rows }: { rows: ReadonlyArray<{ id: TimelineCueR
         <span
           key={row.id}
           role="img"
-          aria-label={CUE_ROW_ICON_PATHS[row.id].label}
-          title={CUE_ROW_ICON_PATHS[row.id].label}
+          aria-label={CUE_ROW_ICONS[row.id].label}
+          title={CUE_ROW_ICONS[row.id].label}
           data-cue-label-row={row.id}
           style={{ height: `${row.heightPx}px`, minHeight: `${row.heightPx}px` }}
         >
-          <svg viewBox="0 0 16 16" aria-hidden="true">{CUE_ROW_ICON_PATHS[row.id].paths}</svg>
-          <span>{CUE_ROW_ICON_PATHS[row.id].label}</span>
+          <AppIcon kind={CUE_ROW_ICONS[row.id].kind} size={16} />
+          <span>{CUE_ROW_ICONS[row.id].label}</span>
         </span>
       ))}
     </span>
@@ -2489,9 +2465,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(v => !v) }
         }}
       >
-        <svg className="rv-track-map-status-icon" width="14" height="14" viewBox="0 0 512 512" fill="#38bdf8">
-          <path d="M29.002,0v368.238L256.002,512l226.996-143.762V0H29.002z M379.593,247.561H287.92v91.659h-63.836v-91.659h-91.673v-63.843h91.673v-91.68h63.836v91.68h91.673V247.561z"/>
-        </svg>
+        <AppIcon kind="waveform" className="rv-track-map-status-icon" size={14} />
         <span className="rv-strip-title">Track Map</span>
         <span className="rv-strip-title-sub">Timeline lanes</span>
         {hasTrack && currentAnalysisStatus !== 'not_analyzed' && (
@@ -2605,9 +2579,7 @@ export function ReactTrackMapStrip({ audioDurationSec = 180, embedded = false, l
                       aria-label="Back to full Track Map"
                       title="Back to full Track Map"
                     >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
+                      <AppIcon kind="left" />
                     </button>
                     <span
                       className="rv-timeline-detail-color"

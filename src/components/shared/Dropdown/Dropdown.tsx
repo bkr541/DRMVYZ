@@ -1,3 +1,4 @@
+import { AppIcon } from '../icons/AppIcon'
 import {
   Children,
   Fragment,
@@ -657,13 +658,7 @@ export function Dropdown({
             }}
             onKeyDown={handleKeyDown}
           />
-          <svg
-            className="drm-dropdown__chevron"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          <AppIcon kind="chevronDown" className="drm-dropdown__chevron" />
         </div>
       ) : (
         <button
@@ -696,13 +691,7 @@ export function Dropdown({
           >
             {selectedOption?.label ?? placeholder}
           </span>
-          <svg
-            className="drm-dropdown__chevron"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          <AppIcon kind="chevronDown" className="drm-dropdown__chevron" />
         </button>
       )}
 

@@ -1,37 +1,15 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { useRef, useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import { productionOutputController } from './output/ProductionOutput'
 
 
-export function OutputArmIcon() {
-  return (
-    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 2v8" />
-      <path d="M7.05 5.2a8 8 0 1 0 9.9 0" />
-    </svg>
-  )
-}
+export function OutputArmIcon() { return <AppIcon kind="power" className="rv-global-output-icon" /> }
 
-export function RevealIcon() {
-  return (
-    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
-      <circle cx="12" cy="12" r="2.7" />
-    </svg>
-  )
-}
+export function RevealIcon() { return <AppIcon kind="eye" className="rv-global-output-icon" /> }
 
-export function BlackoutIcon() {
-  return (
-    <svg className="rv-global-output-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 3l18 18" />
-      <path d="M10.7 5.15A10.7 10.7 0 0 1 12 5c6 0 9.5 7 9.5 7a17 17 0 0 1-3.15 4.05" />
-      <path d="M6.2 6.9C3.9 8.45 2.5 12 2.5 12s3.5 7 9.5 7a9.2 9.2 0 0 0 4.15-.96" />
-      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-    </svg>
-  )
-}
+export function BlackoutIcon() { return <AppIcon kind="blackout" className="rv-global-output-icon" /> }
 
 function resolveStatusLabel(
   isLaserDmx: boolean,

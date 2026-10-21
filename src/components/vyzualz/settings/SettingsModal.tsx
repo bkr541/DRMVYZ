@@ -1,3 +1,4 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
 import { IconMorphToggle } from '../react/controls/IconMorphToggle'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -101,10 +102,7 @@ function AccountPanel() {
   if (!supabaseConfigured) {
     return (
       <div className="vsm-acct-offline">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M12 7v5M12 16v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-        </svg>
+        <AppIcon kind="warning" size="20" />
         Cloud sync is not configured. Profile settings require Supabase.
       </div>
     )
@@ -133,11 +131,7 @@ function AccountPanel() {
             onClick={() => fileInputRef.current?.click()}
             aria-label="Upload profile photo"
           >
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
+            <AppIcon kind="upload" size="12" />
           </button>
           <input
             ref={fileInputRef}

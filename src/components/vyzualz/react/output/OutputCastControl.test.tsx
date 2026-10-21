@@ -164,6 +164,11 @@ describe('OutputCastControl', () => {
 
     const dialog = document.body.querySelector('[role="dialog"]')
     expect(dialog?.textContent).toContain('Cast Output')
+    expect(trigger?.querySelector('[data-app-icon="cast"]')).not.toBeNull()
+    expect([...dialog!.querySelectorAll('.rv-cast-rail-group--aspect [data-app-icon]')].map(icon => icon.getAttribute('data-app-icon')))
+      .toEqual(['ratio16x9', 'ratio16x10', 'ratio4x3', 'ratio3x2', 'ratio1x1', 'ratio9x16'])
+    expect([...dialog!.querySelectorAll('.rv-cast-rail-group:not(.rv-cast-rail-group--aspect) [data-app-icon]')].map(icon => icon.getAttribute('data-app-icon')))
+      .toEqual(['window', 'borderless', 'expand'])
     expect(dialog?.classList.contains('rv-cast-popover')).toBe(true)
     expect(dialog?.getAttribute('aria-modal')).toBeNull()
     expect(document.body.querySelector('.rv-cast-overlay')).toBeNull()

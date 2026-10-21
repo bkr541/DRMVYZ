@@ -149,31 +149,18 @@ function LazyWorkspaceFallback({ label }: { label: string }) {
 }
 
 function LowerWorkspaceChevron({ expanded }: { expanded: boolean }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d={expanded ? 'm4 12 6-6 6 6' : 'm4 8 6 6 6-6'} />
-    </svg>
-  )
+  return <AppIcon kind={expanded ? 'chevronUp' : 'chevronDown'} />
 }
 
 function StageFocusIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M8 4H4v4M16 4h4v4M20 16v4h-4M8 20H4v-4" />
-      <circle cx="12" cy="12" r="3.25" />
-      <path d="M12 7.5v1.25M12 15.25v1.25M7.5 12h1.25M15.25 12h1.25" />
-    </svg>
+    <AppIcon kind="cameraFocus" />
   )
 }
 
 function TrackMapLaneIconsToggleIcon() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M5 4v16M9 6h10M9 12h10M9 18h10" />
-      <circle cx="5" cy="6" r="1.25" />
-      <rect x="3.75" y="10.75" width="2.5" height="2.5" rx="0.45" />
-      <path d="m5 16.5 1.5 1.5L5 19.5 3.5 18 5 16.5Z" />
-    </svg>
+    <AppIcon kind="list" />
   )
 }
 
@@ -695,9 +682,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           aria-label="Layout Lab"
           onClick={() => setLayoutLabOpen(true)}
         >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-            <path d="M21 7h-2V3c0-1.105-.895-2-2-2H7c-1.105 0-2 .895-2 2v2H3c-1.105 0-2 .895-2 2v4c0 1.105.895 2 2 2h2v8c0 1.105.895 2 2 2h10c1.105 0 2-.895 2-2v-2h2c1.105 0 2-.895 2-2V9c0-1.105-.895-2-2-2zm-4 14H7v-8h2c1.105 0 2-.895 2-2V7c0-1.105-.895-2-2-2H7V3h10v4h-2c-1.105 0-2 .895-2 2v8c0 1.105.895 2 2 2h2v2zm4-4h-6V9h6v8z" />
-          </svg>
+          <AppIcon kind="sliders" size="18" />
         </button>
         <VyzualzHeaderActions
           page="react"

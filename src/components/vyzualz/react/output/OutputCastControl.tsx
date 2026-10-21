@@ -1,3 +1,4 @@
+import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
   useCallback,
   useEffect,
@@ -36,157 +37,42 @@ const WINDOW_OPTIONS: ReadonlyArray<{ id: OutputWindowMode; label: string; descr
 
 const ASPECT_OPTIONS: readonly OutputAspectRatio[] = ['16:9', '16:10', '4:3', '3:2', '1:1', '9:16']
 
-function CastIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M3 15.05C3.96089 15.246 4.84294 15.7202 5.53638 16.4136C6.22982 17.1071 6.70403 17.9891 6.9 18.95M3 11C5.03079 11.2259 6.92428 12.136 8.36911 13.5809M10.95 18.95C10.8756 18.2814 10.7271 17.6277 10.5097 17M3 18.95H3.01M3 8V5H21V8M14 19H21V12" />
-    </svg>
-  )
-}
+function CastIcon() { return <AppIcon kind="cast" /> }
 
 function WindowModeIcon({ mode }: { mode: OutputWindowMode }) {
-  if (mode === 'windowed') {
-    return (
-      <svg viewBox="0 0 28 22" aria-hidden="true">
-        <rect x="3" y="4" width="22" height="15" rx="1.5" />
-        <path d="M3 8h22M6 6h.01M9 6h.01" />
-      </svg>
-    )
-  }
-
-  if (mode === 'borderless') {
-    return (
-      <svg viewBox="0 0 28 22" aria-hidden="true">
-        <path d="M4 8V4h4M20 4h4v4M24 14v4h-4M8 18H4v-4" />
-        <rect x="6.5" y="6.5" width="15" height="9" rx=".8" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 28 22" aria-hidden="true">
-      <path d="M4 9V4h5M19 4h5v5M24 13v5h-5M9 18H4v-5M10 8 6 4M18 8l4-4M18 14l4 4M10 14l-4 4" />
-    </svg>
-  )
+  return <AppIcon kind={mode === 'windowed' ? 'window' : mode === 'borderless' ? 'borderless' : 'expand'} />
 }
 
-const ASPECT_ICON_SIZES: Record<OutputAspectRatio, { width: number; height: number }> = {
-  '16:9': { width: 27, height: 15 },
-  '16:10': { width: 27, height: 17 },
-  '4:3': { width: 24, height: 18 },
-  '3:2': { width: 24, height: 16 },
-  '1:1': { width: 18, height: 18 },
-  '9:16': { width: 12, height: 21 },
-}
+const ASPECT_ICON_KINDS = {
+  '16:9': 'ratio16x9', '16:10': 'ratio16x10', '4:3': 'ratio4x3',
+  '3:2': 'ratio3x2', '1:1': 'ratio1x1', '9:16': 'ratio9x16',
+} as const
 
 function AspectRatioIcon({ ratio }: { ratio: OutputAspectRatio }) {
-  const size = ASPECT_ICON_SIZES[ratio]
-  return (
-    <svg viewBox="0 0 32 24" aria-hidden="true">
-      <rect
-        x={(32 - size.width) / 2}
-        y={(24 - size.height) / 2}
-        width={size.width}
-        height={size.height}
-        rx="1"
-      />
-    </svg>
-  )
+  return <AppIcon kind={ASPECT_ICON_KINDS[ratio]} />
 }
 
-function AvailableDevicesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="8" cy="7" r="2.5" />
-      <circle cx="17" cy="8" r="2" />
-      <path d="M3.5 18v-2.2A3.8 3.8 0 0 1 7.3 12h1.4a3.8 3.8 0 0 1 3.8 3.8V18M14 18v-1.6a3 3 0 0 1 3-3h.8a2.7 2.7 0 0 1 2.7 2.7V18" />
-    </svg>
-  )
-}
+function AvailableDevicesIcon() { return <AppIcon kind="people" /> }
 
-function RefreshIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M15.5 6.5V3.7m0 0h-2.8m2.8 0A7 7 0 1 0 17 10" />
-    </svg>
-  )
-}
+function RefreshIcon() { return <AppIcon kind="sync" /> }
 
 function DisplayIcon({ network }: { network: boolean }) {
-  return network ? (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 17.5a3.2 3.2 0 0 1 3.2 3.2M4 13a7.7 7.7 0 0 1 7.7 7.7M4 8.5V5h16v14h-5" />
-      <circle cx="4" cy="20.7" r=".8" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="13" rx="1.5" />
-      <path d="M9 21h6M12 17v4" />
-    </svg>
-  )
+  return <AppIcon kind={network ? 'cast' : 'monitor'} />
 }
 
-function CloseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" />
-    </svg>
-  )
-}
+function CloseIcon() { return <AppIcon kind="close" /> }
 
 // Activity/pulse line — labels the Current Devices status record, distinct
 // from Available Devices' circle-and-people glyph.
-function CurrentDevicesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M2 12h4l2-7 4 14 3-10 2 3h5" />
-    </svg>
-  )
-}
+function CurrentDevicesIcon() { return <AppIcon kind="waveform" /> }
 
-// Simplified, single-tone brand marks (fill, not outline, like real logos)
-// so the wireless-provider tiles read as macOS/Windows/Google Cast at a
-// glance — currentColor throughout so they pick up the same hover tinting
-// as every other icon in this popover.
-function AppleLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        stroke="none"
-        d="M16.7 12.6c0-2.5 2-3.9 2.1-4-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.7.9-.8 0-2-.8-3.2-.8-1.7 0-3.2 1-4.1 2.5-1.7 3-.5 7.5 1.3 9.9.8 1.2 1.8 2.6 3.1 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.7-.9 1-1.9 1.3-2.9-1.7-.7-2.7-2.4-2.7-3.7Z"
-      />
-      <path
-        fill="currentColor"
-        stroke="none"
-        d="M14.2 5.2c.6-.8 1.1-1.9 1-3-.9.1-2.1.7-2.8 1.5-.6.7-1.1 1.8-1 2.9 1.1.1 2.2-.5 2.8-1.4Z"
-      />
-    </svg>
-  )
-}
+// Approved provider artwork, sharing the production icon family.
+function AppleLogoIcon() { return <AppIcon kind="apple" /> }
 
-function WindowsLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect fill="currentColor" stroke="none" x="3" y="3" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="13" y="3" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="3" y="13" width="8" height="8" />
-      <rect fill="currentColor" stroke="none" x="13" y="13" width="8" height="8" />
-    </svg>
-  )
-}
+function WindowsLogoIcon() { return <AppIcon kind="windows" /> }
 
-// A "C" with an open right side plus a crossbar reaching to center — the
-// same simplified shorthand most monochrome renderings of the Google "G"
-// use, since the full four-color mark doesn't work as a single-tone icon.
-function GoogleLogoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M18.1 6.9A8 8 0 1 0 18.1 17.1" />
-      <path fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M19 12h-7" />
-    </svg>
-  )
-}
+// The provider label and actions remain unchanged.
+function GoogleLogoIcon() { return <AppIcon kind="google" /> }
 
 // Wider gap around each "·" separator in session detail lines than a plain
 // space allows — browsers collapse consecutive regular spaces, so this

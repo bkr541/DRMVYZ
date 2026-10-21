@@ -19,7 +19,7 @@ The approved artwork now lives in `src/components/shared/icons/AppIcon.tsx`, wit
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Shared renderer; sidebar; header loading, notification, settings and save icons; shared dialog/notice icons; all production Hugeicons and Carbon icon uses across managers, libraries, lyric editing, React rails and Audio Intelligence | Complete |
-| 2 | Remaining bespoke SVGs: transport, engine selectors, lighting fixture assets, output/casting, recording, timeline and account controls | Pending |
+| 2 | Remaining bespoke SVGs: transport, engine selectors, lighting fixture assets, output/casting, recording, timeline and account controls | Complete |
 | 3 | Remaining Unicode/CSS controls, toggle/checkbox artwork and legacy Layout Lab samples; final inventory consistency review | Pending |
 
 Phase 1 migrates 100 third-party icon instances in 24 production files in addition to shared/navigation replacements. The header activity animation retains its existing busy/reduced-motion behavior and rotates around the new artwork’s 16px center. Active favorites use the approved unfavorite variant. Layout Lab samples still using third-party icons are deferred to phase 3; the packages remain installed until their final uses are removed.
@@ -67,4 +67,14 @@ Focused tests cover every SVG and label, valid source references, label/screen f
 - Changed TypeScript/TSX files pass ESLint with zero errors; five existing React-hook dependency warnings remain in ReactView and ShowManagerView.
 - Focused production typechecking reports nine errors in unchanged Cinema 2.0 assets/presets, PixGrid preparation, migration, and Audio Dock files; no diagnostics were reported in the icon migration files. A full build was not repeated while these unrelated errors remain.
 - Browser review verifies gallery/production path equality, navigation, idle/busy loading animation around the 32px grid center, reduced-motion behavior, and inherited disabled/destructive colors.
-- Changes are left uncommitted; phases 2 and 3 remain pending.
+- At the Phase 1 checkpoint, changes were left uncommitted and phases 2 and 3 were pending.
+
+### Phase 2 checkpoint
+
+- Migrated bespoke control artwork in 31 production files to `AppIcon`, including transport and cue/Rekordbox assets; engine, Sound Drawing source and cinematic selectors; lighting palettes/stage fixtures; casting, window/aspect and output safety controls; recording; timeline lanes/markers; account inputs; search, upload and dialog affordances; and CANVAS effect icons.
+- All nine current/compatibility engines have dedicated approved mappings. Palette and stage share the ten-entry `FIXTURE_ICON_KINDS` mapping; stage icons retain fixture colors and fill their existing containers. The six casting aspect ratios use their distinct approved drawings. Playback preset colors and output status colors continue to inherit from their controls.
+- Scene thumbnails, the decorative authentication emblem, waveform/chart canvases, beam-editing SVGs and scanner diagrams remain content, not control icons. Toggle/checkbox artwork, Unicode/CSS controls and legacy Layout Lab examples remain for Phase 3. Old asset files remain available until final usage cleanup.
+- Validation: across the focused suites, 179 tests passed, 28 CANVAS control-contract assertions failed on layout groups/sliders, and one authentication configuration-gate test was skipped. A storage teardown rejection also remains. The CANVAS changes only replace artwork helper bodies; control layout, labels, state and handlers are unchanged. The Audio Dock's old plus-path and image assertions were updated for the approved artwork, and its 15 tests pass. Unrelated Canvas failures were not rerun or changed.
+- ESLint reports zero errors and six existing hook-dependency warnings. Focused typechecking found no unexpected diagnostics in changed files; the same nine repository diagnostics remain, including the two known Audio Dock `diagnostics` union errors. A full build was not repeated.
+- Browser review passed for all nine engine icons, ten palette/stage fixture pairs at their expected sizes and colors, all six aspect ratios including portrait selection, recording start/stop callbacks, and transport path equality with the approved gallery. No browser page errors occurred.
+- Phase 2 implementation and documentation are complete, the diff was reviewed, and changes remain uncommitted. Phase 3 has not started.

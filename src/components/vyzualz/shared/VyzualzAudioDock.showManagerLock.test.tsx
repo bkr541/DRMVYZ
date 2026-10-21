@@ -347,7 +347,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     expect(addTrack?.getAttribute('aria-disabled')).toBe('false')
     expect(addTrack?.getAttribute('aria-label')).toBe('Add Track')
     expect(addTrack?.querySelector('img')).toBeNull()
-    expect(addTrack?.querySelector('svg path')?.getAttribute('d')).toBe('M12 5v14M5 12h14')
+    expect(addTrack?.querySelector('[data-app-icon="plus"]')).not.toBeNull()
     await dispatchAudioFile('outside-show-manager.wav')
 
     expect(fixture.engine.addTracks).toHaveBeenCalledWith(
@@ -563,7 +563,7 @@ describe('Show Manager Audio Dock source lock integration', () => {
     await renderView('react')
 
     const indicator = container?.querySelector('.vz-dock-source-inline')
-    expect(indicator?.querySelector('img')).not.toBeNull()
+    expect(indicator?.querySelector('[data-app-icon="rekordbox"]')).not.toBeNull()
     expect(indicator?.getAttribute('aria-label')).toBe('Rekordbox data loaded, cues, sections')
     expect(indicator?.getAttribute('data-audio-source-kind')).toBe('rekordbox')
     expect(indicator?.querySelector('.vz-dock-source-inline-dot')).not.toBeNull()

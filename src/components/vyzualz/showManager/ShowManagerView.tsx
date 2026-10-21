@@ -324,9 +324,7 @@ function ShowBrowserDialog({
             <h2 id="show-browser-heading">Open Show</h2>
           </div>
           <button type="button" className="sm-show-browser-close" onClick={onClose} disabled={Boolean(busyShowId)} aria-label="Close Open Show window">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
+            <AppIcon kind="close" />
           </button>
         </header>
 
@@ -334,9 +332,7 @@ function ShowBrowserDialog({
           <nav className="sm-show-browser-sidebar" aria-label="Show locations">
             <span className="sm-show-browser-sidebar-label">Workspace</span>
             <button type="button" className="is-active">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3.5 6.5h6l2 2h9v10h-17z" />
-              </svg>
+              <AppIcon kind="folder" />
               <span>All Shows</span>
               <small>{shows.length}</small>
             </button>
@@ -346,12 +342,12 @@ function ShowBrowserDialog({
             <div className="sm-show-browser-toolbar">
               <div className="sm-show-browser-breadcrumb" aria-label="Current folder">
                 <span>All Shows</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+                <AppIcon kind="chevronRight" />
                 <strong>Show Library</strong>
               </div>
               <label className="sm-show-browser-search">
                 <span className="sr-only">Search Shows</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+                <AppIcon kind="search" />
                 <DreamVizTextInput
                   ref={searchRef}
                   type="search"
@@ -389,9 +385,7 @@ function ShowBrowserDialog({
                     aria-label={`Select Show ${show.name}`}
                   >
                     <span className="sm-show-browser-folder-icon">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3.5 6.5h6l2 2h9v10h-17z" />
-                      </svg>
+                      <AppIcon kind="file" />
                     </span>
                     <strong>{show.name}</strong>
                   </button>
@@ -424,9 +418,7 @@ function ShowBrowserDialog({
                 </div>
               )) : (
                 <div className="sm-show-browser-empty">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M3.5 6.5h6l2 2h9v10h-17z" />
-                  </svg>
+                  <AppIcon kind="folder" />
                   <strong>{shows.length === 0 ? 'No Shows yet' : 'No matching Shows'}</strong>
                   <span>{shows.length === 0 ? 'Create a new Show to begin authoring.' : 'Try a different search.'}</span>
                 </div>
@@ -2133,10 +2125,7 @@ export function ShowManagerView() {
                 aria-label="New Show"
                 title="New Show"
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 3.5h9l5 5v12H5z" />
-                  <path d="M14 3.5v5h5M12 11v6M9 14h6" />
-                </svg>
+                <AppIcon kind="fileAdd" />
               </button>
               <button
                 type="button"
@@ -2145,9 +2134,7 @@ export function ShowManagerView() {
                 aria-label="Open Show"
                 title="Open Show"
               >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M3.5 7h6l2 2h9l-2 10h-15z" />
-                </svg>
+                <AppIcon kind="folder" />
               </button>
               <button
                 type="button"

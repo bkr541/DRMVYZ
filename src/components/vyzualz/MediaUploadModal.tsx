@@ -1017,10 +1017,7 @@ export function MediaUploadModal({
         <div className="mum-header">
           <div>
             <div className="mum-title">
-              <svg className="mum-title-icon" viewBox="-4 -8 72 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M48 32a8 8 0 0 0-8-8h-1.28A18 18 0 1 0 14 32" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M32 38V20M26 26l6-6 6 6" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <AppIcon kind="upload" className="mum-title-icon" />
               {isEdit ? 'EDIT MEDIA' : isFontQueue ? 'FONT UPLOAD' : (audioOnly || isAudioQueue) ? 'AUDIO UPLOAD' : 'MEDIA UPLOAD'}
             </div>
           </div>

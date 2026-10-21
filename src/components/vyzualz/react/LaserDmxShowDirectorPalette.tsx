@@ -1,3 +1,5 @@
+import { AppIcon } from '../../shared/icons/AppIcon'
+import { FIXTURE_ICON_KINDS } from './LaserDmxShowDirectorFixtureIcon'
 import { type DragEvent } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -12,30 +14,7 @@ import { Collapsible } from './ReactControlRows'
 export const SHOW_DIRECTOR_FIXTURE_DRAG_TYPE = 'application/x-drmvyz-show-director-fixture-kind'
 
 export function FixtureIcon({ kind }: { kind: LaserDmxShowDirectorFixtureKind }) {
-  switch (kind) {
-    case 'laser':
-      return <img src="/laser-dmx-icons/Laser.svg" alt="" />
-    case 'movingHead':
-      return <img src="/laser-dmx-icons/OverheadLight.svg" alt="" />
-    case 'ledBar':
-      return <img src="/laser-dmx-icons/LEDBar.svg" alt="" />
-    case 'blinder':
-      return <img src="/laser-dmx-icons/BlinderLight.svg" alt="" />
-    case 'ledTube':
-      return <img src="/laser-dmx-icons/LEDTube.svg" alt="" />
-    case 'strobe':
-      return <img src="/laser-dmx-icons/Strobe.svg" alt="" />
-    case 'parWash':
-      return <img src="/laser-dmx-icons/ParWash.svg" alt="" />
-    case 'videoWall':
-      return <img src="/laser-dmx-icons/VideoWall.svg" alt="" />
-    case 'haze':
-      return <img src="/laser-dmx-icons/Hazer.svg" alt="" />
-    case 'co2Jet':
-      return <img src="/laser-dmx-icons/CO2.svg" alt="" />
-    default:
-      return null
-  }
+  return <AppIcon kind={FIXTURE_ICON_KINDS[kind]} size="100%" />
 }
 
 export function LaserDmxShowDirectorPalette() {

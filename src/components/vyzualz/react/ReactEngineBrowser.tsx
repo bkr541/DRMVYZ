@@ -5,9 +5,9 @@ import type { ReactEngineId } from './ReactTypes'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import { getReactEngineIconComponent } from './reactEngineIcons'
 
-function ReactEngineIcon({ engineId, glyph }: { engineId: ReactEngineId, glyph: string }) {
+function ReactEngineIcon({ engineId }: { engineId: ReactEngineId }) {
   const IconComponent = getReactEngineIconComponent(engineId)
-  return IconComponent ? <IconComponent /> : <>{glyph}</>
+  return <IconComponent />
 }
 
 /**
@@ -68,7 +68,7 @@ export function ReactEngineBrowser({ presetName = null }: {
       >
         <span className="rv-engine-dropdown-glow" aria-hidden="true" />
         <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          <ReactEngineIcon engineId={activeReactEngineId} glyph={activeEngine.icon} />
+          <ReactEngineIcon engineId={activeReactEngineId} />
         </span>
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
@@ -93,7 +93,7 @@ export function ReactEngineBrowser({ presetName = null }: {
                 onClick={() => handleSelect(engineId)}
               >
                 <span className="rv-engine-dropdown-option-icon" aria-hidden="true">
-                  <ReactEngineIcon engineId={engineId} glyph={engine.icon} />
+                  <ReactEngineIcon engineId={engineId} />
                 </span>
                 <span className="rv-engine-dropdown-option-copy">
                   <span>{engine.label}</span>
