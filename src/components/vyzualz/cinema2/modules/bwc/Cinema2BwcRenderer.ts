@@ -46,6 +46,11 @@ out vec4 outColor;
 #define MAX_STEPS 144
 #define MAX_DISTANCE 42.0
 #define EPSILON 0.0016
+// The U-turn at the back of the hall that joins the infeed belt (x -1.92) to the service walk (x 3.18): both lines end near z -10.6, so
+// the turn is a half circle about (TURN_CX, TURN_CZ) whose radius is half the distance between their centre lines.
+#define TURN_CX 0.63
+#define TURN_CZ -10.60
+#define TURN_R 2.55
 
 float sdRoundBox(vec3 p, vec3 h, float r) {
   vec3 q = abs(p) - h + r;
@@ -82,14 +87,69 @@ vec3 creatureSpace(vec3 p, out float cell) {
   return vec3(c * offset.x - s * offset.z, offset.y, s * offset.x + c * offset.z) / CREATURE_SCALE;
 }
 
+/* A creature in the space of its own model, given where it stands and which way it is turned. */
+vec3 creatureLocal(vec3 p, vec3 center, float yaw) {
+  vec3 offset = p - center;
+  float c = cos(yaw), s = sin(yaw);
+  return vec3(c * offset.x - s * offset.z, offset.y, s * offset.x + c * offset.z) / CREATURE_SCALE;
+}
+
+/*
+ * Items riding the turn: three cans on its first half (the belt side) and four creatures on its second (the service-walk side), so the
+ * line reads as one loop. Phi runs from pi at the infeed belt to 0 at the service walk; each item sits on the centre line at the slot
+ * centre, at the height of the surface under it, and a creature faces the way the line is travelling.
+ */
+#define TURN_CAN_STEP 0.502
+#define TURN_CREATURE_STEP 0.431
+float turnTop(float phi) {
+  return mix(0.865, 0.505, smoothstep(0.0, 1.0, clamp(1.0 - phi / 3.14159265, 0.0, 1.0)));
+}
+bool inTurn(vec3 p, out vec2 q) {
+  q = p.xz - vec2(TURN_CX, TURN_CZ);
+  return q.y < 0.05 && q.y > -TURN_R - 1.6 && abs(q.x) < TURN_R + 1.6 && abs(length(q) - TURN_R) < 1.3 && p.y < 2.6;
+}
+bool turnCanSlot(vec3 p, out vec3 center) {
+  center = vec3(0.0);
+  vec2 q;
+  if (!inTurn(p, q)) return false;
+  float phi = atan(-q.y, q.x);
+  if (phi < 1.5707963) return false;
+  float k = clamp(floor((3.14159265 - phi) / TURN_CAN_STEP), 0.0, 2.0);
+  float slot = 3.14159265 - (k + 0.5) * TURN_CAN_STEP;
+  center = vec3(TURN_CX + TURN_R * cos(slot), turnTop(slot), TURN_CZ - TURN_R * sin(slot));
+  return true;
+}
+bool turnCreatureSlot(vec3 p, out vec3 center, out float yaw) {
+  center = vec3(0.0);
+  yaw = 0.0;
+  vec2 q;
+  if (!inTurn(p, q)) return false;
+  float phi = atan(-q.y, q.x);
+  if (phi >= 1.5707963) return false;
+  float k = clamp(floor(phi / TURN_CREATURE_STEP), 0.0, 3.0);
+  float slot = (k + 0.5) * TURN_CREATURE_STEP;
+  center = vec3(TURN_CX + TURN_R * cos(slot), turnTop(slot), TURN_CZ - TURN_R * sin(slot));
+  yaw = slot + CREATURE_YAW_BIAS + (fract(sin((k + 17.0) * 12.9898) * 43758.5453) - 0.5) * 2.0 * CREATURE_YAW_JITTER;
+  return true;
+}
+vec3 creatureLocalAt(vec3 p) {
+  vec3 center;
+  float yaw;
+  if (turnCreatureSlot(p, center, yaw)) return creatureLocal(p, center, yaw);
+  float cell;
+  return creatureSpace(p, cell);
+}
+
 vec2 mapScene(vec3 p) {
   vec2 result = vec2(100.0, 0.0);
 
   // BWC_FACTORY_SHELL — panelled 48 x 12 x 18 m production hall.
   result = nearest(result, vec2(p.y, 1.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(-5.60, 3.05, -1.0), vec3(0.16, 3.05, 10.5), 0.04), 1.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(5.55, 3.05, -1.0), vec3(0.13, 3.05, 10.5), 0.04), 3.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 6.10, -1.0), vec3(5.7, 0.12, 10.5), 0.04), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-5.60, 3.05, -3.0), vec3(0.16, 3.05, 12.5), 0.04), 1.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(5.55, 3.05, -3.0), vec3(0.13, 3.05, 12.5), 0.04), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 6.10, -3.0), vec3(5.7, 0.12, 12.5), 0.04), 3.0));
+  // Back wall, behind the turn.
+  result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 3.05, -15.6), vec3(5.7, 3.05, 0.14), 0.04), 1.0));
   vec3 wallBay = p;
   wallBay.z = mod(wallBay.z + 1.55, 3.10) - 1.55;
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.32, 3.00, 0.0), vec3(0.18, 2.92, 0.09), 0.025), 2.0));
@@ -101,13 +161,13 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdRoundBox(roofBay - vec3(-2.85, 5.66, -0.64), vec3(1.02, 0.035, 0.075), 0.018), 7.0));
 
   // BWC_CATWALKS — high left gallery with slim brass safety rails.
-  result = nearest(result, vec2(sdRoundBox(p - vec3(-4.25, 3.70, -1.0), vec3(1.15, 0.12, 10.2), 0.035), 2.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-4.25, 3.70, -2.4), vec3(1.15, 0.12, 11.6), 0.035), 2.0));
   vec3 upperPost = p;
   upperPost.z = mod(upperPost.z + 0.75, 1.50) - 0.75;
   result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-3.28, 4.30, 0.0), 0.045, 0.58), 8.0));
   result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-5.12, 4.30, 0.0), 0.045, 0.58), 8.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.58, -1.0), vec3(0.045, 0.045, 10.0), 0.02), 8.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.12, -1.0), vec3(0.038, 0.038, 10.0), 0.018), 8.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.58, -2.4), vec3(0.045, 0.045, 11.4), 0.02), 8.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.12, -2.4), vec3(0.038, 0.038, 11.4), 0.018), 8.0));
 
   // BWC_CONVEYOR_PRIMARY — long infeed belt and polished guide rails.
   float conveyorHalf = 0.76 * u_conveyorWidth;
@@ -151,6 +211,48 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdCylinderY(servicePost - vec3(4.86, 2.78, 0.0), 0.10, 2.30), 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(1.98, 1.68, -0.7), vec3(0.048, 0.048, 10.0), 0.02), 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(4.38, 1.82, -0.7), vec3(0.048, 0.048, 10.0), 0.02), 3.0));
+
+  // BWC_CONVEYOR_TURN — the half-circle that carries the infeed belt around the back of the hall into the service walk. Along it the
+  // belt's section (width, height, guard and rails) blends into the walk's, so both ends meet the straight runs without a step.
+  vec2 turnQ = p.xz - vec2(TURN_CX, TURN_CZ);
+  if (turnQ.y < 0.05 && turnQ.y > -TURN_R - 1.6 && abs(turnQ.x) < TURN_R + 1.6) {
+    float turnR = length(turnQ);
+    float turnT = clamp(1.0 - atan(-turnQ.y, turnQ.x) / 3.14159265, 0.0, 1.0);   // 0 at the infeed belt, 1 at the service walk
+    float turnS = smoothstep(0.0, 1.0, turnT);
+    float turnU = turnR - TURN_R;                                          // sideways offset from the centre line
+    float turnCap = turnQ.y;                                               // ends the arc on the plane the straight runs start from
+    float beltHalf = 0.76 * u_conveyorWidth;
+    float halfWidth = mix(beltHalf, 1.20, turnS);
+    float bodyY = mix(0.62, 0.24, turnS), bodyH = mix(0.18, 0.20, turnS);
+    float deckY = mix(0.82, 0.47, turnS), deckH = mix(0.045, 0.035, turnS);
+    float deckWide = mix(beltHalf * 0.82, 1.16, turnS);
+    float railY = mix(1.10, 1.75, turnS), railOffset = mix(beltHalf, 1.20, turnS);
+    result = nearest(result, vec2(max(sdRoundBox(vec3(turnU, p.y - bodyY, 0.0), vec3(halfWidth, bodyH, 1.0), 0.04), turnCap), 2.0));
+    result = nearest(result, vec2(max(sdRoundBox(vec3(turnU, p.y - deckY, 0.0), vec3(deckWide, deckH, 1.0), 0.018), turnCap), mix(3.0, 1.0, step(0.5, turnS))));
+    float guardH = mix(0.18, 0.02, turnS);
+    result = nearest(result, vec2(max(sdRoundBox(vec3(abs(turnU) - beltHalf, p.y - mix(0.74, 0.45, turnS), 0.0), vec3(0.075, guardH, 1.0), 0.025), turnCap), 3.0));
+    result = nearest(result, vec2(max(sdRoundBox(vec3(abs(turnU) - railOffset, p.y - railY, 0.0), vec3(0.047, 0.047, 1.0), 0.02), turnCap), mix(2.0, 3.0, step(0.5, turnS))));
+    // Legs and rail posts every 0.30 rad of the arc.
+    float stepAngle = 0.30;
+    float turnPhi = atan(-turnQ.y, turnQ.x);
+    float slot = mod(turnPhi + 0.5 * stepAngle, stepAngle) - 0.5 * stepAngle;
+    vec3 turnLocal = vec3(abs(turnU) - railOffset, p.y, turnR * slot);
+    float bodyBottom = max(bodyY - bodyH, 0.04);
+    result = nearest(result, vec2(max(sdRoundBox(turnLocal - vec3(0.0, 0.5 * bodyBottom, 0.0), vec3(0.075, 0.5 * bodyBottom, 0.10), 0.025), turnCap), 3.0));
+    float postBottom = bodyY + bodyH;
+    result = nearest(result, vec2(max(sdCylinderY(turnLocal - vec3(0.0, 0.5 * (postBottom + railY), 0.0), 0.052, max(0.5 * (railY - postBottom), 0.02)), turnCap), 3.0));
+    vec3 turnCanCenter;
+    if (turnCanSlot(p, turnCanCenter)) {
+      float turnCanSize = CAN_HERO_SCALE * u_canScale;
+      result = nearest(result, vec2(sdBwcCan((p - turnCanCenter) / turnCanSize) * turnCanSize, 5.0));
+    }
+    vec3 turnCreatureCenter;
+    float turnCreatureYaw;
+    if (turnCreatureSlot(p, turnCreatureCenter, turnCreatureYaw)) {
+      vec2 turnCreature = sdBwcCreature(creatureLocal(p, turnCreatureCenter, turnCreatureYaw));
+      result = nearest(result, vec2(turnCreature.x * CREATURE_SCALE, turnCreature.y));
+    }
+  }
 
   // BWC_REACTOR_* — 6.45 m housing, green chamber and concentric armor.
   vec3 portalPoint = p - vec3(-0.38, 2.72, -3.55);
@@ -230,10 +332,18 @@ const float PI = 3.14159265;
  */
 vec3 canColor(vec3 p) {
   float canSize = CAN_HERO_SCALE * u_canScale;
-  vec3 local = p - vec3(-1.92, 0.865, 0.0);
-  float zInCell = mod(local.z + 0.64, 1.28) - 0.64;
-  vec3 q = vec3(local.x, local.y, zInCell) / canSize;
-  vec2 toCamera = CAMERA_POSITION.xz - vec2(-1.92, local.z - zInCell);
+  vec3 q;
+  vec2 toCamera;
+  vec3 turnCenter;
+  if (turnCanSlot(p, turnCenter)) {
+    q = (p - turnCenter) / canSize;
+    toCamera = CAMERA_POSITION.xz - turnCenter.xz;
+  } else {
+    vec3 local = p - vec3(-1.92, 0.865, 0.0);
+    float zInCell = mod(local.z + 0.64, 1.28) - 0.64;
+    q = vec3(local.x, local.y, zInCell) / canSize;
+    toCamera = CAMERA_POSITION.xz - vec2(-1.92, local.z - zInCell);
+  }
   float theta = atan(q.z, q.x) - atan(toCamera.y, toCamera.x);
   theta = mod(theta + PI, 2.0 * PI) - PI;
   vec2 uv = vec2(theta * EMBLEM_WRAP_RADIUS / EMBLEM_WIDTH + 0.5, 0.5 - (q.y - EMBLEM_CENTER_Y) / EMBLEM_HEIGHT);
@@ -256,8 +366,7 @@ const vec3 CREATURE_THREAD = vec3(0.149, 0.157, 0.149);
  */
 vec3 creatureColor(float material, vec3 p) {
   if (material < 10.5) {
-    float cell;
-    vec3 q = creatureSpace(p, cell);
+    vec3 q = creatureLocalAt(p);
     vec2 uv = vec2(0.5 + atan(q.x, q.z) / (2.0 * PI), clamp(CREATURE_LABEL_V0 - CREATURE_LABEL_V1 * q.y, 0.0, 1.0));
     float footprint = length(p - CAMERA_POSITION) * (2.0 / max(u_resolution.y, 1.0)) / 2.22 / CREATURE_SCALE;
     float lod = max(log2(footprint / 0.0014), 0.0);
