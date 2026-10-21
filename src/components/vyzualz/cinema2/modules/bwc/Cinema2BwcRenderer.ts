@@ -146,7 +146,7 @@ vec2 mapScene(vec3 p) {
   // BWC_FACTORY_SHELL — panelled 48 x 12 x 18 m production hall.
   result = nearest(result, vec2(p.y, 1.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(-5.60, 3.05, -3.0), vec3(0.16, 3.05, 12.5), 0.04), 1.0));
-  result = nearest(result, vec2(sdRoundBox(p - vec3(5.55, 3.05, -3.0), vec3(0.13, 3.05, 12.5), 0.04), 3.0));
+  result = nearest(result, vec2(sdRoundBox(p - vec3(5.55, 3.05, -3.0), vec3(0.13, 3.05, 12.5), 0.04), 1.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 6.10, -3.0), vec3(5.7, 0.12, 12.5), 0.04), 3.0));
   // Back wall, behind the turn.
   result = nearest(result, vec2(sdRoundBox(p - vec3(0.0, 3.05, -15.6), vec3(5.7, 3.05, 0.14), 0.04), 1.0));
@@ -155,6 +155,11 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.32, 3.00, 0.0), vec3(0.18, 2.92, 0.09), 0.025), 2.0));
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.15, 3.15, 0.0), vec3(0.09, 0.85, 1.35), 0.025), 1.0));
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.02, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), 7.0));
+  // The right wall carries the same bays as the left, mirrored about the hall: each piece sits the same distance in front of its wall's
+  // inner face (left face x -5.44, right face x 5.42).
+  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.30, 3.00, 0.0), vec3(0.18, 2.92, 0.09), 0.025), 2.0));
+  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.13, 3.15, 0.0), vec3(0.09, 0.85, 1.35), 0.025), 1.0));
+  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.00, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), 7.0));
   vec3 roofBay = p;
   roofBay.z = mod(roofBay.z + 1.85, 3.70) - 1.85;
   result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.72, 0.0), vec3(5.35, 0.09, 0.12), 0.025), 3.0));
@@ -165,8 +170,9 @@ vec2 mapScene(vec3 p) {
   result = nearest(result, vec2(sdRoundBox(p - vec3(-4.25, 3.70, -2.4), vec3(1.15, 0.12, 11.6), 0.035), 2.0));
   vec3 upperPost = p;
   upperPost.z = mod(upperPost.z + 0.75, 1.50) - 0.75;
-  result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-3.28, 4.30, 0.0), 0.045, 0.58), 8.0));
-  result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-5.12, 4.30, 0.0), 0.045, 0.58), 8.0));
+  // Posts end at the top rail (y 4.58) rather than standing above it, so no peaks show against the pipes overhead.
+  result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-3.28, 4.16, 0.0), 0.045, 0.44), 8.0));
+  result = nearest(result, vec2(sdCylinderY(upperPost - vec3(-5.12, 4.16, 0.0), 0.045, 0.44), 8.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.58, -2.4), vec3(0.045, 0.045, 11.4), 0.02), 8.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(-3.28, 4.12, -2.4), vec3(0.038, 0.038, 11.4), 0.018), 8.0));
 
@@ -209,7 +215,9 @@ vec2 mapScene(vec3 p) {
   servicePost.z = mod(servicePost.z + 0.82, 1.64) - 0.82;
   result = nearest(result, vec2(sdCylinderY(servicePost - vec3(1.98, 1.12, 0.0), 0.052, 0.66), 3.0));
   result = nearest(result, vec2(sdCylinderY(servicePost - vec3(4.38, 1.22, 0.0), 0.058, 0.76), 3.0));
-  result = nearest(result, vec2(sdCylinderY(servicePost - vec3(4.86, 2.78, 0.0), 0.10, 2.30), 3.0));
+  // The tall wall-side posts stop short of the camera end: the camera sits at z 8.85, so a post just ahead of it fills the right of the
+  // frame with a black column and hides the wall bays behind it.
+  if (p.z < 5.0) result = nearest(result, vec2(sdCylinderY(servicePost - vec3(4.86, 2.78, 0.0), 0.10, 2.30), 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(1.98, 1.68, -0.7), vec3(0.048, 0.048, 10.0), 0.02), 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(4.38, 1.82, -0.7), vec3(0.048, 0.048, 10.0), 0.02), 3.0));
 
