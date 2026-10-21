@@ -4,6 +4,11 @@ import { ShaderProgram } from '../../../react/shaders/runtime/ShaderProgram'
 import { bwcCanGlsl } from './Cinema2BwcCanModel'
 import { bwcCreatureGlsl } from './Cinema2BwcCreatureModel'
 import { bwcLoopGlsl, bwcTurnGlsl } from './Cinema2BwcLoop'
+import {
+  BWC_CEILING_TUBE_COUNT, BWC_LIGHTING_UNIFORMS, BWC_LIT_MATERIAL, BWC_PIPE_COUNT, BWC_WALL_BAY_COUNT, NEUTRAL_BWC_LIGHT_COLORS, bwcLightLevels, bwcLightingGlsl, bwcMaterialLiteral, bwcPipeMaterial,
+  neutralBwcLighting,
+  type Cinema2BwcLightColors, type Cinema2BwcLightingState,
+} from './Cinema2BwcLighting'
 import { BWC_EMBLEM_TEXTURE_BYTES, BWC_EMBLEM_TEXTURE_HEIGHT, BWC_EMBLEM_TEXTURE_WIDTH, bwcEmblemGlsl, rasterizeBwcEmblem } from './Cinema2BwcEmblem'
 
 export interface Cinema2BwcRenderState {
@@ -20,10 +25,14 @@ export interface Cinema2BwcRenderState {
   background: readonly [number, number, number]
   structure: readonly [number, number, number]
   canWhite: readonly [number, number, number]
+  /** The reactor and pipe colour unless `lightColors` says otherwise. */
   energy: readonly [number, number, number]
   darkMetal: readonly [number, number, number]
   /** The creature's printed label once the shipped texture has loaded; until then the body is plain ivory fleece. */
   creatureLabel?: WebGLTexture | null
+  /** How bright each lit element is (default: every element at its authored level) and what colour each group is (default: green reactor and pipes, white lights). */
+  lighting?: Readonly<Cinema2BwcLightingState>
+  lightColors?: Readonly<Cinema2BwcLightColors>
 }
 
 /* Authored from the dimensions and functional groups in docs/BWC. */
@@ -40,13 +49,12 @@ uniform float u_ledStrength;
 uniform vec3 u_background;
 uniform vec3 u_structure;
 uniform vec3 u_canWhite;
-uniform vec3 u_energy;
 uniform vec3 u_darkMetal;
 uniform sampler2D u_canEmblem;
 uniform sampler2D u_creatureLabel;
 uniform float u_creatureLabelReady;
 out vec4 outColor;
-
+${bwcLightingGlsl()}
 #define MAX_STEPS 144
 #define MAX_DISTANCE 42.0
 #define EPSILON 0.0016
@@ -105,17 +113,17 @@ vec2 mapScene(vec3 p) {
   wallBay.z = mod(wallBay.z + 1.55, 3.10) - 1.55;
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.32, 3.00, 0.0), vec3(0.18, 2.92, 0.09), 0.025), 2.0));
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.15, 3.15, 0.0), vec3(0.09, 0.85, 1.35), 0.025), 1.0));
-  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.02, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), 7.0));
+  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(-5.02, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), ${bwcMaterialLiteral(BWC_LIT_MATERIAL.wallPanel)}));
   // The right wall carries the same bays as the left, mirrored about the hall: each piece sits the same distance in front of its wall's
   // inner face (left face x -5.44, right face x 5.42).
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.30, 3.00, 0.0), vec3(0.18, 2.92, 0.09), 0.025), 2.0));
   result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.13, 3.15, 0.0), vec3(0.09, 0.85, 1.35), 0.025), 1.0));
-  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.00, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), 7.0));
+  result = nearest(result, vec2(sdRoundBox(wallBay - vec3(5.00, 3.15, 0.0), vec3(0.055, 0.72, 0.22), 0.02), ${bwcMaterialLiteral(BWC_LIT_MATERIAL.wallPanel)}));
   vec3 roofBay = p;
   roofBay.z = mod(roofBay.z + 1.85, 3.70) - 1.85;
   result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.72, 0.0), vec3(5.35, 0.09, 0.12), 0.025), 3.0));
   // Fluorescent tubes: one per bay, running the full width of the ceiling from the left wall to the right.
-  result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.66, -0.64), vec3(5.2, 0.035, 0.075), 0.018), 7.0));
+  result = nearest(result, vec2(sdRoundBox(roofBay - vec3(0.0, 5.66, -0.64), vec3(5.2, 0.035, 0.075), 0.018), ${bwcMaterialLiteral(BWC_LIT_MATERIAL.ceilingTube)}));
 
   // BWC_CATWALKS — high left gallery with slim brass safety rails.
   result = nearest(result, vec2(sdRoundBox(p - vec3(-4.25, 3.70, -2.4), vec3(1.15, 0.12, 11.6), 0.035), 2.0));
@@ -216,7 +224,7 @@ vec2 mapScene(vec3 p) {
   portalPoint.xy /= u_portalScale;
   float portalFactor = min(u_portalScale, 1.0);
   portalResult = nearest(portalResult, vec2(sdCylinderZ(portalPoint - vec3(0.0, 0.0, 0.14), 1.46, 0.035) * portalFactor, 4.0));
-  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 1.52, 0.075) * portalFactor, 6.0));
+  portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 1.52, 0.075) * portalFactor, ${bwcMaterialLiteral(BWC_LIT_MATERIAL.reactorRing)}));
   portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 1.72, 0.11) * portalFactor, 3.0));
   portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 2.02, 0.24) * portalFactor, 2.0));
   portalResult = nearest(portalResult, vec2(sdTorusZ(portalPoint, 2.30, 0.13) * portalFactor, 3.0));
@@ -245,23 +253,22 @@ vec2 mapScene(vec3 p) {
   float hoodFace = abs(p.z - LOOP_HOOD_Z) - LOOP_HOOD_HALF;
   float hoodFrameSides = sdRoundBox(vec3(abs(p.x - LOOP_BELT_X) - (hoodHalfIn - 0.06), p.y - 1.65, hoodFace), vec3(0.05, 0.78, 0.035), 0.012);
   float hoodFrameTop = sdRoundBox(vec3(p.x - LOOP_BELT_X, p.y - 2.40, hoodFace), vec3(hoodHalfIn, 0.05, 0.035), 0.012);
-  result = nearest(result, vec2(min(hoodFrameSides, hoodFrameTop), 6.0));
+  result = nearest(result, vec2(min(hoodFrameSides, hoodFrameTop), ${bwcMaterialLiteral(BWC_LIT_MATERIAL.hoodFrame)}));
   vec3 curtainP = vec3(mod(p.x - LOOP_BELT_X + 0.11, 0.22) - 0.11, p.y - 1.68, hoodFace);
   float curtain = max(sdRoundBox(curtainP, vec3(0.045, 0.68, 0.02), 0.008), abs(p.x - LOOP_BELT_X) - (hoodHalfIn - 0.06));
   result = nearest(result, vec2(curtain, 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(1.42, 0.72, -3.48), vec3(0.34, 0.72, 0.40), 0.055), 3.0));
 
   // BWC_ENERGY_PIPES — five green manifolds and dark steel collars.
-  vec3 hub = vec3(-0.38, 4.72, -3.52);
+  vec3 hub = PIPE_HUB;
   // The four side pipes run under the ceiling tubes (centre line at most y 5.15, so their tops stay about 0.2 m below the tubes at
   // y 5.66) and finish on mounting flanges against the side walls. The fifth rises straight to the roof slab and stops in it.
-  vec3 pipeA = vec3(-5.15, 5.15, 0.10), pipeB = vec3(-5.15, 5.10, -4.55);
-  vec3 pipeC = vec3(-0.38, 6.15, -3.55), pipeD = vec3(5.15, 5.10, -4.72), pipeE = vec3(5.15, 5.10, -1.25);
-  result = nearest(result, vec2(sdCapsule(p, hub, pipeA, 0.25), 6.0));
-  result = nearest(result, vec2(sdCapsule(p, hub, pipeB, 0.25), 6.0));
-  result = nearest(result, vec2(sdCapsule(p, hub, pipeC, 0.27), 6.0));
-  result = nearest(result, vec2(sdCapsule(p, hub, pipeD, 0.25), 6.0));
-  result = nearest(result, vec2(sdCapsule(p, hub, pipeE, 0.25), 6.0));
+  vec3 pipeA = PIPE_END[0], pipeB = PIPE_END[1], pipeC = PIPE_END[2], pipeD = PIPE_END[3], pipeE = PIPE_END[4];
+  result = nearest(result, vec2(sdCapsule(p, hub, pipeA, 0.25), ${bwcMaterialLiteral(bwcPipeMaterial(0))}));
+  result = nearest(result, vec2(sdCapsule(p, hub, pipeB, 0.25), ${bwcMaterialLiteral(bwcPipeMaterial(1))}));
+  result = nearest(result, vec2(sdCapsule(p, hub, pipeC, 0.27), ${bwcMaterialLiteral(bwcPipeMaterial(2))}));
+  result = nearest(result, vec2(sdCapsule(p, hub, pipeD, 0.25), ${bwcMaterialLiteral(bwcPipeMaterial(3))}));
+  result = nearest(result, vec2(sdCapsule(p, hub, pipeE, 0.25), ${bwcMaterialLiteral(bwcPipeMaterial(4))}));
   // Wall flanges the four side pipes end on.
   result = nearest(result, vec2(sdRoundBox(p - vec3(-5.37, pipeA.y, pipeA.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
   result = nearest(result, vec2(sdRoundBox(p - vec3(-5.37, pipeB.y, pipeB.z), vec3(0.07, 0.40, 0.40), 0.03), 3.0));
@@ -377,12 +384,12 @@ vec3 materialColor(float material, vec3 p) {
   if (material < 4.5) {
     float latticeA = 1.0 - smoothstep(0.018, 0.050, abs(sin(p.x * 8.0 + sin(p.y * 5.0))));
     float latticeB = 1.0 - smoothstep(0.020, 0.055, abs(sin(p.y * 7.5 - p.x * 1.8)));
-    return mix(u_energy * 0.10, u_energy * 0.55, max(latticeA * 0.36, latticeB * 0.25));
+    return mix(u_reactorColor * 0.10, u_reactorColor * 0.55, max(latticeA * 0.36, latticeB * 0.25));
   }
   // The can: one matte material (the artifact's roughness 0.6, metallic 0) with the emblem printed on it.
   if (material < 5.5) return canColor(p);
-  if (material < 6.5) return mix(u_energy * 0.42, u_energy * 0.96, u_ledStrength / 1.5);
-  if (material < 7.5) return vec3(0.82, 0.94, 1.0) * (0.72 + 0.28 * u_ledStrength);
+  if (material < 6.95) return mix(lightColor(material) * 0.42, lightColor(material) * 0.96, u_ledStrength / 1.5);
+  if (material < 7.95) return lightColor(material) * (0.72 + 0.28 * u_ledStrength);
   return vec3(0.52, 0.43, 0.12);
 }
 
@@ -417,10 +424,15 @@ void main() {
     // Fleece: a soft sheen at grazing angles, and the catchlights glow.
     color += base * (plush ? 1.0 : 0.0) * pow(1.0 - max(dot(normal, -ray), 0.0), 3.0) * 0.20;
     color += base * step(14.5, hit.y) * (1.0 - step(15.5, hit.y)) * 0.9;
-    float energySurface = step(3.5, hit.y) * (1.0 - step(4.5, hit.y)) + step(5.5, hit.y) * (1.0 - step(6.5, hit.y));
-    float whiteLight = step(6.5, hit.y) * (1.0 - step(7.5, hit.y));
-    color += base * energySurface * (0.32 + u_ledStrength * 0.42);
-    color += vec3(0.72, 0.90, 1.0) * whiteLight * (0.72 + u_ledStrength * 0.52);
+    // The lit elements (reactor, pipes, wall panels, ceiling tubes): each has its own level. The housing dims toward a dark tone as the level
+    // falls, brightens past it when overdriven, and the glow added on top follows the level directly, so level 1 is the authored look.
+    float energySurface = (isReactorChamber(hit.y) || isEnergyLight(hit.y)) ? 1.0 : 0.0;
+    float whiteLight = isWhiteLight(hit.y) ? 1.0 : 0.0;
+    float level = lightLevel(hit.y, point);
+    float levelGain = mix(0.22, 1.0, min(level, 1.0)) + max(level - 1.0, 0.0) * 0.6;
+    color *= mix(1.0, levelGain, max(energySurface, whiteLight));
+    color += base * energySurface * (0.32 + u_ledStrength * 0.42) * level;
+    color += lightColor(hit.y) * vec3(0.88, 0.96, 1.0) * whiteLight * (0.72 + u_ledStrength * 0.52) * level;
     float distanceFog = smoothstep(15.0, 38.0, hit.x);
     color = mix(color, u_background * vec3(0.72, 0.92, 0.88), distanceFog * 0.42);
   }
@@ -441,7 +453,8 @@ export class Cinema2BwcRenderer {
   constructor(private readonly gl: WebGL2RenderingContext) {
     const uniforms = [
       'u_resolution', 'u_intensity', 'u_portalScale', 'u_canScale', 'u_conveyorWidth', 'u_loopPhase', 'u_ledStrength',
-      'u_background', 'u_structure', 'u_canWhite', 'u_energy', 'u_darkMetal', 'u_canEmblem', 'u_creatureLabel', 'u_creatureLabelReady',
+      'u_background', 'u_structure', 'u_canWhite', 'u_darkMetal', 'u_canEmblem', 'u_creatureLabel', 'u_creatureLabelReady',
+      ...BWC_LIGHTING_UNIFORMS,
     ]
     const compiled = ShaderProgram.create(gl, new ShaderCompiler(gl), {
       label: 'Cinema 2.0 BWC factory corridor v2',
@@ -469,14 +482,33 @@ export class Cinema2BwcRenderer {
     p.setVec3('u_background', ...state.background)
     p.setVec3('u_structure', ...state.structure)
     p.setVec3('u_canWhite', ...state.canWhite)
-    p.setVec3('u_energy', ...state.energy)
     p.setVec3('u_darkMetal', ...state.darkMetal)
     p.setFloat('u_creatureLabelReady', state.creatureLabel ? 1 : 0)
+    this.setLighting(state.lighting ?? neutralBwcLighting(), state.lightColors ?? { ...NEUTRAL_BWC_LIGHT_COLORS, reactor: state.energy, pipes: state.energy })
     const label = state.creatureLabel ?? this.labelPlaceholder
     this.pass.run(p, state.target, state.width, state.height, [
       ...(this.emblem ? [{ unit: 0, texture: this.emblem, uniformName: 'u_canEmblem' }] : []),
       ...(label ? [{ unit: 1, texture: label, uniformName: 'u_creatureLabel' }] : []),
     ])
+  }
+
+  private setLighting(lighting: Readonly<Cinema2BwcLightingState>, colors: Readonly<Cinema2BwcLightColors>): void {
+    const p = this.program
+    p.setFloat('u_reactorCore', bwcLightLevels([lighting.reactorCore], 1)[0]!)
+    p.setFloat('u_reactorRing', bwcLightLevels([lighting.reactorRing], 1)[0]!)
+    p.setFloat('u_hoodLight', bwcLightLevels([lighting.hood], 1)[0]!)
+    p.setVec2('u_ringChase', bwcFinite(lighting.ringChase[0]), bwcUnit(lighting.ringChase[1]))
+    p.setVec2('u_pipeFlow', bwcFinite(lighting.pipeFlow[0]), bwcUnit(lighting.pipeFlow[1]))
+    this.gl.uniform1fv(p.getUniform('u_pipeLevels'), bwcLightLevels(lighting.pipes, BWC_PIPE_COUNT))
+    const walls = new Float32Array(BWC_WALL_BAY_COUNT * 2)
+    walls.set(bwcLightLevels(lighting.wallLeft, BWC_WALL_BAY_COUNT), 0)
+    walls.set(bwcLightLevels(lighting.wallRight, BWC_WALL_BAY_COUNT), BWC_WALL_BAY_COUNT)
+    this.gl.uniform1fv(p.getUniform('u_wallLevels'), walls)
+    this.gl.uniform1fv(p.getUniform('u_ceilingLevels'), bwcLightLevels(lighting.ceiling, BWC_CEILING_TUBE_COUNT))
+    p.setVec3('u_reactorColor', ...colors.reactor)
+    p.setVec3('u_pipeColor', ...colors.pipes)
+    p.setVec3('u_wallColor', ...colors.wall)
+    p.setVec3('u_ceilingColor', ...colors.ceiling)
   }
 
   estimateGpuBytes(): number { return 16 * 1024 + BWC_EMBLEM_TEXTURE_BYTES }
@@ -487,6 +519,10 @@ export class Cinema2BwcRenderer {
     this.program.dispose()
   }
 }
+
+/** A 0..1 amount, with anything unusable read as none. */
+function bwcUnit(value: number): number { return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0 }
+function bwcFinite(value: number): number { return Number.isFinite(value) ? value : 0 }
 
 /** The emblem as a mipmapped RGBA texture; where it cannot be drawn (no canvas) a single transparent texel, so no print. */
 function createEmblemTexture(gl: WebGL2RenderingContext): WebGLTexture | null {
