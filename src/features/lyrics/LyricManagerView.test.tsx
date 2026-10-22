@@ -971,6 +971,77 @@ describe('LyricManagerView track-first workflow', () => {
   })
 
 
+  it('does not offer a recovery dialog after a successful save, even though an autosaved local copy existed', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+
+    vi.useFakeTimers()
+    await act(async () => useLyricsStore.getState().setDraftTitle('Edit before saving'))
+    await act(async () => {
+      vi.advanceTimersByTime(801)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    // The edit has been copied to the local recovery store against revision 1.
+    const [autosaved] = await recoveryRepository.listByUser('user-1')
+    expect(autosaved).toMatchObject({ documentId: 'doc-a1', baseServerRevision: 1, title: 'Edit before saving' })
+
+    await act(async () => {
+      buttonWithText('Save').click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await act(async () => { await Promise.resolve() })
+    }
+    await act(async () => { vi.advanceTimersByTime(50); await Promise.resolve() })
+
+    // The save advanced the server to revision 2 by itself: that is not a conflict, and the stale copy is gone for good.
+    expect(useLyricsStore.getState().editorDocument?.revision).toBe(2)
+    expect(await recoveryRepository.listByUser('user-1')).toEqual([])
+    expect(container.textContent).not.toContain('Recovered lyric draft')
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+  })
+
+  it('keeps only the edits made after a save as the new local copy, and does not interrupt with a dialog', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+
+    vi.useFakeTimers()
+    await act(async () => useLyricsStore.getState().setDraftTitle('First edit'))
+    await act(async () => {
+      vi.advanceTimersByTime(801)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      buttonWithText('Save').click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await act(async () => { await Promise.resolve() })
+    }
+    // Typing again after the save starts a new local copy, based on the revision the save created.
+    await act(async () => useLyricsStore.getState().setDraftTitle('Second edit after saving'))
+    await act(async () => {
+      vi.advanceTimersByTime(801)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const records = await recoveryRepository.listByUser('user-1')
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({ documentId: 'doc-a1', baseServerRevision: 2, title: 'Second edit after saving' })
+    expect(container.textContent).not.toContain('Recovered lyric draft')
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull()
+  })
+
   it('consumes an AI-extract navigation intent by selecting the saved track and opening its workflow', async () => {
     const onNavigationIntentConsumed = vi.fn()
     await act(async () => root.render(

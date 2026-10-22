@@ -609,6 +609,10 @@ export function LyricManagerView({
     if (!lastCanonicalWrite || lastCanonicalWrite.accountId !== accountIdRef.current) return
     const accountId = lastCanonicalWrite.accountId
     if (!accountId) return
+    // This save is what the local copy was waiting for. A read for a recovery copy that started alongside it (the editor turning clean
+    // re-runs that check) may have fetched the copy before it is reconciled below, and would offer it as a conflict with the revision
+    // this very save just created. Dropping that read leaves the reconciliation, which keeps only edits made after the save, as the only owner.
+    recoveryReadGenerationRef.current += 1
     const current = useLyricsStore.getState()
     const trackId = lastCanonicalWrite.document.audioTrackId ?? null
     const draftKey = lyricRecoveryKey({
