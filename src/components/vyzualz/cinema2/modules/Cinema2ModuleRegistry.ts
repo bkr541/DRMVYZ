@@ -24,6 +24,7 @@ import { cinema2HypnotizeNativeModuleDefinition } from './Cinema2HypnotizeNative
 import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeModule'
 import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
+import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -201,6 +202,11 @@ if (!startersRegistration.ok) {
 const bwcRegistration = cinema2NativeModuleRegistry.register(cinema2BwcNativeModuleDefinition)
 if (!bwcRegistration.ok) {
   throw new Error(`Cinema 2.0 BWC native module registration failed: ${bwcRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const canopyRegistration = cinema2NativeModuleRegistry.register(cinema2CanopyNativeModuleDefinition)
+if (!canopyRegistration.ok) {
+  throw new Error(`Cinema 2.0 CANOPY native module registration failed: ${canopyRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {
