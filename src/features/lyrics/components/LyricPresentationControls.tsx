@@ -101,9 +101,9 @@ export function LyricFontSizeField({ style, allowInherit = false, onStyleChange,
 }
 
 /**
- * Appearance, Animation and Effects as three standard control groups (Collapsible + shared control rows). With `allowInherit`
- * (a cue) they are the cue's "… Overrides", nested under one "Overrides" parent group, and each offers a reset to the document default; without it (the Document tab) they
- * are the document's "Default …" groups.
+ * Appearance, Animation and Effects controls (shared control rows). Without `allowInherit` (the Document tab) they are the document's three
+ * "Default …" groups. With it (a cue) they are the cue's overrides: no groups of their own, all together under the one "Overrides" parent
+ * group, in that order, each part keeping its reset to the document default beside its own controls.
  */
 export function LyricPresentationControls({
   style,
@@ -120,129 +120,137 @@ export function LyricPresentationControls({
 }: Props) {
   const animationPreset = animationPresetFor(animation, allowInherit)
   const effectPreset = effectPresetFor(effects, allowInherit)
-  const title = (name: string) => (allowInherit ? `${name} Overrides` : `Default ${name}`)
   const resetAction = (active: boolean, onClear: (() => void) | undefined, label: string) => (
     allowInherit && active && onClear
       ? <div className="rv-ctrl-action-row"><IconChipButton onClick={onClear}>{label}</IconChipButton></div>
       : null
   )
 
-  const groups = (
+  const appearance = (
     <>
-      <Collapsible label={title('Appearance')}>
-        {resetAction(Object.keys(style).length > 0, onClearStyle, 'Use document defaults')}
-        <div className="lmv-inspector-grid">
-          <ColorRow
-            label="Text color"
-            value={typeof style.color === 'string' ? style.color : ''}
-            placeholder={allowInherit ? 'Inherit' : '#FFFFFF'}
-            onChange={color => onStyleChange({ color })}
-          />
-          {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
-          <SelectRow
-            label="Weight"
-            value={style.fontWeight === undefined ? (allowInherit ? '' : '400') : String(style.fontWeight)}
-            onChange={value => onStyleChange({ fontWeight: value ? Number(value) : undefined })}
-            options={[
-              ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
-              { value: '400', label: 'Regular' },
-              { value: '500', label: 'Medium' },
-              { value: '600', label: 'Semibold' },
-              { value: '700', label: 'Bold' },
-              { value: '800', label: 'Extra bold' },
-              { value: '900', label: 'Black' },
-            ]}
-          />
-          <SelectRow
-            label="Alignment"
-            value={style.align ?? (allowInherit ? '' : 'left')}
-            onChange={value => onStyleChange({ align: value ? value as LyricStyle['align'] : undefined })}
-            options={[
-              ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
-              { value: 'left', label: 'Left' },
-              { value: 'center', label: 'Center' },
-              { value: 'right', label: 'Right' },
-            ]}
-          />
-          {!omit?.includes('anchor') && <LyricAnchorField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
-          <SliderRow
-            label="Opacity"
-            min={0}
-            max={1}
-            step={0.05}
-            value={style.opacity ?? 1}
-            onChange={value => onStyleChange({ opacity: clampPresentationNumber(value, 0, 1) })}
-          />
-          <NumberInputRow
-            label="X position"
-            min={0}
-            max={1}
-            step={0.01}
-            value={style.x ?? ''}
-            placeholder={allowInherit ? 'Inherit' : '0.5'}
-            onChange={value => onStyleChange({ x: clampPresentationNumber(value, 0, 1) })}
-            onEmpty={() => onStyleChange({ x: undefined })}
-          />
-          <NumberInputRow
-            label="Y position"
-            min={0}
-            max={1}
-            step={0.01}
-            value={style.y ?? ''}
-            placeholder={allowInherit ? 'Inherit' : '0.78'}
-            onChange={value => onStyleChange({ y: clampPresentationNumber(value, 0, 1) })}
-            onEmpty={() => onStyleChange({ y: undefined })}
-          />
-        </div>
-      </Collapsible>
-
-      <Collapsible label={title('Animation')}>
-        {resetAction(Object.keys(animation).length > 0, onClearAnimation, 'Use document default')}
+      {resetAction(Object.keys(style).length > 0, onClearStyle, 'Use document defaults')}
+      <div className="lmv-inspector-grid">
+        <ColorRow
+          label="Text color"
+          value={typeof style.color === 'string' ? style.color : ''}
+          placeholder={allowInherit ? 'Inherit' : '#FFFFFF'}
+          onChange={color => onStyleChange({ color })}
+        />
+        {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
         <SelectRow
-          label="Animation preset"
-          value={animationPreset}
-          onChange={value => {
-            const preset = value as LyricAnimationPreset
-            const patch = animationPresetPatch(preset)
-            if (patch) onAnimationChange(patch)
-            else onClearAnimation?.()
-          }}
+          label="Weight"
+          value={style.fontWeight === undefined ? (allowInherit ? '' : '400') : String(style.fontWeight)}
+          onChange={value => onStyleChange({ fontWeight: value ? Number(value) : undefined })}
           options={[
-            ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
-            { value: 'none', label: 'None' },
-            { value: 'fade', label: 'Fade' },
-            { value: 'fade-up', label: 'Fade up' },
-            { value: 'pop', label: 'Scale pop' },
-            { value: 'typewriter', label: 'Typewriter' },
-            { value: 'glitch', label: 'Glitch' },
+            ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
+            { value: '400', label: 'Regular' },
+            { value: '500', label: 'Medium' },
+            { value: '600', label: 'Semibold' },
+            { value: '700', label: 'Bold' },
+            { value: '800', label: 'Extra bold' },
+            { value: '900', label: 'Black' },
           ]}
         />
-      </Collapsible>
-
-      <Collapsible label={title('Effects')}>
-        {resetAction(Object.keys(effects).length > 0, onClearEffects, 'Use document default')}
         <SelectRow
-          label="Effect preset"
-          value={effectPreset}
-          onChange={value => {
-            const preset = value as LyricEffectPreset
-            const patch = effectPresetPatch(preset)
-            if (patch) onEffectsChange(patch)
-            else onClearEffects?.()
-          }}
+          label="Alignment"
+          value={style.align ?? (allowInherit ? '' : 'left')}
+          onChange={value => onStyleChange({ align: value ? value as LyricStyle['align'] : undefined })}
           options={[
-            ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
-            { value: 'none', label: 'None' },
-            { value: 'soft-glow', label: 'Soft glow' },
-            { value: 'beat-punch', label: 'Beat punch' },
-            { value: 'glitch', label: 'Glitch' },
-            { value: 'bass-reactive', label: 'Bass reactive' },
+            ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
+            { value: 'left', label: 'Left' },
+            { value: 'center', label: 'Center' },
+            { value: 'right', label: 'Right' },
           ]}
         />
-      </Collapsible>
+        {!omit?.includes('anchor') && <LyricAnchorField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
+        <SliderRow
+          label="Opacity"
+          min={0}
+          max={1}
+          step={0.05}
+          value={style.opacity ?? 1}
+          onChange={value => onStyleChange({ opacity: clampPresentationNumber(value, 0, 1) })}
+        />
+        <NumberInputRow
+          label="X position"
+          min={0}
+          max={1}
+          step={0.01}
+          value={style.x ?? ''}
+          placeholder={allowInherit ? 'Inherit' : '0.5'}
+          onChange={value => onStyleChange({ x: clampPresentationNumber(value, 0, 1) })}
+          onEmpty={() => onStyleChange({ x: undefined })}
+        />
+        <NumberInputRow
+          label="Y position"
+          min={0}
+          max={1}
+          step={0.01}
+          value={style.y ?? ''}
+          placeholder={allowInherit ? 'Inherit' : '0.78'}
+          onChange={value => onStyleChange({ y: clampPresentationNumber(value, 0, 1) })}
+          onEmpty={() => onStyleChange({ y: undefined })}
+        />
+      </div>
     </>
   )
 
-  // A cue's three override groups live together under one "Overrides" parent; the document's "Default …" groups stay top level.
-  return allowInherit ? <Collapsible label="Overrides">{groups}</Collapsible> : groups
+  const animationControls = (
+    <>
+      {resetAction(Object.keys(animation).length > 0, onClearAnimation, 'Use document default')}
+      <SelectRow
+        label="Animation preset"
+        value={animationPreset}
+        onChange={value => {
+          const preset = value as LyricAnimationPreset
+          const patch = animationPresetPatch(preset)
+          if (patch) onAnimationChange(patch)
+          else onClearAnimation?.()
+        }}
+        options={[
+          ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
+          { value: 'none', label: 'None' },
+          { value: 'fade', label: 'Fade' },
+          { value: 'fade-up', label: 'Fade up' },
+          { value: 'pop', label: 'Scale pop' },
+          { value: 'typewriter', label: 'Typewriter' },
+          { value: 'glitch', label: 'Glitch' },
+        ]}
+      />
+    </>
+  )
+
+  const effectControls = (
+    <>
+      {resetAction(Object.keys(effects).length > 0, onClearEffects, 'Use document default')}
+      <SelectRow
+        label="Effect preset"
+        value={effectPreset}
+        onChange={value => {
+          const preset = value as LyricEffectPreset
+          const patch = effectPresetPatch(preset)
+          if (patch) onEffectsChange(patch)
+          else onClearEffects?.()
+        }}
+        options={[
+          ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
+          { value: 'none', label: 'None' },
+          { value: 'soft-glow', label: 'Soft glow' },
+          { value: 'beat-punch', label: 'Beat punch' },
+          { value: 'glitch', label: 'Glitch' },
+          { value: 'bass-reactive', label: 'Bass reactive' },
+        ]}
+      />
+    </>
+  )
+
+  // A cue's overrides are one flat "Overrides" group; the document's "Default …" groups stay three top-level groups.
+  if (allowInherit) return <Collapsible label="Overrides">{appearance}{animationControls}{effectControls}</Collapsible>
+  return (
+    <>
+      <Collapsible label="Default Appearance">{appearance}</Collapsible>
+      <Collapsible label="Default Animation">{animationControls}</Collapsible>
+      <Collapsible label="Default Effects">{effectControls}</Collapsible>
+    </>
+  )
 }

@@ -154,10 +154,23 @@ describe('LyricInspector tabs', () => {
     expect(groupTitles('document')).toEqual(['Document Info', 'Default Appearance', 'Default Animation', 'Default Effects'])
   })
 
+  it('holds every override control directly in the one Overrides group, with no groups of its own', () => {
+    const overrides = [...pane('cue').querySelectorAll<HTMLElement>('.drc-group')].find(group => group.querySelector(':scope > .drc-header > span:first-child')?.textContent === 'Overrides')!
+    // Nothing is nested inside it: the old Appearance, Animation and Effects Overrides groups are gone.
+    expect(overrides.querySelector('.drc-group')).toBeNull()
+    // Appearance, then animation, then effects controls, all together in that order (the slider row marks up its caption differently, so
+    // order is read from the group's text).
+    const order = ['Text color', 'Weight', 'Alignment', 'Opacity', 'X position', 'Y position', 'Animation preset', 'Effect preset']
+    const text = overrides.textContent ?? ''
+    const positions = order.map(caption => text.indexOf(caption))
+    for (const [index, position] of positions.entries()) expect(position, order[index]).toBeGreaterThanOrEqual(0)
+    expect([...positions].sort((x, y) => x - y)).toEqual(positions)
+    // The old group titles are not anywhere in the pane.
+    for (const gone of ['Appearance Overrides', 'Animation Overrides', 'Effects Overrides']) expect(pane('cue').textContent).not.toContain(gone)
+  })
+
   it('builds every Cue and Document control from the standard groups and rows, with no bespoke headings or fields', () => {
-    expect(groupTitles('cue')).toEqual([
-      'Cue', 'Overrides', 'Appearance Overrides', 'Animation Overrides', 'Effects Overrides', 'Word Timing', 'Advanced',
-    ])
+    expect(groupTitles('cue')).toEqual(['Cue', 'Overrides', 'Word Timing', 'Advanced'])
     for (const id of ['cue', 'document'] as const) {
       const scope = pane(id)
       // No hand-rolled section headings or inline helper paragraphs.
