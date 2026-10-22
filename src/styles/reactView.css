@@ -80,7 +80,7 @@
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
   --rv-left-width: 330px;
-  --rv-right-width: 400px;
+  --rv-right-width: 330px;
   --rv-collapsed-width: 32px;
   --rv-rail-inline-padding: 12px;
   display: grid;
@@ -100,7 +100,7 @@
 /* --vz-sidebar-width is inherited from .az-root, where the sidebar publishes its live width. */
 .rv-shell > .az-dock {
   --vz-left-width: 330px;
-  --vz-right-width: 400px;
+  --vz-right-width: 330px;
   --vz-dock-inline-pad: 6px;
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
@@ -4913,12 +4913,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── React engine browser + contextual workspace (layout coherence pass) ───── */
 .rv-layout {
   --rv-left-width: 330px;
-  --rv-right-width: 400px;
+  --rv-right-width: 330px;
 }
 
 .rv-shell > .az-dock {
   --vz-left-width: 330px;
-  --vz-right-width: 400px;
+  --vz-right-width: 330px;
 }
 
 .rv-layout > .vz-inspector > .vz-inspector-inner {
@@ -5524,12 +5524,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 @media (max-width: 1180px) {
   .rv-layout {
     --rv-left-width: 300px;
-    --rv-right-width: 350px;
+    --rv-right-width: 300px;
   }
 
   .rv-shell > .az-dock {
     --vz-left-width: 300px;
-    --vz-right-width: 350px;
+    --vz-right-width: 300px;
   }
 
   .rv-left-workspace-shell {
@@ -21412,6 +21412,17 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   width: 1px;
   background: rgba(255, 255, 255, 0.11);
   pointer-events: none;
+}
+
+/* Each separator sits exactly on the rail edge line above it (the 2px thread centred on the boundary, RailWindowHeader.css). The dock is laid
+   out from the rail widths, so the waveform region's left edge is the left rail's boundary and its right edge is the right rail's: the
+   second region's line goes on its own left edge, and the third region's line one gap back from its own, which is where the waveform ends. */
+.rv-shell > .vz-transport-dock .vz-dock-region + .vz-dock-region::before {
+  left: -0.5px;
+}
+
+.rv-shell > .vz-transport-dock .vz-dock-region + .vz-dock-region + .vz-dock-region::before {
+  left: calc(var(--vz-dock-gap) * -1 - 0.5px);
 }
 
 /* The canvas draws its own 6px plot inset so waveform timing and markers share it. */
