@@ -5773,10 +5773,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-right-subtabs button.is-active::after {
-  content: ''; display: inline-block; width: 10px; height: 10px; vertical-align: middle; background: currentColor; mask: url('../components/shared/icons/css/check.svg') center / contain no-repeat;
-  font-size: 7px;
+  /* The active marker: a small filled dot, glowing in the accent. */
+  content: '';
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
   color: #4ac7db;
-  text-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
+  box-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
 }
 
 .rv-right-subtabs button:disabled {
