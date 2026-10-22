@@ -41,25 +41,27 @@ export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2P
         onQueryChange={setQuery}
         ariaLabel="Search Cinema 2.0 presets"
       />
-      <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-cinema2-preset-grid="true">
-        {presets.map((manifest, index) => (
-          <ReactPresetCard
-            key={manifest.id}
-            id={manifest.id}
-            title={manifest.metadata.name}
-            description={manifest.metadata.description ?? manifest.metadata.name}
-            palette={[{ color: CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] }]}
-            isActive={manifest.id === activePresetId}
-            activateLabel={`Load ${manifest.metadata.name}`}
-            onActivate={() => onSelectPreset(manifest.id)}
-            dataAttributes={{ 'data-cinema2-preset-id': manifest.id }}
-          />
-        ))}
-        {presets.length === 0 && (
-          <div className="rv-ctrl-info">
-            {needle ? `No Cinema 2.0 presets match “${query}”.` : scope === 'user' ? 'No user presets yet.' : 'No Cinema 2.0 presets.'}
-          </div>
-        )}
+      <div className="rv-preset-scroll">
+        <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-cinema2-preset-grid="true">
+          {presets.map((manifest, index) => (
+            <ReactPresetCard
+              key={manifest.id}
+              id={manifest.id}
+              title={manifest.metadata.name}
+              description={manifest.metadata.description ?? manifest.metadata.name}
+              palette={[{ color: CINEMA2_PRESET_TONES[index % CINEMA2_PRESET_TONES.length] }]}
+              isActive={manifest.id === activePresetId}
+              activateLabel={`Load ${manifest.metadata.name}`}
+              onActivate={() => onSelectPreset(manifest.id)}
+              dataAttributes={{ 'data-cinema2-preset-id': manifest.id }}
+            />
+          ))}
+          {presets.length === 0 && (
+            <div className="rv-ctrl-info">
+              {needle ? `No Cinema 2.0 presets match “${query}”.` : scope === 'user' ? 'No user presets yet.' : 'No Cinema 2.0 presets.'}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   )

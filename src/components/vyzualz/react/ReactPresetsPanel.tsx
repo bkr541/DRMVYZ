@@ -736,23 +736,25 @@ export function ReactPresetsPanel() {
         onQueryChange={setPresetQuery}
         ariaLabel={`Search ${activeEngine.label} presets`}
       />
-      {activeReactEngineId === 'oscilloscope' ? (
-        <div className="rv-sound-drawing-presets-list">
-          {presetLibraryContent}
-        </div>
-      ) : activeReactEngineId === 'laserDmx' ? (
-        <div className="rv-laser-presets-list">
-          {presetLibraryContent}
-        </div>
-      ) : activeReactEngineId === 'pixGrid' ? (
-        <div className="rv-pix-grid-presets-list">
-          {presetLibraryContent}
-        </div>
-      ) : activeReactEngineId === 'canvas' ? (
-        <div className="rv-canvas-presets-list">
-          {presetLibraryContent}
-        </div>
-      ) : presetLibraryContent}
+      <div className="rv-preset-scroll">
+        {activeReactEngineId === 'oscilloscope' ? (
+          <div className="rv-sound-drawing-presets-list">
+            {presetLibraryContent}
+          </div>
+        ) : activeReactEngineId === 'laserDmx' ? (
+          <div className="rv-laser-presets-list">
+            {presetLibraryContent}
+          </div>
+        ) : activeReactEngineId === 'pixGrid' ? (
+          <div className="rv-pix-grid-presets-list">
+            {presetLibraryContent}
+          </div>
+        ) : activeReactEngineId === 'canvas' ? (
+          <div className="rv-canvas-presets-list">
+            {presetLibraryContent}
+          </div>
+        ) : presetLibraryContent}
+      </div>
     </div>
   )
 }

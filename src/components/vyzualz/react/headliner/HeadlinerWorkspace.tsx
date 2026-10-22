@@ -319,25 +319,27 @@ export function HeadlinerPresetsPanel() {
         ariaLabel="Preset scope"
       />
       <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel="Search Headliner presets" />
-      <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-headliner-preset-grid="true">
-        {presets.map(preset => (
-          <ReactPresetCard
-            key={preset.id}
-            id={preset.id}
-            title={preset.name}
-            description={preset.description}
-            palette={[{ color: preset.tone }]}
-            isActive={preset.id === activePresetId}
-            activateLabel={`Load ${preset.name}`}
-            onActivate={() => setHeadlinerSettings({ presetId: resolveHeadlinerPresetClick(preset.id, activePresetId) })}
-            dataAttributes={{ 'data-headliner-preset-id': preset.id }}
-          />
-        ))}
-        {presets.length === 0 && (
-          <div className="rv-ctrl-info">
-            {needle ? `No Headliner presets match \u201c${query}\u201d.` : scope === 'user' ? 'No user presets yet.' : 'No Headliner presets.'}
-          </div>
-        )}
+      <div className="rv-preset-scroll">
+        <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2" data-headliner-preset-grid="true">
+          {presets.map(preset => (
+            <ReactPresetCard
+              key={preset.id}
+              id={preset.id}
+              title={preset.name}
+              description={preset.description}
+              palette={[{ color: preset.tone }]}
+              isActive={preset.id === activePresetId}
+              activateLabel={`Load ${preset.name}`}
+              onActivate={() => setHeadlinerSettings({ presetId: resolveHeadlinerPresetClick(preset.id, activePresetId) })}
+              dataAttributes={{ 'data-headliner-preset-id': preset.id }}
+            />
+          ))}
+          {presets.length === 0 && (
+            <div className="rv-ctrl-info">
+              {needle ? `No Headliner presets match \u201c${query}\u201d.` : scope === 'user' ? 'No user presets yet.' : 'No Headliner presets.'}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   )
