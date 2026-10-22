@@ -2297,6 +2297,18 @@ export function LyricManagerView({
             loading={selectedTrack ? audioPreviewStates[selectedTrack.dbId]?.status === 'loading' : false}
             selectedTrackLoaded={selectedTrackLoaded}
             onLoadTrack={() => { void handleLoadSelectedTrack() }}
+            controls={editorPlaceholder ? undefined : (
+              <LyricTimelineToolbar
+                selectedTrackLoaded={selectedTrackLoaded}
+                selectedTrackPlaying={selectedTrackPlaying}
+                currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
+                durationMs={editorDurationMs}
+                volume={engine.volume}
+                onTogglePlayback={handleTogglePlayback}
+                onVolumeChange={engine.setVolume}
+                onSeek={handleTimelineSeek}
+              />
+            )}
           />
 
           <div className="lmv-tab-content" role="tabpanel" aria-label="Lyric editor">
@@ -2345,19 +2357,6 @@ export function LyricManagerView({
                         onClick: () => { void handleAnalyzeSelectedTrack() },
                       }}
                 />}
-                toolbar={
-                  <LyricTimelineToolbar
-                    editor={cueEditor}
-                    selectedTrackLoaded={selectedTrackLoaded}
-                    selectedTrackPlaying={selectedTrackPlaying}
-                    currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
-                    durationMs={editorDurationMs}
-                    volume={engine.volume}
-                    onTogglePlayback={handleTogglePlayback}
-                    onVolumeChange={engine.setVolume}
-                    onSeek={handleTimelineSeek}
-                  />
-                }
                 cueTimeline={
                   <LyricCueStackedTimeline
                     editor={cueEditor}

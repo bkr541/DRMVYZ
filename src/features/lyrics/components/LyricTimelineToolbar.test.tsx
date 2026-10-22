@@ -9,8 +9,7 @@ import type { LyricSnapMode } from '../editor/lyricCueEditorModel'
 import { LyricCuesWindow } from './LyricCuesWindow'
 import { LyricTimelineEditActions, LyricTimelineToolbar } from './LyricTimelineToolbar'
 
-type Toolbar = React.ComponentProps<typeof LyricTimelineToolbar>
-type Editor = Toolbar['editor']
+type Editor = React.ComponentProps<typeof LyricTimelineEditActions>['editor']
 
 const spies = {
   addAtPlayhead: vi.fn(),
@@ -75,7 +74,6 @@ function Harness({ playing = false, loaded = true }: { playing?: boolean; loaded
     <>
       <LyricTimelineEditActions editor={editor} />
       <LyricTimelineToolbar
-        editor={editor}
         selectedTrackLoaded={loaded}
         selectedTrackPlaying={playing}
         currentTimeMs={6_000}
@@ -110,20 +108,23 @@ const button = (label: string | RegExp) =>
     typeof label === 'string' ? item.textContent?.trim() === label || item.getAttribute('aria-label') === label : label.test(item.textContent ?? ''))!
 
 describe('LyricTimelineToolbar', () => {
-  it('keeps transport, time, zoom and volume (in that order) in the toolbar, with no snap or overlay controls', async () => {
+  it('keeps transport, time and volume (in that order) in the toolbar, with no zoom, snap or overlay controls', async () => {
     await act(async () => root.render(<Harness />))
 
     const toolbar = container.querySelector('[aria-label="Timeline controls"]')!
     expect(toolbar.querySelector('[aria-label="Play lyric preview"]')).not.toBeNull()
     expect(toolbar.querySelector('[aria-label="Playback position"]')?.textContent).toContain('3:13')
-    const zoom = toolbar.querySelector('[aria-label="Shared waveform zoom"]')!
     const volume = toolbar.querySelector('[aria-label="Preview volume"]')!
-    expect(zoom.compareDocumentPosition(volume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(toolbar.querySelector('.lltr-scrubber')!.compareDocumentPosition(volume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Zooming happens only inside the track timeline, never from this row.
+    expect(toolbar.querySelector('[aria-label="Shared waveform zoom"]')).toBeNull()
+    expect(toolbar.querySelector('.lltr-field--zoom')).toBeNull()
+    expect(toolbar.textContent).not.toMatch(/Zoom/i)
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
   })
 
-  it('puts elapsed time left and the track length right of a track scrubber that seeks, then zoom and volume together after it', async () => {
+  it('puts elapsed time left and the track length right of a track scrubber that seeks, then volume after it', async () => {
     await act(async () => root.render(<Harness />))
     const toolbar = container.querySelector('[aria-label="Timeline controls"]')!
     const scrubber = toolbar.querySelector<HTMLElement>('.lltr-scrubber')!
@@ -133,8 +134,8 @@ describe('LyricTimelineToolbar', () => {
     const slider = scrubber.querySelector<HTMLInputElement>('input[type="range"]')!
     expect(slider.getAttribute('aria-label')).toBe('Track position')
     const levels = toolbar.querySelector('.lltr-levels')!
-    expect(levels.querySelector('[aria-label="Shared waveform zoom"]')).not.toBeNull()
     expect(levels.querySelector('[aria-label="Preview volume"]')).not.toBeNull()
+    expect(levels.querySelectorAll('input[type="range"]')).toHaveLength(1)
     expect(scrubber.compareDocumentPosition(levels) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // Seeking reports milliseconds.
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!

@@ -8,7 +8,6 @@ import { formatDuration } from '../utils/lyricManagerFormat'
 type Editor = ReturnType<typeof useLyricCueEditor>
 
 interface Props {
-  editor: Editor
   selectedTrackLoaded: boolean
   selectedTrackPlaying: boolean
   currentTimeMs: number | null
@@ -131,11 +130,11 @@ export function LyricTimelineEditActions({ editor, analyze }: {
 }
 
 /**
- * The row beneath the lanes ("Quiet Row", Layout Lab · Template): play, the track scrubber with the elapsed time on its left and the track's length on
- * its right, then zoom and volume together at the right end. No container; one hairline above and shared spacing hold it together.
+ * The audio controls ("Quiet Row", Layout Lab · Template), docked in the track strip: play, the track scrubber with the elapsed time on its left and
+ * the track's length on its right, then volume at the right end. Zoom is not here: it belongs to the track timeline, where the mouse wheel over
+ * the lanes zooms it.
  */
 export function LyricTimelineToolbar({
-  editor,
   selectedTrackLoaded,
   selectedTrackPlaying,
   currentTimeMs,
@@ -145,7 +144,6 @@ export function LyricTimelineToolbar({
   onVolumeChange,
   onSeek,
 }: Props) {
-  const { waveformZoom, setWaveformZoom } = editor
   const safeDuration = Math.max(0, durationMs)
   const safeCurrent = Math.min(safeDuration || Number.MAX_SAFE_INTEGER, Math.max(0, currentTimeMs ?? 0))
   const elapsed = formatDuration(Math.floor(safeCurrent / 1000))
@@ -179,11 +177,6 @@ export function LyricTimelineToolbar({
       </label>
 
       <div className="lltr-levels">
-        <label className="lltr-field lltr-field--zoom">
-          <span className="lltr-label">Zoom <b>{waveformZoom.toFixed(2)}×</b></span>
-          <BubbleRevealSlider type="range" min={1} max={16} step={1} value={waveformZoom} onChange={event => setWaveformZoom(Number(event.target.value))} aria-label="Shared waveform zoom" />
-        </label>
-
         <label className="lltr-field lltr-field--volume">
           <span className="lltr-label lltr-label--icon" aria-hidden="true"><AppIcon kind="volume" size={14} /></span>
           <BubbleRevealSlider

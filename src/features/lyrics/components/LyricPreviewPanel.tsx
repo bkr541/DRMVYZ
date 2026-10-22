@@ -37,6 +37,8 @@ interface LivePreviewProps {
   loading: boolean
   selectedTrackLoaded: boolean
   onLoadTrack: () => void
+  /** Audio controls docked into the track strip (see LyricTrackMetaHeader). */
+  controls?: ReactNode
 }
 
 export function calculateLyricCueProgress(
@@ -171,6 +173,7 @@ export function LyricLivePreviewPanel({
   loading,
   selectedTrackLoaded,
   onLoadTrack,
+  controls,
 }: LivePreviewProps) {
   const hasTimedCues = cues.some(c => typeof c.endMs === 'number' && typeof c.startMs === 'number' && c.endMs > c.startMs)
   const activeCue = useMemo(() => activeCueAt(cues, currentAudioTimeMs, globalOffsetMs), [cues, currentAudioTimeMs, globalOffsetMs])
@@ -180,13 +183,6 @@ export function LyricLivePreviewPanel({
 
   return (
     <div className="lmv-live-preview-body">
-      <LyricTrackMetaHeader
-        track={track}
-        loading={loading}
-        selectedTrackLoaded={selectedTrackLoaded}
-        selectedTrackPlaying={isPlaying}
-        onLoadTrack={onLoadTrack}
-      />
       <div className="lmv-preview-stage" aria-label="Lyric preview">
         {previewCue ? (
           <StylePreviewBox cue={previewCue} doc={document} />
@@ -219,6 +215,14 @@ export function LyricLivePreviewPanel({
           <span style={{ width: `${progressPercent}%` }} />
         </div>
       </div>
+      <LyricTrackMetaHeader
+        track={track}
+        loading={loading}
+        selectedTrackLoaded={selectedTrackLoaded}
+        selectedTrackPlaying={isPlaying}
+        onLoadTrack={onLoadTrack}
+        controls={controls}
+      />
     </div>
   )
 }

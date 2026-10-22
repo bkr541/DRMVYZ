@@ -63,6 +63,7 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
         durationMs={durationMs}
         currentTimeMs={currentTimeMs}
         zoom={editor.waveformZoom}
+        onZoomChange={editor.setWaveformZoom}
         sections={[]}
         beatGrid={[]}
         trackId="track-1"
@@ -75,7 +76,6 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
         />}
         toolbar={(
           <LyricTimelineToolbar
-            editor={editor}
             selectedTrackLoaded
             selectedTrackPlaying={false}
             currentTimeMs={currentTimeMs}
@@ -161,17 +161,19 @@ describe('Lyric Manager cue editing workspace', () => {
     expect(firstBlock.getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('uses the shared Audio Dock waveform zoom state', async () => {
+  it('zooms only inside the track timeline, through the shared waveform zoom state', async () => {
     useVisualStore.getState().setWaveformZoom(4)
     await renderWorkspace()
-    const zoom = container.querySelector<HTMLInputElement>('input[aria-label="Shared waveform zoom"]')!
-    expect(zoom.value).toBe('4')
+    // There is no zoom control in the audio controls row.
+    expect(container.querySelector('input[aria-label="Shared waveform zoom"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Timeline controls"]')?.textContent).not.toMatch(/Zoom/i)
 
-    await act(async () => {
-      setValue(zoom, '8')
-      zoom.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    expect(useVisualStore.getState().waveformZoom).toBe(8)
+    // The mouse wheel over the track timeline's lanes zooms it, and the shared state follows.
+    const lanes = container.querySelector<HTMLElement>('.lmv-track-timeline-lanes')!
+    await act(async () => { lanes.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -200 })) })
+    expect(useVisualStore.getState().waveformZoom).toBeGreaterThan(4)
+    await act(async () => { lanes.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 800 })) })
+    expect(useVisualStore.getState().waveformZoom).toBeLessThan(4)
   })
 
   it('offers an actionable analysis recovery and navigates to a validation target', async () => {

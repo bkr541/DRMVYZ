@@ -417,6 +417,37 @@ describe('LyricManagerView track-first workflow', () => {
     expect(strip.textContent).not.toMatch(/\bActive\b/)
   })
 
+  it('docks the audio controls into the track strip, beneath the lyric preview and no longer under the lanes', async () => {
+    await render()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    const strip = container.querySelector('.lmv-track-meta-header')!
+    const controls = container.querySelector('[aria-label="Timeline controls"]')!
+    expect(strip.contains(controls)).toBe(true)
+    expect(controls.closest('.lmv-track-meta-controls')?.closest('.lmv-track-meta-fill--docked')).not.toBeNull()
+    // The track's identity comes first in the strip, the controls after it, and nothing of the transport is left beneath the lanes.
+    const identity = strip.querySelector('.lmv-track-meta-identity')!
+    expect(identity.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.querySelector('.lmv-track-timeline-window')?.querySelector('[aria-label="Timeline controls"]') ?? null).toBeNull()
+    // The lyric preview stage stays above the strip.
+    const stage = container.querySelector('.lmv-preview-stage')!
+    expect(stage.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The deck row: BPM and key as readouts, state as LEDs named for assistive tech (no text badges), and one line for title and artist.
+    expect(strip.querySelector('.lmv-track-specs')?.textContent).toMatch(/150\s*BPM/)
+    // The deck is not loaded in this fixture, so Load deck leads the controls and no state LED is lit.
+    expect(controls.closest('.lmv-track-meta-controls')?.querySelector('.lmv-track-meta-load')?.textContent).toBe('Load deck')
+    expect(strip.querySelector('.lmv-track-led')).toBeNull()
+    expect(strip.querySelector('.lmv-track-state-badges')).toBeNull()
+    expect(strip.querySelector('.lmv-track-byline')?.textContent).toContain('Melodic Bass')
+    // Every control of the old row came with it, except zoom.
+    for (const name of ['Play lyric preview', 'Track position', 'Preview volume']) {
+      expect(controls.querySelector(`[aria-label="${name}"]`), name).not.toBeNull()
+    }
+    // Zoom is only in the track timeline (the mouse wheel over its lanes), never in the strip.
+    expect(strip.querySelector('[aria-label="Shared waveform zoom"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Shared waveform zoom"]')).toBeNull()
+  })
+
   it('disables Make Active for a version with no cues and explains why', async () => {
     documentsByTrack.get('track-a')![1]!.cueCount = 0
     await render()
@@ -784,8 +815,9 @@ describe('LyricManagerView track-first workflow', () => {
 
     const heroStats = container.querySelector('.lmv-track-meta-line')?.textContent ?? ''
     expect(heroStats).toContain('150 BPM')
-    expect(heroStats).toContain('3:00')
     expect(heroStats).not.toContain('Updated')
+    // The length is the scrubber's total in the docked strip, not repeated among the readouts.
+    expect(container.querySelector('.lmv-track-meta-header')?.textContent).toContain('3:00')
 
     expect(container.textContent).not.toContain('↻ Loop')
     expect(container.textContent).not.toContain('⇄ Compare: Off')

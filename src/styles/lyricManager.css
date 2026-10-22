@@ -2623,9 +2623,77 @@
 
 .lmv-track-meta-load { flex: 0 0 auto; }
 
+/* Docked deck row: the track strip carries the audio controls (the "Quiet Row", .lltr-*, whose base styles live with the Layout Lab concept).
+   One slim row, read left to right the way a deck reads: artwork and identity, BPM and key as stacked readouts, then play, the elapsed time,
+   the scrubber and the total, and volume small at the far right. Width is spent on the scrubber; everything else
+   is compact and the lower-priority parts give way first as the strip narrows. */
+.lmv-track-meta-fill--docked {
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.lmv-track-meta-fill--docked .lmv-track-art,
+.lmv-track-meta-header .lmv-track-meta-fill--docked .lmv-track-art { width: 40px; height: 40px; font-size: 12px; }
+
+.lmv-track-meta-fill--docked .lmv-track-meta-identity { flex: 1 1 150px; min-width: 110px; max-width: 240px; gap: 3px; }
+
+.lmv-track-deck-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.lmv-track-meta-header .lmv-track-deck-title .lmv-track-title { min-width: 0; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.lmv-track-byline { min-width: 0; overflow: hidden; color: rgba(196,207,211,0.62); font-size: 9.5px; letter-spacing: 0.03em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+
+/* State LEDs (a deck shows loaded / playing as lights, not words): the title's own colours, named for assistive tech. */
+.lmv-track-led { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; }
+.lmv-track-led--loaded { background: rgb(74,199,219); box-shadow: 0 0 6px rgba(74,199,219,0.7); }
+.lmv-track-led--playing { background: rgb(97,214,170); box-shadow: 0 0 6px rgba(97,214,170,0.75); }
+
+/* BPM and key as stacked readouts: the value over a small label, divided from what follows by a hairline. */
+.lmv-track-specs { display: flex; flex: 0 0 auto; align-items: center; gap: 14px; padding: 0 12px; border-left: 1px solid rgba(154,178,188,0.14); border-right: 1px solid rgba(154,178,188,0.14); }
+.lmv-track-spec { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 2px; line-height: 1; }
+.lmv-track-spec b { color: rgba(237,249,251,0.94); font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 800; letter-spacing: 0.01em; }
+.lmv-track-spec i { color: rgba(196,207,211,0.5); font-size: 8px; font-style: normal; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.lmv-track-meta-controls { display: flex; flex: 3 1 460px; align-items: center; gap: 12px; min-width: 0; }
+.lmv-track-meta-controls .lmv-track-meta-load { flex: 0 0 auto; }
+.lmv-track-meta-controls .lltr-bar--quiet { flex: 1 1 0; height: 32px; gap: 12px; padding: 0; border-top: 0; }
+.lmv-track-meta-controls .lltr-play { width: 32px; height: 32px; }
+.lmv-track-meta-controls .lltr-scrubber { gap: 8px; }
+.lmv-track-meta-controls .lltr-scrubber input { min-width: 48px; }
+/* While no deck is loaded the scrubber is disabled, and Load deck needs the room. */
+.lmv-track-meta-controls:has(.lmv-track-meta-load) .lltr-scrubber input { min-width: 24px; }
+.lmv-track-meta-controls .lltr-stamp { min-width: 0; }
+.lmv-track-meta-controls .lltr-stamp--elapsed { font-size: 14px; }
+.lmv-track-meta-controls .lltr-stamp--total { font-size: 11px; }
+
+/* Volume: small, at the far right, and divided from the transport. (Zoom is not here; it belongs to the track timeline.) */
+.lmv-track-meta-controls .lltr-levels { gap: 12px; padding-left: 12px; border-left: 1px solid rgba(154,178,188,0.14); }
+.lmv-track-meta-controls .lltr-field { gap: 6px; }
+.lmv-track-meta-controls .lltr-field--volume { flex-basis: 96px; }
+.lmv-track-meta-controls .lltr-value { flex-basis: 20px; }
+
+/* Narrower: the volume number goes first, then the BPM / key readouts; volume does nothing until a deck is loaded. */
+@container (max-width: 780px) {
+  .lmv-track-meta-controls:has(.lmv-track-meta-load) .lltr-levels { display: none; }
+}
+@container (max-width: 720px) {
+  .lmv-track-meta-controls .lltr-value { display: none; }
+  .lmv-track-meta-controls .lltr-field--volume { flex-basis: 78px; }
+}
+@container (max-width: 660px) {
+  .lmv-track-specs { display: none; }
+}
+/* Only where one row cannot hold it (a phone-width drawer layout): the controls take a row of their own, full width. */
+@container (max-width: 520px) {
+  .lmv-track-meta-fill--docked { flex-wrap: wrap; row-gap: 8px; }
+  .lmv-track-meta-fill--docked .lmv-track-meta-identity { flex: 1 1 0; }
+  .lmv-track-meta-controls { flex: 1 1 100%; }
+}
+
 /* ── Live preview (center column): track strip + one lyric preview stage ─── */
 
 .lmv-live-preview-body {
+  /* The strip's responsive rules below query this width, which is the strip's own (a container cannot be restyled by its own query). */
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3331,9 +3399,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
 }
-
-/* The Track Timeline's control row (the "Quiet Row" styles live with the Layout Lab concept, .lltr-*): a little air under the lanes, and no hairline above it. */
-.lmv-track-timeline-window .lltr-bar--quiet { margin-top: 12px; border-top: 0; }
 
 /* Load & Analyze Track keeps its green identity (the colour the text button had) as an icon-only chip. */
 .dv-icon-chip.lmv-analyze-chip {
