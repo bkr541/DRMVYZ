@@ -337,6 +337,11 @@ body,
   color: var(--color-primary) !important;
 }
 
+/* The sticky PixGrid tab row must cover the content scrolling under it, so it keeps its panel fill (the blanket transparent rule above would clear it). */
+[data-theme] .rv-right-subtabs.rv-right-subtabs--embedded {
+  background-color: var(--color-panel-alt) !important;
+}
+
 /* PanelSubtabs' active tab is a pill in the theme's primary colour (the hover rule above outranks a plain active rule, so it is repeated). */
 [data-theme] .rv-right-subtabs button.is-active,
 [data-theme] .rv-right-subtabs button.is-active:hover:not(:disabled) {
