@@ -30,6 +30,8 @@
 /* Shared preset and layer panel hierarchy. */
 .rv-engine-panel-list { display: flex; min-height: 0; height: 100%; flex-direction: column; gap: 10px; padding: 12px; }
 .rv-engine-panel-list[data-preset-scope] { padding-top: 0; }
+/* The rail body already insets its content by 6px, as it does for every engine's PRESETS tab; the list's own 12px would double it and squeeze the cards. */
+.vz-panel-body > .rv-engine-panel-list--rail-presets { padding: 0; }
 .rv-engine-panel-list__header { display: flex; align-items: center; justify-content: space-between; color: var(--text-primary, #f3f7fb); text-transform: uppercase; letter-spacing: .08em; }
 .rv-engine-panel-list__header span { color: var(--text-muted, #83909e); font-size: 10px; }
 .rv-engine-panel-list__hint { margin: 0; color: var(--text-muted, #83909e); font-size: 11px; line-height: 1.45; }
@@ -843,7 +845,7 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 7px 11px 10px;
+  padding: 7px 0 10px;
   isolation: isolate;
 }
 
