@@ -17,13 +17,10 @@ import { ReactFxPanel } from '../ReactFxPanel'
 import { ReactModulationPanel } from '../ReactModulationPanel'
 import { ReactPresetsPanel } from '../ReactPresetsPanel'
 import { ReactPlaceholderCanvas } from '../ReactPlaceholderCanvas'
-import { ReactShaderCanvas } from '../ReactShaderCanvas'
 import { LaserDmxBeamMatrixPanel } from '../LaserDmxBeamMatrixPanel'
 import { DEFAULT_REACT_PRESETS } from '../ReactTypes'
 import { isSelectableReactEngineId } from '../reactEngineCatalog'
 import { useReactStore } from '../../../../stores/reactStore'
-import { useShaderPanelStore } from '../shaders/ui/shaderPanelStore'
-import { DEFAULT_SHADER_SCENE_ID } from '../shaders/scenes'
 
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
@@ -213,20 +210,6 @@ describe('React visualization canvas accessibility', () => {
 
     expect(canvas.getAttribute('role')).toBe('img')
     expect(canvas.getAttribute('aria-label')).toContain(preset.name)
-    expect(canvas.textContent).toContain('not described frame by frame')
-    expect(canvas.hasAttribute('aria-live')).toBe(false)
-  })
-
-  it('names the active shader scene and includes static fallback text', () => {
-    useShaderPanelStore.getState().setActiveShaderId(DEFAULT_SHADER_SCENE_ID)
-    const markup = renderToStaticMarkup(
-      <ReactShaderCanvas analyser={null} isPlaying={false} />,
-    )
-    container.innerHTML = markup
-    const canvas = container.querySelector('canvas') as HTMLCanvasElement
-
-    expect(canvas.getAttribute('role')).toBe('img')
-    expect(canvas.getAttribute('aria-label')).toMatch(/^Shader Engine visualization: /)
     expect(canvas.textContent).toContain('not described frame by frame')
     expect(canvas.hasAttribute('aria-live')).toBe(false)
   })

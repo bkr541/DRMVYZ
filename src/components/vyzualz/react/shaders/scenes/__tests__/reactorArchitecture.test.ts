@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { ShaderLibrary } from '../../library/ShaderLibrary'
 import { migrateShaderLibraryPersistedState } from '../../library/ShaderLibraryStore'
 import { ShaderDefinitionValidator } from '../../registry/ShaderDefinitionValidator'
 import { shaderRegistry } from '../../registry'
@@ -42,17 +41,8 @@ describe('Reactor unified Shader architecture', () => {
     })
   })
 
-  it('shows one canonical Reactor card and keeps legacy definitions out of the runtime registry', () => {
-    const library = new ShaderLibrary(new Map(), new Set(), new Map(), [], new Set())
-    const bundled = library.getBundled()
-    const unifiedEntries = bundled.filter(definition => (
-      definition.id === REACTOR_SCENE_ID || LEGACY_IDS.includes(definition.id as typeof LEGACY_IDS[number])
-    ))
-
-    expect(unifiedEntries.map(definition => definition.id)).toEqual([REACTOR_SCENE_ID])
-    expect(unifiedEntries[0]?.name).toBe('Reactor')
+  it('keeps legacy Reactor definitions out of the runtime registry', () => {
     for (const legacyId of LEGACY_IDS) expect(shaderRegistry.has(legacyId)).toBe(false)
-    expect(library.getEntry(LEGACY_REACTOR_SCENE_IDS.semantic)?.definition.id).toBe(REACTOR_SCENE_ID)
   })
 
   it('centralizes legacy scene migration and preserves each legacy recipe', () => {

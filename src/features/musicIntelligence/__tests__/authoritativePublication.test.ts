@@ -8,8 +8,6 @@ import type { ReactFrameContext } from '../../../components/vyzualz/react/render
 import { resolveAuthoritativeFrameSection } from '../../../components/vyzualz/react/renderers/reactRenderUtils'
 import { resolveLaserDmxMusicIntelligenceFrame } from '../../../components/vyzualz/react/renderers/LaserDmxRenderer'
 import { DEFAULT_REACT_RENDER_PARAMS, resolveCurrentSection } from '../../../components/vyzualz/react/renderers/ReactEngineRenderer'
-import { ShaderAudioBridge } from '../../../components/vyzualz/react/shaders/audio/ShaderAudioBridge'
-import { encodeSectionType } from '../../../components/vyzualz/react/shaders/audio/shaderAudioTypes'
 import { cinematicInputFromReactFrame } from '../../../components/vyzualz/react/renderers/CinematicWorldRenderer'
 import { createCinematicWorldConfig } from '../../../components/vyzualz/react/CinematicWorldConfig'
 import {
@@ -195,7 +193,7 @@ describe('authoritative Music Intelligence publication', () => {
     expect(AudioFeatureBus.getFrame().resolvedSections).toEqual([])
   })
 
-  it('feeds the same resolved section to LaserDMX, Shaders, Cinematic Worlds, and Sound Drawing', () => {
+  it('feeds the same resolved section to LaserDMX, Cinematic Worlds, and Sound Drawing', () => {
     const timeline = resolvedTimeline()
     engine.setAuthoritativeTrackState({ analysis: makeAnalysis(), resolvedSections: timeline, trackId: 'track-a', sourceId: 'track-a' })
     const resolved = resolveAuthoritativeFrameSection({ musicIntelligence: AudioFeatureBus.getFrame(), trackSections: timeline, audioTime: 10 })
@@ -204,11 +202,6 @@ describe('authoritative Music Intelligence publication', () => {
     const laser = resolveLaserDmxMusicIntelligenceFrame(frame, AudioFeatureBus.getFrame())
     expect(laser.section.type).toBe('build')
     expect(laser.currentResolvedSection?.id).toBe('manual-build')
-
-    const shader = new ShaderAudioBridge()
-    shader.update(frame, 10, 1 / 60, 40)
-    expect(shader.timingFrame.sectionType).toBe(encodeSectionType('build'))
-    expect(shader.timingFrame.sectionPhase).toBeCloseTo(0.5)
 
     const cinematicPreset = DEFAULT_REACT_PRESETS.find(preset => preset.engine === 'cinematicPortal')!
     const cinematic = cinematicInputFromReactFrame(

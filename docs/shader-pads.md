@@ -1,5 +1,7 @@
 # Shader Pads
 
+> **Retired.** Shader Pads is no longer an engine: it cannot be selected, and its renderer (`ShaderEngineRenderer`, `ReactShaderCanvas`), its Scenes library UI and tab, and the audio, feedback, transition, modulation, performance and render-graph code behind them have been removed. The engine ID `shaderPads` remains only so saved sessions and the Cinema 2.0 migration can still recognise and repair old state. The shared WebGL runtime in `src/components/vyzualz/react/shaders/runtime/` is used by Cinema 2.0 and the other engines and is not retired. The text below describes the engine as it was.
+
 ## Purpose
 
 Shader Pads is the WebGL2 scene engine for authored GLSL visuals. It owns scene selection, parameter editing, texture inputs, transitions, feedback, Music Intelligence modulation, Shared Performance programs, adaptive quality, diagnostics, and shader authoring.

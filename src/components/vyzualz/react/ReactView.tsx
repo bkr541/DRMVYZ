@@ -88,7 +88,6 @@ import {
   getReactLeftTabs,
   getReactLowerSurfaceLabel,
   getReactLowerSurfaces,
-  getReactPresetTabLabel,
   isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
@@ -127,11 +126,6 @@ const SoundDrawingTimelineLane = lazy(() =>
 const LaserDmxLayersPanel = lazy(() =>
   import('./LaserDmxLayersPanel').then((module) => ({
     default: module.LaserDmxLayersPanel,
-  })),
-)
-const ShaderLibraryPanel = lazy(() =>
-  import('./shaders/ui/ShaderLibraryPanel').then((module) => ({
-    default: module.ShaderLibraryPanel,
   })),
 )
 const TrackTimelineModal = lazy(() =>
@@ -516,13 +510,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     [activeReactEngineId, activeShaderId, oscillatorSettings, selectedCanvasLayerId, laserDmxWorkspaceMode, laserDmxBeamMatrix],
   )
 
-  const rightTabs = useMemo<RailTabOption<ReactRightPanel>[]>(
-    () =>
-      REACT_RIGHT_BASE_TABS.map((tab) =>
-        tab.id === 'presets' ? { ...tab, label: getReactPresetTabLabel(workspaceComposition) } : tab,
-      ),
-    [workspaceComposition],
-  )
+  const rightTabs: RailTabOption<ReactRightPanel>[] = REACT_RIGHT_BASE_TABS
 
   useEffect(() => {
     if (lowerSurface !== activeLowerSurface) {
@@ -1057,11 +1045,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
           />
           <div className="vz-panel-body">
             {activeRightPanel === 'presets' &&
-              (workspaceComposition.presetSurface === 'shaderScenes' ? (
-                  <Suspense fallback={<LazyWorkspaceFallback label="Shader scenes" />}>
-                    <ShaderLibraryPanel />
-                  </Suspense>
-              ) : activeReactEngineId === 'cinema2' ? (
+              (activeReactEngineId === 'cinema2' ? (
                 <Cinema2PresetsPanel activePresetId={cinema2PresetId} onSelectPreset={handleCinema2PresetSelect} />
               ) : activeReactEngineId === 'headliner' ? (
                 <HeadlinerPresetsPanel />

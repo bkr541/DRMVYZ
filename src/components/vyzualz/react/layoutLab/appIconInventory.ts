@@ -174,10 +174,6 @@ export const APP_ICON_INVENTORY: readonly AppIconEntry[] = [
     ['Move [layer] down', 'down'], ['Move [layer] up', 'up'], ['Duplicate [layer]', 'copy'], ['Delete [layer]', 'delete'],
     ['Delete modulation route', 'close'],
   ]),
-  ...inventory('Shader scenes', ['src/components/vyzualz/react/shaders/ui/ShaderLibraryPanel.tsx'], [
-    ['Toggle favorite', 'star'], ['Duplicate scene', 'copy'], ['Export scene as JSON', 'download'],
-    ['Rename scene', 'edit'], ['Delete scene', 'delete'], ['Search shader scenes', 'search'],
-  ]),
   ...inventory('Output', ['src/components/vyzualz/react/output/OutputCastControl.tsx', 'src/components/vyzualz/react/ReactGlobalOutputControls.tsx'], [
     ['Cast visual output', 'cast'], ['Close cast panel', 'close'], ['Window', 'window'], ['Borderless', 'borderless'], ['Full Screen', 'expand'],
     ['16:9', 'ratio16x9'], ['16:10', 'ratio16x10'], ['4:3', 'ratio4x3'], ['3:2', 'ratio3x2'], ['1:1', 'ratio1x1'], ['9:16', 'ratio9x16'], ['Current Devices', 'waveform'], ['Available Devices', 'people'], ['Refresh output devices', 'sync'],

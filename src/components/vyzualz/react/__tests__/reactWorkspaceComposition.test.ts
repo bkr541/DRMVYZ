@@ -5,7 +5,6 @@ import {
   getReactLeftTabLabel,
   getReactLeftTabs,
   getReactLowerSurfaces,
-  getReactPresetTabLabel,
   isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
   resolveReactWorkspaceComposition,
@@ -59,37 +58,23 @@ describe('React workspace composition', () => {
     }
   })
 
-  it('uses Shader Scenes instead of React presets while every engine keeps the performance pads', () => {
-    const shader = resolveReactWorkspaceComposition('shaderPads', 'beamMatrix', false)
-
+  it('keeps the performance pads on every engine, and has no default presets for the retired shader engine', () => {
     expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'shaderPads')).toHaveLength(0)
-    expect(shader.presetSurface).toBe('shaderScenes')
-    expect(getReactPresetTabLabel(shader)).toBe('SCENES')
-    expect(shader.showPerformancePads).toBe(true)
-    expect(getReactLowerSurfaces(shader)).toContain('performancePads')
 
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
     expect(DEFAULT_REACT_PRESETS.filter(preset => preset.engine === 'canvas')).toHaveLength(0)
-    expect(canvas.presetSurface).toBe('enginePresets')
-    expect(getReactPresetTabLabel(canvas)).toBe('PRESETS')
     expect(canvas.showPerformancePads).toBe(true)
 
     const cinema = resolveReactWorkspaceComposition('cinema', 'beamMatrix', false)
-    expect(cinema.presetSurface).toBe('enginePresets')
-    expect(getReactPresetTabLabel(cinema)).toBe('PRESETS')
     expect(cinema.showPerformancePads).toBe(true)
 
     const cinema2 = resolveReactWorkspaceComposition('cinema2', 'beamMatrix', false)
-    expect(cinema2.presetSurface).toBe('enginePresets')
-    expect(getReactPresetTabLabel(cinema2)).toBe('PRESETS')
     expect(cinema2.showPerformancePads).toBe(true)
     expect(getReactLowerSurfaces(cinema2)).toEqual(['trackMap', 'performancePads'])
     expect(cinema2.showTrackMap).toBe(true)
 
     for (const engine of ['cinematicPortal', 'oscilloscope', 'canvas', 'laserDmx', 'pixGrid'] as ReactEngineId[]) {
       const composition = resolveReactWorkspaceComposition(engine, 'beamMatrix', false)
-      expect(composition.presetSurface).toBe('enginePresets')
-      expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
       expect(composition.showPerformancePads).toBe(true)
     }
   })
@@ -155,8 +140,6 @@ describe('React workspace composition', () => {
     expect(headliner.showTrackMap).toBe(true)
     expect(headliner.showPerformancePads).toBe(true)
     expect(headliner.showSoundDrawingTimeline).toBe(false)
-    expect(headliner.presetSurface).toBe('enginePresets')
-    expect(getReactPresetTabLabel(headliner)).toBe('PRESETS')
   })
 
   it('never advertises unfinished or unrelated contextual destinations', () => {

@@ -87,7 +87,6 @@ describe('PixGrid engine foundation', () => {
     const composition = resolveReactWorkspaceComposition('pixGrid', 'beamMatrix', false)
     expect(composition.leftTabs).toEqual(['workspace', 'media'])
     expect(composition.workspaceTabLabel).toBe('SETUP')
-    expect(composition.presetSurface).toBe('enginePresets')
     expect(composition.showTrackMap).toBe(true)
     expect(composition.showPerformancePads).toBe(true)
     expect(composition.showLaserBeamEditor).toBe(false)

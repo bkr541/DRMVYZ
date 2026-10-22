@@ -7,7 +7,6 @@ import {
 import {
   getReactLeftTabLabel,
   getReactLeftTabs,
-  getReactPresetTabLabel,
   resolveReactWorkspaceComposition,
 } from '../components/vyzualz/react/reactWorkspaceComposition'
 import {
@@ -31,8 +30,6 @@ describe('CANVAS final-pass store and workspace contract', () => {
     expect(getReactLeftTabs(composition)).toEqual(['workspace', 'layers'])
     expect(getReactLeftTabLabel('workspace', composition)).toBe('SOURCE')
     expect(getReactLeftTabLabel('layers', composition)).toBe('LAYERS')
-    expect(composition.presetSurface).toBe('enginePresets')
-    expect(getReactPresetTabLabel(composition)).toBe('PRESETS')
     expect(composition.showPerformancePads).toBe(true)
     expect(composition.showSoundDrawingTimeline).toBe(false)
   })

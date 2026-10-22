@@ -48,7 +48,6 @@ Before changing React View, inspect the files that own the affected boundary.
 ### Rendering, output, and lifecycle
 
 - `src/components/vyzualz/react/ReactPlaceholderCanvas.tsx`
-- `src/components/vyzualz/react/ReactShaderCanvas.tsx`
 - `src/components/vyzualz/react/ReactCanvasEngineShell.tsx`
 - `src/components/vyzualz/react/pixGrid/PixGridSurface.tsx`
 - `src/components/vyzualz/react/renderers/ReactEngineRenderer.ts`
@@ -112,7 +111,6 @@ Normal playback treats the center as visual output. Renderer controls, media lib
 
 The current renderer ownership is:
 
-- Shader Pads: `ReactShaderCanvas`
 - CANVAS: `CanvasEngineSurface`, exported by `ReactCanvasEngineShell.tsx`
 - PixGrid: `PixGridSurface`
 - Cinematic Worlds, Sound Drawing, and LaserDMX live rendering: `ReactPlaceholderCanvas` and engine renderers
@@ -181,7 +179,6 @@ The selectable engines are defined only in `REACT_ENGINE_IDS` and `REACT_ENGINE_
 
 | Engine ID | Label | Primary center renderer |
 | --- | --- | --- |
-| `shaderPads` | Shader Pads | `ReactShaderCanvas` |
 | `cinematicPortal` | Cinematic Worlds | Cinematic renderer through `ReactPlaceholderCanvas` |
 | `oscilloscope` | Sound Drawing | Sound Drawing renderer through `ReactPlaceholderCanvas` |
 | `canvas` | CANVAS | `CanvasEngineSurface` |

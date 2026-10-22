@@ -2,7 +2,6 @@ import type { ReactEngineId } from './ReactTypes'
 
 export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
 export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
-export type ReactPresetSurface = 'enginePresets' | 'shaderScenes'
 export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
 
 const REACT_LOWER_SURFACE_LABELS: Record<ReactLowerSurface, string> = {
@@ -17,7 +16,6 @@ export interface ReactWorkspaceComposition {
   showTrackMap: boolean
   showLaserBeamEditor: boolean
   showLaserLayersTab: boolean
-  presetSurface: ReactPresetSurface
   leftTabs: ReactLeftTab[]
   workspaceTabLabel: ReactWorkspaceTabLabel
 }
@@ -31,7 +29,6 @@ export function resolveReactWorkspaceComposition(
   laserWorkspaceMode: unknown,
   beamEditorVisible: boolean,
 ): ReactWorkspaceComposition {
-  const isShader = engineId === 'shaderPads'
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
   const isCinema2 = engineId === 'cinema2'
@@ -73,7 +70,7 @@ export function resolveReactWorkspaceComposition(
   return {
     // Performance pads are the live set list for the whole performance: every pad can switch to a
     // preset on any engine, so they stay mounted (and their keys armed) whichever engine is loaded,
-    // including Shader Scenes, Cinema 2.0 and Headliner.
+    // including Cinema 2.0 and Headliner.
     showPerformancePads: true,
     showSoundDrawingTimeline: isSoundDrawing,
     // Track sections and transport context are shared by every React engine. ReactView resolves the
@@ -82,16 +79,9 @@ export function resolveReactWorkspaceComposition(
     showTrackMap: true,
     showLaserBeamEditor: isLaser && beamEditorVisible,
     showLaserLayersTab: isLaser,
-    presetSurface: isShader ? 'shaderScenes' : 'enginePresets',
     leftTabs,
     workspaceTabLabel,
   }
-}
-
-export function getReactPresetTabLabel(
-  composition: ReactWorkspaceComposition,
-): 'PRESETS' | 'SCENES' {
-  return composition.presetSurface === 'shaderScenes' ? 'SCENES' : 'PRESETS'
 }
 
 export function getReactLeftTabs(
