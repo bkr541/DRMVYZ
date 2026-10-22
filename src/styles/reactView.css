@@ -5719,41 +5719,42 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   justify-content: center;
   gap: 0;
   margin: 7px 8px 0;
-  padding: 4px 0 14px;
+  padding: 3px 0;
   flex: 0 0 auto;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 
+/* Every tab carries the same padding and a transparent border, so the active tab's pill (below) appears without moving anything. */
 .rv-right-subtabs button {
   position: relative;
   display: inline-flex;
-  flex-direction: row-reverse;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-width: 0;
   min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: rgba(196, 207, 211, 0.5);
   font: 700 11px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 140ms ease;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
 .rv-right-subtabs button:not(:first-child) {
-  margin-left: 22px;
+  margin-left: 2px;
 }
 
 .rv-right-subtabs button:not(:first-child)::before {
   content: '';
   position: absolute;
-  left: -12px;
+  left: -2px;
   top: 50%;
   width: 1px;
   height: 11px;
@@ -5767,22 +5768,23 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-right-subtabs button.is-active {
+  /* The active tab is a soft accent pill: a tinted fill, a hairline accent border and brighter text. */
   color: #8ef4ff;
-  border-color: transparent;
-  background: transparent;
+  border-color: rgba(74, 199, 219, 0.45);
+  background: rgba(74, 199, 219, 0.12);
+  box-shadow: 0 0 10px rgba(74, 199, 219, 0.14);
 }
 
-.rv-right-subtabs button.is-active::after {
-  /* The active marker: a small filled dot, glowing in the accent. */
-  content: '';
-  display: inline-block;
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  color: #4ac7db;
-  box-shadow: 0 0 6px rgba(74, 199, 219, 0.7);
+/* The pill is its own separator: no divider on either side of it. */
+.rv-right-subtabs button.is-active::before,
+.rv-right-subtabs button.is-active + button::before {
+  content: none;
+}
+
+/* Hovering the active tab keeps its pill (the plain hover rule above would otherwise clear the fill). */
+.rv-right-subtabs button.is-active:hover:not(:disabled) {
+  color: #8ef4ff;
+  background: rgba(74, 199, 219, 0.12);
 }
 
 .rv-right-subtabs button:disabled {
@@ -5809,7 +5811,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin-left: 0;
 }
 
-.rv-right-subtabs--wrap button::before {
+.rv-right-subtabs--wrap button:not(:first-child)::before {
   content: none;
 }
 
@@ -5836,13 +5838,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* A 5-item strip that already scrolls its rail doesn't suit the pipe-divider
    treatment (dividers would drift out of sync with the fixed-width buttons
-   as the strip scrolls) — keep the diamond active-marker but fall back to
+   as the strip scrolls) — keep the active-tab pill but fall back to
    plain gap-based spacing, like --wrap. */
 .rv-right-subtabs--scroll button:not(:first-child) {
   margin-left: 0;
 }
 
-.rv-right-subtabs--scroll button::before {
+.rv-right-subtabs--scroll button:not(:first-child)::before {
   content: none;
 }
 

@@ -331,10 +331,18 @@ body,
   color: rgba(196, 207, 211, 0.5) !important;
 }
 
-[data-theme] .rv-right-subtabs button.is-active,
 [data-theme] .rv-lower-workspace-tabs .dv-underline-tab.is-active {
   background-color: transparent !important;
   border-color: transparent !important;
+  color: var(--color-primary) !important;
+}
+
+/* PanelSubtabs' active tab is a pill in the theme's primary colour (the hover rule above outranks a plain active rule, so it is repeated). */
+[data-theme] .rv-right-subtabs button.is-active,
+[data-theme] .rv-right-subtabs button.is-active:hover:not(:disabled) {
+  background-color: rgba(var(--color-primary-rgb), 0.14) !important;
+  border-color: rgba(var(--color-primary-rgb), 0.5) !important;
+  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.16);
   color: var(--color-primary) !important;
 }
 
