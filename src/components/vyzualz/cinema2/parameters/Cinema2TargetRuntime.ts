@@ -149,6 +149,7 @@ export interface Cinema2ActionDispatchResult {
 }
 
 export interface Cinema2FinalValueResolverOptions {
+  readEditRevision?: (target: Readonly<Cinema2TargetHandle>) => number
   resolveBaseValue?: (target: Readonly<Cinema2TargetHandle>) => Cinema2JsonValue | undefined
   dispatchAction?: (event: Readonly<Cinema2DispatchedTargetAction>) => void
   /** Shared transient state is currently owned only by engine choreography. */
@@ -384,6 +385,7 @@ export function compileCinema2TargetPlan(
 }
 
 export class Cinema2FinalValueResolver {
+  private readonly readEditRevision: NonNullable<Cinema2FinalValueResolverOptions['readEditRevision']>
   private readonly targets = new Map<Cinema2TargetId, Readonly<Cinema2TargetHandle>>()
   private readonly transientContributions = new Map<Cinema2TargetId, readonly Readonly<Cinema2TargetContribution>[]>()
   private readonly resolveBaseValue: (target: Readonly<Cinema2TargetHandle>) => Cinema2JsonValue | undefined
@@ -395,6 +397,7 @@ export class Cinema2FinalValueResolver {
     options: Cinema2FinalValueResolverOptions = {},
   ) {
     for (const target of plan.targets) this.targets.set(target.id, target)
+    this.readEditRevision = options.readEditRevision ?? (() => 0)
     this.resolveBaseValue = options.resolveBaseValue ?? (target => cloneJson(target.authoredBaseValue))
     this.dispatchAction = options.dispatchAction ?? null
     this.authorizedTransientWriterIds = new Set(options.authorizedTransientWriterIds ?? ['choreography'])
@@ -402,6 +405,11 @@ export class Cinema2FinalValueResolver {
 
   getTarget(targetId: Cinema2TargetId): Readonly<Cinema2TargetHandle> | null {
     return this.targets.get(targetId) ?? null
+  }
+
+  getEditRevision(targetId: Cinema2TargetId): number {
+    const target = this.targets.get(targetId)
+    return target ? this.readEditRevision(target) : 0
   }
 
   /**

@@ -296,6 +296,44 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-nightshift-room",
+    "kind": "environment",
+    "license": "generated-in-house",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/environments/nightshift-room.hdr",
+        "bytes": 524337,
+        "width": 512,
+        "height": 256
+      }
+    },
+    "gpuBytes": {
+      "high": 4194304,
+      "medium": 4194304,
+      "low": 4194304
+    }
+  },
+  {
+    "id": "cinema2-nightshift-static",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Derived from Pretty simple discoball by pan.stasian (https://sketchfab.com/3d-models/pretty-simple-discoball-6b1921865be14de982f9483040acaa2d) and Animated Dance Floor neon lights by WwWuengy (https://sketchfab.com/3d-models/animated-dance-floor-neon-lights-440e71d520d94dccbb397a8a7df9bb47), licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: ball re-materialed, floor chassis flattened/rescaled, invalid source animation clips omitted, addressable floor inserts and overhead frame added.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/nightshift-static.glb",
+        "bytes": 1926852,
+        "triangles": 31894
+      }
+    },
+    "gpuBytes": {
+      "high": 1944165,
+      "medium": 1944165,
+      "low": 1944165
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

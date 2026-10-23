@@ -30,6 +30,7 @@ import { CINEMA2_STARTERS_PRESET_MANIFEST } from './Cinema2StartersPreset'
 import { CINEMA2_BWC_PRESET_MANIFEST } from './Cinema2BwcPreset'
 import { CINEMA2_CANOPY_PRESET_MANIFEST } from './Cinema2CanopyPreset'
 import { CINEMA2_MARQUEE_PRESET_MANIFEST } from './Cinema2MarqueePreset'
+import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST } from './Cinema2NightshiftPreset'
 
 /**
  * Single production registration seam for first-party native Cinema 2.0 presets.
@@ -37,6 +38,8 @@ import { CINEMA2_MARQUEE_PRESET_MANIFEST } from './Cinema2MarqueePreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  // Accepted NIGHTSHIFT native installation; stable identity preserves authored edits.
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_NIGHTSHIFT_PRESET_MANIFEST }),
   // In-app review entry. Promote to keeper only after the remaining acceptance gates.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_BLOCKSHIFT_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({

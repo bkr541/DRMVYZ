@@ -49,6 +49,7 @@ const GL = {
   FRAGMENT_SHADER:      35632,
   COMPILE_STATUS:       35713,
   LINK_STATUS:          35714,
+  CURRENT_PROGRAM:      0x8B8D,
   FRAMEBUFFER:          36160,
   FRAMEBUFFER_COMPLETE: 36053,
   FRAMEBUFFER_INCOMPLETE_ATTACHMENT:         0x8CD6,
@@ -109,6 +110,7 @@ interface MockOpts {
 function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: DeleteCounts } {
   const deleted: DeleteCounts = { shaders: 0, programs: 0, textures: 0, framebuffers: 0, buffers: 0, vaos: 0, renderbuffers: 0 }
   let shaderN = 0, programN = 0, textureN = 0, fboN = 0
+  let currentProgram: WebGLProgram | null = null
 
   const gl: Record<string, unknown> = {
     ...GL,
@@ -141,7 +143,7 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     deleteProgram:      () => { deleted.programs++ },
     getUniformLocation: () => ({}),
     getAttribLocation:  () => 0,
-    useProgram:         () => {},
+    useProgram:         (program: WebGLProgram | null) => { currentProgram = program },
     uniform1f:          () => {},
     uniform1i:          () => {},
     uniform2f:          () => {},
@@ -182,6 +184,7 @@ function makeGL(opts: MockOpts = {}): { gl: WebGL2RenderingContext; deleted: Del
     isContextLost:         () => false,
     getError:              () => 0,
     getParameter:          (pname: number) => {
+      if (pname === GL.CURRENT_PROGRAM)       return currentProgram
       if (pname === GL.MAX_TEXTURE_SIZE)      return 16384
       if (pname === GL.MAX_RENDERBUFFER_SIZE) return 16384
       return null
@@ -313,6 +316,35 @@ describe('C — program link failure cleanup', () => {
     expect(result.error?.stage).toBe('link')
     expect(deleted.shaders).toBe(2)   // vert + frag deleted after attach
     expect(deleted.programs).toBe(1)  // program deleted after link failure
+  })
+
+  it('unbinds a retiring active program before deleting it, without double disposal', () => {
+    const { gl, deleted } = makeGL()
+    const result = ShaderProgram.create(gl, new ShaderCompiler(gl), { vertSrc: MINIMAL_VERT, fragSrc: MINIMAL_FRAG, label: 'active-disposal' })
+    const program = result.program!
+    program.activate()
+    expect(gl.getParameter(gl.CURRENT_PROGRAM)).not.toBeNull()
+    const originalDelete = gl.deleteProgram.bind(gl)
+    const dispose = vi.spyOn(gl, 'deleteProgram').mockImplementation(handle => {
+      expect(gl.getParameter(gl.CURRENT_PROGRAM)).toBeNull()
+      originalDelete(handle)
+    })
+    program.dispose(); program.dispose()
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(deleted.programs).toBe(1)
+  })
+
+  it('preserves another active program when retiring an inactive one', () => {
+    const { gl } = makeGL(), compiler = new ShaderCompiler(gl)
+    const descriptor = { vertSrc: MINIMAL_VERT, fragSrc: MINIMAL_FRAG, label: 'inactive-disposal' }
+    const inactive = ShaderProgram.create(gl, compiler, descriptor).program!
+    const active = ShaderProgram.create(gl, compiler, descriptor).program!
+    active.activate()
+    const handle = gl.getParameter(gl.CURRENT_PROGRAM)
+    inactive.dispose()
+    expect(gl.getParameter(gl.CURRENT_PROGRAM)).toBe(handle)
+    active.dispose()
+    expect(gl.getParameter(gl.CURRENT_PROGRAM)).toBeNull()
   })
 })
 

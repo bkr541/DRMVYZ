@@ -1,0 +1,75 @@
+{
+  "checks": [
+    "All three shared effects execute on the native production path",
+    "nightshift-bloom: restrained authored default",
+    "nightshift-club-haze: restrained authored default",
+    "nightshift-reflections: restrained authored default",
+    "bloom: real Inspector control under Effects",
+    "haze: real Inspector control under Effects",
+    "reflections: real Inspector control under Effects",
+    "All-zero effects retire their instances and bypass",
+    "bloom: default changes actual output pixels",
+    "bloom: maximum visibly increases its own effect",
+    "bloom: OFF restores the unprocessed native output",
+    "haze: default changes actual output pixels",
+    "haze: maximum visibly increases its own effect",
+    "haze: OFF restores the unprocessed native output",
+    "reflections: default changes actual output pixels",
+    "reflections: maximum visibly increases its own effect",
+    "reflections: OFF restores the unprocessed native output",
+    "Combined maximum preserves a dark separation region",
+    "Combined finishing retains tile-edge contrast at default and maximum",
+    "Master zero bypasses all finishing even when controls are at maximum",
+    "Finishing cannot relight Master zero",
+    "Floor zero suppresses ground reflections",
+    "Coverage zero suppresses ground reflections",
+    "Paused finishing settles and holds stable",
+    "All OFF controls apply immediately while paused",
+    "Shared haze and cyan role follow the editable palette",
+    "Finishing preserves the approved camera and framing",
+    "Fresh native re-entry prepares effects and geometry cleanly",
+    "nightshift-bloom: re-entry restores its authored default",
+    "nightshift-club-haze: re-entry restores its authored default",
+    "nightshift-reflections: re-entry restores its authored default",
+    "No browser, shader, effect or choreography errors"
+  ],
+  "captures": 19,
+  "errors": [],
+  "metrics": {
+    "bloom": {
+      "defaultDifference": 3.3911259403935183,
+      "maximumDifference": 9.576000072337964,
+      "maxGapMean": 16.1514892578125
+    },
+    "haze": {
+      "defaultDifference": 2.317425491898148,
+      "maximumDifference": 6.650512876157407,
+      "maxGapMean": 22.7011474609375
+    },
+    "reflections": {
+      "defaultDifference": 0.04440791377314815,
+      "maximumDifference": 0.18816044560185186,
+      "maxGapMean": 7.647119140625
+    },
+    "finishing": {
+      "defaultGapMean": 14.908634440104167,
+      "maxGapMean": 25.861588541666666,
+      "baseFloorEdges": 2.339552968544137,
+      "defaultFloorEdges": 2.300225419960474,
+      "maxFloorEdges": 2.2428256752305664
+    }
+  },
+  "performance": {
+    "diagnosticsEnabled": true,
+    "requestedMode": "quality",
+    "resolvedQuality": "high",
+    "renderTargetScale": 1,
+    "gpuMemoryBudgetBytes": 268435456,
+    "cpuFrameTimeMs": 4.300000011920929,
+    "cpuFrameTimeAverageMs": 3.649229648334255,
+    "gpuFrameTimeMs": 12.341833,
+    "gpuTimingSupported": true,
+    "degraded": false,
+    "degradationReason": null
+  }
+}

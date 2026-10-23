@@ -179,6 +179,9 @@ export class ShaderProgram {
   dispose(): void {
     if (this._disposed) return
     this._disposed = true
+    // WebGL defers deletion of a bound program. Unbind it now so a foreign
+    // renderer's state guard cannot capture and later restore the retired handle.
+    if (this.gl.getParameter(this.gl.CURRENT_PROGRAM) === this.prog) this.gl.useProgram(null)
     this.gl.deleteProgram(this.prog)
   }
 }

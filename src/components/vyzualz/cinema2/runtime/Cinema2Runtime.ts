@@ -468,6 +468,7 @@ export class Cinema2Runtime {
     let moduleRuntime: Cinema2ModuleRuntime | null = null
     const boundActionParameters = indexBoundActionParameters(compiledPresetPlan)
     this.targetResolver = new Cinema2FinalValueResolver(compiledPresetPlan.targets, {
+      readEditRevision: target => target.parameterId == null ? 0 : parameterState.getEditRevision(target.parameterId),
       resolveBaseValue: target => target.parameterId == null
         ? target.authoredBaseValue
         : parameterState.getValue(target.parameterId),

@@ -43,6 +43,12 @@ export class Cinema2ParameterState {
   private readonly definitions = new Map<Cinema2ParameterId, Readonly<Cinema2CompiledParameterDefinition>>()
   private persistentValues: Record<string, Cinema2JsonValue> = {}
   private runtimeOnlyValues: Record<string, Cinema2JsonValue> = {}
+  private readonly editRevisions = new Map<Cinema2ParameterId, number>()
+
+  /** Runtime-only edit identity, including reselecting an unchanged enum value. */
+  getEditRevision(parameterId: Cinema2ParameterId): number {
+    return this.editRevisions.get(parameterId) ?? 0
+  }
 
   constructor(private readonly plan: Readonly<Cinema2CompiledParameterPlan>) {
     for (const definition of plan.definitions) this.definitions.set(definition.id, definition)
@@ -70,7 +76,9 @@ export class Cinema2ParameterState {
     const dependentEdits = userEditSetParameters(definition)
     // `metadata.mirrorParameters` lists parameters that take the edited value too (one visible control that overrides several hidden ones).
     const mirrored = Object.fromEntries(mirrorParameters(definition).map(id => [id, candidate]))
-    return this.setPersistentValuesAtomically({ ...dependentEdits, ...mirrored, [parameterId]: candidate })
+    const result = this.setPersistentValuesAtomically({ ...dependentEdits, ...mirrored, [parameterId]: candidate })
+    if (result.ok) this.editRevisions.set(parameterId, this.getEditRevision(parameterId) + 1)
+    return result
   }
 
   private setPersistentValuesAtomically(candidates: Readonly<Record<string, unknown>>): Cinema2ParameterStateMutationResult {
@@ -122,6 +130,7 @@ export class Cinema2ParameterState {
       this.runtimeOnlyValues = { ...this.runtimeOnlyValues, [parameterId]: cloneJson(authoredDefault) }
     } else {
       this.persistentValues = { ...this.persistentValues, [parameterId]: cloneJson(authoredDefault) }
+      this.editRevisions.set(parameterId, this.getEditRevision(parameterId) + 1)
     }
     return success()
   }

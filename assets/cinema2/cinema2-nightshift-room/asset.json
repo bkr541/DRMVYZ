@@ -1,0 +1,7 @@
+{
+  "id": "cinema2-nightshift-room",
+  "kind": "environment",
+  "license": "generated-in-house",
+  "origin": "scripts/cinema2-assets/build-nightshift-runtime.mjs: 512x256 Radiance RGBE authored dark club reflection environment, colored hard panels and a luminous tiled lower hemisphere. Static Step 1 IBL; not the visible scene background.",
+  "files": { "high": "public/cinema2/environments/nightshift-room.hdr" }
+}

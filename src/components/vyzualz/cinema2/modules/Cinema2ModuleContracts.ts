@@ -31,6 +31,7 @@ export interface Cinema2ModuleDiagnostic {
 }
 
 export interface Cinema2ModuleParameterReadFacet {
+  getEditRevision?(name: string): number
   getAuthored(name: string): Cinema2JsonValue | undefined
   resolve(name: string): Cinema2ResolvedTargetValue | null
   get(name: string): Cinema2JsonValue | undefined

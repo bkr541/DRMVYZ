@@ -26,6 +26,7 @@ import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeMo
 import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
 import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule'
+import { cinema2NightshiftNativeModuleDefinition } from './Cinema2NightshiftNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -96,6 +97,8 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const nightshiftRegistration = cinema2NativeModuleRegistry.register(cinema2NightshiftNativeModuleDefinition)
+if (!nightshiftRegistration.ok) throw new Error('Cinema 2.0 NIGHTSHIFT module registration failed.')
 const blockshiftRegistration = cinema2NativeModuleRegistry.register(cinema2BlockshiftNativeModuleDefinition)
 if (!blockshiftRegistration.ok) {
   throw new Error(`Cinema 2.0 BLOCKSHIFT native module registration failed: ${blockshiftRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

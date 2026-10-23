@@ -292,6 +292,10 @@ function createParameterFacet(
   resolver: Cinema2FinalValueResolver,
 ): Cinema2ModuleParameterReadFacet {
   return Object.freeze({
+    getEditRevision(name: string): number {
+      const target = targetsByProperty.get(name)
+      return target ? resolver.getEditRevision(target.id) : 0
+    },
     getAuthored(name: string): Cinema2JsonValue | undefined {
       return cloneJson(module.parameters?.[name])
     },

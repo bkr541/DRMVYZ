@@ -100,6 +100,20 @@
       "origin": "Owner-supplied DVYDRM Marquee high-fidelity reconstruction v2 (docs/Marquee/Marquee_Reconstruction_v2), rebuilt by scripts/cinema2-assets/build-marquee-runtime.mjs with marked runtime deltas (stronger crown, black tower panels, larger LED cells, one continuous forecourt slab) and capped embedded texture sizes. Node names, fixture counts and the three marquee.<face>.TEXT_SURFACE meshes are preserved. The previous blockout runtime model is kept at docs/Marquee/DVYDRM_Cinema2_Theater_runtime_blockout_rollback.glb."
     },
     {
+      "id": "cinema2-nightshift-room",
+      "kind": "environment",
+      "license": "generated-in-house",
+      "attribution": null,
+      "origin": "scripts/cinema2-assets/build-nightshift-runtime.mjs: 512x256 Radiance RGBE authored dark club reflection environment, colored hard panels and a luminous tiled lower hemisphere. Static Step 1 IBL; not the visible scene background."
+    },
+    {
+      "id": "cinema2-nightshift-static",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Derived from Pretty simple discoball by pan.stasian (https://sketchfab.com/3d-models/pretty-simple-discoball-6b1921865be14de982f9483040acaa2d) and Animated Dance Floor neon lights by WwWuengy (https://sketchfab.com/3d-models/animated-dance-floor-neon-lights-440e71d520d94dccbb397a8a7df9bb47), licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: ball re-materialed, floor chassis flattened/rescaled, invalid source animation clips omitted, addressable floor inserts and overhead frame added.",
+      "origin": "scripts/cinema2-assets/build-nightshift-runtime.mjs. Static Step 1 review asset; ball geometry and floor chassis derived from owner-supplied source GLBs in docs/NIGHTSHIFT. No baked musical animation."
+    },
+    {
       "id": "cinema2-reference-torus-knot",
       "kind": "model",
       "license": "generated-in-house",
