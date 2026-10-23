@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LyricCue } from '../../../types/lyrics'
 import { calculateLyricCueProgress, LyricPreviewPanel } from './LyricPreviewPanel'
+import { validateLyricCues } from '../utils/lyricValidation'
 
 const cue: LyricCue = {
   id: 'cue-1',
@@ -38,7 +39,12 @@ describe('LyricPreviewPanel', () => {
     ))
 
     const issueButton = [...container.querySelectorAll<HTMLButtonElement>('.lmv-notice-issue-btn')]
-      .find(button => button.textContent?.includes('word 1'))
+      .find(button => button.getAttribute('aria-label')?.includes('word 1'))
+    const errors = validateLyricCues([cue]).issues.filter(issue => issue.severity === 'error')
+    const cards = [...container.querySelectorAll('.dv-notice[data-tone="error"]')]
+    expect(cards).toHaveLength(errors.length)
+    expect(cards.map(card => card.querySelector('.dv-notice-title')?.textContent)).toEqual(errors.map(issue => issue.message))
+    expect(cards.every(card => card.getAttribute('role') === 'alert')).toBe(true)
     expect(issueButton).toBeTruthy()
     await act(async () => issueButton?.click())
     expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ cueId: 'cue-1', wordId: 'word-1' }))

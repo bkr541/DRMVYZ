@@ -1,6 +1,6 @@
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useState, useCallback, useRef } from 'react'
-import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
+import { DrawerNotice, ErrorNoticeCards } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricCue } from '../../../types/lyrics'
 import { parseLyricDocumentJson, type LyricDocumentImportResult } from '../utils/lyricDocumentImport'
@@ -251,11 +251,7 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
             </div>
           )}
 
-          {result.errors.length > 0 && (
-            <DrawerNotice tone="error" role="alert" title="Import errors">
-              {result.errors.map((e, i) => <div key={i}>{e}</div>)}
-            </DrawerNotice>
-          )}
+          <ErrorNoticeCards errors={result.errors.map((message, index) => ({ id: `import-${index}`, message }))} />
           {result.warnings.length > 0 && (
             <DrawerNotice tone="warning" role="status" title="Import warnings">
               {result.warnings.map((w, i) => <div key={i}>{w}</div>)}

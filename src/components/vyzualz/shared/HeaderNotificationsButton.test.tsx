@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationPageProvider, notify, useNotificationStore } from '../../../stores/notificationStore'
 import type { AppPageId } from '../../../stores/pageActivityStore'
-import { DrawerNotice } from './DrawerNotice'
+import { DrawerNotice, ErrorNoticeCards } from './DrawerNotice'
 import { HeaderNotificationsButton } from './HeaderNotificationsButton'
 
 let container: HTMLElement
@@ -42,6 +42,19 @@ function Page({ page, children }: { page: AppPageId; children: React.ReactNode }
 }
 
 describe('DrawerNotice', () => {
+  it('registers one actionable card per actual error and removes resolved errors', async () => {
+    const errors = [{ id: 'timing', message: 'Cue 1 ends before it starts.' }, { id: 'text', message: 'Cue 2 has no text.' }]
+    const render = (items: typeof errors) => root.render(<Page page="lyric-manager"><ErrorNoticeCards errors={items} /></Page>)
+    await act(async () => render(errors))
+    expect(bell().getAttribute('aria-label')).toBe('Notifications (2)')
+    await act(async () => bell().click())
+    expect(drawerTitles()).toEqual(errors.map(error => error.message))
+    expect(drawer()?.querySelectorAll('[role="alert"]')).toHaveLength(2)
+    await act(async () => render(errors.slice(1)))
+    expect(drawerTitles()).toEqual([errors[1].message])
+    expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
+  })
+
   it('uses a labeled status chip in the React header only', async () => {
     await act(async () => root.render(<Page page="react"><span /></Page>))
     expect(bell().textContent).toContain('Notifications')

@@ -3,7 +3,7 @@ import { useMemo, type CSSProperties, type ReactNode } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
+import { DrawerNotice, ErrorNoticeCards } from '../../../components/vyzualz/shared/DrawerNotice'
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
@@ -133,6 +133,21 @@ function IssueList({
 }) {
   if (!issues.length) return null
   const isError = issues[0]?.severity === 'error'
+  if (isError) return <ErrorNoticeCards errors={issues.map(issue => ({
+    id: issue.id,
+    message: issue.message,
+    detail: issue.cueId && onNavigate ? (
+      <button
+        type="button"
+        className="lmv-notice-issue-btn"
+        onClick={() => onNavigate(issue)}
+        aria-label={`Error: ${issue.message}. Open affected lyric timing.`}
+      >
+        <span>Open affected lyric timing</span>
+        <em>Open</em>
+      </button>
+    ) : undefined,
+  }))} />
   return (
     <DrawerNotice
       tone={isError ? 'error' : 'warning'}

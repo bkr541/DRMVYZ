@@ -81,8 +81,8 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
-  --rv-left-width: 330px;
-  --rv-right-width: 330px;
+  --rv-left-width: 354px;
+  --rv-right-width: 354px;
   --rv-collapsed-width: 32px;
   --rv-rail-inline-padding: 12px;
   display: grid;
@@ -98,11 +98,12 @@
 .rv-layout[data-left-collapsed='true']  { --rv-left-width:  var(--rv-collapsed-width); }
 .rv-layout[data-right-collapsed='true'] { --rv-right-width: var(--rv-collapsed-width); }
 
-/* Dock sits below the grid; set column widths to align with rv-layout panels */
+/* Keep expanded rail and dock widths paired (both widened by 24px). The dock
+   separator centers must match the left rail right edge and right rail left edge. */
 /* --vz-sidebar-width is inherited from .az-root, where the sidebar publishes its live width. */
 .rv-shell > .az-dock {
-  --vz-left-width: 330px;
-  --vz-right-width: 330px;
+  --vz-left-width: 354px;
+  --vz-right-width: 354px;
   --vz-dock-inline-pad: 6px;
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
@@ -3756,11 +3757,11 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 /* ── Responsive: collapse rails below narrow viewport ────────────────────────── */
 @media (max-width: 900px) {
   .rv-layout {
-    --rv-left-width: 180px;
+    --rv-left-width: 204px;
     --rv-right-width: 0px;
   }
   .rv-shell > .az-dock {
-    --vz-left-width: 180px;
+    --vz-left-width: 204px;
     --vz-right-width: 0px;
   }
 }
@@ -4937,13 +4938,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── React engine browser + contextual workspace (layout coherence pass) ───── */
 .rv-layout {
-  --rv-left-width: 330px;
-  --rv-right-width: 330px;
+  --rv-left-width: 354px;
+  --rv-right-width: 354px;
 }
 
 .rv-shell > .az-dock {
-  --vz-left-width: 330px;
-  --vz-right-width: 330px;
+  --vz-left-width: 354px;
+  --vz-right-width: 354px;
 }
 
 .rv-layout > .vz-inspector > .vz-inspector-inner {
@@ -5548,13 +5549,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 @media (max-width: 1180px) {
   .rv-layout {
-    --rv-left-width: 300px;
-    --rv-right-width: 300px;
+    --rv-left-width: 324px;
+    --rv-right-width: 324px;
   }
 
   .rv-shell > .az-dock {
-    --vz-left-width: 300px;
-    --vz-right-width: 300px;
+    --vz-left-width: 324px;
+    --vz-right-width: 324px;
   }
 
   .rv-left-workspace-shell {
@@ -5564,12 +5565,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 @media (max-width: 900px) {
   .rv-layout {
-    --rv-left-width: 270px;
+    --rv-left-width: 294px;
     --rv-right-width: 0px;
   }
 
   .rv-shell > .az-dock {
-    --vz-left-width: 270px;
+    --vz-left-width: 294px;
     --vz-right-width: 0px;
   }
 

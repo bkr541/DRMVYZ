@@ -18,7 +18,7 @@ export interface NoticeCardProps {
   onDismiss?: () => void
   dismissLabel?: string
   className?: string
-  children: ReactNode
+  children?: ReactNode
 }
 
 function NoticeCardIcon() {
@@ -46,7 +46,7 @@ export function NoticeCard({
           </button>
         )}
       </div>
-      <div className="dv-notice-body">{children}</div>
+      {children != null && <div className="dv-notice-body">{children}</div>}
     </div>
   )
 }

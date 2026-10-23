@@ -769,10 +769,6 @@ export function AiLyricExtractor({
 
   return (
     <div className="lmv-workflow-content lmv-ai-extract">
-      <DrawerNotice className="lmv-ai-notice" tone="info" role="status" title="Private transcription processing">
-        Groq credentials stay server-side. For oversized tracks, DRMVYZ creates private transcription-ready audio in your browser before the server sends safe chunks.
-      </DrawerNotice>
-
       <div className="lmv-section-label lmv-section-label--first">STORED TRACK</div>
       <div className="lmv-ai-track-card">
         <div>

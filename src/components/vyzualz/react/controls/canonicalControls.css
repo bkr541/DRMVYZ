@@ -454,6 +454,8 @@
 }
 
 .dv-notice-dismiss {
+  opacity: 0;
+  pointer-events: none;
   flex: 0 0 auto;
   margin-left: auto;
   border: 0;
@@ -464,7 +466,13 @@
   cursor: pointer;
   padding: 2px 5px;
   border-radius: 3px;
-  transition: color 120ms ease, background 120ms ease;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.dv-notice:hover .dv-notice-dismiss,
+.dv-notice-dismiss:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .dv-notice-dismiss:hover {

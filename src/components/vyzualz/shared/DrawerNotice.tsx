@@ -1,9 +1,21 @@
-import { useEffect, useId, type SyntheticEvent } from 'react'
+import { useEffect, useId, type ReactNode, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { NoticeCard, type NoticeCardProps } from '../react/controls/NoticeCard'
 import { useNotificationPage, useNotificationStore } from '../../../stores/notificationStore'
 
 const stop = (event: SyntheticEvent) => event.stopPropagation()
+
+/** One actual error per card, both inline and in a page's Notifications drawer.
+ * Keep structured errors separate rather than joining or truncating messages. */
+export function ErrorNoticeCards({ errors }: {
+  errors: readonly { id: string; message: string; detail?: ReactNode }[]
+}) {
+  return <>{errors.map(error => (
+    <DrawerNotice key={error.id} tone="error" role="alert" title={error.message} ariaLabel={`Error: ${error.message}`}>
+      {error.detail}
+    </DrawerNotice>
+  ))}</>
+}
 
 /**
  * Drop-in replacement for <NoticeCard> wherever a page shows a notification: instead of drawing the card in place, it
