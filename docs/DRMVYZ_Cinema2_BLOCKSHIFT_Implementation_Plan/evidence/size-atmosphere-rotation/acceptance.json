@@ -1,0 +1,2493 @@
+{
+  "modelResponses": [
+    {
+      "url": "http://127.0.0.1:47981/cinema2/models/blockshift-hallow-cube.glb",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:47981/cinema2/models/blockshift-impossible-cube.glb",
+      "status": 200
+    }
+  ],
+  "models": {
+    "outer": "Hallow Cube ×14",
+    "center": "Impossible Cube ×1",
+    "batches": 4
+  },
+  "sizing": null,
+  "phase": "Larger cubes, Threshold-style atmosphere and varied cube rotation",
+  "catalog": "normal first-party catalog, reference preview",
+  "controls": null,
+  "cameraControls": {
+    "fovMinMaxChangedPixels": 738602,
+    "conditionalControls": true,
+    "saved": {
+      "amount": 0.8,
+      "speed": 1.2,
+      "fov": 85
+    }
+  },
+  "refinement": {
+    "result": "PASS",
+    "sizes": [
+      {
+        "size": 1.35,
+        "worldSize": 8.100000381469727,
+        "nearPosition": [
+          -16.200000762939453,
+          9.600000381469727,
+          -15.05465030670166
+        ],
+        "apparentRatio": 0.3359745244362604
+      },
+      {
+        "size": 3,
+        "worldSize": 18,
+        "nearPosition": [
+          -16.200000762939453,
+          9.600000381469727,
+          -15.05465030670166
+        ],
+        "apparentRatio": 0.7466100191411812
+      },
+      {
+        "size": 6,
+        "worldSize": 36,
+        "nearPosition": [
+          -25.77669334411621,
+          15.275077819824219,
+          -23.954265594482422
+        ],
+        "apparentRatio": 0.9384510625580883
+      }
+    ],
+    "atmosphere": {
+      "changedBackground": 368206,
+      "changedColoredBackground": 366831,
+      "depthAware": true,
+      "masterZeroHonored": true,
+      "disabledRestoresExactPixels": true
+    },
+    "rotation": {
+      "all15Move": true,
+      "variedAxesAndDirections": true,
+      "offHoldsOrientation": true,
+      "pausedAndMasterZeroHeld": true,
+      "sourceReset": true
+    },
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 440,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 6.5,
+          "cpuFrameTimeAverageMs": 3.6876051551775806,
+          "gpuFrameTimeMs": 5.820708,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 6.5,
+          "cpuFrameTimeAverageMs": 3.6876051551775806,
+          "gpuFrameTimeMs": 5.820708,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1280,
+            "height": 720,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 7,
+          "reusedAllocationCount": 876,
+          "destroyedAllocationCount": 4,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 20275200,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 440,
+          "executedPassCount": 1320,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 2,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "active",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "errors": [],
+    "fixture": "Real production module/GLBs, shared Threshold volumetric effect, synthetic upstream AudioFeatureBus profiles and existing beat clock; no private renderer or timer"
+  },
+  "leds": null,
+  "polish": null,
+  "performance": null,
+  "orbit": null,
+  "motion": null,
+  "timing": null,
+  "presetId": "drmvyz.cinema2.blockshift",
+  "app": "VyzualzView / AudioEngineProvider / real preset chooser",
+  "qualityMode": "quality (fixed P2 full-resolution baseline)",
+  "effects": [
+    "volumetric-atmosphere",
+    "hdr-bloom"
+  ],
+  "audio": "no source",
+  "motionCapture": "static",
+  "browser": "149.0.7827.55",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "rendering": "headless Chromium ANGLE Metal; renderer verified in focused capture",
+  "captures": [
+    {
+      "label": "16x9",
+      "width": 1920,
+      "height": 1080,
+      "filename": "idle-bloom-off-16x9.png",
+      "objects": [
+        {
+          "xMin": -249,
+          "xMax": 631,
+          "yMin": -304,
+          "yMax": 399,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 21597
+        },
+        {
+          "xMin": 1089,
+          "xMax": 1534,
+          "yMin": 117,
+          "yMax": 504,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 11963
+        },
+        {
+          "xMin": 587,
+          "xMax": 889,
+          "yMin": 490,
+          "yMax": 758,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6023
+        },
+        {
+          "xMin": 1272,
+          "xMax": 2007,
+          "yMin": 659,
+          "yMax": 1237,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 20127
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 39,
+          "xMax": 507,
+          "yMin": 385,
+          "yMax": 650,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 8406
+        },
+        {
+          "xMin": 1372,
+          "xMax": 1751,
+          "yMin": 448,
+          "yMax": 671,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6514
+        },
+        {
+          "xMin": 889,
+          "xMax": 1138,
+          "yMin": -216,
+          "yMax": 184,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 4303
+        },
+        {
+          "xMin": 766,
+          "xMax": 1060,
+          "yMin": 989,
+          "yMax": 1511,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 647
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 888,
+          "xMax": 1045,
+          "yMin": 439,
+          "yMax": 596,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 358
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 298,
+          "yMin": 0,
+          "xMax": 331,
+          "yMax": 227,
+          "edgePixels": 7313
+        },
+        {
+          "xMin": 468,
+          "yMin": 0,
+          "xMax": 560,
+          "yMax": 99,
+          "edgePixels": 362
+        },
+        {
+          "xMin": 916,
+          "yMin": 24,
+          "xMax": 1106,
+          "yMax": 151,
+          "edgePixels": 3905
+        },
+        {
+          "xMin": 1188,
+          "yMin": 177,
+          "xMax": 1458,
+          "yMax": 443,
+          "edgePixels": 4883
+        },
+        {
+          "xMin": 1122,
+          "yMin": 209,
+          "xMax": 1173,
+          "yMax": 285,
+          "edgePixels": 163
+        },
+        {
+          "xMin": 0,
+          "yMin": 223,
+          "xMax": 579,
+          "yMax": 359,
+          "edgePixels": 12117
+        },
+        {
+          "xMin": 385,
+          "yMin": 252,
+          "xMax": 533,
+          "yMax": 324,
+          "edgePixels": 165
+        },
+        {
+          "xMin": 359,
+          "yMin": 272,
+          "xMax": 546,
+          "yMax": 351,
+          "edgePixels": 522
+        },
+        {
+          "xMin": 537,
+          "yMin": 326,
+          "xMax": 561,
+          "yMax": 338,
+          "edgePixels": 25
+        },
+        {
+          "xMin": 111,
+          "yMin": 415,
+          "xMax": 303,
+          "yMax": 612,
+          "edgePixels": 4217
+        },
+        {
+          "xMin": 297,
+          "yMin": 415,
+          "xMax": 468,
+          "yMax": 450,
+          "edgePixels": 1289
+        },
+        {
+          "xMin": 1117,
+          "yMin": 444,
+          "xMax": 1458,
+          "yMax": 479,
+          "edgePixels": 3987
+        },
+        {
+          "xMin": 905,
+          "yMin": 454,
+          "xMax": 937,
+          "yMax": 508,
+          "edgePixels": 100
+        },
+        {
+          "xMin": 1134,
+          "yMin": 462,
+          "xMax": 1191,
+          "yMax": 478,
+          "edgePixels": 98
+        },
+        {
+          "xMin": 1404,
+          "yMin": 471,
+          "xMax": 1695,
+          "yMax": 644,
+          "edgePixels": 4477
+        },
+        {
+          "xMin": 1403,
+          "yMin": 472,
+          "xMax": 1523,
+          "yMax": 492,
+          "edgePixels": 803
+        },
+        {
+          "xMin": 632,
+          "yMin": 516,
+          "xMax": 863,
+          "yMax": 722,
+          "edgePixels": 5623
+        },
+        {
+          "xMin": 905,
+          "yMin": 527,
+          "xMax": 923,
+          "yMax": 538,
+          "edgePixels": 30
+        },
+        {
+          "xMin": 113,
+          "yMin": 594,
+          "xMax": 470,
+          "yMax": 620,
+          "edgePixels": 2208
+        },
+        {
+          "xMin": 1317,
+          "yMin": 693,
+          "xMax": 1539,
+          "yMax": 793,
+          "edgePixels": 3332
+        },
+        {
+          "xMin": 1346,
+          "yMin": 699,
+          "xMax": 1504,
+          "yMax": 761,
+          "edgePixels": 237
+        },
+        {
+          "xMin": 1333,
+          "yMin": 712,
+          "xMax": 1485,
+          "yMax": 784,
+          "edgePixels": 765
+        },
+        {
+          "xMin": 1527,
+          "yMin": 776,
+          "xMax": 1871,
+          "yMax": 1079,
+          "edgePixels": 13910
+        },
+        {
+          "xMin": 1002,
+          "yMin": 1028,
+          "xMax": 1014,
+          "yMax": 1079,
+          "edgePixels": 346
+        },
+        {
+          "xMin": 833,
+          "yMin": 1032,
+          "xMax": 847,
+          "yMax": 1079,
+          "edgePixels": 291
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 14,
+          "createTexture": 19,
+          "getError": 253,
+          "uniformMatrix4fv": 120,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 316,
+          "deleteTexture": 8,
+          "deleteFramebuffer": 4
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          0.6138227581977844,
+          -0.00015168955724220723,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          0.000037500340113183483,
+          1.0912818908691406,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.0068555427715182304,
+          -0.007612388581037521,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.0034384997561573982,
+          -0.07101830840110779,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    },
+    {
+      "label": "1x1",
+      "width": 1080,
+      "height": 1080,
+      "filename": "idle-bloom-off-1x1.png",
+      "objects": [
+        {
+          "xMin": -669,
+          "xMax": 211,
+          "yMin": -304,
+          "yMax": 399,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3464
+        },
+        {
+          "xMin": 669,
+          "xMax": 1114,
+          "yMin": 117,
+          "yMax": 504,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 11407
+        },
+        {
+          "xMin": 167,
+          "xMax": 469,
+          "yMin": 490,
+          "yMax": 758,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6023
+        },
+        {
+          "xMin": 852,
+          "xMax": 1587,
+          "yMin": 659,
+          "yMax": 1237,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3781
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": -381,
+          "xMax": 87,
+          "yMin": 385,
+          "yMax": 650,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 611
+        },
+        {
+          "xMin": 952,
+          "xMax": 1331,
+          "yMin": 448,
+          "yMax": 671,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 1875
+        },
+        {
+          "xMin": 469,
+          "xMax": 718,
+          "yMin": -216,
+          "yMax": 184,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 4303
+        },
+        {
+          "xMin": 346,
+          "xMax": 640,
+          "yMin": 989,
+          "yMax": 1511,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 647
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 468,
+          "xMax": 625,
+          "yMin": 439,
+          "yMax": 596,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 358
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 48,
+          "yMin": 0,
+          "xMax": 140,
+          "yMax": 99,
+          "edgePixels": 362
+        },
+        {
+          "xMin": 496,
+          "yMin": 24,
+          "xMax": 686,
+          "yMax": 151,
+          "edgePixels": 3905
+        },
+        {
+          "xMin": 768,
+          "yMin": 177,
+          "xMax": 1038,
+          "yMax": 443,
+          "edgePixels": 4883
+        },
+        {
+          "xMin": 702,
+          "yMin": 209,
+          "xMax": 753,
+          "yMax": 285,
+          "edgePixels": 163
+        },
+        {
+          "xMin": 0,
+          "yMin": 269,
+          "xMax": 113,
+          "yMax": 324,
+          "edgePixels": 121
+        },
+        {
+          "xMin": 0,
+          "yMin": 273,
+          "xMax": 159,
+          "yMax": 359,
+          "edgePixels": 2564
+        },
+        {
+          "xMin": 0,
+          "yMin": 296,
+          "xMax": 126,
+          "yMax": 351,
+          "edgePixels": 337
+        },
+        {
+          "xMin": 117,
+          "yMin": 326,
+          "xMax": 141,
+          "yMax": 338,
+          "edgePixels": 25
+        },
+        {
+          "xMin": 0,
+          "yMin": 437,
+          "xMax": 48,
+          "yMax": 450,
+          "edgePixels": 334
+        },
+        {
+          "xMin": 697,
+          "yMin": 444,
+          "xMax": 1038,
+          "yMax": 479,
+          "edgePixels": 3987
+        },
+        {
+          "xMin": 485,
+          "yMin": 454,
+          "xMax": 517,
+          "yMax": 508,
+          "edgePixels": 100
+        },
+        {
+          "xMin": 714,
+          "yMin": 462,
+          "xMax": 771,
+          "yMax": 478,
+          "edgePixels": 98
+        },
+        {
+          "xMin": 983,
+          "yMin": 475,
+          "xMax": 1079,
+          "yMax": 492,
+          "edgePixels": 684
+        },
+        {
+          "xMin": 212,
+          "yMin": 516,
+          "xMax": 443,
+          "yMax": 722,
+          "edgePixels": 5623
+        },
+        {
+          "xMin": 485,
+          "yMin": 527,
+          "xMax": 503,
+          "yMax": 538,
+          "edgePixels": 30
+        },
+        {
+          "xMin": 0,
+          "yMin": 594,
+          "xMax": 50,
+          "yMax": 605,
+          "edgePixels": 265
+        },
+        {
+          "xMin": 984,
+          "yMin": 617,
+          "xMax": 1079,
+          "yMax": 639,
+          "edgePixels": 451
+        },
+        {
+          "xMin": 897,
+          "yMin": 693,
+          "xMax": 1079,
+          "yMax": 781,
+          "edgePixels": 2717
+        },
+        {
+          "xMin": 926,
+          "yMin": 699,
+          "xMax": 1079,
+          "yMax": 760,
+          "edgePixels": 230
+        },
+        {
+          "xMin": 913,
+          "yMin": 712,
+          "xMax": 1065,
+          "yMax": 784,
+          "edgePixels": 765
+        },
+        {
+          "xMin": 582,
+          "yMin": 1028,
+          "xMax": 594,
+          "yMax": 1079,
+          "edgePixels": 346
+        },
+        {
+          "xMin": 413,
+          "yMin": 1032,
+          "xMax": 427,
+          "yMax": 1079,
+          "edgePixels": 291
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 16,
+          "createTexture": 22,
+          "getError": 325,
+          "uniformMatrix4fv": 155,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 456,
+          "deleteTexture": 11,
+          "deleteFramebuffer": 6
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          1.091240406036377,
+          -0.00015168955724220723,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          0.00006666727131232619,
+          1.0912818908691406,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.01218763180077076,
+          -0.007612388581037521,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.00611288845539093,
+          -0.07101830840110779,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    },
+    {
+      "label": "9x16",
+      "width": 1080,
+      "height": 1920,
+      "filename": "idle-bloom-off-9x16.png",
+      "objects": [
+        {
+          "xMin": -803,
+          "xMax": 175,
+          "yMin": 22,
+          "yMax": 803,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 2744
+        },
+        {
+          "xMin": 684,
+          "xMax": 1178,
+          "yMin": 490,
+          "yMax": 920,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 12326
+        },
+        {
+          "xMin": 126,
+          "xMax": 461,
+          "yMin": 905,
+          "yMax": 1202,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 7473
+        },
+        {
+          "xMin": 887,
+          "xMax": 1704,
+          "yMin": 1092,
+          "yMax": 1735,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3108
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": -483,
+          "xMax": 37,
+          "yMin": 788,
+          "yMax": 1082,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 998,
+          "xMax": 1419,
+          "yMin": 858,
+          "yMax": 1106,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 1305
+        },
+        {
+          "xMin": 461,
+          "xMax": 737,
+          "yMin": 120,
+          "yMax": 565,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 8150
+        },
+        {
+          "xMin": 324,
+          "xMax": 651,
+          "yMin": 1459,
+          "yMax": 2038,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 12156
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 460,
+          "xMax": 635,
+          "yMin": 848,
+          "yMax": 1022,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 513
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 491,
+          "yMin": 187,
+          "xMax": 497,
+          "yMax": 390,
+          "edgePixels": 1386
+        },
+        {
+          "xMin": 698,
+          "yMin": 189,
+          "xMax": 704,
+          "yMax": 391,
+          "edgePixels": 1190
+        },
+        {
+          "xMin": 0,
+          "yMin": 364,
+          "xMax": 96,
+          "yMax": 470,
+          "edgePixels": 420
+        },
+        {
+          "xMin": 491,
+          "yMin": 387,
+          "xMax": 703,
+          "yMax": 528,
+          "edgePixels": 4673
+        },
+        {
+          "xMin": 502,
+          "yMin": 424,
+          "xMax": 508,
+          "yMax": 517,
+          "edgePixels": 157
+        },
+        {
+          "xMin": 793,
+          "yMin": 557,
+          "xMax": 1079,
+          "yMax": 852,
+          "edgePixels": 5982
+        },
+        {
+          "xMin": 720,
+          "yMin": 592,
+          "xMax": 777,
+          "yMax": 677,
+          "edgePixels": 202
+        },
+        {
+          "xMin": 0,
+          "yMin": 688,
+          "xMax": 97,
+          "yMax": 735,
+          "edgePixels": 108
+        },
+        {
+          "xMin": 0,
+          "yMin": 693,
+          "xMax": 117,
+          "yMax": 759,
+          "edgePixels": 1950
+        },
+        {
+          "xMin": 0,
+          "yMin": 715,
+          "xMax": 81,
+          "yMax": 751,
+          "edgePixels": 228
+        },
+        {
+          "xMin": 713,
+          "yMin": 853,
+          "xMax": 1079,
+          "yMax": 892,
+          "edgePixels": 4804
+        },
+        {
+          "xMin": 733,
+          "yMin": 873,
+          "xMax": 797,
+          "yMax": 891,
+          "edgePixels": 123
+        },
+        {
+          "xMin": 600,
+          "yMin": 885,
+          "xMax": 619,
+          "yMax": 925,
+          "edgePixels": 60
+        },
+        {
+          "xMin": 1033,
+          "yMin": 895,
+          "xMax": 1079,
+          "yMax": 906,
+          "edgePixels": 328
+        },
+        {
+          "xMin": 176,
+          "yMin": 933,
+          "xMax": 408,
+          "yMax": 1163,
+          "edgePixels": 6648
+        },
+        {
+          "xMin": 401,
+          "yMin": 934,
+          "xMax": 432,
+          "yMax": 944,
+          "edgePixels": 162
+        },
+        {
+          "xMin": 554,
+          "yMin": 947,
+          "xMax": 597,
+          "yMax": 997,
+          "edgePixels": 94
+        },
+        {
+          "xMin": 559,
+          "yMin": 985,
+          "xMax": 566,
+          "yMax": 1005,
+          "edgePixels": 27
+        },
+        {
+          "xMin": 499,
+          "yMin": 986,
+          "xMax": 539,
+          "yMax": 1005,
+          "edgePixels": 60
+        },
+        {
+          "xMin": 1032,
+          "yMin": 1045,
+          "xMax": 1079,
+          "yMax": 1058,
+          "edgePixels": 228
+        },
+        {
+          "xMin": 936,
+          "yMin": 1130,
+          "xMax": 1079,
+          "yMax": 1202,
+          "edgePixels": 2207
+        },
+        {
+          "xMin": 969,
+          "yMin": 1137,
+          "xMax": 1079,
+          "yMax": 1181,
+          "edgePixels": 173
+        },
+        {
+          "xMin": 954,
+          "yMin": 1151,
+          "xMax": 1079,
+          "yMax": 1211,
+          "edgePixels": 672
+        },
+        {
+          "xMin": 587,
+          "yMin": 1502,
+          "xMax": 619,
+          "yMax": 1698,
+          "edgePixels": 1344
+        },
+        {
+          "xMin": 369,
+          "yMin": 1507,
+          "xMax": 414,
+          "yMax": 1707,
+          "edgePixels": 1548
+        },
+        {
+          "xMin": 587,
+          "yMin": 1519,
+          "xMax": 604,
+          "yMax": 1657,
+          "edgePixels": 270
+        },
+        {
+          "xMin": 369,
+          "yMin": 1693,
+          "xMax": 619,
+          "yMax": 1919,
+          "edgePixels": 8099
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 18,
+          "createTexture": 25,
+          "getError": 397,
+          "uniformMatrix4fv": 190,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 596,
+          "deleteTexture": 14,
+          "deleteFramebuffer": 8
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          1.212489366531372,
+          -0.00009480596781941131,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          0.00007407474186038598,
+          0.6820512413978577,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.013541813008487225,
+          -0.004757742863148451,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.0067920982837677,
+          -0.04438644275069237,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    }
+  ],
+  "lifecycle": [
+    {
+      "connected": true,
+      "productionCanvas": true,
+      "methods": {
+        "createShader": 34,
+        "createProgram": 17,
+        "deleteShader": 34,
+        "deleteProgram": 12,
+        "createFramebuffer": 55,
+        "createTexture": 78,
+        "getError": 647,
+        "uniformMatrix4fv": 288,
+        "createBuffer": 24,
+        "bufferData": 24,
+        "createVertexArray": 8,
+        "drawElementsInstanced": 988,
+        "deleteTexture": 75,
+        "deleteFramebuffer": 53,
+        "deleteVertexArray": 4,
+        "deleteBuffer": 12
+      },
+      "draws": [
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ]
+      ],
+      "errors": [],
+      "instances": {
+        "12": [
+          0,
+          1.2000000476837158,
+          -41.68980026245117,
+          8.100000381469727,
+          1,
+          0.9450980424880981,
+          0.8392156958580017,
+          1,
+          0,
+          0.03631029278039932,
+          0,
+          4
+        ],
+        "168": [
+          -16.200000762939453,
+          9.600000381469727,
+          -15.05465030670166,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          10.199999809265137,
+          6.314647674560547,
+          -20.873857498168945,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.0303530003875494,
+          0,
+          1,
+          -9,
+          -3.163264513015747,
+          -26.364887237548828,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.050102826207876205,
+          0,
+          2,
+          16.200000762939453,
+          -9.34598445892334,
+          -17.113019943237305,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.05235029011964798,
+          0,
+          3,
+          -12.600000381469727,
+          9.073936462402344,
+          18.986764907836914,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.007586067076772451,
+          0,
+          5,
+          12.600000381469727,
+          10.297052383422852,
+          13.781229972839355,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          -0.023788191378116608,
+          0,
+          6,
+          -12.600000381469727,
+          -9.617424011230469,
+          14.06519889831543,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.04685255140066147,
+          0,
+          7,
+          12.600000381469727,
+          -9.019155502319336,
+          19.19755744934082,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.05354996398091316,
+          0,
+          8,
+          -29.399999618530273,
+          0.7418133020401001,
+          -26.41486358642578,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          -0.04154083505272865,
+          0,
+          9,
+          29.399999618530273,
+          -0.979237973690033,
+          -31.13323974609375,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.015020298771560192,
+          0,
+          10,
+          1.7999999523162842,
+          24.600017547607422,
+          -28.31084442138672,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.016747262328863144,
+          0,
+          11,
+          -1.7999999523162842,
+          -27.36583137512207,
+          -24.31976890563965,
+          8.100000381469727,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.04266452044248581,
+          0,
+          12,
+          -29.399999618530273,
+          0.756300687789917,
+          25.099679946899414,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.053677838295698166,
+          0,
+          13,
+          29.399999618530273,
+          1.7830932140350342,
+          22.100927352905273,
+          8.100000381469727,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.045939940959215164,
+          0,
+          14
+        ]
+      },
+      "matrix": [
+        0.986845076084137,
+        -0.00024112194660119712,
+        -0.0149499187245965,
+        -0.014942801557481289,
+        0.0000803883231128566,
+        1.0912609100341797,
+        -0.009339790791273117,
+        -0.009335344657301903,
+        -0.014749269001185894,
+        -0.010185275226831436,
+        -1.0003210306167603,
+        -0.9998447895050049,
+        0.006795945577323437,
+        -0.09508568048477173,
+        -0.5532315969467163,
+        -0.15306344628334045
+      ]
+    }
+  ],
+  "errors": [],
+  "result": "PASS"
+}

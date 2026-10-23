@@ -57,10 +57,10 @@ let host: HTMLDivElement | null = null
 let nextRafId = 1
 let rafCallbacks = new Map<number, FrameRequestCallback>()
 
-type LiveCanvasEngineId = Exclude<ReactEngineId, 'shaderPads' | 'canvas' | 'pixGrid' | 'cinema' | 'cinema2' | 'headliner'>
+type LiveCanvasEngineId = Extract<ReactEngineId, 'cinematicPortal' | 'oscilloscope' | 'laserDmx'>
 
-const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is LiveCanvasEngineId => (
-  engine !== 'shaderPads' && engine !== 'canvas' && engine !== 'pixGrid' && engine !== 'cinema' && engine !== 'cinema2' && engine !== 'headliner'
+const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is Extract<typeof REACT_ENGINE_IDS[number], LiveCanvasEngineId> => (
+  engine !== 'canvas' && engine !== 'pixGrid' && engine !== 'cinema2' && engine !== 'headliner'
 ))
 
 function findPreset(engine: LiveCanvasEngineId): ReactPreset {

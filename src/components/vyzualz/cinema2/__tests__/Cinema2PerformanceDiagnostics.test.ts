@@ -76,6 +76,30 @@ describe('Cinema2 performance quality and diagnostics', () => {
     telemetry.dispose()
   })
 
+  it('retains delayed GPU queries until completion instead of discarding them each frame', () => {
+    const gl = createCinemaMockWebGL()
+    const extension = { TIME_ELAPSED_EXT: 0x88bf, GPU_DISJOINT_EXT: 0x8fbb }
+    let available = false
+    Object.assign(gl, {
+      QUERY_RESULT_AVAILABLE: 0x8867, QUERY_RESULT: 0x8866,
+      getExtension: vi.fn(() => extension), getParameter: vi.fn(() => false),
+      createQuery: vi.fn(() => ({})), beginQuery: vi.fn(), endQuery: vi.fn(), deleteQuery: vi.fn(),
+      getQueryParameter: vi.fn((_query, parameter) => parameter === 0x8867 ? available : 8_000_000),
+    })
+    const telemetry = new Cinema2PerformanceDiagnostics(gl, 'quality')
+    telemetry.beginGpuFrame(); telemetry.endGpuFrame()
+    for (let frame = 0; frame < 4; frame++) { telemetry.beginGpuFrame(); telemetry.endGpuFrame() }
+    expect(gl.createQuery).toHaveBeenCalledTimes(1)
+    expect(gl.deleteQuery).not.toHaveBeenCalled()
+    available = true
+    expect(telemetry.getSnapshot().gpuFrameTimeMs).toBe(8)
+    expect(gl.deleteQuery).toHaveBeenCalledTimes(1)
+    telemetry.beginGpuFrame(); telemetry.endGpuFrame()
+    expect(gl.createQuery).toHaveBeenCalledTimes(2)
+    telemetry.dispose()
+    expect(gl.deleteQuery).toHaveBeenCalledTimes(2)
+  })
+
   it('exposes one shared engine-level quality control across every reference preset', () => {
     const presetIds = [
       CINEMA2_REFERENCE_VISUAL_PRESET_ID,

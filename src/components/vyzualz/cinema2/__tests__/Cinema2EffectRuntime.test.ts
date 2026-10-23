@@ -35,7 +35,7 @@ const UNKNOWN_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('missing-eff
 
 function compileManifest(manifest: Cinema2NativePresetManifest = CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST) {
   const result = compileCinema2NativePreset(manifest, { availableCapabilities: ['render.webgl2', 'audio.features'] })
-  expect(result.ok).toBe(true)
+  expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true)
   if (!result.ok) throw new Error(result.diagnostics.map(diagnostic => diagnostic.message).join('; '))
   return result.plan
 }
@@ -113,6 +113,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
       render: undefined,
+      output: undefined,
       effects: [{
         ...referenceEffect,
         order: -1,
@@ -140,10 +141,12 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
       id: cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reference-visual-unknown-effect'),
       render: undefined,
+      output: undefined,
       effects: [{ ...referenceEffect, typeId: UNKNOWN_EFFECT_TYPE_ID }],
     }
     const registry = new Cinema2PresetRegistry()
-    expect(registry.register(manifest).ok).toBe(true)
+    const registration = registry.register(manifest)
+    expect(registration.ok, JSON.stringify(registration.diagnostics)).toBe(true)
     const canvas = new class extends EventTarget {
       width = 300
       height = 150
@@ -239,7 +242,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
         code: 'CINEMA2_EFFECT_RENDER_FAILED',
         message: expect.stringMatching(/Feedback\/Trails history presentation.*INVALID_FRAMEBUFFER_OPERATION/),
       })],
-    })])
+    }), expect.objectContaining({ effectId: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST.effects!.find(effect => effect.id !== feedback.id)!.id, status: 'inactive' })])
     expect(history.getSnapshot()).toMatchObject({ activeBufferCount: 0, validBufferCount: 0 })
 
     runtime.dispose()
@@ -358,6 +361,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
       render: undefined,
+      output: undefined,
       effects: [
         { ...first, order: 20 },
         {
@@ -382,6 +386,7 @@ describe('Cinema 2.0 effect registry and instance runtime', () => {
     const manifest: Cinema2NativePresetManifest = {
       ...CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST,
       render: undefined,
+      output: undefined,
       effects: [{ ...first, quality: { min: 'high' } }],
     }
     const { gl, runtime } = createRuntime(manifest, 'medium')

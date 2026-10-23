@@ -65,7 +65,7 @@ describe('Cinema 2.0 SAY IT preset', () => {
     expect(CINEMA2_SAY_IT_PRESET_MANIFEST.effects?.map(effect => effect.typeId)).toEqual([
       'feedback-trails', 'depth-of-field', 'hdr-bloom', 'cinematic-finish',
     ])
-    expect(CINEMA2_SAY_IT_PRESET_MANIFEST.render?.targets.every(target => target.descriptor.colorFormat === 'rgba16f')).toBe(true)
+    expect(CINEMA2_SAY_IT_PRESET_MANIFEST.render?.targets?.every(target => target.descriptor.colorFormat === 'rgba16f')).toBe(true)
     expect(CINEMA2_SAY_IT_PRESET_MANIFEST.render?.passes).toHaveLength(5)
   })
 

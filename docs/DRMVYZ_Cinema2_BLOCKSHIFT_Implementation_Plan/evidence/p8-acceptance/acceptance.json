@@ -1,0 +1,4230 @@
+{
+  "modelResponses": [
+    {
+      "url": "http://127.0.0.1:47981/cinema2/models/blockshift-hallow-cube.glb",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:47981/cinema2/models/blockshift-impossible-cube.glb",
+      "status": 200
+    }
+  ],
+  "models": {
+    "outer": "Hallow Cube \u00d714",
+    "center": "Impossible Cube \u00d71",
+    "batches": 4
+  },
+  "sizing": null,
+  "phase": "P8 production browser and regression acceptance; human review pending",
+  "catalog": "normal first-party catalog, reference preview",
+  "controls": {
+    "numericProof": [
+      {
+        "suffix": "block-size",
+        "values": [
+          1.05,
+          1.35,
+          6
+        ],
+        "minMaxChangedPixels": 378639,
+        "note": null
+      },
+      {
+        "suffix": "spread",
+        "values": [
+          0.5,
+          1,
+          3
+        ],
+        "minMaxChangedPixels": 230260,
+        "note": null
+      },
+      {
+        "suffix": "depth",
+        "values": [
+          0,
+          0.45,
+          1
+        ],
+        "minMaxChangedPixels": 271996,
+        "note": null
+      },
+      {
+        "suffix": "rotation-range",
+        "values": [
+          0,
+          16,
+          45
+        ],
+        "minMaxChangedPixels": 57699,
+        "note": null
+      },
+      {
+        "suffix": "master-intensity",
+        "values": [
+          0,
+          1,
+          2
+        ],
+        "minMaxChangedPixels": 172143,
+        "note": null
+      }
+    ],
+    "formations": [
+      "Stack",
+      "Orbit",
+      "Stagger",
+      "Split",
+      "Wave",
+      "Collapse"
+    ],
+    "triggerLabels": [
+      "Beat",
+      "Kick",
+      "Snare",
+      "Downbeat",
+      "Every 2 Beats",
+      "Every 4 Beats",
+      "Bar",
+      "Every 4 Bars",
+      "Every 8 Bars",
+      "Phrase",
+      "Drop"
+    ],
+    "paletteProof": [
+      {
+        "suffix": "primary-edge",
+        "value": "#ff0000",
+        "changedPixels": 20098
+      },
+      {
+        "suffix": "secondary-edge",
+        "value": "#00ff00",
+        "changedPixels": 5308
+      },
+      {
+        "suffix": "impact-accent",
+        "value": "#0080ff",
+        "changedPixels": 40
+      },
+      {
+        "suffix": "block-body",
+        "value": "#8000ff",
+        "changedPixels": 162315
+      },
+      {
+        "suffix": "background",
+        "value": "#444444",
+        "changedPixels": 346257
+      }
+    ],
+    "paletteOverlap": [
+      {
+        "roles": [
+          "primary-edge",
+          "secondary-edge"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "primary-edge",
+          "impact-accent"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "primary-edge",
+          "block-body"
+        ],
+        "sharedPixels": 12090
+      },
+      {
+        "roles": [
+          "primary-edge",
+          "background"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "secondary-edge",
+          "impact-accent"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "secondary-edge",
+          "block-body"
+        ],
+        "sharedPixels": 3515
+      },
+      {
+        "roles": [
+          "secondary-edge",
+          "background"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "impact-accent",
+          "block-body"
+        ],
+        "sharedPixels": 13
+      },
+      {
+        "roles": [
+          "impact-accent",
+          "background"
+        ],
+        "sharedPixels": 0
+      },
+      {
+        "roles": [
+          "block-body",
+          "background"
+        ],
+        "sharedPixels": 0
+      }
+    ],
+    "persisted": {
+      "blockSize": 1.65,
+      "pattern": "Split"
+    }
+  },
+  "cameraControls": {
+    "fovMinMaxChangedPixels": 297679,
+    "conditionalControls": true,
+    "saved": {
+      "amount": 0.8,
+      "speed": 1.2,
+      "fov": 85
+    }
+  },
+  "neighbors": [
+    {
+      "preset": "depth",
+      "chooserActivation": true,
+      "nonblankCanvas": true
+    },
+    {
+      "preset": "backstreet",
+      "chooserActivation": true,
+      "nonblankCanvas": true
+    },
+    {
+      "preset": "afterhours",
+      "chooserActivation": true,
+      "nonblankCanvas": true
+    }
+  ],
+  "acceptance": {
+    "result": "PASS",
+    "filmstrips": [
+      {
+        "pattern": "stack",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-stack-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-stack-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-stack-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-stack-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      },
+      {
+        "pattern": "orbit",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-orbit-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-orbit-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-orbit-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-orbit-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      },
+      {
+        "pattern": "stagger",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-stagger-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-stagger-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-stagger-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-stagger-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      },
+      {
+        "pattern": "split",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-split-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-split-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-split-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-split-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      },
+      {
+        "pattern": "wave",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-wave-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-wave-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-wave-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-wave-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      },
+      {
+        "pattern": "collapse",
+        "phases": [
+          {
+            "normalizedPhase": 0,
+            "file": "filmstrip-collapse-0.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.25,
+            "file": "filmstrip-collapse-25.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.5,
+            "file": "filmstrip-collapse-50.png",
+            "geometryAndPixelsVerified": true
+          },
+          {
+            "normalizedPhase": 0.75,
+            "file": "filmstrip-collapse-75.png",
+            "geometryAndPixelsVerified": true
+          }
+        ]
+      }
+    ],
+    "temporalControls": [
+      {
+        "suffix": "motion-amount",
+        "values": [
+          0,
+          0.55,
+          1
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      },
+      {
+        "suffix": "audio-reactivity",
+        "values": [
+          0,
+          0.8,
+          1
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      },
+      {
+        "suffix": "motion-rate",
+        "values": [
+          0.25,
+          1,
+          2
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      },
+      {
+        "suffix": "camera-float-amount",
+        "values": [
+          0,
+          0.6,
+          1
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      },
+      {
+        "suffix": "camera-float-speed",
+        "values": [
+          0.25,
+          0.7,
+          2
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      },
+      {
+        "suffix": "orbit-intensity",
+        "values": [
+          0,
+          0.35,
+          1
+        ],
+        "equalTimeMinMaxPixelDifference": true
+      }
+    ],
+    "transitionDurations": [
+      "0.5",
+      "1",
+      "2",
+      "4"
+    ],
+    "duplicateEvents": [
+      {
+        "trigger": "beat",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "kick",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "snare",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "downbeat",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "beat2",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "beat4",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "bar",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "bar4",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "bar8",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "phrase",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      },
+      {
+        "trigger": "drop",
+        "repeatedPublicationDoesNotDoubleAdvance": true
+      }
+    ],
+    "manualSelectionAndNextFreshEvent": true,
+    "transport": [
+      {
+        "kind": "seek-forward",
+        "authoredControlsPreserved": true,
+        "nativeAndEffectsHealthy": true
+      },
+      {
+        "kind": "seek-backward",
+        "authoredControlsPreserved": true,
+        "nativeAndEffectsHealthy": true
+      },
+      {
+        "kind": "loop-boundary",
+        "authoredControlsPreserved": true,
+        "nativeAndEffectsHealthy": true
+      },
+      {
+        "kind": "track-swap",
+        "authoredControlsPreserved": true,
+        "nativeAndEffectsHealthy": true
+      }
+    ],
+    "pausedGeometryAndCameraHold": true,
+    "resumeMoves": true,
+    "atmosphereContextRecovery": true,
+    "liveResize": [
+      "square",
+      "portrait",
+      "landscape"
+    ],
+    "humanReview": "PENDING",
+    "errors": [],
+    "fixture": "Production catalog/runtime/GLBs and shared AudioFeatureBus. Explicit synthetic upstream publications and controlled host transport; loop is a backward transport jump, not an audio-player integration claim."
+  },
+  "refinement": {
+    "result": "PASS",
+    "sizes": [
+      {
+        "size": 1.35,
+        "worldSize": 8.100000381469727,
+        "nearPosition": [
+          -16.200000762939453,
+          9.600000381469727,
+          -15.05465030670166
+        ],
+        "apparentRatio": 0.3359745244362604
+      },
+      {
+        "size": 3,
+        "worldSize": 18,
+        "nearPosition": [
+          -16.200000762939453,
+          9.600000381469727,
+          -15.05465030670166
+        ],
+        "apparentRatio": 0.7466100191411812
+      },
+      {
+        "size": 6,
+        "worldSize": 36,
+        "nearPosition": [
+          -25.77669334411621,
+          15.275077819824219,
+          -23.954265594482422
+        ],
+        "apparentRatio": 0.9384510625580883
+      }
+    ],
+    "atmosphere": {
+      "changedBackground": 368206,
+      "changedColoredBackground": 366831,
+      "depthAware": true,
+      "masterZeroHonored": true,
+      "disabledRestoresExactPixels": true
+    },
+    "rotation": {
+      "all15Move": true,
+      "variedAxesAndDirections": true,
+      "offHoldsOrientation": true,
+      "pausedAndMasterZeroHeld": true,
+      "sourceReset": true
+    },
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 470,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 7.0999999940395355,
+          "cpuFrameTimeAverageMs": 5.766321844149211,
+          "gpuFrameTimeMs": 8.705499,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 7.0999999940395355,
+          "cpuFrameTimeAverageMs": 5.766321844149211,
+          "gpuFrameTimeMs": 8.705499,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1280,
+            "height": 720,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 7,
+          "reusedAllocationCount": 936,
+          "destroyedAllocationCount": 4,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 20275200,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 470,
+          "executedPassCount": 1410,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 2,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "active",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "errors": [],
+    "fixture": "Real production module/GLBs, shared Threshold volumetric effect, synthetic upstream AudioFeatureBus profiles and existing beat clock; no private renderer or timer"
+  },
+  "leds": {
+    "result": "PASS",
+    "bars": "180 stable axis/sign circuits on the supplied GLB frame triangles; 24 diffuser cells per normalized bar length",
+    "profiles": [
+      {
+        "profile": "bass",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "mids",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "highs",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "vocals",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "build",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "kick",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "snare",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "downbeat",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "bar",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "phrase",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "section",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      },
+      {
+        "profile": "drop",
+        "actualLedUniformsAndPixels": true,
+        "audioZeroSteady": true,
+        "authoredControlsPreserved": true
+      }
+    ],
+    "sixDistinctNativeLedPrograms": true,
+    "kickSnareDistinct": true,
+    "pauseAndMasterZeroFrozen": true,
+    "audioZeroSteady": true,
+    "intensityZeroHonored": true,
+    "sourceResetHealthy": true,
+    "errors": [],
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "frameCount": 259,
+        "contextGeneration": 1,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.2999999970197678,
+          "cpuFrameTimeAverageMs": 1.5550453776569249,
+          "gpuFrameTimeMs": 1.442124,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.2999999970197678,
+          "cpuFrameTimeAverageMs": 1.5550453776569249,
+          "gpuFrameTimeMs": 1.442124,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1280,
+            "height": 720,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 0,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 0,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 0,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 4,
+          "reusedAllocationCount": 514,
+          "destroyedAllocationCount": 2,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 18432000,
+          "activeLeaseCountByOwner": {}
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 259,
+          "executedPassCount": 777,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 1,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "inactive",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "fixture": "Production runtime, real GLBs, shared bridge/Director/choreography and shared pattern clock; explicit synthetic upstream audio profiles, no private musical detector"
+  },
+  "polish": {
+    "result": "PASS",
+    "aspects": [
+      {
+        "aspect": "16x9",
+        "pattern": "stack",
+        "heroPixels": 12663,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "16x9",
+        "pattern": "orbit",
+        "heroPixels": 11651,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "16x9",
+        "pattern": "stagger",
+        "heroPixels": 19256,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "16x9",
+        "pattern": "split",
+        "heroPixels": 15334,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "16x9",
+        "pattern": "wave",
+        "heroPixels": 21193,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "16x9",
+        "pattern": "collapse",
+        "heroPixels": 28292,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "stack",
+        "heroPixels": 16434,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "orbit",
+        "heroPixels": 15584,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "stagger",
+        "heroPixels": 13514,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "split",
+        "heroPixels": 13804,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "wave",
+        "heroPixels": 17312,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "1x1",
+        "pattern": "collapse",
+        "heroPixels": 17560,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "stack",
+        "heroPixels": 13355,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "orbit",
+        "heroPixels": 14625,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "stagger",
+        "heroPixels": 11738,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "split",
+        "heroPixels": 11528,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "wave",
+        "heroPixels": 10993,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      },
+      {
+        "aspect": "9x16",
+        "pattern": "collapse",
+        "heroPixels": 16752,
+        "bloomVisible": true,
+        "nativeGeometryPreserved": true
+      }
+    ],
+    "bloom": [
+      {
+        "minDefaultMaxDistinct": true,
+        "zeroRestoresExactPixels": true
+      }
+    ],
+    "cameraFovExtremesAndBoundedFloatOrbit": [
+      {
+        "version": 1,
+        "cameraId": "blockshift-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          -0.3262904602092026,
+          0.03392177036900477,
+          -0.10654925591063438
+        ],
+        "target": [
+          -4.92232530120208,
+          -0.0779712386838717,
+          -8.431439639405466
+        ],
+        "fovDegrees": 60,
+        "orthographicHeight": 5,
+        "near": 0.2,
+        "far": 840,
+        "aspect": 1.7777777777777777,
+        "rollDegrees": -0.1325694955947964,
+        "viewMatrix": [
+          0.8754290724217371,
+          -0.007712213578978908,
+          0.48328507210602895,
+          0,
+          0.0023136119622373494,
+          0.9999281034932784,
+          0.011765842257322382,
+          0,
+          -0.48334106628601875,
+          -0.009182026249592962,
+          0.8753839751991388,
+          0,
+          0.23406604214347,
+          -0.03741409129477616,
+          0.25056370158402447,
+          1
+        ],
+        "projectionMatrix": [
+          0.9742785792574936,
+          0,
+          0,
+          0,
+          0,
+          1.7320508075688774,
+          0,
+          0,
+          0,
+          0,
+          -1.0004763038818767,
+          -1,
+          0,
+          0,
+          -0.40009526077637536,
+          0
+        ],
+        "viewProjectionMatrix": [
+          0.8529117929197555,
+          -0.01335794575761408,
+          -0.4835152626619261,
+          -0.48328507210602895,
+          0.0022541025755217466,
+          1.731926279166349,
+          -0.011771446373663093,
+          -0.011765842257322382,
+          -0.4709088473579444,
+          -0.01590373598072612,
+          -0.8758009239846588,
+          -0.8753839751991388,
+          0.22804553099196456,
+          -0.06480310704157276,
+          -0.6507783068241217,
+          -0.25056370158402447
+        ],
+        "corrected": false
+      },
+      {
+        "version": 1,
+        "cameraId": "blockshift-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          -0.20623601434959687,
+          -0.21637874908412802,
+          0.45401796751697315
+        ],
+        "target": [
+          -8.76360474906231,
+          -0.23401955327121074,
+          -4.194328642476074
+        ],
+        "fovDegrees": 85,
+        "orthographicHeight": 5,
+        "near": 0.2,
+        "far": 840,
+        "aspect": 1.7777777777777777,
+        "rollDegrees": -0.09838682282347577,
+        "viewMatrix": [
+          0.47731983553494994,
+          -0.0024114356508476735,
+          0.8787263280356349,
+          0,
+          0.001717170337548112,
+          0.9999968849416535,
+          0.0018114726112046246,
+          0,
+          -0.8787279590014877,
+          0.0006442709764691065,
+          0.47732248950158285,
+          0,
+          0.49777038156652975,
+          0.21558823957494164,
+          -0.035096006757912024,
+          1
+        ],
+        "projectionMatrix": [
+          0.6138610318514651,
+          0,
+          0,
+          0,
+          0,
+          1.0913085010692714,
+          0,
+          0,
+          0,
+          0,
+          -1.0004763038818767,
+          -1,
+          0,
+          0,
+          -0.40009526077637536,
+          0
+        ],
+        "viewProjectionMatrix": [
+          0.293008046764656,
+          -0.0026316202255515773,
+          -0.8791448687967856,
+          -0.8787263280356349,
+          0.0010541039552720126,
+          1.0913051015796165,
+          -0.0018123354226412547,
+          -0.0018114726112046246,
+          -0.5394168516293851,
+          0.0007030983936129364,
+          -0.4775498400562395,
+          -0.47732248950158285,
+          0.3055618400535275,
+          0.2352732785786925,
+          -0.3649825376542062,
+          0.035096006757912024
+        ],
+        "corrected": false
+      },
+      {
+        "version": 1,
+        "cameraId": "blockshift-camera",
+        "source": "authored",
+        "projection": "perspective",
+        "rig": "static",
+        "position": [
+          0.47412554354648706,
+          -0.12110662220807772,
+          0.01366666817614512
+        ],
+        "target": [
+          -9.677521315131992,
+          -0.33346513740484574,
+          1.9744703172882476
+        ],
+        "fovDegrees": 100,
+        "orthographicHeight": 5,
+        "near": 0.2,
+        "far": 840,
+        "aspect": 1.7777777777777777,
+        "rollDegrees": 0.2125086008242593,
+        "viewMatrix": [
+          -0.18956999199399613,
+          -0.02086527540386837,
+          0.9816454851002561,
+          0,
+          -0.003708184201689743,
+          0.9997822645243027,
+          0.020534675857768997,
+          0,
+          -0.981860207720693,
+          0.0002526360584477411,
+          -0.1896060881662279,
+          0,
+          0.10284964748534424,
+          0.13096956034900725,
+          -0.46034503047069697,
+          1
+        ],
+        "projectionMatrix": [
+          0.47199354253722003,
+          0,
+          0,
+          0,
+          0,
+          0.83909963117728,
+          0,
+          0,
+          0,
+          0,
+          -1.0004763038818767,
+          -1,
+          0,
+          0,
+          -0.40009526077637536,
+          0
+        ],
+        "viewProjectionMatrix": [
+          -0.08947581207999868,
+          -0.01750804489579832,
+          -0.9821130466554361,
+          -0.9816454851002561,
+          -0.001750238997736095,
+          0.8389169294199282,
+          -0.020544456603593133,
+          -0.020534675857768997,
+          -0.46343167771842064,
+          0.0002119868234655813,
+          0.18969639828204893,
+          0.1896060881662279,
+          0.04854436946531191,
+          0.1098965097843025,
+          0.06046903381933744,
+          0.46034503047069697
+        ],
+        "corrected": false
+      }
+    ],
+    "cameraOffHonored": true,
+    "profiles": [
+      {
+        "mode": "quality",
+        "atmosphere": true,
+        "rotatingCubes": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 8.700000002980232,
+          "cpuFrameTimeAverageMs": 10.571845919849563,
+          "gpuFrameTimeMs": 5.334708,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "engineTargets": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 11,
+          "reusedAllocationCount": 2048,
+          "destroyedAllocationCount": 8,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 45619200,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "allocatedGpuBytesIncludingBloom": 57356280,
+        "nativeGpuBytes": 722040,
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 7,
+          "Shader": 0,
+          "Texture": 16,
+          "Framebuffer": 12,
+          "Renderbuffer": 0,
+          "Query": 1
+        },
+        "intervalMs": {
+          "median": 8.399999999999636,
+          "p95": 17.099999999998545
+        },
+        "cpuMs": {
+          "median": 10.800000011920929,
+          "p95": 11.900000005960464
+        },
+        "gpuMs": null,
+        "freshGpuSampleCount": 0,
+        "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+        "shaderFailures": 0,
+        "steadyStateAllocations": 0
+      },
+      {
+        "mode": "balanced",
+        "atmosphere": true,
+        "rotatingCubes": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "balanced",
+          "resolvedQuality": "medium",
+          "renderTargetScale": 0.82,
+          "gpuMemoryBudgetBytes": 167772160,
+          "cpuFrameTimeMs": 6.300000011920929,
+          "cpuFrameTimeAverageMs": 7.076434957705816,
+          "gpuFrameTimeMs": 5.334708,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "engineTargets": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 167772160,
+          "renderTargetScale": 0.82,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 14,
+          "reusedAllocationCount": 2346,
+          "destroyedAllocationCount": 11,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 30680408,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "allocatedGpuBytesIncludingBloom": 42417488,
+        "nativeGpuBytes": 722040,
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 7,
+          "Shader": 0,
+          "Texture": 16,
+          "Framebuffer": 12,
+          "Renderbuffer": 0,
+          "Query": 1
+        },
+        "intervalMs": {
+          "median": 8.300000000001091,
+          "p95": 16.69999999999891
+        },
+        "cpuMs": {
+          "median": 7.600000008940697,
+          "p95": 12
+        },
+        "gpuMs": null,
+        "freshGpuSampleCount": 0,
+        "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+        "shaderFailures": 0,
+        "steadyStateAllocations": 0
+      },
+      {
+        "mode": "performance",
+        "atmosphere": true,
+        "rotatingCubes": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "performance",
+          "resolvedQuality": "low",
+          "renderTargetScale": 0.67,
+          "gpuMemoryBudgetBytes": 100663296,
+          "cpuFrameTimeMs": 6.300000011920929,
+          "cpuFrameTimeAverageMs": 6.196494437345477,
+          "gpuFrameTimeMs": 2.565166,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "engineTargets": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 1920,
+            "height": 1080,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 100663296,
+          "renderTargetScale": 0.67,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 17,
+          "reusedAllocationCount": 2590,
+          "destroyedAllocationCount": 14,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 19813760,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "allocatedGpuBytesIncludingBloom": 31550840,
+        "nativeGpuBytes": 722040,
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 7,
+          "Shader": 0,
+          "Texture": 16,
+          "Framebuffer": 12,
+          "Renderbuffer": 0,
+          "Query": 1
+        },
+        "intervalMs": {
+          "median": 8.300000000001091,
+          "p95": 9.199999999998909
+        },
+        "cpuMs": {
+          "median": 6.200000002980232,
+          "p95": 7.100000008940697
+        },
+        "gpuMs": null,
+        "freshGpuSampleCount": 0,
+        "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+        "shaderFailures": 0,
+        "steadyStateAllocations": 0
+      }
+    ],
+    "recreations": [
+      {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 11,
+        "Framebuffer": 10,
+        "Renderbuffer": 0,
+        "pendingQueriesBounded": true
+      },
+      {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 11,
+        "Framebuffer": 10,
+        "Renderbuffer": 0,
+        "pendingQueriesBounded": true
+      },
+      {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 11,
+        "Framebuffer": 10,
+        "Renderbuffer": 0,
+        "pendingQueriesBounded": true
+      }
+    ],
+    "contextRecovery": {
+      "exactPixels": true,
+      "authoredValuesPreserved": true,
+      "generations": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "cycles": 3
+    },
+    "masterZeroHonored": true,
+    "retired": true,
+    "errors": [],
+    "environment": "Production catalog/runtime, shared camera and HDR bloom, supplied GLBs; synthetic upstream audio, controlled clock; timing is local browser telemetry, not a universal FPS guarantee"
+  },
+  "performance": {
+    "result": "PASS",
+    "scenarios": [
+      {
+        "profile": "build",
+        "actualGpuAndPixelDifference": true,
+        "currentBaseRestored": true,
+        "persistedControlsAndHuesPreserved": true
+      },
+      {
+        "profile": "drop",
+        "actualGpuAndPixelDifference": true,
+        "currentBaseRestored": true,
+        "persistedControlsAndHuesPreserved": true
+      }
+    ],
+    "manualTakeoverAndCooldown": true,
+    "laterIndependentDropAccepted": true,
+    "pauseFrozen": true,
+    "masterZeroFrozen": true,
+    "audioZeroRemovesOverlay": true,
+    "masterIntensityZeroHonored": true,
+    "cameraOffHonored": true,
+    "bloomNotAuthored": true,
+    "errors": [],
+    "fixture": "Production runtime/GLB rendering; synthetic upstream AudioFeatureBus build/drop profiles; shared Director and choreography, no private musical event injection"
+  },
+  "orbit": {
+    "result": "PASS",
+    "views": [
+      {
+        "elapsed": 2,
+        "position": [
+          -0.16811132773205045,
+          0.08591027585407572,
+          -0.09576822450309519
+        ],
+        "target": [
+          -6.885557603393754,
+          -0.032763024526611874,
+          -7.155064356606769
+        ]
+      },
+      {
+        "elapsed": 4,
+        "position": [
+          -0.15332171436114175,
+          0.018457641146812857,
+          0.14004045927755968
+        ],
+        "target": [
+          -9.842825915178365,
+          -0.04706645949666086,
+          0.12947654420648527
+        ]
+      },
+      {
+        "elapsed": 6,
+        "position": [
+          0.1059837629478151,
+          -0.06542613032987664,
+          0.23891686484180347
+        ],
+        "target": [
+          -6.563939260705075,
+          -0.07581528722940144,
+          7.268660159135468
+        ]
+      },
+      {
+        "elapsed": 8,
+        "position": [
+          0.30080699763597724,
+          -0.12716385058113133,
+          -0.0144305721665608
+        ],
+        "target": [
+          0.9689709743524718,
+          -0.1326960922365094,
+          9.762254515774075
+        ]
+      },
+      {
+        "elapsed": 10,
+        "position": [
+          0.06118762111436635,
+          -0.13496082556724778,
+          -0.28387221894207904
+        ],
+        "target": [
+          7.973230157515891,
+          -0.19436909388260382,
+          5.818046447524122
+        ]
+      },
+      {
+        "elapsed": 12,
+        "position": [
+          -0.2726813575235583,
+          -0.08942739485615485,
+          -0.06420210837996791
+        ],
+        "target": [
+          9.689544375247626,
+          -0.2107300057625609,
+          -2.1029903883777536
+        ]
+      },
+      {
+        "elapsed": 14,
+        "position": [
+          -0.08869035647463139,
+          -0.025791268962184796,
+          0.3205153862767688
+        ],
+        "target": [
+          4.8609985559875835,
+          -0.1431483435321461,
+          -8.626832558372245
+        ]
+      },
+      {
+        "elapsed": 16,
+        "position": [
+          0.32283000984995264,
+          0.01111639398366494,
+          0.1862463381197936
+        ],
+        "target": [
+          -3.215586420020935,
+          -0.0004967010535369817,
+          -9.31019906094534
+        ]
+      }
+    ],
+    "rearFieldVisible": true,
+    "intensityControlsAngularSpeed": true,
+    "zeroHoldsHeadingWithFloatContinuing": true,
+    "orbitOffHoldsHeading": true,
+    "pauseFrozen": true,
+    "parentOffRestoresBase": true,
+    "errors": [],
+    "fixture": "Production catalog/runtime/GLB renderer with controlled host time, camera inside the field; synthetic silence bus fixture"
+  },
+  "motion": {
+    "patterns": [
+      {
+        "name": "stack",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      },
+      {
+        "name": "orbit",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      },
+      {
+        "name": "stagger",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      },
+      {
+        "name": "split",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      },
+      {
+        "name": "wave",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      },
+      {
+        "name": "collapse",
+        "gpuMotion": true,
+        "pixelMotion": true,
+        "fixedCamera": true
+      }
+    ],
+    "transitions": [
+      {
+        "from": "stack",
+        "to": "orbit",
+        "durationBeats": 4,
+        "actualGpuAndPixelCaptures": true
+      },
+      {
+        "from": "split",
+        "to": "collapse",
+        "durationBeats": 4,
+        "actualGpuAndPixelCaptures": true
+      }
+    ],
+    "sharedCameraMoves": true,
+    "pausedFovWorks": true,
+    "cameraOffRestoresBase": true,
+    "pauseFrozen": true,
+    "masterZeroFrozen": true,
+    "errors": [],
+    "fixture": "Production Cinema2Stage, standard host transport at 180 BPM; no analyzed audio or fabricated rhythm events",
+    "video": "phase4-motion.webm"
+  },
+  "timing": {
+    "runs": [
+      {
+        "bpm": 60,
+        "localSync": true,
+        "hostSync": false,
+        "observedYawRadians": 0.0037103674840182066,
+        "changingPixels": true
+      },
+      {
+        "bpm": 180,
+        "localSync": true,
+        "hostSync": false,
+        "observedYawRadians": 0.009638414718210697,
+        "changingPixels": true
+      },
+      {
+        "bpm": 180,
+        "localSync": false,
+        "hostSync": false,
+        "observedYawRadians": 0.005935658235102892,
+        "changingPixels": true
+      },
+      {
+        "bpm": 180,
+        "localSync": true,
+        "hostSync": true,
+        "observedYawRadians": 0.008891736157238483,
+        "changingPixels": true
+      },
+      {
+        "bpm": 180,
+        "localSync": false,
+        "hostSync": true,
+        "observedYawRadians": 0.006398372817784548,
+        "changingPixels": true
+      }
+    ],
+    "pauseFrozen": true,
+    "motionZeroFrozen": true
+  },
+  "presetId": "drmvyz.cinema2.blockshift",
+  "app": "VyzualzView / AudioEngineProvider / real preset chooser",
+  "qualityMode": "quality workspace default; per-mode profiling is recorded separately",
+  "effects": [
+    "volumetric-atmosphere",
+    "hdr-bloom"
+  ],
+  "audio": {
+    "result": "PASS",
+    "input": "Explicit synthetic MusicIntelligenceFrame profiles published through AudioFeatureBus \u2192 shared audio bridge/choreography \u2192 native module \u2192 real GLB renderer; no audio file analysis claim",
+    "results": [
+      {
+        "profile": "silence",
+        "changedPixels": 114559,
+        "physical": false
+      },
+      {
+        "profile": "verse",
+        "changedPixels": 92719,
+        "physical": false
+      },
+      {
+        "profile": "bass",
+        "changedPixels": 133728,
+        "physical": true
+      },
+      {
+        "profile": "mids",
+        "changedPixels": 101687,
+        "physical": true
+      },
+      {
+        "profile": "highs",
+        "changedPixels": 67467,
+        "physical": true
+      },
+      {
+        "profile": "vocals",
+        "changedPixels": 113498,
+        "physical": false
+      },
+      {
+        "profile": "build",
+        "changedPixels": 132461,
+        "physical": true
+      },
+      {
+        "profile": "kick",
+        "changedPixels": 139583,
+        "physical": true
+      },
+      {
+        "profile": "snare",
+        "changedPixels": 114798,
+        "physical": true
+      },
+      {
+        "profile": "downbeat",
+        "changedPixels": 89872,
+        "physical": true
+      },
+      {
+        "profile": "bar",
+        "changedPixels": 93398,
+        "physical": true
+      },
+      {
+        "profile": "phrase",
+        "changedPixels": 130901,
+        "physical": true
+      },
+      {
+        "profile": "section",
+        "changedPixels": 63222,
+        "physical": true
+      },
+      {
+        "profile": "drop",
+        "changedPixels": 147239,
+        "physical": true
+      }
+    ],
+    "triggers": [
+      {
+        "trigger": "beat",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "kick",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "snare",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "downbeat",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "beat2",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "beat4",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "bar",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "bar4",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "bar8",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "phrase",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      },
+      {
+        "trigger": "drop",
+        "actualGpuAndPixelChange": true,
+        "authoredPatternPreserved": true
+      }
+    ],
+    "kickSnareDistinct": true,
+    "decayObserved": true,
+    "pauseFrozen": true,
+    "motionZeroFrozen": true,
+    "sourceResetHealthy": true,
+    "errors": [],
+    "rendering": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)"
+  },
+  "motionCapture": "phase8-pattern-transport.webm",
+  "browser": "149.0.7827.55",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "rendering": "headless Chromium ANGLE Metal; renderer verified in focused capture",
+  "captures": [
+    {
+      "label": "16x9",
+      "width": 1920,
+      "height": 1080,
+      "filename": "idle-bloom-off-16x9.png",
+      "objects": [
+        {
+          "xMin": -249,
+          "xMax": 631,
+          "yMin": -304,
+          "yMax": 399,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 21597
+        },
+        {
+          "xMin": 1089,
+          "xMax": 1534,
+          "yMin": 117,
+          "yMax": 504,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 11963
+        },
+        {
+          "xMin": 587,
+          "xMax": 889,
+          "yMin": 490,
+          "yMax": 758,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6023
+        },
+        {
+          "xMin": 1272,
+          "xMax": 2007,
+          "yMin": 659,
+          "yMax": 1237,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 20127
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 39,
+          "xMax": 507,
+          "yMin": 385,
+          "yMax": 650,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 8406
+        },
+        {
+          "xMin": 1372,
+          "xMax": 1751,
+          "yMin": 448,
+          "yMax": 671,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6514
+        },
+        {
+          "xMin": 889,
+          "xMax": 1138,
+          "yMin": -216,
+          "yMax": 184,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 4303
+        },
+        {
+          "xMin": 766,
+          "xMax": 1060,
+          "yMin": 989,
+          "yMax": 1511,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 647
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 888,
+          "xMax": 1045,
+          "yMin": 439,
+          "yMax": 596,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 358
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 298,
+          "yMin": 0,
+          "xMax": 331,
+          "yMax": 227,
+          "edgePixels": 7313
+        },
+        {
+          "xMin": 468,
+          "yMin": 0,
+          "xMax": 560,
+          "yMax": 99,
+          "edgePixels": 362
+        },
+        {
+          "xMin": 916,
+          "yMin": 24,
+          "xMax": 1106,
+          "yMax": 151,
+          "edgePixels": 3905
+        },
+        {
+          "xMin": 1188,
+          "yMin": 177,
+          "xMax": 1458,
+          "yMax": 443,
+          "edgePixels": 4883
+        },
+        {
+          "xMin": 1122,
+          "yMin": 209,
+          "xMax": 1173,
+          "yMax": 285,
+          "edgePixels": 163
+        },
+        {
+          "xMin": 0,
+          "yMin": 223,
+          "xMax": 579,
+          "yMax": 359,
+          "edgePixels": 12117
+        },
+        {
+          "xMin": 385,
+          "yMin": 252,
+          "xMax": 533,
+          "yMax": 324,
+          "edgePixels": 165
+        },
+        {
+          "xMin": 359,
+          "yMin": 272,
+          "xMax": 546,
+          "yMax": 351,
+          "edgePixels": 522
+        },
+        {
+          "xMin": 537,
+          "yMin": 326,
+          "xMax": 561,
+          "yMax": 338,
+          "edgePixels": 25
+        },
+        {
+          "xMin": 111,
+          "yMin": 415,
+          "xMax": 303,
+          "yMax": 612,
+          "edgePixels": 4217
+        },
+        {
+          "xMin": 297,
+          "yMin": 415,
+          "xMax": 468,
+          "yMax": 450,
+          "edgePixels": 1289
+        },
+        {
+          "xMin": 1117,
+          "yMin": 444,
+          "xMax": 1458,
+          "yMax": 479,
+          "edgePixels": 3987
+        },
+        {
+          "xMin": 905,
+          "yMin": 454,
+          "xMax": 937,
+          "yMax": 508,
+          "edgePixels": 100
+        },
+        {
+          "xMin": 1134,
+          "yMin": 462,
+          "xMax": 1191,
+          "yMax": 478,
+          "edgePixels": 98
+        },
+        {
+          "xMin": 1404,
+          "yMin": 471,
+          "xMax": 1695,
+          "yMax": 644,
+          "edgePixels": 4477
+        },
+        {
+          "xMin": 1403,
+          "yMin": 472,
+          "xMax": 1523,
+          "yMax": 492,
+          "edgePixels": 803
+        },
+        {
+          "xMin": 632,
+          "yMin": 516,
+          "xMax": 863,
+          "yMax": 722,
+          "edgePixels": 5623
+        },
+        {
+          "xMin": 905,
+          "yMin": 527,
+          "xMax": 923,
+          "yMax": 538,
+          "edgePixels": 30
+        },
+        {
+          "xMin": 113,
+          "yMin": 594,
+          "xMax": 470,
+          "yMax": 620,
+          "edgePixels": 2208
+        },
+        {
+          "xMin": 1317,
+          "yMin": 693,
+          "xMax": 1539,
+          "yMax": 793,
+          "edgePixels": 3332
+        },
+        {
+          "xMin": 1346,
+          "yMin": 699,
+          "xMax": 1504,
+          "yMax": 761,
+          "edgePixels": 237
+        },
+        {
+          "xMin": 1333,
+          "yMin": 712,
+          "xMax": 1485,
+          "yMax": 784,
+          "edgePixels": 765
+        },
+        {
+          "xMin": 1527,
+          "yMin": 776,
+          "xMax": 1871,
+          "yMax": 1079,
+          "edgePixels": 13910
+        },
+        {
+          "xMin": 1002,
+          "yMin": 1028,
+          "xMax": 1014,
+          "yMax": 1079,
+          "edgePixels": 346
+        },
+        {
+          "xMin": 833,
+          "yMin": 1032,
+          "xMax": 847,
+          "yMax": 1079,
+          "edgePixels": 291
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 14,
+          "createTexture": 19,
+          "getError": 257,
+          "uniformMatrix4fv": 122,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 324,
+          "deleteTexture": 8,
+          "deleteFramebuffer": 4
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          0.6138227581977844,
+          -0.00015168955724220723,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          3.7500340113183483e-05,
+          1.0912818908691406,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.0068555427715182304,
+          -0.007612388581037521,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.0034384997561573982,
+          -0.07101830840110779,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    },
+    {
+      "label": "1x1",
+      "width": 1080,
+      "height": 1080,
+      "filename": "idle-bloom-off-1x1.png",
+      "objects": [
+        {
+          "xMin": -669,
+          "xMax": 211,
+          "yMin": -304,
+          "yMax": 399,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3464
+        },
+        {
+          "xMin": 669,
+          "xMax": 1114,
+          "yMin": 117,
+          "yMax": 504,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 11407
+        },
+        {
+          "xMin": 167,
+          "xMax": 469,
+          "yMin": 490,
+          "yMax": 758,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 6023
+        },
+        {
+          "xMin": 852,
+          "xMax": 1587,
+          "yMin": 659,
+          "yMax": 1237,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3781
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": -381,
+          "xMax": 87,
+          "yMin": 385,
+          "yMax": 650,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 611
+        },
+        {
+          "xMin": 952,
+          "xMax": 1331,
+          "yMin": 448,
+          "yMax": 671,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 1875
+        },
+        {
+          "xMin": 469,
+          "xMax": 718,
+          "yMin": -216,
+          "yMax": 184,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 4303
+        },
+        {
+          "xMin": 346,
+          "xMax": 640,
+          "yMin": 989,
+          "yMax": 1511,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 647
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 468,
+          "xMax": 625,
+          "yMin": 439,
+          "yMax": 596,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 358
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 48,
+          "yMin": 0,
+          "xMax": 140,
+          "yMax": 99,
+          "edgePixels": 362
+        },
+        {
+          "xMin": 496,
+          "yMin": 24,
+          "xMax": 686,
+          "yMax": 151,
+          "edgePixels": 3905
+        },
+        {
+          "xMin": 768,
+          "yMin": 177,
+          "xMax": 1038,
+          "yMax": 443,
+          "edgePixels": 4883
+        },
+        {
+          "xMin": 702,
+          "yMin": 209,
+          "xMax": 753,
+          "yMax": 285,
+          "edgePixels": 163
+        },
+        {
+          "xMin": 0,
+          "yMin": 269,
+          "xMax": 113,
+          "yMax": 324,
+          "edgePixels": 121
+        },
+        {
+          "xMin": 0,
+          "yMin": 273,
+          "xMax": 159,
+          "yMax": 359,
+          "edgePixels": 2564
+        },
+        {
+          "xMin": 0,
+          "yMin": 296,
+          "xMax": 126,
+          "yMax": 351,
+          "edgePixels": 337
+        },
+        {
+          "xMin": 117,
+          "yMin": 326,
+          "xMax": 141,
+          "yMax": 338,
+          "edgePixels": 25
+        },
+        {
+          "xMin": 0,
+          "yMin": 437,
+          "xMax": 48,
+          "yMax": 450,
+          "edgePixels": 334
+        },
+        {
+          "xMin": 697,
+          "yMin": 444,
+          "xMax": 1038,
+          "yMax": 479,
+          "edgePixels": 3987
+        },
+        {
+          "xMin": 485,
+          "yMin": 454,
+          "xMax": 517,
+          "yMax": 508,
+          "edgePixels": 100
+        },
+        {
+          "xMin": 714,
+          "yMin": 462,
+          "xMax": 771,
+          "yMax": 478,
+          "edgePixels": 98
+        },
+        {
+          "xMin": 983,
+          "yMin": 475,
+          "xMax": 1079,
+          "yMax": 492,
+          "edgePixels": 684
+        },
+        {
+          "xMin": 212,
+          "yMin": 516,
+          "xMax": 443,
+          "yMax": 722,
+          "edgePixels": 5623
+        },
+        {
+          "xMin": 485,
+          "yMin": 527,
+          "xMax": 503,
+          "yMax": 538,
+          "edgePixels": 30
+        },
+        {
+          "xMin": 0,
+          "yMin": 594,
+          "xMax": 50,
+          "yMax": 605,
+          "edgePixels": 265
+        },
+        {
+          "xMin": 984,
+          "yMin": 617,
+          "xMax": 1079,
+          "yMax": 639,
+          "edgePixels": 451
+        },
+        {
+          "xMin": 897,
+          "yMin": 693,
+          "xMax": 1079,
+          "yMax": 781,
+          "edgePixels": 2717
+        },
+        {
+          "xMin": 926,
+          "yMin": 699,
+          "xMax": 1079,
+          "yMax": 760,
+          "edgePixels": 230
+        },
+        {
+          "xMin": 913,
+          "yMin": 712,
+          "xMax": 1065,
+          "yMax": 784,
+          "edgePixels": 765
+        },
+        {
+          "xMin": 582,
+          "yMin": 1028,
+          "xMax": 594,
+          "yMax": 1079,
+          "edgePixels": 346
+        },
+        {
+          "xMin": 413,
+          "yMin": 1032,
+          "xMax": 427,
+          "yMax": 1079,
+          "edgePixels": 291
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 16,
+          "createTexture": 22,
+          "getError": 331,
+          "uniformMatrix4fv": 158,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 468,
+          "deleteTexture": 11,
+          "deleteFramebuffer": 6
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          1.091240406036377,
+          -0.00015168955724220723,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          6.666727131232619e-05,
+          1.0912818908691406,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.01218763180077076,
+          -0.007612388581037521,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.00611288845539093,
+          -0.07101830840110779,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    },
+    {
+      "label": "9x16",
+      "width": 1080,
+      "height": 1920,
+      "filename": "idle-bloom-off-9x16.png",
+      "objects": [
+        {
+          "xMin": -803,
+          "xMax": 175,
+          "yMin": 22,
+          "yMax": 803,
+          "position": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 2744
+        },
+        {
+          "xMin": 684,
+          "xMax": 1178,
+          "yMin": 490,
+          "yMax": 920,
+          "position": [
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 12326
+        },
+        {
+          "xMin": 126,
+          "xMax": 461,
+          "yMin": 905,
+          "yMax": 1202,
+          "position": [
+            -9,
+            -3.163264513015747,
+            -26.364887237548828
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 7473
+        },
+        {
+          "xMin": 887,
+          "xMax": 1704,
+          "yMin": 1092,
+          "yMax": 1735,
+          "position": [
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 3108
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": -483,
+          "xMax": 37,
+          "yMin": 788,
+          "yMax": 1082,
+          "position": [
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 998,
+          "xMax": 1419,
+          "yMin": 858,
+          "yMax": 1106,
+          "position": [
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 1305
+        },
+        {
+          "xMin": 461,
+          "xMax": 737,
+          "yMin": 120,
+          "yMax": 565,
+          "position": [
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 8150
+        },
+        {
+          "xMin": 324,
+          "xMax": 651,
+          "yMin": 1459,
+          "yMax": 2038,
+          "position": [
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965
+          ],
+          "behind": false,
+          "cropped": true,
+          "visiblePixels": 12156
+        },
+        {
+          "position": [
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "position": [
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273
+          ],
+          "behind": true,
+          "visiblePixels": 0
+        },
+        {
+          "xMin": 460,
+          "xMax": 635,
+          "yMin": 848,
+          "yMax": 1022,
+          "position": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117
+          ],
+          "behind": false,
+          "cropped": false,
+          "visiblePixels": 513
+        }
+      ],
+      "edgeComponents": [
+        {
+          "xMin": 491,
+          "yMin": 187,
+          "xMax": 497,
+          "yMax": 390,
+          "edgePixels": 1386
+        },
+        {
+          "xMin": 698,
+          "yMin": 189,
+          "xMax": 704,
+          "yMax": 391,
+          "edgePixels": 1190
+        },
+        {
+          "xMin": 0,
+          "yMin": 364,
+          "xMax": 96,
+          "yMax": 470,
+          "edgePixels": 420
+        },
+        {
+          "xMin": 491,
+          "yMin": 387,
+          "xMax": 703,
+          "yMax": 528,
+          "edgePixels": 4673
+        },
+        {
+          "xMin": 502,
+          "yMin": 424,
+          "xMax": 508,
+          "yMax": 517,
+          "edgePixels": 157
+        },
+        {
+          "xMin": 793,
+          "yMin": 557,
+          "xMax": 1079,
+          "yMax": 852,
+          "edgePixels": 5982
+        },
+        {
+          "xMin": 720,
+          "yMin": 592,
+          "xMax": 777,
+          "yMax": 677,
+          "edgePixels": 202
+        },
+        {
+          "xMin": 0,
+          "yMin": 688,
+          "xMax": 97,
+          "yMax": 735,
+          "edgePixels": 108
+        },
+        {
+          "xMin": 0,
+          "yMin": 693,
+          "xMax": 117,
+          "yMax": 759,
+          "edgePixels": 1950
+        },
+        {
+          "xMin": 0,
+          "yMin": 715,
+          "xMax": 81,
+          "yMax": 751,
+          "edgePixels": 228
+        },
+        {
+          "xMin": 713,
+          "yMin": 853,
+          "xMax": 1079,
+          "yMax": 892,
+          "edgePixels": 4804
+        },
+        {
+          "xMin": 733,
+          "yMin": 873,
+          "xMax": 797,
+          "yMax": 891,
+          "edgePixels": 123
+        },
+        {
+          "xMin": 600,
+          "yMin": 885,
+          "xMax": 619,
+          "yMax": 925,
+          "edgePixels": 60
+        },
+        {
+          "xMin": 1033,
+          "yMin": 895,
+          "xMax": 1079,
+          "yMax": 906,
+          "edgePixels": 328
+        },
+        {
+          "xMin": 176,
+          "yMin": 933,
+          "xMax": 408,
+          "yMax": 1163,
+          "edgePixels": 6648
+        },
+        {
+          "xMin": 401,
+          "yMin": 934,
+          "xMax": 432,
+          "yMax": 944,
+          "edgePixels": 162
+        },
+        {
+          "xMin": 554,
+          "yMin": 947,
+          "xMax": 597,
+          "yMax": 997,
+          "edgePixels": 94
+        },
+        {
+          "xMin": 559,
+          "yMin": 985,
+          "xMax": 566,
+          "yMax": 1005,
+          "edgePixels": 27
+        },
+        {
+          "xMin": 499,
+          "yMin": 986,
+          "xMax": 539,
+          "yMax": 1005,
+          "edgePixels": 60
+        },
+        {
+          "xMin": 1032,
+          "yMin": 1045,
+          "xMax": 1079,
+          "yMax": 1058,
+          "edgePixels": 228
+        },
+        {
+          "xMin": 936,
+          "yMin": 1130,
+          "xMax": 1079,
+          "yMax": 1202,
+          "edgePixels": 2207
+        },
+        {
+          "xMin": 969,
+          "yMin": 1137,
+          "xMax": 1079,
+          "yMax": 1181,
+          "edgePixels": 173
+        },
+        {
+          "xMin": 954,
+          "yMin": 1151,
+          "xMax": 1079,
+          "yMax": 1211,
+          "edgePixels": 672
+        },
+        {
+          "xMin": 587,
+          "yMin": 1502,
+          "xMax": 619,
+          "yMax": 1698,
+          "edgePixels": 1344
+        },
+        {
+          "xMin": 369,
+          "yMin": 1507,
+          "xMax": 414,
+          "yMax": 1707,
+          "edgePixels": 1548
+        },
+        {
+          "xMin": 587,
+          "yMin": 1519,
+          "xMax": 604,
+          "yMax": 1657,
+          "edgePixels": 270
+        },
+        {
+          "xMin": 369,
+          "yMin": 1693,
+          "xMax": 619,
+          "yMax": 1919,
+          "edgePixels": 8099
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createShader": 16,
+          "createProgram": 8,
+          "deleteShader": 16,
+          "deleteProgram": 3,
+          "createFramebuffer": 18,
+          "createTexture": 25,
+          "getError": 409,
+          "uniformMatrix4fv": 196,
+          "createBuffer": 12,
+          "bufferData": 12,
+          "createVertexArray": 4,
+          "drawElementsInstanced": 620,
+          "deleteTexture": 14,
+          "deleteFramebuffer": 8
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ],
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "matrix": [
+          1.212489366531372,
+          -9.480596781941131e-05,
+          -0.011172527447342873,
+          -0.011167208664119244,
+          7.407474186038598e-05,
+          0.6820512413978577,
+          -0.006979909259825945,
+          -0.006976586300879717,
+          -0.013541813008487225,
+          -0.004757742863148451,
+          -1.000389575958252,
+          -0.9999133348464966,
+          0.0067920982837677,
+          -0.04438644275069237,
+          -0.5150810480117798,
+          -0.11493106186389923
+        ]
+      }
+    }
+  ],
+  "lifecycle": [
+    {
+      "connected": true,
+      "productionCanvas": true,
+      "methods": {
+        "createShader": 70,
+        "createProgram": 35,
+        "deleteShader": 70,
+        "deleteProgram": 30,
+        "createFramebuffer": 65,
+        "createTexture": 88,
+        "getError": 3147,
+        "uniformMatrix4fv": 1514,
+        "createBuffer": 48,
+        "bufferData": 48,
+        "createVertexArray": 16,
+        "drawElementsInstanced": 5892,
+        "deleteTexture": 85,
+        "deleteFramebuffer": 63,
+        "bufferSubData": 1266,
+        "deleteVertexArray": 12,
+        "deleteBuffer": 36
+      },
+      "draws": [
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ],
+        [
+          36,
+          14
+        ],
+        [
+          132,
+          14
+        ],
+        [
+          5226,
+          1
+        ],
+        [
+          16758,
+          1
+        ]
+      ],
+      "errors": [],
+      "instances": {
+        "12": [
+          0,
+          1.0259605646133423,
+          -44.55426025390625,
+          9.899999618530273,
+          1,
+          0.9450980424880981,
+          0.8392156958580017,
+          1,
+          0,
+          0.03631029278039932,
+          0,
+          4
+        ],
+        "168": [
+          -18.719999313354492,
+          7.679999828338623,
+          -19.68684959411621,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          12.07692813873291,
+          4.246831893920898,
+          -21.7725887298584,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.0303530003875494,
+          0,
+          1,
+          -9.956164360046387,
+          -4.084580421447754,
+          -32.02704620361328,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.050102826207876205,
+          0,
+          2,
+          18.719999313354492,
+          -7.679999828338623,
+          -9.264399528503418,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.05235029011964798,
+          0,
+          3,
+          -18.719999313354492,
+          8.640000343322754,
+          11.580499649047852,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.007586067076772451,
+          0,
+          5,
+          18.719999313354492,
+          8.640000343322754,
+          20.844900131225586,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          -0.023788191378116608,
+          0,
+          6,
+          -18.719999313354492,
+          -8.640000343322754,
+          11.580499649047852,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.04685255140066147,
+          0,
+          7,
+          18.719999313354492,
+          -8.640000343322754,
+          20.844900131225586,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.05354996398091316,
+          0,
+          8,
+          -40.560001373291016,
+          0,
+          -32.42539978027344,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          -0.04154083505272865,
+          0,
+          9,
+          40.560001373291016,
+          0,
+          -23.160999298095703,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          -0.015020298771560192,
+          0,
+          10,
+          0,
+          21.1200008392334,
+          -23.160999298095703,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.016747262328863144,
+          0,
+          11,
+          0,
+          -21.1200008392334,
+          -23.160999298095703,
+          9.899999618530273,
+          0.3333333432674408,
+          0.9019607901573181,
+          1,
+          1,
+          0,
+          0.04266452044248581,
+          0,
+          12,
+          -40.560001373291016,
+          0,
+          20.844900131225586,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.053677838295698166,
+          0,
+          13,
+          40.560001373291016,
+          0,
+          30.10930061340332,
+          9.899999618530273,
+          0.47058823704719543,
+          0.4000000059604645,
+          1,
+          1,
+          0,
+          0.045939940959215164,
+          0,
+          14
+        ]
+      },
+      "matrix": [
+        0.986845076084137,
+        -0.00024112194660119712,
+        -0.0149499187245965,
+        -0.014942801557481289,
+        8.03883231128566e-05,
+        1.0912609100341797,
+        -0.009339790791273117,
+        -0.009335344657301903,
+        -0.014749269001185894,
+        -0.010185275226831436,
+        -1.0003210306167603,
+        -0.9998447895050049,
+        0.006795945577323437,
+        -0.09508568048477173,
+        -0.5532315969467163,
+        -0.15306344628334045
+      ]
+    }
+  ],
+  "errors": [],
+  "result": "PASS"
+}

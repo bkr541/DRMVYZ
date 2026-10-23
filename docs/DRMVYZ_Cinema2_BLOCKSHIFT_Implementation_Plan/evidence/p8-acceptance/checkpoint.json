@@ -1,0 +1,29 @@
+{
+  "presetRevision": 17,
+  "baseCommit": "9c2aa74831103c1589e589c8cedc5af5f94f1643",
+  "commitStatus": "uncommitted working tree",
+  "phase": "P8 automated functional PASS; human gate pending",
+  "browser": "149.0.7827.55",
+  "productionCanvas": true,
+  "sources": "VyzualzView chooser plus production runtime controlled upstream/transport fixtures",
+  "humanVisualApproval": false,
+  "phase9Started": false,
+  "finalContextGuard": "Cinema2Runtime skips queued RAF when gl.isContextLost() precedes the DOM loss event",
+  "validation": {
+    "blockshiftTests": 66,
+    "sharedAndNeighborTests": 101,
+    "lint": "PASS",
+    "changedFileTypeErrors": 0,
+    "importedDependencyTypeErrors": 9,
+    "fullRepositoryTypecheck": "known failing baseline, not repeated",
+    "fullNpmBuild": "not run; depends on known failing typecheck",
+    "viteProductionBundle": "PASS",
+    "initialBroadRegressions": {
+      "passing": 1316,
+      "failing": 24,
+      "allFailuresReproducedOnBase": true,
+      "domCorrectionRemoves": 7
+    },
+    "gpuFreshTimingSamples": 0
+  }
+}

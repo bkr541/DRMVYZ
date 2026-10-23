@@ -86,7 +86,7 @@ const frame = Object.freeze({
   director: null,
 })
 
-function provider(execute = vi.fn()): Cinema2ModuleRenderPassProvider {
+function provider(execute: Cinema2ModuleRenderPassProvider['execute'] = vi.fn()): Cinema2ModuleRenderPassProvider {
   return { id: 'generator:fullscreen', moduleId, intent: 'fullscreen', execute }
 }
 

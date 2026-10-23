@@ -175,6 +175,7 @@ function performance(
     showId: 'livingRibbonSystem',
     showName: 'Living Ribbon System',
     sceneId: 'living-drop',
+    choreographyActive: true,
     context: {
       trackIdentity: 'track-a',
       sectionType: 'drop',

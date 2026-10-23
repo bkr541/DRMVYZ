@@ -1,5 +1,9 @@
 # 05. Standard Audio Intelligence Routing, Choreography, Visual Director and Authority
 
+**User-directed LED revision:** The same shared routes now also drive geometry-aware LED bar circuits, alongside whole-cube movement/emission. Kick selects longitudinal circuits on alternating cubes; snare selects cross circuits on the opposite bank; continuous levels, build/drop, bar/phrase/section and Director shape bounded occupancy/chases/core accents. LED programs follow the selected six-pattern geometry and its existing shared-clock phase. See [LED mapping and validation](26_LED_BAR_CHOREOGRAPHY.md). No additional detector or independent timing source is introduced.
+
+**P6 status:** Eight continuous audio routes, three shared Director routes and nine musical cues (including a shared build edge) now drive the native module. Auto Performance is visible in Master Controls, default OFF. Director motion gain is capped at 1.25×; emission remains below Master Intensity. Build/drop overlays last at most four/two performance beats, with weights at most 0.25/0.35 and quarter-beat attack/release. Pattern or geometry edits cancel them immediately, consume coincident cues and start a two-beat cooldown; held cues cannot restart after it. See [Phase 6 report](24_P6_DIRECTOR_AUTO_PERFORMANCE_REPORT.md). [Phase 5](21_P5_SHARED_AUDIO_REPORT.md) retains the audio/eleven-trigger evidence.
+
 ## Non-negotiable ownership boundary
 
 Use Cinema 2.0's **shared audio bridge, shared events, shared choreography runtime, Visual Director and authored parameter resolver**. BLOCKSHIFT must *not* sample audio, detect drops, infer BPM independently, keep a second section classifier, calculate a private beat grid, or mutate persisted Inspector values through music logic.
@@ -32,7 +36,7 @@ Values below are intended **bounded modulation suggestions**, not hardcoded assu
 | Section-change | Slow intensity/motion-character blend | Bounded, no sudden user-control loss |
 | Drop | Short dramatic outward reveal/formation emphasis then settle | Real geometric movement and controlled impact |
 
-Use shared `Cinema2ChoreographyRuntime` rules with valid signal capabilities, `handleAction` event envelope where supported, and module-resolved channels. Every rule should specify signal, target, operation, envelope timing, maximum magnitude, blending, reset behavior, and priority/authority. Do not use frame-local random toggles, competing host-timers or a universal constant beat multiplier.
+Use shared `Cinema2ChoreographyRuntime` rules with valid signal capabilities, `handleAction` event envelopes and module-resolved channels. P5 uses the established Mainframe-style supported `spawn` action into a hidden runtime-only trigger: the shared runtime selects/deduplicates events, while BLOCKSHIFT owns only bounded visual decay state, advanced from engine frame delta. This introduces no second musical clock or detector. Every rule should specify signal, target, operation, envelope timing, maximum magnitude, blending, reset behavior, and priority/authority. Do not use frame-local random toggles, competing host-timers or a universal constant beat multiplier.
 
 ## Event identity guarantees
 

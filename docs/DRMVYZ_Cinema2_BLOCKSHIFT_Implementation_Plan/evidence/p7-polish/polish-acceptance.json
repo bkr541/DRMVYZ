@@ -1,0 +1,639 @@
+{
+  "result": "PASS",
+  "aspects": [
+    {
+      "aspect": "16x9",
+      "pattern": "stack",
+      "heroPixels": 19362,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "16x9",
+      "pattern": "orbit",
+      "heroPixels": 17007,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "16x9",
+      "pattern": "stagger",
+      "heroPixels": 29301,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "16x9",
+      "pattern": "split",
+      "heroPixels": 22809,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "16x9",
+      "pattern": "wave",
+      "heroPixels": 30988,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "16x9",
+      "pattern": "collapse",
+      "heroPixels": 42669,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "stack",
+      "heroPixels": 24942,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "orbit",
+      "heroPixels": 23109,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "stagger",
+      "heroPixels": 20214,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "split",
+      "heroPixels": 20992,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "wave",
+      "heroPixels": 25895,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "1x1",
+      "pattern": "collapse",
+      "heroPixels": 24522,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "stack",
+      "heroPixels": 20739,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "orbit",
+      "heroPixels": 22234,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "stagger",
+      "heroPixels": 17105,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "split",
+      "heroPixels": 16863,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "wave",
+      "heroPixels": 16296,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    },
+    {
+      "aspect": "9x16",
+      "pattern": "collapse",
+      "heroPixels": 24694,
+      "bloomVisible": true,
+      "nativeGeometryPreserved": true
+    }
+  ],
+  "bloom": [
+    {
+      "minDefaultMaxDistinct": true,
+      "zeroRestoresExactPixels": true
+    }
+  ],
+  "cameraFovExtremesAndBoundedFloatOrbit": [
+    {
+      "version": 1,
+      "cameraId": "blockshift-camera",
+      "source": "authored",
+      "projection": "perspective",
+      "rig": "static",
+      "position": [
+        -0.3262904602092026,
+        0.03392177036900477,
+        -0.10654925591063438
+      ],
+      "target": [
+        -4.92232530120208,
+        -0.0779712386838717,
+        -8.431439639405466
+      ],
+      "fovDegrees": 60,
+      "orthographicHeight": 5,
+      "near": 0.2,
+      "far": 420,
+      "aspect": 1.7777777777777777,
+      "rollDegrees": -0.1325694955947964,
+      "viewMatrix": [
+        0.8754290724217371,
+        -0.007712213578978908,
+        0.48328507210602895,
+        0,
+        0.0023136119622373494,
+        0.9999281034932784,
+        0.011765842257322382,
+        0,
+        -0.48334106628601875,
+        -0.009182026249592962,
+        0.8753839751991388,
+        0,
+        0.23406604214347,
+        -0.03741409129477616,
+        0.25056370158402447,
+        1
+      ],
+      "projectionMatrix": [
+        0.9742785792574936,
+        0,
+        0,
+        0,
+        0,
+        1.7320508075688774,
+        0,
+        0,
+        0,
+        0,
+        -1.0009528346831824,
+        -1,
+        0,
+        0,
+        -0.40019056693663646,
+        0
+      ],
+      "viewProjectionMatrix": [
+        0.8529117929197555,
+        -0.01335794575761408,
+        -0.48374556288459586,
+        -0.48328507210602895,
+        0.0022541025755217466,
+        1.731926279166349,
+        -0.011777053159902013,
+        -0.011765842257322382,
+        -0.4709088473579444,
+        -0.01590373598072612,
+        -0.8762180714118106,
+        -0.8753839751991388,
+        0.22804553099196456,
+        -0.06480310704157276,
+        -0.6509930143058767,
+        -0.25056370158402447
+      ],
+      "corrected": false
+    },
+    {
+      "version": 1,
+      "cameraId": "blockshift-camera",
+      "source": "authored",
+      "projection": "perspective",
+      "rig": "static",
+      "position": [
+        -0.20623601434959687,
+        -0.21637874908412802,
+        0.45401796751697315
+      ],
+      "target": [
+        -8.76360474906231,
+        -0.23401955327121074,
+        -4.194328642476074
+      ],
+      "fovDegrees": 85,
+      "orthographicHeight": 5,
+      "near": 0.2,
+      "far": 420,
+      "aspect": 1.7777777777777777,
+      "rollDegrees": -0.09838682282347577,
+      "viewMatrix": [
+        0.47731983553494994,
+        -0.0024114356508476735,
+        0.8787263280356349,
+        0,
+        0.001717170337548112,
+        0.9999968849416535,
+        0.0018114726112046246,
+        0,
+        -0.8787279590014877,
+        0.0006442709764691065,
+        0.47732248950158285,
+        0,
+        0.49777038156652975,
+        0.21558823957494164,
+        -0.035096006757912024,
+        1
+      ],
+      "projectionMatrix": [
+        0.6138610318514651,
+        0,
+        0,
+        0,
+        0,
+        1.0913085010692714,
+        0,
+        0,
+        0,
+        0,
+        -1.0009528346831824,
+        -1,
+        0,
+        0,
+        -0.40019056693663646,
+        0
+      ],
+      "viewProjectionMatrix": [
+        0.293008046764656,
+        -0.0026316202255515773,
+        -0.8795636089580128,
+        -0.8787263280356349,
+        0.0010541039552720126,
+        1.0913051015796165,
+        -0.0018131986451362153,
+        -0.0018114726112046246,
+        -0.5394168516293851,
+        0.0007030983936129364,
+        -0.47777729892464293,
+        -0.47732248950158285,
+        0.3055618400535275,
+        0.2352732785786925,
+        -0.3650611194862443,
+        0.035096006757912024
+      ],
+      "corrected": false
+    },
+    {
+      "version": 1,
+      "cameraId": "blockshift-camera",
+      "source": "authored",
+      "projection": "perspective",
+      "rig": "static",
+      "position": [
+        0.47412554354648706,
+        -0.12110662220807772,
+        0.01366666817614512
+      ],
+      "target": [
+        -9.677521315131992,
+        -0.33346513740484574,
+        1.9744703172882476
+      ],
+      "fovDegrees": 100,
+      "orthographicHeight": 5,
+      "near": 0.2,
+      "far": 420,
+      "aspect": 1.7777777777777777,
+      "rollDegrees": 0.2125086008242593,
+      "viewMatrix": [
+        -0.18956999199399613,
+        -0.02086527540386837,
+        0.9816454851002561,
+        0,
+        -0.003708184201689743,
+        0.9997822645243027,
+        0.020534675857768997,
+        0,
+        -0.981860207720693,
+        0.0002526360584477411,
+        -0.1896060881662279,
+        0,
+        0.10284964748534424,
+        0.13096956034900725,
+        -0.46034503047069697,
+        1
+      ],
+      "projectionMatrix": [
+        0.47199354253722003,
+        0,
+        0,
+        0,
+        0,
+        0.83909963117728,
+        0,
+        0,
+        0,
+        0,
+        -1.0009528346831824,
+        -1,
+        0,
+        0,
+        -0.40019056693663646,
+        0
+      ],
+      "viewProjectionMatrix": [
+        -0.08947581207999868,
+        -0.01750804489579832,
+        -0.982580830965049,
+        -0.9816454851002561,
+        -0.001750238997736095,
+        0.8389169294199282,
+        -0.020554242009134187,
+        -0.020534675857768997,
+        -0.46343167771842064,
+        0.0002119868234655813,
+        0.18978675142317522,
+        0.1896060881662279,
+        0.04854436946531191,
+        0.1098965097843025,
+        0.06059309624532366,
+        0.46034503047069697
+      ],
+      "corrected": false
+    }
+  ],
+  "cameraOffHonored": true,
+  "profiles": [
+    {
+      "mode": "quality",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 0.800000011920929,
+        "cpuFrameTimeAverageMs": 0.8851771526621349,
+        "gpuFrameTimeMs": 2.095458,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 268435456,
+        "renderTargetScale": 1,
+        "activeLeaseCount": 0,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 0,
+        "pooledAllocationCount": 1,
+        "activeSurfaceCount": 0,
+        "pooledSurfaceCount": 1,
+        "createdAllocationCount": 5,
+        "reusedAllocationCount": 877,
+        "destroyedAllocationCount": 4,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 24883200,
+        "activeLeaseCountByOwner": {}
+      },
+      "allocatedGpuBytesIncludingBloom": 36150720,
+      "nativeGpuBytes": 252480,
+      "live": {
+        "Buffer": 10,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 9,
+        "Framebuffer": 9,
+        "Renderbuffer": 1,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.300000000000182,
+        "p95": 10.300000000000182
+      },
+      "cpuMs": {
+        "median": 0.9000000059604645,
+        "p95": 1.1000000089406967
+      },
+      "gpuMs": {
+        "median": 2.1355,
+        "p95": 2.250374
+      },
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    },
+    {
+      "mode": "balanced",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "balanced",
+        "resolvedQuality": "medium",
+        "renderTargetScale": 0.82,
+        "gpuMemoryBudgetBytes": 167772160,
+        "cpuFrameTimeMs": 0.5999999940395355,
+        "cpuFrameTimeAverageMs": 0.8883155669199254,
+        "gpuFrameTimeMs": 1.967374,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 167772160,
+        "renderTargetScale": 0.82,
+        "activeLeaseCount": 0,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 0,
+        "pooledAllocationCount": 1,
+        "activeSurfaceCount": 0,
+        "pooledSurfaceCount": 1,
+        "createdAllocationCount": 6,
+        "reusedAllocationCount": 956,
+        "destroyedAllocationCount": 5,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 16734768,
+        "activeLeaseCountByOwner": {}
+      },
+      "allocatedGpuBytesIncludingBloom": 28002288,
+      "nativeGpuBytes": 252480,
+      "live": {
+        "Buffer": 10,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 9,
+        "Framebuffer": 9,
+        "Renderbuffer": 1,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.300000000001091,
+        "p95": 10
+      },
+      "cpuMs": {
+        "median": 0.8999999910593033,
+        "p95": 1.2999999970197678
+      },
+      "gpuMs": {
+        "median": 2.001541,
+        "p95": 2.0705
+      },
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    },
+    {
+      "mode": "performance",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "performance",
+        "resolvedQuality": "low",
+        "renderTargetScale": 0.67,
+        "gpuMemoryBudgetBytes": 100663296,
+        "cpuFrameTimeMs": 0.7999999970197678,
+        "cpuFrameTimeAverageMs": 0.8730444822704884,
+        "gpuFrameTimeMs": 1.856041,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 100663296,
+        "renderTargetScale": 0.67,
+        "activeLeaseCount": 0,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 0,
+        "pooledAllocationCount": 1,
+        "activeSurfaceCount": 0,
+        "pooledSurfaceCount": 1,
+        "createdAllocationCount": 7,
+        "reusedAllocationCount": 1036,
+        "destroyedAllocationCount": 6,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 11172768,
+        "activeLeaseCountByOwner": {}
+      },
+      "allocatedGpuBytesIncludingBloom": 22440288,
+      "nativeGpuBytes": 252480,
+      "live": {
+        "Buffer": 10,
+        "VertexArray": 4,
+        "Program": 5,
+        "Shader": 0,
+        "Texture": 9,
+        "Framebuffer": 9,
+        "Renderbuffer": 1,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.300000000001091,
+        "p95": 10.099999999998545
+      },
+      "cpuMs": {
+        "median": 0.8999999910593033,
+        "p95": 1.2000000029802322
+      },
+      "gpuMs": {
+        "median": 1.911833,
+        "p95": 2.043916
+      },
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    }
+  ],
+  "recreations": [
+    {
+      "Buffer": 10,
+      "VertexArray": 4,
+      "Program": 5,
+      "Shader": 0,
+      "Texture": 9,
+      "Framebuffer": 9,
+      "Renderbuffer": 1,
+      "pendingQueriesBounded": true
+    },
+    {
+      "Buffer": 10,
+      "VertexArray": 4,
+      "Program": 5,
+      "Shader": 0,
+      "Texture": 9,
+      "Framebuffer": 9,
+      "Renderbuffer": 1,
+      "pendingQueriesBounded": true
+    },
+    {
+      "Buffer": 10,
+      "VertexArray": 4,
+      "Program": 5,
+      "Shader": 0,
+      "Texture": 9,
+      "Framebuffer": 9,
+      "Renderbuffer": 1,
+      "pendingQueriesBounded": true
+    }
+  ],
+  "contextRecovery": {
+    "exactPixels": true,
+    "authoredValuesPreserved": true,
+    "generations": [
+      1,
+      2
+    ]
+  },
+  "masterZeroHonored": true,
+  "retired": true,
+  "errors": [],
+  "environment": "Production catalog/runtime, shared camera and HDR bloom, supplied GLBs; synthetic upstream audio, controlled clock; timing is local browser telemetry, not a universal FPS guarantee"
+}

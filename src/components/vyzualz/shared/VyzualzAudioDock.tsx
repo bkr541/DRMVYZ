@@ -622,6 +622,7 @@ export function VyzualzAudioDock({
             scannedRootName: indexed.selectedRootName ?? undefined,
             scannedRootPath: indexed.selectedRootPath ?? undefined,
             parserMode: 'hybrid' as const,
+            diagnostics: undefined,
           },
           metadataSource: 'index' as const,
         }

@@ -20,12 +20,13 @@ Cinema 2.0 systems exist to improve a preset, not replace its visual identity.
 For every preset, implementation priority is:
 
 1. **Correct visual composition**
-2. **Correct manual controls**
-3. **Correct motion**
-4. **Correct audio response**
-5. **Correct user/automation authority**
-6. **Visual Director and Choreography enhancement**
-7. **Camera, lighting, effects, layers, trails, depth, and other Cinema 2.0 enhancements**
+2. **Camera movement and controls, where applicable**
+3. **Correct manual controls**
+4. **Correct motion**
+5. **Correct audio response**
+6. **Correct user/automation authority**
+7. **Visual Director and Choreography enhancement**
+8. **Lighting, effects, layers, trails, depth, and other Cinema 2.0 enhancements**
 
 Do not begin by wiring every Cinema 2.0 subsystem and assume the visual result will emerge afterward.
 
@@ -388,7 +389,15 @@ Do not proceed to audio intelligence.
 
 ---
 
-## Stage 2: Manual parameter parity
+## Stage 2: Camera movement and controls (where applicable)
+
+Implement and visually check the camera movement and controls intended for this preset now, after static visual parity and before general motion or audio work. Verify the camera's actual movement, framing, and any preset-defined user controls on the production canvas.
+
+For fixed-camera presets, confirm the intended framing; do not add movement or controls. Music-driven camera choreography can be connected later, but the underlying camera movement and controls must be inspectable at this stage.
+
+---
+
+## Stage 3: Manual parameter parity
 
 Wire every user-facing design control.
 
@@ -411,7 +420,7 @@ Do not accept "the value reaches the module" as proof.
 
 ---
 
-## Stage 3: Native motion parity
+## Stage 4: Native motion parity
 
 Recreate the legacy movement vocabulary.
 
@@ -430,7 +439,7 @@ Do not substitute one generic motion function for every pattern.
 
 ---
 
-## Stage 4: Audio parity
+## Stage 5: Audio parity
 
 Connect the existing Cinema 2.0 Audio Intelligence signals to recreate the legacy musical behavior.
 
@@ -449,7 +458,7 @@ Required tests must include:
 
 ---
 
-## Stage 5: Cinema 2.0 intelligence enhancement
+## Stage 6: Cinema 2.0 intelligence enhancement
 
 Only after parity is achieved should Visual Director and expanded Choreography improve the preset.
 
@@ -467,9 +476,9 @@ These enhancements must preserve the recognizable preset.
 
 ---
 
-## Stage 6: Camera, depth, lighting, effects, and finishing
+## Stage 7: Depth, lighting, effects, and finishing
 
-Add Cinema 2.0-only improvements last.
+Add Cinema 2.0-only finishing improvements last. Initial camera movement and controls are implemented in Stage 2.
 
 Never use camera movement, depth, bloom, haze, trails, or other finishing effects to disguise incorrect base geometry.
 
@@ -1124,7 +1133,9 @@ Any one of these is a release blocker.
 
 When an AI coding system is asked to create or port a Cinema 2.0 preset, the implementation request must require it to perform the following sequence.
 
-## Step 1: Inspect
+## Step 1: Design, Architecture & Core Visual
+
+### 1.1 Inspect
 
 Inspect the current:
 
@@ -1146,7 +1157,7 @@ Do not assume an API or subsystem exists.
 
 ---
 
-## Step 2: Write the behavior specification before code
+### 1.2 Write the behavior specification before code
 
 Document:
 
@@ -1165,7 +1176,7 @@ For legacy ports, document legacy behavior first.
 
 ---
 
-## Step 3: Implement the visual core first
+### 1.3 Implement the visual core first
 
 Build the actual geometry/rendering.
 
@@ -1173,7 +1184,17 @@ No automation is allowed to mask missing visual behavior.
 
 ---
 
-## Step 4: Prove every manual control
+## Step 2: Camera, User Controls & Visual Motion
+
+### 2.1 Implement and check camera movement and controls (where applicable)
+
+Implement the camera movement and user controls specified for this preset using existing Cinema 2.0 systems. Verify their visible behavior in the production canvas before continuing with general motion and audio integration.
+
+For fixed-camera presets, verify framing without introducing new camera movement or controls. Music-driven camera choreography can be integrated in its later stage; the underlying camera movement must be testable now.
+
+---
+
+### 2.2 Prove every manual control
 
 Add production-canvas acceptance tests.
 
@@ -1183,13 +1204,13 @@ Do not continue while primary controls are perceptually inert.
 
 ---
 
-## Step 5: Prove motion
+### 2.3 Prove motion
 
 Verify actual frame-to-frame visual change.
 
 ---
 
-## Step 6: Connect Audio Intelligence
+## Step 3: Connect Audio Intelligence
 
 Use the shared source.
 
@@ -1199,19 +1220,19 @@ Prove the output changes with real or deterministic music input.
 
 ---
 
-## Step 7: Add Choreography
+## Step 4: Add Choreography
 
 Map musical information to bounded preset-specific actions.
 
 ---
 
-## Step 8: Add Visual Director meaning
+## Step 5: Add Visual Director meaning
 
 Use Director output for macro significance and structural behavior.
 
 ---
 
-## Step 9: Add Auto Performance
+## Step 6: Add Auto Performance
 
 Declare exactly which domains it owns.
 
@@ -1219,13 +1240,13 @@ Add manual takeover behavior, respecting the Section 9 exception for Pattern sel
 
 ---
 
-## Step 10: Add camera/effects/depth enhancements
+## Step 7: Add effects/depth enhancements
 
-Only after the base preset is already correct.
+Only after the base preset is already correct. Camera movement and controls were established in Step 2 (substep 2.1).
 
 ---
 
-## Step 11: Run full acceptance
+## Step 8: Run full acceptance
 
 Unit tests + production browser tests + perceptual output checks + human A/B review.
 

@@ -1,0 +1,54 @@
+{
+  "scope": "P1 authored formation arithmetic, not runtime or production acceptance",
+  "configurations_per_pattern": 81,
+  "phases_per_configuration": 64,
+  "total_sampled_poses": 31104,
+  "checks": [
+    "nine finite centers",
+    "conservative sphere clearance >=0.16 after formation spacing clamp",
+    "rig radius <=10 including cube envelope",
+    "SVG XML parses",
+    "new local markdown links resolve"
+  ],
+  "patterns": [
+    {
+      "pattern": "stack",
+      "minimum_sphere_surface_clearance": 0.2,
+      "maximum_rig_radius_including_cube": 7.868838
+    },
+    {
+      "pattern": "orbit",
+      "minimum_sphere_surface_clearance": 0.583565,
+      "maximum_rig_radius_including_cube": 8.345345
+    },
+    {
+      "pattern": "stagger",
+      "minimum_sphere_surface_clearance": 0.627896,
+      "maximum_rig_radius_including_cube": 9.848777
+    },
+    {
+      "pattern": "split",
+      "minimum_sphere_surface_clearance": 0.2,
+      "maximum_rig_radius_including_cube": 9.752696
+    },
+    {
+      "pattern": "wave",
+      "minimum_sphere_surface_clearance": 0.714663,
+      "maximum_rig_radius_including_cube": 9.699454
+    },
+    {
+      "pattern": "collapse",
+      "minimum_sphere_surface_clearance": 0.288924,
+      "maximum_rig_radius_including_cube": 7.516607
+    }
+  ],
+  "not_tested": [
+    "transitions",
+    "audio offsets",
+    "Auto overlays",
+    "native shaders",
+    "actual camera visibility",
+    "production rendering"
+  ],
+  "result": "PASS"
+}

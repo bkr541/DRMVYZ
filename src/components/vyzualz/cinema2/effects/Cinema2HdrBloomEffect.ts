@@ -210,11 +210,12 @@ class HdrBloomEffectInstance implements Cinema2EffectInstance {
     gl.disable(gl.DEPTH_TEST)
     gl.colorMask(true, true, true, true)
 
-    const levels = this.ensureChain(context.width, context.height, levelCount)
-    if (levels.length === 0 || intensity <= 0) {
+    // Zero is an exact bypass. Avoid allocating/resizing a mip chain until glow is requested.
+    if (intensity <= 0 || context.mix <= 0) {
       this.runComposite(context, null, 0, tint)
       return
     }
+    const levels = this.ensureChain(context.width, context.height, levelCount)
 
     // Prefilter into level 0 (half resolution), reading the full-resolution scene.
     this.prefilter.activate()

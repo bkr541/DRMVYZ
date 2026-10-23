@@ -617,7 +617,7 @@ describe('CanvasEngineSurface Performance Show routing', () => {
   })
 
   it('routes the full authored layer composition through the selected Laser Image FX renderer', async () => {
-    const laserRender = vi.fn(() => true)
+    const laserRender = vi.fn((_params: import('../renderers/laserImageFx/LaserImageFxRenderer').LaserImageFxRenderParams) => true)
     const laserResize = vi.fn()
     const laserDispose = vi.fn()
     vi.spyOn(LaserImageFxRenderer, 'create').mockReturnValue({

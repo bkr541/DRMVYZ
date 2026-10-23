@@ -1,0 +1,404 @@
+[
+  {
+    "cycle": 1,
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 960,
+          "height": 540,
+          "dpr": 1
+        },
+        "frameCount": 40,
+        "contextGeneration": 2,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.5,
+          "cpuFrameTimeAverageMs": 3.230562822984312,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.5,
+          "cpuFrameTimeAverageMs": 3.230562822984312,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 6,
+          "reusedAllocationCount": 76,
+          "destroyedAllocationCount": 3,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 11404800,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 40,
+          "executedPassCount": 120,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 2,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "active",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "failures": []
+  },
+  {
+    "cycle": 2,
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 960,
+          "height": 540,
+          "dpr": 1
+        },
+        "frameCount": 48,
+        "contextGeneration": 3,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.7000000029802322,
+          "cpuFrameTimeAverageMs": 3.396198736833126,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.7000000029802322,
+          "cpuFrameTimeAverageMs": 3.396198736833126,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 9,
+          "reusedAllocationCount": 90,
+          "destroyedAllocationCount": 6,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 11404800,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 48,
+          "executedPassCount": 144,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 2,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "active",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "failures": []
+  },
+  {
+    "cycle": 3,
+    "diagnostics": {
+      "runtime": {
+        "phase": "running",
+        "viewport": {
+          "width": 960,
+          "height": 540,
+          "dpr": 1
+        },
+        "frameCount": 56,
+        "contextGeneration": 4,
+        "statusMessage": null,
+        "resources": {
+          "activeAnimationFrameCount": 1,
+          "activeEventListenerCount": 2,
+          "activeWebGLContextCount": 1
+        },
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.5,
+          "cpuFrameTimeAverageMs": 3.421480791254414,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        }
+      },
+      "engine": {
+        "presetId": "drmvyz.cinema2.blockshift",
+        "performance": {
+          "diagnosticsEnabled": true,
+          "requestedMode": "quality",
+          "resolvedQuality": "high",
+          "renderTargetScale": 1,
+          "gpuMemoryBudgetBytes": 268435456,
+          "cpuFrameTimeMs": 1.5,
+          "cpuFrameTimeAverageMs": 3.421480791254414,
+          "gpuFrameTimeMs": null,
+          "gpuTimingSupported": true,
+          "degraded": false,
+          "degradationReason": null
+        },
+        "resources": {
+          "disposed": false,
+          "contextAvailable": true,
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "maximumTextureSize": 16384,
+          "maximumPooledAllocationCount": 24,
+          "maximumEstimatedGpuMemoryBytes": 268435456,
+          "renderTargetScale": 1,
+          "activeLeaseCount": 1,
+          "activeTransientLeaseCount": 0,
+          "activePersistentLeaseCount": 1,
+          "pooledAllocationCount": 2,
+          "activeSurfaceCount": 2,
+          "pooledSurfaceCount": 2,
+          "createdAllocationCount": 12,
+          "reusedAllocationCount": 104,
+          "destroyedAllocationCount": 9,
+          "reconstructedAllocationCount": 0,
+          "estimatedGpuMemoryBytes": 11404800,
+          "activeLeaseCountByOwner": {
+            "cinema2.history.drmvyz.cinema2.blockshift": 1
+          }
+        },
+        "render": {
+          "disposed": false,
+          "frameCount": 56,
+          "executedPassCount": 168,
+          "skippedPassCount": 0,
+          "failedPassCount": 0,
+          "activePersistentTargetCount": 0,
+          "lastExecutedPassIds": [
+            "blockshift-scene-pass",
+            "blockshift-atmosphere-pass",
+            "blockshift-bloom-pass"
+          ],
+          "diagnostics": [],
+          "visibilityCheckpoints": []
+        },
+        "modules": {
+          "activeModuleCount": 1,
+          "failedModuleCount": 0,
+          "degradedModuleCount": 0,
+          "activeResourceLeaseCount": 1,
+          "estimatedGpuBytes": 722040,
+          "modules": [
+            {
+              "moduleId": "blockshift-sculpture",
+              "status": "active",
+              "activeResourceLeaseCount": 1,
+              "estimatedGpuBytes": 722040,
+              "renderProviderCount": 1,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "effects": {
+        "activeEffectCount": 2,
+        "failedEffectCount": 0,
+        "effects": [
+          {
+            "effectId": "blockshift-atmosphere",
+            "typeId": "volumetric-atmosphere",
+            "status": "active",
+            "order": 0,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          },
+          {
+            "effectId": "blockshift-bloom",
+            "typeId": "hdr-bloom",
+            "status": "active",
+            "order": 1,
+            "scope": "output",
+            "quality": null,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "failures": []
+  }
+]

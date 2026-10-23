@@ -84,8 +84,8 @@ async function decodeBitmap(blob: Blob): Promise<DecodedPixGridImage> {
 export async function preparePixGridMediaAsset(input: PixGridPreparationInput): Promise<PixGridPreparedAsset> {
   const capability = inspectPixGridMediaCapability(input.media)
   if (!capability.supported) throw new Error(capability.reason ?? 'Unsupported PixGrid media.')
-  const declaredWidth = input.media.width ?? 0
-  const declaredHeight = input.media.height ?? 0
+  const declaredWidth = input.media.metadata.width ?? 0
+  const declaredHeight = input.media.metadata.height ?? 0
   if (declaredWidth > PIX_GRID_DECK_MAX_RASTER_DIMENSION || declaredHeight > PIX_GRID_DECK_MAX_RASTER_DIMENSION) {
     throw new Error(`This media exceeds PixGrid's ${PIX_GRID_DECK_MAX_RASTER_DIMENSION}px source-dimension limit.`)
   }

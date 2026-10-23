@@ -1,0 +1,297 @@
+{
+  "result": "PASS",
+  "filmstrips": [
+    {
+      "pattern": "stack",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-stack-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-stack-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-stack-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-stack-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    },
+    {
+      "pattern": "orbit",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-orbit-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-orbit-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-orbit-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-orbit-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    },
+    {
+      "pattern": "stagger",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-stagger-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-stagger-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-stagger-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-stagger-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    },
+    {
+      "pattern": "split",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-split-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-split-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-split-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-split-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    },
+    {
+      "pattern": "wave",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-wave-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-wave-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-wave-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-wave-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    },
+    {
+      "pattern": "collapse",
+      "phases": [
+        {
+          "normalizedPhase": 0,
+          "file": "filmstrip-collapse-0.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.25,
+          "file": "filmstrip-collapse-25.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.5,
+          "file": "filmstrip-collapse-50.png",
+          "geometryAndPixelsVerified": true
+        },
+        {
+          "normalizedPhase": 0.75,
+          "file": "filmstrip-collapse-75.png",
+          "geometryAndPixelsVerified": true
+        }
+      ]
+    }
+  ],
+  "temporalControls": [
+    {
+      "suffix": "motion-amount",
+      "values": [
+        0,
+        0.55,
+        1
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    },
+    {
+      "suffix": "audio-reactivity",
+      "values": [
+        0,
+        0.8,
+        1
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    },
+    {
+      "suffix": "motion-rate",
+      "values": [
+        0.25,
+        1,
+        2
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    },
+    {
+      "suffix": "camera-float-amount",
+      "values": [
+        0,
+        0.6,
+        1
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    },
+    {
+      "suffix": "camera-float-speed",
+      "values": [
+        0.25,
+        0.7,
+        2
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    },
+    {
+      "suffix": "orbit-intensity",
+      "values": [
+        0,
+        0.35,
+        1
+      ],
+      "equalTimeMinMaxPixelDifference": true
+    }
+  ],
+  "transitionDurations": [
+    "0.5",
+    "1",
+    "2",
+    "4"
+  ],
+  "duplicateEvents": [
+    {
+      "trigger": "beat",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "kick",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "snare",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "downbeat",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "beat2",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "beat4",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "bar",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "bar4",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "bar8",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "phrase",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    },
+    {
+      "trigger": "drop",
+      "repeatedPublicationDoesNotDoubleAdvance": true
+    }
+  ],
+  "manualSelectionAndNextFreshEvent": true,
+  "transport": [
+    {
+      "kind": "seek-forward",
+      "authoredControlsPreserved": true,
+      "nativeAndEffectsHealthy": true
+    },
+    {
+      "kind": "seek-backward",
+      "authoredControlsPreserved": true,
+      "nativeAndEffectsHealthy": true
+    },
+    {
+      "kind": "loop-boundary",
+      "authoredControlsPreserved": true,
+      "nativeAndEffectsHealthy": true
+    },
+    {
+      "kind": "track-swap",
+      "authoredControlsPreserved": true,
+      "nativeAndEffectsHealthy": true
+    }
+  ],
+  "pausedGeometryAndCameraHold": true,
+  "resumeMoves": true,
+  "atmosphereContextRecovery": true,
+  "liveResize": [
+    "square",
+    "portrait",
+    "landscape"
+  ],
+  "humanReview": "PENDING",
+  "errors": [],
+  "fixture": "Production catalog/runtime/GLBs and shared AudioFeatureBus. Explicit synthetic upstream publications and controlled host transport; loop is a backward transport jump, not an audio-player integration claim."
+}

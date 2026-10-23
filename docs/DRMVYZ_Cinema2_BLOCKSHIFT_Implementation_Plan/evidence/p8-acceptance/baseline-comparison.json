@@ -1,0 +1,25 @@
+{
+  "baseCommit": "9c2aa74831103c1589e589c8cedc5af5f94f1643",
+  "currentFailedAssertions": 24,
+  "baseFailedAssertions": 24,
+  "newFailures": [],
+  "initialSuite": {
+    "files": 127,
+    "passedTests": 1316,
+    "failedTests": 24
+  },
+  "correctDomInspector": {
+    "passed": 7,
+    "failed": 1,
+    "sameFailureInBase": true
+  },
+  "focused": {
+    "files": 7,
+    "passedTests": 66
+  },
+  "sharedAndNeighbor": {
+    "files": 8,
+    "passedTests": 101
+  },
+  "notes": "The initial direct Vitest run used Node for InspectorPanel; the repository DOM config corrects seven failures, leaving the same one preexisting assertion. Initial suite failures were reproduced against archived base source using the installed dependencies and shared unchanged public assets. The broad failing suite was not repeated after the focused fixes."
+}

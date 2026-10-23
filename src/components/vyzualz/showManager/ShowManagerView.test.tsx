@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+import type { ShowManagerShowRecord } from './ShowManagerDomain'
+import type { LaserDmxShowManagerShow } from './LaserDmxShowManagerDomain'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -65,7 +67,7 @@ const fixture = vi.hoisted(() => ({
     currentTime: 42,
     duration: 240,
     isPlaying: false,
-    getCurrentTime: () => 42,
+    getCurrentTime: (): number => 42,
     currentEffectiveBpm: 128,
     currentEffectiveBeatGrid: [
       { timeSec: 0, beatIndex: 0, isDownbeat: true },
@@ -147,7 +149,7 @@ const fixture = vi.hoisted(() => ({
         }],
         edited: false,
       },
-    }],
+    }] as ShowManagerShowRecord[],
     showManagerEditingShowId: 'laser-show-1' as string | null,
     loadShowManagerShowsFromCloud: vi.fn(async () => true),
     createShowManagerShow: vi.fn(async () => 'show-manager-created' as string | null),
@@ -161,7 +163,7 @@ const fixture = vi.hoisted(() => ({
     updateShowManagerTrackMapSection: vi.fn(),
     updateShowManagerTrackMapBoundary: vi.fn(),
     laserDmxShowManagerShows: [{
-      schemaVersion: 2,
+      schemaVersion: 3,
       id: 'laser-show-1',
       name: 'Untitled Show',
       settings: {
@@ -197,9 +199,9 @@ const fixture = vi.hoisted(() => ({
           rendererMode: 'auto',
         },
       })),
-    }],
-    laserDmxShowManagerEditingShowId: 'laser-show-1',
-    laserDmxShowManagerEditingSectionId: 'laser-show-1:section:intro:1',
+    }] as LaserDmxShowManagerShow[],
+    laserDmxShowManagerEditingShowId: 'laser-show-1' as string | null,
+    laserDmxShowManagerEditingSectionId: 'laser-show-1:section:intro:1' as string | null,
     laserDmxShowManagerPlaybackSectionId: null as string | null,
     laserDmxShowManagerActiveShowId: null as string | null,
     showManagerUndoStack: [] as unknown[],
@@ -505,7 +507,7 @@ function setSharedShowToCanvasAuthoredSections(showId: string) {
   shared.engineIds = ['canvas']
   shared.trackMap = {
     schemaVersion: 1,
-    linkedAudioTrackId: shared.linkedAudioTrackId,
+    linkedAudioTrackId: shared.linkedAudioTrackId!,
     baseAnalysisVersion: 'analysis-v3',
     baseTimelineRevision: `canvas-authored-${showId}`,
     durationSec: Math.max(cursor, 1),
@@ -946,7 +948,7 @@ describe('ShowManagerView production shell', () => {
       mediaElements: [],
     }] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = 'canvas-show-library'
-    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-library', name: 'Festival Visuals', linkedAudioTrackId: 'audio-db-1', tags: ['Peak', 'Main'], groupId: 'collection-1', engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerShows = [{ schemaVersion: 2, trackMap: null, id: 'canvas-show-library', name: 'Festival Visuals', linkedAudioTrackId: 'audio-db-1', tags: ['Peak', 'Main'], groupId: 'collection-1', engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = 'canvas-show-library'
 
     container = document.createElement('div')
@@ -1014,7 +1016,7 @@ describe('ShowManagerView production shell', () => {
 
   it('blocks a Show open when its recorded linked-audio source is unavailable and leaves the Show session untouched', async () => {
     fixture.state.showManagerShows = [{
-      schemaVersion: 1,
+      schemaVersion: 2, trackMap: null,
       id: 'missing-audio-show',
       name: 'Missing Audio Show',
       linkedAudioTrackId: 'audio-db-1',
@@ -1058,7 +1060,7 @@ describe('ShowManagerView production shell', () => {
   it('keeps missing and legacy linked-audio Shows visible but refuses to bind arbitrary current audio', async () => {
     fixture.state.showManagerShows = [
       {
-        schemaVersion: 1,
+        schemaVersion: 2, trackMap: null,
         id: 'missing-library-show',
         name: 'Missing Library Record',
         linkedAudioTrackId: 'audio-db-gone',
@@ -1067,7 +1069,7 @@ describe('ShowManagerView production shell', () => {
         engineIds: ['pixGrid'],
       },
       {
-        schemaVersion: 1,
+        schemaVersion: 2, trackMap: null,
         id: 'legacy-show',
         name: 'Legacy Unlinked',
         linkedAudioTrackId: null,
@@ -1122,7 +1124,7 @@ describe('ShowManagerView production shell', () => {
 
   it('opens Copy in the reused New Show dialog with locked audio and only editable Show metadata', async () => {
     fixture.state.showManagerShows = [{
-      schemaVersion: 1,
+      schemaVersion: 2, trackMap: null,
       id: 'copy-source-show',
       name: 'Copy Source',
       linkedAudioTrackId: 'audio-db-1',
@@ -1186,7 +1188,7 @@ describe('ShowManagerView production shell', () => {
 
   it('requires delete confirmation and the Copy/Delete row actions do not trigger Open', async () => {
     fixture.state.showManagerShows = [{
-      schemaVersion: 1,
+      schemaVersion: 2, trackMap: null,
       id: 'delete-show',
       name: 'Delete Candidate',
       linkedAudioTrackId: 'audio-db-1',
@@ -1260,7 +1262,7 @@ describe('ShowManagerView production shell', () => {
       mediaElements: [],
     }] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = 'canvas-show-track-map'
-    fixture.state.showManagerShows = [{ schemaVersion: 1, id: 'canvas-show-track-map', name: 'Track Map Show', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerShows = [{ schemaVersion: 2, trackMap: null, id: 'canvas-show-track-map', name: 'Track Map Show', linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = 'canvas-show-track-map'
     fixture.state.canvasShowManagerEditingSectionId = sections[0]!.id
     setSharedShowToCanvasAuthoredSections('canvas-show-track-map')
@@ -1341,7 +1343,7 @@ describe('ShowManagerView production shell', () => {
     }
     fixture.state.canvasShowManagerShows = [show] as typeof fixture.state.canvasShowManagerShows
     fixture.state.canvasShowManagerEditingShowId = show.id
-    fixture.state.showManagerShows = [{ schemaVersion: 1, id: show.id, name: show.name, linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
+    fixture.state.showManagerShows = [{ schemaVersion: 2, trackMap: null, id: show.id, name: show.name, linkedAudioTrackId: 'audio-db-1', tags: [], groupId: null, engineIds: ['canvas'] }] as typeof fixture.state.showManagerShows
     fixture.state.showManagerEditingShowId = show.id
     fixture.state.canvasShowManagerEditingSectionId = show.sections[0]!.id
     setSharedShowToCanvasAuthoredSections(show.id)

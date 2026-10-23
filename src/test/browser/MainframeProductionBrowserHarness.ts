@@ -118,7 +118,7 @@ const publishMainframeAudioFrame = (timestampMs: number) => {
     },
     section: {
       ...DEFAULT_MI_FRAME.section,
-      type: 'buildup',
+      type: 'build',
       label: 'Buildup',
       startSec: 0,
       endSec: 8,

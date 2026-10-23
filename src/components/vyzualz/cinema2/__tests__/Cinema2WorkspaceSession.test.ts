@@ -57,7 +57,7 @@ function createRuntime(serializedParameterState?: string, presetId = CINEMA2_REA
 describe('Cinema 2.0 workspace re-entry state', () => {
   it('captures only persistent parameter/media descriptors and reconstructs them through canonical runtime owners', async () => {
     const first = createRuntime()
-    expect(first.getParameterState().setPersistentValue(CINEMA2_REACTOR_CORE_SIZE_ID, 1.37).ok).toBe(true)
+    expect(first.getParameterState().setPersistentValue(CINEMA2_REACTOR_CORE_SIZE_ID, 0.87).ok).toBe(true)
     await first.getMediaSlotRuntime().replace(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID, {
       id: 'workspace-media',
       revision: 7,
@@ -76,7 +76,7 @@ describe('Cinema 2.0 workspace re-entry state', () => {
     const second = createRuntime(saved.serializedParameterState)
     await restoreCinema2WorkspaceMedia(second, saved)
 
-    expect(second.getParameterState().getValue(CINEMA2_REACTOR_CORE_SIZE_ID)).toBe(1.37)
+    expect(second.getParameterState().getValue(CINEMA2_REACTOR_CORE_SIZE_ID)).toBe(0.87)
     expect(second.getMediaSlotRuntime().getSlotSnapshot(CINEMA2_REACTOR_USER_MEDIA_SLOT_ID)).toMatchObject({
       status: 'ready',
       source: { id: 'workspace-media', revision: 7 },

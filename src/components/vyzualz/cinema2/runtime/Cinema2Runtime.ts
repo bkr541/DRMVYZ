@@ -864,6 +864,9 @@ export class Cinema2Runtime {
       diagnostics.activeAnimationFrameCount = Math.max(0, diagnostics.activeAnimationFrameCount - 1)
     }
     if (this.disposed || !this.runningRequested || this.suspended || this.contextLost || this.phase === 'unavailable') return
+    // WebGL loss takes effect before its DOM event is delivered. A queued RAF in
+    // that gap must not allocate targets or report a spurious render-pass failure.
+    if (typeof this.gl.isContextLost === 'function' && this.gl.isContextLost()) return
 
     try {
       const cpuFrameStartedAt = readMonotonicTimeMs()

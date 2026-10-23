@@ -72,7 +72,7 @@ describe('PrismApertureController', () => {
 
   it('stays finite while the authored control is slammed between min and max', () => {
     const controller = new PrismApertureController()
-    let value = PRISM_APERTURE_LIMITS.default
+    let value: number = PRISM_APERTURE_LIMITS.default
     for (let index = 0; index < 120; index += 1) {
       const authored = index % 2 === 0 ? PRISM_APERTURE_LIMITS.min : PRISM_APERTURE_LIMITS.max
       const resolved = controller.resolve({

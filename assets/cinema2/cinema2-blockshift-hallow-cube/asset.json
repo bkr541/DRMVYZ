@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-blockshift-hallow-cube",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC-BY-4.0",
+  "attribution": "Hallow Cube by Jovian Blaze (https://sketchfab.com/Jovian_Blaze). Source: https://sketchfab.com/3d-models/hallow-cube-b702b517a0d3499fb0cb9b92b7bb413d. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Runtime centers/scales geometry and remaps materials for BLOCKSHIFT.",
+  "origin": "User-supplied docs/BLOCKSHIFT/hallow_cube.glb; original source: https://sketchfab.com/3d-models/hallow-cube-b702b517a0d3499fb0cb9b92b7bb413d. Shipped GLB unchanged.",
+  "files": {
+    "high": "public/cinema2/models/blockshift-hallow-cube.glb"
+  }
+}

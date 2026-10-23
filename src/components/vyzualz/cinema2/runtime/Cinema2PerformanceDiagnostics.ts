@@ -93,6 +93,9 @@ export class Cinema2PerformanceDiagnostics {
   beginGpuFrame(): void {
     if (!this.ext || this.activeGpuQuery || typeof this.gl.createQuery !== 'function') return
     this.pollGpuResult()
+    // Keep the outstanding query until the GPU completes it. Replacing it every
+    // frame can discard every sample when results arrive more than one frame late.
+    if (this.pendingGpuQuery) return
     const query = this.gl.createQuery()
     if (!query) return
     try {

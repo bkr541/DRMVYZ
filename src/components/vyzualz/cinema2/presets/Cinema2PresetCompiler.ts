@@ -884,6 +884,9 @@ function validateCameraMotion(
   }
   if (motion.rollDegrees != null && (typeof motion.rollDegrees !== 'number' || !Number.isFinite(motion.rollDegrees) || Math.abs(motion.rollDegrees) > 45)) invalid('rollDegrees must be finite and within ±45.', '.rollDegrees')
   nonNegative(motion.fovRateLimitDegreesPerSecond, '.fovRateLimitDegreesPerSecond')
+  if (motion.orbit != null) {
+    if (!isPlainObject(motion.orbit) || typeof motion.orbit.angularSpeedDegreesPerSecond !== 'number' || !Number.isFinite(motion.orbit.angularSpeedDegreesPerSecond) || motion.orbit.angularSpeedDegreesPerSecond < 0 || motion.orbit.angularSpeedDegreesPerSecond > 90) invalid('Additive orbit angular speed must be between 0 and 90 degrees per second.', '.orbit.angularSpeedDegreesPerSecond')
+  }
   if (motion.drift != null) {
     if (!isPlainObject(motion.drift)) invalid('Drift must be an object.', '.drift')
     else {
@@ -939,6 +942,11 @@ function validateCameraControls(
     ['pathProgress', ['float', 'integer']],
     ['smoothingMs', ['float', 'integer']],
     ['motionAmount', ['float', 'integer']],
+    ['motionEnabled', ['boolean']],
+    ['orbitMotionEnabled', ['boolean']],
+    ['orbitMotionSpeed', ['float', 'integer']],
+    ['motionSpeed', ['float', 'integer']],
+    ['masterMotionAmount', ['float', 'integer']],
     ['motionSafety', ['enum']],
     ['tempoSync', ['boolean', 'float', 'integer']],
     ['kickZoom', ['boolean', 'float', 'integer']],
@@ -955,19 +963,20 @@ function validateCameraControls(
     if (parameter && !types.includes(parameter.type)) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROL_TYPE_MISMATCH', `Camera control "${name}" requires parameter type ${types.join(' or ')}, not "${parameter.type}".`, controlPath))
     }
-    if (name.startsWith('orbit') && camera.rig?.kind !== 'orbit') {
+    if (['orbitRadius', 'orbitAzimuthDegrees', 'orbitElevationDegrees'].includes(name) && camera.rig?.kind !== 'orbit') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `Camera control "${name}" requires an orbit rig.`, controlPath))
     }
+    if ((name === 'orbitMotionEnabled' || name === 'orbitMotionSpeed') && camera.motion?.orbit == null) diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires motion.orbit.`, controlPath))
     if (name === 'pathProgress' && camera.rig?.kind !== 'path' && camera.rig?.kind !== 'fly') {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'pathProgress requires a path or fly rig.', controlPath))
     }
     if (name === 'kickZoom' && camera.motion?.tempo == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'kickZoom requires the camera to author `motion.tempo`.', controlPath))
     }
-    if (name === 'tempoSync' && camera.motion?.tempo == null) {
-      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'tempoSync requires the camera to author `motion.tempo`.', controlPath))
+    if ((name === 'tempoSync' || name === 'motionSpeed') && camera.motion?.tempo == null) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires the camera to author motion.tempo.`, controlPath))
     }
-    if ((name === 'motionAmount' || name === 'motionSafety') && camera.motion == null) {
+    if (['motionAmount', 'motionSafety', 'motionEnabled', 'masterMotionAmount'].includes(name) && camera.motion == null) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires the camera to author \`motion\`.`, controlPath))
     }
   }

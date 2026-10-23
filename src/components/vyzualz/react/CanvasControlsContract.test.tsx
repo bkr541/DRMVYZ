@@ -465,7 +465,7 @@ describe('CANVAS right-panel control contract', () => {
     })
     useReactStore.getState().selectCanvasPreset('canvas-fractures')
     useReactStore.getState().setCanvasPresetSettings({ fractureColorSourceMode: 'brandKit' })
-    const render = vi.fn(() => true)
+    const render = vi.fn((_params: Parameters<CanvasFracturesRenderer['render']>[0]) => true)
     const create = vi.spyOn(CanvasFracturesRenderer, 'create').mockReturnValue({
       renderer: {
         backend: 'canvas2d',

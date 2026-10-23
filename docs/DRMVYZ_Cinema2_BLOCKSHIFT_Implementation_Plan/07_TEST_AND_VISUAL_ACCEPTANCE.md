@@ -1,5 +1,7 @@
 # 07. Tests, Production Visual Evidence and Acceptance Matrix
 
+**Current acceptance target (2026-10-23):** The approved immersive revision supersedes the original nine-cube/noncropping proposal: fifteen persistent model identities surround an inside observer; rear cubes and deliberate peripheral crops are expected. Size reaches 6.00, Spread reaches 3.00, LED bars use shared choreography, and atmosphere/optional added rotation are included. Phase 8 evidence and baseline limitations are recorded in [28_P8_PRODUCTION_ACCEPTANCE_REPORT.md](28_P8_PRODUCTION_ACCEPTANCE_REPORT.md).
+
 ## Testing principle
 
 Manifest/compiler and unit tests catch wiring defects; **production-canvas screenshots/recordings** catch the invisible-feature failure mode. Both are mandatory. Do not report BLOCKSHIFT passed until the new implementation has actually been run in the production Cinema 2.0 React renderer.
@@ -20,7 +22,7 @@ Use existing testing patterns from `Cinema2DepthPreset.test.ts`, `Cinema2Backstr
 
 ## Mandatory visual coverage
 
-**V01. Idle hero:** no audio, stationary camera, effects OFF. Nine recognizable floating solid cubes, readable edges, intentional 3D depth and negative space.
+**V01. Idle hero:** no audio, stationary camera, effects OFF. Fifteen persistent objects, with recognizable forward cubes and verified rear/side positions, readable edges, intentional 3D depth and negative space.
 
 **V02. Six pattern snapshots:** Stack, Orbit, Stagger, Split, Wave, Collapse under same non-reactive conditions. Each shows distinct *geometric silhouette*.
 
@@ -30,7 +32,7 @@ Use existing testing patterns from `Cinema2DepthPreset.test.ts`, `Cinema2Backstr
 
 **V05. Manual Inspector proof:** min/default/max for each numeric, each enum selection, both boolean states; pixel-difference evidence from the actual canvas, with a human-readable expected change.
 
-**V06. Independent colors:** Primary/Secondary/Accent/Body/Background assigned five distinct diagnostic hues. Each independently changes only its intended visible consumer.
+**V06. Independent colors:** Primary/Secondary/Accent/Body/Background assigned five distinct diagnostic hues. Each changes its intended visible consumers independently; Block Body also colors the LED housings, so edge/body pixel masks can legitimately intersect.
 
 **V07. Hard-disables:** Motion Amount=0 freezes physical animation, Audio Reactivity=0 removes audio modulation, Camera Motion OFF freezes automatic camera, Bloom=0 suppresses bloom. These remain disabled with Auto Performance ON.
 
@@ -46,7 +48,7 @@ Use existing testing patterns from `Cinema2DepthPreset.test.ts`, `Cinema2Backstr
 
 **V13. Transport:** play, pause, resume, seek forward/back, loop boundary, track swap, preset exit/re-entry and BPM Sync toggle. No stale repeat events or accelerating animations.
 
-**V14. Aspect:** screenshots in **16:9, 1:1 and 9:16**, plus live resize, for all 6 patterns; no missing cubes or severe crop.
+**V14. Aspect:** screenshots in **16:9, 1:1 and 9:16**, plus live resize, for all 6 patterns; all fifteen instances retained with intentional peripheral cropping and verified forward visibility.
 
 **V15. Performance/lifecycle:** sustained session, repeated entering/leaving and GL context interruption. No growing persistent GPU memory, duplicate callbacks, unbounded instance allocations or shader errors.
 
@@ -72,12 +74,12 @@ All test events must be supplied through the **existing validated Cinema 2.0 eve
 
 These are proposed P1 targets, **not measurements or promised guarantees**:
 
-- Baseline 9 blocks; no instance-buffer reallocation per frame; few draws for sculptural module (target ≤4 module draw calls where technically possible).
+- Baseline 15 blocks; no instance-buffer reallocation per frame; few draws for sculptural module (target ≤4 module draw calls where technically possible).
 - Scene **≤12 non-ambient shared lights** by contract; target 0–2 BLOCKSHIFT-specific physical lights; emission via geometry/shader.
 - Memory steady after repeated activate/deactivate cycles; module reports approximate GPU byte ownership.
 - Stable frame time on reference hardware relative to baseline; define maximum acceptable incremental frame time empirically during P0/P7, record p50/p95 and device configuration.
 - Zero WebGL errors, unresolved program/link exceptions, nonfinite transforms, persistent collisions, or leaked event handlers.
-- Preserve rendering at normal 16:9, square and portrait dimensions; no unintended offscreen cube loss.
+- Preserve rendering at normal 16:9, square and portrait dimensions; no unintended instance loss; offscreen rear/peripheral objects are intentional.
 
 ## Evidence artifact naming (suggested)
 

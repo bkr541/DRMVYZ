@@ -133,8 +133,8 @@ function HarnessContent() {
       analyzedBpm: typeof audio.currentAnalyzedBpm === 'number' ? audio.currentAnalyzedBpm : null,
       analysisStatus: audio.currentAnalysisStatus ?? null,
     }
-    statusElement.dataset.result = 'ready'
-    statusElement.textContent = JSON.stringify(audioState)
+    statusElement!.dataset.result = 'ready'
+    statusElement!.textContent = JSON.stringify(audioState)
   }, [audio.currentAnalysisStatus, audio.currentAnalyzedBpm, audio.currentTrackId])
   return <VyzualzView activeView="vyzualz" onNavigate={() => {}} initialAppView="react" />
 }

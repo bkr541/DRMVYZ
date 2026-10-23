@@ -75,7 +75,7 @@ function createExecutor(value: Cinema2NativePresetManifest) {
   return { compiled: compiled.plan, executor, gl, resources, resolver }
 }
 
-function provider(id: Cinema2ModuleId, execute = vi.fn(), intent: 'fullscreen' | 'world' = 'fullscreen'): Cinema2ModuleRenderPassProvider {
+function provider(id: Cinema2ModuleId, execute: Cinema2ModuleRenderPassProvider['execute'] = vi.fn(), intent: 'fullscreen' | 'world' = 'fullscreen'): Cinema2ModuleRenderPassProvider {
   return { id: `${id}:provider`, moduleId: id, intent, execute }
 }
 
@@ -265,7 +265,7 @@ describe('Cinema 2.0 layer/compositing/depth foundation', () => {
       },
     }
     const created = createExecutor(value)
-    const execute = vi.fn()
+    const execute: Cinema2ModuleRenderPassProvider['execute'] = vi.fn()
     created.executor.executeFrame(frame, [provider(module, execute)])
 
     expect(execute).toHaveBeenCalledTimes(1)

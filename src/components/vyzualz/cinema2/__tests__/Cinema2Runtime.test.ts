@@ -241,6 +241,26 @@ describe('Cinema2Runtime sibling foundation', () => {
   })
 
 
+  it('skips a queued frame when WebGL is lost before the DOM loss event is delivered', () => {
+    const gl = createCinemaMockWebGL()
+    const { canvas, runtime, raf } = createRuntime(gl)
+    runtime.start()
+    const before = runtime.getSnapshot().frameCount
+    vi.mocked(gl.isContextLost).mockReturnValue(true)
+    raf.runNext(100)
+    expect(runtime.getSnapshot().frameCount).toBe(before)
+    expect(runtime.getRenderGraphExecutorSnapshot().failedPassCount).toBe(0)
+    expect(raf.callbacks.size).toBe(0)
+    canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }))
+    vi.mocked(gl.isContextLost).mockReturnValue(false)
+    canvas.dispatchEvent(new Event('webglcontextrestored'))
+    expect(raf.callbacks.size).toBe(1)
+    raf.runNext(200)
+    expect(runtime.getSnapshot().frameCount).toBe(before + 1)
+    expect(runtime.getRenderGraphExecutorSnapshot().failedPassCount).toBe(0)
+    runtime.dispose()
+  })
+
   it('rolls a failed context restoration back to a retired, explicit unavailable state', () => {
     const before = getCinema2RuntimeDiagnostics()
     const gl = createCinemaMockWebGL()

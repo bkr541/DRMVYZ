@@ -222,7 +222,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       typeId: CINEMA2_AFTERHOURS_NATIVE_MODULE_TYPE_ID,
       version: 1,
     })
-    expect(plan.capabilities.required).toEqual(expect.arrayContaining(REQUIRED_CAPABILITIES))
+    expect(plan.capabilities.required).toEqual(expect.arrayContaining([...REQUIRED_CAPABILITIES]))
   })
 
   it('authors the complete independent parameter contract and binds every exposed control into shared engine state', () => {
@@ -334,7 +334,7 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       ]),
       ...react.flatMap(section => section.groups.flatMap(group => group.controls)),
     ].map(control => control.definition.id)
-    expect(allControls).toEqual(expect.arrayContaining(EXPECTED_USER_PARAMETER_IDS))
+    expect(allControls).toEqual(expect.arrayContaining([...EXPECTED_USER_PARAMETER_IDS]))
     expect(allControls).not.toContain(CINEMA2_AFTERHOURS_RESET_TRAILS_ID)
     expect(allControls).toContain(CINEMA2_AFTERHOURS_AUTO_PERFORMANCE_ID)
 

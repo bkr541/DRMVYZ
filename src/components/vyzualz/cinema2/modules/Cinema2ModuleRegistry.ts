@@ -10,6 +10,7 @@ import { cinema2ThresholdNativeModuleDefinition } from './Cinema2ThresholdNative
 import { cinema2ThreeSceneModuleDefinition } from './Cinema2ThreeSceneModule'
 import { cinema2SayItNativeModuleDefinition } from './Cinema2SayItNativeModule'
 import { cinema2DepthNativeModuleDefinition } from './Cinema2DepthNativeModule'
+import { cinema2BlockshiftNativeModuleDefinition } from './Cinema2BlockshiftNativeModule'
 import { cinema2BackstreetNativeModuleDefinition } from './Cinema2BackstreetNativeModule'
 import { cinema2MainframeNativeModuleDefinition } from './Cinema2MainframeNativeModule'
 import { cinema2ConduitNativeModuleDefinition } from './Cinema2ConduitNativeModule'
@@ -95,6 +96,10 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const blockshiftRegistration = cinema2NativeModuleRegistry.register(cinema2BlockshiftNativeModuleDefinition)
+if (!blockshiftRegistration.ok) {
+  throw new Error(`Cinema 2.0 BLOCKSHIFT native module registration failed: ${blockshiftRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
 const fullscreenShaderRegistration = cinema2NativeModuleRegistry.register(cinema2FullscreenShaderModuleDefinition)
 if (!fullscreenShaderRegistration.ok) {
   throw new Error(`Cinema 2.0 fullscreen shader module registration failed: ${fullscreenShaderRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

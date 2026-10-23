@@ -378,10 +378,10 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
 
   it('projects all four reference complexity classes through the same generic Inspector architecture', () => {
     const cases = [
-      { manifest: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST, design: ['Design', 'Effects'], react: [] },
+      { manifest: CINEMA2_REFERENCE_VISUAL_PRESET_MANIFEST, design: ['Design', 'Effects', 'Advanced'], react: [] },
       { manifest: CINEMA2_REACTOR_PRESET_MANIFEST, design: ['Advanced'], react: [] },
-      { manifest: CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST, design: ['Scene', 'Camera', 'Effects', 'Environment'], react: ['React'] },
-      { manifest: CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, design: ['Advanced'], react: ['React'] },
+      { manifest: CINEMA2_SPATIAL_REFERENCE_PRESET_MANIFEST, design: ['Scene', 'Camera', 'Effects', 'Environment', 'Advanced'], react: ['React'] },
+      { manifest: CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, design: ['Advanced'], react: [] },
     ] as const
 
     for (const testCase of cases) {

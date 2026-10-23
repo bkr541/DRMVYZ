@@ -154,7 +154,7 @@ describe('Cinema 2.0 Stage 13 Spatial Reference preset', () => {
 
     const designSections = createCinema2InspectorModel(compilation.plan, state.getSnapshot(), 'design').map(section => section.label)
     const reactSections = createCinema2InspectorModel(compilation.plan, state.getSnapshot(), 'react').map(section => section.label)
-    expect(designSections).toEqual(expect.arrayContaining(['Scene', 'Design', 'Camera', 'Environment']))
+    expect(designSections).toEqual(expect.arrayContaining(['Scene', 'Camera', 'Effects', 'Environment', 'Advanced']))
     expect(reactSections).toEqual(['React'])
   })
 
@@ -179,6 +179,8 @@ describe('Cinema 2.0 Stage 13 Spatial Reference preset', () => {
     raf.runNext(1000)
 
     expect(runtime.getCompiledPresetPlan().presetId).toBe(CINEMA2_SPATIAL_REFERENCE_PRESET_ID)
+    expect(runtime.getModuleRuntimeSnapshot().modules.flatMap(module => module.diagnostics)).toEqual([])
+    expect(runtime.getRenderGraphExecutorSnapshot().diagnostics).toEqual([])
     expect(runtime.getRenderGraphExecutorSnapshot()).toMatchObject({ failedPassCount: 0, executedPassCount: 2 })
     expect(runtime.getCameraRuntimeSnapshot()).toMatchObject({ activeCameraId: CINEMA2_SPATIAL_REFERENCE_ORBIT_CAMERA_ID })
     expect(runtime.getCameraRuntimeSnapshot().camera.rig).toBe('orbit')

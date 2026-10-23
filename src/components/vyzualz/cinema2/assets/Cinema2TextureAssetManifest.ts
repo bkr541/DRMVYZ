@@ -14,6 +14,7 @@ export const CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID: Cinema2AssetId = 'cinema2-sm
 export const cinema2TextureAssetRegistry = new Cinema2TextureAssetRegistry()
 
 for (const record of CINEMA2_ASSET_RECORDS) {
+  const attribution = record.attribution
   if (record.kind !== 'texture') continue
   const { high, medium, low } = record.files as { high: TextureFile; medium?: TextureFile; low?: TextureFile }
   cinema2TextureAssetRegistry.register({
@@ -28,7 +29,7 @@ for (const record of CINEMA2_ASSET_RECORDS) {
       ...(low ? { low: variantOf(low) } : {}),
     },
     license: record.license,
-    ...(record.attribution ? { attribution: record.attribution } : {}),
+    ...(attribution ? { attribution } : {}),
   })
 }
 

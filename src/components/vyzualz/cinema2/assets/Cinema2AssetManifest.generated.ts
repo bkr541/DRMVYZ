@@ -75,6 +75,44 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-blockshift-hallow-cube",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Hallow Cube by Jovian Blaze (https://sketchfab.com/Jovian_Blaze). Source: https://sketchfab.com/3d-models/hallow-cube-b702b517a0d3499fb0cb9b92b7bb413d. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Runtime centers/scales geometry and remaps materials for BLOCKSHIFT.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/blockshift-hallow-cube.glb",
+        "bytes": 10128,
+        "triangles": 56
+      }
+    },
+    "gpuBytes": {
+      "high": 3552,
+      "medium": 3552,
+      "low": 3552
+    }
+  },
+  {
+    "id": "cinema2-blockshift-impossible-cube",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Impossible Cube by tomciomalina (https://sketchfab.com/tomciomalina). Source: https://sketchfab.com/3d-models/impossible-cube-044a6f65abc14b959ff636ce0f37a858. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Runtime centers/scales geometry and remaps materials for BLOCKSHIFT.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/blockshift-impossible-cube.glb",
+        "bytes": 363864,
+        "triangles": 7328
+      }
+    },
+    "gpuBytes": {
+      "high": 360704,
+      "medium": 360704,
+      "low": 360704
+    }
+  },
+  {
     "id": "cinema2-bwc-creature-label",
     "kind": "texture",
     "layout": "color",
@@ -111,12 +149,17 @@ export const CINEMA2_ASSET_RECORDS = [
         "url": "/cinema2/models/conduit-chamber.glb",
         "bytes": 9008084,
         "triangles": 142196
+      },
+      "low": {
+        "url": "/cinema2/models/conduit-chamber-low.glb",
+        "bytes": 8763812,
+        "triangles": 121080
       }
     },
     "gpuBytes": {
       "high": 8994072,
       "medium": 8994072,
-      "low": 8994072
+      "low": 8749800
     }
   },
   {

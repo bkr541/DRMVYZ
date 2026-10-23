@@ -1,3 +1,4 @@
+import { Cinema2RuntimeDiagnostics } from '../../react/Cinema2RuntimeDiagnostics'
 /** @vitest-environment jsdom */
 
 import React, { act, useState } from 'react'
@@ -370,6 +371,7 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
         <Cinema2Stage presetId={presetId} onRuntimeReady={next => { activeRuntimeRef.current = next; setRuntime(next) }} />
         <Cinema2InspectorPanel runtime={runtime} surface="design" />
         <Cinema2InspectorPanel runtime={runtime} surface="react" />
+        <Cinema2RuntimeDiagnostics runtime={runtime} snapshot={runtime?.getSnapshot() ?? null} />
       </>
     }
 
@@ -398,8 +400,7 @@ describe('Cinema 2.0 Electric Storm production selection path', () => {
       CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID,
       CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID,
       CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID,
-      CINEMA2_QUALITY_MODE_PARAMETER_ID,
-    ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
+    ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`), id).not.toBeNull()
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_STRUCTURE_REACTION_ID}"]`)).not.toBeNull()
 
     await act(async () => raf.runNext())

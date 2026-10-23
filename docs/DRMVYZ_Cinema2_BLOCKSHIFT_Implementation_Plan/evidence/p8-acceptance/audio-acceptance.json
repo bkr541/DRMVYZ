@@ -1,0 +1,140 @@
+{
+  "result": "PASS",
+  "input": "Explicit synthetic MusicIntelligenceFrame profiles published through AudioFeatureBus → shared audio bridge/choreography → native module → real GLB renderer; no audio file analysis claim",
+  "results": [
+    {
+      "profile": "silence",
+      "changedPixels": 114559,
+      "physical": false
+    },
+    {
+      "profile": "verse",
+      "changedPixels": 92719,
+      "physical": false
+    },
+    {
+      "profile": "bass",
+      "changedPixels": 133728,
+      "physical": true
+    },
+    {
+      "profile": "mids",
+      "changedPixels": 101687,
+      "physical": true
+    },
+    {
+      "profile": "highs",
+      "changedPixels": 67467,
+      "physical": true
+    },
+    {
+      "profile": "vocals",
+      "changedPixels": 113498,
+      "physical": false
+    },
+    {
+      "profile": "build",
+      "changedPixels": 132461,
+      "physical": true
+    },
+    {
+      "profile": "kick",
+      "changedPixels": 139583,
+      "physical": true
+    },
+    {
+      "profile": "snare",
+      "changedPixels": 114798,
+      "physical": true
+    },
+    {
+      "profile": "downbeat",
+      "changedPixels": 89872,
+      "physical": true
+    },
+    {
+      "profile": "bar",
+      "changedPixels": 93398,
+      "physical": true
+    },
+    {
+      "profile": "phrase",
+      "changedPixels": 130901,
+      "physical": true
+    },
+    {
+      "profile": "section",
+      "changedPixels": 63222,
+      "physical": true
+    },
+    {
+      "profile": "drop",
+      "changedPixels": 147239,
+      "physical": true
+    }
+  ],
+  "triggers": [
+    {
+      "trigger": "beat",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "kick",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "snare",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "downbeat",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "beat2",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "beat4",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "bar",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "bar4",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "bar8",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "phrase",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    },
+    {
+      "trigger": "drop",
+      "actualGpuAndPixelChange": true,
+      "authoredPatternPreserved": true
+    }
+  ],
+  "kickSnareDistinct": true,
+  "decayObserved": true,
+  "pauseFrozen": true,
+  "motionZeroFrozen": true,
+  "sourceResetHealthy": true,
+  "errors": [],
+  "rendering": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)"
+}

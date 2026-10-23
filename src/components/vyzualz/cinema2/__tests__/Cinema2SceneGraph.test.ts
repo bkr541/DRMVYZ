@@ -210,6 +210,8 @@ describe('Cinema 2.0 Scene Graph and layer foundation', () => {
             kind: 'primitive',
             parent: cinema2Ref(missing),
           },
+          { id: cinema2StableId<Cinema2SceneNodeId>('coordinate-parent'), kind: 'group', coordinateSpace: 'world' },
+          { id: cinema2StableId<Cinema2SceneNodeId>('coordinate-child'), kind: 'group', parent: cinema2Ref(cinema2StableId<Cinema2SceneNodeId>('coordinate-parent')), coordinateSpace: 'screen' },
         ],
       },
       layers: [{ id: layerAId, label: 'Broken', source: cinema2Ref(missing) }],
@@ -218,7 +220,7 @@ describe('Cinema 2.0 Scene Graph and layer foundation', () => {
     expect(result.ok).toBe(false)
     expect(result.diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'CINEMA2_SCENE_PARENT_CYCLE', path: '$.scene.nodes' }),
-      expect.objectContaining({ code: 'CINEMA2_SCENE_COORDINATE_SPACE_MISMATCH', path: '$.scene.nodes[1].coordinateSpace' }),
+      expect.objectContaining({ code: 'CINEMA2_SCENE_COORDINATE_SPACE_MISMATCH', path: '$.scene.nodes[4].coordinateSpace' }),
       expect.objectContaining({ code: 'CINEMA2_PRESET_REFERENCE_MISSING', path: '$.scene.nodes[1].module' }),
       expect.objectContaining({ code: 'CINEMA2_PRESET_REFERENCE_MISSING', path: '$.scene.nodes[2].parent' }),
       expect.objectContaining({ code: 'CINEMA2_PRESET_REFERENCE_MISSING', path: '$.layers[0].source' }),

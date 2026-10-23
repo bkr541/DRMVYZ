@@ -1,0 +1,27 @@
+{
+  "result": "PASS",
+  "scenarios": [
+    {
+      "profile": "build",
+      "actualGpuAndPixelDifference": true,
+      "currentBaseRestored": true,
+      "persistedControlsAndHuesPreserved": true
+    },
+    {
+      "profile": "drop",
+      "actualGpuAndPixelDifference": true,
+      "currentBaseRestored": true,
+      "persistedControlsAndHuesPreserved": true
+    }
+  ],
+  "manualTakeoverAndCooldown": true,
+  "laterIndependentDropAccepted": true,
+  "pauseFrozen": true,
+  "masterZeroFrozen": true,
+  "audioZeroRemovesOverlay": true,
+  "masterIntensityZeroHonored": true,
+  "cameraOffHonored": true,
+  "bloomNotAuthored": true,
+  "errors": [],
+  "fixture": "Production runtime/GLB rendering; synthetic upstream AudioFeatureBus build/drop profiles; shared Director and choreography, no private musical event injection"
+}

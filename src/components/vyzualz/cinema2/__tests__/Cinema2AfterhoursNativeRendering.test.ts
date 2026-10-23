@@ -195,6 +195,7 @@ function camera(aspect = 16 / 9, x = 0): Cinema2CameraFrame {
     position,
     target,
     fovDegrees: 50,
+    rollDegrees: 0,
     orthographicHeight: 5,
     near: 0.1,
     far: 100,
@@ -303,6 +304,7 @@ function beamProfileStrength(side: number, atmosphere: number, longitudinal = 0.
 describe('Cinema 2.0 Afterhours native 3D renderer', () => {
   it('preserves signed beam-side interpolation through zero and keeps the optical center stronger than the edges', () => {
     const harness = createHarness()
+    execute(harness, frame({ timeSec: 1 }))
     const sources = shaderSources(harness.gl)
     const vertex = sources.find(source => source.includes('layout(location = 0) in vec2 aCorner')) ?? ''
     const fragment = sources.find(source => source.includes('out vec4 outColor')) ?? ''
@@ -311,7 +313,7 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     expect(vertex).not.toContain('vSide = abs(aCorner.y);')
     expect(vertex).toContain('viewportExitScale')
     expect(vertex).toContain('extendedTargetNdc')
-    expect(vertex).toContain('worldClip.xy += (extendedCenterNdc - authoredCenterNdc) * worldClip.w;')
+    expect(vertex).toContain('gl_Position = vec4(extendedCenterNdc + offsetNdc, centerClip.z / centerClip.w, 1.0);')
     expect(fragment).toContain('float side = clamp(abs(vSide), 0.0, 1.0);')
     expect(beamProfileStrength(0, 0.55)).toBeGreaterThan(beamProfileStrength(1, 0.55))
 
@@ -354,6 +356,7 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     const harness = createHarness({ beamCount: 2, symmetry: false })
     const current = frame({ timeSec: 1 })
     harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
+    execute(harness, current) // Allocate resources before testing the draw boundary.
     vi.mocked(harness.gl.getError).mockReturnValueOnce(0x0502).mockReturnValue(0)
 
     expect(() => execute(harness, current)).toThrow(/Afterhours native laser draw.*INVALID_OPERATION/)
@@ -487,10 +490,10 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     const current = frame({ timeSec: 1 })
     harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
     execute(harness, current, camera(16 / 9, 0))
-    execute(harness, { ...current, viewport: { width: 900, height: 900, dpr: 1 } }, camera(1, 1.2))
     const matrixCalls = (harness.gl.uniformMatrix4fv as unknown as { mock: { calls: unknown[][] } }).mock.calls
-    const firstMatrix = Array.from(matrixCalls[0]?.[2] as Float32Array)
-    const secondMatrix = Array.from(matrixCalls[1]?.[2] as Float32Array)
+    const firstMatrix = Array.from(matrixCalls[matrixCalls.length - 1]?.[2] as Float32Array)
+    execute(harness, { ...current, viewport: { width: 900, height: 900, dpr: 1 } }, camera(1, 1.2))
+    const secondMatrix = Array.from(matrixCalls[matrixCalls.length - 1]?.[2] as Float32Array)
     expect(firstMatrix.every(Number.isFinite)).toBe(true)
     expect(secondMatrix.every(Number.isFinite)).toBe(true)
     expect(secondMatrix).not.toEqual(firstMatrix)
@@ -526,7 +529,7 @@ describe('Cinema 2.0 Afterhours native 3D renderer', () => {
     const idle = { sourcePresent: false, playing: false, analysisActive: false, paused: false, animationActive: false, trackId: null, timeSec: 0 }
     const draw = (frameId: number, wallClockSec: number) => {
       const current = frame({ frameId, timeSec: wallClockSec, elapsedTimeSec: 0, transport: idle })
-      harness.gl.bufferSubData.mockClear()
+      vi.mocked(harness.gl.bufferSubData).mockClear()
       harness.instance.lifecycle.update({ frame: current, parameters: harness.parameterFacet, targets: harness.targetFacet })
       execute(harness, current)
       return lastInstanceCount(harness.gl) > 0 ? Array.from(lastMockArgument(harness.gl.bufferSubData, 2) as Float32Array) : []

@@ -15,6 +15,7 @@ import { CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST } from './Cinema2ThreeMod
 import { CINEMA2_THRESHOLD_PRESET_MANIFEST } from './Cinema2ThresholdPreset'
 import { CINEMA2_SAY_IT_PRESET_MANIFEST } from './Cinema2SayItPreset'
 import { CINEMA2_DEPTH_PRESET_MANIFEST } from './Cinema2DepthPreset'
+import { CINEMA2_BLOCKSHIFT_PRESET_MANIFEST } from './Cinema2BlockshiftPreset'
 import { CINEMA2_BACKSTREET_PRESET_MANIFEST } from './Cinema2BackstreetPreset'
 import { CINEMA2_MAINFRAME_PRESET_MANIFEST } from './Cinema2MainframePreset'
 import { CINEMA2_ECHOFORM_PRESET_MANIFEST } from './Cinema2EchoformPreset'
@@ -36,6 +37,8 @@ import { CINEMA2_MARQUEE_PRESET_MANIFEST } from './Cinema2MarqueePreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  // In-app review entry. Promote to keeper only after the remaining acceptance gates.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_BLOCKSHIFT_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({
     role: 'foundation',
     manifest: CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST,

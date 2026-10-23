@@ -87,7 +87,7 @@ beforeEach(async () => {
   }))
   bridge = {
     listTargets: vi.fn(async () => targets),
-    getTargetSnapshot: vi.fn(async () => ({
+    getTargetSnapshot: vi.fn<NonNullable<NativeOutputBridge['getTargetSnapshot']>>(async () => ({
       targets,
       providers: [
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
@@ -102,7 +102,7 @@ beforeEach(async () => {
     startCast,
     stopCast,
     publishOffer: vi.fn(async () => true),
-    waitForAnswer: vi.fn(async () => ({ type: 'answer', sdp: 'answer' })),
+    waitForAnswer: vi.fn(async () => ({ type: 'answer' as const, sdp: 'answer' })),
     failSession: vi.fn(async () => true),
     beginGoogleCastStream,
     publishGoogleCastChunk,
@@ -290,7 +290,7 @@ describe('OutputCastControl', () => {
   })
 
   it('dispatches Google Cast picker through the provider action with current output choices', async () => {
-    bridge.getTargetSnapshot = vi.fn(async () => ({
+    bridge.getTargetSnapshot = vi.fn<NonNullable<NativeOutputBridge['getTargetSnapshot']>>(async () => ({
       targets,
       providers: [
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },
@@ -477,7 +477,7 @@ describe('OutputCastControl', () => {
 
 
   it('exposes Windows wireless-display selection through the same provider-action contract', async () => {
-    bridge.getTargetSnapshot = vi.fn(async () => ({
+    bridge.getTargetSnapshot = vi.fn<NonNullable<NativeOutputBridge['getTargetSnapshot']>>(async () => ({
       targets,
       providers: [
         { providerId: 'local-display', label: 'Connected displays', state: 'available', targetCount: 1, message: null, capabilities: { targetEnumeration: true, sessions: true, picker: false, actions: [] } },

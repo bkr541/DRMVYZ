@@ -1,6 +1,23 @@
 # 06. Phase-by-Phase Implementation Plan with Hard Gates
 
+**Latest pre-acceptance refinement:** The user subsequently requested larger cubes, brighter LEDs/Threshold-style atmosphere and Rotate Cubes. See [implementation and verification](27_LARGER_CUBES_ATMOSPHERE_ROTATION.md). These refinements are included in the current Phase 8 acceptance.
+
+**Current checkpoint:** Phase 9 release review and documentation are recorded in [the sign-off report](29_P9_RELEASE_SIGNOFF_REPORT.md). The user approved the reviewed visuals/behavior, and Phase 8 automated evidence passes. Gate P9 remains **NO SHIP**: repository type/build/test release disposition and validation of a final committed candidate remain unresolved. The preset remains Preview.
+
+**Subsequent user-directed LED change:** [LED bars and shared choreography](26_LED_BAR_CHOREOGRAPHY.md) replace the colored frame material after P7. The LED shader has its own focused functional validation; P7's earlier profiling figures remain historical. The current P8 run refreshes validation for this shader and the subsequent atmosphere/rotation changes.
+
+**User-directed count revision:** BLOCKSHIFT now has fifteen permanent objects (fourteen Hallow Cubes and one Impossible Cube), superseding the earlier nine-object specification. See [current count revision](22_FIFTEEN_CUBE_FIELD.md). The six-object addition preceded the user's subsequent authorization of Phase 6.
+
+**Current user-directed composition:** [Immersive field revision](19_IMMERSIVE_FIELD_REVISION.md) overrides the earlier distant sculpture framing. Preserve a camera inside the field, large near/peripheral cubes, varied distances and rear geometry. P4 evolves these spatial poses around the observer; P5 connects shared audio responses throughout the surrounding volume. Do not restore an outside camera to fit all fifteen objects in one image. Intentional peripheral cropping is part of this composition; camera/model penetration remains a failure.
+
+
 **Source of truth:** root `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md`. Follow its §§8–10, 11–20 and 23–25. Every phase must report files changed, test commands/results, real visual evidence where relevant, deviations, and explicit **STOP/GO**. Do not ship a render-only prototype as a complete keeper.
+
+## 2026-10-22 sequencing correction
+
+The root creation contract takes precedence over the original phase boundaries. P3 must prove six selectable native formations and a real BPM Sync consumer before proceeding; these foundations move forward from P4. Full pattern-specific trajectories and smooth transitions remain P4. The user subsequently authorized moving basic floating camera motion and controls into P4; P7 retains camera polish and effects. Audio Reactivity becomes visible in P5, Auto Performance in P6, and Bloom in P7, only with working consumers. Transition Length stays hidden until P4. Canonical event plumbing can exist in P3; the complete eleven-event music/transport matrix remains P5, as allowed by contract §23 Step 4.
+
+An unfinished preset must be inspectable in the normal app as an explicitly labeled **reference preview**. Test-only registration is insufficient for user review. Promotion to keeper and release requires the full contract, including human acceptance; current milestone tests do not grant release approval.
 
 ## Phase 0 — Branch verification and feasibility (NO implementation)
 
@@ -21,7 +38,7 @@
 ## Phase 1 — Author complete BLOCKSHIFT visual/authority specification
 
 **Tasks**
-1. Lock nine indexed cubes and two visible material layers (opaque face + glowing edge). Define fixed rig, object tags, camera, max movement, minimum clearance and pattern bounding boxes.
+1. Lock fifteen indexed cubes and two visible material layers (opaque face + glowing edge). Define fixed rig, object tags, camera, max movement, minimum clearance and pattern bounding boxes.
 2. Lock exact geometry targets for six patterns and transition policy; ensure **Stack/Orbit/Stagger/Split/Wave/Collapse are six genuine spatial programs**.
 3. Approve the complete Inspector matrix, including BPM Sync, Pattern/Pattern Change/Trigger, five independent colors and strict hard disables.
 4. Define source-signal → resolved target mapping, event envelope bounds, Director gain caps and temporary Auto Performance precedence.
@@ -30,22 +47,22 @@
 
 **Deliverables:** signed visual specification, block identity map, baseline/stress spatial envelopes, control authority matrix, screenshot plan.
 
-**Gate P1:** Patterns are distinguishable as **geometry** under a stationary camera; no more than nine blocks and no physics/asset dependencies. **STOP** if visual language relies on bloom or hidden complex machinery.
+**Gate P1:** Patterns are distinguishable as **geometry** under a stationary camera; fifteen stable blocks and no physics engine. The later user-authorized GLB integration supersedes the original no-assets proposal. **STOP** if visual language relies on bloom or hidden complex machinery.
 
 ---
 
 ## Phase 2 — Native geometry/module/static production render
 
 **Tasks**
-1. Build `Cinema2BlockshiftDomain.ts` and `Cinema2BlockshiftLayout.ts`: nine stable IDs and rigs, typed grouping, validated defaults and finite transforms.
+1. Build `Cinema2BlockshiftDomain.ts` and `Cinema2BlockshiftLayout.ts`: fifteen stable IDs and rigs, typed grouping, validated defaults and finite transforms.
 2. Build `Cinema2BlockshiftRenderer.ts`: minimal WebGL2 instanced body/edge geometry, depth-tested world render, buffers, shaders, resource disposal and GPU accounting.
 3. Build `Cinema2BlockshiftNativeModule.ts`: definition ID/version, validation, engine-owned resources, world provider, module inspection, lifecycle.
 4. Create minimum valid `Cinema2BlockshiftPreset.ts` manifest with proper world scene, camera, layer, depth/color render pass and module bindings.
-5. Register first-party keeper and module via existing two registry seams; if incomplete, use an explicitly test-only route compatible with repository, not a public broken keeper.
+5. Register the module and a clearly labeled reference preview through the existing registry seams so the user can inspect it in the normal app. Promote to keeper only after final acceptance.
 6. Visually validate the native renderer with **bloom OFF, audio OFF, motion OFF** on the actual app canvas.
 
 **Tests/evidence**
-- Stable nine IDs and finite matrices; IDs persist across render frames; depth and camera required.
+- Stable fifteen IDs and finite matrices; IDs persist across render frames; depth and camera required.
 - Authoring/compiler validation and graph references; no GL/shader/resource warnings.
 - Screenshots of visible face/edge separation at 16:9, 1:1, 9:16, resize.
 
@@ -57,9 +74,9 @@
 
 **Tasks**
 1. Implement all required generic Inspector parameters and module parameter bindings; four parent groups only.
-2. Bind BPM Sync to a functioning clock consumer (actual timing proof finalized P4); Pattern, Pattern Change boolean OFF and conditional Trigger in required order and group.
+2. Bind BPM Sync to a functioning clock consumer and prove ON/OFF output in P3; Pattern, Pattern Change boolean OFF and conditional Trigger in required order and group.
 3. Implement **five independent Palette colors**, including visibly distinct Primary/Secondary/Accent/Body/Background output regions.
-4. Implement Block Size, Spread, Depth, Rotation Range, Master Intensity, Motion Amount, Audio Reactivity and optional actually wired effects/camera controls.
+4. Implement Block Size, Spread, Depth, Rotation Range, Master Intensity, Motion Amount and Motion Rate. Implement the six distinct manual formations and basic timing foundation. Keep later-phase audio/automation/transition/effect controls hidden until functional.
 5. Persist authored settings through existing parameter state; avoid manifest-default reads that ignore resolved overrides.
 6. Re-run safe layout validation at min/max for geometry controls; test zero and hard disables.
 
@@ -72,20 +89,23 @@
 
 ---
 
-## Phase 4 — Six physical patterns, transitions and clocks
+## Phase 4 — Pattern motion, transitions, clock hardening and basic floating camera
 
 **Tasks**
-1. Create pure `Cinema2BlockshiftPatterns.ts` evaluating all six formation targets from stable IDs, phase and authored geometry.
+1. Extend the P3 six-formation foundation with the full authored trajectories, using pure pattern evaluation from stable IDs, phase and authored geometry; split into `Cinema2BlockshiftPatterns.ts` when needed.
 2. Implement `Cinema2BlockshiftOrchestration.ts` to resolve user base, runtime selected pattern, phase/time, current/previous pose, bounded interpolation and safety.
 3. Connect selected Pattern to real GPU instance position/rotation/scale updates; ensure animated motion and **spatial identity** with effects OFF.
-4. Implement shared Pattern controller: no immediate repetition; no stale or duplicate event switching; user change while ON takes effect and preserves ON.
-5. BPM Sync ON uses valid engine tempo/grid as defined; OFF uses free-run timing; no local beat detector. Honor pause/seek/loop/re-entry/track change.
-6. Implement transition-length option and a safe policy for new pattern changes mid-transition.
+4. Harden the P3 shared Pattern controller: no immediate repetition; no stale or duplicate event switching; user change while ON takes effect and preserves ON.
+5. Extend the P3 timing foundation: BPM Sync ON uses valid engine tempo/grid as defined; OFF uses free-run timing; no local beat detector. Honor pause/seek/loop/re-entry/track change.
+6. Implement transition-length option and retarget from the last visible pose when a new selection arrives mid-transition.
+7. **User-approved scope change:** implement basic floating camera motion here through the shared camera runtime, with Camera Motion, Float Amount, Float Speed and Field of View controls. Preserve the approved observer-centered field; no camera orbit outside the field or automatic fit of all nine objects. OFF and Master Motion Amount zero restore the base camera.
+8. Keep geometry separated and outside the observer volume through animation and transitions; deliberate peripheral crops are part of the current visual target.
 
 **Tests/evidence**
 - Six geometry snapshots and animation filmstrips; no two patterns collapse to the same positions.
 - Stack→Orbit, Split→Collapse transition clips, no overlaps/clipping/jitter.
 - Tempo contrast, BPM Sync toggle, pause/resume/seek and runtime pattern precedence.
+- Camera controls visibly effective, conditional controls/persistence, bounded drift, stationary OFF view and paused FOV editing.
 
 **Gate P4:** Six visibly distinct **3D geometry** patterns; deterministic timing and transformations. **STOP** if only emission/labels/camera movement changes.
 
@@ -94,7 +114,7 @@
 ## Phase 5 — Shared Audio Intelligence routing and canonical event switching
 
 **Tasks**
-1. Consume shared frame audio/transport/director; declare actual manifest capabilities and attach choreography continuous mappings and event rules via supported schema.
+1. Consume shared frame audio/transport and existing Director section-transition context; declare actual manifest capabilities and attach choreography continuous mappings and event rules via supported schema. Director significance gain remains Phase 6.
 2. Connect sub/bass/mids/highs/energy/vocals/build/section signals to bounded physical/edge channels.
 3. Connect kick/snare/downbeat/phrase/section/drop envelopes with unique object groups and decay behaviors; no custom analysis.
 4. Wire canonical eleven Trigger options using tested shared resolver and new event identities. Pattern Change OFF blocks auto cycling while other audio reactivity works.
@@ -127,14 +147,14 @@
 
 ---
 
-## Phase 7 — Camera, effects and performance hardening
+## Phase 7 — Camera polish, effects and performance hardening
 
 **Tasks**
-1. Tune shared camera three-quarter hero composition; optional camera drift via standard runtime only, conditional camera controls correctly bound.
+1. Polish the shared floating camera introduced in Phase 4 within the approved immersive field. Tune framing/safety across patterns and aspects; any additional camera choreography remains a later, explicitly validated change.
 2. Add engine-owned HDR bloom/atmosphere/finish only when needed; all toggle/intensity values visually honored.
 3. Validate wide/square/portrait clipping and camera framing for all six patterns.
 4. Profile CPU/GPU/memory, frame time, draw calls, shader compilation, resource destruction/recreation, seek/re-entry, WebGL context-loss recovery.
-5. Keep 9-block baseline, body+edge batching, no per-block spotlights, no imported model assets.
+5. Keep fifteen stable objects, the two user-supplied GLB assets and body/frame batching; no per-block spotlights or new asset import UI.
 
 **Tests/evidence**
 - 3 aspect ratios × 6 patterns; bloom 0 vs on; all camera settings.

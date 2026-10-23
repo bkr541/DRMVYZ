@@ -1,5 +1,20 @@
 # 01. Visual, Geometry, Camera and Motion Specification
 
+**Latest user refinement (2026-10-23):** [Size, atmosphere and rotation revision](27_LARGER_CUBES_ATMOSPHERE_ROTATION.md) supersedes the older size ceiling/global clearance: Block Size 1.05–6.00; stable local radial clearance; finite field radius 600, far plane 840; brighter LEDs with shared Threshold atmosphere and optional full-axis cube spin. Camera position/FOV and the surrounding-field composition remain.
+
+**User-directed LED revision:** Colored frame geometry on both supplied models is now an LED bar housing/diffuser surface with segmented self-emission and shared geometry/audio choreography. Original triangles, object scale and surrounding composition are preserved. See [LED bar construction and evidence](26_LED_BAR_CHOREOGRAPHY.md); earlier flat frame material captures are historical.
+
+**Current count revision:** [Fifteen-cube field](22_FIFTEEN_CUBE_FIELD.md) supersedes every older nine-object limit below at the user's request. Fourteen Hallow Cubes plus one Impossible Cube; camera position, block scale, spacing controls and observer-centered framing remain.
+
+**Authoritative visual revision — 2026-10-22:** The user wants the observer **inside** a spacious cube field, with massive nearby geometry on all sides. [Immersive field revision](19_IMMERSIVE_FIELD_REVISION.md) supersedes the older distant installation, camera, size/spread limits and all-nine-in-frame rules below. Preserve this surrounding-space concept in subsequent phases.
+
+
+**Historical size checkpoint:** [Size correction](17_BLOCK_SIZE_CORRECTION.md) records an intermediate revision. The current immersive revision uses Size 1.05–3.00 at 6× physical scale; Phase 4 adds a 300-unit pose envelope, 2.5-unit observer exclusion and basic bounded camera float. See [the P4 report](20_P4_MOTION_AND_FLOATING_CAMERA_REPORT.md).
+
+
+**2026-10-22 user-directed geometry revision:** The supplied `docs/BLOCKSHIFT/hallow_cube.glb` and `impossible_cube.glb` replace the procedural solid-box/twelve-rod meshes. Eight surrounding blocks use Hallow Cube; stable center `block-04` uses Impossible Cube. Both are centered and uniformly normalized to a unit bounding box before Block Size is applied. This supersedes the earlier no-imported-assets restriction and exact procedural mesh description. Nine identities, six formations, clearance limits and authored parameter authority remain. See [GLB integration report](16_GLB_OBJECT_INTEGRATION.md).
+
+
 ## Visual identity
 
 **BLOCKSHIFT** is a sculptural 3D grid of **nine floating black geometric blocks**, each with sharply defined, independently colored luminous edges. The background is almost black and the scene's negative space is intentional. The scene should feel like a programmable gallery installation: controlled weight, depth and transformations, not a busy particle wall.
@@ -12,7 +27,7 @@
 |---|---|---|
 | Block count | **9 stable identities** (`block-00`…`block-08`) | Fixed 3×3 indexed rig avoids mesh rebuild complexity in v1 |
 | Shape | Box/prism with dark opaque faces; emissive edge strips/line-prism geometry | Cheap native geometry; readable without glow |
-| Nominal cube size | 0.70–1.20 normalized world units (default 0.90), validated in scene-space | Inspector can scale via instance transform |
+| Nominal cube size | 1.05–1.80 normalized world units (default 1.35; revised in P1), validated in scene-space | Inspector can scale via instance transform |
 | Nominal gap | Default about half a block width, with an enforced positive world-space clearance | Visually legible separation and safe reformation |
 | Object transforms | Local position x/y/z, yaw/pitch/roll, limited uniform scale, edge emission | Independent choreography targets |
 | Rotational movement | Bounded, never full random tumbling; clamp rotation and angular speed | Avoid chaos and intersection artifacts |

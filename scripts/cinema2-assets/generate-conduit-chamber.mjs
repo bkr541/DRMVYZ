@@ -28,6 +28,9 @@ import { hash, writeGlb } from './cinema2-tube-kit.mjs'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const outputPath = process.argv[2] ? resolve(process.argv[2]) : join(root, 'public/cinema2/models/conduit-chamber.glb')
 
+// Low quality retains all pieces/LED semantics with fewer bevel subdivisions.
+const lowDetail = process.argv.includes('--low')
+
 const CENTRE = [0, 2.27]
 const OUTER_RADIUS = 6.85
 const GROUPS = 8
@@ -81,7 +84,7 @@ const maxY = points => Math.max(...points.map(p => p[1]))
  * Extrudes one 2D shape (outer + optional holes) `depth` deep, its back face at z = `back`. The bevel rounds `bevel` in from the outline and
  * `thickness` (default `bevel`) in depth at each face.
  */
-function extrude(outer, holes, back, depth, bevel, bevelSegments = 2, thickness = bevel) {
+function extrude(outer, holes, back, depth, bevel, bevelSegments = lowDetail ? 1 : 2, thickness = bevel) {
   const shape = new THREE.Shape(outer.map(([x, y]) => new THREE.Vector2(x, y)))
   for (const hole of holes) shape.holes.push(new THREE.Path(hole.map(([x, y]) => new THREE.Vector2(x, y))))
   let geometry = new THREE.ExtrudeGeometry(shape, {

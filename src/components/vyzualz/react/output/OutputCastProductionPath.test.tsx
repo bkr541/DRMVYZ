@@ -4,11 +4,8 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
-// @ts-expect-error Node test runtime API; the renderer tsconfig intentionally excludes Node globals.
 import { mkdtempSync, rmSync } from 'node:fs'
-// @ts-expect-error Node test runtime API; the renderer tsconfig intentionally excludes Node globals.
 import { tmpdir } from 'node:os'
-// @ts-expect-error Node test runtime API; the renderer tsconfig intentionally excludes Node globals.
 import { join } from 'node:path'
 // @ts-expect-error Production native bridge is CommonJS and intentionally has no renderer TypeScript declaration.
 import outputCastBridgeModule from '../../../../../native/output/outputCastBridge.cjs'

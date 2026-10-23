@@ -22,6 +22,7 @@ function compiledFixture(): CompiledLaserDmxBeamMatrixResult {
     fog: { ...settings.fog },
     beams: [{
       beamId: 'beam-1',
+      strobeRate: 0,
       groupId: null,
       origin: { x: 0, y: 0, z: 0 },
       target: { x: 100, y: 100, z: 0, offscreen: false },

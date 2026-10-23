@@ -181,7 +181,7 @@ describe('Cinema 2.0 target registry and final value resolver', () => {
     const contribution = [{ contributorId: 'mod', operation: 'add' as const, value: 0.5 }]
 
     expect(resolver.resolve(handle.id, contribution, 'base').value).toBe(0.9)
-    expect(resolver.resolve(handle.id, contribution, 'scale').value).toBe(0.6)
+    expect(resolver.resolve(handle.id, contribution, 'scale').value).toBeCloseTo(0.6)
     expect(resolver.resolve(handle.id, contribution, 'lock').value).toBe(0.4)
   })
 

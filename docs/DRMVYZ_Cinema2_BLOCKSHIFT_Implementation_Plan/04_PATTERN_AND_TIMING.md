@@ -4,31 +4,35 @@
 
 **Six actual geometry programs**, not six color masks. Every pattern must look distinctive with edge/bloom/audio OFF and a static camera at a representative phase. Each program returns exactly nine finite object targets against the same nine immutable IDs. Public names are BLOCKSHIFT-specific; no shared universal pattern taxonomy.
 
-## Six canonical patterns
+## Six immersive patterns — current P4 implementation
 
-| Pattern | Formation geometry | Native animation grammar | Distinctive screenshot proof |
-|---|---|---|---|
-| **Stack** | Three separated vertical towers of three cubes, varied depth | Alternating height offsets and restrained tower sway | Three unmistakable towers, not a flat grid |
-| **Orbit** | Eight outer blocks distributed on an elliptical ring around a central cube | Bounded orbital position rotation and coordinated face yaw; center remains anchored | Circle/ring silhouette plus visible central cube |
-| **Stagger** *(default)* | Asymmetric stepped rows with alternating z-depth | Lateral shifts and diagonal cascading local travel | Uneven stair-step silhouette and perspective offset |
-| **Split** | Distinct left and right banks, center cube near middle | Banks translate in opposing directions and recede/approach on z | Wide negative-space seam with two separate groups |
-| **Wave** | Serpentine 3D ribbons of blocks | Phase-delayed vertical/depth oscillations, paired yaw variation | Wavy multi-row silhouette, nonuniform y values |
-| **Collapse** | Compact, still-separated cube cluster, center-focused depth | Controlled converge/expand pulses using minimum distance constraints | Tight but nonintersecting cluster clearly distinct from Split |
+These programs evolve around the observer inside the approved field. The earlier three-tower/ring installation silhouettes are superseded by [the immersive revision](19_IMMERSIVE_FIELD_REVISION.md). Not all nine objects should be visible at once; rear objects and peripheral crops are intentional.
 
-**Default** is Stagger, because it visually shows 3D and separated cubes with no audio. A silent idle preview must show one clearly authored pose; motion when playing should use conservative, bounded paths. **Orbit** must not require physics, and **Collapse** must never actually intersect cubes.
+| Pattern | Spatial pose and animated grammar |
+|---|---|
+| **Stack** | Taller surrounding columns; column-offset lift, restrained horizontal sway and depth movement |
+| **Orbit** | The surrounding field rotates around the observer on the Y axis, with coordinated local yaw and subtle height breathing |
+| **Stagger** *(default)* | Asymmetric front/rear depths with delayed three-axis travel cascading through stable object IDs |
+| **Split** | Opposing left/right banks breathe laterally and move in depth, preserving the negative-space seam |
+| **Wave** | Phase-delayed vertical and depth waves with small horizontal travel |
+| **Collapse** | Bounded compression/release about the observer, retaining open eye space and surface clearance |
+
+Each trajectory preserves its approved static pose at normalized phase zero. One cycle is 32 effective beats divided by Motion Rate × Motion Amount: at 120 BPM, rate 1 and amount 0.55, approximately 29.1 seconds. Motion Amount zero freezes the current cube pose; it does not snap all cubes back to phase zero. Rotation Range controls local pitch/yaw/roll; Orbit also has coordinated field rotation. All layouts and blended poses receive transformed-box clearance and observer-exclusion checks without changing object sizes.
 
 ### Per-pattern geometry addressability
 
 Maintain a typed `BlockId`, stable `row`, `column`, `bank`, `ringOrder`, `sequenceIndex`; create deterministic `targetTransform(blockId, pattern, phase, authoredGeometry)` and `groupMask(blockId, cue)` helpers. Allow the choreography mapper to modulate bank/row/outer/center addresses while preserving per-pattern composition.
 
-## Transition contract
+## Transition contract — implemented in P4
 
-- A pattern switch changes **current runtime pattern**, not persisted authored Pattern (unless caused by explicit user selection).
-- Capture the last fully evaluated *visible* pose (not only the previous static layout) when a transition begins. Interpolate toward new pattern targets with beat-relative easing. This prevents jumps during audio-driven motion.
-- Keep transitions short and deliberate, e.g. 1 beat default, adjustable 0.5/1/2/4. With BPM Sync OFF, a documented fixed wall-time duration should replace beat durations.
-- Deterministic stagger by stable ID, not `Math.random()` per frame. Avoid collision in interpolated middle states; apply safety shrink/path correction when necessary.
-- New event during transition: either schedule the next transition or retarget from the current visible pose. Choose one policy in P1 (recommend retarget from current pose, with minimum transition spacing), test closely spaced triggers.
-- If performance audio is absent, transitions still work when user changes Pattern; user does not need audio to configure geometry.
+- Runtime pattern changes do not overwrite the persisted authored Pattern.
+- Retarget from the last fully evaluated visible pose. Interpolate camera-centered azimuth, horizontal radius and height with smoothstep easing; use coherent turn directions and shortest local rotation angles. Straight lines through the observer are avoided.
+- Transition Length is 0.5/1/2/4 effective beats, default 1. BPM Sync OFF and missing valid tempo use the shared 120 BPM fallback (0.25/0.5/1/2 seconds). Idle manual changes also use 120 BPM; this preview timing never creates musical events.
+- Duration edits preserve current progress. A new selection during a transition starts from the last visible pose. Geometry edits apply their newly selected safe target immediately.
+- Paused or zero-motion manual Pattern edits snap to the selected pose so manual authority remains effective. Otherwise pause/master zero freeze an in-flight transition.
+- Apply the same 1.5-unit transformed AABB separation and 2.5-unit observer exclusion throughout blends. Full pose bounds are 300 world units, camera far plane 420; no shrink-to-fit or all-nine-in-frame policy.
+
+**P5 trigger hardening:** The canonical resolver remains authoritative for all eleven options. BLOCKSHIFT caches the resolved identity per upstream publication and suppresses the clock fallback of an already consumed structural phrase, preventing one musical boundary from switching twice. Pattern Change is independent of Audio Reactivity: disabling the latter removes modulation, not the separately enabled trigger selection.
 
 ## Shared Pattern Change controller
 
@@ -54,9 +58,9 @@ Import and present **`CINEMA2_AFTERHOURS_TRIGGER_OPTIONS`** (11 unchanged IDs an
 
 - **BPM Sync ON:** formation oscillation phase and pattern-transition duration should follow confirmed music beat/bar timing when available; apply intentional quantization only to domains defined in this spec. Tempo change changes the length/speed of motion in a visible way. Pattern Change triggering still uses canonical event identities.
 - **BPM Sync OFF:** formation motion uses deterministic unsynced elapsed-time phase; triggered pattern change still waits for selected real musical Trigger when Pattern Change ON, since disabling motion tempo lock must not silently replace the trigger source with a fake timer.
-- **Global Audio Dock Sync:** decide in P0/P1 whether local BPM Sync works independently using shared analyzed grid (`requireHostSync: false` pattern) or requires host Sync; document the chosen user-visible meaning and test all combined ON/OFF combinations. **Recommended**: the preset BPM Sync is authoritative for its native motion and uses analyzed/transport tempo if valid, while global host Sync still controls transport as designed.
+- **Global Audio Dock Sync:** the preset BPM Sync controls its native motion independently, using the shared grid/tempo when valid; host Sync continues to govern transport. The P3 browser matrix covers local/host ON/OFF combinations. No local detector or synthetic musical event source exists.
 - `Cinema2SyncedMotionClockResolver` supports BPM-scaled continuous motion but is not automatically beat/grid quantization. For accurate beat-aligned transitions read confirmed engine rhythmic context; don't implement local detection.
-- Missing tempo/grid: keep a clearly documented stable fallback; do not synthesize fake kick/drop/phrase events. If only BPM rate is available, motion may be tempo-scaled but must not pretend to be beat-locked.
+- Missing tempo/grid: use the shared 120 BPM fallback for continuous timing; do not synthesize fake kick/drop/phrase events. If only BPM rate is available, motion may be tempo-scaled but must not pretend to be beat-locked.
 
 ## Transport/discontinuity matrix
 
@@ -76,4 +80,4 @@ Import and present **`CINEMA2_AFTERHOURS_TRIGGER_OPTIONS`** (11 unchanged IDs an
 
 ## Pattern quality proof
 
-Capture each pattern at the same camera, palette, effects OFF, no audio, and at three representative normalized phases. Capture two transitions with mid-frame evidence (Stack→Orbit, Split→Collapse). A motion-less static image for all six with only different colors is an automatic P4 FAIL. Actual transform matrices/positions and real output pixels must change.
+Capture each pattern with the camera stationary, fixed palette and effects OFF, with actual changing poses/pixels. P4 pairs of frames and a continuous recording use a controlled standard host transport without analyzed audio; numerical tests cover whole cycles and geometry extrema. Capture two transitions with mid-frame evidence (Stack→Orbit, Split→Collapse). A motion-less static image for all six with only different colors is an automatic P4 FAIL. Actual transform matrices/positions and real output pixels must change.

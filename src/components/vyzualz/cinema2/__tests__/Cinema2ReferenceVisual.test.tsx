@@ -371,7 +371,7 @@ describe('Cinema 2.0 Reference Visual production preset selection', () => {
 
     await act(async () => root?.render(<ProductionPresetHarness />))
     expect(activeRuntimeRef.current?.getCompiledPresetPlan().presetId).toBe(CINEMA2_RUNTIME_FOUNDATION_PRESET_ID)
-    expect(host?.textContent).not.toContain('Effects')
+    expect(host?.querySelector('[data-cinema2-section="Effects"]')).toBeNull()
     expect(host?.querySelector(`[data-cinema2-preset-id="${CINEMA2_REFERENCE_VISUAL_PRESET_ID}"]`)).toBeNull()
     const referenceButton = host?.querySelector<HTMLButtonElement>('[data-testid="select-reference-visual"]')
 

@@ -1,0 +1,62 @@
+{
+  "patterns": [
+    {
+      "name": "stack",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    },
+    {
+      "name": "orbit",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    },
+    {
+      "name": "stagger",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    },
+    {
+      "name": "split",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    },
+    {
+      "name": "wave",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    },
+    {
+      "name": "collapse",
+      "gpuMotion": true,
+      "pixelMotion": true,
+      "fixedCamera": true
+    }
+  ],
+  "transitions": [
+    {
+      "from": "stack",
+      "to": "orbit",
+      "durationBeats": 4,
+      "actualGpuAndPixelCaptures": true
+    },
+    {
+      "from": "split",
+      "to": "collapse",
+      "durationBeats": 4,
+      "actualGpuAndPixelCaptures": true
+    }
+  ],
+  "sharedCameraMoves": true,
+  "pausedFovWorks": true,
+  "cameraOffRestoresBase": true,
+  "pauseFrozen": true,
+  "masterZeroFrozen": true,
+  "errors": [],
+  "fixture": "Production Cinema2Stage, standard host transport at 180 BPM; no analyzed audio or fabricated rhythm events",
+  "video": "phase4-motion.webm"
+}

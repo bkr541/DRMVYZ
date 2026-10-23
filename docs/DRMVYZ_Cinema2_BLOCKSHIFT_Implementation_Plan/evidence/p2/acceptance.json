@@ -1,0 +1,553 @@
+{
+  "phase": "P2 static only",
+  "presetId": "drmvyz.cinema2.blockshift",
+  "app": "VyzualzView / AudioEngineProvider / real preset chooser",
+  "qualityMode": "quality (fixed P2 full-resolution baseline)",
+  "effects": [],
+  "audio": "no source",
+  "motion": "static",
+  "browser": "149.0.7827.55",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "rendering": "headless Chromium ANGLE SwiftShader; no hardware performance claim",
+  "captures": [
+    {
+      "label": "16x9",
+      "width": 1920,
+      "height": 1080,
+      "filename": "idle-bloom-off-16x9.png",
+      "blocks": [
+        {
+          "xMin": 1073,
+          "yMin": 342,
+          "xMax": 1152,
+          "yMax": 415,
+          "edgePixels": 838
+        },
+        {
+          "xMin": 882,
+          "yMin": 367,
+          "xMax": 966,
+          "yMax": 440,
+          "edgePixels": 926
+        },
+        {
+          "xMin": 785,
+          "yMin": 369,
+          "xMax": 863,
+          "yMax": 433,
+          "edgePixels": 749
+        },
+        {
+          "xMin": 942,
+          "yMin": 491,
+          "xMax": 1019,
+          "yMax": 566,
+          "edgePixels": 805
+        },
+        {
+          "xMin": 1057,
+          "yMin": 507,
+          "xMax": 1141,
+          "yMax": 594,
+          "edgePixels": 997
+        },
+        {
+          "xMin": 762,
+          "yMin": 513,
+          "xMax": 846,
+          "yMax": 591,
+          "edgePixels": 895
+        },
+        {
+          "xMin": 820,
+          "yMin": 624,
+          "xMax": 895,
+          "yMax": 702,
+          "edgePixels": 812
+        },
+        {
+          "xMin": 1098,
+          "yMin": 630,
+          "xMax": 1175,
+          "yMax": 716,
+          "edgePixels": 904
+        },
+        {
+          "xMin": 914,
+          "yMin": 655,
+          "xMax": 996,
+          "yMax": 745,
+          "edgePixels": 983
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createProgram": 2,
+          "deleteProgram": 1,
+          "getError": 111,
+          "createBuffer": 5,
+          "createVertexArray": 2,
+          "drawElementsInstanced": 108
+        },
+        "draws": [
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ]
+        ],
+        "errors": []
+      }
+    },
+    {
+      "label": "1x1",
+      "width": 1080,
+      "height": 1080,
+      "filename": "idle-bloom-off-1x1.png",
+      "blocks": [
+        {
+          "xMin": 604,
+          "yMin": 430,
+          "xMax": 648,
+          "yMax": 469,
+          "edgePixels": 249
+        },
+        {
+          "xMin": 496,
+          "yMin": 443,
+          "xMax": 543,
+          "yMax": 483,
+          "edgePixels": 298
+        },
+        {
+          "xMin": 442,
+          "yMin": 444,
+          "xMax": 485,
+          "yMax": 480,
+          "edgePixels": 239
+        },
+        {
+          "xMin": 530,
+          "yMin": 515,
+          "xMax": 572,
+          "yMax": 554,
+          "edgePixels": 231
+        },
+        {
+          "xMin": 594,
+          "yMin": 521,
+          "xMax": 642,
+          "yMax": 570,
+          "edgePixels": 301
+        },
+        {
+          "xMin": 429,
+          "yMin": 527,
+          "xMax": 476,
+          "yMax": 568,
+          "edgePixels": 270
+        },
+        {
+          "xMin": 461,
+          "yMin": 588,
+          "xMax": 503,
+          "yMax": 631,
+          "edgePixels": 246
+        },
+        {
+          "xMin": 617,
+          "yMin": 590,
+          "xMax": 661,
+          "yMax": 639,
+          "edgePixels": 264
+        },
+        {
+          "xMin": 514,
+          "yMin": 605,
+          "xMax": 560,
+          "yMax": 655,
+          "edgePixels": 295
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createProgram": 2,
+          "deleteProgram": 1,
+          "getError": 212,
+          "createBuffer": 5,
+          "createVertexArray": 2,
+          "drawElementsInstanced": 208
+        },
+        "draws": [
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ]
+        ],
+        "errors": []
+      }
+    },
+    {
+      "label": "9x16",
+      "width": 1080,
+      "height": 1920,
+      "filename": "idle-bloom-off-9x16.png",
+      "blocks": [
+        {
+          "xMin": 604,
+          "yMin": 850,
+          "xMax": 648,
+          "yMax": 889,
+          "edgePixels": 249
+        },
+        {
+          "xMin": 496,
+          "yMin": 863,
+          "xMax": 543,
+          "yMax": 903,
+          "edgePixels": 298
+        },
+        {
+          "xMin": 442,
+          "yMin": 864,
+          "xMax": 485,
+          "yMax": 900,
+          "edgePixels": 239
+        },
+        {
+          "xMin": 530,
+          "yMin": 935,
+          "xMax": 572,
+          "yMax": 974,
+          "edgePixels": 231
+        },
+        {
+          "xMin": 594,
+          "yMin": 941,
+          "xMax": 642,
+          "yMax": 990,
+          "edgePixels": 301
+        },
+        {
+          "xMin": 429,
+          "yMin": 947,
+          "xMax": 476,
+          "yMax": 988,
+          "edgePixels": 270
+        },
+        {
+          "xMin": 461,
+          "yMin": 1008,
+          "xMax": 503,
+          "yMax": 1051,
+          "edgePixels": 246
+        },
+        {
+          "xMin": 617,
+          "yMin": 1010,
+          "xMax": 661,
+          "yMax": 1059,
+          "edgePixels": 264
+        },
+        {
+          "xMin": 514,
+          "yMin": 1025,
+          "xMax": 560,
+          "yMax": 1075,
+          "edgePixels": 295
+        }
+      ],
+      "staticPixelsIdentical": true,
+      "gpu": {
+        "connected": true,
+        "productionCanvas": true,
+        "methods": {
+          "createProgram": 2,
+          "deleteProgram": 1,
+          "getError": 281,
+          "createBuffer": 5,
+          "createVertexArray": 2,
+          "drawElementsInstanced": 276
+        },
+        "draws": [
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ],
+          [
+            36,
+            9
+          ],
+          [
+            432,
+            9
+          ]
+        ],
+        "errors": []
+      }
+    }
+  ],
+  "lifecycle": [
+    {
+      "connected": true,
+      "productionCanvas": true,
+      "methods": {
+        "createProgram": 7,
+        "deleteProgram": 6,
+        "getError": 353,
+        "createBuffer": 10,
+        "createVertexArray": 4,
+        "drawElementsInstanced": 316,
+        "deleteVertexArray": 2,
+        "deleteBuffer": 5
+      },
+      "draws": [
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ],
+        [
+          36,
+          9
+        ],
+        [
+          432,
+          9
+        ]
+      ],
+      "errors": []
+    }
+  ],
+  "errors": [],
+  "result": "PASS"
+}

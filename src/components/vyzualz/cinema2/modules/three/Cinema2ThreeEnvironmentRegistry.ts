@@ -53,6 +53,7 @@ export class Cinema2ThreeEnvironmentRegistry {
 export const cinema2ThreeEnvironmentRegistry = new Cinema2ThreeEnvironmentRegistry()
 
 for (const record of CINEMA2_ASSET_RECORDS) {
+  const attribution = record.attribution
   if (record.kind !== 'environment') continue
   const { high, medium, low } = record.files as { high: { url: string }; medium?: { url: string }; low?: { url: string } }
   cinema2ThreeEnvironmentRegistry.register({
@@ -60,6 +61,6 @@ for (const record of CINEMA2_ASSET_RECORDS) {
     url: high.url,
     variants: { ...(medium ? { medium: medium.url } : {}), ...(low ? { low: low.url } : {}) },
     license: record.license,
-    ...(record.attribution ? { attribution: record.attribution } : {}),
+    ...(attribution ? { attribution } : {}),
   })
 }

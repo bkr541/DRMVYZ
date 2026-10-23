@@ -254,7 +254,7 @@ describe('Cinema 2.0 Depth preset', () => {
 
   it('bounds high-energy atmosphere and bloom accents', () => {
     const actions = CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions) ?? []
-    const values = new Map<string, Cinema2JsonValue>(actions.map(action => [action.id, action.value]))
+    const values = new Map<string, Cinema2JsonValue | undefined>(actions.map(action => [action.id, action.value]))
     expect(values.get('depth-beat-bloom-action')).toBe(0.025)
     expect(values.get('depth-downbeat-bloom-action')).toBe(0.05)
     expect(values.get('depth-phrase-atmosphere-action')).toBe(0.001)
@@ -710,7 +710,7 @@ describe('Cinema 2.0 Depth preset', () => {
 
   it('passes final camera and bound controls to one resource-owned tunnel renderer', () => {
     const moduleManifest = CINEMA2_DEPTH_PRESET_MANIFEST.modules![0]!
-    const values = new Map<string, Cinema2JsonValue>(Object.entries(moduleManifest.parameters ?? {}))
+    const values = new Map<string, Cinema2JsonValue | undefined>(Object.entries(moduleManifest.parameters ?? {}))
     values.set('intensity', 1.4)
     values.set('spill', 0.9)
     values.set('program', 'sideOrbit')

@@ -1,0 +1,42 @@
+{
+  "input": "Controlled standard host transport, authored BPM fallback; no analyzed events",
+  "runs": [
+    {
+      "bpm": 60,
+      "localSync": true,
+      "hostSync": false,
+      "observedYawRadians": 0.0037103674840182066,
+      "changingPixels": true
+    },
+    {
+      "bpm": 180,
+      "localSync": true,
+      "hostSync": false,
+      "observedYawRadians": 0.009638414718210697,
+      "changingPixels": true
+    },
+    {
+      "bpm": 180,
+      "localSync": false,
+      "hostSync": false,
+      "observedYawRadians": 0.005935658235102892,
+      "changingPixels": true
+    },
+    {
+      "bpm": 180,
+      "localSync": true,
+      "hostSync": true,
+      "observedYawRadians": 0.008891736157238483,
+      "changingPixels": true
+    },
+    {
+      "bpm": 180,
+      "localSync": false,
+      "hostSync": true,
+      "observedYawRadians": 0.006398372817784548,
+      "changingPixels": true
+    }
+  ],
+  "pauseFrozen": true,
+  "motionZeroFrozen": true
+}

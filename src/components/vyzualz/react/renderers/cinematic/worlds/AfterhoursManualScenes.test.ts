@@ -50,7 +50,7 @@ describe('Afterhours Stage 4 — manual festival laser scenes', () => {
       random: 'radialCrown',
     }
     for (const [legacy, expected] of Object.entries(migration)) {
-      expect(resolveAfterhoursSettings({ ...AFTERHOURS_DEFAULTS, pattern: legacy }).pattern).toBe(expected)
+      expect(resolveAfterhoursSettings({ mode: 'afterhours', settings: { ...AFTERHOURS_DEFAULTS, pattern: legacy as AfterhoursPattern } }).pattern).toBe(expected)
     }
   })
 

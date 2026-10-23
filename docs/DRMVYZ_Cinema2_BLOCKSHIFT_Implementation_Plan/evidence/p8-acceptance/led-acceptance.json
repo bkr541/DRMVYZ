@@ -1,0 +1,214 @@
+{
+  "result": "PASS",
+  "bars": "180 stable axis/sign circuits on the supplied GLB frame triangles; 24 diffuser cells per normalized bar length",
+  "profiles": [
+    {
+      "profile": "bass",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "mids",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "highs",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "vocals",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "build",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "kick",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "snare",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "downbeat",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "bar",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "phrase",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "section",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    },
+    {
+      "profile": "drop",
+      "actualLedUniformsAndPixels": true,
+      "audioZeroSteady": true,
+      "authoredControlsPreserved": true
+    }
+  ],
+  "sixDistinctNativeLedPrograms": true,
+  "kickSnareDistinct": true,
+  "pauseAndMasterZeroFrozen": true,
+  "audioZeroSteady": true,
+  "intensityZeroHonored": true,
+  "sourceResetHealthy": true,
+  "errors": [],
+  "diagnostics": {
+    "runtime": {
+      "phase": "running",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "frameCount": 259,
+      "contextGeneration": 1,
+      "statusMessage": null,
+      "resources": {
+        "activeAnimationFrameCount": 1,
+        "activeEventListenerCount": 2,
+        "activeWebGLContextCount": 1
+      },
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 1.2999999970197678,
+        "cpuFrameTimeAverageMs": 1.5550453776569249,
+        "gpuFrameTimeMs": 1.442124,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      }
+    },
+    "engine": {
+      "presetId": "drmvyz.cinema2.blockshift",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 1.2999999970197678,
+        "cpuFrameTimeAverageMs": 1.5550453776569249,
+        "gpuFrameTimeMs": 1.442124,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "resources": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1280,
+          "height": 720,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 268435456,
+        "renderTargetScale": 1,
+        "activeLeaseCount": 0,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 0,
+        "pooledAllocationCount": 2,
+        "activeSurfaceCount": 0,
+        "pooledSurfaceCount": 2,
+        "createdAllocationCount": 4,
+        "reusedAllocationCount": 514,
+        "destroyedAllocationCount": 2,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 18432000,
+        "activeLeaseCountByOwner": {}
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 259,
+        "executedPassCount": 777,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "blockshift-scene-pass",
+          "blockshift-atmosphere-pass",
+          "blockshift-bloom-pass"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 722040,
+        "modules": [
+          {
+            "moduleId": "blockshift-sculpture",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 722040,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "effects": {
+      "activeEffectCount": 1,
+      "failedEffectCount": 0,
+      "effects": [
+        {
+          "effectId": "blockshift-atmosphere",
+          "typeId": "volumetric-atmosphere",
+          "status": "inactive",
+          "order": 0,
+          "scope": "output",
+          "quality": null,
+          "diagnostics": []
+        },
+        {
+          "effectId": "blockshift-bloom",
+          "typeId": "hdr-bloom",
+          "status": "active",
+          "order": 1,
+          "scope": "output",
+          "quality": null,
+          "diagnostics": []
+        }
+      ]
+    }
+  },
+  "fixture": "Production runtime, real GLBs, shared bridge/Director/choreography and shared pattern clock; explicit synthetic upstream audio profiles, no private musical detector"
+}

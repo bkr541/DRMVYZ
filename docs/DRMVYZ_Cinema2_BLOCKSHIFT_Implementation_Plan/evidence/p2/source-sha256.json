@@ -1,0 +1,13 @@
+{
+  "src/components/vyzualz/cinema2/modules/blockshift/Cinema2BlockshiftDomain.ts": "ae7247380d565574568cfcd12baadeadaeab951126a37f3b59b1eba49f500eab",
+  "src/components/vyzualz/cinema2/modules/blockshift/Cinema2BlockshiftLayout.ts": "40a8e611e90a6bca9efba230c63ff3fb4897b1fed98bbf02728c00580572faec",
+  "src/components/vyzualz/cinema2/modules/blockshift/Cinema2BlockshiftRenderer.ts": "8fbb28fe3d6e8c8f876fa831ef5a82dc781374de78e8462c33dc26e875b95755",
+  "src/components/vyzualz/cinema2/modules/Cinema2BlockshiftNativeModule.ts": "c474e81aad7f019c9ebf2ee4065d7850779a1da0317ea0589edf2e7a258a573d",
+  "src/components/vyzualz/cinema2/presets/Cinema2BlockshiftPreset.ts": "966d8b3f1cb665bfef071e3c0dc20940dd213314c6fc54bac826d91c7dfe1622",
+  "src/components/vyzualz/cinema2/__tests__/Cinema2BlockshiftPreset.test.ts": "793db1bc8bcceb95df54c947a4c20594374e753f9df3faff4a4b9016ae0add2a",
+  "src/components/vyzualz/cinema2/modules/Cinema2ModuleRegistry.ts": "e00930b5f1c292f17fc37d37937331f694d812ca5b9113b22b159c9045eacdfb",
+  "src/test/browser/Cinema2BlockshiftProductionBrowserHarness.tsx": "c529df66c98fc6bb6aa1bff2b43ed334a7e9a4d3af0a6cb879db2cc000f27c1b",
+  "src/test/browser/cinema2-blockshift-production.html": "454d92df0e425ec349cffe704a974203560d5bd5ec5567a25c2e7b0ca207953a",
+  "scripts/run-cinema2-blockshift-browser.mjs": "d76d60be6240c40101d5394624f215d94a55d1db2dc671d90a26e43cc83223a1",
+  "package.json": "666e43d29cdd0200c3b09cfa14a7de4ea35cd51b2394b01995ed7adbe1c24e09"
+}

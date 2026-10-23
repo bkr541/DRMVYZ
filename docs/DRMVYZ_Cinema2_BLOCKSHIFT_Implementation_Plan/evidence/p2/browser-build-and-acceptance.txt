@@ -1,0 +1,66 @@
+vite v6.4.3 building for production...
+transforming...
+✓ 2128 modules transformed.
+rendering chunks...
+computing gzip size...
+artifacts/blockshift/p2-static/bundle/src/test/browser/cinema2-blockshift-production.html       0.58 kB │ gzip:     0.39 kB
+artifacts/blockshift/p2-static/bundle/assets/localAudioPreparation.worker-Cy8f-36v.js           1.37 kB
+artifacts/blockshift/p2-static/bundle/assets/basis_transcoder-o4Hde_L7.js                      57.53 kB
+artifacts/blockshift/p2-static/bundle/assets/draco_wasm_wrapper-fZCQGLGb.js                    58.46 kB
+artifacts/blockshift/p2-static/bundle/assets/draco_wasm_wrapper-DxJM36Ib.js                    58.76 kB
+artifacts/blockshift/p2-static/bundle/assets/PixGridDeckCompiler.worker-C0U9zGQI.js            63.62 kB
+artifacts/blockshift/p2-static/bundle/assets/draco_decoder-Z1_iN-Ht.wasm                      192.42 kB │ gzip:    63.41 kB
+artifacts/blockshift/p2-static/bundle/assets/draco_decoder-C32yEggz.wasm                      285.75 kB │ gzip:    88.50 kB
+artifacts/blockshift/p2-static/bundle/assets/basis_transcoder-VXdx5NbI.wasm                   527.33 kB │ gzip:   244.57 kB
+artifacts/blockshift/p2-static/bundle/assets/draco_decoder-fzg4nYZr.js                        719.41 kB
+artifacts/blockshift/p2-static/bundle/assets/ort-wasm-simd-threaded-CDsxkEtH.wasm          13,022.41 kB │ gzip: 3,329.88 kB
+artifacts/blockshift/p2-static/bundle/assets/ReactView-BohWZFBW.css                             2.83 kB │ gzip:     1.05 kB
+artifacts/blockshift/p2-static/bundle/assets/HeaderControlGroup-WptUy8ik.css                    7.36 kB │ gzip:     1.97 kB
+artifacts/blockshift/p2-static/bundle/assets/VyzualzAudioDock-GFZdwXR0.css                      7.44 kB │ gzip:     1.98 kB
+artifacts/blockshift/p2-static/bundle/assets/TrackTimelineModal-Y5YxMUza.css                   19.27 kB │ gzip:     3.96 kB
+artifacts/blockshift/p2-static/bundle/assets/RailWindowHeader-BlOKEaj3.css                     20.50 kB │ gzip:     3.96 kB
+artifacts/blockshift/p2-static/bundle/assets/ShowManagerView-Dykiqj_V.css                      42.74 kB │ gzip:     8.54 kB
+artifacts/blockshift/p2-static/bundle/assets/cinema2-blockshift-production-CgA5JClb.css       237.70 kB │ gzip:    41.04 kB
+artifacts/blockshift/p2-static/bundle/assets/reactView-Ddt3Oh5_.css                           468.45 kB │ gzip:    78.30 kB
+artifacts/blockshift/p2-static/bundle/assets/HeaderGlyphs-CoX7-PuQ.js                           0.19 kB │ gzip:     0.15 kB
+artifacts/blockshift/p2-static/bundle/assets/HeaderIconKey-Bv00wBeW.js                          0.34 kB │ gzip:     0.25 kB
+artifacts/blockshift/p2-static/bundle/assets/svgMediaBridge-CtGI6xx2.js                         0.62 kB │ gzip:     0.40 kB
+artifacts/blockshift/p2-static/bundle/assets/WorkspaceRail-0LnwzNjF.js                          0.69 kB │ gzip:     0.40 kB
+artifacts/blockshift/p2-static/bundle/assets/NumericScrubField-Cigu4AgA.js                      1.73 kB │ gzip:     0.88 kB
+artifacts/blockshift/p2-static/bundle/assets/RoomEnvironment-BnzqdB9-.js                        2.17 kB │ gzip:     0.95 kB
+artifacts/blockshift/p2-static/bundle/assets/HDRLoader-BgVGhUqz.js                              3.44 kB │ gzip:     1.62 kB
+artifacts/blockshift/p2-static/bundle/assets/LaserDmxLayersPanel-CwanjMQ1.js                    5.79 kB │ gzip:     1.95 kB
+artifacts/blockshift/p2-static/bundle/assets/FXAAShader-DwF7M81_.js                             6.29 kB │ gzip:     1.72 kB
+artifacts/blockshift/p2-static/bundle/assets/DRACOLoader-YytAFZgv.js                            7.64 kB │ gzip:     3.09 kB
+artifacts/blockshift/p2-static/bundle/assets/SMAAShader-CbkVXZun.js                            14.12 kB │ gzip:     3.59 kB
+artifacts/blockshift/p2-static/bundle/assets/MediaManagerInspector-3d_7TxrB.js                 16.43 kB │ gzip:     5.47 kB
+artifacts/blockshift/p2-static/bundle/assets/PresetManagerView-CYaRnIqc.js                     18.03 kB │ gzip:     6.14 kB
+artifacts/blockshift/p2-static/bundle/assets/SoundDrawingTimelineLane-B6INi2YZ.js              18.48 kB │ gzip:     6.26 kB
+artifacts/blockshift/p2-static/bundle/assets/meshopt_decoder.module-BvwdjiD3.js                26.49 kB │ gzip:     7.18 kB
+artifacts/blockshift/p2-static/bundle/assets/MediaManagerView-pehWiWGk.js                      34.94 kB │ gzip:    11.21 kB
+artifacts/blockshift/p2-static/bundle/assets/GLTFLoader-C-mlEXAk.js                            46.62 kB │ gzip:    14.04 kB
+artifacts/blockshift/p2-static/bundle/assets/TrackTimelineModal-puH0JtWS.js                    48.00 kB │ gzip:    15.85 kB
+artifacts/blockshift/p2-static/bundle/assets/SMAAPass-BcS8BpHG.js                              48.17 kB │ gzip:    34.98 kB
+artifacts/blockshift/p2-static/bundle/assets/mediaLibraryCapabilities-DDO2hMvj.js              55.16 kB │ gzip:    16.12 kB
+artifacts/blockshift/p2-static/bundle/assets/KTX2Loader-pDPnMFBu.js                            60.56 kB │ gzip:    24.56 kB
+artifacts/blockshift/p2-static/bundle/assets/ReactTrackMapStrip-DwpEj42a.js                    71.23 kB │ gzip:    19.59 kB
+artifacts/blockshift/p2-static/bundle/assets/ort.wasm.bundle.min-B8uLXHel.js                   72.81 kB │ gzip:    24.60 kB
+artifacts/blockshift/p2-static/bundle/assets/HeaderControlGroup-BYM6KP-0.js                    83.50 kB │ gzip:    24.80 kB
+artifacts/blockshift/p2-static/bundle/assets/RailWindowHeader-DvFFr9A9.js                     105.49 kB │ gzip:    31.54 kB
+artifacts/blockshift/p2-static/bundle/assets/ShowManagerView-CVKqqCeY.js                      133.74 kB │ gzip:    37.07 kB
+artifacts/blockshift/p2-static/bundle/assets/vision_bundle-Bn9xEU8k.js                        145.18 kB │ gzip:    43.82 kB
+artifacts/blockshift/p2-static/bundle/assets/LyricManagerView-DPVs2drZ.js                     193.74 kB │ gzip:    58.76 kB
+artifacts/blockshift/p2-static/bundle/assets/RectAreaLightUniformsLib-BTCfA6CP.js             247.38 kB │ gzip:   103.28 kB
+artifacts/blockshift/p2-static/bundle/assets/ReactView-CJHI9dK2.js                            310.09 kB │ gzip:    89.03 kB
+artifacts/blockshift/p2-static/bundle/assets/useCinema2WorkspaceRestoreState-DEdDh5wP.js      580.00 kB │ gzip:   157.06 kB
+artifacts/blockshift/p2-static/bundle/assets/PixGridDesignPanel-C3CRrLVD.js                   718.46 kB │ gzip:   207.16 kB
+artifacts/blockshift/p2-static/bundle/assets/three.module-BdMZo7zQ.js                         746.95 kB │ gzip:   190.45 kB
+artifacts/blockshift/p2-static/bundle/assets/VyzualzAudioDock-Chx0DosQ.js                   1,434.67 kB │ gzip:   411.26 kB
+artifacts/blockshift/p2-static/bundle/assets/cinema2-blockshift-production-B9jRQ44W.js      4,895.85 kB │ gzip: 1,408.54 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 13.29s
+BLOCKSHIFT P2 production acceptance PASS: /Users/kodyrobinson/Development/DRMVYZ/artifacts/blockshift/p2-static

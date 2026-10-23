@@ -309,7 +309,7 @@ describe('Canvas Fractures audio adapter', () => {
   it('keeps low-confidence partial analysis continuous while omitting unavailable structure', () => {
     const partialFrame = frame({ timeSec: 2, kick: 0, snare: 0, hat: 0, drop: 0 })
     partialFrame.capabilities = {
-      ...partialFrame.capabilities,
+      ...partialFrame.capabilities!,
       beatGrid: false,
       sections: false,
     }

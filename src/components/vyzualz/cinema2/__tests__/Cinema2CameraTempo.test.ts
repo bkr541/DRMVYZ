@@ -213,6 +213,10 @@ describe('Cinema 2.0 camera tempo motion', () => {
     run(camera, 2, { bpm: 120 })
     const hit = camera.update(frame(2.1, { bpm: 120, kickId: 'k1', kickStrength: 1 })).fovDegrees
     expect(60 - hit).toBeGreaterThan(2) // the full punch from the authored 60 degrees, though the rest of the motion is off
+    // The general motion hard-disable added for opt-in cameras must not freeze this independent envelope.
+    let recovered = hit
+    for (let step = 0; step < 30; step += 1) recovered = camera.update(frame(2.12 + step / 60, null)).fovDegrees
+    expect(recovered).toBeGreaterThan(hit + 1)
     expect(state.setPersistentValue(KICK_ID, false).ok).toBe(true)
     for (let step = 0; step < 90; step += 1) camera.update(frame(2.2 + step / 60, { bpm: 120 }))
     const off = run(camera, 2, { bpm: 120, kickId: 'k2', kickStrength: 1 }, 3.8).map(f => f.fovDegrees)

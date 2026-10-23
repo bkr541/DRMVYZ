@@ -35,7 +35,7 @@ export function useCinema2LegacyPersistenceMigration(): void {
         console.warn('[Cinema 2.0] Legacy persistence migration could not be read.', error)
       })
     }
-    let unsubscribe = () => undefined
+    let unsubscribe: () => void = () => undefined
     if (useReactStore.persist.hasHydrated()) migrate()
     else unsubscribe = useReactStore.persist.onFinishHydration(migrate)
     return () => {

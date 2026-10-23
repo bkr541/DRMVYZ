@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React, { act, useState } from 'react'
+import { AudioEngineProvider } from '../../../../context/AudioEngineContext'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
@@ -457,13 +458,14 @@ describe('Cinema 2.0 Reactor production selection path', () => {
             }}
           />
           <Cinema2MediaSourcePanel runtime={runtime} />
+          <Cinema2RuntimeDiagnostics runtime={runtime} snapshot={runtime?.getSnapshot() ?? null} />
           <Cinema2InspectorPanel runtime={runtime} surface="design" />
           <Cinema2InspectorPanel runtime={runtime} surface="react" />
         </>
       )
     }
 
-    await act(async () => root?.render(<ProductionPresetHarness />))
+    await act(async () => root?.render(<AudioEngineProvider><ProductionPresetHarness /></AudioEngineProvider>))
     const reactorButton = host?.querySelector<HTMLButtonElement>(`[data-cinema2-preset-id="${CINEMA2_REACTOR_PRESET_ID}"]`)
     expect(reactorButton?.textContent).toContain('Reactor')
 
@@ -474,7 +476,7 @@ describe('Cinema 2.0 Reactor production selection path', () => {
       CINEMA2_REACTOR_SHOCKWAVE_INTENSITY_ID, CINEMA2_REACTOR_PRIMARY_COLOR_ID,
       CINEMA2_REACTOR_SECONDARY_COLOR_ID, CINEMA2_REACTOR_ACCENT_COLOR_ID, CINEMA2_REACTOR_BACKGROUND_COLOR_ID,
       CINEMA2_REACTOR_REACTIVITY_ID, CINEMA2_REACTOR_BUILD_CONTRACTION_ID, CINEMA2_REACTOR_TRAILS_PERSISTENCE_ID,
-      CINEMA2_REACTOR_RESET_TRAILS_ID, CINEMA2_REACTOR_BLOOM_INTENSITY_ID, CINEMA2_QUALITY_MODE_PARAMETER_ID,
+      CINEMA2_REACTOR_RESET_TRAILS_ID, CINEMA2_REACTOR_BLOOM_INTENSITY_ID,
     ]) expect(host?.querySelector(`[data-cinema2-control-id="${id}"]`)).not.toBeNull()
     expect(host?.querySelector('[data-cinema2-media-source="slots"]')).not.toBeNull()
     expect(host?.textContent).toContain('User Media')

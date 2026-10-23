@@ -205,7 +205,7 @@ describe('Cinematic World control schema', () => {
     expect((container.querySelector('#afterhours-color-mode') as HTMLButtonElement).textContent).toContain('Manual')
 
     const legacyConfig = createCinematicWorldConfig('afterhours', { pattern: 'random' as never, symmetry: false })
-    expect(legacyConfig.worldSettings.settings.pattern).toBe('radialCrown')
+    expect('pattern' in legacyConfig.worldSettings.settings && legacyConfig.worldSettings.settings.pattern).toBe('radialCrown')
     await render(<CinematicWorldControlSchemaRenderer config={legacyConfig} schema={schema} uiMode="simple" onChange={vi.fn()} />)
     expect(container.querySelector('#afterhours-symmetry')).toBeNull()
 

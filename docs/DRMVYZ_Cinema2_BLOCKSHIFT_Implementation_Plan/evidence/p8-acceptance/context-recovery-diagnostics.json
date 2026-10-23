@@ -1,0 +1,4547 @@
+{
+  "beforeLoss": {
+    "runtime": {
+      "phase": "running",
+      "viewport": {
+        "width": 960,
+        "height": 540,
+        "dpr": 1
+      },
+      "frameCount": 24,
+      "contextGeneration": 1,
+      "statusMessage": null,
+      "resources": {
+        "activeAnimationFrameCount": 1,
+        "activeEventListenerCount": 2,
+        "activeWebGLContextCount": 1
+      },
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 4.899999991059303,
+        "cpuFrameTimeAverageMs": 3.540374997930841,
+        "gpuFrameTimeMs": 0.888875,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      }
+    },
+    "engine": {
+      "presetId": "drmvyz.cinema2.blockshift",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 4.899999991059303,
+        "cpuFrameTimeAverageMs": 3.540374997930841,
+        "gpuFrameTimeMs": 0.888875,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "resources": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 960,
+          "height": 540,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 268435456,
+        "renderTargetScale": 1,
+        "activeLeaseCount": 0,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 0,
+        "pooledAllocationCount": 2,
+        "activeSurfaceCount": 0,
+        "pooledSurfaceCount": 2,
+        "createdAllocationCount": 2,
+        "reusedAllocationCount": 46,
+        "destroyedAllocationCount": 0,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 10368000,
+        "activeLeaseCountByOwner": {}
+      },
+      "render": {
+        "disposed": false,
+        "frameCount": 24,
+        "executedPassCount": 72,
+        "skippedPassCount": 0,
+        "failedPassCount": 0,
+        "activePersistentTargetCount": 0,
+        "lastExecutedPassIds": [
+          "blockshift-scene-pass",
+          "blockshift-atmosphere-pass",
+          "blockshift-bloom-pass"
+        ],
+        "diagnostics": [],
+        "visibilityCheckpoints": []
+      },
+      "modules": {
+        "activeModuleCount": 1,
+        "failedModuleCount": 0,
+        "degradedModuleCount": 0,
+        "activeResourceLeaseCount": 1,
+        "estimatedGpuBytes": 722040,
+        "modules": [
+          {
+            "moduleId": "blockshift-sculpture",
+            "status": "active",
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 722040,
+            "renderProviderCount": 1,
+            "diagnostics": []
+          }
+        ]
+      }
+    },
+    "effects": {
+      "activeEffectCount": 1,
+      "failedEffectCount": 0,
+      "effects": [
+        {
+          "effectId": "blockshift-atmosphere",
+          "typeId": "volumetric-atmosphere",
+          "status": "inactive",
+          "order": 0,
+          "scope": "output",
+          "quality": null,
+          "diagnostics": []
+        },
+        {
+          "effectId": "blockshift-bloom",
+          "typeId": "hdr-bloom",
+          "status": "active",
+          "order": 1,
+          "scope": "output",
+          "quality": null,
+          "diagnostics": []
+        }
+      ]
+    }
+  },
+  "recoveryCycles": [
+    {
+      "cycle": 1,
+      "recovered": {
+        "runtime": {
+          "phase": "running",
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "frameCount": 54,
+          "contextGeneration": 2,
+          "statusMessage": null,
+          "resources": {
+            "activeAnimationFrameCount": 1,
+            "activeEventListenerCount": 2,
+            "activeWebGLContextCount": 1
+          },
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 2.7999999970197678,
+            "cpuFrameTimeAverageMs": 3.0767492192694297,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          }
+        },
+        "engine": {
+          "presetId": "drmvyz.cinema2.blockshift",
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 2.7999999970197678,
+            "cpuFrameTimeAverageMs": 3.0767492192694297,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          },
+          "resources": {
+            "disposed": false,
+            "contextAvailable": true,
+            "viewport": {
+              "width": 960,
+              "height": 540,
+              "dpr": 1
+            },
+            "maximumTextureSize": 16384,
+            "maximumPooledAllocationCount": 24,
+            "maximumEstimatedGpuMemoryBytes": 268435456,
+            "renderTargetScale": 1,
+            "activeLeaseCount": 0,
+            "activeTransientLeaseCount": 0,
+            "activePersistentLeaseCount": 0,
+            "pooledAllocationCount": 2,
+            "activeSurfaceCount": 0,
+            "pooledSurfaceCount": 2,
+            "createdAllocationCount": 4,
+            "reusedAllocationCount": 104,
+            "destroyedAllocationCount": 2,
+            "reconstructedAllocationCount": 0,
+            "estimatedGpuMemoryBytes": 10368000,
+            "activeLeaseCountByOwner": {}
+          },
+          "render": {
+            "disposed": false,
+            "frameCount": 54,
+            "executedPassCount": 162,
+            "skippedPassCount": 0,
+            "failedPassCount": 0,
+            "activePersistentTargetCount": 0,
+            "lastExecutedPassIds": [
+              "blockshift-scene-pass",
+              "blockshift-atmosphere-pass",
+              "blockshift-bloom-pass"
+            ],
+            "diagnostics": [],
+            "visibilityCheckpoints": []
+          },
+          "modules": {
+            "activeModuleCount": 1,
+            "failedModuleCount": 0,
+            "degradedModuleCount": 0,
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 722040,
+            "modules": [
+              {
+                "moduleId": "blockshift-sculpture",
+                "status": "active",
+                "activeResourceLeaseCount": 1,
+                "estimatedGpuBytes": 722040,
+                "renderProviderCount": 1,
+                "diagnostics": []
+              }
+            ]
+          }
+        },
+        "effects": {
+          "activeEffectCount": 1,
+          "failedEffectCount": 0,
+          "effects": [
+            {
+              "effectId": "blockshift-atmosphere",
+              "typeId": "volumetric-atmosphere",
+              "status": "inactive",
+              "order": 0,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            },
+            {
+              "effectId": "blockshift-bloom",
+              "typeId": "hdr-bloom",
+              "status": "active",
+              "order": 1,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "gpu": {
+        "connected": true,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "counts": {
+          "createQuery": 1445,
+          "createFramebuffer": 100,
+          "createTexture": 116,
+          "createShader": 54,
+          "createProgram": 27,
+          "deleteShader": 54,
+          "deleteQuery": 1443,
+          "createBuffer": 60,
+          "createVertexArray": 20,
+          "deleteTexture": 102,
+          "deleteFramebuffer": 88,
+          "deleteProgram": 22,
+          "deleteVertexArray": 16,
+          "deleteBuffer": 48
+        },
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 5,
+          "Shader": 0,
+          "Texture": 14,
+          "Framebuffer": 12,
+          "Renderbuffer": 0,
+          "Query": 2
+        },
+        "estimatedAllocatedBytes": 13842360,
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "shaderFailures": 0,
+        "gpuSamples": [
+          {
+            "id": 384,
+            "ms": 0.499624
+          },
+          {
+            "id": 385,
+            "ms": 0.904
+          },
+          {
+            "id": 386,
+            "ms": 0.942375
+          },
+          {
+            "id": 387,
+            "ms": 0.847874
+          },
+          {
+            "id": 388,
+            "ms": 1.047625
+          },
+          {
+            "id": 389,
+            "ms": 0.817124
+          },
+          {
+            "id": 390,
+            "ms": 0.828166
+          },
+          {
+            "id": 391,
+            "ms": 0.791166
+          },
+          {
+            "id": 392,
+            "ms": 0.8605
+          },
+          {
+            "id": 393,
+            "ms": 0.799041
+          },
+          {
+            "id": 394,
+            "ms": 0.8965
+          },
+          {
+            "id": 395,
+            "ms": 0.940375
+          },
+          {
+            "id": 396,
+            "ms": 0.9305
+          },
+          {
+            "id": 397,
+            "ms": 0.828
+          },
+          {
+            "id": 398,
+            "ms": 0.511499
+          },
+          {
+            "id": 399,
+            "ms": 0.477624
+          },
+          {
+            "id": 400,
+            "ms": 0.609958
+          },
+          {
+            "id": 401,
+            "ms": 0.478
+          },
+          {
+            "id": 402,
+            "ms": 0.602625
+          },
+          {
+            "id": 403,
+            "ms": 0.489041
+          },
+          {
+            "id": 404,
+            "ms": 0.799333
+          },
+          {
+            "id": 405,
+            "ms": 0.502041
+          },
+          {
+            "id": 406,
+            "ms": 0.652749
+          },
+          {
+            "id": 407,
+            "ms": 0.488333
+          },
+          {
+            "id": 408,
+            "ms": 0.622249
+          },
+          {
+            "id": 409,
+            "ms": 0.52075
+          },
+          {
+            "id": 410,
+            "ms": 0.617541
+          },
+          {
+            "id": 411,
+            "ms": 0.4995
+          },
+          {
+            "id": 412,
+            "ms": 0.540916
+          },
+          {
+            "id": 413,
+            "ms": 0.551083
+          },
+          {
+            "id": 414,
+            "ms": 0.604749
+          },
+          {
+            "id": 415,
+            "ms": 0.508124
+          },
+          {
+            "id": 416,
+            "ms": 0.578375
+          },
+          {
+            "id": 417,
+            "ms": 0.528624
+          },
+          {
+            "id": 418,
+            "ms": 0.627
+          },
+          {
+            "id": 419,
+            "ms": 0.496708
+          },
+          {
+            "id": 420,
+            "ms": 0.512958
+          },
+          {
+            "id": 421,
+            "ms": 0.514416
+          },
+          {
+            "id": 422,
+            "ms": 0.638416
+          },
+          {
+            "id": 423,
+            "ms": 0.824374
+          },
+          {
+            "id": 424,
+            "ms": 0.890875
+          },
+          {
+            "id": 425,
+            "ms": 0.8585
+          },
+          {
+            "id": 426,
+            "ms": 0.903041
+          },
+          {
+            "id": 427,
+            "ms": 0.919999
+          },
+          {
+            "id": 428,
+            "ms": 1.271999
+          },
+          {
+            "id": 429,
+            "ms": 0.809625
+          },
+          {
+            "id": 430,
+            "ms": 0.875249
+          },
+          {
+            "id": 431,
+            "ms": 0.932958
+          },
+          {
+            "id": 432,
+            "ms": 1.377749
+          },
+          {
+            "id": 433,
+            "ms": 0.915874
+          },
+          {
+            "id": 434,
+            "ms": 0.958875
+          },
+          {
+            "id": 435,
+            "ms": 0.949124
+          },
+          {
+            "id": 436,
+            "ms": 1.09
+          },
+          {
+            "id": 437,
+            "ms": 0.484874
+          },
+          {
+            "id": 438,
+            "ms": 0.616625
+          },
+          {
+            "id": 439,
+            "ms": 0.525625
+          },
+          {
+            "id": 440,
+            "ms": 0.577375
+          },
+          {
+            "id": 441,
+            "ms": 0.614666
+          },
+          {
+            "id": 442,
+            "ms": 0.950208
+          },
+          {
+            "id": 443,
+            "ms": 0.517
+          },
+          {
+            "id": 444,
+            "ms": 0.5685
+          },
+          {
+            "id": 445,
+            "ms": 0.550125
+          },
+          {
+            "id": 446,
+            "ms": 0.665625
+          },
+          {
+            "id": 447,
+            "ms": 0.626916
+          },
+          {
+            "id": 448,
+            "ms": 0.714791
+          },
+          {
+            "id": 449,
+            "ms": 0.609083
+          },
+          {
+            "id": 450,
+            "ms": 0.754583
+          },
+          {
+            "id": 451,
+            "ms": 0.562208
+          },
+          {
+            "id": 452,
+            "ms": 0.735208
+          },
+          {
+            "id": 453,
+            "ms": 0.529166
+          },
+          {
+            "id": 454,
+            "ms": 0.741958
+          },
+          {
+            "id": 455,
+            "ms": 0.498958
+          },
+          {
+            "id": 456,
+            "ms": 0.620416
+          },
+          {
+            "id": 457,
+            "ms": 0.435875
+          },
+          {
+            "id": 458,
+            "ms": 0.449583
+          },
+          {
+            "id": 459,
+            "ms": 0.474291
+          },
+          {
+            "id": 460,
+            "ms": 0.537749
+          },
+          {
+            "id": 461,
+            "ms": 0.456666
+          },
+          {
+            "id": 462,
+            "ms": 0.436083
+          },
+          {
+            "id": 463,
+            "ms": 0.472375
+          },
+          {
+            "id": 464,
+            "ms": 0.815291
+          },
+          {
+            "id": 465,
+            "ms": 0.745833
+          },
+          {
+            "id": 466,
+            "ms": 0.813999
+          },
+          {
+            "id": 467,
+            "ms": 0.74575
+          },
+          {
+            "id": 468,
+            "ms": 1.088708
+          },
+          {
+            "id": 469,
+            "ms": 0.75775
+          },
+          {
+            "id": 470,
+            "ms": 0.7655
+          },
+          {
+            "id": 471,
+            "ms": 0.747291
+          },
+          {
+            "id": 472,
+            "ms": 1.149874
+          },
+          {
+            "id": 473,
+            "ms": 0.767708
+          },
+          {
+            "id": 474,
+            "ms": 0.847499
+          },
+          {
+            "id": 475,
+            "ms": 1.171166
+          },
+          {
+            "id": 476,
+            "ms": 0.93875
+          },
+          {
+            "id": 477,
+            "ms": 0.796874
+          },
+          {
+            "id": 478,
+            "ms": 0.868375
+          },
+          {
+            "id": 479,
+            "ms": 0.765583
+          },
+          {
+            "id": 480,
+            "ms": 0.812458
+          },
+          {
+            "id": 481,
+            "ms": 0.77825
+          },
+          {
+            "id": 482,
+            "ms": 0.809333
+          },
+          {
+            "id": 483,
+            "ms": 0.778125
+          },
+          {
+            "id": 484,
+            "ms": 0.905499
+          },
+          {
+            "id": 485,
+            "ms": 0.765
+          },
+          {
+            "id": 486,
+            "ms": 0.83
+          },
+          {
+            "id": 487,
+            "ms": 0.780624
+          },
+          {
+            "id": 488,
+            "ms": 1.151458
+          },
+          {
+            "id": 489,
+            "ms": 0.744041
+          },
+          {
+            "id": 490,
+            "ms": 0.929125
+          },
+          {
+            "id": 491,
+            "ms": 0.763708
+          },
+          {
+            "id": 492,
+            "ms": 1.106208
+          },
+          {
+            "id": 493,
+            "ms": 0.751625
+          },
+          {
+            "id": 494,
+            "ms": 0.744583
+          },
+          {
+            "id": 495,
+            "ms": 0.748458
+          },
+          {
+            "id": 496,
+            "ms": 0.893624
+          },
+          {
+            "id": 497,
+            "ms": 0.743249
+          },
+          {
+            "id": 498,
+            "ms": 0.76725
+          },
+          {
+            "id": 499,
+            "ms": 0.747375
+          },
+          {
+            "id": 500,
+            "ms": 0.877875
+          },
+          {
+            "id": 501,
+            "ms": 0.754499
+          },
+          {
+            "id": 502,
+            "ms": 0.738875
+          },
+          {
+            "id": 503,
+            "ms": 0.742874
+          },
+          {
+            "id": 504,
+            "ms": 0.73975
+          },
+          {
+            "id": 505,
+            "ms": 0.734625
+          },
+          {
+            "id": 506,
+            "ms": 0.745791
+          },
+          {
+            "id": 507,
+            "ms": 0.738833
+          },
+          {
+            "id": 508,
+            "ms": 0.8815
+          },
+          {
+            "id": 509,
+            "ms": 0.736083
+          },
+          {
+            "id": 510,
+            "ms": 0.740999
+          },
+          {
+            "id": 511,
+            "ms": 0.739791
+          },
+          {
+            "id": 512,
+            "ms": 1.087583
+          },
+          {
+            "id": 513,
+            "ms": 0.740374
+          },
+          {
+            "id": 514,
+            "ms": 0.775541
+          },
+          {
+            "id": 515,
+            "ms": 0.73075
+          },
+          {
+            "id": 516,
+            "ms": 0.729583
+          },
+          {
+            "id": 517,
+            "ms": 0.732
+          },
+          {
+            "id": 518,
+            "ms": 0.735125
+          },
+          {
+            "id": 519,
+            "ms": 0.743124
+          },
+          {
+            "id": 520,
+            "ms": 0.907125
+          },
+          {
+            "id": 521,
+            "ms": 0.736624
+          },
+          {
+            "id": 522,
+            "ms": 0.763999
+          },
+          {
+            "id": 523,
+            "ms": 0.742166
+          },
+          {
+            "id": 524,
+            "ms": 1.088999
+          },
+          {
+            "id": 525,
+            "ms": 0.733374
+          },
+          {
+            "id": 526,
+            "ms": 0.764041
+          },
+          {
+            "id": 527,
+            "ms": 0.730624
+          },
+          {
+            "id": 528,
+            "ms": 0.794916
+          },
+          {
+            "id": 529,
+            "ms": 0.736833
+          },
+          {
+            "id": 530,
+            "ms": 0.745166
+          },
+          {
+            "id": 531,
+            "ms": 0.732583
+          },
+          {
+            "id": 532,
+            "ms": 0.79175
+          },
+          {
+            "id": 533,
+            "ms": 0.730666
+          },
+          {
+            "id": 534,
+            "ms": 1.149
+          },
+          {
+            "id": 535,
+            "ms": 0.750083
+          },
+          {
+            "id": 536,
+            "ms": 0.879749
+          },
+          {
+            "id": 537,
+            "ms": 0.748958
+          },
+          {
+            "id": 538,
+            "ms": 0.852541
+          },
+          {
+            "id": 539,
+            "ms": 0.74
+          },
+          {
+            "id": 540,
+            "ms": 0.981875
+          },
+          {
+            "id": 541,
+            "ms": 0.734999
+          },
+          {
+            "id": 542,
+            "ms": 0.756499
+          },
+          {
+            "id": 543,
+            "ms": 0.7275
+          },
+          {
+            "id": 544,
+            "ms": 0.870374
+          },
+          {
+            "id": 545,
+            "ms": 0.728625
+          },
+          {
+            "id": 546,
+            "ms": 1.11875
+          },
+          {
+            "id": 547,
+            "ms": 0.726958
+          },
+          {
+            "id": 548,
+            "ms": 0.748874
+          },
+          {
+            "id": 549,
+            "ms": 0.734125
+          },
+          {
+            "id": 550,
+            "ms": 0.75625
+          },
+          {
+            "id": 551,
+            "ms": 0.729999
+          },
+          {
+            "id": 552,
+            "ms": 1.12375
+          },
+          {
+            "id": 553,
+            "ms": 0.731791
+          },
+          {
+            "id": 554,
+            "ms": 0.728958
+          },
+          {
+            "id": 555,
+            "ms": 0.741666
+          },
+          {
+            "id": 556,
+            "ms": 0.727791
+          },
+          {
+            "id": 557,
+            "ms": 0.725625
+          },
+          {
+            "id": 558,
+            "ms": 0.765374
+          },
+          {
+            "id": 559,
+            "ms": 0.733166
+          },
+          {
+            "id": 560,
+            "ms": 0.748999
+          },
+          {
+            "id": 561,
+            "ms": 0.7225
+          },
+          {
+            "id": 562,
+            "ms": 1.11125
+          },
+          {
+            "id": 563,
+            "ms": 0.730125
+          },
+          {
+            "id": 564,
+            "ms": 0.762166
+          },
+          {
+            "id": 565,
+            "ms": 0.728041
+          },
+          {
+            "id": 566,
+            "ms": 0.732208
+          },
+          {
+            "id": 567,
+            "ms": 0.733541
+          },
+          {
+            "id": 568,
+            "ms": 0.8225
+          },
+          {
+            "id": 569,
+            "ms": 0.7385
+          },
+          {
+            "id": 570,
+            "ms": 0.750708
+          },
+          {
+            "id": 571,
+            "ms": 0.721333
+          },
+          {
+            "id": 572,
+            "ms": 0.974875
+          },
+          {
+            "id": 573,
+            "ms": 0.739958
+          },
+          {
+            "id": 574,
+            "ms": 1.108166
+          },
+          {
+            "id": 575,
+            "ms": 0.719958
+          },
+          {
+            "id": 576,
+            "ms": 0.780458
+          },
+          {
+            "id": 577,
+            "ms": 0.715875
+          },
+          {
+            "id": 578,
+            "ms": 0.779
+          },
+          {
+            "id": 579,
+            "ms": 0.7245
+          },
+          {
+            "id": 580,
+            "ms": 1.040375
+          },
+          {
+            "id": 581,
+            "ms": 0.736666
+          },
+          {
+            "id": 582,
+            "ms": 0.900749
+          },
+          {
+            "id": 583,
+            "ms": 0.732875
+          },
+          {
+            "id": 584,
+            "ms": 0.759749
+          },
+          {
+            "id": 585,
+            "ms": 0.733124
+          },
+          {
+            "id": 586,
+            "ms": 0.757958
+          },
+          {
+            "id": 587,
+            "ms": 0.752125
+          },
+          {
+            "id": 588,
+            "ms": 1.02875
+          },
+          {
+            "id": 589,
+            "ms": 0.732208
+          },
+          {
+            "id": 590,
+            "ms": 1.096208
+          },
+          {
+            "id": 591,
+            "ms": 0.718708
+          },
+          {
+            "id": 592,
+            "ms": 1.111708
+          },
+          {
+            "id": 593,
+            "ms": 0.726083
+          },
+          {
+            "id": 594,
+            "ms": 0.753458
+          },
+          {
+            "id": 595,
+            "ms": 0.726208
+          },
+          {
+            "id": 596,
+            "ms": 0.766333
+          },
+          {
+            "id": 597,
+            "ms": 0.737374
+          },
+          {
+            "id": 598,
+            "ms": 0.832041
+          },
+          {
+            "id": 599,
+            "ms": 0.735666
+          },
+          {
+            "id": 600,
+            "ms": 0.934124
+          },
+          {
+            "id": 601,
+            "ms": 0.742041
+          },
+          {
+            "id": 602,
+            "ms": 0.745416
+          },
+          {
+            "id": 603,
+            "ms": 0.730375
+          },
+          {
+            "id": 604,
+            "ms": 0.731416
+          },
+          {
+            "id": 605,
+            "ms": 0.732749
+          },
+          {
+            "id": 606,
+            "ms": 1.033958
+          },
+          {
+            "id": 607,
+            "ms": 0.732958
+          },
+          {
+            "id": 608,
+            "ms": 0.758249
+          },
+          {
+            "id": 609,
+            "ms": 0.728749
+          },
+          {
+            "id": 610,
+            "ms": 0.759583
+          },
+          {
+            "id": 611,
+            "ms": 0.718625
+          },
+          {
+            "id": 612,
+            "ms": 1.120708
+          },
+          {
+            "id": 613,
+            "ms": 0.725624
+          },
+          {
+            "id": 614,
+            "ms": 0.740291
+          },
+          {
+            "id": 615,
+            "ms": 0.725666
+          },
+          {
+            "id": 616,
+            "ms": 0.754125
+          },
+          {
+            "id": 617,
+            "ms": 0.72375
+          },
+          {
+            "id": 618,
+            "ms": 1.091583
+          },
+          {
+            "id": 619,
+            "ms": 0.731
+          },
+          {
+            "id": 620,
+            "ms": 0.759375
+          },
+          {
+            "id": 621,
+            "ms": 0.733208
+          },
+          {
+            "id": 622,
+            "ms": 1.071999
+          },
+          {
+            "id": 623,
+            "ms": 0.742666
+          },
+          {
+            "id": 624,
+            "ms": 0.814874
+          },
+          {
+            "id": 625,
+            "ms": 0.751874
+          },
+          {
+            "id": 626,
+            "ms": 0.800208
+          },
+          {
+            "id": 627,
+            "ms": 0.739999
+          },
+          {
+            "id": 628,
+            "ms": 0.800541
+          },
+          {
+            "id": 629,
+            "ms": 0.742208
+          },
+          {
+            "id": 630,
+            "ms": 0.8265
+          },
+          {
+            "id": 631,
+            "ms": 0.74725
+          },
+          {
+            "id": 632,
+            "ms": 2.046624
+          },
+          {
+            "id": 633,
+            "ms": 2.005583
+          },
+          {
+            "id": 634,
+            "ms": 5.334708
+          },
+          {
+            "id": 635,
+            "ms": 1.972625
+          },
+          {
+            "id": 636,
+            "ms": 2.565166
+          },
+          {
+            "id": 637,
+            "ms": 0.845166
+          },
+          {
+            "id": 638,
+            "ms": 0.959375
+          },
+          {
+            "id": 639,
+            "ms": 0.888875
+          }
+        ],
+        "gpuResultCount": 639
+      }
+    },
+    {
+      "cycle": 2,
+      "recovered": {
+        "runtime": {
+          "phase": "running",
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "frameCount": 84,
+          "contextGeneration": 3,
+          "statusMessage": null,
+          "resources": {
+            "activeAnimationFrameCount": 1,
+            "activeEventListenerCount": 2,
+            "activeWebGLContextCount": 1
+          },
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 2.5,
+            "cpuFrameTimeAverageMs": 3.0673662697341064,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          }
+        },
+        "engine": {
+          "presetId": "drmvyz.cinema2.blockshift",
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 2.5,
+            "cpuFrameTimeAverageMs": 3.0673662697341064,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          },
+          "resources": {
+            "disposed": false,
+            "contextAvailable": true,
+            "viewport": {
+              "width": 960,
+              "height": 540,
+              "dpr": 1
+            },
+            "maximumTextureSize": 16384,
+            "maximumPooledAllocationCount": 24,
+            "maximumEstimatedGpuMemoryBytes": 268435456,
+            "renderTargetScale": 1,
+            "activeLeaseCount": 0,
+            "activeTransientLeaseCount": 0,
+            "activePersistentLeaseCount": 0,
+            "pooledAllocationCount": 2,
+            "activeSurfaceCount": 0,
+            "pooledSurfaceCount": 2,
+            "createdAllocationCount": 6,
+            "reusedAllocationCount": 162,
+            "destroyedAllocationCount": 4,
+            "reconstructedAllocationCount": 0,
+            "estimatedGpuMemoryBytes": 10368000,
+            "activeLeaseCountByOwner": {}
+          },
+          "render": {
+            "disposed": false,
+            "frameCount": 84,
+            "executedPassCount": 252,
+            "skippedPassCount": 0,
+            "failedPassCount": 0,
+            "activePersistentTargetCount": 0,
+            "lastExecutedPassIds": [
+              "blockshift-scene-pass",
+              "blockshift-atmosphere-pass",
+              "blockshift-bloom-pass"
+            ],
+            "diagnostics": [],
+            "visibilityCheckpoints": []
+          },
+          "modules": {
+            "activeModuleCount": 1,
+            "failedModuleCount": 0,
+            "degradedModuleCount": 0,
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 722040,
+            "modules": [
+              {
+                "moduleId": "blockshift-sculpture",
+                "status": "active",
+                "activeResourceLeaseCount": 1,
+                "estimatedGpuBytes": 722040,
+                "renderProviderCount": 1,
+                "diagnostics": []
+              }
+            ]
+          }
+        },
+        "effects": {
+          "activeEffectCount": 1,
+          "failedEffectCount": 0,
+          "effects": [
+            {
+              "effectId": "blockshift-atmosphere",
+              "typeId": "volumetric-atmosphere",
+              "status": "inactive",
+              "order": 0,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            },
+            {
+              "effectId": "blockshift-bloom",
+              "typeId": "hdr-bloom",
+              "status": "active",
+              "order": 1,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "gpu": {
+        "connected": true,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "counts": {
+          "createQuery": 1474,
+          "createFramebuffer": 110,
+          "createTexture": 127,
+          "createShader": 64,
+          "createProgram": 32,
+          "deleteShader": 64,
+          "deleteQuery": 1471,
+          "createBuffer": 72,
+          "createVertexArray": 24,
+          "deleteTexture": 110,
+          "deleteFramebuffer": 96,
+          "deleteProgram": 27,
+          "deleteVertexArray": 20,
+          "deleteBuffer": 60
+        },
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 5,
+          "Shader": 0,
+          "Texture": 17,
+          "Framebuffer": 14,
+          "Renderbuffer": 0,
+          "Query": 3
+        },
+        "estimatedAllocatedBytes": 13842360,
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "shaderFailures": 0,
+        "gpuSamples": [
+          {
+            "id": 384,
+            "ms": 0.499624
+          },
+          {
+            "id": 385,
+            "ms": 0.904
+          },
+          {
+            "id": 386,
+            "ms": 0.942375
+          },
+          {
+            "id": 387,
+            "ms": 0.847874
+          },
+          {
+            "id": 388,
+            "ms": 1.047625
+          },
+          {
+            "id": 389,
+            "ms": 0.817124
+          },
+          {
+            "id": 390,
+            "ms": 0.828166
+          },
+          {
+            "id": 391,
+            "ms": 0.791166
+          },
+          {
+            "id": 392,
+            "ms": 0.8605
+          },
+          {
+            "id": 393,
+            "ms": 0.799041
+          },
+          {
+            "id": 394,
+            "ms": 0.8965
+          },
+          {
+            "id": 395,
+            "ms": 0.940375
+          },
+          {
+            "id": 396,
+            "ms": 0.9305
+          },
+          {
+            "id": 397,
+            "ms": 0.828
+          },
+          {
+            "id": 398,
+            "ms": 0.511499
+          },
+          {
+            "id": 399,
+            "ms": 0.477624
+          },
+          {
+            "id": 400,
+            "ms": 0.609958
+          },
+          {
+            "id": 401,
+            "ms": 0.478
+          },
+          {
+            "id": 402,
+            "ms": 0.602625
+          },
+          {
+            "id": 403,
+            "ms": 0.489041
+          },
+          {
+            "id": 404,
+            "ms": 0.799333
+          },
+          {
+            "id": 405,
+            "ms": 0.502041
+          },
+          {
+            "id": 406,
+            "ms": 0.652749
+          },
+          {
+            "id": 407,
+            "ms": 0.488333
+          },
+          {
+            "id": 408,
+            "ms": 0.622249
+          },
+          {
+            "id": 409,
+            "ms": 0.52075
+          },
+          {
+            "id": 410,
+            "ms": 0.617541
+          },
+          {
+            "id": 411,
+            "ms": 0.4995
+          },
+          {
+            "id": 412,
+            "ms": 0.540916
+          },
+          {
+            "id": 413,
+            "ms": 0.551083
+          },
+          {
+            "id": 414,
+            "ms": 0.604749
+          },
+          {
+            "id": 415,
+            "ms": 0.508124
+          },
+          {
+            "id": 416,
+            "ms": 0.578375
+          },
+          {
+            "id": 417,
+            "ms": 0.528624
+          },
+          {
+            "id": 418,
+            "ms": 0.627
+          },
+          {
+            "id": 419,
+            "ms": 0.496708
+          },
+          {
+            "id": 420,
+            "ms": 0.512958
+          },
+          {
+            "id": 421,
+            "ms": 0.514416
+          },
+          {
+            "id": 422,
+            "ms": 0.638416
+          },
+          {
+            "id": 423,
+            "ms": 0.824374
+          },
+          {
+            "id": 424,
+            "ms": 0.890875
+          },
+          {
+            "id": 425,
+            "ms": 0.8585
+          },
+          {
+            "id": 426,
+            "ms": 0.903041
+          },
+          {
+            "id": 427,
+            "ms": 0.919999
+          },
+          {
+            "id": 428,
+            "ms": 1.271999
+          },
+          {
+            "id": 429,
+            "ms": 0.809625
+          },
+          {
+            "id": 430,
+            "ms": 0.875249
+          },
+          {
+            "id": 431,
+            "ms": 0.932958
+          },
+          {
+            "id": 432,
+            "ms": 1.377749
+          },
+          {
+            "id": 433,
+            "ms": 0.915874
+          },
+          {
+            "id": 434,
+            "ms": 0.958875
+          },
+          {
+            "id": 435,
+            "ms": 0.949124
+          },
+          {
+            "id": 436,
+            "ms": 1.09
+          },
+          {
+            "id": 437,
+            "ms": 0.484874
+          },
+          {
+            "id": 438,
+            "ms": 0.616625
+          },
+          {
+            "id": 439,
+            "ms": 0.525625
+          },
+          {
+            "id": 440,
+            "ms": 0.577375
+          },
+          {
+            "id": 441,
+            "ms": 0.614666
+          },
+          {
+            "id": 442,
+            "ms": 0.950208
+          },
+          {
+            "id": 443,
+            "ms": 0.517
+          },
+          {
+            "id": 444,
+            "ms": 0.5685
+          },
+          {
+            "id": 445,
+            "ms": 0.550125
+          },
+          {
+            "id": 446,
+            "ms": 0.665625
+          },
+          {
+            "id": 447,
+            "ms": 0.626916
+          },
+          {
+            "id": 448,
+            "ms": 0.714791
+          },
+          {
+            "id": 449,
+            "ms": 0.609083
+          },
+          {
+            "id": 450,
+            "ms": 0.754583
+          },
+          {
+            "id": 451,
+            "ms": 0.562208
+          },
+          {
+            "id": 452,
+            "ms": 0.735208
+          },
+          {
+            "id": 453,
+            "ms": 0.529166
+          },
+          {
+            "id": 454,
+            "ms": 0.741958
+          },
+          {
+            "id": 455,
+            "ms": 0.498958
+          },
+          {
+            "id": 456,
+            "ms": 0.620416
+          },
+          {
+            "id": 457,
+            "ms": 0.435875
+          },
+          {
+            "id": 458,
+            "ms": 0.449583
+          },
+          {
+            "id": 459,
+            "ms": 0.474291
+          },
+          {
+            "id": 460,
+            "ms": 0.537749
+          },
+          {
+            "id": 461,
+            "ms": 0.456666
+          },
+          {
+            "id": 462,
+            "ms": 0.436083
+          },
+          {
+            "id": 463,
+            "ms": 0.472375
+          },
+          {
+            "id": 464,
+            "ms": 0.815291
+          },
+          {
+            "id": 465,
+            "ms": 0.745833
+          },
+          {
+            "id": 466,
+            "ms": 0.813999
+          },
+          {
+            "id": 467,
+            "ms": 0.74575
+          },
+          {
+            "id": 468,
+            "ms": 1.088708
+          },
+          {
+            "id": 469,
+            "ms": 0.75775
+          },
+          {
+            "id": 470,
+            "ms": 0.7655
+          },
+          {
+            "id": 471,
+            "ms": 0.747291
+          },
+          {
+            "id": 472,
+            "ms": 1.149874
+          },
+          {
+            "id": 473,
+            "ms": 0.767708
+          },
+          {
+            "id": 474,
+            "ms": 0.847499
+          },
+          {
+            "id": 475,
+            "ms": 1.171166
+          },
+          {
+            "id": 476,
+            "ms": 0.93875
+          },
+          {
+            "id": 477,
+            "ms": 0.796874
+          },
+          {
+            "id": 478,
+            "ms": 0.868375
+          },
+          {
+            "id": 479,
+            "ms": 0.765583
+          },
+          {
+            "id": 480,
+            "ms": 0.812458
+          },
+          {
+            "id": 481,
+            "ms": 0.77825
+          },
+          {
+            "id": 482,
+            "ms": 0.809333
+          },
+          {
+            "id": 483,
+            "ms": 0.778125
+          },
+          {
+            "id": 484,
+            "ms": 0.905499
+          },
+          {
+            "id": 485,
+            "ms": 0.765
+          },
+          {
+            "id": 486,
+            "ms": 0.83
+          },
+          {
+            "id": 487,
+            "ms": 0.780624
+          },
+          {
+            "id": 488,
+            "ms": 1.151458
+          },
+          {
+            "id": 489,
+            "ms": 0.744041
+          },
+          {
+            "id": 490,
+            "ms": 0.929125
+          },
+          {
+            "id": 491,
+            "ms": 0.763708
+          },
+          {
+            "id": 492,
+            "ms": 1.106208
+          },
+          {
+            "id": 493,
+            "ms": 0.751625
+          },
+          {
+            "id": 494,
+            "ms": 0.744583
+          },
+          {
+            "id": 495,
+            "ms": 0.748458
+          },
+          {
+            "id": 496,
+            "ms": 0.893624
+          },
+          {
+            "id": 497,
+            "ms": 0.743249
+          },
+          {
+            "id": 498,
+            "ms": 0.76725
+          },
+          {
+            "id": 499,
+            "ms": 0.747375
+          },
+          {
+            "id": 500,
+            "ms": 0.877875
+          },
+          {
+            "id": 501,
+            "ms": 0.754499
+          },
+          {
+            "id": 502,
+            "ms": 0.738875
+          },
+          {
+            "id": 503,
+            "ms": 0.742874
+          },
+          {
+            "id": 504,
+            "ms": 0.73975
+          },
+          {
+            "id": 505,
+            "ms": 0.734625
+          },
+          {
+            "id": 506,
+            "ms": 0.745791
+          },
+          {
+            "id": 507,
+            "ms": 0.738833
+          },
+          {
+            "id": 508,
+            "ms": 0.8815
+          },
+          {
+            "id": 509,
+            "ms": 0.736083
+          },
+          {
+            "id": 510,
+            "ms": 0.740999
+          },
+          {
+            "id": 511,
+            "ms": 0.739791
+          },
+          {
+            "id": 512,
+            "ms": 1.087583
+          },
+          {
+            "id": 513,
+            "ms": 0.740374
+          },
+          {
+            "id": 514,
+            "ms": 0.775541
+          },
+          {
+            "id": 515,
+            "ms": 0.73075
+          },
+          {
+            "id": 516,
+            "ms": 0.729583
+          },
+          {
+            "id": 517,
+            "ms": 0.732
+          },
+          {
+            "id": 518,
+            "ms": 0.735125
+          },
+          {
+            "id": 519,
+            "ms": 0.743124
+          },
+          {
+            "id": 520,
+            "ms": 0.907125
+          },
+          {
+            "id": 521,
+            "ms": 0.736624
+          },
+          {
+            "id": 522,
+            "ms": 0.763999
+          },
+          {
+            "id": 523,
+            "ms": 0.742166
+          },
+          {
+            "id": 524,
+            "ms": 1.088999
+          },
+          {
+            "id": 525,
+            "ms": 0.733374
+          },
+          {
+            "id": 526,
+            "ms": 0.764041
+          },
+          {
+            "id": 527,
+            "ms": 0.730624
+          },
+          {
+            "id": 528,
+            "ms": 0.794916
+          },
+          {
+            "id": 529,
+            "ms": 0.736833
+          },
+          {
+            "id": 530,
+            "ms": 0.745166
+          },
+          {
+            "id": 531,
+            "ms": 0.732583
+          },
+          {
+            "id": 532,
+            "ms": 0.79175
+          },
+          {
+            "id": 533,
+            "ms": 0.730666
+          },
+          {
+            "id": 534,
+            "ms": 1.149
+          },
+          {
+            "id": 535,
+            "ms": 0.750083
+          },
+          {
+            "id": 536,
+            "ms": 0.879749
+          },
+          {
+            "id": 537,
+            "ms": 0.748958
+          },
+          {
+            "id": 538,
+            "ms": 0.852541
+          },
+          {
+            "id": 539,
+            "ms": 0.74
+          },
+          {
+            "id": 540,
+            "ms": 0.981875
+          },
+          {
+            "id": 541,
+            "ms": 0.734999
+          },
+          {
+            "id": 542,
+            "ms": 0.756499
+          },
+          {
+            "id": 543,
+            "ms": 0.7275
+          },
+          {
+            "id": 544,
+            "ms": 0.870374
+          },
+          {
+            "id": 545,
+            "ms": 0.728625
+          },
+          {
+            "id": 546,
+            "ms": 1.11875
+          },
+          {
+            "id": 547,
+            "ms": 0.726958
+          },
+          {
+            "id": 548,
+            "ms": 0.748874
+          },
+          {
+            "id": 549,
+            "ms": 0.734125
+          },
+          {
+            "id": 550,
+            "ms": 0.75625
+          },
+          {
+            "id": 551,
+            "ms": 0.729999
+          },
+          {
+            "id": 552,
+            "ms": 1.12375
+          },
+          {
+            "id": 553,
+            "ms": 0.731791
+          },
+          {
+            "id": 554,
+            "ms": 0.728958
+          },
+          {
+            "id": 555,
+            "ms": 0.741666
+          },
+          {
+            "id": 556,
+            "ms": 0.727791
+          },
+          {
+            "id": 557,
+            "ms": 0.725625
+          },
+          {
+            "id": 558,
+            "ms": 0.765374
+          },
+          {
+            "id": 559,
+            "ms": 0.733166
+          },
+          {
+            "id": 560,
+            "ms": 0.748999
+          },
+          {
+            "id": 561,
+            "ms": 0.7225
+          },
+          {
+            "id": 562,
+            "ms": 1.11125
+          },
+          {
+            "id": 563,
+            "ms": 0.730125
+          },
+          {
+            "id": 564,
+            "ms": 0.762166
+          },
+          {
+            "id": 565,
+            "ms": 0.728041
+          },
+          {
+            "id": 566,
+            "ms": 0.732208
+          },
+          {
+            "id": 567,
+            "ms": 0.733541
+          },
+          {
+            "id": 568,
+            "ms": 0.8225
+          },
+          {
+            "id": 569,
+            "ms": 0.7385
+          },
+          {
+            "id": 570,
+            "ms": 0.750708
+          },
+          {
+            "id": 571,
+            "ms": 0.721333
+          },
+          {
+            "id": 572,
+            "ms": 0.974875
+          },
+          {
+            "id": 573,
+            "ms": 0.739958
+          },
+          {
+            "id": 574,
+            "ms": 1.108166
+          },
+          {
+            "id": 575,
+            "ms": 0.719958
+          },
+          {
+            "id": 576,
+            "ms": 0.780458
+          },
+          {
+            "id": 577,
+            "ms": 0.715875
+          },
+          {
+            "id": 578,
+            "ms": 0.779
+          },
+          {
+            "id": 579,
+            "ms": 0.7245
+          },
+          {
+            "id": 580,
+            "ms": 1.040375
+          },
+          {
+            "id": 581,
+            "ms": 0.736666
+          },
+          {
+            "id": 582,
+            "ms": 0.900749
+          },
+          {
+            "id": 583,
+            "ms": 0.732875
+          },
+          {
+            "id": 584,
+            "ms": 0.759749
+          },
+          {
+            "id": 585,
+            "ms": 0.733124
+          },
+          {
+            "id": 586,
+            "ms": 0.757958
+          },
+          {
+            "id": 587,
+            "ms": 0.752125
+          },
+          {
+            "id": 588,
+            "ms": 1.02875
+          },
+          {
+            "id": 589,
+            "ms": 0.732208
+          },
+          {
+            "id": 590,
+            "ms": 1.096208
+          },
+          {
+            "id": 591,
+            "ms": 0.718708
+          },
+          {
+            "id": 592,
+            "ms": 1.111708
+          },
+          {
+            "id": 593,
+            "ms": 0.726083
+          },
+          {
+            "id": 594,
+            "ms": 0.753458
+          },
+          {
+            "id": 595,
+            "ms": 0.726208
+          },
+          {
+            "id": 596,
+            "ms": 0.766333
+          },
+          {
+            "id": 597,
+            "ms": 0.737374
+          },
+          {
+            "id": 598,
+            "ms": 0.832041
+          },
+          {
+            "id": 599,
+            "ms": 0.735666
+          },
+          {
+            "id": 600,
+            "ms": 0.934124
+          },
+          {
+            "id": 601,
+            "ms": 0.742041
+          },
+          {
+            "id": 602,
+            "ms": 0.745416
+          },
+          {
+            "id": 603,
+            "ms": 0.730375
+          },
+          {
+            "id": 604,
+            "ms": 0.731416
+          },
+          {
+            "id": 605,
+            "ms": 0.732749
+          },
+          {
+            "id": 606,
+            "ms": 1.033958
+          },
+          {
+            "id": 607,
+            "ms": 0.732958
+          },
+          {
+            "id": 608,
+            "ms": 0.758249
+          },
+          {
+            "id": 609,
+            "ms": 0.728749
+          },
+          {
+            "id": 610,
+            "ms": 0.759583
+          },
+          {
+            "id": 611,
+            "ms": 0.718625
+          },
+          {
+            "id": 612,
+            "ms": 1.120708
+          },
+          {
+            "id": 613,
+            "ms": 0.725624
+          },
+          {
+            "id": 614,
+            "ms": 0.740291
+          },
+          {
+            "id": 615,
+            "ms": 0.725666
+          },
+          {
+            "id": 616,
+            "ms": 0.754125
+          },
+          {
+            "id": 617,
+            "ms": 0.72375
+          },
+          {
+            "id": 618,
+            "ms": 1.091583
+          },
+          {
+            "id": 619,
+            "ms": 0.731
+          },
+          {
+            "id": 620,
+            "ms": 0.759375
+          },
+          {
+            "id": 621,
+            "ms": 0.733208
+          },
+          {
+            "id": 622,
+            "ms": 1.071999
+          },
+          {
+            "id": 623,
+            "ms": 0.742666
+          },
+          {
+            "id": 624,
+            "ms": 0.814874
+          },
+          {
+            "id": 625,
+            "ms": 0.751874
+          },
+          {
+            "id": 626,
+            "ms": 0.800208
+          },
+          {
+            "id": 627,
+            "ms": 0.739999
+          },
+          {
+            "id": 628,
+            "ms": 0.800541
+          },
+          {
+            "id": 629,
+            "ms": 0.742208
+          },
+          {
+            "id": 630,
+            "ms": 0.8265
+          },
+          {
+            "id": 631,
+            "ms": 0.74725
+          },
+          {
+            "id": 632,
+            "ms": 2.046624
+          },
+          {
+            "id": 633,
+            "ms": 2.005583
+          },
+          {
+            "id": 634,
+            "ms": 5.334708
+          },
+          {
+            "id": 635,
+            "ms": 1.972625
+          },
+          {
+            "id": 636,
+            "ms": 2.565166
+          },
+          {
+            "id": 637,
+            "ms": 0.845166
+          },
+          {
+            "id": 638,
+            "ms": 0.959375
+          },
+          {
+            "id": 639,
+            "ms": 0.888875
+          }
+        ],
+        "gpuResultCount": 639
+      }
+    },
+    {
+      "cycle": 3,
+      "recovered": {
+        "runtime": {
+          "phase": "running",
+          "viewport": {
+            "width": 960,
+            "height": 540,
+            "dpr": 1
+          },
+          "frameCount": 115,
+          "contextGeneration": 4,
+          "statusMessage": null,
+          "resources": {
+            "activeAnimationFrameCount": 1,
+            "activeEventListenerCount": 2,
+            "activeWebGLContextCount": 1
+          },
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 1.0999999940395355,
+            "cpuFrameTimeAverageMs": 2.2679051821817846,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          }
+        },
+        "engine": {
+          "presetId": "drmvyz.cinema2.blockshift",
+          "performance": {
+            "diagnosticsEnabled": true,
+            "requestedMode": "quality",
+            "resolvedQuality": "high",
+            "renderTargetScale": 1,
+            "gpuMemoryBudgetBytes": 268435456,
+            "cpuFrameTimeMs": 1.0999999940395355,
+            "cpuFrameTimeAverageMs": 2.2679051821817846,
+            "gpuFrameTimeMs": null,
+            "gpuTimingSupported": true,
+            "degraded": false,
+            "degradationReason": null
+          },
+          "resources": {
+            "disposed": false,
+            "contextAvailable": true,
+            "viewport": {
+              "width": 960,
+              "height": 540,
+              "dpr": 1
+            },
+            "maximumTextureSize": 16384,
+            "maximumPooledAllocationCount": 24,
+            "maximumEstimatedGpuMemoryBytes": 268435456,
+            "renderTargetScale": 1,
+            "activeLeaseCount": 0,
+            "activeTransientLeaseCount": 0,
+            "activePersistentLeaseCount": 0,
+            "pooledAllocationCount": 2,
+            "activeSurfaceCount": 0,
+            "pooledSurfaceCount": 2,
+            "createdAllocationCount": 8,
+            "reusedAllocationCount": 222,
+            "destroyedAllocationCount": 6,
+            "reconstructedAllocationCount": 0,
+            "estimatedGpuMemoryBytes": 10368000,
+            "activeLeaseCountByOwner": {}
+          },
+          "render": {
+            "disposed": false,
+            "frameCount": 115,
+            "executedPassCount": 345,
+            "skippedPassCount": 0,
+            "failedPassCount": 0,
+            "activePersistentTargetCount": 0,
+            "lastExecutedPassIds": [
+              "blockshift-scene-pass",
+              "blockshift-atmosphere-pass",
+              "blockshift-bloom-pass"
+            ],
+            "diagnostics": [],
+            "visibilityCheckpoints": []
+          },
+          "modules": {
+            "activeModuleCount": 1,
+            "failedModuleCount": 0,
+            "degradedModuleCount": 0,
+            "activeResourceLeaseCount": 1,
+            "estimatedGpuBytes": 722040,
+            "modules": [
+              {
+                "moduleId": "blockshift-sculpture",
+                "status": "active",
+                "activeResourceLeaseCount": 1,
+                "estimatedGpuBytes": 722040,
+                "renderProviderCount": 1,
+                "diagnostics": []
+              }
+            ]
+          }
+        },
+        "effects": {
+          "activeEffectCount": 1,
+          "failedEffectCount": 0,
+          "effects": [
+            {
+              "effectId": "blockshift-atmosphere",
+              "typeId": "volumetric-atmosphere",
+              "status": "inactive",
+              "order": 0,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            },
+            {
+              "effectId": "blockshift-bloom",
+              "typeId": "hdr-bloom",
+              "status": "active",
+              "order": 1,
+              "scope": "output",
+              "quality": null,
+              "diagnostics": []
+            }
+          ]
+        }
+      },
+      "gpu": {
+        "connected": true,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+        "counts": {
+          "createQuery": 1505,
+          "createFramebuffer": 120,
+          "createTexture": 138,
+          "createShader": 74,
+          "createProgram": 37,
+          "deleteShader": 74,
+          "deleteQuery": 1501,
+          "createBuffer": 84,
+          "createVertexArray": 28,
+          "deleteTexture": 118,
+          "deleteFramebuffer": 104,
+          "deleteProgram": 32,
+          "deleteVertexArray": 24,
+          "deleteBuffer": 72
+        },
+        "live": {
+          "Buffer": 12,
+          "VertexArray": 4,
+          "Program": 5,
+          "Shader": 0,
+          "Texture": 20,
+          "Framebuffer": 16,
+          "Renderbuffer": 0,
+          "Query": 4
+        },
+        "estimatedAllocatedBytes": 13842360,
+        "instances": {
+          "12": [
+            0,
+            1.2000000476837158,
+            -41.68980026245117,
+            8.100000381469727,
+            1,
+            0.9450980424880981,
+            0.8392156958580017,
+            1,
+            0,
+            0.03631029278039932,
+            0,
+            4
+          ],
+          "168": [
+            -16.200000762939453,
+            9.600000381469727,
+            -15.05465030670166,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            10.199999809265137,
+            6.314647674560547,
+            -20.873857498168945,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.0303530003875494,
+            0,
+            1,
+            -9,
+            -3.163264513015747,
+            -26.364887237548828,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.050102826207876205,
+            0,
+            2,
+            16.200000762939453,
+            -9.34598445892334,
+            -17.113019943237305,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.05235029011964798,
+            0,
+            3,
+            -12.600000381469727,
+            9.073936462402344,
+            18.986764907836914,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.007586067076772451,
+            0,
+            5,
+            12.600000381469727,
+            10.297052383422852,
+            13.781229972839355,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.023788191378116608,
+            0,
+            6,
+            -12.600000381469727,
+            -9.617424011230469,
+            14.06519889831543,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.04685255140066147,
+            0,
+            7,
+            12.600000381469727,
+            -9.019155502319336,
+            19.19755744934082,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.05354996398091316,
+            0,
+            8,
+            -29.399999618530273,
+            0.7418133020401001,
+            -26.41486358642578,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            -0.04154083505272865,
+            0,
+            9,
+            29.399999618530273,
+            -0.979237973690033,
+            -31.13323974609375,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            -0.015020298771560192,
+            0,
+            10,
+            1.7999999523162842,
+            24.600017547607422,
+            -28.31084442138672,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.016747262328863144,
+            0,
+            11,
+            -1.7999999523162842,
+            -27.36583137512207,
+            -24.31976890563965,
+            8.100000381469727,
+            0.3333333432674408,
+            0.9019607901573181,
+            1,
+            1,
+            0,
+            0.04266452044248581,
+            0,
+            12,
+            -29.399999618530273,
+            0.756300687789917,
+            25.099679946899414,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.053677838295698166,
+            0,
+            13,
+            29.399999618530273,
+            1.7830932140350342,
+            22.100927352905273,
+            8.100000381469727,
+            0.47058823704719543,
+            0.4000000059604645,
+            1,
+            1,
+            0,
+            0.045939940959215164,
+            0,
+            14
+          ]
+        },
+        "draws": [
+          [
+            36,
+            14
+          ],
+          [
+            132,
+            14
+          ],
+          [
+            5226,
+            1
+          ],
+          [
+            16758,
+            1
+          ]
+        ],
+        "errors": [],
+        "shaderFailures": 0,
+        "gpuSamples": [
+          {
+            "id": 384,
+            "ms": 0.499624
+          },
+          {
+            "id": 385,
+            "ms": 0.904
+          },
+          {
+            "id": 386,
+            "ms": 0.942375
+          },
+          {
+            "id": 387,
+            "ms": 0.847874
+          },
+          {
+            "id": 388,
+            "ms": 1.047625
+          },
+          {
+            "id": 389,
+            "ms": 0.817124
+          },
+          {
+            "id": 390,
+            "ms": 0.828166
+          },
+          {
+            "id": 391,
+            "ms": 0.791166
+          },
+          {
+            "id": 392,
+            "ms": 0.8605
+          },
+          {
+            "id": 393,
+            "ms": 0.799041
+          },
+          {
+            "id": 394,
+            "ms": 0.8965
+          },
+          {
+            "id": 395,
+            "ms": 0.940375
+          },
+          {
+            "id": 396,
+            "ms": 0.9305
+          },
+          {
+            "id": 397,
+            "ms": 0.828
+          },
+          {
+            "id": 398,
+            "ms": 0.511499
+          },
+          {
+            "id": 399,
+            "ms": 0.477624
+          },
+          {
+            "id": 400,
+            "ms": 0.609958
+          },
+          {
+            "id": 401,
+            "ms": 0.478
+          },
+          {
+            "id": 402,
+            "ms": 0.602625
+          },
+          {
+            "id": 403,
+            "ms": 0.489041
+          },
+          {
+            "id": 404,
+            "ms": 0.799333
+          },
+          {
+            "id": 405,
+            "ms": 0.502041
+          },
+          {
+            "id": 406,
+            "ms": 0.652749
+          },
+          {
+            "id": 407,
+            "ms": 0.488333
+          },
+          {
+            "id": 408,
+            "ms": 0.622249
+          },
+          {
+            "id": 409,
+            "ms": 0.52075
+          },
+          {
+            "id": 410,
+            "ms": 0.617541
+          },
+          {
+            "id": 411,
+            "ms": 0.4995
+          },
+          {
+            "id": 412,
+            "ms": 0.540916
+          },
+          {
+            "id": 413,
+            "ms": 0.551083
+          },
+          {
+            "id": 414,
+            "ms": 0.604749
+          },
+          {
+            "id": 415,
+            "ms": 0.508124
+          },
+          {
+            "id": 416,
+            "ms": 0.578375
+          },
+          {
+            "id": 417,
+            "ms": 0.528624
+          },
+          {
+            "id": 418,
+            "ms": 0.627
+          },
+          {
+            "id": 419,
+            "ms": 0.496708
+          },
+          {
+            "id": 420,
+            "ms": 0.512958
+          },
+          {
+            "id": 421,
+            "ms": 0.514416
+          },
+          {
+            "id": 422,
+            "ms": 0.638416
+          },
+          {
+            "id": 423,
+            "ms": 0.824374
+          },
+          {
+            "id": 424,
+            "ms": 0.890875
+          },
+          {
+            "id": 425,
+            "ms": 0.8585
+          },
+          {
+            "id": 426,
+            "ms": 0.903041
+          },
+          {
+            "id": 427,
+            "ms": 0.919999
+          },
+          {
+            "id": 428,
+            "ms": 1.271999
+          },
+          {
+            "id": 429,
+            "ms": 0.809625
+          },
+          {
+            "id": 430,
+            "ms": 0.875249
+          },
+          {
+            "id": 431,
+            "ms": 0.932958
+          },
+          {
+            "id": 432,
+            "ms": 1.377749
+          },
+          {
+            "id": 433,
+            "ms": 0.915874
+          },
+          {
+            "id": 434,
+            "ms": 0.958875
+          },
+          {
+            "id": 435,
+            "ms": 0.949124
+          },
+          {
+            "id": 436,
+            "ms": 1.09
+          },
+          {
+            "id": 437,
+            "ms": 0.484874
+          },
+          {
+            "id": 438,
+            "ms": 0.616625
+          },
+          {
+            "id": 439,
+            "ms": 0.525625
+          },
+          {
+            "id": 440,
+            "ms": 0.577375
+          },
+          {
+            "id": 441,
+            "ms": 0.614666
+          },
+          {
+            "id": 442,
+            "ms": 0.950208
+          },
+          {
+            "id": 443,
+            "ms": 0.517
+          },
+          {
+            "id": 444,
+            "ms": 0.5685
+          },
+          {
+            "id": 445,
+            "ms": 0.550125
+          },
+          {
+            "id": 446,
+            "ms": 0.665625
+          },
+          {
+            "id": 447,
+            "ms": 0.626916
+          },
+          {
+            "id": 448,
+            "ms": 0.714791
+          },
+          {
+            "id": 449,
+            "ms": 0.609083
+          },
+          {
+            "id": 450,
+            "ms": 0.754583
+          },
+          {
+            "id": 451,
+            "ms": 0.562208
+          },
+          {
+            "id": 452,
+            "ms": 0.735208
+          },
+          {
+            "id": 453,
+            "ms": 0.529166
+          },
+          {
+            "id": 454,
+            "ms": 0.741958
+          },
+          {
+            "id": 455,
+            "ms": 0.498958
+          },
+          {
+            "id": 456,
+            "ms": 0.620416
+          },
+          {
+            "id": 457,
+            "ms": 0.435875
+          },
+          {
+            "id": 458,
+            "ms": 0.449583
+          },
+          {
+            "id": 459,
+            "ms": 0.474291
+          },
+          {
+            "id": 460,
+            "ms": 0.537749
+          },
+          {
+            "id": 461,
+            "ms": 0.456666
+          },
+          {
+            "id": 462,
+            "ms": 0.436083
+          },
+          {
+            "id": 463,
+            "ms": 0.472375
+          },
+          {
+            "id": 464,
+            "ms": 0.815291
+          },
+          {
+            "id": 465,
+            "ms": 0.745833
+          },
+          {
+            "id": 466,
+            "ms": 0.813999
+          },
+          {
+            "id": 467,
+            "ms": 0.74575
+          },
+          {
+            "id": 468,
+            "ms": 1.088708
+          },
+          {
+            "id": 469,
+            "ms": 0.75775
+          },
+          {
+            "id": 470,
+            "ms": 0.7655
+          },
+          {
+            "id": 471,
+            "ms": 0.747291
+          },
+          {
+            "id": 472,
+            "ms": 1.149874
+          },
+          {
+            "id": 473,
+            "ms": 0.767708
+          },
+          {
+            "id": 474,
+            "ms": 0.847499
+          },
+          {
+            "id": 475,
+            "ms": 1.171166
+          },
+          {
+            "id": 476,
+            "ms": 0.93875
+          },
+          {
+            "id": 477,
+            "ms": 0.796874
+          },
+          {
+            "id": 478,
+            "ms": 0.868375
+          },
+          {
+            "id": 479,
+            "ms": 0.765583
+          },
+          {
+            "id": 480,
+            "ms": 0.812458
+          },
+          {
+            "id": 481,
+            "ms": 0.77825
+          },
+          {
+            "id": 482,
+            "ms": 0.809333
+          },
+          {
+            "id": 483,
+            "ms": 0.778125
+          },
+          {
+            "id": 484,
+            "ms": 0.905499
+          },
+          {
+            "id": 485,
+            "ms": 0.765
+          },
+          {
+            "id": 486,
+            "ms": 0.83
+          },
+          {
+            "id": 487,
+            "ms": 0.780624
+          },
+          {
+            "id": 488,
+            "ms": 1.151458
+          },
+          {
+            "id": 489,
+            "ms": 0.744041
+          },
+          {
+            "id": 490,
+            "ms": 0.929125
+          },
+          {
+            "id": 491,
+            "ms": 0.763708
+          },
+          {
+            "id": 492,
+            "ms": 1.106208
+          },
+          {
+            "id": 493,
+            "ms": 0.751625
+          },
+          {
+            "id": 494,
+            "ms": 0.744583
+          },
+          {
+            "id": 495,
+            "ms": 0.748458
+          },
+          {
+            "id": 496,
+            "ms": 0.893624
+          },
+          {
+            "id": 497,
+            "ms": 0.743249
+          },
+          {
+            "id": 498,
+            "ms": 0.76725
+          },
+          {
+            "id": 499,
+            "ms": 0.747375
+          },
+          {
+            "id": 500,
+            "ms": 0.877875
+          },
+          {
+            "id": 501,
+            "ms": 0.754499
+          },
+          {
+            "id": 502,
+            "ms": 0.738875
+          },
+          {
+            "id": 503,
+            "ms": 0.742874
+          },
+          {
+            "id": 504,
+            "ms": 0.73975
+          },
+          {
+            "id": 505,
+            "ms": 0.734625
+          },
+          {
+            "id": 506,
+            "ms": 0.745791
+          },
+          {
+            "id": 507,
+            "ms": 0.738833
+          },
+          {
+            "id": 508,
+            "ms": 0.8815
+          },
+          {
+            "id": 509,
+            "ms": 0.736083
+          },
+          {
+            "id": 510,
+            "ms": 0.740999
+          },
+          {
+            "id": 511,
+            "ms": 0.739791
+          },
+          {
+            "id": 512,
+            "ms": 1.087583
+          },
+          {
+            "id": 513,
+            "ms": 0.740374
+          },
+          {
+            "id": 514,
+            "ms": 0.775541
+          },
+          {
+            "id": 515,
+            "ms": 0.73075
+          },
+          {
+            "id": 516,
+            "ms": 0.729583
+          },
+          {
+            "id": 517,
+            "ms": 0.732
+          },
+          {
+            "id": 518,
+            "ms": 0.735125
+          },
+          {
+            "id": 519,
+            "ms": 0.743124
+          },
+          {
+            "id": 520,
+            "ms": 0.907125
+          },
+          {
+            "id": 521,
+            "ms": 0.736624
+          },
+          {
+            "id": 522,
+            "ms": 0.763999
+          },
+          {
+            "id": 523,
+            "ms": 0.742166
+          },
+          {
+            "id": 524,
+            "ms": 1.088999
+          },
+          {
+            "id": 525,
+            "ms": 0.733374
+          },
+          {
+            "id": 526,
+            "ms": 0.764041
+          },
+          {
+            "id": 527,
+            "ms": 0.730624
+          },
+          {
+            "id": 528,
+            "ms": 0.794916
+          },
+          {
+            "id": 529,
+            "ms": 0.736833
+          },
+          {
+            "id": 530,
+            "ms": 0.745166
+          },
+          {
+            "id": 531,
+            "ms": 0.732583
+          },
+          {
+            "id": 532,
+            "ms": 0.79175
+          },
+          {
+            "id": 533,
+            "ms": 0.730666
+          },
+          {
+            "id": 534,
+            "ms": 1.149
+          },
+          {
+            "id": 535,
+            "ms": 0.750083
+          },
+          {
+            "id": 536,
+            "ms": 0.879749
+          },
+          {
+            "id": 537,
+            "ms": 0.748958
+          },
+          {
+            "id": 538,
+            "ms": 0.852541
+          },
+          {
+            "id": 539,
+            "ms": 0.74
+          },
+          {
+            "id": 540,
+            "ms": 0.981875
+          },
+          {
+            "id": 541,
+            "ms": 0.734999
+          },
+          {
+            "id": 542,
+            "ms": 0.756499
+          },
+          {
+            "id": 543,
+            "ms": 0.7275
+          },
+          {
+            "id": 544,
+            "ms": 0.870374
+          },
+          {
+            "id": 545,
+            "ms": 0.728625
+          },
+          {
+            "id": 546,
+            "ms": 1.11875
+          },
+          {
+            "id": 547,
+            "ms": 0.726958
+          },
+          {
+            "id": 548,
+            "ms": 0.748874
+          },
+          {
+            "id": 549,
+            "ms": 0.734125
+          },
+          {
+            "id": 550,
+            "ms": 0.75625
+          },
+          {
+            "id": 551,
+            "ms": 0.729999
+          },
+          {
+            "id": 552,
+            "ms": 1.12375
+          },
+          {
+            "id": 553,
+            "ms": 0.731791
+          },
+          {
+            "id": 554,
+            "ms": 0.728958
+          },
+          {
+            "id": 555,
+            "ms": 0.741666
+          },
+          {
+            "id": 556,
+            "ms": 0.727791
+          },
+          {
+            "id": 557,
+            "ms": 0.725625
+          },
+          {
+            "id": 558,
+            "ms": 0.765374
+          },
+          {
+            "id": 559,
+            "ms": 0.733166
+          },
+          {
+            "id": 560,
+            "ms": 0.748999
+          },
+          {
+            "id": 561,
+            "ms": 0.7225
+          },
+          {
+            "id": 562,
+            "ms": 1.11125
+          },
+          {
+            "id": 563,
+            "ms": 0.730125
+          },
+          {
+            "id": 564,
+            "ms": 0.762166
+          },
+          {
+            "id": 565,
+            "ms": 0.728041
+          },
+          {
+            "id": 566,
+            "ms": 0.732208
+          },
+          {
+            "id": 567,
+            "ms": 0.733541
+          },
+          {
+            "id": 568,
+            "ms": 0.8225
+          },
+          {
+            "id": 569,
+            "ms": 0.7385
+          },
+          {
+            "id": 570,
+            "ms": 0.750708
+          },
+          {
+            "id": 571,
+            "ms": 0.721333
+          },
+          {
+            "id": 572,
+            "ms": 0.974875
+          },
+          {
+            "id": 573,
+            "ms": 0.739958
+          },
+          {
+            "id": 574,
+            "ms": 1.108166
+          },
+          {
+            "id": 575,
+            "ms": 0.719958
+          },
+          {
+            "id": 576,
+            "ms": 0.780458
+          },
+          {
+            "id": 577,
+            "ms": 0.715875
+          },
+          {
+            "id": 578,
+            "ms": 0.779
+          },
+          {
+            "id": 579,
+            "ms": 0.7245
+          },
+          {
+            "id": 580,
+            "ms": 1.040375
+          },
+          {
+            "id": 581,
+            "ms": 0.736666
+          },
+          {
+            "id": 582,
+            "ms": 0.900749
+          },
+          {
+            "id": 583,
+            "ms": 0.732875
+          },
+          {
+            "id": 584,
+            "ms": 0.759749
+          },
+          {
+            "id": 585,
+            "ms": 0.733124
+          },
+          {
+            "id": 586,
+            "ms": 0.757958
+          },
+          {
+            "id": 587,
+            "ms": 0.752125
+          },
+          {
+            "id": 588,
+            "ms": 1.02875
+          },
+          {
+            "id": 589,
+            "ms": 0.732208
+          },
+          {
+            "id": 590,
+            "ms": 1.096208
+          },
+          {
+            "id": 591,
+            "ms": 0.718708
+          },
+          {
+            "id": 592,
+            "ms": 1.111708
+          },
+          {
+            "id": 593,
+            "ms": 0.726083
+          },
+          {
+            "id": 594,
+            "ms": 0.753458
+          },
+          {
+            "id": 595,
+            "ms": 0.726208
+          },
+          {
+            "id": 596,
+            "ms": 0.766333
+          },
+          {
+            "id": 597,
+            "ms": 0.737374
+          },
+          {
+            "id": 598,
+            "ms": 0.832041
+          },
+          {
+            "id": 599,
+            "ms": 0.735666
+          },
+          {
+            "id": 600,
+            "ms": 0.934124
+          },
+          {
+            "id": 601,
+            "ms": 0.742041
+          },
+          {
+            "id": 602,
+            "ms": 0.745416
+          },
+          {
+            "id": 603,
+            "ms": 0.730375
+          },
+          {
+            "id": 604,
+            "ms": 0.731416
+          },
+          {
+            "id": 605,
+            "ms": 0.732749
+          },
+          {
+            "id": 606,
+            "ms": 1.033958
+          },
+          {
+            "id": 607,
+            "ms": 0.732958
+          },
+          {
+            "id": 608,
+            "ms": 0.758249
+          },
+          {
+            "id": 609,
+            "ms": 0.728749
+          },
+          {
+            "id": 610,
+            "ms": 0.759583
+          },
+          {
+            "id": 611,
+            "ms": 0.718625
+          },
+          {
+            "id": 612,
+            "ms": 1.120708
+          },
+          {
+            "id": 613,
+            "ms": 0.725624
+          },
+          {
+            "id": 614,
+            "ms": 0.740291
+          },
+          {
+            "id": 615,
+            "ms": 0.725666
+          },
+          {
+            "id": 616,
+            "ms": 0.754125
+          },
+          {
+            "id": 617,
+            "ms": 0.72375
+          },
+          {
+            "id": 618,
+            "ms": 1.091583
+          },
+          {
+            "id": 619,
+            "ms": 0.731
+          },
+          {
+            "id": 620,
+            "ms": 0.759375
+          },
+          {
+            "id": 621,
+            "ms": 0.733208
+          },
+          {
+            "id": 622,
+            "ms": 1.071999
+          },
+          {
+            "id": 623,
+            "ms": 0.742666
+          },
+          {
+            "id": 624,
+            "ms": 0.814874
+          },
+          {
+            "id": 625,
+            "ms": 0.751874
+          },
+          {
+            "id": 626,
+            "ms": 0.800208
+          },
+          {
+            "id": 627,
+            "ms": 0.739999
+          },
+          {
+            "id": 628,
+            "ms": 0.800541
+          },
+          {
+            "id": 629,
+            "ms": 0.742208
+          },
+          {
+            "id": 630,
+            "ms": 0.8265
+          },
+          {
+            "id": 631,
+            "ms": 0.74725
+          },
+          {
+            "id": 632,
+            "ms": 2.046624
+          },
+          {
+            "id": 633,
+            "ms": 2.005583
+          },
+          {
+            "id": 634,
+            "ms": 5.334708
+          },
+          {
+            "id": 635,
+            "ms": 1.972625
+          },
+          {
+            "id": 636,
+            "ms": 2.565166
+          },
+          {
+            "id": 637,
+            "ms": 0.845166
+          },
+          {
+            "id": 638,
+            "ms": 0.959375
+          },
+          {
+            "id": 639,
+            "ms": 0.888875
+          }
+        ],
+        "gpuResultCount": 639
+      }
+    }
+  ],
+  "profiles": [
+    {
+      "mode": "quality",
+      "atmosphere": true,
+      "rotatingCubes": true,
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "quality",
+        "resolvedQuality": "high",
+        "renderTargetScale": 1,
+        "gpuMemoryBudgetBytes": 268435456,
+        "cpuFrameTimeMs": 8.700000002980232,
+        "cpuFrameTimeAverageMs": 10.571845919849563,
+        "gpuFrameTimeMs": 5.334708,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 268435456,
+        "renderTargetScale": 1,
+        "activeLeaseCount": 1,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 1,
+        "pooledAllocationCount": 2,
+        "activeSurfaceCount": 2,
+        "pooledSurfaceCount": 2,
+        "createdAllocationCount": 11,
+        "reusedAllocationCount": 2048,
+        "destroyedAllocationCount": 8,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 45619200,
+        "activeLeaseCountByOwner": {
+          "cinema2.history.drmvyz.cinema2.blockshift": 1
+        }
+      },
+      "allocatedGpuBytesIncludingBloom": 57356280,
+      "nativeGpuBytes": 722040,
+      "live": {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 7,
+        "Shader": 0,
+        "Texture": 16,
+        "Framebuffer": 12,
+        "Renderbuffer": 0,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.399999999999636,
+        "p95": 17.099999999998545
+      },
+      "cpuMs": {
+        "median": 10.800000011920929,
+        "p95": 11.900000005960464
+      },
+      "gpuMs": null,
+      "freshGpuSampleCount": 0,
+      "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    },
+    {
+      "mode": "balanced",
+      "atmosphere": true,
+      "rotatingCubes": true,
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "balanced",
+        "resolvedQuality": "medium",
+        "renderTargetScale": 0.82,
+        "gpuMemoryBudgetBytes": 167772160,
+        "cpuFrameTimeMs": 6.300000011920929,
+        "cpuFrameTimeAverageMs": 7.076434957705816,
+        "gpuFrameTimeMs": 5.334708,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 167772160,
+        "renderTargetScale": 0.82,
+        "activeLeaseCount": 1,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 1,
+        "pooledAllocationCount": 2,
+        "activeSurfaceCount": 2,
+        "pooledSurfaceCount": 2,
+        "createdAllocationCount": 14,
+        "reusedAllocationCount": 2346,
+        "destroyedAllocationCount": 11,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 30680408,
+        "activeLeaseCountByOwner": {
+          "cinema2.history.drmvyz.cinema2.blockshift": 1
+        }
+      },
+      "allocatedGpuBytesIncludingBloom": 42417488,
+      "nativeGpuBytes": 722040,
+      "live": {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 7,
+        "Shader": 0,
+        "Texture": 16,
+        "Framebuffer": 12,
+        "Renderbuffer": 0,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.300000000001091,
+        "p95": 16.69999999999891
+      },
+      "cpuMs": {
+        "median": 7.600000008940697,
+        "p95": 12
+      },
+      "gpuMs": null,
+      "freshGpuSampleCount": 0,
+      "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    },
+    {
+      "mode": "performance",
+      "atmosphere": true,
+      "rotatingCubes": true,
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "dpr": 1
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+      "performance": {
+        "diagnosticsEnabled": true,
+        "requestedMode": "performance",
+        "resolvedQuality": "low",
+        "renderTargetScale": 0.67,
+        "gpuMemoryBudgetBytes": 100663296,
+        "cpuFrameTimeMs": 6.300000011920929,
+        "cpuFrameTimeAverageMs": 6.196494437345477,
+        "gpuFrameTimeMs": 2.565166,
+        "gpuTimingSupported": true,
+        "degraded": false,
+        "degradationReason": null
+      },
+      "engineTargets": {
+        "disposed": false,
+        "contextAvailable": true,
+        "viewport": {
+          "width": 1920,
+          "height": 1080,
+          "dpr": 1
+        },
+        "maximumTextureSize": 16384,
+        "maximumPooledAllocationCount": 24,
+        "maximumEstimatedGpuMemoryBytes": 100663296,
+        "renderTargetScale": 0.67,
+        "activeLeaseCount": 1,
+        "activeTransientLeaseCount": 0,
+        "activePersistentLeaseCount": 1,
+        "pooledAllocationCount": 2,
+        "activeSurfaceCount": 2,
+        "pooledSurfaceCount": 2,
+        "createdAllocationCount": 17,
+        "reusedAllocationCount": 2590,
+        "destroyedAllocationCount": 14,
+        "reconstructedAllocationCount": 0,
+        "estimatedGpuMemoryBytes": 19813760,
+        "activeLeaseCountByOwner": {
+          "cinema2.history.drmvyz.cinema2.blockshift": 1
+        }
+      },
+      "allocatedGpuBytesIncludingBloom": 31550840,
+      "nativeGpuBytes": 722040,
+      "live": {
+        "Buffer": 12,
+        "VertexArray": 4,
+        "Program": 7,
+        "Shader": 0,
+        "Texture": 16,
+        "Framebuffer": 12,
+        "Renderbuffer": 0,
+        "Query": 1
+      },
+      "intervalMs": {
+        "median": 8.300000000001091,
+        "p95": 9.199999999998909
+      },
+      "cpuMs": {
+        "median": 6.200000002980232,
+        "p95": 7.100000008940697
+      },
+      "gpuMs": null,
+      "freshGpuSampleCount": 0,
+      "gpuTelemetryNote": "No completed GPU query during this mode; the diagnostic last-known value is excluded from GPU statistics.",
+      "shaderFailures": 0,
+      "steadyStateAllocations": 0
+    }
+  ]
+}

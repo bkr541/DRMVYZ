@@ -1,0 +1,14 @@
+
+ RUN  v3.2.6 /Users/kodyrobinson/Development/DRMVYZ
+
+ ✓ src/components/vyzualz/cinema2/__tests__/Cinema2MainframePatternController.test.ts (4 tests) 7ms
+ ✓ src/components/vyzualz/cinema2/__tests__/Cinema2Backstreet.test.ts (11 tests) 20ms
+ ✓ src/components/vyzualz/cinema2/__tests__/Cinema2DepthPreset.test.ts (23 tests) 188ms
+ ✓ src/components/vyzualz/cinema2/__tests__/Cinema2AfterhoursPatterns.test.ts (16 tests) 2204ms
+   ✓ Afterhours 2.0 pattern library > lights lasers in every pattern, with finite geometry, and never lights every laser all the time  1856ms
+
+ Test Files  4 passed (4)
+      Tests  54 passed (54)
+   Start at  13:02:49
+   Duration  2.72s (transform 1.63s, setup 88ms, collect 3.78s, tests 2.42s, environment 1ms, prepare 260ms)
+

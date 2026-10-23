@@ -369,7 +369,7 @@ export interface Cinema2CameraBankManifest {
 /**
  * Cinematic camera motion, all opt-in so existing cameras behave exactly as authored.
  * Resolution order inside the runtime: rig -> transition -> user controls -> target contributions ->
- * drift -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices.
+ * drift -> additive orbit -> safety clamp -> FOV rate limit -> smoothing -> bank -> matrices.
  */
 /**
  * Tempo-aware camera motion (opt-in via `motion.tempo`). Everything is scaled by the `motionAmount` control (0 = locked off).
@@ -404,6 +404,8 @@ export interface Cinema2CameraMotionManifest {
   /** Fixed roll in degrees; also the base value of the writable `roll` target. */
   rollDegrees?: number
   drift?: Cinema2CameraDriftManifest
+  /** Add a look-around orbit to the existing pose about its base position, keeping the observer inside the scene. */
+  orbit?: { angularSpeedDegreesPerSecond: number }
   bank?: Cinema2CameraBankManifest
   /** Largest FOV change per second, so choreography pulses cannot jerk the lens. */
   fovRateLimitDegreesPerSecond?: number
@@ -420,6 +422,16 @@ export interface Cinema2CameraTransitionManifest {
 
 /** Optional parameter bindings expose only implemented Camera controls through the shared schema Inspector. */
 export interface Cinema2CameraControlBindingsManifest {
+  /** Hard enable for authored motion; OFF restores the user-controlled base view. Requires motion. */
+  motionEnabled?: Cinema2ParameterRef
+  /** Multiplies the integrated tempo-aware motion clock without jumping its phase. Requires motion.tempo. */
+  motionSpeed?: Cinema2ParameterRef
+  /** Optional master movement gain in addition to this camera's motionAmount. Requires motion. */
+  masterMotionAmount?: Cinema2ParameterRef
+  /** Starts/stops additive orbit progression. Requires motion.orbit. */
+  orbitMotionEnabled?: Cinema2ParameterRef
+  /** Scales additive orbit angular speed (0 holds heading). Requires motion.orbit. */
+  orbitMotionSpeed?: Cinema2ParameterRef
   positionOffset?: Cinema2ParameterRef
   targetOffset?: Cinema2ParameterRef
   fovDegrees?: Cinema2ParameterRef
