@@ -28,11 +28,13 @@ export function resolveCinema2EffectiveBpm(frame: Readonly<Cinema2ModuleFrameRea
 export class Cinema2BeatClock {
   private beats = 0
   private initialized = false
+  private lastMeasured: number | null = null
   private state: Readonly<Cinema2BeatState> = Object.freeze({ beats: 0, locked: false, bpm: null })
 
   reset(): void {
     this.beats = 0
     this.initialized = false
+    this.lastMeasured = null
     this.state = Object.freeze({ beats: 0, locked: false, bpm: null })
   }
 
@@ -56,8 +58,14 @@ export class Cinema2BeatClock {
         const measured = index.value + (phase?.available && typeof phase.value === 'number' && Number.isFinite(phase.value) ? Math.min(Math.max(phase.value, 0), 0.999) : 0)
         // Align modulo two bars and only ever ease toward the grid, at most 1.5 beats per second of extra speed.
         const delta = ((((measured - this.beats) % GRID_PERIOD_BEATS) + GRID_PERIOD_BEATS + GRID_PERIOD_BEATS / 2) % GRID_PERIOD_BEATS) - GRID_PERIOD_BEATS / 2
-        const maxSlide = 1.5 * dt
-        this.beats += Math.min(Math.max(delta * (1 - Math.exp(-dt / 0.4)), -maxSlide), maxSlide)
+        // A held/coarsely published grid is not a stationary musical target.
+        // Correct only fresh positions, and never let phase correction cancel
+        // forward tempo motion (especially on slower tracks).
+        if (measured !== this.lastMeasured) {
+          const maxSlide = Math.min(1.5, bpm! / 120) * dt
+          this.beats += Math.min(Math.max(delta * (1 - Math.exp(-dt / 0.4)), -maxSlide), maxSlide)
+        }
+        this.lastMeasured = measured
       }
     }
     this.state = Object.freeze({ beats: this.beats, locked, bpm })

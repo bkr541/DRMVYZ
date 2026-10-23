@@ -1,4 +1,5 @@
 import { cinema2Ref, cinema2StableId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest, type Cinema2EffectId, type Cinema2EffectManifest, type Cinema2EffectTypeId, type Cinema2ParameterId, type Cinema2RenderPassId, type Cinema2RenderSlotId, type Cinema2RenderTargetId } from '../contracts/Cinema2NativePresetManifest'
+import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 
 export const NIGHTSHIFT_EFFECT_DEFAULTS = { bloom: .35, haze: .35, reflections: .25 } as const
 export const NIGHTSHIFT_EFFECT_IDS = Object.fromEntries(['reflections', 'haze', 'bloom'].map(name => [name, cinema2StableId<Cinema2EffectId>(`nightshift-${name}-effect`)])) as Record<keyof typeof NIGHTSHIFT_EFFECT_DEFAULTS, Cinema2EffectId>
@@ -12,10 +13,11 @@ export function nightshiftFinishingEffects(p: Controls): readonly Cinema2EffectM
         maxReflection: 24, fadeDistance: 30, thickness: .6, streak: .3, samplingStability: 1, edgeFallback: 0, grit: 0 },
       parameterBindings: { mix: cinema2Ref(p.reflections), skyColor: cinema2Ref(p.backgroundColor) } },
     { id: NIGHTSHIFT_EFFECT_IDS.haze, typeId: cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere'), version: 1, enabled: true, scope: 'output', order: 1,
-      parameters: { mix: .35, density: .01, beamIntensity: .65, mistAmount: .02, mistHeight: .7, mistFloor: -.16, floorY: -.16, floorReflection: 0,
-        ambientHaze: .02, ambientHeight: 1.2, anisotropy: .45, occlusion: .55, noiseScale: .25, noiseStrength: .5, drift: .05,
+      parameters: { mix: .35, density: .004, beamIntensity: .35, mistAmount: .35, mistHeight: 1.5, mistFloor: .08, floorY: -.16, floorReflection: 0,
+        ambientHaze: .8, ambientHeight: 1.8, anisotropy: .25, occlusion: .85, noiseScale: .3, noiseStrength: 1, drift: .16,
+        smokeTexture: CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID, smokeContrast: 2.8, smokeWarp: 1.1, smokeStrength: 1,
         maxDistance: 26, reactivity: 0, shafts: 0, hazeColor: [25 / 255, 237 / 255, 1, 1] },
-      parameterBindings: { mix: cinema2Ref(p.haze), hazeColor: cinema2Ref(p.cyanColor) } },
+      parameterBindings: { mix: cinema2Ref(p.haze), mistAmount: cinema2Ref(p.haze), hazeColor: cinema2Ref(p.cyanColor) } },
     { id: NIGHTSHIFT_EFFECT_IDS.bloom, typeId: cinema2StableId<Cinema2EffectTypeId>('hdr-bloom'), version: 1, enabled: true, scope: 'output', order: 2,
       parameters: { mix: .35, threshold: .7, knee: .25, intensity: 1.5, spread: .6, levels: 6, clampMax: 8 },
       parameterBindings: { mix: cinema2Ref(p.bloom) } },

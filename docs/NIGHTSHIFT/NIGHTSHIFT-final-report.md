@@ -1,5 +1,9 @@
 # NIGHTSHIFT — final acceptance
 
+Follow-up: [playback, floor brightness, camera and ceiling LED corrections](NIGHTSHIFT-reactivity-fix.md)
+supersede the corresponding behavior and captures below. This report records
+the earlier acceptance checkpoint.
+
 October 23, 2026. Steps 1–8 are complete. The preset is registered as **NIGHTSHIFT**
 with keeper status. Its stable preset ID and revision 2 preserve existing edits.
 No commit was requested or created; the implementation remains uncommitted.

@@ -211,7 +211,6 @@ function StandardReactPresetCard({
       onActivate={() => onSelect(preset.id)}
       disabled={disabled}
       onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(preset.id) : undefined}
-      titleText={isActive && modified ? `Modified from ${preset.name}. ${preset.description}` : preset.description}
       contentBeforeDescription={detailsOpen => production ? (
         <div className="rv-production-badges" aria-label={`${preset.name} fixture families`}>
           {production.fixtureFamilyBadges.slice(0, detailsOpen ? 7 : 5).map(kind => (

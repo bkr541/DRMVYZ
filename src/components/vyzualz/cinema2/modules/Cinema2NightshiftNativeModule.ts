@@ -36,7 +36,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
     let lastPatternChange: boolean | undefined
     let lastTimestamp: number | null = null, lastTime: number | null = null
     let track: string | null | undefined, generation = -1, discontinuity = -1
-    let beats = 0, phase = 0, angle = 0, glintPhase = 0, reportedReady = false
+    let beats = 0, phase = 0, angle = 0, glintPhase = 0, visualTime = 0, reportedReady = false
     let sourceIdentity: string | undefined
     const report = (code: string, error: unknown) => {
       failed = true
@@ -48,26 +48,27 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
           const selected = selectNightshiftAudio(inputFrame)
           const frame = selected === inputFrame.audio ? inputFrame : { ...inputFrame, audio: selected, director: selected ? inputFrame.director : null }
           const c = readNightshiftControls(parameters)
-          const time = frame.audio?.upstream.timeSec ?? frame.transport?.timeSec ?? 0
-          const newGeneration = frame.audio?.discontinuity.generation ?? -1
-          const source = frame.audio ? JSON.stringify([frame.audio.upstream.trackId, frame.audio.upstream.sourceId, frame.audio.upstream.publisherId,
-            frame.audio.upstream.analysisRevision, frame.audio.upstream.timelineRevision]) : sourceIdentity
+          const time = frame.transport?.timeSec ?? frame.audio?.upstream.timeSec ?? 0
+          const newGeneration = frame.audio?.discontinuity.generation ?? discontinuity
+          const source = frame.audio ? JSON.stringify([frame.audio.upstream.trackId, frame.audio.upstream.sourceId, frame.audio.upstream.publisherId]) : sourceIdentity
           const reset = generation !== frame.contextGeneration || track !== frame.transport?.trackId
             || (lastTime != null && (time < lastTime - .05 || time > lastTime + 1))
             || (newGeneration !== discontinuity && newGeneration !== -1)
             || (sourceIdentity !== undefined && source !== sourceIdentity)
-          if (reset) { clock.reset(); phase = 0; angle = 0; beats = 0; glintPhase = 0 }
+          if (reset) { clock.reset(); phase = 0; angle = 0; beats = 0; glintPhase = 0; visualTime = 0 }
           const channels = readNightshiftAudioChannels(parameters)
           const audioMusic = musicDelivery.update(frame, c.musicResponse, lastTime, reset, channels)
           const music = resolveNightshiftMusic(directorDelivery.apply(frame, c.musicResponse, audioMusic, channels, reset), parameters, targets)
-          // The host intentionally freezes musical time with no source. The
-          // no-track decorative idle uses its render timestamp via the SAME clock.
-          const idle = frame.transport?.sourcePresent === false && !frame.transport.paused
+          // Playing and no-track idle keep moving even during analysis gaps.
+          // Explicit pause/stop still holds the shared clock and transitions.
+          const idle = frame.transport != null && !frame.transport.paused
+            && (frame.transport.sourcePresent === false || frame.transport.playing)
           const dt = lastTimestamp == null || reset ? 0 : Math.max(0, Math.min(.1, (frame.timestampMs - lastTimestamp) / 1000))
           const clockFrame = { ...frame, elapsedTimeSec: 0,
-            ...(idle ? { deltaTimeSec: dt, transport: { ...frame.transport!, animationActive: true } } : {}),
+            ...(frame.transport ? { deltaTimeSec: idle ? dt : 0, transport: { ...frame.transport, animationActive: idle } } : {}),
           }
           const current = clock.update(clockFrame, c.bpmSync, 100).beats
+          if (!clockFrame.transport?.paused && clockFrame.transport?.animationActive !== false) visualTime += clockFrame.deltaTimeSec
           const delta = reset ? 0 : Math.max(0, current - beats)
           const motion = c.motion / .35
           phase += delta * motion * music.musicMotion
@@ -84,7 +85,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
           const performing = performance.update({ frame, base: basePattern, enabled: c.autoPerformance, manual, reset, beats: current, previousTime: lastTime })
           const pattern = performing.pattern
           const immediate = performing.immediate || (lastPatternChange !== c.patternChange && !c.patternChange && !performing.kind)
-          const blend = transition.update(pattern, frame.elapsedTimeSec, immediate, reset)
+          const blend = transition.update(pattern, visualTime, immediate, reset)
           sceneFrame = { controls: c, phase, angle, pattern, music, glintPhase, ...blend }
           lastPatternEdit = patternEdit; lastAuthoredPattern = c.pattern
           lastPatternChange = c.patternChange

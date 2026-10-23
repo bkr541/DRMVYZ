@@ -33,7 +33,6 @@ export function ReactPresetBrowser({ presets, activePresetId, onSelect }: Props)
               aria-pressed={isActive}
               aria-current={isActive ? 'true' : undefined}
               onClick={() => onSelect(preset.id)}
-              title={preset.description}
             >
               <div className="rv-preset-card-layout">
                 <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} />

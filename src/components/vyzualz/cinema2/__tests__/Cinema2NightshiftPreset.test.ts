@@ -33,7 +33,7 @@ describe('NIGHTSHIFT authorship and motion', () => {
     }
     expect(controls('master-controls').find(c => c.id === P.bpmSync)?.type).toBe('boolean')
     expect(controls('master-controls').find(c => c.id === P.autoPerformance)?.defaultValue).toBe(false)
-    expect(controls('palette').filter(c => c.type === 'color')).toHaveLength(6)
+    expect(controls('palette').filter(c => c.type === 'color')).toHaveLength(7)
     expect(controls('design').some(c => c.id === P.trigger)).toBe(false)
     state.setPersistentValue(P.patternChange, true)
     expect(controls('design').find(c => c.id === P.trigger)?.options).toEqual(CINEMA2_AFTERHOURS_TRIGGER_OPTIONS)
@@ -51,6 +51,32 @@ describe('NIGHTSHIFT authorship and motion', () => {
     expect(state.getValue(P.autoPerformance)).toBe(true)
     expect(state.getValue(P.patternChange)).toBe(true)
     expect(state.serialize()).not.toContain('editRevision')
+  })
+
+  it('groups Signs under Design and conditionally shows the locked NIGHTSHIFT input', () => {
+    const result = compileCinema2NativePreset(CINEMA2_NIGHTSHIFT_PRESET_MANIFEST)
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+    const state = new Cinema2ParameterState(result.plan.parameters)
+    const groups = () => createCinema2DesignParentGroupModel(result.plan, state.getSnapshot())
+    const signs = () => groups().find(g => g.id === 'design')!.groups.find(g => g.label === 'Signs')!
+    expect(signs().controls.map(c => c.definition.id)).toEqual([P.signs])
+    expect(state.getValue(P.signs)).toBe(false)
+    state.setPersistentValue(P.signs, true)
+    expect(signs().controls.map(c => c.definition.label)).toEqual(['Enable Signs', 'Sign Text', 'Sign Size'])
+    const text = signs().controls[1]
+    expect(text.value).toBe('NIGHTSHIFT')
+    expect(text.enabled).toBe(false)
+    expect(text.definition.type).toBe('string')
+    expect(state.setPersistentValue(P.signText, 'EDIT')).toMatchObject({ ok: false })
+    expect(signs().controls[2].enabled).toBe(true)
+    expect(signs().controls[2].value).toBe(1)
+    state.setPersistentValue(P.signSize, 1.5)
+    state.setPersistentValue(P.signColor, [1, .2, .3, 1])
+    const restored = new Cinema2ParameterState(result.plan.parameters)
+    restored.restore(state.serialize())
+    expect(restored.getValue(P.signs)).toBe(true)
+    expect(restored.getValue(P.signSize)).toBe(1.5)
+    expect(restored.getValue(P.signColor)).toEqual([1, .2, .3, 1])
   })
 
   it('has eight spatially distinct native programs and a hard zero coverage state', () => {

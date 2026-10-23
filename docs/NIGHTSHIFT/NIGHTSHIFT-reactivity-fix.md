@@ -1,0 +1,95 @@
+# NIGHTSHIFT playback and lighting corrections
+
+October 23, 2026. This follow-up supersedes the brightness, camera and ceiling
+behavior in the original final acceptance captures. Preset ID and revision 2
+remain stable so saved edits continue to load.
+
+- The shared beat clock corrects toward fresh grid positions only. Repeated
+  grid samples no longer pull the animation toward a stationary target, and
+  phase correction cannot cancel forward tempo motion on slower tracks.
+- NIGHTSHIFT keeps its animation and pattern transitions running during playback
+  even if analysis temporarily becomes inactive. Pause and explicit stop hold
+  motion. Missing audio or refreshed analysis/timeline revisions do not reset
+  the animation; actual source changes, seeks and discontinuities still do.
+- Floor output is multiplied by 3 in linear light, retaining the existing
+  master/floor/coverage controls and their zero states. Displayed pixel values
+  need not triple because display conversion and highlights limit that ratio.
+- Camera drift position, target, field-of-view and speed increase by 50%, with
+  matching safety bounds. New/default settings use Camera Motion 0.5; saved
+  settings retain their values, and zero restores the reference shot.
+- All three ceiling rails now have independently addressed light segments.
+  They display the selected spatial program and its crossfade, with shared
+  kick/drop travel, snare, energy, build and Director impact responses. The
+  Ceiling Cyan palette and ceiling/master intensity controls remain active.
+  The shipped model and physical rail placement are retained.
+
+The focused regression covers 60 seconds with held beat-grid data, analysis
+gaps, revision refreshes, pause/resume, eight ceiling patterns, audio response
+and zero intensity controls. Run the rendered regression with:
+
+```sh
+node scripts/cinema2-assets/accept-nightshift-reactivity-fix.mjs
+```
+
+Captures and numerical results are written under
+`artifacts/cinema2-nightshift-reactivity-fix/`. Historical phase acceptance scripts
+retain their old reference-image and camera-default expectations; use this
+regression for the corrected behavior.
+
+Validation: 89 focused NIGHTSHIFT, beat-clock and camera tests passed, along with
+TypeScript, scoped ESLint and diff whitespace checks. Eight rendered browser
+checks passed, including sustained floor/ceiling movement, pause, a ceiling audio
+accent, increased floor brightness and default camera travel. No browser,
+shader or render-graph failures were recorded. The run used deterministic audio
+publications through the real renderer; live desktop playback was not tested.
+No commit was requested or created. Unrelated existing edits were left intact.
+
+## Dense club fog follow-up
+
+The Club Haze / Fog slider now raises both physical mist density and output
+opacity. The old configuration had mist amount 0.02, ambient haze 0.02 and only
+0.7 units of height, so blending it in barely changed the scene. The revised
+effect uses a 1.5-unit ground-fog layer above the dance floor, stronger low
+ambient scattering, and the shipped 3D smoke texture with warped, drifting
+billows. Density varies from 0 to 1 with the slider; its existing 0.35 default
+is retained. Zero bypasses the fog, and Master Intensity zero suppresses it.
+The room's upper portion stays less foggy than the area above the floor.
+
+Eight focused finishing/preset tests and ten browser checks passed. Captures
+verify progressively denser fog at 0.35, 0.7 and 1, visible drift, pause, zero
+and master gates, with no shader or render failures. Run
+`node scripts/cinema2-assets/accept-nightshift-fog.mjs`; results and captures are
+saved to `artifacts/cinema2-nightshift-fog/`. The earlier restrained-haze phase
+captures are historical. Live desktop playback has not been independently
+tested. This follow-up remains uncommitted.
+
+## Freestanding neon signs
+
+Design contains a **Signs** group. **Enable Signs** defaults off. Enabling it
+reveals a disabled **Sign Text** input with the fixed value `NIGHTSHIFT`, then
+an enabled **Sign Size** slider directly underneath. Sign Size defaults to 1
+and ranges from 0.25 to 2 in 0.05 steps, scaling the whole sign about its center.
+Its size, enabled state and **Sign Color** (under Palette) survive preset re-entry.
+Custom wording is intentionally deferred; the placeholder is runtime-only and
+cannot be changed through persisted user edits.
+
+The sign is freestanding 3D glass outline text behind the dance floor. The
+previous brick wall, wall textures, mounting standoffs and wall-wash lights have
+been removed. Its outline-tube construction follows Backstreet. The tubes
+sample the active NIGHTSHIFT spatial program by physical contour positions,
+including pattern crossfades, and consume the existing resolved Audio
+Intelligence/Director kick, snare, drop, build and impact channels. Master zero
+hides the sign; no new detector or musical clock is introduced.
+
+The fixed outline package uses the existing vendored Anton font (OFL-1.1).
+Regenerate it with `node scripts/cinema2-assets/generate-nightshift-sign.mjs`.
+Run `node scripts/cinema2-assets/accept-nightshift-signs.mjs` for the focused
+native browser check; captures and telemetry are saved under
+`artifacts/cinema2-nightshift-signs/`. Earlier sign captures with brick are
+superseded by this freestanding design.
+
+Validation: eleven focused preset/sign/choreography tests and fourteen native
+browser checks passed, including actual slider operation, rendered small/large
+lettering, absence of a backdrop, audio/palette response and saved sizing.
+No browser, shader or render failures were recorded. Live desktop playback has
+not been independently tested. Changes remain uncommitted.

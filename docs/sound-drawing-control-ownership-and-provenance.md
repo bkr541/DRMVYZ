@@ -68,7 +68,7 @@ Generic React provenance compares the active preset against:
 - Engine-authored fields present in the preset, including Sound Drawing oscillator settings
 - Existing engine-specific modified state, including Cinematic Worlds overrides
 
-The shared preset card receives a derived Modified state and describes the card as source provenance rather than claiming its description is the exact current result. Selecting the source card again restores its exact preset-owned controls. Stable IDs remain available to Track Map and automation.
+The shared preset card receives a derived Modified state. Preset thumbnails throughout the app do not show description tooltips on hover. Selecting the source card again restores its exact preset-owned controls. Stable IDs remain available to Track Map and automation.
 
 ## Performance show and source selection
 

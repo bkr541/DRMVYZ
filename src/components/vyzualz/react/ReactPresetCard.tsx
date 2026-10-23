@@ -58,7 +58,6 @@ export interface ReactPresetCardProps {
   secondaryActions?: ReactPresetCardSecondaryAction[]
   className?: string
   shellClassName?: string
-  titleText?: string
   disabled?: boolean
 }
 
@@ -103,7 +102,6 @@ const DEFAULT_CHIP_TONE = '#4ac7db'
 export function ReactPresetCard({
   id,
   title,
-  description,
   thumbnail,
   backdrop,
   layout = 'poster',
@@ -119,7 +117,6 @@ export function ReactPresetCard({
   secondaryActions = [],
   className = '',
   shellClassName = '',
-  titleText = description,
   disabled = false,
 }: ReactPresetCardProps) {
   const poster = layout === 'poster'
@@ -150,7 +147,6 @@ export function ReactPresetCard({
         aria-pressed={isActive}
         aria-current={isActive ? 'true' : undefined}
         aria-label={activateLabel}
-        title={titleText}
       >
         {poster ? (
           <>

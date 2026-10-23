@@ -39,7 +39,6 @@ export function Cinema2RightRailMockup({ state }: { state: Cinema2MockState }) {
                     key={preset.id}
                     className={`llpc-filmstrip-card${active ? ' is-active' : ''}`}
                     onClick={() => state.selectPreset(preset.id)}
-                    title={preset.blurb}
                   >
                     <span className="llpc-filmstrip-thumb ll-c2-preset-thumb" style={{ '--llpc-tone': '#4ac7db' } as CSSProperties} aria-hidden="true">
                       <Cinema2StillPreview still={preset.stills[Math.floor(preset.stills.length / 2)]!} uid={`llpc-${preset.id}`} />

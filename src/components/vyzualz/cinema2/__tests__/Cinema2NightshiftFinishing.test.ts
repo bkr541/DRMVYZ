@@ -7,6 +7,7 @@ import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST as manifest, CINEMA2_NIGHTSHIFT_PARAMETER_IDS as P } from '../presets/Cinema2NightshiftPreset'
 import { NIGHTSHIFT_EFFECT_DEFAULTS, NIGHTSHIFT_EFFECT_IDS } from '../presets/Cinema2NightshiftFinishing'
 import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 
 const frame: Cinema2ModuleFrameReadContext = { frameId: 1, timestampMs: 0, elapsedTimeSec: 0, deltaTimeSec: 0,
   viewport: { width: 1280, height: 720, dpr: 1 }, contextGeneration: 1, audio: null, director: null }
@@ -52,5 +53,26 @@ describe('NIGHTSHIFT shared finishing', () => {
     expect(value('reflections')).toBe(0)
     expect(state.getValue(P.reflections)).toBe(1)
     expect(choreography.getSnapshot().diagnostics).toEqual([])
+  })
+
+  it('raises physical ground-fog density along with opacity and uses drifting billows above the floor', () => {
+    const result = compileCinema2NativePreset(manifest)
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+    const state = new Cinema2ParameterState(result.plan.parameters)
+    const resolver = new Cinema2FinalValueResolver(result.plan.targets, { resolveBaseValue: target => target.parameterId ? state.getValue(target.parameterId) : undefined })
+    for (const amount of [0, .35, .7, 1]) {
+      state.setPersistentValue(P.haze, amount)
+      for (const property of ['mistAmount', 'mix']) {
+        const target = result.plan.targets.targets.find(t => t.kind === 'effect' && t.ownerId === NIGHTSHIFT_EFFECT_IDS.haze && t.property === property)!
+        expect(resolver.resolve(target.id).value).toBeCloseTo(amount)
+      }
+    }
+    const fog = manifest.effects!.find(e => e.id === NIGHTSHIFT_EFFECT_IDS.haze)!.parameters!
+    expect(fog.smokeTexture).toBe(CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID)
+    expect(fog.mistFloor).toBeGreaterThan(fog.floorY as number)
+    expect(fog.mistHeight).toBeGreaterThanOrEqual(1.5)
+    expect(fog.ambientHaze).toBeGreaterThanOrEqual(.5)
+    expect(fog.noiseStrength).toBe(1)
+    expect(fog.drift).toBeGreaterThan(.1)
   })
 })

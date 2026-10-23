@@ -16,12 +16,15 @@ export const NIGHTSHIFT_COLORS = {
   background: [0.008, 0.016, 0.067, 1], cyan: [25 / 255, 237 / 255, 1, 1],
   magenta: [1, 32 / 255, 217 / 255, 1], blue: [50 / 255, 59 / 255, 1, 1],
   amber: [1, 179 / 255, 28 / 255, 1], ball: [218 / 255, 192 / 255, 216 / 255, 1],
+  sign: [1, 1, 1, 1],
 } as const
+export const NIGHTSHIFT_SIGN_TEXT = 'NIGHTSHIFT'
 
 export interface NightshiftControls {
   master: number; bpmSync: boolean; motion: number; rotation: boolean; musicResponse: number; autoPerformance: boolean
   floor: number; ball: number; ceiling: number; coverage: number
   pattern: NightshiftPattern; patternChange: boolean; trigger: string
+  signs: boolean; signSize: number
   colors: Record<keyof typeof NIGHTSHIFT_COLORS, NightshiftRgb>
 }
 export function readNightshiftControls(parameters: Cinema2ModuleParameterReadFacet): NightshiftControls {
@@ -30,6 +33,7 @@ export function readNightshiftControls(parameters: Cinema2ModuleParameterReadFac
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback
   }
   const pattern = parameters.get('pattern')
+  const signSize = parameters.get('signSize')
   return {
     master: n('master', .85), bpmSync: parameters.get('bpmSync') !== false,
     motion: n('motion', .35), rotation: parameters.get('rotation') !== false, musicResponse: n('musicResponse', .8),
@@ -37,6 +41,8 @@ export function readNightshiftControls(parameters: Cinema2ModuleParameterReadFac
     floor: n('floor', .8), ball: n('ball', .75), ceiling: n('ceiling', .7), coverage: n('coverage', .75),
     pattern: CINEMA2_NIGHTSHIFT_PATTERNS.some(p => p.value === pattern) ? pattern as NightshiftPattern : 'nightshift',
     patternChange: parameters.get('patternChange') === true,
+    signs: parameters.get('signs') === true,
+    signSize: typeof signSize === 'number' && Number.isFinite(signSize) ? Math.max(.25, Math.min(2, signSize)) : 1,
     trigger: typeof parameters.get('trigger') === 'string' ? parameters.get('trigger') as string : 'bar4',
     colors: Object.fromEntries(Object.entries(NIGHTSHIFT_COLORS).map(([name, fallback]) => {
       const v = parameters.get(`${name}Color`)

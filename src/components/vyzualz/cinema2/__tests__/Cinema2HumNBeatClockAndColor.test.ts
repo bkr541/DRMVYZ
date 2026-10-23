@@ -91,6 +91,20 @@ describe('shared beat clock', () => {
     expect(paused).toBe(before)
   })
 
+  it('keeps advancing for a minute with a held beat grid, including slow tracks', () => {
+    for (const bpm of [60, 80, 120]) {
+      const clock = new Cinema2BeatClock()
+      clock.update(frame({ bpm, beatIndex: 8 }), true)
+      let before = 0
+      for (let i = 1; i <= 1800; i++) {
+        const after = clock.update(frame({ bpm, beatIndex: 8, elapsed: i / 30 }), true).beats
+        expect(after).toBeGreaterThan(before)
+        before = after
+      }
+      expect(before).toBeCloseTo(bpm, 1)
+    }
+  })
+
   it('eases toward the beat grid instead of snapping when the grid jumps (a seek or a track change)', () => {
     const clock = new Cinema2BeatClock()
     let state = clock.update(frame({ bpm: 120, elapsed: 0, beatIndex: 0, beatPhase: 0 }), true)

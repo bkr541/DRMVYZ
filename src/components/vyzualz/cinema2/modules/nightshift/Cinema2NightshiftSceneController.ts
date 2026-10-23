@@ -2,8 +2,10 @@ import type * as Three from 'three'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { evaluateNightshiftCell, NIGHTSHIFT_COLORS, nightshiftCoverageMask, type NightshiftCell, type NightshiftControls, type NightshiftPattern } from './Cinema2NightshiftDomain'
 import type { NightshiftMusic } from './Cinema2NightshiftAudio'
+import { Cinema2NightshiftSign } from './Cinema2NightshiftSign'
 
 export interface NightshiftSceneFrame { controls: NightshiftControls; phase: number; angle: number; pattern: NightshiftPattern; outgoingPattern: NightshiftPattern | null; blend: number; music: NightshiftMusic; glintPhase: number }
+export const NIGHTSHIFT_FLOOR_OUTPUT_GAIN = 3
 
 /** Spatial native response, capped by the user's coverage and zone limits. */
 export function shadeNightshiftMusicCell(cell: NightshiftCell, baseGain: number, coverage: number, music: NightshiftMusic, pattern: NightshiftPattern = 'nightshift', phase = 0): number {
@@ -47,8 +49,9 @@ export class Cinema2NightshiftSceneController {
   private panels: Three.InstancedMesh | null = null
   private readonly batches: Three.InstancedMesh[] = []
   private readonly owned: Three.Material[] = []
-  private readonly ceiling: Three.MeshStandardMaterial[] = []
+  private readonly ceiling: { mesh: Three.InstancedMesh; cells: NightshiftCell[] }[] = []
   private mirror: Three.MeshStandardMaterial | null = null
+  private sign: Cinema2NightshiftSign | null = null
   private lastKey = ''
   private readonly master = { value: 1 }
   private readonly floorGain = { value: 1 }
@@ -73,7 +76,7 @@ export class Cinema2NightshiftSceneController {
   attach(root: Three.Object3D): void {
     const { THREE } = this.library
     root.updateMatrixWorld(true)
-    const panels: Three.Mesh[] = [], frames: Three.Mesh[] = []
+    const panels: Three.Mesh[] = [], frames: Three.Mesh[] = [], strips: Three.Mesh[] = []
     root.traverse(object => {
       const mesh = object as Three.Mesh
       const name = typeof object.userData.name === 'string' ? object.userData.name : object.name
@@ -81,13 +84,13 @@ export class Cinema2NightshiftSceneController {
       if (!mesh.isMesh) return
       if (name.startsWith('nightshift.floor.cell.')) panels.push(mesh)
       else if (name.startsWith('nightshift.floor.frame.')) frames.push(mesh)
+      else if (name.includes('ceiling') && name.includes('strip')) strips.push(mesh)
       else {
         const materials = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as Three.MeshStandardMaterial[]
         for (const mat of materials) {
           if (!mat.isMeshStandardMaterial) continue
           if (name === 'nightshift.ball.mirrors') { this.mirror = mat; this.decorate(mat, this.ballGain, true) }
           else if (name.startsWith('nightshift.ball.')) this.decorate(mat, this.ballGain)
-          else if (name.includes('ceiling') && name.includes('strip')) { this.ceiling.push(mat); this.decorate(mat, this.ceilingGain) }
           else this.decorate(mat)
         }
       }
@@ -117,6 +120,39 @@ export class Cinema2NightshiftSceneController {
     }
     this.panels = batch(panels, 'nightshift.floor.panels-instanced', true)
     batch(frames, 'nightshift.floor.frames-instanced', false)
+    // Keep the shipped rail geometry/placement, but address its light surface in
+    // segments so spatial programs can travel around the overhead installation.
+    for (const source of strips) {
+      source.geometry.computeBoundingBox()
+      const size = source.geometry.boundingBox!.getSize(new THREE.Vector3())
+      const alongX = size.x > size.z, length = alongX ? size.x : size.z
+      const count = Math.ceil(length / .5)
+      const material = (source.material as Three.MeshStandardMaterial).clone()
+      material.color.setRGB(.002, .015, .02)
+      material.emissive.setRGB(1, 1, 1); material.emissiveIntensity = 1.1
+      this.decorate(material, this.ceilingGain, false, true)
+      this.owned.push(material)
+      const mesh = new THREE.InstancedMesh(source.geometry, material, count)
+      mesh.name = `${source.name}-segments`
+      const cells: NightshiftCell[] = []
+      const placement = new THREE.Matrix4().multiplyMatrices(inverse, source.matrixWorld)
+      for (let i = 0; i < count; i++) {
+        const offset = ((i + .5) / count - .5) * length
+        const transform = new THREE.Matrix4().makeTranslation(alongX ? offset : 0, 0, alongX ? 0 : offset)
+          .scale(new THREE.Vector3(alongX ? 1 / count : 1, 1, alongX ? 1 : 1 / count))
+        mesh.setMatrixAt(i, new THREE.Matrix4().multiplyMatrices(placement, transform))
+        const point = new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().multiplyMatrices(placement, transform))
+        cells.push({ row: Math.max(0, Math.min(9, Math.round((point.z + 7) / 16 * 9))),
+          column: Math.max(0, Math.min(9, Math.round((point.x + 5.2) / 10.4 * 9))), paletteIndex: 1, level: 2 })
+        mesh.setColorAt(i, this.color.setRGB(1, 1, 1))
+      }
+      mesh.instanceColor!.setUsage(THREE.DynamicDrawUsage)
+      mesh.computeBoundingSphere()
+      source.removeFromParent(); root.add(mesh)
+      this.batches.push(mesh); this.ceiling.push({ mesh, cells })
+    }
+    this.sign = new Cinema2NightshiftSign(this.library)
+    root.add(this.sign.root)
   }
 
   private decorate(material: Three.MeshStandardMaterial, zone?: { value: number }, reflection = false, instancedEmission = false): void {
@@ -167,8 +203,9 @@ export class Cinema2NightshiftSceneController {
   apply(frame: NightshiftSceneFrame): void {
     const { controls: c, pattern, outgoingPattern, blend, phase, music } = frame
     const { THREE } = this.library
+    this.sign?.apply(frame, shadeNightshiftMusicCell)
     this.master.value = c.master / .85
-    this.floorGain.value = c.floor / .8
+    this.floorGain.value = NIGHTSHIFT_FLOOR_OUTPUT_GAIN * c.floor / .8
     this.ballGain.value = c.ball / .75
     this.ceilingGain.value = c.ceiling / .7 * music.musicCeiling
     this.glintPhase.value = c.musicResponse === 0 ? 0 : frame.glintPhase
@@ -177,10 +214,17 @@ export class Cinema2NightshiftSceneController {
     const colors = [c.colors.magenta, c.colors.cyan, c.colors.blue, c.colors.amber]
     colors.forEach((rgb, i) => this.palette[i].value.setRGB(...rgb, THREE.SRGBColorSpace))
     this.mirror!.color.setRGB(...c.colors.ball, THREE.SRGBColorSpace)
-    for (const mat of this.ceiling) {
-      mat.emissive.setRGB(...c.colors.cyan, THREE.SRGBColorSpace)
-      // The base surface stays dark; emission supplies the authored cyan strip.
-      mat.emissiveIntensity = 1.1
+    for (const { mesh, cells } of this.ceiling) {
+      cells.forEach((cell, index) => {
+        const gain = (program: NightshiftPattern) => {
+          const result = evaluateNightshiftCell(cell, program, phase, 1)
+          return shadeNightshiftMusicCell(cell, .12 + .88 * result.gain, 1, music, program, phase)
+        }
+        const level = outgoingPattern ? gain(pattern) * blend + gain(outgoingPattern) * (1 - blend) : gain(pattern)
+        this.color.copy(this.palette[1].value).multiplyScalar(level * (1 + .35 * music.musicSnare + .3 * music.musicBuild))
+        mesh.setColorAt(index, this.color)
+      })
+      mesh.instanceColor!.needsUpdate = true
     }
     const coverage = c.coverage * music.musicCoverage
     const key = `${pattern}:${outgoingPattern}:${blend}:${phase.toFixed(5)}:${coverage}:${colors.flat().join(',')}:${Object.values(music).join(',')}`
@@ -201,8 +245,9 @@ export class Cinema2NightshiftSceneController {
   }
 
   dispose(): void {
+    this.sign?.dispose(); this.sign = null
     for (const batch of this.batches) { batch.removeFromParent(); batch.dispose() }
     for (const mat of this.owned) mat.dispose()
-    this.batches.length = 0; this.owned.length = 0; this.cells.length = 0
+    this.batches.length = 0; this.owned.length = 0; this.cells.length = 0; this.ceiling.length = 0
   }
 }
