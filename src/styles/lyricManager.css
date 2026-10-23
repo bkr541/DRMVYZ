@@ -3197,21 +3197,10 @@
 
 .lmv-drawer-toggle--end { margin-left: auto; }
 
-/* Header: the centered action group is pulled into the flow once the heading plate and the group would
-   collide, so Show Lyrics / Save / Save + Make Active never overlap or collapse. */
+/* Compact header spacing; the control group stays centered at every layout size. */
 .lmv-root[data-layout='laptop'] .lmv-header,
 .lmv-root[data-layout='narrow'] .lmv-header {
   gap: 12px;
-}
-
-.lmv-root[data-layout='laptop'] .lmv-header .vz-header-group,
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group {
-  position: static;
-  transform: none;
-  max-width: none;
-  min-width: 0;
-  flex: 0 1 auto;
-  margin: 0 auto;
 }
 
 .lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0 9px; }
@@ -3538,12 +3527,13 @@
 /* Lyric workspace uses the same header, label gutter and control spacing as React. */
 .lmv-header-right { margin-left: auto; }
 .lmv-header .vz-header-group {
-  position: static;
-  transform: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   min-width: 0;
-  flex: 0 1 auto;
-  max-width: none;
-  margin: 0 auto;
+  max-width: calc(100% - 32px);
+  margin: 0;
   overflow-x: auto;
 }
 .lmv-header .lmv-timeline-edit-actions {
@@ -3559,10 +3549,12 @@
 .lmv-header .vz-header-group .dv-icon-chip--danger:hover:not(:disabled) { color: #f87171; }
 
 .lmv-track-timeline-window,
-.lmv-lyric-cues-window { padding: 0; }
+.lmv-lyric-cues-window { padding: 0 var(--workspace-rail-inset, 12px); }
+.lmv-track-timeline-window > .drc-group > .lmv-live-preview-header,
+.lmv-lyric-cues-window > .drc-group > .lmv-live-preview-header { padding-inline: 0; }
 .lmv-track-timeline-window > .drc-group > .drc-body { padding-bottom: var(--workspace-group-gap, 12px); }
-.lmv-lyric-cues-window .lyric-cue-list-body {
-  margin-top: 0;
+.lmv-lyric-cues-window > .drc-group > .lyric-cue-list-body {
+  margin-top: var(--workspace-group-body-top, 10px);
   padding-top: var(--workspace-group-body-top, 10px);
 }
 .lmv-track-timeline-lanes--stacked {

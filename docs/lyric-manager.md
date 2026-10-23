@@ -42,7 +42,11 @@ The right rail includes **Workflow Status** for the selected track, loaded-track
 
 For extraction deployment and provider configuration, see [lyric-transcription-deployment.md](lyric-transcription-deployment.md). For repository validation, see [verification.md](verification.md).
 
+The header button group stays centered on the full header row at every layout size, independently of the status and profile controls aligned at the right.
+
 ## Cue list controls
+
+Track Timeline and Cue list parent groups share the standard workspace side inset. Cue list content keeps the shared group margin and top padding below its collapsible header.
 
 The Cue list uses the shared dropdown and a search field. Search highlights matching literal text (case insensitive) and scrolls to the first matching record within the current filter, without changing the document or cue selection. Expanded word text fields highlight matches as well. Row status dots use amber for unreviewed, green for reviewed, cyan for corrected, and red for rejected. Cue records use the timeline lyric-row height.
 
