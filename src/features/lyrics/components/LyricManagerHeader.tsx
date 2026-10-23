@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
@@ -8,6 +9,9 @@ import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/Vyzualz
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 
 interface Props {
+  editActions?: ReactNode
+  laneIconsExpanded?: boolean
+  onToggleLaneIcons?: () => void
   isSaving: boolean
   saveStatus: LyricWriteStatus
   lyricsDisplayEnabled: boolean
@@ -19,6 +23,9 @@ interface Props {
 }
 
 export function LyricManagerHeader({
+  editActions,
+  laneIconsExpanded,
+  onToggleLaneIcons,
   isSaving,
   saveStatus,
   lyricsDisplayEnabled,
@@ -70,6 +77,13 @@ export function LyricManagerHeader({
           disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSaveAndMakeActive}
         />
+        {editActions}
+        {onToggleLaneIcons && <HeaderIconKey
+          label={laneIconsExpanded ? 'Collapse Track Timeline row icons' : 'Expand Track Timeline row icons'}
+          icon={<AppIcon kind="list" size={16} />}
+          pressed={laneIconsExpanded}
+          onClick={onToggleLaneIcons}
+        />}
       </HeaderControlGroup>
 
       <div className="lmv-header-right">

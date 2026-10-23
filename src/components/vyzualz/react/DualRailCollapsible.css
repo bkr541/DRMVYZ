@@ -7,7 +7,7 @@
   position: relative;
   /* Reserve 12px above the heading so every group that uses this reusable
      component gets consistent breathing room from whatever sits above it. */
-  padding-top: 12px;
+  padding-top: var(--workspace-group-top, 12px);
 }
 
 .drc-header {
@@ -50,9 +50,9 @@
 .drc-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 10px 8px 16px 16px;
+  gap: var(--workspace-group-gap, 12px);
+  margin-top: var(--workspace-group-body-top, 10px);
+  padding: var(--workspace-group-body-padding, 10px 8px 16px 16px);
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.012);
 }

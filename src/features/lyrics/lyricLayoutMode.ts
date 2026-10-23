@@ -4,20 +4,20 @@ import { useEffect, useState, type RefObject } from 'react'
  * Responsive layout of the Lyric Manager, driven by the manager's own width (not the window's:
  * the app sidebar takes a fixed slice of the window first).
  *
- *   wide      Tracks | Timeline | Inspector, 340px rails
- *   standard  Tracks | Timeline | Inspector, 320px rails
+ *   wide      Tracks | Timeline | Inspector, shared React rail width
+ *   standard  Tracks | Timeline | Inspector, shared React rail width
  *   laptop    Timeline | Inspector — Tracks & Versions becomes a slide-over drawer
  *   narrow    Timeline only — Tracks & Versions and the Inspector are slide-over drawers
  *
  * Breakpoints come from the minimum useful width of each region instead of device sizes:
- * a docked Tracks rail (320) + a docked Inspector (320) + a timeline that still shows two cue
- * lanes and its toolbar without crowding (620) = 1260. Dropping the Tracks rail leaves the
- * Inspector (320) + a 580px timeline = 900. Below that, only the timeline stays docked.
+ * both rails remain docked above 1260px of manager space; below that the Tracks rail
+ * becomes a drawer. Below 900px both rails become drawers. Expanded rail widths share
+ * React's CSS measurements (354px desktop, 324px medium, 294px narrow drawers).
  */
 export type LyricLayoutMode = 'wide' | 'standard' | 'laptop' | 'narrow'
 
 export const LYRIC_LAYOUT_BREAKPOINTS = {
-  /** At or above: 340px rails instead of 320px. */
+  /** At or above: wide workspace mode (rail width is shared with React). */
   wide: 1500,
   /** At or above: both rails docked. */
   standard: 1260,

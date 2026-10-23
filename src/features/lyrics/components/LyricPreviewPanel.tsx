@@ -132,47 +132,18 @@ function IssueList({
   onNavigate?: (issue: LyricValidationIssue) => void
 }) {
   if (!issues.length) return null
-  const isError = issues[0]?.severity === 'error'
-  if (isError) return <ErrorNoticeCards errors={issues.map(issue => ({
-    id: issue.id,
-    message: issue.message,
-    detail: issue.cueId && onNavigate ? (
-      <button
-        type="button"
-        className="lmv-notice-issue-btn"
-        onClick={() => onNavigate(issue)}
-        aria-label={`Error: ${issue.message}. Open affected lyric timing.`}
-      >
-        <span>Open affected lyric timing</span>
-        <em>Open</em>
-      </button>
-    ) : undefined,
+  const action = (issue: LyricValidationIssue) => ({
+    onOpen: issue.cueId && onNavigate ? () => onNavigate(issue) : undefined,
+    openLabel: `${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}. Open affected lyric timing.`,
+  })
+  if (issues[0]?.severity === 'error') return <ErrorNoticeCards errors={issues.map(issue => ({
+    id: issue.id, message: issue.message, ...action(issue),
   }))} />
-  return (
-    <DrawerNotice
-      tone={isError ? 'error' : 'warning'}
-      title={isError ? 'Validation errors' : 'Validation warnings'}
-      ariaLabel={`${issues.length} ${isError ? 'error' : 'warning'}${issues.length === 1 ? '' : 's'}`}
-    >
-      {issues.map(issue => {
-        const navigable = Boolean(issue.cueId && onNavigate)
-        return navigable ? (
-          <button
-            key={issue.id}
-            type="button"
-            className="lmv-notice-issue-btn"
-            onClick={() => onNavigate?.(issue)}
-            aria-label={`${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}. Open affected lyric timing.`}
-          >
-            <span>{issue.message}</span>
-            <em>Open</em>
-          </button>
-        ) : (
-          <div key={issue.id}>{issue.message}</div>
-        )
-      })}
+  return <>{issues.map(issue => (
+    <DrawerNotice key={issue.id} tone="warning" title="Validation warning" {...action(issue)}>
+      {issue.message}
     </DrawerNotice>
-  )
+  ))}</>
 }
 
 export function LyricLivePreviewPanel({
@@ -269,17 +240,16 @@ export function LyricPreviewPanel({
         <IssueList issues={errorIssues} onNavigate={onNavigateToIssue} />
         <IssueList issues={warningIssues.slice(0, 8)} onNavigate={onNavigateToIssue} />
         {warningIssues.length > 8 && <div className="lmv-more-warnings-note">+{warningIssues.length - 8} more warnings</div>}
-        {(attentionCueIds.size > 0 || validation.issues.length > 0) && (
-          <div className="lmv-attention-box">
-            <strong>{attentionCueIds.size} unique cue{attentionCueIds.size === 1 ? '' : 's'} needing attention</strong>
-            <dl className="lmv-attention-counts">
-              <div><dt>Unreviewed cues</dt><dd>{review.unreviewed}</dd></div>
-              <div><dt>Low confidence</dt><dd>{review.lowConfidence}</dd></div>
-              <div><dt>Warnings</dt><dd>{validation.warnings.length}</dd></div>
-              <div><dt>Errors</dt><dd>{validation.errors.length}</dd></div>
-            </dl>
-          </div>
-        )}
+        <div className="lmv-attention-box">
+          <strong>{attentionCueIds.size} unique cue{attentionCueIds.size === 1 ? '' : 's'} needing attention</strong>
+          <dl className="lmv-attention-counts">
+            <div><dt>Needs review</dt><dd>{attentionCueIds.size}</dd></div>
+            <div><dt>Unreviewed cues</dt><dd>{review.unreviewed}</dd></div>
+            <div><dt>Low confidence</dt><dd>{review.lowConfidence}</dd></div>
+            <div><dt>Warnings</dt><dd>{validation.warnings.length}</dd></div>
+            <div><dt>Errors</dt><dd>{validation.errors.length}</dd></div>
+          </dl>
+        </div>
         {validation.valid && validation.warnings.length === 0 && cues.length > 0 && (
           <div className="lmv-valid-ok-msg">All cues are valid</div>
         )}

@@ -5,6 +5,29 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── Root layout ─────────────────────────────────────────────────────────────── */
+/* Shared measurements for React and Lyric Manager side windows. */
+.rv-shell,
+.lmv-root {
+  --workspace-rail-width: 354px;
+  --workspace-rail-inset: 12px;
+  --workspace-panel-inset: 6px;
+  --workspace-control-gap: 9px;
+  --workspace-group-top: 12px;
+  --workspace-group-gap: 12px;
+  --workspace-group-body-top: 10px;
+  --workspace-group-body-padding: 10px 8px 16px 16px;
+}
+
+@media (max-width: 1180px) {
+  .rv-shell,
+  .lmv-root { --workspace-rail-width: 324px; }
+}
+
+@media (max-width: 900px) {
+  .rv-shell,
+  .lmv-root { --workspace-rail-width: 294px; }
+}
+
 /* Outer flex shell — matches the az-root / az-shell / dock pattern from VyzualzShell */
 .rv-shell {
   display: flex;
@@ -81,10 +104,10 @@
 
 /* Three-column content grid — takes all remaining space above the dock */
 .rv-layout {
-  --rv-left-width: 354px;
-  --rv-right-width: 354px;
+  --rv-left-width: var(--workspace-rail-width);
+  --rv-right-width: var(--workspace-rail-width);
   --rv-collapsed-width: 32px;
-  --rv-rail-inline-padding: 12px;
+  --rv-rail-inline-padding: var(--workspace-rail-inset);
   display: grid;
   grid-template-columns: var(--rv-left-width) 1fr var(--rv-right-width);
   grid-template-rows: 1fr;
@@ -102,8 +125,8 @@
    separator centers must match the left rail right edge and right rail left edge. */
 /* --vz-sidebar-width is inherited from .az-root, where the sidebar publishes its live width. */
 .rv-shell > .az-dock {
-  --vz-left-width: 354px;
-  --vz-right-width: 354px;
+  --vz-left-width: var(--workspace-rail-width);
+  --vz-right-width: var(--workspace-rail-width);
   --vz-dock-inline-pad: 6px;
   --vz-dock-gap: 10px;
   --vz-dock-side-min: 260px;
@@ -851,7 +874,7 @@
 }
 
 .rv-ctrl-group > * + * {
-  margin-top: 9px;
+  margin-top: var(--workspace-control-gap, 9px);
 }
 
 .rv-ctrl-group::-webkit-scrollbar { width: 3px; }
@@ -4938,13 +4961,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 /* ── React engine browser + contextual workspace (layout coherence pass) ───── */
 .rv-layout {
-  --rv-left-width: 354px;
-  --rv-right-width: 354px;
+  --rv-left-width: var(--workspace-rail-width);
+  --rv-right-width: var(--workspace-rail-width);
 }
 
 .rv-shell > .az-dock {
-  --vz-left-width: 354px;
-  --vz-right-width: 354px;
+  --vz-left-width: var(--workspace-rail-width);
+  --vz-right-width: var(--workspace-rail-width);
 }
 
 .rv-layout > .vz-inspector > .vz-inspector-inner {
@@ -5549,13 +5572,13 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 @media (max-width: 1180px) {
   .rv-layout {
-    --rv-left-width: 324px;
-    --rv-right-width: 324px;
+    --rv-left-width: var(--workspace-rail-width);
+    --rv-right-width: var(--workspace-rail-width);
   }
 
   .rv-shell > .az-dock {
-    --vz-left-width: 324px;
-    --vz-right-width: 324px;
+    --vz-left-width: var(--workspace-rail-width);
+    --vz-right-width: var(--workspace-rail-width);
   }
 
   .rv-left-workspace-shell {
@@ -5565,12 +5588,12 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 
 @media (max-width: 900px) {
   .rv-layout {
-    --rv-left-width: 294px;
+    --rv-left-width: var(--workspace-rail-width);
     --rv-right-width: 0px;
   }
 
   .rv-shell > .az-dock {
-    --vz-left-width: 294px;
+    --vz-left-width: var(--workspace-rail-width);
     --vz-right-width: 0px;
   }
 

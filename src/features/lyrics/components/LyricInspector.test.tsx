@@ -51,7 +51,6 @@ function Harness({ onUpdateCue, onUpdateDefaultStyle, onNavigateToIssue, onTitle
             cues={cues}
             durationMs={10_000}
             onUpdateCue={onUpdateCue}
-            onUpdateWord={() => undefined}
           />
         ) : <div>Select a lyric cue</div>}
         document={(
@@ -160,7 +159,7 @@ describe('LyricInspector tabs', () => {
     expect(overrides.querySelector('.drc-group')).toBeNull()
     // Appearance, then animation, then effects controls, all together in that order (the slider row marks up its caption differently, so
     // order is read from the group's text).
-    const order = ['Text color', 'Weight', 'Alignment', 'Opacity', 'X position', 'Y position', 'Animation preset', 'Effect preset']
+    const order = ['Text color', 'Weight', 'Alignment', 'Animation preset', 'X position', 'Y position', 'Opacity', 'Effect preset']
     const text = overrides.textContent ?? ''
     const positions = order.map(caption => text.indexOf(caption))
     for (const [index, position] of positions.entries()) expect(position, order[index]).toBeGreaterThanOrEqual(0)
@@ -169,8 +168,19 @@ describe('LyricInspector tabs', () => {
     for (const gone of ['Appearance Overrides', 'Animation Overrides', 'Effects Overrides']) expect(pane('cue').textContent).not.toContain(gone)
   })
 
+  it('uses the shared inline color picker and keeps opacity outside the two-column appearance grid', async () => {
+    const overrides = [...pane('cue').querySelectorAll<HTMLElement>('.drc-group')].find(group => group.querySelector(':scope > .drc-header > span:first-child')?.textContent === 'Overrides')!
+    const grid = overrides.querySelector('.lmv-inspector-grid')!
+    expect(grid.textContent).toContain('Animation preset')
+    expect(grid.textContent).not.toContain('Opacity')
+    expect(overrides.textContent).toContain('Opacity')
+    const color = grid.querySelector<HTMLButtonElement>('[data-palette-row-label="Text color"]')!
+    await act(async () => color.click())
+    expect(document.querySelector('[role="dialog"][aria-label="Text color color"]')).not.toBeNull()
+  })
+
   it('builds every Cue and Document control from the standard groups and rows, with no bespoke headings or fields', () => {
-    expect(groupTitles('cue')).toEqual(['Cue', 'Overrides', 'Word Timing', 'Advanced'])
+    expect(groupTitles('cue')).toEqual(['Cue', 'Overrides', 'Advanced'])
     for (const id of ['cue', 'document'] as const) {
       const scope = pane(id)
       // No hand-rolled section headings or inline helper paragraphs.
@@ -258,8 +268,8 @@ describe('LyricInspector tabs', () => {
 
   it('review issues still navigate to the affected cue and word', async () => {
     await clickTab('Review')
-    const issue = [...pane('review').querySelectorAll<HTMLButtonElement>('.lmv-notice-issue-btn')]
-      .find(button => button.textContent?.includes('word 1'))
+    const issue = [...pane('review').querySelectorAll<HTMLButtonElement>('.dv-notice-open')]
+      .find(button => button.getAttribute('aria-label')?.includes('word 1'))
     expect(issue).toBeTruthy()
     await act(async () => issue!.click())
     expect(handlers.onNavigateToIssue).toHaveBeenCalledWith(expect.objectContaining({ cueId: 'cue-b', wordId: 'word-b1' }))

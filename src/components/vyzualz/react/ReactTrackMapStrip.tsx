@@ -1,3 +1,4 @@
+import { TrackMapLaneIcon } from './TrackMapLaneIcon'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { BubbleRevealSlider } from './controls/BubbleRevealSlider'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
@@ -632,13 +633,6 @@ export function buildTimelineCueRowLayout(cueKinds: readonly TimelineCueItem['ki
       heightPx: empty ? EMPTY_CUE_ROW_HEIGHT : POPULATED_CUE_ROW_HEIGHT,
     }
   })
-}
-
-type TrackMapLaneIconKind = 'beats' | 'sections' | 'energy' | 'ruler'
-
-function TrackMapLaneIcon({ kind, label }: { kind: TrackMapLaneIconKind; label: string }) {
-  const drawings = { beats: 'rhythm', sections: 'layers', energy: 'bars', ruler: 'timeline' } as const
-  return <span className="rv-timeline-lane-icon" title={label}><AppIcon kind={drawings[kind]} size={16} /><span>{label}</span></span>
 }
 
 const CUE_ROW_ICONS = {

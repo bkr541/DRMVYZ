@@ -212,9 +212,10 @@ describe('LyricCuesWindow cue list', () => {
     expect(row.getAttribute('title')).toContain('3000 ms')
     expect(row.getAttribute('title')).toContain('confidence 50%')
     expect(row.querySelector('.lyric-cue-list__time')?.textContent).toContain('–')
-    const warnings = container.querySelector<HTMLElement>('[data-cue-row-id="b"] [aria-label="Cue has warnings"]')!
+    const warnings = container.querySelector<HTMLElement>('[data-cue-row-id="b"] [aria-label="1 cue warnings"]')!
     expect(warnings.textContent?.trim()).toBe('1')
-    expect(warnings.querySelector('[data-app-icon="warning"]')).not.toBeNull()
+    expect(warnings.querySelector('[data-app-icon="warning"]')).toBeNull()
+    expect(container.querySelector('[data-cue-row-id="b"] .lyric-cue-list__status-dot')).not.toBeNull()
   })
 
   it('selects a cue when its row is clicked', async () => {

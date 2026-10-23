@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type KeyboardEventHandler, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import type { BeatMarkerMI } from '../../musicIntelligence/types'
 import type { ReactTrackSection } from '../../../components/vyzualz/react/ReactTypes'
+import { TrackMapLaneIcon, type TrackMapLaneIconKind } from '../../../components/vyzualz/react/TrackMapLaneIcon'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import {
   drawBeatGridCanvas,
@@ -11,6 +12,7 @@ import { clientXToTimelineTime, computeViewportRangeLayout, computeWaveformViewp
 import { LyricWaveformCanvas } from '../editor/LyricWaveformCanvas'
 
 interface Props {
+  laneIconsExpanded?: boolean
   durationMs: number
   currentTimeMs: number | null
   getCurrentTimeMs?: () => number | null
@@ -121,6 +123,7 @@ function TimingRow({ viewport }: { viewport: { startSec: number; endSec: number 
  * long as their container widths match.
  */
 export function LyricTrackTimelineWindow({
+  laneIconsExpanded = true,
   durationMs,
   currentTimeMs,
   getCurrentTimeMs,
@@ -211,9 +214,9 @@ export function LyricTrackTimelineWindow({
   const endScrub = () => { scrubRef.current = false }
   // Rows read top to bottom: time ruler, beat grid, sections, audio, lyric lanes. Each row has a
   // fixed label gutter and a content area; every content area measures its own width, so they stay aligned.
-  const lane = (className: string, label: string | null, content: ReactNode) => (
+  const lane = (className: string, label: string | null, content: ReactNode, kind: TrackMapLaneIconKind = 'ruler') => (
     <div className={`lmv-track-timeline-lane ${className}`}>
-      <span className="lmv-track-timeline-lane-label" aria-hidden="true">{label}</span>
+      <TrackMapLaneIcon kind={kind} label={label ?? 'Time'} />
       <div className="lmv-track-timeline-lane-body">{content}</div>
     </div>
   )
@@ -222,7 +225,7 @@ export function LyricTrackTimelineWindow({
     <section className="lmv-track-timeline-window" aria-label="Track Timeline" onKeyDown={onKeyDown}>
       <DualRailCollapsible label="Track Timeline" headerClassName="lmv-live-preview-header">
         {actions}
-        <div ref={lanesRef} className="lmv-track-timeline-lanes lmv-track-timeline-lanes--stacked">
+        <div ref={lanesRef} className={`lmv-track-timeline-lanes lmv-track-timeline-lanes--stacked rv-timeline-lanes${laneIconsExpanded ? ' rv-timeline-lanes--icons-expanded' : ''}`}>
           <div
             className="lmv-track-timeline-reference-lanes"
             onPointerDown={onReferencePointerDown}
@@ -231,8 +234,8 @@ export function LyricTrackTimelineWindow({
             onPointerCancel={endScrub}
           >
             {lane('lmv-track-timeline-lane--timing', null, <TimingRow viewport={viewport} />)}
-            {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />)}
-            {lane('lmv-track-timeline-lane--section', 'Sections', <TrackSectionRow sections={sections} viewport={viewport} />)}
+            {lane('lmv-track-timeline-lane--beatgrid', 'Beats', <BeatGridRow beatGrid={beatGrid} durationSec={durationSec} viewport={viewport} />, 'beats')}
+            {lane('lmv-track-timeline-lane--section', 'Sections', <TrackSectionRow sections={sections} viewport={viewport} />, 'sections')}
             {lane('lmv-track-timeline-lane--waveform', 'Audio', (
               <LyricWaveformCanvas
                 peaks={waveformPeaks}
@@ -241,7 +244,7 @@ export function LyricTrackTimelineWindow({
                 currentTimeSec={currentSec}
                 viewport={viewport}
               />
-            ))}
+            ), 'audio')}
           </div>
           {cueTimeline && <div className="lmv-track-timeline-cue-lanes">{cueTimeline}</div>}
           <div ref={playheadLayerRef} className="lmv-track-timeline-playhead-layer" aria-hidden="true">

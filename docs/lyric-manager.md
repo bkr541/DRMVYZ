@@ -22,7 +22,7 @@ A saved vocal stem can be selected as the transcription source while the full mi
 
 ## Waveform editing
 
-The lyric timeline reuses the shared Audio Engine waveform and playhead. Click the waveform to seek. Drag a cue body to move it, drag either edge to resize it, and edit selected word boundaries in the word lane or inspector. Overlaps are assigned readable lanes. Undo and redo cover cue and word timing operations. Snapping can use milliseconds, frames, words, or the authoritative detected beat grid.
+The lyric timeline reuses the shared Audio Engine waveform and playhead. Click the waveform to seek. Drag a cue body to move it, drag either edge to resize it, and edit selected cue and word timing in the expanded Cue list record. Clicking a record again collapses its details. The top header owns add, undo/redo, timing commands, analysis, and cue deletion, plus the Track Map label-gutter toggle. Overlaps are assigned readable lanes. Undo and redo cover cue and word timing operations. Snapping can use milliseconds, frames, words, or the authoritative detected beat grid.
 
 When detected analysis is unavailable, the editor labels a BPM-derived grid as temporary and offers **Analyze Track**, **Retry Track Analysis**, or **Load & Analyze Track** as appropriate. Completing analysis refreshes overlays and snapping without discarding unsaved lyric edits.
 
@@ -32,7 +32,7 @@ Document defaults and cue overrides expose the common renderer-supported control
 
 ## Review and validation
 
-Review status is reported as separate counts for unreviewed cues, low-confidence cues, warnings, errors, and unique cues needing attention. A validation issue opens the affected cue, seeks and centers the waveform near it, scrolls the cue into view, and focuses the affected word where available.
+The Review tab owns validation and review counts; there is no pinned summary below the inspector. Review status is reported as separate counts for unreviewed cues, low-confidence cues, warnings, errors, and unique cues needing attention. A validation issue opens the affected cue, seeks and centers the waveform near it, scrolls the cue into view, and focuses the affected word where available.
 
 Cue count means timed lyric lines. Word count means optional timed word objects nested inside those cues, so a document can contain cues without word timing.
 
@@ -41,3 +41,9 @@ Cue count means timed lyric lines. Word count means optional timed word objects 
 The right rail includes **Workflow Status** for the selected track, loaded-track match, active version, cue count, Track Map availability, extraction source, Cue Style, save state, and review state. Its collapsed advanced diagnostics show bounded identifiers and revisions for the final signal path. Provider secrets, signed URLs, raw payloads, and private storage paths are never displayed.
 
 For extraction deployment and provider configuration, see [lyric-transcription-deployment.md](lyric-transcription-deployment.md). For repository validation, see [verification.md](verification.md).
+
+## Cue list controls
+
+The Cue list uses the shared dropdown and a search field. Search highlights matching literal text (case insensitive) and scrolls to the first matching record within the current filter, without changing the document or cue selection. Expanded word text fields highlight matches as well. Row status dots use amber for unreviewed, green for reviewed, cyan for corrected, and red for rejected. Cue records use the timeline lyric-row height.
+
+Cue presentation uses the shared inline palette color picker. Animation preset sits in the appearance grid; opacity spans its own row below the positions. Advanced warning toggles use two columns. Advanced diagnostics offer icon-only identifier copying.

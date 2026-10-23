@@ -44,6 +44,9 @@ const EMPTY_EVENT_PAGES: Readonly<Record<AppPageId, readonly NotificationEvent[]
 })
 
 interface NotificationState {
+  /** Page-scoped navigation requests close the overlay without dismissing its notices. */
+  drawerCloseRequests: Partial<Record<AppPageId, number>>
+  requestDrawerClose: (page: AppPageId) => void
   /** Newest first. */
   events: Readonly<Record<AppPageId, readonly NotificationEvent[]>>
   pushEvent: (page: AppPageId, event: NotifyOptions) => string
@@ -68,6 +71,10 @@ const EMPTY_PAGES: NotificationState['pages'] = Object.freeze({
 let nextEventId = 0
 
 export const useNotificationStore = create<NotificationState>(set => ({
+  drawerCloseRequests: {},
+  requestDrawerClose: page => set(state => ({ drawerCloseRequests: {
+    ...state.drawerCloseRequests, [page]: (state.drawerCloseRequests[page] ?? 0) + 1,
+  } })),
   events: EMPTY_EVENT_PAGES,
   pushEvent: (page, { tone = 'info', title, message }) => {
     const id = `event-${++nextEventId}`

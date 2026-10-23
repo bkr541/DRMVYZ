@@ -42,6 +42,20 @@ function Page({ page, children }: { page: AppPageId; children: React.ReactNode }
 }
 
 describe('DrawerNotice', () => {
+  it('closes the owning drawer for icon-only navigation without dismissing the notice', async () => {
+    const navigate = vi.fn()
+    await act(async () => root.render(<Page page="lyric-manager"><DrawerNotice tone="warning" title="Timing warning" onOpen={navigate} openLabel="Open cue 2">Overlapping cue.</DrawerNotice></Page>))
+    await act(async () => bell().click())
+    const open = drawer()!.querySelector<HTMLButtonElement>('[aria-label="Open cue 2"]')!
+    expect(open.textContent).toBe('')
+    await act(async () => open.click())
+    expect(navigate).toHaveBeenCalledOnce()
+    expect(drawer()).toBeNull()
+    expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
+    await act(async () => bell().click())
+    expect(drawerTitles()).toEqual(['Timing warning'])
+  })
+
   it('registers one actionable card per actual error and removes resolved errors', async () => {
     const errors = [{ id: 'timing', message: 'Cue 1 ends before it starts.' }, { id: 'text', message: 'Cue 2 has no text.' }]
     const render = (items: typeof errors) => root.render(<Page page="lyric-manager"><ErrorNoticeCards errors={items} /></Page>)

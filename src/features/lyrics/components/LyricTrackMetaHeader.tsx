@@ -30,7 +30,6 @@ export function LyricTrackMetaHeader({
   controls,
 }: Props) {
   const hasTrack = Boolean(track)
-  const emptyPhase = useMountTransition(!hasTrack, 200)
   const filledPhase = useMountTransition(hasTrack, 200)
 
   const lastTrackRef = useRef<LyricManagerTrack | null>(track)
@@ -48,9 +47,6 @@ export function LyricTrackMetaHeader({
 
   return (
     <section className="lmv-track-meta-header" aria-label="Track metadata">
-      {emptyPhase !== 'unmounted' && (
-        <div className={`lmv-track-state lmv-track-state--${emptyPhase}`}>Select a track from the library to inspect lyric versions, edit timed cues, and preview the document in the visualizer.</div>
-      )}
       {filledPhase !== 'unmounted' && displayTrack && (
         controls ? (
           // Docked: one slim deck row. Title with its state LEDs and the artist beneath, BPM and key as stacked readouts, then the audio

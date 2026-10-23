@@ -1158,7 +1158,7 @@
 }
 
 .lmv-body {
-  --lmv-side-width: 340px;
+  --lmv-side-width: var(--workspace-rail-width, 354px);
   --lmv-left-width: var(--lmv-side-width);
   --lmv-right-width: var(--lmv-side-width);
   --lmv-collapsed-rail-width: 32px;
@@ -1990,26 +1990,6 @@
 .lmv-inline-action:hover,
 .lmv-inline-action:focus-visible { color: #a6f1d2; outline: 1px solid rgba(97,214,170,0.35); outline-offset: 2px; }
 
-.lmv-notice-issue-btn {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 6px;
-  border: 0;
-  border-radius: 4px;
-  padding: 3px 4px;
-  margin: -3px -4px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-}
-.lmv-notice-issue-btn em { color: #7ed9e8; font-size: 8px; font-style: normal; }
-.lmv-notice-issue-btn:hover,
-.lmv-notice-issue-btn:focus-visible { background: rgba(255,255,255,0.06); outline: 1px solid rgba(126,218,232,0.22); outline-offset: 2px; }
 .lmv-attention-box {
   display: grid;
   gap: 8px;
@@ -3045,10 +3025,6 @@
   background: transparent;
 }
 
-.lmv-inspector-pane .lyric-word-editor__row {
-  grid-template-columns: 18px minmax(56px, 1fr) 58px 58px 34px 18px;
-}
-
 /* Cue list: four columns that fit the center column at any width — no horizontal scroll. */
 .lyric-cue-list .lyric-cue-list__table {
   width: 100%;
@@ -3097,8 +3073,8 @@
    its own slice of the window first. The timeline stays docked at every size;
    rails become slide-over drawers instead of stacking beneath it.
 
-     wide      Tracks | Timeline | Inspector   (340px rails, the default above)
-     standard  Tracks | Timeline | Inspector   (320px rails)
+     wide      Tracks | Timeline | Inspector   (shared React rail width)
+     standard  Tracks | Timeline | Inspector   (shared React rail width)
      laptop    Timeline | Inspector            Tracks & Versions is a drawer
      narrow    Timeline                        Tracks & Versions + Inspector are drawers
 
@@ -3108,8 +3084,8 @@
 .lmv-center { grid-column: 2; grid-row: 1; }
 .lmv-right-rail { grid-column: 3; grid-row: 1; }
 
-.lmv-root[data-layout='standard'] .lmv-body { --lmv-side-width: 320px; }
-.lmv-root[data-layout='laptop'] .lmv-body { --lmv-side-width: 320px; --lmv-left-width: 0px; }
+.lmv-root[data-layout='standard'] .lmv-body { --lmv-side-width: var(--workspace-rail-width, 354px); }
+.lmv-root[data-layout='laptop'] .lmv-body { --lmv-side-width: var(--workspace-rail-width, 354px); --lmv-left-width: 0px; }
 .lmv-root[data-layout='narrow'] .lmv-body { --lmv-left-width: 0px; --lmv-right-width: 0px; }
 
 /* Drawer: the rail leaves the grid (its column is 0 wide, so no dead separator) and slides over the editor. */
@@ -3121,7 +3097,7 @@
   top: 0;
   bottom: 0;
   z-index: 40;
-  width: min(360px, calc(100% - 44px));
+  width: min(var(--workspace-rail-width, 354px), calc(100% - 44px));
   background: #080f12;
   visibility: hidden;
   box-shadow: 0 0 44px rgba(0,0,0,0.6);
@@ -3413,3 +3389,208 @@
   background: rgba(97, 214, 170, 0.16);
   color: #a6f1d2;
 }
+
+
+/* Side windows follow React's rail -> scroll panel -> Collapsible spacing.
+   Headers remain edge-to-edge; each content layer owns its inset once. */
+.lmv-left-rail .lmv-workspace-tabs,
+.lmv-right-rail .lmv-workspace-tabs {
+  margin-top: 25px;
+  margin-bottom: 12px;
+  padding-inline: var(--workspace-rail-inset);
+}
+
+/* React's left control groups sit 12px + 10px from the rail edge. */
+.lmv-left-rail .lmv-workspace-tab-panel,
+.lmv-lyric-management > .lmv-doc-sidebar {
+  padding-inline: calc(var(--workspace-rail-inset) + 10px);
+}
+
+.lmv-left-rail .lmv-workspace-tab-panel {
+  padding-top: 8px;
+  padding-bottom: 12px;
+  gap: var(--workspace-control-gap);
+}
+
+.lmv-left-rail .lmv-workspace-tab-panel > .drc-group,
+.lmv-left-rail .lmv-track-browser > .drc-group,
+.lmv-lyric-management .lmv-doc-sidebar > .drc-group {
+  padding-top: var(--workspace-group-top);
+}
+
+.lmv-left-rail .lmv-workspace-tab-panel .drc-header { font-weight: 800; }
+
+/* Import / AI content already lives inside the padded tab panel. */
+.lmv-left-rail .lmv-workflow-content {
+  padding: 0;
+  gap: var(--workspace-control-gap);
+}
+
+.lmv-left-rail .lmv-ai-extract .lmv-section-label {
+  margin-top: var(--workspace-group-top);
+  margin-bottom: var(--workspace-group-body-top);
+}
+.lmv-left-rail .lmv-ai-extract .lmv-section-label--first { margin-top: 0; }
+.lmv-left-rail .lmv-grid2 { gap: var(--workspace-group-gap); }
+.lmv-left-rail .lmv-field { gap: 3px; }
+
+.lmv-left-rail .lmv-track-library-body,
+.lmv-left-rail .lmv-lyric-versions-body {
+  margin-top: var(--workspace-group-body-top);
+  padding: 0 0 8px;
+  gap: var(--workspace-group-gap);
+}
+
+/* Flat library rows bleed to the edge, with content on the same 22px line. */
+.lmv-left-rail .lmv-workspace-tab-panel .lmv-track-browser {
+  margin-inline: calc(-1 * (var(--workspace-rail-inset) + 10px));
+  padding-inline: calc(var(--workspace-rail-inset) + 10px);
+}
+.lmv-left-rail .lmv-track-grid,
+.lmv-lyric-management .lmv-doc-list {
+  margin-inline: calc(-1 * (var(--workspace-rail-inset) + 10px));
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list,
+.lmv-lyric-management .lmv-doc-card,
+.lmv-lyric-management .lmv-doc-empty {
+  padding-inline: calc(var(--workspace-rail-inset) + 10px);
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row--list::after,
+.lmv-lyric-management .lmv-doc-card::after {
+  left: calc(var(--workspace-rail-inset) + 10px);
+  right: calc(var(--workspace-rail-inset) + 10px);
+}
+.lmv-lyric-management .lmv-doc-section-label,
+.lmv-lyric-management .lmv-doc-legacy-note {
+  margin-inline: calc(var(--workspace-rail-inset) + 12px);
+}
+
+/* React's right panel is the 12px rail inset plus its 6px scroll inset. */
+.lmv-right-rail .lmv-inspector-pane {
+  /* 6px scroll inset + 7px control-group inset above the first group. */
+  padding: 13px calc(var(--workspace-rail-inset) + var(--workspace-panel-inset)) 16px;
+  gap: var(--workspace-control-gap);
+}
+.lmv-right-rail .lmv-review-panel { gap: var(--workspace-control-gap); }
+.lmv-right-rail .lmv-inspector-grid,
+.lmv-right-rail .lyric-cue-inspector__grid { gap: var(--workspace-group-gap); }
+
+/* The pinned summary shares the pane's content line, without the old 46px tail. */
+.lmv-right-rail .lmv-review-summary {
+  padding: 0 calc(var(--workspace-rail-inset) + var(--workspace-panel-inset)) 16px;
+}
+.lmv-right-rail .lmv-review-summary > .rw-window-header {
+  margin-inline: calc(-1 * (var(--workspace-rail-inset) + var(--workspace-panel-inset)));
+}
+.lmv-right-rail .lmv-review-summary > .rw-window-header + .lmv-review-summary__row {
+  margin-top: var(--workspace-group-top);
+}
+
+.lmv-right-rail .lyric-cue-inspector > * + * { margin-top: var(--workspace-control-gap); }
+.lmv-right-rail .lmv-review-summary__row {
+  width: calc(100% + 2 * (var(--workspace-rail-inset) + var(--workspace-panel-inset)));
+  margin-inline: calc(-1 * (var(--workspace-rail-inset) + var(--workspace-panel-inset)));
+  padding-inline: calc(var(--workspace-rail-inset) + var(--workspace-panel-inset));
+}
+.lmv-right-rail .lmv-review-summary__row::after {
+  left: calc(var(--workspace-rail-inset) + var(--workspace-panel-inset));
+  right: calc(var(--workspace-rail-inset) + var(--workspace-panel-inset));
+}
+
+/* Decorative edge threads already draw the frame, as in React; a second
+   physical border would shift the right content line by one pixel. */
+.lmv-left-rail { border-right: 0; }
+.lmv-right-rail { border-left: 0; }
+
+/* Selected cue details belong to the center Cue list, with room for word timing. */
+.lyric-cue-list__editor-row > td { padding: 0; }
+.lyric-cue-list__editor {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(74, 199, 219, 0.045);
+}
+.lyric-cue-list__editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lyric-cue-list__timing-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.lyric-cue-list__editor .lyric-word-editor__head,
+.lyric-cue-list__editor .lyric-word-editor__row {
+  display: grid;
+  grid-template-columns: 20px minmax(50px, 1fr) minmax(50px, 78px) minmax(50px, 78px) 40px 24px;
+  align-items: center;
+  gap: 4px;
+}
+.lyric-cue-list__editor .lyric-word-editor__head { padding: 0 4px; color: rgba(196, 207, 211, 0.6); }
+.lyric-cue-list__editor .lyric-word-editor__row > input { min-width: 0; }
+.lyric-cue-list__editor .lyric-word-editor__confidence { display: block; }
+.lyric-cue-list__editor .lyric-word-editor__rows { max-height: none; }
+
+/* Lyric workspace uses the same header, label gutter and control spacing as React. */
+.lmv-header-right { margin-left: auto; }
+.lmv-header .vz-header-group {
+  position: static;
+  transform: none;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: none;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+.lmv-header .lmv-timeline-edit-actions {
+  align-items: stretch;
+  flex-shrink: 0;
+  margin: 0;
+  gap: 0;
+  overflow: visible;
+}
+.lmv-header .lmv-timeline-edit-actions button { flex-shrink: 0; width: 36px; padding: 0; }
+.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0; }
+.lmv-header .vz-header-group > button { flex-shrink: 0; }
+.lmv-header .vz-header-group .dv-icon-chip--danger:hover:not(:disabled) { color: #f87171; }
+
+.lmv-track-timeline-window,
+.lmv-lyric-cues-window { padding: 0; }
+.lmv-track-timeline-window > .drc-group > .drc-body { padding-bottom: var(--workspace-group-gap, 12px); }
+.lmv-lyric-cues-window .lyric-cue-list-body {
+  margin-top: 0;
+  padding-top: var(--workspace-group-body-top, 10px);
+}
+.lmv-track-timeline-lanes--stacked {
+  --lmv-lane-gutter: 0px;
+  --rv-lane-label-w: 104px;
+  grid-template-rows: none;
+}
+.lmv-track-timeline-lanes--stacked.rv-timeline-lanes--icons-expanded { --lmv-lane-gutter: var(--rv-lane-label-w); }
+.lmv-track-timeline-lane-body { grid-column: 2; grid-row: 1; }
+.lyric-cue-timeline__gutter { overflow: hidden; background: rgba(8, 17, 25, 0.94); }
+.lyric-cue-timeline__lane-label { padding: 0; width: 100%; }
+.lyric-cue-timeline__lane-label > .rv-timeline-lane-icon { height: 100%; border-right: 0; }
+
+.lyric-cue-list__controls { gap: var(--workspace-control-gap, 9px); padding: 0 0 10px; flex-wrap: wrap; }
+.lyric-cue-list__search-filter { display: flex; align-items: center; gap: var(--workspace-control-gap, 9px); margin-left: auto; min-width: 0; }
+.lyric-cue-list__search-filter > input { width: 150px; min-width: 80px; }
+.lyric-cue-list__filter { width: 148px; min-width: 148px; }
+.lyric-cue-list .lyric-cue-list__table { font-size: 9px; }
+.lyric-cue-list__table tbody > tr[data-cue-row-id] { height: 36px; }
+.lyric-cue-list__table tbody > tr[data-cue-row-id] > td { padding: 0 10px; vertical-align: middle; }
+.lyric-cue-list__table th:nth-child(4),
+.lyric-cue-list__table td:nth-child(4) { width: 148px; }
+.lyric-cue-list__status-content { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lyric-cue-list__status-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #d8b95a; }
+.lyric-cue-list__status-dot--reviewed { background: #61d6aa; }
+.lyric-cue-list__status-dot--corrected { background: #4ac7db; }
+.lyric-cue-list__status-dot--rejected { background: #f87171; }
+.lyric-cue-list__warning-count { margin-left: auto; color: #d8b95a; font-variant-numeric: tabular-nums; }
+.lyric-cue-list mark { background: rgba(216, 185, 90, 0.32); color: #fff2b4; border-radius: 2px; }
+.lyric-cue-list [data-search-match='true'] input:first-child { background: rgba(216, 185, 90, 0.22); color: #fff2b4; }
+.lmv-inspector-grid > .rv-ctrl-palette-row { min-width: 0; }

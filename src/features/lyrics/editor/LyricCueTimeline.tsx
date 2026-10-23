@@ -1,3 +1,4 @@
+import { TrackMapLaneIcon } from '../../../components/vyzualz/react/TrackMapLaneIcon'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -1008,7 +1009,7 @@ export function LyricCueTimeline({
         <div className="lyric-cue-timeline__gutter" aria-hidden="true" style={{ height: timelineHeight }}>
           {Array.from({ length: shownLaneCount }, (_, lane) => (
             <span key={`lane-label-${lane}`} className="lyric-cue-timeline__lane-label" style={{ top: lane * STACKED_LANE_HEIGHT }}>
-              Lyrics {lane + 1}
+              <TrackMapLaneIcon kind="lyrics" label={`Lyrics ${lane + 1}`} />
             </span>
           ))}
         </div>

@@ -1129,3 +1129,24 @@
   letter-spacing: 0.04em;
   color: rgba(196, 207, 211, 0.45);
 }
+
+
+/* Navigation actions share the dismiss button's right edge and hit area. */
+.dv-notice-actions { display: flex; justify-content: flex-end; }
+.dv-notice-open {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #7ed9e8;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dv-notice-open:hover,
+.dv-notice-open:focus-visible {
+  color: rgba(232, 244, 248, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}

@@ -38,7 +38,7 @@ describe('LyricPreviewPanel', () => {
       />,
     ))
 
-    const issueButton = [...container.querySelectorAll<HTMLButtonElement>('.lmv-notice-issue-btn')]
+    const issueButton = [...container.querySelectorAll<HTMLButtonElement>('.dv-notice-open')]
       .find(button => button.getAttribute('aria-label')?.includes('word 1'))
     const errors = validateLyricCues([cue]).issues.filter(issue => issue.severity === 'error')
     const cards = [...container.querySelectorAll('.dv-notice[data-tone="error"]')]

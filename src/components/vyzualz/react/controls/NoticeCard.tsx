@@ -17,6 +17,8 @@ export interface NoticeCardProps {
   ariaLabel?: string
   onDismiss?: () => void
   dismissLabel?: string
+  onOpen?: () => void
+  openLabel?: string
   className?: string
   children?: ReactNode
 }
@@ -32,6 +34,8 @@ export function NoticeCard({
   ariaLabel,
   onDismiss,
   dismissLabel = 'Dismiss',
+  onOpen,
+  openLabel = 'Open',
   className = '',
   children,
 }: NoticeCardProps) {
@@ -47,6 +51,13 @@ export function NoticeCard({
         )}
       </div>
       {children != null && <div className="dv-notice-body">{children}</div>}
+      {onOpen && (
+        <div className="dv-notice-actions">
+          <button type="button" className="dv-notice-open" onClick={onOpen} aria-label={openLabel} title={openLabel}>
+            <AppIcon kind="open" size={12} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

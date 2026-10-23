@@ -9,7 +9,7 @@ import {
   type LyricAnimationPreset,
   type LyricEffectPreset,
 } from '../utils/lyricPresentation'
-import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { Collapsible, PaletteColorRow, NumberInputRow, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
 
 interface Props {
   style: Partial<LyricStyle>
@@ -126,14 +126,35 @@ export function LyricPresentationControls({
       : null
   )
 
+  const animationField = (
+    <SelectRow
+      label="Animation preset"
+      value={animationPreset}
+      onChange={value => {
+        const preset = value as LyricAnimationPreset
+        const patch = animationPresetPatch(preset)
+        if (patch) onAnimationChange(patch)
+        else onClearAnimation?.()
+      }}
+      options={[
+        ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
+        { value: 'none', label: 'None' },
+        { value: 'fade', label: 'Fade' },
+        { value: 'fade-up', label: 'Fade up' },
+        { value: 'pop', label: 'Scale pop' },
+        { value: 'typewriter', label: 'Typewriter' },
+        { value: 'glitch', label: 'Glitch' },
+      ]}
+    />
+  )
+
   const appearance = (
     <>
       {resetAction(Object.keys(style).length > 0, onClearStyle, 'Use document defaults')}
       <div className="lmv-inspector-grid">
-        <ColorRow
+        <PaletteColorRow
           label="Text color"
-          value={typeof style.color === 'string' ? style.color : ''}
-          placeholder={allowInherit ? 'Inherit' : '#FFFFFF'}
+          value={typeof style.color === 'string' ? style.color : '#ffffff'}
           onChange={color => onStyleChange({ color })}
         />
         {!omit?.includes('fontSize') && <LyricFontSizeField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
@@ -163,14 +184,7 @@ export function LyricPresentationControls({
           ]}
         />
         {!omit?.includes('anchor') && <LyricAnchorField style={style} allowInherit={allowInherit} onStyleChange={onStyleChange} />}
-        <SliderRow
-          label="Opacity"
-          min={0}
-          max={1}
-          step={0.05}
-          value={style.opacity ?? 1}
-          onChange={value => onStyleChange({ opacity: clampPresentationNumber(value, 0, 1) })}
-        />
+        {allowInherit && animationField}
         <NumberInputRow
           label="X position"
           min={0}
@@ -192,31 +206,21 @@ export function LyricPresentationControls({
           onEmpty={() => onStyleChange({ y: undefined })}
         />
       </div>
+      <SliderRow
+        label="Opacity"
+        min={0}
+        max={1}
+        step={0.05}
+        value={style.opacity ?? 1}
+        onChange={value => onStyleChange({ opacity: clampPresentationNumber(value, 0, 1) })}
+      />
     </>
   )
 
   const animationControls = (
     <>
       {resetAction(Object.keys(animation).length > 0, onClearAnimation, 'Use document default')}
-      <SelectRow
-        label="Animation preset"
-        value={animationPreset}
-        onChange={value => {
-          const preset = value as LyricAnimationPreset
-          const patch = animationPresetPatch(preset)
-          if (patch) onAnimationChange(patch)
-          else onClearAnimation?.()
-        }}
-        options={[
-          ...(allowInherit ? [{ value: 'inherit', label: 'Inherit' }] : []),
-          { value: 'none', label: 'None' },
-          { value: 'fade', label: 'Fade' },
-          { value: 'fade-up', label: 'Fade up' },
-          { value: 'pop', label: 'Scale pop' },
-          { value: 'typewriter', label: 'Typewriter' },
-          { value: 'glitch', label: 'Glitch' },
-        ]}
-      />
+      {animationField}
     </>
   )
 
@@ -245,7 +249,7 @@ export function LyricPresentationControls({
   )
 
   // A cue's overrides are one flat "Overrides" group; the document's "Default …" groups stay three top-level groups.
-  if (allowInherit) return <Collapsible label="Overrides">{appearance}{animationControls}{effectControls}</Collapsible>
+  if (allowInherit) return <Collapsible label="Overrides">{appearance}{resetAction(Object.keys(animation).length > 0, onClearAnimation, 'Use document default animation')}{effectControls}</Collapsible>
   return (
     <>
       <Collapsible label="Default Appearance">{appearance}</Collapsible>

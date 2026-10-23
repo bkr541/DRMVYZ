@@ -1,10 +1,12 @@
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import type { KeyboardEvent } from 'react'
+import { Fragment, useEffect, useState, type KeyboardEvent } from 'react'
+import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
+import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
+import { highlightCueSearch, matchesCueSearch } from '../utils/cueListSearch'
 import { isKeyboardInputTarget } from '../../../utils/keyboardTargets'
 import { isCueActive, LOW_LYRIC_CONFIDENCE } from '../editor/lyricCueEditorModel'
 import { LyricCueTimeline } from '../editor/LyricCueTimeline'
+import { LyricWordTimingEditor } from '../editor/LyricWordTimingEditor'
 import { formatMs, type LyricCueFilter, type useLyricCueEditor } from '../editor/useLyricCueEditor'
 
 type Editor = ReturnType<typeof useLyricCueEditor>
@@ -76,8 +78,8 @@ export function LyricCueStackedTimeline({ editor, durationMs, currentTimeMs, onS
  * its controls live in the Track Timeline window (LyricCueStackedTimeline +
  * LyricTimelineToolbar). The table only carries the columns needed to scan and
  * select cues — # / Time / Lyric / Status — so it fits the center column at any
- * width; the remaining detail (duration, confidence, warning count) is in each
- * row's tooltip, and everything is editable in the Cue inspector.
+ * width. Selecting a cue reveals cue/word timing, word text and deletion in
+ * the list; presentation and metadata remain in the right inspector.
  */
 export function LyricCuesWindow({ editor }: Props) {
   const {
@@ -91,7 +93,51 @@ export function LyricCuesWindow({ editor }: Props) {
     setFilter,
     filteredCues,
     cueIssues,
+    navigationTarget,
   } = editor
+  const [open, setOpen] = useState(true)
+  const [search, setSearch] = useState('')
+  const [collapsedCueId, setCollapsedCueId] = useState<string | null>(null)
+  const toggleCue = (id: string) => {
+    setCollapsedCueId(selectedCueId === id && collapsedCueId !== id ? id : null)
+    selectCue(id)
+  }
+  const firstMatchId = search.trim() ? filteredCues.find(cue => {
+    const warningCount = (cueIssues.get(cue.id)?.length ?? 0) + (cue.warnings?.length ?? 0)
+    const values = [
+      cue.text || 'Empty',
+      ...(cue.words ?? []).map(word => word.text),
+      cue.reviewStatus ?? 'unreviewed',
+      formatMs(cue.startMs),
+      formatMs(cue.endMs),
+      String(orderedCues.findIndex(item => item.id === cue.id) + 1),
+      warningCount || '',
+    ]
+    return matchesCueSearch(values.join(' '), search)
+  })?.id : undefined
+  useEffect(() => {
+    if (!firstMatchId || !open) return
+    const frame = requestAnimationFrame(() => {
+      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-cue-row-id]') ?? [])
+        .find(node => node.dataset.cueRowId === firstMatchId)
+      row?.scrollIntoView?.({ block: 'center', behavior: 'auto' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [search, firstMatchId, open, rootRef])
+  useEffect(() => { if (navigationTarget) { setOpen(true); setCollapsedCueId(null) } }, [navigationTarget])
+
+  // Wait until the destination is selected, unfiltered and expanded before focusing.
+  useEffect(() => {
+    if (!open || !navigationTarget || selectedCueId !== navigationTarget.cueId) return
+    const frame = requestAnimationFrame(() => {
+      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-cue-row-id]') ?? [])
+        .find(node => node.dataset.cueRowId === navigationTarget.cueId)
+      const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+      row?.scrollIntoView?.({ block: 'center', behavior })
+      if (!navigationTarget.wordId) row?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, navigationTarget, selectedCueId, filter, rootRef])
 
   return (
     <section
@@ -100,21 +146,29 @@ export function LyricCuesWindow({ editor }: Props) {
       aria-label="Lyric Cues"
       onKeyDown={event => handleLyricUndoRedoKey(event, editor)}
     >
-      <DualRailCollapsible label="Cue list" defaultOpen headerClassName="lmv-live-preview-header" bodyClassName="lyric-cue-list-body">
+      <DualRailCollapsible label="Cue list" open={open} onOpenChange={setOpen} headerClassName="lmv-live-preview-header" bodyClassName="lyric-cue-list-body">
         <section className="lyric-cue-list" aria-label="Lyric cue list">
           <div className="lyric-cue-list__controls">
             <strong>{filteredCues.length} of {cues.length} cues</strong>
-            <label>
-              <span>Filter</span>
-              <DropdownSelect className="lmv-select" value={filter} onChange={event => setFilter(event.target.value as LyricCueFilter)}>
-                <option value="all">All</option>
-                <option value="unreviewed">Unreviewed</option>
-                <option value="low-confidence">Low confidence</option>
-                <option value="warnings">Warnings</option>
-                <option value="empty-text">Empty text</option>
-              </DropdownSelect>
-            </label>
+            <div className="lyric-cue-list__search-filter">
+              <DreamVizTextInput type="search" aria-label="Search cues" placeholder="Search cues" value={search} onChange={event => { setSearch(event.target.value); setOpen(true) }} />
+              <UnderlineDropdown
+                ariaLabel="Filter cues"
+                menuLabel="Filter cues"
+                className="lyric-cue-list__filter"
+                value={filter}
+                onChange={value => setFilter(value as LyricCueFilter)}
+                options={[
+                  { value: 'all', label: 'All' },
+                  { value: 'unreviewed', label: 'Unreviewed' },
+                  { value: 'low-confidence', label: 'Low confidence' },
+                  { value: 'warnings', label: 'Warnings' },
+                  { value: 'empty-text', label: 'Empty text' },
+                ]}
+              />
+            </div>
           </div>
+          {search.trim() && !firstMatchId && <div className="lyric-cue-list__empty" role="status">No cues match this search.</div>}
           <div className="lyric-cue-list__scroll">
             <table className="lyric-cue-list__table">
               <thead>
@@ -133,30 +187,73 @@ export function LyricCuesWindow({ editor }: Props) {
                     warningCount ? `${warningCount} warning${warningCount === 1 ? '' : 's'}` : null,
                   ].filter(Boolean).join(' · ')
                   return (
+                    <Fragment key={cue.id}>
                     <tr
-                      key={cue.id}
                       tabIndex={0}
                       data-cue-row-id={cue.id}
                       title={detail}
                       className={`${selectedCueId === cue.id ? 'lyric-cue-list__row--selected' : ''}${active ? ' lyric-cue-list__row--active' : ''}`}
                       aria-selected={selectedCueId === cue.id}
+                      aria-expanded={selectedCueId === cue.id && collapsedCueId !== cue.id}
                       aria-current={active ? 'time' : undefined}
-                      onClick={() => selectCue(cue.id)}
+                      onClick={() => toggleCue(cue.id)}
                       onKeyDown={event => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault()
-                          selectCue(cue.id)
+                          toggleCue(cue.id)
                         }
                       }}
                     >
-                      <td>{index + 1}</td>
-                      <td className="lyric-cue-list__time">{formatMs(cue.startMs)} – {formatMs(cue.endMs)}</td>
-                      <td className="lyric-cue-list__text">{cue.text || <em>Empty</em>}</td>
+                      <td>{highlightCueSearch(String(index + 1), search)}</td>
+                      <td className="lyric-cue-list__time">{highlightCueSearch(`${formatMs(cue.startMs)} – ${formatMs(cue.endMs)}`, search)}</td>
+                      <td className="lyric-cue-list__text">{highlightCueSearch(cue.text || 'Empty', search)}</td>
                       <td className="lyric-cue-list__status">
-                        <span className={lowConfidence ? 'lyric-cue-list__low-confidence' : ''}>{cue.reviewStatus ?? 'unreviewed'}</span>
-                        {warningCount > 0 && <span aria-label="Cue has warnings"><AppIcon kind="warning" size={14} />{warningCount}</span>}
+                        <div className="lyric-cue-list__status-content">
+                          <span className={`lyric-cue-list__status-dot lyric-cue-list__status-dot--${cue.reviewStatus ?? 'unreviewed'}`} aria-hidden="true" />
+                          <span className={lowConfidence ? 'lyric-cue-list__low-confidence' : ''}>{highlightCueSearch(cue.reviewStatus ?? 'unreviewed', search)}</span>
+                          {warningCount > 0 && <span className="lyric-cue-list__warning-count" aria-label={`${warningCount} cue warnings`}>{warningCount}</span>}
+                        </div>
                       </td>
                     </tr>
+                    {selectedCueId === cue.id && collapsedCueId !== cue.id && (
+                      <tr className="lyric-cue-list__editor-row">
+                        <td colSpan={4}>
+                          <section className="lyric-cue-list__editor" aria-label={`Edit cue ${index + 1}`}>
+                            <div className="lyric-cue-list__editor-toolbar">
+                              <strong>Cue {index + 1}</strong>
+
+                            </div>
+                            <div className="lyric-cue-list__timing-fields">
+                              {(['startMs', 'endMs'] as const).map(field => (
+                                <label key={field} className="rv-ctrl-row">
+                                  <span>{field === 'startMs' ? 'Start' : 'End'} (ms)</span>
+                                  <DreamVizTextInput
+                                    key={`${cue.id}-${field}-${cue[field]}`}
+                                    type="number"
+                                    step={1}
+                                    defaultValue={cue[field]}
+                                    aria-label={`Cue ${index + 1} ${field === 'startMs' ? 'start' : 'end'} milliseconds`}
+                                    onBlur={event => {
+                                      const raw = event.target.value.trim(), value = Number(raw)
+                                      if (raw && Number.isFinite(value)) editor.commitCuePatch(cue.id, { [field]: Math.round(value) })
+                                    }}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            <LyricWordTimingEditor
+                              cue={cue}
+                              search={search}
+                              onUpdateCue={editor.commitCuePatch}
+                              onUpdateWord={editor.updateCueWord}
+                              focusWordId={navigationTarget?.cueId === cue.id ? navigationTarget.wordId : null}
+                              focusRevision={navigationTarget?.revision}
+                            />
+                          </section>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>

@@ -65,7 +65,6 @@ import { LyricDocumentDefaultsPanel } from './components/LyricDocumentDefaultsPa
 import { LyricDocumentPresentationPanel } from './components/LyricDocumentPresentationPanel'
 import { LyricCueInspector } from './editor/LyricCueInspector'
 import { LyricInspector, type LyricInspectorTab } from './components/LyricInspector'
-import { LyricReviewSummary } from './components/LyricReviewSummary'
 import { lyricLayoutDrawers, useLyricLayoutMode } from './lyricLayoutMode'
 import type { LyricManagerNavigationIntent, LyricManagerWorkflow } from './lyricNavigation'
 import type { LyricSnapMode } from './editor/lyricCueEditorModel'
@@ -2009,6 +2008,7 @@ export function LyricManagerView({
     engineRef.current.retryAnalysis(runtimeTrackId)
   }, [loadedAnalysisStatus, runtimeTrackId, savedAnalysis, selectedTrackDbId, selectedTrackLoaded])
 
+  const [laneIconsExpanded, setLaneIconsExpanded] = useState(true)
   const hasMore = tracks.length < trackTotal
 
   const editorPlaceholder = useMemo(() => {
@@ -2046,6 +2046,19 @@ export function LyricManagerView({
   return (
     <div ref={rootRef} className="lmv-root" data-layout={layoutMode}>
       <LyricManagerHeader
+        editActions={editorPlaceholder ? null : (
+          <LyricTimelineEditActions
+            editor={cueEditor}
+            analyze={beatGridStatus === 'trusted' || beatGridStatus === 'analyzing'
+              ? null
+              : {
+                  label: beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track',
+                  onClick: () => { void handleAnalyzeSelectedTrack() },
+                }}
+          />
+        )}
+        laneIconsExpanded={laneIconsExpanded}
+        onToggleLaneIcons={editorPlaceholder ? undefined : () => setLaneIconsExpanded(value => !value)}
         isSaving={isSaving}
         saveStatus={activeWriteStatus}
         lyricsDisplayEnabled={lyricsDisplayEnabled}
@@ -2338,6 +2351,7 @@ export function LyricManagerView({
           ) : (
             <>
               <LyricTrackTimelineWindow
+                laneIconsExpanded={laneIconsExpanded}
                 durationMs={editorDurationMs}
                 currentTimeMs={selectedTrackLoaded ? currentAudioTimeMs : null}
                 getCurrentTimeMs={getCurrentAudioTimeMs}
@@ -2352,15 +2366,6 @@ export function LyricManagerView({
                 onKeyDown={event => handleLyricUndoRedoKey(event, cueEditor)}
                 onSeek={handleTimelineSeek}
                 onZoomChange={cueEditor.setWaveformZoom}
-                actions={<LyricTimelineEditActions
-                  editor={cueEditor}
-                  analyze={beatGridStatus === 'trusted' || beatGridStatus === 'analyzing'
-                    ? null
-                    : {
-                        label: beatGridStatus === 'failed' ? 'Retry Track Analysis' : selectedTrackLoaded ? 'Analyze Track' : 'Load & Analyze Track',
-                        onClick: () => { void handleAnalyzeSelectedTrack() },
-                      }}
-                />}
                 cueTimeline={
                   <LyricCueStackedTimeline
                     editor={cueEditor}
@@ -2405,8 +2410,6 @@ export function LyricManagerView({
                 durationMs={editorDurationMs}
                 sections={sectionOptions}
                 onUpdateCue={cueEditor.commitCuePatch}
-                onUpdateWord={cueEditor.updateCueWord}
-                focusWordId={navigationTarget?.cueId === cueEditor.selectedCue.id ? navigationTarget.wordId : null}
               />
             ) : (
               <div className="lmv-inspector-empty">Select a lyric cue in Lyric Cues to view and edit it here.</div>
@@ -2435,7 +2438,6 @@ export function LyricManagerView({
                 )}
               </>
             )}
-            summary={<LyricReviewSummary cues={storeCues} onOpenReview={() => setInspectorTab('review')} />}
             review={(
               <LyricPreviewPanel
                 cues={storeCues}

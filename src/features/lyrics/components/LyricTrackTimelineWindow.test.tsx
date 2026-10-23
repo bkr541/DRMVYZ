@@ -54,7 +54,7 @@ describe('LyricTrackTimelineWindow', () => {
     expect(position(container.querySelector('[data-testid="actions"]')!, lanes)).toBeTruthy()
     expect(position(lanes, container.querySelector('[data-testid="toolbar"]')!)).toBeTruthy()
     expect(lanes.querySelectorAll('[data-testid="lyric-playhead"]')).toHaveLength(1)
-    expect(container.querySelector('.lmv-track-timeline-lane--section .lmv-track-timeline-lane-label')?.textContent).toBe('Sections')
+    expect(container.querySelector('.lmv-track-timeline-lane--section .rv-timeline-lane-icon')?.textContent).toBe('Sections')
   })
 
   it('seeks when a reference lane is clicked or dragged', async () => {

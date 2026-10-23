@@ -177,17 +177,7 @@ export function useLyricCueEditor({
     if (!navigationTarget || !cues.some(cue => cue.id === navigationTarget.cueId)) return
     setFilter('all')
     selectCue(navigationTarget.cueId)
-    const frame = requestAnimationFrame(() => {
-      const row = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-cue-row-id]') ?? [])
-        .find(element => element.dataset.cueRowId === navigationTarget.cueId)
-      const behavior: ScrollBehavior = typeof window !== 'undefined'
-        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-        ? 'auto'
-        : 'smooth'
-      row?.scrollIntoView?.({ block: 'center', behavior })
-      if (!navigationTarget.wordId) row?.focus()
-    })
-    return () => cancelAnimationFrame(frame)
+
   }, [cues, navigationTarget, selectCue])
 
   const focusCue = useCallback((cueId: string | null) => {
@@ -380,6 +370,7 @@ export function useLyricCueEditor({
       : 'Beat snapping unavailable. Load or analyze this track to build a beat grid.')
 
   return {
+    navigationTarget,
     rootRef,
     cues,
     orderedCues,

@@ -8,10 +8,10 @@ const stop = (event: SyntheticEvent) => event.stopPropagation()
 /** One actual error per card, both inline and in a page's Notifications drawer.
  * Keep structured errors separate rather than joining or truncating messages. */
 export function ErrorNoticeCards({ errors }: {
-  errors: readonly { id: string; message: string; detail?: ReactNode }[]
+  errors: readonly { id: string; message: string; detail?: ReactNode; onOpen?: () => void; openLabel?: string }[]
 }) {
   return <>{errors.map(error => (
-    <DrawerNotice key={error.id} tone="error" role="alert" title={error.message} ariaLabel={`Error: ${error.message}`}>
+    <DrawerNotice key={error.id} tone="error" role="alert" title={error.message} ariaLabel={`Error: ${error.message}`} onOpen={error.onOpen} openLabel={error.openLabel}>
       {error.detail}
     </DrawerNotice>
   ))}</>
@@ -41,10 +41,15 @@ export function DrawerNotice(props: NoticeCardProps) {
   if (!slot) return null
 
   const { className: _className, ...card } = props
+  const open = props.onOpen ? () => {
+    props.onOpen?.()
+    // Navigation must uncover its destination; the notice itself stays registered.
+    useNotificationStore.getState().requestDrawerClose(page)
+  } : undefined
   // React events from a portal bubble to the notice's React parents; keep clicks in the drawer from reaching them.
   return createPortal(
     <div onClick={stop} onPointerDown={stop} onMouseDown={stop} onKeyDown={stop}>
-      <NoticeCard {...card} />
+      <NoticeCard {...card} onOpen={open} />
     </div>,
     slot,
   )

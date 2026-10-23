@@ -19,7 +19,7 @@ interface Props {
   onSeek: (timeMs: number) => void
 }
 
-/** All cue-editing commands live together in one icon-only row beneath the Track Timeline heading. */
+/** All cue-editing commands live together in the top page header. */
 export function LyricTimelineEditActions({ editor, analyze }: {
   editor: Editor
   /** Present only while the track has no trusted beat grid: loads the track if needed and analyses it. Shown last, after Delete. */

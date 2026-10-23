@@ -1,3 +1,5 @@
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Collapsible } from '../../../components/vyzualz/react/ReactControlRows'
 import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
@@ -50,9 +52,10 @@ function CopyableValue({ value }: { value: string | null }) {
   return (
     <span className="lmv-copyable-value">
       <code title={value}>{value}</code>
-      <button
-        type="button"
+      <IconChipButton
         className="lmv-inline-action"
+        title={copied ? 'Copied' : 'Copy identifier'}
+        icon={<AppIcon kind={copied ? 'check' : 'copy'} size={14} />}
         onClick={() => {
           const write = navigator.clipboard?.writeText(value)
           if (!write) return
@@ -66,9 +69,7 @@ function CopyableValue({ value }: { value: string | null }) {
           }).catch(() => undefined)
         }}
         aria-label={`Copy identifier ${value}`}
-      >
-        {copied ? 'Copied' : 'Copy'}
-      </button>
+      />
     </span>
   )
 }
@@ -126,7 +127,6 @@ export function LyricWorkflowStatus({
           label="Advanced diagnostics"
         >
           <div className="lmv-diagnostics" aria-label="Advanced lyric diagnostics">
-            <p>Identifiers and state only. Provider keys, signed URLs, storage paths, and raw payloads are intentionally excluded.</p>
             <dl>
               <div><dt>Canonical audio track ID</dt><dd><CopyableValue value={selectedTrack?.dbId ?? null} /></dd></div>
               <div><dt>Runtime dbId</dt><dd><CopyableValue value={runtimeAudioTrackId} /></dd></div>

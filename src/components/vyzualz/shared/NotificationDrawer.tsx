@@ -1,5 +1,5 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { useNotificationStore, usePageNotificationEntries, usePageNotificationEvents } from '../../../stores/notificationStore'
@@ -58,6 +58,14 @@ export function NotificationDrawer({ cards = [], page, onClose, scope = 'contain
   const dismissEvent = useNotificationStore(state => state.dismissEvent)
   const [closing, setClosing] = useState(false)
   const requestClose = useCallback(() => setClosing(true), [])
+  const navigationClose = useNotificationStore(state => page ? state.drawerCloseRequests[page] ?? 0 : 0)
+  const lastNavigationClose = useRef(navigationClose)
+  useEffect(() => {
+    if (navigationClose === lastNavigationClose.current) return
+    lastNavigationClose.current = navigationClose
+    // Close immediately for navigation so keyboard focus lands on visible content.
+    onClose()
+  }, [navigationClose, onClose])
 
   useEffect(() => {
     const ownerDocument = (portalTarget ?? document.body).ownerDocument
