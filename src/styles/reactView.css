@@ -23531,11 +23531,11 @@ button.llhr-chip { cursor: pointer; }
   box-shadow: none;
 }
 
-/* A single surface spans transport + waveform. The existing third region gets
-   its own audio-settings surface, with no additional wrapper or hit targets. */
+/* One surface spans the whole dock: transport, waveform and the BPM / source /
+   action region, with no additional wrapper or hit targets. */
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock::before {
   content: '';
-  grid-column: 1 / span 2;
+  grid-column: 1 / -1;
   grid-row: 1;
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
@@ -23552,13 +23552,6 @@ button.llhr-chip { cursor: pointer; }
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(1) { grid-column: 1; }
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(2) { grid-column: 2; }
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(3) { grid-column: 3; }
-
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:last-child > .vz-dock-card {
-  border: 1px solid var(--fw-surface-border);
-  border-radius: var(--fw-surface-radius);
-  background: var(--fw-surface-background);
-  box-shadow: var(--fw-surface-shadow);
-}
 
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region + .vz-dock-region::before {
   content: none;

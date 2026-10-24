@@ -3197,13 +3197,14 @@
 
 .lmv-drawer-toggle--end { margin-left: auto; }
 
-/* Compact header spacing; the control group stays centered at every layout size. */
-.lmv-root[data-layout='laptop'] .lmv-header,
-.lmv-root[data-layout='narrow'] .lmv-header {
+/* Compact header spacing; the control group stays centered at every layout size. The header carries data-layout itself because the shared app
+   header renders it outside .lmv-root. */
+.lmv-header[data-layout='laptop'],
+.lmv-header[data-layout='narrow'] {
   gap: 12px;
 }
 
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0 9px; }
+.lmv-header[data-layout='narrow'] .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0 9px; }
 
 /* Timeline rows: a fixed label gutter, then the content area. Every row measures its own content width, so
    ruler, sections, waveform, lyric lanes and beats stay pixel-aligned. */
@@ -3544,7 +3545,7 @@
   overflow: visible;
 }
 .lmv-header .lmv-timeline-edit-actions button { flex-shrink: 0; width: 36px; padding: 0; }
-.lmv-root[data-layout='narrow'] .lmv-header .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0; }
+.lmv-header[data-layout='narrow'] .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0; }
 .lmv-header .vz-header-group > button { flex-shrink: 0; }
 .lmv-header .vz-header-group .dv-icon-chip--danger:hover:not(:disabled) { color: #f87171; }
 

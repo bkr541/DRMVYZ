@@ -7,8 +7,11 @@ import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderCon
 import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
+import type { LyricLayoutMode } from '../lyricLayoutMode'
 
 interface Props {
+  /** The manager's measured layout mode. The header can render outside `.lmv-root` (the shared app header), so it carries the mode itself. */
+  layout?: LyricLayoutMode
   editActions?: ReactNode
   laneIconsExpanded?: boolean
   onToggleLaneIcons?: () => void
@@ -23,6 +26,7 @@ interface Props {
 }
 
 export function LyricManagerHeader({
+  layout,
   editActions,
   laneIconsExpanded,
   onToggleLaneIcons,
@@ -54,7 +58,7 @@ export function LyricManagerHeader({
       : 'unsaved'
 
   return (
-    <header className="lmv-header">
+    <header className="lmv-header" data-layout={layout}>
       <HeaderControlGroup label="Lyric Manager controls">
         <HeaderIconKey
           label="Show Lyrics"

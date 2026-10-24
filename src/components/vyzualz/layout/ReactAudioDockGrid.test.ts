@@ -49,10 +49,10 @@ describe('Phase 04 React audio dock layout contract', () => {
     expect(declarations(`${scope} .rv-shell--floating > .az-dock.vz-transport-dock`)).toMatch(/height:\s*var\(--rv-react-dock-height\);/)
   })
 
-  it('draws two separate surfaces without introducing any new click target or changing Show Manager', () => {
-    expect(declarations(`${scope} .rv-shell--floating > .az-dock.vz-transport-dock::before`)).toMatch(/grid-column:\s*1 \/ span 2;/)
+  it('draws one full-width surface without introducing any new click target or changing Show Manager', () => {
+    expect(declarations(`${scope} .rv-shell--floating > .az-dock.vz-transport-dock::before`)).toMatch(/grid-column:\s*1 \/ -1;/)
     expect(declarations(`${scope} .rv-shell--floating > .az-dock.vz-transport-dock::before`)).toMatch(/pointer-events:\s*none;/)
-    expect(declarations(`${scope} .rv-shell--floating > .vz-transport-dock > .vz-dock-region:last-child > .vz-dock-card`)).toContain('border-radius: var(--fw-surface-radius)')
+    expect(phase04).not.toContain('.vz-dock-region:last-child > .vz-dock-card')
     expect(phase04).not.toMatch(/!important|\[data-app-workspace='showManager'\]/)
     expect(reactViewSource).toContain('lowerReservedAction={(')
   })

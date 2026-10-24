@@ -399,6 +399,10 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
     expect(container.querySelector('.fw-app-header-controls > .lmv-header')).not.toBeNull()
     expect(container.querySelector('.lmv-root > .lmv-header')).toBeNull()
+    // The portaled header is outside .lmv-root, so it must carry the manager's own layout mode for its responsive CSS.
+    const portaledLayout = container.querySelector('.fw-app-header-controls > .lmv-header')?.getAttribute('data-layout')
+    expect(portaledLayout).toMatch(/^(wide|standard|laptop|narrow)$/)
+    expect(portaledLayout).toBe(container.querySelector('.lmv-root')?.getAttribute('data-layout'))
     expect(container.querySelectorAll<HTMLButtonElement>('.fw-app-header button[aria-label="Save"]')).toHaveLength(1)
     expect(container.querySelector('.lmv-body')).not.toBeNull()
   })

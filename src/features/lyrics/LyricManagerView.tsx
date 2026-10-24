@@ -2048,6 +2048,7 @@ export function LyricManagerView({
     <div ref={rootRef} className="lmv-root" data-layout={layoutMode}>
       <ApplicationHeaderControls fallbackWhenUnavailable>
         <LyricManagerHeader
+        layout={layoutMode}
         editActions={editorPlaceholder ? null : (
           <LyricTimelineEditActions
             editor={cueEditor}
