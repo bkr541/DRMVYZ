@@ -47,13 +47,13 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (React, Preset Manager and Media Manager opt-in)', () => {
-  it('activates React, Preset Manager and Media Manager while other production routes retain legacy shells', () => {
+describe('application floating chrome (all five workspaces)', () => {
+  it('activates all five production workspaces', () => {
     expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(FLOATING_APP_VIEWS.react).toBe(true)
     expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
     expect(FLOATING_APP_VIEWS.media).toBe(true)
-    expect(APP_VIEWS.filter(view => view !== 'react' && view !== 'presetManager' && view !== 'media').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+    expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
   it('uses exactly one global header and brand on the Preset Manager route', async () => {

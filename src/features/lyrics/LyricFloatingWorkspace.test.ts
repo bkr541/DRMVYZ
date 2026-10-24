@@ -7,11 +7,11 @@ import { LYRIC_LAYOUT_BREAKPOINTS, lyricLayoutDrawers, resolveLyricLayoutMode } 
 const scope = "[data-workspace-layout='floating'][data-app-workspace='lyrics']"
 
 describe('Phase 07 Lyric Manager floating composition', () => {
-  it('opts in only the lyric workspace without altering the other workspace switches', () => {
+  it('keeps Lyric Manager opted in alongside the other migrated workspaces', () => {
     expect(FLOATING_APP_VIEWS).toEqual({
       react: true,
       presetManager: true,
-      showManager: false,
+      showManager: true,
       lyrics: true,
       media: true,
     })

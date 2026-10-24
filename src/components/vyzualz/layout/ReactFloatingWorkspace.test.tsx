@@ -77,10 +77,10 @@ function ReactShellFixture({ onStageMount }: { onStageMount: () => void }) {
 }
 
 describe('Phase 03 React floating shell', () => {
-  it('does not opt in Show, Lyric or Media Manager', () => {
+  it('keeps React opted in after all five workspace migrations', () => {
     expect(FLOATING_APP_VIEWS.react).toBe(true)
     expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
-    expect(APP_VIEWS.filter(view => view !== 'react' && view !== 'presetManager').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+    expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
   it('keeps a single brand/header and portals the original feature-owned controls', async () => {
