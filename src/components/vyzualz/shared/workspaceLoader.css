@@ -1,5 +1,5 @@
 /* Workspace loader — fills its pane and centres the animation. Palette and
-   type follow the login / signup emblem panel (ice/cyan on near-black, Exo 2). */
+   type follow the login / signup emblem panel (ice/cyan on near-black, DM Sans). */
 .wl-root {
   flex: 1;
   align-self: stretch;
@@ -34,7 +34,7 @@
   flex-direction: column;
   align-items: center;
   gap: 5px;
-  font-family: "Exo 2", Inter, system-ui, sans-serif;
+  font-family: "DM Sans", Inter, system-ui, sans-serif;
   text-transform: uppercase;
 }
 

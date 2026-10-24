@@ -26,7 +26,7 @@
   --drm-info-faint: rgba(205, 221, 228, 0.52);
   --drm-info-success: var(--az-green, #61d6aa);
   --drm-info-warning: var(--az-amber, #e8bd5a);
-  --drm-info-font: var(--az-font-data, 'Exo 2', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
+  --drm-info-font: var(--az-font-data, 'DM Sans', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
   --drm-info-display-font: var(--az-font, 'Quicksand', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
   --drm-info-arrow-offset: 24px;
 
