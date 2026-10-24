@@ -23400,8 +23400,8 @@ button.llhr-chip { cursor: pointer; }
 .llni-stage--approved { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 
 /* Phase 03 — React-only floating composition. The application frame owns outer
-   chrome; React keeps the same rails, renderer, timeline and fixed dock. This
-   block intentionally follows all historical React dock/card overrides. */
+   chrome; React keeps the same rails, renderer and timeline. This block follows
+   all historical React dock/card overrides. */
 [data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-content > .vz-main {
   min-height: 0;
 }
@@ -23436,15 +23436,21 @@ button.llhr-chip { cursor: pointer; }
 
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
   --rv-floating-rail-width: clamp(210px, 22vw, var(--workspace-rail-width));
-  /* Leave the dock its original fixed positioning until Phase 04. Reserve its
-     live expanded/collapsed height plus the body gap. */
-  padding-bottom: calc(var(--rv-react-dock-height) + var(--fw-region-gap));
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--rv-react-dock-height);
+  gap: var(--fw-region-gap);
+  min-width: 0;
+  min-height: 0;
+  padding-bottom: 0;
   background: transparent;
 }
 
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout {
   --rv-left-width: var(--rv-floating-rail-width);
   --rv-right-width: var(--rv-floating-rail-width);
+  grid-row: 1;
+  grid-column: 1;
+  min-width: 0;
   grid-template-columns: minmax(0, var(--rv-left-width)) minmax(0, 1fr) minmax(0, var(--rv-right-width));
   gap: var(--fw-region-gap);
   overflow: visible;
@@ -23495,19 +23501,67 @@ button.llhr-chip { cursor: pointer; }
   background: var(--fw-surface-background);
 }
 
-/* Keep the familiar dock controls and card treatments for this transitional
-   phase; only bridge its position and outer boundary to the inset workspace. */
+/* Phase 04 — The original audio dock stays mounted after .rv-layout, now as
+   an actual second grid row. These declarations override React's historical
+   viewport-fixed dock without changing Show Manager's shared component. */
 [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock {
   --vz-left-width: var(--rv-floating-rail-width);
   --vz-right-width: var(--rv-floating-rail-width);
-  left: calc(var(--fw-outer-inset) + var(--vz-sidebar-width, 72px) + var(--fw-region-gap));
-  right: var(--fw-outer-inset);
-  bottom: var(--fw-outer-inset);
-  width: auto;
+  /* Cap side groups at narrow widths so the waveform never forces a wider
+     viewport; retain the usable historic side minimum when room permits. */
+  --vz-dock-left-col: min(max(var(--rv-floating-rail-width), 260px), 34%);
+  --vz-dock-right-col: min(max(var(--rv-floating-rail-width), 260px), 34%);
+  position: relative;
+  grid-row: 2;
+  grid-column: 1;
+  grid-template-columns: minmax(0, var(--vz-dock-left-col)) minmax(0, 1fr) minmax(0, var(--vz-dock-right-col));
+  gap: var(--fw-region-gap);
+  left: auto;
+  right: auto;
+  bottom: auto;
+  min-width: 0;
+  width: 100%;
+  height: var(--rv-react-dock-height);
+  padding: 0;
   box-sizing: border-box;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* A single surface spans transport + waveform. The existing third region gets
+   its own audio-settings surface, with no additional wrapper or hit targets. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock::before {
+  content: '';
+  grid-column: 1 / span 2;
+  grid-row: 1;
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
-  height: var(--rv-react-dock-height);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+  pointer-events: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region {
+  grid-row: 1;
+  z-index: 1;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(1) { grid-column: 1; }
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(2) { grid-column: 2; }
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(3) { grid-column: 3; }
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:last-child > .vz-dock-card {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region + .vz-dock-region::before {
+  content: none;
 }
 
 /* Stage Focus retains the lower toolbar's restore button and dock, while the
