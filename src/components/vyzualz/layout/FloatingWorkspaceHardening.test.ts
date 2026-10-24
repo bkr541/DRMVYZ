@@ -6,6 +6,8 @@ import presetCss from '../../../styles/presetManager.css?raw'
 import mediaCss from '../../../styles/mediaManager.css?raw'
 import lyricCss from '../../../styles/lyricManager.css?raw'
 import floatingCss from '../../../styles/floatingWorkspace.css?raw'
+import reactViewSource from '../react/ReactView.tsx?raw'
+import showViewSource from '../showManager/ShowManagerView.tsx?raw'
 
 const scope = "[data-workspace-layout='floating'][data-app-workspace='showManager']"
 
@@ -22,6 +24,28 @@ describe('Phase 09 floating workspace hardening', () => {
     for (const css of [reactCss, presetCss, mediaCss, lyricCss, showCss]) {
       expect(css).toContain('var(--fw-region-gap)')
       expect(css).toContain('var(--fw-surface-radius)')
+    }
+  })
+
+  it('keeps each performance dock in its own second grid row, never in the old fixed viewport dock', () => {
+    const workspaces = [
+      { css: reactCss, source: reactViewSource, route: 'react', shell: '.rv-shell--floating' },
+      { css: showCss, source: showViewSource, route: 'showManager', shell: '.sm-root' },
+    ] as const
+    for (const { css, source, route, shell } of workspaces) {
+      const selector = `[data-workspace-layout='floating'][data-app-workspace='${route}'] ${shell}`
+      const start = css.indexOf(`${selector} {`)
+      expect(start, `${route} shell must have its own layout rule`).toBeGreaterThanOrEqual(0)
+      const shellRules = css.slice(start).match(/\{([^}]*)\}/)?.[1] ?? ''
+      expect(shellRules).toMatch(/display:\s*grid/)
+      expect(shellRules).toMatch(/grid-template-rows:\s*minmax\(0, 1fr\) var\(--rv-react-dock-height\)/)
+      const dockStart = css.indexOf(`${selector} > .az-dock.vz-transport-dock {`)
+      expect(dockStart, `${route} dock must have its own layout rule`).toBeGreaterThanOrEqual(0)
+      const dockRules = css.slice(dockStart).match(/\{([^}]*)\}/)?.[1] ?? ''
+      expect(dockRules).toMatch(/position:\s*relative/)
+      expect(dockRules).toMatch(/grid-row:\s*2/)
+      expect(dockRules).not.toMatch(/position:\s*fixed/)
+      expect(source.match(/<VyzualzAudioDock\b/g)).toHaveLength(1)
     }
   })
 

@@ -17,6 +17,10 @@ vi.mock('./react/ReactView', () => ({
   ),
 }))
 
+vi.mock('./presetManager/PresetManagerView', () => ({
+  PresetManagerView: () => <main className="pmv-root" data-testid="preset-manager" aria-label="Preset Manager" />,
+}))
+
 vi.mock('./showManager/ShowManagerView', () => ({
   ShowManagerView: () => <div data-testid="show-manager">Show Manager workspace</div>,
 }))
@@ -97,7 +101,7 @@ describe('Vyzualz production application-view routing', () => {
 
     const labels = [...(container?.querySelectorAll<HTMLElement>('.az-nav-item') ?? [])]
       .map(item => item.getAttribute('aria-label'))
-    expect(labels).toEqual(['React', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(labels).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
     expect(labels).not.toContain('Visualizer')
     expect(container?.querySelector('[data-testid="react-workspace"]')).not.toBeNull()
 
@@ -111,6 +115,30 @@ describe('Vyzualz production application-view routing', () => {
 
     await clickLabel('Lyric Manager')
     expect(container?.querySelector('[data-testid="lyric-manager"]')).not.toBeNull()
+  })
+
+  it('maps all five routes to exactly one floating chrome and the correct feature composition', async () => {
+    const routes = [
+      ['react', 'React', 'react-workspace'],
+      ['presetManager', 'Preset Manager', 'preset-manager'],
+      ['showManager', 'Show Manager', 'show-manager'],
+      ['lyrics', 'Lyric Manager', 'lyric-manager'],
+      ['media', 'Media Manager', 'media-manager'],
+    ] as const
+    await renderView('react')
+    for (const [view, label, featureId] of routes) {
+      await clickLabel(label)
+      const frame = container?.querySelector(`[data-workspace-layout="floating"][data-app-workspace="${view}"]`)
+      expect(frame, `${label} must use the opted-in app shell`).not.toBeNull()
+      expect(frame?.querySelectorAll(':scope > .fw-app-shell > .fw-app-header')).toHaveLength(1)
+      expect(frame?.querySelectorAll('.fw-app-navigation > .az-sidebar')).toHaveLength(1)
+      expect(frame?.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+      expect(frame?.querySelectorAll('.fw-app-navigation .az-logo')).toHaveLength(0)
+      expect(frame?.querySelectorAll('[data-app-header-slot="controls"]')).toHaveLength(1)
+      expect(frame?.querySelector('.fw-app-content [data-testid="' + featureId + '"]')).not.toBeNull()
+      expect(frame?.querySelector(`.az-nav-item[aria-label="${label}"]`)?.getAttribute('aria-current')).toBe('page')
+      expect(container?.querySelectorAll('[data-workspace-layout="floating"]')).toHaveLength(1)
+    }
   })
 
   it('contains no production Visualizer workspace import or render branch', () => {

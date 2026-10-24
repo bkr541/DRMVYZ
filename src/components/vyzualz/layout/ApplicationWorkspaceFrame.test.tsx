@@ -56,6 +56,18 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
+  it.each(APP_VIEWS)('keeps the shared header and rail single-owned on the %s route', async (view: AppView) => {
+    await render(<Harness initialView={view}><main data-testid="route-stage" /></Harness>)
+    const frame = host.querySelector(`[data-app-workspace="${view}"]`)
+    expect(frame?.getAttribute('data-workspace-layout')).toBe('floating')
+    expect(frame?.querySelectorAll('[data-workspace-slot="header"]')).toHaveLength(1)
+    expect(frame?.querySelectorAll('[data-workspace-slot="navigation"]')).toHaveLength(1)
+    expect(frame?.querySelectorAll('[data-workspace-slot="stage"]')).toHaveLength(1)
+    expect(frame?.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)
+    expect(frame?.querySelector('.fw-app-content [data-testid="route-stage"]')).not.toBeNull()
+  })
+
   it('uses exactly one global header and brand on the Preset Manager route', async () => {
     await render(<Harness initialView="presetManager"><main className="pmv-root" aria-label="Preset Manager" /></Harness>)
     expect(host.querySelectorAll('.fw-app-header')).toHaveLength(1)
@@ -80,10 +92,35 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(host.querySelectorAll('.fw-app-header .mmv-header')).toHaveLength(1)
     expect(host.querySelectorAll('.mmv-root .mmv-header')).toHaveLength(0)
     expect(host.querySelectorAll('[aria-label="Save Changes"]')).toHaveLength(1)
+    const originalAction = host.querySelector<HTMLButtonElement>('[aria-label="Save Changes"]')
+    expect(originalAction?.closest('.fw-app-header-controls')).not.toBeNull()
     expect(host.querySelector<HTMLSpanElement>('.fw-app-header-fallback')?.hidden).toBe(true)
     await render(<Harness initialView="media"><main className="mmv-root" /></Harness>)
     expect(host.querySelectorAll('.mmv-header')).toHaveLength(0)
     expect(host.querySelector<HTMLSpanElement>('.fw-app-header-fallback')?.hidden).toBe(false)
+  })
+
+  it('keeps feature-owned callbacks and provider state live through the header portal', async () => {
+    const invoked = vi.fn()
+    function FeatureAction() {
+      const featureValue = useContext(FeatureContext)
+      return (
+        <ApplicationHeaderControls>
+          <button type="button" aria-label="Apply Feature" onClick={() => invoked(featureValue)}>Apply</button>
+        </ApplicationHeaderControls>
+      )
+    }
+    await render(
+      <Harness initialView="media">
+        <FeatureContext.Provider value="current feature state"><FeatureAction /></FeatureContext.Provider>
+      </Harness>,
+    )
+    const action = host.querySelector<HTMLButtonElement>('.fw-app-header-controls [aria-label="Apply Feature"]')
+    expect(action).not.toBeNull()
+    expect(host.querySelectorAll('[aria-label="Apply Feature"]')).toHaveLength(1)
+    await act(async () => action?.click())
+    expect(invoked).toHaveBeenCalledTimes(1)
+    expect(invoked).toHaveBeenCalledWith('current feature state')
   })
 
   it('retains a local Media Manager header when mounted without a floating frame', async () => {
