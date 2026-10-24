@@ -5,13 +5,13 @@ export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
 
 export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 
-/** React and Preset Manager use floating chrome; other compositions retain legacy routing. */
+/** React, Preset Manager and Media Manager use floating chrome; others retain legacy routing. */
 export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
   react: true,
   presetManager: true,
   showManager: false,
   lyrics: false,
-  media: false,
+  media: true,
 }
 
 export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {

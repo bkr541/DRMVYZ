@@ -47,12 +47,13 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (React and Preset Manager opt-in)', () => {
-  it('activates React and Preset Manager while other production routes retain legacy shells', () => {
+describe('application floating chrome (React, Preset Manager and Media Manager opt-in)', () => {
+  it('activates React, Preset Manager and Media Manager while other production routes retain legacy shells', () => {
     expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(FLOATING_APP_VIEWS.react).toBe(true)
     expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
-    expect(APP_VIEWS.filter(view => view !== 'react' && view !== 'presetManager').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+    expect(FLOATING_APP_VIEWS.media).toBe(true)
+    expect(APP_VIEWS.filter(view => view !== 'react' && view !== 'presetManager' && view !== 'media').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
   })
 
   it('uses exactly one global header and brand on the Preset Manager route', async () => {
@@ -63,6 +64,37 @@ describe('application floating chrome (React and Preset Manager opt-in)', () => 
     expect(host.querySelector('.fw-app-header-fallback')?.textContent).toBe('Preset Manager')
     expect(host.querySelector('.fw-app-content > .pmv-root')).not.toBeNull()
     expect(host.querySelectorAll('.pmv-header')).toHaveLength(0)
+  })
+
+  it('portals Media Manager header actions into the shared header without duplicating the feature header', async () => {
+    await render(
+      <Harness initialView="media">
+        <main className="mmv-root">
+          <ApplicationHeaderControls fallbackWhenUnavailable>
+            <header className="mmv-header"><button type="button" aria-label="Save Changes">Save</button></header>
+          </ApplicationHeaderControls>
+        </main>
+      </Harness>,
+    )
+    expect(host.querySelector('[data-app-workspace="media"]')).not.toBeNull()
+    expect(host.querySelectorAll('.fw-app-header .mmv-header')).toHaveLength(1)
+    expect(host.querySelectorAll('.mmv-root .mmv-header')).toHaveLength(0)
+    expect(host.querySelectorAll('[aria-label="Save Changes"]')).toHaveLength(1)
+    expect(host.querySelector<HTMLSpanElement>('.fw-app-header-fallback')?.hidden).toBe(true)
+    await render(<Harness initialView="media"><main className="mmv-root" /></Harness>)
+    expect(host.querySelectorAll('.mmv-header')).toHaveLength(0)
+    expect(host.querySelector<HTMLSpanElement>('.fw-app-header-fallback')?.hidden).toBe(false)
+  })
+
+  it('retains a local Media Manager header when mounted without a floating frame', async () => {
+    await render(
+      <main className="mmv-root">
+        <ApplicationHeaderControls fallbackWhenUnavailable>
+          <header className="mmv-header"><button type="button">Save</button></header>
+        </ApplicationHeaderControls>
+      </main>,
+    )
+    expect(host.querySelector('.mmv-root > .mmv-header button')?.textContent).toBe('Save')
   })
 
   it('has one header brand, no rail duplicate, and preserves navigation order and aria-current', async () => {

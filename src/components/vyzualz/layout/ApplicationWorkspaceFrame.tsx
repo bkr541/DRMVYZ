@@ -18,7 +18,7 @@ const HeaderSlotContext = createContext<HeaderSlot | null>(null)
  * opts in. The portal preserves the feature's own React context and callbacks.
  * Mount it inside the feature's existing provider/Suspense boundary, not above it.
  */
-export function ApplicationHeaderControls({ children }: { children: ReactNode }) {
+export function ApplicationHeaderControls({ children, fallbackWhenUnavailable = false }: { children: ReactNode; fallbackWhenUnavailable?: boolean }) {
   const slot = useContext(HeaderSlotContext)
   const target = slot?.target
   const setOccupied = slot?.setOccupied
@@ -29,7 +29,7 @@ export function ApplicationHeaderControls({ children }: { children: ReactNode })
     return () => setOccupied(false)
   }, [target, setOccupied])
 
-  return target ? createPortal(children, target) : null
+  return target ? createPortal(children, target) : fallbackWhenUnavailable ? children : null
 }
 
 interface ApplicationWorkspaceFrameProps {

@@ -5,6 +5,7 @@ import { useAudioStore } from '../../stores/audioStore'
 import { useMediaStore } from '../../stores/mediaStore'
 import { useSharedDataActivity } from '../../stores/useSharedDataActivity'
 import { WorkspaceRail } from '../../components/vyzualz/layout/WorkspaceRail'
+import { ApplicationHeaderControls } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 import { RailWindowHeader } from '../../components/vyzualz/layout/RailWindowHeader'
 import { MediaLibraryBrowser } from '../../components/vyzualz/media/MediaLibraryBrowser'
 import { MediaManagerStage } from '../../components/vyzualz/media/MediaManagerStage'
@@ -84,28 +85,30 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
 
   return (
     <main className="mmv-root" aria-label="Media Manager">
-      <header className="mmv-header">
-        <HeaderControlGroup label="Media Manager controls">
-          <HeaderIconKey
-            label="Save Changes"
-            title={headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
-            icon={<SaveGlyph />}
-            disabled={!headerActions || headerActions.saving}
-            onClick={() => headerActions?.onSave()}
-          />
-          <HeaderIconKey
-            label="Delete Media"
-            title="Delete this media item"
-            icon={<AppIcon kind="delete" size={16} color="currentColor" />}
-            danger
-            disabled={!headerActions?.onDelete || headerActions.deleting}
-            onClick={() => headerActions?.onDelete?.()}
-          />
-        </HeaderControlGroup>
-        <div className="mmv-summary">
-          <VyzualzHeaderActions page="media-manager" />
-        </div>
-      </header>
+      <ApplicationHeaderControls fallbackWhenUnavailable>
+        <header className="mmv-header">
+          <HeaderControlGroup label="Media Manager controls">
+            <HeaderIconKey
+              label="Save Changes"
+              title={headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
+              icon={<SaveGlyph />}
+              disabled={!headerActions || headerActions.saving}
+              onClick={() => headerActions?.onSave()}
+            />
+            <HeaderIconKey
+              label="Delete Media"
+              title="Delete this media item"
+              icon={<AppIcon kind="delete" size={16} color="currentColor" />}
+              danger
+              disabled={!headerActions?.onDelete || headerActions.deleting}
+              onClick={() => headerActions?.onDelete?.()}
+            />
+          </HeaderControlGroup>
+          <div className="mmv-summary">
+            <VyzualzHeaderActions page="media-manager" />
+          </div>
+        </header>
+      </ApplicationHeaderControls>
 
       <section className="mmv-workspace" aria-label="Media management workspace">
         <div
@@ -118,7 +121,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             label="Media Manager library"
             collapsed={leftCollapsed}
             onToggleCollapsed={() => setLeftCollapsed(value => !value)}
-            className="rw-frame--left"
+            className="rw-frame--left fw-surface"
           >
             <RailWindowHeader
               side="left"
@@ -157,7 +160,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             />
           </WorkspaceRail>
 
-          <div className="mmv-stage-area" aria-label="Selected media preview">
+          <div className="mmv-stage-area fw-surface" aria-label="Selected media preview">
             <MediaManagerStage media={selectedMedia} track={selectedTrack} font={selectedFont} />
           </div>
 
@@ -166,7 +169,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             label="Media Manager details"
             collapsed={rightCollapsed}
             onToggleCollapsed={() => setRightCollapsed(value => !value)}
-            className="rw-frame--right"
+            className="rw-frame--right fw-surface"
           >
             <MediaManagerInspector
               media={selectedMedia}

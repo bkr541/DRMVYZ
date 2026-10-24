@@ -74,6 +74,31 @@ describe('MediaManagerView', () => {
     expect(MEDIA_MANAGER_CAPABILITIES).toEqual(expect.arrayContaining(['select', 'upload', 'edit', 'remove', 'collections']))
   })
 
+  it('keeps the library, preview and Inspector mounted when either rounded rail collapses', () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => { root?.render(<MediaManagerView onOpenLyricManager={vi.fn()} />) })
+
+    const workspace = container.querySelector('.mmv-content')!
+    const library = container.querySelector('[data-testid="media-library-browser"]')
+    const stage = container.querySelector('.mmv-stage-area')
+    const inspector = container.querySelector('[data-testid="inspector"]')
+    expect(container.querySelectorAll('.mmv-content > .fw-surface')).toHaveLength(3)
+    expect(workspace.getAttribute('data-left-collapsed')).toBe('false')
+    expect(workspace.getAttribute('data-right-collapsed')).toBe('false')
+
+    const leftToggle = container.querySelector<HTMLButtonElement>('[aria-label="Collapse left inspector"]')!
+    const rightToggle = container.querySelector<HTMLButtonElement>('[aria-label="Collapse right inspector"]')!
+    act(() => { leftToggle.click(); rightToggle.click() })
+    expect(workspace.getAttribute('data-left-collapsed')).toBe('true')
+    expect(workspace.getAttribute('data-right-collapsed')).toBe('true')
+    expect(container.querySelector('[data-testid="media-library-browser"]')).toBe(library)
+    expect(container.querySelector('.mmv-stage-area')).toBe(stage)
+    expect(container.querySelector('[data-testid="inspector"]')).toBe(inspector)
+    expect(container.querySelectorAll('.vz-inspector--collapsed')).toHaveLength(2)
+  })
+
   it('puts Save Changes and Delete Media in the header control group, wired to what the Info tab publishes', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
