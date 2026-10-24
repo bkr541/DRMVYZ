@@ -563,10 +563,10 @@ describe('Show Manager Audio Dock source lock integration', () => {
     await renderView('react')
 
     const indicator = container?.querySelector('.vz-dock-source-inline')
-    expect(indicator?.querySelector('[data-app-icon="rekordbox"]')).not.toBeNull()
+    expect(indicator?.querySelector('.vz-dock-source-inline-label')?.textContent).toBe('Source')
+    expect(indicator?.querySelector('.vz-dock-source-inline-name')?.textContent).toBe('Rekordbox')
     expect(indicator?.getAttribute('aria-label')).toBe('Rekordbox data loaded, cues, sections')
     expect(indicator?.getAttribute('data-audio-source-kind')).toBe('rekordbox')
-    expect(indicator?.querySelector('.vz-dock-source-inline-dot')).not.toBeNull()
     expect(indicator?.querySelector('.vz-dock-source-inline-tag')?.textContent).toBe('CUES · SECTIONS')
   })
 

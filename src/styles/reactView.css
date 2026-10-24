@@ -22326,54 +22326,104 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   height: 10px;
 }
 
-/* Selected Layout Lab concept 06 · Dock Inline. This is the second 32px row
-   beneath the BPM readout and reports every source type, not only Rekordbox. */
+/* Source readout: the second 32px row beneath the BPM readout, level with the
+   second row of keys. A SOURCE label (same treatment as BPM's) always shows,
+   starting on BPM's left edge, with the source value stacked beneath it. The
+   block fills the two key rows so the readout's bottom edge is the keys'. */
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-bpm-block {
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline {
   display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
   width: 100%;
   height: 32px;
   min-width: 0;
   flex: 0 0 32px;
-  align-items: center;
-  gap: 7px;
   box-sizing: border-box;
-  padding: 0 9px;
+  padding: 0;
   overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
 }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 50%;
-  background: #61d6aa;
-  box-shadow: 0 0 7px rgba(97, 214, 170, 0.64);
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-label {
+  color: var(--dock-ink-dim);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
 }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline--file .vz-dock-source-inline-dot { background: #4ac7db; box-shadow: 0 0 7px rgba(74, 199, 219, 0.58); }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline--demo .vz-dock-source-inline-dot { background: #a77df0; box-shadow: 0 0 7px rgba(167, 125, 240, 0.5); }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline--none .vz-dock-source-inline-dot { background: #71808a; box-shadow: none; }
-.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline img {
-  display: block;
-  width: 62px;
-  height: auto;
-  flex: 0 0 auto;
+.rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-value {
+  display: flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-name {
   min-width: 0;
   overflow: hidden;
-  color: rgba(232, 244, 248, 0.82);
-  font: 800 8.5px/1 var(--az-font, sans-serif);
+  color: rgba(232, 244, 248, 0.9);
+  font: 800 12px/1 var(--az-font, sans-serif);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .rv-shell > .vz-transport-dock:not(.vz-transport-dock--collapsed) .vz-dock-source-inline-tag {
-  margin-left: 3px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: rgba(196, 207, 211, 0.48);
   font: 750 6.5px/1 var(--az-font-data, sans-serif);
   letter-spacing: 0.08em;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Collapsed, the row is only one key tall (34px): BPM and the stacked SOURCE label / value sit side by side. */
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-block {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-bpm-block-val {
+  width: auto;
+  min-width: 0;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-inline-label {
+  color: var(--dock-ink-dim);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-inline-value {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-inline-name {
+  display: block;
+  overflow: hidden;
+  color: rgba(232, 244, 248, 0.9);
+  font: 800 11px/1 var(--az-font, sans-serif);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rv-shell > .vz-transport-dock--collapsed .vz-dock-source-inline-tag {
+  display: none;
 }
 
 /* Keys: Tap / Cue in column 3, Sync / Source in column 4, all one slate treatment. */

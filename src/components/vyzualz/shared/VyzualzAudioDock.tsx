@@ -1214,11 +1214,11 @@ export function VyzualzAudioDock({
             aria-label={sourceIndicator.description}
             data-audio-source-kind={sourceIndicator.kind}
           >
-            <i className="vz-dock-source-inline-dot" aria-hidden="true" />
-            {sourceIndicator.kind === 'rekordbox'
-              ? <AppIcon kind="rekordbox" size={20} />
-              : <strong className="vz-dock-source-inline-name">{sourceIndicator.name}</strong>}
-            <span className="vz-dock-source-inline-tag" aria-hidden="true">{sourceIndicator.tag}</span>
+            <span className="vz-dock-source-inline-label">Source</span>
+            <span className="vz-dock-source-inline-value">
+              <strong className="vz-dock-source-inline-name">{sourceIndicator.name}</strong>
+              <span className="vz-dock-source-inline-tag" aria-hidden="true">{sourceIndicator.tag}</span>
+            </span>
           </span>
         </div>
 
