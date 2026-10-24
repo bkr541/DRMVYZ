@@ -5,12 +5,12 @@ export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
 
 export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 
-/** React, Preset Manager and Media Manager use floating chrome; others retain legacy routing. */
+/** Each workspace explicitly opts into the shared floating chrome. */
 export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
   react: true,
   presetManager: true,
   showManager: false,
-  lyrics: false,
+  lyrics: true,
   media: true,
 }
 

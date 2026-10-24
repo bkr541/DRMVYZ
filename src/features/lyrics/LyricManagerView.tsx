@@ -33,6 +33,7 @@ import {
   loadLyricManagerTrackPage,
 } from './services/lyricManagerData'
 import { LyricManagerHeader } from './components/LyricManagerHeader'
+import { ApplicationHeaderControls } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 import { LyricTrackBrowser } from './components/LyricTrackBrowser'
 import { LyricDocumentSidebar } from './components/LyricDocumentSidebar'
 import { JsonLyricImporter } from './components/JsonLyricImporter'
@@ -2045,7 +2046,8 @@ export function LyricManagerView({
 
   return (
     <div ref={rootRef} className="lmv-root" data-layout={layoutMode}>
-      <LyricManagerHeader
+      <ApplicationHeaderControls fallbackWhenUnavailable>
+        <LyricManagerHeader
         editActions={editorPlaceholder ? null : (
           <LyricTimelineEditActions
             editor={cueEditor}
@@ -2080,7 +2082,8 @@ export function LyricManagerView({
           }
           void doSave(true)
         }}
-      />
+        />
+      </ApplicationHeaderControls>
 
       {(error || statusMsg) && (
         <DrawerNotice

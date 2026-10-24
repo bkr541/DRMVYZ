@@ -3586,3 +3586,164 @@
 .lyric-cue-list mark { background: rgba(216, 185, 90, 0.32); color: #fff2b4; border-radius: 2px; }
 .lyric-cue-list [data-search-match='true'] input:first-child { background: rgba(216, 185, 90, 0.22); color: #fff2b4; }
 .lmv-inspector-grid > .rv-ctrl-palette-row { min-width: 0; }
+
+/* Phase 07: Lyric Manager's multi-surface floating composition.
+   The manager still owns measured breakpoints, drawer/splitter state, timeline
+   measurements and scrolling. Only opt-in surface boundaries change here. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-root {
+  min-height: 0;
+  height: 100%;
+  min-width: 0;
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .fw-app-header-controls > .lmv-header {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-body {
+  gap: var(--fw-region-gap);
+  border: 0;
+  overflow: visible;
+}
+
+/* A zero-width drawer column must not leave a phantom grid gap. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-root[data-layout='laptop'] .lmv-body,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-root[data-layout='narrow'] .lmv-body {
+  column-gap: 0;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-root[data-layout='laptop'] .lmv-right-rail:not(.lmv-rail--drawer) {
+  margin-left: var(--fw-region-gap);
+}
+
+/* A rail is a region, not necessarily a card. Track Workspace and Versions
+   have independent perimeters while retaining their existing resize handle. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail > .vz-inspector-inner {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail::after,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-right-rail::after,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail > .vz-inspector-inner::before,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail > .vz-inspector-inner::after,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-right-rail > .vz-inspector-inner::before,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-right-rail > .vz-inspector-inner::after {
+  content: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-workspace-shell {
+  gap: var(--fw-region-gap);
+  overflow: visible;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-workspace,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-lyric-management {
+  flex-shrink: 1;
+  min-width: 0;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+/* Keep the user-controlled percent split. Both sections shrink proportionally
+   by the inter-surface gap, instead of overflowing their height by 11px. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
+  flex-shrink: 1;
+  border-bottom: 1px solid var(--fw-surface-border);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail.vz-inspector--collapsed {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+}
+
+/* The center is a column of independent windows, not one painted panel.
+   Preview and transport stay in the same mounted component and remain distinct. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-center {
+  gap: var(--fw-region-gap);
+  border: 0;
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-live-preview-body {
+  gap: var(--fw-region-gap);
+  padding: 0;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-preview-stage,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-meta-header,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-timeline-window,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-lyric-cues-window {
+  min-width: 0;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-preview-stage {
+  background: #000;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-meta-header .lmv-track-meta-fill {
+  border: 0;
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+  background: transparent;
+}
+
+/* The existing scroll owner stays in place; the timeline's pointer measurements,
+   cue keyboard events and internal scrollers are not moved into new wrappers. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fw-region-gap);
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-timeline-window,
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-lyric-cues-window {
+  flex: 0 0 auto;
+  padding: 0 var(--workspace-rail-inset, 12px);
+}
+
+/* The Inspector is one independent window with its original scroll owner. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-right-rail {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-right-rail > .vz-inspector-inner {
+  min-height: 0;
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+  background: var(--fw-surface-background);
+  box-shadow: none;
+}
+
+/* On narrow screens the existing absolute rails, scrim and close controls
+   remain responsible for layering, focus and off-canvas interaction. */
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-rail--drawer {
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-rail--drawer > .vz-inspector-inner {
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+}

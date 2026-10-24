@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LyricCue, LyricDocument, SaveLyricDocumentAtomicInput } from '../../types/lyrics'
 import type { LyricDocumentVersion, LyricManagerTrack } from './lyricManagerTypes'
+import { ApplicationWorkspaceFrame } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 
 const mocks = vi.hoisted(() => {
   const engine = {
@@ -383,6 +384,44 @@ function buttonWithText(text: string, rootElement: ParentNode = container): HTML
 }
 
 describe('LyricManagerView track-first workflow', () => {
+  it('keeps the floating header feature-owned, with one global brand and the save actions in the header slot', async () => {
+    await act(async () => root.render(
+      <ApplicationWorkspaceFrame
+        appView="lyrics"
+        onAppViewChange={() => undefined}
+        sidebarCollapsed
+        onSidebarCollapsedChange={() => undefined}
+      >
+        <LyricManagerView onBack={() => undefined} />
+      </ApplicationWorkspaceFrame>,
+    ))
+    await waitFor(() => expect(container.textContent).toContain('Reverie'))
+    expect(container.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(container.querySelector('.fw-app-header-controls > .lmv-header')).not.toBeNull()
+    expect(container.querySelector('.lmv-root > .lmv-header')).toBeNull()
+    expect(container.querySelectorAll<HTMLButtonElement>('.fw-app-header button[aria-label="Save"]')).toHaveLength(1)
+    expect(container.querySelector('.lmv-body')).not.toBeNull()
+  })
+
+  it('keeps preview, transport, timeline and cues distinct, and preserves the Versions resize interaction', async () => {
+    await render()
+    expect(container.querySelector('.lmv-live-preview-body > .lmv-preview-stage')).not.toBeNull()
+    expect(container.querySelector('.lmv-live-preview-body > .lmv-track-meta-header')).not.toBeNull()
+    await act(async () => trackCard('Reverie').click())
+    await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    const left = container.querySelector('.lmv-workspace-shell')!
+    const tracks = left.querySelector('.lmv-track-workspace')!
+    const versions = left.querySelector<HTMLElement>('.lmv-lyric-management')!
+    expect(tracks.parentElement).toBe(left)
+    expect(versions.parentElement).toBe(left)
+    expect(container.querySelector('.lmv-center > .lmv-tab-content > .lmv-track-timeline-window')).not.toBeNull()
+    expect(container.querySelector('.lmv-center > .lmv-tab-content > .lmv-lyric-cues-window')).not.toBeNull()
+    const handle = versions.querySelector<HTMLElement>('[role="separator"][aria-label="Resize Versions"]')!
+    await act(async () => handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })))
+    expect(versions.style.flexBasis).toBe('47%')
+    expect(container.querySelector('.lmv-right-rail .lmv-inspector-pane')).not.toBeNull()
+  })
+
   it('loads stored tracks, selects a track, loads all versions, and opens the active version without starting playback', async () => {
     await render()
 
