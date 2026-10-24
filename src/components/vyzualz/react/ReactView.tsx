@@ -52,6 +52,7 @@ import { RailTabs } from '../layout/RailTabs'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { TopEdgeResizeHandle } from '../../shared/TopEdgeResizeHandle/TopEdgeResizeHandle'
 import type { RailTabOption } from '../layout/RailTabs'
+import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 
@@ -655,28 +656,30 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
     : qualityTierForFps(headerFps)
 
   return (
-    <div className="rv-shell" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
+    <div className="rv-shell rv-shell--floating" data-help-engine={activeReactEngineId} data-stage-focus={stageFocus ? 'true' : undefined}>
       {activeReactEngineId === 'laserDmx' && <LaserDmxRendererNotice />}
-      <div className="vz-header">
-        <HeaderControlGroup label="React controls">
-          <ReactGlobalOutputControls />
-        </HeaderControlGroup>
+      <ApplicationHeaderControls>
+        <div className="vz-header" data-react-header-controls>
+          <HeaderControlGroup label="React controls">
+            <ReactGlobalOutputControls />
+          </HeaderControlGroup>
 
-        <span className="az-spacer" />
-        <button
-          type="button"
-          className="vsm-settings-btn"
-          title="Layout Lab"
-          aria-label="Layout Lab"
-          onClick={() => setLayoutLabOpen(true)}
-        >
-          <AppIcon kind="sliders" size="18" />
-        </button>
-        <VyzualzHeaderActions
-          page="react"
-          status={<ReactHeaderStatusCluster fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />}
-        />
-      </div>
+          <span className="az-spacer" />
+          <button
+            type="button"
+            className="vsm-settings-btn"
+            title="Layout Lab"
+            aria-label="Layout Lab"
+            onClick={() => setLayoutLabOpen(true)}
+          >
+            <AppIcon kind="sliders" size="18" />
+          </button>
+          <VyzualzHeaderActions
+            page="react"
+            status={<ReactHeaderStatusCluster fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />}
+          />
+        </div>
+      </ApplicationHeaderControls>
       {trackTimelineOpen
         && trackTimelineAvailability.enabled
         && effectiveTrackAnalysis

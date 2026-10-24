@@ -5,9 +5,9 @@ export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
 
 export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 
-/** Explicit, per-route opt-in. Phase 02 intentionally leaves every view legacy. */
+/** Phase 03 opts in React only; the remaining compositions retain legacy chrome. */
 export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
-  react: false,
+  react: true,
   presetManager: false,
   showManager: false,
   lyrics: false,

@@ -47,10 +47,11 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (inactive by default)', () => {
-  it('keeps all five production workspace routes on the legacy shell', () => {
+describe('application floating chrome (React-only opt-in)', () => {
+  it('activates React and leaves the other four production routes on legacy shells', () => {
     expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
-    expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+    expect(FLOATING_APP_VIEWS.react).toBe(true)
+    expect(APP_VIEWS.filter(view => view !== 'react').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
   })
 
   it('has one header brand, no rail duplicate, and preserves navigation order and aria-current', async () => {

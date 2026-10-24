@@ -23398,3 +23398,136 @@ button.llhr-chip { cursor: pointer; }
 .llpm-flat-kv b { color: rgba(243, 246, 248, 0.9); font: 700 10px/1.2 var(--az-font-data, Inter, system-ui, sans-serif); }
 
 .llni-stage--approved { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* Phase 03 — React-only floating composition. The application frame owns outer
+   chrome; React keeps the same rails, renderer, timeline and fixed dock. This
+   block intentionally follows all historical React dock/card overrides. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-content > .vz-main {
+  min-height: 0;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-content > .vz-main > div {
+  min-height: 0;
+}
+
+/* Portaled controls no longer inherit ReactView's .rv-shell control tokens.
+   Publish only those existing tokens on the opted-in ancestor, without
+   changing any intrinsic controls or another workspace's palette. */
+[data-workspace-layout='floating'][data-app-workspace='react'] {
+  --ui-control-height: 30px;
+  --ui-control-radius: 6px;
+  --ui-control-padding-inline: 9px;
+  --ui-panel-action-height: 36px;
+  --ui-panel-action-padding-inline: 12px;
+  --ui-text-primary: rgba(232, 244, 248, 0.92);
+  --ui-text-secondary: rgba(214, 228, 234, 0.68);
+  --ui-text-muted: rgba(196, 212, 220, 0.5);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-header-controls > .vz-header {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px 0 0;
+  background: transparent;
+  border: 0;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
+  --rv-floating-rail-width: clamp(210px, 22vw, var(--workspace-rail-width));
+  /* Leave the dock its original fixed positioning until Phase 04. Reserve its
+     live expanded/collapsed height plus the body gap. */
+  padding-bottom: calc(var(--rv-react-dock-height) + var(--fw-region-gap));
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout {
+  --rv-left-width: var(--rv-floating-rail-width);
+  --rv-right-width: var(--rv-floating-rail-width);
+  grid-template-columns: minmax(0, var(--rv-left-width)) minmax(0, 1fr) minmax(0, var(--rv-right-width));
+  gap: var(--fw-region-gap);
+  overflow: visible;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout[data-left-collapsed='true'] {
+  --rv-left-width: var(--rv-collapsed-width);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout[data-right-collapsed='true'] {
+  --rv-right-width: var(--rv-collapsed-width);
+}
+
+/* Only the actual rail hosts gain the full frame. Existing inner padding,
+   scroll ownership and collapse grips remain untouched. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .vz-inspector {
+  box-sizing: border-box;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .vz-inspector > .vz-inspector-inner {
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+}
+
+/* The former inter-pane seam must not protrude across independent gaps. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .rw-frame--left::after,
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .rw-frame--right::after {
+  content: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-center-col {
+  min-height: 0;
+  gap: var(--fw-region-gap);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-canvas-wrap,
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-lower-workspace {
+  box-sizing: border-box;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-canvas-wrap {
+  background: var(--fw-surface-background);
+}
+
+/* Keep the familiar dock controls and card treatments for this transitional
+   phase; only bridge its position and outer boundary to the inset workspace. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock {
+  --vz-left-width: var(--rv-floating-rail-width);
+  --vz-right-width: var(--rv-floating-rail-width);
+  left: calc(var(--fw-outer-inset) + var(--vz-sidebar-width, 72px) + var(--fw-region-gap));
+  right: var(--fw-outer-inset);
+  bottom: var(--fw-outer-inset);
+  width: auto;
+  box-sizing: border-box;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  height: var(--rv-react-dock-height);
+}
+
+/* Stage Focus retains the lower toolbar's restore button and dock, while the
+   same live canvas expands between the outer surfaces without a remount. */
+[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating[data-stage-focus='true'] .rv-layout {
+  --rv-left-width: 0px;
+  --rv-right-width: 0px;
+  gap: 0;
+}
+
+@media (max-width: 1100px) {
+  [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
+    --rv-floating-rail-width: clamp(190px, 24vw, 260px);
+  }
+}
+
+@media (max-width: 800px) {
+  /* Constrain peripheral rails rather than removing Inspector interactions.
+     Users can still use either original collapse grip to grow the stage. */
+  [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
+    --rv-floating-rail-width: clamp(150px, 22vw, 190px);
+  }
+}
