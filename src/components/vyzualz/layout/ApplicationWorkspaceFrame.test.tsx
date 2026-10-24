@@ -28,8 +28,8 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
-function Harness({ children }: { children?: React.ReactNode }) {
-  const [appView, setAppView] = useState<AppView>('react')
+function Harness({ children, initialView = 'react' }: { children?: React.ReactNode; initialView?: AppView }) {
+  const [appView, setAppView] = useState<AppView>(initialView)
   const [collapsed, setCollapsed] = useState(true)
   return (
     <ApplicationWorkspaceFrame
@@ -47,11 +47,22 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (React-only opt-in)', () => {
-  it('activates React and leaves the other four production routes on legacy shells', () => {
+describe('application floating chrome (React and Preset Manager opt-in)', () => {
+  it('activates React and Preset Manager while other production routes retain legacy shells', () => {
     expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(FLOATING_APP_VIEWS.react).toBe(true)
-    expect(APP_VIEWS.filter(view => view !== 'react').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+    expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
+    expect(APP_VIEWS.filter(view => view !== 'react' && view !== 'presetManager').every(view => FLOATING_APP_VIEWS[view] === false)).toBe(true)
+  })
+
+  it('uses exactly one global header and brand on the Preset Manager route', async () => {
+    await render(<Harness initialView="presetManager"><main className="pmv-root" aria-label="Preset Manager" /></Harness>)
+    expect(host.querySelectorAll('.fw-app-header')).toHaveLength(1)
+    expect(host.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(host.querySelector('.fw-app-navigation .az-logo')).toBeNull()
+    expect(host.querySelector('.fw-app-header-fallback')?.textContent).toBe('Preset Manager')
+    expect(host.querySelector('.fw-app-content > .pmv-root')).not.toBeNull()
+    expect(host.querySelectorAll('.pmv-header')).toHaveLength(0)
   })
 
   it('has one header brand, no rail duplicate, and preserves navigation order and aria-current', async () => {

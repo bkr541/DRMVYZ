@@ -369,7 +369,6 @@ export function PresetManagerView() {
 
   return (
     <main className="pmv-root" aria-label="Preset Manager">
-      <header className="pmv-header" />
       <section className="pmv-workspace" aria-label="Preset Manager workspace">
         <div
           className="vz-content pmv-content"
@@ -381,7 +380,7 @@ export function PresetManagerView() {
             label="Preset Library"
             collapsed={leftCollapsed}
             onToggleCollapsed={() => setLeftCollapsed(value => !value)}
-            className="rw-frame--left"
+            className="rw-frame--left fw-surface"
           >
             <RailWindowHeader
               side="left"
@@ -432,7 +431,7 @@ export function PresetManagerView() {
               </div>
             </div>
           </WorkspaceRail>
-          <div className="pmv-stage" aria-label="Preset Manager detail workspace">
+          <div className="pmv-stage fw-surface" aria-label="Preset Manager detail workspace">
             {selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
               <Cinema2Stage
                 presetId={selectedCinema2PresetId}
@@ -458,7 +457,7 @@ export function PresetManagerView() {
             label="Preset Inspector"
             collapsed={rightCollapsed}
             onToggleCollapsed={() => setRightCollapsed(value => !value)}
-            className="rw-frame--right pmv-inspector"
+            className="rw-frame--right pmv-inspector fw-surface"
           >
             <RailWindowHeader
               side="right"

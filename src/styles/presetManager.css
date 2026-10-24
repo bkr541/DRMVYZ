@@ -184,3 +184,77 @@
   .pmv-category { width: 118px; flex-basis: 118px; }
   .pmv-selection-summary { grid-template-columns: 1fr; }
 }
+
+/* Phase 05: Preset Manager alone adopts the floating outer surfaces. Its
+   existing library, Cinema preview, Inspector and independent scrollers own
+   their contents, state and lifecycles without extra wrapper components. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-root {
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-workspace {
+  gap: 0;
+  overflow: visible;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+  gap: var(--fw-region-gap);
+  overflow: visible;
+}
+
+/* Round the existing rail's own clipping surface, not the entire rail: the
+   collapse grips remain clickable and internal library scroll is unchanged. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .vz-inspector > .vz-inspector-inner {
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+}
+
+/* The previous full-bleed edge thread crosses the new inter-panel gutters. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .rw-frame--left::after,
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content > .rw-frame--right::after {
+  content: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage {
+  background: #070c14;
+}
+
+/* Clip only the existing Cinema stage to its surface radius; never clip
+   portals, Inspector popovers, or either rail's collapse handles. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage > .rv-cinema2-stage {
+  border-radius: calc(var(--fw-surface-radius) - 1px);
+}
+
+@media (max-width: 1180px) {
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+    --vz-left-width: clamp(220px, 26vw, 320px);
+    --vz-right-width: clamp(240px, 27vw, 340px);
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
+    --vz-left-width: var(--vz-collapsed-inspector-width);
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
+    --vz-right-width: var(--vz-collapsed-inspector-width);
+  }
+}
+
+/* Preserve the existing two-rail mode, including the hidden-but-mounted
+   preview, while allowing either original rail grip to reclaim space. */
+@media (max-width: 900px) {
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
+    grid-template-columns: var(--vz-collapsed-inspector-width) minmax(0, 1fr);
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
+    grid-template-columns: minmax(0, 1fr) var(--vz-collapsed-inspector-width);
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'][data-right-collapsed='true'] {
+    grid-template-columns: var(--vz-collapsed-inspector-width) var(--vz-collapsed-inspector-width);
+  }
+}

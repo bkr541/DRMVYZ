@@ -10,6 +10,7 @@ import { usePresetOrganizationStore } from '../../../features/presetOrganization
 import { useReactStore } from '../../../stores/reactStore'
 import { cinema2NativePresetRegistry } from '../cinema2'
 import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
+import presetCss from '../../../styles/presetManager.css?raw'
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
@@ -33,6 +34,50 @@ afterEach(() => {
 })
 
 describe('Preset Manager view', () => {
+  it('uses the original three surfaces without adding a local duplicate header', () => {
+    renderView()
+    expect(container?.querySelector('.pmv-header')).toBeNull()
+    expect(container?.querySelectorAll('.pmv-content > .fw-surface')).toHaveLength(3)
+    expect(container?.querySelector('.pmv-content > .vz-inspector--left.fw-surface')).not.toBeNull()
+    expect(container?.querySelector('.pmv-content > .pmv-stage.fw-surface')).not.toBeNull()
+    expect(container?.querySelector('.pmv-content > .vz-inspector--right.fw-surface')).not.toBeNull()
+  })
+
+  it('keeps preview identity, selection and Inspector tabs when both existing rails collapse', () => {
+    renderView()
+    const preset = PRESET_MANAGER_PRESETS.find(candidate => candidate.artwork === 'soundDrawing')!
+    act(() => container?.querySelector<HTMLButtonElement>(`.pmv-card[data-preset-id="${preset.sourceId}"] .pmv-card-main`)?.click())
+    const preview = container?.querySelector('.pmv-stage')
+    const inspector = container?.querySelector('.pmv-inspector-body')
+    expect(preview).not.toBeNull()
+    expect(inspector?.getAttribute('data-selected-preset')).toBe(preset.sourceId)
+
+    act(() => container?.querySelector<HTMLButtonElement>('[aria-label="Collapse left inspector"]')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('[aria-label="Collapse right inspector"]')?.click())
+    expect(container?.querySelector('.pmv-content')?.getAttribute('data-left-collapsed')).toBe('true')
+    expect(container?.querySelector('.pmv-content')?.getAttribute('data-right-collapsed')).toBe('true')
+    expect(container?.querySelector('.pmv-stage')).toBe(preview)
+    expect(container?.querySelector('.pmv-inspector-body')).toBe(inspector)
+    expect(container?.querySelector('.pmv-card.is-active')?.getAttribute('data-preset-id')).toBe(preset.sourceId)
+
+    act(() => container?.querySelector<HTMLButtonElement>('[aria-label="Expand left inspector"]')?.click())
+    act(() => container?.querySelector<HTMLButtonElement>('[aria-label="Expand right inspector"]')?.click())
+    const tabs = [...(container?.querySelectorAll<HTMLButtonElement>('[aria-label="Preset Manager inspector panels"] [role="tab"]') ?? [])]
+    expect(tabs.map(tab => tab.textContent)).toEqual(['INFO', 'DESIGN', 'REACT', 'OUTPUT'])
+    act(() => tabs.find(tab => tab.textContent === 'DESIGN')?.click())
+    expect(container?.querySelector('.pmv-stage')).toBe(preview)
+    expect(container?.querySelector('.pmv-inspector-body')).toBe(inspector)
+  })
+
+  it('scopes floating layout rules to the Preset Manager route without clipping the rail grips', () => {
+    const scoped = presetCss.slice(presetCss.indexOf('/* Phase 05: Preset Manager'))
+    expect(scoped).toContain("[data-workspace-layout='floating'][data-app-workspace='presetManager']")
+    expect(scoped).toContain('max-width: 900px')
+    expect(scoped).toContain("data-left-collapsed='true'")
+    expect(scoped).toContain("data-right-collapsed='true'")
+    expect(scoped).not.toMatch(/!important|overflow:\s*hidden/)
+  })
+
   it('excludes retired Cinema presets while retaining public Cinema 2.0 presets', () => {
     const legacyCinemaPresetIds = new Set(DEFAULT_REACT_PRESETS
       .filter(preset => preset.engine === 'cinema' || preset.engine === 'cinematicPortal')
