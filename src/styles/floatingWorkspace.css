@@ -50,3 +50,75 @@
   flex-shrink: 0;
   background: var(--fw-header-background);
 }
+
+/* Phase 02 application chrome: all declarations remain behind explicit opt-in. */
+[data-workspace-layout='floating'].fw-app-frame .fw-app-shell {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: var(--fw-header-height) minmax(0, 1fr);
+  gap: var(--fw-region-gap);
+  width: 100%;
+  min-width: 0;
+  padding: var(--fw-outer-inset);
+}
+
+[data-workspace-layout='floating'] .fw-app-header-surface {
+  width: 100%;
+}
+
+[data-workspace-layout='floating'] .fw-app-header-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--fw-region-gap);
+  height: 100%;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+[data-workspace-layout='floating'] .fw-app-header .az-logo {
+  width: auto;
+  padding: 6px;
+  border-bottom: 0;
+  border-radius: var(--fw-surface-radius);
+}
+
+[data-workspace-layout='floating'] .fw-app-header-fallback {
+  color: var(--color-text-muted, var(--az-text-muted));
+}
+
+[data-workspace-layout='floating'] .fw-app-header-fallback[hidden] {
+  display: none;
+}
+
+[data-workspace-layout='floating'] .fw-app-header-controls {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+[data-workspace-layout='floating'] .fw-app-body {
+  display: flex;
+  gap: var(--fw-region-gap);
+  min-width: 0;
+  min-height: 0;
+}
+
+[data-workspace-layout='floating'] .fw-app-navigation {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+[data-workspace-layout='floating'] .fw-app-navigation > .az-sidebar {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'] .fw-app-content {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}

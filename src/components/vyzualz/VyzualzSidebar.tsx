@@ -3,20 +3,50 @@ import { useEffect, useRef, useState } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import type { AppView } from './appView'
 
-interface Props {
+type Props = {
   compact?: boolean
   appView?: AppView
   onAppViewChange?: (v: AppView) => void
+} & (
+  | { variant?: 'legacy'; collapsed?: never; onCollapsedChange?: never }
+  | { variant: 'floating'; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }
+)
+
+/** The same brand control moves into the global header in floating mode. */
+export function VyzualzBrandToggle({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className="az-logo"
+      onClick={onToggle}
+      title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      aria-expanded={!collapsed}
+    >
+      <div className="az-logo-icon">
+        <AppIcon kind="brand" size={32} />
+      </div>
+      <div className="az-logo-text">
+        <span className="az-logo-mark">DRMVYZ</span>
+      </div>
+    </button>
+  )
 }
 
-export function VyzualzSidebar({
-  compact = false,
-  appView,
-  onAppViewChange,
-}: Props) {
+export function VyzualzSidebar(props: Props) {
+  const { compact = false, appView, onAppViewChange } = props
   const engine = useSharedAudio()
-  const [collapsed, setCollapsed] = useState(compact)
-  const isCollapsed = collapsed
+  const [legacyCollapsed, setLegacyCollapsed] = useState(compact)
+  const isCollapsed = props.variant === 'floating' ? props.collapsed : legacyCollapsed
+  const toggleCollapsed = () => {
+    if (props.variant === 'floating') props.onCollapsedChange(!props.collapsed)
+    else setLegacyCollapsed(value => !value)
+  }
   const showManagerUnavailable = engine.source === 'microphone'
   const asideRef = useRef<HTMLElement>(null)
 
@@ -37,21 +67,10 @@ export function VyzualzSidebar({
   }, [])
 
   return (
-    <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}`}>
-      <button
-        type="button"
-        className="az-logo"
-        onClick={() => setCollapsed(value => !value)}
-        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-expanded={!isCollapsed}
-      >
-        <div className="az-logo-icon">
-          <AppIcon kind="brand" size={32} />
-        </div>
-        <div className="az-logo-text">
-          <span className="az-logo-mark">DRMVYZ</span>
-        </div>
-      </button>
+    <aside ref={asideRef} className={`az-sidebar${isCollapsed ? ' az-sidebar--collapsed' : ''}${props.variant === 'floating' ? ' az-sidebar--floating' : ''}`}>
+      {props.variant !== 'floating' && (
+        <VyzualzBrandToggle collapsed={isCollapsed} onToggle={toggleCollapsed} />
+      )}
 
       <nav className="az-nav">
         {/* React performance mode icon — default/top view */}

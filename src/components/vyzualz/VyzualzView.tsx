@@ -6,9 +6,11 @@ import { UnsavedLyricChangesDialog } from '../../features/lyrics/components/Unsa
 import { UnsavedMediaChangesDialog } from './media/UnsavedMediaChangesDialog'
 import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/mediaEditStore'
 import { VyzualzSidebar } from './VyzualzSidebar'
+import { ApplicationWorkspaceFrame } from './layout/ApplicationWorkspaceFrame'
 import { WorkspaceLoader } from './shared/WorkspaceLoader'
 import {
   DEFAULT_PERFORMANCE_VIEW,
+  FLOATING_APP_VIEWS,
   isPerformanceAppView,
   resolveAppViewNavigation,
 } from './appView'
@@ -36,11 +38,28 @@ function ManagedWorkspaceShell({
   appView,
   onAppViewChange,
   children,
+  sidebarCollapsed,
+  onSidebarCollapsedChange,
 }: {
   appView: AppView
   onAppViewChange: (view: AppView) => void
   children: React.ReactNode
+  sidebarCollapsed: boolean
+  onSidebarCollapsedChange: (collapsed: boolean) => void
 }) {
+  if (FLOATING_APP_VIEWS[appView]) {
+    return (
+      <ApplicationWorkspaceFrame
+        appView={appView}
+        onAppViewChange={onAppViewChange}
+        sidebarCollapsed={sidebarCollapsed}
+        onSidebarCollapsedChange={onSidebarCollapsedChange}
+      >
+        {children}
+      </ApplicationWorkspaceFrame>
+    )
+  }
+
   return (
     <div className="az-root">
       <div className="az-shell">
@@ -62,6 +81,7 @@ interface Props {
  */
 export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props) {
   const [appView, setAppView] = useState<AppView>(initialAppView)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [originatingPerformanceView, setOriginatingPerformanceView] =
     useState<PerformanceAppView>(() => isPerformanceAppView(initialAppView)
       ? initialAppView
@@ -102,7 +122,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'react') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -122,7 +142,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'showManager') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
         <main className="vz-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <LyricRuntimePreviewIndicator />
           <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -139,7 +159,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   if (appView === 'presetManager') {
     return (
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
         <Suspense fallback={<WorkspaceLoader label="Preset Manager" />}>
           <PresetManagerView />
         </Suspense>
@@ -150,7 +170,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   if (appView === 'media') {
     return (
       <>
-        <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+        <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
           <Suspense fallback={<WorkspaceLoader label="Media Manager" />}>
             <NotificationPageProvider value="media-manager">
               <MediaManagerView
@@ -170,7 +190,7 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
 
   return (
     <>
-      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange}>
+      <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
         <Suspense fallback={<WorkspaceLoader label="Lyric Manager" />}>
           <NotificationPageProvider value="lyric-manager">
             <LyricManagerView

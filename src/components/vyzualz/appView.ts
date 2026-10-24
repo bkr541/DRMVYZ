@@ -5,6 +5,15 @@ export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
 
 export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 
+/** Explicit, per-route opt-in. Phase 02 intentionally leaves every view legacy. */
+export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
+  react: false,
+  presetManager: false,
+  showManager: false,
+  lyrics: false,
+  media: false,
+}
+
 export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {
   react: 'React',
   presetManager: 'Preset Manager',

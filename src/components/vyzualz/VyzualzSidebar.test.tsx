@@ -24,6 +24,24 @@ afterEach(() => {
 })
 
 describe('VyzualzSidebar workspace navigation', () => {
+  it('keeps the legacy brand toggle and its collapse semantics', () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+
+    act(() => {
+      root?.render(<VyzualzSidebar compact appView="react" />)
+    })
+
+    const logo = container.querySelector<HTMLButtonElement>('.az-sidebar .az-logo')!
+    expect(container.querySelectorAll('.az-logo')).toHaveLength(1)
+    expect(logo.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('.az-sidebar--collapsed')).not.toBeNull()
+    act(() => logo.click())
+    expect(logo.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('.az-sidebar--collapsed')).toBeNull()
+  })
+
   it('disables Show Manager while Live Input is selected', () => {
     fixture.source = 'microphone'
     const onAppViewChange = vi.fn()
