@@ -62,9 +62,11 @@ export function evaluateNightshiftCell(cell: NightshiftCell, pattern: Nightshift
   const { row: r, column: c } = cell
   const width = .35 + coverage * 1.8
   let family = cell.paletteIndex, gain = [0.1, 1 / 2.2, 1][cell.level] ?? 1
-  const slow = phase / 8
   if (pattern === 'nightshift') {
-    const wave = .88 + .12 * Math.cos(slow + r * 1.3 + c * .7)
+    // A four-beat travelling wave leaves genuinely dim intervals even at the
+    // brighter floor output. The old 88–100% drift clipped to nearly constant
+    // display colors, hiding both sustained motion and additive audio accents.
+    const wave = .04 + .96 * (.5 + .5 * Math.cos(phase * Math.PI / 2 + r * 1.3 + c * .7))
     gain *= wave
   } else if (pattern === 'crossfade-checker') {
     const parity = (r + c) % 2

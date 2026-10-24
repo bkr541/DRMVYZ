@@ -455,6 +455,15 @@ export function useAudioEngine(): AudioEngine {
       el.removeEventListener('canplay', onCanPlay)
       el.removeEventListener('playing', onPlaying)
       el.removeEventListener('error', onError)
+      // MediaElementAudioSourceNode stays bound to its original element. Effect
+      // restarts retain refs but create a new Audio(), so reusing this node lets
+      // the new element play outside the analyser graph while analysis sees silence.
+      const retiredSource = fileSourceRef.current
+      try { retiredSource?.disconnect() } catch { /** already detached */ }
+      if (activeSourceNodeRef.current === retiredSource) activeSourceNodeRef.current = null
+      fileSourceRef.current = null
+      loadedTrackKeyRef.current = null
+      if (audioRef.current === el) audioRef.current = null
       el.pause(); el.src = ''
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

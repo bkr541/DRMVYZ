@@ -11,11 +11,11 @@ const server = await createServer({ root, server: { host: '127.0.0.1', port: 0 }
 const checks = [], errors = [], metrics = {}
 const resumeAudio = process.argv.includes('--from=audio')
 if (resumeAudio) {
-  const checkpoint = JSON.parse(await readFile(resolve(out, 'failure.json'), 'utf8'))
-  if (checkpoint.errors.length || !checkpoint.checks.includes('Pause holds floor and ceiling choreography')) throw new Error('No valid sustained-motion checkpoint')
+  const checkpoint = JSON.parse(await readFile(resolve(out, 'report.json'), 'utf8'))
+  if (checkpoint.errors.length || !checkpoint.checks.includes('floor default choreography remains clearly visible after 60 seconds with held beat-grid data')) throw new Error('No valid default-program sustained-motion checkpoint')
   checks.push(...checkpoint.checks); Object.assign(metrics, checkpoint.metrics)
 }
-const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message) }
+const assert = (value, message) => { if (!value) throw new Error(message); if (!checks.includes(message)) checks.push(message) }
 const regions = { floor: [.1, .62, .9, .94], ceiling: [.15, 0, .85, .3] }
 function measure(a, region, sample) {
   let sum = 0, n = 0
@@ -48,7 +48,7 @@ try {
     const camera = (await advance(5)).camera.position
     metrics.cameraTravel = Math.hypot(...camera.map((v, i) => v - startCamera[i]))
     assert(metrics.cameraTravel > .001, 'Default camera visibly travels without enabling a control')
-    await set({ [P.camera]: 0, [P.pattern]: 'runway', [P.bloom]: 0, [P.haze]: 0, [P.reflections]: 0 })
+    await set({ [P.camera]: 0, [P.pattern]: 'nightshift', [P.bloom]: 0, [P.haze]: 0, [P.reflections]: 0 })
     // The fixture deliberately holds the beat grid: this previously slowed/stalled motion.
     await music({ energy: .7, bass: .6, high: .7 })
     await advance(60)
@@ -57,7 +57,7 @@ try {
     const later = await shot('late-60.5s')
     for (const [name, region] of Object.entries(regions)) {
       metrics[`${name}LateMotion`] = diff(late, later, region)
-      assert(metrics[`${name}LateMotion`] > .3, `${name} choreography still moves after 60 seconds with held beat-grid data`)
+      assert(metrics[`${name}LateMotion`] > (name === 'floor' ? 5 : .3), `${name} default choreography remains clearly visible after 60 seconds with held beat-grid data`)
     }
     await advance(.5, true)
     const paused = await shot('paused')
@@ -74,6 +74,14 @@ try {
   const accented = await shot('audio-accent')
   metrics.ceilingAudioAccent = diff(neutral, accented, regions.ceiling)
   assert(metrics.ceilingAudioAccent > .1, 'Fresh audio accent changes the ceiling LEDs')
+  await set({ [P.motion]: 0, [P.pattern]: 'nightshift' })
+  await music({ energy: .7 })
+  const floorNeutral = await shot('default-floor-audio-neutral')
+  const kickTime = (await page.evaluate(() => globalThis.__nightshiftProduction.status())).transport.timeSec
+  await music({ timeSec: kickTime + .01, energy: .7, event: 'kick', eventId: 1000 })
+  await advance(.18)
+  metrics.floorAudioAccent = diff(floorNeutral, await shot('default-floor-audio-kick'), regions.floor)
+  assert(metrics.floorAudioAccent > .3, 'Fresh shared kick visibly accents the default floor with procedural motion held')
   await set({ [P.motion]: 0, [P.musicResponse]: 0, [P.pattern]: 'full-house', [P.floor]: .8 / 3 })
   const oldGain = await shot('floor-previous-gain')
   await set({ [P.floor]: .8 })

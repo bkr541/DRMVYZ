@@ -86,6 +86,17 @@ describe('NIGHTSHIFT authorship and motion', () => {
     for (const p of CINEMA2_NIGHTSHIFT_PATTERNS) expect(cells.every(c => evaluateNightshiftCell(c, p.value, 2.5, 0).gain === 0)).toBe(true)
   })
 
+  it('keeps the default program visibly travelling after opening accents have expired', () => {
+    const cells = Array.from({ length: 100 }, (_, i) => ({ row: Math.floor(i / 10), column: i % 10, paletteIndex: i % 4, level: 2 }))
+    for (const phase of [0, 120, 240, 480]) {
+      const before = cells.map(c => evaluateNightshiftCell(c, 'nightshift', phase, 1).gain)
+      const after = cells.map(c => evaluateNightshiftCell(c, 'nightshift', phase + 1, 1).gain)
+      expect(before.some(gain => gain < .08)).toBe(true)
+      expect(before.some(gain => gain > .9)).toBe(true)
+      expect(after.reduce((sum, gain, i) => sum + Math.abs(gain - before[i]), 0) / cells.length).toBeGreaterThan(.25)
+    }
+  })
+
   it('suppresses stale/duplicate events and honors same-value manual selection without disabling Pattern Change', () => {
     const controller = new NightshiftPatternController()
     const update = (event: string | null, edit = 0, reset = false) => controller.update('nightshift', true, 'beat', event, edit, reset)

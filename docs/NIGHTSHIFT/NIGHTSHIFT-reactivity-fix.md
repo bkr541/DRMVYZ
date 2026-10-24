@@ -93,3 +93,34 @@ browser checks passed, including actual slider operation, rendered small/large
 lettering, absence of a backdrop, audio/palette response and saved sizing.
 No browser, shader or render failures were recorded. Live desktop playback has
 not been independently tested. Changes remain uncommitted.
+
+## Default floor choreography visibility
+
+The default Nightshift program now runs a four-beat travelling intensity wave
+with dim intervals that remain visible at the brighter floor output. Previously
+its fixed palette varied only between 88% and 100% brightness over a slow cycle;
+the brightest tiles clipped to essentially constant display colors, obscuring
+both the motion and additive audio accents after the opening activity.
+
+Live-app diagnostics confirmed the animation clock continued advancing while
+a stale development session supplied silent analyser buffers. Restarting React
+effects recreated the audio element but retained a MediaElementAudioSourceNode
+bound to the retired element. The replacement element could play outside the
+analyser graph. AudioEngine cleanup now disconnects and retires that source and
+clears its media-load identity, so the replacement element is connected to the
+existing analysis graph on playback. A StrictMode effect-restart regression
+failed before the fix and passes afterwards. Temporary logging was removed.
+
+The sustained browser regression now uses the actual default `nightshift`
+program rather than `runway`, requires a substantial floor-pixel change after
+60 seconds, and separately checks a fresh shared kick with procedural motion
+held. This closes the earlier validation gap. Palette, 3x floor output, intensity
+zero, pause and manual pattern selection remain authoritative.
+
+Validation: 42 focused Nightshift and AudioEngine tests pass, along with
+TypeScript, scoped lint and diff whitespace checks. The rendered default floor
+still changes substantially after a simulated 60 seconds (mean pixel difference
+11.61/255); a fresh shared kick changes the held default floor by 2.39/255.
+Browser/shader/render checks pass. The running Dev app was also checked with
+the saved Trace of You track after a clean reload, with developer tools closed.
+These corrections remain uncommitted.

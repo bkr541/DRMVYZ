@@ -87,7 +87,7 @@ class FakeAudioContext {
   createGain(): GainNode { return new FakeAudioNode() as unknown as GainNode }
   createAnalyser(): AnalyserNode { return new FakeAudioNode() as unknown as AnalyserNode }
   createChannelSplitter(): ChannelSplitterNode { return new FakeAudioNode() as unknown as ChannelSplitterNode }
-  createMediaElementSource(): MediaElementAudioSourceNode {
+  createMediaElementSource(_element: HTMLMediaElement): MediaElementAudioSourceNode {
     return new FakeAudioNode() as unknown as MediaElementAudioSourceNode
   }
   resume(): Promise<void> { this.state = 'running'; return Promise.resolve() }
@@ -212,6 +212,30 @@ describe('useAudioEngine track loading', () => {
     expect(fakeAudioInstances[0]?.playMock).toHaveBeenCalledOnce()
     expect(engine?.currentAudioTrackId).toBe('track-a')
     expect(engine?.isPlaying).toBe(true)
+  })
+
+  it('binds the analyser graph to the current media element after effects restart', async () => {
+    const source = vi.spyOn(FakeAudioContext.prototype, 'createMediaElementSource')
+    function RestartHarness() {
+      const current = useAudioEngine()
+      engine = current
+      const started = React.useRef(false)
+      React.useEffect(() => {
+        if (started.current) return
+        started.current = true
+        current.replaceTrackUrls([{ name: 'restart.wav', url: 'https://signed.test/restart.wav', dbId: 'restart-track' }])
+        current.play()
+      }, [current])
+      return null
+    }
+    // StrictMode restarts effects while retaining refs, like a development
+    // refresh: the first play creates a source bound to the retired element.
+    await act(async () => { root?.render(React.createElement(React.StrictMode, null, React.createElement(RestartHarness))) })
+    await act(async () => { engine?.play(); await Promise.resolve() })
+    const activeElement = fakeAudioInstances.at(-2)!
+    expect(activeElement.src).toBe('https://signed.test/restart.wav')
+    expect(activeElement.playMock).toHaveBeenCalled()
+    expect(source.mock.calls.at(-1)?.[0]).toBe(activeElement)
   })
 
   it('reports why a track could not be played, and clears it when the next track starts loading', async () => {
