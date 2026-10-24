@@ -1,0 +1,52 @@
+/* DRMVYZ floating-workspace contract (opt-in, not activated in Phase 01).
+ * Shared chrome owns inset, gap, header/nav defaults and surface treatment.
+ * Workspace composers own column/grid geometry, collapse/drawers, responsive
+ * arrangements and slots; features own content, stage, dock, and scroll policy.
+ * WorkspaceShell remains an optional three-pane helper, not the composer.
+ * Never apply these rules to unmarked legacy layouts or assume clipping.
+ */
+[data-workspace-layout='floating'] {
+  --fw-header-height: 60px;
+  --fw-compact-nav-width: 72px;
+  --fw-outer-inset: 9px;
+  --fw-region-gap: 11px;
+  --fw-surface-radius: 11px;
+  --fw-background: var(--color-background, var(--az-bg));
+  --fw-surface-background: var(--color-panel-alt, var(--az-panel2));
+  --fw-header-background: var(--color-panel, var(--az-sidebar));
+  --fw-surface-border: var(--color-border-subtle, var(--az-border));
+  --fw-surface-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* A frame declares the opt-in boundary. Geometry is workspace-specific. */
+[data-workspace-layout='floating'].fw-workspace {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fw-background);
+}
+
+/* Regions are named layout slots, not panels, scroll containers or portals. */
+[data-workspace-layout='floating'] .fw-region {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Surfaces draw an unclipped boundary; content controls overflow itself. */
+[data-workspace-layout='floating'] .fw-surface {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+/* A header keeps its canonical 60px chrome when the composition uses a surface. */
+[data-workspace-layout='floating'] .fw-region[data-workspace-slot='header'] > .fw-surface {
+  height: var(--fw-header-height);
+  flex-shrink: 0;
+  background: var(--fw-header-background);
+}

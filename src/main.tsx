@@ -12,6 +12,7 @@ import './styles/mediaManager.css'
 import './styles/presetManager.css'
 import './styles/workspaceShell.css'
 import './styles/appearance.css'
+import './styles/floatingWorkspace.css'
 import { bootstrapAppearanceTheme } from './features/appearance/appearanceStore'
 
 bootstrapAppearanceTheme()
