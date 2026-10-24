@@ -18,8 +18,8 @@
   --text-faint:rgba(196,207,211,0.22);
   --radius:    6px;
   --radius-lg: 10px;
-  --font-mono: 'Zen Dots','JetBrains Mono','Fira Code','Courier New',monospace;
-  --font-ui:   'Zen Dots','Inter','Helvetica Neue',system-ui,sans-serif;
+  --font-mono: 'Quicksand','JetBrains Mono','Fira Code','Courier New',monospace;
+  --font-ui:   'Quicksand','Inter','Helvetica Neue',system-ui,sans-serif;
   --font-scale:1;
   font-size:   calc(13px * var(--font-scale));
 }

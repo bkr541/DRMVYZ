@@ -65,7 +65,7 @@ function hash01(n: number): number {
 // block-dissolve.
 
 // Exo 2 (the app's data font, loaded via index.html at 300–600) — lighter and
-// less blocky than the Zen Dots display face, so a low weight actually reads
+// lighter than the Quicksand display face, so a low weight actually reads
 // as thin over the animation.
 const DISPLAY_FONT = '"Exo 2", Inter, system-ui, sans-serif'
 const LABEL_PX = 28

@@ -18,7 +18,7 @@
   --drm-dropdown-muted: var(--color-text-muted, rgba(196, 207, 211, 0.62));
   --drm-dropdown-faint: var(--color-text-faint, rgba(196, 207, 211, 0.34));
   --drm-dropdown-font: var(--az-font-data, 'Exo 2', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
-  --drm-dropdown-display-font: var(--az-font, 'Zen Dots', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
+  --drm-dropdown-display-font: var(--az-font, 'Quicksand', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
   --drm-dropdown-radius: 14px;
   --drm-dropdown-trigger-height: 58px;
   --drm-dropdown-trigger-padding: 18px;
@@ -229,7 +229,7 @@
   --drm-dropdown-muted: var(--color-text-muted, rgba(196, 207, 211, 0.62));
   --drm-dropdown-faint: var(--color-text-faint, rgba(196, 207, 211, 0.34));
   --drm-dropdown-font: var(--az-font-data, 'Exo 2', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
-  --drm-dropdown-display-font: var(--az-font, 'Zen Dots', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
+  --drm-dropdown-display-font: var(--az-font, 'Quicksand', 'Inter', 'Helvetica Neue', system-ui, sans-serif);
 
   position: fixed;
   z-index: 12000;
