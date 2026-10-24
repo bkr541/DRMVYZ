@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   APP_VIEWS,
   DEFAULT_PERFORMANCE_VIEW,
+  FLOATING_APP_VIEWS,
   isPerformanceAppView,
   resolveAppViewNavigation,
 } from './appView'
@@ -12,6 +13,7 @@ describe('shared app-view model', () => {
     expectTypeOf<AppView>().toEqualTypeOf<'react' | 'presetManager' | 'showManager' | 'lyrics' | 'media'>()
     expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(APP_VIEWS.join(',')).not.toContain('visualizer')
+    expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
   it('keeps the default and performance-view narrowing strongly typed', () => {

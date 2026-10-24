@@ -1758,3 +1758,173 @@ button.sm-library-section-toggle:focus-visible {
 .sm-new-show-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .sm-new-show-optional { color: rgba(196, 212, 220, 0.32); font-size: 7px; text-transform: none; letter-spacing: 0; }
 .sm-new-show-field-note { margin: -4px 0 0; color: rgba(196, 212, 220, 0.46); font-size: 8px; }
+
+/* Phase 08: Show Manager opts into the shared floating chrome. Keep its
+   specialized stage/Track Map and Deck Builder composition mounted in place. */
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .fw-app-content > .vz-main,
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .fw-app-content > .vz-main > div {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ApplicationHeaderControls retains Show Manager's original actions and their
+   owning React providers while placing the same header in the shared slot. */
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .fw-app-header-controls > .sm-topbar {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  padding: 0 8px 0 0;
+  border: 0;
+  background: transparent;
+}
+
+/* The legacy .rv-shell reserves room for a fixed dock. The Show Manager dock
+   instead owns its normal-flow second row, including when collapsed. */
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) var(--rv-react-dock-height);
+  gap: var(--fw-region-gap);
+  min-width: 0;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace {
+  grid-row: 1;
+  grid-column: 1;
+  grid-template-columns: 330px minmax(0, 1fr) 400px;
+  gap: var(--fw-region-gap);
+  min-width: 0;
+  min-height: 0;
+  overflow: visible;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .sm-library,
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .sm-inspector {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+/* Flush dividers belong to the old adjoining panes, not the new gaps. */
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .rw-frame--left::after,
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .rw-frame--right::after {
+  content: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-center {
+  gap: var(--fw-region-gap);
+  background: transparent;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-stage-frame {
+  margin: 0;
+  border-color: var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-timeline {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .az-dock.vz-transport-dock {
+  --vz-left-width: 330px;
+  --vz-right-width: 400px;
+  --vz-dock-left-col: min(max(var(--vz-left-width), 260px), 34%);
+  --vz-dock-right-col: min(max(var(--vz-right-width), 260px), 34%);
+  position: relative;
+  z-index: 10;
+  grid-row: 2;
+  grid-column: 1;
+  grid-template-columns: minmax(0, var(--vz-dock-left-col)) minmax(0, 1fr) minmax(0, var(--vz-dock-right-col));
+  gap: var(--fw-region-gap);
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  min-width: 0;
+  height: var(--rv-react-dock-height);
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock::before {
+  content: '';
+  grid-column: 1 / span 2;
+  grid-row: 1;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+  pointer-events: none;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region {
+  grid-row: 1;
+  z-index: 1;
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region:nth-of-type(1) { grid-column: 1; }
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region:nth-of-type(2) { grid-column: 2; }
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region:nth-of-type(3) { grid-column: 3; }
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region:last-child > .vz-dock-card {
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+
+[data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-root > .vz-transport-dock > .vz-dock-region + .vz-dock-region::before {
+  content: none;
+}
+
+/* Respect the existing three-pane/deck composition, reducing rail widths
+   only where preserving the original 330/400 split would crush the stage. */
+@media (max-width: 1180px) {
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace {
+    grid-template-columns: minmax(190px, 300px) minmax(0, 1fr) minmax(240px, 350px);
+  }
+}
+
+@media (max-width: 1040px) {
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace {
+    grid-template-columns: minmax(175px, 0.85fr) minmax(260px, 1.6fr) minmax(185px, 0.9fr);
+  }
+}
+
+@media (max-width: 740px) {
+  /* Inspector moves below the stage, without remounting or suppressing its
+     controls. Only the workspace scrolls if its minimum stage cannot fit. */
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace {
+    grid-template-columns: minmax(160px, 34%) minmax(260px, 1fr);
+    grid-template-rows: minmax(430px, 1fr) minmax(240px, auto);
+    overflow: auto;
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .sm-library {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-center {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  [data-workspace-layout='floating'][data-app-workspace='showManager'] .sm-workspace > .sm-inspector {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

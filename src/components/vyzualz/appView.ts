@@ -9,7 +9,7 @@ export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
   react: true,
   presetManager: true,
-  showManager: false,
+  showManager: true,
   lyrics: true,
   media: true,
 }

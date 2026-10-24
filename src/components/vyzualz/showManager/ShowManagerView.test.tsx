@@ -452,6 +452,7 @@ import {
   removeLaserDmxShowManagerFixtureFromSection,
   triggerPatchForLaserDmxShowManagerOption,
 } from './LaserDmxShowManagerDomain'
+import { ApplicationWorkspaceFrame } from '../layout/ApplicationWorkspaceFrame'
 import { VyzualzView } from '../VyzualzView'
 import { ShowManagerView } from './ShowManagerView'
 
@@ -3283,6 +3284,52 @@ describe('ShowManagerView production shell', () => {
     const restoredCreateButton = [...container.querySelectorAll<HTMLButtonElement>('button')]
       .find(button => button.textContent?.trim() === 'Create Deck')
     expect(document.activeElement).toBe(restoredCreateButton)
+  })
+
+  it('preserves the standalone header fallback and one dock beneath the mounted workspace', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(<ShowManagerView />)
+      await Promise.resolve()
+    })
+
+    const shell = container.querySelector<HTMLElement>('.sm-root')
+    expect(shell?.querySelectorAll(':scope > .sm-topbar')).toHaveLength(1)
+    expect(shell?.querySelectorAll(':scope > .sm-workspace')).toHaveLength(1)
+    expect(shell?.querySelectorAll(':scope > [data-testid="show-manager-audio-dock"]')).toHaveLength(1)
+    expect(shell?.querySelectorAll('.sm-center > .sm-stage-frame')).toHaveLength(1)
+    expect(shell?.querySelectorAll('.sm-center > .sm-timeline')).toHaveLength(1)
+    expect(shell?.getAttribute('data-workspace-mode')).toBe('default')
+  })
+
+  it('portals the live Show Manager header into floating chrome without relocating the stage or dock', async () => {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    await act(async () => {
+      root?.render(
+        <ApplicationWorkspaceFrame
+          appView="showManager"
+          sidebarCollapsed
+          onSidebarCollapsedChange={() => undefined}
+          onAppViewChange={() => undefined}
+        >
+          <ShowManagerView />
+        </ApplicationWorkspaceFrame>,
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelectorAll('[data-app-header-slot="controls"] > .sm-topbar')).toHaveLength(1)
+    expect(container.querySelectorAll('.sm-root > .sm-topbar')).toHaveLength(0)
+    expect(container.querySelector('[aria-label="Show Manager stage tools"]')?.closest('.fw-app-header')).not.toBeNull()
+    expect(container.querySelectorAll('.sm-root > .sm-workspace')).toHaveLength(1)
+    expect(container.querySelectorAll('.sm-root > [data-testid="show-manager-audio-dock"]')).toHaveLength(1)
+    expect(container.querySelector('.sm-center > .sm-stage-frame')).not.toBeNull()
+    expect(container.querySelector('.sm-center > .sm-timeline')).not.toBeNull()
   })
 
 })

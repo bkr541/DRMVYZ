@@ -22,6 +22,7 @@ import { Collapsible, ColorRow, NumberInputRow, SelectRow, SliderRow, TextInputR
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
+import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { DualRailCollapsible } from '../react/DualRailCollapsible'
 import { PanelSubtabs } from '../react/PanelSubtabs'
@@ -2117,7 +2118,8 @@ export function ShowManagerView() {
   }
 
   return (
-    <section className="sm-root rv-shell" aria-label="Show Manager workspace">
+    <section className="sm-root rv-shell" aria-label="Show Manager workspace" data-workspace-mode={workspaceMode}>
+      <ApplicationHeaderControls fallbackWhenUnavailable>
       <header className="sm-topbar">
         <div className="sm-title-block" tabIndex={-1} ref={deckBuilderHeadingRef} />
         <HeaderControlGroup label="Show Manager controls">
@@ -2211,6 +2213,7 @@ export function ShowManagerView() {
         )}
         <VyzualzHeaderActions page="show-manager" />
       </header>
+      </ApplicationHeaderControls>
 
       <div className="sm-workspace">
         {workspaceMode === 'default' && !hasOpenShow ? (

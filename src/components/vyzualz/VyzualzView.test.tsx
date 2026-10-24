@@ -103,6 +103,8 @@ describe('Vyzualz production application-view routing', () => {
 
     await clickLabel('Show Manager')
     expect(container?.querySelector('[data-testid="show-manager"]')).not.toBeNull()
+    expect(container?.querySelector('[data-workspace-layout="floating"][data-app-workspace="showManager"]')).not.toBeNull()
+    expect(container?.querySelector('[data-app-workspace="showManager"] .fw-app-header')).not.toBeNull()
 
     await clickLabel('Media Manager')
     expect(container?.querySelector('[data-testid="media-manager"]')).not.toBeNull()
