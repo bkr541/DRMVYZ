@@ -2855,7 +2855,7 @@ function isCanvasPresetSliderControlKey(control: CanvasPresetControlKey): contro
   return control !== 'particleColorMode' && control !== 'particleQuality'
 }
 
-const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
+export const CANVAS_PRESET_CONTROL_META: Record<CanvasPresetSliderControlKey, {
   label: string
   min: number
   max: number

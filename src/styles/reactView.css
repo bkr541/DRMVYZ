@@ -5816,23 +5816,37 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 .rv-right-subtabs button.is-active {
-  /* The active tab is a soft accent pill: a tinted fill, a hairline accent border and brighter text. */
-  color: #8ef4ff;
-  border-color: rgba(74, 199, 219, 0.45);
-  background: rgba(74, 199, 219, 0.12);
-  box-shadow: 0 0 10px rgba(74, 199, 219, 0.14);
+  /* The active tab is plain cyan text (weight set by the shared tab role in typography.css) led by a small cyan dot:
+     no pill, border or glow, so nothing about the tab's box changes between states. */
+  color: var(--color-primary, #4ac7db);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
-/* The pill is its own separator: no divider on either side of it. */
-.rv-right-subtabs button.is-active::before,
+/* The dot is the active tab's ::before, a flex item before the label. It replaces the pipe divider on its own left
+   edge, and the divider after it is dropped, so a dot and a pipe never sit side by side. */
+.rv-right-subtabs button.is-active.is-active::before {
+  /* Doubled class: the --wrap and --scroll variants clear every ::before below, and the dot must survive in them. */
+  content: '';
+  position: static;
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  margin: 0;
+  border-radius: 50%;
+  transform: none;
+  background: var(--color-primary, #4ac7db);
+}
+
 .rv-right-subtabs button.is-active + button::before {
   content: none;
 }
 
-/* Hovering the active tab keeps its pill (the plain hover rule above would otherwise clear the fill). */
+/* Hovering the active tab keeps its cyan colour (the plain hover rule above would otherwise dim it). */
 .rv-right-subtabs button.is-active:hover:not(:disabled) {
-  color: #8ef4ff;
-  background: rgba(74, 199, 219, 0.12);
+  color: var(--color-primary, #4ac7db);
+  background: transparent;
 }
 
 .rv-right-subtabs button:disabled {

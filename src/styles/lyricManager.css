@@ -3443,6 +3443,13 @@
   --drc-nested-inset: var(--drc-parent-label-inset);
 }
 
+/* Windows whose body has no top padding: the first nested group is only the group's own 12px below the top. */
+.lmv-workspace-tab-panel .lmv-track-library-body,
+.lmv-track-timeline-window > .drc-group > .drc-body,
+.lmv-lyric-cues-window > .drc-group > .drc-body {
+  --drc-group-lead: 12px;
+}
+
 
 /* React's right panel is the 12px rail inset plus its 6px scroll inset. */
 .lmv-right-rail .lmv-inspector-pane {

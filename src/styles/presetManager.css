@@ -137,12 +137,11 @@
 }
 
 .pmv-info-panel .drc-body > .drc-group {
-  margin-top: 6px;
+  /* This panel keeps 6px more than the shared nested-group spacing, above the first group and every later one. */
+  margin-top: calc(6px + var(--drc-nested-group-spacing) - var(--drc-group-lead));
 }
-/* Same 2px trim the shared group applies (DualRailCollapsible.css), so this panel's groups also sit one consistent
-   distance apart: 6px extra above the first, and above every later one. */
 .pmv-info-panel .drc-body > .drc-group:not(:first-child) {
-  margin-top: calc(6px - var(--drc-group-gap-trim, 2px));
+  margin-top: calc(6px + var(--drc-nested-group-spacing) - var(--drc-group-follow));
 }
 
 .pmv-info-grid {

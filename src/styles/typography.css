@@ -10,6 +10,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 700 11px/1 var(--font-mono, 'Manrope', sans-serif);
+  --type-tab-active-nested: 800 11px/1 var(--font-mono, 'Manrope', sans-serif);
   --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
   --type-group-heading: var(--type-window-heading);
   --type-window-heading-tracking: 0.15em;
@@ -78,6 +79,10 @@
 :root body .rv-shader-library-tab,
 :root body .mastering-tab {
   font: var(--type-tab) !important;
+}
+
+:root body .rv-right-subtabs > button.is-active {
+  font: var(--type-tab-active-nested) !important;
 }
 
 :root body [class].drm-dropdown__option-label {

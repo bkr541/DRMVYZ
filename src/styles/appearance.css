@@ -342,13 +342,17 @@ body,
   background-color: var(--color-panel-alt) !important;
 }
 
-/* PanelSubtabs' active tab is a pill in the theme's primary colour (the hover rule above outranks a plain active rule, so it is repeated). */
+/* PanelSubtabs' active tab is the theme's primary colour with a dot before it, no pill (the hover rule above outranks a plain active rule, so it is repeated). */
 [data-theme] .rv-right-subtabs button.is-active,
 [data-theme] .rv-right-subtabs button.is-active:hover:not(:disabled) {
-  background-color: rgba(var(--color-primary-rgb), 0.14) !important;
-  border-color: rgba(var(--color-primary-rgb), 0.5) !important;
-  box-shadow: 0 0 10px rgba(var(--color-primary-rgb), 0.16);
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none;
   color: var(--color-primary) !important;
+}
+
+[data-theme] .rv-right-subtabs button.is-active.is-active::before {
+  background: var(--color-primary);
 }
 
 /* Settings modal layout */

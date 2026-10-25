@@ -56,9 +56,11 @@ export interface MusicIntelligenceDiagnosticsPanelProps {
   beatGridAnalysis?: TrackIntelligenceAnalysis | null
   /** Whether a BPM override has invalidated the active analyzed grid. */
   beatGridStale?: boolean
+  /** Where each frame comes from. Defaults to the shared live bus; Layout Lab passes a fixed frame so the panel can be reviewed without audio. */
+  frameSource?: { getFrame: () => MusicIntelligenceFrame }
 }
 
-export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, headerRow, headerRowLabel = 'Track', ungrouped = false, beatGridAnalysis = null, beatGridStale = false }: MusicIntelligenceDiagnosticsPanelProps = {}) {
+export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, headerRow, headerRowLabel = 'Track', ungrouped = false, beatGridAnalysis = null, beatGridStale = false, frameSource = AudioFeatureBus }: MusicIntelligenceDiagnosticsPanelProps = {}) {
   const animRef = useRef<number>(0)
 
   // Live Input: compact operator view. Values update through DOM refs so the
@@ -338,7 +340,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
     }
 
     function tick() {
-      const f: MusicIntelligenceFrame = AudioFeatureBus.getFrame()
+      const f: MusicIntelligenceFrame = frameSource.getFrame()
       const b  = f.bands
       const r  = f.rhythm
       const e  = f.energy
@@ -695,7 +697,7 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
     animRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animRef.current)
-  }, [beatGridAnalysis, beatGridStale, liveInputActive])
+  }, [beatGridAnalysis, beatGridStale, frameSource, liveInputActive])
 
   // ── Ref setters ─────────────────────────────────────────────────────────────
 

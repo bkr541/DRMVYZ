@@ -71,11 +71,26 @@
   --drc-nested-inset: calc(var(--drc-parent-label-inset) - 16px);
 }
 
-/* A group inside a body is 22px below whatever precedes it, matching the first one (10px body padding + 12px
-   group top padding). Later groups would otherwise get the body's 12px row gap on top of their own 12px, so the
-   2px surplus is trimmed. :where() keeps this at the lowest specificity so a panel's own group margin still wins. */
+/* Every group inside a body sits --drc-nested-group-spacing (12px) below whatever precedes it: the body's top edge for
+   the first, the previous sibling or row for the rest. A group already carries 12px of top padding, and the body adds
+   its own top padding (10px) above the first group (--drc-group-lead = 10 + 12) or its 12px row gap above a later
+   one (--drc-group-follow = 12 + 12); the margin below removes that surplus. Bodies with other top padding restate
+   --drc-group-lead. :where() keeps this at the lowest specificity so a panel's own group margin still wins. */
+:root {
+  --drc-nested-group-spacing: 12px;
+}
+
+.drc-body {
+  --drc-group-lead: 22px;
+  --drc-group-follow: 24px;
+}
+
+.drc-body :where(.drc-group) {
+  margin-top: calc(var(--drc-nested-group-spacing) - var(--drc-group-lead));
+}
+
 .drc-body :where(.drc-group:not(:first-child)) {
-  margin-top: calc(-1 * var(--drc-group-gap-trim, 2px));
+  margin-top: calc(var(--drc-nested-group-spacing) - var(--drc-group-follow));
 }
 
 .drc-group[data-drc-depth='1'] > .drc-header {

@@ -37,12 +37,12 @@ distinguishes placeholders). Native `<input>`, `<textarea>` and `<select>`
 elements get the role through a safety net in the same file even when they do
 not use a reusable component; only `.type-exempt` opts out (the shader code
 editor and the dock's BPM readout editor). Tabs and shared action
-buttons use Manrope 11px/700. Parent group headings share the window-title
+buttons use Manrope 11px/700; the active tab of a nested tab row (`.rv-right-subtabs`, such as ENGINE / SELECTION) is cyan at 800 with a small cyan dot before it instead of a pill. Parent group headings share the window-title
 role, Space Grotesk 12px/700 with 0.15em tracking; nested group headings use
 Space Grotesk 11px/800 at every nested depth, determined by the reusable
 `.drc-group` hierarchy. Every parent group header also leads with an icon
 (`DualRailCollapsible` chooses one from the label via `groupHeaderIcon.ts`
-unless a call site passes `icon`, or `icon={false}`); nested groups never do. A first-level nested heading is indented so its first letter lines up with the parent heading's first letter (`--drc-nested-inset`, keyed off `data-drc-depth`; bodies with no side padding restate it). Groups inside a body are all 22px below whatever precedes them (the first gets it from 10px body padding + 12px group padding; later ones trim the 2px surplus of row gap + group padding via `--drc-group-gap-trim`); a panel's own group margin, such as the Preset Manager info panel's, is added on top of that. Compact and dense controls keep
+unless a call site passes `icon`, or `icon={false}`); nested groups never do. A first-level nested heading is indented so its first letter lines up with the parent heading's first letter (`--drc-nested-inset`, keyed off `data-drc-depth`; bodies with no side padding restate it). Every group inside a body sits 12px below whatever precedes it (`--drc-nested-group-spacing`; the margin removes the body's 10px top padding or 12px row gap that would otherwise add to the group's own 12px top padding, and bodies with other top padding restate `--drc-group-lead`). A panel's own group margin, such as the Preset Manager info panel's extra 6px, is added on top of that. Compact and dense controls keep
 their geometry but use the same typography as their standard counterparts.
 Read-only fields follow the same rules as editable fields. These rules also
 cover portaled dropdown menus and take precedence over legacy font overrides.
