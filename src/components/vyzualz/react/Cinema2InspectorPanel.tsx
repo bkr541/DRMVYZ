@@ -20,6 +20,8 @@ import { ReactAudioPanel } from './ReactAudioPanel'
 export interface Cinema2InspectorPanelProps {
   runtime: Cinema2Runtime | null
   surface: Cinema2InspectorSurface
+  /** Isolated design previews must not mount shared audio-analysis controls. */
+  sharedAudioAnalysis?: boolean
 }
 
 // Design's ENGINE/SELECTION split and React's PERFORMANCE/ANALYSIS split
@@ -34,7 +36,7 @@ export interface Cinema2InspectorPanelProps {
 type Cinema2DesignSurface = 'engine' | 'selection'
 type Cinema2ReactSurface = 'performance' | 'analysis'
 
-export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPanelProps) {
+export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = true }: Cinema2InspectorPanelProps) {
   const [, setRevision] = useState(0)
   const actionSequence = useRef(0)
   const [designSurface, setDesignSurface] = useState<Cinema2DesignSurface>('engine')
@@ -196,7 +198,7 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
         ariaLabel="Cinema 2.0 reactivity surfaces"
         options={[
           { id: 'performance', label: 'PERFORMANCE' },
-          { id: 'analysis', label: 'ANALYSIS' },
+          { id: 'analysis', label: 'ANALYSIS', disabled: !sharedAudioAnalysis },
         ]}
       />
       <div className="rv-workspace-panel-body">
@@ -210,7 +212,7 @@ export function Cinema2InspectorPanel({ runtime, surface }: Cinema2InspectorPane
                 </Collapsible>
               </div>
             </>
-          ) : <ReactAudioPanel />}
+          ) : sharedAudioAnalysis ? <ReactAudioPanel /> : null}
         </div>
       </div>
     </div>

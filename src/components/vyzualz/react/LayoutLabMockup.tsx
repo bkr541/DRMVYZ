@@ -1,3 +1,5 @@
+import { LayoutLabDesignWorkbench } from './layoutLab/LayoutLabDesignWorkbench'
+import './layoutLab/templateAudioTheme.css'
 import { TemplateAudioLibraryMockups } from './layoutLab/TemplateAudioLibraryMockups'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
@@ -50,6 +52,11 @@ function MockCastIcon() { return <AppIcon kind="cast" /> }
 function MockStageFocusIcon() { return <AppIcon kind="cameraFocus" /> }
 
 export function LayoutLabMockup() {
+  return <LayoutLabDesignWorkbench reference={<LayoutLabReferenceMockup />} />
+}
+
+/** Existing component studies remain available as a separate reference workspace. */
+export function LayoutLabReferenceMockup() {
   const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinema2')
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
@@ -72,7 +79,7 @@ export function LayoutLabMockup() {
   }
 
   return (
-    <div className="rv-shell">
+    <div className={`rv-shell${engineId === 'template' ? ' ll-template-audio-theme' : ''}`}>
       <div
         className="rv-layout"
         data-left-collapsed={leftCollapsed ? 'true' : undefined}
@@ -85,6 +92,7 @@ export function LayoutLabMockup() {
           onToggleCollapsed={() => setLeftCollapsed(value => !value)}
         >
             <div className="rv-left-workspace-shell" data-description-density="compact">
+              {engineId === 'template' && <div className="ll-template-window-heading"><span>DESIGN SYSTEM</span><h2>Components</h2></div>}
               <section className="rv-context-workspace">
                 <header className="rv-context-workspace-header">
                   <MockEngineDropdown engineId={engineId} onSelect={handleSelectEngine} />
@@ -118,6 +126,7 @@ export function LayoutLabMockup() {
         </WorkspaceRail>
 
         <div className="rv-center-col">
+          {engineId === 'template' && <header className="ll-template-page-heading"><div><span>WORKSPACE / TEMPLATE</span><h1>Layout Lab</h1></div><span className="ll-template-preview-label"><i />Audio library style preview</span></header>}
           <div className="rv-canvas-wrap">
             {engineId === 'template' && <TemplateAudioLibraryMockups />}
           </div>
@@ -190,6 +199,7 @@ export function LayoutLabMockup() {
         >
           {engineId === 'template' ? (
             <>
+              <div className="ll-template-window-heading"><span>WORKSPACE</span><h2>Inspector</h2></div>
               <RailTabs
                 tabs={MOCK_RIGHT_TABS}
                 activeTab={templateRightTab}

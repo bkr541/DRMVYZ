@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { AppIconGallery } from '../AppIconGallery'
 import { APP_ICON_INVENTORY } from '../appIconInventory'
-import { LayoutLabMockup } from '../../LayoutLabMockup'
+import { LayoutLabReferenceMockup as LayoutLabMockup } from '../../LayoutLabMockup'
 
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>

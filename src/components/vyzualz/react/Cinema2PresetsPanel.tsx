@@ -1,3 +1,4 @@
+import type { Cinema2NativePresetManifest } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import { useState } from 'react'
 import { cinema2NativePresetRegistry, type Cinema2PresetId } from '../cinema2'
 import { usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
@@ -11,17 +12,19 @@ const CINEMA2_PRESET_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#61d6aa']
 export interface Cinema2PresetsPanelProps {
   activePresetId: Cinema2PresetId
   onSelectPreset: (presetId: Cinema2PresetId) => void
+  /** Optional isolated catalog for design previews; production uses the shared registry. */
+  catalog?: { presets: readonly Cinema2NativePresetManifest[]; userIds: ReadonlySet<string> }
 }
 
 /** Native Cinema 2.0 preset browser backed directly by the engine registry. */
-export function Cinema2PresetsPanel({ activePresetId, onSelectPreset }: Cinema2PresetsPanelProps) {
+export function Cinema2PresetsPanel({ activePresetId, onSelectPreset, catalog }: Cinema2PresetsPanelProps) {
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<'system' | 'user'>('system')
   const needle = query.trim().toLowerCase()
   const inScope = usePresetScopeFilter('cinema2', scope)
-  const presets = cinema2NativePresetRegistry.list().filter(manifest => {
+  const presets = (catalog?.presets ?? cinema2NativePresetRegistry.list()).filter(manifest => {
     if (manifest.metadata.tags?.includes('internal')) return false
-    if (!inScope(manifest.id)) return false
+    if (catalog ? catalog.userIds.has(manifest.id) !== (scope === 'user') : !inScope(manifest.id)) return false
     return presetMatchesDiscoveryQuery(needle, {
       ...manifest.metadata,
       ...resolvePresetDiscoveryMetadata(manifest.metadata, 'cinematic'),

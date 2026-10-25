@@ -1,0 +1,114 @@
+/* Visual-DNA preview. Every rule is scoped to Layout Lab's Template root. */
+.ll-template-audio-theme {
+  --ll-bg: #111215;
+  --ll-panel: #1b1b21;
+  --ll-card: #26262e;
+  --ll-selected: #2b2b35;
+  --ll-line: #383842;
+  --ll-text: #f0eff5;
+  --ll-muted: #94949f;
+  --ll-faint: #797984;
+  --ll-accent: #68d1df;
+  --az-bg: var(--ll-bg);
+  --az-panel: var(--ll-panel);
+  --az-panel2: var(--ll-card);
+  --az-border: var(--ll-line);
+  --az-border-s: #41414b;
+  --az-text: var(--ll-text);
+  --az-text-muted: var(--ll-muted);
+  --az-text-faint: var(--ll-faint);
+  --az-cyan: var(--ll-accent);
+  --az-cyan-rgb: 104, 209, 223;
+  --dv-control-accent: var(--ll-accent);
+  --accent: var(--ll-accent);
+  color: var(--ll-text);
+  background: var(--ll-bg);
+  font-family: var(--font-ui);
+}
+.ll-template-audio-theme .rv-layout { gap: 14px; padding: 14px; background: var(--ll-bg); }
+.ll-template-audio-theme .vz-inspector { background: var(--ll-panel); border: 1px solid #2b2b33; border-radius: 8px; box-shadow: none; }
+.ll-template-audio-theme .vz-inspector-inner,
+.ll-template-audio-theme .rv-left-workspace-shell,
+.ll-template-audio-theme .rv-context-workspace,
+.ll-template-audio-theme .rv-control-panel,
+.ll-template-audio-theme .vz-panel-body { background: var(--ll-panel); box-shadow: none; }
+.ll-template-audio-theme .vz-inspector::before,
+.ll-template-audio-theme .vz-inspector::after,
+.ll-template-audio-theme .vz-inspector-inner::before,
+.ll-template-audio-theme .vz-inspector-inner::after { display: none; }
+.ll-template-audio-theme .vz-inspector-toggle { background: var(--ll-card); border-color: var(--ll-line); color: var(--ll-muted); box-shadow: none; }
+.ll-template-window-heading { flex: 0 0 auto; padding: 24px 20px 18px; border-bottom: 1px solid var(--ll-line); }
+.ll-template-window-heading > span,
+.ll-template-page-heading > div > span { font: 8px/1.5 var(--font-mono); color: var(--ll-faint); letter-spacing: .14em; }
+.ll-template-window-heading h2 { margin: 6px 0 0; color: var(--ll-text); font: 600 21px/1.2 var(--font-ui); letter-spacing: -.04em; }
+.ll-template-page-heading { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; gap: 16px; padding: 12px 28px 24px; }
+.ll-template-page-heading h1 { margin: 5px 0 0; color: var(--ll-text); font: 500 28px/1.2 var(--font-ui); letter-spacing: -.04em; }
+.ll-template-preview-label { color: var(--ll-muted); font-size: 10px; }
+.ll-template-preview-label i { display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: #e8ac86; }
+.ll-template-audio-theme .rv-canvas-wrap { background: var(--ll-bg); border: 0; border-radius: 0; box-shadow: none; }
+.ll-template-audio-theme .rv-context-workspace-header { padding: 16px 20px; background: transparent; border-color: var(--ll-line); }
+.ll-template-audio-theme .rv-engine-dropdown-trigger { min-height: 56px; border: 0; border-radius: 0; background: var(--ll-card); box-shadow: inset 2px 0 0 #e8ac86; color: var(--ll-text); }
+.ll-template-audio-theme .rv-engine-dropdown-eyebrow { color: var(--ll-faint); font-size: 8px; letter-spacing: .1em; }
+.ll-template-audio-theme .rv-engine-dropdown-label { color: var(--ll-text); font-size: 13px; font-weight: 600; }
+.ll-template-audio-theme .rv-engine-dropdown-menu { background: var(--ll-card); border-color: var(--ll-line); border-radius: 6px; box-shadow: 0 12px 30px #0004; }
+.ll-template-audio-theme .rv-engine-dropdown-option { border-radius: 0; color: var(--ll-muted); background: transparent; }
+.ll-template-audio-theme .rv-engine-dropdown-option:hover,
+.ll-template-audio-theme .rv-engine-dropdown-option.is-active { color: var(--ll-text); background: var(--ll-selected); box-shadow: inset 2px 0 0 var(--ll-accent); }
+.ll-template-audio-theme .rv-engine-viewport { padding: 0; }
+.ll-template-audio-theme :is(.lldd-gallery,.llcg-gallery,.lls-gallery,.llt-gallery,.lltb-gallery,.lled-gallery,.lln-gallery,.llpg-gallery,.llbd-gallery,.lllr-gallery,.llni-gallery) { padding: 18px 20px; gap: 20px; }
+.ll-template-audio-theme .lldd-gallery-row { gap: 12px; }
+.ll-template-audio-theme .lldd-gallery-title { color: var(--ll-text); font: 600 11px/1.5 var(--font-ui); letter-spacing: 0; text-transform: none; }
+.ll-template-audio-theme .lldd-gallery-blurb { color: var(--ll-muted); font: 10px/1.6 var(--font-ui); }
+.ll-template-audio-theme .lldd-gallery-sample { padding: 12px; background: var(--ll-card); border: 0; border-radius: 0; box-shadow: none; }
+.ll-template-audio-theme :is(.llcg-step-header,.drc-header) { border-color: #41414b; color: #dedee5; font: 500 10px/1.4 var(--font-mono); letter-spacing: .06em; }
+.ll-template-audio-theme :is(.llcg-step-body,.drc-body) { background: var(--ll-selected); border-radius: 0; }
+.ll-template-audio-theme :is(.llcg-accent-row-hdr,.llt-row-label,.llpg-row-label,.llni-label) { color: #aaaab4; font-weight: 500; }
+.ll-template-audio-theme :is(.lls-bubble,.dv-bubble-slider) { --accent: var(--ll-accent); --dv-slider-color: var(--ll-accent); }
+.ll-template-audio-theme .dv-layer-row { min-height: 56px; border: 0; border-radius: 0; background: var(--ll-card); box-shadow: none; }
+.ll-template-audio-theme .dv-layer-row.is-active { background: var(--ll-selected); outline: 1px solid #656574; outline-offset: -1px; }
+.ll-template-audio-theme .dv-layer-row-accent { width: 2px; align-self: start; height: 12px; margin-top: 4px; border-radius: 0; box-shadow: none; }
+.ll-template-audio-theme .dv-layer-row-ghost { display: none; }
+.ll-template-audio-theme .dv-layer-row-label { color: var(--ll-text); font-weight: 600; }
+.ll-template-audio-theme .dv-layer-row-status { color: var(--ll-muted); }
+.ll-template-audio-theme :is(.dv-icon-chip,.llbd-capsule-reset) { border-color: #41414b; border-radius: 5px; background: transparent; color: #adadb8; box-shadow: none; font-weight: 500; }
+.ll-template-audio-theme .dv-icon-chip--primary { border-color: #656574; background: var(--ll-selected); color: var(--ll-text); }
+.ll-template-audio-theme :is(.lltb-underline-tab,.vz-panel-tab) { color: var(--ll-faint); text-shadow: none; }
+.ll-template-audio-theme .vz-panel-tabs { gap: 8px; padding: 16px; background: transparent; border-color: var(--ll-line); }
+.ll-template-audio-theme .vz-panel-tabs > button { padding: 8px 4px; border: 0; border-radius: 0; background: transparent; color: var(--ll-faint); font: 9px/1.4 var(--font-mono); letter-spacing: .06em; box-shadow: none; }
+.ll-template-audio-theme .vz-panel-tabs > button.is-active { color: var(--ll-text); border-bottom: 1px solid var(--ll-accent); }
+.rv-shell.ll-template-audio-theme > .az-dock.vz-transport-dock { margin: 0 14px 14px; border: 1px solid #2b2b33; border-radius: 8px; background: var(--ll-panel); box-shadow: none; }
+.ll-template-audio-theme .vz-dock-region,
+.ll-template-audio-theme .vz-dock-card { border-color: var(--ll-line); border-radius: 4px; background: var(--ll-card); box-shadow: none; }
+.ll-template-audio-theme .vz-dock-track-title { color: var(--ll-text); font-weight: 600; }
+.ll-template-audio-theme :is(.vz-dock-track-artist,.vz-dock-bpm-label,.az-dock-vol-db) { color: var(--ll-muted); }
+.ll-template-audio-theme .az-play-btn { background: transparent; border-color: #656574 !important; color: var(--ll-accent) !important; box-shadow: none !important; }
+.ll-template-audio-theme :is(.vz-dock-track-nav-btn,.vz-dock-addtrack-btn) { background: transparent; border-color: #41414b; color: var(--ll-muted); box-shadow: none; }
+.ll-template-audio-theme button:focus-visible { outline-color: var(--ll-accent); }
+.ll-template-audio-theme ::-webkit-scrollbar { width: 5px; height: 5px; }
+.ll-template-audio-theme ::-webkit-scrollbar-track { background: transparent; }
+.ll-template-audio-theme ::-webkit-scrollbar-thumb { background: #41414b; border-radius: 5px; }
+@media (max-width: 1100px) { .ll-template-audio-theme .rv-layout { gap: 8px; padding: 8px; } .ll-template-page-heading { padding-inline: 18px; } .ll-template-preview-label { display: none; } }
+/* The mock dropdown puts copy before its icon; keep the label out of the icon column. */
+.ll-template-audio-theme .rv-engine-dropdown-trigger { grid-template-columns: minmax(0, 1fr) 28px; gap: 12px; padding: 12px 16px; }
+.ll-template-audio-theme .rv-engine-dropdown-icon { width: 28px; height: 28px; border: 0; border-radius: 0; background: transparent; color: var(--ll-muted); filter: none; }
+.ll-template-audio-theme .rv-engine-dropdown-icon svg { width: 20px; height: 20px; }
+.ll-template-audio-theme .rv-engine-dropdown-description { color: var(--ll-muted); font-size: 9px; white-space: normal; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-right { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 14px; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-right-main { display: flex; flex: 1; min-width: 0; width: auto; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-bpm-wrap { display: flex; min-width: 0; width: auto; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-bpm-block { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; width: auto; min-width: 0; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-bpm-block-val { position: static; color: var(--ll-text); font-size: 18px; line-height: 1.2; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock .vz-dock-right-btns { position: static; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; width: 118px; flex: 0 0 118px; }
+.rv-shell.ll-template-audio-theme.ll-template-audio-theme > .vz-transport-dock :is(.vz-dock-tap-btn,.vz-dock-cue-btn,.vz-dock-sync-master-btn) { position: static; min-width: 30px; width: auto; height: 28px; padding: 5px 7px; border-color: #41414b; border-radius: 4px; background: transparent; box-shadow: none; font-size: 8px; }
+/* Production dock rules flatten these wrappers; restore grouping for this preview. */
+.ll-template-audio-theme .vz-dock-right { display: flex !important; flex-direction: row !important; min-height: 0; }
+.ll-template-audio-theme .vz-dock-right-main { display: block !important; }
+.ll-template-audio-theme .vz-dock-bpm-wrap { display: flex !important; }
+.ll-template-audio-theme .vz-dock-bpm-block { display: flex !important; flex-direction: column; justify-content: center !important; }
+.ll-template-audio-theme .vz-dock-bpm-block-top,
+.ll-template-audio-theme .vz-dock-bpm-block-row { display: flex !important; position: static !important; align-items: center; gap: 8px; }
+.ll-template-audio-theme .vz-dock-bpm-block-label { display: inline !important; color: var(--ll-muted); }
+.ll-template-audio-theme .vz-dock-bpm-block-val { position: static !important; transform: none !important; }
+.ll-template-audio-theme .vz-dock-bpm-chevrons { position: static !important; display: flex; flex-direction: column; }
+.ll-template-audio-theme .vz-dock-right-btns { display: flex !important; flex-direction: row !important; align-content: center; }
+.ll-template-audio-theme :is(.vz-dock-tap-btn,.vz-dock-cue-btn,.vz-dock-sync-master-btn) { display: inline-flex !important; flex: 0 0 auto; height: 28px !important; width: auto !important; align-items: center; gap: 4px; }
