@@ -88,6 +88,7 @@
     "test:e2e:cinema2-blockshift:p3": "node scripts/run-cinema2-blockshift-browser.mjs --controls",
     "test:e2e:cinema2-blockshift:p2": "node scripts/run-cinema2-blockshift-browser.mjs",
     "test:e2e:cinema2-afterhours": "node scripts/run-cinema2-afterhours-browser.mjs",
+    "test:e2e:cinema2-vacancy": "node scripts/run-cinema2-vacancy-browser.mjs",
     "test:e2e:cinema2-atl-hoe": "node scripts/run-cinema2-atl-hoe-browser.mjs",
     "visual:render-upgrade": "node scripts/cinema2-assets/accept-render-upgrade.mjs",
     "visual:compare-captures": "node scripts/cinema2-assets/compare-capture-runs.mjs",

@@ -6,6 +6,7 @@ import { cinema2ThreeEnvironmentRegistry } from './three/Cinema2ThreeEnvironment
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
 import { Cinema2ThreeSceneBridge, CINEMA2_THREE_DEFAULT_OVERRIDES } from './three/Cinema2ThreeSceneBridge'
 import { Cinema2VacancySceneController, type VacancySceneFrame } from './vacancy/Cinema2VacancySceneController'
+import { Cinema2VacancyPerformance } from './vacancy/Cinema2VacancyPerformance'
 import { VACANCY_ASSET_ID, readVacancyControls } from './vacancy/Cinema2VacancyDomain'
 
 export const CINEMA2_VACANCY_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('vacancy-native-render')
@@ -22,6 +23,7 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     let held: Cinema2ThreeLoadedAsset | null = null, library: Cinema2ThreeLibrary | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null, controller: Cinema2VacancySceneController | null = null
     let sceneFrame: VacancySceneFrame | null = null
+    const performance = new Cinema2VacancyPerformance()
     let reportedReady = false
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const report = (code: string, error: unknown) => {
@@ -31,7 +33,8 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     return {
       lifecycle: {
         update({ parameters, frame }) {
-          sceneFrame = { controls: readVacancyControls(parameters), timeSec: frame.timestampMs / 1000, quality: sceneFrame?.quality ?? 'high' }
+          const controls = readVacancyControls(parameters), state = performance.update(frame, controls, parameters)
+          sceneFrame = { controls, timeSec: state.timeSec, performance: state, quality: sceneFrame?.quality ?? 'high' }
         },
         dispose() {
           disposed = true
@@ -42,7 +45,7 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         id: `${context.module.id}:vacancy`, moduleId: context.module.id, intent: 'world',
         execute(execution) {
           if (failed || disposed) return
-          if (sceneFrame) sceneFrame.quality = execution.lightingEnvironment?.quality ?? 'high'
+          if (sceneFrame) { sceneFrame.quality = execution.lightingEnvironment?.quality ?? 'high'; sceneFrame.media = context.media.get('screenMedia') }
           if (!loading) {
             loading = true
             void (async () => {

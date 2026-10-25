@@ -1,6 +1,6 @@
 # Cinema 2.0 VACANCY — behavior specification
 
-Status: **specification for review.** Written before any code, as `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md` section 23 step 1.2 requires. The authority matrix (section 7) is agreed at the static-composition checkpoint, before controls, motion and audio are built.
+Status: **phases 3–6 implemented; final human visual review pending.** The user approved their static composition in commit `54fbd893` and requested the remaining phases. That stacking implementation and its standard layout are unchanged. This document records the implemented behavior; validation and limitations are in [the implementation report](cinema2-vacancy-implementation-report.md).
 
 - Preset id `drmvyz.cinema2.vacancy`, label **VACANCY**, native module `vacancy-native-render` v1.
 - Reference: the user's CRT pyramid images: a centred 4-3-2-1 stack of vintage televisions in a dark empty room, every screen glowing white-grey static above a glossy floor.
@@ -29,7 +29,7 @@ Status: **specification for review.** Written before any code, as `DRMVYZ_Cinema
 
 **Orientation.** The TVs retain the reference's common forward direction, with four selected TVs facing slightly outward. No layer is forcibly rotated 90 or 180 degrees to put screens on every side. An orbit will reveal the actual cabinet sides and backs, together with the depth of the actual supporting cabinets. The stack has the cabinets’ real depth but a clear, legible front-facing pyramid silhouette.
 
-**Placement.** World space, metres, y up, floor at y = 0. The supplied room has a footprint about x -4.91..5.84, z -5.50..5.37 and a 2.76 m ceiling. The pile stands at x 0.46, z -0.1. Uniform model scaling keeps cabinet tops level: compact uses 0.42 m cabinet heights, standard 0.48 m and tall 0.54 m. The standard pile is about 2.03 m high including the crown antennae. The default camera looks nearly straight at the centred pyramid to keep the 4-3-2-1 outline legible. Camera rotation remains a later step.
+**Placement.** World space, metres, y up, floor at y = 0. The supplied room has a footprint about x -4.91..5.84, z -5.50..5.37 and a 2.76 m ceiling. The pile stands at x 0.46, z -0.1. Uniform model scaling keeps cabinet tops level: compact uses 0.42 m cabinet heights, standard 0.48 m and tall 0.54 m. The standard pile is about 2.03 m high including the crown antennae. The default camera looks nearly straight at the centred pyramid to keep the 4-3-2-1 outline legible. Orbit Angle exposes a bounded front viewing arc; see section 5.
 
 **Coordinate / render-space policy.** World-space. Depth and perspective are the design (stacked objects, reflective floor, camera drift). Nothing is frame-anchored, so aspect ratio only changes framing: the default camera widens its field of view at narrow aspects so the whole tower stays inside the frame.
 
@@ -65,13 +65,15 @@ Each screen is one emissive surface with a rounded-rectangle, slightly curved CR
 ## 4. Room and lighting specification
 
 - The room is the supplied model. Its base-colour map includes baked shadows and is reused as self-lit fill, so the ceiling, brick walls, doorways, graffiti and skirting are visible behind the tower. **Room Visibility** (default 0.65) scales that fill, with sufficient linear intensity to preserve the dark texture through the production output. Zero removes the baked fill; screen spill remains. Master Intensity also scales the fill, so zero blacks it out. Fill is available at every quality level.
-- The glow lights the world: a bounded set of area lights on the screens (counted per quality tier, none on low) plus emissive spill, all driven by the screens' current brightness.
+- The glow lights the world: a bounded set of point lights around the tower (one on low, additional lights on medium/high) plus emissive spill, all driven by the screens' current brightness.
 - The floor is the room's own floor, made glossy through the shared reflective-floor effect (plane just above the floor, blended 62% over the real floor so the concrete still shows) with the existing wet-concrete surface texture. Camera near/far are kept tight (0.4 / 24) so the virtual plane and the floor mesh agree in depth.
 - Haze (subtle dust in the screen light) and bloom (screen halation) are finishing effects. They never replace base geometry.
 
 ## 5. Camera specification
 
-Fixed hero camera first (checked before any motion), then **Camera Motion** (0..1, default modest) adds slow bounded drift around the authored shot. Zero restores the reference shot exactly. Safe bounds are in section 1.
+**Orbit Angle** (−25..25 degrees, default 0) rotates the shared orbit camera through the room’s clear front viewing arc. **Camera Motion** (0..1, default 0.25) adds slow bounded drift: at maximum, 4 cm position, 8 mm target, 0.2 degrees roll/FOV. Zero removes drift immediately; with Orbit Angle also 0, this restores the approved hero shot exactly. Drift follows shared transport animation and holds when stopped or paused. The manual angle works while idle. Safe bounds are in section 1.
+
+This is a bounded front arc, not a continuous 360-degree orbit. The supplied room partitions obstruct wider camera positions. A complete orbit remains outside the validated camera path.
 
 ## 6. Parameter specification (Design inspector)
 
@@ -79,7 +81,7 @@ Every parameter sits under exactly one of the four parent groups.
 
 | Parent group | Controls |
 |---|---|
-| **Master Controls** | Master Intensity, **BPM Sync** (toggle), Music Response, Bass Rattle, Camera Motion, Auto Performance |
+| **Master Controls** | Master Intensity, **BPM Sync** (toggle), Music Response, Bass Rattle, Camera Motion, Orbit Angle, Auto Performance |
 | **Design** | **Pattern** (8), **Pattern Change** (toggle), **Trigger** (the 11 canonical options, visible only when Pattern Change is ON), Screens Lit, Static, Scanlines, Tower Size, **Media on Screens** (toggle), Media (picker), Media Layout (Every screen / Stack wall), Static Over Media |
 | **Effects** | Bloom, Floor Reflections, Haze, Room Visibility |
 | **Palette** | Background, Screen, Highlight, Glow, Haze (five independently editable colours, each with a distinct visual consumer) |
@@ -143,7 +145,7 @@ Eight patterns, each a different per-set brightness and channel program, not ali
 | Pattern | Dropdown (base) | None | None | May **temporarily** substitute a build/drop pattern | Edit takes effect immediately, keeps Pattern Change ON |
 | Pattern Change / Trigger | Toggle / dropdown | None | None | None | User owned |
 | Bass rattle | Slider | Bass and kick | Scales amplitude | None | User ceiling (0 disables) |
-| Camera | Camera Motion | None | None | None | 0 restores the authored shot |
+| Camera | Camera Motion / Orbit Angle | None | None | None | Motion 0 removes drift; angle 0 restores frontal view |
 | Palette (5) | Colour pickers | None | None | None | User owned |
 | Bloom / Reflections / Haze / Room Visibility | Sliders | None | None | None | User owned; 0 = off and stays off |
 | Media on Screens / Media / Layout / Static Over Media | Toggle / picker / dropdown / slider | None | None | None | User owned |
@@ -151,7 +153,7 @@ Eight patterns, each a different per-set brightness and channel program, not ali
 
 **Pattern precedence** (contract section 9): manual selection establishes the base pattern; the selected Trigger may advance the base while Pattern Change is ON; Auto Performance may temporarily substitute a build/drop performance pattern; the underlying base resumes afterward. A manual Pattern edit is never undone by an already-active build or drop.
 
-**Auto Performance owns only** build/drop pattern substitution. The user keeps every other property, and a hard-off control (for example Bloom = 0) is never re-enabled.
+**Auto Performance owns only** build/drop pattern substitution. A new confident build temporarily selects Vacancy for up to eight beats (ending sooner when the build ends); a fresh drop selects Dead Air for four beats. Base progression continues underneath. The same held build/drop cannot restart an expired override; a manual Pattern edit cancels the current override and existing drop flash. The user keeps every other property, and a hard-off control (for example Bloom = 0) is never re-enabled.
 
 ## 10. System ownership
 
@@ -162,7 +164,7 @@ Eight patterns, each a different per-set brightness and channel program, not ali
 | Choreography | Bounded, resettable kick/snare/downbeat/build/drop envelopes on the screen programs |
 | Parameter State | The user's authored values above |
 | Native module | The tower layout, screen programs, rattle, room darkening and light drive |
-| Camera / scene / lighting / effects | A fixed hero camera with drift, area lights, bloom, haze and the reflective floor |
+| Camera / scene / lighting / effects | A bounded orbit camera with drift, point lights, bloom, haze and the reflective floor |
 
 ## 11. Build stages and checkpoints
 
@@ -172,3 +174,36 @@ Eight patterns, each a different per-set brightness and channel program, not ali
 4. Native motion: the eight patterns.
 5. Audio, choreography, Visual Director, Auto Performance.
 6. Finishing and full production-path acceptance, then human review.
+
+
+## 12. Implemented control-to-output map
+
+| Control | Output consumer / limit |
+|---|---|
+| Master Intensity | Screen emission, room fill and screen lights; shared choreography gates finishing mixes at zero |
+| Music Response | Scales bounded continuous/event modulation; zero neutralises musical brightness, grain, coverage restraint, rattle and flashes |
+| Bass Rattle | Whole-tower X/Z motion under 5 mm at maximum; no relative cabinet movement or support changes |
+| Screens Lit | Strict ceiling of `floor(value × 10)` lit screens, including drop white-outs; zero stays black |
+| Static / Scanlines | Grain/rolling bands and CRT scanlines respectively; zero disables their corresponding detail |
+| Tower Size | Compact / Standard / Tall from the approved stacking solver; Standard is the unchanged approved default |
+| Pattern / Pattern Change / Trigger | Eight native brightness/channel programs; OFF holds the authored pattern, ON advances on fresh selected shared events |
+| Media on Screens / Media | Shared image/video/SVG slot, with static fallback when empty; optional media never hides the cabinet geometry |
+| Media Layout | Repeat every screen or front-project one stack-wide image; shared fit, position, scale, rotation and opacity are consumed |
+| Static Over Media | Mix CRT static into media, independently from the normal static program |
+| Bloom / Floor Reflections / Haze | Shared finishing mixes; authored zero remains off during music and Auto Performance |
+| Room Visibility | Baked room fill, independent of quality tier |
+| Five Palette colours | Distinct screen, event-highlight, room, point-light glow and haze consumers (section 6) |
+
+Videos loop muted independently of the music timeline, pause with shared transport pause and resume afterward. Removing/replacing media releases the engine-owned texture without leaving a stale Three texture binding. Missing or stale music produces neutral response. Pause holds musical envelopes and pattern motion while manual edits still resolve; seeks, loops, track/source changes, re-entry and context restoration reset transient ownership. Auto Performance defaults OFF; Pattern Change defaults OFF. BPM Sync defaults ON.
+
+## 13. Phase checkpoint
+
+| Phase | State |
+|---|---|
+| 1–2 Assets / static composition | Existing implementation; user-approved `54fbd893`, preserved |
+| 3 Camera / manual controls | Implemented and production-canvas checked, including the bounded Orbit Angle |
+| 4 Native patterns | Eight independently tested programs |
+| 5 Audio / choreography / Director / Auto Performance | Implemented through shared services; deterministic production audio fixtures checked |
+| 6 Finishing / production acceptance | Automated and agent visual checks passed; final human A/B review remains pending |
+
+No legacy port is involved. No installer asset, model source or stacking solver was changed in phases 3–6.

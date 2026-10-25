@@ -2,14 +2,19 @@ import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2CameraId, type Cinema2EffectId, type Cinema2EffectManifest, type Cinema2EffectTypeId, type Cinema2LayerId, type Cinema2LightId,
-  type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest,
+  type Cinema2MediaSlotId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2ParameterManifest,
   type Cinema2PresetId, type Cinema2RenderPassId, type Cinema2RenderSlotId, type Cinema2RenderTargetId, type Cinema2SceneNodeId, type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
 import { CINEMA2_VACANCY_MODULE_TYPE_ID } from '../modules/Cinema2VacancyNativeModule'
-import { VACANCY_ASSET_ID, VACANCY_COLORS, VACANCY_DEFAULTS } from '../modules/vacancy/Cinema2VacancyDomain'
+import { VACANCY_ASSET_ID, VACANCY_COLORS, VACANCY_DEFAULTS, VACANCY_PATTERNS } from '../modules/vacancy/Cinema2VacancyDomain'
 
+import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
+import { VACANCY_RESPONSE_DEFAULTS } from '../modules/vacancy/Cinema2VacancyPerformance'
+import { vacancyMusicRules, vacancyFinishGates } from './Cinema2VacancyChoreography'
+
+export const CINEMA2_VACANCY_MEDIA_ID = cinema2StableId<Cinema2MediaSlotId>('vacancy-screen-media')
 export const CINEMA2_VACANCY_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.vacancy')
 export const CINEMA2_VACANCY_CAMERA_ID = cinema2StableId<Cinema2CameraId>('vacancy-reference-camera')
 const ROOT = cinema2StableId<Cinema2SceneNodeId>('vacancy-root')
@@ -29,25 +34,47 @@ export const CINEMA2_VACANCY_PARAMETER_IDS = {
   roomVisibility: parameter('room-visibility'),
   backgroundColor: parameter('background-color'),
   screenColor: parameter('screen-color'),
+  ...Object.fromEntries(['bpmSync', 'musicResponse', 'bassRattle', 'autoPerformance', 'cameraMotion', 'cameraOrbit', 'pattern', 'patternChange', 'trigger', 'screensLit', 'static', 'scanlines', 'towerSize', 'mediaOnScreens', 'mediaLayout', 'staticOverMedia', 'media', 'bloom', 'reflections', 'haze', 'highlightColor', 'glowColor', 'hazeColor'].map(name => [name, parameter(name.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`))])) as Record<'bpmSync' | 'musicResponse' | 'bassRattle' | 'autoPerformance' | 'cameraMotion' | 'cameraOrbit' | 'pattern' | 'patternChange' | 'trigger' | 'screensLit' | 'static' | 'scanlines' | 'towerSize' | 'mediaOnScreens' | 'mediaLayout' | 'staticOverMedia' | 'media' | 'bloom' | 'reflections' | 'haze' | 'highlightColor' | 'glowColor' | 'hazeColor', Cinema2ParameterId>,
 } as const
 const P = CINEMA2_VACANCY_PARAMETER_IDS
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
 
+const float = (key: keyof typeof P, label: string, value: number, parent: 'master-controls' | 'design' | 'effects', order: number): Cinema2ParameterManifest => ({
+  ...base, id: P[key], label, type: 'float', min: 0, max: 1, step: .01, defaultValue: value, designParentGroup: parent,
+  group: parent === 'master-controls' ? 'Performance' : parent === 'effects' ? 'Room Finish' : 'Televisions', order,
+})
+const toggle = (key: keyof typeof P, label: string, value: boolean, parent: 'master-controls' | 'design', order: number): Cinema2ParameterManifest => ({
+  ...base, id: P[key], label, type: 'boolean', defaultValue: value, designParentGroup: parent,
+  group: parent === 'master-controls' ? 'Performance' : 'Televisions', order,
+})
 const parameters: Cinema2ParameterManifest[] = [
   CINEMA2_QUALITY_MODE_PARAMETER,
-  { ...base, id: P.master, label: 'Master Intensity', type: 'float', min: 0, max: 1, step: .01, defaultValue: VACANCY_DEFAULTS.master,
-    designParentGroup: 'master-controls', group: 'Performance', order: 1,
-    description: 'Overall brightness of the screens and the light they cast. Zero turns the room dark.' },
-  { ...base, id: P.roomVisibility, label: 'Room Visibility', type: 'float', min: 0, max: 1, step: .01, defaultValue: VACANCY_DEFAULTS.roomVisibility,
-    designParentGroup: 'effects', group: 'Room', order: 1,
-    description: 'How much of the brick room shows beyond the screens\' glow. Zero is pure black; the default is a dark room whose walls, doorways and floor the glow reveals.' },
-  { ...base, id: P.backgroundColor, label: 'Background', type: 'color', defaultValue: VACANCY_COLORS.background,
-    designParentGroup: 'palette', group: 'Room Palette', order: 1, description: 'Tints the dark room, the background and the floor reflection.' },
-  { ...base, id: P.screenColor, label: 'Screen', type: 'color', defaultValue: VACANCY_COLORS.screen,
-    designParentGroup: 'palette', group: 'Room Palette', order: 2, description: 'Tint of the static on every screen and of the light it casts.' },
+  float('master', 'Master Intensity', VACANCY_DEFAULTS.master, 'master-controls', 1),
+  { ...toggle('bpmSync', 'BPM Sync', true, 'master-controls', 2), description: 'Locks screen programs and band roll to shared BPM. Off free-runs at 100 BPM. Independent of Audio Dock BPM Sync and event triggers.' },
+  float('musicResponse', 'Music Response', VACANCY_DEFAULTS.musicResponse, 'master-controls', 3),
+  float('bassRattle', 'Bass Rattle', VACANCY_DEFAULTS.bassRattle, 'master-controls', 4),
+  { ...float('cameraMotion', 'Camera Motion', VACANCY_DEFAULTS.cameraMotion, 'master-controls', 5), description: 'Bounded camera drift. Zero restores the authored shot at the selected orbit angle.' },
+  { ...float('cameraOrbit', 'Orbit Angle', 0, 'master-controls', 6), min: -25, max: 25, step: .5, unit: 'degrees', description: 'Rotate around the front of the stack within the room’s clear viewing arc. Zero restores the approved frontal shot.' },
+  { ...toggle('autoPerformance', 'Auto Performance', false, 'master-controls', 7), description: 'Temporarily substitutes Vacancy during new builds and Dead Air during fresh drops. The current base resumes; manual Pattern edits take over immediately.' },
+  { ...base, id: P.pattern, label: 'Pattern', type: 'enum', options: VACANCY_PATTERNS, defaultValue: 'dead-air', designParentGroup: 'design', group: 'Pattern', order: 1 },
+  { ...toggle('patternChange', 'Pattern Change', false, 'design', 2), group: 'Pattern' },
+  { ...base, id: P.trigger, label: 'Trigger', type: 'enum', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, defaultValue: 'bar4', designParentGroup: 'design', group: 'Pattern', order: 3,
+    visibleWhen: [{ kind: 'parameter-equals', parameterId: P.patternChange, value: true }] },
+  float('screensLit', 'Screens Lit', 1, 'design', 10), float('static', 'Static', 1, 'design', 11), float('scanlines', 'Scanlines', 1, 'design', 12),
+  { ...base, id: P.towerSize, label: 'Tower Size', type: 'enum', defaultValue: 'standard', options: ['compact', 'standard', 'tall'].map(value => ({ value, label: value[0]!.toUpperCase() + value.slice(1) })), designParentGroup: 'design', group: 'Televisions', order: 13 },
+  toggle('mediaOnScreens', 'Media on Screens', false, 'design', 20),
+  { ...base, id: P.media, label: 'Media', type: 'media', defaultValue: null, mediaSlot: cinema2Ref(CINEMA2_VACANCY_MEDIA_ID), designParentGroup: 'design', group: 'Screen Media', order: 21,
+    visibleWhen: [{ kind: 'parameter-equals', parameterId: P.mediaOnScreens, value: true }] },
+  { ...base, id: P.mediaLayout, label: 'Media Layout', type: 'enum', defaultValue: 'every-screen', options: [{ value: 'every-screen', label: 'Every screen' }, { value: 'stack-wall', label: 'Stack wall' }], designParentGroup: 'design', group: 'Screen Media', order: 22,
+    visibleWhen: [{ kind: 'parameter-equals', parameterId: P.mediaOnScreens, value: true }] },
+  { ...float('staticOverMedia', 'Static Over Media', .12, 'design', 23), group: 'Screen Media', visibleWhen: [{ kind: 'parameter-equals', parameterId: P.mediaOnScreens, value: true }] },
+  float('bloom', 'Bloom', VACANCY_DEFAULTS.bloom, 'effects', 1), float('reflections', 'Floor Reflections', VACANCY_DEFAULTS.reflections, 'effects', 2),
+  float('haze', 'Haze', 0, 'effects', 3), float('roomVisibility', 'Room Visibility', VACANCY_DEFAULTS.roomVisibility, 'effects', 4),
+  ...Object.entries(VACANCY_COLORS).map(([name, defaultValue], order): Cinema2ParameterManifest => ({ ...base, id: P[`${name}Color` as keyof typeof P],
+    label: name[0]!.toUpperCase() + name.slice(1), type: 'color', defaultValue, designParentGroup: 'palette', group: 'Room Palette', order })),
 ]
 
-const EFFECTS = Object.fromEntries(['reflections', 'bloom'].map(name => [name, cinema2StableId<Cinema2EffectId>(`vacancy-${name}-effect`)])) as Record<'reflections' | 'bloom', Cinema2EffectId>
+const EFFECTS = Object.fromEntries(['reflections', 'haze', 'bloom'].map(name => [name, cinema2StableId<Cinema2EffectId>(`vacancy-${name}-effect`)])) as Record<'reflections' | 'haze' | 'bloom', Cinema2EffectId>
 
 const effects: readonly Cinema2EffectManifest[] = [
   // The room's floor is the plane y = 0; this replaces it with dark, wet concrete that mirrors the screens.
@@ -56,15 +83,18 @@ const effects: readonly Cinema2EffectManifest[] = [
       baseColor: [.012, .016, .024, 1], skyColor: [.012, .016, .024, 1], baseLift: 1, albedo: .04, poolIntensity: 0, specular: .2,
       maxReflection: 40, fadeDistance: 24, thickness: 2.5, grit: .12, gritScale: 4, streak: 0, samplingStability: 1, edgeFallback: .6,
       surfaceTexture: CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID, surfaceTextureScale: 4, surfaceTextureStrength: .3 },
-    parameterBindings: { baseColor: cinema2Ref(P.backgroundColor), skyColor: cinema2Ref(P.backgroundColor) } },
-  { id: EFFECTS.bloom, typeId: cinema2StableId<Cinema2EffectTypeId>('hdr-bloom'), version: 1, enabled: true, scope: 'output', order: 1,
-    parameters: { mix: .8, threshold: .6, knee: .3, intensity: 1.8, spread: .7, levels: 6, clampMax: 8 } },
+    parameterBindings: { mix: cinema2Ref(P.reflections), baseColor: cinema2Ref(P.backgroundColor), skyColor: cinema2Ref(P.backgroundColor) } },
+  { id: EFFECTS.haze, typeId: cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere'), version: 1, enabled: true, scope: 'output', order: 1,
+    parameters: { mix: 0, density: .008, beamIntensity: .3, ambientHaze: .5, mistAmount: .1, mistHeight: 1, floorY: 0, floorReflection: 0, maxDistance: 15, reactivity: 0, occlusion: .15, noiseScale: .4, noiseStrength: .6, drift: .08, hazeColor: VACANCY_COLORS.haze },
+    parameterBindings: { mix: cinema2Ref(P.haze), hazeColor: cinema2Ref(P.hazeColor) } },
+  { id: EFFECTS.bloom, typeId: cinema2StableId<Cinema2EffectTypeId>('hdr-bloom'), version: 1, enabled: true, scope: 'output', order: 2,
+    parameters: { mix: .8, threshold: .6, knee: .3, intensity: 1.8, spread: .7, levels: 6, clampMax: 8 }, parameterBindings: { mix: cinema2Ref(P.bloom) } },
 ]
 
 function finishingGraph() {
   let previousPass = SCENE, previousColor = COLOR
   const targets = [], passes = []
-  for (const name of ['reflections', 'bloom'] as const) {
+  for (const name of ['reflections', 'haze', 'bloom'] as const) {
     const id = cinema2StableId<Cinema2RenderPassId>(`vacancy-${name}-pass`)
     const target = cinema2StableId<Cinema2RenderTargetId>(`vacancy-${name}-target`)
     const slot = cinema2StableId<Cinema2RenderSlotId>(`vacancy-${name}-color`)
@@ -79,10 +109,10 @@ function finishingGraph() {
 }
 const finishing = finishingGraph()
 
-/** VACANCY: a tower of stacked CRT televisions in an empty dark room, every screen glowing analog static. Static-composition stage. */
+/** VACANCY: a tower of stacked CRT televisions in an empty dark room, every screen glowing analog static. Approved composition with native CRT programs, media and bounded music response. */
 export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  id: CINEMA2_VACANCY_PRESET_ID, revision: 1,
+  id: CINEMA2_VACANCY_PRESET_ID, revision: 2,
   metadata: {
     name: 'VACANCY',
     description: 'A pyramid of stacked CRT televisions in the middle of an empty, dark brick room. Every screen glows with analog static that lights the wet concrete floor and the room around it.',
@@ -90,12 +120,17 @@ export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Depth-tested world-space room, television tower and glowing screens.' },
+    ...(['media.image', 'media.video', 'media.svg', 'audio.bands', 'audio.features', 'music.beat', 'music.rhythm-events', 'music.downbeat', 'music.phrase', 'music.drop', 'music.build', 'music.vocal-presence', 'visual-director.significance'] as const).map(id => ({ id, requirement: 'optional' as const, purpose: 'Shared musical timing and bounded CRT screen response.' })),
   ],
   parameters,
+  mediaSlots: [{ id: CINEMA2_VACANCY_MEDIA_ID, label: 'Screen Media', accepts: ['image', 'video', 'svg'] }],
+  choreography: { rules: [...vacancyMusicRules(MODULE), ...vacancyFinishGates(P.master, Object.values(EFFECTS))] },
   modules: [{
     id: MODULE, typeId: CINEMA2_VACANCY_MODULE_TYPE_ID, version: 1, enabled: true,
-    parameters: { master: VACANCY_DEFAULTS.master, roomVisibility: VACANCY_DEFAULTS.roomVisibility, backgroundColor: VACANCY_COLORS.background, screenColor: VACANCY_COLORS.screen },
-    parameterBindings: { master: cinema2Ref(P.master), roomVisibility: cinema2Ref(P.roomVisibility), backgroundColor: cinema2Ref(P.backgroundColor), screenColor: cinema2Ref(P.screenColor) },
+    parameters: { ...VACANCY_DEFAULTS, ...VACANCY_RESPONSE_DEFAULTS, bpmSync: true, pattern: 'dead-air', patternChange: false, trigger: 'bar4', autoPerformance: false, towerSize: 'standard', mediaOnScreens: false, mediaLayout: 'every-screen',
+      ...Object.fromEntries(Object.entries(VACANCY_COLORS).map(([name, color]) => [`${name}Color`, color])) },
+    parameterBindings: Object.fromEntries(Object.entries(P).filter(([name]) => !['cameraMotion', 'cameraOrbit', 'media', 'bloom', 'reflections', 'haze'].includes(name)).map(([name, id]) => [name, cinema2Ref(id)])),
+    media: { screenMedia: cinema2Ref(CINEMA2_VACANCY_MEDIA_ID) },
     config: { asset: VACANCY_ASSET_ID },
   }],
   effects,
@@ -107,7 +142,10 @@ export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   cameras: [{
     id: CINEMA2_VACANCY_CAMERA_ID, label: 'Pyramid hero', projection: 'perspective',
     fovDegrees: 40, minAspect: 1, near: 0.4, far: 24,
-    transform: { position: vec(0.46, 1.28, 4.05) }, target: vec(0.46, 1.04, -0.1), rig: { kind: 'static' },
+    transform: { position: vec(0.46, 1.28, 4.05) }, target: vec(0.46, 1.04, -0.1), rig: { kind: 'orbit', radius: Math.hypot(4.15, .24), azimuthDegrees: 0, elevationDegrees: Math.atan2(.24, 4.15) * 180 / Math.PI, angularVelocityDegreesPerSecond: 0 },
+    motion: { drift: { position: .04, target: .008, rollDegrees: .2, fovDegrees: .2, speed: .06, seed: 391 } },
+    controls: { motionAmount: cinema2Ref(P.cameraMotion), orbitAzimuthDegrees: cinema2Ref(P.cameraOrbit) },
+    safety: { minPosition: vec(-1.35, 1.2, 3.5), maxPosition: vec(2.3, 1.36, 4.15), maxTargetOffset: vec(.02, .02, .02), minFovDegrees: 39.5, maxFovDegrees: 40.5 },
   }],
   defaults: { camera: cinema2Ref(CINEMA2_VACANCY_CAMERA_ID) },
   lighting: { lights: [

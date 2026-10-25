@@ -75,6 +75,8 @@ export interface Cinema2LoadedMedia {
   dynamic: boolean
   getPlaybackSnapshot?: () => Cinema2MediaPlaybackSnapshot | null
   canUploadFrame?: () => boolean
+  /** Shared transport pause; videos otherwise loop independently of the music timeline. */
+  setPlaybackPaused?: (paused: boolean) => void
   dispose(): void
 }
 
@@ -262,13 +264,15 @@ export class Cinema2MediaSlotRuntime {
   }
 
   /** Uploads current video frames while retaining engine ownership of the texture. */
-  updateVideoTextures(): void {
+  updateVideoTextures(paused = false): void {
     if (this.disposed) return
     for (const record of this.records.values()) {
       if (record.resourceSource?.kind !== 'video' || !record.loaded || !record.texture) continue
+      record.loaded.setPlaybackPaused?.(paused)
       if (record.loaded.canUploadFrame && !record.loaded.canUploadFrame()) continue
       try {
         this.uploadTexture(record.texture, record.loaded.pixelSource)
+        this.snapshotCache = null
       } catch (error) {
         record.status = 'error'
         record.error = `Video texture update failed: ${errorMessage(error)}`
@@ -488,6 +492,7 @@ function loadBrowserVideo(source: Readonly<Cinema2MediaSource>, signal: AbortSig
     video.muted = true
     video.loop = true
     video.playsInline = true
+    let playPending = false, desiredPause = false
     let settled = false
     const cleanup = () => {
       video.removeEventListener('loadeddata', onLoaded)
@@ -517,6 +522,15 @@ function loadBrowserVideo(source: Readonly<Cinema2MediaSource>, signal: AbortSig
         width: video.videoWidth || source.width || 1,
         height: video.videoHeight || source.height || 1,
         dynamic: true,
+        setPlaybackPaused: paused => {
+          desiredPause = paused
+          if (paused) video.pause()
+          else if (video.paused && !playPending) {
+            playPending = true
+            void video.play().then(() => { if (desiredPause) video.pause() }, () => { /* A blocked autoplay remains explicitly paused in playback metadata. */ })
+              .finally(() => { playPending = false })
+          }
+        },
         canUploadFrame: () => video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA,
         getPlaybackSnapshot: () => ({
           currentTimeSec: Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0,

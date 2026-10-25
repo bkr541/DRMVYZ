@@ -159,6 +159,7 @@ describe('Cinema 2.0 media-slot runtime', () => {
     let frameReady = true
     const video = loaded({
       dynamic: true,
+      setPlaybackPaused: vi.fn(),
       canUploadFrame: () => frameReady,
       getPlaybackSnapshot: () => ({ currentTimeSec: 2.5, durationSec: 8, paused: false, loop: true, muted: true }),
     })
@@ -170,7 +171,10 @@ describe('Cinema 2.0 media-slot runtime', () => {
     await runtime.replace(optionalSlotId, source('clip', 'video'))
     const uploadsAfterLoad = vi.mocked(gl.texImage2D).mock.calls.length
     runtime.updateVideoTextures()
-    expect(vi.mocked(gl.texImage2D).mock.calls.length).toBe(uploadsAfterLoad + 1)
+    expect(video.setPlaybackPaused).toHaveBeenLastCalledWith(false)
+    runtime.updateVideoTextures(true)
+    expect(video.setPlaybackPaused).toHaveBeenLastCalledWith(true)
+    expect(vi.mocked(gl.texImage2D).mock.calls.length).toBe(uploadsAfterLoad + 2)
     expect(runtime.getManagedResource(optionalSlotId)?.playback).toEqual({
       currentTimeSec: 2.5,
       durationSec: 8,
@@ -181,7 +185,7 @@ describe('Cinema 2.0 media-slot runtime', () => {
 
     frameReady = false
     runtime.updateVideoTextures()
-    expect(vi.mocked(gl.texImage2D).mock.calls.length).toBe(uploadsAfterLoad + 1)
+    expect(vi.mocked(gl.texImage2D).mock.calls.length).toBe(uploadsAfterLoad + 2)
 
     runtime.handleContextLost()
     expect(runtime.getSlotSnapshot(optionalSlotId)?.status).toBe('loading')

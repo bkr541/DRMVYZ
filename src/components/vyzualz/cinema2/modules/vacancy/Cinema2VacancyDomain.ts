@@ -1,4 +1,5 @@
 import type { Cinema2ModuleParameterReadFacet } from '../Cinema2ModuleContracts'
+import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from '../Cinema2AfterhoursNativeModule'
 
 /** The six television models inside the shipped `cinema2-vacancy-set` asset (node `vacancy.tv.<id>`). */
 export const VACANCY_TV_IDS = ['old-school', 'old-two', 'sony-pvm', 'retro', 'tv-set', 'vintage'] as const
@@ -14,13 +15,29 @@ export type VacancyRgb = readonly [number, number, number]
 export const VACANCY_COLORS = {
   background: [0.012, 0.016, 0.024, 1],
   screen: [0.86, 0.9, 0.94, 1],
+  highlight: [1, 1, 1, 1],
+  glow: [0.86, 0.9, 0.94, 1],
+  haze: [0.52, 0.62, 0.72, 1],
 } as const
 
-export const VACANCY_DEFAULTS = { master: 0.85, roomVisibility: 0.65 } as const
+export const VACANCY_DEFAULTS = { master: 0.85, roomVisibility: 0.65, musicResponse: .7, bassRattle: .12,
+  cameraMotion: .25, cameraOrbit: 0, screensLit: 1, static: 1, scanlines: 1, staticOverMedia: .12,
+  bloom: .8, reflections: .62, haze: 0 } as const
+export const VACANCY_PATTERNS = [
+  { value: 'dead-air', label: 'Dead Air' }, { value: 'channel-hop', label: 'Channel Hop' },
+  { value: 'ascent', label: 'Ascent' }, { value: 'collapse', label: 'Collapse' },
+  { value: 'signal-sweep', label: 'Signal Sweep' }, { value: 'checker', label: 'Checker' },
+  { value: 'vacancy', label: 'Vacancy' }, { value: 'interference', label: 'Interference' },
+] as const
+export type VacancyPattern = typeof VACANCY_PATTERNS[number]['value']
 
 export interface VacancyControls {
   master: number
   roomVisibility: number
+  bpmSync: boolean; musicResponse: number; bassRattle: number; autoPerformance: boolean
+  pattern: VacancyPattern; patternChange: boolean; trigger: Cinema2AfterhoursTriggerId
+  screensLit: number; static: number; scanlines: number; towerSize: VacancyTowerSize
+  mediaOnScreens: boolean; mediaLayout: 'every-screen' | 'stack-wall'; staticOverMedia: number
   colors: Record<keyof typeof VACANCY_COLORS, VacancyRgb>
 }
 
@@ -32,6 +49,16 @@ export function readVacancyControls(parameters: Cinema2ModuleParameterReadFacet)
   return {
     master: n('master', VACANCY_DEFAULTS.master),
     roomVisibility: n('roomVisibility', VACANCY_DEFAULTS.roomVisibility),
+    bpmSync: parameters.get('bpmSync') !== false,
+    musicResponse: n('musicResponse', VACANCY_DEFAULTS.musicResponse), bassRattle: n('bassRattle', VACANCY_DEFAULTS.bassRattle),
+    autoPerformance: parameters.get('autoPerformance') === true,
+    pattern: VACANCY_PATTERNS.some(p => p.value === parameters.get('pattern')) ? parameters.get('pattern') as VacancyPattern : 'dead-air',
+    patternChange: parameters.get('patternChange') === true,
+    trigger: CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(parameters.get('trigger') as Cinema2AfterhoursTriggerId) ? parameters.get('trigger') as Cinema2AfterhoursTriggerId : 'bar4',
+    screensLit: n('screensLit', 1), static: n('static', 1), scanlines: n('scanlines', 1),
+    towerSize: parameters.get('towerSize') === 'compact' ? 'compact' : parameters.get('towerSize') === 'tall' ? 'tall' : 'standard',
+    mediaOnScreens: parameters.get('mediaOnScreens') === true,
+    mediaLayout: parameters.get('mediaLayout') === 'stack-wall' ? 'stack-wall' : 'every-screen', staticOverMedia: n('staticOverMedia', .12),
     colors: Object.fromEntries(Object.entries(VACANCY_COLORS).map(([name, fallback]) => {
       const v = parameters.get(`${name}Color`)
       return [name, Array.isArray(v) && v.length >= 3 && v.slice(0, 3).every(c => typeof c === 'number' && Number.isFinite(c))

@@ -1,7 +1,11 @@
 /** Deterministic capture surface for the real Cinema 2.0 VACANCY production path: the real runtime, registry, module and effects. */
 import type { Cinema2ParameterId, Cinema2RenderQualityLevel } from '../../components/vyzualz/cinema2/contracts/Cinema2NativePresetManifest'
-import { CINEMA2_VACANCY_PRESET_ID, CINEMA2_VACANCY_PRESET_MANIFEST } from '../../components/vyzualz/cinema2/presets/Cinema2VacancyPreset'
+import { CINEMA2_VACANCY_MEDIA_ID, CINEMA2_VACANCY_PRESET_ID, CINEMA2_VACANCY_PRESET_MANIFEST } from '../../components/vyzualz/cinema2/presets/Cinema2VacancyPreset'
 import { Cinema2PresetRegistry } from '../../components/vyzualz/cinema2/presets/Cinema2PresetRegistry'
+import { Cinema2AudioIntelligenceBridge } from '../../components/vyzualz/cinema2/audio/Cinema2AudioIntelligenceBridge'
+import { nightshiftMusicFixture, type NightshiftFixtureOptions } from '../support/NightshiftMusicFixture'
+import { DEFAULT_MI_FRAME } from '../../features/musicIntelligence/constants'
+import type { Cinema2MediaSource } from '../../components/vyzualz/cinema2/media/Cinema2MediaSlotRuntime'
 import { Cinema2Runtime } from '../../components/vyzualz/cinema2/runtime/Cinema2Runtime'
 
 interface VacancyProductionApi {
@@ -10,6 +14,8 @@ interface VacancyProductionApi {
   advanceBy(seconds: number): Promise<unknown>
   setParameters(values: Record<string, unknown>): Promise<unknown>
   resize(width: number, height: number): Promise<unknown>
+  setMusic(values: Partial<NightshiftFixtureOptions> & { active?: boolean; paused?: boolean; seek?: number; bpm?: number }): Promise<unknown>
+  setMedia(source: Cinema2MediaSource | null): Promise<unknown>
   status(): unknown
 }
 declare global { interface Window { __vacancyProduction?: VacancyProductionApi } }
@@ -46,6 +52,22 @@ if (cam && cam.length >= 7 && cam.every(Number.isFinite)) {
   })
   if (!registered.ok) throw new Error(`VACANCY camera study manifest was rejected: ${registered.diagnostics.map(item => item.message).join('; ')}`)
 }
+let music: Partial<NightshiftFixtureOptions> & { active?: boolean; paused?: boolean; bpm?: number } = {}
+let musicAnchor = 0, anchorTimestamp = 0, publication = 0, musicRevision = 0
+let cachedMusicKey = '', cachedMusic: ReturnType<typeof nightshiftMusicFixture> | null = null
+const musicTime = () => musicAnchor + (music.paused ? 0 : (timestampMs - anchorTimestamp) / 1000)
+const audioBridge = new Cinema2AudioIntelligenceBridge({
+  getFrame: () => {
+    if (!music.active) return DEFAULT_MI_FRAME
+    const key = `${musicRevision}:${musicTime().toFixed(9)}`
+    if (cachedMusic && key === cachedMusicKey) return cachedMusic
+    const source = nightshiftMusicFixture({ timeSec: musicTime(), frameId: ++publication, advanceBeatGrid: true, ...music })
+    if (music.bpm) source.rhythm = { ...source.rhythm, bpm: music.bpm, beatIndex: Math.floor(musicTime() * music.bpm / 60), beatPhase: (musicTime() * music.bpm / 60) % 1 }
+    cachedMusicKey = key; cachedMusic = source
+    return source
+  },
+  getPublicationMeta: () => ({ sequence: publication, publisherId: 'vacancy-production-fixture', kind: 'frame', publishedAtMs: 0 }),
+})
 const created = Cinema2Runtime.create(canvas, {
   presetId: CINEMA2_VACANCY_PRESET_ID,
   ...(presetRegistry ? { presetRegistry } : {}),
@@ -54,7 +76,8 @@ const created = Cinema2Runtime.create(canvas, {
   cancelAnimationFrame: clock.cancelAnimationFrame,
   diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: 'vacancy-production' },
-  transportSource: { getState: () => ({ sourcePresent: false, playing: false, analysisActive: false, paused: false, trackId: null, timeSec: 0, bpmSync: true, bpm: 120 }) },
+  audioIntelligenceBridge: audioBridge,
+  transportSource: { getState: () => ({ sourcePresent: !!music.active, playing: !!music.active && !music.paused, analysisActive: !!music.active, paused: !!music.paused, trackId: music.active ? music.trackId ?? 'nightshift-audio-fixture' : null, timeSec: music.active ? musicTime() : 0, bpmSync: true, bpm: music.bpm ?? 120 }) },
 })
 if (!created.runtime) throw new Error(created.error)
 const runtime = created.runtime
@@ -94,6 +117,13 @@ function status() {
     effects: runtime.getEffectRuntimeSnapshot(),
     performance: runtime.getPerformanceSnapshot(),
     camera: runtime.getCameraRuntimeSnapshot().camera,
+    authored: runtime.getParameterState().serialize(),
+    media: runtime.getMediaSlotRuntimeSnapshot(),
+    transport: runtime.getTransportFrameState(),
+    audio: runtime.getAudioIntelligenceFrame(),
+    choreography: runtime.getChoreographyRuntimeSnapshot(),
+    response: Object.fromEntries(['audioEnergy', 'bassPressure', 'highSparkle', 'musicResponse', 'pattern'].map(name => [name,
+      runtime.getTargetResolver().resolve(`${CINEMA2_VACANCY_PRESET_ID}/target/module/vacancy-core/property/${name}` as never).value])),
   })
 }
 async function prepare(): Promise<unknown> {
@@ -125,6 +155,19 @@ const api: VacancyProductionApi = {
     runtime.resize({ width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)), dpr: 1 })
     await settleFrames(12)
     return status()
+  },
+  async setMusic(values) {
+    const oldTime = musicTime()
+    musicAnchor = values.seek ?? oldTime; anchorTimestamp = timestampMs
+    musicRevision += 1
+    music = { ...values, eventTime: values.event ? values.eventTime ?? musicAnchor + (values.event === 'drop' || values.event === 'phrase' ? 1 / 60 : 0) : undefined }
+    await settleFrames(3); return status()
+  },
+  async setMedia(source) {
+    const slots = runtime.getMediaSlotRuntime()
+    if (source) await slots.replace(CINEMA2_VACANCY_MEDIA_ID, source, { fit: 'cover' })
+    else slots.remove(CINEMA2_VACANCY_MEDIA_ID)
+    await settleFrames(3); return status()
   },
   status,
 }

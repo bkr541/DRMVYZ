@@ -905,7 +905,7 @@ export class Cinema2Runtime {
       if (frameAudio?.discontinuity.occurred && frameAudio.discontinuity.reason !== 'activation') {
         this.historyService.resetAll('discontinuity')
       }
-      this.mediaSlotRuntime.updateVideoTextures()
+      this.mediaSlotRuntime.updateVideoTextures(transport.paused)
       const frame = Object.freeze({
         frameId: visualFrameId,
         timestampMs: safeTimestampMs,

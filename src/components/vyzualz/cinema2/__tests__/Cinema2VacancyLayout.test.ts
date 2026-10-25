@@ -1,7 +1,9 @@
+import type { InstancedMesh, WebGLRenderer } from 'three'
+import { cinema2StableId, type Cinema2MediaSlotId } from '../contracts/Cinema2NativePresetManifest'
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
-  VACANCY_COLORS, VACANCY_DEFAULTS, VACANCY_PYRAMID_SIDES, VACANCY_TIER_HEIGHTS, VACANCY_TOWER_LAYOUTS, VACANCY_TV_IDS,
+  readVacancyControls, VACANCY_COLORS, VACANCY_DEFAULTS, VACANCY_PYRAMID_SIDES, VACANCY_TIER_HEIGHTS, VACANCY_TOWER_LAYOUTS, VACANCY_TV_IDS,
   type VacancyPlacement,
   type VacancyTowerSize, type VacancyTvId, type VacancyTvSize,
 } from '../modules/vacancy/Cinema2VacancyDomain'
@@ -162,7 +164,7 @@ describe('VACANCY room visibility', () => {
       template.name = node.name; template.userData = node.extras; root.add(template)
     }
     const controller = new Cinema2VacancySceneController(library)
-    const controls = { ...VACANCY_DEFAULTS, colors: { background: VACANCY_COLORS.background.slice(0, 3) as [number, number, number], screen: VACANCY_COLORS.screen.slice(0, 3) as [number, number, number] } }
+    const controls = readVacancyControls({ get: () => undefined, getAuthored: () => undefined, resolve: () => null })
     try {
       controller.attach(root)
       expect(material.emissiveMap).toBe(material.map)
@@ -177,6 +179,20 @@ describe('VACANCY room visibility', () => {
       expect(material.emissiveIntensity).toBe(0)
       controller.apply({ controls: { ...controls, master: 0 }, timeSec: 0, quality: 'high' })
       expect(material.emissiveIntensity).toBe(0)
+      // Borrowed media textures must be forgotten when a slot is removed; rebinding a deleted handle freezes the GL output.
+      const properties: { __webglTexture?: WebGLTexture; __version?: number } = {}
+      const renderer = { properties: { get: () => properties, remove: () => {} } } as unknown as WebGLRenderer
+      const screens = root.getObjectByName('vacancy.screens') as InstancedMesh
+      const texture = {} as WebGLTexture
+      controller.apply({ controls: { ...controls, mediaOnScreens: true }, timeSec: 0, quality: 'high', media: {
+        slotId: cinema2StableId<Cinema2MediaSlotId>('vacancy-test-media'), source: { id: 'test', label: 'Test', kind: 'image', url: 'blob:test' },
+        texture, width: 16, height: 16, playback: null, presentation: { fit: 'cover', position: [.5, .5], scale: [1, 1], rotation: 0, opacity: 1 },
+      } })
+      screens.onBeforeRender(renderer, undefined!, undefined!, undefined!, undefined!, undefined!)
+      expect(properties.__webglTexture).toBe(texture)
+      controller.apply({ controls, timeSec: 0, quality: 'high', media: null })
+      screens.onBeforeRender(renderer, undefined!, undefined!, undefined!, undefined!, undefined!)
+      expect(properties.__webglTexture).toBeUndefined()
     } finally {
       controller.dispose(); geometry.dispose(); baseMap.dispose(); originalEmission.dispose(); material.dispose()
     }
