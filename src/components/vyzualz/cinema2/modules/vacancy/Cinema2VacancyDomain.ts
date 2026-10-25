@@ -62,7 +62,7 @@ export interface VacancyScreenAnchor {
 export interface VacancyPlacement {
   tv: VacancyTvId
   tier: number
-  /** Index within the triangular tier, front row to back. */
+  /** Index within this visible horizontal tier, left to right. */
   index: number
   x: number
   y: number
@@ -75,17 +75,17 @@ export interface VacancyPlacement {
 
 export type VacancyTowerSize = 'compact' | 'standard' | 'tall'
 
-/** Staggered triangular layers form the pile: 10 main foundation cabinets, two rear fillers, then 6, 3 and one crown. */
+/** Four visible rows of CRTs form a clean 4-3-2-1 pyramid. All six models remain in use. */
 export const VACANCY_PYRAMID_SIDES = [4, 3, 2, 1] as const
 export const VACANCY_TIER_HEIGHTS: Readonly<Record<VacancyTowerSize, number>> = { compact: 0.42, standard: 0.48, tall: 0.54 }
 const tiers: readonly (readonly VacancyTvId[])[] = [
-  ['tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'old-school', 'retro'],
-  ['old-two', 'old-two', 'old-two', 'old-two', 'old-two', 'old-two'],
-  ['sony-pvm', 'sony-pvm', 'sony-pvm'],
+  ['old-school', 'tv-set', 'tv-set', 'retro'],
+  ['old-two', 'sony-pvm', 'old-two'],
+  ['sony-pvm', 'old-two'],
   ['vintage'],
 ]
 
-/** All sizes use the same staggered composition; cabinet height controls the overall size. */
+/** All sizes retain the same silhouette; Tower Size adjusts the cabinet heights. */
 export const VACANCY_TOWER_LAYOUTS: Readonly<Record<VacancyTowerSize, readonly (readonly VacancyTvId[])[]>> = {
   compact: tiers, standard: tiers, tall: tiers,
 }

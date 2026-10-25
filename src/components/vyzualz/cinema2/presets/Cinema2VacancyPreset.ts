@@ -107,7 +107,7 @@ export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   cameras: [{
     id: CINEMA2_VACANCY_CAMERA_ID, label: 'Pyramid hero', projection: 'perspective',
     fovDegrees: 40, minAspect: 1, near: 0.4, far: 24,
-    transform: { position: vec(-0.8, 1.35, 4.7) }, target: vec(0.46, 1.05, -0.1), rig: { kind: 'static' },
+    transform: { position: vec(0.46, 1.28, 4.05) }, target: vec(0.46, 1.04, -0.1), rig: { kind: 'static' },
   }],
   defaults: { camera: cinema2Ref(CINEMA2_VACANCY_CAMERA_ID) },
   lighting: { lights: [

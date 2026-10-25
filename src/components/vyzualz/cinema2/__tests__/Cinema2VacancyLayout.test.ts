@@ -33,35 +33,26 @@ describe('VACANCY tower layout', () => {
     expect(counts[counts.length - 1]).toBe(1)
   })
 
-  it.each(SIZE_NAMES)('packs the %s pile into staggered layers with real depth and a taper toward the crown', size => {
+  it.each(SIZE_NAMES)('forms a centred, flush 4-3-2-1 silhouette in the %s tower', size => {
     const layout = buildVacancyLayout(size, SIZES)
-    let previous: ReturnType<typeof vacancyTowerBounds> | null = null
-    for (let tier = 0; tier < VACANCY_TOWER_LAYOUTS[size].length; tier += 1) {
+    expect(layout).toHaveLength(10)
+    let previousWidth = Infinity
+    for (let tier = 0; tier < VACANCY_PYRAMID_SIDES.length; tier += 1) {
       const layer = layout.filter(p => p.tier === tier)
-      expect(layer).toHaveLength(VACANCY_TOWER_LAYOUTS[size][tier]!.length)
-      const turn = layer[0]!.yaw, c = Math.cos(turn), s = Math.sin(turn)
-      const points = layer.flatMap(p => vacancyFootprint(vacancyPlacementSize(p, SIZES), p.x, p.z, p.yaw))
-        .map(([x, z]) => [x * c - z * s, x * s + z * c])
-      const width = Math.max(...points.map(p => p[0]!)) - Math.min(...points.map(p => p[0]!))
-      const depth = Math.max(...points.map(p => p[1]!)) - Math.min(...points.map(p => p[1]!))
-      const contactArea = layer.reduce((sum, p) => { const size = vacancyPlacementSize(p, SIZES); return sum + size.width * size.depth }, 0)
-      expect(contactArea / (width * depth), 'the triangular pile must retain dense support in its footprint').toBeGreaterThan(.45)
+      expect(layer).toHaveLength(VACANCY_PYRAMID_SIDES[tier])
+      expect(layer.map(p => p.index)).toEqual(Array.from({ length: layer.length }, (_, index) => index))
+      // No secondary depth rows to obscure the pyramid from the front.
+      expect(Math.max(...layer.map(p => p.z)) - Math.min(...layer.map(p => p.z))).toBeLessThan(.01)
       const bounds = vacancyTowerBounds(layer, SIZES)
-      if (previous) {
-        expect(bounds.minX).toBeGreaterThan(previous.minX)
-        expect(bounds.maxX).toBeLessThan(previous.maxX)
-        expect(bounds.minZ).toBeGreaterThan(previous.minZ)
-        expect(bounds.maxZ).toBeLessThan(previous.maxZ)
-      } else {
-        expect(depth).toBeGreaterThan(width * .5)
+      const width = bounds.maxX - bounds.minX
+      expect(width).toBeLessThan(previousWidth)
+      expect(Math.abs((bounds.maxX + bounds.minX) / 2)).toBeLessThan(.02)
+      previousWidth = width
+      for (const placement of layer) {
+        const expectedHeight = VACANCY_TIER_HEIGHTS[size] * (tier === 3 ? .86 : 1)
+        expect(placement.y).toBeCloseTo(tier * VACANCY_TIER_HEIGHTS[size], 6)
+        expect(vacancyPlacementSize(placement, SIZES).bodyHeight).toBeCloseTo(expectedHeight, 6)
       }
-      for (const p of layer) {
-        expect(p.y).toBeCloseTo(tier * VACANCY_TIER_HEIGHTS[size], 6)
-        expect(p.y + vacancyPlacementSize(p, SIZES).bodyHeight).toBeCloseTo((tier + 1) * VACANCY_TIER_HEIGHTS[size], 6)
-      }
-      if (layer.length === 1) { expect(layer[0]!.x).toBe(0); expect(Math.abs(layer[0]!.z)).toBeLessThanOrEqual(.12) }
-      if (tier < VACANCY_PYRAMID_SIDES.length - 1) expect(new Set(layer.map(p => p.z.toFixed(3))).size).toBeGreaterThan(1)
-      previous = bounds
     }
   })
 
@@ -69,15 +60,11 @@ describe('VACANCY tower layout', () => {
     expect(buildVacancyLayout('standard', SIZES)).toEqual(buildVacancyLayout('standard', SIZES))
   })
 
-  it.each(SIZE_NAMES)('keeps the %s screens facing coherently forward with varied inward angles and no quarter-turned tier', size => {
+  it.each(SIZE_NAMES)('keeps every %s screen nearly front-facing with subtle inward turns', size => {
     const layout = buildVacancyLayout(size, SIZES)
-    for (const p of layout) {
-      expect(Math.cos(p.yaw), 'a side panel or cabinet back must not replace an entire tier of screens').toBeGreaterThan(.9)
-      expect(Math.abs(p.yaw - .18)).toBeGreaterThan(.1)
-      expect(Math.abs(p.yaw - .18)).toBeLessThan(.17)
-    }
-    expect(layout.some(p => p.yaw > .18)).toBe(true)
-    expect(layout.some(p => p.yaw < .18)).toBe(true)
+    for (const p of layout) expect(Math.abs(p.yaw)).toBeLessThan(.08)
+    expect(layout.some(p => p.yaw > .01)).toBe(true)
+    expect(layout.some(p => p.yaw < -.01)).toBe(true)
   })
 
   it.each(SIZE_NAMES)('stands every set on the floor or on another set and keeps the %s tower under the ceiling', size => {

@@ -3,7 +3,7 @@
 Status: **specification for review.** Written before any code, as `DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md` section 23 step 1.2 requires. The authority matrix (section 7) is agreed at the static-composition checkpoint, before controls, motion and audio are built.
 
 - Preset id `drmvyz.cinema2.vacancy`, label **VACANCY**, native module `vacancy-native-render` v1.
-- Reference: the user's mockup (`images/27.png`): a stack of CRT televisions in the centre of a dark empty room, every screen glowing white-grey static, a glossy floor reflecting the glow.
+- Reference: the user's CRT pyramid images: a centred 4-3-2-1 stack of vintage televisions in a dark empty room, every screen glowing white-grey static above a glossy floor.
 - Source assets: `docs/Vacancy/*.glb` (one room, six televisions). Originals are never modified; a build script writes the shipped runtime asset.
 
 ## 1. Visual specification
@@ -14,22 +14,22 @@ Status: **specification for review.** Written before any code, as `DRMVYZ_Cinema
 
 | Characteristic | Status |
 |---|---|
-| Tower centred in an empty dark room, staggered layers shrinking in width and depth toward the peak | mandatory |
+| Tower centred in an empty dark room, four visible rows narrowing 4-3-2-1 toward the peak | mandatory |
 | Screens dominate the lighting; the supplied room remains visibly readable | mandatory |
 | Bright white-grey analog static with faint horizontal banding on every screen | mandatory |
 | Glossy floor reflecting the screen glow | mandatory |
-| Coherently forward-facing screens, with inward turns and real supporting rows behind the front TVs | mandatory |
+| Coherently forward-facing screens, with subtle inward turns and real physical contact between stacked rows | mandatory |
 | Camera slightly low, a few metres back, tower right of centre | inspirational |
-| About 14 sets | inspirational (Tower Size control) |
+| 10 sets | mandatory (4-3-2-1 silhouette) |
 | Mixed set sizes with the largest at the bottom | mandatory (user brief) |
 
-**Major elements.** The brick room (one model), 22 televisions, one emissive screen per set, floor reflection, haze, bloom. The main layers contain 10 / 6 / 3 / 1 sets in a staggered triangular arrangement; two additional shallow/small sets fill out the rear of the foundation. All six source models are used. Compact, standard and tall share this composition at different overall sizes.
+**Major elements.** The brick room (one model), 10 televisions, one emissive screen per set, floor reflection, haze, bloom. The visible rows contain 4 / 3 / 2 / 1 sets, with no extra TVs hidden behind the stack. All six source models are used. Compact, standard and tall share this composition at different overall sizes.
 
-**Physical stacking.** Each layer contains several rows in depth. The next layer straddles the seams between the sets below, rather than forming a single-TV column or a square display grid. The narrow old-school and retro cabinets sit on the ground beside the rear foundation. All raised TVs require at least two lower sets contributing at least 3% of their base each, at least 65% total base contact, and a centre of mass at least 6 cm inside the support polygon. The accumulated weight above every support is also checked, using cabinet volume as a mass estimate. Exact rotated footprints are used for collision and contact checks. Rows nest against their actual footprints; a bounded 12 cm search moves a complete upper layer to its nearest supported position. Antennae occur only on the crown.
+**Physical stacking.** Each layer is a single horizontal row. The next row straddles the seams between the sets below, rather than forming a single-TV column or rows receding into the room. The old-school and retro cabinets sit in the front foundation row. All raised TVs require at least two lower sets contributing at least 3% of their base each, at least 65% total base contact, and a centre of mass at least 6 cm inside the support polygon. The accumulated weight above every support is also checked, using cabinet volume as a mass estimate. Exact rotated footprints are used for collision and contact checks. Rows are horizontally centred using the actual cabinet widths, with consistent close spacing. Antennae occur only on the crown.
 
-**Orientation.** The TVs retain the reference's common forward direction, with left and right sets turned inward. No layer is forcibly rotated 90 or 180 degrees to put screens on every side. An orbit will reveal the actual cabinet sides and backs, together with the supporting rows behind the front sets. This is a physical pile with depth, rather than four screen walls.
+**Orientation.** The TVs retain the reference's common forward direction, with left and right sets turned inward. No layer is forcibly rotated 90 or 180 degrees to put screens on every side. An orbit will reveal the actual cabinet sides and backs, together with the depth of the actual supporting cabinets. The stack has the cabinets’ real depth but a clear, legible front-facing pyramid silhouette.
 
-**Placement.** World space, metres, y up, floor at y = 0. The supplied room has a footprint about x -4.91..5.84, z -5.50..5.37 and a 2.76 m ceiling. The pile stands at x 0.46, z -0.1. Uniform model scaling keeps cabinet tops level: compact uses 0.42 m cabinet heights, standard 0.48 m and tall 0.54 m. The standard pile is about 2.13 m high including the crown antennae. The default camera sits near cabinet height for the hero view; a side-view production capture verifies the supporting depth. Camera rotation remains a later step.
+**Placement.** World space, metres, y up, floor at y = 0. The supplied room has a footprint about x -4.91..5.84, z -5.50..5.37 and a 2.76 m ceiling. The pile stands at x 0.46, z -0.1. Uniform model scaling keeps cabinet tops level: compact uses 0.42 m cabinet heights, standard 0.48 m and tall 0.54 m. The standard pile is about 2.03 m high including the crown antennae. The default camera looks nearly straight at the centred pyramid to keep the 4-3-2-1 outline legible. Camera rotation remains a later step.
 
 **Coordinate / render-space policy.** World-space. Depth and perspective are the design (stacked objects, reflective floor, camera drift). Nothing is frame-anchored, so aspect ratio only changes framing: the default camera widens its field of view at narrow aspects so the whole tower stays inside the frame.
 

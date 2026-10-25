@@ -182,78 +182,45 @@ export function vacancyPlacementSize(p: VacancyPlacement, sizes: Readonly<Record
 }
 
 /**
- * A staggered tetrahedral pile: each level has several rows in depth and each raised cabinet bridges lower sets.
- * The reference's broadly forward-facing screens stay consistent throughout the pile; actual backs remain at the rear.
- * Rows nest using their real rotated footprints rather than leaving bounding-box channels between them.
+ * A frontal 4-3-2-1 pyramid, rather than several triangular layers extending deep into the room.
+ * Keep each row centred, with real cabinet-width spacing. Upper televisions bridge the seams below;
+ * their support and accumulated loads are audited with the same exact-footprint checks as before.
  */
 export function buildVacancyLayout(size: VacancyTowerSize, sizes: Readonly<Record<VacancyTvId, VacancyTvSize>>, seed = 7): VacancyPlacement[] {
   const random = mulberry32(seed), out: VacancyPlacement[] = []
-  const tierHeight = VACANCY_TIER_HEIGHTS[size], turn = 0.18, c = Math.cos(turn), s = Math.sin(turn)
+  const tierHeight = VACANCY_TIER_HEIGHTS[size]
   VACANCY_TOWER_LAYOUTS[size].forEach((tier, tierIndex) => {
-    const side = VACANCY_PYRAMID_SIDES[tierIndex]!
-    let index = 0
-    const items = [] as { tv: VacancyTvId; row: number; column: number; count: number; yaw: number; size: VacancyTvSize }[]
-    for (let row = 0; row < side; row += 1) for (let column = 0; column < side - row; column += 1) {
-      const count = side - row, tv = tier[index++]!, middle = (count - 1) / 2
-      const direction = column < middle ? 1 : column > middle ? -1 : tierIndex % 2 ? -1 : 1
-      const yaw = direction * (0.12 + random() * 0.04)
-      const scale = tierHeight / sizes[tv].bodyHeight
-      const scaled = vacancyPlacementSize({ tv, tier: tierIndex, index: 0, x: 0, y: 0, z: 0, yaw, scale }, sizes)
-      items.push({ tv, row, column, count, yaw, size: scaled })
-    }
-    const pitchX = Math.max(...items.map(item => item.size.width * Math.cos(item.yaw) + item.size.depth * Math.abs(Math.sin(item.yaw)))) + GAP
-    const makeLayer = (pitchZ: number, world: boolean): VacancyPlacement[] => items.map((item, index) => {
-      const x = (item.column - (item.count - 1) / 2) * pitchX
-      const z = ((side - 1) / 3 - item.row) * pitchZ
-      return { tv: item.tv, tier: tierIndex, index, x: world ? x * c + z * s : x, y: tierIndex * tierHeight,
-        z: world ? -x * s + z * c : z, yaw: item.yaw + (world ? turn : 0), scale: tierHeight / sizes[item.tv].bodyHeight }
+    const middle = (tier.length - 1) / 2
+    const entries = tier.map((tv, index) => {
+      // The crown's antennae need extra visual breathing room; keep its body a little smaller.
+      const scale = tierHeight / sizes[tv].bodyHeight * (tierIndex === VACANCY_PYRAMID_SIDES.length - 1 ? 0.86 : 1)
+      const cabinet = vacancyPlacementSize({ tv, tier: tierIndex, index, x: 0, y: 0, z: 0, yaw: 0, scale }, sizes)
+      // A few degrees of inward turn preserve the stack's dimensionality without hiding its screens.
+      const yaw = (middle - index) * 0.022 + (random() - 0.5) * 0.006
+      const width = cabinet.width * Math.abs(Math.cos(yaw)) + cabinet.depth * Math.abs(Math.sin(yaw))
+      return { tv, index, scale, yaw, width, cabinet }
     })
-    let low = 0, high = Math.max(...items.map(item => item.size.depth * Math.cos(item.yaw) + item.size.width * Math.abs(Math.sin(item.yaw))))
-    for (let step = 0; step < 24 && side > 1; step += 1) {
-      const pitch = (low + high) / 2, layer = makeLayer(pitch, false)
-      const collision = layer.some((p, i) => layer.slice(0, i).some(other => vacancyOverlapArea(
-        vacancyFootprint(vacancyPlacementSize(p, sizes), p.x, p.z, p.yaw),
-        vacancyFootprint(vacancyPlacementSize(other, sizes), other.x, other.z, other.yaw),
-      ) > 1e-8))
-      if (collision) low = pitch
-      else high = pitch
-    }
-    const local = makeLayer(high + GAP, false)
-    if (tierIndex === 0) {
-      const apex = local[local.length - 1]!, apexSize = vacancyPlacementSize(apex, sizes)
-      const apexWidth = apexSize.width * Math.cos(apex.yaw) + apexSize.depth * Math.abs(Math.sin(apex.yaw))
-      for (const [tv, direction] of [['old-school', -1], ['retro', 1]] as const) {
-        const scale = tierHeight / sizes[tv].bodyHeight, yaw = -direction * .14
-        const cabinet = vacancyPlacementSize({ ...apex, tv, scale }, sizes)
-        const width = cabinet.width * Math.cos(yaw) + cabinet.depth * Math.abs(Math.sin(yaw))
-        const extra: VacancyPlacement = { tv, tier: 0, index: local.length, x: direction * ((apexWidth + width) / 2 + GAP), y: 0, z: apex.z, yaw, scale }
-        for (let step = 0; step < 40; step += 1) {
-          const footprint = vacancyFootprint(cabinet, extra.x, extra.z, extra.yaw)
-          if (!local.some(p => vacancyOverlapArea(footprint, vacancyFootprint(vacancyPlacementSize(p, sizes), p.x, p.z, p.yaw)) > 1e-6)) break
-          extra.z -= .01
-        }
-        local.push(extra)
-      }
-    }
-    const layer = local.map(p => ({ ...p, x: p.x * c + p.z * s, z: -p.x * s + p.z * c, yaw: p.yaw + turn }))
+    const totalWidth = entries.reduce((sum, entry) => sum + entry.width, 0) + GAP * (entries.length - 1)
+    let left = -totalWidth / 2
+    const layer = entries.map(entry => {
+      const x = left + entry.width / 2
+      left += entry.width + GAP
+      return { tv: entry.tv, tier: tierIndex, index: entry.index, x,
+        y: tierIndex * tierHeight, z: 0, yaw: entry.yaw, scale: entry.scale }
+    })
     const below = out.map(p => loadedBody(p, vacancyPlacementSize(p, sizes)))
-    let candidate: VacancyPlacement[] | null = null
-    for (let radius = 0; radius <= 12 && !candidate; radius += 1) {
-      for (let dx = -radius; dx <= radius && !candidate; dx += 1) {
-        if (side === 1 && dx !== 0) continue
-        for (const dz of radius === 0 ? [0] : [radius - Math.abs(dx), Math.abs(dx) - radius]) {
-          const moved = layer.map(p => ({ ...p, x: p.x + dx * .01, z: p.z + dz * .01 }))
-          if (!moved.every(p => {
-            const support = vacancySupport(vacancyPlacementSize(p, sizes), p.x, p.z, p.yaw, below)
-            return Math.abs(support.y - p.y) < 1e-6 && support.margin >= VACANCY_MIN_SUPPORT_MARGIN && support.contactShare >= VACANCY_MIN_CONTACT_SHARE
-              && (tierIndex === 0 || support.supportCount >= VACANCY_MIN_SUPPORT_COUNT)
-          })) continue
-          if (vacancyLoadMargins([...out, ...moved], sizes).every(margin => margin >= VACANCY_MIN_SUPPORT_MARGIN)) { candidate = moved; break }
-        }
+    for (const placement of layer) {
+      if (tierIndex === 0) continue
+      const support = vacancySupport(vacancyPlacementSize(placement, sizes), placement.x, placement.z, placement.yaw, below)
+      if (Math.abs(support.y - placement.y) > 1e-6 || support.margin < VACANCY_MIN_SUPPORT_MARGIN ||
+        support.contactShare < VACANCY_MIN_CONTACT_SHARE || support.supportCount < VACANCY_MIN_SUPPORT_COUNT) {
+        throw new Error(`VACANCY tier ${tierIndex} lacks stable multi-cabinet support.`)
       }
     }
-    if (!candidate) throw new Error(`VACANCY tier ${tierIndex} lacks stable multi-cabinet support.`)
-    out.push(...candidate)
+    if (!vacancyLoadMargins([...out, ...layer], sizes).every(margin => margin >= VACANCY_MIN_SUPPORT_MARGIN)) {
+      throw new Error(`VACANCY tier ${tierIndex} exceeds cabinet load support.`)
+    }
+    out.push(...layer)
   })
   return out
 }
