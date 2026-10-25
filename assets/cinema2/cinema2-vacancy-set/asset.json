@@ -1,0 +1,13 @@
+{
+  "id": "cinema2-vacancy-set",
+  "kind": "model",
+  "compression": "none",
+  "license": "CC0",
+  "attribution": null,
+  "origin": "scripts/cinema2-assets/build-vacancy-runtime.mjs. Owner-supplied source GLBs in docs/Vacancy: abandoned_brick_room, old_school_tv, old_tv2, sony_pvm-14l2_crt_tv, tv__old_tv__retro_tv, tv_set and vintage_tv4. Merged into one set, each television normalised to a real-world width with its pivot at the bottom centre facing +Z, textures re-sized to WebP per quality tier. The owner states no attribution is required.",
+  "files": {
+    "high": "public/cinema2/models/vacancy-set.glb",
+    "medium": "public/cinema2/models/vacancy-set-medium.glb",
+    "low": "public/cinema2/models/vacancy-set-low.glb"
+  }
+}

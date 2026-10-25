@@ -29,6 +29,7 @@ import { CINEMA2_HYPNOTIZE_PRESET_MANIFEST } from './Cinema2HypnotizePreset'
 import { CINEMA2_STARTERS_PRESET_MANIFEST } from './Cinema2StartersPreset'
 import { CINEMA2_BWC_PRESET_MANIFEST } from './Cinema2BwcPreset'
 import { CINEMA2_CANOPY_PRESET_MANIFEST } from './Cinema2CanopyPreset'
+import { CINEMA2_VACANCY_PRESET_MANIFEST } from './Cinema2VacancyPreset'
 import { CINEMA2_MARQUEE_PRESET_MANIFEST } from './Cinema2MarqueePreset'
 import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST } from './Cinema2NightshiftPreset'
 
@@ -157,6 +158,10 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   defineCinema2FirstPartyPreset({
     role: 'keeper',
     manifest: CINEMA2_CANOPY_PRESET_MANIFEST,
+  }),
+  defineCinema2FirstPartyPreset({
+    role: 'keeper',
+    manifest: CINEMA2_VACANCY_PRESET_MANIFEST,
   }),
   defineCinema2FirstPartyPreset({
     role: 'reference',

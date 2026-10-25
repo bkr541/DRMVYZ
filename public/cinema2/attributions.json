@@ -170,6 +170,13 @@
       "origin": "scripts/cinema2-assets/generate-studio-environment.mjs <out> <width> neutral (equirectangular Radiance RGBE: the studio room with every hue removed, so polished surfaces reflect plain white and grey; 512 px wide for the low tier)"
     },
     {
+      "id": "cinema2-vacancy-set",
+      "kind": "model",
+      "license": "CC0",
+      "attribution": null,
+      "origin": "scripts/cinema2-assets/build-vacancy-runtime.mjs. Owner-supplied source GLBs in docs/Vacancy: abandoned_brick_room, old_school_tv, old_tv2, sony_pvm-14l2_crt_tv, tv__old_tv__retro_tv, tv_set and vintage_tv4. Merged into one set, each television normalised to a real-world width with its pivot at the bottom centre facing +Z, textures re-sized to WebP per quality tier. The owner states no attribution is required."
+    },
+    {
       "id": "cinema2-wet-concrete",
       "kind": "texture",
       "license": "generated-in-house",

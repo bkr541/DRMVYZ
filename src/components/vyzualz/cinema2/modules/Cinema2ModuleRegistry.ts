@@ -26,6 +26,7 @@ import { cinema2StartersNativeModuleDefinition } from './Cinema2StartersNativeMo
 import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
 import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule'
+import { cinema2VacancyNativeModuleDefinition } from './Cinema2VacancyNativeModule'
 import { cinema2NightshiftNativeModuleDefinition } from './Cinema2NightshiftNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
@@ -215,6 +216,11 @@ if (!bwcRegistration.ok) {
 const canopyRegistration = cinema2NativeModuleRegistry.register(cinema2CanopyNativeModuleDefinition)
 if (!canopyRegistration.ok) {
   throw new Error(`Cinema 2.0 CANOPY native module registration failed: ${canopyRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const vacancyRegistration = cinema2NativeModuleRegistry.register(cinema2VacancyNativeModuleDefinition)
+if (!vacancyRegistration.ok) {
+  throw new Error(`Cinema 2.0 VACANCY native module registration failed: ${vacancyRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

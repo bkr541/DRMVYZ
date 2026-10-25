@@ -520,6 +520,35 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-vacancy-set",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC0",
+    "attribution": null,
+    "files": {
+      "high": {
+        "url": "/cinema2/models/vacancy-set.glb",
+        "bytes": 3816728,
+        "triangles": 29411
+      },
+      "medium": {
+        "url": "/cinema2/models/vacancy-set-medium.glb",
+        "bytes": 2996796,
+        "triangles": 29411
+      },
+      "low": {
+        "url": "/cinema2/models/vacancy-set-low.glb",
+        "bytes": 2396464,
+        "triangles": 29411
+      }
+    },
+    "gpuBytes": {
+      "high": 42679765,
+      "medium": 27846790,
+      "low": 13756544
+    }
+  },
+  {
     "id": "cinema2-wet-concrete",
     "kind": "texture",
     "layout": "surface-normal-crack-roughness",
