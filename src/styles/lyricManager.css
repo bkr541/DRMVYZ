@@ -1320,7 +1320,7 @@
 }
 
 /* Left rail's top/left/right inset is applied per-section below instead
-   (.lmv-lyric-management, .lmv-workspace-tabs, .lmv-workspace-tab-panel)
+   (.lmv-workspace-tabs, .lmv-workspace-tab-panel)
    so the Solid Bar Track Workspace header can reach the rail's true top
    and side edges with no surrounding gap, while everything else keeps its
    original position. Bottom inset is untouched since nothing needs to
@@ -2112,8 +2112,7 @@
   overflow: hidden;
 }
 
-.lmv-track-workspace,
-.lmv-lyric-management {
+.lmv-track-workspace {
   box-sizing: border-box;
   min-height: 0;
   display: flex;
@@ -2143,75 +2142,6 @@
   padding-top: 0;
   padding-left: 0;
   padding-right: 0;
-}
-
-.lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
-  flex: 0 0 55%;
-  border-bottom: 1px solid rgba(126,218,232,0.12);
-}
-
-.lmv-lyric-management {
-  flex: 0 0 45%;
-  padding: 14px 12px 12px;
-}
-
-/* The Lyric Management header (below) is now restyled to match Track
-   Workspace's Drop Shadow bar exactly, including its edge-to-edge fit — so
-   its own top/left/right padding is zeroed here too, the same way Track
-   Workspace's is above. Lyric Versions' search row and doc list get that
-   inset back directly (see .lmv-lyric-management > .lmv-doc-sidebar) so
-   only the header bar itself becomes edge-to-edge; nothing else in Lyric
-   Management shifts position. Bottom padding is untouched. */
-.lmv-lyric-management {
-  position: relative;
-  padding-top: 0;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Drag-to-resize handle for the Track Workspace / Lyric Management split.
-   Absolutely positioned at the section's own top inside edge (rather than
-   straddling above it, which .lmv-lyric-management's own overflow: hidden
-   would clip) and rather than a real flex child, so it never adds to the
-   two sections' combined flex-basis — they already sum to 100%. */
-.lmv-lyric-management-resize-handle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 6px;
-  z-index: 2;
-  cursor: row-resize;
-  touch-action: none;
-}
-
-.lmv-lyric-management-resize-handle:hover,
-.lmv-lyric-management-resize-handle:focus-visible {
-  background: rgba(74, 199, 219, 0.3);
-  outline: none;
-}
-
-/* Enter/exit animation for the whole section, driven by useMountTransition
-   (LyricManagerView.tsx) since it only mounts once a track is selected —
-   React removes it from the DOM the instant selectedTrack goes null, before
-   a plain CSS transition on unmount could ever play, so the hook keeps it
-   mounted a beat longer while this class drives it back to the hidden
-   state. Track Workspace's flex-basis (55%/45% split) is held for the same
-   extra beat via data-has-selected-track, so the layout doesn't snap back
-   to 100% out from under the still-fading section. */
-.lmv-lyric-management {
-  transition: opacity 220ms ease, transform 220ms ease;
-}
-
-.lmv-lyric-management--entering,
-.lmv-lyric-management--exiting {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.lmv-lyric-management--entered {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 /* Center column group headers (Live Preview, Track Timeline, Cue list) use the reusable .drc-header group,
@@ -2358,49 +2288,6 @@
    the bare underline input, optional clear button, grid/list view toggles — all
    flush with the "Track Library" header and tabs above. */
 
-.lmv-lyric-management > .lmv-doc-sidebar {
-  width: 100%;
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-/* Restore the 24px (12 + 12) side inset .lmv-lyric-management and
-   .lmv-left-rail .vz-inspector-inner used to provide together, before both
-   were zeroed so the Lyric Management header above can be edge-to-edge —
-   same pattern as .lmv-workspace-tab-panel for Track Workspace. */
-.lmv-lyric-management > .lmv-doc-sidebar {
-  padding-left: 24px;
-  padding-right: 24px;
-}
-
-/* Gap between the "Lyric Management" window header and the Lyric Versions group
-   heading — same 24px the Track Library group carries above. */
-
-.lmv-lyric-management .lmv-doc-sidebar > .drc-group {
-  padding-top: 24px;
-}
-
-.lmv-lyric-management .lmv-doc-list {
-  min-height: 0;
-  padding-inline: 0;
-}
-
-/* Versions window: the search + filter row sits on the same 24px content line, with the same spacing as the
-   Tracks window above it (.lmv-workspace-tab-panel .lmv-track-library-body). */
-.lmv-lyric-management .lmv-lyric-versions-body {
-  margin-top: 12px;
-  padding: 0 0 8px;
-}
-
-/* Version rows follow the Tracks list: flat, hairline-separated, running edge to edge so the active row's wash
-   reaches the rail edges while the content and hairlines stay on the 24px line. */
-.lmv-lyric-management .lmv-doc-list {
-  margin-inline: -24px;
-  padding: 0;
-}
 .lmv-doc-card {
   position: relative;
   display: flex;
@@ -2462,9 +2349,6 @@
 .lmv-doc-action:disabled { opacity: 0.35; cursor: not-allowed; }
 .lmv-doc-action--danger:hover { color: #f87171; }
 .lmv-doc-action:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 3px; }
-.lmv-lyric-management .lmv-doc-empty { padding-inline: 24px; }
-.lmv-lyric-management .lmv-doc-section-label,
-.lmv-lyric-management .lmv-doc-legacy-note { margin-inline: 26px; }
 
 /* ── Functional LyricManagerView: LyricTrackBrowser in the Track Workspace ──
    The real browser wraps its Collapsible in an extra .lmv-track-browser section
@@ -3416,10 +3300,6 @@
   padding-inline: var(--workspace-rail-inset);
 }
 
-.lmv-lyric-management > .lmv-doc-sidebar {
-  padding-inline: calc(var(--workspace-rail-inset) + 10px);
-}
-
 .lmv-left-rail .lmv-workspace-tab-panel {
   padding-top: 8px;
   padding-bottom: 12px;
@@ -3427,8 +3307,7 @@
 }
 
 .lmv-left-rail .lmv-workspace-tab-panel > .drc-group,
-.lmv-left-rail .lmv-track-browser > .drc-group,
-.lmv-lyric-management .lmv-doc-sidebar > .drc-group {
+.lmv-left-rail .lmv-track-browser > .drc-group {
   padding-top: var(--workspace-group-top);
 }
 
@@ -3448,8 +3327,7 @@
 .lmv-left-rail .lmv-grid2 { gap: var(--workspace-group-gap); }
 .lmv-left-rail .lmv-field { gap: 3px; }
 
-.lmv-left-rail .lmv-track-library-body,
-.lmv-left-rail .lmv-lyric-versions-body {
+.lmv-left-rail .lmv-track-library-body {
   margin-top: var(--workspace-group-body-top);
   padding: 0 0 8px;
   gap: var(--workspace-group-gap);
@@ -3470,25 +3348,93 @@
   left: var(--workspace-rail-inset);
   right: var(--workspace-rail-inset);
 }
+
+/* Status badges (Loaded / Playing / Open / Active) and the Selected dot are quieter in the Tracks list:
+   smaller type, tighter capsule, smaller dot. Scoped here so the same badges elsewhere keep their size. */
+.lmv-left-rail .lmv-track-group .dv-badge {
+  gap: 4px;
+  padding: 2px 6px;
+  font-size: 7px;
+}
+.lmv-left-rail .lmv-track-group .dv-badge-dot {
+  width: 4px;
+  height: 4px;
+}
+.lmv-left-rail .lmv-track-group .vz-track-row-selected-dot .dv-badge {
+  gap: 0;
+  padding: 0;
+}
+.lmv-left-rail .lmv-track-group .vz-track-row-selected-dot .dv-badge-dot {
+  width: 5px;
+  height: 5px;
+}
+
+/* A track and its lyric versions are one group: the versions are child rows of the selected track's card.
+   They reuse the track-row classes (type size, colours, hairlines, washes, bare icon actions) and differ only
+   by an extra left indent, plus a hairline guide that ties them to the parent. */
+.lmv-track-group { display: flex; flex-direction: column; }
+.lmv-track-versions { position: relative; display: flex; flex-direction: column; }
+.lmv-track-versions::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--workspace-rail-inset) + 20px);
+  width: 1px;
+  background: rgba(154, 178, 188, 0.2);
+  pointer-events: none;
+}
+.lmv-left-rail .lmv-track-versions .vz-track-row.vz-track-row--list {
+  padding-left: calc(var(--workspace-rail-inset) + 34px);
+  padding-right: var(--workspace-rail-inset);
+}
+.lmv-left-rail .lmv-track-versions .vz-track-row--list::after {
+  left: calc(var(--workspace-rail-inset) + 34px);
+  right: var(--workspace-rail-inset);
+}
+.lmv-track-versions .vz-track-row--list .vz-track-row-title.lmv-version-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmv-track-versions .lmv-doc-rename-row { width: 100%; }
+.lmv-track-versions .vz-track-action-btn.lmv-version-delete:hover:not(:disabled) { color: #f87171; }
+.lmv-track-versions--status {
+  padding: 10px var(--workspace-rail-inset) 10px calc(var(--workspace-rail-inset) + 34px);
+  color: rgba(196, 207, 211, 0.5);
+  font-size: 9px;
+}
+.lmv-track-versions-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px var(--workspace-rail-inset) 8px calc(var(--workspace-rail-inset) + 34px);
+}
+.lmv-track-versions-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(205, 216, 221, 0.72);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.lmv-track-versions-add:hover { color: #67f7ff; }
+.lmv-track-versions-add:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 3px; }
+/* Unattached legacy documents are not children of any track: no indent, no guide line. */
+.lmv-track-versions--legacy::before { content: none; }
+.lmv-left-rail .lmv-track-versions--legacy .vz-track-row.vz-track-row--list { padding-left: var(--workspace-rail-inset); }
+.lmv-left-rail .lmv-track-versions--legacy .vz-track-row--list::after { left: var(--workspace-rail-inset); }
+.lmv-track-versions--legacy .lmv-doc-section-label,
+.lmv-track-versions--legacy .lmv-doc-legacy-note { margin-inline: var(--workspace-rail-inset); }
 .lmv-left-rail .lmv-workspace-tab-panel .drc-body {
   padding-inline: 0;
 }
 
-.lmv-lyric-management .lmv-doc-list {
-  margin-inline: calc(-1 * (var(--workspace-rail-inset) + 10px));
-}
-.lmv-lyric-management .lmv-doc-card,
-.lmv-lyric-management .lmv-doc-empty {
-  padding-inline: calc(var(--workspace-rail-inset) + 10px);
-}
-.lmv-lyric-management .lmv-doc-card::after {
-  left: calc(var(--workspace-rail-inset) + 10px);
-  right: calc(var(--workspace-rail-inset) + 10px);
-}
-.lmv-lyric-management .lmv-doc-section-label,
-.lmv-lyric-management .lmv-doc-legacy-note {
-  margin-inline: calc(var(--workspace-rail-inset) + 12px);
-}
 
 /* React's right panel is the 12px rail inset plus its 6px scroll inset. */
 .lmv-right-rail .lmv-inspector-pane {
@@ -3701,21 +3647,13 @@
   overflow: visible;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-workspace,
-[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-lyric-management {
+[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-track-workspace {
   flex-shrink: 1;
   min-width: 0;
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
   background: var(--fw-surface-background);
   box-shadow: var(--fw-surface-shadow);
-}
-
-/* Keep the user-controlled percent split. Both sections shrink proportionally
-   by the inter-surface gap, instead of overflowing their height by 11px. */
-[data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-workspace-shell[data-has-selected-track='true'] .lmv-track-workspace {
-  flex-shrink: 1;
-  border-bottom: 1px solid var(--fw-surface-border);
 }
 
 [data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-left-rail.vz-inspector--collapsed {

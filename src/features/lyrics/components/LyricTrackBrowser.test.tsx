@@ -4,7 +4,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LyricManagerTrack } from '../lyricManagerTypes'
+import type { LyricDocumentVersion, LyricManagerTrack } from '../lyricManagerTypes'
 import { filterLyricManagerTracks, LyricTrackBrowser } from './LyricTrackBrowser'
 
 let container: HTMLElement
@@ -34,6 +34,32 @@ function track(overrides: Partial<LyricManagerTrack> = {}): LyricManagerTrack {
     transcriptionAssets: overrides.transcriptionAssets ?? null,
   }
 }
+
+function version(overrides: Partial<LyricDocumentVersion> = {}): LyricDocumentVersion {
+  return {
+    id: 'doc-a',
+    audioTrackId: 'track-a',
+    title: 'Approved Lyrics',
+    artist: 'DVYDRM',
+    sourceType: 'manual',
+    isActive: true,
+    cueCount: 12,
+    language: 'en',
+    documentReviewStatus: 'approved',
+    updatedAt: '2026-06-29T12:00:00.000Z',
+    ...overrides,
+  } as LyricDocumentVersion
+}
+
+const versionHandlers = () => ({
+  onSelectDocument: vi.fn(),
+  onDuplicateDocument: vi.fn(),
+  onRenameDocument: vi.fn(),
+  onActivateDocument: vi.fn(),
+  onDeleteDocument: vi.fn(),
+  onNewDocument: vi.fn(),
+  onImportDocument: vi.fn(),
+})
 
 const baseProps = {
   tracks: [track()],
@@ -247,6 +273,90 @@ describe('LyricTrackBrowser', () => {
     const selected = container.querySelector<HTMLElement>('.vz-track-row-selected-dot')
     expect(selected?.title).toBe('Selected')
     expect(selected?.querySelector('.sr-only')?.textContent).toBe('Selected')
+  })
+
+  it('nests the selected track\'s lyric versions inside its group, using the track-row styling and an indent', async () => {
+    const handlers = versionHandlers()
+    await render({
+      tracks: [track(), track({ dbId: 'track-b', id: 'audio-track-b', title: 'POP' })],
+      selectedTrackId: 'track-a',
+      versions: {
+        documents: [version(), version({ id: 'doc-b', title: 'Alternate Lyrics', isActive: false, cueCount: 0 })],
+        loading: false,
+        openDocumentId: 'doc-b',
+        ...handlers,
+      },
+    })
+
+    const groups = [...container.querySelectorAll<HTMLElement>('.lmv-track-group')]
+    expect(groups).toHaveLength(2)
+    expect(groups[0]!.classList.contains('lmv-track-group--expanded')).toBe(true)
+    // Only the selected track expands, and the versions sit after its card within the same group.
+    expect(groups[1]!.querySelector('.lmv-track-versions')).toBeNull()
+    const rows = [...groups[0]!.querySelectorAll<HTMLElement>('.lmv-track-versions .vz-track-row.vz-track-row--list')]
+    expect(rows.map(row => row.querySelector('.vz-track-row-title')?.textContent)).toEqual(['Approved Lyrics', 'Alternate Lyrics'])
+    expect(groups[0]!.firstElementChild!.classList.contains('vz-track-row')).toBe(true)
+    expect(rows[0]!.classList.contains('lmv-version-row--active')).toBe(true)
+    expect(rows[1]!.classList.contains('lmv-version-row--open')).toBe(true)
+
+    await act(async () => rows[1]!.click())
+    expect(handlers.onSelectDocument).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-b' }))
+    expect(baseProps.onSelectTrack).not.toHaveBeenCalled()
+
+    // Row actions act on the version and never on the parent track or row selection.
+    const select = handlers.onSelectDocument.mock.calls.length
+    const duplicate = rows[0]!.querySelector<HTMLButtonElement>('button[aria-label="Duplicate"]')!
+    await act(async () => duplicate.click())
+    expect(handlers.onDuplicateDocument).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-a' }))
+    expect(handlers.onSelectDocument.mock.calls.length).toBe(select)
+    expect(baseProps.onSelectTrack).not.toHaveBeenCalled()
+
+    await act(async () => (container.querySelector('button[aria-label="New lyric version"]') as HTMLButtonElement).click())
+    await act(async () => (container.querySelector('button[aria-label="Import lyric version"]') as HTMLButtonElement).click())
+    expect(handlers.onNewDocument).toHaveBeenCalledTimes(1)
+    expect(handlers.onImportDocument).toHaveBeenCalledTimes(1)
+  })
+
+  it('renames a version inline without selecting it', async () => {
+    const handlers = versionHandlers()
+    await render({
+      selectedTrackId: 'track-a',
+      versions: { documents: [version()], loading: false, openDocumentId: null, ...handlers },
+    })
+    await act(async () => (container.querySelector('button[aria-label="Rename"]') as HTMLButtonElement).click())
+    const input = container.querySelector('input[aria-label="Lyric document name"]') as HTMLInputElement
+    expect(input).not.toBeNull()
+    await act(async () => (container.querySelector('button[aria-label="Cancel lyric document rename"]') as HTMLButtonElement).click())
+    expect(container.querySelector('input[aria-label="Lyric document name"]')).toBeNull()
+    expect(handlers.onRenameDocument).not.toHaveBeenCalled()
+    expect(handlers.onSelectDocument).not.toHaveBeenCalled()
+  })
+
+  it('shows no version rows for a selected track without versions, a loading line while fetching, and unattached documents un-nested', async () => {
+    const handlers = versionHandlers()
+    await render({ selectedTrackId: 'track-a', versions: { documents: [], loading: false, openDocumentId: null, ...handlers } })
+    expect(container.querySelector('.lmv-track-versions')).toBeNull()
+
+    await render({ selectedTrackId: 'track-a', versions: { documents: [], loading: true, openDocumentId: null, ...handlers } })
+    expect(container.querySelector('.lmv-track-versions')?.textContent).toContain('Loading lyric versions')
+
+    await render({
+      selectedTrackId: 'track-a',
+      versions: {
+        documents: [version()],
+        legacyDocuments: [version({ id: 'legacy-1', title: 'Old Import', audioTrackId: null, isActive: false })],
+        loading: false,
+        openDocumentId: null,
+        ...handlers,
+      },
+    })
+    const nested = container.querySelector('.lmv-track-group .lmv-track-versions')!
+    expect(nested.textContent).toContain('Approved Lyrics')
+    expect(nested.textContent).not.toContain('Old Import')
+    const legacy = container.querySelector('.lmv-track-versions--legacy')!
+    expect(legacy.closest('.lmv-track-group')).toBeNull()
+    expect(legacy.textContent).toContain('Old Import')
+    expect(legacy.textContent).toContain('Unattached')
   })
 
 })

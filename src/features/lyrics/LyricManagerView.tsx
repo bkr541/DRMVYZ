@@ -35,7 +35,6 @@ import {
 import { LyricManagerHeader } from './components/LyricManagerHeader'
 import { ApplicationHeaderControls } from '../../components/vyzualz/layout/ApplicationWorkspaceFrame'
 import { LyricTrackBrowser } from './components/LyricTrackBrowser'
-import { LyricDocumentSidebar } from './components/LyricDocumentSidebar'
 import { JsonLyricImporter } from './components/JsonLyricImporter'
 import { AiLyricExtractor } from './components/AiLyricExtractor'
 import { LyricLivePreviewPanel, LyricPreviewPanel } from './components/LyricPreviewPanel'
@@ -56,7 +55,6 @@ import { RailTabs, type RailTabOption } from '../../components/vyzualz/layout/Ra
 import type { PerformanceAppView } from '../../components/vyzualz/appView'
 import type { ReactTrackSection } from '../../components/vyzualz/react/ReactTypes'
 import { loadSavedTrackIntoEngine, SavedTrackLoadCancelledError } from '../../audio/savedTrackLoader'
-import { useMountTransition } from '../../hooks/useMountTransition'
 import { useLyricCueEditor } from './editor/useLyricCueEditor'
 import { isKeyboardInputTarget } from '../../utils/keyboardTargets'
 import { LyricTrackTimelineWindow } from './components/LyricTrackTimelineWindow'
@@ -279,29 +277,6 @@ export function LyricManagerView({
   const [selectedTrack, setSelectedTrack] = useState<LyricManagerTrack | null>(
     null,
   )
-  const lyricManagementPhase = useMountTransition(Boolean(selectedTrack), 220)
-  const workspaceShellRef = useRef<HTMLDivElement>(null)
-  const [lyricManagementHeightPct, setLyricManagementHeightPct] = useState<number | null>(null)
-  const handleLyricManagementResizeStart = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return
-    const container = workspaceShellRef.current
-    if (!container) return
-    event.preventDefault()
-    const rect = container.getBoundingClientRect()
-    const startY = event.clientY
-    const startPct = lyricManagementHeightPct ?? 45
-    const ownerWindow = event.currentTarget.ownerDocument.defaultView ?? window
-    const onMove = (moveEvent: PointerEvent) => {
-      const deltaPct = ((moveEvent.clientY - startY) / rect.height) * 100
-      setLyricManagementHeightPct(Math.max(20, Math.min(70, startPct - deltaPct)))
-    }
-    const onUp = () => {
-      ownerWindow.removeEventListener('pointermove', onMove)
-      ownerWindow.removeEventListener('pointerup', onUp)
-    }
-    ownerWindow.addEventListener('pointermove', onMove)
-    ownerWindow.addEventListener('pointerup', onUp, { once: true })
-  }, [lyricManagementHeightPct])
   // Right inspector tab. Owned here (not by the inspector) so it only changes on an explicit user click:
   // selecting cues, switching documents, or saving never moves the user between Cue / Document / Review.
   const [inspectorTab, setInspectorTab] = useState<LyricInspectorTab>('cue')
@@ -311,8 +286,6 @@ export function LyricManagerView({
   >([])
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkflowTab>('manual')
-  // The lyric versions window belongs to the Tracks tab only; Import and Extract get the full left rail.
-  const showLyricVersions = lyricManagementPhase !== 'unmounted' && workspaceTabForWorkflow(activeTab) === 'tracks'
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
   const [recoveryCandidate, setRecoveryCandidate] = useState<LyricRecoveryRecord | null>(null)
   const [recoveryReviewing, setRecoveryReviewing] = useState(false)
@@ -2120,18 +2093,8 @@ export function LyricManagerView({
               <button type="button" className="lmv-drawer-close" aria-label="Close tracks and versions" onClick={() => setOpenDrawer(null)}><AppIcon kind="close" size={14} /></button>
             </div>
           )}
-          <div
-            ref={workspaceShellRef}
-            className="lmv-workspace-shell"
-            data-has-selected-track={showLyricVersions ? 'true' : 'false'}
-          >
-          <section
-            className="lmv-track-workspace"
-            aria-label="Tracks"
-            style={lyricManagementHeightPct != null && showLyricVersions
-              ? { flexBasis: `${100 - lyricManagementHeightPct}%` }
-              : undefined}
-          >
+          <div className="lmv-workspace-shell">
+          <section className="lmv-track-workspace" aria-label="Tracks">
             <RailWindowHeader
               side="left"
               icon={<AppIcon kind="waveform" size={15} color="currentColor" aria-hidden="true" />}
@@ -2194,6 +2157,19 @@ export function LyricManagerView({
             onRetry={() => {
               void loadTracks(true)
             }}
+            versions={{
+              documents,
+              legacyDocuments,
+              loading: documentsLoading || isLoading,
+              openDocumentId: editorDocumentId,
+              onSelectDocument: handleSelectDocument,
+              onDuplicateDocument: handleDuplicateDocument,
+              onRenameDocument: handleRenameDocument,
+              onActivateDocument: handleActivateDocument,
+              onDeleteDocument: handleRequestDelete,
+              onNewDocument: handleNewDocument,
+              onImportDocument: handleImportDocument,
+            }}
           />
             )}
             {workspaceTabForWorkflow(activeTab) === 'import' && (
@@ -2220,63 +2196,6 @@ export function LyricManagerView({
             </div>
           </section>
 
-          {showLyricVersions && (
-          <section
-            className={`lmv-lyric-management lmv-lyric-management--${lyricManagementPhase}`}
-            aria-label="Versions"
-            style={lyricManagementHeightPct != null ? { flexBasis: `${lyricManagementHeightPct}%` } : undefined}
-          >
-            <div
-              className="lmv-lyric-management-resize-handle"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize Versions"
-              aria-valuenow={Math.round(lyricManagementHeightPct ?? 45)}
-              aria-valuemin={20}
-              aria-valuemax={70}
-              tabIndex={0}
-              onPointerDown={handleLyricManagementResizeStart}
-              onKeyDown={event => {
-                if (event.key === 'ArrowUp') { event.preventDefault(); setLyricManagementHeightPct(Math.min(70, (lyricManagementHeightPct ?? 45) + 2)) }
-                if (event.key === 'ArrowDown') { event.preventDefault(); setLyricManagementHeightPct(Math.max(20, (lyricManagementHeightPct ?? 45) - 2)) }
-              }}
-            />
-            <RailWindowHeader
-              side="left"
-              icon={<AppIcon kind="lyrics" size={15} color="currentColor" aria-hidden="true" />}
-              label="Versions"
-              actions={
-                <>
-                  <IconChipButton
-                    icon={<AppIcon kind="fileAdd" size={14} color="currentColor" />}
-                    onClick={handleNewDocument}
-                    title="New version"
-                    aria-label="New lyric version"
-                  />
-                  <IconChipButton
-                    icon={<AppIcon kind="fileImport" size={14} color="currentColor" />}
-                    onClick={handleImportDocument}
-                    title="Import version"
-                    aria-label="Import lyric version"
-                  />
-                </>
-              }
-            />
-
-          <LyricDocumentSidebar
-            documents={documents}
-            legacyDocuments={legacyDocuments}
-            loading={documentsLoading || isLoading}
-            openDocumentId={editorDocumentId}
-            hasSelectedTrack={!!selectedTrack}
-            onSelectDocument={handleSelectDocument}
-            onDuplicateDocument={handleDuplicateDocument}
-            onRenameDocument={handleRenameDocument}
-            onActivateDocument={handleActivateDocument}
-            onDeleteDocument={handleRequestDelete}
-          />
-          </section>
-          )}
           </div>
         </WorkspaceRail>
 

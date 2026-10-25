@@ -21,7 +21,7 @@ describe('Phase 07 Lyric Manager floating composition', () => {
     const scoped = lyricCss.slice(lyricCss.indexOf('/* Phase 07: Lyric Manager'))
     expect(scoped).toContain(`${scope} .lmv-workspace-shell`)
     for (const surface of [
-      '.lmv-track-workspace', '.lmv-lyric-management', '.lmv-preview-stage',
+      '.lmv-track-workspace', '.lmv-preview-stage',
       '.lmv-track-meta-header', '.lmv-track-timeline-window',
       '.lmv-lyric-cues-window', '.lmv-right-rail',
     ]) expect(scoped).toContain(surface)

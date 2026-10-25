@@ -27,21 +27,3 @@
   padding-inline: 12px;
   scrollbar-gutter: auto;
 }
-
-/* Versions uses the same content line as the Tracks tabs above it. */
-:root body .lmv-lyric-management > .lmv-doc-sidebar {
-  padding-inline: var(--workspace-rail-inset, 12px);
-}
-:root body .lmv-lyric-management .lmv-doc-list {
-  margin-inline: calc(-1 * var(--workspace-rail-inset, 12px));
-}
-:root body .lmv-lyric-management :is(.lmv-doc-card, .lmv-doc-empty) {
-  padding-inline: var(--workspace-rail-inset, 12px);
-}
-:root body .lmv-lyric-management .lmv-doc-card::after {
-  left: var(--workspace-rail-inset, 12px);
-  right: var(--workspace-rail-inset, 12px);
-}
-:root body .lmv-lyric-management :is(.lmv-doc-section-label, .lmv-doc-legacy-note) {
-  margin-inline: var(--workspace-rail-inset, 12px);
-}

@@ -5,6 +5,7 @@ import { LyricSearchFilterRow } from './LyricSearchFilterRow'
 import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
 import type { LyricManagerTrack } from '../lyricManagerTypes'
 import { trackInitials } from '../utils/lyricManagerFormat'
+import { LyricTrackVersions, type LyricTrackVersionsProps } from './LyricTrackVersions'
 
 
 export type LyricTrackFilter =
@@ -43,6 +44,9 @@ export function filterLyricManagerTracks(
   })
 }
 
+/** The selected track's lyric versions, shown nested inside its card (plus any unattached legacy documents). */
+export type LyricTrackBrowserVersions = LyricTrackVersionsProps
+
 interface Props {
   tracks: LyricManagerTrack[]
   selectedTrackId: string | null
@@ -62,6 +66,7 @@ interface Props {
   onDeleteTrack: (track: LyricManagerTrack) => void
   onLoadMore: () => void
   onRetry: () => void
+  versions?: LyricTrackBrowserVersions
 }
 
 export function LyricTrackBrowser({
@@ -83,6 +88,7 @@ export function LyricTrackBrowser({
   onDeleteTrack,
   onLoadMore,
   onRetry,
+  versions,
 }: Props) {
   const [filter, setFilter] = useState<LyricTrackFilter>('all')
   const visibleTracks = useMemo(
@@ -124,31 +130,39 @@ export function LyricTrackBrowser({
       )}
 
       <div className="lmv-track-grid">
-        {visibleTracks.map(track => (
-          <AudioTrackCard
-            key={track.dbId}
-            track={track}
-            onSelect={() => onSelectTrack(track)}
-            onLoad={() => onLoadTrack(track, false)}
-            loading={false}
-            loaded={loadedAudioTrackId === track.dbId}
-            playing={playingAudioTrackId === track.dbId}
-            canLoad
-            canOpenLyrics
-            isActive={selectedTrackId === track.dbId}
-            selectedBadge
-            directAiExtract
-            onOpenAiExtract={() => onOpenAiExtract(track)}
-            actionsInOverflow
-            artwork={<span>{trackInitials(track)}</span>}
-            onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
-            onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
-            canRemove
-            // The Lyric Manager owns the delete confirmation (ConfirmTrackDeleteDialog); the card never deletes directly.
-            confirmRemove={false}
-            onRemove={() => onDeleteTrack(track)}
-          />
-        ))}
+        {visibleTracks.map(track => {
+          const selected = selectedTrackId === track.dbId
+          return (
+            <div key={track.dbId} className={`lmv-track-group${selected && versions ? ' lmv-track-group--expanded' : ''}`}>
+              <AudioTrackCard
+                track={track}
+                onSelect={() => onSelectTrack(track)}
+                onLoad={() => onLoadTrack(track, false)}
+                loading={false}
+                loaded={loadedAudioTrackId === track.dbId}
+                playing={playingAudioTrackId === track.dbId}
+                canLoad
+                canOpenLyrics
+                isActive={selected}
+                selectedBadge
+                directAiExtract
+                onOpenAiExtract={() => onOpenAiExtract(track)}
+                actionsInOverflow
+                artwork={<span>{trackInitials(track)}</span>}
+                onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
+                onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
+                canRemove
+                // The Lyric Manager owns the delete confirmation (ConfirmTrackDeleteDialog); the card never deletes directly.
+                confirmRemove={false}
+                onRemove={() => onDeleteTrack(track)}
+              />
+              {selected && versions && <LyricTrackVersions {...versions} legacyDocuments={undefined} />}
+            </div>
+          )
+        })}
+        {selectedTrackId && versions && (versions.legacyDocuments?.length ?? 0) > 0 && (
+          <LyricTrackVersions {...versions} documents={[]} loading={false} />
+        )}
       </div>
 
       {loading && <div className="lmv-track-state">Loading tracks…</div>}

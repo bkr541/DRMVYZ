@@ -362,8 +362,8 @@ function trackCard(title: string): HTMLElement {
 }
 
 function documentCard(title: string): HTMLElement {
-  const card = [...container.querySelectorAll<HTMLElement>('.lmv-doc-card')]
-    .find(candidate => candidate.querySelector('.lmv-doc-card-title')?.textContent === title)
+  const card = [...container.querySelectorAll<HTMLElement>('.lmv-version-row')]
+    .find(candidate => candidate.querySelector('.lmv-version-title')?.textContent === title)
   if (!card) throw new Error(`Document card not found: ${title}`)
   return card
 }
@@ -407,7 +407,7 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('.lmv-body')).not.toBeNull()
   })
 
-  it('keeps preview, transport, timeline and cues distinct, and preserves the Versions resize interaction', async () => {
+  it('keeps preview, transport, timeline and cues distinct, with lyric versions nested in the Tracks window', async () => {
     await render()
     expect(container.querySelector('.lmv-live-preview-body > .lmv-preview-stage')).not.toBeNull()
     expect(container.querySelector('.lmv-live-preview-body > .lmv-track-meta-header')).not.toBeNull()
@@ -415,14 +415,14 @@ describe('LyricManagerView track-first workflow', () => {
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     const left = container.querySelector('.lmv-workspace-shell')!
     const tracks = left.querySelector('.lmv-track-workspace')!
-    const versions = left.querySelector<HTMLElement>('.lmv-lyric-management')!
     expect(tracks.parentElement).toBe(left)
-    expect(versions.parentElement).toBe(left)
+    // The standalone Versions window and its resize handle are gone; versions live inside the selected track's group.
+    expect(left.querySelector('.lmv-lyric-management')).toBeNull()
+    expect(container.querySelector('[aria-label="Resize Versions"]')).toBeNull()
+    const group = trackCard('Reverie').closest('.lmv-track-group')!
+    expect(group.querySelectorAll('.lmv-track-versions .lmv-version-row')).toHaveLength(2)
     expect(container.querySelector('.lmv-center > .lmv-tab-content > .lmv-track-timeline-window')).not.toBeNull()
     expect(container.querySelector('.lmv-center > .lmv-tab-content > .lmv-lyric-cues-window')).not.toBeNull()
-    const handle = versions.querySelector<HTMLElement>('[role="separator"][aria-label="Resize Versions"]')!
-    await act(async () => handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })))
-    expect(versions.style.flexBasis).toBe('47%')
     expect(container.querySelector('.lmv-right-rail .lmv-inspector-pane')).not.toBeNull()
   })
 
@@ -441,13 +441,13 @@ describe('LyricManagerView track-first workflow', () => {
     expect(mocks.engine.replaceTrackUrls).not.toHaveBeenCalled()
     expect(mocks.engine.play).not.toHaveBeenCalled()
 
-    const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
+    const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-version-title') as HTMLElement
     await act(async () => alternate.click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     // Which version is open / active is shown in the Versions list only, never in the track strip.
-    expect(documentCard('Approved Lyrics').classList.contains('lmv-doc-card--active')).toBe(true)
-    expect(documentCard('Alternate Lyrics').classList.contains('lmv-doc-card--active')).toBe(false)
-    expect(documentCard('Alternate Lyrics').classList.contains('lmv-doc-card--open')).toBe(true)
+    expect(documentCard('Approved Lyrics').classList.contains('lmv-version-row--active')).toBe(true)
+    expect(documentCard('Alternate Lyrics').classList.contains('lmv-version-row--active')).toBe(false)
+    expect(documentCard('Alternate Lyrics').classList.contains('lmv-version-row--open')).toBe(true)
   })
 
   it('has no OPEN dropdown or ACTIVE field in the track strip', async () => {
@@ -511,7 +511,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
-    await act(async () => (documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement).click())
+    await act(async () => (documentCard('Alternate Lyrics').querySelector('.lmv-version-title') as HTMLElement).click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
 
     // The open version's button stays available (its saved count may be stale while editing)...
@@ -692,7 +692,7 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
-    const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLButtonElement
+    const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-version-title') as HTMLElement
     await act(async () => alternate.click())
     const saveDialog = container.querySelector('.lmv-dialog') as HTMLElement
     await act(async () => buttonWithText('Save', saveDialog).click())
@@ -721,7 +721,7 @@ describe('LyricManagerView track-first workflow', () => {
     await flush()
 
     expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true')
-    const versionTitles = [...container.querySelectorAll<HTMLElement>('.lmv-doc-card-title')].map(node => node.textContent)
+    const versionTitles = [...container.querySelectorAll<HTMLElement>('.lmv-version-title')].map(node => node.textContent)
     expect(versionTitles).not.toContain('Approved Lyrics')
     expect(useLyricsStore.getState()).toMatchObject({ activeAudioTrackId: 'track-b', activeDocumentId: null })
   })
