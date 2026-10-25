@@ -52,10 +52,10 @@ function MockCastIcon() { return <AppIcon kind="cast" /> }
 function MockStageFocusIcon() { return <AppIcon kind="cameraFocus" /> }
 
 export function LayoutLabMockup() {
-  return <LayoutLabDesignWorkbench reference={<LayoutLabReferenceMockup />} />
+  return <LayoutLabDesignWorkbench />
 }
 
-/** Existing component studies remain available as a separate reference workspace. */
+/** Archived component studies; the blank design workbench does not mount these. */
 export function LayoutLabReferenceMockup() {
   const [engineId, setEngineId] = useState<LayoutLabEngineId>('cinema2')
   const [leftCollapsed, setLeftCollapsed] = useState(false)

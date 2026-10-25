@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { TimelineViewport } from '../../timeline/timelineViewport'
-import { timeToPixel } from '../../timeline/timelineViewport'
 
 /** Empty space above and below the waveform, in CSS pixels, so the loudest peak never touches the row edges. */
 const WAVEFORM_PADDING_PX = 10
@@ -48,7 +47,7 @@ export function LyricWaveformCanvas({
     if (isLoading && !values) {
       for (let index = 0; index < 72; index += 1) {
         const barHeight = (Math.sin(index * 0.4) * 0.22 + 0.18) * height
-        context.fillStyle = 'rgba(97,214,170,0.08)'
+        context.fillStyle = 'rgba(154,178,188,0.16)'
         context.fillRect((index / 72) * width + 0.5, (height - barHeight) / 2, width / 72 - 1, barHeight)
       }
       return
@@ -73,18 +72,9 @@ export function LyricWaveformCanvas({
       const columnTime = (from / values.length) * duration
       const barHeight = Math.max(2, Math.min(1, peak) * plotHeight)
       context.fillStyle = columnTime < current
-        ? 'rgba(97,214,170,0.78)'
-        : 'rgba(183,223,231,0.20)'
+        ? 'rgba(196,207,211,0.65)'
+        : 'rgba(154,178,188,0.45)'
       context.fillRect(x, Math.round((height - barHeight) / 2), columnWidth, Math.round(barHeight))
-    }
-
-    const playheadX = timeToPixel(current, visible, width)
-    if (playheadX > 0 && playheadX < width) {
-      const gradient = context.createLinearGradient(0, 0, playheadX, 0)
-      gradient.addColorStop(0, 'rgba(97,214,170,0.06)')
-      gradient.addColorStop(1, 'rgba(97,214,170,0.015)')
-      context.fillStyle = gradient
-      context.fillRect(0, 0, playheadX, height)
     }
   }, [])
 

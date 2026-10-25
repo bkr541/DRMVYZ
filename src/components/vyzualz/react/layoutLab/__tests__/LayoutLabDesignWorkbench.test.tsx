@@ -1,41 +1,57 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LayoutLabDesignWorkbench } from '../LayoutLabDesignWorkbench'
-import { LAYOUT_LAB_DESIGNS } from '../layoutLabDesignCatalog'
-import { useLyricsStore } from '../../../../../stores/lyricsStore'
-import { useAudioStore } from '../../../../../stores/audioStore'
-let root: ReturnType<typeof createRoot>, container: HTMLDivElement
-beforeEach(()=>{container=document.createElement('div');document.body.appendChild(container);root=createRoot(container);vi.spyOn(HTMLCanvasElement.prototype,'getContext').mockReturnValue(null)})
-afterEach(async()=>{await act(async()=>root.unmount());container.remove();vi.restoreAllMocks()})
-async function render(){await act(async()=>root.render(<LayoutLabDesignWorkbench initialWorkspace="lyrics" reference={<div>Reference studies</div>} />));await vi.waitFor(async()=>{await act(async()=>{await new Promise(resolve=>setTimeout(resolve,20))});expect(container.querySelector('.lmv-track-browser')).toBeTruthy()})}
-async function select(label:string,text:string){const trigger=document.querySelector<HTMLButtonElement>(`[role="combobox"][aria-label="${label}"]`)!;await act(async()=>trigger.click());const option=[...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find(button=>button.textContent?.includes(text))!;await act(async()=>option.click())}
-describe('full workspace design previews',()=>{
-  it('provides five honest design slots and mounts production lyric groups',async()=>{
-    await render()
-    expect(LAYOUT_LAB_DESIGNS.filter(option=>option.value.startsWith('design-'))).toHaveLength(5)
-    expect(LAYOUT_LAB_DESIGNS.slice(2).every(option=>'disabled' in option && option.disabled)).toBe(true)
-    expect(container.querySelector('.ll-template-audio-theme')).toBeTruthy()
-    expect(container.querySelector('.lmv-track-browser')).toBeTruthy()
-    expect(container.querySelector('.lmv-inspector')).toBeTruthy()
-    expect(container.querySelector('.lyric-cue-timeline__scroll')).toBeTruthy()
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { LayoutLabMockup } from '../../LayoutLabMockup'
+
+let root: ReturnType<typeof createRoot>
+let container: HTMLDivElement
+
+beforeEach(async () => {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  await act(async () => root.render(<LayoutLabMockup />))
+})
+
+afterEach(async () => {
+  await act(async () => root.unmount())
+  container.remove()
+})
+
+describe('blank Layout Lab designs', () => {
+  it('opens Design One with an empty canvas and only the design selector', () => {
+    expect(container.querySelectorAll('[role="combobox"]')).toHaveLength(1)
+    expect(container.querySelector('[role="combobox"]')?.textContent).toContain('Design One')
+    expect(container.querySelector('[data-lab-canvas="design-01"]')?.hasAttribute('hidden')).toBe(false)
+    const stage = container.querySelector('.ll-design-stage')!
+    expect(stage.children).toHaveLength(5)
+    for (const canvas of stage.children) {
+      expect(canvas.childElementCount).toBe(0)
+      expect(canvas.textContent).toBe('')
+    }
+    expect(container.querySelector('.rv-layout, .vz-transport-dock, canvas, audio, video')).toBeNull()
   })
-  it('preserves edited cue values and component identity across design changes without updating saved stores',async()=>{
-    const lyricsBefore=useLyricsStore.getState(),audioBefore=useAudioStore.getState()
-    await render()
-    const input=container.querySelector<HTMLTextAreaElement>('textarea')!
-    expect(input).toBeTruthy()
-    await act(async()=>{Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(input,'My local preview lyric');input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}))})
-    await select('Layout Lab design','Current app')
-    expect(container.querySelector('.ll-template-audio-theme')).toBeNull()
-    expect(container.querySelector('textarea')).toBe(input)
-    expect(input.value).toBe('My local preview lyric')
-    await select('Layout Lab design','Design 01')
-    expect(container.querySelector('textarea')).toBe(input)
-    expect(input.value).toBe('My local preview lyric')
-    expect(useLyricsStore.getState()).toBe(lyricsBefore)
-    expect(useAudioStore.getState()).toBe(audioBefore)
+
+  it('offers exactly five enabled designs and switches between distinct blank canvases', async () => {
+    const labels = ['Design One', 'Design Two', 'Design Three', 'Design Four', 'Design Five']
+    const canvases = [...container.querySelectorAll<HTMLElement>('[data-lab-canvas]')]
+    const trigger = container.querySelector<HTMLButtonElement>('[role="combobox"]')!
+
+    for (const label of [...labels, labels[0]]) {
+      await act(async () => trigger.click())
+      const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+      expect(options.map(option => option.textContent?.trim())).toEqual(labels)
+      expect(options.every(option => option.getAttribute('aria-disabled') !== 'true' && !option.hasAttribute('disabled'))).toBe(true)
+      await act(async () => options[labels.indexOf(label)].click())
+
+      const visible = container.querySelectorAll<HTMLElement>('[data-lab-canvas]:not([hidden])')
+      expect(visible).toHaveLength(1)
+      expect(visible[0]).toBe(canvases[labels.indexOf(label)])
+      expect(visible[0].getAttribute('aria-label')).toBe(`${label} canvas`)
+      expect(visible[0].innerHTML).toBe('')
+    }
   })
 })

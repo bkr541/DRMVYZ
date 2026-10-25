@@ -64,8 +64,8 @@ function hash01(n: number): number {
 // LaserDMX runs a beat-quantised scanline strobe, PixGrid does a mosaic
 // block-dissolve.
 
-// Space Mono is the app's secondary font, loaded through index.html.
-const DISPLAY_FONT = '"Space Mono", monospace'
+// Manrope is the app's secondary font, loaded through index.html.
+const DISPLAY_FONT = '"Manrope", sans-serif'
 const LABEL_PX = 28
 const LABEL_K = LABEL_PX / 22 // decode-geometry scale vs the base 22px tuning
 const LABEL_FONT = `400 ${LABEL_PX}px ${DISPLAY_FONT}`

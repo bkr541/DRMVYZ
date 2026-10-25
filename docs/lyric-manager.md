@@ -4,6 +4,11 @@ Lyric Manager is the track-first authoring and review surface for timed lyrics. 
 
 ## Saved-track identity
 
+In the left Track Workspace, Tracks, Import, and AI Extract content uses the
+same horizontal inset as the tab row. Group bodies add no second side inset;
+track artwork, search controls, group headings, and row dividers start on the
+cyan underline's left edge and share the tab row's right content edge.
+
 A User Media audio row is the canonical lyric owner. Loading a saved track preserves its `audio_tracks.id` as the runtime `dbId`; active lyrics are resolved only from that persisted identity. Loading an unpersisted local file clears the previous runtime lyrics. Linking a local file to User Media requires an explicit confirmation and reloads the confirmed saved track rather than associating files by name.
 
 ## Versions, activation, and global display
@@ -23,6 +28,8 @@ A saved vocal stem can be selected as the transcription source while the full mi
 ## Waveform editing
 
 The lyric timeline reuses the shared Audio Engine waveform and playhead. Click the waveform to seek. Drag a cue body to move it, drag either edge to resize it, and edit selected cue and word timing in the expanded Cue list record. Clicking a record again collapses its details. The top header owns add, undo/redo, timing commands, analysis, and cue deletion, plus the Track Map label-gutter toggle. Overlaps are assigned readable lanes. Undo and redo cover cue and word timing operations. Snapping can use milliseconds, frames, words, or the authoritative detected beat grid.
+
+Track Timeline uses an integrated surface: its ruler, label gutter, reference rows, and lyric lanes share the surrounding window background with neutral row dividers. The waveform uses muted neutral bars without a playback gradient. Cue blocks have quiet fills and fine resize grips; the selected cue uses the app accent, while a neutral underline identifies a playing cue. Section colors retain their analysis meaning. Beat grid ticks use React Track Map's shared renderer and original color opacity without additional dimming.
 
 When detected analysis is unavailable, the editor labels a BPM-derived grid as temporary and offers **Analyze Track**, **Retry Track Analysis**, or **Load & Analyze Track** as appropriate. Completing analysis refreshes overlays and snapping without discarding unsaved lyric edits.
 
@@ -46,7 +53,7 @@ The header button group stays centered on the full header row at every layout si
 
 ## Cue list controls
 
-Track Timeline and Cue list parent groups share the standard workspace side inset. Cue list content keeps the shared group margin and top padding below its collapsible header.
+Track Timeline and Cue list parent groups share the standard workspace side inset, a 10px gap below their heading divider, and no extra horizontal body inset. Track Timeline also removes the label gutter's leading padding, aligning the lane icons and timeline edge with its heading and divider. Its compact 80px label column leaves more space for the ruler, waveform, sections, and cues; every lane and the playhead share that same offset. Cue list uses the same integrated surface, neutral dividers, and accent selection as Track Timeline, without an inset card or dark toolbar fill. Its sticky table header matches the window background, and expanded cue editors use a quiet neutral surface.
 
 The Cue list uses the shared dropdown and a search field. Search highlights matching literal text (case insensitive) and scrolls to the first matching record within the current filter, without changing the document or cue selection. Expanded word text fields highlight matches as well. Row status dots use amber for unreviewed, green for reviewed, cyan for corrected, and red for rejected. Cue records use the timeline lyric-row height.
 

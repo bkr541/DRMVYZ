@@ -23,6 +23,13 @@ Never present work as complete without a clean handoff. A clean handoff requires
 
 If a clean handoff cannot be reached because of a blocker or usage constraint, stop early and report the exact completed, incomplete, tested, untested, committed, and uncommitted state. Do not spend substantial additional usage without materially advancing the requested outcome.
 
+## Shared typography
+
+- Keep reusable UI typography consistent by role using `src/styles/typography.css`.
+- Do not introduce workspace-specific font overrides for shared controls.
+- Parent group headers use the 15px role; all nested group headers use the 11px role. Preserve this hierarchy when changing shared groups.
+- Verify rendered typography across affected control variants and workspaces, including placeholders and portaled dropdowns, before reporting typography work complete.
+
 ## Communication
 
 Keep progress updates concise. Lead with completed outcomes and concrete blockers rather than lengthy process narration.

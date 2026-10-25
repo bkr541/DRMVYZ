@@ -1,77 +1,8 @@
 .ll-design-workbench { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: var(--color-background, #090d0f); color: var(--color-text, #e8eef0); font-family: var(--font-ui); }
 .ll-design-toolbar { display: flex; flex: 0 0 auto; align-items: center; gap: 24px; min-height: 88px; padding: 14px 24px; border-bottom: 1px solid var(--color-border-subtle, #383842); background: var(--color-panel, #151a1d); }
-.ll-design-toolbar > div:first-child { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
-.ll-design-toolbar > div:first-child > span { color: var(--color-text-muted, #94949f); font: 8px var(--font-mono); letter-spacing: .14em; }
 .ll-design-toolbar strong { font-size: 16px; font-weight: 500; }
-.ll-design-toolbar > .dv-underline-dropdown { width: 280px; flex: 0 1 280px; }
-.ll-design-toolbar > .dv-underline-dropdown:last-of-type { width: 210px; flex-basis: 210px; }
-.ll-design-toolbar > p { margin: 0 0 0 auto; color: var(--color-text-muted, #94949f); font-size: 10px; line-height: 1.7; }
-.ll-design-toolbar > p > span { opacity: .7; }
+.ll-design-toolbar > .dv-underline-dropdown { width: 210px; flex: 0 1 210px; }
 .ll-design-stage { flex: 1; min-height: 0; overflow: hidden; }
-.ll-design-workspace { display: flex; flex-direction: column; flex: 1; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
-.ll-design-stage [hidden] { display: none !important; }
-.ll-workbench-layout { flex: 1; min-height: 0; overflow: hidden; }
-.ll-workbench-layout > .vz-inspector { min-height: 0; overflow: hidden; }
-.ll-workbench-layout > .vz-inspector > .vz-inspector-inner { display: flex; flex-direction: column; padding: 0; min-height: 0; height: 100%; overflow: hidden; }
-.ll-preview-rail-scroll { min-height: 0; overflow-y: auto; padding: 12px 16px 20px; }
-.ll-preview-rail-content { flex: 1; min-height: 0; overflow: hidden; }
-.ll-preview-rail-content > div { height: 100%; min-height: 0; }
-.ll-preview-rail-content .rv-workspace-panel { height: 100%; min-height: 0; }
-.ll-preview-rail-content .rv-workspace-panel-body { flex: 1; min-height: 0; overflow: hidden; }
-.ll-preview-rail-content .rv-inspector-scroll { height: 100%; overflow-y: auto; }
-.ll-preview-rail-content .rv-engine-panel-list { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-.ll-preview-rail-content .rv-preset-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-.ll-preview-canvas { display: flex; min-height: 180px; align-items: stretch; }
-.ll-preview-canvas > canvas { width: 100%; height: 100%; display: block; }
-.ll-preview-error { position: absolute; inset: 24px; padding: 16px; background: #151a1d; color: #f0eff5; font-size: 12px; }
-.ll-preview-caption { flex: 0 0 auto; padding: 10px 14px; color: var(--az-text-muted, #94949f); font-size: 10px; }
-.ll-preview-transport { display: flex; flex: 0 0 auto; align-items: center; gap: 16px; padding: 12px 24px; border-top: 1px solid var(--az-border, #383842); background: var(--az-panel, #151a1d); }
-.ll-preview-transport > span { display: flex; flex-direction: column; gap: 4px; min-width: 180px; }
-.ll-preview-transport strong { font-size: 12px; font-weight: 600; }
-.ll-preview-transport small { font-size: 9px; color: var(--az-text-muted, #94949f); }
-.ll-preview-transport .az-scrubber { flex: 1; }
-.ll-preview-loading { display: grid; flex: 1; place-items: center; padding: 24px; color: var(--az-text-muted); }
-.ll-preview-lyric-center { min-height: 0; overflow-y: auto; padding: 16px; gap: 16px; }
-.ll-preview-lyric-live { min-height: 210px; flex: 0 0 auto; }
-.ll-preview-lyric-center > .drc-group { flex: 0 0 auto; }
-.ll-preview-cue-list { display: flex; flex-direction: column; gap: 6px; }
-.ll-preview-cue-list > button { display: flex; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--az-border); border-radius: 4px; background: var(--az-panel2); color: var(--az-text); text-align: left; cursor: pointer; }
-.ll-preview-cue-list > button[aria-pressed='true'] { border-color: var(--az-cyan); }
-.ll-preview-cue-list > button > span { color: var(--az-text-muted); font: 10px var(--font-mono); }
-.ll-preview-cue-list strong { font-size: 12px; font-weight: 500; }
-.ll-preview-lyrics .lmv-inspector { min-width: 0; }
-.ll-preview-lyrics .lmv-track-library-body { padding: 0; }
-.ll-preview-lyrics .lmv-track-grid { margin-inline: 0; }
-.ll-preview-lyrics .lmv-doc-list { padding: 0; }
-/* Design 01 uses the audio studies' tokens, applied to the same production components. */
-.ll-design-workbench[data-lab-design='design-01'] { --color-background:#111215; --color-panel:#1b1b21; --color-text:#f0eff5; --color-text-muted:#94949f; --color-border-subtle:#383842; }
-.ll-template-audio-theme .rw-window-header { background: var(--ll-panel); border-bottom: 1px solid var(--ll-line); color: var(--ll-text); box-shadow: none; font-size: 11px; letter-spacing: .08em; }
-.ll-template-audio-theme :is(.rv-ctrl-group,.drc-body,.lmv-live-preview-body,.lmv-preview-stage) { background-color: var(--ll-panel); }
-.ll-template-audio-theme :is(.rv-ctrl-label,.rv-ctrl-toggle-row,.rv-control-helper-copy,.rv-ctrl-description) { color: var(--ll-muted); }
-.ll-template-audio-theme :is(.rv-ctrl-val,.rv-ctrl-palette-row-label,.lmv-doc-title) { color: var(--ll-text); }
-.ll-template-audio-theme .dv-text-input { color: var(--ll-text) !important; border-bottom-color: var(--ll-line) !important; }
-.ll-template-audio-theme .dv-underline-dropdown .drm-dropdown__trigger { border-bottom-color: var(--ll-line) !important; color: var(--ll-text) !important; }
-.ll-template-audio-theme .dv-underline-tabs { border-color: var(--ll-line); }
-.ll-template-audio-theme .dv-underline-tab { color: var(--ll-faint); text-shadow: none; }
-.ll-template-audio-theme .dv-underline-tab.is-active { color: var(--ll-text); text-shadow: none; }
-.ll-template-audio-theme .dv-underline-tab::after { background: var(--ll-accent); box-shadow: none; }
-.ll-template-audio-theme .vz-track-row.vz-track-row--list,
-.ll-template-audio-theme .lmv-doc-card { border-radius: 0; border: 0; background: var(--ll-card); margin-bottom: 6px; box-shadow: none; }
-.ll-template-audio-theme .vz-track-row.vz-track-row--active,
-.ll-template-audio-theme .lmv-doc-card--active { background: var(--ll-selected); outline: 1px solid #656574; outline-offset: -1px; }
-.ll-template-audio-theme .rv-preset-group-cards[data-cinema2-preset-grid] { display: flex; flex-direction: column; gap: 6px; }
-.ll-template-audio-theme .rv-preset-spotlight-card { background: var(--ll-card); border-color: transparent; border-radius: 0; box-shadow: none; }
-.ll-template-audio-theme .ll-preview-transport { border-color: var(--ll-line); background: var(--ll-panel); }
-[data-layout-lab-preview='true'][data-layout-lab-design='design-01'] :is(.drm-dropdown__menu,.rv-ctrl-palette-popover) { background: #26262e; border-color: #41414b; color: #f0eff5; box-shadow: 0 12px 32px #0005; }
-@media (max-width:1100px) { .ll-design-toolbar { gap: 12px; padding: 12px; } .ll-design-toolbar > p { display: none; } .ll-design-toolbar > div:first-child { max-width: 150px; } }
-/* The production React shell reserves an absolutely positioned audio dock;
-   the isolated preview transport participates in normal flex layout. */
-.rv-shell.ll-design-stage { padding-bottom: 0; height: auto; }
-.ll-design-stage .ll-workbench-layout { display: grid; grid-template-columns: var(--workspace-rail-width, 354px) minmax(0, 1fr) var(--workspace-rail-width, 354px); grid-template-rows: minmax(0, 1fr); width: 100%; height: auto; }
-.ll-design-stage .ll-workbench-layout.lmv-root { min-height: 0; }
-/* Keep the real preset card and its interactions, with Design 01's 56px treatment. */
-.ll-template-audio-theme [data-cinema2-preset-grid] .rv-preset-spotlight-card--poster { height: 56px; min-height: 56px; aspect-ratio: auto; padding: 8px 12px; display: flex; align-items: center; border-left: 2px solid #e8ac86; }
-.ll-template-audio-theme [data-cinema2-preset-grid] .rv-preset-spotlight-card--poster .rv-preset-spotlight-thumb { display: none; }
-.ll-template-audio-theme [data-cinema2-preset-grid] .rv-preset-spotlight-caption { position: static; padding: 0; background: transparent; text-align: left; }
-.ll-template-audio-theme [data-cinema2-preset-grid] .rv-preset-spotlight-name { color: var(--ll-text); font: 600 12px/1.4 var(--font-ui); text-shadow: none; }
-.ll-template-audio-theme [data-cinema2-preset-grid] .rv-preset-spotlight-card--active { border-left-color: var(--ll-accent); outline: 1px solid #656574; outline-offset: -1px; background: var(--ll-selected); }
+.ll-design-canvas { width: 100%; height: 100%; }
+.ll-design-canvas[hidden] { display: none; }
+@media (max-width: 600px) { .ll-design-toolbar { gap: 12px; padding: 12px; } }

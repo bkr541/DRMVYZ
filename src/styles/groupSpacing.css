@@ -1,0 +1,47 @@
+/* A tab row and its content share one horizontal inset. Reusable groups
+   provide vertical rhythm without accumulating left/right indentation. */
+:root {
+  --workspace-group-body-padding: 10px 0 16px;
+}
+
+:root body .drc-body {
+  padding-inline: 0;
+}
+
+/* The rail already supplies the main inspector tabs' horizontal inset. */
+:root body .pmv-inspector-body {
+  padding-inline: 0;
+}
+
+:root body .lmv-right-rail .lmv-inspector-pane {
+  padding-inline: var(--workspace-rail-inset, 12px);
+}
+
+/* Match Source/Layers' existing 7px inset within the React rail. */
+:root body .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-ctrl-group {
+  padding-inline: 7px;
+}
+
+/* Brand Kit tabs use a 12px inset; the editor previously added 20px. */
+:root body .bk-editor {
+  padding-inline: 12px;
+  scrollbar-gutter: auto;
+}
+
+/* Versions uses the same content line as the Tracks tabs above it. */
+:root body .lmv-lyric-management > .lmv-doc-sidebar {
+  padding-inline: var(--workspace-rail-inset, 12px);
+}
+:root body .lmv-lyric-management .lmv-doc-list {
+  margin-inline: calc(-1 * var(--workspace-rail-inset, 12px));
+}
+:root body .lmv-lyric-management :is(.lmv-doc-card, .lmv-doc-empty) {
+  padding-inline: var(--workspace-rail-inset, 12px);
+}
+:root body .lmv-lyric-management .lmv-doc-card::after {
+  left: var(--workspace-rail-inset, 12px);
+  right: var(--workspace-rail-inset, 12px);
+}
+:root body .lmv-lyric-management :is(.lmv-doc-section-label, .lmv-doc-legacy-note) {
+  margin-inline: var(--workspace-rail-inset, 12px);
+}

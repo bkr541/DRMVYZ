@@ -1,0 +1,74 @@
+/* Shared UI typography. Change a role here, never in a workspace override.
+   Authored lyric, visualizer, and media fonts are separate from UI controls. */
+:root {
+  --type-field-label: 600 11px/1 var(--font-mono, 'Manrope', sans-serif);
+  --type-field-value: 700 13px/1.2 var(--font-mono, 'Manrope', sans-serif);
+  --type-field-placeholder: var(--type-field-value);
+  --type-tab: 700 11px/1 var(--font-mono, 'Manrope', sans-serif);
+  --type-group-heading: 800 15px/1 var(--font-ui, 'Space Grotesk', sans-serif);
+  --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
+  --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
+}
+
+/* These role rules outrank legacy component variants, including lazy CSS.
+   Existing control styles use !important, so the shared font contract must
+   take precedence over those declarations as well. */
+:root body [class]:is(
+  .rv-ctrl-label,
+  .dv-scrub-field-label,
+  .drm-dropdown__label,
+  .drm-dropdown__eyebrow
+) {
+  font: var(--type-field-label) !important;
+  letter-spacing: normal !important;
+  text-transform: none;
+}
+
+:root body [class]:is(
+  .dv-text-input,
+  .drm-dropdown__trigger,
+  .drm-dropdown__value,
+  .drm-dropdown__search-input,
+  .rv-ctrl-val,
+  .rv-ctrl-select,
+  .rv-ctrl-color-value,
+  .dv-scrub-value,
+  .dv-scrub-edit-input
+) {
+  font: var(--type-field-value) !important;
+  letter-spacing: normal !important;
+}
+
+:root body [class]:is(.dv-text-input, .drm-dropdown__search-input)::placeholder,
+:root body [class].drm-dropdown__value--placeholder {
+  font: var(--type-field-placeholder) !important;
+  letter-spacing: normal !important;
+}
+
+:root body [class]:is(.dv-underline-tab, .dv-icon-chip),
+:root body :is(.vz-panel-tabs, .rv-right-subtabs) > button,
+:root body .vsm-nav-item,
+:root body .rv-shader-editor-tab,
+:root body .rv-shader-library-tab,
+:root body .mastering-tab {
+  font: var(--type-tab) !important;
+}
+
+:root body [class].drm-dropdown__option-label {
+  font: var(--type-field-value) !important;
+  letter-spacing: normal !important;
+}
+
+:root body [class].drc-header {
+  font: var(--type-group-heading) !important;
+}
+
+/* Depth comes from the reusable group's structure, including intervening
+   layout wrappers. Every nested level keeps the smaller heading role. */
+:root body .drc-group .drc-group > .drc-header {
+  font: var(--type-nested-group-heading) !important;
+}
+
+:root body [class].rw-window-header {
+  font: var(--type-window-heading) !important;
+}

@@ -16,11 +16,10 @@ export interface RailWindowHeaderProps {
 }
 
 /**
- * Canonical DRMVYZ rail window title bar — the "Drop Shadow" treatment
- * originated in Lyric Manager's Track Workspace / Lyric Management
- * headers: a flat silver-to-steel gradient bar,
- * near-black text/icon, a heavy multi-layer elevation shadow, and a slight
- * darker sheen toward the rail's outer edge. Render it as the first,
+ * Canonical DRMVYZ rail window title bar: a two-tier dark slate surface
+ * with light text/icons and a slight darker sheen toward the rail's outer
+ * edge. The bottom border separates it from the content without casting
+ * a shadow over tab rows below. Render it as the first,
  * unpadded child of a WorkspaceRail (or any zero-padding container) so it
  * sits flush/edge-to-edge with the rail's true corners.
  */

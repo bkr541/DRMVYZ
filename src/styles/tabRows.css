@@ -1,0 +1,66 @@
+/* One top gap for horizontal tab rows throughout the application.
+   The row owns this space so wrappers must not add a second inset. */
+:root {
+  --workspace-tab-top-gap: 25px;
+}
+
+:root [class]:is(
+  .dv-underline-tabs,
+  .vz-panel-tabs,
+  .rv-right-subtabs,
+  .rv-shader-library-tabs,
+  .rv-shader-editor-tabs,
+  .mastering-tabs
+) {
+  margin-top: calc(-1 * var(--workspace-tab-parent-gap, 0px));
+  padding-top: calc(var(--workspace-tab-top-gap) - var(--workspace-tab-top-border, 0px));
+  flex-shrink: 0;
+}
+
+/* First-child tabs own the space below their panel's top edge or heading. */
+:root [class]:has(> :is(
+  .dv-underline-tabs,
+  .vz-panel-tabs,
+  .rv-right-subtabs,
+  .rv-shader-library-tabs,
+  .rv-shader-editor-tabs,
+  .mastering-tabs
+):first-child) {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* Engine cards previously added 8px below the card and tabs added 6px. */
+:root .rv-context-workspace-header {
+  padding-bottom: 0;
+}
+
+/* These toolbars also contain actions, so the tab row is not the first child. */
+:root :is(.rv-lower-workspace-toolbar, .mms-dp-head, .sm-timeline-tabs) {
+  padding-top: 0;
+  height: auto;
+  align-items: flex-end;
+}
+
+/* A flex gap between editor controls and tabs must not augment the 25px gap. */
+:root .rv-shader-editor-tabs {
+  --workspace-tab-parent-gap: 6px;
+  --workspace-tab-top-border: 1px;
+}
+
+/* Nested inspector tabs follow the main strip without its usual body inset. */
+:root .vz-panel-body:has(> :first-child > .rv-right-subtabs:first-child) {
+  padding-top: 0;
+}
+:root .rv-main-workspace-tabs:has(+ :is(.vz-panel-body, .sm-inspector-scroll) .rv-right-subtabs:first-child) {
+  margin-bottom: 0;
+}
+
+/* Settings navigation becomes a horizontal tab row on narrow screens. */
+@media (max-width: 760px) {
+  :root .vsm-nav {
+    margin-top: 0;
+    padding-top: var(--workspace-tab-top-gap);
+    flex-shrink: 0;
+  }
+}

@@ -18,8 +18,8 @@
   --text-faint:rgba(196,207,211,0.22);
   --radius:    6px;
   --radius-lg: 10px;
-  /* App typography: Space Grotesk for UI, Space Mono for data and code. */
-  --font-mono: 'Space Mono','Courier New',monospace;
+  /* App typography: Space Grotesk for UI, Manrope for secondary text. */
+  --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
   --font-ui:   'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-scale:1;
   font-size:   calc(13px * var(--font-scale));

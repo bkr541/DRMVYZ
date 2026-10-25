@@ -4841,7 +4841,7 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
 }
 .vsm-settings-btn:hover { color: rgba(245,248,250,0.75); }
 
-/* ── Space Mono data font — all in-panel detail / value text ─────────────────── */
+/* ── Manrope data font — all in-panel detail / value text ─────────────────── */
 .vz-freq-label, .vz-beat-label, .vz-input-label, .vz-media-type-badge,
 .vz-media-name, .vz-media-meta,
 .vz-bpm-label, .vz-sync-label,

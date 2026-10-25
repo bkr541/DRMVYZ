@@ -13,6 +13,9 @@ import './styles/presetManager.css'
 import './styles/workspaceShell.css'
 import './styles/appearance.css'
 import './styles/floatingWorkspace.css'
+import './styles/tabRows.css'
+import './styles/groupSpacing.css'
+import './styles/typography.css'
 import { bootstrapAppearanceTheme } from './features/appearance/appearanceStore'
 
 bootstrapAppearanceTheme()

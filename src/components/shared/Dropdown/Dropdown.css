@@ -1,3 +1,5 @@
+@import '../../../styles/typography.css';
+
 /*
  * DRMVYZ reusable custom dropdown.
  *
@@ -17,7 +19,7 @@
   --drm-dropdown-text: var(--color-text-strong, rgba(245, 248, 250, 0.94));
   --drm-dropdown-muted: var(--color-text-muted, rgba(196, 207, 211, 0.62));
   --drm-dropdown-faint: var(--color-text-faint, rgba(196, 207, 211, 0.34));
-  --drm-dropdown-font: var(--az-font-data, 'Space Mono', monospace);
+  --drm-dropdown-font: var(--az-font-data, 'Manrope', sans-serif);
   --drm-dropdown-display-font: var(--az-font, 'Space Grotesk', system-ui, sans-serif);
   --drm-dropdown-radius: 14px;
   --drm-dropdown-trigger-height: 58px;
@@ -220,7 +222,7 @@
   --drm-dropdown-text: var(--color-text-strong, rgba(245, 248, 250, 0.94));
   --drm-dropdown-muted: var(--color-text-muted, rgba(196, 207, 211, 0.62));
   --drm-dropdown-faint: var(--color-text-faint, rgba(196, 207, 211, 0.34));
-  --drm-dropdown-font: var(--az-font-data, 'Space Mono', monospace);
+  --drm-dropdown-font: var(--az-font-data, 'Manrope', sans-serif);
   --drm-dropdown-display-font: var(--az-font, 'Space Grotesk', system-ui, sans-serif);
 
   position: fixed;

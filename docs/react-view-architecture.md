@@ -17,7 +17,54 @@ UI and implementation rules:
 
 - `AI_IMPLEMENTATION_CONTRACT.md`
 
+## App typography
+
+The primary UI font is Space Grotesk. The secondary font is Manrope, loaded
+through `index.html` and applied through the existing `--font-mono` token and
+its `--az-font-data` alias. The legacy token name remains for compatibility;
+secondary text now uses a proportional sans-serif face. Shared dropdown and
+popover fallbacks, timeline canvas text, and authentication visualizer labels
+use Manrope as well.
+
+Main inspector tabs use the same canonical 11px size as the left library tabs.
+
+`styles/typography.css` owns the shared UI typography contract. Field labels
+use Manrope 11px/600; text, textarea, dropdown, numeric and color values use
+Manrope 13px/700; placeholders and dropdown option values use that same
+13px/700 role, with muted color distinguishing placeholders; tabs and shared action
+buttons use Manrope 11px/700. Parent group headings use Space Grotesk
+15px/800; nested group headings use Space Grotesk 11px/800 at every nested
+depth, determined by the reusable `.drc-group` hierarchy. Window titles use
+Space Grotesk 12px/700. Compact and dense controls keep
+their geometry but use the same typography as their standard counterparts.
+Read-only fields follow the same rules as editable fields. These rules also
+cover portaled dropdown menus and take precedence over legacy font overrides.
+Authored media and lyric presentation fonts are not UI typography roles.
+Run `node scripts/verify-shared-typography.mjs` to check the rendered contract
+across seven workspace contexts, dropdown sizes, read-only/disabled fields,
+placeholders, portaled menus, and late stylesheet loading.
+`node scripts/verify-input-typography.mjs` mounts the actual reusable React
+components and verifies text, number, textarea, preset search, searchable
+dropdowns, selected/empty dropdowns in every size, and real portaled options.
+The control styles import the shared typography contract directly so isolated
+component mounts receive the same fonts as the main app.
+
+Horizontal tab rows share a 25px top gap, matching the Inspector below its
+window header. `styles/tabRows.css` owns this spacing through
+`--workspace-tab-top-gap`, including React engine Source/Layers tabs,
+library filters, manager inspectors, lyric workspace tabs, nested panel tabs,
+timeline toolbars, Brand Kit, media Drop Points, shader editors, and the
+horizontal Settings navigation on narrow screens. Leading wrappers remove
+their top inset so it does not compound with the row's spacing. The Settings
+sidebar remains a vertical navigation list on wider screens.
+
 ## Shell regions
+
+`styles/groupSpacing.css` aligns the audited Lyric and Preset inspectors,
+React left control groups, Brand Kit editor, and lyric Versions content to
+their tab content edges. Reusable group bodies preserve their vertical
+spacing and add no horizontal padding, including nested groups. The owning
+rail or tab panel supplies the horizontal inset once.
 
 React View has five persistent architectural regions.
 
@@ -43,6 +90,10 @@ The left rail uses compact description density. Control labels, values, actions,
 warnings, errors, empty states, and live diagnostics remain visible, while
 long explanatory helper copy is visually removed from the layout and retained
 for assistive technology. Right-rail descriptions are unaffected.
+
+Across app workspaces, `RailWindowHeader` uses its bottom border to separate
+the title bar from the content. It casts no outer shadow, so the tab rows
+below retain their panel background without a dark fade.
 
 ### Center stage
 
