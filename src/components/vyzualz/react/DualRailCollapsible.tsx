@@ -55,7 +55,7 @@ export function DualRailCollapsible({
   }
 
   return (
-    <div className={`drc-group${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`}>
+    <div className={`drc-group${open ? ' is-open' : ''}${className ? ` ${className}` : ''}`} data-drc-depth={depth}>
       <button
         type="button"
         className={`drc-header${headerClassName ? ` ${headerClassName}` : ''}`}

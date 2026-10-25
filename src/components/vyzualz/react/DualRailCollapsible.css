@@ -60,6 +60,28 @@
   transform: rotate(180deg);
 }
 
+/* A first-level nested heading's text starts exactly where its parent header's text starts. The parent's text
+   sits after its icon (15px glyph + 8px gap); a nested header already starts at the parent body's left padding
+   (16px), so it only needs the difference. Bodies with other left padding restate --drc-nested-inset. */
+:root {
+  --drc-parent-label-inset: 23px;
+}
+
+.drc-body {
+  --drc-nested-inset: calc(var(--drc-parent-label-inset) - 16px);
+}
+
+/* A group inside a body is 22px below whatever precedes it, matching the first one (10px body padding + 12px
+   group top padding). Later groups would otherwise get the body's 12px row gap on top of their own 12px, so the
+   2px surplus is trimmed. :where() keeps this at the lowest specificity so a panel's own group margin still wins. */
+.drc-body :where(.drc-group:not(:first-child)) {
+  margin-top: calc(-1 * var(--drc-group-gap-trim, 2px));
+}
+
+.drc-group[data-drc-depth='1'] > .drc-header {
+  padding-left: var(--drc-nested-inset);
+}
+
 .drc-body {
   display: flex;
   flex-direction: column;

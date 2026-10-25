@@ -139,6 +139,11 @@
 .pmv-info-panel .drc-body > .drc-group {
   margin-top: 6px;
 }
+/* Same 2px trim the shared group applies (DualRailCollapsible.css), so this panel's groups also sit one consistent
+   distance apart: 6px extra above the first, and above every later one. */
+.pmv-info-panel .drc-body > .drc-group:not(:first-child) {
+  margin-top: calc(6px - var(--drc-group-gap-trim, 2px));
+}
 
 .pmv-info-grid {
   display: grid;

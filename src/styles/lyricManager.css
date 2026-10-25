@@ -3435,6 +3435,14 @@
   padding-inline: 0;
 }
 
+/* Bodies with no side padding: a first-level nested heading needs the parent label's full inset to line up with it. */
+.lmv-left-rail .lmv-workspace-tab-panel .drc-body,
+.lmv-workspace-tab-panel .lmv-track-library-body,
+.lmv-track-timeline-window > .drc-group > .drc-body,
+.lmv-lyric-cues-window > .drc-group > .drc-body {
+  --drc-nested-inset: var(--drc-parent-label-inset);
+}
+
 
 /* React's right panel is the 12px rail inset plus its 6px scroll inset. */
 .lmv-right-rail .lmv-inspector-pane {

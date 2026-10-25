@@ -27,7 +27,7 @@ If a clean handoff cannot be reached because of a blocker or usage constraint, s
 
 - Keep reusable UI typography consistent by role using `src/styles/typography.css`.
 - Do not introduce workspace-specific font overrides for shared controls.
-- Parent group headers use the 15px role; all nested group headers use the 11px role. Preserve this hierarchy when changing shared groups.
+- Parent group headers use the window-title role (12px/700, 0.15em tracking, with an icon); all nested group headers use the 11px role, and a first-level nested heading's text starts where its parent's text starts. Preserve this hierarchy when changing shared groups.
 - Verify rendered typography across affected control variants and workspaces, including placeholders and portaled dropdowns, before reporting typography work complete.
 
 ## Communication

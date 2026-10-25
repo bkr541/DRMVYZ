@@ -41,6 +41,8 @@ describe('parent group header icons', () => {
       ['Overrides', 1],
     ])
     expect(container.querySelector('.drc-header-icon')?.getAttribute('aria-hidden')).toBe('true')
+    // The depth hook the nested-heading indent keys off: 0 parent, 1 first-level nested, 2 deeper.
+    expect([...container.querySelectorAll<HTMLElement>('.drc-group')].map(group => group.dataset.drcDepth)).toEqual(['0', '1', '2', '0'])
   })
 
   it('lets a parent pass its own icon or suppress it with false', async () => {
