@@ -1,5 +1,6 @@
+import { Collapsible, SelectRow, SliderRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
-import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import type {
   BrandKit,
   BrandKitEngineRule,
@@ -64,44 +65,19 @@ export function BrandKitEngineControls({ kit, onChange }: {
         const rule = effectiveRule(kit, engine.id)
         const customPalette = rule.customPalette ?? kit.palette
         return (
-          <section key={engine.id} className="bk-engine-card" aria-labelledby={`bk-engine-${engine.id}`}>
+          <Collapsible key={engine.id} label={engine.label}>
             <div className="bk-engine-heading">
               <div>
-                <h4 id={`bk-engine-${engine.id}`}>{engine.label}</h4>
+
                 <p>{engine.description}</p>
               </div>
-              <button type="button" className="bk-text-button" onClick={() => resetRule(engine.id)}>
+              <IconChipButton type="button" onClick={() => resetRule(engine.id)}>
                 Reset to Brand Kit default
-              </button>
+              </IconChipButton>
             </div>
-            <div className="bk-mode-row" role="group" aria-label={`${engine.label} personalization mode`}>
-              {BRAND_PERSONALIZATION_MODES.map(mode => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={`bk-mode-button${rule.mode === mode ? ' bk-mode-button--active' : ''}`}
-                  aria-pressed={rule.mode === mode}
-                  onClick={() => updateRule(engine.id, {
-                    mode,
-                    ...(mode === 'custom' && !rule.customPalette ? { customPalette: { ...kit.palette } } : {}),
-                  })}
-                >{MODE_LABELS[mode]}</button>
-              ))}
-            </div>
+            <SelectRow label={`${engine.label} personalization mode`} value={rule.mode} onChange={value => updateRule(engine.id, {mode:value as BrandPersonalizationMode, ...(value === 'custom' && !rule.customPalette ? {customPalette:{...kit.palette}} : {})})} options={BRAND_PERSONALIZATION_MODES.map(value=>({value,label:MODE_LABELS[value]}))} />
             <p className="bk-mode-description">{MODE_DESCRIPTIONS[rule.mode]}</p>
-            <label className="bk-strength-label" htmlFor={`bk-strength-${engine.id}`}>
-              Strength <output>{Math.round(rule.strength * 100)}%</output>
-            </label>
-            <BubbleRevealSlider
-              id={`bk-strength-${engine.id}`}
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={rule.strength}
-              disabled={rule.mode === 'original'}
-              onChange={event => updateRule(engine.id, { strength: Number(event.target.value) })}
-            />
+            <SliderRow id={`bk-strength-${engine.id}`} label="Strength" value={rule.strength} disabled={rule.mode === 'original'} onChange={strength => updateRule(engine.id, {strength})} />
             {engine.id === 'laserDmx' && (
               <div className="bk-laser-personalization">
                 <label className="bk-inline-toggle">
@@ -134,14 +110,14 @@ export function BrandKitEngineControls({ kit, onChange }: {
                   onChange={palette => updateRule(engine.id, { customPalette: palette })}
                 />
                 {rule.customPalette && (
-                  <button type="button" className="bk-text-button" onClick={() => {
+                  <IconChipButton type="button" onClick={() => {
                     const { customPalette: _removed, ...withoutCustom } = rule
                     onChange({ ...kit.engineRules, [engine.id]: withoutCustom })
-                  }}>Remove custom engine palette</button>
+                  }}>Remove custom engine palette</IconChipButton>
                 )}
               </div>
             )}
-          </section>
+          </Collapsible>
         )
       })}
     </div>

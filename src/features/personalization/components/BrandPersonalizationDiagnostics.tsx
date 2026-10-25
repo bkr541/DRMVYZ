@@ -1,3 +1,4 @@
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
 import { useSyncExternalStore } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useBrandKitStore } from '../brandKitStore'
@@ -42,8 +43,7 @@ export function BrandPersonalizationDiagnostics() {
     : Math.max(0, Math.min(1, presetRule?.strength ?? engineRule?.strength ?? activeKit?.defaultStrength ?? 0))
 
   return (
-    <details className="bk-diagnostics">
-      <summary>Personalization diagnostics</summary>
+    <DualRailCollapsible label="Personalization diagnostics" defaultOpen={false} className="bk-diagnostics">
       <dl>
         <div><dt>Active kit</dt><dd>{activeKit ? `${activeKit.name} (${activeKit.id})` : 'None'}</dd></div>
         <div><dt>Palette fingerprint</dt><dd>{activeKit ? paletteFingerprint(Object.values(activeKit.palette)) : 'standard'}</dd></div>
@@ -57,6 +57,6 @@ export function BrandPersonalizationDiagnostics() {
         <div><dt>Last sync</dt><dd>{activeMetadata.lastSyncedAt ?? 'Not synchronized'}</dd></div>
         <div><dt>Last error</dt><dd>{overlayCache?.lastError ?? error ?? 'None'}</dd></div>
       </dl>
-    </details>
+    </DualRailCollapsible>
   )
 }

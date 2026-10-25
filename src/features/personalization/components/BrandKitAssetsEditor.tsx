@@ -1,6 +1,6 @@
+import { Collapsible, SelectRow, SliderRow, ToggleRow } from '../../../components/vyzualz/react/ReactControlRows'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
-import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
 import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -10,7 +10,6 @@ import type { BrandAssetPresentation, BrandAssetRole, BrandKitAssetWithMedia, Br
 import { BRAND_ASSET_BLEND_MODES, BRAND_ASSET_GLOW_MODES, BRAND_ASSET_PLACEMENTS, BRAND_ASSET_ROLES, BRAND_ASSET_VISIBILITY_MODES } from '../BrandKitTypes'
 import { DEFAULT_BRAND_ASSET_PRESENTATION } from '../brandKitNormalization'
 import { useBrandKitStore } from '../brandKitStore'
-import { DropdownSelect } from '../../../components/shared/Dropdown/Dropdown'
 import { DialogTitleIcon } from '../../../components/shared/DialogTitleIcon'
 
 const ROLE_LABELS: Record<BrandAssetRole, string> = {
@@ -89,7 +88,7 @@ function AssetPreview({ asset, media, onRemove }: {
         <strong>{media?.title || media?.name || asset.media?.name || 'Missing media'}</strong>
         <span>{missing ? 'This linked media was deleted or is unavailable.' : (media?.mediaRole ?? asset.media?.mediaRole ?? 'image')}</span>
       </div>
-      <button type="button" className="bk-icon-button" onClick={onRemove} aria-label={`Remove ${media?.name ?? asset.media?.name ?? 'missing asset'}`}><AppIcon kind="close" size={14} /></button>
+      <IconChipButton type="button" className="bk-icon-action" onClick={onRemove} aria-label={`Remove ${media?.name ?? asset.media?.name ?? 'missing asset'}`}><AppIcon kind="close" size={14} /></IconChipButton>
     </div>
   )
 }
@@ -120,24 +119,24 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
           <div>
             <h3 id="bk-picker-title"><DialogTitleIcon name="image" />Choose {ROLE_LABELS[role]}</h3>
           </div>
-          <button type="button" className="bk-icon-button" onClick={onClose} aria-label="Close asset picker"><AppIcon kind="close" size={14} /></button>
+          <IconChipButton type="button" className="bk-icon-action" onClick={onClose} aria-label="Close asset picker"><AppIcon kind="close" size={14} /></IconChipButton>
         </div>
         <div className="bk-picker-toolbar">
           <label className="bk-search-label">
             <span className="sr-only">Search media</span>
             <DreamVizTextInput value={query} onChange={event => setQuery(event.target.value)} placeholder="Search media…" autoFocus />
           </label>
-          <button type="button" className="bk-primary-button" onClick={onUpload}>Upload media</button>
+          <IconChipButton type="button" tone="primary" onClick={onUpload}>Upload media</IconChipButton>
         </div>
         <div className="bk-filter-row" role="group" aria-label="Media filters">
           {FILTERS.map(option => (
-            <button
+            <IconChipButton
               key={option.id}
               type="button"
-              className={`bk-filter-button${filter === option.id ? ' bk-filter-button--active' : ''}`}
+              tone={filter === option.id ? 'primary' : 'default'}
               aria-pressed={filter === option.id}
               onClick={() => setFilter(option.id)}
-            >{option.label}</button>
+            >{option.label}</IconChipButton>
           ))}
         </div>
         <div className="bk-media-grid">
@@ -150,7 +149,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
             const preview = mediaPreview(item)
             const synced = Boolean(item.dbId)
             return (
-              <button
+              <IconChipButton
                 key={item.id}
                 type="button"
                 className="bk-media-card"
@@ -163,7 +162,7 @@ function AssetPicker({ role, onClose, onPick, onUpload }: {
                 </div>
                 <strong>{item.title || item.name}</strong>
                 <span>{isSvg(item) ? 'SVG' : item.mediaRole.replace(/_/g, ' ')}{synced ? '' : ' · syncing'}</span>
-              </button>
+              </IconChipButton>
             )
           })}
         </div>
@@ -251,87 +250,43 @@ export function BrandKitAssetsEditor({
 
   return (
     <div className="bk-assets-editor">
-      <section className="bk-asset-role bk-compositor-settings" aria-labelledby="bk-compositor-heading">
-        <div className="bk-asset-role-heading">
-          <div>
-            <h4 id="bk-compositor-heading">Canvas branding</h4>
-            <p>Composite one linked mark into the actual React canvas so recordings, screenshots, exports, and fullscreen output match.</p>
-          </div>
-        </div>
-        <label className="bk-field-label" htmlFor="bk-display-asset">Display asset</label>
-        <DropdownSelect
-          id="bk-display-asset"
-          value={activeDisplayAsset?.id ?? ''}
-          disabled={syncing || displayAssets.length === 0}
-          onChange={event => void selectDisplayAsset(event.target.value)}
-        >
-          <option value="">Disabled</option>
-          {displayAssets.map(asset => (
-            <option key={asset.id} value={asset.id}>{ROLE_LABELS[asset.role]} · {mediaByDbId.get(asset.mediaItemId)?.name ?? asset.media?.name ?? 'Missing media'}</option>
-          ))}
-        </DropdownSelect>
+      <Collapsible label="Canvas branding">
+        <SelectRow id="bk-display-asset" label="Display asset" value={activeDisplayAsset?.id ?? ''} disabled={syncing || displayAssets.length === 0} onChange={value => void selectDisplayAsset(value)} options={[{value:'',label:'Disabled'}, ...displayAssets.map(asset => ({value:asset.id,label:`${ROLE_LABELS[asset.role]} · ${mediaByDbId.get(asset.mediaItemId)?.name ?? asset.media?.name ?? 'Missing media'}`}))]} />
         {activeDisplayAsset && (
           <div className="bk-compositor-grid">
-            <label>Placement
-              <DropdownSelect value={activePresentation.placement} onChange={event => void patchDisplayPresentation({ placement: event.target.value as BrandAssetPresentation['placement'] })}>
-                {BRAND_ASSET_PLACEMENTS.map(value => <option key={value} value={value}>{value.replace('-', ' ')}</option>)}
-              </DropdownSelect>
-            </label>
-            <label>Blend
-              <DropdownSelect value={activePresentation.blendMode} onChange={event => void patchDisplayPresentation({ blendMode: event.target.value as BrandAssetPresentation['blendMode'] })}>
-                {BRAND_ASSET_BLEND_MODES.map(value => <option key={value} value={value}>{value}</option>)}
-              </DropdownSelect>
-            </label>
-            <label>Visibility
-              <DropdownSelect value={activePresentation.visibility} onChange={event => void patchDisplayPresentation({ visibility: event.target.value as BrandAssetPresentation['visibility'] })}>
-                {BRAND_ASSET_VISIBILITY_MODES.map(value => <option key={value} value={value}>{value === 'always' ? 'Always' : value === 'introOnly' ? 'Intro only' : 'Outro only'}</option>)}
-              </DropdownSelect>
-            </label>
-            <label>Glow
-              <DropdownSelect value={activePresentation.glowMode} onChange={event => void patchDisplayPresentation({ glowMode: event.target.value as BrandAssetPresentation['glowMode'] })}>
-                {BRAND_ASSET_GLOW_MODES.map(value => <option key={value} value={value}>{value === 'audioReactive' ? 'Audio-reactive' : value}</option>)}
-              </DropdownSelect>
-            </label>
-            <label>Scale <output>{Math.round(activePresentation.scale * 100)}%</output>
-              <BubbleRevealSlider type="range" min="0.04" max="0.6" step="0.01" value={activePresentation.scale} onChange={event => void patchDisplayPresentation({ scale: Number(event.target.value) })} />
-            </label>
-            <label>Opacity <output>{Math.round(activePresentation.opacity * 100)}%</output>
-              <BubbleRevealSlider type="range" min="0" max="1" step="0.01" value={activePresentation.opacity} onChange={event => void patchDisplayPresentation({ opacity: Number(event.target.value) })} />
-            </label>
-            <label>Safe-area inset <output>{Math.round(activePresentation.margin * 100)}%</output>
-              <BubbleRevealSlider type="range" min="0" max="0.2" step="0.01" value={activePresentation.margin} onChange={event => void patchDisplayPresentation({ margin: Number(event.target.value) })} />
-            </label>
-            <label className="bk-inline-toggle">
-              <IconMorphCheckbox checked={activePresentation.preserveOriginalColors} onChange={event => void patchDisplayPresentation({ preserveOriginalColors: event.target.checked })} />
-              <span>Preserve original artwork colors</span>
-            </label>
-            <button type="button" className="bk-text-button" onClick={() => void updateAsset(activeDisplayAsset.id, { presentation: { ...activePresentation, enabled: false } })}>Disable logo compositor</button>
+            <SelectRow label="Placement" value={activePresentation.placement} onChange={value => void patchDisplayPresentation({placement:value as BrandAssetPresentation['placement']})} options={BRAND_ASSET_PLACEMENTS.map(value=>({value,label:value.replace('-',' ')}))} />
+            <SelectRow label="Blend" value={activePresentation.blendMode} onChange={value=>void patchDisplayPresentation({blendMode:value as BrandAssetPresentation['blendMode']})} options={BRAND_ASSET_BLEND_MODES.map(value=>({value,label:value}))} />
+            <SelectRow label="Visibility" value={activePresentation.visibility} onChange={value=>void patchDisplayPresentation({visibility:value as BrandAssetPresentation['visibility']})} options={BRAND_ASSET_VISIBILITY_MODES.map(value=>({value,label:value==='always'?'Always':value==='introOnly'?'Intro only':'Outro only'}))} />
+            <SelectRow label="Glow" value={activePresentation.glowMode} onChange={value=>void patchDisplayPresentation({glowMode:value as BrandAssetPresentation['glowMode']})} options={BRAND_ASSET_GLOW_MODES.map(value=>({value,label:value==='audioReactive'?'Audio-reactive':value}))} />
+            <SliderRow label="Scale" min={.04} max={.6} value={activePresentation.scale} onChange={scale=>void patchDisplayPresentation({scale})} />
+            <SliderRow label="Opacity" value={activePresentation.opacity} onChange={opacity=>void patchDisplayPresentation({opacity})} />
+            <SliderRow label="Safe-area inset" min={0} max={.2} value={activePresentation.margin} onChange={margin=>void patchDisplayPresentation({margin})} />
+            <ToggleRow label="Preserve original artwork colors" value={activePresentation.preserveOriginalColors} onChange={preserveOriginalColors=>void patchDisplayPresentation({preserveOriginalColors})} />
+            <IconChipButton type="button" onClick={() => void updateAsset(activeDisplayAsset.id, { presentation: { ...activePresentation, enabled: false } })}>Disable logo compositor</IconChipButton>
           </div>
         )}
         {displayAssets.length === 0 && <div className="bk-missing-slot">Link a logo, wordmark, monogram, watermark, or key art asset to enable canvas branding.</div>}
-      </section>
+      </Collapsible>
       {BRAND_ASSET_ROLES.map(role => {
         const linked = assets.filter(asset => asset.role === role)
         return (
-          <section key={role} className="bk-asset-role" aria-labelledby={`bk-role-${role}`}>
+          <Collapsible key={role} label={ROLE_LABELS[role]}>
             <div className="bk-asset-role-heading">
               <div>
-                <h4 id={`bk-role-${role}`}>{ROLE_LABELS[role]}</h4>
-                <p>{ROLE_HINTS[role]}</p>
+                <p className="bk-description">{ROLE_HINTS[role]}</p>
               </div>
-              <button
+              <IconChipButton
                 type="button"
-                className="bk-secondary-button"
                 onClick={() => setPickerRole(role)}
                 disabled={syncing}
-              >{linked.length ? (role === 'paletteSource' ? 'Add source' : 'Replace') : 'Choose media'}</button>
+              >{linked.length ? (role === 'paletteSource' ? 'Add source' : 'Replace') : 'Choose media'}</IconChipButton>
             </div>
             {linked.length > 0
               ? <div className="bk-linked-assets">{linked.map(asset => (
                   <AssetPreview key={asset.id} asset={asset} media={mediaByDbId.get(asset.mediaItemId) ?? null} onRemove={() => void removeAsset(asset.id)} />
                 ))}</div>
-              : <div className="bk-missing-slot">No {ROLE_LABELS[role].toLowerCase()} selected.</div>}
-          </section>
+              : <span className="bk-description">No {ROLE_LABELS[role].toLowerCase()} selected.</span>}
+          </Collapsible>
         )
       })}
       {pickerRole && (

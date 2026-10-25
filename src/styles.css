@@ -18,18 +18,18 @@
   --text-faint:rgba(196,207,211,0.22);
   --radius:    6px;
   --radius-lg: 10px;
-  --font-mono: 'Quicksand','JetBrains Mono','Fira Code','Courier New',monospace;
-  --font-ui:   'Quicksand','Inter','Helvetica Neue',system-ui,sans-serif;
+  /* App typography: Space Grotesk for UI, Space Mono for data and code. */
+  --font-mono: 'Space Mono','Courier New',monospace;
+  --font-ui:   'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-scale:1;
   font-size:   calc(13px * var(--font-scale));
 }
 
 html,body,#root { width:100%; height:100%; overflow:hidden; }
-body { background:#090d0f; color:var(--text); font-family:var(--font-mono);
+body { background:#090d0f; color:var(--text); font-family:var(--font-ui);
        -webkit-font-smoothing:antialiased; }
 canvas { display:block; }
-button { font-family:var(--font-mono); }
-input { font-family:var(--font-mono); }
+button, input, select, textarea { font-family:var(--font-ui); }
 
 /* ── App Root ───────────────────────────────────────────────────────────────── */
 .app-root {
@@ -233,7 +233,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
 .recording-panel { display:flex; flex-direction:column; gap:14px; }
 .rec-btn-row { display:flex; flex-wrap:wrap; gap:4px; }
 .btn-rec { padding:5px 12px; border:1px solid #ff3333; background:transparent;
-  color:#ff3333; font-family:var(--font-mono); font-size:10px; border-radius:var(--radius);
+  color:#ff3333; font-family:var(--font-ui); font-size:10px; border-radius:var(--radius);
   cursor:pointer; transition:all .15s; letter-spacing:0.1em; }
 .btn-rec:hover { background:rgba(255,51,51,0.1); }
 .btn-rec-stop { border-color:rgba(255,255,255,0.3); color:var(--text-dim); }
@@ -265,7 +265,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:3px; width:100%; padding:9px 4px; background:none; border:none;
   border-left:2px solid transparent; color:var(--text-faint); cursor:pointer;
-  transition:all .15s; font-family:var(--font-mono);
+  transition:all .15s; font-family:var(--font-ui);
 }
 .nav-item:hover { color:var(--text-dim); background:rgba(255,255,255,0.04); }
 .nav-item.active {
@@ -516,7 +516,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 5px;
   padding: 6px 10px;
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: 11px;
   color: var(--text-dim);
   cursor: pointer;
@@ -571,7 +571,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
 .ref-slot-num { font-size: 10px; letter-spacing: 0.1em; font-weight: 600; }
 .ref-slot-name {
   background: none; border: none; cursor: pointer;
-  font-family: var(--font-mono); font-size: 11px;
+  font-family: var(--font-ui); font-size: 11px;
   width: 100%; text-align: left; padding: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   transition: color 0.15s;
@@ -579,7 +579,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
 .ref-slot-empty {
   background: none; border: 1px dashed rgba(255,255,255,0.12);
   border-radius: 4px; padding: 4px 8px;
-  font-family: var(--font-mono); font-size: 11px;
+  font-family: var(--font-ui); font-size: 11px;
   color: var(--text-faint); cursor: pointer; width: 100%;
   transition: all 0.15s;
 }
@@ -590,7 +590,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
   flex: 1; padding: 8px; border-radius: 5px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.1);
-  font-family: var(--font-mono); font-size: 11px;
+  font-family: var(--font-ui); font-size: 11px;
   color: var(--text-dim); cursor: pointer;
   transition: all 0.15s; letter-spacing: 0.06em;
 }
@@ -646,7 +646,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
 }
 .mastering-tab {
   flex: 1; padding: 5px; border: none; border-radius: 4px;
-  background: none; font-family: var(--font-mono); font-size: 11px;
+  background: none; font-family: var(--font-ui); font-size: 11px;
   color: var(--text-dim); cursor: pointer; transition: all 0.15s;
   letter-spacing: 0.04em;
 }

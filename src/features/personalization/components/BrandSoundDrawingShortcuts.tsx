@@ -1,3 +1,5 @@
+import { DualRailCollapsible } from '../../../components/vyzualz/react/DualRailCollapsible'
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { IconMorphCheckbox } from '../../../components/vyzualz/react/controls/IconMorphToggle'
 import { useMemo, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -57,18 +59,15 @@ export function BrandSoundDrawingShortcuts({ assets }: { assets: BrandKitAssetWi
   }
 
   return (
-    <section className="bk-section" aria-labelledby="bk-sound-drawing-shortcuts">
-      <div className="bk-section-heading"><div>
-        <h3 id="bk-sound-drawing-shortcuts">Sound Drawing shortcuts</h3>
-        <p>Brand assets are never substituted automatically. Valid vector SVGs can become reactive paths; complex SVGs and regular images use artwork mode.</p>
-      </div></div>
+    <DualRailCollapsible label="Sound Drawing shortcuts">
+        <p className="bk-description">Brand assets are never substituted automatically. Valid vector SVGs can become reactive paths; complex SVGs and regular images use artwork mode.</p>
       <div className="bk-shortcut-row">
         {candidates.map((candidate, index) => {
           const label = candidate.asset.role === 'wordmark' ? 'Use Brand Wordmark' : 'Use Brand Logo in Sound Drawing'
           const invalid = !candidate.item || (isSvgMedia(candidate.item.name, candidate.item.mimeType, candidate.item.mediaRole) && candidate.item.metadata.svgValidation?.isValidSvg === false)
-          return <button key={candidate.asset.id} type="button" className="bk-secondary-button" disabled={invalid} onClick={() => void applyCandidate(index)}>{label}</button>
+          return <IconChipButton key={candidate.asset.id} type="button" disabled={invalid} onClick={() => void applyCandidate(index)}>{label}</IconChipButton>
         })}
-        <button type="button" className="bk-text-button" disabled={!previousRef.current} onClick={restorePrevious}>Restore Previous Source</button>
+        <IconChipButton type="button" disabled={!previousRef.current} onClick={restorePrevious}>Restore Previous Source</IconChipButton>
       </div>
       <label className="bk-inline-toggle">
         <IconMorphCheckbox checked={oscillatorSettings.svgUseReactPalette} onChange={event => setOscillatorSettings({ svgUseReactPalette: event.target.checked })} />
@@ -76,6 +75,6 @@ export function BrandSoundDrawingShortcuts({ assets }: { assets: BrandKitAssetWi
       </label>
       {candidates.length === 0 && <div className="bk-missing-slot">Link a primary logo or wordmark to enable these shortcuts.</div>}
       {notice && <div className="bk-inline-success" role="status">{notice}</div>}
-    </section>
+    </DualRailCollapsible>
   )
 }

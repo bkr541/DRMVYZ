@@ -1,6 +1,6 @@
 # Layout Lab application icon review
 
-Open **Layout Lab → Cinema 2.0 → Icons** in the middle visualizer. The review sheet contains 336 labeled entries using 140 original SVG drawings, arranged in five columns. Labels sit above the artwork and wrap rather than truncate. Search matches labels and screens. **Concept preview** retains the existing filmstrip preview.
+The Cinema 2.0 Layout Lab mockups have been cleared, including the middle visualizer icon gallery and concept preview. The standalone gallery source remains available for reference. Previously, **Layout Lab → Cinema 2.0 → Icons** opened the gallery in the middle visualizer. The review sheet contains 336 labeled entries using 140 original SVG drawings, arranged in five columns. Labels sit above the artwork and wrap rather than truncate. Search matches labels and screens. **Concept preview** retains the existing filmstrip preview.
 
 ## Style reference
 

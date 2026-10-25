@@ -38,58 +38,46 @@ function tabLabels(ariaLabel: string): string[] {
 }
 
 describe('Template Layout Lab workspace', () => {
-  it('keeps the Template inspector tabs with the card studies in Design while React stays empty', async () => {
+  it('shows the three audio studies in the middle while preserving left mockups and the empty right window', async () => {
     await selectEngine('Template')
-
-    expect(container.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
-
-    const leftRail = container.querySelector('[aria-label="Layout Lab left rail"]')
-    expect(leftRail?.querySelector('.rv-engine-dropdown-trigger')).not.toBeNull()
-
-    const rightRail = container.querySelector('[aria-label="Layout Lab right rail"]')
+    const leftRail = container.querySelector('[aria-label="Layout Lab left rail"]')!
+    const leftMockups = leftRail.querySelector('.rv-left-tab-body')!
+    const originalLeftContent = leftMockups.innerHTML
+    expect(leftMockups.children.length).toBeGreaterThan(0)
+    expect(leftRail.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Template')
     expect(tabLabels('Layout Lab inspector tabs')).toEqual(['PRESETS', 'DESIGN', 'REACT', 'OUTPUT'])
-    // Design is the tab that opens first and holds the five Preset Manager card studies.
-    expect(rightRail?.querySelector('[aria-label="Preset Manager card mockups"]')).not.toBeNull()
-
-    expect(container.querySelector('[aria-label="Timeline surfaces (mockup)"]')).toBeNull()
+    const tabs = container.querySelector('[aria-label="Layout Lab inspector tabs"]')!
+    for (const tab of tabs.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
+      await act(async () => tab.click())
+      expect(tab.getAttribute('aria-selected')).toBe('true')
+      expect(container.querySelectorAll('.rv-canvas-wrap [aria-label="Audio library mockups"] .ll-audio-study')).toHaveLength(3)
+      expect(container.querySelector('[aria-label="Layout Lab right rail"] .vz-panel-body')?.childElementCount).toBe(0)
+      expect(leftRail.querySelector('.rv-left-tab-body')).toBe(leftMockups)
+      expect(leftMockups.innerHTML).toBe(originalLeftContent)
+    }
+    expect(container.querySelector('.ll-preset-study')).toBeNull()
     expect(container.querySelector('.rv-lower-workspace')).toBeNull()
-    // The Template canvas holds the React header-row studies and nothing else.
-    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(1)
-    expect(container.querySelector('.rv-canvas-wrap > [aria-label="React header row mockups"]')).not.toBeNull()
-
-    const reactTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-      .find(button => button.textContent?.trim() === 'REACT')
-    if (!reactTab) throw new Error('Missing REACT tab')
-    await act(async () => reactTab.click())
-    expect(reactTab.getAttribute('aria-selected')).toBe('true')
-    expect(rightRail?.querySelector('.vz-panel-body')?.childElementCount).toBe(0)
+    // The audio dock is outside the middle visualizer and both windows.
+    expect(container.querySelector('.vz-transport-dock')).not.toBeNull()
   })
 
-  it('shows four two-column preset card treatments, eight presets each, in the PRESETS tab', async () => {
+  it('lets each audio mockup select and search tracks independently', async () => {
     await selectEngine('Template')
-    const presetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-      .find(button => button.textContent?.trim() === 'PRESETS')
-    if (!presetsTab) throw new Error('Missing PRESETS tab')
-    await act(async () => presetsTab.click())
-
-    const gallery = container.querySelector('.llp4-gallery')
-    expect(gallery?.querySelectorAll('.lldd-gallery-row')).toHaveLength(4)
-    for (const selector of ['.rv-preset-spotlight-card--poster', '.llp4-info', '.llp4-block', '.llp4-wall']) expect(gallery?.querySelectorAll(selector)).toHaveLength(8)
-    // Each Poster Tile and Colour Block carries its own generated still.
-    expect(gallery?.querySelectorAll('.rv-preset-spotlight-card--poster canvas.llp4-art')).toHaveLength(8)
-    expect(gallery?.querySelectorAll('.llp4-block canvas.llp4-art')).toHaveLength(8)
-    // Two columns, and the full name (including the two long ones) is in every treatment, never cut off.
-    expect(gallery?.querySelector('.llp4-grid')?.className).toBe('llp4-grid')
-    expect(gallery?.querySelectorAll('.llp4-wall-col')).toHaveLength(2)
-    for (const selector of ['.rv-preset-spotlight-card--poster', '.llp4-info', '.llp4-block', '.llp4-wall']) {
-      const text = [...(gallery?.querySelectorAll(selector) ?? [])].map(node => node.textContent)
-      expect(text.some(value => value?.includes('Kaleidoscope Bloom Tunnel'))).toBe(true)
-      expect(text.some(value => value?.includes('Audio Reactive Ripple Grid'))).toBe(true)
-    }
-    // Choosing a card selects that preset in all four treatments; the one-column card above is untouched.
-    expect(container.querySelector('.llpc-gallery')).not.toBeNull()
-    await act(async () => gallery?.querySelectorAll<HTMLButtonElement>('.llp4-block')[4]?.click())
-    expect(gallery?.querySelectorAll('.is-active, .rv-preset-spotlight-card--active')).toHaveLength(4)
+    const studies = container.querySelectorAll('.ll-audio-study')
+    const track = studies[0].querySelector<HTMLButtonElement>('[aria-label="Select Trace of You"]')!
+    await act(async () => track.click())
+    expect(track.getAttribute('aria-pressed')).toBe('true')
+    expect(studies[1].querySelector('[aria-label="Select Mocha ID — Nelly Grilz"]')?.getAttribute('aria-pressed')).toBe('true')
+    const search = studies[1].querySelector<HTMLInputElement>('[aria-label="Search Uploaded Tracks"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'static')
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(studies[1].querySelectorAll('.ll-audio-card')).toHaveLength(1)
+    expect(studies[0].querySelectorAll('.ll-audio-card')).toHaveLength(8)
+    const lyricTrack = studies[2].querySelector<HTMLButtonElement>('[aria-label="Select Trace of You"]')!
+    await act(async () => lyricTrack.click())
+    expect(studies[2].querySelector('.ll-audio-version')?.textContent).toContain('Trace of You')
   })
 
   it('returns to Canvas with its dropdown preserved and workspace mockups cleared', async () => {

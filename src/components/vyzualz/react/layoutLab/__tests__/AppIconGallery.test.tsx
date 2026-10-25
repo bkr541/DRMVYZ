@@ -62,17 +62,21 @@ describe('application icon review sheet', () => {
     expect(container.textContent).toContain('No icons match')
   })
 
-  it('opens in Cinema 2.0’s middle visualizer and preserves the concept preview', async () => {
+  it('keeps Cinema 2.0 navigation while removing all its Layout Lab mockups', async () => {
     await act(async () => root.render(<LayoutLabMockup />))
-    const center = container.querySelector('.rv-canvas-wrap')!
-    expect(center.querySelector('[aria-label="Application icon gallery"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Layout Lab left rail"] [aria-label="Application icon gallery"]')).toBeNull()
-    const preview = [...center.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Concept preview')!
-    await act(async () => preview.click())
-    expect(center.querySelector('.rv-layout-lab-cinema2-canvas')).not.toBeNull()
-    expect(center.querySelector('[aria-label="Application icon gallery"]')).toBeNull()
-    const icons = [...center.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Icons')!
-    await act(async () => icons.click())
-    expect(center.querySelectorAll('[data-icon-id]')).toHaveLength(APP_ICON_INVENTORY.length)
+    const left = container.querySelector('[aria-label="Layout Lab left rail"]')!
+    const right = container.querySelector('[aria-label="Layout Lab right rail"]')!
+    expect(left.querySelector('.rv-engine-dropdown-trigger')?.getAttribute('aria-label')).toBe('Selected engine: Cinema 2.0')
+    expect(left.querySelector('.rv-context-workspace')?.children).toHaveLength(1)
+    expect(container.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
+    expect(container.querySelector('.rv-lower-workspace')).toBeNull()
+    expect(container.querySelector('.vz-transport-dock')).toBeNull()
+    expect(container.querySelector('[aria-label="Application icon gallery"]')).toBeNull()
+    const tabs = right.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    expect(tabs).toHaveLength(4)
+    for (const tab of tabs) {
+      await act(async () => tab.click())
+      expect(right.querySelector('.vz-panel-body')?.childElementCount).toBe(0)
+    }
   })
 })

@@ -1,9 +1,9 @@
+import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
-import { useEffect, useId, useState } from 'react'
+import { PaletteColorRow } from '../../../components/vyzualz/react/ReactControlRows'
 import type { BrandPalette, BrandPaletteRole } from '../BrandKitTypes'
 import { BRAND_PALETTE_ROLES } from '../BrandKitTypes'
-import { contrastRatio, normalizeHexColor } from '../paletteColorSpace'
+import { contrastRatio } from '../paletteColorSpace'
 
 const ROLE_LABELS: Record<BrandPaletteRole, string> = {
   primary: 'Primary',
@@ -13,8 +13,6 @@ const ROLE_LABELS: Record<BrandPaletteRole, string> = {
   highlight: 'Highlight',
   text: 'Text',
 }
-
-const HEX_RE = /^#[0-9a-f]{6}$/i
 
 function ContrastNotice({ foreground, background, label, threshold }: {
   foreground: string
@@ -31,73 +29,16 @@ function ContrastNotice({ foreground, background, label, threshold }: {
   )
 }
 
-function PaletteField({ role, value, resetValue, onChange, compact }: {
+function PaletteField({ role, value, resetValue, onChange }: {
   role: BrandPaletteRole
   value: string
   resetValue: string
   onChange: (value: string) => void
-  compact?: boolean
 }) {
-  const id = useId()
-  const [draft, setDraft] = useState(value)
-  const valid = HEX_RE.test(draft)
-
-  useEffect(() => setDraft(value), [value])
-
-  function commit() {
-    if (!valid) return
-    const normalized = normalizeHexColor(draft)
-    setDraft(normalized)
-    onChange(normalized)
-  }
-
-  return (
-    <div className={`bk-palette-field${compact ? ' bk-palette-field--compact' : ''}`}>
-      <label htmlFor={`${id}-hex`} className="bk-field-label">{ROLE_LABELS[role]}</label>
-      <div className="bk-palette-field-controls">
-        <input
-          id={`${id}-color`}
-          className="bk-color-input"
-          type="color"
-          value={normalizeHexColor(value)}
-          aria-label={`${ROLE_LABELS[role]} color picker`}
-          onChange={event => {
-            const next = normalizeHexColor(event.target.value)
-            setDraft(next)
-            onChange(next)
-          }}
-        />
-        <DreamVizTextInput
-          id={`${id}-hex`}
-          className={`bk-hex-input${valid ? '' : ' bk-hex-input--invalid'}`}
-          value={draft}
-          maxLength={7}
-          aria-invalid={!valid}
-          aria-describedby={!valid ? `${id}-error` : undefined}
-          onChange={event => setDraft(event.target.value.toUpperCase())}
-          onBlur={commit}
-          onKeyDown={event => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              commit()
-            }
-          }}
-        />
-        <span className="bk-swatch-preview" style={{ background: valid ? draft : value }} aria-hidden="true" />
-        <button
-          type="button"
-          className="bk-icon-button"
-          onClick={() => {
-            setDraft(resetValue)
-            onChange(resetValue)
-          }}
-          aria-label={`Reset ${ROLE_LABELS[role]} color`}
-          title={`Reset ${ROLE_LABELS[role]}`}
-        ><AppIcon kind="rotateLeft" size={14} /></button>
-      </div>
-      {!valid && <span id={`${id}-error`} className="bk-field-error">Use a six-digit hex color such as #19BFF2.</span>}
-    </div>
-  )
+  return <div className="bk-palette-field">
+    <PaletteColorRow label={ROLE_LABELS[role]} value={value} onChange={onChange} />
+    <IconChipButton className="bk-icon-action" onClick={() => onChange(resetValue)} aria-label={`Reset ${ROLE_LABELS[role]} color`} icon={<AppIcon kind="rotateLeft" size={14} />} />
+  </div>
 }
 
 export function BrandKitPaletteEditor({ palette, resetPalette, onChange, compact = false }: {
@@ -116,7 +57,6 @@ export function BrandKitPaletteEditor({ palette, resetPalette, onChange, compact
             value={palette[role]}
             resetValue={resetPalette[role]}
             onChange={value => onChange({ ...palette, [role]: value })}
-            compact={compact}
           />
         ))}
       </div>

@@ -1,3 +1,4 @@
+import { TemplateAudioLibraryMockups } from './layoutLab/TemplateAudioLibraryMockups'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useState } from 'react'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
@@ -13,19 +14,11 @@ import { NoticeStyleGallery } from './layoutLab/NoticeStyleGallery'
 import { PaletteGroupStyleGallery } from './layoutLab/PaletteGroupStyleGallery'
 import { BadgeStyleGallery } from './layoutLab/BadgeStyleGallery'
 import { LayerRowStyleGallery } from './layoutLab/LayerRowStyleGallery'
-import { PresetCardStyleGallery } from './layoutLab/PresetCardStyleGallery'
-import { PresetTwoColumnConceptsGallery } from './layoutLab/PresetTwoColumnConceptsGallery'
 import { NumericInputStyleGallery } from './layoutLab/NumericInputStyleGallery'
 import { TemplateAudioDockMockup } from './layoutLab/TemplateAudioDockMockup'
-import { Cinema2StillsFilmstripMockup } from './layoutLab/Cinema2StillsFilmstripMockup'
-import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
-import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
-import { PresetManagerCardStyleGallery } from './layoutLab/PresetManagerCardStyleGallery'
-import { TemplateHeaderRowMockups } from './layoutLab/TemplateHeaderRowMockups'
 import { FontPairingMockups } from './layoutLab/FontPairingMockups'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
-import { useCinema2MockState } from './layoutLab/useCinema2MockState'
 import type { ReactLowerSurface } from './reactWorkspaceComposition'
 
 // ── LayoutLabMockup ────────────────────────────────────────────────────────
@@ -48,7 +41,7 @@ const MOCK_RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'output'>[
   { id: 'output', label: 'OUTPUT' },
 ]
 
-const EMPTY_ENGINE_MOCKUPS = new Set<LayoutLabEngineId>(['canvas', 'pixGrid', 'oscilloscope', 'laserDmx'])
+const EMPTY_ENGINE_MOCKUPS = new Set<LayoutLabEngineId>(['cinema2', 'canvas', 'pixGrid', 'oscilloscope', 'laserDmx'])
 
 function MockChevron({ expanded }: { expanded: boolean }) { return <AppIcon kind={expanded ? 'chevronUp' : 'chevronDown'} /> }
 
@@ -67,7 +60,6 @@ export function LayoutLabMockup() {
     ? null
     : resolveLayoutLabComposition(engineId)
   const [activeSurface, setActiveSurface] = useState<ReactLowerSurface>('trackMap')
-  const cinema2State = useCinema2MockState()
 
   const handleSelectEngine = (id: LayoutLabEngineId) => {
     if (id === 'template' || id === 'lyricManager' || EMPTY_ENGINE_MOCKUPS.has(id)) {
@@ -92,9 +84,6 @@ export function LayoutLabMockup() {
           collapsed={leftCollapsed}
           onToggleCollapsed={() => setLeftCollapsed(value => !value)}
         >
-          {engineId === 'cinema2' ? (
-            <Cinema2StillsFilmstripMockup engineId={engineId} onSelectEngine={handleSelectEngine} state={cinema2State} />
-          ) : (
             <div className="rv-left-workspace-shell" data-description-density="compact">
               <section className="rv-context-workspace">
                 <header className="rv-context-workspace-header">
@@ -126,13 +115,11 @@ export function LayoutLabMockup() {
                 )}
               </section>
             </div>
-          )}
         </WorkspaceRail>
 
         <div className="rv-center-col">
           <div className="rv-canvas-wrap">
-            {engineId === 'template' && <TemplateHeaderRowMockups />}
-            {engineId === 'cinema2' && <Cinema2CanvasMockup state={cinema2State} />}
+            {engineId === 'template' && <TemplateAudioLibraryMockups />}
           </div>
 
           {composition && <section className="rv-lower-workspace" data-collapsed={dockCollapsed ? 'true' : undefined}>
@@ -209,20 +196,7 @@ export function LayoutLabMockup() {
                 onChange={setTemplateRightTab}
                 ariaLabel="Layout Lab inspector tabs"
               />
-              <div className="vz-panel-body">
-                {templateRightTab === 'presets' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <PresetCardStyleGallery />
-                    <PresetTwoColumnConceptsGallery />
-                  </div>
-                )}
-                {templateRightTab === 'design' && (
-                  <div className="rv-inspector rv-inspector-scroll">
-                    <PresetManagerCardStyleGallery />
-                  </div>
-                )}
-                {/* React and Output are intentionally blank in the Template engine. */}
-              </div>
+              <div className="vz-panel-body" />
             </>
           ) : EMPTY_ENGINE_MOCKUPS.has(engineId) ? (
             <>
@@ -236,12 +210,12 @@ export function LayoutLabMockup() {
                     ? 'Canvas inspector tabs'
                     : engineId === 'pixGrid'
                       ? 'PixGrid inspector tabs'
-                      : 'Sound Drawing inspector tabs'}
+                      : engineId === 'cinema2'
+                        ? 'Cinema 2.0 inspector tabs'
+                        : 'Sound Drawing inspector tabs'}
               />
               <div className="vz-panel-body" />
             </>
-          ) : engineId === 'cinema2' ? (
-            <Cinema2RightRailMockup state={cinema2State} />
           ) : (
             <>
               <RailTabs

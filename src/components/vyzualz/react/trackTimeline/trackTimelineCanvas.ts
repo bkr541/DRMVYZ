@@ -144,8 +144,8 @@ function resolvePalette(canvas: HTMLCanvasElement): TrackTimelinePalette {
 
 function resolveFonts(canvas: HTMLCanvasElement): CanvasFonts {
   return {
-    ui: cssVar(canvas, '--az-font', "Inter, 'Helvetica Neue', system-ui, sans-serif"),
-    data: cssVar(canvas, '--az-font-data', "'DM Sans', Inter, system-ui, sans-serif"),
+    ui: cssVar(canvas, '--az-font', "'Space Grotesk', system-ui, sans-serif"),
+    data: cssVar(canvas, '--az-font-data', "'Space Mono', monospace"),
   }
 }
 

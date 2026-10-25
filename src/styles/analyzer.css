@@ -27,8 +27,8 @@
 
   --az-radius:       10px;
   --az-radius-sm:    6px;
-  --az-font:         'Quicksand','Inter','Helvetica Neue',system-ui,sans-serif;
-  --az-font-data:    'DM Sans','Inter','Helvetica Neue',system-ui,sans-serif;
+  --az-font:         var(--font-ui);
+  --az-font-data:    var(--font-mono);
 }
 
 /* ── Root shell ──────────────────────────────────────────────────────── */
@@ -1337,7 +1337,7 @@
   background: rgba(74,199,219,0.18);
 }
 
-/* ── DM Sans data font — all in-panel detail / value text ────────────────── */
+/* ── Space Mono data font — all in-panel detail / value text ────────────────── */
 .az-trackinfo-key,
 .az-trackinfo-val,
 .az-loudness-big,

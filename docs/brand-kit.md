@@ -23,6 +23,12 @@ Brand Kit is the shared personalization system for palettes, logos, image assets
 | Settings UI | `src/features/personalization/components/` |
 | LaserDMX integration | `src/features/personalization/laserDmxPersonalization.ts` |
 
+## Settings interface
+
+Brand Kit follows the Tracks / Document Workspace layout: `RailWindowHeader` title bars, `RailTabs` workspace tabs, a fixed kit list and a separately scrolling inspector. Asset roles and engine settings use disclosure groups rather than boxed cards; forms use `TextInputRow`, `ToggleRow`, `SelectRow`, and `SliderRow`, including underline dropdowns. Brand Kit uses the canonical `DualRailCollapsible` groups, `IconChipButton` actions, `LayerRow` kit selection, `StatusBadge`, and `PaletteColorRow` editor alongside shared text inputs, sliders, toggles and dropdowns. Brand-specific CSS owns layout and media previews; it does not replace shared control styling. Surfaces and text use the application theme tokens.
+
+The Settings panel and kit column remain fixed. Only the right-hand Brand Kit editor scrolls, including at compact widths. The kit column pages according to its available height so large collections stay accessible without adding a second scrollbar. Changing pages does not activate or edit a kit; selecting a row chooses the editor, and Activate remains explicit.
+
 ## Data model
 
 Brand Kit data includes normalized identity, palette, extracted palette metadata, assets, and engine personalization settings as defined by `BrandKitTypes.ts`.

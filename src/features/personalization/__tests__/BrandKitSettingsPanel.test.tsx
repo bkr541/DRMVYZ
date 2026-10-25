@@ -98,18 +98,55 @@ describe('Brand Kit Settings states and accessibility', () => {
 
     const switches = [...container.querySelectorAll<HTMLButtonElement>('button[role="switch"]')]
     expect(switches).toHaveLength(2)
-    expect(switches[0].getAttribute('aria-label')).toBe('Automatic visual personalization')
+    expect(document.getElementById(switches[0].getAttribute('aria-labelledby')!)?.textContent).toBe('Automatic visual personalization')
     expect(switches[0].getAttribute('aria-checked')).toBe('true')
     await act(async () => switches[0].click())
     expect(updateKit).toHaveBeenCalledWith(kit.id, { autoApply: false })
 
-    expect(container.querySelector('[role="group"][aria-label="LaserDMX personalization mode"]')).toBeTruthy()
+    expect(container.querySelector('label[for]')?.textContent).toBeTruthy()
+    expect(container.querySelector('.bk-engine-list .dv-underline-dropdown')).toBeTruthy()
     const triggerSemantics = [...container.querySelectorAll('label')].find(label => label.textContent?.includes('Preserve trigger semantics'))
     expect(triggerSemantics?.querySelector('input[type="checkbox"]')).toBeInstanceOf(HTMLInputElement)
     const displayAssetLabel = [...container.querySelectorAll('label')].find(label => label.textContent === 'Display asset') as HTMLLabelElement
     expect(displayAssetLabel.control?.id).toBe('bk-display-asset')
     expect(container.textContent).toContain('Sound Drawing shortcuts')
     expect(container.textContent).toContain('Personalization diagnostics')
+  })
+
+  it('keeps every kit reachable through paging and edits the selected kit', async () => {
+    const kits = Array.from({ length: 10 }, (_, index) => ({ ...makeKit(), id: `kit-${index}`, name: `Brand ${index + 1}` }))
+    const updateKit = vi.fn(async (id: string, patch: Partial<BrandKit>) => ({ ...kits.find(kit => kit.id === id)!, ...patch }))
+    useBrandKitStore.setState({
+      currentUserId: 'user-a', kits, activeKit: kits[0], activeAssets: [], assetsByKitId: {},
+      loading: false, syncing: false, error: null, updateKit, loadAssetsForKit: vi.fn(async () => []),
+    })
+    await render(<BrandKitSettingsPanel />)
+    const next = container.querySelector<HTMLButtonElement>('[aria-label="Next Brand Kits"]')!
+    await act(async () => next.click())
+    const row = container.querySelector<HTMLButtonElement>('.bk-kit-list .dv-layer-row')!
+    expect(row.textContent).toContain('Brand 5')
+    await act(async () => row.click())
+    expect(container.querySelector<HTMLInputElement>('#bk-kit-name')?.value).toBe('Brand 5')
+    const reset = container.querySelector<HTMLButtonElement>('[aria-label="Reset Primary color"]')!
+    await act(async () => reset.click())
+    expect(updateKit).toHaveBeenCalledWith('kit-4', { palette: { ...BRAND, primary: expect.any(String) } })
+    await act(async () => next.click())
+    expect(container.querySelector('.bk-kit-list')?.textContent).toContain('Brand 9')
+    expect(next.disabled).toBe(true)
+  })
+
+  it('uses workspace headers, tabs, shared form rows and unboxed asset disclosures', async () => {
+    const kit = makeKit()
+    useBrandKitStore.setState({ currentUserId: 'user-a', kits: [kit], activeKit: kit, assetsByKitId: { [kit.id]: [] }, loading: false, syncing: false, loadAssetsForKit: vi.fn(async () => []) })
+    await render(<BrandKitSettingsPanel />)
+    expect(container.querySelectorAll('.rw-window-header')).toHaveLength(2)
+    expect(container.querySelectorAll('[aria-label="Brand Kit workspace"] .dv-underline-tab')).toHaveLength(4)
+    const assetsTab = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Assets')!
+    await act(async () => assetsTab.click())
+    expect(container.querySelector('[aria-label="Assets"][role="tabpanel"]')?.hasAttribute('hidden')).toBe(false)
+    expect(container.querySelectorAll('.bk-assets-editor > .drc-group')).toHaveLength(10)
+    expect(container.querySelectorAll('.bk-assets-editor .bk-asset-role')).toHaveLength(0)
+    expect(container.querySelector('#bk-display-asset')?.closest('.dv-underline-dropdown')).toBeTruthy()
   })
 
   it('keeps Settings navigation keyboard accessible and preserves Escape closing', async () => {
