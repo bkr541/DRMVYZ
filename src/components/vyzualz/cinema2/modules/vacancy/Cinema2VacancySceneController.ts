@@ -18,7 +18,7 @@ export interface VacancySceneFrame {
 export const VACANCY_TOWER_ORIGIN = [0.46, 0, -0.1] as const
 const TOWER_SIZE: VacancyTowerSize = 'standard'
 
-interface RoomMaterial { material: Three.MeshStandardMaterial; color: Three.Color; emissiveIntensity: number }
+interface RoomMaterial { material: Three.MeshStandardMaterial; color: Three.Color }
 interface PlacedTv { placement: VacancyPlacement; holder: Three.Group; anchor: VacancyScreenAnchor }
 
 const nodeName = (object: Three.Object3D): string => typeof object.userData.name === 'string' ? object.userData.name : object.name
@@ -71,7 +71,7 @@ export class Cinema2VacancySceneController {
       if (!mesh.isMesh) return
       for (const material of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as Three.MeshStandardMaterial[]) {
         if (material.isMeshStandardMaterial && !this.roomMaterials.some(entry => entry.material === material)) {
-          this.roomMaterials.push({ material, color: material.color.clone(), emissiveIntensity: material.emissiveIntensity })
+          this.roomMaterials.push({ material, color: material.color.clone() })
           // The room's baked colour doubles as a dim self-lit fill, so its bricks, doorways and floor read even where the screens' light does not reach.
           if (material.map) { material.emissiveMap = material.map; material.needsUpdate = true }
         }
@@ -88,6 +88,7 @@ export class Cinema2VacancySceneController {
       const holder = new THREE.Group()
       holder.position.set(placement.x, placement.y, placement.z)
       holder.rotation.y = placement.yaw
+      holder.scale.setScalar(placement.scale ?? 1)
       holder.add(templates.get(placement.tv)!.clone(true))
       holder.traverse(object => { object.visible = true })
       this.tower.add(holder)
@@ -117,9 +118,9 @@ export class Cinema2VacancySceneController {
     this.screens.instanceMatrix.needsUpdate = true
     this.tower.add(this.screens)
 
-    // Glow lights: the screens are the only light in the room. Low quality keeps one.
+    // Screen spill covers the front, rear and side of the volume. Low quality keeps the front light.
     const rig: [number, number, number, number, 'low' | 'medium' | 'high'][] = [
-      [0, 1.0, 1.8, 5, 'low'], [0, 0.55, 1.2, 1.5, 'medium'], [0, 2.3, 2.6, 3, 'high'],
+      [0, 1.0, 1.8, 5, 'low'], [0, 0.9, -1.8, 3, 'medium'], [1.8, 1.4, 0, 3, 'high'],
     ]
     for (const [x, y, z, base, quality] of rig) {
       const light = new THREE.PointLight(0xffffff, 0, 9, 2)
@@ -147,11 +148,13 @@ export class Cinema2VacancySceneController {
       light.intensity = on ? base * c.master / 0.85 : 0
     }
 
-    // Near-black room, tinted by the Background colour; Room Visibility raises it toward the authored baked look.
+    // Visible baked room, tinted by the Background colour; Room Visibility controls its fill independently of quality.
     const bg = c.colors.background
     const peak = Math.max(bg[0], bg[1], bg[2], 1e-3)
     this.roomTint.setRGB(.5 + .5 * bg[0] / peak, .5 + .5 * bg[1] / peak, .5 + .5 * bg[2] / peak, THREE.SRGBColorSpace)
-    const fill = Math.pow(c.roomVisibility, 1.2) * 1.5
+    // The supplied room's base map already contains deep baked shadows. It needs enough linear emission to survive
+    // the scene/output passes; a small multiplier crushes its bricks and doorways into black behind the bright CRTs.
+    const fill = Math.pow(c.roomVisibility, 0.8) * 6 * c.master / 0.85
     for (const entry of this.roomMaterials) {
       entry.material.color.copy(entry.color).multiply(this.roomTint).multiplyScalar(.55)
       entry.material.emissive.copy(this.roomTint)

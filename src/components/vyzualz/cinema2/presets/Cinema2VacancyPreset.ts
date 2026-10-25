@@ -105,9 +105,9 @@ export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   ], roots: [cinema2Ref(ROOT)] },
   layers: [{ id: LAYER, label: 'VACANCY room and tower', source: cinema2Ref(ROOT), role: 'world', depthPolicy: 'read-write', order: 0 }],
   cameras: [{
-    id: CINEMA2_VACANCY_CAMERA_ID, label: 'Reference framing', projection: 'perspective',
-    fovDegrees: 38, minAspect: 1, near: 0.4, far: 24,
-    transform: { position: vec(0.95, 0.9, 4.7) }, target: vec(0.5, 1.08, -0.1), rig: { kind: 'static' },
+    id: CINEMA2_VACANCY_CAMERA_ID, label: 'Pyramid hero', projection: 'perspective',
+    fovDegrees: 40, minAspect: 1, near: 0.4, far: 24,
+    transform: { position: vec(-0.8, 1.35, 4.7) }, target: vec(0.46, 1.05, -0.1), rig: { kind: 'static' },
   }],
   defaults: { camera: cinema2Ref(CINEMA2_VACANCY_CAMERA_ID) },
   lighting: { lights: [

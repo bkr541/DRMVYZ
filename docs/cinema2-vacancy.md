@@ -8,26 +8,28 @@ Status: **specification for review.** Written before any code, as `DRMVYZ_Cinema
 
 ## 1. Visual specification
 
-**Hero visual.** A pyramid-shaped tower of CRT televisions, wide at the bottom and narrowing to a single set at the top, standing in the middle of an otherwise empty room. The glowing screens are the only light.
+**Hero visual.** A compact, three-dimensional pile of CRT televisions, staggered across a broad base and narrowing to one set at the top, standing in the middle of an otherwise empty room. The glowing screens are the only light.
 
 **Composition (mandatory vs inspirational).**
 
 | Characteristic | Status |
 |---|---|
-| Tower centred in an empty dark room, pyramid silhouette, bottom wider than top | mandatory |
-| Screens are the only meaningful light source; everything else near-black | mandatory |
+| Tower centred in an empty dark room, staggered layers shrinking in width and depth toward the peak | mandatory |
+| Screens dominate the lighting; the supplied room remains visibly readable | mandatory |
 | Bright white-grey analog static with faint horizontal banding on every screen | mandatory |
 | Glossy floor reflecting the screen glow | mandatory |
-| Sets turned to slightly different angles, not a flat wall | mandatory |
+| Coherently forward-facing screens, with inward turns and real supporting rows behind the front TVs | mandatory |
 | Camera slightly low, a few metres back, tower right of centre | inspirational |
 | About 14 sets | inspirational (Tower Size control) |
 | Mixed set sizes with the largest at the bottom | mandatory (user brief) |
 
-**Major elements.** The brick room (one model), 14 televisions by default (three to five tiers via Tower Size), one emissive screen per set, floor reflection, haze, bloom.
+**Major elements.** The brick room (one model), 22 televisions, one emissive screen per set, floor reflection, haze, bloom. The main layers contain 10 / 6 / 3 / 1 sets in a staggered triangular arrangement; two additional shallow/small sets fill out the rear of the foundation. All six source models are used. Compact, standard and tall share this composition at different overall sizes.
 
-**Physical stacking.** The tower must be something that could stand. A set rests on the highest of the sets beneath it, and the build checks real support: the set's centre of mass (the middle of its footprint) has to sit at least 4 cm inside the convex hull of its contact with the supporting sets, and at least 35% of its base must be in contact. Footprints are exact turned rectangles. Sets may overhang an edge but never so far that they would tip, and no two sets occupy the same space. The layout is searched sideways in 1 cm steps for the nearest position that satisfies this, and unit tests audit every tower size.
+**Physical stacking.** Each layer contains several rows in depth. The next layer straddles the seams between the sets below, rather than forming a single-TV column or a square display grid. The narrow old-school and retro cabinets sit on the ground beside the rear foundation. All raised TVs require at least two lower sets contributing at least 3% of their base each, at least 65% total base contact, and a centre of mass at least 6 cm inside the support polygon. The accumulated weight above every support is also checked, using cabinet volume as a mass estimate. Exact rotated footprints are used for collision and contact checks. Rows nest against their actual footprints; a bounded 12 cm search moves a complete upper layer to its nearest supported position. Antennae occur only on the crown.
 
-**Placement.** World space, metres, y up, floor at y = 0. The room model is used as authored: footprint about x -4.91..5.84, z -5.50..5.37, ceiling 2.76 m. The tower base centres near the room centre (about x 0.46, z -0.06). Tiers step up in 0.4-0.55 m increments from the models' real heights, so a four-tier tower is about 2 m tall under the 2.76 m ceiling.
+**Orientation.** The TVs retain the reference's common forward direction, with left and right sets turned inward. No layer is forcibly rotated 90 or 180 degrees to put screens on every side. An orbit will reveal the actual cabinet sides and backs, together with the supporting rows behind the front sets. This is a physical pile with depth, rather than four screen walls.
+
+**Placement.** World space, metres, y up, floor at y = 0. The supplied room has a footprint about x -4.91..5.84, z -5.50..5.37 and a 2.76 m ceiling. The pile stands at x 0.46, z -0.1. Uniform model scaling keeps cabinet tops level: compact uses 0.42 m cabinet heights, standard 0.48 m and tall 0.54 m. The standard pile is about 2.13 m high including the crown antennae. The default camera sits near cabinet height for the hero view; a side-view production capture verifies the supporting depth. Camera rotation remains a later step.
 
 **Coordinate / render-space policy.** World-space. Depth and perspective are the design (stacked objects, reflective floor, camera drift). Nothing is frame-anchored, so aspect ratio only changes framing: the default camera widens its field of view at narrow aspects so the whole tower stays inside the frame.
 
@@ -62,7 +64,7 @@ Each screen is one emissive surface with a rounded-rectangle, slightly curved CR
 
 ## 4. Room and lighting specification
 
-- The room is the model. Its baked colour is used as a dim self-lit fill, so the ceiling, brick walls, doorways, graffiti and skirting always read as a dark room, with the screens' light on top. **Room Visibility** (default 0.35) scales that fill: zero is black, higher shows more of the room.
+- The room is the supplied model. Its base-colour map includes baked shadows and is reused as self-lit fill, so the ceiling, brick walls, doorways, graffiti and skirting are visible behind the tower. **Room Visibility** (default 0.65) scales that fill, with sufficient linear intensity to preserve the dark texture through the production output. Zero removes the baked fill; screen spill remains. Master Intensity also scales the fill, so zero blacks it out. Fill is available at every quality level.
 - The glow lights the world: a bounded set of area lights on the screens (counted per quality tier, none on low) plus emissive spill, all driven by the screens' current brightness.
 - The floor is the room's own floor, made glossy through the shared reflective-floor effect (plane just above the floor, blended 62% over the real floor so the concrete still shows) with the existing wet-concrete surface texture. Camera near/far are kept tight (0.4 / 24) so the virtual plane and the floor mesh agree in depth.
 - Haze (subtle dust in the screen light) and bloom (screen halation) are finishing effects. They never replace base geometry.

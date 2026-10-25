@@ -16,7 +16,7 @@ export const VACANCY_COLORS = {
   screen: [0.86, 0.9, 0.94, 1],
 } as const
 
-export const VACANCY_DEFAULTS = { master: 0.85, roomVisibility: 0.35 } as const
+export const VACANCY_DEFAULTS = { master: 0.85, roomVisibility: 0.65 } as const
 
 export interface VacancyControls {
   master: number
@@ -62,39 +62,30 @@ export interface VacancyScreenAnchor {
 export interface VacancyPlacement {
   tv: VacancyTvId
   tier: number
-  /** Index within the tier, left to right. */
+  /** Index within the triangular tier, front row to back. */
   index: number
   x: number
   y: number
   z: number
   /** Turn about the vertical axis, radians. 0 faces the camera. */
   yaw: number
+  /** Uniform model scale; keeps cabinet tops level within a tier. */
+  scale?: number
 }
 
 export type VacancyTowerSize = 'compact' | 'standard' | 'tall'
 
-/**
- * Which set goes where, tier by tier from the floor. Every size contains all six models. The big, boxy sets sit low; the vintage set, whose antennae
- * would otherwise poke into whatever rests above it, always crowns the tower.
- */
+/** Staggered triangular layers form the pile: 10 main foundation cabinets, two rear fillers, then 6, 3 and one crown. */
+export const VACANCY_PYRAMID_SIDES = [4, 3, 2, 1] as const
+export const VACANCY_TIER_HEIGHTS: Readonly<Record<VacancyTowerSize, number>> = { compact: 0.42, standard: 0.48, tall: 0.54 }
+const tiers: readonly (readonly VacancyTvId[])[] = [
+  ['tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'tv-set', 'old-school', 'retro'],
+  ['old-two', 'old-two', 'old-two', 'old-two', 'old-two', 'old-two'],
+  ['sony-pvm', 'sony-pvm', 'sony-pvm'],
+  ['vintage'],
+]
+
+/** All sizes use the same staggered composition; cabinet height controls the overall size. */
 export const VACANCY_TOWER_LAYOUTS: Readonly<Record<VacancyTowerSize, readonly (readonly VacancyTvId[])[]>> = {
-  compact: [
-    ['old-school', 'retro', 'tv-set', 'sony-pvm'],
-    ['sony-pvm', 'tv-set', 'old-school'],
-    ['old-two', 'vintage'],
-  ],
-  standard: [
-    ['tv-set', 'retro', 'old-school', 'tv-set'],
-    ['sony-pvm', 'old-school', 'tv-set', 'sony-pvm'],
-    ['retro', 'old-two', 'sony-pvm'],
-    ['old-two', 'old-school'],
-    ['vintage'],
-  ],
-  tall: [
-    ['old-school', 'tv-set', 'retro', 'tv-set', 'old-school'],
-    ['sony-pvm', 'old-school', 'tv-set', 'retro', 'sony-pvm'],
-    ['tv-set', 'retro', 'old-two', 'sony-pvm'],
-    ['old-school', 'sony-pvm', 'tv-set'],
-    ['old-two', 'vintage'],
-  ],
+  compact: tiers, standard: tiers, tall: tiers,
 }
