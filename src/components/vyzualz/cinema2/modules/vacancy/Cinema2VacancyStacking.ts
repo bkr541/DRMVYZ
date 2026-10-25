@@ -196,14 +196,23 @@ export function buildVacancyLayout(size: VacancyTowerSize, sizes: Readonly<Recor
       const scale = tierHeight / sizes[tv].bodyHeight * (tierIndex === VACANCY_PYRAMID_SIDES.length - 1 ? 0.86 : 1)
       const cabinet = vacancyPlacementSize({ tv, tier: tierIndex, index, x: 0, y: 0, z: 0, yaw: 0, scale }, sizes)
       // A few degrees of inward turn preserve the stack's dimensionality without hiding its screens.
-      const yaw = (middle - index) * 0.022 + (random() - 0.5) * 0.006
+      const defaultYaw = (middle - index) * 0.022 + (random() - 0.5) * 0.006
+      // Only the four called-out sets turn outward: negative yaw faces screen-left,
+      // positive yaw faces screen-right. All four screens remain mostly frontal.
+      const yaw = tierIndex === 0 && index === 0 ? -0.09
+        : tierIndex === 1 && index === 0 ? -0.09
+          : tierIndex === 2 && index === 1 ? 0.09
+            : tierIndex === 0 && index === 3 ? 0.075
+              : defaultYaw
       const width = cabinet.width * Math.abs(Math.cos(yaw)) + cabinet.depth * Math.abs(Math.sin(yaw))
       return { tv, index, scale, yaw, width, cabinet }
     })
     const totalWidth = entries.reduce((sum, entry) => sum + entry.width, 0) + GAP * (entries.length - 1)
     let left = -totalWidth / 2
     const layer = entries.map(entry => {
-      const x = left + entry.width / 2
+      // The narrow retro cabinet needs a visual nudge toward its neighbour to
+      // close the obvious space between their visible housings at the floor.
+      const x = left + entry.width / 2 - (tierIndex === 0 && entry.index === 3 ? 0.055 * (tierHeight / 0.48) : 0)
       left += entry.width + GAP
       return { tv: entry.tv, tier: tierIndex, index: entry.index, x,
         y: tierIndex * tierHeight, z: 0, yaw: entry.yaw, scale: entry.scale }
