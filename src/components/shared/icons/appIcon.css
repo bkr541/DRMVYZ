@@ -32,9 +32,11 @@
   --app-icon-accent: currentColor;
 }
 
-.app-icon--spinning .app-icon__signal { transform-origin: 16px 16px; animation: app-icon-spin 1.2s linear infinite; }
+.app-icon--spinning .app-icon__signal,
+.app-icon--spinning .app-icon__glyph { transform-origin: 16px 16px; animation: app-icon-spin 1.2s linear infinite; }
 @keyframes app-icon-spin { to { transform: rotate(360deg); } }
 @keyframes app-icon-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) {
-  .app-icon--spinning .app-icon__signal { animation: app-icon-pulse 1.6s ease-in-out infinite; }
+  .app-icon--spinning .app-icon__signal,
+  .app-icon--spinning .app-icon__glyph { animation: app-icon-pulse 1.6s ease-in-out infinite; }
 }

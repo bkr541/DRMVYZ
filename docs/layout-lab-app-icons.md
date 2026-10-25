@@ -4,7 +4,7 @@ Open **Layout Lab → Cinema 2.0 → Icons** in the middle visualizer. The revie
 
 ## Style reference
 
-The approved family was based on the previous sidebar’s Deck Hardware (React, Lyric Manager) and Isometric Stack (Preset, Show, Media Managers) artwork in `src/components/vyzualz/navIcons.tsx`. Its shared grammar is a 32 × 32 viewBox, 1.5px rounded strokes, muted structural detail, layered frames or recognizable hardware, and a cyan functional accent (brighter on hover/active). The review drawings extend that grammar, including new drawings for the navigation destinations themselves. No raster generation or third-party icon library is used by the gallery.
+The approved family was based on the previous sidebar’s Deck Hardware (React, Lyric Manager) and Isometric Stack (Preset, Show, Media Managers) artwork in `src/components/vyzualz/navIcons.tsx`. Its shared grammar is a 32 × 32 viewBox, 1.5px rounded strokes, muted structural detail, layered frames or recognizable hardware, and a cyan functional accent (brighter on hover/active). The review drawings extend that grammar, including new drawings for the navigation destinations themselves. The custom drawings described here now cover only the icons listed under “Carbon glyphs” below; everything else uses Carbon.
 
 ## Inventory and label policy
 
@@ -89,3 +89,11 @@ Focused tests cover every SVG and label, valid source references, label/screen f
 - Validation: all 42 focused tests pass after updating one assertion from the old warning character to the approved warning icon and count. Coverage includes gallery/inventory consistency, switches/native checkboxes, lyric toolbar/sidebar, header status, and Layout Lab header/navigation/rail samples. Changed TypeScript files pass ESLint with zero errors and five existing hook-dependency warnings. Focused typechecking found no new diagnostics; the two existing Audio Dock `diagnostics` union errors remain in changed files. The known unrelated repository-wide failures were not rerun.
 - Local browser checks passed for native keyboard checkbox changes/reset at 17px, switch callbacks/artwork, loading rotation around the 16px center, reduced-motion pulse, CSS mask sizes/colors, all seven CSS asset path pairs, engine selection, and the five-column navigation sample. No browser page errors occurred. A stale dependency-cache URL and an assertion that initially did not account for Vite inlining SVG URLs were corrected in the temporary browser harness.
 - Phase 3 implementation and documentation are complete. Changes are reviewed and remain uncommitted; no commit was requested. Full-project build/typecheck remains limited by the previously documented unrelated errors.
+
+## Carbon glyphs
+
+`AppIcon` renders 98 of its kinds from the Carbon icon set (Apache-2.0, see `THIRD_PARTY_NOTICES.md`). The path data is vendored in `carbonGlyphs.ts`; there is no icon dependency. Carbon glyphs are single-colour fills on a 32px grid (`fill: currentColor`, drawn inside `.app-icon__glyph`), so they carry no cyan accent and ignore `--app-icon-accent`. `signalClassName` is applied to the glyph group, so the header activity ring and `app-icon--spinning` still rotate the whole glyph.
+
+Kinds without a Carbon equivalent keep the custom two-tone linework described above (43 kinds): `brand`, `rekordbox`, `navReact`, `navPreset`, `navShow`, `navLyrics`, `navMedia`, `ratio16x9`, `ratio16x10`, `ratio4x3`, `ratio3x2`, `ratio1x1`, `ratio9x16`, `blackout`, `rhythm`, `shader`, `cinema`, `canvas`, `pixGrid`, `headliner`, `scope`, `shape`, `orbit`, `mirror`, `constellation`, `corridor`, `storm`, `laser`, `movingHead`, `ledBar`, `ledTube`, `strobe`, `blinder`, `wash`, `videoWall`, `haze`, `co2`, `particles`, `texture`, `fx`, `apple`, `windows`, `google`.
+
+Stylesheet rules that target `path` with `fill: none` / `stroke` must not match an `AppIcon`, because they blank filled glyphs. Inline `fill`/`stroke` on the `<svg>` already outranks `svg` selectors.

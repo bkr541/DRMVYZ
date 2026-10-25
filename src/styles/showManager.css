@@ -301,10 +301,6 @@
   filter: none;
 }
 
-.sm-engine-dropdown .drm-dropdown__chevron path {
-  stroke-width: 2.5;
-}
-
 .sm-engine-dropdown.drm-dropdown--open .drm-dropdown__chevron {
   transform: none;
 }
