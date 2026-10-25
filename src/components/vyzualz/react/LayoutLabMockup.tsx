@@ -22,6 +22,7 @@ import { Cinema2CanvasMockup } from './layoutLab/Cinema2CanvasMockup'
 import { Cinema2RightRailMockup } from './layoutLab/Cinema2RightRailMockup'
 import { PresetManagerCardStyleGallery } from './layoutLab/PresetManagerCardStyleGallery'
 import { TemplateHeaderRowMockups } from './layoutLab/TemplateHeaderRowMockups'
+import { FontPairingMockups } from './layoutLab/FontPairingMockups'
 import type { LayoutLabEngineId } from './layoutLab/layoutLabEngineCatalog'
 import { resolveLayoutLabComposition } from './layoutLab/layoutLabComposition'
 import { useCinema2MockState } from './layoutLab/useCinema2MockState'
@@ -113,6 +114,13 @@ export function LayoutLabMockup() {
                       <BadgeStyleGallery />
                       <LayerRowStyleGallery />
                       <NumericInputStyleGallery />
+                    </div>
+                  </div>
+                )}
+                {engineId === 'pixGrid' && (
+                  <div className="rv-left-tab-body">
+                    <div className="rv-engine-viewport rv-inspector rv-inspector-scroll">
+                      <FontPairingMockups />
                     </div>
                   </div>
                 )}

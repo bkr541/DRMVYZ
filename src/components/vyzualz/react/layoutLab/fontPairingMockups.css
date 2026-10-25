@@ -1,0 +1,42 @@
+/* Layout Lab / PixGrid font-pairing mockups. Each frame redefines --az-font and
+   --az-font-data inline; font-family is restated here because the rail root
+   resolved its own font before the override. */
+.llfp-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding-bottom: 12px;
+}
+
+.llfp-frame {
+  font-family: var(--az-font);
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(154, 178, 188, 0.14);
+}
+
+.llfp-frame .rv-workspace-panel {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.llfp-frame .rv-workspace-panel-body,
+.llfp-frame .llfp-inspector {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Role split for comparison: primary font on all UI chrome and control labels,
+   secondary font on numeric values and detail text. The :not() chain keeps the
+   specificity above the production single-class font rules. */
+.llfp-frame :is(button, label, span, div, strong):not(.rv-ctrl-val):not(.rv-ctrl-description):not(.rv-ctrl-info) {
+  font-family: var(--az-font);
+}
+
+.llfp-frame .rv-ctrl-val,
+.llfp-frame .rv-ctrl-description,
+.llfp-frame .rv-ctrl-info {
+  font-family: var(--az-font-data);
+}
