@@ -29,17 +29,27 @@ use Manrope as well.
 Main inspector tabs use the same canonical 11px size as the left library tabs.
 
 `styles/typography.css` owns the shared UI typography contract. Field labels
-use Manrope 11px/600; text, textarea, dropdown, numeric and color values use
-Manrope 13px/700; placeholders and dropdown option values use that same
-13px/700 role, with muted color distinguishing placeholders; tabs and shared action
-buttons use Manrope 11px/700. Parent group headings use Space Grotesk
-15px/800; nested group headings use Space Grotesk 11px/800 at every nested
-depth, determined by the reusable `.drc-group` hierarchy. Window titles use
-Space Grotesk 12px/700. Compact and dense controls keep
+use Manrope 11px/600; every field value (text, textarea, search, dropdown,
+numeric and color values, placeholders and dropdown option values) uses that
+same face, size and weight, built from the same three tokens, so a value always
+matches its label (value line height is 1.2, label 1.0; muted color
+distinguishes placeholders). Native `<input>`, `<textarea>` and `<select>`
+elements get the role through a safety net in the same file even when they do
+not use a reusable component; only `.type-exempt` opts out (the shader code
+editor and the dock's BPM readout editor). Tabs and shared action
+buttons use Manrope 11px/700. Parent group headings share the window-title
+role, Space Grotesk 12px/700 with 0.15em tracking; nested group headings use
+Space Grotesk 11px/800 at every nested depth, determined by the reusable
+`.drc-group` hierarchy. Every parent group header also leads with an icon
+(`DualRailCollapsible` chooses one from the label via `groupHeaderIcon.ts`
+unless a call site passes `icon`, or `icon={false}`); nested groups never do. Compact and dense controls keep
 their geometry but use the same typography as their standard counterparts.
 Read-only fields follow the same rules as editable fields. These rules also
 cover portaled dropdown menus and take precedence over legacy font overrides.
 Authored media and lyric presentation fonts are not UI typography roles.
+Run `node scripts/audit-text-inputs.mjs` to audit every native text field in
+`src/`, and `node scripts/verify-input-typography.mjs` to render the reusable
+components and every native field shape and check their computed fonts.
 Run `node scripts/verify-shared-typography.mjs` to check the rendered contract
 across seven workspace contexts, dropdown sizes, read-only/disabled fields,
 placeholders, portaled menus, and late stylesheet loading.
@@ -62,9 +72,10 @@ sidebar remains a vertical navigation list on wider screens.
 
 `styles/groupSpacing.css` aligns the audited Lyric and Preset inspectors,
 React left control groups, Brand Kit editor, and lyric Versions content to
-their tab content edges. Reusable group bodies preserve their vertical
-spacing and add no horizontal padding, including nested groups. The owning
-rail or tab panel supplies the horizontal inset once.
+their tab content edges. Reusable group bodies (`.drc-body`, parent and
+nested groups alike) keep their own padding, `--workspace-group-body-padding`:
+10px top, 16px left, 8px right, 16px bottom. Surfaces that bleed their rows to
+the rail edge, such as the Lyric Tracks library, zero it on their own selector.
 
 React View has five persistent architectural regions.
 

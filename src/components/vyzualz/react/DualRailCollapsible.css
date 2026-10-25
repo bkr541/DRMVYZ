@@ -36,6 +36,19 @@
   text-align: left;
 }
 
+.drc-header > .drc-header-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.drc-header-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: rgba(196, 207, 211, 0.7);
+}
+
 .drc-arrow {
   font-size: 11px;
   flex-shrink: 0;

@@ -233,7 +233,7 @@ export function ShaderCodeEditor({
       {/* ── Code area ── */}
       {!isBundled ? (
         <textarea
-          className="rv-shader-editor-code"
+          className="rv-shader-editor-code type-exempt"
           spellCheck={false}
           value={showVert ? vertSrc : fragSrc}
           onChange={e => showVert ? handleVertChange(e.target.value) : handleFragChange(e.target.value)}
@@ -242,7 +242,7 @@ export function ShaderCodeEditor({
         />
       ) : (
         <textarea
-          className="rv-shader-editor-code rv-shader-editor-code--readonly"
+          className="rv-shader-editor-code rv-shader-editor-code--readonly type-exempt"
           spellCheck={false}
           value={showVert ? vertSrc : fragSrc}
           readOnly

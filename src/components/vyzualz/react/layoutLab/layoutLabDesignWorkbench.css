@@ -1,8 +1,2 @@
-.ll-design-workbench { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: var(--color-background, #090d0f); color: var(--color-text, #e8eef0); font-family: var(--font-ui); }
-.ll-design-toolbar { display: flex; flex: 0 0 auto; align-items: center; gap: 24px; min-height: 88px; padding: 14px 24px; border-bottom: 1px solid var(--color-border-subtle, #383842); background: var(--color-panel, #151a1d); }
-.ll-design-toolbar strong { font-size: 16px; font-weight: 500; }
-.ll-design-toolbar > .dv-underline-dropdown { width: 210px; flex: 0 1 210px; }
-.ll-design-stage { flex: 1; min-height: 0; overflow: hidden; }
-.ll-design-canvas { width: 100%; height: 100%; }
-.ll-design-canvas[hidden] { display: none; }
-@media (max-width: 600px) { .ll-design-toolbar { gap: 12px; padding: 12px; } }
+/* No application sidebar here, so the (viewport-fixed) dock starts at the window's left edge. */
+.ll-design-workbench { --vz-sidebar-width: 0px; width: 100%; height: 100%; min-height: 0; overflow: hidden; }

@@ -1,13 +1,6 @@
-/* A tab row and its content share one horizontal inset. Reusable groups
-   provide vertical rhythm without accumulating left/right indentation. */
-:root {
-  --workspace-group-body-padding: 10px 0 16px;
-}
-
-:root body .drc-body {
-  padding-inline: 0;
-}
-
+/* A tab row and its content share one horizontal inset. Reusable parent and
+   nested groups keep their own body padding (--workspace-group-body-padding:
+   16px left / 8px right); only the surfaces below align to the rail inset. */
 /* The rail already supplies the main inspector tabs' horizontal inset. */
 :root body .pmv-inspector-body {
   padding-inline: 0;

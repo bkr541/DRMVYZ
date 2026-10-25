@@ -1,11 +1,13 @@
-# Layout Lab design workbench
+# Layout Lab blank canvas
 
-Layout Lab opens a fresh, empty canvas. Its **Design** dropdown contains five enabled options: **Design One**, **Design Two**, **Design Three**, **Design Four**, and **Design Five**. Design One is selected initially.
+Layout Lab opens a blank canvas shaped like the React View: an **empty left window**, an **empty middle visualizer**, an **empty right window**, and the **bottom audio dock**.
 
-Each option owns a separate blank canvas. Switching designs shows the selected canvas and hides the others, keeping their mounted elements independent. The canvas contains no component studies, workspace previews, inspector panels, timeline, or transport. The toolbar contains only the Layout Lab title and the design selector.
+There are no dropdowns or other selectors anywhere: no design picker, no engine picker, no inspector tabs, and no title bar. The windows and visualizer contain no content, and the rails have no collapse handles.
 
-The workbench mounts no production rendering or audio runtimes and makes no changes to saved projects. Closing Layout Lab discards its local selection.
+The dock is the existing disconnected dock mockup (`TemplateAudioDockMockup`), which uses the production dock classes and has local-only state. It is placed outside the three-region grid and spans the full width, as in production. It contains no dropdowns. The shell carries `ll-template-audio-theme`, the scoped stylesheet this dock mockup was authored against; without it the production dock grid (which expects a Source control the mockup does not have) misplaces the TAP / CUE / SYNC keys.
 
-The options are defined in `layoutLabDesignCatalog.ts`; canvas structure and styling live in `LayoutLabDesignWorkbench.tsx` and `layoutLabDesignWorkbench.css`. Earlier component studies and workspace preview modules remain in the source as references and are no longer mounted by Layout Lab. Popup stylesheet mirroring remains in place.
+The canvas mounts no production rendering, audio, or media runtimes and makes no changes to saved projects. Closing Layout Lab discards its local state.
 
-Focused workbench tests cover the blank initial state, exact dropdown labels, all five enabled options, and switching between independent empty canvases, including returning to Design One.
+Structure lives in `LayoutLabDesignWorkbench.tsx`; popup stylesheet mirroring (`LayoutLabModal.tsx`) is unchanged. The earlier component studies and workspace previews (`LayoutLabReferenceMockup`) remain in the source as references and are no longer mounted by Layout Lab.
+
+`__tests__/LayoutLabDesignWorkbench.test.tsx` covers the absence of any dropdown, tabs or selector roles, the three empty regions above the dock, and the absence of canvas, audio and video elements.

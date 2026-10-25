@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import { chromium } from '@playwright/test'
 
+// Every distinct native field shape (tag, type, classes) the static audit found in src/, mounted for real below.
+const rawFields = JSON.parse(execFileSync(process.execPath, [new URL('./audit-text-inputs.mjs', import.meta.url).pathname, '--json'], { encoding: 'utf8' }))
 const styles = ['src/styles.css', 'src/styles/analyzer.css', 'src/styles/vyzualz.css', 'src/styles/reactView.css', 'src/styles/mediaManager.css', 'src/styles/presetManager.css', 'src/styles/lyricManager.css', 'src/styles/showManager.css', 'src/styles/mediaUploadModal.css', 'src/styles/appearance.css', 'src/styles/floatingWorkspace.css', 'src/styles/tabRows.css', 'src/styles/groupSpacing.css', 'src/styles/typography.css']
 const entry = `
 import React from 'react';
@@ -16,6 +19,7 @@ import {TextInputRow, TextAreaRow, NumberInputRow} from '/src/components/vyzualz
 ${styles.map(path => `import '/${path}';`).join('\n')}
 const e=React.createElement, noop=()=>{};
 const contexts=['pmv-root pmv-info-panel','mmv-root mmi-body','lmv-root lmv-inspector','rv-shell rv-inspector','sm-root sm-inspector','bk-settings bk-editor','vsm-modal mum-collections-dropdown'];
+const rawFields=${JSON.stringify(rawFields)};
 const options=[{value:'one',label:'BLOCKSHIFT'},{value:'two',label:'Afterhours'}];
 function Controls(){return e(React.Fragment,null,
  e(TextInputRow,{label:'Name',value:'BLOCKSHIFT',onChange:noop}),
@@ -30,7 +34,10 @@ function Controls(){return e(React.Fragment,null,
  e(UnderlineDropdown,{key:size+'empty',size,options,value:null,onChange:noop,placeholder:'Choose preset',ariaLabel:size+' empty'}),
  e(Dropdown,{key:size+'search',size,options,value:null,searchable:true,placeholder:'Search collections',ariaLabel:size+' search',onChange:noop})
  ]),
- e(DropdownSelect,{options,value:'one',onChange:noop,ariaLabel:'Select adapter'})
+ e(DropdownSelect,{options,value:'one',onChange:noop,ariaLabel:'Select adapter'}),
+ ...rawFields.map((field,index)=>field.tag==='select'
+  ? e('select',{key:'raw'+index,className:field.className,'data-raw-field':field.className||field.tag,defaultValue:'a'},e('option',{value:'a'},'Option'))
+  : e(field.tag,{key:'raw'+index,className:field.className,type:field.tag==='input'?field.type:undefined,'data-raw-field':field.className||field.tag+':'+field.type,placeholder:'Placeholder',defaultValue:field.type==='number'?'120':'Value',readOnly:false}))
 )}
 createRoot(document.getElementById('root')).render(e(React.Fragment,null,...contexts.map((context,index)=>e('section',{key:context,className:context,'data-context':index},e(Controls)))));
 `
@@ -57,20 +64,27 @@ try {
   // This is a typography fixture; suppress workspace page-positioning rules.
   await page.addStyleTag({ content: '[data-context]{position:relative!important;display:block!important;width:360px!important;height:auto!important;overflow:visible!important;margin:20px!important}.vsm-modal[data-context]{max-height:none!important}body,html,#root{height:auto!important;overflow:auto!important}' })
   async function verify(phase) {
-    const values = await page.locator('[data-context] :is(.dv-text-input,.drm-dropdown__value,.dv-scrub-value),.drm-dropdown__option-label').evaluateAll(nodes => nodes.map(node => {
+    const values = await page.locator('[data-context] :is(.dv-text-input,.drm-dropdown__value,.dv-scrub-value,[data-raw-field]),.drm-dropdown__option-label').evaluateAll(nodes => nodes.map(node => {
       const style = globalThis.getComputedStyle(node)
       const font = [style.fontFamily.split(',')[0].replaceAll('"', '').trim(), style.fontSize, style.fontWeight, style.lineHeight, style.letterSpacing]
       const placeholder = node.matches('input[placeholder],textarea[placeholder]') ? globalThis.getComputedStyle(node, '::placeholder') : null
       return { name: node.getAttribute('aria-label') ?? node.className, font, placeholder: placeholder ? [placeholder.fontFamily.split(',')[0].replaceAll('"', '').trim(), placeholder.fontSize, placeholder.fontWeight, placeholder.lineHeight, placeholder.letterSpacing] : null }
     }))
     assert(values.length > 100, 'Actual component fixture did not mount')
+    assert(values.some(value => value.name.includes('mum-input')) && values.some(value => value.name.includes('lmv-num')), 'Raw field fixtures did not mount')
     for (const value of values) {
-      assert.deepEqual(value.font, ['Manrope', '13px', '700', '15.6px', 'normal'], `${phase}: ${value.name}`)
+      assert.deepEqual(value.font, ['Manrope', '11px', '600', '13.2px', 'normal'], `${phase}: ${value.name}`)
       if (value.placeholder) assert.deepEqual([value.placeholder[0], value.placeholder[1], value.placeholder[2], value.placeholder[4]], [value.font[0], value.font[1], value.font[2], value.font[4]], `${phase}: placeholder ${value.name}`)
     }
     return values.length
   }
   const count = await verify('initial')
+  // The value is set in exactly its label's face, size, weight and tracking.
+  const pair = await page.locator('[data-context] .rv-ctrl-row').first().evaluate(row => {
+    const read = node => { const style = globalThis.getComputedStyle(node); return [style.fontFamily, style.fontSize, style.fontWeight, style.letterSpacing] }
+    return { label: read(row.querySelector('.rv-ctrl-label')), value: read(row.querySelector('input, textarea, select')) }
+  })
+  assert.deepEqual(pair.value, pair.label, 'a field value must match its label font')
   // Exercise an actual portaled menu and selection through the real component.
   const trigger = page.locator('[data-context="0"] [aria-label="compact filled"]')
   await trigger.scrollIntoViewIfNeeded()
@@ -83,7 +97,7 @@ try {
   await page.setViewportSize({ width: 420, height: 900 })
   await verify('narrow')
   assert.deepEqual(errors, [])
-  console.log(`Passed: ${count} actual rendered input/value elements across seven workspace contexts, including dropdown sizes, search, textareas, read-only fields, placeholders, real portaled options, late styles, and narrow viewport.`)
+  console.log(`Passed: ${count} actual rendered input/value elements (reusable components plus every native field shape found in src/) across seven workspace contexts, including dropdown sizes, search, textareas, read-only fields, placeholders, real portaled options, late styles, and narrow viewport.`)
 } finally {
   if (browser) await browser.close()
   await server.close()

@@ -612,6 +612,8 @@ export function CtrlSection({ label }: { label: string }) {
 
 export interface CollapsibleProps {
   label: ReactNode
+  /** Decorative glyph left of the label (parent groups only); omit for the label-derived default, `false` for none. */
+  icon?: ReactNode
   defaultOpen?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -621,10 +623,11 @@ export interface CollapsibleProps {
   children: React.ReactNode
 }
 
-export function Collapsible({ label, defaultOpen = true, open, onOpenChange, bodyClassName, headerClassName, headerAccessory, children }: CollapsibleProps) {
+export function Collapsible({ label, icon, defaultOpen = true, open, onOpenChange, bodyClassName, headerClassName, headerAccessory, children }: CollapsibleProps) {
   return (
     <DualRailCollapsible
       label={label}
+      icon={icon}
       defaultOpen={defaultOpen}
       open={open}
       onOpenChange={onOpenChange}

@@ -21,37 +21,35 @@ afterEach(async () => {
   container.remove()
 })
 
-describe('blank Layout Lab designs', () => {
-  it('opens Design One with an empty canvas and only the design selector', () => {
-    expect(container.querySelectorAll('[role="combobox"]')).toHaveLength(1)
-    expect(container.querySelector('[role="combobox"]')?.textContent).toContain('Design One')
-    expect(container.querySelector('[data-lab-canvas="design-01"]')?.hasAttribute('hidden')).toBe(false)
-    const stage = container.querySelector('.ll-design-stage')!
-    expect(stage.children).toHaveLength(5)
-    for (const canvas of stage.children) {
-      expect(canvas.childElementCount).toBe(0)
-      expect(canvas.textContent).toBe('')
-    }
-    expect(container.querySelector('.rv-layout, .vz-transport-dock, canvas, audio, video')).toBeNull()
+describe('blank Layout Lab canvas', () => {
+  it('has no dropdowns, comboboxes, listboxes or tabs anywhere', () => {
+    expect(container.querySelector('[role="combobox"], [role="listbox"], [role="option"], [role="tablist"], select, .dv-underline-dropdown, .drm-dropdown')).toBeNull()
   })
 
-  it('offers exactly five enabled designs and switches between distinct blank canvases', async () => {
-    const labels = ['Design One', 'Design Two', 'Design Three', 'Design Four', 'Design Five']
-    const canvases = [...container.querySelectorAll<HTMLElement>('[data-lab-canvas]')]
-    const trigger = container.querySelector<HTMLButtonElement>('[role="combobox"]')!
-
-    for (const label of [...labels, labels[0]]) {
-      await act(async () => trigger.click())
-      const options = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-      expect(options.map(option => option.textContent?.trim())).toEqual(labels)
-      expect(options.every(option => option.getAttribute('aria-disabled') !== 'true' && !option.hasAttribute('disabled'))).toBe(true)
-      await act(async () => options[labels.indexOf(label)].click())
-
-      const visible = container.querySelectorAll<HTMLElement>('[data-lab-canvas]:not([hidden])')
-      expect(visible).toHaveLength(1)
-      expect(visible[0]).toBe(canvases[labels.indexOf(label)])
-      expect(visible[0].getAttribute('aria-label')).toBe(`${label} canvas`)
-      expect(visible[0].innerHTML).toBe('')
+  it('is a left window, a visualizer and a right window, all empty, above the audio dock', () => {
+    const left = container.querySelector<HTMLElement>('.vz-inspector--left')!
+    const right = container.querySelector<HTMLElement>('.vz-inspector--right')!
+    const visualizer = container.querySelector<HTMLElement>('.rv-canvas-wrap')!
+    expect(left.getAttribute('aria-label')).toBe('Layout Lab left window')
+    expect(right.getAttribute('aria-label')).toBe('Layout Lab right window')
+    expect(visualizer.getAttribute('aria-label')).toBe('Layout Lab visualizer')
+    for (const region of [left, right]) {
+      expect(region.querySelector('.vz-inspector-inner')!.children).toHaveLength(1)
+      expect(region.querySelector('.vz-panel-body')!.childElementCount).toBe(0)
+      expect(region.textContent).toBe('')
     }
+    expect(visualizer.childElementCount).toBe(0)
+    expect(visualizer.textContent).toBe('')
+
+    const layout = container.querySelector('.rv-layout')!
+    expect([...layout.children].map(node => node.className.split(' ')[0])).toEqual(['vz-inspector', 'rv-center-col', 'vz-inspector'])
+    const dock = container.querySelector('.vz-transport-dock')!
+    expect(dock).not.toBeNull()
+    expect(layout.contains(dock)).toBe(false)
+    expect(dock.previousElementSibling).toBe(layout)
+  })
+
+  it('mounts no production rendering or media runtimes', () => {
+    expect(container.querySelector('canvas, audio, video')).toBeNull()
   })
 })

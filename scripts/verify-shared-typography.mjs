@@ -66,10 +66,10 @@ const controls = `
   ${['default', 'compact', 'dense', 'large'].map(dropdown).join('')}`
 const roles = {
   label: ['Manrope', '11px', '600'],
-  value: ['Manrope', '13px', '700'],
-  placeholder: ['Manrope', '13px', '700'],
+  value: ['Manrope', '11px', '600'],
+  placeholder: ['Manrope', '11px', '600'],
   tab: ['Manrope', '11px', '700'],
-  group: ['Space Grotesk', '15px', '800'],
+  group: ['Space Grotesk', '12px', '700'],
   nestedGroup: ['Space Grotesk', '11px', '800'],
   window: ['Space Grotesk', '12px', '700'],
 }

@@ -1,13 +1,19 @@
 /* Shared UI typography. Change a role here, never in a workspace override.
    Authored lyric, visualizer, and media fonts are separate from UI controls. */
 :root {
-  --type-field-label: 600 11px/1 var(--font-mono, 'Manrope', sans-serif);
-  --type-field-value: 700 13px/1.2 var(--font-mono, 'Manrope', sans-serif);
+  /* A field's value is set in exactly its label's face, size and weight (only line height differs, so
+     multi-line values stay readable). Both roles are built from these three tokens. */
+  --type-field-family: var(--font-mono, 'Manrope', sans-serif);
+  --type-field-size: 11px;
+  --type-field-weight: 600;
+  --type-field-label: var(--type-field-weight) var(--type-field-size)/1 var(--type-field-family);
+  --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 700 11px/1 var(--font-mono, 'Manrope', sans-serif);
-  --type-group-heading: 800 15px/1 var(--font-ui, 'Space Grotesk', sans-serif);
-  --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
   --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
+  --type-group-heading: var(--type-window-heading);
+  --type-window-heading-tracking: 0.15em;
+  --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
 }
 
 /* These role rules outrank legacy component variants, including lazy CSS.
@@ -39,6 +45,26 @@
   letter-spacing: normal !important;
 }
 
+/* Safety net at the same role: every native text-like field gets the field-value typography whether or not it is built
+   from a reusable component (raw numeric, search, textarea and select elements included), so no input can drift.
+   The only exemptions opt out explicitly with .type-exempt: code editors (monospace code face) and the dock's BPM
+   readout editor (it edits a large display value in place). scripts/audit-text-inputs.mjs enforces this list. */
+:root body :is(input, textarea, select):not(
+  [type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'],
+  [type='hidden'], [type='button'], [type='submit'], [type='reset'], [type='image'], .type-exempt
+) {
+  font: var(--type-field-value) !important;
+  letter-spacing: normal !important;
+}
+
+:root body :is(input, textarea):not(
+  [type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'],
+  [type='hidden'], [type='button'], [type='submit'], [type='reset'], [type='image'], .type-exempt
+)::placeholder {
+  font: var(--type-field-placeholder) !important;
+  letter-spacing: normal !important;
+}
+
 :root body [class]:is(.dv-text-input, .drm-dropdown__search-input)::placeholder,
 :root body [class].drm-dropdown__value--placeholder {
   font: var(--type-field-placeholder) !important;
@@ -61,14 +87,17 @@
 
 :root body [class].drc-header {
   font: var(--type-group-heading) !important;
+  letter-spacing: var(--type-window-heading-tracking) !important;
 }
 
 /* Depth comes from the reusable group's structure, including intervening
    layout wrappers. Every nested level keeps the smaller heading role. */
 :root body .drc-group .drc-group > .drc-header {
   font: var(--type-nested-group-heading) !important;
+  letter-spacing: 0.09em !important;
 }
 
 :root body [class].rw-window-header {
   font: var(--type-window-heading) !important;
+  letter-spacing: var(--type-window-heading-tracking) !important;
 }

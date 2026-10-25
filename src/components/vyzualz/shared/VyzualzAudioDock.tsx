@@ -1111,7 +1111,7 @@ export function VyzualzAudioDock({
               bpmEditing ? (
                 <input
                   ref={bpmInputRef}
-                  className="vz-dock-bpm-block-val vz-dock-bpm-edit-input"
+                  className="vz-dock-bpm-block-val vz-dock-bpm-edit-input type-exempt"
                   type="number"
                   min={40} max={300} step={1}
                   value={bpmDraft}

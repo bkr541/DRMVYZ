@@ -1,3 +1,4 @@
+import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
 import { useMemo, useRef, useState } from 'react'
 import {
   createCinema2DesignParentGroupModel,
@@ -219,6 +220,14 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
   )
 }
 
+/** Parent groups only: nested group headings (Cinema2InspectorGroup) carry no icon. */
+const PARENT_GROUP_ICONS: Readonly<Record<Cinema2DesignParentGroupModel['id'], AppIconKind>> = {
+  'master-controls': 'sliders',
+  design: 'paintBrush',
+  effects: 'wand',
+  palette: 'colorPalette',
+}
+
 function Cinema2DesignParentGroup({
   parent,
   onChange,
@@ -252,6 +261,7 @@ function Cinema2DesignParentGroup({
   return (
     <Collapsible
       label={parent.label}
+      icon={<AppIcon kind={PARENT_GROUP_ICONS[parent.id]} size={15} color="currentColor" />}
       bodyClassName={parent.id === 'palette' ? 'rv-cinema2-palette-body' : undefined}
     >
       <div data-cinema2-parent-group={parent.id} style={{ display: 'contents' }}>

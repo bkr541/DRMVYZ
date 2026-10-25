@@ -5955,6 +5955,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   background: rgba(74, 199, 219, 0.018);
 }
 
+/* One inset on every side: the 10px the row already keeps below its tabs and buttons. The shared tab-row top gap
+   (tabRows.css, 25px) is not wanted inside this toolbar, so it is cancelled here and the row's own padding rules. */
+:root body .rv-lower-workspace-toolbar {
+  padding: 10px;
+}
+:root body .rv-lower-workspace-toolbar > .rv-lower-workspace-tabs {
+  padding-top: 0;
+  margin-top: 0;
+}
+
 .rv-lower-workspace[data-collapsed='true'] .rv-lower-workspace-toolbar {
   border-bottom-color: transparent;
 }

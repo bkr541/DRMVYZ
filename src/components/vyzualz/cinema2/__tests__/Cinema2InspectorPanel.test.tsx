@@ -246,6 +246,14 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
       'effects',
       'palette',
     ])
+    // Each of the four parent headers leads with an icon; nested group headings never do.
+    const headers = [...(host?.querySelectorAll<HTMLElement>('.drc-group > .drc-header') ?? [])]
+    expect(headers.filter(header => header.querySelector('.drc-header-icon')).map(header => header.textContent)).toEqual([
+      'Master Controls',
+      'Design',
+      'Effects',
+      'Palette',
+    ])
     expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_BACKGROUND_ID}"]`)).toHaveLength(1)
     expect(host?.querySelectorAll(`[data-cinema2-control-id="${CINEMA2_ELECTRIC_STORM_HAZE_ID}"]`)).toHaveLength(1)
     expect(host?.querySelector(`[data-cinema2-control-id="${CINEMA2_QUALITY_MODE_PARAMETER_ID}"]`)).toBeNull()
