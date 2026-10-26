@@ -2,6 +2,13 @@ import { AppIcon } from '../../shared/icons/AppIcon'
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
+/** Optional presentation boundary. Production and other lab designs leave it unset. */
+export const ContextMenuPresentationContext = createContext<{
+  theme: string
+  typography: string
+  ownerRef: RefObject<HTMLElement>
+} | null>(null)
+
 const MENU_MARGIN = 12
 // Delay before a hover-opened submenu closes, so moving the pointer from the
 // trigger row toward the flyout panel doesn't race the mouseleave.
@@ -34,12 +41,12 @@ interface ContextActionMenuProps {
   className?: string
 }
 
-function clampMenu(element: HTMLElement, point: { x: number; y: number }) {
+function clampMenu(element: HTMLElement, point: { x: number; y: number }, viewport: Window = window) {
   if (typeof window === 'undefined') return point
   const rect = element.getBoundingClientRect()
   return {
-    x: Math.round(Math.max(MENU_MARGIN, Math.min(window.innerWidth - rect.width - MENU_MARGIN, point.x))),
-    y: Math.round(Math.max(MENU_MARGIN, Math.min(window.innerHeight - rect.height - MENU_MARGIN, point.y))),
+    x: Math.round(Math.max(MENU_MARGIN, Math.min(viewport.innerWidth - rect.width - MENU_MARGIN, point.x))),
+    y: Math.round(Math.max(MENU_MARGIN, Math.min(viewport.innerHeight - rect.height - MENU_MARGIN, point.y))),
   }
 }
 
@@ -61,6 +68,9 @@ export function ContextActionMenu({
   onClose,
   className = '',
 }: ContextActionMenuProps) {
+  const presentation = useContext(ContextMenuPresentationContext)
+  const menuDocument = presentation?.ownerRef.current?.ownerDocument
+  const menuWindow = menuDocument?.defaultView
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ x, y })
 
@@ -79,9 +89,9 @@ export function ContextActionMenu({
 
   useLayoutEffect(() => {
     if (!menuRef.current) return
-    const next = clampMenu(menuRef.current, { x, y })
+    const next = clampMenu(menuRef.current, { x, y }, menuWindow ?? window)
     setPosition(current => current.x === next.x && current.y === next.y ? current : next)
-  }, [x, y])
+  }, [x, y, menuWindow])
 
   useEffect(() => {
     const menu = menuRef.current
@@ -103,7 +113,7 @@ export function ContextActionMenu({
       const buttons = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not(:disabled)') ?? [])]
       if (buttons.length === 0) return
       event.preventDefault()
-      const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement)
+      const currentIndex = buttons.indexOf((menuDocument ?? document).activeElement as HTMLButtonElement)
       const nextIndex = event.key === 'Home'
         ? 0
         : event.key === 'End'
@@ -113,13 +123,14 @@ export function ContextActionMenu({
             : (currentIndex - 1 + buttons.length) % buttons.length
       buttons[nextIndex]?.focus()
     }
-    window.addEventListener('pointerdown', closeOnPointerDown)
-    window.addEventListener('keydown', handleKeyDown)
+    const targetWindow = menuWindow ?? window
+    targetWindow.addEventListener('pointerdown', closeOnPointerDown)
+    targetWindow.addEventListener('keydown', handleKeyDown)
     return () => {
-      window.removeEventListener('pointerdown', closeOnPointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
+      targetWindow.removeEventListener('pointerdown', closeOnPointerDown)
+      targetWindow.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose, registry])
+  }, [onClose, registry, menuDocument, menuWindow])
 
   if (typeof document === 'undefined') return null
 
@@ -135,7 +146,7 @@ export function ContextActionMenu({
         onSelect={onClose}
       />
     </MenuRootRegistryContext.Provider>
-  ), document.body)
+  ), (menuDocument ?? document).body)
 }
 
 /** The menu's box, header and rows, without the portal, positioning or dismissal handling. Layout Lab draws it inline. */
@@ -148,9 +159,12 @@ export function ContextActionMenuSurface({ menuRef, style, ariaLabel, header, it
   className?: string
   onSelect?: () => void
 }) {
+  const presentation = useContext(ContextMenuPresentationContext)
   return (
     <div
       ref={menuRef}
+      data-ui-theme={presentation?.theme}
+      data-ui-typography={presentation?.typography}
       className={`rv-show-director-context-menu vz-app-context-menu ${className}`.trim()}
       style={style}
       role="menu"
@@ -265,6 +279,9 @@ function SubmenuFlyout({
   onMouseLeave: () => void
   children: ReactNode
 }) {
+  const presentation = useContext(ContextMenuPresentationContext)
+  const menuDocument = presentation?.ownerRef.current?.ownerDocument
+  const menuWindow = menuDocument?.defaultView
   const panelRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
 
@@ -275,11 +292,11 @@ function SubmenuFlyout({
     const anchorRect = anchor.getBoundingClientRect()
     const panelRect = panel.getBoundingClientRect()
     const preferredX = anchorRect.right - 2
-    const fitsRight = preferredX + panelRect.width + MENU_MARGIN <= window.innerWidth
+    const fitsRight = preferredX + panelRect.width + MENU_MARGIN <= (menuWindow ?? window).innerWidth
     const x = fitsRight ? preferredX : Math.max(MENU_MARGIN, anchorRect.left - panelRect.width + 2)
-    const y = Math.round(Math.max(MENU_MARGIN, Math.min(window.innerHeight - panelRect.height - MENU_MARGIN, anchorRect.top - 6)))
+    const y = Math.round(Math.max(MENU_MARGIN, Math.min((menuWindow ?? window).innerHeight - panelRect.height - MENU_MARGIN, anchorRect.top - 6)))
     setPosition({ x: Math.round(x), y })
-  }, [anchorRef])
+  }, [anchorRef, menuWindow])
 
   useEffect(() => {
     const panel = panelRef.current
@@ -292,6 +309,8 @@ function SubmenuFlyout({
   return createPortal((
     <div
       ref={panelRef}
+      data-ui-theme={presentation?.theme}
+      data-ui-typography={presentation?.typography}
       className="vz-app-context-menu vz-app-context-menu--submenu"
       style={{ left: position?.x ?? -9999, top: position?.y ?? -9999, visibility: position ? 'visible' : 'hidden' } as CSSProperties}
       role="menu"
@@ -301,5 +320,5 @@ function SubmenuFlyout({
     >
       {children}
     </div>
-  ), document.body)
+  ), (menuDocument ?? document).body)
 }

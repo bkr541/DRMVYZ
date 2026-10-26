@@ -16,6 +16,8 @@ interface RgbWaveformCanvasProps {
   monochrome?:    boolean
   /** Draw a full-height stem beneath each cue flag. Track Map markers are unaffected. */
   showCueMarkerLines?: boolean
+  /** Opt-in presentation sizing for a canvas hosted in a separate popup document. */
+  ownerDocumentSizing?: boolean
 }
 
 const PLAYHEAD_COLOR = 'rgba(248, 251, 252, 0.96)'
@@ -72,6 +74,7 @@ export function RgbWaveformCanvas({
   zoom = 1,
   monochrome = false,
   showCueMarkerLines = true,
+  ownerDocumentSizing = false,
 }: RgbWaveformCanvasProps) {
   const canvasRef  = useRef<HTMLCanvasElement>(null)
   const sizeRef    = useRef({ cssW: 0, cssH: 0, dpr: 1 })
@@ -313,10 +316,12 @@ export function RgbWaveformCanvas({
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ro = new ResizeObserver(entries => {
+    const sizingWindow = ownerDocumentSizing ? canvas.ownerDocument.defaultView as (Window & typeof globalThis) | null : window
+    const Observer = sizingWindow?.ResizeObserver ?? ResizeObserver
+    const ro = new Observer(entries => {
       for (const e of entries) {
         const { width, height } = e.contentRect
-        const dpr = Math.min(2, window.devicePixelRatio ?? 1)
+        const dpr = Math.min(2, sizingWindow?.devicePixelRatio ?? 1)
         sizeRef.current = { cssW: width, cssH: height, dpr }
         canvas.width  = Math.round(width  * dpr)
         canvas.height = Math.round(height * dpr)
@@ -325,7 +330,7 @@ export function RgbWaveformCanvas({
     })
     ro.observe(canvas)
     return () => ro.disconnect()
-  }, [draw])
+  }, [draw, ownerDocumentSizing])
 
   const seekAtPointer = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const { duration: dur, currentTime: ct, zoom: zm } = propsRef.current

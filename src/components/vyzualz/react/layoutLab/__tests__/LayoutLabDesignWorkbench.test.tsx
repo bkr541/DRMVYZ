@@ -39,19 +39,19 @@ const OPTION_IDS = ['design-01', 'design-02', 'design-03', 'design-04', 'design-
 const DROPDOWNS = '[role="combobox"], [role="listbox"], [role="option"], select, .dv-underline-dropdown, .drm-dropdown'
 
 describe('Layout Lab canvas', () => {
-  it('keeps B’s visualizer empty and its restyled player independent', async () => {
+  it('keeps B’s monitor free of a live renderer and its player independent', async () => {
     await act(async () => view().querySelector<HTMLButtonElement>('[aria-label="Design B"]')!.click())
     const b = view('design-02')
-    expect(b.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
-    expect(b.querySelector('.rv-canvas-wrap')?.textContent).toBe('')
-    expect(b.querySelector('.az-nav-item svg')?.getAttribute('viewBox')).toBe('0 0 24 24')
-    expect(view().querySelector('.az-nav-item svg')?.getAttribute('viewBox')).toBe('0 0 32 32')
+    expect(b.querySelector('.ob-stage-screen canvas, .ob-stage-screen video')).toBeNull()
+    expect(b.querySelector('.ob-stage-screen')?.textContent).toContain('no live renderer')
+    expect(b.querySelector('.ob-spine nav svg')?.getAttribute('viewBox')).toBe('0 0 24 24')
     expect(b.querySelector('.ll-b-player-track-copy')?.textContent).toContain('Birthday Sex')
     await act(async () => b.querySelector<HTMLButtonElement>('[aria-label="Next track"]')!.click())
     expect(b.querySelector('.ll-b-player-track-copy')?.textContent).toContain('Trace of You')
     await act(async () => b.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click())
     expect(b.querySelector('[aria-label="Pause"]')).not.toBeNull()
-    expect(view().querySelector('.az-play-btn')?.getAttribute('aria-label')).toBe('Play')
+    // Option A's own deck is not affected by B's player.
+    expect(view().querySelector('.oa-play')?.getAttribute('aria-label')).toBe('Play')
   })
 
   it('keeps dropdowns out of every design\'s header, navigation column, visualizer and dock', async () => {
@@ -59,60 +59,122 @@ describe('Layout Lab canvas', () => {
     for (const id of OPTION_IDS) {
       const chrome = view(id)
       // Header group, navigation column, visualizer and dock never hold a dropdown (the center column's windows, like the cue list's filter, may).
-      for (const selector of ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']) {
-        expect(chrome.querySelector(`${selector} :is(${DROPDOWNS})`), `${id} ${selector}`).toBeNull()
-      }
+      const selectors = id === 'design-01'
+        ? ['.oa-header', '.oa-spine', '.oa-stage', '.oa-dock']
+        : id === 'design-02' ? ['.ob-header', '.ob-spine', '.ob-stage', '.ob-dock'] : id === 'design-03' ? ['.oc-header', '.oc-nav', '.oc-stage', '.oc-dock'] : ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']
+      for (const selector of selectors) expect(chrome.querySelector(`${selector} :is(${DROPDOWNS})`), `${id} ${selector}`).toBeNull()
     }
   })
 
-  it('mocks the Electric Storm source rail and the MARQUEE inspector in design A, and repeats them in B–E', async () => {
-    const left = view().querySelector<HTMLElement>('.vz-inspector--left')!
-    const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
-    expect(left.querySelector('.rw-window-header-label')?.textContent).toBe('React Workspace')
-    expect(left.querySelector('.rv-engine-dropdown-label')?.textContent).toBe('Cinema 2.0')
-    expect(left.querySelector('.rv-engine-dropdown-preset')?.textContent).toBe('Electric Storm')
-    expect([...left.querySelectorAll('.rv-context-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['SOURCE', 'LAYERS', 'NOTICE'])
-    expect(left.querySelector('.drc-header')?.textContent).toBe('Media Library')
-    expect([...left.querySelectorAll('.vz-filter-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['ALL', 'COLLECTIONS', 'FAVORITES', 'IMAGES', 'VIDEOS'])
-    expect(left.querySelectorAll('.vz-media-card--sheet').length).toBeGreaterThanOrEqual(24)
-    expect(left.querySelectorAll('.vz-media-card--active')).toHaveLength(1)
+  it('builds Option A’s workspace module from its own components and leaves D–E on the production left and right windows', async () => {
+    const left = view().querySelector<HTMLElement>('.oa-module--left')!
+    expect(left.getAttribute('aria-label')).toBe('Layout Lab left window')
+    expect(left.querySelector('.oa-window-head__title')?.textContent).toBe('React')
+    expect(left.querySelector('.oa-engine__name')?.textContent).toBe('Cinema 2.0')
+    expect(left.querySelector('.oa-engine__preset')?.textContent).toBe('Electric Storm')
+    expect([...left.querySelectorAll('.oa-bank [role="tab"]')].map(tab => tab.querySelector('.oa-bank__label')?.textContent)).toEqual(['Source', 'Layers', 'Notice'])
+    expect(left.querySelector('.oa-bank [aria-selected="true"]')?.textContent).toContain('Source')
+    expect(left.querySelector('.oa-group__title')?.textContent).toBe('Media Library')
+    expect([...left.querySelectorAll('.oa-segments [role="tab"]')].map(tab => tab.textContent)).toEqual(['ALL', 'COLLECTIONS', 'FAVORITES', 'IMAGES', 'VIDEOS'])
+    expect(left.querySelectorAll('.oa-tile').length).toBeGreaterThanOrEqual(24)
+    expect(left.querySelectorAll('.oa-tile[data-selected="true"]')).toHaveLength(1)
+    // The Media Library filters, searches and selects on local state.
+    const tab = (label: string) => [...left.querySelectorAll<HTMLElement>('.oa-segments [role="tab"]')].find(node => node.textContent === label)!
+    await act(async () => tab('VIDEOS').click())
+    expect(left.querySelectorAll('.oa-tile[data-kind="image"]')).toHaveLength(0)
+    expect(left.querySelectorAll('.oa-tile[data-kind="video"]').length).toBe(4)
+    await act(async () => tab('COLLECTIONS').click())
+    expect(left.querySelector('.oa-empty')?.textContent).toBe('No collections in this mockup.')
+    await act(async () => tab('ALL').click())
+    await act(async () => left.querySelectorAll<HTMLElement>('.oa-tile')[0]!.click())
+    expect(left.querySelector('.oa-tile[data-selected="true"]')).toBe(left.querySelectorAll('.oa-tile')[0])
+    await act(async () => left.querySelector<HTMLButtonElement>('button[title="List view"]')!.click())
+    expect(left.querySelectorAll('.oa-tile')).toHaveLength(0)
+    expect(left.querySelectorAll('.oa-rows .oa-row').length).toBeGreaterThanOrEqual(24)
 
-    // The LAYERS tab is production's Cinema 2.0 layers list, fed Electric Storm's compiled layer, not an empty placeholder.
-    await act(async () => [...left.querySelectorAll<HTMLElement>('.rv-context-workspace-tabs [role="tab"]')].find(tab => tab.textContent === 'LAYERS')!.click())
-    expect(left.querySelector('.rv-engine-panel-list__header')?.textContent).toBe('Layers1')
-    const layers = left.querySelectorAll('.rv-engine-layer-tree .dv-layer-row')
+    // LAYERS lists the compiled Electric Storm layer, not an empty placeholder.
+    await act(async () => left.querySelectorAll<HTMLElement>('.oa-bank [role="tab"]')[1]!.click())
+    expect(left.querySelector('.oa-group__title')?.textContent).toBe('Layers')
+    const layers = left.querySelectorAll('.oa-row--layer')
     expect(layers).toHaveLength(1)
     expect(layers[0]?.textContent).toContain('Electric Storm')
     expect(layers[0]?.textContent).toContain('100% · normal')
-    expect(left.querySelector('.vz-media-empty')).toBeNull()
 
-    expect(right.querySelector('.rw-window-header-label')?.textContent).toBe('Inspector')
-    expect([...right.querySelectorAll('.rv-main-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['PRESETS', 'DESIGN', 'REACT', 'AUDIO', 'TRACKS'])
-    expect([...right.querySelectorAll('.rv-right-subtabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['ENGINE', 'SELECTION'])
-    // The four parent groups carry an icon; the nested Pattern / Marquee Copy / Lighting Zones groups do not.
-    const headers = [...right.querySelectorAll<HTMLElement>('.drc-group > .drc-header')]
-    expect(headers.filter(header => header.querySelector('.drc-header-icon')).map(header => header.textContent)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
-    expect(headers.filter(header => !header.querySelector('.drc-header-icon')).map(header => header.textContent)).toEqual(['Pattern', 'Marquee Copy', 'Lighting Zones'])
-    const labels = [...right.querySelectorAll('.rv-ctrl-label')].map(node => node.textContent)
-    for (const label of ['Master Intensity', 'BPM Sync', 'Auto Performance', 'Camera Motion', 'Pattern', 'Pattern Change', 'Trigger', 'Front Marquee Text', 'Left Marquee Text', 'Right Marquee Text']) {
-      expect(labels, label).toContain(label)
-    }
-    expect(right.querySelectorAll('.rv-cinema2-palette-body .rv-ctrl-row, .rv-cinema2-palette-body > *').length).toBeGreaterThan(0)
-    expect(right.querySelector<HTMLInputElement>('input[value="DVYDRM B2B GOONZ"]')).not.toBeNull()
-
+    // Option A has none of production's rail, shell or dock layout classes; D–E keep them.
+    expect(view().querySelector('.fw-app-shell, .rv-layout, .vz-transport-dock, .rw-window-header, .rv-engine-dropdown')).toBeNull()
     await visitAllDesigns()
-    for (const id of OPTION_IDS) {
+    for (const id of OPTION_IDS.slice(3)) {
       expect(view(id).querySelector('.vz-inspector--left .rw-window-header-label')?.textContent, id).toBe('React Workspace')
       expect(view(id).querySelector('.vz-inspector--right .rw-window-header-label')?.textContent, id).toBe('Inspector')
       expect(view(id).querySelector('.vz-inspector--left .rv-engine-dropdown-preset')?.textContent, id).toBe('Electric Storm')
     }
   })
 
-  it('mocks the Cinema 2.0 PRESETS tab and the Canvas REACT tab in design A\'s inspector', async () => {
-    const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
-    const tab = (label: string) => [...right.querySelectorAll<HTMLButtonElement>('.rv-main-workspace-tabs [role="tab"]')].find(node => node.textContent === label)!
+  it('builds the Inspector DESIGN tab from Option A’s own knobs, faders, switches, selects and swatches', async () => {
+    const right = view().querySelector<HTMLElement>('.oa-module--right')!
+    expect(right.getAttribute('aria-label')).toBe('Layout Lab right window')
+    expect(right.querySelector('.oa-window-head__title')?.textContent).toBe('Inspector')
+    expect([...right.querySelectorAll('.oa-bank [role="tab"]')].map(tab => tab.querySelector('.oa-bank__label')?.textContent)).toEqual(['Presets', 'Design', 'React', 'Audio', 'Tracks'])
+    expect(right.querySelector('.oa-bank [aria-selected="true"]')?.textContent).toContain('Design')
+    expect([...right.querySelectorAll('.oa-design > .oa-segments [role="tab"]')].map(tab => tab.textContent)).toEqual(['Engine', 'Selection'])
+    expect(right.querySelector('.oa-design > .oa-segments [role="tab"]:last-child')?.hasAttribute('disabled') ?? false).toBe(false)
 
-    await act(async () => tab('PRESETS').click())
+    const groups = (nested: boolean) => [...right.querySelectorAll(`.oa-group[data-nested="${nested}"] > .oa-group__head .oa-group__title`)].map(node => node.textContent)
+    expect(groups(false)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
+    expect(groups(true)).toEqual(['Pattern', 'Marquee Copy', 'Lighting Zones'])
+    expect(right.querySelector('[data-cinema2-design-parent-groups]')).not.toBeNull()
+
+    // Knobs: Master Intensity and Camera Motion, then the four Effects, each a real slider that takes the keyboard.
+    const knob = (label: string) => right.querySelector<HTMLElement>(`.oa-knob__dial[aria-label="${label}"]`)!
+    expect([...right.querySelectorAll('.oa-knob__dial')].map(node => node.getAttribute('aria-label'))).toEqual(['Master Intensity', 'Camera Motion', 'Bloom', 'Haze', 'Wet Street Reflections', 'Cinematic Finish'])
+    expect(knob('Master Intensity').getAttribute('aria-valuenow')).toBe('0.9')
+    await act(async () => { knob('Master Intensity').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })) })
+    expect(Number(knob('Master Intensity').getAttribute('aria-valuenow'))).toBeCloseTo(0.85, 5)
+    await act(async () => { knob('Master Intensity').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })) })
+    expect(knob('Master Intensity').getAttribute('aria-valuenow')).toBe('1')
+    expect(knob('Haze').getAttribute('aria-valuetext')).toBe('0.008')
+    await act(async () => { knob('Haze').dispatchEvent(new MouseEvent('dblclick', { bubbles: true })) })
+    expect(knob('Haze').getAttribute('aria-valuenow')).toBe('0.008')
+
+    // Faders are range inputs labelled by their rows: Sign Illumination and the six lighting zones.
+    const faders = [...right.querySelectorAll<HTMLInputElement>('.oa-fader__input')]
+    expect(faders.map(input => right.querySelector(`label[for="${input.id}"]`)?.textContent)).toEqual([
+      'Sign Illumination', 'Front Marquee', 'Side Marquees', 'Canopy Underside', 'Vertical Towers', 'Entrance LEDs', 'Neon Crown',
+    ])
+    expect(faders[0]!.value).toBe('0.78')
+
+    // Switches carry their state; Pattern Change shows and hides Trigger; picking a Pattern turns Auto Performance off.
+    const sw = (label: string) => [...right.querySelectorAll<HTMLElement>('.oa-switch')].find(node => node.textContent?.startsWith(label))!
+    expect(sw('BPM Sync').getAttribute('aria-checked')).toBe('true')
+    expect(sw('Auto Performance').textContent).toContain('Temporarily chooses build and drop looks')
+    expect(right.querySelector('.oa-select__label')?.textContent).toBe('Pattern')
+    expect([...right.querySelectorAll('.oa-select__label')].map(node => node.textContent)).toEqual(['Pattern', 'Trigger'])
+    await act(async () => sw('Pattern Change').click())
+    expect(sw('Pattern Change').getAttribute('aria-checked')).toBe('false')
+    expect([...right.querySelectorAll('.oa-select__label')].map(node => node.textContent)).toEqual(['Pattern'])
+    await act(async () => sw('BPM Sync').click())
+    expect(sw('BPM Sync').getAttribute('aria-checked')).toBe('false')
+
+    // Marquee copy fields and the palette swatches.
+    expect(right.querySelector<HTMLInputElement>('input[value="DVYDRM B2B GOONZ"]')).not.toBeNull()
+    expect([...right.querySelectorAll('.oa-field__label')].map(node => node.textContent)).toEqual(['Front Marquee Text', 'Left Marquee Text', 'Right Marquee Text'])
+    expect([...right.querySelectorAll('.oa-swatch__label')].map(node => node.textContent)).toEqual(['Night Atmosphere', 'Marquee Red', 'Incandescent Gold', 'Neon Blue', 'Architectural Accent'])
+    expect(right.querySelector('.oa-swatch__hex')?.textContent).toBe('#030609')
+
+    // A group collapses from its header.
+    const head = right.querySelector<HTMLElement>('.oa-group__head')!
+    await act(async () => head.click())
+    expect(head.getAttribute('aria-expanded')).toBe('false')
+    expect(right.querySelector('.oa-knob__dial[aria-label="Master Intensity"]')).toBeNull()
+    await act(async () => head.click())
+    expect(right.querySelector('.oa-knob__dial[aria-label="Master Intensity"]')).not.toBeNull()
+  })
+
+  it('mocks the Cinema 2.0 PRESETS tab and the Canvas REACT tab in design A\'s inspector, inside Option A\'s module', async () => {
+    const right = view().querySelector<HTMLElement>('.oa-module--right')!
+    const tab = (label: string) => [...right.querySelectorAll<HTMLButtonElement>('.oa-bank [role="tab"]')].find(node => node.querySelector('.oa-bank__label')?.textContent === label)!
+
+    await act(async () => tab('Presets').click())
     expect([...right.querySelectorAll('.rv-right-subtabs [role="tab"]')].map(node => node.textContent)).toEqual(['SYSTEM', 'USER'])
     expect(right.querySelector('input[aria-label="Search Cinema 2.0 presets"]')).not.toBeNull()
     const presetIds = [...right.querySelectorAll('[data-cinema2-preset-id]')].map(node => node.getAttribute('data-cinema2-preset-id'))
@@ -124,7 +186,7 @@ describe('Layout Lab canvas', () => {
     await act(async () => [...right.querySelectorAll<HTMLButtonElement>('.rv-right-subtabs [role="tab"]')].find(node => node.textContent === 'USER')!.click())
     expect(right.textContent).toContain('No user presets yet.')
 
-    await act(async () => tab('REACT').click())
+    await act(async () => tab('React').click())
     expect([...right.querySelectorAll('.rv-right-subtabs [role="tab"]')].map(node => node.textContent)).toEqual(['ROUTING', 'ANALYSIS'])
     expect([...right.querySelectorAll('.drc-group > .drc-header')].map(node => node.textContent)).toEqual(['Effects', 'Performance Automation', 'Motion', 'Preset FX'])
     for (const label of ['Auto Select', 'Auto Performance', 'Pool Automation', 'Pool Trigger', 'Pool Transition', 'Performance Show', 'Layer Complexity', 'Cut Density', 'Glow Amount', 'RGB Split', 'Motion Amount', 'Turbulence']) {
@@ -139,13 +201,14 @@ describe('Layout Lab canvas', () => {
     await act(async () => toggle('Auto Performance').click())
     expect([pressed('Auto Performance'), pressed('Pool Automation')]).toEqual(['true', 'false'])
 
-    await act(async () => tab('DESIGN').click())
+    await act(async () => tab('Design').click())
     expect(right.querySelector('[data-cinema2-design-parent-groups]')).not.toBeNull()
+    expect(right.querySelector('.oa-design')).not.toBeNull()
   })
 
   it('shows the Audio Intelligence window with static, differing values in design A\'s AUDIO tab', async () => {
-    const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
-    const audio = [...right.querySelectorAll<HTMLButtonElement>('.rv-main-workspace-tabs [role="tab"]')].find(node => node.textContent === 'AUDIO')!
+    const right = view().querySelector<HTMLElement>('.oa-module--right')!
+    const audio = [...right.querySelectorAll<HTMLButtonElement>('.oa-bank [role="tab"]')].find(node => node.querySelector('.oa-bank__label')?.textContent === 'Audio')!
     await act(async () => audio.click())
     // The panel writes its values on animation frames; let one run.
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 80)) })
@@ -177,8 +240,10 @@ describe('Layout Lab canvas', () => {
   })
 
   it('mirrors the Track Map workspace under design A\'s visualizer with every row populated', async () => {
-    const column = view().querySelector<HTMLElement>('.rv-center-col')!
-    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['rv-canvas-wrap', 'll-lyric-timeline-host', 'rv-lower-workspace', 'll-lyric-timeline-host', 'll-lyric-timeline-host'])
+    const column = view().querySelector<HTMLElement>('.oa-rack')!
+    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['ll-lyric-timeline-host', 'rv-lower-workspace', 'll-lyric-timeline-host', 'll-lyric-timeline-host'])
+    // The stage is the first item of Option A's scrolling column, ahead of the rack of windows.
+    expect(view().querySelector('.oa-center')!.firstElementChild?.className).toBe('oa-stage')
     const workspace = column.querySelector<HTMLElement>('.rv-lower-workspace')!
     expect([...workspace.querySelectorAll('.rv-lower-workspace-tabs [role="tab"]')].map(node => node.textContent)).toEqual(['Track Map', 'Performance Pads'])
     expect(workspace.querySelector('[role="separator"]')?.getAttribute('aria-label')).toBe('Resize timeline workspace')
@@ -216,112 +281,126 @@ describe('Layout Lab canvas', () => {
     for (const id of OPTION_IDS) expect(view(id).querySelector('.rv-lower-workspace [role="tab"]')?.textContent, id).toBe('Track Map')
   })
 
-  it('mirrors the production React audio dock in design A, with local-only controls', async () => {
-    const dock = view().querySelector<HTMLElement>('.vz-transport-dock')!
-    expect(dock.className).toContain('vz-transport-dock--expandable')
-    expect([...dock.children].map(node => node.className)).toEqual(['vz-dock-region', 'vz-dock-region', 'vz-dock-region'])
-    expect([...dock.querySelectorAll('.vz-dock-region > .vz-dock-card')].map(node => node.className.split(' ')[0])).toEqual(['vz-dock-left', 'vz-dock-center', 'vz-dock-right'])
-    // The production keys, in production's order: no text labels on the icon-only keys.
-    expect([...dock.querySelectorAll('.vz-dock-right-btns > button, .vz-dock-blank-group > button')].map(node => node.className.split(' ')[0])).toEqual([
-      'vz-dock-tap-btn', 'vz-dock-cue-btn', 'vz-dock-sync-master-btn', 'vz-dock-playlist-trigger', 'vz-dock-track-timeline-btn',
+  it('builds Option A’s dock as a deck, a scope and a tempo dial on local-only state, and leaves B–E on the production dock', async () => {
+    const dock = view().querySelector<HTMLElement>('.oa-dock')!
+    expect([...dock.children].filter(node => node.tagName === 'SECTION').map(node => node.className)).toEqual(['oa-deck', 'oa-scopebay', 'oa-tempo'])
+    expect(dock.querySelector('.oa-deck__title')?.textContent).toContain('Birthday Sex')
+    expect(dock.querySelector('.oa-deck__slot')?.textContent).toBe('02 / 03')
+    expect(dock.querySelector('.oa-deck__replace span')?.textContent).toBe('Replace track')
+    expect(dock.querySelector('.oa-tempo__source strong')?.textContent).toBe('Rekordbox')
+    expect(dock.querySelector('button[aria-label^="Audio source"]')).not.toBeNull()
+    expect([...dock.querySelectorAll('.oa-tempo__keys > button')].map(node => node.getAttribute('aria-label'))).toEqual([
+      'Tap tempo', 'Jump to cue (0:00)', 'BPM Sync: ON', 'Audio source & Rekordbox', 'Playlist', 'Open the Track Timeline Visualizer',
     ])
-    expect(dock.querySelector('.vz-dock-source-trigger')?.getAttribute('aria-label')).toBe('Audio source & Rekordbox')
-    expect(dock.querySelector('.vz-dock-source-inline-name')?.textContent).toBe('Rekordbox')
-    expect(dock.querySelector('.vz-dock-tap-label, .vz-dock-cue-label, .vz-dock-sync-master-label')).toBeNull()
-    expect(dock.querySelector('.vz-dock-addtrack-btn span')?.textContent).toBe('Replace Track')
-    // The waveform is production's deck canvas, not a drawing of bars.
-    expect(dock.querySelector('.vz-dock-waveform-wrap .vz-peaks-wrap.vz-peaks-wrap--deck canvas')).not.toBeNull()
-    expect(dock.querySelector('.rv-layout-lab-dock-waveform')).toBeNull()
+    // The waveform is Option A's own scope drawn from the same analysis; the deck canvas of production is not mounted.
+    expect(dock.querySelector('canvas.oa-scope')).not.toBeNull()
+    expect(dock.querySelector('.vz-peaks-wrap, .vz-mini-waveform')).toBeNull()
+    expect(dock.querySelector('.oa-scopebay__time')?.textContent).toContain('0:12.7')
 
-    // Local state only: play toggles, the previous/next keys and the zoom keys honour their limits, SYNC toggles.
     const click = (selector: string) => act(async () => dock.querySelector<HTMLElement>(selector)!.click())
-    expect(dock.querySelector('.az-play-btn')?.getAttribute('aria-label')).toBe('Play')
-    await click('.az-play-btn')
-    expect(dock.querySelector('.az-play-btn')?.getAttribute('aria-label')).toBe('Pause')
-    await click('.vz-dock-track-nav-btn--previous')
-    expect(dock.querySelector<HTMLButtonElement>('.vz-dock-track-nav-btn--previous')!.disabled).toBe(true)
-    expect(dock.querySelector('.vz-dock-track-title')?.textContent).toContain('Mocha ID')
-    expect(dock.querySelector<HTMLButtonElement>('.vz-dock-zoom-btns button:last-child')!.disabled).toBe(true)
-    await click('.vz-dock-sync-master-btn')
-    expect(dock.querySelector('.vz-dock-sync-master-btn')?.classList.contains('vz-dock-sync-master-btn--on')).toBe(false)
+    expect(dock.querySelector('.oa-play')?.getAttribute('aria-label')).toBe('Play')
+    await click('.oa-play')
+    expect(dock.querySelector('.oa-play')?.getAttribute('aria-label')).toBe('Pause')
+    await click('button[aria-label="Previous track"]')
+    expect(dock.querySelector<HTMLButtonElement>('button[aria-label="Previous track"]')!.disabled).toBe(true)
+    expect(dock.querySelector('.oa-deck__title')?.textContent).toContain('Mocha ID')
+    // Zoom keys honour their limits; sync toggles.
+    expect(dock.querySelector<HTMLButtonElement>('button[aria-label="Zoom out"]')!.disabled).toBe(true)
+    await click('button[aria-label="Zoom in"]')
+    expect(dock.querySelector('.oa-scopebay__zoomvalue')?.textContent).toBe('Zoom ×2')
+    await click('button[aria-label="BPM Sync: ON"]')
+    expect(dock.querySelector('button[aria-label="BPM Sync: OFF"]')).not.toBeNull()
+    // The tempo dial is a slider: keys move the BPM, and an override offers a reset to the analysed 129.00.
+    const dial = dock.querySelector<HTMLElement>('.oa-tempo__ring')!
+    expect(dial.getAttribute('aria-valuenow')).toBe('129')
+    await act(async () => { dial.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })) })
+    expect(dock.querySelector('.oa-tempo__readout strong')?.textContent).toBe('130.00')
+    await click('button[aria-label="Reset BPM"]')
+    expect(dock.querySelector('.oa-tempo__readout strong')?.textContent).toBe('129.00')
+    // The level knob reads in dB.
+    expect(dock.querySelector('.oa-knob__dial[aria-label="Volume"]')?.getAttribute('aria-valuetext')).toBe('-1.7 dB')
     // Clicking empty dock space collapses it, as in production.
     await act(async () => dock.click())
-    expect(dock.classList.contains('vz-transport-dock--collapsed')).toBe(true)
+    expect(dock.getAttribute('data-collapsed')).toBe('true')
     await act(async () => dock.click())
+    expect(dock.getAttribute('data-collapsed')).toBe('false')
 
-    // Designs B–E carry the same dock.
+    // Designs B–E carry the production dock; Option A's is not shared with them.
     await visitAllDesigns()
-    for (const id of OPTION_IDS) expect(view(id).querySelector('.vz-dock-source-trigger'), id).not.toBeNull()
+    for (const id of OPTION_IDS.slice(1)) expect(view(id).querySelector('.vz-dock-source-trigger, .ll-b-player-track-copy, .oc-record'), id).not.toBeNull()
   })
 
-  it('mocks the React header elements in design A\'s header group, repeats them in B–E and names each option at the top left', async () => {
-    const header = view().querySelector<HTMLElement>('.fw-app-header-surface')!
-    expect(header.querySelector('.az-logo-mark')?.textContent).toBe('DRMVYZ')
-    expect(header.querySelector('.fw-app-header-controls > .vz-header[data-react-header-controls]')).not.toBeNull()
-    expect(header.querySelector('.vz-header-group')?.getAttribute('aria-label')).toBe('React controls')
-    expect([...header.querySelectorAll('.rv-global-output button')].map(button => button.getAttribute('aria-label'))).toEqual(['OUTPUT PREVIEW', 'Reveal output', 'Blackout output'])
+  it('rebuilds the header readings as Option A’s instrument strip and names every option at the top left', async () => {
+    const header = view().querySelector<HTMLElement>('.oa-header')!
+    expect(header.getAttribute('aria-label')).toBe('Layout Lab header group')
+    expect(header.querySelector('.oa-wordmark')?.textContent).toBe('DRMVYZ')
+    expect(header.querySelector('.oa-header__option')?.textContent).toBe('Option A')
+    expect([...header.querySelectorAll('.oa-header__output button')].map(button => button.getAttribute('aria-label'))).toEqual(['OUTPUT PREVIEW', 'Reveal output', 'Blackout output'])
+    expect([...header.querySelectorAll('.oa-header__output button')].every(button => (button as HTMLButtonElement).disabled)).toBe(true)
     expect(header.querySelector('button[aria-label="Layout Lab"]')).not.toBeNull()
-    expect([...header.querySelectorAll('.rv-header-status-stack')].map(stack => stack.getAttribute('data-header-stack'))).toEqual(['loading+saved', 'fps+frame-time', 'quality+cpu'])
+    // The same readings as production, drawn as readouts: Loading, Saved, FPS, Frame time, Quality, CPU, Notifications and Profile.
+    expect([...header.querySelectorAll('.oa-readout')].map(node => node.getAttribute('aria-label'))).toEqual([
+      'Nothing loading', 'Saved 11:31 AM', 'FPS 60', 'Frame time 16.6 ms', 'Quality high', 'App CPU usage 0 percent',
+    ])
+    expect(header.querySelector('.oa-readout--ring svg')).not.toBeNull()
+    expect(header.querySelectorAll('.oa-ladder .oa-led[data-on="true"]')).toHaveLength(3)
     expect(header.querySelector('button[aria-label="Notifications"]')).not.toBeNull()
-    expect(header.querySelector('.vz-header-avatar')).not.toBeNull()
-    // The mockup shows fixed readings, with no controls that act on anything.
-    for (const label of ['SAVED', 'FPS', 'FRAME TIME', 'QUALITY', 'CPU']) expect(header.textContent?.toUpperCase()).toContain(label)
+    expect(header.querySelector('.oa-avatar')?.textContent).toBe('DV')
     await visitAllDesigns()
-    for (const [index, id] of OPTION_IDS.entries()) {
+    for (const [index, id] of OPTION_IDS.slice(3).entries()) {
       const surface = view(id).querySelector<HTMLElement>('.fw-app-header-surface')!
-      // "Option A" … "Option E" hangs off the brand toggle, the first thing in the header group.
+      // "Option D" … "Option E" hangs off the brand toggle, the first thing in the header group.
       const lead = surface.querySelector<HTMLElement>('.fw-app-header-inner > .ll-header-lead')!
       expect(surface.querySelector('.fw-app-header-inner')!.firstElementChild, id).toBe(lead)
-      expect([...lead.children].map(node => node.className), id).toEqual(['az-logo', 'll-option-label'])
-      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'ABCDE'[index]}`)
-      expect(surface.querySelector('.az-logo-mark')?.textContent, id).toBe('DRMVYZ')
-      expect(surface.querySelector('.fw-app-header-controls > .vz-header[data-react-header-controls]'), id).not.toBeNull()
-      expect(surface.querySelector('.vz-header-avatar'), id).not.toBeNull()
+      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'DE'[index]}`)
+      expect(surface.querySelector('.fw-app-header-controls .vz-header-avatar, .fw-app-header-controls button[aria-label="Notifications"]'), id).not.toBeNull()
     }
   })
 
-  it('is a left window, a visualizer and a right window above the audio dock, with an empty visualizer', async () => {
-    const active = view()
-    const left = active.querySelector<HTMLElement>('.vz-inspector--left')!
-    const right = active.querySelector<HTMLElement>('.vz-inspector--right')!
-    const visualizer = active.querySelector<HTMLElement>('.rv-canvas-wrap')!
-    expect(left.getAttribute('aria-label')).toBe('Layout Lab left window')
-    expect(right.getAttribute('aria-label')).toBe('Layout Lab right window')
-    expect(visualizer.getAttribute('aria-label')).toBe('Layout Lab visualizer')
-    for (const region of [left, right]) expect(region.querySelector('.vz-inspector-inner')).not.toBeNull()
-    expect(visualizer.childElementCount).toBe(0)
-    expect(visualizer.textContent).toBe('')
+  it('composes Option A as a spine, a header strip, three modules and a deck, scoped to Option A alone', async () => {
+    const a = view()
+    expect(a.classList.contains('oa-root')).toBe(true)
+    expect(a.matches('[data-workspace-layout="floating"][data-app-workspace="react"]')).toBe(true)
+    const app = a.querySelector('.oa-app')!
+    expect([...app.children].map(node => node.className)).toEqual(['oa-spine', 'oa-main'])
+    // The header sits above the working area only; the spine runs the full height beside it.
+    const main = app.querySelector('.oa-main')!
+    expect([...main.children].map(node => node.className.split(' ')[0])).toEqual(['oa-header', 'oa-body', 'oa-dock'])
+    expect([...main.querySelector('.oa-body')!.children].map(node => node.className.split(' ')[0])).toEqual(['oa-module', 'oa-center', 'oa-module'])
+    expect([...a.querySelector('.oa-center')!.children].map(node => node.className)).toEqual(['oa-stage', 'oa-rack'])
 
-    // Same frame, shell and rail classes as production, so the sizes come from the same CSS.
-    expect(active.matches('[data-workspace-layout="floating"][data-app-workspace="react"].fw-app-frame') ? active : null).not.toBeNull()
-    expect(active.querySelector('.fw-app-content .vz-main .rv-shell.rv-shell--floating > .rv-layout')).not.toBeNull()
-    expect(left.classList.contains('rw-frame--left') && right.classList.contains('rw-frame--right')).toBe(true)
-    // A blank header group across the top and a blank navigation column on the left, both empty.
-    const header = active.querySelector<HTMLElement>('.fw-app-header > .fw-app-header-surface')!
-    const nav = active.querySelector<HTMLElement>('.fw-app-navigation > .az-sidebar')!
-    expect(header.getAttribute('aria-label')).toBe('Layout Lab header group')
-    expect(nav.getAttribute('aria-label')).toBe('Layout Lab navigation column')
-    // Design A carries the production navigation options and footer, with the A–E switcher between them.
-    expect([...nav.children].map(node => node.className)).toEqual(['az-nav', 'll-design-switcher', 'az-sidebar-footer'])
-    expect([...nav.querySelectorAll('.az-nav-item')].map(item => item.getAttribute('aria-label'))).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
-    expect(nav.querySelector('.az-nav-section-label')?.textContent).toBe('Managers')
-    expect(nav.querySelector('.az-nav-item--active')?.getAttribute('aria-label')).toBe('React')
-    expect(nav.querySelector('.az-sidebar-footer')?.textContent).toContain('Professional')
-    // The other designs carry the same navigation column.
+    // The spine keeps the five destinations and the untouched Layout Lab selector.
+    const spine = a.querySelector<HTMLElement>('.oa-spine')!
+    expect(spine.getAttribute('aria-label')).toBe('Layout Lab navigation column')
+    expect([...spine.querySelectorAll('.oa-key')].map(item => item.getAttribute('aria-label'))).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(spine.querySelector('.oa-spine__section')?.textContent).toBe('Managers')
+    expect(spine.querySelector('.oa-key[data-active="true"]')?.getAttribute('aria-label')).toBe('React')
+    expect(spine.querySelector('.oa-spine__licence')?.textContent).toContain('Professional')
+    expect(spine.querySelector('.ll-design-switcher')?.getAttribute('aria-label')).toBe('Layout Lab design')
+    expect(spine.querySelectorAll('.ll-design-switch')).toHaveLength(5)
+    await act(async () => spine.querySelectorAll<HTMLElement>('.oa-key')[3]!.click())
+    expect(spine.querySelector('.oa-key[data-active="true"]')?.getAttribute('aria-label')).toBe('Lyric Manager')
+
+    // The stage is an empty, labelled viewport with working guides; nothing renders into it.
+    const stage = a.querySelector<HTMLElement>('.oa-stage')!
+    expect(stage.getAttribute('aria-label')).toBe('Layout Lab visualizer')
+    expect(stage.querySelector('canvas, video, audio')).toBeNull()
+    expect(stage.querySelector('.oa-stage__screen')?.textContent).toBe('')
+    expect(stage.textContent).toContain('Preview · no output')
+    const grid = [...stage.querySelectorAll<HTMLButtonElement>('.oa-chip')].find(node => node.textContent === 'Grid')!
+    await act(async () => grid.click())
+    expect(stage.querySelector('.oa-stage__screen')?.getAttribute('data-grid')).toBe('true')
+
+    // Options D–E keep React View's frame, shell, rails and dock, and none of Option A's classes.
     await visitAllDesigns()
-    for (const id of OPTION_IDS) {
-      expect([...view(id).querySelector('.fw-app-navigation > .az-sidebar')!.children].map(node => node.className), id).toEqual(['az-nav', 'll-design-switcher', 'az-sidebar-footer'])
+    for (const id of OPTION_IDS.slice(3)) {
+      const other = view(id)
+      expect(other.classList.contains('oa-root'), id).toBe(false)
+      expect(other.querySelector('[class*="oa-"]'), id).toBeNull()
+      expect(other.querySelector('.fw-app-shell .rv-shell.rv-shell--floating > .rv-layout'), id).not.toBeNull()
+      expect([...other.querySelector('.fw-app-navigation > .az-sidebar')!.children].map(node => node.className), id).toEqual(['az-nav', 'll-design-switcher', 'az-sidebar-footer'])
+      expect([...other.querySelector('.rv-layout')!.children].map(node => node.className.split(' ')[0]), id).toEqual(['vz-inspector', 'rv-center-col', 'vz-inspector'])
     }
-    const frame = active.querySelector('.fw-app-shell')!
-    expect([...frame.children].map(node => node.className.split(' ')[0])).toEqual(['fw-region', 'fw-app-body'])
-    expect(active.querySelector('.fw-app-body')!.firstElementChild).toBe(active.querySelector('.fw-app-navigation'))
-
-    const layout = active.querySelector('.rv-layout')!
-    expect([...layout.children].map(node => node.className.split(' ')[0])).toEqual(['vz-inspector', 'rv-center-col', 'vz-inspector'])
-    const dock = active.querySelector('.vz-transport-dock')!
-    expect(dock).not.toBeNull()
-    expect(layout.contains(dock)).toBe(false)
-    expect(dock.previousElementSibling).toBe(layout)
   })
 
   it('switches between five independent designs with the A–E buttons', async () => {
@@ -343,15 +422,16 @@ describe('Layout Lab canvas', () => {
     expect(visible()).toEqual(['design-01'])
     expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(ids)
     // Hidden designs keep their own dock state: toggling playback in one does not touch another.
-    const playButton = (id: string) => view(id).querySelector<HTMLButtonElement>('.az-play-btn')!
+    const playButton = (id: string) => view(id).querySelector<HTMLButtonElement>('.oa-play, .az-play-btn, button[aria-label="Play"], button[aria-label="Pause"]')!
     const before = playButton('design-02').getAttribute('aria-label')
     await act(async () => playButton('design-01').click())
+    expect(playButton('design-01').getAttribute('aria-label')).toBe('Pause')
     expect(playButton('design-02').getAttribute('aria-label')).toBe(before)
   })
 
   it("shows the Lyric Manager Tracks tab in design A's inspector, with versions nested in the selected track's card", async () => {
-    const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
-    const tab = [...right.querySelectorAll<HTMLButtonElement>('.rv-main-workspace-tabs [role="tab"]')].find(node => node.textContent === 'TRACKS')!
+    const right = view().querySelector<HTMLElement>('.oa-module--right')!
+    const tab = [...right.querySelectorAll<HTMLButtonElement>('.oa-bank [role="tab"]')].find(node => node.querySelector('.oa-bank__label')?.textContent === 'Tracks')!
     await act(async () => tab.click())
     const panel = right.querySelector<HTMLElement>('.lmv-left-rail .lmv-workspace-tab-panel')!
     expect(panel.getAttribute('aria-label')).toBe('Tracks panel')
@@ -388,24 +468,24 @@ describe('Layout Lab canvas', () => {
     expect(panel.querySelector('.lmv-load-more')).toBeNull()
   })
 
-  it("shows production's NoticeCard in every tone in design A's NOTICE tab", async () => {
-    const left = view().querySelector<HTMLElement>('.vz-inspector--left')!
-    await act(async () => [...left.querySelectorAll<HTMLElement>('.rv-context-workspace-tabs [role="tab"]')].find(tab => tab.textContent === 'NOTICE')!.click())
-    expect([...left.querySelectorAll('.rv-left-tab-body .drc-group > .drc-header')].map(node => node.textContent)).toEqual(['Info', 'Success', 'Warning', 'Error'])
+  it('shows Option A’s notice card in every tone in the NOTICE tab', async () => {
+    const left = view().querySelector<HTMLElement>('.oa-module--left')!
+    await act(async () => [...left.querySelectorAll<HTMLElement>('.oa-bank [role="tab"]')].find(tab => tab.textContent?.includes('Notice'))!.click())
+    expect([...left.querySelectorAll('.oa-group > .oa-group__head .oa-group__title')].map(node => node.textContent)).toEqual(['Info', 'Success', 'Warning', 'Error'])
     for (const tone of ['info', 'success', 'warning', 'error']) {
-      const cards = left.querySelectorAll(`.dv-notice[data-tone="${tone}"]`)
+      const cards = left.querySelectorAll(`.oa-notice[data-tone="${tone}"]`)
       expect(cards, tone).toHaveLength(4)
       // Title and body, title only, with dismiss, and with dismiss and open.
-      expect([...cards].map(card => [!!card.querySelector('.dv-notice-body'), !!card.querySelector('.dv-notice-dismiss'), !!card.querySelector('.dv-notice-open')])).toEqual([
+      expect([...cards].map(card => [!!card.querySelector('.oa-notice__body'), !!card.querySelector('button[aria-label="Dismiss notice"]'), !!card.querySelector('button[aria-label="Open details"]')])).toEqual([
         [true, false, false], [false, false, false], [true, true, false], [true, true, true],
       ])
     }
-    await act(async () => left.querySelectorAll<HTMLElement>('.dv-notice[data-tone="error"] .dv-notice-dismiss')[0]!.click())
-    expect(left.querySelectorAll('.dv-notice[data-tone="error"]')).toHaveLength(3)
+    await act(async () => left.querySelectorAll<HTMLElement>('.oa-notice[data-tone="error"] button[aria-label="Dismiss notice"]')[0]!.click())
+    expect(left.querySelectorAll('.oa-notice[data-tone="error"]')).toHaveLength(3)
   })
 
   it('places the Lyric Manager Track Timeline above the Track Map with every row and cue state, collapsing from its header', async () => {
-    const host = view().querySelector<HTMLElement>('.rv-center-col > .ll-lyric-timeline-host')!
+    const host = view().querySelector<HTMLElement>('.oa-rack > .ll-lyric-timeline-host')!
     expect(host.getAttribute('data-app-workspace')).toBe('lyrics')
     const timeline = host.querySelector<HTMLElement>('.lmv-track-timeline-window')!
     expect(timeline.getAttribute('aria-label')).toBe('Track Timeline')
@@ -433,7 +513,7 @@ describe('Layout Lab canvas', () => {
   })
 
   it('places the Lyric Manager Cue list under the Track Timeline, sharing its cues and collapsing from its header', async () => {
-    const host = view().querySelector<HTMLElement>('.rv-center-col > .ll-lyric-timeline-host')!
+    const host = view().querySelector<HTMLElement>('.oa-rack > .ll-lyric-timeline-host')!
     expect([...host.children].map(node => node.className)).toEqual(['lmv-track-timeline-window', 'lmv-lyric-cues-window'])
     const list = host.querySelector<HTMLElement>('.lmv-lyric-cues-window')!
     expect(list.querySelector('.drc-header')?.textContent).toContain('Cue list')
@@ -461,7 +541,7 @@ describe('Layout Lab canvas', () => {
   })
 
   it("draws the production Settings pop-up inline in a collapsible group below the Track Map", async () => {
-    const column = view().querySelector<HTMLElement>('.rv-center-col')!
+    const column = view().querySelector<HTMLElement>('.oa-rack')!
     const settings = column.querySelector<HTMLElement>('.ll-settings-window')!
     // After the Track Map, and before the Pop-ups & Dialogs group.
     const children = [...column.children]
@@ -496,7 +576,7 @@ describe('Layout Lab canvas', () => {
   })
 
   it("draws every pop-up and confirmation dialog inline in a collapsible group below the Settings group", async () => {
-    const column = view().querySelector<HTMLElement>('.rv-center-col')!
+    const column = view().querySelector<HTMLElement>('.oa-rack')!
     const popups = column.querySelector<HTMLElement>('.ll-popups-window')!
     expect(column.lastElementChild?.contains(popups)).toBe(true)
     const header = popups.querySelector<HTMLElement>(':scope > .drc-group > .drc-header')!
@@ -545,7 +625,7 @@ describe('Layout Lab canvas', () => {
 
   it('mounts no production rendering or media runtimes', () => {
     expect(container.querySelector('audio, video')).toBeNull()
-    // The only canvases are design A's dock waveform, the Track Timeline rows and the Track Map beat grid and ruler, drawn from generated data.
-    expect([...container.querySelectorAll('canvas')].every(canvas => canvas.closest('.vz-dock-waveform-wrap, .rv-timeline-lanes'))).toBe(true)
+    // The only canvases are Option A's dock scope, the Track Timeline rows and the Track Map beat grid and ruler, drawn from generated data.
+    expect([...container.querySelectorAll('canvas')].every(canvas => canvas.closest('.oa-scopebay, .rv-timeline-lanes'))).toBe(true)
   })
 })

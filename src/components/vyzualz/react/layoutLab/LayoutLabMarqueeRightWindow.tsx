@@ -26,7 +26,7 @@ const RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'audio' | 'trac
   { id: 'tracks', label: 'TRACKS' },
 ]
 
-const PATTERN_OPTIONS = [
+export const PATTERN_OPTIONS = [
   { value: 'opening-night', label: 'Opening Night' },
   { value: 'canopy-cascade', label: 'Canopy Cascade' },
   { value: 'triple-face-relay', label: 'Triple-Face Relay' },
@@ -36,24 +36,24 @@ const PATTERN_OPTIONS = [
   { value: 'premiere-burst', label: 'Premiere Burst' },
 ]
 
-const TRIGGER_OPTIONS = [
+export const TRIGGER_OPTIONS = [
   { value: 'beat', label: 'Beat' }, { value: 'kick', label: 'Kick' }, { value: 'snare', label: 'Snare' },
   { value: 'downbeat', label: 'Downbeat' }, { value: 'beat2', label: 'Every 2 Beats' }, { value: 'beat4', label: 'Every 4 Beats' },
   { value: 'bar', label: 'Bar' }, { value: 'bar4', label: 'Every 4 Bars' }, { value: 'bar8', label: 'Every 8 Bars' },
   { value: 'phrase', label: 'Phrase' }, { value: 'drop', label: 'Drop' },
 ]
 
-const LIGHTING_ZONES = [
+export const LIGHTING_ZONES = [
   ['frontIntensity', 'Front Marquee', 1], ['sideIntensity', 'Side Marquees', 0.86], ['canopyIntensity', 'Canopy Underside', 0.72],
   ['towerIntensity', 'Vertical Towers', 0.82], ['entranceIntensity', 'Entrance LEDs', 0.68], ['neonIntensity', 'Neon Crown', 0.92],
 ] as const
 
-const PALETTE = [
+export const PALETTE = [
   ['night', 'Night Atmosphere', '#030609'], ['marquee', 'Marquee Red', '#db0906'], ['gold', 'Incandescent Gold', '#ff8c24'],
   ['blue', 'Neon Blue', '#0a61ff'], ['architecture', 'Architectural Accent', '#301c13'],
 ] as const
 
-const INITIAL = {
+export const INITIAL = {
   masterIntensity: 0.9, bpmSync: true, autoPerformance: true, cameraMotion: 1,
   pattern: 'opening-night', patternChange: true, trigger: 'kick',
   frontText: 'DVYDRM B2B GOONZ', leftText: 'SHOWINGS', rightText: 'SHOWINGS', signIllumination: 0.78,

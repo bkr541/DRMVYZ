@@ -10,7 +10,7 @@ import { Collapsible } from '../ReactControlRows'
 // and with dismiss and open. The cards are the real component with real tone text colours; dismiss (a hover control, as
 // in the app) hides a card and open does nothing here. Switching tabs restores the dismissed cards. No store or drawer.
 
-interface ToneSample {
+export interface ToneSample {
   tone: NoticeCardTone
   label: string
   title: string
@@ -18,7 +18,7 @@ interface ToneSample {
   titleOnly: string
 }
 
-const TONES: ToneSample[] = [
+export const TONES: ToneSample[] = [
   { tone: 'info', label: 'Info', title: 'Runtime state synchronized', titleOnly: 'Layers are read-only for this preset', body: 'Structured visuals share one authored model with modulation routes, performance rules, cameras and the authoritative timeline.' },
   { tone: 'success', label: 'Success', title: 'Preset saved', titleOnly: 'Track analysis complete', body: 'Electric Storm was saved to your library and is ready to load from the Presets tab.' },
   { tone: 'warning', label: 'Warning', title: 'Audio source unavailable', titleOnly: 'Beat grid is using a temporary tempo', body: 'The selected input stopped reporting a signal. Reconnect the device or choose another source in the Audio dock.' },

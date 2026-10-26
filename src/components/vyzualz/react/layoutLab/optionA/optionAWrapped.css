@@ -1,0 +1,672 @@
+/* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+   Option A · skin for wrapped production windows
+
+   Option A rebuilds the header, spine, modules, stage, dock and every Inspector DESIGN control as its own components
+   (see optionA.css). The windows below are production's own large, store-shaped surfaces, which Option A mounts inside its
+   frame instead of rebuilding: the Lyric Manager's Track Timeline and Cue list, the Track Map, the Settings and Pop-ups
+   mockups, the Notice cards, and the Presets, React, Audio and Tracks bodies. This sheet gives them Option A's palette,
+   plates, wells and LED marks. Colour, surface, radius and ornament only; every rule is scoped to `.oa-root .oa-main`.
+   Authored colours (cue, section and lane colours, preset thumbnails, media art, theme previews) are data and keep
+   their own.
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 3 · Reusable group (DualRailCollapsible) ─────────────────────────────────────────────────────────────────── */
+.oa-root .oa-main .drc-header {
+  position: relative;
+  border-bottom-color: transparent;
+  color: var(--ll-a-text-strong);
+  text-transform: none;
+}
+
+.oa-root .oa-main .drc-header:hover { color: #fff; }
+
+.oa-root .oa-main .drc-arrow { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .drc-group .drc-group > .drc-header {
+  color: var(--ll-a-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.14em !important;
+}
+
+.oa-root .oa-main .drc-group .drc-group > .drc-header:hover { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .drc-body { background: transparent; border-color: transparent; border-radius: 0; box-shadow: none; }
+
+.oa-root .oa-main .drc-group .drc-group > .drc-body { background: transparent; }
+
+/* ── 6 · Tabs ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+/* Underline tabs: tiny tracked capitals, grey until active, then white over a short coral tag. */
+.oa-root .oa-main .dv-underline-tabs, .oa-root .oa-main .rv-right-subtabs, .oa-root .oa-main .vz-filter-tabs, .oa-root .oa-main .vz-panel-tabs {
+  border-color: var(--ll-a-line);
+  background: transparent;
+  box-shadow: none;
+}
+
+.oa-root .oa-main .dv-underline-tab, .oa-root .oa-main :is(.rv-right-subtabs, .vz-filter-tabs, .vz-panel-tabs) > button {
+  color: var(--ll-a-text-faint);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  text-shadow: none;
+
+}
+
+.oa-root .oa-main .dv-underline-tab:hover:not(:disabled), .oa-root .oa-main :is(.rv-right-subtabs, .vz-filter-tabs, .vz-panel-tabs) > button:hover:not(:disabled) {
+  color: var(--ll-a-text);
+  background: transparent;
+}
+
+.oa-root .oa-main .dv-underline-tab.is-active, .oa-root .oa-main .dv-underline-tab[aria-selected='true'],
+.oa-root .oa-main :is(.rv-right-subtabs, .vz-filter-tabs, .vz-panel-tabs) > button.is-active {
+  color: var(--ll-a-text-strong);
+  background: transparent;
+  border-color: var(--ll-a-coral);
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.oa-root .oa-main .dv-underline-tab.is-active::after, .oa-root .oa-main .dv-underline-tab[aria-selected='true']::after,
+.oa-root .oa-main :is(.rv-right-subtabs, .vz-filter-tabs, .vz-panel-tabs) > button.is-active::after {
+  background: var(--ll-a-coral);
+  box-shadow: none;
+}
+
+.oa-root .oa-main .rv-right-subtabs > button.is-active::before { background: var(--ll-a-coral); box-shadow: none; }
+
+/* ── 7 · Fields and controls ──────────────────────────────────────────────────────────────────────────────────── */
+.oa-root .oa-main :is(.rv-ctrl-label, .dv-scrub-field-label, .drm-dropdown__label, .drm-dropdown__eyebrow, .rv-ctrl-description) { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main :is(.rv-ctrl-val, .dv-scrub-value) { color: var(--ll-a-text-strong); font-weight: 700; }
+
+.oa-root .oa-main :is(.rv-ctrl-row, .rv-ctrl-group) { border-color: var(--ll-a-line); }
+
+/* Text-like fields: a filled well one step under the window, no underline, white value. */
+.oa-root .oa-main :is(.dv-text-input, .rv-ctrl-text-input, .rv-ctrl-select, .vz-md-search-input, .az-input, .az-select, .vsm-acct-input, .dv-scrub-edit-input,
+     .drm-dropdown__trigger, .dv-underline-dropdown, .rv-ctrl-dropdown) {
+  background: var(--ll-a-inset);
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ll-a-text-strong);
+  border-radius: var(--ll-a-radius-sm);
+}
+
+.oa-root .oa-main :is(.dv-text-input, .rv-ctrl-text-input, .rv-ctrl-select, .vz-md-search-input, .az-input, .az-select, .vsm-acct-input,
+     .drm-dropdown__trigger, .dv-underline-dropdown):hover:not(:disabled) { background: #202127; border-color: transparent; }
+
+.oa-root .oa-main :is(.dv-text-input, .rv-ctrl-text-input, .rv-ctrl-select, .vz-md-search-input, .az-input, .az-select, .vsm-acct-input,
+     .drm-dropdown__trigger, .dv-underline-dropdown):focus-visible,
+.oa-root .oa-main .drm-dropdown--open .drm-dropdown__trigger {
+  outline: 0;
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--ll-a-coral);
+}
+
+.oa-root .oa-main :is(.dv-text-input, .vz-md-search-input, .drm-dropdown__search-input)::placeholder,
+.oa-root .oa-main .drm-dropdown__value--placeholder { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .drm-dropdown__chevron, .oa-root .oa-main .rv-ctrl-palette-caret, .oa-root .oa-main .vz-md-search-icon { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .drm-dropdown__value { color: var(--ll-a-text-strong); }
+
+/* Sliders: a thin graphite track, a coral fill and a plain white thumb. */
+.oa-root .oa-main .rv-ctrl-slider { --accent: var(--ll-a-coral); background: linear-gradient(to right, var(--ll-a-coral) 0%, var(--ll-a-coral) var(--pct, 50%), var(--ll-a-ink-3) var(--pct, 50%), var(--ll-a-ink-3) 100%); }
+
+.oa-root .oa-main .rv-ctrl-slider::-webkit-slider-thumb { background: #fff; border: 0; box-shadow: 0 1px 4px rgba(5, 5, 9, 0.5); }
+
+.oa-root .oa-main .rv-ctrl-slider::-moz-range-thumb { background: #fff; border: 0; box-shadow: 0 1px 4px rgba(5, 5, 9, 0.5); }
+
+.oa-root .oa-main .dv-bubble-slider { --accent: var(--ll-a-coral); accent-color: var(--ll-a-coral); }
+
+.oa-root .oa-main .rv-ctrl-slider-hdr { color: var(--ll-a-text-muted); }
+
+/* Toggles: a graphite ring that fills coral when on. */
+.oa-root .oa-main .rv-ctrl-toggle {
+  background: transparent;
+  border-color: var(--ll-a-ink-4);
+  color: var(--ll-a-text-faint);
+  box-shadow: none;
+}
+
+.oa-root .oa-main .rv-ctrl-toggle--on, .oa-root .oa-main .rv-ctrl-toggle[aria-pressed='true'], .oa-root .oa-main .rv-ctrl-toggle[data-state='on'] {
+  background: var(--ll-a-coral);
+  border-color: var(--ll-a-coral);
+  color: #1a1a20;
+  box-shadow: none;
+}
+
+.oa-root .oa-main .dv-icon-morph-toggle { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .dv-icon-morph-toggle.is-on, .oa-root .oa-main .dv-icon-morph-toggle[aria-pressed='true'] { color: var(--ll-a-coral); }
+
+/* ── 8 · Left and right windows: cards, rows and lists ────────────────────────────────────────────────────────── */
+/* Engine card: a flat graphite plate with the accent tag, a square glyph tile and no glow. */
+.oa-root .oa-main .rv-engine-dropdown-trigger {
+  background: var(--ll-a-ink-2);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--ll-a-coral);
+  border-radius: var(--ll-a-radius);
+  color: var(--ll-a-text-strong);
+}
+
+.oa-root .oa-main .rv-engine-dropdown-trigger:hover { background: var(--ll-a-ink-3); }
+
+.oa-root .oa-main .rv-engine-dropdown-glow { background-image: none; opacity: 0; }
+
+.oa-root .oa-main .rv-engine-dropdown-icon {
+  background: var(--ll-a-inset);
+  border-color: transparent;
+  box-shadow: none;
+  filter: none;
+  color: var(--ll-a-coral);
+  border-radius: var(--ll-a-radius);
+}
+
+.oa-root .oa-main .rv-engine-dropdown-eyebrow { color: var(--ll-a-text-faint); font-weight: 700; }
+
+.oa-root .oa-main .rv-engine-dropdown-label { color: var(--ll-a-text-strong); font-weight: 800; }
+
+.oa-root .oa-main .rv-engine-dropdown-preset { color: var(--ll-a-cyan); font-weight: 700; }
+
+.oa-root .oa-main .rv-engine-dropdown-copy { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .rv-engine-panel-list__header { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main :is(.rv-engine-panel-list, .rv-canvas-engine-panel, .rv-canvas-library-shell, .rv-left-tab-body, .rv-context-workspace, .rv-preset-scroll) { background: transparent; border-color: transparent; box-shadow: none; }
+
+.oa-root .oa-main .rv-context-workspace-header { border-color: var(--ll-a-line); background: transparent; }
+
+/* Media library: flat tiles, a two-tone caption and a coral frame on the selected tile. */
+.oa-root .oa-main .vz-media-browser, .oa-root .oa-main .vz-media-scroll, .oa-root .oa-main .vz-media-sheet, .oa-root .oa-main .vz-media-virtual { background: transparent; border-color: transparent; box-shadow: none; }
+
+.oa-root .oa-main .vz-media-card { border-color: transparent; box-shadow: none; border-radius: var(--ll-a-radius-sm); background-color: var(--ll-a-ink-2); }
+
+.oa-root .oa-main .vz-media-card--active { box-shadow: 0 0 0 2px var(--ll-a-coral); border-color: transparent; }
+
+.oa-root .oa-main .vz-media-card:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28); }
+
+.oa-root .oa-main .vz-media-card--active:hover { box-shadow: 0 0 0 2px var(--ll-a-coral); }
+
+.oa-root .oa-main .vz-media-sheet-name { color: var(--ll-a-text-strong); font-weight: 700; }
+
+.oa-root .oa-main .vz-media-sheet-name { background-image: linear-gradient(to top, rgba(18, 18, 24, 0.82), rgba(18, 18, 24, 0)); }
+
+.oa-root .oa-main .vz-media-type-badge { background-color: rgba(18, 18, 24, 0.78); color: var(--ll-a-text); border-color: transparent; border-radius: 2px; }
+
+.oa-root .oa-main .vz-md-search-row, .oa-root .oa-main .vz-md-search-wrap { border-color: var(--ll-a-line); background: transparent; }
+
+.oa-root .oa-main .vz-md-search-wrap .vz-md-search-input { background: var(--ll-a-inset); }
+
+.oa-root .oa-main .vz-md-view-toggles { background: transparent; border-color: transparent; }
+
+/* Layers: rows are graphite plates with the tag on the left edge, tinted by layer role. */
+.oa-root .oa-main .dv-layer-row { background-color: var(--ll-a-ink-2); border-color: transparent; box-shadow: none; border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .dv-layer-row:hover { background-color: var(--ll-a-ink-3); }
+
+.oa-root .oa-main .dv-layer-row.is-active, .oa-root .oa-main .dv-layer-row[aria-selected='true'] { background-color: var(--ll-a-ink-3); }
+
+.oa-root .oa-main .dv-layer-row-accent { background-color: var(--ll-a-coral); box-shadow: none; }
+
+.oa-root .oa-main .dv-layer-row-label { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-layer-row-status, .oa-root .oa-main .dv-layer-row-ghost { color: var(--ll-a-text-faint); }
+
+/* Notice cards: a graphite plate; the 3px tag and the icon carry the tone. */
+.oa-root .oa-main .dv-notice { background-color: var(--ll-a-ink-2); border-color: transparent; border-left-color: var(--ll-a-cyan); box-shadow: none; border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .dv-notice-title { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-notice-body { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .dv-notice-icon { color: var(--ll-a-cyan); }
+
+.oa-root .oa-main .dv-notice-open, .oa-root .oa-main .dv-notice-dismiss { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .dv-notice-open:hover, .oa-root .oa-main .dv-notice-dismiss:hover { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-notice[data-tone='success'], .oa-root .oa-main .dv-notice--success { border-left-color: var(--ll-a-mint); }
+
+.oa-root .oa-main .dv-notice[data-tone='success'] .dv-notice-icon, .oa-root .oa-main .dv-notice--success .dv-notice-icon { color: var(--ll-a-mint); }
+
+.oa-root .oa-main .dv-notice[data-tone='warning'], .oa-root .oa-main .dv-notice--warning { border-left-color: var(--ll-a-amber); }
+
+.oa-root .oa-main .dv-notice[data-tone='warning'] .dv-notice-icon, .oa-root .oa-main .dv-notice--warning .dv-notice-icon { color: var(--ll-a-amber); }
+
+.oa-root .oa-main .dv-notice[data-tone='error'], .oa-root .oa-main .dv-notice[data-tone='danger'], .oa-root .oa-main .dv-notice--error, .oa-root .oa-main .dv-notice--danger { border-left-color: var(--ll-a-rose); }
+
+.oa-root .oa-main .dv-notice[data-tone='error'] .dv-notice-icon, .oa-root .oa-main .dv-notice[data-tone='danger'] .dv-notice-icon,
+.oa-root .oa-main .dv-notice--error .dv-notice-icon, .oa-root .oa-main .dv-notice--danger .dv-notice-icon { color: var(--ll-a-rose); }
+
+/* Presets: poster cards without frames; the selected one takes the tag. */
+.oa-root .oa-main :is(.rv-preset-card, .rv-preset-card-shell, .rv-preset-spotlight-card, .rv-preset-spotlight-shell) { border-color: transparent; box-shadow: none; border-radius: var(--ll-a-radius); background-color: var(--ll-a-ink-2); }
+
+.oa-root .oa-main :is(.rv-preset-card--active, .rv-preset-spotlight-card--active) { box-shadow: inset 3px 0 0 var(--ll-a-coral); border-color: transparent; background-color: var(--ll-a-ink-3); }
+
+/* The preset thumbnails are authored art and keep their own gradients. */
+.oa-root .oa-main .rv-preset-spotlight-name { color: var(--ll-a-text-strong); font-weight: 800; }
+
+.oa-root .oa-main .rv-preset-search-row { border-color: var(--ll-a-line); }
+
+.oa-root .oa-main .rv-preset-group .drc-header:hover .rv-preset-group-hdr-label { color: var(--ll-a-text-strong); }
+
+/* Palette, add-FX and layer-effect rows */
+.oa-root .oa-main .rv-ctrl-palette-row-label { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .rv-ctrl-palette-hdr { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .rv-ae-tcb-fx { color: var(--ll-a-coral); }
+
+.oa-root .oa-main :is(.rv-ae-tcb-group, .rv-canvas-layer-effects-group, .rv-canvas-layer-media-row, .rv-canvas-auto-select-block) { background: transparent; border-color: var(--ll-a-line); box-shadow: none; }
+
+.oa-root .oa-main .rv-ae-tcb-thumb { border-color: transparent; border-radius: var(--ll-a-radius-sm); box-shadow: none; }
+
+/* Audio intelligence: meters are a graphite track with a coral fill; dots light coral. */
+.oa-root .oa-main :is(.vz-mi-panel, .vz-mi-section, .vz-mi-section-body) { background: transparent; border-color: var(--ll-a-line); box-shadow: none; }
+
+.oa-root .oa-main :is(.vz-mi-bar-track, .vz-mi-row-track) { background: var(--ll-a-inset); border-color: transparent; }
+
+.oa-root .oa-main :is(.vz-mi-bar-fill, .vz-mi-row-fill) { background-color: var(--ll-a-coral); box-shadow: none; }
+
+.oa-root .oa-main .vz-mi-dot { background-color: var(--ll-a-ink-4); border-color: transparent; box-shadow: none; }
+
+.oa-root .oa-main .vz-mi-dot--on { background-color: var(--ll-a-coral); box-shadow: none; }
+
+.oa-root .oa-main :is(.vz-mi-section-title, .vz-mi-section-label) { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main :is(.vz-mi-kv-label, .vz-mi-bar-lbl, .vz-mi-row-label, .vz-mi-dot-label, .vz-mi-section-summary, .vz-mi-band-subtitle) { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main :is(.vz-mi-kv-val, .vz-mi-bar-val, .vz-mi-row-val, .vz-mi-summary-metric) { color: var(--ll-a-text-strong); }
+
+/* Tracks list (Lyric Manager Tracks tab): rows are plates; the loaded row takes the tag. */
+.oa-root .oa-main .vz-track-row { background: var(--ll-a-ink-2); border-color: transparent; box-shadow: none; border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .vz-track-row:hover { background: var(--ll-a-ink-3); }
+
+.oa-root .oa-main .vz-track-row--loaded { background: var(--ll-a-ink-3); box-shadow: inset 3px 0 0 var(--ll-a-coral); }
+
+.oa-root .oa-main .vz-track-row-title { color: var(--ll-a-text-strong); font-weight: 700; }
+
+.oa-root .oa-main .vz-track-row-artist { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .vz-track-row-art { background-color: var(--ll-a-inset); border-color: transparent; border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .vz-track-row-state-badges > * { background: var(--ll-a-inset); border-color: transparent; color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .ttv-track-info-label { color: var(--ll-a-text-faint); }
+
+/* ── 9 · Center column ────────────────────────────────────────────────────────────────────────────────────────── */
+.oa-root .oa-main .rv-lower-workspace, .oa-root .oa-main .rv-lower-workspace-surface, .oa-root .oa-main .rv-lower-workspace-surface--track-map {
+  background: var(--ll-a-ink-1);
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: var(--ll-a-radius);
+}
+
+.oa-root .oa-main .rv-lower-workspace-toolbar, .oa-root .oa-main .rv-lower-workspace-tabs { border-color: var(--ll-a-line); background: transparent; }
+
+.oa-root .oa-main .rv-lower-workspace-chevron { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .rv-track-map-strip, .oa-root .oa-main .rv-track-map-strip--embedded { background: transparent; border-color: transparent; box-shadow: none; }
+
+/* Timelines: a graphite stage under the lanes. Section, cue and beat colours are data and stay as authored;
+   only the chrome (lane backgrounds, rules, playhead) is restyled. */
+.oa-root .oa-main .rv-timeline-lanes { background-color: var(--ll-a-inset); border-color: transparent; border-radius: var(--ll-a-radius-sm); box-shadow: none; }
+
+.oa-root .oa-main :is(.rv-timeline-lane, .rv-timeline-cue-row) { border-color: var(--ll-a-line); }
+
+.oa-root .oa-main .rv-timeline-lane-content { background-color: transparent; background-image: none; }
+
+.oa-root .oa-main .rv-timeline-lane-icon, .oa-root .oa-main .track-timeline-icon { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .rv-timeline-lane-icon--cue-rows { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .rv-section-label { color: var(--ll-a-text-strong); font-weight: 700; }
+
+.oa-root .oa-main .rv-timeline-shared-playhead { background-color: #fff; box-shadow: none; }
+
+.oa-root .oa-main .rv-timeline-cue { border-radius: 2px; }
+
+/* Lyric Manager windows: Track Timeline and Cue list */
+.oa-root .oa-main [data-app-workspace='lyrics'] :is(.lmv-window, .lmv-timeline-window, .lmv-cues-window, .lmv-panel) { background: var(--ll-a-ink-1); border-color: transparent; box-shadow: none; }
+
+.oa-root .oa-main .lyric-cue-list__status-dot { box-shadow: none; }
+
+.oa-root .oa-main .lyric-cue-list__status-dot--reviewed { background-color: var(--ll-a-mint); }
+
+.oa-root .oa-main .lyric-cue-list__status-dot--corrected { background-color: var(--ll-a-cyan); }
+
+.oa-root .oa-main :is(.lyric-cue-list, .lyric-cue-list table, .lyric-cue-list tr) { border-color: var(--ll-a-line); }
+
+.oa-root .oa-main .lyric-cue-list tr.is-selected, .oa-root .oa-main .lyric-cue-list tr[aria-selected='true'] { background: var(--ll-a-ink-3); box-shadow: inset 3px 0 0 var(--ll-a-coral); }
+
+/* ── 10 · Settings and pop-ups ────────────────────────────────────────────────────────────────────────────────── */
+.oa-root .oa-main .vsm-modal { background: var(--ll-a-ink-1); border-color: transparent; border-radius: var(--ll-a-radius); box-shadow: none; }
+
+.oa-root .oa-main .vsm-modal.ll-settings-modal { box-shadow: none; }
+
+.oa-root .oa-main :is(.vsm-header, .vsm-nav) { background: transparent; border-color: var(--ll-a-line); }
+
+.oa-root .oa-main .vsm-nav-item { color: var(--ll-a-text-faint); background: transparent; border-color: transparent; }
+
+.oa-root .oa-main .vsm-nav-item:hover { color: var(--ll-a-text); background: var(--ll-a-ink-2); }
+
+.oa-root .oa-main .vsm-nav-item.is-active, .oa-root .oa-main .vsm-nav-item[aria-selected='true'], .oa-root .oa-main .vsm-nav-item[aria-current='page'] {
+  color: var(--ll-a-text-strong);
+  background: var(--ll-a-ink-2);
+  border-color: transparent;
+  box-shadow: inset 3px 0 0 var(--ll-a-coral);
+}
+
+.oa-root .oa-main .vsm-close { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .vsm-close:hover { color: var(--ll-a-text-strong); background: var(--ll-a-ink-2); }
+
+.oa-root .oa-main .vsm-acct-label { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .vsm-acct-avatar-initials { background-color: var(--ll-a-ink-3); border-color: transparent; color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .vsm-acct-avatar-hint { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .vsm-acct-avatar-upload-btn { background-color: var(--ll-a-ink-2); border-color: transparent; color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .vsm-acct-avatar-upload-btn:hover { background-color: var(--ll-a-ink-3); color: var(--ll-a-text-strong); }
+
+/* The primary action is the white key. */
+.oa-root .oa-main .vsm-acct-save-btn, .oa-root .oa-main .vsm-primary-btn, .oa-root .oa-main .dv-confirm-actions .dv-btn-primary {
+  background: var(--ll-a-white-key);
+  border-color: transparent;
+  color: #1a1a20;
+  box-shadow: 0 4px 12px rgba(5, 5, 9, 0.3);
+}
+
+.oa-root .oa-main .dv-confirm-backdrop, .oa-root .oa-main .lmv-dialog-backdrop, .oa-root .oa-main .mum-backdrop { background-color: rgba(10, 10, 14, 0.7); }
+
+.oa-root .oa-main :is(.dv-confirm-dialog, .lmv-dialog, .mum-modal, .mmi-saveas-dialog) {
+  background: var(--ll-a-ink-2);
+  border-color: transparent;
+  border-radius: var(--ll-a-radius);
+  box-shadow: var(--ll-a-float-shadow);
+}
+
+.oa-root .oa-main .dv-confirm-icon--neutral { background-color: var(--ll-a-inset); color: var(--ll-a-text-strong); box-shadow: none; }
+
+.oa-root .oa-main :is(.ll-popup-stage) { background: var(--ll-a-ink-0); border-color: transparent; border-radius: var(--ll-a-radius); }
+
+.oa-root .oa-main .ll-popup-sample > figcaption strong { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .ll-popup-sample > figcaption span { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main :is(.az-popover, .vz-settings-popover, .vz-view-menu, .vz-waveform-context-menu, .ll-popup-menu, .drm-dropdown__menu, .drm-dropdown__panel) {
+  background: var(--ll-a-ink-2);
+  border-color: transparent;
+  border-radius: var(--ll-a-radius);
+  box-shadow: var(--ll-a-float-shadow);
+}
+
+/* ── 12 · Canonical control primitives (canonicalControls.css declares these with !important, so these do too) ── */
+/* Underline dropdowns and text inputs become filled wells. The fill bleeds 6px past the text on each side as a shadow, so the box,
+   padding and text keep their exact production position; hover and focus draw a coral rule where the underline was. */
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__trigger,
+.oa-root .oa-main .dv-text-input {
+  border-bottom-color: transparent !important;
+  border-radius: 14px !important;
+  background: var(--ll-a-inset) !important;
+  color: var(--ll-a-text-strong) !important;
+  box-shadow: var(--oa-well-shadow) !important;
+  min-height: 40px;
+}
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__trigger:hover:not(:disabled),
+.oa-root .oa-main .dv-underline-dropdown.drm-dropdown--open .drm-dropdown__trigger,
+.oa-root .oa-main .dv-text-input:hover:not(:disabled):not(:read-only),
+.oa-root .oa-main .dv-text-input:focus, .oa-root .oa-main .dv-text-input:focus-visible {
+  border-bottom-color: var(--ll-a-coral) !important;
+  background: #202127 !important;
+  box-shadow: var(--oa-well-shadow) !important;
+}
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__eyebrow { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__value { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__chevron { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .dv-underline-dropdown.drm-dropdown--open .drm-dropdown__chevron { color: var(--ll-a-coral); }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__menu {
+  background: var(--ll-a-ink-2);
+  border: 0;
+  border-radius: var(--ll-a-radius);
+  box-shadow: var(--ll-a-float-shadow);
+}
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__option { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__option::before { background: var(--ll-a-coral); width: 3px; top: 0; bottom: 0; }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__option:hover:not(.drm-dropdown__option--disabled) { color: var(--ll-a-text-strong); background: var(--ll-a-ink-3) !important; }
+
+.oa-root .oa-main .dv-underline-dropdown .drm-dropdown__option--selected { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-text-input::placeholder { color: var(--ll-a-text-faint) !important; }
+
+/* Sliders: graphite track, coral fill, a plain white thumb (shown on hover as before). */
+.oa-root .oa-main .dv-bubble-slider {
+  background: linear-gradient(to right, var(--ll-a-coral) var(--dv-slider-pct, 50%), var(--ll-a-ink-3) var(--dv-slider-pct, 50%)) !important;
+}
+
+.oa-root .oa-main .dv-bubble-slider::-webkit-slider-thumb { background: #fff !important; box-shadow: 0 1px 5px rgba(5, 5, 9, 0.55) !important; }
+
+.oa-root .oa-main .dv-bubble-slider::-moz-range-thumb { background: #fff !important; box-shadow: 0 1px 5px rgba(5, 5, 9, 0.55) !important; }
+
+.oa-root .oa-main .dv-bubble-slider::-moz-range-track { background: var(--ll-a-ink-3) !important; }
+
+.oa-root .oa-main .dv-bubble-slider::-moz-range-progress { background: var(--ll-a-coral) !important; }
+
+.oa-root .oa-main .dv-bubble-slider__popover { background: var(--ll-a-ink-3); border-color: transparent; color: var(--ll-a-text-strong); box-shadow: var(--ll-a-float-shadow); }
+
+.oa-root .oa-main .dv-bubble-slider__popover::after { background: var(--ll-a-ink-3); border-color: transparent; }
+
+.oa-root .oa-main .rv-ctrl-slider { background: linear-gradient(to right, var(--ll-a-coral) 0%, var(--ll-a-coral) var(--pct, 50%), var(--ll-a-ink-3) var(--pct, 50%), var(--ll-a-ink-3) 100%) !important; }
+
+/* Toggles: a graphite ring that fills solid coral with a dark tick when on. */
+.oa-root .oa-main .dv-icon-morph-toggle, .oa-root .oa-main .dv-icon-morph-checkbox {
+  border-color: var(--ll-a-ink-4) !important;
+  background: transparent !important;
+  color: var(--ll-a-text-faint);
+}
+
+.oa-root .oa-main .dv-icon-morph-toggle.is-on, .oa-root .oa-main .dv-icon-morph-checkbox.is-on,
+.oa-root .oa-main .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) {
+  border-color: var(--ll-a-coral) !important;
+  background: var(--ll-a-coral) !important;
+  box-shadow: none !important;
+  color: #1a1a20;
+}
+
+.oa-root .oa-main .dv-icon-morph-toggle:focus-visible, .oa-root .oa-main .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:focus-visible) { outline-color: rgba(var(--ll-a-coral-rgb), 0.55); }
+
+/* Underline tabs: the active tab is white with a short coral tag (the underline keeps its box and position). */
+.oa-root .oa-main .dv-underline-tabs { border-bottom-color: var(--ll-a-line); }
+
+.oa-root .oa-main .dv-underline-tab { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .dv-underline-tab::after { background: var(--ll-a-coral); box-shadow: none; border-radius: 0; height: 2px; }
+
+.oa-root .oa-main .dv-underline-tab:hover { color: var(--ll-a-text); }
+
+.oa-root .oa-main .dv-underline-tab.is-active { color: var(--ll-a-text-strong); }
+
+/* Notices carry their tone in the 3px tag and the icon. */
+.oa-root .oa-main .dv-notice { --dv-notice-tone: var(--ll-a-cyan); background: var(--ll-a-ink-2); border-radius: 0 var(--ll-a-radius-sm) var(--ll-a-radius-sm) 0; }
+
+.oa-root .oa-main .dv-notice[data-tone='warning'] { --dv-notice-tone: var(--ll-a-amber); }
+
+.oa-root .oa-main .dv-notice[data-tone='error'] { --dv-notice-tone: var(--ll-a-rose); }
+
+.oa-root .oa-main .dv-notice[data-tone='success'] { --dv-notice-tone: var(--ll-a-mint); }
+
+.oa-root .oa-main .dv-notice { border-left-color: var(--dv-notice-tone); }
+
+.oa-root .oa-main .dv-notice-icon { color: var(--dv-notice-tone); }
+
+.oa-root .oa-main .dv-notice-title { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-notice-body strong { color: var(--ll-a-text-strong); }
+
+/* Chips and the destructive tone */
+.oa-root .oa-main .dv-icon-chip { }
+
+.oa-root .oa-main .dv-icon-chip.dv-icon-chip--danger { background: rgba(229, 98, 109, 0.12); color: var(--ll-a-rose); border-color: transparent; }
+
+.oa-root .oa-main .dv-icon-chip.dv-icon-chip--danger:hover:not(:disabled) { background: rgba(229, 98, 109, 0.22); }
+
+.oa-root .oa-main .dv-badge { background: var(--ll-a-ink-3); border-color: transparent; color: var(--ll-a-text); border-radius: 2px; }
+
+/* Layer rows: the tag is the row's own accent bar; the active row is lifted one tone, not glowing. */
+.oa-root .oa-main .dv-layer-row.is-active { border-color: transparent; background: var(--ll-a-ink-3); box-shadow: none; }
+
+.oa-root .oa-main .dv-layer-row.is-active .dv-layer-row-accent { box-shadow: none; }
+
+.oa-root .oa-main .dv-layer-row.is-active .dv-layer-row-label { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-layer-row-label { color: var(--ll-a-text); font-weight: 700; }
+
+.oa-root .oa-main .dv-layer-row { --layer-row-tone: var(--ll-a-coral); }
+
+.oa-root .oa-main .dv-layer-row-ghost { color: rgba(255, 255, 255, 0.035); }
+
+.oa-root .oa-main .dv-track-row { background: var(--ll-a-ink-2); border-color: transparent; border-radius: var(--ll-a-radius-sm); box-shadow: none; }
+
+.oa-root .oa-main .dv-track-row.is-active { background: var(--ll-a-ink-3); box-shadow: inset 3px 0 0 var(--ll-a-coral); }
+
+.oa-root .oa-main .dv-track-row-title { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-track-row-artist, .oa-root .oa-main .dv-track-row-meta { color: var(--ll-a-text-muted); }
+
+/* Scrub fields: a graphite well whose fill is a flat coral band. */
+.oa-root .oa-main .dv-scrub { background: var(--ll-a-inset); border-color: transparent; border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .dv-scrub:focus, .oa-root .oa-main .dv-scrub:focus-visible { border-color: transparent; box-shadow: inset 3px 0 0 var(--ll-a-coral); }
+
+.oa-root .oa-main .dv-scrub-fill { background: rgba(var(--ll-a-coral-rgb), 0.28); border-right-color: var(--ll-a-coral); }
+
+.oa-root .oa-main .dv-scrub-value { color: var(--ll-a-text-strong); }
+
+/* Confirmation dialogs */
+.oa-root .oa-main .dv-confirm-dialog h2 { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .dv-confirm-dialog > p { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .dv-confirm-count-danger { color: var(--ll-a-rose); }
+
+.oa-root .oa-main .dv-confirm-icon--neutral { color: var(--ll-a-text-strong); }
+
+/* Sub-tabs (Engine / Selection) read as the same tabs as the rest: white when active, with the coral dot. */
+.oa-root .oa-main .rv-right-subtabs > button { border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main .rv-right-subtabs > button.is-active { color: var(--ll-a-text-strong) !important; background: transparent !important; border-color: transparent !important; box-shadow: none !important; }
+
+.oa-root .oa-main .rv-right-subtabs > button.is-active::before { background: var(--ll-a-coral) !important; box-shadow: none !important; }
+
+/* A destructive confirmation is a solid rose key rather than the white one. */
+.oa-root .oa-main .dv-confirm-actions .dv-icon-chip.dv-icon-chip--danger { background: var(--ll-a-rose); color: #1a1a20; border-color: transparent; box-shadow: 0 4px 12px rgba(5, 5, 9, 0.3); }
+
+.oa-root .oa-main .dv-confirm-actions .dv-icon-chip.dv-icon-chip--danger:hover:not(:disabled) { background: #ee7680; }
+
+/* Audio Intelligence header and its sections */
+.oa-root .oa-main .ttv-analysis-panel-header { background: var(--ll-a-ink-2); border-color: transparent; box-shadow: inset 3px 0 0 var(--ll-a-coral); border-radius: var(--ll-a-radius-sm); color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .ttv-analysis-panel-header * { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .vz-mi-section-title, .oa-root .oa-main .vz-mi-section-title--toggle { color: var(--ll-a-text-muted); letter-spacing: 0.14em; font-weight: 700; }
+
+.oa-root .oa-main .vz-mi-section-title--toggle:hover { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .vz-mi-section-icon, .oa-root .oa-main .vz-mi-section-arrow { color: var(--ll-a-text-faint); }
+
+/* Track art tiles: a flat graphite tile with the initials in coral (the authored gradient is chrome, not art). */
+.oa-root .oa-main .vz-track-row-art { background-color: var(--ll-a-inset); background-image: none; border-color: transparent; box-shadow: none; color: var(--ll-a-coral); }
+
+.oa-root .oa-main .vz-track-row-art > * { color: var(--ll-a-coral); text-shadow: none; }
+
+.oa-root .oa-main :is(.vz-mi-bar-fill, .vz-mi-row-fill) { background: var(--ll-a-coral) !important; background-image: none !important; }
+
+.oa-root .oa-main .rv-section-label { text-shadow: none; }
+
+.oa-root .oa-main .rv-lower-workspace-tabs button.is-active, .oa-root .oa-main .rv-lower-workspace-tabs button[aria-selected='true'] { color: var(--ll-a-text-strong) !important; }
+
+.oa-root .oa-main .drc-group .drc-group > .drc-header :is(.drc-header-label, span:first-child) { font-size: 10px; font-weight: 700; line-height: 11px; }
+
+/* Settings groups are plates one tone above the modal; the controls on them step up once more. */
+.oa-root .oa-main .vsm-settings-group { background: var(--ll-a-ink-2); border-color: transparent; border-radius: var(--ll-a-radius); box-shadow: none; }
+
+.oa-root .oa-main .vsm-settings-group :is(.vz-settings-seg-btn, .vz-settings-reset-btn, .vsm-settings-btn) { background: var(--ll-a-ink-3); border-color: transparent; }
+
+.oa-root .oa-main .vsm-settings-group :is(.vz-settings-seg-btn, .vz-settings-reset-btn, .vsm-settings-btn):hover:not(:disabled) { background: var(--ll-a-ink-4); }
+
+/* Toggles are rounded squares, never circles or pills (same box as production). */
+.oa-root .oa-main .dv-icon-morph-toggle, .oa-root .oa-main .dv-icon-morph-checkbox { border-radius: 4px !important; }
+
+/* ── 15 · Menus, drawers and the media editor modals ──────────────────────────────────────────────────────────── */
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu, .vz-waveform-context-menu) {
+  background: var(--ll-a-ink-2);
+  border-color: transparent;
+  border-radius: var(--ll-a-radius);
+  box-shadow: var(--ll-a-float-shadow);
+  backdrop-filter: none;
+}
+
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu) button { color: var(--ll-a-text); border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu) button:hover:not(:disabled),
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu) button:focus-visible {
+  background: var(--ll-a-ink-3);
+  color: var(--ll-a-text-strong);
+  box-shadow: inset 3px 0 0 var(--ll-a-coral);
+}
+
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu) button.rv-show-director-context-menu__danger { color: var(--ll-a-rose); }
+
+.oa-root .oa-main :is(.rv-show-director-context-menu, .vz-app-context-menu) button.rv-show-director-context-menu__danger:hover:not(:disabled) { background: rgba(229, 98, 109, 0.14); box-shadow: inset 3px 0 0 var(--ll-a-rose); }
+
+.oa-root .oa-main .rv-show-director-context-menu__divider { background: var(--ll-a-line); }
+
+.oa-root .oa-main .vz-waveform-context-menu__meta span { color: var(--ll-a-cyan); }
+
+.oa-root .oa-main .vz-waveform-context-menu__meta em, .oa-root .oa-main .vz-app-context-menu__meta span { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .vz-waveform-context-menu__meta strong, .oa-root .oa-main .vz-app-context-menu__meta strong { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .vz-app-context-menu__submenu-trigger { color: var(--ll-a-text); }
+
+.oa-root .oa-main .vz-notifications-drawer { background-color: var(--ll-a-ink-1); background-image: none; border-color: transparent; box-shadow: var(--ll-a-float-shadow); }
+
+.oa-root .oa-main .vz-notifications-scrim { background-color: rgba(10, 10, 14, 0.6); background-image: none; }
+
+.oa-root .oa-main :is(.mmv-editor-modal, .mum-modal, .mpm-modal) { background-color: var(--ll-a-ink-2); border-color: transparent; border-radius: var(--ll-a-radius); box-shadow: var(--ll-a-float-shadow); }
+
+.oa-root .oa-main .mmv-editor-modal h2, .oa-root .oa-main .mum-modal h2 { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .mum-field-label { color: var(--ll-a-text-muted); }
+
+.oa-root .oa-main .mum-req { color: var(--ll-a-coral); }
+
+.oa-root .oa-main :is(.mum-input, .mum-textarea) { background: var(--ll-a-inset); border-color: transparent; color: var(--ll-a-text-strong); border-radius: var(--ll-a-radius-sm); }
+
+.oa-root .oa-main :is(.mum-input, .mum-textarea):focus { border-color: transparent; box-shadow: inset 3px 0 0 var(--ll-a-coral); outline: 0; }
+
+.oa-root .oa-main .drm-dropdown__trigger.mum-select { border-color: transparent; background: var(--ll-a-inset); }
+
+.oa-root .oa-main .mpm-close { color: var(--ll-a-text-faint); }
+
+.oa-root .oa-main .mpm-close:hover { color: var(--ll-a-text-strong); }
+
+.oa-root .oa-main .lmv-recovery-review { color: var(--ll-a-text); }
+
+.oa-root .oa-main :is(.dv-badge-dot) { background-color: var(--ll-a-coral); }
+
+.oa-root .oa-main .drm-dropdown__trigger.mum-select, .oa-root .oa-main .dv-badge { border-color: transparent !important; }
+
+.oa-root .oa-main .dv-badge-dot { color: var(--ll-a-coral); }

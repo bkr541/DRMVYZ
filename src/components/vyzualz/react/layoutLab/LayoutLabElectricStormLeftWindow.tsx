@@ -23,8 +23,8 @@ const LEFT_TABS: RailTabOption<'source' | 'layers' | 'notice'>[] = [
   { id: 'notice', label: 'NOTICE' },
 ]
 
-type LibraryFilter = 'all' | 'collections' | 'favorites' | 'images' | 'videos'
-const FILTER_TABS: { id: LibraryFilter; label: string }[] = [
+export type LibraryFilter = 'all' | 'collections' | 'favorites' | 'images' | 'videos'
+export const FILTER_TABS: { id: LibraryFilter; label: string }[] = [
   { id: 'all', label: 'ALL' },
   { id: 'collections', label: 'COLLECTIONS' },
   { id: 'favorites', label: 'FAVORITES' },
@@ -32,7 +32,7 @@ const FILTER_TABS: { id: LibraryFilter; label: string }[] = [
   { id: 'videos', label: 'VIDEOS' },
 ]
 
-interface MockMedia { id: string; title: string; badge: string; video?: boolean; favorite?: boolean; tint: [string, string] }
+export interface MockMedia { id: string; title: string; badge: string; video?: boolean; favorite?: boolean; tint: [string, string] }
 
 const TINTS: [string, string][] = [
   ['#0b1220', '#6f86b8'], ['#0a0a12', '#b9c4d8'], ['#0b0b1a', '#7a6fd6'], ['#101010', '#a8a8a8'],
@@ -48,23 +48,23 @@ const TITLES: [string, string][] = [
   ['DVYDRM Glitch…', 'BG IMAGE'], ['Chrome DVYDRM…', 'BG IMAGE'], ['Neon Glitch…', 'BG IMAGE'], ['image(2026…', 'BG IMAGE'],
   ['DVYDRM Underground…', 'BG IMAGE'], ['Prismatic DVYDRM…', 'BG IMAGE'], ['DVYDRM wordmark…', 'BG IMAGE'], ['DVYDRM wordmark…', 'BG IMAGE'],
 ]
-const MEDIA: MockMedia[] = [
+export const MEDIA: MockMedia[] = [
   ...TITLES.map(([title, badge], index): MockMedia => ({ id: `m${index}`, title, badge, favorite: index % 5 === 2, tint: TINTS[index]! })),
   { id: 'v0', title: 'Tunnel loop', badge: 'BG VIDEO', video: true, tint: ['#05080f', '#2a6fb0'] },
   { id: 'v1', title: 'Cube field', badge: 'VID', video: true, favorite: true, tint: ['#04101a', '#3fd6e8'] },
   { id: 'v2', title: 'Laser sweep', badge: 'VID', video: true, tint: ['#070a18', '#6f6fe8'] },
   { id: 'v3', title: 'Haze drift', badge: 'VID', video: true, tint: ['#0a0f10', '#8fb0b8'] },
 ]
-const SELECTED_ID = 'm17'
+export const SELECTED_ID = 'm17'
 
 // The Layers tab lists what the preset declares: Electric Storm's manifest is compiled with the production compiler, so
 // the row (and any layer the preset gains) is exactly what the app's Layers tab shows for it, with no runtime started.
-const ELECTRIC_STORM_LAYERS = (() => {
+export const ELECTRIC_STORM_LAYERS = (() => {
   const manifest = cinema2NativePresetRegistry.list().find(preset => preset.metadata.name === 'Electric Storm')
   return (manifest && compileCinema2NativePreset(manifest).plan?.scene.layers) || []
 })()
 
-function thumbnailStyle([dark, light]: [string, string]): CSSProperties {
+export function thumbnailStyle([dark, light]: [string, string]): CSSProperties {
   return { background: `radial-gradient(ellipse at 50% 38%, ${light}, ${dark} 72%)` }
 }
 

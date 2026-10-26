@@ -1,0 +1,129 @@
+/* Bounded presentation adapters for behavior-owning editors. Lane coordinates,
+   semantic cue colours, authored media and pointer handlers remain owned by the features. */
+.oc-root .oc-feature { --workspace-rail-inset: 0px; --workspace-group-gap: 16px; --control-row-gap: 15px; color: var(--oc-text); min-width: 0; }
+.oc-root .oc-feature :is(.vz-panel,.vz-panel-body,.rv-inspector,.rv-engine-panel-list,.rv-workspace-panel,.rv-workspace-panel-body,.rv-preset-scroll,.rv-right-subtabs--embedded,.rv-canvas-engine-panel,.rv-canvas-library-shell,.rv-ctrl-group) { background: transparent; border-color: var(--oc-line); box-shadow: none; }
+.oc-root .oc-feature :is(.drc-group,.vz-mi-panel,.vz-mi-section-body) { background: transparent; border-color: var(--oc-line); box-shadow: none; }
+.oc-root .oc-feature :is(.drc-header,.lmv-live-preview-header) { min-height: 51px; padding: 17px 0; border-color: #ffffff0b; background: transparent; color: var(--oc-text); box-shadow: none; }
+.oc-root .oc-feature .drc-header-title { font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); }
+.oc-root .oc-feature :is(.drc-header-icon,.drc-arrow) { color: var(--oc-muted); }
+.oc-root .oc-feature .drc-body { padding: 0 0 20px; gap: 16px; border-radius: 0; background: transparent; box-shadow: none; }
+.oc-root .oc-feature .drc-group .drc-group > .drc-header { padding-left: 24px; }
+.oc-root .oc-feature .drc-group .drc-group > .drc-header .drc-header-title { font: var(--type-nested-group-heading); letter-spacing: .07em; }
+.oc-root .oc-feature .drc-group .drc-group > .drc-body { padding-left: 24px; }
+.oc-root .oc-feature :is(.dv-underline-tabs,.rv-right-subtabs,.rv-workspace-tabs,.rv-lower-workspace-tabs) { gap: 6px; padding: 5px 0 12px; border-color: #ffffff09; background: transparent; box-shadow: none; }
+.oc-root .oc-feature :is(.dv-underline-tab,.rv-right-subtabs > button,.rv-lower-workspace-tab) { min-height: 32px; padding: 8px 12px; border: 1px solid transparent; border-radius: 18px; color: var(--oc-muted); text-shadow: none; background: transparent; box-shadow: none; text-transform: none; }
+.oc-root .oc-feature .rv-right-subtabs > button::before { display: none; }
+.oc-root .oc-feature :is([role='tab'][aria-selected='true'],.rv-lower-workspace-tab.is-active) { color: var(--oc-text); background: #ffffff09; border-color: #ffffff12; box-shadow: none; }
+.oc-root .oc-feature :is(.rv-ctrl-row,.rv-ctrl-toggle-row) { gap: 9px; margin-bottom: 9px; }
+.oc-root .oc-feature :is(.rv-ctrl-label,.rv-ctrl-description) { color: var(--oc-muted); }
+.oc-root .oc-feature .rv-ctrl-val { color: var(--oc-text); background: transparent; border: 0; font-variant-numeric: tabular-nums; }
+.oc-root .oc-feature :is(.dv-text-input,.rv-ctrl-text-input,.rv-ctrl-textarea,.mum-input,.vsm-acct-input,.lyric-cue-list__input,.lyric-word-editor__input) { min-height: 36px; padding: 9px 12px; border: 1px solid #ffffff16; border-radius: 12px; background: var(--oc-well); color: var(--oc-text); box-shadow: inset 0 1px 3px #0003; }
+.oc-root .oc-feature input::placeholder { color: var(--oc-faint); }
+.oc-root .oc-feature .drm-dropdown__trigger { min-height: 36px; padding: 9px 12px; border: 1px solid #ffffff16; border-radius: 12px; background: var(--oc-well); color: var(--oc-text); box-shadow: none; }
+.oc-root .oc-feature .dv-underline-dropdown .drm-dropdown__trigger { padding: 9px 12px !important; border: 1px solid #ffffff16 !important; border-radius: 12px !important; background: var(--oc-well) !important; box-shadow: none !important; }
+.oc-root .oc-feature .drm-dropdown__trigger::after { display: none; }
+.oc-root .oc-feature :is(.dv-bubble-slider,.rv-ctrl-slider) { height: 3px; border-radius: 4px; background: linear-gradient(to right,var(--oc-accent) var(--pct,50%),#3c3b38 var(--pct,50%)) !important; box-shadow: none; }
+.oc-root .oc-feature :is(.dv-bubble-slider,.rv-ctrl-slider)::-webkit-slider-thumb { width: 10px; height: 10px; border: 2px solid #292623; border-radius: 50%; background: #d8d1c9; box-shadow: 0 0 0 1px #aaa096; }
+.oc-root .oc-feature :is(.dv-icon-morph-toggle,.rv-ctrl-toggle) { border-radius: 50%; background: #ffffff06; border-color: #ffffff12; color: var(--oc-muted); box-shadow: none; }
+.oc-root .oc-feature .dv-icon-morph-toggle[role='switch'] { position: relative; width: 32px; min-width: 32px; height: 24px; min-height: 24px; border: 0; background: none; padding: 0; }
+.oc-root .oc-feature .dv-icon-morph-toggle[role='switch'] svg { display: none; }
+.oc-root .oc-feature .dv-icon-morph-toggle[role='switch']::before { content:''; position: absolute; inset: 3px 0; border-radius: 20px; background: #373632; }
+.oc-root .oc-feature .dv-icon-morph-toggle[role='switch']::after { content:''; position: absolute; left: 3px; top: 7px; width: 10px; height: 10px; background: #8b8880; border-radius: 50%; transition: transform .15s; }
+.oc-root .oc-feature .dv-icon-morph-toggle[aria-checked='true']::before { background: #54aaa72b; }
+.oc-root .oc-feature .dv-icon-morph-toggle[aria-checked='true']::after { transform: translateX(16px); background: var(--oc-teal); }
+.oc-root .oc-feature :is(.dv-icon-chip,.rv-action-btn,.vz-track-action-btn,.vz-settings-seg-btn,.vsm-acct-avatar-upload-btn,.lyric-cue-list__button,.lyric-word-editor__button) { min-height: 30px; border-radius: 20px; padding-inline: 10px; background: #ffffff06; border-color: #ffffff12; color: var(--oc-muted); box-shadow: none; }
+.oc-root .oc-feature :is(.dv-icon-chip,.rv-action-btn,.vz-track-action-btn,.lyric-cue-list__button):hover:not(:disabled) { background: #ffffff0d; color: var(--oc-text); }
+.oc-root .oc-feature :is(.dv-btn-primary,.vsm-acct-save-btn,.vsm-primary-btn) { border-radius: 20px; background: var(--oc-accent); color: #201109; border-color: var(--oc-accent); box-shadow: none; }
+/* Preset cards become broad landscape covers, preserving registry artwork and selection. */
+.oc-root .oc-feature .rv-engine-panel-list--rail-presets { height: auto; min-height: 100%; }
+.oc-root .oc-feature .rv-preset-group-cards--poster { grid-template-columns: 1fr; gap: 14px; padding: 8px 0 20px; }
+.oc-root .oc-feature :is(.rv-preset-card-shell,.rv-preset-card,.rv-preset-spotlight-shell,.rv-preset-spotlight-card) { border-radius: 17px; border-color: #ffffff14; box-shadow: none; }
+.oc-root .oc-feature .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster { display: grid; grid-template-columns: 42% 1fr; aspect-ratio: auto; min-height: 100px; padding: 0; overflow: hidden; border-radius: 17px; background: #ffffff03; box-shadow: none; }
+.oc-root .oc-feature .rv-preset-spotlight-card--poster .rv-preset-spotlight-thumb { position: relative; inset: auto; height: 100%; min-height: 100px; width: 100%; border-radius: 0; }
+.oc-root .oc-feature .rv-preset-spotlight-card--poster .rv-preset-spotlight-caption { position: relative; inset: auto; padding: 15px; justify-content: center; align-items: flex-start; text-align: left; background: transparent; }
+.oc-root .oc-feature .rv-preset-spotlight-name { font-size: 13px; font-weight: 400; line-height: 1.5; letter-spacing: 0; }
+.oc-root .oc-feature .rv-preset-spotlight-card--active { border-color: #f77b3d99; }
+/* Intelligence is a series of rounded instruments; semantic states remain distinguishable. */
+.oc-root .ll-audio-intelligence { height: auto; overflow: visible; }
+.oc-root .oc-feature .ttv-analysis-panel-header { padding: 20px 0; margin: 0; background: transparent; box-shadow: none; border-color: var(--oc-line); font-size: 18px; font-weight: 400; }
+.oc-root .oc-feature .ttv-analysis-panel-body { padding: 0; overflow: visible; }
+.oc-root .oc-feature .ttv-track-info-grid { gap: 18px 12px; padding: 15px 0 24px; }
+.oc-root .oc-feature .ttv-track-info-label { font-size: 9px; color: var(--oc-muted); margin-bottom: 6px; }
+.oc-root .oc-feature .ttv-track-info-value { font-size: 12px; font-weight: 400; line-height: 1.5; }
+.oc-root .oc-feature .vz-mi-section { padding: 16px 13px; margin: 0 0 12px; border-radius: 16px; border: 1px solid #ffffff09; background: linear-gradient(130deg,#ffffff04,transparent),#111; box-shadow: none; }
+.oc-root .oc-feature .vz-mi-section-title--toggle { min-height: 30px; font-size: 11px; letter-spacing: .08em; color: var(--oc-text); }
+.oc-root .oc-feature :is(.vz-mi-bar-track,.vz-mi-row-track) { background: #30302c; border-color: transparent; border-radius: 6px; }
+.oc-root .oc-feature :is(.vz-mi-bar-fill,.vz-mi-row-fill) { background: linear-gradient(0deg,#376f6d,#68b8b3) !important; border-radius: 5px; box-shadow: none; }
+.oc-root .oc-feature :is(.vz-mi-kv-label,.vz-mi-bar-lbl,.vz-mi-row-label,.vz-mi-dot-label,.vz-mi-section-summary) { color: var(--oc-muted); }
+.oc-root .oc-feature :is(.vz-mi-kv-val,.vz-mi-bar-val,.vz-mi-row-val) { color: var(--oc-text); font-weight: 400; font-variant-numeric: tabular-nums; }
+.oc-root .oc-feature .vz-mi-dot { background: #494740; box-shadow: none; }
+.oc-root .oc-feature .vz-mi-dot--on { background: var(--oc-teal); }
+/* Track cards: inset identities with a clear version stack and round state badges. */
+.oc-root .oc-feature :is(.vz-track-row,.dv-track-row,.lmv-doc-card) { border: 1px solid #ffffff0c; border-radius: 17px; padding: 14px 12px; margin: 0 0 10px; background: #ffffff03; box-shadow: none; }
+.oc-root .oc-feature :is(.vz-track-row--selected,.vz-track-row--loaded,.dv-track-row.is-active,.lmv-doc-card.is-active) { border-color: #f77b3d77; background: #f77b3d07; box-shadow: none; }
+.oc-root .oc-feature :is(.vz-track-row-title,.dv-track-row-title,.lmv-doc-card-title) { color: var(--oc-text); font-size: 13px; font-weight: 400; line-height: 1.5; }
+.oc-root .oc-feature :is(.vz-track-row-artist,.dv-track-row-artist,.dv-track-row-meta) { color: var(--oc-muted); font-size: 10px; }
+.oc-root .oc-feature .vz-track-row-art { border-radius: 50%; background: #282724; color: var(--oc-muted); border-color: #ffffff10; }
+.oc-root .oc-feature .vz-track-row-state-badges > * { border-radius: 20px; color: var(--oc-teal); background: #54aaa712; border-color: #54aaa735; }
+.oc-root .oc-feature .lmv-track-versions { border: 0; border-radius: 15px; padding: 10px; margin-top: 10px; background: #0e0e0e; }
+.oc-root .oc-feature .lmv-version-row { border-radius: 10px; padding: 12px 8px; border-color: var(--oc-line); }
+/* Sequence architecture: the linked timeline and cue editor remain siblings. */
+.oc-root .oc-editing [data-app-workspace='lyrics'] { --fw-surface-background: transparent; --fw-surface-border: transparent; --fw-surface-shadow: none; }
+.oc-root .oc-editing .ll-lyric-timeline-host > section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.oc-root .oc-editing :is(.rv-lower-workspace,.rv-lower-workspace-toolbar,.rv-track-map-strip,.rv-track-map-strip--embedded,.rv-lower-workspace-surface) { background: transparent; border-color: #ffffff09; box-shadow: none; }
+.oc-root .oc-editing .rv-lower-workspace-toolbar { min-height: 50px; padding: 10px 0; gap: 4px; flex-wrap: wrap; }
+.oc-root .oc-editing .rv-timeline-lanes { border: 1px solid #ffffff0a; border-radius: 13px; background: #0b0b0b; box-shadow: none; }
+.oc-root .oc-editing :is(.rv-timeline-lane,.rv-timeline-cue-row) { border-color: #ffffff0b; }
+.oc-root .oc-editing .rv-timeline-lane-content { background-color: transparent; background-image: none; }
+.oc-root .oc-editing :is(.rv-timeline-lane-icon,.track-timeline-icon,.rv-lower-workspace-chevron) { color: var(--oc-muted); }
+.oc-root .oc-editing .rv-timeline-shared-playhead { background: var(--oc-accent); box-shadow: none; }
+.oc-root .oc-editing .lyric-cue-block { border-radius: 6px; box-shadow: none; }
+.oc-root .oc-editing .lyric-cue-block--selected { border-color: var(--oc-accent); background: #f77b3d33; }
+.oc-root .oc-editing .lyric-cue-list__controls { padding: 10px 0 18px; gap: 9px; flex-wrap: wrap; }
+.oc-root .oc-editing .lyric-cue-list__table th { height: 32px; padding: 10px 8px; background: #101010; border-color: #ffffff0b; color: var(--oc-muted); font-size: 10px; font-weight: 400; }
+.oc-root .oc-editing .lyric-cue-list__table td { padding: 12px 8px; height: 39px; font-size: 11px; border-color: #ffffff09; }
+.oc-root .oc-editing .lyric-cue-list__row--selected { background: #f77b3d12; box-shadow: inset 2px 0 var(--oc-accent); }
+.oc-root .oc-editing .lyric-cue-list__editor { border-radius: 16px; padding: 18px 13px; background: #0d0d0d; }
+/* Settings/dialogs and nested overlays inherit the same materials, not production chrome. */
+.oc-root .oc-feature :is(.ll-settings-window,.ll-popups-window) { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.oc-root .oc-feature :is(.vsm-modal,.vsm-modal.ll-settings-modal) { width: 100%; border: 1px solid #ffffff10; border-radius: 18px; background: #111; box-shadow: none; }
+.oc-root .oc-feature :is(.vsm-header,.vsm-nav,.vsm-content,.vsm-settings-group,.vsm-acct-card,.vsm-dev-panel,.vsm-dev-toolbar) { background: transparent; border-color: #ffffff0c; box-shadow: none; }
+.oc-root .oc-feature .vsm-body { flex-direction: column; }
+.oc-root .oc-feature .vsm-nav { width: 100%; flex-direction: row; flex-wrap: wrap; padding: 10px; border-right: 0; border-bottom: 1px solid #ffffff0c; }
+.oc-root .oc-feature .vsm-nav-item { min-height: 32px; width: auto; flex: 1 0 auto; padding: 9px 12px; border-radius: 20px; color: var(--oc-muted); }
+.oc-root .oc-feature .vsm-nav-item--active { background: #ffffff0a; color: var(--oc-text); }
+.oc-root .oc-feature :is(.vsm-settings-group h2,.vsm-title) { color: var(--oc-text); font-weight: 500; }
+.oc-root .oc-feature .vsm-content { padding: 18px; }
+.oc-root .oc-feature .vsm-dev-log-table { min-width: 850px; table-layout: fixed; }
+.oc-root .oc-feature .vsm-dev-log-message { min-width: 380px; }
+.oc-root .oc-feature :is(.dv-confirm-dialog,.lmv-dialog,.mmv-editor-modal,.drm-info-popover,.vz-notifications-drawer) { background: linear-gradient(140deg,#242422,#161616); border-color: #ffffff1c; border-radius: 20px; box-shadow: 0 16px 40px #0003; }
+.oc-root .oc-feature :is(.ll-popup-menu,.vz-waveform-context-menu,.mmv-menu,.drm-context-menu) { padding: 8px; border: 1px solid #ffffff1c; border-radius: 15px; background: #242422; box-shadow: 0 16px 40px #0004; }
+.oc-root .oc-feature [role='menuitem'] { border-radius: 9px; min-height: 34px; }
+.oc-root .oc-feature :is(.dv-notice,.lmv-recovery-review) { border-radius: 13px; background-color: #ffffff05; box-shadow: none; }
+.oc-root .oc-feature .ll-popup-stage { border-radius: 18px; border-color: #ffffff09; background: #0b0b0b; }
+.oc-root .oc-feature :is(.dv-confirm-title,.mmv-editor-title,.lmv-dialog h2) { font-size: 18px; font-weight: 400; letter-spacing: -.02em; }
+.oc-root .oc-feature :is(.dv-confirm-description,.mmv-editor-description) { color: var(--oc-muted); line-height: 1.7; }
+.oc-root .oc-feature :is(.dv-confirm-btn,.mum-btn,.lmv-dialog button) { border-radius: 20px; box-shadow: none; }
+@media (max-width:1250px) { .oc-root .oc-feature .vsm-content { padding: 14px; } .oc-root .oc-feature .vsm-dev-toolbar { flex-wrap: wrap; } .oc-root .oc-feature .rv-lower-workspace-tabs { flex-wrap: wrap; } }
+/* Legacy field families contain !important underlines. This adapter restores
+   the same inset field construction in Settings, search, metadata and cue editors. */
+.oc-root .oc-feature :is(input,textarea,select):not([type='range'],[type='checkbox'],[type='radio'],[type='color'],[type='file'],[type='hidden'],[type='button'],[type='submit']) { min-height: 35px !important; padding: 9px 12px !important; border: 1px solid #ffffff16 !important; border-radius: 12px !important; background: #0c0c0c !important; color: var(--oc-text) !important; box-shadow: inset 0 1px 3px #0003 !important; }
+.oc-root .oc-feature :is(.vsm-acct-label,.mum-field-label,.vsm-label) { font: var(--type-field-label); color: var(--oc-muted); }
+.oc-root .oc-feature .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster.rv-preset-spotlight-card--active { border-color: #f77b3d99; background: #f77b3d05; box-shadow: none; }
+.oc-root .oc-feature .vz-track-row.vz-track-row--active { border-color: #f77b3d77; background: #f77b3d09; box-shadow: none; }
+.oc-root .oc-feature .vz-track-row.vz-track-row--list.vz-track-row--active { border-color: #f77b3d77; background: #f77b3d09; box-shadow: none; }
+.oc-root .oc-feature .lmv-version-row { flex-direction: column; align-items: stretch; gap: 12px; }
+.oc-root .oc-feature .lmv-version-row > .vz-track-row-info { width: 100%; }
+.oc-root .oc-feature .lmv-version-row .vz-track-row-title-line { flex-wrap: wrap; gap: 8px; }
+.oc-root .oc-feature .lmv-version-row .vz-track-row-title.lmv-version-title { flex: 1 0 100%; width: 100%; max-width: none; }
+.oc-root .oc-feature .lmv-version-row .vz-track-row-actions { justify-content: flex-end; margin-left: 0; width: 100%; }
+.oc-root .oc-feature .lmv-version-row .vz-track-row-details { white-space: normal; line-height: 1.6; }
+
+.oc-root .oc-feature :is(.lmv-track-search-wrap input,.rv-preset-search-row .vz-md-search-wrap input) { padding-left: 30px !important; }
+/* ContextActionMenu explicitly opts into C across its owner-document portal. */
+[data-ui-theme='graphite'].vz-app-context-menu,
+.oc-root .lyric-cue-context-menu { padding: 8px; border: 1px solid #41403b; border-radius: 15px; background: #232321; color: #eeeae5; box-shadow: 0 18px 50px #0008; }
+[data-ui-theme='graphite'].vz-app-context-menu [role='menuitem'],
+.oc-root .lyric-cue-context-menu [role='menuitem'] { min-height: 34px; padding: 9px 12px; border-radius: 9px; font: var(--type-field-value); }
+[data-ui-theme='graphite'].vz-app-context-menu [role='menuitem']:hover,
+.oc-root .lyric-cue-context-menu [role='menuitem']:hover { background: #ffffff09; }
