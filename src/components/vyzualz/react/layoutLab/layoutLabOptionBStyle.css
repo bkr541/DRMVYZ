@@ -477,8 +477,8 @@
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .az-sidebar--collapsed .az-nav-item { width: 64px; height: 44px; padding: 12px 20px; border-radius: 0; border-left-width: 2px; }
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .az-nav-item svg { width: 21px; height: 21px; }
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .az-nav-item--active .az-nav-fill { background: transparent; }
-.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switcher { gap: 10px; padding-block: 20px; }
-.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switch { width: 28px; height: 28px; border-radius: 50%; font-size: 10px !important; }
+.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switcher { gap: 4px; padding-block: 8px; }
+.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switch { width: 26px; height: 26px; border-radius: 50%; font-size: 10px !important; }
 
 /* Tabs become generously spaced, sentence-case segments in a recessed tray. */
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] :is(.rv-main-workspace-tabs, .rv-context-workspace-tabs) {
@@ -544,7 +544,7 @@
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .dv-icon-morph-toggle.is-on::after { background: #37b5d4; transform: translateX(13px); }
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .dv-icon-morph-checkbox { width: 17px; height: 17px; border-radius: 5px !important; }
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .dv-icon-chip { min-height: 32px; padding: 7px 12px; border-radius: 8px; }
-.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switch { min-height: 28px; padding: 0; border-radius: 50%; }
+.ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .ll-design-switch { min-height: 26px; padding: 0; border-radius: 50%; }
 
 /* Media, layer and preset cards: larger thumbnails and separate captions. */
 .ll-design-workbench[data-lab-design='design-02'][data-workspace-layout][data-app-workspace] .rv-context-workspace-header { padding: 4px 16px 20px; border: 0; }

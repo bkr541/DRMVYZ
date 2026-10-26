@@ -1,19 +1,22 @@
 /* Only the selected design is shown. .az-root sets display:flex, which would otherwise beat the hidden attribute. */
 .ll-design-workbench[hidden] { display: none; }
 
-/* A–E design switcher: pinned to the bottom of the (empty) navigation column. */
+/* Design switcher (A–I, K): a 2 × 5 grid of compact keys pinned to the bottom of the navigation column. */
 .ll-design-workbench .ll-design-switcher {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 26px);
+  justify-content: center;
+  gap: 4px;
   margin-top: auto;
-  padding: 12px 0;
+  padding: 8px 0;
 }
 .ll-design-workbench .ll-design-switch {
-  width: 40px;
-  height: 40px;
+  width: 26px;
+  height: 26px;
+  min-width: 0;
+  min-height: 26px;
   padding: 0;
+  font-size: 10px;
   justify-content: center;
 }
 

@@ -28,13 +28,13 @@ afterEach(async () => {
 
 const view = (id = 'design-01') => container.querySelector<HTMLElement>(`[data-lab-design="${id}"]`)!
 
-/** A design is mounted the first time it is selected: visit B–E (each from the design on screen), then return to A. */
+/** A design is mounted the first time it is selected: visit B–K (each from the design on screen), then return to A. */
 const visitAllDesigns = async () => {
-  for (const letter of ['B', 'C', 'D', 'E', 'A']) {
+  for (const letter of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'A']) {
     await act(async () => container.querySelector<HTMLButtonElement>(`[data-lab-design]:not([hidden]) button[aria-label="Design ${letter}"]`)!.click())
   }
 }
-const OPTION_IDS = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']
+const OPTION_IDS = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05', 'design-06', 'design-07', 'design-08', 'design-09', 'design-10']
 
 const DROPDOWNS = '[role="combobox"], [role="listbox"], [role="option"], select, .dv-underline-dropdown, .drm-dropdown'
 
@@ -100,10 +100,10 @@ describe('Layout Lab canvas', () => {
     expect(layers[0]?.textContent).toContain('Electric Storm')
     expect(layers[0]?.textContent).toContain('100% · normal')
 
-    // Option A has none of production's rail, shell or dock layout classes; E keeps them.
+    // Option A has none of production's rail, shell or dock layout classes; F–K keep them.
     expect(view().querySelector('.fw-app-shell, .rv-layout, .vz-transport-dock, .rw-window-header, .rv-engine-dropdown')).toBeNull()
     await visitAllDesigns()
-    for (const id of OPTION_IDS.slice(4)) {
+    for (const id of OPTION_IDS.slice(5)) {
       expect(view(id).querySelector('.vz-inspector--left .rw-window-header-label')?.textContent, id).toBe('React Workspace')
       expect(view(id).querySelector('.vz-inspector--right .rw-window-header-label')?.textContent, id).toBe('Inspector')
       expect(view(id).querySelector('.vz-inspector--left .rv-engine-dropdown-preset')?.textContent, id).toBe('Electric Storm')
@@ -347,12 +347,12 @@ describe('Layout Lab canvas', () => {
     expect(header.querySelector('button[aria-label="Notifications"]')).not.toBeNull()
     expect(header.querySelector('.oa-avatar')?.textContent).toBe('DV')
     await visitAllDesigns()
-    for (const [index, id] of OPTION_IDS.slice(4).entries()) {
+    for (const [index, id] of OPTION_IDS.slice(5).entries()) {
       const surface = view(id).querySelector<HTMLElement>('.fw-app-header-surface')!
-      // "Option E" hangs off the brand toggle, the first thing in the header group.
+      // "Option F" … "Option K" hang off the brand toggle, the first thing in the header group.
       const lead = surface.querySelector<HTMLElement>('.fw-app-header-inner > .ll-header-lead')!
       expect(surface.querySelector('.fw-app-header-inner')!.firstElementChild, id).toBe(lead)
-      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'E'[index]}`)
+      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'FGHIK'[index]}`)
       expect(surface.querySelector('.fw-app-header-controls .vz-header-avatar, .fw-app-header-controls button[aria-label="Notifications"]'), id).not.toBeNull()
     }
   })
@@ -377,7 +377,7 @@ describe('Layout Lab canvas', () => {
     expect(spine.querySelector('.oa-key[data-active="true"]')?.getAttribute('aria-label')).toBe('React')
     expect(spine.querySelector('.oa-spine__licence')?.textContent).toContain('Professional')
     expect(spine.querySelector('.ll-design-switcher')?.getAttribute('aria-label')).toBe('Layout Lab design')
-    expect(spine.querySelectorAll('.ll-design-switch')).toHaveLength(5)
+    expect(spine.querySelectorAll('.ll-design-switch')).toHaveLength(10)
     await act(async () => spine.querySelectorAll<HTMLElement>('.oa-key')[3]!.click())
     expect(spine.querySelector('.oa-key[data-active="true"]')?.getAttribute('aria-label')).toBe('Lyric Manager')
 
@@ -391,9 +391,9 @@ describe('Layout Lab canvas', () => {
     await act(async () => grid.click())
     expect(stage.querySelector('.oa-stage__screen')?.getAttribute('data-grid')).toBe('true')
 
-    // Option E keeps React View's frame, shell, rails and dock, and none of Option A's classes.
+    // Options F–K keep React View's frame, shell, rails and dock, and none of Option A's classes.
     await visitAllDesigns()
-    for (const id of OPTION_IDS.slice(4)) {
+    for (const id of OPTION_IDS.slice(5)) {
       const other = view(id)
       expect(other.classList.contains('oa-root'), id).toBe(false)
       expect(other.querySelector('[class*="oa-"]'), id).toBeNull()
@@ -403,22 +403,22 @@ describe('Layout Lab canvas', () => {
     }
   })
 
-  it('switches between five independent designs with the A–E buttons', async () => {
-    const ids = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']
+  it('switches between ten independent designs with the A–I and K buttons', async () => {
+    const ids = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05', 'design-06', 'design-07', 'design-08', 'design-09', 'design-10']
     // A design is mounted the first time it is selected, and stays mounted (hidden) afterwards.
     expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(['design-01'])
     const visible = () => [...container.querySelectorAll<HTMLElement>('[data-lab-design]:not([hidden])')].map(node => node.dataset.labDesign)
     expect(visible()).toEqual(['design-01'])
 
     // Each design carries its own copy of the switcher, so it can be changed from any view.
-    for (const [index, letter] of ['A', 'B', 'C', 'D', 'E'].entries()) {
+    for (const [index, letter] of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K'].entries()) {
       const button = view(visible()[0]).querySelector<HTMLButtonElement>(`button[aria-label="Design ${letter}"]`)!
       await act(async () => button.click())
       expect(visible()).toEqual([ids[index]])
       const pressed = [...view(ids[index]).querySelectorAll<HTMLButtonElement>('.ll-design-switch')].map(node => node.getAttribute('aria-pressed'))
-      expect(pressed).toEqual(['A', 'B', 'C', 'D', 'E'].map(l => String(l === letter)))
+      expect(pressed).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K'].map(l => String(l === letter)))
     }
-    await act(async () => view('design-05').querySelector<HTMLButtonElement>('button[aria-label="Design A"]')!.click())
+    await act(async () => view('design-10').querySelector<HTMLButtonElement>('button[aria-label="Design A"]')!.click())
     expect(visible()).toEqual(['design-01'])
     expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(ids)
     // Hidden designs keep their own dock state: toggling playback in one does not touch another.

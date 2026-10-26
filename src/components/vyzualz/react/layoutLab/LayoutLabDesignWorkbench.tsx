@@ -33,7 +33,7 @@ interface DesignWindows {
 }
 
 /**
- * E keeps the original fixture content and independent state. A, B, C and D use dedicated
+ * F–K keep the original fixture content and independent state. A–E use dedicated
  * workspace components; the selector and lazy-mount lifecycle are shared.
  */
 function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: string }): DesignWindows {
@@ -109,7 +109,7 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
     </div>
   )
 
-  // A, B, C and D own their presentation; E retains the original React View frame.
+  // A–E own their presentation; F–K retain the original React View frame.
   if (id === 'design-01') return <OptionAWorkspace active={active} switcher={switcher} />
   if (id === 'design-02') return <OptionBWorkspace active={active} switcher={switcher} />
   if (id === 'design-03') return <OptionCWorkspace active={active} switcher={switcher} />

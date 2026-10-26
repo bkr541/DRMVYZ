@@ -100,8 +100,8 @@
 
 /* Keep the existing B selector's dimensions and colours. These frozen rules
    preserve the pre-redesign Lab control, independent of B's new tokens. */
-.ob-root .ll-design-switcher { gap: 10px; padding-block: 20px; }
-.ob-root .ll-design-switch { width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 50%; font: 400 10px 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #c4c9db; background: transparent; border-color: rgba(157, 172, 213, .10); box-shadow: none; }
+.ob-root .ll-design-switcher { gap: 4px; padding-block: 8px; }
+.ob-root .ll-design-switch { width: 26px; height: 26px; min-height: 26px; padding: 0; border-radius: 50%; font: 400 10px 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #c4c9db; background: transparent; border-color: rgba(157, 172, 213, .10); box-shadow: none; }
 .ob-root .ll-design-switch[aria-pressed='true'] { color: #16bce3; background: rgba(22, 188, 227, .07); border-color: rgba(22, 188, 227, .45); }
 .ob-root .ll-design-switch:hover:not(:disabled) { color: #edf0fa; background: #1a2033; border-color: rgba(157, 172, 213, .18); box-shadow: none; }
 .ob-root .ll-design-switch:focus-visible { outline: 1px solid #16bce3; outline-offset: 3px; }
