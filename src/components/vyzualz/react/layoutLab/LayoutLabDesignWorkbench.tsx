@@ -26,8 +26,20 @@ interface DesignWindows {
   dock: ReactNode
 }
 
-const DESIGN_WINDOWS: Partial<Record<LayoutLabDesignId, DesignWindows>> = {
-  'design-01': { header: <LayoutLabReactHeader />, nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>, left: <LayoutLabElectricStormLeftWindow />, right: <LayoutLabMarqueeRightWindow />, lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /><LayoutLabSettingsWindow /><LayoutLabPopupsWindow /></>, dock: <LayoutLabReactAudioDock /> },
+/**
+ * Every design is a full copy of design A's mockup (header, navigation, Electric Storm left window, MARQUEE right window,
+ * the Lyric Manager windows, Track Map, Settings and Pop-ups groups, and the audio dock), each with its own state. The
+ * header names the design at its top left ("Option A" … "Option E").
+ */
+function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: string }): DesignWindows {
+  return {
+    header: <LayoutLabReactHeader optionLabel={`Option ${letter}`} />,
+    nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>,
+    left: <LayoutLabElectricStormLeftWindow />,
+    right: <LayoutLabMarqueeRightWindow />,
+    lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /><LayoutLabSettingsWindow idPrefix={`ll-vsm-${id}`} /><LayoutLabPopupsWindow /></>,
+    dock: <LayoutLabReactAudioDock />,
+  }
 }
 
 /**
@@ -37,25 +49,30 @@ const DESIGN_WINDOWS: Partial<Record<LayoutLabDesignId, DesignWindows>> = {
  * production (ApplicationWorkspaceFrame → VyzualzView → ReactView), so every size and surface treatment comes from
  * the same CSS rather than a copy of it.
  *
- * Only the selected design is shown; the others stay mounted and hidden so each keeps its own state. A design is
- * themed through `[data-lab-design='design-0N']` in layoutLabDesignWorkbench.css. A design fills its header group,
- * navigation column, left and right windows, the workspace under the visualizer and the dock by supplying `windows`;
- * Design A mocks React View's header, navigation bar, Cinema 2.0 Electric Storm source rail, MARQUEE inspector,
- * Track Map workspace and audio dock, and the rest stay empty.
+ * Only the selected design is shown. A design is mounted the first time it is selected and then stays mounted and hidden,
+ * so each keeps its own state and an unvisited design costs nothing. A design is themed through
+ * `[data-lab-design='design-0N']` in layoutLabDesignWorkbench.css. A design fills its header group, navigation column,
+ * left and right windows, the workspace under the visualizer and the dock by supplying `windows`; all five currently
+ * supply the same mockup of React View (see buildDesignWindows).
  */
 export function LayoutLabDesignWorkbench() {
   const [design, setDesign] = useState<LayoutLabDesignId>('design-01')
+  const [visited, setVisited] = useState<ReadonlySet<LayoutLabDesignId>>(() => new Set(['design-01']))
+  const select = (next: LayoutLabDesignId) => {
+    setVisited(current => (current.has(next) ? current : new Set(current).add(next)))
+    setDesign(next)
+  }
 
   return (
     <>
-      {LAYOUT_LAB_DESIGNS.map(option => (
+      {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
         <LayoutLabDesignView
           key={option.id}
           id={option.id}
           active={design === option.id}
           selected={design}
-          onSelect={setDesign}
-          windows={DESIGN_WINDOWS[option.id]}
+          onSelect={select}
+          windows={buildDesignWindows(option)}
         />
       ))}
     </>

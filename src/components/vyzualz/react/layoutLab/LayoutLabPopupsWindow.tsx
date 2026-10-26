@@ -168,10 +168,10 @@ function ConfirmationSamples() {
         <UnsavedMediaChangesView busy={false} error="The edited image could not be uploaded. Check your connection and try again." onCancel={noop} onDiscard={noop} onSave={noop} />
       </Sample>
       <Sample title="Save As" where="Media Manager · edited media">
-        <SaveAsMediaDialog initialName="Neon Cathedral artwork (edited)" busy={false} error={null} onCancel={noop} onSubmit={noop} />
+        <SaveAsMediaDialog initialName="Neon Cathedral artwork (edited)" busy={false} error={null} onCancel={noop} onSubmit={noop} autoFocus={false} />
       </Sample>
       <Sample title="Save As (failed)" where="Media Manager · the new item was not created">
-        <SaveAsMediaDialog initialName="Neon Cathedral artwork (edited)" busy={false} error="Storage quota exceeded." onCancel={noop} onSubmit={noop} />
+        <SaveAsMediaDialog initialName="Neon Cathedral artwork (edited)" busy={false} error="Storage quota exceeded." onCancel={noop} onSubmit={noop} autoFocus={false} />
       </Sample>
     </>
   )
@@ -250,10 +250,10 @@ function EditorSamples() {
         <AudioTrackEditView track={{ ...track, title: '' }} saving={false} error="Title is required." onClose={noop} onSave={noop} />
       </Sample>
       <Sample title="New Collection" where="Media Library · collections">
-        <CollectionEditorView saving={false} error={null} onClose={noop} onSave={noop} />
+        <CollectionEditorView saving={false} error={null} onClose={noop} onSave={noop} autoFocus={false} />
       </Sample>
       <Sample title="Edit Collection" where="Media Library · collections">
-        <CollectionEditorView collection={{ name: 'Festival Intros', description: 'Opening loops for the main stage sets.' }} saving={false} error={null} onClose={noop} onSave={noop} />
+        <CollectionEditorView collection={{ name: 'Festival Intros', description: 'Opening loops for the main stage sets.' }} saving={false} error={null} onClose={noop} onSave={noop} autoFocus={false} />
       </Sample>
       <Sample title="Audio preview" where="Media Library · preview a saved track">
         <AudioTrackPreviewView title="Neon Cathedral" url={null} loading={false} error="A preview URL could not be created. Refresh the library or check storage access." onClose={noop} onAudioError={noop} />

@@ -60,12 +60,14 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
 }
 
 /** The editor modal's markup and field state. Layout Lab mounts it with placeholder state instead of the media store. */
-export function CollectionEditorView({ collection, saving, error, onClose, onSave }: {
+export function CollectionEditorView({ collection, saving, error, onClose, onSave, autoFocus = true }: {
   collection?: Pick<MediaCollection, 'name' | 'description'>
   saving: boolean
   error: string | null
   onClose: () => void
   onSave: (name: string, description: string) => void
+  /** Focus the name field on open (the default). Layout Lab shows the editor inline and turns it off. */
+  autoFocus?: boolean
 }) {
   const [name, setName] = useState(collection?.name ?? '')
   const [description, setDescription] = useState(collection?.description ?? '')
@@ -83,7 +85,7 @@ export function CollectionEditorView({ collection, saving, error, onClose, onSav
         <div className="mmv-editor-body">
           <label className="mum-field">
             <span className="mum-field-label">NAME <span className="mum-req">*</span></span>
-            <DreamVizTextInput className="mum-input" value={name} onChange={event => setName(event.target.value)} maxLength={120} autoFocus />
+            <DreamVizTextInput className="mum-input" value={name} onChange={event => setName(event.target.value)} maxLength={120} autoFocus={autoFocus} />
           </label>
           <label className="mum-field">
             <span className="mum-field-label">DESCRIPTION</span>

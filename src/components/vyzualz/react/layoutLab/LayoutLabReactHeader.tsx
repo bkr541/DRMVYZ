@@ -16,12 +16,16 @@ import { buildReactHeaderMetrics, MetricChip } from '../ReactHeaderPerformanceSt
 
 const METRICS = buildReactHeaderMetrics({ fps: 60, frameTimeMs: 16.6, qualityTier: 'high' })
 
-export function LayoutLabReactHeader() {
+/** `optionLabel` (e.g. "Option A") is the design's name, shown beside the brand toggle at the top left of the header group. */
+export function LayoutLabReactHeader({ optionLabel }: { optionLabel?: string } = {}) {
   const [collapsed, setCollapsed] = useState(true)
 
   return (
     <>
-      <VyzualzBrandToggle collapsed={collapsed} onToggle={() => setCollapsed(value => !value)} />
+      <div className="ll-header-lead">
+        <VyzualzBrandToggle collapsed={collapsed} onToggle={() => setCollapsed(value => !value)} />
+        {optionLabel && <span className="ll-option-label">{optionLabel}</span>}
+      </div>
       <div className="fw-app-header-controls" data-app-header-slot="controls">
         <div className="vz-header" data-react-header-controls>
           <HeaderControlGroup label="React controls">

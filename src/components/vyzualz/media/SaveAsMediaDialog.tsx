@@ -10,9 +10,11 @@ interface SaveAsMediaDialogProps {
   error: string | null
   onCancel: () => void
   onSubmit: (name: string) => void
+  /** Focus the name field on open (the default). Layout Lab shows the dialog inline and turns it off so it does not take focus on load. */
+  autoFocus?: boolean
 }
 
-export function SaveAsMediaDialog({ initialName, busy, error, onCancel, onSubmit }: SaveAsMediaDialogProps) {
+export function SaveAsMediaDialog({ initialName, busy, error, onCancel, onSubmit, autoFocus = true }: SaveAsMediaDialogProps) {
   const inputId = useId()
   const [name, setName] = useState(initialName)
   const [touched, setTouched] = useState(false)
@@ -46,7 +48,7 @@ export function SaveAsMediaDialog({ initialName, busy, error, onCancel, onSubmit
         <label className="rv-ctrl-label" htmlFor={inputId}>Name</label>
         <DreamVizTextInput
           id={inputId}
-          autoFocus
+          autoFocus={autoFocus}
           value={name}
           maxLength={MAX_MEDIA_NAME_LENGTH + 20}
           disabled={busy}

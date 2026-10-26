@@ -28,21 +28,29 @@ afterEach(async () => {
 
 const view = (id = 'design-01') => container.querySelector<HTMLElement>(`[data-lab-design="${id}"]`)!
 
+/** A design is mounted the first time it is selected: visit B–E (each from the design on screen), then return to A. */
+const visitAllDesigns = async () => {
+  for (const letter of ['B', 'C', 'D', 'E', 'A']) {
+    await act(async () => container.querySelector<HTMLButtonElement>(`[data-lab-design]:not([hidden]) button[aria-label="Design ${letter}"]`)!.click())
+  }
+}
+const OPTION_IDS = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']
+
 const DROPDOWNS = '[role="combobox"], [role="listbox"], [role="option"], select, .dv-underline-dropdown, .drm-dropdown'
 
 describe('Layout Lab canvas', () => {
-  it('has no dropdowns outside the Design A mockup windows, and none in designs B–E', () => {
-    for (const id of ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']) {
+  it('keeps dropdowns out of every design\'s header, navigation column, visualizer and dock', async () => {
+    await visitAllDesigns()
+    for (const id of OPTION_IDS) {
       const chrome = view(id)
       // Header group, navigation column, visualizer and dock never hold a dropdown (the center column's windows, like the cue list's filter, may).
       for (const selector of ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']) {
         expect(chrome.querySelector(`${selector} :is(${DROPDOWNS})`), `${id} ${selector}`).toBeNull()
       }
-      if (id !== 'design-01') expect(chrome.querySelector(DROPDOWNS), id).toBeNull()
     }
   })
 
-  it('mocks the Electric Storm source rail and the MARQUEE inspector in design A, and leaves B–E windows empty', async () => {
+  it('mocks the Electric Storm source rail and the MARQUEE inspector in design A, and repeats them in B–E', async () => {
     const left = view().querySelector<HTMLElement>('.vz-inspector--left')!
     const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
     expect(left.querySelector('.rw-window-header-label')?.textContent).toBe('React Workspace')
@@ -77,11 +85,11 @@ describe('Layout Lab canvas', () => {
     expect(right.querySelectorAll('.rv-cinema2-palette-body .rv-ctrl-row, .rv-cinema2-palette-body > *').length).toBeGreaterThan(0)
     expect(right.querySelector<HTMLInputElement>('input[value="DVYDRM B2B GOONZ"]')).not.toBeNull()
 
-    for (const id of ['design-02', 'design-03', 'design-04', 'design-05']) {
-      for (const side of ['left', 'right']) {
-        const region = view(id).querySelector<HTMLElement>(`.vz-inspector--${side}`)!
-        expect(region.textContent, `${id} ${side}`).toBe('')
-      }
+    await visitAllDesigns()
+    for (const id of OPTION_IDS) {
+      expect(view(id).querySelector('.vz-inspector--left .rw-window-header-label')?.textContent, id).toBe('React Workspace')
+      expect(view(id).querySelector('.vz-inspector--right .rw-window-header-label')?.textContent, id).toBe('Inspector')
+      expect(view(id).querySelector('.vz-inspector--left .rv-engine-dropdown-preset')?.textContent, id).toBe('Electric Storm')
     }
   })
 
@@ -188,8 +196,9 @@ describe('Layout Lab canvas', () => {
     expect(workspace.querySelector('.rv-timeline-lanes')).not.toBeNull()
     await act(async () => workspace.querySelector<HTMLElement>('.rv-track-map-lane-icons-toggle')!.click())
     expect(workspace.querySelector('.rv-timeline-lanes--icons-expanded')).not.toBeNull()
-    // Designs B–E have no workspace under their visualizer.
-    expect(view('design-02').querySelector('.rv-lower-workspace')).toBeNull()
+    // Designs B–E carry the same Track Map workspace under their visualizer.
+    await visitAllDesigns()
+    for (const id of OPTION_IDS) expect(view(id).querySelector('.rv-lower-workspace [role="tab"]')?.textContent, id).toBe('Track Map')
   })
 
   it('mirrors the production React audio dock in design A, with local-only controls', async () => {
@@ -225,11 +234,12 @@ describe('Layout Lab canvas', () => {
     expect(dock.classList.contains('vz-transport-dock--collapsed')).toBe(true)
     await act(async () => dock.click())
 
-    // Designs B–E keep the older dock mockup.
-    expect(view('design-02').querySelector('.vz-dock-source-trigger')).toBeNull()
+    // Designs B–E carry the same dock.
+    await visitAllDesigns()
+    for (const id of OPTION_IDS) expect(view(id).querySelector('.vz-dock-source-trigger'), id).not.toBeNull()
   })
 
-  it('mocks the React header elements in design A\'s header group and leaves B–E empty', () => {
+  it('mocks the React header elements in design A\'s header group, repeats them in B–E and names each option at the top left', async () => {
     const header = view().querySelector<HTMLElement>('.fw-app-header-surface')!
     expect(header.querySelector('.az-logo-mark')?.textContent).toBe('DRMVYZ')
     expect(header.querySelector('.fw-app-header-controls > .vz-header[data-react-header-controls]')).not.toBeNull()
@@ -241,12 +251,21 @@ describe('Layout Lab canvas', () => {
     expect(header.querySelector('.vz-header-avatar')).not.toBeNull()
     // The mockup shows fixed readings, with no controls that act on anything.
     for (const label of ['SAVED', 'FPS', 'FRAME TIME', 'QUALITY', 'CPU']) expect(header.textContent?.toUpperCase()).toContain(label)
-    for (const id of ['design-02', 'design-03', 'design-04', 'design-05']) {
-      expect(view(id).querySelector('.fw-app-header-surface')!.textContent, id).toBe('')
+    await visitAllDesigns()
+    for (const [index, id] of OPTION_IDS.entries()) {
+      const surface = view(id).querySelector<HTMLElement>('.fw-app-header-surface')!
+      // "Option A" … "Option E" hangs off the brand toggle, the first thing in the header group.
+      const lead = surface.querySelector<HTMLElement>('.fw-app-header-inner > .ll-header-lead')!
+      expect(surface.querySelector('.fw-app-header-inner')!.firstElementChild, id).toBe(lead)
+      expect([...lead.children].map(node => node.className), id).toEqual(['az-logo', 'll-option-label'])
+      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'ABCDE'[index]}`)
+      expect(surface.querySelector('.az-logo-mark')?.textContent, id).toBe('DRMVYZ')
+      expect(surface.querySelector('.fw-app-header-controls > .vz-header[data-react-header-controls]'), id).not.toBeNull()
+      expect(surface.querySelector('.vz-header-avatar'), id).not.toBeNull()
     }
   })
 
-  it('is a left window, a visualizer and a right window above the audio dock, with an empty visualizer', () => {
+  it('is a left window, a visualizer and a right window above the audio dock, with an empty visualizer', async () => {
     const active = view()
     const left = active.querySelector<HTMLElement>('.vz-inspector--left')!
     const right = active.querySelector<HTMLElement>('.vz-inspector--right')!
@@ -273,9 +292,10 @@ describe('Layout Lab canvas', () => {
     expect(nav.querySelector('.az-nav-section-label')?.textContent).toBe('Managers')
     expect(nav.querySelector('.az-nav-item--active')?.getAttribute('aria-label')).toBe('React')
     expect(nav.querySelector('.az-sidebar-footer')?.textContent).toContain('Professional')
-    // The other designs' navigation columns are empty apart from the switcher.
-    for (const id of ['design-02', 'design-03', 'design-04', 'design-05']) {
-      expect([...view(id).querySelector('.fw-app-navigation > .az-sidebar')!.children].map(node => node.className), id).toEqual(['ll-design-switcher'])
+    // The other designs carry the same navigation column.
+    await visitAllDesigns()
+    for (const id of OPTION_IDS) {
+      expect([...view(id).querySelector('.fw-app-navigation > .az-sidebar')!.children].map(node => node.className), id).toEqual(['az-nav', 'll-design-switcher', 'az-sidebar-footer'])
     }
     const frame = active.querySelector('.fw-app-shell')!
     expect([...frame.children].map(node => node.className.split(' ')[0])).toEqual(['fw-region', 'fw-app-body'])
@@ -291,7 +311,8 @@ describe('Layout Lab canvas', () => {
 
   it('switches between five independent designs with the A–E buttons', async () => {
     const ids = ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']
-    expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(ids)
+    // A design is mounted the first time it is selected, and stays mounted (hidden) afterwards.
+    expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(['design-01'])
     const visible = () => [...container.querySelectorAll<HTMLElement>('[data-lab-design]:not([hidden])')].map(node => node.dataset.labDesign)
     expect(visible()).toEqual(['design-01'])
 
@@ -305,6 +326,7 @@ describe('Layout Lab canvas', () => {
     }
     await act(async () => view('design-05').querySelector<HTMLButtonElement>('button[aria-label="Design A"]')!.click())
     expect(visible()).toEqual(['design-01'])
+    expect([...container.querySelectorAll('[data-lab-design]')].map(node => node.getAttribute('data-lab-design'))).toEqual(ids)
     // Hidden designs keep their own dock state: toggling playback in one does not touch another.
     const playButton = (id: string) => view(id).querySelector<HTMLButtonElement>('.az-play-btn')!
     const before = playButton('design-02').getAttribute('aria-label')

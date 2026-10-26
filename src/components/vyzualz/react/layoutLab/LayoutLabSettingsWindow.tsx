@@ -21,7 +21,8 @@ import { ST_LOG_ENTRIES, ST_PROFILE, ST_REKORDBOX_STATUS } from './layoutLabSett
 
 const QUALITY_LEVELS = ['Low', 'Medium', 'High'] as const
 
-export function LayoutLabSettingsWindow() {
+/** `idPrefix` keeps the pop-up's element ids unique when more than one design is mounted. */
+export function LayoutLabSettingsWindow({ idPrefix = 'll-vsm' }: { idPrefix?: string } = {}) {
   const [open, setOpen] = useState(true)
   const [tab, setTab] = useState<SettingsTab>('account')
 
@@ -35,7 +36,7 @@ export function LayoutLabSettingsWindow() {
             onClose={() => setOpen(false)}
             onSignOut={() => {}}
             dialog={false}
-            idPrefix="ll-vsm"
+            idPrefix={idPrefix}
             className="ll-settings-modal"
           >
             {tab === 'account' && <AccountTab />}
