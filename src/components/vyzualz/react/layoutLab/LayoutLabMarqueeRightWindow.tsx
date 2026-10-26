@@ -7,21 +7,23 @@ import { Collapsible, PaletteColorRow, SelectRow, SliderRow, TextInputRow, Toggl
 import { LayoutLabAudioIntelligenceTab } from './LayoutLabAudioIntelligenceTab'
 import { LayoutLabCanvasReactTab } from './LayoutLabCanvasReactTab'
 import { LayoutLabCinema2PresetsTab } from './LayoutLabCinema2PresetsTab'
+import { LayoutLabLyricTracksTab } from './LayoutLabLyricTracksTab'
 
 // ── Layout Lab · right window · Cinema 2.0 / MARQUEE ────────────────────────
 //
 // A disconnected mockup of React View's Inspector. DESIGN has the Cinema 2.0 MARQUEE preset loaded: labels, groups,
 // ranges and defaults follow the preset's parameter manifest (Cinema2MarqueePreset.ts) and the four parent groups
 // follow Cinema2InspectorPanel. PRESETS is the Cinema 2.0 preset browser, REACT is the Canvas engine's routing
-// surface, and AUDIO (in place of OUTPUT) is the Track Timeline's Audio Intelligence window. Everything is built from the same row components with local state only: no runtime,
+// surface, AUDIO (in place of OUTPUT) is the Track Timeline's Audio Intelligence window, and TRACKS is the Lyric Manager's Tracks tab. Everything is built from the same row components with local state only: no runtime,
 // parameter store or persistence. Pattern, Pattern Change, Trigger and the marquee copy start on the values shown in
 // the production screenshot.
 
-const RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'audio'>[] = [
+const RIGHT_TABS: RailTabOption<'presets' | 'design' | 'react' | 'audio' | 'tracks'>[] = [
   { id: 'presets', label: 'PRESETS' },
   { id: 'design', label: 'DESIGN' },
   { id: 'react', label: 'REACT' },
   { id: 'audio', label: 'AUDIO' },
+  { id: 'tracks', label: 'TRACKS' },
 ]
 
 const PATTERN_OPTIONS = [
@@ -61,7 +63,7 @@ const INITIAL = {
 } as Record<string, number | boolean | string>
 
 export function LayoutLabMarqueeRightWindow() {
-  const [tab, setTab] = useState<'presets' | 'design' | 'react' | 'audio'>('design')
+  const [tab, setTab] = useState<'presets' | 'design' | 'react' | 'audio' | 'tracks'>('design')
   const [surface, setSurface] = useState<'engine' | 'selection'>('engine')
   const [values, setValues] = useState(INITIAL)
   const set = <T extends number | boolean | string>(key: string) => (next: T) => setValues(current => ({ ...current, [key]: next }))
@@ -155,6 +157,8 @@ export function LayoutLabMarqueeRightWindow() {
           <LayoutLabCinema2PresetsTab />
         ) : tab === 'react' ? (
           <LayoutLabCanvasReactTab />
+        ) : tab === 'tracks' ? (
+          <LayoutLabLyricTracksTab />
         ) : (
           <LayoutLabAudioIntelligenceTab />
         )}

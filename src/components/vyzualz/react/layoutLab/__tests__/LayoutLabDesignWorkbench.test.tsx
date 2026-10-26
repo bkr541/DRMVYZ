@@ -34,28 +34,37 @@ describe('Layout Lab canvas', () => {
   it('has no dropdowns outside the Design A mockup windows, and none in designs B–E', () => {
     for (const id of ['design-01', 'design-02', 'design-03', 'design-04', 'design-05']) {
       const chrome = view(id)
-      // Header group, navigation column, visualizer and dock never hold a dropdown.
-      for (const selector of ['.fw-app-header', '.fw-app-navigation', '.rv-center-col', '.vz-transport-dock']) {
+      // Header group, navigation column, visualizer and dock never hold a dropdown (the center column's windows, like the cue list's filter, may).
+      for (const selector of ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']) {
         expect(chrome.querySelector(`${selector} :is(${DROPDOWNS})`), `${id} ${selector}`).toBeNull()
       }
       if (id !== 'design-01') expect(chrome.querySelector(DROPDOWNS), id).toBeNull()
     }
   })
 
-  it('mocks the Electric Storm source rail and the MARQUEE inspector in design A, and leaves B–E windows empty', () => {
+  it('mocks the Electric Storm source rail and the MARQUEE inspector in design A, and leaves B–E windows empty', async () => {
     const left = view().querySelector<HTMLElement>('.vz-inspector--left')!
     const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
     expect(left.querySelector('.rw-window-header-label')?.textContent).toBe('React Workspace')
     expect(left.querySelector('.rv-engine-dropdown-label')?.textContent).toBe('Cinema 2.0')
     expect(left.querySelector('.rv-engine-dropdown-preset')?.textContent).toBe('Electric Storm')
-    expect([...left.querySelectorAll('.rv-context-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['SOURCE', 'LAYERS'])
+    expect([...left.querySelectorAll('.rv-context-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['SOURCE', 'LAYERS', 'NOTICE'])
     expect(left.querySelector('.drc-header')?.textContent).toBe('Media Library')
     expect([...left.querySelectorAll('.vz-filter-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['ALL', 'COLLECTIONS', 'FAVORITES', 'IMAGES', 'VIDEOS'])
     expect(left.querySelectorAll('.vz-media-card--sheet').length).toBeGreaterThanOrEqual(24)
     expect(left.querySelectorAll('.vz-media-card--active')).toHaveLength(1)
 
+    // The LAYERS tab is production's Cinema 2.0 layers list, fed Electric Storm's compiled layer, not an empty placeholder.
+    await act(async () => [...left.querySelectorAll<HTMLElement>('.rv-context-workspace-tabs [role="tab"]')].find(tab => tab.textContent === 'LAYERS')!.click())
+    expect(left.querySelector('.rv-engine-panel-list__header')?.textContent).toBe('Layers1')
+    const layers = left.querySelectorAll('.rv-engine-layer-tree .dv-layer-row')
+    expect(layers).toHaveLength(1)
+    expect(layers[0]?.textContent).toContain('Electric Storm')
+    expect(layers[0]?.textContent).toContain('100% · normal')
+    expect(left.querySelector('.vz-media-empty')).toBeNull()
+
     expect(right.querySelector('.rw-window-header-label')?.textContent).toBe('Inspector')
-    expect([...right.querySelectorAll('.rv-main-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['PRESETS', 'DESIGN', 'REACT', 'AUDIO'])
+    expect([...right.querySelectorAll('.rv-main-workspace-tabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['PRESETS', 'DESIGN', 'REACT', 'AUDIO', 'TRACKS'])
     expect([...right.querySelectorAll('.rv-right-subtabs [role="tab"]')].map(tab => tab.textContent)).toEqual(['ENGINE', 'SELECTION'])
     // The four parent groups carry an icon; the nested Pattern / Marquee Copy / Lighting Zones groups do not.
     const headers = [...right.querySelectorAll<HTMLElement>('.drc-group > .drc-header')]
@@ -146,7 +155,7 @@ describe('Layout Lab canvas', () => {
 
   it('mirrors the Track Map workspace under design A\'s visualizer with every row populated', async () => {
     const column = view().querySelector<HTMLElement>('.rv-center-col')!
-    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['rv-canvas-wrap', 'rv-lower-workspace'])
+    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['rv-canvas-wrap', 'll-lyric-timeline-host', 'rv-lower-workspace'])
     const workspace = column.querySelector<HTMLElement>('.rv-lower-workspace')!
     expect([...workspace.querySelectorAll('.rv-lower-workspace-tabs [role="tab"]')].map(node => node.textContent)).toEqual(['Track Map', 'Performance Pads'])
     expect(workspace.querySelector('[role="separator"]')?.getAttribute('aria-label')).toBe('Resize timeline workspace')
@@ -303,9 +312,120 @@ describe('Layout Lab canvas', () => {
     expect(playButton('design-02').getAttribute('aria-label')).toBe(before)
   })
 
+  it("shows the Lyric Manager Tracks tab in design A's inspector, with versions nested in the selected track's card", async () => {
+    const right = view().querySelector<HTMLElement>('.vz-inspector--right')!
+    const tab = [...right.querySelectorAll<HTMLButtonElement>('.rv-main-workspace-tabs [role="tab"]')].find(node => node.textContent === 'TRACKS')!
+    await act(async () => tab.click())
+    const panel = right.querySelector<HTMLElement>('.lmv-left-rail .lmv-workspace-tab-panel')!
+    expect(panel.getAttribute('aria-label')).toBe('Tracks panel')
+    expect(panel.querySelector('.lmv-track-search-row input')?.getAttribute('placeholder')).toBe('Search title or artist…')
+    expect(panel.querySelectorAll('.lmv-track-group').length).toBe(10)
+    // Every record starts collapsed and plain: nothing selected, loaded, playing or expanded, and no versions or legacy list shown.
+    expect(panel.querySelector('.vz-track-row--active, .vz-track-row--loaded, .vz-track-row--playing, .vz-track-row-selected-dot, .lmv-track-group--expanded')).toBeNull()
+    expect(panel.querySelector('.lmv-track-versions, .lmv-doc-section-label')).toBeNull()
+    // Clicking a record selects it and nests its versions in its card; clicking it again removes all of that.
+    const first = () => panel.querySelector<HTMLElement>('.lmv-track-group > .vz-track-row')!
+    await act(async () => first().click())
+    expect(panel.querySelector('.vz-track-row-selected-dot')).not.toBeNull()
+    const group = panel.querySelector('.lmv-track-group--expanded')!
+    expect(group.querySelector('.vz-track-row-title')?.textContent).toBe('Neon Cathedral')
+    expect(group.querySelectorAll('.lmv-version-row').length).toBe(5)
+    expect(group.querySelector('.lmv-version-row--active')?.textContent).toContain('Active')
+    await act(async () => group.querySelectorAll<HTMLElement>('.lmv-version-row')[1]!.click())
+    expect(group.querySelector('.lmv-version-row--open')?.textContent).toContain('Open')
+    await act(async () => first().click())
+    expect(panel.querySelector('.vz-track-row--active, .vz-track-row-selected-dot, .lmv-track-group--expanded, .lmv-track-versions')).toBeNull()
+    await act(async () => first().click())
+    // Load marks a record Loaded (and Load again on it, Playing); both are plain until then.
+    const load = () => panel.querySelectorAll<HTMLElement>('.lmv-track-group')[1]!.querySelector<HTMLElement>('button[aria-label^="Load"], button[aria-label^="Reload"]')!
+    await act(async () => load().click())
+    expect(panel.querySelector('.lmv-track-group > .vz-track-row--loaded')?.textContent).toContain('Static in the Sky')
+    await act(async () => load().click())
+    expect(panel.querySelector('.lmv-track-group > .vz-track-row--loaded.vz-track-row--playing')).not.toBeNull()
+    expect([...panel.querySelector('.lmv-track-group--expanded')!.querySelectorAll('.lmv-track-versions-add')].map(node => node.textContent?.trim())).toEqual(['New version', 'Import version'])
+    // Unattached legacy documents sit under the list, and Load More appends the next page.
+    expect(panel.querySelector('.lmv-doc-section-label')?.textContent).toBe('LEGACY UNATTACHED DOCUMENTS')
+    expect(panel.querySelectorAll('.lmv-track-versions--legacy .lmv-version-row')).toHaveLength(2)
+    await act(async () => panel.querySelector<HTMLElement>('.lmv-load-more')!.click())
+    expect(panel.querySelectorAll('.lmv-track-group').length).toBe(13)
+    expect(panel.querySelector('.lmv-load-more')).toBeNull()
+  })
+
+  it("shows production's NoticeCard in every tone in design A's NOTICE tab", async () => {
+    const left = view().querySelector<HTMLElement>('.vz-inspector--left')!
+    await act(async () => [...left.querySelectorAll<HTMLElement>('.rv-context-workspace-tabs [role="tab"]')].find(tab => tab.textContent === 'NOTICE')!.click())
+    expect([...left.querySelectorAll('.rv-left-tab-body .drc-group > .drc-header')].map(node => node.textContent)).toEqual(['Info', 'Success', 'Warning', 'Error'])
+    for (const tone of ['info', 'success', 'warning', 'error']) {
+      const cards = left.querySelectorAll(`.dv-notice[data-tone="${tone}"]`)
+      expect(cards, tone).toHaveLength(4)
+      // Title and body, title only, with dismiss, and with dismiss and open.
+      expect([...cards].map(card => [!!card.querySelector('.dv-notice-body'), !!card.querySelector('.dv-notice-dismiss'), !!card.querySelector('.dv-notice-open')])).toEqual([
+        [true, false, false], [false, false, false], [true, true, false], [true, true, true],
+      ])
+    }
+    await act(async () => left.querySelectorAll<HTMLElement>('.dv-notice[data-tone="error"] .dv-notice-dismiss')[0]!.click())
+    expect(left.querySelectorAll('.dv-notice[data-tone="error"]')).toHaveLength(3)
+  })
+
+  it('places the Lyric Manager Track Timeline above the Track Map with every row and cue state, collapsing from its header', async () => {
+    const host = view().querySelector<HTMLElement>('.rv-center-col > .ll-lyric-timeline-host')!
+    expect(host.getAttribute('data-app-workspace')).toBe('lyrics')
+    const timeline = host.querySelector<HTMLElement>('.lmv-track-timeline-window')!
+    expect(timeline.getAttribute('aria-label')).toBe('Track Timeline')
+    expect(timeline.querySelector('.drc-header')?.textContent).toContain('Track Timeline')
+
+    // Rows in production's order, then the three lyric lanes, under one playhead.
+    expect([...timeline.querySelectorAll('.lmv-track-timeline-reference-lanes > .lmv-track-timeline-lane')].map(node => node.className.split('--')[1])).toEqual(['timing', 'beatgrid', 'section', 'waveform'])
+    expect([...timeline.querySelectorAll('.lyric-cue-timeline__lane-label')].map(node => node.textContent)).toEqual(['Lyrics 1', 'Lyrics 2', 'Lyrics 3'])
+    expect(timeline.querySelectorAll('.rv-section-region').length).toBe(12)
+    expect(timeline.querySelector('.lmv-track-timeline-playhead-layer .lyric-cue-timeline__playhead')).not.toBeNull()
+
+    // Every cue state the lanes can draw.
+    expect(timeline.querySelectorAll('.lyric-cue-block').length).toBe(24)
+    for (const state of ['active', 'selected', 'low-confidence', 'warning', 'stacked']) {
+      expect(timeline.querySelector(`.lyric-cue-block--${state}`), state).not.toBeNull()
+    }
+
+    // The group collapses and expands from its header, like the Track Map's toolbar.
+    const header = timeline.querySelector<HTMLElement>('.drc-header')!
+    await act(async () => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(timeline.querySelector('.lmv-track-timeline-lanes')).toBeNull()
+    await act(async () => header.click())
+    expect(timeline.querySelector('.lmv-track-timeline-lanes')).not.toBeNull()
+  })
+
+  it('places the Lyric Manager Cue list under the Track Timeline, sharing its cues and collapsing from its header', async () => {
+    const host = view().querySelector<HTMLElement>('.rv-center-col > .ll-lyric-timeline-host')!
+    expect([...host.children].map(node => node.className)).toEqual(['lmv-track-timeline-window', 'lmv-lyric-cues-window'])
+    const list = host.querySelector<HTMLElement>('.lmv-lyric-cues-window')!
+    expect(list.querySelector('.drc-header')?.textContent).toContain('Cue list')
+    expect(list.querySelector('.lyric-cue-list__controls strong')?.textContent).toBe('24 of 24 cues')
+    expect([...list.querySelectorAll('thead th')].map(node => node.textContent)).toEqual(['#', 'Time', 'Lyric', 'Status'])
+    expect(list.querySelectorAll('tbody tr[data-cue-row-id]').length).toBe(24)
+    // Every status, a playing row, the low-confidence and warning-count marks, the expanded editor with word timings, and empty text.
+    for (const status of ['unreviewed', 'reviewed', 'corrected', 'rejected']) expect(list.querySelector(`.lyric-cue-list__status-dot--${status}`), status).not.toBeNull()
+    expect(list.querySelector('.lyric-cue-list__row--active')).not.toBeNull()
+    expect(list.querySelector('.lyric-cue-list__low-confidence')).not.toBeNull()
+    expect(list.querySelector('.lyric-cue-list__warning-count')).not.toBeNull()
+    expect(list.querySelectorAll('.lyric-cue-list__editor .lyric-word-editor__row').length).toBe(4)
+    expect([...list.querySelectorAll('tbody td.lyric-cue-list__text')].some(cell => cell.textContent === 'Empty')).toBe(true)
+
+    // One cue editor: selecting a row selects the same cue in the lanes.
+    await act(async () => list.querySelector<HTMLElement>('tr[data-cue-row-id="lt-cue-09"]')!.click())
+    expect(host.querySelector('.lyric-cue-block--selected')?.getAttribute('data-cue-id')).toBe('lt-cue-09')
+
+    const header = list.querySelector<HTMLElement>('.drc-header')!
+    await act(async () => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(list.querySelector('.lyric-cue-list')).toBeNull()
+    await act(async () => header.click())
+    expect(list.querySelector('.lyric-cue-list')).not.toBeNull()
+  })
+
   it('mounts no production rendering or media runtimes', () => {
     expect(container.querySelector('audio, video')).toBeNull()
-    // The only canvases are design A's dock waveform and Track Map beat grid and ruler, drawn from generated data.
+    // The only canvases are design A's dock waveform, the Track Timeline rows and the Track Map beat grid and ruler, drawn from generated data.
     expect([...container.querySelectorAll('canvas')].every(canvas => canvas.closest('.vz-dock-waveform-wrap, .rv-timeline-lanes'))).toBe(true)
   })
 })

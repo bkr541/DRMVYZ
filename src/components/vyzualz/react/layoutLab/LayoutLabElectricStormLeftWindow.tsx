@@ -4,19 +4,23 @@ import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { UnderlineTabs } from '../controls/UnderlineTabs'
+import { Cinema2LayersList } from '../Cinema2LayersPanel'
+import { LayoutLabNoticeTab } from './LayoutLabNoticeTab'
 import { Collapsible } from '../ReactControlRows'
 import { getReactEngineIconComponent } from '../reactEngineIcons'
+import { cinema2NativePresetRegistry, compileCinema2NativePreset } from '../../cinema2'
 
 // ── Layout Lab · left window · Cinema 2.0 / Electric Storm ──────────────────
 //
-// A disconnected mockup of React View's left rail with Cinema 2.0 active: the engine card, the SOURCE / LAYERS tabs
-// and the Media Library the Source tab hosts. It is built from the same components, markup and classes as production
+// A disconnected mockup of React View's left rail with Cinema 2.0 active: the engine card, the SOURCE / LAYERS tabs,
+// the Media Library the Source tab hosts, the Layers list (production's Cinema2LayersList) and, after Layers, a NOTICE tab with production's NoticeCard in each tone. It is built from the same components, markup and classes as production
 // (RailWindowHeader, RailTabs, Collapsible, UnderlineTabs, the media sheet card classes), with local state only: no
 // stores, media service or runtime. The engine card keeps its production markup but opens nothing.
 
-const LEFT_TABS: RailTabOption<'source' | 'layers'>[] = [
+const LEFT_TABS: RailTabOption<'source' | 'layers' | 'notice'>[] = [
   { id: 'source', label: 'SOURCE' },
   { id: 'layers', label: 'LAYERS' },
+  { id: 'notice', label: 'NOTICE' },
 ]
 
 type LibraryFilter = 'all' | 'collections' | 'favorites' | 'images' | 'videos'
@@ -53,12 +57,19 @@ const MEDIA: MockMedia[] = [
 ]
 const SELECTED_ID = 'm17'
 
+// The Layers tab lists what the preset declares: Electric Storm's manifest is compiled with the production compiler, so
+// the row (and any layer the preset gains) is exactly what the app's Layers tab shows for it, with no runtime started.
+const ELECTRIC_STORM_LAYERS = (() => {
+  const manifest = cinema2NativePresetRegistry.list().find(preset => preset.metadata.name === 'Electric Storm')
+  return (manifest && compileCinema2NativePreset(manifest).plan?.scene.layers) || []
+})()
+
 function thumbnailStyle([dark, light]: [string, string]): CSSProperties {
   return { background: `radial-gradient(ellipse at 50% 38%, ${light}, ${dark} 72%)` }
 }
 
 export function LayoutLabElectricStormLeftWindow() {
-  const [tab, setTab] = useState<'source' | 'layers'>('source')
+  const [tab, setTab] = useState<'source' | 'layers' | 'notice'>('source')
   const [filter, setFilter] = useState<LibraryFilter>('all')
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -181,8 +192,10 @@ export function LayoutLabElectricStormLeftWindow() {
                     </div>
                   </div>
                 </div>
+              ) : tab === 'layers' ? (
+                <Cinema2LayersList layers={ELECTRIC_STORM_LAYERS} />
               ) : (
-                <div className="rv-ctrl-group"><div className="vz-media-empty">No layers yet.</div></div>
+                <LayoutLabNoticeTab />
               )}
             </div>
           </div>

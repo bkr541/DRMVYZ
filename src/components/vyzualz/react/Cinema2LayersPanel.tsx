@@ -1,4 +1,4 @@
-import type { Cinema2Runtime } from '../cinema2'
+import type { Cinema2CompiledLayerDefinition, Cinema2Runtime } from '../cinema2'
 import { LayerRow } from './controls/LayerRow'
 
 const CINEMA2_LAYER_TONES = ['#4ac7db', '#67f7ff', '#6b4cff', '#61d6aa', '#d8b95a']
@@ -12,12 +12,16 @@ export function Cinema2LayersPanel({ runtime }: Cinema2LayersPanelProps) {
   if (!runtime) return <EmptyCinema2Layers copy="Cinema 2.0 layers are unavailable until the runtime is active." />
   const scene = runtime.getSceneGraph()
   if (scene.layers.length === 0) return <EmptyCinema2Layers copy="This Cinema 2.0 preset does not declare user-facing layers." />
+  return <Cinema2LayersList layers={scene.layers} />
+}
 
+/** The Layers tab's list: the heading with its count, then one reusable LayerRow per declared layer. Layout Lab mounts it with a compiled preset's layers. */
+export function Cinema2LayersList({ layers }: { layers: readonly Readonly<Cinema2CompiledLayerDefinition>[] }) {
   return (
     <section className="rv-engine-panel-list" aria-label="Cinema 2.0 layers" data-cinema2-layers="scene">
-      <div className="rv-engine-panel-list__header"><strong>Layers</strong><span>{scene.layers.length}</span></div>
+      <div className="rv-engine-panel-list__header"><strong>Layers</strong><span>{layers.length}</span></div>
       <div className="rv-engine-layer-tree">
-        {scene.layers.map((layer, index) => {
+        {layers.map((layer, index) => {
           const role = layer.role ? `${layer.role} · ` : ''
           const status = `${role}${layer.visible ? `${Math.round(layer.opacity * 100)}%` : 'Hidden'} · ${layer.blendMode}`
           return (

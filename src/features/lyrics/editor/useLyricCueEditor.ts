@@ -73,7 +73,7 @@ export function formatMs(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`
 }
 
-function cueMatchesFilter(cue: LyricCue, filter: LyricCueFilter, issues: ReturnType<typeof getCueIssues>): boolean {
+export function cueMatchesFilter(cue: LyricCue, filter: LyricCueFilter, issues: ReturnType<typeof getCueIssues>): boolean {
   if (filter === 'unreviewed') return !cue.reviewStatus || cue.reviewStatus === 'unreviewed'
   if (filter === 'low-confidence') return cue.confidence !== undefined && cue.confidence < LOW_LYRIC_CONFIDENCE
   if (filter === 'warnings') return issues.length > 0 || (cue.warnings?.length ?? 0) > 0

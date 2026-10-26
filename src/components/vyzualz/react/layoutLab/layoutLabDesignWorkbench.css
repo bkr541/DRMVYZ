@@ -27,6 +27,17 @@
 /* The mockup's media tiles have no measured pixel size (production sets --vz-sheet-tile from the rail width), so they stay square by aspect ratio. */
 .ll-design-workbench .ll-media-sheet .vz-media-card--sheet { aspect-ratio: 1; }
 
+/* The Lyric Manager windows' wrapper only carries the lyrics workspace's scoping attributes; the windows are the column's flex children. */
+.ll-design-workbench .ll-lyric-timeline-host { display: contents; }
+
+/* The middle column scrolls, so more mockup windows can stack under the visualizer (as .lmv-tab-content scrolls in the Lyric Manager).
+   The visualizer keeps a usable height instead of shrinking to make room, and takes the spare height while the groups are collapsed. */
+.ll-design-workbench .rv-center-col { overflow-x: hidden; overflow-y: auto; }
+.ll-design-workbench .rv-center-col > .rv-canvas-wrap { flex: 1 0 auto; min-height: var(--ll-visualizer-min-height, 360px); }
+.ll-design-workbench .rv-center-col::-webkit-scrollbar { width: 5px; }
+.ll-design-workbench .rv-center-col::-webkit-scrollbar-track { background: transparent; }
+.ll-design-workbench .rv-center-col::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
 /* The Audio Intelligence window keeps the visualizer's header and body classes; its sticky, viewport-height shell is replaced by the rail's own height. */
 .ll-design-workbench .ll-audio-intelligence {
   display: flex;
@@ -36,3 +47,16 @@
   height: 100%;
   overflow: hidden;
 }
+
+/* The Tracks tab hosts the Lyric Manager's Tracks panel. Production scopes that panel's spacing and row bleed under .lmv-left-rail, so the
+   wrapper carries the class; here it is only a scope, so the rail's own surface (right border, shadow, edge thread) is cleared. */
+.ll-design-workbench .lmv-left-rail.ll-lyric-tracks {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.ll-design-workbench .lmv-left-rail.ll-lyric-tracks::after { content: none; }

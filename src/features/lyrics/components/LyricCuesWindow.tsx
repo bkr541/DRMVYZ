@@ -11,12 +11,22 @@ import { formatMs, type LyricCueFilter, type useLyricCueEditor } from '../editor
 
 type Editor = ReturnType<typeof useLyricCueEditor>
 
+/** What the cue list reads from the cue editor; Layout Lab feeds the same window from local state. */
+export type LyricCuesWindowEditor = Pick<Editor,
+  | 'rootRef' | 'cues' | 'orderedCues' | 'selectedCueId' | 'canonicalPlayheadMs' | 'selectCue' | 'filter' | 'setFilter'
+  | 'filteredCues' | 'cueIssues' | 'navigationTarget' | 'commitCuePatch' | 'updateCueWord' | 'undoCueEdit' | 'redoCueEdit'>
+
 interface Props {
-  editor: Editor
+  editor: LyricCuesWindowEditor
 }
 
+/** What the stacked lyric lanes read from the cue editor; Layout Lab feeds the same lanes from local state. */
+export type LyricCueStackedTimelineEditor = Pick<Editor,
+  | 'orderedCues' | 'selectedCueId' | 'getCurrentTimeMs' | 'waveformZoom' | 'snapContext' | 'inactiveCueIds'
+  | 'selectCue' | 'addAtTimelineTime' | 'commitCuePatch' | 'commitWords' | 'handleCueContextAction'>
+
 interface TimelineProps {
-  editor: Editor
+  editor: LyricCueStackedTimelineEditor
   durationMs: number
   currentTimeMs: number | null
   onSeek: (timeMs: number) => void
