@@ -125,25 +125,48 @@ export function ContextActionMenu({
 
   return createPortal((
     <MenuRootRegistryContext.Provider value={registry}>
-      <div
-        ref={menuRef}
-        className={`rv-show-director-context-menu vz-app-context-menu ${className}`.trim()}
+      <ContextActionMenuSurface
+        menuRef={menuRef}
         style={{ left: position.x, top: position.y } as CSSProperties}
-        role="menu"
-        aria-label={ariaLabel}
-        onPointerDown={event => event.stopPropagation()}
-      >
-        {header && (
-          <div className="vz-waveform-context-menu__meta vz-app-context-menu__meta">
-            <strong>{header.title}</strong>
-            {header.subtitle && <span>{header.subtitle}</span>}
-          </div>
-        )}
-        {header && <span className="rv-show-director-context-menu__divider" role="separator" />}
-        <ContextMenuItemsList items={items} onSelect={onClose} />
-      </div>
+        ariaLabel={ariaLabel}
+        header={header}
+        items={items}
+        className={className}
+        onSelect={onClose}
+      />
     </MenuRootRegistryContext.Provider>
   ), document.body)
+}
+
+/** The menu's box, header and rows, without the portal, positioning or dismissal handling. Layout Lab draws it inline. */
+export function ContextActionMenuSurface({ menuRef, style, ariaLabel, header, items, className = '', onSelect }: {
+  menuRef?: RefObject<HTMLDivElement>
+  style?: CSSProperties
+  ariaLabel: string
+  header?: ContextActionMenuProps['header']
+  items: readonly ContextActionMenuItem[]
+  className?: string
+  onSelect?: () => void
+}) {
+  return (
+    <div
+      ref={menuRef}
+      className={`rv-show-director-context-menu vz-app-context-menu ${className}`.trim()}
+      style={style}
+      role="menu"
+      aria-label={ariaLabel}
+      onPointerDown={event => event.stopPropagation()}
+    >
+      {header && (
+        <div className="vz-waveform-context-menu__meta vz-app-context-menu__meta">
+          <strong>{header.title}</strong>
+          {header.subtitle && <span>{header.subtitle}</span>}
+        </div>
+      )}
+      {header && <span className="rv-show-director-context-menu__divider" role="separator" />}
+      <ContextMenuItemsList items={items} onSelect={onSelect} />
+    </div>
+  )
 }
 
 /** The item-row renderer, factored out so a submenu's flyout content can

@@ -47,11 +47,18 @@ function parseSearch(raw: string): { levels: string[]; components: string[]; sco
   return { levels, components, scopes, text }
 }
 
-export function DeveloperLoggingPanel() {
-  const [entries, setEntries] = useState<MainLogEntry[]>([])
-  const [logPath, setLogPath] = useState<string | null>(null)
-  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [live, setLive] = useState(false)
+/** Log contents shown instead of reading the desktop app's main.log; Layout Lab passes placeholder entries. */
+export interface DeveloperLogPreview {
+  entries: MainLogEntry[]
+  path: string
+  live?: boolean
+}
+
+export function DeveloperLoggingPanel({ preview }: { preview?: DeveloperLogPreview } = {}) {
+  const [entries, setEntries] = useState<MainLogEntry[]>(preview?.entries ?? [])
+  const [logPath, setLogPath] = useState<string | null>(preview?.path ?? null)
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(preview ? 'ready' : 'loading')
+  const [live, setLive] = useState(preview?.live ?? false)
   const [search, setSearch] = useState('')
   const [levelFilter, setLevelFilter] = useState<LevelFilterValue>('all')
   const [componentFilter, setComponentFilter] = useState<ComponentFilterValue>('all')
@@ -61,6 +68,7 @@ export function DeveloperLoggingPanel() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
+    if (preview) return
     let disposed = false
     const bridge = getNativeDiagnosticsBridge()
     if (!bridge?.readMainLog) { setLoadState('error'); return }
@@ -84,6 +92,7 @@ export function DeveloperLoggingPanel() {
       disposed = true
       unwatch?.()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the preview is fixed for the panel's lifetime
   }, [])
 
   useEffect(() => () => {

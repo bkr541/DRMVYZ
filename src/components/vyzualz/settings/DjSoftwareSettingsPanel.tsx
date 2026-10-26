@@ -10,7 +10,7 @@ import {
 } from '../../../features/rekordboxImport/nativeBridge'
 import { createLogger } from '../../../lib/logger'
 
-type DjSoftware = 'rekordbox' | 'serato' | 'virtualdj' | 'traktor' | 'engine-dj'
+export type DjSoftware = 'rekordbox' | 'serato' | 'virtualdj' | 'traktor' | 'engine-dj'
 
 const DJ_SOFTWARE_STORAGE_KEY = 'drmvyz.settings.djSoftware.v1'
 const djSoftwareLog = createLogger('react', 'DjSoftwareSettings')
@@ -103,8 +103,34 @@ export function DjSoftwareSettingsPanel() {
     }
   }
 
-  const rekordboxSelected = software === 'rekordbox'
   const nativeIndexAvailable = Boolean(bridge?.getIndexStatus && bridge.selectIndexDirectory && bridge.syncIndex)
+
+  return (
+    <DjSoftwareSettingsView
+      software={software}
+      onSoftwareChange={handleSoftwareChange}
+      status={status}
+      busy={busy}
+      error={error}
+      nativeIndexAvailable={nativeIndexAvailable}
+      onChooseDirectory={() => void chooseDirectory()}
+      onSync={() => void syncDirectory()}
+    />
+  )
+}
+
+/** The DJ Software tab's markup. Layout Lab mounts it with a placeholder index status instead of the native Rekordbox bridge. */
+export function DjSoftwareSettingsView({ software, onSoftwareChange, status, busy, error, nativeIndexAvailable, onChooseDirectory, onSync }: {
+  software: DjSoftware
+  onSoftwareChange: (value: string) => void
+  status: RekordboxIndexStatus | null
+  busy: 'loading' | 'selecting' | 'syncing' | null
+  error: string | null
+  nativeIndexAvailable: boolean
+  onChooseDirectory: () => void
+  onSync: () => void
+}) {
+  const rekordboxSelected = software === 'rekordbox'
 
   return (
     <div className="vsm-dj-software">
@@ -124,7 +150,7 @@ export function DjSoftwareSettingsPanel() {
             menuLabel="DJ Software"
             value={software}
             options={DJ_SOFTWARE_OPTIONS}
-            onChange={handleSoftwareChange}
+            onChange={onSoftwareChange}
             size="compact"
           />
         </div>
@@ -157,13 +183,13 @@ export function DjSoftwareSettingsPanel() {
               />
             </div>
             <IconChipButton
-              onClick={() => void chooseDirectory()}
+              onClick={onChooseDirectory}
               disabled={!nativeIndexAvailable || busy !== null}
             >{busy === 'selecting' ? 'Choosing…' : 'Choose Directory'}</IconChipButton>
             {status?.selectedRootPath && (
               <IconChipButton
                 tone="primary"
-                onClick={() => void syncDirectory()}
+                onClick={onSync}
                 disabled={!nativeIndexAvailable || busy !== null}
               >{busy === 'syncing' ? 'Syncing…' : 'Sync'}</IconChipButton>
             )}

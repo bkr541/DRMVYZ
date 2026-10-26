@@ -13,8 +13,6 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
   const loadError = useMediaStore(state => state.loadError)
   const clearLoadError = useMediaStore(state => state.clearLoadError)
   const notifyPage = useNotifyCurrentPage()
-  const [name, setName] = useState(collection?.name ?? '')
-  const [description, setDescription] = useState(collection?.description ?? '')
   const [saving, setSaving] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -30,7 +28,7 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, saving])
 
-  const save = async () => {
+  const save = async (name: string, description: string) => {
     if (!name.trim()) {
       setValidationError('Collection name is required.')
       return
@@ -51,6 +49,29 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
   }
 
   return (
+    <CollectionEditorView
+      collection={collection}
+      saving={saving}
+      error={validationError ?? loadError}
+      onClose={onClose}
+      onSave={save}
+    />
+  )
+}
+
+/** The editor modal's markup and field state. Layout Lab mounts it with placeholder state instead of the media store. */
+export function CollectionEditorView({ collection, saving, error, onClose, onSave }: {
+  collection?: Pick<MediaCollection, 'name' | 'description'>
+  saving: boolean
+  error: string | null
+  onClose: () => void
+  onSave: (name: string, description: string) => void
+}) {
+  const [name, setName] = useState(collection?.name ?? '')
+  const [description, setDescription] = useState(collection?.description ?? '')
+  const save = () => onSave(name, description)
+
+  return (
     <div className="mum-backdrop" role="presentation">
       <div className="mmv-editor-modal" role="dialog" aria-modal="true" aria-labelledby="collection-editor-title">
         <div className="mmv-editor-header">
@@ -68,7 +89,7 @@ export function CollectionEditorModal({ collection, onClose }: { collection?: Me
             <span className="mum-field-label">DESCRIPTION</span>
             <textarea className="mum-textarea" rows={3} value={description} onChange={event => setDescription(event.target.value)} maxLength={500} />
           </label>
-          {(validationError || loadError) && <div className="mmv-editor-error" role="alert">{validationError ?? loadError}</div>}
+          {error && <div className="mmv-editor-error" role="alert">{error}</div>}
         </div>
         <div className="mmv-editor-footer">
           <IconChipButton onClick={onClose} disabled={saving}>Cancel</IconChipButton>

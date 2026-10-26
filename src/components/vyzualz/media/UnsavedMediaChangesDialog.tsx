@@ -28,6 +28,26 @@ export function UnsavedMediaChangesDialog({ open, onCancel, onProceed }: Unsaved
 
   if (!open) return null
   return (
+    <UnsavedMediaChangesView
+      busy={busy}
+      error={error}
+      onCancel={onCancel}
+      onDiscard={() => { useMediaEditStore.getState().discard() }}
+      onSave={() => { void useMediaEditStore.getState().save() }}
+    />
+  )
+}
+
+/** The dialog's markup. Layout Lab mounts it with placeholder state instead of the media edit store. */
+export function UnsavedMediaChangesView({ busy, error, onCancel, onDiscard, onSave }: {
+  busy: boolean
+  error: string | null
+  onCancel: () => void
+  /** Discarding leaves nothing to lose, which is what lets the dialog's owner proceed. */
+  onDiscard: () => void
+  onSave: () => void
+}) {
+  return (
     <ConfirmDialog
       title="Unsaved changes"
       message="You have unsaved media changes. If you continue, those changes will be lost."
@@ -37,17 +57,12 @@ export function UnsavedMediaChangesDialog({ open, onCancel, onProceed }: Unsaved
       allowCancelWhileBusy
       danger={false}
       confirmTone="primary"
-      secondary={{
-        label: 'Discard Changes',
-        danger: true,
-        // Discarding leaves nothing to lose, which is what lets the effect above proceed.
-        onClick: () => { useMediaEditStore.getState().discard() },
-      }}
+      secondary={{ label: 'Discard Changes', danger: true, onClick: onDiscard }}
       notice={error ?? undefined}
       noticeTone="error"
       noticeTitle="Save failed"
       onCancel={onCancel}
-      onConfirm={() => { void useMediaEditStore.getState().save() }}
+      onConfirm={onSave}
     />
   )
 }

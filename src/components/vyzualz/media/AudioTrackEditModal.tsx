@@ -12,12 +12,6 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
   const updateSavedTrackMetadata = useAudioStore(state => state.updateSavedTrackMetadata)
   const loadError = useAudioStore(state => state.loadError)
   const clearError = useAudioStore(state => state.clearError)
-  const [title, setTitle] = useState(track.title)
-  const [artist, setArtist] = useState(track.artist ?? '')
-  const [genre, setGenre] = useState(track.genre ?? '')
-  const [bpm, setBpm] = useState(track.bpm?.toString() ?? '')
-  const [musicalKey, setMusicalKey] = useState(track.musicalKey ?? '')
-  const hasCustomMusicalKey = Boolean(track.musicalKey && !MUSICAL_KEYS.includes(track.musicalKey as (typeof MUSICAL_KEYS)[number]))
   const [saving, setSaving] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -33,13 +27,13 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, saving])
 
-  const save = async () => {
-    const trimmedTitle = title.trim()
+  const save = async (fields: { title: string; artist: string; genre: string; bpm: string; musicalKey: string }) => {
+    const trimmedTitle = fields.title.trim()
     if (!trimmedTitle) {
       setValidationError('Title is required.')
       return
     }
-    const parsedBpm = bpm.trim() ? Number(bpm) : null
+    const parsedBpm = fields.bpm.trim() ? Number(fields.bpm) : null
     if (parsedBpm !== null && (!Number.isFinite(parsedBpm) || parsedBpm <= 0)) {
       setValidationError('BPM must be a positive number.')
       return
@@ -50,14 +44,33 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
     setValidationError(null)
     const saved = await updateSavedTrackMetadata(track.id, {
       title: trimmedTitle,
-      artist: artist.trim() || null,
-      genre: genre.trim() || null,
+      artist: fields.artist.trim() || null,
+      genre: fields.genre.trim() || null,
       bpm: parsedBpm,
-      musicalKey: musicalKey.trim() || null,
+      musicalKey: fields.musicalKey.trim() || null,
     })
     setSaving(false)
     if (saved) onClose()
   }
+
+  return <AudioTrackEditView track={track} saving={saving} error={validationError ?? loadError} onClose={onClose} onSave={save} />
+}
+
+/** The editor modal's markup and field state. Layout Lab mounts it with placeholder state instead of the audio store. */
+export function AudioTrackEditView({ track, saving, error, onClose, onSave }: {
+  track: Pick<SavedAudioTrack, 'title' | 'artist' | 'genre' | 'bpm' | 'musicalKey'>
+  saving: boolean
+  error: string | null
+  onClose: () => void
+  onSave: (fields: { title: string; artist: string; genre: string; bpm: string; musicalKey: string }) => void
+}) {
+  const [title, setTitle] = useState(track.title)
+  const [artist, setArtist] = useState(track.artist ?? '')
+  const [genre, setGenre] = useState(track.genre ?? '')
+  const [bpm, setBpm] = useState(track.bpm?.toString() ?? '')
+  const [musicalKey, setMusicalKey] = useState(track.musicalKey ?? '')
+  const hasCustomMusicalKey = Boolean(track.musicalKey && !MUSICAL_KEYS.includes(track.musicalKey as (typeof MUSICAL_KEYS)[number]))
+  const save = () => onSave({ title, artist, genre, bpm, musicalKey })
 
   return (
     <div className="mum-backdrop" role="presentation">
@@ -95,7 +108,7 @@ export function AudioTrackEditModal({ track, onClose }: { track: SavedAudioTrack
               </DropdownSelect>
             </label>
           </div>
-          {(validationError || loadError) && <div className="mmv-editor-error" role="alert">{validationError ?? loadError}</div>}
+          {error && <div className="mmv-editor-error" role="alert">{error}</div>}
         </div>
         <div className="mmv-editor-footer">
           <IconChipButton onClick={onClose} disabled={saving}>Cancel</IconChipButton>

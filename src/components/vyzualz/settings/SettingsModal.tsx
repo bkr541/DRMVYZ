@@ -27,7 +27,6 @@ function AccountPanel() {
   const [saving,       setSaving]       = useState(false)
   const [uploading,    setUploading]    = useState(false)
   const [saveMsg,      setSaveMsg]      = useState<{ text: string; ok: boolean } | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const saveMsgTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const showMsg = useCallback((text: string, ok: boolean) => {
@@ -92,14 +91,58 @@ function AccountPanel() {
     }
   }
 
+  if (!supabaseConfigured) return <AccountPanelView state="offline" />
+  if (loading) return <AccountPanelView state="loading" />
+
+  return (
+    <AccountPanelView
+      state="ready"
+      email={email}
+      displayName={displayName}
+      artistName={artistName}
+      avatarUrl={avatarUrl}
+      uploading={uploading}
+      saving={saving}
+      canSave={!!userId}
+      saveMsg={saveMsg}
+      onDisplayNameChange={setDisplayName}
+      onArtistNameChange={setArtistName}
+      onSave={handleSave}
+      onAvatarFile={handleAvatarFile}
+    />
+  )
+}
+
+/** The Account tab's markup. Layout Lab mounts it with placeholder values instead of a signed-in profile. */
+export function AccountPanelView(props: {
+  state: 'offline' | 'loading' | 'ready'
+  email?: string
+  displayName?: string
+  artistName?: string
+  avatarUrl?: string | null
+  uploading?: boolean
+  saving?: boolean
+  canSave?: boolean
+  saveMsg?: { text: string; ok: boolean } | null
+  onDisplayNameChange?: (value: string) => void
+  onArtistNameChange?: (value: string) => void
+  onSave?: () => void
+  onAvatarFile?: (file: File) => void
+}) {
+  const {
+    state, email = '', displayName = '', artistName = '', avatarUrl = null, uploading = false, saving = false,
+    canSave = false, saveMsg = null, onDisplayNameChange, onArtistNameChange, onSave, onAvatarFile,
+  } = props
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    handleAvatarFile(file)
+    onAvatarFile?.(file)
   }
 
-  if (!supabaseConfigured) {
+  if (state === 'offline') {
     return (
       <div className="vsm-acct-offline">
         <AppIcon kind="warning" size="20" />
@@ -108,7 +151,7 @@ function AccountPanel() {
     )
   }
 
-  if (loading) {
+  if (state === 'loading') {
     return <div className="vsm-acct-loading">Loading profile…</div>
   }
 
@@ -169,7 +212,7 @@ function AccountPanel() {
             placeholder="Your name"
             value={displayName}
             maxLength={80}
-            onChange={e => setDisplayName(e.target.value)}
+            onChange={e => onDisplayNameChange?.(e.target.value)}
           />
         </div>
 
@@ -182,7 +225,7 @@ function AccountPanel() {
             placeholder="Stage name or alias"
             value={artistName}
             maxLength={80}
-            onChange={e => setArtistName(e.target.value)}
+            onChange={e => onArtistNameChange?.(e.target.value)}
           />
         </div>
       </div>
@@ -196,8 +239,8 @@ function AccountPanel() {
         )}
         <button
           className="vsm-acct-save-btn"
-          disabled={saving || !userId}
-          onClick={handleSave}
+          disabled={saving || !canSave}
+          onClick={onSave}
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
@@ -290,6 +333,57 @@ function SystemSettingsPanel() {
   }, [])
 
   return (
+    <SystemSettingsView
+      quality={quality}
+      onQualityChange={setQuality}
+      autoQualityEnabled={autoQualityEnabled}
+      autoQualityMin={autoQualityMin}
+      autoQualityMax={autoQualityMax}
+      autoQualityReason={autoQualityReason}
+      onAutoQualityEnabledChange={setAutoQualityEnabled}
+      onAutoQualityMinChange={setAutoQualityMin}
+      onAutoQualityMaxChange={setAutoQualityMax}
+      bpmSync={bpmSync}
+      onToggleBpmSync={toggleBpmSync}
+      bpm={bpm}
+      storageAvailable={storageAvailable}
+      authRequired={authRequired}
+      onResetEffects={resetEffects}
+      onResetModulation={resetModulationRoutes}
+      diagnosticsStatus={diagnosticsStatus}
+      onCopyDiagnostics={handleCopyDiagnostics}
+    />
+  )
+}
+
+type QualityLevel = typeof QUALITY_LEVELS[number]
+
+/** The System Settings tab's markup. Layout Lab mounts it with placeholder values instead of the visual and media stores. */
+export function SystemSettingsView({
+  quality, onQualityChange, autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
+  onAutoQualityEnabledChange, onAutoQualityMinChange, onAutoQualityMaxChange, bpmSync, onToggleBpmSync, bpm,
+  storageAvailable, authRequired, onResetEffects, onResetModulation, diagnosticsStatus, onCopyDiagnostics,
+}: {
+  quality: QualityLevel
+  onQualityChange: (quality: QualityLevel) => void
+  autoQualityEnabled: boolean
+  autoQualityMin: QualityLevel
+  autoQualityMax: QualityLevel
+  autoQualityReason?: string | null
+  onAutoQualityEnabledChange: (enabled: boolean) => void
+  onAutoQualityMinChange: (quality: QualityLevel) => void
+  onAutoQualityMaxChange: (quality: QualityLevel) => void
+  bpmSync: boolean
+  onToggleBpmSync: () => void
+  bpm: number
+  storageAvailable: boolean
+  authRequired: boolean
+  onResetEffects: () => void
+  onResetModulation: () => void
+  diagnosticsStatus: 'idle' | 'copied' | 'error'
+  onCopyDiagnostics: () => void
+}) {
+  return (
     <div className="vsm-system-settings">
       <section className="vsm-settings-group">
         <div className="vsm-settings-group-heading">
@@ -303,7 +397,7 @@ function SystemSettingsPanel() {
             <button
               key={q}
               className={`vz-settings-seg-btn${quality === q ? ' vz-settings-seg-btn--active' : ''}`}
-              onClick={() => setQuality(q)}
+              onClick={() => onQualityChange(q)}
             >{q}</button>
           ))}
         </div>
@@ -317,7 +411,7 @@ function SystemSettingsPanel() {
           </div>
           <IconMorphToggle
             checked={autoQualityEnabled}
-            onCheckedChange={setAutoQualityEnabled}
+            onCheckedChange={onAutoQualityEnabledChange}
             className="vz-settings-seg-btn vsm-settings-toggle"
             aria-label="Auto Quality"
           />
@@ -330,7 +424,7 @@ function SystemSettingsPanel() {
                 {QUALITY_LEVELS.map(q => (
                   <button key={q}
                     className={`vz-settings-seg-btn${autoQualityMin === q ? ' vz-settings-seg-btn--active' : ''}`}
-                    onClick={() => setAutoQualityMin(q)}
+                    onClick={() => onAutoQualityMinChange(q)}
                   >{q}</button>
                 ))}
               </div>
@@ -341,7 +435,7 @@ function SystemSettingsPanel() {
                 {QUALITY_LEVELS.map(q => (
                   <button key={q}
                     className={`vz-settings-seg-btn${autoQualityMax === q ? ' vz-settings-seg-btn--active' : ''}`}
-                    onClick={() => setAutoQualityMax(q)}
+                    onClick={() => onAutoQualityMaxChange(q)}
                   >{q}</button>
                 ))}
               </div>
@@ -364,7 +458,7 @@ function SystemSettingsPanel() {
         <div className="vsm-settings-inline-row">
           <IconMorphToggle
             checked={bpmSync}
-            onCheckedChange={() => toggleBpmSync()}
+            onCheckedChange={() => onToggleBpmSync()}
             className="vz-settings-seg-btn vsm-settings-toggle"
             aria-label="BPM Sync"
           />
@@ -402,12 +496,12 @@ function SystemSettingsPanel() {
         <div className="vsm-settings-actions">
           <button
             className="vz-settings-reset-btn"
-            onClick={resetEffects}
+            onClick={onResetEffects}
             title="Set all effect sliders back to defaults"
           >Reset Effects</button>
           <button
             className="vz-settings-reset-btn"
-            onClick={resetModulationRoutes}
+            onClick={onResetModulation}
             title="Restore default audio modulation routing"
           >Reset Modulation</button>
         </div>
@@ -433,7 +527,7 @@ function SystemSettingsPanel() {
         <div className="vsm-settings-actions">
           <button
             className="vz-settings-reset-btn"
-            onClick={handleCopyDiagnostics}
+            onClick={onCopyDiagnostics}
             title="Copy recent log activity and basic environment info to the clipboard"
           >Copy Diagnostics</button>
         </div>
@@ -451,9 +545,9 @@ function SystemSettingsPanel() {
   )
 }
 
-type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'dj-software' | 'developer'
+export type SettingsTab = 'account' | 'appearance' | 'brand' | 'system' | 'dj-software' | 'developer'
 
-const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
+export const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'account', label: 'Account' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'brand', label: 'Brand Kit' },
@@ -461,6 +555,85 @@ const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'dj-software', label: 'DJ Software' },
   { id: 'developer', label: 'Developer' },
 ]
+
+/** The pop-up's surface: header, section navigation and content pane around whichever panel is active. Layout Lab renders it inline. */
+export function SettingsModalFrame({
+  tab, onTabChange, onClose, onSignOut, children, modalRef, dialog = true, idPrefix = 'vsm', className, style,
+}: {
+  tab: SettingsTab
+  onTabChange: (tab: SettingsTab) => void
+  onClose: () => void
+  onSignOut: () => void
+  children: React.ReactNode
+  modalRef?: React.Ref<HTMLDivElement>
+  /** A real modal dialog (focus trap, aria-modal) or an inline copy of its surface. */
+  dialog?: boolean
+  idPrefix?: string
+  className?: string
+  style?: React.CSSProperties
+}) {
+  return (
+    <div
+      ref={modalRef}
+      className={`vsm-modal${className ? ` ${className}` : ''}`}
+      style={style}
+      role={dialog ? 'dialog' : 'group'}
+      aria-modal={dialog ? true : undefined}
+      aria-labelledby={`${idPrefix}-title`}
+      tabIndex={-1}
+      onMouseDown={event => event.stopPropagation()}
+    >
+        <div className="vsm-header">
+          <div id={`${idPrefix}-title`} className="vsm-title">SETTINGS</div>
+          <button type="button" className="vsm-close" onClick={onClose} aria-label="Close settings"><AppIcon kind="close" size={14} /></button>
+        </div>
+        <div className="vsm-body">
+          <nav className="vsm-nav" role="tablist" aria-label="Settings sections">
+            {SETTINGS_TABS.map(item => (
+              <button
+                key={item.id}
+                id={`${idPrefix}-tab-${item.id}`}
+                type="button"
+                role="tab"
+                aria-selected={tab === item.id}
+                aria-controls={`${idPrefix}-panel-${item.id}`}
+                tabIndex={tab === item.id ? 0 : -1}
+                className={`vsm-nav-item${tab === item.id ? ' vsm-nav-item--active' : ''}`}
+                onClick={() => onTabChange(item.id)}
+                onKeyDown={event => {
+                  const index = SETTINGS_TABS.findIndex(candidate => candidate.id === item.id)
+                  const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
+                    : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1
+                      : 0
+                  if (!delta) return
+                  event.preventDefault()
+                  const next = SETTINGS_TABS[(index + delta + SETTINGS_TABS.length) % SETTINGS_TABS.length]
+                  onTabChange(next.id)
+                  requestAnimationFrame(() => document.getElementById(`${idPrefix}-tab-${next.id}`)?.focus())
+                }}
+              >{item.label}</button>
+            ))}
+            <div className="vsm-nav-footer">
+              <button
+                type="button"
+                className="vsm-nav-item vsm-nav-signout"
+                onClick={onSignOut}
+              >Sign Out</button>
+            </div>
+          </nav>
+          <div
+            id={`${idPrefix}-panel-${tab}`}
+            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}${tab === 'developer' ? ' vsm-content--developer' : ''}`}
+            role="tabpanel"
+            aria-labelledby={`${idPrefix}-tab-${tab}`}
+            tabIndex={0}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+  )
+}
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<SettingsTab>('account')
@@ -505,69 +678,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="vsm-backdrop" onMouseDown={onClose}>
-      <div
-        ref={modalRef}
-        className="vsm-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="vsm-title"
-        tabIndex={-1}
-        onMouseDown={event => event.stopPropagation()}
+      <SettingsModalFrame
+        tab={tab}
+        onTabChange={setTab}
+        onClose={onClose}
+        onSignOut={() => { onClose(); void supabase.auth.signOut() }}
+        modalRef={modalRef}
       >
-        <div className="vsm-header">
-          <div id="vsm-title" className="vsm-title">SETTINGS</div>
-          <button type="button" className="vsm-close" onClick={onClose} aria-label="Close settings"><AppIcon kind="close" size={14} /></button>
-        </div>
-        <div className="vsm-body">
-          <nav className="vsm-nav" role="tablist" aria-label="Settings sections">
-            {SETTINGS_TABS.map(item => (
-              <button
-                key={item.id}
-                id={`vsm-tab-${item.id}`}
-                type="button"
-                role="tab"
-                aria-selected={tab === item.id}
-                aria-controls={`vsm-panel-${item.id}`}
-                tabIndex={tab === item.id ? 0 : -1}
-                className={`vsm-nav-item${tab === item.id ? ' vsm-nav-item--active' : ''}`}
-                onClick={() => setTab(item.id)}
-                onKeyDown={event => {
-                  const index = SETTINGS_TABS.findIndex(candidate => candidate.id === item.id)
-                  const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
-                    : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1
-                      : 0
-                  if (!delta) return
-                  event.preventDefault()
-                  const next = SETTINGS_TABS[(index + delta + SETTINGS_TABS.length) % SETTINGS_TABS.length]
-                  setTab(next.id)
-                  requestAnimationFrame(() => document.getElementById(`vsm-tab-${next.id}`)?.focus())
-                }}
-              >{item.label}</button>
-            ))}
-            <div className="vsm-nav-footer">
-              <button
-                type="button"
-                className="vsm-nav-item vsm-nav-signout"
-                onClick={() => { onClose(); void supabase.auth.signOut() }}
-              >Sign Out</button>
-            </div>
-          </nav>
-          <div
-            id={`vsm-panel-${tab}`}
-            className={`vsm-content${tab === 'brand' ? ' vsm-content--brand' : ''}${tab === 'developer' ? ' vsm-content--developer' : ''}`}
-            role="tabpanel"
-            aria-labelledby={`vsm-tab-${tab}`}
-            tabIndex={0}
-          >
-            {tab === 'account' && <AccountPanel />}
-            {tab === 'appearance' && <AppearanceSettingsPanel />}
-            {tab === 'brand' && <BrandKitSettingsPanel />}
-            {tab === 'system' && <SystemSettingsPanel />}
-            {tab === 'dj-software' && <DjSoftwareSettingsPanel />}
-            {tab === 'developer' && <DeveloperPanel />}
-          </div>
-        </div>
-      </div>
+        {tab === 'account' && <AccountPanel />}
+        {tab === 'appearance' && <AppearanceSettingsPanel />}
+        {tab === 'brand' && <BrandKitSettingsPanel />}
+        {tab === 'system' && <SystemSettingsPanel />}
+        {tab === 'dj-software' && <DjSoftwareSettingsPanel />}
+        {tab === 'developer' && <DeveloperPanel />}
+      </SettingsModalFrame>
     </div>
   )
 }

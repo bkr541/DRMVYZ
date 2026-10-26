@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { PanelSubtabs } from '../../react/PanelSubtabs'
-import { DeveloperLoggingPanel } from './DeveloperLoggingPanel'
+import { DeveloperLoggingPanel, type DeveloperLogPreview } from './DeveloperLoggingPanel'
 
 type DeveloperGroupId = 'logging' | 'feature-flags' | 'network' | 'performance' | 'storage'
 
@@ -24,7 +24,7 @@ function DeveloperPlaceholderGroup({ label }: { label: string }) {
 /** Settings → Developer: a horizontal sub-tab row (same widget the SYSTEM/USER
  * preset scope tabs use elsewhere) above a full-width/height content pane, so
  * the Logging group can give its table the whole panel to work with. */
-export function DeveloperPanel() {
+export function DeveloperPanel({ logPreview }: { logPreview?: DeveloperLogPreview } = {}) {
   const [group, setGroup] = useState<DeveloperGroupId>('logging')
 
   return (
@@ -36,7 +36,7 @@ export function DeveloperPanel() {
         ariaLabel="Developer sections"
       />
       <div className="vsm-dev-content" role="tabpanel" aria-label={`Developer — ${DEVELOPER_GROUPS.find(item => item.id === group)?.label}`}>
-        {group === 'logging' && <DeveloperLoggingPanel />}
+        {group === 'logging' && <DeveloperLoggingPanel preview={logPreview} />}
         {group === 'feature-flags' && <DeveloperPlaceholderGroup label="Feature Flags" />}
         {group === 'network' && <DeveloperPlaceholderGroup label="Network" />}
         {group === 'performance' && <DeveloperPlaceholderGroup label="Performance" />}

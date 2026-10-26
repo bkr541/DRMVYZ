@@ -155,7 +155,7 @@ describe('Layout Lab canvas', () => {
 
   it('mirrors the Track Map workspace under design A\'s visualizer with every row populated', async () => {
     const column = view().querySelector<HTMLElement>('.rv-center-col')!
-    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['rv-canvas-wrap', 'll-lyric-timeline-host', 'rv-lower-workspace'])
+    expect([...column.children].map(node => node.className.split(' ')[0])).toEqual(['rv-canvas-wrap', 'll-lyric-timeline-host', 'rv-lower-workspace', 'll-lyric-timeline-host', 'll-lyric-timeline-host'])
     const workspace = column.querySelector<HTMLElement>('.rv-lower-workspace')!
     expect([...workspace.querySelectorAll('.rv-lower-workspace-tabs [role="tab"]')].map(node => node.textContent)).toEqual(['Track Map', 'Performance Pads'])
     expect(workspace.querySelector('[role="separator"]')?.getAttribute('aria-label')).toBe('Resize timeline workspace')
@@ -421,6 +421,89 @@ describe('Layout Lab canvas', () => {
     expect(list.querySelector('.lyric-cue-list')).toBeNull()
     await act(async () => header.click())
     expect(list.querySelector('.lyric-cue-list')).not.toBeNull()
+  })
+
+  it("draws the production Settings pop-up inline in a collapsible group below the Track Map", async () => {
+    const column = view().querySelector<HTMLElement>('.rv-center-col')!
+    const settings = column.querySelector<HTMLElement>('.ll-settings-window')!
+    // After the Track Map, and before the Pop-ups & Dialogs group.
+    const children = [...column.children]
+    expect(children.findIndex(node => node.contains(settings))).toBe(children.findIndex(node => node.classList.contains('rv-lower-workspace')) + 1)
+    const header = settings.querySelector<HTMLElement>(':scope > .drc-group > .drc-header')!
+    expect(header.textContent).toContain('Settings')
+    // The pop-up's own surface: title, close, the six sections and Sign Out.
+    expect(settings.querySelector('.vsm-modal .vsm-title')?.textContent).toBe('SETTINGS')
+    expect([...settings.querySelectorAll('.vsm-nav-item')].map(node => node.textContent)).toEqual(['Account', 'Appearance', 'Brand Kit', 'System Settings', 'DJ Software', 'Developer', 'Sign Out'])
+    const open = async (label: string) => act(async () => [...settings.querySelectorAll<HTMLElement>('.vsm-nav-item')].find(node => node.textContent === label)!.click())
+    // Account (the pop-up's first tab).
+    expect(settings.querySelector('.vsm-nav-item--active')?.textContent).toBe('Account')
+    expect([...settings.querySelectorAll('.vsm-acct-label')].map(node => node.textContent)).toEqual(['Email', 'Display Name', 'Artist Name'])
+    expect(settings.querySelector('.vsm-acct-avatar-initials')?.textContent).toBe('KO')
+    await open('Appearance')
+    expect([...settings.querySelectorAll('.vsm-theme-card strong')].map(node => node.textContent)).toEqual(['Dark', 'Light', 'CDJ'])
+    await open('System Settings')
+    expect([...settings.querySelectorAll('.vsm-settings-group h2')].map(node => node.textContent)).toEqual(['Canvas Quality', 'Auto Quality', 'BPM Sync', 'Media Sync', 'Reset', 'Keyboard Shortcuts', 'Diagnostics'])
+    await open('DJ Software')
+    expect([...settings.querySelectorAll('.vsm-settings-group h2')].map(node => node.textContent)).toEqual(['DJ Software', 'Rekordbox Library Index'])
+    expect(settings.querySelector('.vsm-dj-index-summary')?.textContent).toContain('2,418 tracks')
+    await open('Developer')
+    expect([...settings.querySelectorAll('.vsm-dev-panel [role="tab"]')].map(node => node.textContent)).toEqual(['Logging', 'Feature Flags', 'Network', 'Performance', 'Storage'])
+    expect(settings.querySelectorAll('.vsm-dev-log-row').length).toBe(14)
+    expect(settings.querySelector('.vsm-dev-log-row--collapsible')).not.toBeNull()
+    // Close collapses the group, and the header expands it again.
+    await act(async () => settings.querySelector<HTMLElement>('.vsm-close')!.click())
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(settings.querySelector('.vsm-modal')).toBeNull()
+    await act(async () => header.click())
+    expect(settings.querySelector('.vsm-modal')).not.toBeNull()
+  })
+
+  it("draws every pop-up and confirmation dialog inline in a collapsible group below the Settings group", async () => {
+    const column = view().querySelector<HTMLElement>('.rv-center-col')!
+    const popups = column.querySelector<HTMLElement>('.ll-popups-window')!
+    expect(column.lastElementChild?.contains(popups)).toBe(true)
+    const header = popups.querySelector<HTMLElement>(':scope > .drc-group > .drc-header')!
+    expect(header.textContent).toContain('Pop-ups & Dialogs')
+    const open = async (label: string) => act(async () => [...popups.querySelectorAll<HTMLElement>('[role="tab"]')].find(node => node.textContent === label)!.click())
+    const titles = () => [...popups.querySelectorAll('.ll-popup-sample > figcaption strong')].map(node => node.textContent)
+
+    // Confirmations: the shared ConfirmDialog with each caller's own copy, including the busy, notice and secondary-action variants.
+    expect(titles()).toEqual([
+      'Delete Media Item', 'Delete Media Items', 'Delete Media Item (working)', 'Delete Track', 'Delete Collection', 'Delete Pool', 'Delete Show',
+      'Delete Show (deleting)', 'Change Section Engine?', 'Delete Deck', 'Delete Beam', 'Delete Beams', 'Delete Group', 'Camera Access Needed',
+      'Unsaved changes', 'Unsaved changes (save failed)', 'Save As', 'Save As (failed)',
+    ])
+    expect(popups.querySelectorAll('.dv-confirm-dialog').length).toBe(18)
+    expect(popups.querySelector('.dv-confirm-count-danger')?.textContent).toBe('3')
+    expect(popups.querySelectorAll('.dv-confirm-dialog .dv-notice').length).toBeGreaterThanOrEqual(4)
+    expect(popups.querySelector('.dv-confirm-icon--neutral')).not.toBeNull()
+
+    await open('LYRIC MANAGER')
+    expect(titles()).toEqual([
+      'Delete Track', 'Delete Lyric Version', 'Replace active lyric version?', 'Unsaved lyric changes', 'This lyric version was changed elsewhere',
+      'Recovered lyric draft available', 'Recovered lyric draft conflicts with the server',
+    ])
+    expect(popups.querySelectorAll('.lmv-dialog').length).toBe(2)
+    expect(popups.querySelector('.lmv-recovery-review')).not.toBeNull()
+
+    await open('EDITORS')
+    expect(titles()).toEqual(['Edit Audio Metadata', 'Edit Audio Metadata (invalid)', 'New Collection', 'Edit Collection', 'Audio preview', 'Audio preview (loading)'])
+    expect(popups.querySelectorAll('.mmv-editor-modal').length).toBe(6)
+    expect(popups.querySelector<HTMLInputElement>('.mmv-editor-modal .mum-input')?.value).toBe('Neon Cathedral')
+
+    await open('MENUS & PANELS')
+    expect(titles()).toEqual(['Track actions menu', 'Library context menu (with submenu)', 'Cue point menu (existing cue)', 'Cue point menu (empty spot)', 'Notifications drawer', 'Info popover'])
+    expect([...popups.querySelectorAll('.ll-popup-sample')[0]!.querySelectorAll('[role="menuitem"]')].map(node => node.textContent)).toEqual(['Open Active Lyrics', 'Make Open Version Active', 'Delete Track'])
+    expect(popups.querySelectorAll('.vz-notifications-drawer .dv-notice')).toHaveLength(4)
+    // The Notifications drawer closes and reopens.
+    await act(async () => popups.querySelector<HTMLElement>('.vz-notifications-close')!.click())
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 600)) })
+    expect(popups.querySelector('.vz-notifications-drawer')).toBeNull()
+
+    // The group collapses from its header.
+    await act(async () => header.click())
+    expect(header.getAttribute('aria-expanded')).toBe('false')
+    expect(popups.querySelector('.ll-popup-list')).toBeNull()
   })
 
   it('mounts no production rendering or media runtimes', () => {

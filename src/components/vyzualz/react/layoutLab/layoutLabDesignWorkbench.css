@@ -60,3 +60,59 @@
   background: transparent;
 }
 .ll-design-workbench .lmv-left-rail.ll-lyric-tracks::after { content: none; }
+
+/* The Settings pop-up drawn inline: the group is one window like the Lyric Manager's, and the pop-up's own surface (.vsm-modal) keeps its look
+   (border, radius, background, shadow, header, navigation) and production's height; only its width follows the column instead of the viewport. */
+.ll-design-workbench .ll-settings-window {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 var(--workspace-rail-inset, 12px);
+  border: 1px solid var(--fw-surface-border);
+  border-radius: var(--fw-surface-radius);
+  background: var(--fw-surface-background);
+  box-shadow: var(--fw-surface-shadow);
+}
+.ll-design-workbench .ll-settings-window > .drc-group > .drc-body {
+  margin-top: 0;
+  padding: 0 0 var(--workspace-group-gap, 12px);
+  gap: 0;
+  background: transparent;
+  border-radius: 0;
+}
+.ll-design-workbench .ll-settings-window > .drc-group > .lmv-live-preview-header { padding-inline: 0; }
+.ll-design-workbench .vsm-modal.ll-settings-modal { width: 100%; max-height: none; }
+
+/* Pop-ups and dialogs, drawn inline. Each sample is a captioned stage that stands in for the app window: production's fixed backdrops
+   (confirmations, Lyric Manager dialogs, media editors) are laid in flow so the stage takes the dialog's height, with their own dimming,
+   padding and centring unchanged; the context menus lose their fixed positioning; the Notifications drawer fills the stage. */
+.ll-design-workbench .ll-popups-window .ll-popup-tabs { margin: 12px 0 0; }
+.ll-design-workbench .ll-popup-list { display: flex; flex-direction: column; gap: 18px; padding: 16px 0 4px; }
+.ll-design-workbench .ll-popup-sample { margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ll-design-workbench .ll-popup-sample > figcaption { display: flex; flex-direction: column; gap: 2px; }
+.ll-design-workbench .ll-popup-sample > figcaption strong { font-size: 11px; font-weight: 700; color: var(--color-text, rgba(232, 244, 248, 0.85)); }
+.ll-design-workbench .ll-popup-sample > figcaption span { font-size: 10px; color: var(--color-text-muted, rgba(196, 207, 211, 0.55)); }
+.ll-design-workbench .ll-popup-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--fw-surface-border);
+  border-radius: 8px;
+  background: var(--color-background, #090d0f);
+}
+.ll-design-workbench .ll-popup-stage :is(.dv-confirm-backdrop, .lmv-dialog-backdrop, .mum-backdrop) {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  min-height: 0;
+}
+.ll-design-workbench .ll-popup-stage--menu,
+.ll-design-workbench .ll-popup-stage--info { display: flex; align-items: flex-start; justify-content: center; padding: 22px 16px; min-height: 120px; }
+.ll-design-workbench .ll-popup-stage--info { align-items: center; min-height: 220px; }
+.ll-design-workbench .ll-popup-stage .ll-popup-menu,
+.ll-design-workbench .ll-popup-stage .vz-waveform-context-menu {
+  position: static;
+  z-index: auto;
+  max-height: none;
+}
+.ll-design-workbench .ll-popup-stage--drawer { height: 460px; }
+.ll-design-workbench .ll-popup-reopen { display: grid; place-items: center; height: 100%; }

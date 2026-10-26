@@ -27,7 +27,29 @@ const THEME_OPTIONS: ThemeOption[] = [
 
 export function AppearanceSettingsPanel() {
   const { theme, loading, syncing, error, currentUserId, setTheme, retrySync } = useAppearanceStore()
+  return (
+    <AppearanceSettingsView
+      theme={theme}
+      loading={loading}
+      syncing={syncing}
+      error={error}
+      currentUserId={currentUserId}
+      onSetTheme={setTheme}
+      onRetrySync={retrySync}
+    />
+  )
+}
 
+/** The Appearance tab's markup. Layout Lab mounts it with placeholder state instead of the appearance store. */
+export function AppearanceSettingsView({ theme, loading, syncing, error, currentUserId, onSetTheme, onRetrySync }: {
+  theme: AppearanceTheme
+  loading: boolean
+  syncing: boolean
+  error: string | null
+  currentUserId: string | null
+  onSetTheme: (theme: AppearanceTheme) => void | Promise<void>
+  onRetrySync: () => void | Promise<void>
+}) {
   const status = loading
     ? 'Loading your saved appearance…'
     : syncing
@@ -56,7 +78,7 @@ export function AppearanceSettingsPanel() {
               role="radio"
               aria-checked={theme === option.id}
               className={`vsm-theme-card vsm-theme-card--${option.id}${theme === option.id ? ' is-selected' : ''}`}
-              onClick={() => void setTheme(option.id)}
+              onClick={() => void onSetTheme(option.id)}
             >
               <span className="vsm-theme-preview" aria-hidden="true">
                 <span className="vsm-theme-preview-sidebar" />
@@ -77,7 +99,7 @@ export function AppearanceSettingsPanel() {
         <div className={`vsm-theme-sync${error ? ' vsm-theme-sync--error' : ''}`} role="status" aria-live="polite">
           <span>{status}</span>
           {error && (
-            <button type="button" onClick={() => void retrySync()}>
+            <button type="button" onClick={() => void onRetrySync()}>
               Retry cloud sync
             </button>
           )}

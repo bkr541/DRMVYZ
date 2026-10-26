@@ -66,7 +66,6 @@ export function CuePointContextMenu({
 }: CuePointContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState({ x, y })
-  const request = buildWaveformCueRequest(authoredTimeSec, beatGrid, false)
 
   useLayoutEffect(() => {
     if (!menuRef.current) return
@@ -90,6 +89,44 @@ export function CuePointContextMenu({
       window.removeEventListener('keydown', closeOnKeyDown)
     }
   }, [onClose])
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
+    <CuePointContextMenuPanel
+      menuRef={menuRef}
+      style={{ left: position.x, top: position.y } as CSSProperties}
+      authoredTimeSec={authoredTimeSec}
+      cueMarker={cueMarker}
+      cueEditable={cueEditable}
+      beatGrid={beatGrid}
+      onClose={onClose}
+      onSeek={onSeek}
+      onCreateCuePoint={onCreateCuePoint}
+      onUpdateCuePoint={onUpdateCuePoint}
+      onDeleteCuePoint={onDeleteCuePoint}
+      ariaLabel={ariaLabel}
+    />,
+    document.body,
+  )
+}
+
+/** The menu itself, without the portal, positioning or outside-click handling. Layout Lab draws it inline. */
+export function CuePointContextMenuPanel({
+  menuRef,
+  style,
+  authoredTimeSec,
+  cueMarker,
+  cueEditable,
+  beatGrid = null,
+  onClose,
+  onSeek,
+  onCreateCuePoint,
+  onUpdateCuePoint,
+  onDeleteCuePoint,
+  ariaLabel = 'Cue point menu',
+}: Omit<CuePointContextMenuProps, 'x' | 'y'> & { menuRef?: React.Ref<HTMLDivElement>; style?: CSSProperties }) {
+  const request = buildWaveformCueRequest(authoredTimeSec, beatGrid, false)
 
   const createCue = (snapToBeat: boolean) => {
     if (!onCreateCuePoint) return
@@ -133,13 +170,11 @@ export function CuePointContextMenu({
     onClose()
   }
 
-  if (typeof document === 'undefined') return null
-
-  return createPortal((
+  return (
     <div
       ref={menuRef}
       className="rv-show-director-context-menu vz-waveform-context-menu"
-      style={{ left: position.x, top: position.y } as CSSProperties}
+      style={style}
       role="menu"
       aria-label={ariaLabel}
       onPointerDown={event => event.stopPropagation()}
@@ -195,5 +230,5 @@ export function CuePointContextMenu({
         </>
       )}
     </div>
-  ), document.body)
+  )
 }

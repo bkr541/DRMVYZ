@@ -10,6 +10,8 @@ import { LayoutLabReactHeader } from './LayoutLabReactHeader'
 import { LayoutLabReactNav } from './LayoutLabReactNav'
 import { LayoutLabLyricManagerWindows } from './LayoutLabLyricManagerWindows'
 import { LayoutLabReactTrackMap } from './LayoutLabReactTrackMap'
+import { LayoutLabPopupsWindow } from './LayoutLabPopupsWindow'
+import { LayoutLabSettingsWindow } from './LayoutLabSettingsWindow'
 import { TemplateAudioDockMockup } from './TemplateAudioDockMockup'
 import './layoutLabDesignWorkbench.css'
 
@@ -25,7 +27,7 @@ interface DesignWindows {
 }
 
 const DESIGN_WINDOWS: Partial<Record<LayoutLabDesignId, DesignWindows>> = {
-  'design-01': { header: <LayoutLabReactHeader />, nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>, left: <LayoutLabElectricStormLeftWindow />, right: <LayoutLabMarqueeRightWindow />, lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /></>, dock: <LayoutLabReactAudioDock /> },
+  'design-01': { header: <LayoutLabReactHeader />, nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>, left: <LayoutLabElectricStormLeftWindow />, right: <LayoutLabMarqueeRightWindow />, lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /><LayoutLabSettingsWindow /><LayoutLabPopupsWindow /></>, dock: <LayoutLabReactAudioDock /> },
 }
 
 /**

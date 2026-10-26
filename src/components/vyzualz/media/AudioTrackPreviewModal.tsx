@@ -29,11 +29,32 @@ export function AudioTrackPreviewModal({ track, onClose }: { track: SavedAudioTr
   }, [getSignedUrl, track.id, track.storagePath])
 
   return (
+    <AudioTrackPreviewView
+      title={track.title}
+      url={url}
+      loading={loading}
+      error={error}
+      onClose={onClose}
+      onAudioError={() => setError('The audio file could not be loaded.')}
+    />
+  )
+}
+
+/** The preview modal's markup. Layout Lab mounts it with a placeholder state instead of a signed storage URL. */
+export function AudioTrackPreviewView({ title, url, loading, error, onClose, onAudioError }: {
+  title: string
+  url: string | null
+  loading: boolean
+  error: string | null
+  onClose: () => void
+  onAudioError: () => void
+}) {
+  return (
     <div className="mum-backdrop" role="presentation">
       <div className="mmv-editor-modal mmv-audio-preview" role="dialog" aria-modal="true" aria-labelledby="audio-preview-title">
         <div className="mmv-editor-header">
           <div>
-            <h2 id="audio-preview-title"><DialogTitleIcon name="play" />{track.title}</h2>
+            <h2 id="audio-preview-title"><DialogTitleIcon name="play" />{title}</h2>
           </div>
           <button type="button" className="mpm-close" onClick={onClose} aria-label="Close audio preview"><AppIcon kind="close" size={14} /></button>
         </div>
@@ -43,7 +64,7 @@ export function AudioTrackPreviewModal({ track, onClose }: { track: SavedAudioTr
           ) : error ? (
             <div className="mmv-editor-error" role="alert">{error}</div>
           ) : (
-            <audio controls autoPlay={false} preload="metadata" src={url ?? undefined} onError={() => setError('The audio file could not be loaded.')} />
+            <audio controls autoPlay={false} preload="metadata" src={url ?? undefined} onError={onAudioError} />
           )}
         </div>
       </div>
