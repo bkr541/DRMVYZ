@@ -163,3 +163,33 @@
   --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
+
+/* Option D's explicit role contract. Portals carry this opt-in from the trigger.
+   Parent group headings keep the 12px/700/.15em window-title role; nested groups the 11px role. */
+[data-ui-typography='tile'] {
+  --font-ui: system-ui, -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: var(--font-ui);
+  --az-font: var(--font-ui);
+  --az-font-data: var(--font-ui);
+  --type-field-family: var(--font-ui);
+  --type-field-size: 12px;
+  --type-field-weight: 400;
+  --type-field-label: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
+  --type-field-value: var(--type-field-weight) var(--type-field-size)/1.3 var(--type-field-family);
+  --type-field-placeholder: var(--type-field-value);
+  --type-tab: 500 12px/1 var(--font-ui);
+  --type-tab-active-nested: 700 12px/1 var(--font-ui);
+  --type-window-heading: 700 12px/1.2 var(--font-ui);
+  --type-group-heading: var(--type-window-heading);
+  --type-nested-group-heading: 700 11px/1.2 var(--font-ui);
+  --type-window-heading-tracking: .15em;
+  font-family: var(--font-ui);
+}
+[data-ui-typography='tile'] :is(button,input,textarea,select) { font-family: var(--font-ui); }
+
+/* The shared Lab selector keeps its original role inside this opt-in study. */
+[data-ui-typography='tile'] .ll-design-switcher {
+  --type-tab: 700 11px/1 'Manrope','Helvetica Neue',system-ui,sans-serif;
+  --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
+  --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
+}

@@ -1,0 +1,129 @@
+/* Bounded presentation adapters for behavior-owning editors. Lane coordinates, semantic cue colours,
+   authored media and pointer handlers remain owned by the features; only materials, geometry and type change. */
+.od-root .od-feature { --workspace-rail-inset: 0px; --workspace-group-gap: 10px; --control-row-gap: 12px; min-width: 0; color: var(--od-text); }
+.od-root .od-feature :is(.vz-panel,.vz-panel-body,.rv-inspector,.rv-engine-panel-list,.rv-workspace-panel,.rv-workspace-panel-body,.rv-preset-scroll,.rv-right-subtabs--embedded,.rv-canvas-engine-panel,.rv-canvas-library-shell,.rv-ctrl-group,.vz-mi-panel,.vz-mi-section-body) { background: transparent; border-color: transparent; box-shadow: none; }
+
+/* Groups become tiles; nested groups become wells. */
+.od-root .od-feature .drc-group { margin: 0 0 10px; border: 0; border-radius: var(--od-r-tile); background: var(--od-tile); box-shadow: none; overflow: hidden; }
+.od-root .od-editing .drc-group, .od-root .od-editing .lmv-live-preview-header { background: var(--od-well); }
+.od-root .od-feature .drc-header, .od-root .od-feature .lmv-live-preview-header { min-height: 50px; padding: 0 14px 0 16px; border: 0; background: transparent; color: var(--od-text); box-shadow: none; text-transform: none; }
+.od-root .od-feature .drc-header-title { font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: none; }
+.od-root .od-feature :is(.drc-header-icon,.drc-arrow) { color: var(--od-muted); }
+.od-root .od-feature .drc-body { padding: 0 16px 18px; gap: 12px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.od-root .od-feature .drc-group .drc-group { margin: 0; background: var(--od-well); border-radius: var(--od-r-inner); }
+.od-root .od-editing .drc-group .drc-group { background: var(--od-tile); }
+.od-root .od-feature .drc-group .drc-group > .drc-header { min-height: 42px; padding-left: 23px; } /* parent text starts 39px in; nested text starts 16 + 23 */
+.od-root .od-feature .drc-group .drc-group > .drc-header .drc-header-title { font: var(--type-nested-group-heading); letter-spacing: .09em; }
+.od-root .od-feature .drc-group .drc-group > .drc-body { padding-left: 16px; }
+
+/* Sub-tabs read as small segmented tracks with a lime-tinted selected segment. */
+.od-root .od-feature :is(.dv-underline-tabs,.rv-right-subtabs,.rv-workspace-tabs,.rv-lower-workspace-tabs) { display: flex; gap: 2px; padding: 4px; margin: 0 0 12px; border: 0; border-radius: 16px; background: var(--od-tile) !important; box-shadow: none; }
+.od-root .od-feature :is(.dv-underline-tab,.rv-right-subtabs > button,.rv-lower-workspace-tab) { flex: 1; min-height: 32px; padding: 0 12px; border: 0; border-radius: 12px; color: var(--od-muted); text-shadow: none; background: transparent; box-shadow: none; text-transform: none; justify-content: center; }
+.od-root .od-feature .rv-right-subtabs > button::before, .od-root .od-feature .dv-underline-tab::after { display: none; }
+.od-root .od-feature :is([role='tab'][aria-selected='true'],.rv-lower-workspace-tab.is-active,.dv-underline-tab.is-active,.rv-right-subtabs > button.is-active) { color: var(--od-lime); background: var(--od-lime-tint); }
+
+/* Controls */
+.od-root .od-feature :is(.rv-ctrl-row,.rv-ctrl-toggle-row) { gap: 9px; margin-bottom: 9px; }
+.od-root .od-feature :is(.rv-ctrl-label,.rv-ctrl-description) { color: var(--od-muted); }
+.od-root .od-feature .rv-ctrl-val { color: var(--od-text); background: var(--od-tile-2); border: 0; border-radius: 8px; padding: 5px 9px; font-variant-numeric: tabular-nums; }
+.od-root .od-feature :is(.dv-text-input,.rv-ctrl-text-input,.rv-ctrl-textarea,.mum-input,.vsm-acct-input,.lyric-cue-list__input,.lyric-word-editor__input) { min-height: 38px; padding: 0 12px; border: 1px solid transparent; border-radius: var(--od-r-field); background: var(--od-tile-2); color: var(--od-text); box-shadow: none; }
+.od-root .od-feature input::placeholder { color: var(--od-faint); }
+.od-root .od-feature .drm-dropdown__trigger::after { display: none; }
+.od-root .od-feature :is(input,textarea,select):not([type='range'],[type='checkbox'],[type='radio'],[type='color'],[type='file'],[type='hidden'],[type='button'],[type='submit']) { min-height: 38px !important; padding: 0 12px !important; border: 1px solid transparent !important; border-radius: var(--od-r-field) !important; background: var(--od-tile-2) !important; color: var(--od-text) !important; box-shadow: none !important; }
+.od-root .od-feature textarea { padding: 10px 12px !important; }
+.od-root .od-feature :is(.dv-bubble-slider,.rv-ctrl-slider) { height: 4px; border-radius: 4px; background: linear-gradient(to right,var(--od-lime) var(--pct,50%),#ffffff17 var(--pct,50%)) !important; box-shadow: none; }
+.od-root .od-feature :is(.dv-bubble-slider,.rv-ctrl-slider)::-webkit-slider-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 0 0 4px #181d21; }
+.od-root .od-feature .dv-icon-morph-toggle[role='switch'] { position: relative; display: block; width: 44px !important; min-width: 44px; height: 26px !important; min-height: 26px; padding: 0; border: 0 !important; border-radius: 999px !important; background: var(--od-disc) !important; box-shadow: none; }
+.od-root .od-feature .dv-icon-morph-toggle[role='switch'] svg { display: none; }
+.od-root .od-feature .dv-icon-morph-toggle[role='switch']::after { content: ''; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #aab4ba; transition: transform .18s, background .18s; }
+.od-root .od-feature .dv-icon-morph-toggle[aria-checked='true'] { background: var(--od-lime-tint) !important; }
+.od-root .od-feature .dv-icon-morph-toggle[aria-checked='true']::after { transform: translateX(18px); background: var(--od-lime); }
+.od-root .od-feature :is(.dv-icon-chip,.rv-action-btn,.vz-track-action-btn,.vz-settings-seg-btn,.vsm-acct-avatar-upload-btn,.lyric-cue-list__button,.lyric-word-editor__button) { min-height: 30px; border: 1px solid #ffffff1c; border-radius: 999px; padding-inline: 12px; background: transparent; color: var(--od-muted); box-shadow: none; }
+.od-root .od-feature :is(.dv-icon-chip,.rv-action-btn,.vz-track-action-btn,.lyric-cue-list__button):hover:not(:disabled) { background: #ffffff0d; color: var(--od-text); }
+.od-root .od-feature :is(.dv-btn-primary,.vsm-acct-save-btn,.vsm-primary-btn,.dv-icon-chip--primary) { border-color: transparent; border-radius: 999px; background: var(--od-lime); color: var(--od-lime-ink); box-shadow: none; }
+
+/* Presets: poster tiles with a lime selection ring */
+.od-root .od-feature .rv-engine-panel-list--rail-presets { height: auto; min-height: 100%; }
+.od-root .od-feature .rv-preset-group-cards--poster { gap: 10px; padding: 4px 0 20px; }
+.od-root .od-feature :is(.rv-preset-card-shell,.rv-preset-card,.rv-preset-spotlight-shell,.rv-preset-spotlight-card) { border-radius: 18px; border-color: transparent; box-shadow: none; overflow: hidden; }
+.od-root .od-feature .rv-preset-spotlight-name { font: 600 12px/1.3 var(--font-ui); letter-spacing: 0; text-transform: none; }
+.od-root .od-feature .rv-preset-spotlight-card--active, .od-root .od-feature .rv-preset-card--active { box-shadow: 0 0 0 2px var(--od-bg), 0 0 0 4px var(--od-lime); border-color: transparent; }
+
+/* Audio intelligence: wells with lime meters */
+.od-root .ll-audio-intelligence { height: auto; overflow: visible; }
+.od-root .od-feature .ttv-analysis-panel-header { padding: 6px 4px 14px; margin: 0; background: transparent; box-shadow: none; border: 0; font: 500 20px/1.2 var(--od-num); letter-spacing: -.02em; }
+.od-root .od-feature .ttv-analysis-panel-body { padding: 0; overflow: visible; }
+.od-root .od-feature .ttv-track-info-grid { gap: 14px 12px; padding: 16px; margin-bottom: 10px; border-radius: var(--od-r-inner); background: var(--od-tile); }
+.od-root .od-feature .ttv-track-info-label { font: 600 9px/1 var(--font-ui); letter-spacing: .1em; color: var(--od-faint); margin-bottom: 6px; }
+.od-root .od-feature .ttv-track-info-value { font: 400 12px/1.4 var(--font-ui); }
+.od-root .od-feature .vz-mi-section { padding: 14px 16px; margin: 0 0 10px; border: 0; border-radius: var(--od-r-inner); background: var(--od-tile); box-shadow: none; }
+.od-root .od-feature .vz-mi-section-title--toggle { min-height: 30px; font: var(--type-nested-group-heading); letter-spacing: .09em; color: var(--od-text); }
+.od-root .od-feature :is(.vz-mi-bar-track,.vz-mi-row-track) { background: #ffffff12; border: 0; border-radius: 6px; }
+.od-root .od-feature :is(.vz-mi-bar-fill,.vz-mi-row-fill) { background: var(--od-lime) !important; border-radius: 6px; box-shadow: none; }
+.od-root .od-feature :is(.vz-mi-kv-label,.vz-mi-bar-lbl,.vz-mi-row-label,.vz-mi-dot-label,.vz-mi-section-summary) { color: var(--od-muted); }
+.od-root .od-feature :is(.vz-mi-kv-val,.vz-mi-bar-val,.vz-mi-row-val) { color: var(--od-text); font-variant-numeric: tabular-nums; }
+.od-root .od-feature .vz-mi-dot { background: #ffffff1c; box-shadow: none; }
+.od-root .od-feature .vz-mi-dot--on { background: var(--od-lime); }
+
+/* Tracks: round artwork, pill badges, version stacks */
+.od-root .od-feature :is(.vz-track-row,.dv-track-row,.lmv-doc-card) { border: 0; border-radius: var(--od-r-inner); padding: 12px; margin: 0 0 8px; background: var(--od-tile); box-shadow: none; }
+.od-root .od-feature :is(.vz-track-row--selected,.vz-track-row--loaded,.vz-track-row--active,.dv-track-row.is-active,.lmv-doc-card.is-active) { background: var(--od-lime-tint); box-shadow: none; }
+.od-root .od-feature :is(.vz-track-row-title,.dv-track-row-title,.lmv-doc-card-title) { color: var(--od-text); font: 500 13px/1.4 var(--font-ui); }
+.od-root .od-feature :is(.vz-track-row-artist,.dv-track-row-artist,.dv-track-row-meta) { color: var(--od-muted); font-size: 11px; }
+.od-root .od-feature .vz-track-row-art { border-radius: 50%; background: var(--od-disc); color: var(--od-muted); border: 1.5px solid #ffffff3a; }
+.od-root .od-feature .vz-track-row-state-badges > * { border-radius: 999px; color: var(--od-lime); background: var(--od-lime-wash); border: 0; }
+.od-root .od-feature .lmv-track-versions { border: 0; border-radius: 14px; padding: 8px; margin-top: 10px; background: var(--od-well); }
+.od-root .od-feature .lmv-version-row { border-radius: 10px; padding: 12px 8px; border-color: var(--od-line); flex-direction: column; align-items: stretch; gap: 12px; }
+.od-root .od-feature .lmv-version-row > .vz-track-row-info { width: 100%; }
+.od-root .od-feature .lmv-version-row .vz-track-row-title-line { flex-wrap: wrap; gap: 8px; }
+.od-root .od-feature .lmv-version-row .vz-track-row-title.lmv-version-title { flex: 1 0 100%; width: 100%; max-width: none; }
+.od-root .od-feature .lmv-version-row .vz-track-row-actions { justify-content: flex-end; margin-left: 0; width: 100%; }
+.od-root .od-feature .lmv-version-row .vz-track-row-details { white-space: normal; line-height: 1.6; }
+.od-root .od-feature :is(.lmv-track-search-wrap input,.rv-preset-search-row .vz-md-search-wrap input) { padding-left: 32px !important; }
+
+/* Sequence: the linked timeline and cue editor remain siblings */
+.od-root .od-editing [data-app-workspace='lyrics'] { --fw-surface-background: transparent; --fw-surface-border: transparent; --fw-surface-shadow: none; }
+.od-root .od-editing .ll-lyric-timeline-host > section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.od-root .od-editing :is(.rv-lower-workspace,.rv-lower-workspace-toolbar,.rv-track-map-strip,.rv-track-map-strip--embedded,.rv-lower-workspace-surface) { background: transparent; border-color: transparent; box-shadow: none; }
+.od-root .od-editing .rv-lower-workspace-toolbar { min-height: 50px; padding: 8px 0; gap: 6px; flex-wrap: wrap; }
+.od-root .od-editing .rv-timeline-lanes { border: 0; border-radius: 14px; background: var(--od-well); box-shadow: none; overflow: hidden; }
+.od-root .od-editing :is(.rv-timeline-lane,.rv-timeline-cue-row) { border-color: #ffffff09; }
+.od-root .od-editing .rv-timeline-lane-content { background-color: transparent; background-image: none; }
+.od-root .od-editing :is(.rv-timeline-lane-icon,.track-timeline-icon,.rv-lower-workspace-chevron) { color: var(--od-muted); }
+.od-root .od-editing .rv-timeline-shared-playhead { background: var(--od-lime); box-shadow: none; }
+.od-root .od-editing .lyric-cue-block { border-radius: 7px; box-shadow: none; }
+.od-root .od-editing .lyric-cue-block--selected { border-color: var(--od-lime); background: #66d46b33; }
+.od-root .od-editing .lyric-cue-list__controls { padding: 10px 0 16px; gap: 8px; flex-wrap: wrap; }
+.od-root .od-editing .lyric-cue-list__table th { height: 32px; padding: 10px 8px; background: var(--od-tile); border-color: transparent; color: var(--od-muted); font: 600 10px/1 var(--font-ui); letter-spacing: .08em; }
+.od-root .od-editing .lyric-cue-list__table td { padding: 12px 8px; height: 40px; font-size: 12px; border-color: #ffffff08; }
+.od-root .od-editing .lyric-cue-list__row--selected { background: var(--od-lime-wash); box-shadow: inset 3px 0 var(--od-lime); }
+.od-root .od-editing .lyric-cue-list__editor { border-radius: var(--od-r-inner); padding: 18px 14px; background: var(--od-tile); }
+
+/* Settings, dialogs and overlays use the same tile materials */
+.od-root .od-feature :is(.ll-settings-window,.ll-popups-window) { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.od-root .od-feature :is(.vsm-modal,.vsm-modal.ll-settings-modal) { width: 100%; border: 0; border-radius: 20px; background: var(--od-tile); box-shadow: none; }
+.od-root .od-feature :is(.vsm-header,.vsm-nav,.vsm-content,.vsm-settings-group,.vsm-acct-card,.vsm-dev-panel,.vsm-dev-toolbar) { background: transparent; border-color: var(--od-line); box-shadow: none; }
+.od-root .od-feature .vsm-body { flex-direction: column; }
+.od-root .od-feature .vsm-nav { width: 100%; flex-direction: row; flex-wrap: wrap; gap: 4px; padding: 10px; border-right: 0; border-bottom: 1px solid var(--od-line); }
+.od-root .od-feature .vsm-nav-item { min-height: 34px; width: auto; flex: 0 0 auto; padding: 0 14px; border-radius: 999px; color: var(--od-muted); }
+.od-root .od-feature .vsm-nav-item--active { background: var(--od-lime-tint); color: var(--od-lime); }
+.od-root .od-feature :is(.vsm-settings-group h2,.vsm-title) { color: var(--od-text); font-weight: 600; }
+.od-root .od-feature .vsm-content { padding: 18px; }
+.od-root .od-feature .vsm-dev-log-table { min-width: 850px; table-layout: fixed; }
+.od-root .od-feature .vsm-dev-log-message { min-width: 380px; }
+.od-root .od-feature :is(.dv-confirm-dialog,.lmv-dialog,.mmv-editor-modal,.drm-info-popover,.vz-notifications-drawer) { background: var(--od-tile-2); border: 0; border-radius: 22px; box-shadow: 0 16px 40px #0005; }
+.od-root .od-feature :is(.ll-popup-menu,.vz-waveform-context-menu,.mmv-menu,.drm-context-menu) { padding: 6px; border: 0; border-radius: 18px; background: var(--od-tile-2); box-shadow: 0 16px 40px #0005; }
+.od-root .od-feature [role='menuitem'] { border-radius: 12px; min-height: 36px; }
+.od-root .od-feature :is(.dv-notice,.lmv-recovery-review) { border-radius: 14px; background-color: #ffffff06; box-shadow: none; }
+.od-root .od-feature .ll-popup-stage { border: 0; border-radius: 18px; background: var(--od-well); }
+.od-root .od-feature :is(.dv-confirm-title,.mmv-editor-title,.lmv-dialog h2) { font: 500 18px/1.3 var(--od-num); letter-spacing: -.01em; }
+.od-root .od-feature :is(.dv-confirm-description,.mmv-editor-description) { color: var(--od-muted); line-height: 1.7; }
+.od-root .od-feature :is(.dv-confirm-btn,.mum-btn,.lmv-dialog button) { border-radius: 999px; box-shadow: none; }
+.od-root .od-feature :is(.vsm-acct-label,.mum-field-label,.vsm-label) { font: var(--type-field-label); color: var(--od-muted); }
+@media (max-width:1250px) { .od-root .od-feature .vsm-content { padding: 14px; } .od-root .od-feature .vsm-dev-toolbar { flex-wrap: wrap; } .od-root .od-feature .rv-lower-workspace-tabs { flex-wrap: wrap; } }
+
+/* Legacy toggle families carry !important sizing; restate the pill at higher specificity. */
+:root body .od-root .od-feature .dv-icon-morph-toggle[role='switch'] { width: 44px !important; min-width: 44px !important; height: 26px !important; min-height: 26px !important; border-radius: 999px !important; border: 0 !important; background: var(--od-disc) !important; display: block !important; }
+:root body .od-root .od-feature .dv-icon-morph-toggle[role='switch'][aria-checked='true'] { background: var(--od-lime-tint) !important; }
+.od-root .od-feature .ttv-track-info-label { font-size: 10px; color: var(--od-muted); }
+:root body .od-root .od-feature :is(.dv-underline-tab,.rv-right-subtabs > button,.rv-lower-workspace-tab,.vsm-nav-item) { text-transform: none !important; letter-spacing: 0 !important; }

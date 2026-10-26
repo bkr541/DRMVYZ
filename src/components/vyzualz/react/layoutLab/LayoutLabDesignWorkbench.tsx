@@ -18,6 +18,7 @@ import { OptionBWorkspace } from './optionB/OptionBWorkspace'
 import { AppIconAppearanceContext } from '../../../shared/icons/AppIcon'
 import { OptionAWorkspace } from './optionA/OptionAWorkspace'
 import { OptionCWorkspace } from './optionC/OptionCWorkspace'
+import { OptionDWorkspace } from './optionD/OptionDWorkspace'
 
 interface DesignWindows {
   header: ReactNode
@@ -31,7 +32,7 @@ interface DesignWindows {
 }
 
 /**
- * D–E share fixture content and independent state. A, B and C use dedicated
+ * E keeps the original fixture content and independent state. A, B, C and D use dedicated
  * workspace components; the selector and lazy-mount lifecycle are shared.
  */
 function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: string }): DesignWindows {
@@ -69,7 +70,7 @@ export function LayoutLabDesignWorkbench() {
   return (
     <>
       {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
-        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' ? 'outline' : 'default'}>
+        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' ? 'outline' : 'default'}>
           <LayoutLabDesignView
             id={option.id}
             active={design === option.id}
@@ -107,10 +108,11 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
     </div>
   )
 
-  // A, B and C own their presentation; D–E retain the original React View frame.
+  // A, B, C and D own their presentation; E retains the original React View frame.
   if (id === 'design-01') return <OptionAWorkspace active={active} switcher={switcher} />
   if (id === 'design-02') return <OptionBWorkspace active={active} switcher={switcher} />
   if (id === 'design-03') return <OptionCWorkspace active={active} switcher={switcher} />
+  if (id === 'design-04') return <OptionDWorkspace active={active} switcher={switcher} />
 
   return (
     <FloatingWorkspaceFrame
