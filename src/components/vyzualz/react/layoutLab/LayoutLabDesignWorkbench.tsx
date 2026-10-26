@@ -14,6 +14,7 @@ import { LayoutLabPopupsWindow } from './LayoutLabPopupsWindow'
 import { LayoutLabSettingsWindow } from './LayoutLabSettingsWindow'
 import { TemplateAudioDockMockup } from './TemplateAudioDockMockup'
 import './layoutLabDesignWorkbench.css'
+import './layoutLabOptionAStyle.css'
 
 interface DesignWindows {
   header: ReactNode
