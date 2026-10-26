@@ -17,6 +17,33 @@
   --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
 }
 
+/* Opt-in design study. Keep the entire role contract here so labels, values,
+   placeholders and body-portaled menus share one face. Heading sizes, weights
+   and nesting remain the shared hierarchy. No production workspace opts in. */
+[data-ui-typography='midnight'] {
+  --font-ui: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: var(--font-ui);
+  --az-font: var(--font-ui);
+  --az-font-data: var(--font-ui);
+  --type-label-family: var(--font-ui);
+  --type-field-family: var(--font-ui);
+  --type-field-size: 12px;
+  --type-field-weight: 400;
+  --type-field-label: var(--type-field-weight) var(--type-field-size)/1 var(--type-field-family);
+  --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
+  --type-field-placeholder: var(--type-field-value);
+  --type-tab: 500 12px/1 var(--font-ui);
+  --type-tab-active-nested: 600 11px/1 var(--font-ui);
+  --type-window-heading: 700 12px/1.2 var(--font-ui);
+  --type-group-heading: var(--type-window-heading);
+  --type-nested-group-heading: 800 11px/1 var(--font-ui);
+  --type-window-heading-tracking: 0.15em;
+  font-family: var(--font-ui);
+}
+
+[data-ui-typography='midnight'] :is(button, input, textarea, select) { font-family: var(--font-ui); }
+[data-ui-typography='midnight'] .rv-ctrl-palette-row-label { font: var(--type-field-label) !important; }
+
 /* These role rules outrank legacy component variants, including lazy CSS.
    Existing control styles use !important, so the shared font contract must
    take precedence over those declarations as well. */

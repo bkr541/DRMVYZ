@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { AppIcon } from './AppIcon'
+import { AppIcon, AppIconAppearanceContext } from './AppIcon'
 import { AppIconGlyph } from '../../vyzualz/react/layoutLab/AppIconGlyph'
 import { APP_ICON_INVENTORY } from '../../vyzualz/react/layoutLab/appIconInventory'
 
@@ -21,6 +21,15 @@ afterEach(async () => {
 })
 
 describe('approved production icons', () => {
+  it('uses different monoline artwork only inside the opt-in study', async () => {
+    await act(async () => root.render(<><AppIcon kind="play" /><AppIconAppearanceContext.Provider value="outline"><AppIcon kind="play" size={20} /></AppIconAppearanceContext.Provider></>))
+    const [production, study] = container.querySelectorAll('svg')
+    expect(production.getAttribute('viewBox')).toBe('0 0 32 32')
+    expect(study.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(study.style.fill).toBe('none')
+    expect(study.querySelector('path')?.getAttribute('d')).not.toBe(production.querySelector('path')?.getAttribute('d'))
+  })
+
   it('uses the same artwork in production and the review gallery for every inventoried icon', async () => {
     const kinds = [...new Set(APP_ICON_INVENTORY.map(icon => icon.kind))]
     await act(async () => root.render(<>{kinds.map(kind => (

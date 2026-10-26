@@ -55,6 +55,19 @@ afterEach(() => {
 })
 
 describe('Dropdown', () => {
+  it('carries an opt-in theme and typography across its body portal', () => {
+    renderDropdown(
+      <section data-ui-theme="midnight" data-ui-typography="midnight">
+        <Dropdown ariaLabel="Pattern" options={OPTIONS} />
+      </section>,
+    )
+    click(container?.querySelector('[role="combobox"]') as Element)
+    const menu = document.body.querySelector('[role="listbox"]')
+    expect(container?.contains(menu)).toBe(false)
+    expect(menu?.getAttribute('data-ui-theme')).toBe('midnight')
+    expect(menu?.getAttribute('data-ui-typography')).toBe('midnight')
+  })
+
   it('renders a custom combobox and portals the descriptive listbox', () => {
     renderDropdown(
       <Dropdown

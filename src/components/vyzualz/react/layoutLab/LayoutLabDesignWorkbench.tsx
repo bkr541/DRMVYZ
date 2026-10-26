@@ -15,6 +15,9 @@ import { LayoutLabSettingsWindow } from './LayoutLabSettingsWindow'
 import { TemplateAudioDockMockup } from './TemplateAudioDockMockup'
 import './layoutLabDesignWorkbench.css'
 import './layoutLabOptionAStyle.css'
+import './layoutLabOptionBStyle.css'
+import { AppIconAppearanceContext } from '../../../shared/icons/AppIcon'
+import { LayoutLabMidnightAudioDock, LayoutLabMidnightHeader } from './LayoutLabMidnightChrome'
 
 interface DesignWindows {
   header: ReactNode
@@ -28,18 +31,17 @@ interface DesignWindows {
 }
 
 /**
- * Every design is a full copy of design A's mockup (header, navigation, Electric Storm left window, MARQUEE right window,
- * the Lyric Manager windows, Track Map, Settings and Pop-ups groups, and the audio dock), each with its own state. The
- * header names the design at its top left ("Option A" … "Option E").
+ * Designs share fixture content and independent state. B supplies its own header,
+ * player and icon family; the other options mirror React's composition.
  */
 function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: string }): DesignWindows {
   return {
-    header: <LayoutLabReactHeader optionLabel={`Option ${letter}`} />,
+    header: id === 'design-02' ? <LayoutLabMidnightHeader /> : <LayoutLabReactHeader optionLabel={`Option ${letter}`} />,
     nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>,
-    left: <LayoutLabElectricStormLeftWindow />,
-    right: <LayoutLabMarqueeRightWindow />,
+    left: <LayoutLabElectricStormLeftWindow appearance={id === 'design-02' ? 'midnight' : undefined} />,
+    right: <LayoutLabMarqueeRightWindow appearance={id === 'design-02' ? 'midnight' : undefined} />,
     lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /><LayoutLabSettingsWindow idPrefix={`ll-vsm-${id}`} /><LayoutLabPopupsWindow /></>,
-    dock: <LayoutLabReactAudioDock />,
+    dock: id === 'design-02' ? <LayoutLabMidnightAudioDock /> : <LayoutLabReactAudioDock />,
   }
 }
 
@@ -67,14 +69,15 @@ export function LayoutLabDesignWorkbench() {
   return (
     <>
       {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
-        <LayoutLabDesignView
-          key={option.id}
-          id={option.id}
-          active={design === option.id}
-          selected={design}
-          onSelect={select}
-          windows={buildDesignWindows(option)}
-        />
+        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' ? 'outline' : 'default'}>
+          <LayoutLabDesignView
+            id={option.id}
+            active={design === option.id}
+            selected={design}
+            onSelect={select}
+            windows={buildDesignWindows(option)}
+          />
+        </AppIconAppearanceContext.Provider>
       ))}
     </>
   )
@@ -109,6 +112,8 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
       className="az-root fw-app-frame ll-design-workbench"
       data-app-workspace="react"
       data-lab-design={id}
+      data-ui-theme={id === 'design-02' ? 'midnight' : undefined}
+      data-ui-typography={id === 'design-02' ? 'midnight' : undefined}
       hidden={!active}
     >
       <div className="az-shell fw-app-shell">

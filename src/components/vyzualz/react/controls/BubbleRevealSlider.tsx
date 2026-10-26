@@ -90,12 +90,13 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
   useEffect(() => {
     if (!bubbleVisible || typeof window === 'undefined') return
     updateBubblePosition()
+    const ownerWindow = inputRef.current?.ownerDocument.defaultView ?? window
     const update = () => updateBubblePosition()
-    window.addEventListener('resize', update)
-    window.addEventListener('scroll', update, true)
+    ownerWindow.addEventListener('resize', update)
+    ownerWindow.addEventListener('scroll', update, true)
     return () => {
-      window.removeEventListener('resize', update)
-      window.removeEventListener('scroll', update, true)
+      ownerWindow.removeEventListener('resize', update)
+      ownerWindow.removeEventListener('scroll', update, true)
     }
   }, [bubbleVisible, updateBubblePosition])
 
@@ -107,6 +108,8 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
     ...style,
     '--dv-slider-pct': `${percent}%`,
   } as CSSProperties
+  const themeScope = inputRef.current?.closest('[data-ui-theme]')
+  const ownerDocument = inputRef.current?.ownerDocument ?? (typeof document === 'undefined' ? null : document)
 
   return (
     <>
@@ -167,15 +170,17 @@ export const BubbleRevealSlider = forwardRef<HTMLInputElement, BubbleRevealSlide
           setActive(false)
         }}
       />
-      {bubbleVisible && bubblePosition && typeof document !== 'undefined' && createPortal(
+      {bubbleVisible && bubblePosition && ownerDocument && createPortal(
         <span
           className="dv-bubble-slider__popover"
+          data-ui-theme={themeScope?.getAttribute('data-ui-theme') ?? undefined}
+          data-ui-typography={themeScope?.getAttribute('data-ui-typography') ?? undefined}
           style={{ left: bubblePosition.left, top: bubblePosition.top }}
           aria-hidden="true"
         >
           {resolvedBubbleLabel}
         </span>,
-        document.body,
+        ownerDocument.body,
       )}
     </>
   )

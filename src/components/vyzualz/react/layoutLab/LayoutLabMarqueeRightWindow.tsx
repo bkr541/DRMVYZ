@@ -62,7 +62,7 @@ const INITIAL = {
   ...Object.fromEntries(PALETTE.map(([id, , value]) => [id, value])),
 } as Record<string, number | boolean | string>
 
-export function LayoutLabMarqueeRightWindow() {
+export function LayoutLabMarqueeRightWindow({ appearance }: { appearance?: 'midnight' } = {}) {
   const [tab, setTab] = useState<'presets' | 'design' | 'react' | 'audio' | 'tracks'>('design')
   const [surface, setSurface] = useState<'engine' | 'selection'>('engine')
   const [values, setValues] = useState(INITIAL)
@@ -79,7 +79,7 @@ export function LayoutLabMarqueeRightWindow() {
         label="Inspector"
       />
       <RailTabs
-        tabs={RIGHT_TABS}
+        tabs={appearance === 'midnight' ? RIGHT_TABS.map(item => ({ ...item, label: item.label[0] + item.label.slice(1).toLowerCase() })) : RIGHT_TABS}
         activeTab={tab}
         onChange={setTab}
         ariaLabel="React right workspace panels"

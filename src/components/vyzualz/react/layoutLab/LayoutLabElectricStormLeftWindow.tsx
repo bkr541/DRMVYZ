@@ -68,7 +68,8 @@ function thumbnailStyle([dark, light]: [string, string]): CSSProperties {
   return { background: `radial-gradient(ellipse at 50% 38%, ${light}, ${dark} 72%)` }
 }
 
-export function LayoutLabElectricStormLeftWindow() {
+export function LayoutLabElectricStormLeftWindow({ appearance }: { appearance?: 'midnight' } = {}) {
+  const displayTabs = <T extends { label: string }>(tabs: T[]) => appearance === 'midnight' ? tabs.map(item => ({ ...item, label: item.label[0] + item.label.slice(1).toLowerCase() })) : tabs
   const [tab, setTab] = useState<'source' | 'layers' | 'notice'>('source')
   const [filter, setFilter] = useState<LibraryFilter>('all')
   const [query, setQuery] = useState('')
@@ -107,7 +108,7 @@ export function LayoutLabElectricStormLeftWindow() {
           </header>
           <div className="rv-workspace-tabs-wrap">
             <RailTabs
-              tabs={LEFT_TABS}
+              tabs={displayTabs(LEFT_TABS)}
               activeTab={tab}
               onChange={setTab}
               ariaLabel="Cinema 2.0 workspace tabs"
@@ -124,7 +125,7 @@ export function LayoutLabElectricStormLeftWindow() {
                       <div className="vz-panel vz-media-browser" style={{ flex: 1, minHeight: 0 }}>
                         <Collapsible label="Media Library" defaultOpen bodyClassName="vz-media-browser-collapsible-body">
                           <UnderlineTabs
-                            tabs={FILTER_TABS}
+                            tabs={displayTabs(FILTER_TABS)}
                             activeTab={filter}
                             onChange={setFilter}
                             ariaLabel="Media library filter"

@@ -155,21 +155,22 @@ export function InfoPopover({
   const requestClose = useCallback((restoreFocus: boolean) => {
     onOpenChange?.(false)
     if (restoreFocus && restoreFocusOnClose) {
-      window.requestAnimationFrame(() => anchorRef.current?.focus())
+      (anchorRef.current?.ownerDocument.defaultView ?? window).requestAnimationFrame(() => anchorRef.current?.focus())
     }
   }, [anchorRef, onOpenChange, restoreFocusOnClose])
 
   const updatePosition = useCallback(() => {
     const anchor = anchorRef.current
     const popover = popoverRef.current
-    if (!anchor || !popover || typeof window === 'undefined') return
+    const ownerWindow = anchor?.ownerDocument.defaultView
+    if (!anchor || !popover || !ownerWindow) return
 
     const anchorRect = anchor.getBoundingClientRect()
     const popoverRect = popover.getBoundingClientRect()
-    const viewportWidth = window.visualViewport?.width ?? window.innerWidth
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight
-    const viewportOffsetLeft = window.visualViewport?.offsetLeft ?? 0
-    const viewportOffsetTop = window.visualViewport?.offsetTop ?? 0
+    const viewportWidth = ownerWindow.visualViewport?.width ?? ownerWindow.innerWidth
+    const viewportHeight = ownerWindow.visualViewport?.height ?? ownerWindow.innerHeight
+    const viewportOffsetLeft = ownerWindow.visualViewport?.offsetLeft ?? 0
+    const viewportOffsetTop = ownerWindow.visualViewport?.offsetTop ?? 0
     const availableViewportWidth = Math.max(0, viewportWidth - viewportPadding * 2)
     const availableViewportHeight = Math.max(0, viewportHeight - viewportPadding * 2)
     const resolvedWidth = Math.min(width, availableViewportWidth)
@@ -254,25 +255,26 @@ export function InfoPopover({
       return
     }
 
+    const ownerWindow = anchorRef.current?.ownerDocument.defaultView ?? window
     updatePosition()
 
     const handleViewportChange = () => updatePosition()
-    window.addEventListener('resize', handleViewportChange)
-    window.addEventListener('scroll', handleViewportChange, true)
-    window.visualViewport?.addEventListener('resize', handleViewportChange)
-    window.visualViewport?.addEventListener('scroll', handleViewportChange)
+    ownerWindow.addEventListener('resize', handleViewportChange)
+    ownerWindow.addEventListener('scroll', handleViewportChange, true)
+    ownerWindow.visualViewport?.addEventListener('resize', handleViewportChange)
+    ownerWindow.visualViewport?.addEventListener('scroll', handleViewportChange)
 
-    const resizeObserver = typeof ResizeObserver === 'undefined'
+    const resizeObserver = typeof ownerWindow.ResizeObserver === 'undefined'
       ? null
-      : new ResizeObserver(handleViewportChange)
+      : new ownerWindow.ResizeObserver(handleViewportChange)
     if (anchorRef.current) resizeObserver?.observe(anchorRef.current)
     if (popoverRef.current) resizeObserver?.observe(popoverRef.current)
 
     return () => {
-      window.removeEventListener('resize', handleViewportChange)
-      window.removeEventListener('scroll', handleViewportChange, true)
-      window.visualViewport?.removeEventListener('resize', handleViewportChange)
-      window.visualViewport?.removeEventListener('scroll', handleViewportChange)
+      ownerWindow.removeEventListener('resize', handleViewportChange)
+      ownerWindow.removeEventListener('scroll', handleViewportChange, true)
+      ownerWindow.visualViewport?.removeEventListener('resize', handleViewportChange)
+      ownerWindow.visualViewport?.removeEventListener('scroll', handleViewportChange)
       resizeObserver?.disconnect()
     }
   }, [anchorRef, open, sections, updatePosition])
@@ -289,17 +291,17 @@ export function InfoPopover({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!dismissOnOutsidePress) return
-      const target = event.target instanceof Node ? event.target : null
-      if (!target) return
-      if (popoverRef.current?.contains(target) || anchorRef.current?.contains(target)) return
+      const path = event.composedPath()
+      if (path.includes(popoverRef.current as EventTarget) || path.includes(anchorRef.current as EventTarget)) return
       requestClose(false)
     }
 
-    document.addEventListener('keydown', handleKeyDown)
-    document.addEventListener('pointerdown', handlePointerDown)
+    const ownerDocument = anchorRef.current?.ownerDocument ?? document
+    ownerDocument.addEventListener('keydown', handleKeyDown)
+    ownerDocument.addEventListener('pointerdown', handlePointerDown)
     return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.removeEventListener('pointerdown', handlePointerDown)
+      ownerDocument.removeEventListener('keydown', handleKeyDown)
+      ownerDocument.removeEventListener('pointerdown', handlePointerDown)
     }
   }, [anchorRef, dismissOnOutsidePress, open, requestClose])
 
@@ -317,6 +319,8 @@ export function InfoPopover({
     visibility: position ? 'visible' : 'hidden',
     '--drm-info-arrow-offset': `${position?.arrowOffset ?? MIN_ARROW_OFFSET}px`,
   } as CSSProperties
+  const themeScope = anchorRef.current?.closest('[data-ui-theme]')
+  const ownerDocument = anchorRef.current?.ownerDocument ?? document
 
   return createPortal((
     <>
@@ -330,6 +334,8 @@ export function InfoPopover({
       aria-labelledby={titleId}
       aria-describedby={description != null ? descriptionId : undefined}
       data-placement={position?.placement ?? 'right'}
+      data-ui-theme={themeScope?.getAttribute('data-ui-theme') ?? undefined}
+      data-ui-typography={themeScope?.getAttribute('data-ui-typography') ?? undefined}
       style={popoverStyle}
       onPointerDown={event => event.stopPropagation()}
     >
@@ -395,5 +401,5 @@ export function InfoPopover({
       )}
     </div>
     </>
-  ), document.body)
+  ), ownerDocument.body)
 }

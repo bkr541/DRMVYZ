@@ -557,6 +557,8 @@ export function PaletteColorRow({ label, value, onChange, disabled = false, id, 
         <div
           ref={popoverRef}
           className="rv-ctrl-palette-popover"
+          data-ui-theme={triggerRef.current.closest('[data-ui-theme]')?.getAttribute('data-ui-theme') ?? undefined}
+          data-ui-typography={triggerRef.current.closest('[data-ui-typography]')?.getAttribute('data-ui-typography') ?? undefined}
           role="dialog"
           aria-label={`${label} color`}
           style={{ position: 'fixed', left: position?.left ?? 0, top: position?.top ?? 0, width: position?.width ?? PALETTE_POPOVER_WIDTH, visibility: position ? 'visible' : 'hidden' }}

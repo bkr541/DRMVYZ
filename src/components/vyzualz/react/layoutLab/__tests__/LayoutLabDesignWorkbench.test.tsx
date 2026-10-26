@@ -39,6 +39,21 @@ const OPTION_IDS = ['design-01', 'design-02', 'design-03', 'design-04', 'design-
 const DROPDOWNS = '[role="combobox"], [role="listbox"], [role="option"], select, .dv-underline-dropdown, .drm-dropdown'
 
 describe('Layout Lab canvas', () => {
+  it('keeps B’s visualizer empty and its restyled player independent', async () => {
+    await act(async () => view().querySelector<HTMLButtonElement>('[aria-label="Design B"]')!.click())
+    const b = view('design-02')
+    expect(b.querySelector('.rv-canvas-wrap')?.childElementCount).toBe(0)
+    expect(b.querySelector('.rv-canvas-wrap')?.textContent).toBe('')
+    expect(b.querySelector('.az-nav-item svg')?.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(view().querySelector('.az-nav-item svg')?.getAttribute('viewBox')).toBe('0 0 32 32')
+    expect(b.querySelector('.ll-b-player-track-copy')?.textContent).toContain('Birthday Sex')
+    await act(async () => b.querySelector<HTMLButtonElement>('[aria-label="Next track"]')!.click())
+    expect(b.querySelector('.ll-b-player-track-copy')?.textContent).toContain('Trace of You')
+    await act(async () => b.querySelector<HTMLButtonElement>('[aria-label="Play"]')!.click())
+    expect(b.querySelector('[aria-label="Pause"]')).not.toBeNull()
+    expect(view().querySelector('.az-play-btn')?.getAttribute('aria-label')).toBe('Play')
+  })
+
   it('keeps dropdowns out of every design\'s header, navigation column, visualizer and dock', async () => {
     await visitAllDesigns()
     for (const id of OPTION_IDS) {

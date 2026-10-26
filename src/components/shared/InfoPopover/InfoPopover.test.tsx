@@ -31,6 +31,27 @@ afterEach(() => {
 })
 
 describe('InfoPopover', () => {
+  it('keeps a themed popover and dismissal in its anchor document', () => {
+    const frame = document.createElement('iframe')
+    document.body.appendChild(frame)
+    const previewDocument = frame.contentDocument!
+    const scope = previewDocument.createElement('section')
+    scope.dataset.uiTheme = 'midnight'
+    scope.dataset.uiTypography = 'midnight'
+    const anchor = previewDocument.createElement('button')
+    scope.appendChild(anchor)
+    previewDocument.body.appendChild(scope)
+    const anchorRef = { current: anchor }
+    const onOpenChange = vi.fn()
+    renderPopover(<InfoPopover open anchorRef={anchorRef} title="Audio Source" onOpenChange={onOpenChange} />)
+    const dialog = previewDocument.querySelector('[role="dialog"]')
+    expect(dialog?.getAttribute('data-ui-theme')).toBe('midnight')
+    expect(dialog?.getAttribute('data-ui-typography')).toBe('midnight')
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    act(() => previewDocument.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('portals structured contextual-help content without rendering a trigger', () => {
     const anchorRef = createRef<HTMLButtonElement>()
     renderPopover(

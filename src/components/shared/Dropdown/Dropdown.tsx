@@ -572,6 +572,8 @@ export function Dropdown({
   // instead of in the window the user is actually looking at.
   const portalDocument = (searchable ? searchTriggerRef.current : triggerRef.current)?.ownerDocument
     ?? (typeof document === 'undefined' ? null : document)
+  // Carry opt-in preview themes across the body portal, including foreign-window Layout Lab menus.
+  const themeScope = (searchable ? searchTriggerRef.current : triggerRef.current)?.closest('[data-ui-theme]')
 
   const renderOption = (option: DropdownOption, index: number) => {
     const selected = option.value === selectedValue
@@ -706,6 +708,8 @@ export function Dropdown({
           aria-labelledby={menuLabel != null ? menuLabelId : label != null ? labelId : ariaLabelledBy}
           aria-label={menuLabel == null && label == null ? ariaLabel ?? 'Options' : undefined}
           data-placement={menuPosition?.placement ?? 'below'}
+          data-ui-theme={themeScope?.getAttribute('data-ui-theme') ?? undefined}
+          data-ui-typography={themeScope?.getAttribute('data-ui-typography') ?? undefined}
           style={menuStyle as CSSProperties}
           onPointerDown={event => event.stopPropagation()}
         >

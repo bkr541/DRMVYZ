@@ -1,4 +1,5 @@
-import type { SVGProps } from 'react'
+import { createContext, useContext, type SVGProps } from 'react'
+import { OUTLINE_GLYPHS } from './outlineGlyphs'
 import './appIcon.css'
 import { CARBON_GLYPHS, type CarbonGlyphKind } from './carbonGlyphs'
 
@@ -51,6 +52,7 @@ const DRAWINGS = {
 
 export type AppIconDrawing = keyof typeof DRAWINGS
 export type AppIconKind = AppIconDrawing | CarbonGlyphKind
+export const AppIconAppearanceContext = createContext<'default' | 'outline'>('default')
 
 export interface AppIconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {
   kind: AppIconKind
@@ -65,6 +67,15 @@ function isCarbonGlyph(kind: AppIconKind): kind is CarbonGlyphKind {
 
 /** Shared production renderer: Carbon glyphs where Carbon has an equivalent, custom linework otherwise. */
 export function AppIcon({ kind, size = 18, className, signalClassName, style, ...props }: AppIconProps) {
+  const appearance = useContext(AppIconAppearanceContext)
+  const outline = appearance === 'outline' ? OUTLINE_GLYPHS[kind] : undefined
+  if (outline) return (
+    <svg {...props} className={`app-icon app-icon--outline${className ? ` ${className}` : ''}`} data-app-icon={kind}
+      viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" fill="none" stroke="currentColor"
+      strokeLinecap="round" strokeLinejoin="round" style={{ ...style, fill: 'none', stroke: 'currentColor', strokeWidth: 1.25 }}>
+      {outline.map((d, index) => <path key={d} d={d} className={index === 0 ? signalClassName : undefined} />)}
+    </svg>
+  )
   if (isCarbonGlyph(kind)) {
     return (
       <svg
