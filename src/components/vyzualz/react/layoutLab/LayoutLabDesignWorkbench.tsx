@@ -19,6 +19,7 @@ import { AppIconAppearanceContext } from '../../../shared/icons/AppIcon'
 import { OptionAWorkspace } from './optionA/OptionAWorkspace'
 import { OptionCWorkspace } from './optionC/OptionCWorkspace'
 import { OptionDWorkspace } from './optionD/OptionDWorkspace'
+import { OptionEWorkspace } from './optionE/OptionEWorkspace'
 
 interface DesignWindows {
   header: ReactNode
@@ -113,6 +114,7 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
   if (id === 'design-02') return <OptionBWorkspace active={active} switcher={switcher} />
   if (id === 'design-03') return <OptionCWorkspace active={active} switcher={switcher} />
   if (id === 'design-04') return <OptionDWorkspace active={active} switcher={switcher} />
+  if (id === 'design-05') return <OptionEWorkspace active={active} switcher={switcher} />
 
   return (
     <FloatingWorkspaceFrame
