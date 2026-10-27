@@ -234,6 +234,38 @@
   opacity: 0.46;
 }
 
+/* Numeric fields: the browser's own up/down spinner is redrawn as a plus (top half) and a minus (bottom half) with no
+   fill behind either. It is still the native control, so a click on the top half steps up, the bottom half steps down,
+   and the keyboard and wheel behave as before. Hidden until the field is hovered or focused. */
+.dv-text-input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  width: 16px;
+  /* Fixed pixel sizes on purpose: with a percentage height Chromium stops treating the pseudo-element as the stepper. */
+  height: 22px;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-size: 16px 11px, 16px 11px;
+  background-position: top, bottom;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M8 2v6M5 5h6' fill='none' stroke='%23c4cfd3' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M5 5h6' fill='none' stroke='%23c4cfd3' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  transition: opacity 120ms ease;
+}
+
+.dv-text-input[type='number']:is(:hover, :focus-visible):not(:disabled):not(:read-only)::-webkit-inner-spin-button {
+  opacity: 0.85;
+}
+
+.dv-text-input[type='number']:not(:disabled):not(:read-only)::-webkit-inner-spin-button:hover {
+  opacity: 1;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M8 2v6M5 5h6' fill='none' stroke='%23ffffff' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M5 5h6' fill='none' stroke='%23ffffff' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
 .dv-icon-morph-toggle,
 .dv-icon-morph-checkbox {
   position: relative;
