@@ -1,0 +1,64 @@
+/* OPTION G. The original React View frame with four surface-level changes taken from the supplied reference:
+   a flat neutral charcoal palette, a matte grain, monoline icons (set in the workbench) and a geometric sans.
+   Geometry, layout, sizes, weights and the accent colour are untouched. Every rule is scoped to design-07 or to a
+   body portal carrying data-ui-theme='matte'. */
+.ll-design-workbench[data-lab-design='design-07'],
+[data-ui-theme='matte'].drm-dropdown__menu,
+[data-ui-theme='matte'].drm-info-popover,
+[data-ui-theme='matte'].rv-ctrl-palette-popover {
+  /* Neutral charcoal: canvas #1b1b1b, cards #272727, raised tiers #2c2c2c / #383838, hairline white at 10% */
+  --color-background: #1b1b1b; --bg: #1b1b1b; --az-bg: #1b1b1b; --fw-background: #1b1b1b;
+  --color-panel: #232323; --az-sidebar: #232323; --fw-header-background: #232323;
+  --color-panel-alt: #272727; --color-card: #272727; --bg-panel: #272727; --bg-panel2: #272727;
+  --az-panel: #272727; --az-panel2: #272727; --fw-surface-background: #272727; --color-surface: #272727; --color-input: #222222;
+  --color-popover: #2c2c2c;
+  --color-border-subtle: #ffffff1a; --az-border: #ffffff1a; --fw-surface-border: #ffffff1a; --border: #ffffff1a;
+  --g-raised: #2c2c2c; --g-raised-hi: #383838;
+  /* Geometric sans. Sizes, weights and tracking stay exactly as the shared roles define them. */
+  --font-ui: 'Manrope', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: var(--font-ui);
+  --az-font: var(--font-ui);
+  --az-font-data: var(--font-ui);
+  --type-field-family: var(--font-ui);
+  --type-field-label: var(--type-field-weight) var(--type-field-size)/1 var(--type-field-family);
+  --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
+  --type-field-placeholder: var(--type-field-value);
+  --type-tab: 700 11px/1 var(--font-ui);
+  --type-tab-active-nested: 800 11px/1 var(--font-ui);
+  --type-window-heading: 700 12px/1.2 var(--font-ui);
+  --type-group-heading: var(--type-window-heading);
+  --type-nested-group-heading: 800 11px/1 var(--font-ui);
+  font-family: var(--font-ui);
+}
+.ll-design-workbench[data-lab-design='design-07'] :is(button, input, textarea, select),
+[data-ui-typography='matte'] :is(button, input, textarea, select) { font-family: var(--font-ui); }
+[data-ui-typography='matte'] { font-family: var(--font-ui); }
+.ll-design-workbench[data-lab-design='design-07'] .ll-design-switcher,
+[data-ui-typography='matte'] .ll-design-switcher { --font-ui: 'Space Grotesk', 'Helvetica Neue', system-ui, sans-serif; --font-mono: 'Manrope', 'Helvetica Neue', system-ui, sans-serif; --type-tab: 700 11px/1 'Manrope', 'Helvetica Neue', system-ui, sans-serif; }
+
+/* Hard-coded blue-grey tiers in the shared frame become the neutral equivalents. */
+.ll-design-workbench[data-lab-design='design-07'] .rv-shell > .az-dock.vz-transport-dock,
+[data-theme] .ll-design-workbench[data-lab-design='design-07'] .az-sidebar { background: var(--g-raised); }
+.ll-design-workbench[data-lab-design='design-07'] .rw-window-header--left {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.22), transparent 45%), linear-gradient(180deg, var(--g-raised-hi) 0%, var(--g-raised-hi) 41%, rgba(255, 255, 255, 0.08) 41%, rgba(255, 255, 255, 0.08) 42%, var(--g-raised) 42%, var(--g-raised) 100%);
+}
+.ll-design-workbench[data-lab-design='design-07'] .rw-window-header--right {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.22), transparent 45%), linear-gradient(180deg, var(--g-raised-hi) 0%, var(--g-raised-hi) 41%, rgba(255, 255, 255, 0.08) 41%, rgba(255, 255, 255, 0.08) 42%, var(--g-raised) 42%, var(--g-raised) 100%);
+}
+
+/* Matte grain: one static, non-interactive layer over the whole design. */
+.ll-design-workbench[data-lab-design='design-07'] { position: relative; }
+.ll-design-workbench[data-lab-design='design-07']::after {
+  content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: .45; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* Portals that copy the design's theme attribute. */
+/* Legacy portal surfaces use !important blue-grey fills; restate them neutral at higher specificity. */
+:root body [data-ui-theme='matte'].drm-dropdown__menu, :root body [data-ui-theme='matte'].rv-ctrl-palette-popover { background: #2c2c2c !important; border-color: #ffffff1a !important; }
+[data-ui-theme='matte'].drm-info-popover { --drm-info-surface: #2c2c2c; --drm-info-surface-deep: #272727; --drm-info-border: #ffffff1a; --drm-info-divider: #ffffff14; background: #2c2c2c; border-color: #ffffff1a; }
+[data-ui-theme='matte'].drm-info-popover::before { background: #2c2c2c; }
+
+/* Parent group headers (Master Controls, Effects, Media Library, …) lose their bottom rule; nested group headers keep theirs. */
+.ll-design-workbench[data-lab-design='design-07'] .drc-group:not(.drc-group .drc-group) > .drc-header { border-bottom: 0; }

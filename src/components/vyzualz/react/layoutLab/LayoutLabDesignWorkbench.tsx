@@ -14,6 +14,7 @@ import { LayoutLabPopupsWindow } from './LayoutLabPopupsWindow'
 import { LayoutLabSettingsWindow } from './LayoutLabSettingsWindow'
 import { TemplateAudioDockMockup } from './TemplateAudioDockMockup'
 import './layoutLabDesignWorkbench.css'
+import './layoutLabOptionGStyle.css'
 import { OptionBWorkspace } from './optionB/OptionBWorkspace'
 import { AppIconAppearanceContext } from '../../../shared/icons/AppIcon'
 import { OptionAWorkspace } from './optionA/OptionAWorkspace'
@@ -21,6 +22,8 @@ import { OptionCWorkspace } from './optionC/OptionCWorkspace'
 import { OptionDWorkspace } from './optionD/OptionDWorkspace'
 import { OptionEWorkspace } from './optionE/OptionEWorkspace'
 import { OptionFWorkspace } from './optionF/OptionFWorkspace'
+import { LayoutLabRadialEngine } from './radialEngine/LayoutLabRadialEngine'
+import type { RadialEngineVariant } from './radialEngine/engineChoices'
 
 interface DesignWindows {
   header: ReactNode
@@ -33,6 +36,9 @@ interface DesignWindows {
   dock: ReactNode
 }
 
+/** H, I and K swap the engine card's dropdown for a radial pop-out, each with its own design. */
+const RADIAL_ENGINE: Partial<Record<LayoutLabDesignId, RadialEngineVariant>> = { 'design-08': 'dial', 'design-09': 'orbit', 'design-10': 'rotary' }
+
 /**
  * G–K keep the original fixture content and independent state. A–F use dedicated
  * workspace components; the selector and lazy-mount lifecycle are shared.
@@ -41,7 +47,7 @@ function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: str
   return {
     header: <LayoutLabReactHeader optionLabel={`Option ${letter}`} />,
     nav: switcher => <LayoutLabReactNav>{switcher}</LayoutLabReactNav>,
-    left: <LayoutLabElectricStormLeftWindow />,
+    left: <LayoutLabElectricStormLeftWindow engineSlot={RADIAL_ENGINE[id] && <LayoutLabRadialEngine variant={RADIAL_ENGINE[id]!} />} />,
     right: <LayoutLabMarqueeRightWindow />,
     lower: <><LayoutLabLyricManagerWindows /><LayoutLabReactTrackMap /><LayoutLabSettingsWindow idPrefix={`ll-vsm-${id}`} /><LayoutLabPopupsWindow /></>,
     dock: <LayoutLabReactAudioDock />,
@@ -72,7 +78,7 @@ export function LayoutLabDesignWorkbench() {
   return (
     <>
       {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
-        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' || option.id === 'design-06' ? 'outline' : 'default'}>
+        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' || option.id === 'design-06' || option.id === 'design-07' ? 'outline' : 'default'}>
           <LayoutLabDesignView
             id={option.id}
             active={design === option.id}
@@ -123,6 +129,8 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
       className="az-root fw-app-frame ll-design-workbench"
       data-app-workspace="react"
       data-lab-design={id}
+      data-ui-theme={id === 'design-07' ? 'matte' : undefined}
+      data-ui-typography={id === 'design-07' ? 'matte' : undefined}
       hidden={!active}
     >
       <div className="az-shell fw-app-shell">

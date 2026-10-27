@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
 import { RailWindowHeader } from '../../layout/RailWindowHeader'
@@ -68,7 +68,8 @@ export function thumbnailStyle([dark, light]: [string, string]): CSSProperties {
   return { background: `radial-gradient(ellipse at 50% 38%, ${light}, ${dark} 72%)` }
 }
 
-export function LayoutLabElectricStormLeftWindow({ appearance }: { appearance?: 'midnight' } = {}) {
+/** `engineSlot` replaces the engine card (used by Layout Lab's radial engine selectors); omitted, the card is unchanged. */
+export function LayoutLabElectricStormLeftWindow({ appearance, engineSlot }: { appearance?: 'midnight'; engineSlot?: ReactNode } = {}) {
   const displayTabs = <T extends { label: string }>(tabs: T[]) => appearance === 'midnight' ? tabs.map(item => ({ ...item, label: item.label[0] + item.label.slice(1).toLowerCase() })) : tabs
   const [tab, setTab] = useState<'source' | 'layers' | 'notice'>('source')
   const [filter, setFilter] = useState<LibraryFilter>('all')
@@ -94,17 +95,19 @@ export function LayoutLabElectricStormLeftWindow({ appearance }: { appearance?: 
       <div className="rv-left-workspace-shell" data-description-density="compact">
         <section className="rv-context-workspace" aria-label="Cinema 2.0 workspace">
           <header className="rv-context-workspace-header">
-            <div className="rv-engine-dropdown">
-              <div className="rv-engine-dropdown-trigger" aria-label="Selected React engine: Cinema 2.0, preset Electric Storm">
-                <span className="rv-engine-dropdown-glow" aria-hidden="true" />
-                <span className="rv-engine-dropdown-icon" aria-hidden="true"><EngineIcon /></span>
-                <span className="rv-engine-dropdown-copy">
-                  <span className="rv-engine-dropdown-eyebrow">Engine</span>
-                  <span className="rv-engine-dropdown-label">Cinema 2.0</span>
-                  <span className="rv-engine-dropdown-preset">Electric Storm</span>
-                </span>
+            {engineSlot ?? (
+              <div className="rv-engine-dropdown">
+                <div className="rv-engine-dropdown-trigger" aria-label="Selected React engine: Cinema 2.0, preset Electric Storm">
+                  <span className="rv-engine-dropdown-glow" aria-hidden="true" />
+                  <span className="rv-engine-dropdown-icon" aria-hidden="true"><EngineIcon /></span>
+                  <span className="rv-engine-dropdown-copy">
+                    <span className="rv-engine-dropdown-eyebrow">Engine</span>
+                    <span className="rv-engine-dropdown-label">Cinema 2.0</span>
+                    <span className="rv-engine-dropdown-preset">Electric Storm</span>
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </header>
           <div className="rv-workspace-tabs-wrap">
             <RailTabs
