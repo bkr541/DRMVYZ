@@ -1,0 +1,114 @@
+/* OPTION K. The React View frame restyled from two references: a black stage with one glowing teal orb and a dot-matrix
+   glyph (flat pill buttons, concentric halo rings), and a dark slate instrument panel with a DIN-style face, thin outline
+   icons, square key tiles and ring-shaped readouts. Surfaces, accent, face, icons and texture change here; layout, sizes
+   and structure are the shared frame's. Every rule is scoped to design-10 or to a body portal carrying
+   data-ui-theme='orb'. */
+.ll-design-workbench[data-lab-design='design-10'],
+[data-ui-theme='orb'].drm-dropdown__menu,
+[data-ui-theme='orb'].drm-info-popover,
+[data-ui-theme='orb'].rv-ctrl-palette-popover {
+  /* Black stage, slate instrument panels, grey key tiles, hairline blue-grey at 14% */
+  --k-stage: #05070a; --k-panel: #0a0e13; --k-card: #10161d; --k-raised: #19212b; --k-tile: #232c37; --k-tile-hi: #2e3946;
+  --k-orb: #3fc1bd; --k-orb-deep: #1d6f73; --k-orb-ink: #04181a; --k-orange: #f58a3f; --k-red: #e5476a; --k-blue: #3d8fe0;
+  --color-background: var(--k-stage); --bg: var(--k-stage); --az-bg: var(--k-stage); --fw-background: var(--k-stage);
+  --color-panel: var(--k-panel); --az-sidebar: var(--k-panel); --az-dock: var(--k-panel); --bg-panel: var(--k-panel); --fw-header-background: var(--k-panel);
+  --color-panel-alt: var(--k-card); --bg-panel2: var(--k-card); --az-panel: var(--k-card); --az-panel2: var(--k-card);
+  --fw-surface-background: var(--k-card); --color-input: #0e141a;
+  --color-surface: var(--k-raised); --color-muted: var(--k-raised); --color-surface-hover: var(--k-tile); --color-popover: var(--k-raised);
+  --color-border-faint: #96afc80f; --color-border-subtle: #96afc824; --color-border: #96afc83d;
+  --az-border: #96afc824; --az-border-s: #96afc83d; --fw-surface-border: #96afc824; --border: #96afc824;
+  /* One teal accent for every cyan token; the red and amber data hues come from the instrument reference. */
+  --az-cyan: var(--k-orb); --az-cyan-dim: #3fc1bd6b; --color-primary: var(--k-orb); --primary: var(--k-orb);
+  --color-text-on-primary: var(--k-orb-ink); --drm-brand-accent: var(--k-orb); --drm-brand-accent-soft: #3fc1bd47; --drm-brand-accent-text: var(--k-orb-ink);
+  --az-red: var(--k-red); --az-yellow: var(--k-orange);
+  --color-text: #ebf0f5e6; --az-text: #ebf0f5e6; --text: #ebf0f5e6; --ui-text-primary: #ebf0f5eb;
+  --color-text-muted: #b0becc9e; --az-text-muted: #b0becc9e; --text-dim: #b0becc9e; --ui-text-secondary: #b8c6d4ad; --ui-text-muted: #b0becc80;
+  --color-text-faint: #b0becc52; --az-text-faint: #b0becc52; --text-faint: #b0becc52;
+  /* DIN-style face. Sizes and tracking stay as the shared roles define them; weights step up a notch because the face runs light. */
+  --font-ui: 'Barlow', 'DIN Alternate', 'Bahnschrift', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'Barlow Semi Condensed', 'Barlow', 'DIN Alternate', 'Helvetica Neue', Arial, sans-serif;
+  --az-font: var(--font-ui);
+  --az-font-data: var(--font-mono);
+  --type-field-family: var(--font-ui);
+  --type-field-label: var(--type-field-weight) var(--type-field-size)/1 var(--type-field-family);
+  --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
+  --type-field-placeholder: var(--type-field-value);
+  --type-tab: 600 12px/1 var(--font-ui);
+  --type-tab-active-nested: 700 12px/1 var(--font-ui);
+  --type-window-heading: 700 12px/1.2 var(--font-ui);
+  --type-group-heading: var(--type-window-heading);
+  --type-nested-group-heading: 700 11px/1 var(--font-ui);
+  font-family: var(--font-ui);
+}
+.ll-design-workbench[data-lab-design='design-10'] :is(button, input, textarea, select),
+[data-ui-typography='orb'] :is(button, input, textarea, select) { font-family: var(--font-ui); }
+[data-ui-typography='orb'] { font-family: var(--font-ui); }
+.ll-design-workbench[data-lab-design='design-10'] .ll-design-switcher,
+[data-ui-typography='orb'] .ll-design-switcher { --font-ui: 'Space Grotesk', 'Helvetica Neue', system-ui, sans-serif; --font-mono: 'Manrope', 'Helvetica Neue', system-ui, sans-serif; --type-tab: 700 11px/1 'Manrope', 'Helvetica Neue', system-ui, sans-serif; }
+/* Hard-coded blue-grey tiers in the shared frame take the slate tiers. */
+.ll-design-workbench[data-lab-design='design-10'] .rv-shell > .az-dock.vz-transport-dock,
+[data-theme] .ll-design-workbench[data-lab-design='design-10'] .az-sidebar { background: var(--k-panel); }
+.ll-design-workbench[data-lab-design='design-10'] .rw-window-header--left {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.3), transparent 45%), linear-gradient(180deg, var(--k-raised) 0%, var(--k-raised) 41%, rgba(255, 255, 255, 0.06) 41%, rgba(255, 255, 255, 0.06) 42%, var(--k-card) 42%, var(--k-card) 100%);
+}
+.ll-design-workbench[data-lab-design='design-10'] .rw-window-header--right {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.3), transparent 45%), linear-gradient(180deg, var(--k-raised) 0%, var(--k-raised) 41%, rgba(255, 255, 255, 0.06) 41%, rgba(255, 255, 255, 0.06) 42%, var(--k-card) 42%, var(--k-card) 100%);
+}
+
+/* Engine card: the black-stage orb. A teal-rimmed disc with a dark centre and a dot-matrix glyph, ringed by faint halos. */
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-trigger {
+  border-color: #3fc1bd2e;
+  background: radial-gradient(circle at 12% 50%, #3fc1bd29, transparent 52%), #04070a;
+}
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-trigger:is(:hover, [aria-expanded='true']) {
+  border-color: #3fc1bd8c; box-shadow: 0 0 34px #3fc1bd33, 0 12px 26px #0000005c;
+}
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-glow { background: radial-gradient(circle, #3fc1bd59, transparent 70%); }
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-icon {
+  position: relative; border: 0; color: #f1f6f6; filter: none;
+  background: radial-gradient(circle, #05080d 0 40%, #124a50 66%, #2f9fa0 86%, #4fd0cb 100%);
+  box-shadow: 0 0 0 4px #04070a, 0 0 0 5px #3fc1bd59, 0 0 0 8px #04070a, 0 0 0 9px #3fc1bd38, 0 0 0 12px #04070a, 0 0 0 13px #3fc1bd1f, 0 0 28px 8px #3fc1bd33;
+}
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-icon::before {
+  content: ''; position: absolute; inset: 11px; border-radius: 50%; pointer-events: none; opacity: .5;
+  background: radial-gradient(circle, #ffffffb3 0 1.1px, transparent 1.5px) 0 0 / 5px 5px;
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 100%); mask-image: radial-gradient(circle, #000 55%, transparent 100%);
+}
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-icon svg { position: relative; width: 26px; height: 26px; }
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-label { font-weight: 700; letter-spacing: .02em; }
+.ll-design-workbench[data-lab-design='design-10'] .rv-engine-dropdown-preset { color: var(--k-orb); }
+.ll-design-workbench[data-lab-design='design-10'] .ler-trigger-mark { color: #8fe6e1c7; }
+
+/* Texture: a fine dot-matrix screen over the whole design, with the stage's teal glow breathing in from the top edge.
+   One static, non-interactive layer. */
+.ll-design-workbench[data-lab-design='design-10'] { position: relative; }
+.ll-design-workbench[data-lab-design='design-10']::after {
+  content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  background:
+    radial-gradient(circle, #ffffff0b 0 .6px, transparent .95px) 0 0 / 4px 4px,
+    radial-gradient(ellipse 55% 28% at 50% 0, #3fc1bd1f, transparent 72%),
+    radial-gradient(ellipse 70% 30% at 50% 100%, #1d6f7317, transparent 75%);
+}
+
+/* Portals that copy the design's theme attribute. Legacy portal surfaces use !important blue-grey fills; restate them. */
+:root body [data-ui-theme='orb'].drm-dropdown__menu, :root body [data-ui-theme='orb'].rv-ctrl-palette-popover { background: #19212b !important; border-color: #96afc83d !important; }
+[data-ui-theme='orb'].drm-info-popover { --drm-info-surface: #19212b; --drm-info-surface-deep: #121921; --drm-info-border: #96afc83d; --drm-info-divider: #96afc81a; background: #19212b; border-color: #96afc83d; }
+[data-ui-theme='orb'].drm-info-popover::before { background: #19212b; }
+
+/* The shared controls hard-code their cyan with !important; restate the lit states in the orb's teal at higher specificity. */
+:root body .ll-design-workbench[data-lab-design='design-10'] {
+  --dv-control-accent: #3fc1bd;
+}
+:root body .ll-design-workbench[data-lab-design='design-10'] .dv-bubble-slider { background: linear-gradient(to right, #3fc1bd var(--dv-slider-pct, 50%), rgba(255, 255, 255, 0.08) var(--dv-slider-pct, 50%)) !important; }
+:root body .ll-design-workbench[data-lab-design='design-10'] .dv-bubble-slider::-webkit-slider-thumb { background: #3fc1bd !important; box-shadow: 0 0 8px #3fc1bd, 0 0 0 2px rgba(0, 0, 0, 0.4) !important; }
+:root body .ll-design-workbench[data-lab-design='design-10'] :is(.dv-icon-morph-toggle.is-on, .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked)) {
+  border-color: #3fc1bd !important; background: #3fc1bd24 !important; box-shadow: 0 0 10px #3fc1bd59 !important;
+}
+.ll-design-workbench[data-lab-design='design-10'] :is(.az-play-btn, .vz-dock-addtrack-btn, .vz-dock-bpm-block-val) { color: #8fe6e1; }
+.ll-design-workbench[data-lab-design='design-10'] .az-play-btn { background-color: #3fc1bd24; border-color: #8fe6e1; }
+.ll-design-workbench[data-lab-design='design-10'] .vz-dock-addtrack-btn { border-color: #3fc1bd99; }
+.ll-design-workbench[data-lab-design='design-10'] .vz-dock-bpm-track-fill { background-image: linear-gradient(90deg, #3fc1bd80, #3fc1bd); }
+.ll-design-workbench[data-lab-design='design-10'] .az-nav-fill { box-shadow: 0 0 10px #3fc1bd99; }
+.ll-design-workbench[data-lab-design='design-10'] .rv-timeline-shared-playhead { background-color: #3fc1bdf0; box-shadow: 0 0 8px #3fc1bd94; }
+.ll-design-workbench[data-lab-design='design-10'] .dv-icon-chip--primary { background-color: #3fc1bd29; border-color: #3fc1bd66; }
+.ll-design-workbench[data-lab-design='design-10'] .vz-md-view-btn--active { background-color: #3fc1bd1f; border-color: #3fc1bd4d; }

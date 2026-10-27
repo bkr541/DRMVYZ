@@ -15,6 +15,8 @@ import { LayoutLabSettingsWindow } from './LayoutLabSettingsWindow'
 import { TemplateAudioDockMockup } from './TemplateAudioDockMockup'
 import './layoutLabDesignWorkbench.css'
 import './layoutLabOptionGStyle.css'
+import './layoutLabOptionKStyle.css'
+import './layoutLabCueEditGroupStyle.css'
 import { OptionBWorkspace } from './optionB/OptionBWorkspace'
 import { AppIconAppearanceContext } from '../../../shared/icons/AppIcon'
 import { OptionAWorkspace } from './optionA/OptionAWorkspace'
@@ -78,7 +80,7 @@ export function LayoutLabDesignWorkbench() {
   return (
     <>
       {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
-        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' || option.id === 'design-06' || option.id === 'design-07' ? 'outline' : 'default'}>
+        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' || option.id === 'design-06' || option.id === 'design-07' || option.id === 'design-10' ? 'outline' : 'default'}>
           <LayoutLabDesignView
             id={option.id}
             active={design === option.id}
@@ -129,8 +131,8 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
       className="az-root fw-app-frame ll-design-workbench"
       data-app-workspace="react"
       data-lab-design={id}
-      data-ui-theme={id === 'design-07' ? 'matte' : undefined}
-      data-ui-typography={id === 'design-07' ? 'matte' : undefined}
+      data-ui-theme={id === 'design-07' ? 'matte' : id === 'design-10' ? 'orb' : undefined}
+      data-ui-typography={id === 'design-07' ? 'matte' : id === 'design-10' ? 'orb' : undefined}
       hidden={!active}
     >
       <div className="az-shell fw-app-shell">

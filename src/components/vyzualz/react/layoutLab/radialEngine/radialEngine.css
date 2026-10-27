@@ -68,32 +68,37 @@
 .ler-orbit-caption { position: absolute; left: 36px; width: 300px; }
 
 /* ── K · Rotary ─────────────────────────────────────────────────────────── */
-.ler-rotary { inset: 0; }
+.ler-rotary { inset: 0; --ler-panel: #05080b; --ler-panel-2: #0d1319; --ler-line: #3fc1bd40; --ler-cyan: #3fc1bd; --ler-ink: #04181a; --ler-text: #ebf0f5; --ler-muted: #b0becc; font-family: 'Barlow', 'DIN Alternate', 'Bahnschrift', system-ui, sans-serif; }
+/* Orb treatment: halo rings round the case, and a teal-rimmed disc with a dark centre and a dot-matrix texture in the hub. */
+.ler-rotary-wheel::before { content: ''; position: absolute; inset: -16px; border-radius: 50%; pointer-events: none; border: 1px solid #3fc1bd24; box-shadow: 0 0 0 9px #05080b, 0 0 0 10px #3fc1bd17, 0 0 60px 6px #3fc1bd1f; }
+.ler-rotary-center { isolation: isolate; }
+.ler-rotary-center::before { content: ''; position: absolute; left: 50%; top: 50%; z-index: -1; width: 216px; height: 216px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, transparent 0 56%, #3fc1bd29 72%, #3fc1bd8c 90%, #3fc1bd33 97%, transparent 100%), radial-gradient(circle, #ffffff0f 0 .7px, transparent 1.1px) 0 0 / 6px 6px; }
 .ler-rotary-backdrop { position: absolute; inset: 0; background: #02070a99; animation: ler-fade .2s; }
 .ler-rotary-wheel { position: absolute; width: 420px; height: 420px; animation: ler-emerge .46s cubic-bezier(.2, .9, .3, 1.12); }
 .ler-rotary-wheel > svg { position: absolute; inset: 0; overflow: visible; }
-.ler-rotary-case { fill: var(--ler-panel); stroke: #67f7ff40; stroke-width: 1.5; filter: drop-shadow(0 30px 60px #000d); }
+.ler-rotary-case { fill: var(--ler-panel); stroke: #3fc1bd40; stroke-width: 1.5; filter: drop-shadow(0 30px 60px #000d); }
 .ler-rotary-ring { transition: transform .45s cubic-bezier(.3, 1.25, .5, 1); }
-.ler-rotary-tick { stroke: #67f7ff40; stroke-width: 1; }
-.ler-rotary-tick--major { stroke: #67f7ffa6; stroke-width: 1.8; }
+.ler-rotary-tick { stroke: #3fc1bd40; stroke-width: 1; }
+.ler-rotary-tick--major { stroke: #3fc1bda6; stroke-width: 1.8; }
 .ler-rotary-wedge { cursor: pointer; transform-origin: 210px 210px; transition: transform .5s cubic-bezier(.34, 1.4, .64, 1), opacity .3s; transition-delay: calc(var(--i) * 40ms); }
 .ler-rotary[data-spread='false'] .ler-rotary-wedge { transform: scale(.6); opacity: 0; }
-.ler-rotary-wedge > path { fill: var(--ler-panel-2); stroke: #67f7ff33; stroke-width: 1.2; transition: fill .25s; }
+.ler-rotary-wedge > path { fill: var(--ler-panel-2); stroke: #3fc1bd33; stroke-width: 1.2; transition: fill .25s; }
 .ler-rotary-wedge[data-active='true'] > path { fill: var(--ler-cyan); stroke: var(--ler-cyan); }
 .ler-rotary-wedge[data-current='true'] > path { stroke: var(--ler-cyan); stroke-width: 2; }
-.ler-rotary-wedge text { fill: var(--ler-text); font: 700 11px 'Space Grotesk', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; transition: fill .25s; pointer-events: none; }
+.ler-rotary-wedge text { fill: var(--ler-text); font: 700 11px 'Barlow', 'DIN Alternate', 'Bahnschrift', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; transition: fill .25s; pointer-events: none; }
 .ler-rotary-wedge[data-active='true'] text { fill: var(--ler-ink); }
 .ler-rotary-glyph { display: grid; place-items: center; width: 22px; height: 22px; color: var(--ler-cyan); transition: color .25s; }
 .ler-rotary-wedge[data-active='true'] .ler-rotary-glyph { color: var(--ler-ink); }
-.ler-rotary-pointer { fill: var(--ler-cyan); filter: drop-shadow(0 0 8px #67f7ffaa); }
-.ler-rotary-hole { fill: #070f13; stroke: #67f7ff33; stroke-width: 1.5; }
+.ler-rotary-pointer { fill: var(--ler-cyan); filter: drop-shadow(0 0 8px #3fc1bdaa); }
+.ler-rotary-hole { fill: #070f13; stroke: #3fc1bd33; stroke-width: 1.5; }
 .ler-rotary-center { position: absolute; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 192px; margin: -92px 0 0 -96px; text-align: center; }
 .ler-rotary-icon { width: 50px; height: 50px; background: var(--ler-cyan); border-color: var(--ler-cyan); color: var(--ler-ink); }
 .ler-rotary-center .ler-pill { padding: 6px 16px; font-size: 16px; font-weight: 700; }
 .ler-rotary-center p { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ler-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ler-rotary-confirm { margin-top: 4px; padding: 8px 20px; border-radius: 999px; border: 0; background: var(--ler-cyan); color: var(--ler-ink); font-size: 12.5px; font-weight: 700; letter-spacing: .03em; box-shadow: 0 0 18px #67f7ff55; transition: filter .2s; }
+.ler-rotary-confirm { margin-top: 4px; padding: 8px 20px; border-radius: 999px; border: 0; background: var(--ler-cyan); color: var(--ler-ink); font-size: 12.5px; font-weight: 700; letter-spacing: .03em; box-shadow: 0 0 18px #3fc1bd55; transition: filter .2s; }
 .ler-rotary-confirm:hover { filter: brightness(1.1); }
-.ler-rotary-close { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1.5px solid #67f7ff55; background: var(--ler-panel); color: var(--ler-text); }
+.ler-rotary-close { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1.5px solid #3fc1bd55; background: var(--ler-panel); color: var(--ler-text); }
 .ler-rotary-close:hover { background: var(--ler-panel-2); }
 
 @keyframes ler-emerge { from { opacity: 0; transform: scale(.05); } 40% { opacity: 1; } to { opacity: 1; transform: none; } }

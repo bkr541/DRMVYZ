@@ -1,0 +1,63 @@
+/* Cue list · edit group (the section that opens under the selected cue). Three restyles of the same shared markup, each
+   scoped to one Layout Lab design so production's Lyric Manager and every other option keep the stock group:
+     G (design-07)  inline header row: the cue badge and Start / End share one slim row of pill fields.
+     H (design-08)  tighter word table: shorter rows, hairline dividers, borderless fields that light on hover and focus.
+     I (design-09)  card treatment: a raised card with an accent edge and rounded corners that hangs from the selected row. */
+
+/* ── G · inline header row ─────────────────────────────────────────────────────────────────────────────────────── */
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__editor {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; padding: 8px 12px 10px;
+}
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__editor-toolbar { grid-column: 1; grid-row: 1; }
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__editor-toolbar strong {
+  display: inline-grid; place-items: center; height: 24px; padding: 0 12px; border-radius: 999px;
+  background: var(--g-raised-hi); color: var(--color-text-strong, #fff); font: 700 11px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap;
+}
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__timing-fields { grid-column: 2; grid-row: 1; display: flex; flex-wrap: wrap; gap: 8px; }
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__timing-fields .rv-ctrl-row {
+  flex: 0 0 auto; width: auto; flex-direction: row; align-items: center; gap: 8px; height: 28px; padding: 0 4px 0 12px; border-radius: 999px;
+  background: #ffffff0d; box-shadow: inset 0 0 0 1px #ffffff1a;
+}
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__timing-fields .rv-ctrl-row > span { color: var(--color-text-muted); font: 600 10px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+:root body .ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__timing-fields .dv-text-input {
+  width: 76px; height: 22px; padding: 0 10px 0 0; border: 0 !important; background: transparent !important; box-shadow: none !important;
+  text-align: right; font: 700 12px/1 var(--font-ui); font-variant-numeric: tabular-nums;
+}
+.ll-design-workbench[data-lab-design='design-07'] .lyric-cue-list__editor .lyric-word-editor { grid-column: 1 / -1; }
+
+/* ── H · tighter word table ────────────────────────────────────────────────────────────────────────────────────── */
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor { gap: 2px; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__head {
+  grid-template-columns: 16px minmax(60px, 1fr) 64px 64px 34px 20px; gap: 6px; padding: 0 6px 4px;
+  border-bottom: 1px solid #ffffff1a; color: var(--color-text-faint); font: 700 9px/1 var(--font-ui); letter-spacing: .1em; text-transform: uppercase;
+}
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__rows { gap: 0; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row {
+  grid-template-columns: 16px minmax(60px, 1fr) 64px 64px 34px 20px; gap: 6px; min-height: 24px; padding: 0 6px; border-radius: 0;
+  background: transparent; border-bottom: 1px solid #ffffff0d; transition: background .15s;
+}
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row:hover { background: #ffffff08; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row--low-confidence { background: #d8b95a12; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__index,
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__confidence { font-size: 9px; font-variant-numeric: tabular-nums; }
+:root body .ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row .dv-text-input {
+  height: 20px; padding: 0 4px; border: 0 !important; border-radius: 3px; background: transparent !important; box-shadow: none !important; font-size: 11px;
+}
+:root body .ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row .dv-text-input:is(:hover, :focus-visible) { background: #ffffff12 !important; }
+:root body .ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row .dv-text-input:focus-visible { box-shadow: inset 0 0 0 1px var(--az-cyan) !important; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row .lmv-icon-btn { width: 20px; height: 20px; min-width: 0; padding: 0; opacity: .55; }
+.ll-design-workbench[data-lab-design='design-08'] .lyric-cue-list__editor .lyric-word-editor__row:hover .lmv-icon-btn { opacity: 1; }
+
+/* ── I · card treatment ────────────────────────────────────────────────────────────────────────────────────────── */
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor-row > td { padding: 0 10px 10px; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor {
+  gap: 8px; padding: 8px 12px 10px; border: 1px solid var(--az-border); border-top: 0; border-left: 3px solid var(--az-cyan); border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, #ffffff0a, #ffffff04), var(--color-surface); box-shadow: 0 10px 22px #00000066, inset 0 1px 0 #ffffff0d;
+}
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor-toolbar strong { color: var(--az-cyan); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__timing-fields { gap: 8px; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__timing-fields .rv-ctrl-row { gap: 2px; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__timing-fields .rv-ctrl-row > span { font-size: 10px; }
+:root body .ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor .dv-text-input { height: 24px; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor .lyric-word-editor { gap: 4px; }
+.ll-design-workbench[data-lab-design='design-09'] .lyric-cue-list__editor .lyric-word-editor__row { border-radius: 6px; }
