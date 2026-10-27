@@ -19,6 +19,7 @@ const OVERLAYS = { dial: DialFanOverlay, orbit: OrbitOverlay, rotary: RotaryOver
 export function LayoutLabRadialEngine({ variant, initial = 'cinema2' }: { variant: RadialEngineVariant; initial?: EngineChoiceId }) {
   const [engine, setEngine] = useState<EngineChoiceId>(initial)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const [origin, setOrigin] = useState({ x: 0, y: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const entry = REACT_ENGINE_CATALOG[engine]
   const EngineIcon = getReactEngineIconComponent(engine)
@@ -57,7 +58,12 @@ export function LayoutLabRadialEngine({ variant, initial = 'cinema2' }: { varian
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`Selected React engine: ${entry.label}, ${engine === 'cinema2' ? 'preset Electric Storm' : 'preview only'}. Open the radial engine selector.`}
-        onClick={() => setAnchor(current => current ? null : triggerRef.current!.getBoundingClientRect())}
+        onClick={() => {
+          const trigger = triggerRef.current!
+          const mark = trigger.querySelector('.ler-trigger-mark')?.getBoundingClientRect() ?? trigger.getBoundingClientRect()
+          setOrigin({ x: mark.left + mark.width / 2, y: mark.top + mark.height / 2 })
+          setAnchor(current => current ? null : trigger.getBoundingClientRect())
+        }}
       >
         <span className="rv-engine-dropdown-glow" aria-hidden="true" />
         <span className="rv-engine-dropdown-icon" aria-hidden="true"><EngineIcon /></span>
@@ -68,7 +74,7 @@ export function LayoutLabRadialEngine({ variant, initial = 'cinema2' }: { varian
         </span>
         <span className="ler-trigger-mark" aria-hidden="true"><i /><i /><i /></span>
       </button>
-      {anchor && doc && createPortal(<Overlay value={engine} anchor={anchor} viewport={{ width: doc.defaultView?.innerWidth ?? 1440, height: doc.defaultView?.innerHeight ?? 900 }} onSelect={select} onClose={close} />, doc.body)}
+      {anchor && doc && createPortal(<>{variant !== 'rotary' && <div className="ler-scrim" data-radial-engine-overlay onClick={() => close()} />}<Overlay value={engine} anchor={anchor} origin={origin} viewport={{ width: doc.defaultView?.innerWidth ?? 1440, height: doc.defaultView?.innerHeight ?? 900 }} onSelect={select} onClose={close} /></>, doc.body)}
     </div>
   )
 }

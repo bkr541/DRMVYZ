@@ -59,6 +59,19 @@ describe.each(['dial', 'orbit', 'rotary'] as const)('radial engine selector: %s'
 })
 
 describe('variant-specific controls', () => {
+  it('tethers the dial and the rotary to the dotted mark on the engine card, not to the middle of the screen', async () => {
+    for (const variant of ['dial', 'rotary'] as const) {
+      await act(async () => root.render(<span />))
+      await mount(variant)
+      expect(host.querySelector('.ler-trigger-mark')).not.toBeNull()
+      await click(trigger())
+      const tether = document.body.querySelector('.ler-tether')
+      expect(tether, variant).not.toBeNull()
+      expect(tether!.querySelector('circle'), variant).not.toBeNull()
+      expect(document.body.querySelector('.ler-rotary-backdrop') !== null, variant).toBe(variant === 'rotary')
+      await key(document.body, 'Escape')
+    }
+  })
   it('lets the dial and orbit pick an engine by clicking its entry', async () => {
     for (const variant of ['dial', 'orbit'] as const) {
       await act(async () => root.render(<span />))

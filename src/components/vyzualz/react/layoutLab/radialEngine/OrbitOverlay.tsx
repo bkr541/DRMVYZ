@@ -45,13 +45,13 @@ export function OrbitOverlay({ value, anchor, viewport, onSelect }: EngineOverla
               className="ler-orbit-key" data-active={index === active} data-current={entry.id === value}
               style={{ '--x': `${point.x}px`, '--y': `${point.y}px`, '--i': index } as CSSProperties}
               onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} onClick={() => onSelect(entry.id)}>
-              <span className="ler-orbit-disc"><AppIcon kind={entry.icon} size={20} /></span>
-              <span className="ler-orbit-label">{entry.label}</span>
+              <span className="ler-disc ler-orbit-disc"><AppIcon kind={entry.icon} size={20} /></span>
+              <span className="ler-pill ler-orbit-label">{entry.label}{entry.id === value && <AppIcon kind="check" size={14} />}</span>
             </button>
           )
         })}
       </div>
-      <p className="ler-orbit-caption" style={{ top: Math.round(-RADIUS * Math.cos((END * Math.PI) / 180)) + 40 }} aria-live="polite"><b>{selected.label}</b>{selected.description}</p>
+      <p className="ler-caption ler-orbit-caption" style={{ top: Math.round(-RADIUS * Math.cos((END * Math.PI) / 180)) + 40 }} aria-live="polite"><b>{selected.label}</b>{selected.description}</p>
     </div>
   )
 }

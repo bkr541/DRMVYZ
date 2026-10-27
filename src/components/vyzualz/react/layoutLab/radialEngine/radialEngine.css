@@ -9,87 +9,96 @@
 .ler-trigger-mark i:nth-child(3) { left: 0; bottom: 3px; }
 .rv-engine-dropdown-trigger[aria-expanded='true'] .ler-trigger-mark { transform: translateY(-50%) rotate(120deg); }
 
-.ler { position: fixed; z-index: 12400; color: #e8eef0; font-family: 'Space Grotesk', system-ui, sans-serif; outline: none; }
+/* Shared parts: opaque dark surfaces, bright text, and a filled cyan state for the engine under focus. */
+.ler, .ler-scrim { --ler-panel: #0a1418; --ler-panel-2: #11222a; --ler-line: #67f7ff40; --ler-cyan: #67f7ff; --ler-ink: #04161b; --ler-text: #eaf6f9; --ler-muted: #a9bec5; --app-icon-accent: currentColor; }
+.ler-scrim { position: fixed; inset: 0; z-index: 12399; background: #02070abf; animation: ler-fade .2s; }
+.ler { position: fixed; z-index: 12400; color: var(--ler-text); font-family: 'Space Grotesk', system-ui, sans-serif; outline: none; }
 .ler *, .ler *::before, .ler *::after { box-sizing: border-box; }
 .ler button { font: inherit; color: inherit; cursor: pointer; }
-.ler :is(button, [tabindex]):focus-visible:not([data-radial-engine-overlay], .ler-rotary-wheel) { outline: 2px solid #67f7ff; outline-offset: 2px; }
+.ler :is(button, [tabindex]):focus-visible:not([data-radial-engine-overlay], .ler-rotary-wheel) { outline: 2px solid var(--ler-cyan); outline-offset: 2px; }
 .ler-rotary-wheel:focus-visible { outline: none; }
+.ler-disc { position: relative; display: grid; place-items: center; width: 46px; height: 46px; flex: none; border-radius: 50%; border: 1.5px solid var(--ler-line); background: var(--ler-panel-2); color: var(--ler-cyan); box-shadow: 0 8px 20px #000a; transition: background .2s, color .2s, border-color .2s, box-shadow .2s, transform .2s; }
+.ler-pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; border: 1.5px solid #67f7ff30; background: var(--ler-panel); color: var(--ler-text); font-size: 14px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; box-shadow: 0 6px 16px #0008; transition: background .2s, color .2s, border-color .2s; }
+.ler-pill svg { margin-left: auto; opacity: .9; }
+[data-active='true'] > .ler-disc, [data-active='true'] .ler-disc { background: var(--ler-cyan); border-color: var(--ler-cyan); color: var(--ler-ink); box-shadow: 0 0 0 4px #67f7ff33, 0 0 24px #67f7ff88; transform: scale(1.08); }
+[data-active='true'] > .ler-pill, [data-active='true'] .ler-pill { background: var(--ler-cyan); border-color: var(--ler-cyan); color: var(--ler-ink); font-weight: 700; }
+.ler-caption { margin: 0; padding: 12px 16px; border: 1.5px solid #67f7ff33; border-radius: 16px; background: var(--ler-panel); color: var(--ler-muted); font-size: 12.5px; line-height: 1.55; box-shadow: 0 14px 40px #000a; }
+.ler-caption b { display: block; margin-bottom: 3px; color: var(--ler-cyan); font-weight: 700; letter-spacing: .04em; }
 
 /* ── H · Dial fan ───────────────────────────────────────────────────────── */
-.ler-dial { width: 600px; height: 376px; border-radius: 30px; border: 1px solid #ffffff14; background: radial-gradient(120% 90% at 20% 0%, #23272e, #16191e 70%); box-shadow: 0 30px 80px #000c, inset 0 1px 0 #ffffff0d; animation: ler-pop .22s cubic-bezier(.2, .9, .3, 1.1); transform-origin: 20% 0; }
-.ler-dial-ring { position: absolute; left: 14px; top: 14px; overflow: visible; }
-.ler-dial-bezel { fill: #1b1e24; stroke: #ffffff0c; }
+.ler-dial { width: 580px; height: 300px; animation: ler-emerge .42s cubic-bezier(.2, .9, .3, 1.12); }
+.ler-tether { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.ler-tether path { fill: none; stroke: var(--ler-cyan); stroke-width: 1.8; stroke-linecap: round; opacity: .9; }
+.ler-tether circle { fill: var(--ler-cyan); filter: drop-shadow(0 0 6px #67f7ffcc); }
+.ler-dial-ring { position: absolute; left: 0; top: 0; overflow: visible; filter: drop-shadow(0 24px 40px #000c); }
+.ler-dial-bezel { fill: var(--ler-panel); stroke: #67f7ff44; stroke-width: 1.5; }
 .ler-dial-sector { cursor: pointer; transition: transform .22s cubic-bezier(.3, 1.4, .5, 1); }
-.ler-dial-sector path { fill: #2a2e35; stroke: #ffffff08; transition: fill .18s; }
-.ler-dial-sector[data-active='true'] path { fill: #394049; stroke: #ffffff1c; }
-.ler-dial-sector[data-current='true'] path { stroke: #67f7ffaa; }
-.ler-dial-glyph { display: grid; place-items: center; width: 26px; height: 26px; color: #8a919b; transition: color .18s; }
-.ler-dial-sector[data-active='true'] .ler-dial-glyph { color: #fff; }
-.ler-dial-leader { fill: none; stroke: #ffffff55; stroke-width: 1.2; transition: d .2s; }
-.ler-dial-well { fill: #101216; }
-.ler-dial-knob { fill: #e9ebee; filter: drop-shadow(0 0 16px #67f7ff55) drop-shadow(0 6px 10px #0009); }
+.ler-dial-sector > path { fill: var(--ler-panel-2); stroke: #67f7ff2e; stroke-width: 1.2; transition: fill .18s; }
+.ler-dial-sector[data-active='true'] > path { fill: var(--ler-cyan); stroke: var(--ler-cyan); }
+.ler-dial-sector[data-current='true'] > path { stroke: var(--ler-cyan); stroke-width: 2; }
+.ler-dial-glyph { display: grid; place-items: center; width: 26px; height: 26px; color: var(--ler-cyan); transition: color .18s; }
+.ler-dial-sector[data-active='true'] .ler-dial-glyph { color: var(--ler-ink); }
+.ler-dial-leader { fill: none; stroke: var(--ler-cyan); stroke-width: 1.6; opacity: .85; }
+.ler-dial-well { fill: #070f13; }
+.ler-dial-knob { fill: #e9ebee; filter: drop-shadow(0 0 16px #67f7ff66) drop-shadow(0 6px 10px #0009); }
 .ler-dial-knurl { fill: none; stroke: #a4a9b1; stroke-width: 6; stroke-dasharray: 1.5 2.4; }
 .ler-dial-face { fill: #f6f7f9; stroke: #cfd3d8; }
-.ler-dial-hub { position: absolute; left: 164px; top: 162px; transform: translate(-50%, -50%); color: #1c2733; display: grid; place-items: center; pointer-events: none; }
-.ler-dial-stack { position: absolute; left: 330px; top: 14px; width: 252px; height: 300px; }
-.ler-dial-label { position: absolute; left: 0; top: 50%; display: flex; align-items: center; gap: 12px; width: 100%; height: 46px; padding: 0 16px; border: 1px solid #ffffff10; border-radius: 14px; background: #262a31; color: #aab1ba; text-align: left; font-size: 14px; letter-spacing: .01em;
-  transform: translateY(calc(-50% + var(--o) * 56px)) rotate(calc(var(--o) * 2.4deg)) scale(calc(1 - var(--a) * .05));
-  opacity: calc(1 - var(--a) * .34); filter: blur(calc(var(--a) * .7px)); box-shadow: 0 8px 18px #0006;
-  transition: transform .3s cubic-bezier(.2, .9, .3, 1.05), opacity .3s, filter .3s, background .2s, color .2s, border-color .2s; }
-.ler-dial-label span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ler-dial-label[data-active='true'] { background: #2e343c; color: #fff; border-color: #67f7ff66; }
+.ler-dial-hub { position: absolute; left: 150px; top: 148px; transform: translate(-50%, -50%); color: #1c2733; display: grid; place-items: center; pointer-events: none; }
+.ler-dial-stack { position: absolute; left: 324px; top: 0; width: 256px; height: 300px; }
+.ler-dial-label { position: absolute; left: 0; top: 50%; display: flex; align-items: center; gap: 10px; width: 100%; padding: 0; border: 0; background: none; text-align: left;
+  transform: translateY(calc(-50% + var(--o) * 56px)) rotate(calc(var(--o) * 2deg)) scale(calc(1 - var(--a) * .05));
+  opacity: calc(1 - var(--a) * .3);
+  transition: transform .42s cubic-bezier(.34, 1.45, .64, 1), opacity .3s; transition-delay: calc(var(--i) * 35ms); }
+.ler-dial[data-spread='false'] .ler-dial-label { transform: translate(-250px, -50%) scale(.3); opacity: 0; }
+.ler-dial-label .ler-pill { flex: 1; min-width: 0; }
 .ler-dial-label:disabled { opacity: 0; pointer-events: none; }
-.ler-dial-caption { position: absolute; left: 28px; right: 28px; bottom: 16px; margin: 0; font-size: 12px; line-height: 1.5; color: #8a919b; }
-.ler-dial-caption b { margin-right: 6px; color: #e8eef0; font-weight: 600; }
+.ler-dial-caption { position: absolute; left: 0; top: 318px; width: 580px; }
 
 /* ── I · Orbit ──────────────────────────────────────────────────────────── */
 .ler-orbit { width: 0; height: 0; }
 .ler-orbit-track { position: absolute; overflow: visible; opacity: 0; transition: opacity .3s .1s; pointer-events: none; }
-.ler-orbit-track path { fill: none; stroke: #67f7ff59; stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 1 8; }
+.ler-orbit-track path { fill: none; stroke: #67f7ffb3; stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1 8; }
 .ler-orbit[data-spread='true'] .ler-orbit-track { opacity: 1; }
 .ler-orbit-key { position: absolute; left: 0; top: 0; display: block; width: 46px; height: 46px; padding: 0; border: 0; background: none; text-align: left;
   transform: translate(-23px, -23px) scale(.25); opacity: 0;
   transition: transform .5s cubic-bezier(.34, 1.56, .64, 1), opacity .25s; transition-delay: calc(var(--i) * 40ms); }
 .ler-orbit[data-spread='true'] .ler-orbit-key { transform: translate(calc(var(--x) - 23px), calc(var(--y) - 23px)); opacity: 1; }
-.ler-orbit-disc { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; border: 1px solid #67f7ff44; background: radial-gradient(circle at 35% 30%, #16262d, #091217); color: #67f7ff; box-shadow: 0 8px 22px #000a; transition: background .2s, box-shadow .2s, border-color .2s, transform .2s; }
-.ler-orbit-key[data-active='true'] .ler-orbit-disc { transform: scale(1.12); border-color: #67f7ff; background: radial-gradient(circle at 35% 30%, #21515c, #0c2a33); box-shadow: 0 0 0 4px #67f7ff26, 0 0 22px #67f7ff66; }
-.ler-orbit-key[data-current='true'] .ler-orbit-disc::after { content: ''; position: absolute; width: 8px; height: 8px; margin: -34px 0 0 34px; border-radius: 50%; background: #67f7ff; box-shadow: 0 0 8px #67f7ff; }
-.ler-orbit-label { position: absolute; left: 58px; top: 50%; transform: translateY(-50%); padding: 7px 13px; border-radius: 999px; border: 1px solid #ffffff12; background: #091217ee; color: #aebcc2; font-size: 13px; white-space: nowrap; opacity: .72; transition: color .2s, opacity .2s, border-color .2s; }
-.ler-orbit-key[data-active='true'] .ler-orbit-label { color: #fff; opacity: 1; border-color: #67f7ff66; }
-.ler-orbit-caption { position: absolute; left: 36px; width: 300px; margin: 0; padding: 12px 16px; border: 1px solid #67f7ff26; border-radius: 16px; background: #091217f2; font-size: 12px; line-height: 1.55; color: #8fa0a8; box-shadow: 0 14px 40px #000a; }
-.ler-orbit-caption b { display: block; margin-bottom: 3px; color: #67f7ff; font-weight: 600; letter-spacing: .04em; }
+.ler-orbit-key[data-current='true'] .ler-orbit-disc::after { content: ''; position: absolute; top: -3px; right: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--ler-cyan); border: 2px solid var(--ler-panel); }
+.ler-orbit-label { position: absolute; left: 60px; top: 50%; transform: translateY(-50%); }
+.ler-orbit-caption { position: absolute; left: 36px; width: 300px; }
 
 /* ── K · Rotary ─────────────────────────────────────────────────────────── */
 .ler-rotary { inset: 0; }
-.ler-rotary-backdrop { position: absolute; inset: 0; background: #03060ab8; animation: ler-fade .2s; }
-.ler-rotary-wheel { position: absolute; left: 50%; top: 50%; width: 420px; height: 420px; margin: -210px 0 0 -210px; animation: ler-pop .26s cubic-bezier(.2, .9, .3, 1.1); }
+.ler-rotary-backdrop { position: absolute; inset: 0; background: #02070a99; animation: ler-fade .2s; }
+.ler-rotary-wheel { position: absolute; width: 420px; height: 420px; animation: ler-emerge .46s cubic-bezier(.2, .9, .3, 1.12); }
 .ler-rotary-wheel > svg { position: absolute; inset: 0; overflow: visible; }
-.ler-rotary-case { fill: #12161a; stroke: #ffffff1f; stroke-width: 1.5; filter: drop-shadow(0 30px 60px #000c); }
+.ler-rotary-case { fill: var(--ler-panel); stroke: #67f7ff40; stroke-width: 1.5; filter: drop-shadow(0 30px 60px #000d); }
 .ler-rotary-ring { transition: transform .45s cubic-bezier(.3, 1.25, .5, 1); }
-.ler-rotary-tick { stroke: #ffffff2e; stroke-width: 1; }
-.ler-rotary-tick--major { stroke: #ffffff70; stroke-width: 1.6; }
-.ler-rotary-wedge { cursor: pointer; }
-.ler-rotary-wedge path { fill: #1c2228; stroke: #ffffff10; transition: fill .25s; }
-.ler-rotary-wedge[data-active='true'] path { fill: #2f2819; stroke: #ffb34766; }
-.ler-rotary-wedge[data-current='true'] path { stroke: #67f7ff88; }
-.ler-rotary-wedge text { fill: #7e8791; font: 700 10px 'Space Grotesk', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; transition: fill .25s; pointer-events: none; }
-.ler-rotary-wedge[data-active='true'] text { fill: #ffd9a0; }
-.ler-rotary-glyph { display: grid; place-items: center; width: 22px; height: 22px; color: #7e8791; transition: color .25s; }
-.ler-rotary-wedge[data-active='true'] .ler-rotary-glyph { color: #ffb347; }
-.ler-rotary-pointer { fill: #ffb347; filter: drop-shadow(0 0 8px #ffb347aa); }
-.ler-rotary-hole { fill: #0c0f12; stroke: #ffffff1a; stroke-width: 1.5; }
-.ler-rotary-center { position: absolute; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 190px; margin: -88px 0 0 -95px; text-align: center; }
-.ler-rotary-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; border: 1px solid #ffb34755; color: #ffb347; background: #1a1610; }
-.ler-rotary-center strong { font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
-.ler-rotary-center p { margin: 0; font-size: 11px; line-height: 1.45; color: #8a929b; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ler-rotary-confirm { margin-top: 6px; padding: 8px 18px; border-radius: 999px; border: 1px solid #ffb347aa; background: #ffb34720; color: #ffd9a0; font-size: 12px; font-weight: 600; letter-spacing: .04em; transition: background .2s; }
-.ler-rotary-confirm:hover { background: #ffb34738; }
-.ler-rotary-close { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid #ffffff22; background: #1a1f24; color: #aab1ba; }
-.ler-rotary-close:hover { color: #fff; background: #242a31; }
+.ler-rotary-tick { stroke: #67f7ff40; stroke-width: 1; }
+.ler-rotary-tick--major { stroke: #67f7ffa6; stroke-width: 1.8; }
+.ler-rotary-wedge { cursor: pointer; transform-origin: 210px 210px; transition: transform .5s cubic-bezier(.34, 1.4, .64, 1), opacity .3s; transition-delay: calc(var(--i) * 40ms); }
+.ler-rotary[data-spread='false'] .ler-rotary-wedge { transform: scale(.6); opacity: 0; }
+.ler-rotary-wedge > path { fill: var(--ler-panel-2); stroke: #67f7ff33; stroke-width: 1.2; transition: fill .25s; }
+.ler-rotary-wedge[data-active='true'] > path { fill: var(--ler-cyan); stroke: var(--ler-cyan); }
+.ler-rotary-wedge[data-current='true'] > path { stroke: var(--ler-cyan); stroke-width: 2; }
+.ler-rotary-wedge text { fill: var(--ler-text); font: 700 11px 'Space Grotesk', system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; transition: fill .25s; pointer-events: none; }
+.ler-rotary-wedge[data-active='true'] text { fill: var(--ler-ink); }
+.ler-rotary-glyph { display: grid; place-items: center; width: 22px; height: 22px; color: var(--ler-cyan); transition: color .25s; }
+.ler-rotary-wedge[data-active='true'] .ler-rotary-glyph { color: var(--ler-ink); }
+.ler-rotary-pointer { fill: var(--ler-cyan); filter: drop-shadow(0 0 8px #67f7ffaa); }
+.ler-rotary-hole { fill: #070f13; stroke: #67f7ff33; stroke-width: 1.5; }
+.ler-rotary-center { position: absolute; left: 50%; top: 50%; display: flex; flex-direction: column; align-items: center; gap: 8px; width: 192px; margin: -92px 0 0 -96px; text-align: center; }
+.ler-rotary-icon { width: 50px; height: 50px; background: var(--ler-cyan); border-color: var(--ler-cyan); color: var(--ler-ink); }
+.ler-rotary-center .ler-pill { padding: 6px 16px; font-size: 16px; font-weight: 700; }
+.ler-rotary-center p { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--ler-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ler-rotary-confirm { margin-top: 4px; padding: 8px 20px; border-radius: 999px; border: 0; background: var(--ler-cyan); color: var(--ler-ink); font-size: 12.5px; font-weight: 700; letter-spacing: .03em; box-shadow: 0 0 18px #67f7ff55; transition: filter .2s; }
+.ler-rotary-confirm:hover { filter: brightness(1.1); }
+.ler-rotary-close { position: absolute; right: -6px; top: -6px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1.5px solid #67f7ff55; background: var(--ler-panel); color: var(--ler-text); }
+.ler-rotary-close:hover { background: var(--ler-panel-2); }
 
-@keyframes ler-pop { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes ler-emerge { from { opacity: 0; transform: scale(.05); } 40% { opacity: 1; } to { opacity: 1; transform: none; } }
 @keyframes ler-fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .ler, .ler *, .ler-trigger-mark { animation: none !important; transition: none !important; }
+  .ler, .ler *, .ler-scrim, .ler-trigger-mark { animation: none !important; transition: none !important; }
   .ler-orbit .ler-orbit-key { transform: translate(calc(var(--x) - 23px), calc(var(--y) - 23px)); opacity: 1; }
 }

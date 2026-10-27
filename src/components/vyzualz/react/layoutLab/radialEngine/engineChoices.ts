@@ -9,6 +9,8 @@ export interface EngineOverlayProps {
   value: EngineChoiceId
   /** Bounds of the engine card the overlay grows from, in the owner document's viewport. */
   anchor: DOMRect
+  /** Centre of the dotted mark at the right end of the engine card: the spot the rotary elements grow out of. */
+  origin: { x: number; y: number }
   /** Size of the owner document's window, which is Layout Lab's own window when it is popped out. */
   viewport: { width: number; height: number }
   onSelect: (id: EngineChoiceId) => void

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type WheelEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type WheelEvent } from 'react'
 import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { ENGINE_CHOICES, type EngineOverlayProps } from './engineChoices'
 import { polar, sectorPath } from './radialGeometry'
@@ -6,17 +6,28 @@ import { polar, sectorPath } from './radialGeometry'
 const SIZE = 420, C = SIZE / 2, RING_IN = 118, RING_OUT = 176, HOLE = 108, TICKS = 72
 
 /**
- * K — Rotary. A centred modal wheel: the engine ring turns under a fixed pointer at the top, so the engine under focus is
- * always the one at 12 o'clock. Turn with arrows, the scroll wheel or by clicking a wedge; confirm with the centre key.
+ * K — Rotary. A wheel that hangs from the dotted mark at the right end of the engine card, its fixed pointer directly
+ * under the mark and joined to it, growing out of it: the engine ring turns under that pointer, so the engine under focus
+ * is always the one at 12 o'clock. Turn with arrows, the scroll wheel or by clicking a wedge; confirm with the centre key.
  */
-export function RotaryOverlay({ value, onSelect, onClose }: EngineOverlayProps) {
+export function RotaryOverlay({ value, origin, viewport, onSelect, onClose }: EngineOverlayProps) {
   const count = ENGINE_CHOICES.length
   const step = 360 / count
   const [index, setIndex] = useState(Math.max(0, ENGINE_CHOICES.findIndex(entry => entry.id === value)))
   // Rotation accumulates so the wheel always turns the short way round instead of unwinding.
   const [turn, setTurn] = useState(-index * step)
+  const [spread, setSpread] = useState(false)
+  const left = Math.max(8, Math.min(origin.x - C, viewport.width - SIZE - 8))
+  const top = Math.max(8, Math.min(origin.y + 30, viewport.height - SIZE - 8))
+  const spot = { x: origin.x - left, y: origin.y - top }
   const rootRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { rootRef.current?.focus() }, [])
+  useEffect(() => {
+    const node = rootRef.current
+    node?.focus()
+    const view = node?.ownerDocument.defaultView
+    const frame = view?.requestAnimationFrame(() => setSpread(true))
+    return () => { if (frame !== undefined) view?.cancelAnimationFrame(frame) }
+  }, [])
   const focusIndex = (next: number) => {
     const delta = ((next - index + count * 3 + count / 2) % count) - count / 2
     setIndex(((next % count) + count) % count)
@@ -30,9 +41,13 @@ export function RotaryOverlay({ value, onSelect, onClose }: EngineOverlayProps) 
   const onWheel = (event: WheelEvent) => { if (Math.abs(event.deltaY) > 2) focusIndex(index + (event.deltaY > 0 ? 1 : -1)) }
   const selected = ENGINE_CHOICES[index]!
   return (
-    <div className="ler ler-rotary" data-radial-engine-overlay>
+    <div className="ler ler-rotary" data-radial-engine-overlay data-spread={spread}>
       <div className="ler-rotary-backdrop" onClick={() => onClose()} />
-      <div ref={rootRef} className="ler-rotary-wheel" role="dialog" aria-modal="true" aria-label="Choose React engine" tabIndex={-1} onKeyDown={onKeyDown} onWheel={onWheel}>
+      <div ref={rootRef} className="ler-rotary-wheel" role="dialog" aria-modal="true" aria-label="Choose React engine" tabIndex={-1} style={{ left, top, transformOrigin: `${spot.x}px ${spot.y}px` }} onKeyDown={onKeyDown} onWheel={onWheel}>
+        <svg className="ler-tether" width={SIZE} height={SIZE} aria-hidden="true">
+          <path d={`M${spot.x} ${spot.y}L${C} 8`} />
+          <circle cx={spot.x} cy={spot.y} r="4.5" />
+        </svg>
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
           <circle cx={C} cy={C} r={C - 4} className="ler-rotary-case" />
           <g className="ler-rotary-ring" style={{ transform: `rotate(${turn}deg)`, transformOrigin: `${C}px ${C}px` }}>
@@ -44,7 +59,7 @@ export function RotaryOverlay({ value, onSelect, onClose }: EngineOverlayProps) 
               const mid = i * step
               const label = polar(C, C, (RING_IN + RING_OUT) / 2 + 14, mid), icon = polar(C, C, (RING_IN + RING_OUT) / 2 - 16, mid)
               return (
-                <g key={entry.id} className="ler-rotary-wedge" data-active={i === index} data-current={entry.id === value} onClick={() => focusIndex(i)}>
+                <g key={entry.id} className="ler-rotary-wedge" style={{ '--i': i } as CSSProperties} data-active={i === index} data-current={entry.id === value} onClick={() => focusIndex(i)}>
                   <path d={sectorPath(C, C, RING_IN, RING_OUT, mid - step / 2 + 1.5, mid + step / 2 - 1.5)} />
                   <g transform={`rotate(${mid} ${icon.x} ${icon.y})`}><foreignObject x={icon.x - 11} y={icon.y - 11} width="22" height="22"><div className="ler-rotary-glyph"><AppIcon kind={entry.icon} size={20} /></div></foreignObject></g>
                   <text x={label.x} y={label.y} transform={`rotate(${mid} ${label.x} ${label.y})`} textAnchor="middle" dominantBaseline="middle">{entry.shortLabel}</text>
@@ -56,8 +71,8 @@ export function RotaryOverlay({ value, onSelect, onClose }: EngineOverlayProps) 
           <circle cx={C} cy={C} r={HOLE} className="ler-rotary-hole" />
         </svg>
         <div className="ler-rotary-center">
-          <span className="ler-rotary-icon" aria-hidden="true"><AppIcon kind={selected.icon} size={30} /></span>
-          <strong>{selected.label}</strong>
+          <span className="ler-disc ler-rotary-icon" aria-hidden="true"><AppIcon kind={selected.icon} size={26} /></span>
+          <strong className="ler-pill">{selected.label}</strong>
           <p aria-live="polite">{selected.description}</p>
           <button type="button" className="ler-rotary-confirm" onClick={() => onSelect(selected.id)}>{selected.id === value ? 'Keep engine' : 'Select engine'}</button>
         </div>

@@ -5,18 +5,31 @@ import { polar, sectorPath, wrap } from './radialGeometry'
 
 const SIZE = 300, C = SIZE / 2, HUB = 66, INNER = 82, OUTER = 138, GAP = 4
 
+const STACK_LEFT = SIZE + 24, STACK_WIDTH = 256, STACK_HEIGHT = SIZE, CAPTION_TOP = SIZE + 18
+
 /**
- * H — Dial fan. A ring of engine sectors around a knurled white hub; the sector under focus lifts out and a leader line
- * runs to its label, which sits at the centre of a fanned stack of labels that recede with distance.
+ * H — Dial fan. A rotary dial hangs from the dotted mark at the right end of the engine card, tethered to it and growing
+ * out of it: a ring of engine sectors around a knurled white hub. The sector under focus lifts out and a leader line runs
+ * to its label, which sits at the centre of a fanned stack of labels that recede with distance.
  */
-export function DialFanOverlay({ value, anchor, viewport, onSelect }: EngineOverlayProps) {
+export function DialFanOverlay({ value, origin, viewport, onSelect }: EngineOverlayProps) {
   const count = ENGINE_CHOICES.length
   const [active, setActive] = useState(Math.max(0, ENGINE_CHOICES.findIndex(entry => entry.id === value)))
+  const [spread, setSpread] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { rootRef.current?.focus() }, [])
+  useEffect(() => {
+    const node = rootRef.current
+    node?.focus()
+    const view = node?.ownerDocument.defaultView
+    const frame = view?.requestAnimationFrame(() => setSpread(true))
+    return () => { if (frame !== undefined) view?.cancelAnimationFrame(frame) }
+  }, [])
   const step = 360 / count
-  const left = Math.max(8, Math.min(anchor.left + 8, viewport.width - 600))
-  const top = Math.max(8, Math.min(anchor.bottom + 6, viewport.height - 400))
+  // The ring's upper-right rim sits just below and left of the mark; the label stack runs out to the right.
+  const left = Math.max(8, Math.min(origin.x - SIZE + 28, viewport.width - STACK_LEFT - STACK_WIDTH - 8))
+  const top = Math.max(8, Math.min(origin.y + 30, viewport.height - CAPTION_TOP - 96))
+  const spot = { x: origin.x - left, y: origin.y - top }
+  const rim = polar(C, C, OUTER + 14, 48)
   const mid = active * step
   const tip = polar(C, C, OUTER + 10, mid)
   const onKeyDown = (event: KeyboardEvent) => {
@@ -29,7 +42,11 @@ export function DialFanOverlay({ value, anchor, viewport, onSelect }: EngineOver
   }
   const selected = ENGINE_CHOICES[active]!
   return (
-    <div ref={rootRef} className="ler ler-dial" data-radial-engine-overlay role="dialog" aria-label="Choose React engine" tabIndex={-1} style={{ left, top }} onKeyDown={onKeyDown}>
+    <div ref={rootRef} className="ler ler-dial" data-radial-engine-overlay data-spread={spread} role="dialog" aria-label="Choose React engine" tabIndex={-1} style={{ left, top, transformOrigin: `${spot.x}px ${spot.y}px` }} onKeyDown={onKeyDown}>
+      <svg className="ler-tether" width={SIZE} height={SIZE} aria-hidden="true">
+        <path d={`M${spot.x} ${spot.y}C${spot.x} ${(spot.y + rim.y) / 2} ${rim.x} ${(spot.y + rim.y) / 2} ${rim.x} ${rim.y}`} />
+        <circle cx={spot.x} cy={spot.y} r="4.5" />
+      </svg>
       <svg className="ler-dial-ring" width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
         <circle cx={C} cy={C} r={OUTER + 14} className="ler-dial-bezel" />
         {ENGINE_CHOICES.map((entry, index) => {
@@ -57,14 +74,15 @@ export function DialFanOverlay({ value, anchor, viewport, onSelect }: EngineOver
           const hidden = Math.abs(offset) > 2
           return (
             <button key={entry.id} type="button" role="menuitemradio" aria-checked={entry.id === value} tabIndex={index === active ? 0 : -1} disabled={hidden}
-              className="ler-dial-label" data-active={index === active} style={{ '--o': offset, '--a': Math.abs(offset) } as CSSProperties}
+              className="ler-dial-label" data-active={index === active} style={{ '--o': offset, '--a': Math.abs(offset), '--i': index } as CSSProperties}
               onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} onClick={() => onSelect(entry.id)}>
-              <AppIcon kind={entry.icon} size={18} /><span>{entry.label}</span>{entry.id === value && <AppIcon kind="check" size={14} />}
+              <span className="ler-disc"><AppIcon kind={entry.icon} size={19} /></span>
+              <span className="ler-pill">{entry.label}{entry.id === value && <AppIcon kind="check" size={14} />}</span>
             </button>
           )
         })}
       </div>
-      <p className="ler-dial-caption" aria-live="polite"><b>{selected.label}</b> {selected.description}</p>
+      <p className="ler-caption ler-dial-caption" aria-live="polite"><b>{selected.label}</b>{selected.description}</p>
     </div>
   )
 }
