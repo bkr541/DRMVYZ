@@ -61,7 +61,7 @@ describe('Layout Lab canvas', () => {
       // Header group, navigation column, visualizer and dock never hold a dropdown (the center column's windows, like the cue list's filter, may).
       const selectors = id === 'design-01'
         ? ['.oa-header', '.oa-spine', '.oa-stage', '.oa-dock']
-        : id === 'design-02' ? ['.ob-header', '.ob-spine', '.ob-stage', '.ob-dock'] : id === 'design-03' ? ['.oc-header', '.oc-nav', '.oc-stage', '.oc-dock'] : id === 'design-04' ? ['.od-header', '.od-nav', '.od-stage', '.od-dock'] : ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']
+        : id === 'design-02' ? ['.ob-header', '.ob-spine', '.ob-stage', '.ob-dock'] : id === 'design-03' ? ['.oc-header', '.oc-nav', '.oc-stage', '.oc-dock'] : id === 'design-04' ? ['.od-header', '.od-nav', '.od-stage', '.od-dock'] : id === 'design-06' ? ['.of-header', '.of-nav', '.of-stage', '.of-dock'] : ['.fw-app-header', '.fw-app-navigation', '.rv-canvas-wrap', '.vz-transport-dock']
       for (const selector of selectors) expect(chrome.querySelector(`${selector} :is(${DROPDOWNS})`), `${id} ${selector}`).toBeNull()
     }
   })
@@ -100,10 +100,10 @@ describe('Layout Lab canvas', () => {
     expect(layers[0]?.textContent).toContain('Electric Storm')
     expect(layers[0]?.textContent).toContain('100% · normal')
 
-    // Option A has none of production's rail, shell or dock layout classes; F–K keep them.
+    // Option A has none of production's rail, shell or dock layout classes; G–K keep them.
     expect(view().querySelector('.fw-app-shell, .rv-layout, .vz-transport-dock, .rw-window-header, .rv-engine-dropdown')).toBeNull()
     await visitAllDesigns()
-    for (const id of OPTION_IDS.slice(5)) {
+    for (const id of OPTION_IDS.slice(6)) {
       expect(view(id).querySelector('.vz-inspector--left .rw-window-header-label')?.textContent, id).toBe('React Workspace')
       expect(view(id).querySelector('.vz-inspector--right .rw-window-header-label')?.textContent, id).toBe('Inspector')
       expect(view(id).querySelector('.vz-inspector--left .rv-engine-dropdown-preset')?.textContent, id).toBe('Electric Storm')
@@ -327,7 +327,7 @@ describe('Layout Lab canvas', () => {
 
     // Designs B–E carry the production dock; Option A's is not shared with them.
     await visitAllDesigns()
-    for (const id of OPTION_IDS.slice(1)) expect(view(id).querySelector('.vz-dock-source-trigger, .ll-b-player-track-copy, .oc-record, .od-record'), id).not.toBeNull()
+    for (const id of OPTION_IDS.slice(1)) expect(view(id).querySelector('.vz-dock-source-trigger, .ll-b-player-track-copy, .oc-record, .od-record, .of-record'), id).not.toBeNull()
   })
 
   it('rebuilds the header readings as Option A’s instrument strip and names every option at the top left', async () => {
@@ -347,12 +347,12 @@ describe('Layout Lab canvas', () => {
     expect(header.querySelector('button[aria-label="Notifications"]')).not.toBeNull()
     expect(header.querySelector('.oa-avatar')?.textContent).toBe('DV')
     await visitAllDesigns()
-    for (const [index, id] of OPTION_IDS.slice(5).entries()) {
+    for (const [index, id] of OPTION_IDS.slice(6).entries()) {
       const surface = view(id).querySelector<HTMLElement>('.fw-app-header-surface')!
-      // "Option F" … "Option K" hang off the brand toggle, the first thing in the header group.
+      // "Option G" … "Option K" hang off the brand toggle, the first thing in the header group.
       const lead = surface.querySelector<HTMLElement>('.fw-app-header-inner > .ll-header-lead')!
       expect(surface.querySelector('.fw-app-header-inner')!.firstElementChild, id).toBe(lead)
-      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'FGHIK'[index]}`)
+      expect(lead.querySelector('.ll-option-label')?.textContent, id).toBe(`Option ${'GHIK'[index]}`)
       expect(surface.querySelector('.fw-app-header-controls .vz-header-avatar, .fw-app-header-controls button[aria-label="Notifications"]'), id).not.toBeNull()
     }
   })
@@ -391,9 +391,9 @@ describe('Layout Lab canvas', () => {
     await act(async () => grid.click())
     expect(stage.querySelector('.oa-stage__screen')?.getAttribute('data-grid')).toBe('true')
 
-    // Options F–K keep React View's frame, shell, rails and dock, and none of Option A's classes.
+    // Options G–K keep React View's frame, shell, rails and dock, and none of Option A's classes.
     await visitAllDesigns()
-    for (const id of OPTION_IDS.slice(5)) {
+    for (const id of OPTION_IDS.slice(6)) {
       const other = view(id)
       expect(other.classList.contains('oa-root'), id).toBe(false)
       expect(other.querySelector('[class*="oa-"]'), id).toBeNull()

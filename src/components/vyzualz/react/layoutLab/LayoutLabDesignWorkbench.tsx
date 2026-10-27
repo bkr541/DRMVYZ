@@ -20,6 +20,7 @@ import { OptionAWorkspace } from './optionA/OptionAWorkspace'
 import { OptionCWorkspace } from './optionC/OptionCWorkspace'
 import { OptionDWorkspace } from './optionD/OptionDWorkspace'
 import { OptionEWorkspace } from './optionE/OptionEWorkspace'
+import { OptionFWorkspace } from './optionF/OptionFWorkspace'
 
 interface DesignWindows {
   header: ReactNode
@@ -33,7 +34,7 @@ interface DesignWindows {
 }
 
 /**
- * F–K keep the original fixture content and independent state. A–E use dedicated
+ * G–K keep the original fixture content and independent state. A–F use dedicated
  * workspace components; the selector and lazy-mount lifecycle are shared.
  */
 function buildDesignWindows({ id, letter }: { id: LayoutLabDesignId; letter: string }): DesignWindows {
@@ -71,7 +72,7 @@ export function LayoutLabDesignWorkbench() {
   return (
     <>
       {LAYOUT_LAB_DESIGNS.map(option => visited.has(option.id) && (
-        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' ? 'outline' : 'default'}>
+        <AppIconAppearanceContext.Provider key={option.id} value={option.id === 'design-02' || option.id === 'design-03' || option.id === 'design-04' || option.id === 'design-06' ? 'outline' : 'default'}>
           <LayoutLabDesignView
             id={option.id}
             active={design === option.id}
@@ -109,12 +110,13 @@ function LayoutLabDesignView({ id, active, selected, onSelect, windows }: {
     </div>
   )
 
-  // A–E own their presentation; F–K retain the original React View frame.
+  // A–F own their presentation; G–K retain the original React View frame.
   if (id === 'design-01') return <OptionAWorkspace active={active} switcher={switcher} />
   if (id === 'design-02') return <OptionBWorkspace active={active} switcher={switcher} />
   if (id === 'design-03') return <OptionCWorkspace active={active} switcher={switcher} />
   if (id === 'design-04') return <OptionDWorkspace active={active} switcher={switcher} />
   if (id === 'design-05') return <OptionEWorkspace active={active} switcher={switcher} />
+  if (id === 'design-06') return <OptionFWorkspace active={active} switcher={switcher} />
 
   return (
     <FloatingWorkspaceFrame
