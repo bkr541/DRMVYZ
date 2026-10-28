@@ -405,7 +405,13 @@ export interface Cinema2CameraMotionManifest {
   rollDegrees?: number
   drift?: Cinema2CameraDriftManifest
   /** Add a look-around orbit to the existing pose about its base position, keeping the observer inside the scene. */
-  orbit?: { angularSpeedDegreesPerSecond: number }
+  orbit?: {
+    angularSpeedDegreesPerSecond: number
+    /** Orbit a room about this world-space axis instead of looking around in place. */
+    center?: Cinema2Vector3
+    /** Tempo-locked revolution length; requires motion.tempo. */
+    beatsPerRevolution?: number
+  }
   bank?: Cinema2CameraBankManifest
   /** Largest FOV change per second, so choreography pulses cannot jerk the lens. */
   fovRateLimitDegreesPerSecond?: number

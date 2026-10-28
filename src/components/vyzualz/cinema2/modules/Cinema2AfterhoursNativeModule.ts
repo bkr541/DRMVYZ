@@ -225,6 +225,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           gl => new Cinema2AfterhoursRenderer(gl),
           value => value.dispose(),
         )
+        context.resources.reportGpuBytes(renderer.estimateGpuBytes())
         renderer.draw({
           beams: renderBeams,
           worldToClipMatrix: execution.camera.viewProjectionMatrix,
@@ -232,6 +233,7 @@ export const cinema2AfterhoursNativeModuleDefinition: Readonly<Cinema2ModuleType
           atmosphere: config.atmosphere,
           masterIntensity: config.masterIntensity,
           timeSec: shimmerTimeSec,
+          quality: execution.lightingEnvironment?.quality,
         })
       },
     })

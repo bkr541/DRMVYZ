@@ -2,6 +2,9 @@
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron')
 
+// Settings Logging and developer notices can share the same native file watcher.
+let mainLogSubscriberCount = 0
+
 contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
   runtime: Object.freeze({
     isElectron: true,
@@ -74,10 +77,15 @@ contextBridge.exposeInMainWorld('drmvyzNative', Object.freeze({
     watchMainLog: callback => {
       const listener = (_event, chunk) => callback(chunk)
       ipcRenderer.on('drmvyz:diagnostics:main-log-appended', listener)
-      ipcRenderer.send('drmvyz:diagnostics:watch-main-log')
+      mainLogSubscriberCount += 1
+      if (mainLogSubscriberCount === 1) ipcRenderer.send('drmvyz:diagnostics:watch-main-log')
+      let subscribed = true
       return () => {
+        if (!subscribed) return
+        subscribed = false
         ipcRenderer.removeListener('drmvyz:diagnostics:main-log-appended', listener)
-        ipcRenderer.send('drmvyz:diagnostics:unwatch-main-log')
+        mainLogSubscriberCount -= 1
+        if (mainLogSubscriberCount === 0) ipcRenderer.send('drmvyz:diagnostics:unwatch-main-log')
       }
     },
   }),

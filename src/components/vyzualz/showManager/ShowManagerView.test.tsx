@@ -438,8 +438,7 @@ vi.mock('../shared/VyzualzAudioDock', () => ({
 vi.mock('../shared/VyzualzHeaderActions', () => ({
   VyzualzHeaderActions: () => (
     <>
-      <button type="button" className="vsm-settings-btn" aria-label="Settings" />
-      <div className="vz-header-avatar" aria-label="Profile" />
+      <span className="vz-header-cpu" aria-label="App CPU usage" />
     </>
   ),
 }))
@@ -1581,8 +1580,7 @@ describe('ShowManagerView production shell', () => {
       await Promise.resolve()
     })
 
-    const save = [...container.querySelectorAll<HTMLButtonElement>('button')]
-      .find(button => button.textContent?.trim() === 'Save')
+    const save = container.querySelector<HTMLButtonElement>('button[aria-label="Save"]')
     const activate = container.querySelector<HTMLButtonElement>('button[aria-label="Save + Make Active"]')
     expect(save?.disabled).toBe(false)
     expect(activate?.disabled).toBe(false)
@@ -3190,7 +3188,7 @@ describe('ShowManagerView production shell', () => {
     expect(fixture.state.reconcileShowManagerTrackMapFromAnalysis).not.toHaveBeenCalled()
   })
 
-  it('moves stage tools plus account actions into the top bar', async () => {
+  it('keeps stage tools and telemetry in the top bar without navigation actions', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -3202,8 +3200,9 @@ describe('ShowManagerView production shell', () => {
 
     expect(container.querySelector('.sm-stage-header')).toBeNull()
     expect(container.querySelector('[aria-label="Show Manager stage tools"]')?.closest('.sm-topbar')).not.toBeNull()
-    expect(container.querySelector('.sm-topbar > .vsm-settings-btn')).not.toBeNull()
-    expect(container.querySelector('.sm-topbar > .vz-header-avatar')).not.toBeNull()
+    expect(container.querySelector('.sm-topbar > .vz-header-cpu')).not.toBeNull()
+    expect(container.querySelector('.sm-topbar .vz-header-notifications')).toBeNull()
+    expect(container.querySelector('.sm-topbar > .vz-header-avatar')).toBeNull()
   })
 
   it('moves the preset chooser into the inspector and expands or collapses library groups independently', async () => {

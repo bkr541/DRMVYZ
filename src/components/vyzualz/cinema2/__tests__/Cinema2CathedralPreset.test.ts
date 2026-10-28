@@ -193,7 +193,16 @@ describe('Cinema 2.0 Cathedral preset', () => {
       executedPassCount: 5,
       failedPassCount: 0,
     })
-    expect(gl.drawElementsInstanced).toHaveBeenCalled()
+    expect(gl.drawElementsInstanced).toHaveBeenCalledTimes(2)
+    const locations = vi.mocked(gl.getUniformLocation)
+    const aheadIndex = locations.mock.calls.findIndex(([, name]) => name === 'u_repeatAhead')
+    expect(aheadIndex).toBeGreaterThanOrEqual(0)
+    const aheadLocation = locations.mock.results[aheadIndex].value
+    expect(vi.mocked(gl.uniform1f).mock.calls.filter(([location]) => location === aheadLocation).map(([, value]) => value)).toEqual([0, 1])
+    const buffers = gl.__calls.createdBuffers
+    ;(scheduledFrame as FrameRequestCallback | null)?.(116)
+    expect(gl.drawElementsInstanced).toHaveBeenCalledTimes(4)
+    expect(gl.__calls.createdBuffers).toBe(buffers)
     created.runtime.dispose()
   })
 })

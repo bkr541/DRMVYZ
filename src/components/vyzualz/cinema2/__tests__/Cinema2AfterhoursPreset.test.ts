@@ -474,8 +474,8 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
     expect(created.runtime.getHistoryServiceSnapshot()).toMatchObject({ activeBufferCount: 1, validBufferCount: 1 })
     const shaderCalls = (gl.shaderSource as unknown as { mock: { calls: unknown[][] } }).mock.calls
     const shaderSources = shaderCalls.map(call => String(call[1] ?? ''))
-    expect(shaderSources.some(source => source.includes('vSide = aCorner.y;'))).toBe(true)
-    expect(shaderSources.some(source => source.includes('float side = clamp(abs(vSide), 0.0, 1.0);'))).toBe(true)
+    expect(shaderSources.some(source => source.includes('gl_Position = uWorldToClip * vec4(vWorld, 1.0);'))).toBe(true)
+    expect(shaderSources.some(source => source.includes('airDensity(p)'))).toBe(true)
     expect(gl.blendFunc).toHaveBeenCalledWith(gl.ONE, gl.ONE)
     expect(gl.blendFunc).not.toHaveBeenCalledWith(gl.SRC_ALPHA, gl.ONE)
     expect(created.runtime.getEffectRuntimeSnapshot().effects).toEqual([expect.objectContaining({

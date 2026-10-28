@@ -3524,10 +3524,8 @@
 /* Lyric workspace uses the same header, label gutter and control spacing as React. */
 .lmv-header-right { margin-left: auto; }
 .lmv-header .vz-header-group {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: relative;
+  transform: none;
   min-width: 0;
   max-width: calc(100% - 32px);
   margin: 0;
@@ -3540,7 +3538,7 @@
   gap: 0;
   overflow: visible;
 }
-.lmv-header .lmv-timeline-edit-actions button { flex-shrink: 0; width: 36px; padding: 0; }
+.lmv-header .lmv-timeline-edit-actions button { flex-shrink: 0; width: 38px; padding: 0; }
 .lmv-header[data-layout='narrow'] .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0; }
 .lmv-header .vz-header-group > button { flex-shrink: 0; }
 .lmv-header .vz-header-group .dv-icon-chip--danger:hover:not(:disabled) { color: #f87171; }

@@ -18,6 +18,8 @@ export interface NativeMainLogSnapshot {
 }
 
 export interface NativeMainLogAppendChunk {
+  /** File was rotated or truncated; discard partial lines from the previous file. */
+  reset?: boolean
   content: string
 }
 

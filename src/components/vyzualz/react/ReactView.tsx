@@ -44,7 +44,6 @@ import {
   createLaserDmxShowManagerEmptyRuntimeShowDirector,
   createLaserDmxShowManagerRuntimeSectionPrograms,
 } from '../showManager/LaserDmxShowManagerDomain'
-import { LayoutLabModal } from './LayoutLabModal'
 import { useRgbWaveformStore } from '../../../features/waveform/rgbWaveformStorage'
 import { TrackTimelineIcon } from './trackTimeline/TrackTimelineIcon'
 import { resolveTrackTimelineAvailability } from './trackTimeline/trackTimelineAvailability'
@@ -355,7 +354,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const leftTab = isReactLeftTabAvailable(preferredLeftTab, workspaceComposition) ? preferredLeftTab : defaultLeftTab
   const [stageFocus, setStageFocus] = useState(false)
   const [trackMapLaneIconsExpanded, setTrackMapLaneIconsExpanded] = useState(false)
-  const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const [trackTimelineOpen, setTrackTimelineOpen] = useState(false)
   const mediaSourceCapability = getReactMediaSourceCapability(activeReactEngineId)
   const activeMediaId = getReactMediaSourceId(mediaSourceCapability, oscillatorSettings, pixGridState)
@@ -664,16 +662,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <ReactGlobalOutputControls />
           </HeaderControlGroup>
 
+          <ReactEngineBrowser presetName={activeEnginePresetName} placement="header" />
           <span className="az-spacer" />
-          <button
-            type="button"
-            className="vsm-settings-btn"
-            title="Layout Lab"
-            aria-label="Layout Lab"
-            onClick={() => setLayoutLabOpen(true)}
-          >
-            <AppIcon kind="sliders" size="18" />
-          </button>
           <VyzualzHeaderActions
             page="react"
             status={<ReactHeaderStatusCluster fps={headerFps} frameTimeMs={cinema2FrameTimeMs} qualityTier={headerQualityTier} />}
@@ -700,7 +690,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             />
           </Suspense>
         )}
-      {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
       <div
         className="rv-layout"
         data-left-collapsed={leftCollapsed ? 'true' : undefined}
@@ -724,9 +713,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               className="rv-context-workspace"
               aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}
             >
-              <header className="rv-context-workspace-header">
-                <ReactEngineBrowser presetName={activeEnginePresetName} />
-              </header>
               <div className="rv-workspace-tabs-wrap">
                 <RailTabs
                   tabs={leftTabs}

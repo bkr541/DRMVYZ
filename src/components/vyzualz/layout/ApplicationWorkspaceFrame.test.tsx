@@ -63,17 +63,21 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(frame?.querySelectorAll('[data-workspace-slot="header"]')).toHaveLength(1)
     expect(frame?.querySelectorAll('[data-workspace-slot="navigation"]')).toHaveLength(1)
     expect(frame?.querySelectorAll('[data-workspace-slot="stage"]')).toHaveLength(1)
-    expect(frame?.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(frame?.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
+    expect(frame?.querySelector('.fw-app-header .fw-sidebar-toggle')).toBeNull()
+    expect(frame?.querySelector('.fw-sidebar-toggle')?.nextElementSibling?.classList.contains('az-sidebar-layout-lab')).toBe(true)
+    expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
+    expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('DRMVYZ')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)
     expect(frame?.querySelector('.fw-app-content [data-testid="route-stage"]')).not.toBeNull()
   })
 
-  it('uses exactly one global header and brand on the Preset Manager route', async () => {
+  it('uses one unbranded global header on the Preset Manager route', async () => {
     await render(<Harness initialView="presetManager"><main className="pmv-root" aria-label="Preset Manager" /></Harness>)
     expect(host.querySelectorAll('.fw-app-header')).toHaveLength(1)
-    expect(host.querySelectorAll('.fw-app-header .az-logo')).toHaveLength(1)
+    expect(host.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
     expect(host.querySelector('.fw-app-navigation .az-logo')).toBeNull()
-    expect(host.querySelector('.fw-app-header-fallback')?.textContent).toBe('Preset Manager')
+    expect(host.querySelector('.fw-app-header-fallback')).toBeNull()
     expect(host.querySelector('.fw-app-content > .pmv-root')).not.toBeNull()
     expect(host.querySelectorAll('.pmv-header')).toHaveLength(0)
   })
@@ -134,22 +138,22 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(host.querySelector('.mmv-root > .mmv-header button')?.textContent).toBe('Save')
   })
 
-  it('has one header brand, no rail duplicate, and preserves navigation order and aria-current', async () => {
+  it('has no header branding and preserves navigation order and aria-current', async () => {
     await render(<Harness />)
     const frame = host.querySelector('[data-workspace-layout="floating"]')!
     expect(frame.matches('.az-root.fw-app-frame')).toBe(true)
     expect(frame.querySelector(':scope > .az-shell.fw-app-shell')).not.toBeNull()
-    expect(frame.querySelectorAll('.az-logo [data-app-icon="brand"]')).toHaveLength(1)
+    expect(frame.querySelectorAll('[data-app-icon="brand"]')).toHaveLength(0)
     expect(frame.querySelector('.fw-app-navigation .az-logo')).toBeNull()
-    expect(frame.querySelector('.fw-app-header .az-logo')).not.toBeNull()
+    expect(frame.querySelector('.fw-app-navigation .fw-sidebar-toggle')).not.toBeNull()
     expect(frame.querySelector('[data-workspace-slot="stage"] [data-testid="feature-content"]')).not.toBeNull()
-    expect([...frame.querySelectorAll('.az-nav-item')].map(item => item.getAttribute('aria-label'))).toEqual([
+    expect([...frame.querySelectorAll('.az-nav .az-nav-item')].map(item => item.getAttribute('aria-label'))).toEqual([
       'React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager',
     ])
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Preset Manager"]')!.click())
     expect(host.querySelector('[data-app-workspace="presetManager"]')).not.toBeNull()
     expect(host.querySelector('[aria-label="Preset Manager"]')?.getAttribute('aria-current')).toBe('page')
-    expect(host.querySelectorAll('.az-logo [data-app-icon="brand"]')).toHaveLength(1)
+    expect(host.querySelectorAll('[data-app-icon="brand"]')).toHaveLength(0)
   })
 
   it('keeps controlled collapse through route changes, with live sidebar width on .az-root', async () => {
@@ -167,13 +171,13 @@ describe('application floating chrome (all five workspaces)', () => {
       await render(<Harness />)
       const frame = host.querySelector<HTMLElement>('.az-root')!
       expect(frame.style.getPropertyValue('--vz-sidebar-width')).toBe('72px')
-      await act(async () => host.querySelector<HTMLButtonElement>('.fw-app-header .az-logo')!.click())
+      await act(async () => host.querySelector<HTMLButtonElement>('.fw-app-navigation .fw-sidebar-toggle')!.click())
       expect(host.querySelector('.az-sidebar--collapsed')).toBeNull()
       await act(async () => notifyResize?.())
       expect(frame.style.getPropertyValue('--vz-sidebar-width')).toBe('240px')
       await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Lyric Manager"]')!.click())
       expect(host.querySelector('.az-sidebar--collapsed')).toBeNull()
-      expect(host.querySelector('.fw-app-header .az-logo')?.getAttribute('aria-expanded')).toBe('true')
+      expect(host.querySelector('.fw-app-navigation .fw-sidebar-toggle')?.getAttribute('aria-expanded')).toBe('true')
     } finally {
       HTMLElement.prototype.getBoundingClientRect = original
     }

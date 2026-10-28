@@ -4,6 +4,7 @@ set -euo pipefail
 # =========================================================
 # DRMVYZ Desktop Launcher
 # - Installs dependencies when needed
+# - Closes running DRMVYZ instances before starting a fresh desktop shell
 # - Starts Vite and the Electron desktop shell
 # - Connects the native Rekordbox USB parser bridge
 # =========================================================
@@ -54,5 +55,5 @@ if [[ ! -d "$DIR/node_modules" ]] || ! node -e "const fs=require('node:fs'); try
   npm install
 fi
 
-echo "🟢 Opening the Electron desktop app. Press Ctrl+C here to stop it."
+echo "🟢 Checking for running DRMVYZ and opening a fresh desktop app. Press Ctrl+C here to stop it."
 npm run electron:dev

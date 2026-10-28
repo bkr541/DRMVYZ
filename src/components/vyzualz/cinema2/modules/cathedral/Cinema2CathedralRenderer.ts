@@ -16,6 +16,7 @@ uniform mat4 u_viewProjection;
 uniform vec3 u_cameraPosition;
 uniform float u_repeatDistance;
 uniform float u_repeatOriginZ;
+uniform float u_repeatAhead;
 uniform float u_build;
 uniform float u_drop;
 uniform float u_expansion;
@@ -40,7 +41,7 @@ void main() {
   worldNormal.xy = rotationMatrix * worldNormal.xy;
   vec3 center = i_centerSizeX.xyz;
   float lap = floor((u_repeatOriginZ - u_cameraPosition.z) / max(u_repeatDistance, 0.0001) + 0.0001);
-  center.z -= lap * u_repeatDistance;
+  center.z -= (lap + u_repeatAhead) * u_repeatDistance;
   float side = center.x < 0.0 ? -1.0 : 1.0;
   float contraction = 1.0 - u_build * 0.055;
   center.x *= contraction;
@@ -179,7 +180,7 @@ export class Cinema2CathedralRenderer {
       vertSrc: VERTEX_SOURCE,
       fragSrc: FRAGMENT_SOURCE,
       requiredUniforms: [
-        'u_viewProjection', 'u_cameraPosition', 'u_repeatDistance', 'u_repeatOriginZ', 'u_build', 'u_drop', 'u_expansion', 'u_time',
+        'u_viewProjection', 'u_cameraPosition', 'u_repeatDistance', 'u_repeatOriginZ', 'u_repeatAhead', 'u_build', 'u_drop', 'u_expansion', 'u_time',
         'u_structureColor', 'u_primaryColor', 'u_accentColor', 'u_intensity', 'u_activeDensity', 'u_kick', 'u_snare',
         'u_beat', 'u_downbeat', 'u_phrase', 'u_energy', 'u_vocalRestraint', 'u_sparkDensity', 'u_quality', 'u_program',
       ],
@@ -253,7 +254,12 @@ export class Cinema2CathedralRenderer {
     gl.cullFace(gl.BACK)
     gl.colorMask(true, true, true, true)
     gl.bindVertexArray(this.vao)
-    gl.drawElementsInstanced(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+    // Keep the next aisle visible through the transition-room exit before the
+    // camera crosses the lap boundary. Both draws reuse the same instance buffer.
+    for (const ahead of [0, 1]) {
+      program.setFloat('u_repeatAhead', ahead)
+      gl.drawElementsInstanced(gl.TRIANGLES, this.indexCount, gl.UNSIGNED_SHORT, 0, this.instanceCount)
+    }
     gl.bindVertexArray(null)
     gl.disable(gl.CULL_FACE)
     assertCinema2NoGlErrors(gl, 'Cathedral draw')

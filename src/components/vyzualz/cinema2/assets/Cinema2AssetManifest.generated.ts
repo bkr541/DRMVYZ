@@ -35,24 +35,24 @@ export const CINEMA2_ASSET_RECORDS = [
     "id": "cinema2-atmosphere-monoliths",
     "kind": "model",
     "compression": "none",
-    "license": "generated-in-house",
-    "attribution": null,
+    "license": "CC-BY-4.0",
+    "attribution": "Crystal by Zambur (https://sketchfab.com/Zambur), https://sketchfab.com/3d-models/crystal-ba43c7bbcca143c8ad2f77f5841b39de, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: resized and positioned in the generated monolith scene; textures resized to 1024px and 512px. Surrounding monolith geometry/textures generated in-house.",
     "files": {
       "high": {
         "url": "/cinema2/models/atmosphere-monoliths.glb",
-        "bytes": 3243740,
-        "triangles": 4818
+        "bytes": 7470644,
+        "triangles": 2164
       },
       "low": {
         "url": "/cinema2/models/atmosphere-monoliths-512.glb",
-        "bytes": 1273428,
-        "triangles": 4818
+        "bytes": 2644888,
+        "triangles": 2164
       }
     },
     "gpuBytes": {
-      "high": 22538484,
-      "medium": 22538484,
-      "low": 5761268
+      "high": 44975784,
+      "medium": 44975784,
+      "low": 11421352
     }
   },
   {

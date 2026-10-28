@@ -296,3 +296,29 @@ test('watch-main-log still stops the watcher when the window is destroyed', () =
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('watch-main-log follows replacement files through rotation without replaying old entries', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'drmvyz-diag-'))
+  const ipcMain = fakeIpcMain()
+  const sender = fakeSender()
+  try {
+    const filePath = path.join(dir, 'main.log')
+    fs.writeFileSync(filePath, 'historical\n')
+    installDiagnosticsBridge({ ipcMain, log: fileLog(filePath) })
+    ipcMain.emit('drmvyz:diagnostics:watch-main-log', { sender })
+    await new Promise(resolve => setTimeout(resolve, 80))
+    fs.renameSync(filePath, path.join(dir, 'main.old.log'))
+    fs.writeFileSync(filePath, '')
+    await new Promise(resolve => setTimeout(resolve, 250))
+    fs.appendFileSync(filePath, 'new rotated warning\n')
+    await waitFor(() => sender.sent.length === 1)
+    assert.equal(sender.sent[0].payload.reset, true)
+    assert.equal(sender.sent[0].payload.content, 'new rotated warning\n')
+    fs.appendFileSync(filePath, 'next error\n')
+    await waitFor(() => sender.sent.length === 2)
+    assert.equal(sender.sent[1].payload.content, 'next error\n')
+  } finally {
+    ipcMain.emit('drmvyz:diagnostics:unwatch-main-log', { sender })
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})

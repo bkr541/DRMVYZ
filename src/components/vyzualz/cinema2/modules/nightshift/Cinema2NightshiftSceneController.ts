@@ -5,7 +5,10 @@ import type { NightshiftMusic } from './Cinema2NightshiftAudio'
 import { Cinema2NightshiftSign } from './Cinema2NightshiftSign'
 
 export interface NightshiftSceneFrame { controls: NightshiftControls; phase: number; angle: number; pattern: NightshiftPattern; outgoingPattern: NightshiftPattern | null; blend: number; music: NightshiftMusic; glintPhase: number }
-export const NIGHTSHIFT_FLOOR_OUTPUT_GAIN = 3
+// Compensate for the textured glass emission and authored dim/medium tile levels.
+// Apply after spatial/audio shading so brighter peaks retain their travelling
+// dark intervals, coverage mask and authoritative master/floor zero states.
+export const NIGHTSHIFT_FLOOR_OUTPUT_GAIN = 9
 
 /** Spatial native response, capped by the user's coverage and zone limits. */
 export function shadeNightshiftMusicCell(cell: NightshiftCell, baseGain: number, coverage: number, music: NightshiftMusic, pattern: NightshiftPattern = 'nightshift', phase = 0): number {
@@ -51,7 +54,7 @@ export class Cinema2NightshiftSceneController {
   private readonly owned: Three.Material[] = []
   private readonly ceiling: { mesh: Three.InstancedMesh; cells: NightshiftCell[] }[] = []
   private mirror: Three.MeshStandardMaterial | null = null
-  private sign: Cinema2NightshiftSign | null = null
+  private readonly signs: Cinema2NightshiftSign[] = []
   private lastKey = ''
   private readonly master = { value: 1 }
   private readonly floorGain = { value: 1 }
@@ -151,8 +154,10 @@ export class Cinema2NightshiftSceneController {
       source.removeFromParent(); root.add(mesh)
       this.batches.push(mesh); this.ceiling.push({ mesh, cells })
     }
-    this.sign = new Cinema2NightshiftSign(this.library)
-    root.add(this.sign.root)
+    for (let side = 0; side < 4; side++) {
+      const sign = new Cinema2NightshiftSign(this.library, side)
+      this.signs.push(sign); root.add(sign.root)
+    }
   }
 
   private decorate(material: Three.MeshStandardMaterial, zone?: { value: number }, reflection = false, instancedEmission = false): void {
@@ -200,10 +205,11 @@ export class Cinema2NightshiftSceneController {
     material.needsUpdate = true
   }
 
-  apply(frame: NightshiftSceneFrame): void {
+  apply(frame: NightshiftSceneFrame, cameraPosition?: readonly [number, number, number]): void {
     const { controls: c, pattern, outgoingPattern, blend, phase, music } = frame
     const { THREE } = this.library
-    this.sign?.apply(frame, shadeNightshiftMusicCell)
+    const viewAngle = cameraPosition ? Math.atan2(cameraPosition[0], cameraPosition[2] + 2.3) : 0
+    for (const sign of this.signs) sign.apply(frame, shadeNightshiftMusicCell, viewAngle)
     this.master.value = c.master / .85
     this.floorGain.value = NIGHTSHIFT_FLOOR_OUTPUT_GAIN * c.floor / .8
     this.ballGain.value = c.ball / .75
@@ -245,7 +251,8 @@ export class Cinema2NightshiftSceneController {
   }
 
   dispose(): void {
-    this.sign?.dispose(); this.sign = null
+    for (const sign of this.signs) sign.dispose()
+    this.signs.length = 0
     for (const batch of this.batches) { batch.removeFromParent(); batch.dispose() }
     for (const mat of this.owned) mat.dispose()
     this.batches.length = 0; this.owned.length = 0; this.cells.length = 0; this.ceiling.length = 0

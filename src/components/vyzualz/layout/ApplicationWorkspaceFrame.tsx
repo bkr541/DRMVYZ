@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
 import { APP_VIEW_LABELS } from '../appView'
-import { VyzualzBrandToggle, VyzualzSidebar } from '../VyzualzSidebar'
+import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
 
 interface HeaderSlot {
@@ -63,13 +63,9 @@ export function ApplicationWorkspaceFrame({
           <WorkspaceRegion slot="header" className="fw-app-header">
             <WorkspaceSurface className="fw-app-header-surface">
               <div className="fw-app-header-inner">
-                <VyzualzBrandToggle
-                  collapsed={sidebarCollapsed}
-                  onToggle={() => onSidebarCollapsedChange(!sidebarCollapsed)}
-                />
-                <span className="fw-app-header-fallback" hidden={headerOccupied}>
+                {appView !== 'presetManager' && <span className="fw-app-header-fallback" hidden={headerOccupied}>
                   {APP_VIEW_LABELS[appView]}
-                </span>
+                </span>}
                 <div ref={setTarget} className="fw-app-header-controls" data-app-header-slot="controls" />
               </div>
             </WorkspaceSurface>

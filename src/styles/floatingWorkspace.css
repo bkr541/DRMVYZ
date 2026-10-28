@@ -75,11 +75,24 @@
   padding: 0 12px;
 }
 
-[data-workspace-layout='floating'] .fw-app-header .az-logo {
-  width: auto;
-  padding: 6px;
-  border-bottom: 0;
+[data-workspace-layout='floating'] .az-sidebar-utility {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
   border-radius: var(--fw-surface-radius);
+  background: transparent;
+  color: var(--az-text-muted);
+  cursor: pointer;
+}
+[data-workspace-layout='floating'] .az-sidebar-utility:hover { color: var(--az-text); }
+[data-workspace-layout='floating'] .az-sidebar-utility:focus-visible {
+  outline: 1px solid var(--az-cyan);
+  outline-offset: 2px;
 }
 
 [data-workspace-layout='floating'] .fw-app-header-fallback {
@@ -121,4 +134,12 @@
   flex: 1 1 0;
   min-width: 0;
   min-height: 0;
+}
+
+/* Feature action toolbars start at the left; telemetry stays at the right. */
+[data-workspace-layout='floating'] .fw-app-header .sm-title-block:empty { display: none; }
+[data-workspace-layout='floating'] .fw-app-header .lmv-header-right { margin-left: auto; }
+[data-workspace-layout='floating'] .az-sidebar--collapsed .az-sidebar-utility { align-self: center; }
+[data-workspace-layout='floating'] .az-sidebar-utility svg {
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }

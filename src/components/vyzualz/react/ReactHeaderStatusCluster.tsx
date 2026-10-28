@@ -1,39 +1,27 @@
-import { HeaderActivityChip, HeaderCpuChip } from '../shared/HeaderSystemStatus'
-import { HeaderNotificationsButton } from '../shared/HeaderNotificationsButton'
-import { buildReactHeaderMetrics, MetricChip, type ReactHeaderQualityTier } from './ReactHeaderPerformanceStatus'
+import { useAppCpuUsage } from '../../../native/useAppCpuUsage'
+import { HeaderReadout } from '../layout/HeaderReadout'
+import { buildReactHeaderMetrics, type ReactHeaderQualityTier } from './ReactHeaderPerformanceStatus'
 import { ReactPersistenceStatus } from './ReactPersistenceStatus'
 
-/**
- * The React page's header status cluster (Layout Lab → Template → "16 Layered Cards"): Loading stacked over Saved,
- * FPS over Frame Time, Quality over CPU, then the Notifications bell. The stacks are layout only; they carry no
- * border or background, and the metric lines share one label column per stack so their values start at the same x.
- * Every element is the same component the other pages use; only the arrangement and styling differ.
- */
-export function ReactHeaderStatusCluster({
-  fps,
-  frameTimeMs,
-  qualityTier,
-}: {
+/** Live readings arranged as Option E's three paired editorial readouts. */
+export function ReactHeaderStatusCluster({ fps, frameTimeMs, qualityTier }: {
   fps: number
   frameTimeMs?: number | null
   qualityTier?: ReactHeaderQualityTier
 }) {
   const metrics = buildReactHeaderMetrics({ fps, frameTimeMs, qualityTier })
-  return (
-    <div className="rv-header-status" data-react-header-status>
-      <div className="rv-header-status-stack" data-header-stack="loading+saved">
-        <HeaderActivityChip page="react" />
-        <ReactPersistenceStatus />
-      </div>
-      <div className="rv-header-status-stack" data-header-stack="fps+frame-time">
-        <MetricChip {...metrics.fps} />
-        <MetricChip {...metrics.frameTime} />
-      </div>
-      <div className="rv-header-status-stack" data-header-stack="quality+cpu">
-        <MetricChip {...metrics.quality} />
-        <HeaderCpuChip />
-      </div>
-      <HeaderNotificationsButton page="react" />
-    </div>
-  )
+  const cpu = useAppCpuUsage()
+  const cpuText = cpu.status === 'ready' ? `${Math.round(cpu.usage.percent)}%` : cpu.status === 'measuring' ? '…' : '—'
+  const cpuTitle = cpu.status === 'ready' ? `App CPU usage: ${cpu.usage.percent.toFixed(1)}% across ${cpu.usage.processCount} processes` : 'App CPU usage is only available in the desktop app'
+  return <div className="rv-header-status" data-react-header-status>
+    <ReactPersistenceStatus presentation="readout" />
+    <HeaderReadout label="RENDER / FPS" title={`${metrics.fps.title}; ${metrics.frameTime.title}`}>
+      <strong className="vz-header-readout-primary" data-performance-metric="fps" aria-label={`FPS ${metrics.fps.value}`}>{metrics.fps.value}</strong>
+      <em data-performance-metric="frame-time" aria-label={`Frame time ${metrics.frameTime.value}`}>{metrics.frameTime.value.replace(' ms', 'ms')}</em>
+    </HeaderReadout>
+    <HeaderReadout label="QUALITY / CPU" title={`${metrics.quality.title}; ${cpuTitle}`}>
+      <strong className="vz-header-readout-primary" data-performance-metric="quality" aria-label={`Quality ${metrics.quality.value}`}>{metrics.quality.value.toUpperCase()}</strong>
+      <em data-header-cpu aria-label={cpuTitle}>{cpuText}</em>
+    </HeaderReadout>
+  </div>
 }

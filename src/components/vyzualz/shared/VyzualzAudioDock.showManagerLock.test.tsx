@@ -205,7 +205,7 @@ async function dispatchAudioFile(name = 'track-c.wav'): Promise<void> {
 }
 
 beforeEach(() => {
-  usePageActivityStore.setState({ pages: { react: {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
+  usePageActivityStore.setState({ pages: { react: {}, 'preset-manager': {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
   resetAudioSourcePolicyForTests()
   fixture.engine.source = 'file'
   fixture.engine.micError = null

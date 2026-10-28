@@ -1,7 +1,13 @@
 import { AppIcon } from '../shared/icons/AppIcon'
 import { useEffect, useRef, useState } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
+import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
+import type { AppPageId } from '../../stores/pageActivityStore'
+import { LayoutLabModal } from './react/LayoutLabModal'
+import { VyzualzProfileControl } from './shared/VyzualzProfileControl'
 import type { AppView } from './appView'
+
+const NOTIFICATION_PAGES: Record<AppView, AppPageId> = { react: 'react', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager' }
 
 type Props = {
   compact?: boolean
@@ -40,6 +46,8 @@ export function VyzualzBrandToggle({
 
 export function VyzualzSidebar(props: Props) {
   const { compact = false, appView, onAppViewChange } = props
+  const notificationPage = NOTIFICATION_PAGES[appView ?? 'react']
+  const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const engine = useSharedAudio()
   const [legacyCollapsed, setLegacyCollapsed] = useState(compact)
   const isCollapsed = props.variant === 'floating' ? props.collapsed : legacyCollapsed
@@ -162,6 +170,30 @@ export function VyzualzSidebar(props: Props) {
           </div>
         </div>
       </div>
+      <div className="az-sidebar-account">
+        {props.variant === 'floating' && <button
+          type="button"
+          className="fw-sidebar-toggle az-sidebar-utility"
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!isCollapsed}
+          onClick={toggleCollapsed}
+        >
+          <AppIcon kind="chevronRight" size={24} style={{ transform: isCollapsed ? undefined : 'rotate(180deg)' }} />
+        </button>}
+        <button
+          type="button"
+          className="az-sidebar-utility az-sidebar-layout-lab"
+          title="Layout Lab"
+          aria-label="Layout Lab"
+          onClick={() => setLayoutLabOpen(true)}
+        >
+          <AppIcon kind="sliders" size={24} />
+        </button>
+        <HeaderNotificationsButton key={notificationPage} page={notificationPage} iconOnly className="az-sidebar-notifications" />
+        <VyzualzProfileControl />
+      </div>
+      {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
     </aside>
   )
 }

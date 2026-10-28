@@ -13,11 +13,11 @@ it('updates the approved switch artwork and preserves checked and disabled seman
   await act(async () => root.render(<Switch />))
   const button = container.querySelector('button')!
   expect(button.getAttribute('aria-checked')).toBe('false')
-  expect(button.querySelector('[data-app-icon="off"]')).not.toBeNull()
+  expect(button.querySelector('circle[fill="none"]')).not.toBeNull()
   await act(async () => button.click())
   expect(changed).toHaveBeenCalledWith(true)
   expect(button.getAttribute('aria-checked')).toBe('true')
-  expect(button.querySelector('[data-app-icon="check"]')).not.toBeNull()
+  expect(button.querySelector('.dv-icon-morph-toggle__icon.is-on circle[fill="currentColor"]')).not.toBeNull()
   await act(async () => root.render(<IconMorphToggle checked disabled onCheckedChange={changed} />))
   await act(async () => container.querySelector('button')!.click())
   expect(changed).toHaveBeenCalledTimes(1)
@@ -34,8 +34,8 @@ it('keeps uncontrolled checkbox submission, change events and form reset native'
   expect(new FormData(form).has('enabled')).toBe(false)
   form.reset()
   expect(input.checked).toBe(true)
-  expect(container.querySelector('.dv-icon-morph-checkbox__on [data-app-icon="check"]')).not.toBeNull()
-  expect(container.querySelector('.dv-icon-morph-checkbox__off [data-app-icon="off"]')).not.toBeNull()
+  expect(container.querySelector('.dv-icon-morph-checkbox__on circle[fill="currentColor"]')).not.toBeNull()
+  expect(container.querySelector('.dv-icon-morph-checkbox__off circle[fill="none"]')).not.toBeNull()
 })
 it('preserves controlled checkbox changes and the input ref', async () => {
   const ref = { current: null as HTMLInputElement | null }

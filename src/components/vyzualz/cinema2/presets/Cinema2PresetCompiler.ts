@@ -887,6 +887,11 @@ function validateCameraMotion(
   if (motion.orbit != null) {
     if (!isPlainObject(motion.orbit) || typeof motion.orbit.angularSpeedDegreesPerSecond !== 'number' || !Number.isFinite(motion.orbit.angularSpeedDegreesPerSecond) || motion.orbit.angularSpeedDegreesPerSecond < 0 || motion.orbit.angularSpeedDegreesPerSecond > 90) invalid('Additive orbit angular speed must be between 0 and 90 degrees per second.', '.orbit.angularSpeedDegreesPerSecond')
   }
+  const roomOrbit = isPlainObject(motion.orbit) ? motion.orbit : null
+  if (roomOrbit?.center != null) validateCameraVector3(roomOrbit.center, `${path}.orbit.center`, diagnostics)
+  if (roomOrbit?.beatsPerRevolution != null) {
+    if (typeof roomOrbit.beatsPerRevolution !== 'number' || !Number.isFinite(roomOrbit.beatsPerRevolution) || roomOrbit.beatsPerRevolution <= 0 || !roomOrbit.center || !motion.tempo) invalid('Beat-based room orbit requires a positive revolution length, center and motion.tempo.', '.orbit.beatsPerRevolution')
+  }
   if (motion.drift != null) {
     if (!isPlainObject(motion.drift)) invalid('Drift must be an object.', '.drift')
     else {

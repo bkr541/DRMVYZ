@@ -1,6 +1,4 @@
-/* Centered header control group (React, Lyric Manager, Show Manager).
-   The header row is the positioning context; the group is taken out of the flex flow so it
-   sits at the true middle of the row no matter what is on either side of it. */
+/* Left-aligned, background-free header actions shared by the four workspaces. */
 
 .vz-header,
 .lmv-header,
@@ -10,36 +8,35 @@
 }
 
 .vz-header-group {
-  position: absolute;
-  top: 50%;
-  left: 50%;
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
   z-index: 3;
-  transform: translate(-50%, -50%);
+  transform: none;
   display: flex;
-  align-items: stretch;
-  gap: 0;
+  align-items: center;
+  gap: 4px;
   box-sizing: border-box;
   max-width: calc(100% - 32px);
-  height: 42px;
+  height: 38px;
   padding: 0;
-  /* Segmented Deck (Layout Lab → Cinema → 01): one bordered instrument split into segments by hairlines. */
-  border: 1px solid rgba(154, 178, 188, 0.22);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(20, 28, 34, 0.95), rgba(10, 14, 17, 0.98));
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* A group with nothing to show (e.g. a status that is currently empty) leaves no empty box. */
 .vz-header-group:empty { display: none; }
 
-/* Every direct child is a segment; hairlines divide them. */
+/* Wrappers preserve alignment without introducing a surrounding panel. */
 .vz-header-group > * {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   align-self: stretch;
   margin: 0;
   padding: 0;
   border: 0;
-  border-right: 1px solid rgba(154, 178, 188, 0.16);
+  border-right: 0;
   border-radius: 0;
   background: transparent;
 }
@@ -53,8 +50,8 @@
 .vz-header-group .sm-header-show-actions,
 .vz-header-group .sm-stage-tools {
   display: flex;
-  align-items: stretch;
-  gap: 0;
+  align-items: center;
+  gap: 4px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -62,18 +59,17 @@
   box-shadow: none;
 }
 
-/* Every button in the deck is the same key: flat, hairline-separated, lit when active. */
+/* Actions share the navigation bell’s hit area and background-free treatment. */
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  min-width: 36px;
-  height: auto;
+  min-width: 38px;
+  height: 38px;
   min-height: 0;
   margin: 0;
-  padding: 0 13px;
-  /* Only the right edge is left to the segment rule below, so direct-child keys keep their divider. */
+  padding: 0 8px;
   border-top: 0;
   border-bottom: 0;
   border-left: 0;
@@ -90,34 +86,34 @@
   transition: color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 .vz-header-group > button:not(.drm-help-info-trigger):not(:last-child) {
-  border-right: 1px solid rgba(154, 178, 188, 0.16);
+  border-right: 0;
 }
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) + button:not(.drm-help-info-trigger) {
-  border-left: 1px solid rgba(154, 178, 188, 0.12);
+  border-left: 0;
 }
-.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) svg { width: 16px; height: 16px; flex-shrink: 0; }
+.vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) svg { width: 24px; height: 24px; flex-shrink: 0; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55)); }
 
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled) {
   color: #e8f4f8;
-  background: rgba(255, 255, 255, 0.05);
+  background: transparent;
 }
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):disabled { opacity: 0.4; cursor: default; }
 
-/* Active / emphasised keys: cyan ink, a cyan wash and a bar along the bottom edge. */
+/* Active actions retain their cyan ink without a filled button surface. */
 .vz-header-group button.is-on,
 .vz-header-group button.is-active,
 .vz-header-group button.dv-icon-chip--primary,
 .vz-header-group button.sm-header-icon-button--primary {
   color: #67f7ff;
-  background: rgba(74, 199, 219, 0.14);
-  box-shadow: inset 0 -2px 0 #4ac7db;
+  background: transparent;
+  box-shadow: none;
 }
 .vz-header-group button.is-on:hover:not(:disabled),
 .vz-header-group button.is-active:hover:not(:disabled),
 .vz-header-group button.dv-icon-chip--primary:hover:not(:disabled),
 .vz-header-group button.sm-header-icon-button--primary:hover:not(:disabled) {
   color: #a8fbff;
-  background: rgba(74, 199, 219, 0.22);
+  background: transparent;
 }
 
 /* Toggles (role="switch" / aria-pressed): the same key, but "on" is shown by an indicator light rather than a bar.
@@ -146,18 +142,18 @@
 .vz-header-group button.vz-header-toggle[aria-checked='true'],
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle)[aria-pressed='true'] {
   color: #67f7ff;
-  background: rgba(74, 199, 219, 0.1);
+  background: transparent;
 }
 .vz-header-group button.vz-header-toggle[aria-checked='true']:hover:not(:disabled),
 .vz-header-group button:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle)[aria-pressed='true']:hover:not(:disabled) {
   color: #a8fbff;
-  background: rgba(74, 199, 219, 0.18);
+  background: transparent;
 }
 
-/* Icon-only keys (HeaderIconKey): the Show Manager's icon cells — 36px wide, the icon centred. Custom glyphs are drawn as a 1.7px
+/* Icon-only keys are 38px wide with a centred icon. Custom glyphs are drawn as a 1.7px
    rounded line in the key's ink; library icons keep their own strokes. */
 .vz-header-group button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) {
-  width: 36px;
+  width: 38px;
   padding: 0;
 }
 .vz-header-group .vz-header-icon-key svg {
@@ -169,7 +165,14 @@
 }
 .vz-header-group .vz-header-icon-key--danger:hover:not(:disabled) {
   color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
+  background: transparent;
 }
 .vz-header-group .vz-header-icon-key:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.6); outline-offset: -2px; }
 .vz-header-glyph-mark { fill: currentColor; stroke: none; }
+
+.vz-header-group .rv-global-output button { position: relative; width: 38px; padding: 0; gap: 0; }
+.vz-header-group .rv-global-output-dot { position: absolute; top: 3px; right: 1px; }
+.vz-header-group button:focus-visible { outline: 1px solid var(--az-cyan, #4ac7db); outline-offset: -2px; }
+
+.vz-header-group .sm-header-icon-button,
+.vz-header-group .sm-stage-tools button { width: 38px; padding: 0; flex-shrink: 0; }

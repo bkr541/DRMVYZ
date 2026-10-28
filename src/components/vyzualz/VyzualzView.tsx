@@ -161,7 +161,9 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
         <Suspense fallback={<WorkspaceLoader label="Preset Manager" />}>
-          <PresetManagerView />
+          <NotificationPageProvider value="preset-manager">
+            <PresetManagerView />
+          </NotificationPageProvider>
         </Suspense>
       </ManagedWorkspaceShell>
     )

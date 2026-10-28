@@ -71,4 +71,27 @@ describe('NIGHTSHIFT freestanding neon sign', () => {
     expect(materialDispose).toHaveBeenCalledOnce()
     expect(sign.root.children).toHaveLength(0)
   })
+  it('rebuilds editable text only on changes and gradually reveals the wall facing the orbit', async () => {
+    const sign = new Cinema2NightshiftSign(await loadCinema2ThreeLibrary(), 1), f = frame()
+    const controls = { ...f.controls, panRoom: true, signTexts: ['', 'HELLO', '', ''] }
+    sign.apply({ ...f, controls }, shadeNightshiftMusicCell, Math.PI / 2)
+    expect(sign.root.userData.text).toBe('HELLO')
+    expect(sign.root.children).toHaveLength(5)
+    const geometry = (sign.root.children[0] as THREE.Mesh).geometry
+    const dispose = vi.spyOn(geometry, 'dispose')
+    sign.apply({ ...f, controls }, shadeNightshiftMusicCell, Math.PI / 2)
+    expect((sign.root.children[0] as THREE.Mesh).geometry).toBe(geometry)
+    const angle = Math.PI / 2 + Math.acos(.5)
+    sign.apply({ ...f, controls }, shadeNightshiftMusicCell, angle)
+    expect(sign.root.children.filter(c => c.visible).length).toBeGreaterThan(0)
+    expect(sign.root.children.filter(c => c.visible).length).toBeLessThan(5)
+    sign.apply({ ...f, controls }, shadeNightshiftMusicCell, -Math.PI / 2)
+    expect(sign.root.visible).toBe(false)
+    sign.apply({ ...f, controls: { ...controls, signTexts: ['', '', '', ''] } }, shadeNightshiftMusicCell, Math.PI / 2)
+    expect(sign.root.visible).toBe(false)
+    expect(sign.root.children).toHaveLength(0)
+    expect(dispose).toHaveBeenCalledOnce()
+    sign.dispose()
+  })
+
 })

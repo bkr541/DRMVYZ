@@ -235,6 +235,44 @@
   flex-shrink: 0;
 }
 
+/* Account control stays below navigation and license details, including the collapsed rail. */
+.az-sidebar-account { display: flex; flex: 0 0 auto; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 14px 14px; }
+.az-sidebar-account > .vz-profile-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--az-text-muted);
+  cursor: pointer;
+}
+.az-sidebar-account > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-notifications.az-sidebar-notifications {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.az-sidebar-account .az-sidebar-notifications svg {
+  width: 24px;
+  height: 24px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
+}
+.az-sidebar--collapsed .az-sidebar-notifications { align-self: center; }
+.az-sidebar-account .vz-header-avatar { width: 38px; height: 38px; }
+.vz-profile-control:focus-visible { outline: 1px solid var(--az-cyan); outline-offset: 3px; }
+.vz-profile-control:hover .vz-header-avatar { border-color: rgba(74,199,219,0.55); background: rgba(74,199,219,0.18); }
+.az-sidebar--collapsed .az-sidebar-account { padding: 10px 10px 14px; }
+.az-sidebar.az-sidebar--collapsed .az-sidebar-account > .vz-profile-control { justify-content: center; padding: 4px 0; }
+
 /* ── Collapsed sidebar ───────────────────────────────────────────────── */
 .az-sidebar--collapsed {
   width: 72px;

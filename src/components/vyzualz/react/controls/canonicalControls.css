@@ -273,9 +273,9 @@
   width: 17px;
   height: 17px;
   flex: 0 0 17px;
-  border: 1px solid rgba(154, 178, 188, 0.25) !important;
+  border: 0 !important;
   border-radius: 50% !important;
-  background: rgba(255, 255, 255, 0.03) !important;
+  background: transparent !important;
   display: inline-grid;
   place-items: center;
   padding: 0 !important;
@@ -303,16 +303,17 @@
 .dv-icon-morph-toggle.is-on,
 .dv-icon-morph-checkbox.is-on,
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) {
-  border-color: #4ac7db !important;
-  background: rgba(74, 199, 219, 0.14) !important;
-  box-shadow: 0 0 10px rgba(74, 199, 219, 0.35) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-.dv-icon-morph-toggle__icon { width: 13px; height: 13px; pointer-events: none; }
+.dv-icon-morph-toggle__icon { display: block; width: 12px; height: 12px; color: rgba(154, 178, 188, 0.6); pointer-events: none; }
+.dv-icon-morph-toggle__icon.is-on { color: #4ac7db; }
+.dv-icon-morph-toggle__icon.is-on circle { stroke: #8ef4ff; }
+.dv-icon-morph-checkbox__off { display: contents; }
 .dv-icon-morph-checkbox__on { display: none; }
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-checkbox__off { display: none; }
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:checked) .dv-icon-morph-checkbox__on { display: contents; }
-.dv-icon-morph-checkbox.is-disabled .app-icon { --app-icon-accent: currentColor; }
 
 .dv-icon-morph-toggle:focus-visible,
 .dv-icon-morph-checkbox:has(.dv-icon-morph-checkbox__input:focus-visible) {

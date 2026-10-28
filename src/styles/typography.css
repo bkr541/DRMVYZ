@@ -223,3 +223,21 @@
   --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
+
+/* Compact header engine selector uses the shared field-value role. */
+:root body .rv-engine-dropdown--header .rv-engine-dropdown-label {
+  font: var(--type-field-value);
+  letter-spacing: 0.01em;
+}
+
+/* Option E's shared header readout roles. */
+:root {
+  --type-header-readout-family: 'Inter', 'Helvetica Neue', var(--font-ui), sans-serif;
+  --type-header-readout-label: 700 8px/1.25 var(--type-header-readout-family);
+  --type-header-readout-primary: 700 11px/1.25 var(--type-header-readout-family);
+  --type-header-readout-secondary: 450 10px/1.25 var(--type-header-readout-family);
+}
+:root body .vz-header-readout-label { font: var(--type-header-readout-label); letter-spacing: .08em; }
+:root body .vz-header-readout-values, :root body .vz-header-readout-primary { font: var(--type-header-readout-primary); }
+:root body .vz-header-readout-values em { font: var(--type-header-readout-secondary); }
+:root body .vz-header-readout-values button { font: var(--type-header-readout-secondary); }

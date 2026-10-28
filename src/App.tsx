@@ -1,3 +1,4 @@
+import { DeveloperLogNotices } from './components/vyzualz/shared/DeveloperLogNotices'
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 import { peekCachedSessionUserId, isNetworkAuthError } from './lib/offlineSessionFallback'
@@ -130,6 +131,7 @@ export default function App() {
   // Authenticated — VYZUALZ is the sole view
   return (
     <AudioEngineProvider>
+      <DeveloperLogNotices />
       <ActiveTrackLyricsBridge />
       <VyzualzErrorBoundary section="VyzualzView">
         <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>

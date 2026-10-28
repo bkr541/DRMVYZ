@@ -42,7 +42,7 @@ import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID, CINEMA2_WET_CONCRETE_TEXTURE_ASS
  *
  * Music map (each signal drives a different dimension; see `Cinema2ThresholdReactiveState`):
  *   kick -> support screens pulse          snare -> alternate rows flash        beat -> rows alternate every 2 beats
- *   downbeat -> light sweep down the aisle, camera lean, shaft swell             phrase -> the leading side swaps
+ *   downbeat -> light sweep down the aisle and shaft swell             phrase -> the leading side swaps
  *   build/energy -> how many screens are open, dark to full                      drop -> everything flashes and releases
  *   bass -> fog swell and support weight   highs -> LED shimmer                   vocals -> support screens step back
  * BPM Sync locks the idle breathing, the LED shimmer clock and the sweep speed to the track tempo.
@@ -53,7 +53,7 @@ export const CINEMA2_THRESHOLD_MODULE_ID = cinema2StableId<Cinema2ModuleId>('thr
 const MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('threshold-native-render')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
-const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
+const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('hdr-bloom')
 const FINISH_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('cinematic-finish')
 
 const parameterId = (name: string) => cinema2StableId<Cinema2ParameterId>(`threshold-${name}`)
@@ -171,22 +171,21 @@ const envelopeAction = (name: string, id: Cinema2EffectId, property: string, val
  * The lap is `THRESHOLD_PERIOD` long and `repeatOffset` continues it into the next copy of the environment.
  */
 function flightPoints() {
-  const point = (distance: number, x: number, y: number, targetY: number, fovDegrees?: number) => Object.freeze({
+  const point = (distance: number, x: number, y: number, targetY: number) => Object.freeze({
     position: vec3(x, y, -distance),
     target: vec3(0, targetY, -(distance + 40)),
-    ...(fovDegrees ? { fovDegrees } : {}),
   })
   return Object.freeze([
     point(0, 0, 1.3, 4),
     point(40, 0, 1.3, 4),
     point(80, 0, 1.3, 4.5),
-    point(104, 0, 2.2, 6, 70),
-    point(122, -1, 5, 7, 72),
-    point(138, 1, 6.5, 7, 72),
-    point(154, 0, 4.5, 6, 70),
-    point(170, 0, 2.5, 9, 70),
-    point(188, 0, 1.8, 6, 68),
-    point(204, 0, 1.4, 4, 68),
+    point(104, 0, 2.2, 6),
+    point(122, -.25, 5, 7),
+    point(138, .25, 6.5, 7),
+    point(154, 0, 4.5, 6),
+    point(170, 0, 2.5, 9),
+    point(188, 0, 1.8, 6),
+    point(204, 0, 1.4, 4),
   ])
 }
 
@@ -194,7 +193,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_THRESHOLD_PRESET_ID,
-  revision: 1,
+  revision: 2,
   metadata: Object.freeze({
     name: 'Threshold',
     description: 'Giant LED monoliths in fog over a wet black floor. A slow, low flight through a corridor, a field of hanging monoliths and a ring, reacting to the music.',
@@ -209,7 +208,7 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     Object.freeze({ id: 'audio.bands' as const, requirement: 'optional' as const, purpose: 'Bass swells the fog.' }),
     Object.freeze({ id: 'audio.features' as const, requirement: 'optional' as const, purpose: 'Energy, build, highs and vocal presence drive the screens.' }),
     Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Rows alternate every two beats.' }),
-    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat sweep, camera lean and shaft swell.' }),
+    Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat light sweep and shaft swell.' }),
     Object.freeze({ id: 'music.rhythm-events' as const, requirement: 'optional' as const, purpose: 'Kick pulses the support screens; snare flashes alternate rows.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Phrases swap the leading side.' }),
     Object.freeze({ id: 'music.drop' as const, requirement: 'optional' as const, purpose: 'Drops flash the whole set and bloom.' }),
@@ -225,14 +224,14 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'boolean' as const,
       defaultValue: true,
     }),
-    floatParameter(CINEMA2_THRESHOLD_CAMERA_MOTION_ID, 'Camera Motion', 'How much the flight camera moves: handheld drift, banking, a beat-locked sway and a zoom punch on every kick (0 = locked off).', 'master-controls', 4, 1, 0, 1.5, 0.05),
+    floatParameter(CINEMA2_THRESHOLD_CAMERA_MOTION_ID, 'Camera Motion', 'How much the flight camera moves: a slight back-and-forth wave along the smooth flight (0 removes the wave; forward travel continues).', 'master-controls', 4, 1, 0, 1.5, 0.05),
     // Design
-    floatParameter(CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID, 'Panel Brightness', 'Resting brightness of the LED screens before the music adds to it.', 'design', 1, 0.7, 0, 1, 0.01, 'Screens'),
+    floatParameter(CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID, 'Panel Brightness', 'Brightness of the LED screens and their music-driven accents. Zero extinguishes the screens.', 'design', 1, 0.7, 0, 1, 0.01, 'Screens'),
     floatParameter(CINEMA2_THRESHOLD_FOG_DENSITY_ID, 'Fog Density', 'How thick the haze is between you and the monoliths.', 'design', 2, 0.006, 0, 0.05, 0.001, 'Atmosphere'),
     floatParameter(CINEMA2_THRESHOLD_CORRIDOR_WIDTH_ID, 'Corridor Width', 'Distance between the two rows of monoliths in the corridor.', 'design', 3, 1, 0.6, 1.6, 0.01, 'Layout'),
     // Effects
     floatParameter(CINEMA2_THRESHOLD_FLOOR_REFLECTION_ID, 'Floor Reflection', 'How mirror-like the wet floor is.', 'effects', 1, 0.75, 0, 1, 0.01),
-    floatParameter(CINEMA2_THRESHOLD_BLOOM_ID, 'Bloom', 'Glow around the bright screens.', 'effects', 2, 1, 0, 3, 0.05),
+    floatParameter(CINEMA2_THRESHOLD_BLOOM_ID, 'Bloom', 'Glow around the bright screens.', 'effects', 2, 0.38, 0, 3, 0.01),
     floatParameter(CINEMA2_THRESHOLD_SHAFTS_ID, 'Light Shafts', 'Rays radiating from the screens through the haze.', 'effects', 3, 0.12, 0, 1, 0.01),
     floatParameter(CINEMA2_THRESHOLD_FINISH_ID, 'Cinematic Finish', 'Filmic tone curve, grade, vignette, fringing and grain.', 'effects', 4, 1, 0, 1, 0.01),
     // Palette
@@ -307,17 +306,18 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
         loop: true,
         repeatOffset: vec3(0, 0, -LAP_LENGTH),
       }),
-      // Camera Motion scales all of this (0 = locked off). Amplitudes are sized for a 52-unit-wide aisle: handheld drift and banking plus a
-      // beat-locked sway (weave over two bars, a bob every beat, FOV breathing every bar, a zoom punch on every kick). With BPM Sync on the sway
-      // follows the track's beats and the flight runs at its tempo; off, it free-runs at 120 BPM and the flight keeps its authored speed.
-      motion: cinema2CinematicMotion('gentle', {
+      // A slow lateral wave follows the shared beat clock. No per-hit zoom,
+      // vertical beat bob or roll: musical accents belong to the lights.
+      motion: cinema2CinematicMotion('steady', {
         splinePath: true,
         overrides: Object.freeze({
-          drift: Object.freeze({ position: 0.7, target: 0.4, rollDegrees: 0.7, fovDegrees: 0.8, speed: 0.1 }),
-          bank: Object.freeze({ maxDegrees: 4, gain: 0.7, smoothingMs: 500 }),
-          tempo: Object.freeze({ referenceBpm: 120, flightSpeed: true, minRate: 0.75, maxRate: 1.45, weave: 1.8, bob: 0.25, roll: 1.4, fov: 1.2, punch: 2.4 }),
+          drift: Object.freeze({ position: 0.08, target: 0.025, rollDegrees: 0, fovDegrees: 0, speed: 0.05 }),
+          bank: Object.freeze({ maxDegrees: 0.2, gain: 0.05, smoothingMs: 700 }),
+          fovRateLimitDegreesPerSecond: 2,
+          tempo: Object.freeze({ referenceBpm: 120, flightSpeed: true, minRate: 0.75, maxRate: 1.45, weave: 0.25, bob: 0, roll: 0, fov: 0, punch: 0 }),
         }),
       }),
+      smoothingMs: 180,
       controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_MOTION_ID), tempoSync: cinema2Ref(CINEMA2_THRESHOLD_BPM_SYNC_ID) }),
     }),
   ]),
@@ -418,18 +418,18 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       shafts: CINEMA2_THRESHOLD_SHAFTS_ID,
     }),
     effect(CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, BLOOM_EFFECT_TYPE_ID, 2, {
-      mix: 1, threshold: 0.55, radius: 2, intensity: 1,
+      mix: 1, threshold: 1.7, knee: 0.42, intensity: 0.38, spread: 0.32, levels: 4, clampMax: 14,
     }, {
       mix: CINEMA2_THRESHOLD_INTENSITY_ID,
       intensity: CINEMA2_THRESHOLD_BLOOM_ID,
     }),
     effect(CINEMA2_THRESHOLD_FINISH_EFFECT_ID, FINISH_EFFECT_TYPE_ID, 3, {
       mix: 1,
-      // No tone curve: a filmic curve compresses pure white to grey, and these screens are meant to be pure white.
-      toneMap: 0,
-      exposure: 1,
-      contrast: 1.1,
-      saturation: 0.55,
+      // Cathedral-style HDR highlight rolloff keeps bright LED faces detailed.
+      toneMap: 1,
+      exposure: 0.96,
+      contrast: 1.22,
+      saturation: 0.86,
       vignette: 0.2,
       vignetteSoftness: 0.7,
       grain: 0.025,
@@ -453,15 +453,6 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
           envelopeAction('downbeat-shafts', CINEMA2_THRESHOLD_VOLUMETRIC_EFFECT_ID, 'shafts', 0.45, 0, 0.1, 1.6),
           envelopeAction('downbeat-bloom', CINEMA2_THRESHOLD_BLOOM_EFFECT_ID, 'intensity', 0.5, 0, 0.1, 1.2),
           envelopeAction('downbeat-glare', CINEMA2_THRESHOLD_FLOOR_EFFECT_ID, 'glareIntensity', 0.6, 0, 0.1, 1.2),
-          Object.freeze({
-            id: actionId('downbeat-lean'),
-            target: Object.freeze({ kind: 'camera' as const, ref: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_ID), property: 'roll' }),
-            operation: 'envelope' as const,
-            composition: 'add' as const,
-            value: 2.2,
-            envelope: Object.freeze({ attack: 0.3, hold: 0, release: 1.4, unit: 'beats' as const }),
-            retrigger: 'restart' as const,
-          }),
         ]),
       }),
       Object.freeze({
@@ -528,12 +519,12 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     targets: Object.freeze([
       Object.freeze({
         id: targetId('scene'),
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const, depthFormat: 'depth24' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const, depthFormat: 'depth24' as const }),
         ownership: 'transient' as const,
       }),
       ...['floor', 'atmosphere', 'bloom'].map(name => Object.freeze({
         id: targetId(name),
-        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba8' as const }),
+        descriptor: Object.freeze({ size: Object.freeze({ kind: 'viewport' as const }), colorFormat: 'rgba16f' as const }),
         ownership: 'transient' as const,
       })),
     ]),

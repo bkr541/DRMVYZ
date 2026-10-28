@@ -29,7 +29,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  usePageActivityStore.setState({ pages: { 'react': {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
+  usePageActivityStore.setState({ pages: { 'react': {}, 'preset-manager': {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
 })
 
 afterEach(async () => {

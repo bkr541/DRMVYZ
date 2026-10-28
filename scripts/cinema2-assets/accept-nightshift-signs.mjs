@@ -39,7 +39,7 @@ try {
   assert(await control('signText').count() === 0, 'Sign Text is hidden while signs are OFF')
   await control('signs').getByRole('switch').click(); await settle()
   const input = control('signText').getByRole('textbox')
-  assert(await input.inputValue() === 'NIGHTSHIFT' && await input.isDisabled(), 'Enabling signs reveals a disabled NIGHTSHIFT text input below the toggle')
+  assert(await input.inputValue() === 'NIGHTSHIFT' && await input.isEnabled(), 'Enabling signs reveals an editable NIGHTSHIFT text input below the toggle')
   assert(await page.locator(`[data-cinema2-parent-group="palette"] [data-cinema2-control-id="${P.signColor}"]`).count() === 1, 'Sign Color appears in the Palette UI')
   const sizeSlider = control('signSize').getByRole('slider')
   assert(await sizeSlider.count() === 1, 'Sign Size slider appears below Sign Text')

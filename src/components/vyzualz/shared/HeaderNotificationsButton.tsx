@@ -6,12 +6,12 @@ import { NotificationBellIcon, NotificationDrawer } from './NotificationDrawer'
 const RING_MS = 1400
 
 /**
- * The Notifications bell in every page header (the last chip before the profile icon). It opens the same right-hand
+ * The shared page-scoped Notifications bell, also used icon-only in the navigation rail. It opens the same right-hand
  * Notifications drawer the Track Timeline Visualizer has, listing every DrawerNotice currently showing on the page.
  * While any notice is a warning (yellow) or an error (red) the bell carries a pulsing dot, and the bell itself rings
  * once each time a new warning or error appears.
  */
-export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
+export function HeaderNotificationsButton({ page, iconOnly = false, className = '' }: { page: AppPageId; iconOnly?: boolean; className?: string }) {
   const entries = usePageNotificationEntries(page)
   const attention = useNotificationAttention(page)
   const events = usePageNotificationEvents(page)
@@ -45,7 +45,7 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
     <>
       <button
         type="button"
-        className={`vsm-settings-btn vz-header-status-chip vz-header-chip ${page === 'react' ? 'vz-header-chip--labeled' : 'vz-header-chip--square'} vz-header-notifications`}
+        className={`vsm-settings-btn vz-header-status-chip vz-header-chip ${page === 'react' && !iconOnly ? 'vz-header-chip--labeled' : 'vz-header-chip--square'} vz-header-notifications ${className}`}
         data-attention={attention ?? (unreadCount > 0 ? 'unread' : undefined)}
         data-ringing={ringing ? 'true' : undefined}
         onClick={() => setOpen(true)}
@@ -54,7 +54,7 @@ export function HeaderNotificationsButton({ page }: { page: AppPageId }) {
         aria-label={label}
         title={label}
       >
-        {page === 'react' && <span className="vz-header-state-label">Notifications</span>}
+        {page === 'react' && !iconOnly && <span className="vz-header-state-label">Notifications</span>}
         <NotificationBellIcon />
         {(attention || unreadCount > 0) && <span className="vz-header-notifications-dot" data-tone={attention ?? unreadTone ?? 'info'} aria-hidden="true" />}
       </button>

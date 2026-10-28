@@ -63,7 +63,7 @@ describe('NIGHTSHIFT sustained choreography regression', () => {
     } finally { instance.lifecycle.dispose(); clock.mockRestore() }
   })
 
-  it('animates all ceiling rails with spatial programs and audio, with 3x floor output and authoritative zone controls', async () => {
+  it('animates all ceiling rails with spatial programs and audio, with brighter floor output and authoritative zone controls', async () => {
     const controller = new Cinema2NightshiftSceneController(await loadCinema2ThreeLibrary())
     const root = installation()
     controller.attach(root)
@@ -97,7 +97,13 @@ describe('NIGHTSHIFT sustained choreography regression', () => {
     }
     const floorUniforms = uniforms(floor), ceilingUniforms = uniforms(rails[0])
     controller.apply(frame)
-    expect(floorUniforms.uNightshiftZone.value).toBeCloseTo(3)
+    expect(floorUniforms.uNightshiftZone.value).toBeCloseTo(9)
+    const colors = Array.from(floor.instanceColor!.array)
+    controller.apply({ ...frame, controls: { ...frame.controls, floor: 1 } })
+    expect(floorUniforms.uNightshiftZone.value).toBeCloseTo(11.25)
+    expect(Array.from(floor.instanceColor!.array)).toEqual(colors)
+    controller.apply({ ...frame, controls: { ...frame.controls, coverage: 0 } })
+    expect(Array.from(floor.instanceColor!.array).every(value => value === 0)).toBe(true)
     controller.apply({ ...frame, controls: { ...frame.controls, floor: 0, ceiling: 0 } })
     expect(floorUniforms.uNightshiftZone.value).toBe(0)
     expect(ceilingUniforms.uNightshiftZone.value).toBe(0)

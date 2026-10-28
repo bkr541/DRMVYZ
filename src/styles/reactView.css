@@ -370,6 +370,10 @@
   min-width: 0;
 }
 
+.rv-preset-spotlight-shell:has(> .rv-preset-spotlight-card--poster) {
+  container-type: inline-size;
+}
+
 /* Scoped through the shell so it outranks the generic `.rv-preset-card-shell > .rv-preset-card { display: block }` rule. */
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card {
   /* 01 · Preset Card (Layout Lab → Template): a row with a small thumbnail, the name and chips, and a
@@ -578,8 +582,9 @@
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--poster {
   --rv-preset-tone: #4ac7db;
   display: block;
-  height: auto;
-  aspect-ratio: 3 / 2;
+  /* Keep the responsive tile width, with 24px less height than the 3:2 design. */
+  height: calc(100cqw * 2 / 3 - 24px);
+  aspect-ratio: auto;
   padding: 0;
   border-radius: 8px;
   background: transparent;
@@ -23311,56 +23316,9 @@ button.llhr-chip { cursor: pointer; }
 .llhr-row--relief-stack .llhr-dot { box-shadow: 0 0 6px color-mix(in srgb, var(--tone) 70%, transparent), 0 0 0 2px rgba(0, 0, 0, 0.35); }
 .llhr-row--relief-stack .llhr-stack > .llhr-chip--icon { padding: 0 9px; }
 
-/* ── React header status cluster ───────────────────────────────────────────────────────────────────────────────
-   Layout Lab → Template → "16 Layered Cards": Loading over Saved, FPS over Frame Time, Quality over CPU, then the
-   Notifications bell. The stacks are layout only (no border, background, shadow or outline). FPS, Frame Time,
-   Quality and CPU are plain lines with no border, background or shadow of their own; each stack shares one label
-   column so its values start at the same x. Loading and Saved are plain lines too; Notifications is the production chip.
-   Selectors are one class above the shared `.vz-header-chip` shape rules so the chips can be reshaped here only. */
-.rv-header-status { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
-.rv-header-status-stack { --rv-header-line-h: 20px; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 0; }
-
-.rv-header-status .rv-header-status-stack > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-cpu {
-  height: var(--rv-header-line-h);
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  box-shadow: none;
-}
-.rv-header-status-stack .vz-header-cpu-label { flex: 0 0 var(--rv-header-label-col, auto); }
-.rv-header-status-stack[data-header-stack='fps+frame-time'] { --rv-header-label-col: 68px; }
-.rv-header-status-stack[data-header-stack='quality+cpu'] { --rv-header-label-col: 50px; }
-.rv-header-status-stack .vz-header-cpu-value { min-width: 0; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-
-/* Loading and Saved are plain lines like the readings: no border, background or shadow, label column first, value after it. */
-.rv-header-status .rv-header-status-stack > .vsm-settings-btn.vz-header-status-chip.vz-header-chip.vz-header-activity,
-.rv-header-status .rv-header-status-stack > .rv-persistence-status.vsm-settings-btn.vz-header-status-chip.vz-header-chip {
-  height: var(--rv-header-line-h);
-  justify-content: flex-start;
-  gap: 8px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  box-shadow: none;
-}
-.rv-header-status-stack .vz-header-state-label { flex: 0 0 var(--rv-header-label-col, auto); }
-.rv-header-status-stack[data-header-stack='loading+saved'] { --rv-header-label-col: 52px; }
-/* The Loading label takes the same dim as the other labels (the shared labeled-chip rule would make it a shade brighter). */
-.rv-header-status-stack .vz-header-activity .vz-header-state-label { color: rgba(196, 207, 211, 0.58); }
-.rv-header-status-stack .rv-persistence-status .vz-header-state-value { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-
-/* Each performance reading has its own tone. Health still shows: a middling reading turns amber, a poor one red. */
-.rv-header-status .vz-header-performance-metric { --rv-metric-tone: #61d6aa; --vz-cpu-tone: var(--rv-metric-tone); }
-.rv-header-status .vz-header-performance-metric[data-performance-metric='frame-time'] { --rv-metric-tone: #67f7ff; }
-.rv-header-status .vz-header-performance-metric[data-performance-metric='quality'] { --rv-metric-tone: #a78bfa; }
-.rv-header-status .vz-header-performance-metric[data-cpu-level='high'] { --vz-cpu-tone: var(--rv-metric-tone); }
-.rv-header-status .vz-header-performance-metric[data-cpu-level='medium'] { --vz-cpu-tone: #e0b95a; }
-.rv-header-status .vz-header-performance-metric[data-cpu-level='low'] { --vz-cpu-tone: #f87171; }
-
+/* Option E's three readout groups keep stable widths as live values change. */
+.rv-header-status { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
+.rv-header-status > .vz-header-readout:first-child { width: 148px; }
 /* ── Layout Lab · Template · Design tab: Preset Manager card studies ─────────────────────────────────────── */
 
 .llpm-gallery { display: flex; flex-direction: column; gap: 28px; padding: 18px 16px 32px; }
@@ -23649,4 +23607,32 @@ button.llhr-chip { cursor: pointer; }
   [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
     --rv-floating-rail-width: clamp(150px, 22vw, 190px);
   }
+}
+
+/* The production engine selector is centred independently of header actions/status. */
+.vz-header .rv-engine-dropdown--header {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 220px;
+  margin: 0;
+  z-index: 10;
+}
+.rv-engine-dropdown--header .rv-engine-dropdown-trigger {
+  height: 46px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.rv-engine-dropdown--header .rv-engine-dropdown-icon { width: 32px; height: 32px; }
+.rv-engine-dropdown--header .rv-engine-dropdown-icon svg { width: 22px; height: 22px; }
+.rv-engine-dropdown--header .rv-engine-dropdown-eyebrow { display: none; }
+.rv-engine-dropdown--header .rv-engine-dropdown-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-engine-dropdown--header .rv-engine-dropdown-menu { width: 320px; left: 50%; right: auto; transform: translateX(-50%); max-height: min(640px, calc(100vh - 90px)); overflow-y: auto; }
+@media (max-width: 1100px) {
+  .vz-header .rv-engine-dropdown--header { width: 160px; }
+  .rv-engine-dropdown--header .rv-engine-dropdown-trigger { gap: 6px; padding-inline: 8px; }
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { create } from 'zustand'
 
 /** The app pages whose header carries the activity spinner (see VyzualzHeaderActions). */
-export type AppPageId = 'react' | 'show-manager' | 'media-manager' | 'lyric-manager'
+export type AppPageId = 'react' | 'preset-manager' | 'show-manager' | 'media-manager' | 'lyric-manager'
 
 /** One entry per active source, keyed `${owner}:${sourceId}`; the value is the label shown in the spinner tooltip. */
 type PageSources = Readonly<Record<string, string>>
@@ -15,6 +15,7 @@ interface PageActivityState {
 const EMPTY: PageSources = Object.freeze({})
 const EMPTY_PAGES: PageActivityState['pages'] = Object.freeze({
   'react': EMPTY,
+  'preset-manager': EMPTY,
   'show-manager': EMPTY,
   'media-manager': EMPTY,
   'lyric-manager': EMPTY,

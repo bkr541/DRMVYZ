@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('node:fs')
+const path = require('node:path')
 const fsp = require('node:fs/promises')
 
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error'])
@@ -79,7 +80,7 @@ async function readRange(filePath, start, end) {
 function startWatching(sender, log) {
   stopWatcher(sender.id)
   const filePath = log.transports.file.getFile().path
-  const state = { offset: 0, ready: false, timer: null, watcher: null, disposed: false, sender, onDestroyed: null }
+  const state = { offset: 0, inode: null, pendingReset: false, ready: false, timer: null, watcher: null, disposed: false, sender, onDestroyed: null }
   watchersBySenderId.set(sender.id, state)
 
   const readDelta = async () => {
@@ -89,27 +90,35 @@ function startWatching(sender, log) {
       if (!state.ready) {
         // The initial read-log call already covers everything up to "now" —
         // only emit text appended after this subscription started.
+        state.inode = stat.ino
         state.offset = stat.size
         state.ready = true
         return
       }
-      if (stat.size < state.offset) state.offset = 0 // rotated/truncated — resume from the top
+      const reset = state.pendingReset || stat.ino !== state.inode || stat.size < state.offset
+      state.pendingReset = reset
+      if (reset) state.offset = 0
+      state.inode = stat.ino
       if (stat.size <= state.offset) return
       const content = await readRange(filePath, state.offset, stat.size)
       state.offset = stat.size
+      state.pendingReset = false
       if (!state.disposed && !sender.isDestroyed()) {
-        sender.send('drmvyz:diagnostics:main-log-appended', { content })
+        sender.send('drmvyz:diagnostics:main-log-appended', { content, ...(reset ? { reset: true } : {}) })
       }
     } catch (error) {
       log.scope('system:diagnostics').warn('watch-main-log read failed:', error)
     }
   }
 
-  void readDelta()
+  let reads = Promise.resolve()
+  const queueRead = () => { reads = reads.then(readDelta) }
+  queueRead()
   try {
-    state.watcher = fs.watch(filePath, { persistent: false }, () => {
+    state.watcher = fs.watch(path.dirname(filePath), { persistent: false }, (_event, filename) => {
+      if (filename && filename.toString() !== path.basename(filePath)) return
       if (state.timer) clearTimeout(state.timer)
-      state.timer = setTimeout(readDelta, CHANGE_DEBOUNCE_MS)
+      state.timer = setTimeout(queueRead, CHANGE_DEBOUNCE_MS)
     })
   } catch (error) {
     log.scope('system:diagnostics').warn('watch-main-log failed to start:', error)

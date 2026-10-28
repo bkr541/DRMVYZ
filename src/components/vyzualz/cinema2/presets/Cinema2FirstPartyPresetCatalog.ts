@@ -1,3 +1,4 @@
+import { CINEMA2_ELEVHATE_PRESET_MANIFEST } from './Cinema2ElevhatePreset'
 import { CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_PRESET_MANIFEST } from './Cinema2AfterhoursPreset'
 import { CINEMA2_ATL_HOE_PRESET_MANIFEST } from './Cinema2AtlHoePreset'
@@ -167,4 +168,5 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
     role: 'reference',
     manifest: CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST,
   }),
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ELEVHATE_PRESET_MANIFEST }),
 ])

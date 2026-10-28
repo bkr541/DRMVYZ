@@ -14,8 +14,7 @@ interface HeaderIconKeyProps {
 }
 
 /**
- * An icon-only key for the header control group (see HeaderControlGroup.css): the same flat,
- * hairline-separated cell the Show Manager's New / Open / Save + Make Active keys use. There is
+ * An icon-only key for the header control group (see HeaderControlGroup.css): the same background-free, elevated icon treatment as the sidebar notification bell. There is
  * no visible text, so the label is the button's accessible name and tooltip.
  */
 export function HeaderIconKey({ label, title, icon, onClick, disabled, pressed, danger }: HeaderIconKeyProps) {

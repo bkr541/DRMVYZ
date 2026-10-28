@@ -24,7 +24,7 @@ export interface NightshiftControls {
   master: number; bpmSync: boolean; motion: number; rotation: boolean; musicResponse: number; autoPerformance: boolean
   floor: number; ball: number; ceiling: number; coverage: number
   pattern: NightshiftPattern; patternChange: boolean; trigger: string
-  signs: boolean; signSize: number
+  panRoom: boolean; signs: boolean; signTexts: readonly string[]; signSize: number
   colors: Record<keyof typeof NIGHTSHIFT_COLORS, NightshiftRgb>
 }
 export function readNightshiftControls(parameters: Cinema2ModuleParameterReadFacet): NightshiftControls {
@@ -41,7 +41,12 @@ export function readNightshiftControls(parameters: Cinema2ModuleParameterReadFac
     floor: n('floor', .8), ball: n('ball', .75), ceiling: n('ceiling', .7), coverage: n('coverage', .75),
     pattern: CINEMA2_NIGHTSHIFT_PATTERNS.some(p => p.value === pattern) ? pattern as NightshiftPattern : 'nightshift',
     patternChange: parameters.get('patternChange') === true,
+    panRoom: parameters.get('panRoom') === true,
     signs: parameters.get('signs') === true,
+    signTexts: ['signText', 'signTextLeft', 'signTextFront', 'signTextRight'].map((key, i) => {
+      const value = parameters.get(key)
+      return typeof value === 'string' ? Array.from(value.replace(/[\r\n\t]/g, ' ')).slice(0, 64).join('').trim() : i === 0 ? NIGHTSHIFT_SIGN_TEXT : ''
+    }),
     signSize: typeof signSize === 'number' && Number.isFinite(signSize) ? Math.max(.25, Math.min(2, signSize)) : 1,
     trigger: typeof parameters.get('trigger') === 'string' ? parameters.get('trigger') as string : 'bar4',
     colors: Object.fromEntries(Object.entries(NIGHTSHIFT_COLORS).map(([name, fallback]) => {

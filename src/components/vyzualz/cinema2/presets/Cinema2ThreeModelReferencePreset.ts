@@ -64,12 +64,12 @@ export const CINEMA2_THREE_MODEL_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nati
     tags: Object.freeze(['internal', 'reference', 'diagnostic', 'three']),
   }),
   scene: CINEMA2_ATMOSPHERE_REFERENCE_PILLAR_SCENE,
+  cameras: base.cameras?.map(camera => ({ ...camera, controls: { motionAmount: camera.controls!.motionAmount } })),
   choreography: Object.freeze({
-    ...base.choreography,
-    rules: Object.freeze((base.choreography?.rules ?? []).filter(rule => !String(rule.id).startsWith(MONOLITH_RULE_PREFIX))),
+    rules: Object.freeze((base.choreography?.rules ?? []).filter(rule => !String(rule.id).startsWith(MONOLITH_RULE_PREFIX) && !String(rule.id).startsWith('crystalized-'))),
   }),
   parameters: Object.freeze([
-    ...(base.parameters ?? []).filter(parameter => !MONOLITH_PARAMETER_IDS.has(parameter.id)),
+    ...(base.parameters ?? []).filter(parameter => !MONOLITH_PARAMETER_IDS.has(parameter.id) && !String(parameter.id).startsWith('crystalized-')),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_ROUGHNESS_ID, 'Model Roughness', 'How glossy the models are (0 = mirror, 1 = matte).', 0.28, 0, 1, 50),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_ENVIRONMENT_ID, 'Environment Reflection', 'Strength of the studio environment reflected in the models.', 0.5, 0, 2, 51),
     floatParameter(CINEMA2_THREE_MODEL_REFERENCE_CLEARCOAT_ID, 'Clearcoat', 'A glossy lacquer layer over the models (0 = none, 1 = full).', 0.6, 0, 1, 52),

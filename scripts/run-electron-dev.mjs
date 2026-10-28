@@ -2,12 +2,15 @@ import { spawn, execFileSync } from 'node:child_process'
 import { constants, cpSync, existsSync, mkdirSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { selectDevServerUrl } from './electron-dev-port.mjs'
+import { findDrmvyzProcesses } from './electron-dev-processes.mjs'
 
 const require = createRequire(import.meta.url)
 const stockElectronBinary = require('electron')
 const electronVersion = require('electron/package.json').version
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-const devUrl = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
+const requestedDevUrl = process.env.DRMVYZ_VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173'
+let devUrl = requestedDevUrl
 const devPort = Number(new URL(devUrl).port || 5173)
 const repoRoot = realpathSync(process.cwd())
 const electronCacheRoot = path.join(repoRoot, 'node_modules', '.cache', 'drmvyz-electron')
@@ -46,35 +49,49 @@ async function stopProcesses(pids, timeoutMs = 5_000) {
 /**
  * Stops a dev server and Electron shell left over from an earlier run of THIS repository, so a relaunch works.
  * A process is only touched when it provably belongs here: Vite must be listening on the dev port with this
- * repository as its working directory, and Electron must run from this repository's isolated DRMVYZ shell.
- * Other applications' Vite or Electron processes are never stopped; if one owns the port, startup fails with its details.
+ * repository as its working directory. DRMVYZ app bundles and this repository's Electron shell are closed first.
+ * Other applications' Vite or Electron processes are never stopped; occupied ports are skipped during startup.
  */
 async function clearStaleRepoProcesses() {
   if (process.platform === 'win32') return
 
-  const electronPids = run('ps', ['-axo', 'pid=,command='])
-    .split('\n')
-    .map(line => /^\s*(\d+)\s+(.*)$/.exec(line))
-    .filter(match => match && Number(match[1]) !== process.pid && match[2].includes(electronCacheRoot))
-    .map(match => Number(match[1]))
-  if (electronPids.length) {
-    console.error(`[electron:dev] Stopping ${electronPids.length} Electron process(es) left over from a previous DRMVYZ run.`)
-    await stopProcesses(electronPids)
+  console.error('[electron:dev] Checking for running DRMVYZ instances...')
+  const runningApps = findDrmvyzProcesses(execFileSync('ps', ['-axww', '-o', 'pid=,comm='], { encoding: 'utf8' }), {
+    cacheRoot: electronCacheRoot,
+    stockElectronBinary,
+    isRepoStockElectron(pid) {
+      const cwd = /^n(.+)$/m.exec(run('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn']))?.[1]
+      try { return Boolean(cwd) && realpathSync(cwd) === repoRoot } catch { return false }
+    },
+  })
+  if (runningApps.length) {
+    console.error(`[electron:dev] Closing running DRMVYZ (${runningApps.length} process(es)) before relaunch.`)
+    await stopProcesses(runningApps.map(app => app.pid))
+    // Give forced exits time to be reaped before allowing a replacement shell.
+    const deadline = Date.now() + 1_000
+    while (Date.now() < deadline && runningApps.some(app => isAlive(app.pid))) await new Promise(resolve => setTimeout(resolve, 50))
+    const remaining = runningApps.filter(app => isAlive(app.pid))
+    if (remaining.length) throw new Error(`Could not close DRMVYZ process(es): ${remaining.map(app => app.pid).join(', ')}. Quit DRMVYZ and launch again.`)
+  } else {
+    console.error('[electron:dev] No running DRMVYZ instance found.')
   }
 
   const listeners = run('lsof', ['-nP', `-iTCP:${devPort}`, '-sTCP:LISTEN', '-t']).split('\n').map(Number).filter(Boolean)
   const owned = []
   const foreign = []
   for (const pid of new Set(listeners)) {
+    if (!isAlive(pid)) continue
     const cwd = /^n(.+)$/m.exec(run('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn']))?.[1]
     const command = run('ps', ['-o', 'command=', '-p', String(pid)]).trim()
     let sameRepo = false
     try { sameRepo = Boolean(cwd) && realpathSync(cwd) === repoRoot } catch { /* cwd vanished */ }
+    // A listener can exit between lsof and the metadata queries.
+    if (!isAlive(pid)) continue
     ;(sameRepo && /\bvite\b/.test(command) ? owned : foreign).push({ pid, cwd, command })
   }
   if (foreign.length) {
     const details = foreign.map(item => `  pid ${item.pid} in ${item.cwd ?? 'unknown directory'}: ${item.command}`).join('\n')
-    throw new Error(`Port ${devPort} is in use by a process that is not this repository's Vite server, so it was left running:\n${details}`)
+    console.error(`[electron:dev] Port ${devPort} is occupied; leaving its listener(s) running and selecting an available port:\n${details}`)
   }
   if (owned.length) {
     console.error(`[electron:dev] Stopping DRMVYZ Vite server left over on port ${devPort} (pid ${owned.map(item => item.pid).join(', ')}).`)
@@ -181,12 +198,17 @@ process.on('exit', () => {
 
 try {
   await clearStaleRepoProcesses()
+  const selected = await selectDevServerUrl(requestedDevUrl)
+  devUrl = selected.href
+  if (devUrl !== new URL(requestedDevUrl).href) console.error(`[electron:dev] Using ${devUrl} because the requested port is occupied.`)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)
 }
 
-const vite = spawnChild('Vite', npmCommand, ['run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173', '--strictPort'])
+const selectedDevUrl = new URL(devUrl)
+const selectedDevPort = selectedDevUrl.port || (selectedDevUrl.protocol === 'https:' ? '443' : '80')
+const vite = spawnChild('Vite', npmCommand, ['run', 'dev', '--', '--host', selectedDevUrl.hostname, '--port', selectedDevPort, '--strictPort'])
 vite.once('exit', (code, signal) => {
   if (!shuttingDown) shutdown(code || 1, `Vite stopped unexpectedly (code=${code ?? 'none'}, signal=${signal ?? 'none'})`)
 })

@@ -58,7 +58,7 @@ const moduleValues = {
 export const CINEMA2_BLOCKSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_BLOCKSHIFT_PRESET_ID, revision: 17,
-  metadata: { name: 'BLOCKSHIFT (Preview)', description: 'Float inside a surrounding field of massive Hallow Cubes and a deeper Impossible Cube.', author: 'DVYDRM', tags: ['cinematic', 'prototype'] },
+  metadata: { name: 'BLOCKSHIFT', description: 'Float inside a surrounding field of massive Hallow Cubes and a deeper Impossible Cube.', author: 'DVYDRM', tags: ['cinematic', 'prototype'] },
   capabilities: [
     { id: 'render.webgl2', requirement: 'required', purpose: 'Instanced supplied GLBs with self-emissive LED bar surfaces and shared-signal geometry choreography.' },
     { id: 'render.depth', requirement: 'required', purpose: 'Depth-tested authored model surfaces and frames.' },

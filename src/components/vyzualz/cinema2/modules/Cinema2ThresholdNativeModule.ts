@@ -131,9 +131,11 @@ export const cinema2ThresholdNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           laps,
           period: THRESHOLD_PERIOD,
           widthScale,
-          intensity: clamp(number(context, 'intensity', 1), 0, 1.5),
-          baseLevel: 1.1 + 0.15 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
-          accentBase: 0.32 + 0.4 * clamp(number(context, 'panelBrightness', 0.7), 0, 1),
+          // Cathedral's full-program emission is 0.08 + 2.7. Keep that HDR
+          // headroom here; the brightness slider scales the musical peaks too.
+          intensity: clamp(number(context, 'intensity', 1), 0, 1.5) * clamp(number(context, 'panelBrightness', 0.7), 0, 1) / 0.7,
+          baseLevel: 2.78,
+          accentBase: 2.36,
           fogDensity: clamp(number(context, 'fogDensity', 0.02), 0, 0.2),
           primaryColor: rgb(color(context, 'primaryColor', DEFAULT_PRIMARY)),
           accentColor: rgb(color(context, 'accentColor', DEFAULT_ACCENT)),

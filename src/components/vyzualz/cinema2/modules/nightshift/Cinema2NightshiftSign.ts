@@ -2,10 +2,31 @@ import type * as Three from 'three'
 import type { Cinema2ThreeLibrary } from '../three/Cinema2ThreeLibrary'
 import { evaluateNightshiftCell, type NightshiftCell } from './Cinema2NightshiftDomain'
 import type { NightshiftSceneFrame, shadeNightshiftMusicCell } from './Cinema2NightshiftSceneController'
-import outlines from './Cinema2NightshiftSign.generated.json'
+import fixedOutlines from './Cinema2NightshiftSign.generated.json'
+import alphabet from './Cinema2NightshiftSignAlphabet.generated.json'
 
-/** Freestanding Backstreet-style glass outline tubes.
- * The fixed contour package deliberately implements only the currently locked text. */
+type Glyph = { advance: number; contours: number[][][] }
+const glyphs = alphabet as Record<string, Glyph>
+function signOutlines(text: string) {
+  if (text === fixedOutlines.text) return fixedOutlines
+  let cursor = 0
+  const letters = Array.from(text).slice(0, 64).map(character => {
+    const glyph = glyphs[character] ?? glyphs['?']
+    const contours = glyph.contours.map(ring => ring.map(p => [p[0] + cursor, p[1]]))
+    cursor += glyph.advance
+    return { character, contours }
+  })
+  const points = letters.flatMap(g => g.contours.flat())
+  if (!points.length) return { text, width: 9.2, height: 1, glyphs: [] }
+  const minX = Math.min(...points.map(p => p[0])), maxX = Math.max(...points.map(p => p[0]))
+  const minY = Math.min(...points.map(p => p[1])), maxY = Math.max(...points.map(p => p[1]))
+  // Long messages fit the wall; short words retain the original letter height.
+  const scale = Math.min(9.2 / Math.max(.01, maxX - minX), fixedOutlines.height / Math.max(.01, maxY - minY))
+  for (const p of points) { p[0] = (p[0] - (minX + maxX) / 2) * scale; p[1] = (p[1] - (minY + maxY) / 2) * scale }
+  return { text, width: 9.2, height: Math.max(.01, (maxY - minY) * scale), glyphs: letters }
+}
+
+/** Freestanding glass outline tubes rebuilt only when authored text changes. */
 export class Cinema2NightshiftSign {
   readonly root: Three.Group
   private readonly geometries: Three.BufferGeometry[] = []
@@ -13,12 +34,14 @@ export class Cinema2NightshiftSign {
   private readonly material: Three.MeshPhysicalMaterial
   private readonly cells: NightshiftCell[] = Array.from({ length: 100 }, (_, i) => ({ row: Math.floor(i / 10), column: i % 10, paletteIndex: 1, level: 2 }))
   private readonly levels = new Float32Array(100)
+  private text: string | null = null
 
-  constructor(private readonly library: Cinema2ThreeLibrary) {
+  constructor(private readonly library: Cinema2ThreeLibrary, private readonly side = 0) {
     const { THREE } = library
     this.root = new THREE.Group(); this.root.name = 'nightshift.sign'; this.root.visible = false
-    this.root.position.set(0, 2.9, -8.15)
-    this.root.userData.text = outlines.text
+    const a = side * Math.PI / 2
+    this.root.position.set(-8.15 * Math.sin(a), 2.9, -2.3 - 8.15 * Math.cos(a))
+    this.root.rotation.y = a
     this.material = new THREE.MeshPhysicalMaterial({ color: 0x080808, emissive: 0xffffff, emissiveIntensity: 2.6,
       roughness: .16, clearcoat: .6, clearcoatRoughness: .05, vertexColors: true, envMapIntensity: .35 })
     this.material.onBeforeCompile = shader => {
@@ -26,6 +49,17 @@ export class Cinema2NightshiftSign {
         '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vColor.rgb;')
     }
     this.material.customProgramCacheKey = () => 'nightshift-neon-outline-v1'
+    this.setText(side === 0 ? fixedOutlines.text : '')
+  }
+
+  setText(text: string): void {
+    if (text === this.text) return
+    this.text = text
+    this.root.userData.text = text
+    for (const geometry of this.geometries) geometry.dispose()
+    this.geometries.length = 0; this.tubes.length = 0; this.root.clear()
+    const { THREE } = this.library
+    const outlines = signOutlines(text)
     for (const [index, glyph] of outlines.glyphs.entries()) {
       const positions: number[] = [], normals: number[] = [], indices: number[] = [], addresses: number[] = []
       // Fixed planar frame, as in Backstreet: constant-radius circular glass
@@ -60,9 +94,14 @@ export class Cinema2NightshiftSign {
 
   private own<T extends Three.BufferGeometry>(geometry: T): T { this.geometries.push(geometry); return geometry }
 
-  apply(frame: NightshiftSceneFrame, shade: typeof shadeNightshiftMusicCell): void {
+  apply(frame: NightshiftSceneFrame, shade: typeof shadeNightshiftMusicCell, viewAngle = 0): void {
     const { controls: c, pattern, outgoingPattern, blend, phase, music } = frame
-    this.root.visible = c.signs && c.master > 0
+    this.setText(c.signTexts[this.side] ?? '')
+    // Fade in one letter after another as this wall comes into view. The slow
+    // room orbit provides the reveal clock; pause naturally holds the reveal.
+    const facing = Math.cos(viewAngle - this.side * Math.PI / 2)
+    const reveal = c.panRoom ? Math.max(0, Math.min(1, (facing - .15) / .7)) : 1
+    this.root.visible = c.signs && c.master > 0 && Boolean(this.text) && reveal > 0
     this.root.scale.setScalar(c.signSize)
     if (!this.root.visible) return
     this.material.emissive.setRGB(...c.colors.sign, this.library.THREE.SRGBColorSpace)
@@ -75,9 +114,11 @@ export class Cinema2NightshiftSign {
       const level = outgoingPattern ? gain(pattern) * blend + gain(outgoingPattern) * (1 - blend) : gain(pattern)
       this.levels[index] = Math.min(1.4, level + .2 * music.musicSnare + .18 * music.musicBuild + .2 * music.musicImpact)
     })
-    for (const { geometry, addresses } of this.tubes) {
+    for (const [index, { geometry, addresses }] of this.tubes.entries()) {
+      const fade = Math.max(0, Math.min(1, reveal * (this.tubes.length + 1) - index))
+      this.root.children[index].visible = fade > 0
       const colors = geometry.getAttribute('color') as Three.BufferAttribute
-      addresses.forEach((address, i) => colors.setXYZ(i, this.levels[address], this.levels[address], this.levels[address]))
+      addresses.forEach((address, i) => colors.setXYZ(i, this.levels[address] * fade, this.levels[address] * fade, this.levels[address] * fade))
       colors.needsUpdate = true
     }
   }

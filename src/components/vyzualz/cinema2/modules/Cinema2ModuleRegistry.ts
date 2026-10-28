@@ -1,3 +1,4 @@
+import { cinema2ElevhateNativeModuleDefinition } from './Cinema2ElevhateNativeModule'
 import type { Cinema2ModuleManifest, Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { cinema2FullscreenShaderModuleDefinition } from './Cinema2FullscreenShaderModule'
@@ -27,6 +28,7 @@ import { cinema2BwcNativeModuleDefinition } from './Cinema2BwcNativeModule'
 import { cinema2MarqueeNativeModuleDefinition } from './Cinema2MarqueeNativeModule'
 import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule'
 import { cinema2VacancyNativeModuleDefinition } from './Cinema2VacancyNativeModule'
+import { cinema2CrystalizedNativeModuleDefinition } from './Cinema2CrystalizedNativeModule'
 import { cinema2NightshiftNativeModuleDefinition } from './Cinema2NightshiftNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
@@ -98,6 +100,10 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const elevhateRegistration = cinema2NativeModuleRegistry.register(cinema2ElevhateNativeModuleDefinition)
+if (!elevhateRegistration.ok) throw new Error('Cinema 2.0 Elevhate module registration failed.')
+const crystalizedRegistration = cinema2NativeModuleRegistry.register(cinema2CrystalizedNativeModuleDefinition)
+if (!crystalizedRegistration.ok) throw new Error('Cinema 2.0 Crystalized module registration failed.')
 const nightshiftRegistration = cinema2NativeModuleRegistry.register(cinema2NightshiftNativeModuleDefinition)
 if (!nightshiftRegistration.ok) throw new Error('Cinema 2.0 NIGHTSHIFT module registration failed.')
 const blockshiftRegistration = cinema2NativeModuleRegistry.register(cinema2BlockshiftNativeModuleDefinition)

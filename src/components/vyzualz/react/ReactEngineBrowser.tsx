@@ -12,11 +12,10 @@ function ReactEngineIcon({ engineId }: { engineId: ReactEngineId }) {
 }
 
 /**
- * Header-level engine-family switcher. The old vertical ENGINE column is now a
- * compact dropdown inside the active engine card so the left React rail keeps
- * its authoring width without carrying a separate middle navigation column.
+ * Engine-family switcher shared by the React header and rail previews.
  */
-export function ReactEngineBrowser({ presetName = null }: {
+export function ReactEngineBrowser({ presetName = null, placement = 'rail' }: {
+  placement?: 'rail' | 'header'
   /** The active engine's selected preset, shown under the engine name (Cinema 2.0 and CANVAS). */
   presetName?: string | null
 } = {}) {
@@ -57,7 +56,7 @@ export function ReactEngineBrowser({ presetName = null }: {
   }
 
   return (
-    <div className="rv-engine-dropdown" ref={rootRef}>
+    <div className={`rv-engine-dropdown${placement === 'header' ? ' rv-engine-dropdown--header' : ''}`} ref={rootRef}>
       <button
         type="button"
         className="rv-engine-dropdown-trigger"

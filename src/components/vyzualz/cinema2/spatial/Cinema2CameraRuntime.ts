@@ -133,6 +133,8 @@ export class Cinema2CameraRuntime {
   /** Tempo motion (`motion.tempo`): a beat-position clock, the tempo-scaled flight clock and its smoothed rate, and the kick punch envelope. */
   private readonly beatClock = new Cinema2BeatClock()
   private orbitAngle = 0
+  private lastOrbitBeat: number | null = null
+  private lastRoomTimestamp: number | null = null
   private controlsSignature = ''
   private lastControlledTrack: string | null | undefined
   private lastControlledTime: number | null = null
@@ -169,6 +171,16 @@ export class Cinema2CameraRuntime {
       this.resetCount += 1
     }
 
+    if (this.authoredCamera?.motion?.orbit?.center) {
+      const dt = this.lastRoomTimestamp == null ? frame.deltaTimeSec : clamp((frame.timestampMs - this.lastRoomTimestamp) / 1000, 0, .25)
+      this.lastRoomTimestamp = frame.timestampMs
+      if (readToggleControl(this.authoredCamera.controls, 'orbitMotionEnabled', this.parameters)) {
+        const active = !frame.transport || (!frame.transport.paused && (!frame.transport.sourcePresent || frame.transport.playing))
+        frame = { ...frame, deltaTimeSec: active ? dt : 0,
+          ...(frame.transport ? { transport: { ...frame.transport, playing: active, animationActive: active } } : {}) }
+      }
+    }
+
     const aspect = safeAspect(frame.viewport.width, frame.viewport.height)
     if (!this.authoredCamera) {
       this.currentFrame = createImplicitSafeFrame(aspect)
@@ -178,7 +190,7 @@ export class Cinema2CameraRuntime {
 
     const camera = this.authoredCamera
     const motion = camera.motion
-    const controlled = camera.controls?.motionEnabled != null
+    const controlled = camera.controls?.motionEnabled != null || camera.controls?.motionSpeed != null || camera.motion?.orbit?.center != null
     const track = frame.transport?.trackId ?? null
     const time = frame.transport?.timeSec ?? frame.elapsedTimeSec
     if (controlled && this.lastControlledGeneration !== null && (track !== this.lastControlledTrack || frame.contextGeneration !== this.lastControlledGeneration || (this.lastControlledTime !== null && (time < this.lastControlledTime || time - this.lastControlledTime > Math.max(1, frame.deltaTimeSec * 4))))) this.resetMotionState()
@@ -209,7 +221,22 @@ export class Cinema2CameraRuntime {
       ? (readToggleControl(camera.controls, 'kickZoom', this.parameters) ? motionSafety.motionScale : 0)
       : motionAmount
     if (motion?.tempo && tempoState) pose = applyTempoSway(pose, motion.tempo, tempoState.beats, this.punchEnvelope, motionAmount, kickZoom)
-    if (motion?.orbit) {
+    if (motion?.orbit?.center) {
+      const enabled = !camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters)
+      const beat = tempoState?.beats ?? 0
+      const delta = this.lastOrbitBeat == null ? 0 : Math.max(0, beat - this.lastOrbitBeat)
+      this.lastOrbitBeat = beat
+      if (enabled) {
+        if (motionActive) this.orbitAngle = (this.orbitAngle + (motion.orbit.beatsPerRevolution
+          ? delta * Math.PI * 2 / motion.orbit.beatsPerRevolution
+          : motionDeltaTimeSec * motion.orbit.angularSpeedDegreesPerSecond * Math.PI / 180)) % (Math.PI * 2)
+        const center = motion.orbit.center
+        const radius = Math.hypot(safetyReference.position[0] - center[0], safetyReference.position[2] - center[2])
+        // Stable radius, height, target and lens keep the hero centered above the floor.
+        pose = { ...safetyReference, position: [center[0] + radius * Math.sin(this.orbitAngle), safetyReference.position[1], center[2] + radius * Math.cos(this.orbitAngle)],
+          target: [center[0], safetyReference.target[1], center[2]] }
+      } else this.orbitAngle = 0
+    } else if (motion?.orbit) {
       if (motionAmount === 0) this.orbitAngle = 0
       else {
         const orbitEnabled = !camera.controls?.orbitMotionEnabled || readToggleControl(camera.controls, 'orbitMotionEnabled', this.parameters)
@@ -307,11 +334,14 @@ export class Cinema2CameraRuntime {
     const bpm = resolveCinema2EffectiveBpm(frame)
     const locked = syncControl && bpm != null
     // The beat position is the shared beat clock: it follows the track's beat grid when locked and free-runs at the reference tempo otherwise.
-    const beats = this.beatClock.update(frame, syncControl, referenceBpm).beats
+    // A user-owned flight speed of zero also holds tempo sway at its current
+    // phase. Native module light clocks remain independent of this camera hold.
+    const speed = readNumberControl(camera.controls, 'motionSpeed', this.parameters) ?? 1
+    const beats = this.beatClock.update(speed > 0 ? frame : { ...frame, deltaTimeSec: 0 }, syncControl, referenceBpm).beats
 
     if (!this.tempoInitialized) {
       this.tempoInitialized = true
-      this.flightTimeSec = camera.controls?.motionEnabled ? 0 : Math.max(0, frame.elapsedTimeSec)
+      this.flightTimeSec = camera.controls?.motionEnabled || camera.controls?.motionSpeed ? 0 : Math.max(0, frame.elapsedTimeSec)
     } else {
       const rateTarget = locked && tempo.flightSpeed !== false
         ? clamp(bpm! / referenceBpm, finite(tempo.minRate, 0.7), Math.max(finite(tempo.minRate, 0.7), finite(tempo.maxRate, 1.5)))
@@ -340,6 +370,7 @@ export class Cinema2CameraRuntime {
 
   private resetMotionState(): void {
     this.orbitAngle = 0
+    this.lastOrbitBeat = null
     this.beatClock.reset()
     this.tempoInitialized = false
     this.flightTimeSec = 0

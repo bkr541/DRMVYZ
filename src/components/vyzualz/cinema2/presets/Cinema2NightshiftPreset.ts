@@ -31,7 +31,7 @@ const vec = (x: number, y: number, z: number): Cinema2Vector3 => [x, y, z]
 const parameter = (name: string) => cinema2StableId<Cinema2ParameterId>(`nightshift-${name}`)
 export const CINEMA2_NIGHTSHIFT_PARAMETER_IDS = {
   master: parameter('master-intensity'), bpmSync: parameter('bpm-sync'), motion: parameter('motion-amount'),
-  camera: parameter('camera-motion'), rotation: parameter('ball-rotation'), floor: parameter('floor-intensity'),
+  camera: parameter('camera-motion'), panRoom: parameter('pan-room'), rotation: parameter('ball-rotation'), floor: parameter('floor-intensity'),
   musicResponse: parameter('music-response'),
   autoPerformance: parameter('auto-performance'),
   bloom: parameter('bloom'), haze: parameter('club-haze'), reflections: parameter('reflections'),
@@ -39,7 +39,7 @@ export const CINEMA2_NIGHTSHIFT_PARAMETER_IDS = {
   pattern: parameter('pattern'), patternChange: parameter('pattern-change'), trigger: parameter('trigger'),
   backgroundColor: parameter('background-color'), cyanColor: parameter('ceiling-cyan'), magentaColor: parameter('floor-magenta'),
   blueColor: parameter('floor-blue'), amberColor: parameter('floor-amber'), ballColor: parameter('ball-tint'),
-  signs: parameter('enable-signs'), signText: parameter('sign-text'), signSize: parameter('sign-size'), signColor: parameter('sign-color'),
+  signs: parameter('enable-signs'), signText: parameter('sign-text'), signTextLeft: parameter('sign-text-left'), signTextFront: parameter('sign-text-front'), signTextRight: parameter('sign-text-right'), signSize: parameter('sign-size'), signColor: parameter('sign-color'),
 } as const
 const P = CINEMA2_NIGHTSHIFT_PARAMETER_IDS
 const base = { section: 'Design', exposure: 'primary', persistence: 'preset', reset: 'authored-default' } as const
@@ -51,12 +51,14 @@ const parameters: Cinema2ParameterManifest[] = [
   CINEMA2_QUALITY_MODE_PARAMETER,
   float(P.master, 'Master Intensity', .85, 'master-controls', 1),
   { ...base, id: P.bpmSync, label: 'BPM Sync', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls', group: 'Performance', order: 2,
-    description: 'Locks floor timing and ball rotation to shared BPM. Off uses an authored 100-BPM rate; it does not disable musical event triggers. This local control is independent of Audio Dock BPM Sync.' },
+    description: 'Locks floor timing, ball rotation and Pan Room to shared BPM. Off uses an authored 100-BPM rate; it does not disable musical event triggers. This local control is independent of Audio Dock BPM Sync.' },
   float(P.motion, 'Motion Amount', .35, 'master-controls', 3),
   { ...float(P.camera, 'Camera Motion', .5, 'master-controls', 4), description: 'Camera drift around the installation. Zero restores the reference shot.' },
   { ...float(P.musicResponse, 'Music Response', .8, 'master-controls', 5), description: 'Scales musical lighting and motion gains. Zero removes these reactions; Pattern Change, Auto Performance and BPM Sync remain independent.' },
   { ...base, id: P.autoPerformance, label: 'Auto Performance', type: 'boolean', defaultValue: false, designParentGroup: 'master-controls', group: 'Performance', order: 6,
     description: 'Temporarily performs build and drop programs, then restores the current base. Manual Pattern selection takes over immediately. Palette, framing and intensity limits stay yours.' },
+  { ...base, id: P.panRoom, label: 'Pan Room', type: 'boolean', defaultValue: false, designParentGroup: 'master-controls', group: 'Performance', order: 7,
+    description: 'Circles the room in 64 beats, keeping the disco ball above center. Uses BPM Sync, or 100 BPM when sync is off. Overrides camera drift while enabled.' },
   { ...base, id: P.pattern, label: 'Pattern', type: 'enum', defaultValue: 'nightshift', options: CINEMA2_NIGHTSHIFT_PATTERNS, designParentGroup: 'design', group: 'Pattern', order: 1 },
   { ...base, id: P.patternChange, label: 'Pattern Change', type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Pattern', order: 2 },
   { ...base, id: P.trigger, label: 'Trigger', type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
@@ -65,13 +67,15 @@ const parameters: Cinema2ParameterManifest[] = [
   float(P.floor, 'Floor Intensity', .8, 'design', 11), float(P.ball, 'Ball Highlight Intensity', .75, 'design', 12),
   float(P.ceiling, 'Ceiling Intensity', .7, 'design', 13), float(P.coverage, 'Pattern Coverage', .75, 'design', 14),
   { ...base, id: P.signs, label: 'Enable Signs', type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Signs', order: 20 },
-  { ...base, id: P.signText, label: 'Sign Text', type: 'string', defaultValue: NIGHTSHIFT_SIGN_TEXT, persistence: 'runtime-only',
-    modulatable: false, choreographable: false, designParentGroup: 'design', group: 'Signs', order: 21,
+  ...(['signText', 'signTextLeft', 'signTextFront', 'signTextRight'] as const).map((key, index): Cinema2ParameterManifest => ({
+    ...base, id: P[key], label: ['Back Sign Text', 'Left Sign Text', 'Front Sign Text', 'Right Sign Text'][index], type: 'string',
+    defaultValue: index === 0 ? NIGHTSHIFT_SIGN_TEXT : '', modulatable: false, choreographable: false,
+    designParentGroup: 'design', group: 'Signs', order: 21 + index,
     visibleWhen: [{ kind: 'parameter-equals', parameterId: P.signs, value: true }],
-    enabledWhen: [{ kind: 'parameter-equals', parameterId: P.signs, value: false }],
-    description: 'Custom sign text is coming later. The neon sign currently reads NIGHTSHIFT.' },
+    description: 'Neon text on this side of the room (up to 64 characters). Leave empty to hide it.',
+  })),
   { ...base, id: P.signSize, label: 'Sign Size', type: 'float', defaultValue: 1, min: .25, max: 2, step: .05,
-    designParentGroup: 'design', group: 'Signs', order: 22,
+    designParentGroup: 'design', group: 'Signs', order: 25,
     visibleWhen: [{ kind: 'parameter-equals', parameterId: P.signs, value: true }],
     description: 'Scales the freestanding neon sign from one quarter to twice its default size.' },
   ...(['bloom', 'haze', 'reflections'] as const).map((key, order): Cinema2ParameterManifest => ({
@@ -93,7 +97,7 @@ const finishing = nightshiftFinishingGraph(SCENE, COLOR, DEPTH)
 /** Accepted native NIGHTSHIFT installation with bounded shared musical behavior. */
 export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  id: CINEMA2_NIGHTSHIFT_PRESET_ID, revision: 2,
+  id: CINEMA2_NIGHTSHIFT_PRESET_ID, revision: 3,
   metadata: {
     name: 'NIGHTSHIFT',
     description: 'A music-reactive disco ball, dance floor and ceiling LED frame with eight choreographed programs, optional freestanding neon signage, Auto Performance, editable club palette, camera motion and adjustable club haze, bloom and reflections.',
@@ -119,7 +123,7 @@ export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   modules: [{
     id: MODULE, typeId: CINEMA2_NIGHTSHIFT_MODULE_TYPE_ID, version: 1, enabled: true,
     parameters: { ...NIGHTSHIFT_CHOREOGRAPHY_DEFAULTS, ...NIGHTSHIFT_MUSIC_TARGET_DEFAULTS, master: .85, bpmSync: true, motion: .35, rotation: true, musicResponse: .8, floor: .8, ball: .75, ceiling: .7, coverage: .75,
-      pattern: 'nightshift', patternChange: false, trigger: 'bar4', autoPerformance: false, signs: false, signText: NIGHTSHIFT_SIGN_TEXT, signSize: 1,
+      pattern: 'nightshift', patternChange: false, trigger: 'bar4', autoPerformance: false, panRoom: false, signs: false, signText: NIGHTSHIFT_SIGN_TEXT, signTextLeft: '', signTextFront: '', signTextRight: '', signSize: 1,
       backgroundColor: NIGHTSHIFT_COLORS.background, cyanColor: NIGHTSHIFT_COLORS.cyan, magentaColor: NIGHTSHIFT_COLORS.magenta,
       blueColor: NIGHTSHIFT_COLORS.blue, amberColor: NIGHTSHIFT_COLORS.amber, ballColor: NIGHTSHIFT_COLORS.ball, signColor: NIGHTSHIFT_COLORS.sign },
     parameterBindings: Object.fromEntries(Object.entries(P).filter(([key]) => !['camera', 'bloom', 'haze', 'reflections'].includes(key)).map(([key, id]) => [key, cinema2Ref(id)])),
@@ -137,9 +141,9 @@ export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     id: CINEMA2_NIGHTSHIFT_CAMERA_ID, label: 'Reference framing', projection: 'perspective',
     fovDegrees: 42, minAspect: 0.95, near: 0.1, far: 60,
     transform: { position: vec(0, 3.1, 14.5) }, target: vec(0, 2.05, 0), rig: { kind: 'static' },
-    motion: { drift: { position: .18, target: .0375, rollDegrees: 0, fovDegrees: .375, speed: .0525, seed: 52023 } },
-    controls: { motionAmount: cinema2Ref(P.camera) },
-    safety: { minPosition: vec(-.3, 2.95, 14.05), maxPosition: vec(.3, 3.25, 14.95), maxPositionOffset: vec(.225, .12, .3), maxTargetOffset: vec(.12, .075, .15), minFovDegrees: 40.5, maxFovDegrees: 43.5 },
+    motion: { orbit: { angularSpeedDegreesPerSecond: 9.375, center: vec(0, 0, -2.3), beatsPerRevolution: 64 }, tempo: { referenceBpm: 100, flightSpeed: false }, drift: { position: .18, target: .0375, rollDegrees: 0, fovDegrees: .375, speed: .0525, seed: 52023 } },
+    controls: { motionAmount: cinema2Ref(P.camera), orbitMotionEnabled: cinema2Ref(P.panRoom), tempoSync: cinema2Ref(P.bpmSync) },
+    safety: { minPosition: vec(-18, 2.95, -20), maxPosition: vec(18, 3.25, 15), maxPositionOffset: vec(36, .12, 36), maxTargetOffset: vec(18, .075, 18), minFovDegrees: 40.5, maxFovDegrees: 43.5 },
   }],
   defaults: { camera: cinema2Ref(CINEMA2_NIGHTSHIFT_CAMERA_ID) },
   lighting: { lights: [

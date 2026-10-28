@@ -78,7 +78,8 @@ import { ingestPixGridDeckSourceFiles } from '../react/pixGrid/PixGridDeckMediaS
 import { createPixGridDeckItemId, PIX_GRID_DECK_MAX_ITEMS } from '../react/pixGrid/PixGridDeckDomain'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
-import { SaveActiveGlyph } from '../layout/HeaderGlyphs'
+import { SaveActiveGlyph, SaveGlyph } from '../layout/HeaderGlyphs'
+import { HeaderIconKey } from '../layout/HeaderIconKey'
 import { useSharedDataActivity } from '../../../stores/useSharedDataActivity'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { MediaUploadModal } from '../MediaUploadModal'
@@ -2188,14 +2189,15 @@ export function ShowManagerView() {
           {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
             <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
           )}
-          <button type="button" className="sm-header-button" disabled>Show Lyrics</button>
-          <button
-            type="button"
-            className="sm-header-button"
+          <HeaderIconKey label="Show Lyrics" icon={<AppIcon kind="lyrics" />} disabled onClick={() => {}} />
+          <HeaderIconKey
+            label="Save"
+            title={(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}
+            icon={<SaveGlyph />}
             onClick={() => void (saveEngineId === 'canvas' ? commitCanvasShowSave(false) : commitLaserShowSave(false))}
             disabled={(saveEngineId !== 'laserDmx' && saveEngineId !== 'canvas')
               || (saveEngineId === 'canvas' ? !activeCanvasShow || canvasSavePending !== null : !activeLaserDmxShow || laserSavePending !== null)}
-          >{(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}</button>
+          />
           {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
             <>
               {activeSectionEngineId !== 'pixGrid' && (activeSectionEngineId === 'canvas' ? canvasSaveStatus : laserSaveStatus) && (

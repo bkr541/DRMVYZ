@@ -246,7 +246,7 @@ function buttonByText(text: string): HTMLButtonElement {
 beforeEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
-  usePageActivityStore.setState({ pages: { react: {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
+  usePageActivityStore.setState({ pages: { react: {}, 'preset-manager': {}, 'show-manager': {}, 'media-manager': {}, 'lyric-manager': {} } })
   recentRows = []
   setNavigatorOnline(true)
   setDocumentVisibility('visible')

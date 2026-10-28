@@ -30,6 +30,7 @@ import {
   type Cinema2ThreePanelSpec,
   type Cinema2ThreeSceneInstance,
   type Cinema2ThreeSegmentDraw,
+  type Cinema2ThreeSceneOptions,
   CINEMA2_THREE_ATL_HOE_LIGHT_ROLES,
 } from './three/Cinema2ThreeSceneBridge'
 import {
@@ -146,6 +147,8 @@ export interface Cinema2ThreeSceneModuleOptions {
   version?: number
   resourceKey?: string
   acceptSegmentCues?: boolean
+  /** Optional preset-owned behavior while retaining shared asset/material/resource ownership. */
+  createModelController?: (library: Cinema2ThreeLibrary) => NonNullable<Cinema2ThreeSceneOptions['modelController']> & { update?(context: Cinema2ModuleUpdateContext): void }
 }
 
 export interface Cinema2ThreeSceneModuleInspection {
@@ -171,6 +174,8 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
       return Object.freeze(validateConfig(module, registry, environments))
     },
     create(context: Cinema2ModuleCreateContext) {
+      let modelController: ReturnType<NonNullable<Cinema2ThreeSceneModuleOptions['createModelController']>> | undefined
+      let latestControllerUpdate: Cinema2ModuleUpdateContext | null = null
       const requested = parseInstances(context.module)
       const panels = parsePanels(context.module)
       const atlHoeLights = parseAtlHoeLights(context.module)
@@ -262,7 +267,11 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           bridge = context.resources.acquire(
             options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
-            gl => new Cinema2ThreeSceneBridge(gl, library!, loaded, { panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), ...(atlHoeLights.length > 0 ? { atlHoeLights } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) }),
+            gl => {
+              modelController = options.createModelController?.(library!)
+              if (latestControllerUpdate) modelController?.update?.(latestControllerUpdate)
+              return new Cinema2ThreeSceneBridge(gl, library!, loaded, { modelController, panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), ...(atlHoeLights.length > 0 ? { atlHoeLights } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) })
+            },
             value => { value.dispose(); releaseHeld() },
           )
           state = 'building'
@@ -292,7 +301,10 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
 
       return {
         lifecycle: {
-          update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
+          update: (updateContext: Cinema2ModuleUpdateContext) => {
+            const { frame, parameters } = updateContext
+            latestControllerUpdate = updateContext
+            modelController?.update?.(updateContext)
             overrides = readOverrides(parameters, overrides, partNames)
             const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0
             const sync = atlHoeRoles ? parameters.get('atlHoeBpmSync') !== false : parameters.get('spinSync') !== false

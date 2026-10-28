@@ -17,6 +17,8 @@ import {
   type Cinema2ModuleTypeId,
   type Cinema2NativePresetManifest,
   type Cinema2ParameterId,
+  type Cinema2ParameterManifest,
+  type Cinema2ChoreographyRuleManifest,
   type Cinema2PresetId,
   type Cinema2RenderPassId,
   type Cinema2RenderSlotId,
@@ -25,6 +27,9 @@ import {
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID } from '../modules/three/Cinema2ThreeAssetManifest'
+import { CRYSTALIZED_PATTERNS, CRYSTALIZED_CHANNELS } from '../modules/crystalized/Cinema2CrystalizedPerformance'
+import { crystalizedAudioRules } from './Cinema2CrystalizedChoreography'
+import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import {
@@ -35,7 +40,7 @@ import {
 } from './Cinema2LightRigAuthoring'
 
 export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.atmosphere-reference')
-const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
+const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('crystalized-native-render')
 const VOLUMETRIC_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('volumetric-atmosphere')
 const BLOOM_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('bloom')
 const FLOOR_EFFECT_TYPE_ID = cinema2StableId<Cinema2EffectTypeId>('reflective-floor')
@@ -71,6 +76,18 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_SIDES_GROUP_ID = cinema2StableId<Cinem
 /** Idle spot intensity; the rig lifts groups above it on the beat. */
 const RIG_BASE_INTENSITY = 0.9
 const RIG_PEAK_INTENSITY = 2.6
+export const CINEMA2_CRYSTALIZED_PARAMETER_IDS = {
+  master: cinema2StableId<Cinema2ParameterId>('crystalized-master-intensity'),
+  motion: cinema2StableId<Cinema2ParameterId>('crystalized-motion-amount'),
+  bpmSync: cinema2StableId<Cinema2ParameterId>('crystalized-bpm-sync'),
+  autoPerformance: cinema2StableId<Cinema2ParameterId>('crystalized-auto-performance'),
+  crystalScale: cinema2StableId<Cinema2ParameterId>('crystalized-crystal-scale'),
+  monolithHeight: cinema2StableId<Cinema2ParameterId>('crystalized-monolith-height'),
+  pattern: cinema2StableId<Cinema2ParameterId>('crystalized-pattern'),
+  patternChange: cinema2StableId<Cinema2ParameterId>('crystalized-pattern-change'),
+  trigger: cinema2StableId<Cinema2ParameterId>('crystalized-trigger'),
+} as const
+const P = CINEMA2_CRYSTALIZED_PARAMETER_IDS
 const AMBIENT_LIGHT_ID = cinema2StableId<Cinema2LightId>('atmosphere-reference-ambient')
 
 const WORLD_ROOT_NODE_ID = cinema2StableId<Cinema2SceneNodeId>('atmosphere-reference-world-root')
@@ -81,20 +98,20 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES = Object.freeze(['le
 const OBJECT_NODE_IDS = CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES.map(name => cinema2StableId<Cinema2SceneNodeId>(`atmosphere-reference-object-${name}`))
 /**
  * The four stone monoliths around the centre crystal, in `OBJECT_NODE_IDS` order: where each stands (the spot lights aim at its middle), the accent
- * colour of its cracks, and the crack part inside the crystal that glows the same colour (and flares on the same beat).
+ * colour of its beat-driven cracks.
  */
 const MONOLITHS = Object.freeze([
-  Object.freeze({ part: 'left' as const, crack: 'crackLeft' as const, centre: vec3(-2.6, -0.6, -0.2), accent: color(0.1, 0.75, 1) }),
-  Object.freeze({ part: 'violet' as const, crack: 'crackViolet' as const, centre: vec3(3.1, -0.15, -3.6), accent: color(0.62, 0.28, 1) }),
-  Object.freeze({ part: 'right' as const, crack: 'crackRight' as const, centre: vec3(2.75, -0.4, -0.65), accent: color(1, 0.2, 0.85) }),
-  Object.freeze({ part: 'back' as const, crack: 'crackBack' as const, centre: vec3(-1.55, 0.4, -4.1), accent: color(1, 0.6, 0.15) }),
+  Object.freeze({ part: 'left' as const, centre: vec3(-2.6, -0.6, -0.2), accent: color(0.1, 0.75, 1) }),
+  Object.freeze({ part: 'violet' as const, centre: vec3(3.1, -0.15, -3.6), accent: color(0.62, 0.28, 1) }),
+  Object.freeze({ part: 'right' as const, centre: vec3(2.75, -0.4, -0.65), accent: color(1, 0.2, 0.85) }),
+  Object.freeze({ part: 'back' as const, centre: vec3(-1.55, 0.4, -4.1), accent: color(1, 0.6, 0.15) }),
 ])
-/** The crystal's own parts: glass body, gold edge frame, and one crack part per monolith colour. */
-const CRYSTAL_PARTS = Object.freeze(['crystal', 'frame', ...MONOLITHS.map(monolith => monolith.crack)])
+/** The supplied crystal keeps its authored geometry and texture maps. */
+const CRYSTAL_PARTS = Object.freeze(['crystal'])
 /** Crack glow at rest, and how far each monolith's turn on the beat lifts it. */
 const CRACK_GLOW_REST = 3.2
-/** Clear-glass recipe for the crystal (the same family as RELIQUARY's cut crystal). */
-const CRYSTAL_CLARITY = 0.95
+/** Start with the supplied textured surface; glass remains an optional user control. */
+const CRYSTAL_CLARITY = 0
 const CRYSTAL_SPARKLE = 4
 const CRACK_GLOW_PULSE = 3
 
@@ -219,7 +236,8 @@ function floatParameter(
     max,
     step,
     section: 'Design',
-    group,
+    designParentGroup: ['React', 'Camera', 'Performance'].includes(group) ? 'master-controls' as const : ['Monoliths', 'Geometry', 'Choreography'].includes(group) ? 'design' as const : 'effects' as const,
+    group: group === 'React' || group === 'Camera' ? 'Performance' : group,
     order,
     exposure: 'primary' as const,
     persistence: 'preset' as const,
@@ -261,10 +279,10 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID,
-  revision: 1,
+  revision: 3,
   metadata: Object.freeze({
-    name: 'Atmosphere Reference',
-    description: 'A performance light rig: colored spot beams through haze and ground mist over a wet reflective floor, choreographed to the beat and finished with a filmic grade.',
+    name: 'Crystalized',
+    description: 'A textured faceted crystal surrounded by four cracked monoliths, colored spot beams, ground mist and wet-floor reflections choreographed to the beat.',
     tags: Object.freeze(['reference', 'diagnostic', 'atmosphere', 'volumetric']),
   }),
   capabilities: Object.freeze([
@@ -273,6 +291,15 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     Object.freeze({ id: 'scene.3d' as const, requirement: 'required' as const, purpose: 'World-space Scene Graph objects.' }),
     Object.freeze({ id: 'camera.world' as const, requirement: 'required' as const, purpose: 'Shared final world camera used to reconstruct view rays.' }),
     Object.freeze({ id: 'lighting' as const, requirement: 'required' as const, purpose: 'Spot lights that scatter through the atmosphere.' }),
+    ...([
+      ['audio.bands', 'Bass shapes bounded geometry pressure; highs brighten crystal glints.'],
+      ['audio.features', 'Shared energy lifts the scene without moving the manual controls.'],
+      ['music.bar', 'Canonical bars and multi-bar boundaries own automatic pattern changes.'],
+      ['music.rhythm-events', 'Canonical kicks and snares accent geometry and lighting.'],
+      ['music.vocal-presence', 'Supported vocals restrain supporting monolith light.'],
+      ['music.build', 'Build pressure lifts the geometry and supports Auto Performance.'],
+      ['music.drop', 'Canonical drops trigger bounded accents and optional temporary performance.'],
+    ] as const).map(([id, purpose]) => ({ id, purpose, requirement: 'optional' as const })),
     Object.freeze({ id: 'music.downbeat' as const, requirement: 'optional' as const, purpose: 'Downbeat beam swell and side-light sweep when authoritative downbeat data is available.' }),
     Object.freeze({ id: 'music.beat' as const, requirement: 'optional' as const, purpose: 'Key and side lights alternate every two beats.' }),
     Object.freeze({ id: 'music.phrase' as const, requirement: 'optional' as const, purpose: 'Key light drops out on alternate phrases.' }),
@@ -280,22 +307,35 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   ]),
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
+    floatParameter(P.master, 'Master Intensity', 'Overall geometry, lighting and effect intensity. Zero extinguishes the scene.', 1, 0, 1, .01, 1, 'Performance'),
+    floatParameter(P.motion, 'Motion Amount', 'Strength of floor-anchored reactive geometry deformation. Zero disables deformation.', .35, 0, 1, .01, 2, 'Performance'),
+    ...([
+      [P.bpmSync, 'BPM Sync', true, 'Locks geometry and camera timing to shared BPM; off uses the authored tempo.'],
+      [P.autoPerformance, 'Auto Performance', false, 'Temporarily performs build and drop programs, then restores the chosen pattern.'],
+    ] as const).map(([id, label, defaultValue, description], index): Cinema2ParameterManifest => ({
+      id, label, description, type: 'boolean', defaultValue, section: 'Design', designParentGroup: 'master-controls', group: 'Performance', order: 3 + index, persistence: 'preset', reset: 'authored-default', exposure: 'primary',
+    })),
+    floatParameter(P.crystalScale, 'Crystal Scale', 'Scales the crystal about its base on the floor.', 1, .5, 1.5, .01, 1, 'Geometry'),
+    floatParameter(P.monolithHeight, 'Monolith Height', 'Scales the four monoliths vertically from the floor.', 1, .6, 1.4, .01, 2, 'Geometry'),
+    { id: P.pattern, label: 'Pattern', type: 'enum', defaultValue: 'prism', options: CRYSTALIZED_PATTERNS, section: 'Design', designParentGroup: 'design', group: 'Choreography', order: 1, persistence: 'preset', reset: 'authored-default', exposure: 'primary' },
+    { id: P.patternChange, label: 'Pattern Change', type: 'boolean', defaultValue: false, section: 'Design', designParentGroup: 'design', group: 'Choreography', order: 2, persistence: 'preset', reset: 'authored-default', exposure: 'primary' },
+    { id: P.trigger, label: 'Trigger', type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: P.patternChange, value: true }], section: 'Design', designParentGroup: 'design', group: 'Choreography', order: 3, persistence: 'preset', reset: 'authored-default', exposure: 'primary' },
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_DENSITY_ID, 'Haze Density', 'How thick the haze is. Thicker haze makes beams brighter and shortens visibility.', 0.032, 0, 0.4, 0.005, 10, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BEAM_ID, 'Beam Intensity', 'Brightness of light scattering through the haze.', 1.9, 0, 6, 0.05, 11, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MIST_ID, 'Ground Mist', 'Extra mist that pools near the floor.', 0.35, 0, 3, 0.05, 12, 'Atmosphere'),
-    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID, 'Reactivity', 'How strongly haze and beams swell with the Visual Director’s musical impact.', 0.8, 0, 2, 0.05, 20, 'React'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID, 'Music Response', 'Strength of shared Audio Intelligence and Visual Director lighting and geometry responses. Zero restores the authored resting response.', 0.8, 0, 2, 0.05, 20, 'React'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_ID, 'Floor Reflection', 'How mirror-like the wet stage floor is.', 0.7, 0, 1, 0.05, 13, 'Atmosphere'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID, 'Camera Motion', 'Scales the handheld drift and banking of the dolly camera (0 = locked off).', 1, 0, 1.5, 0.05, 40, 'Camera'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_BLOOM_ID, 'Bloom', 'Glow added around bright beams.', 0.9, 0, 3, 0.05, 30, 'Post'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_FINISH_ID, 'Cinematic Finish', 'Amount of filmic tone curve, grade, vignette, fringing and grain.', 1, 0, 1, 0.05, 31, 'Post'),
-    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID, 'Crack Glow', 'Brightness of the glowing cracks in the monoliths and in the crystal between beats. Each colour flares above this in turn on the beat.', CRACK_GLOW_REST, 0, 6, 0.05, 14, 'Monoliths'),
-    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID, 'Crystal Clarity', 'How see-through the central crystal is (1 = clear glass; lower is milky). Quality settings below High draw it without refraction.', CRYSTAL_CLARITY, 0, 1, 0.05, 15, 'Monoliths'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID, 'Crack Glow', 'Brightness of the glowing cracks in the surrounding monoliths between beats. Each colour flares above this in turn on the beat.', CRACK_GLOW_REST, 0, 6, 0.05, 14, 'Monoliths'),
+    floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID, 'Crystal Clarity', 'How see-through the central crystal is (0 = its authored textured surface; 1 = clear glass). Quality settings below High draw it without refraction.', CRYSTAL_CLARITY, 0, 1, 0.05, 15, 'Monoliths'),
     floatParameter(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID, 'Crystal Sparkle', 'How strongly the central crystal splits light into rainbow colours.', CRYSTAL_SPARKLE, 0, 10, 0.1, 16, 'Monoliths'),
-    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.left, 'Left Monolith', 'Colour of the cracks in the left monolith. The crystal in the middle carries the same colour in its own cracks.', MONOLITHS[0].accent, 1),
+    accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.left, 'Left Monolith', 'Colour of the cracks in the left monolith.', MONOLITHS[0].accent, 1),
     accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.violet, 'Back-Right Monolith', 'Colour of the cracks in the back-right monolith.', MONOLITHS[1].accent, 2),
     accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.right, 'Right Monolith', 'Colour of the cracks in the right monolith.', MONOLITHS[2].accent, 3),
     accentParameter(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS.back, 'Back Monolith', 'Colour of the cracks in the tall monolith at the back.', MONOLITHS[3].accent, 4),
-  ]),
+  ] satisfies readonly Cinema2ParameterManifest[]),
   modules: Object.freeze([
     Object.freeze({
       id: CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
@@ -304,37 +344,33 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
       enabled: true,
       // Dark stone lit by the spot rig, with only a faint studio reflection; every monolith's cracks glow in its own accent colour.
       parameters: Object.freeze({
+        ...CRYSTALIZED_CHANNELS, master: 1, motion: .35, bpmSync: true, autoPerformance: false, crystalScale: 1, monolithHeight: 1, pattern: 'prism', patternChange: false, trigger: 'bar4', reactivity: .8,
         environmentIntensity: 0.18,
-        // The centre crystal: clear iridescent glass in a polished gold frame. Its cracks glow in the monoliths' colours, so each crack part is
-        // tinted by (and flares with) the monolith of the same colour.
-        'crystal.color': color(1, 1, 1),
-        'crystal.roughness': 0,
-        'crystal.metalness': 0,
+        // Preserve the supplied crystal's authored base, normal, metal/roughness
+        // and emissive maps; optional clarity/sparkle still use shared controls.
         'crystal.transmission': CRYSTAL_CLARITY,
         'crystal.ior': 2,
         'crystal.thickness': 0.6,
         'crystal.dispersion': CRYSTAL_SPARKLE,
-        'crystal.iridescence': 0.9,
+        'crystal.iridescence': 0,
         'crystal.iridescenceThicknessMin': 250,
         'crystal.iridescenceThicknessMax': 650,
-        'crystal.environmentIntensity': 6,
-        // A faint cool inner light, so the glass keeps its brilliance between the spot lights' hits.
-        'crystal.emissive': color(0.75, 0.85, 1),
-        'crystal.emissiveIntensity': 0.1,
-        'frame.environmentIntensity': 4,
-        ...Object.fromEntries(MONOLITHS.flatMap(({ part, crack, accent }) => [
+        'crystal.environmentIntensity': 2,
+        // Retain the supplied emissive texture and its authored color.
+        'crystal.emissive': color(1, 1, 1),
+        'crystal.emissiveIntensity': 1,
+        ...Object.fromEntries(MONOLITHS.flatMap(({ part, accent }) => [
           [`${part}.emissive`, accent], [`${part}.emissiveIntensity`, CRACK_GLOW_REST],
-          [`${crack}.emissive`, accent], [`${crack}.emissiveIntensity`, CRACK_GLOW_REST],
         ])),
       }),
       parameterBindings: Object.freeze({
+        ...Object.fromEntries(Object.entries(P).map(([key, id]) => [key, cinema2Ref(id)])),
+        reactivity: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
         'crystal.transmission': cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID),
         'crystal.dispersion': cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID),
-        ...Object.fromEntries(MONOLITHS.flatMap(({ part, crack }) => [
+        ...Object.fromEntries(MONOLITHS.flatMap(({ part }) => [
           [`${part}.emissive`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS[part])],
           [`${part}.emissiveIntensity`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)],
-          [`${crack}.emissive`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS[part])],
-          [`${crack}.emissiveIntensity`, cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)],
         ])),
       }),
       config: Object.freeze({
@@ -382,8 +418,8 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
       near: 0.1,
       far: 60,
       rig: Object.freeze({ kind: 'fly' as const, points: dollyLoop(), durationSeconds: 80, loop: true }),
-      motion: cinema2CinematicMotion('gentle', { splinePath: true }),
-      controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID) }),
+      motion: cinema2CinematicMotion('gentle', { splinePath: true, overrides: { tempo: { referenceBpm: 120, flightSpeed: true, minRate: .75, maxRate: 1.35 } } }),
+      controls: Object.freeze({ motionAmount: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_MOTION_ID), tempoSync: cinema2Ref(P.bpmSync) }),
     }),
   ]),
   lighting: Object.freeze({
@@ -488,7 +524,9 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
     }),
   ]),
   choreography: Object.freeze({
+    tempoSyncParameter: cinema2Ref(P.bpmSync),
     rules: Object.freeze([
+      ...crystalizedAudioRules(CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID, CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
       // Performance light rig: key and sides trade the stage every two beats, the sides sweep on the
       // downbeat, the key drops out on alternate phrases, and everything lifts with the build.
       ...cinema2LightRigAlternate({
@@ -514,6 +552,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         every: 2,
         phase: 1,
         priority: 60,
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
       }),
       ...cinema2LightRigRamp({
         id: 'atmosphere-rig',
@@ -523,7 +562,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         priority: 30,
         strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
       }),
-      // Cracks: one colour flares per beat, in turn round a four-beat cycle, in its monolith and in the matching cracks of the centre crystal,
+      // Cracks: one colour flares per beat, in turn round a four-beat cycle, in its surrounding monolith,
       // then settles back to the Crack Glow level.
       ...MONOLITHS.map((monolith, index) => Object.freeze({
         id: cinema2StableId<Cinema2ChoreographyRuleId>(`atmosphere-reference-monolith-${monolith.part}`),
@@ -531,7 +570,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
         source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
         strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
         conditions: Object.freeze([Object.freeze({ kind: 'beat-interval' as const, every: 4, phase: index, unit: 'beat' as const })]),
-        actions: Object.freeze([[monolith.part, 'slab'], [monolith.crack, 'crystal']].map(([target, where]) => Object.freeze({
+        actions: Object.freeze([[monolith.part, 'slab']].map(([target, where]) => Object.freeze({
           id: cinema2StableId<Cinema2ChoreographyActionId>(`atmosphere-reference-monolith-${monolith.part}-${where}-flare`),
           target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID), property: `${target}.emissiveIntensity` }),
           operation: 'envelope' as const,
@@ -544,6 +583,7 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
       Object.freeze({
         id: DOWNBEAT_RULE_ID,
         priority: 30,
+        strengthParameter: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_REACTIVITY_ID),
         source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
         actions: Object.freeze([
           Object.freeze({
@@ -567,6 +607,14 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
           }),
         ]),
       }),
+      ...[
+        ...[AMBIENT_LIGHT_ID, CINEMA2_ATMOSPHERE_REFERENCE_CENTER_LIGHT_ID, CINEMA2_ATMOSPHERE_REFERENCE_LEFT_LIGHT_ID, CINEMA2_ATMOSPHERE_REFERENCE_RIGHT_LIGHT_ID].map(ref => ({ kind: 'light' as const, ref: cinema2Ref(ref), property: 'intensity' })),
+        ...[CINEMA2_ATMOSPHERE_REFERENCE_FLOOR_EFFECT_ID, CINEMA2_ATMOSPHERE_REFERENCE_VOLUMETRIC_EFFECT_ID, BLOOM_EFFECT_ID, CINEMA2_ATMOSPHERE_REFERENCE_FINISH_EFFECT_ID].map(ref => ({ kind: 'effect' as const, ref: cinema2Ref(ref), property: 'mix' })),
+      ].map((target, index): Cinema2ChoreographyRuleManifest => ({
+        id: cinema2StableId(`crystalized-master-gate-${index}`), priority: 1000 + index,
+        source: { signal: 'parameter', parameter: cinema2Ref(P.master), scale: -1, offset: 1, clamp: [0, 1] },
+        actions: [{ id: cinema2StableId(`crystalized-master-map-${index}`), target, operation: 'multiply', value: 0 }],
+      })),
     ]),
   }),
   render: Object.freeze({

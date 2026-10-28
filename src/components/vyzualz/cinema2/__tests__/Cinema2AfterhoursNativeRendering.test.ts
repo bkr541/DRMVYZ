@@ -292,30 +292,19 @@ function uniformLocationFor(gl: CinemaMockWebGL, name: string): WebGLUniformLoca
   return index >= 0 ? mock.mock.results[index]?.value as WebGLUniformLocation : null
 }
 
-function beamProfileStrength(side: number, atmosphere: number, longitudinal = 0.5): number {
-  const boundedSide = Math.max(0, Math.min(1, Math.abs(side)))
-  const core = Math.exp(-boundedSide * boundedSide * 118)
-  const body = Math.exp(-boundedSide * boundedSide * 34)
-  const halo = Math.exp(-boundedSide * boundedSide * 6.4)
-  const sourceBloom = Math.exp(-longitudinal * 56)
-  return core * 1.72 + body * 0.40 + halo * atmosphere * 0.22 + sourceBloom * (0.22 + atmosphere * 0.12)
-}
-
 describe('Cinema 2.0 Afterhours native 3D renderer', () => {
-  it('preserves signed beam-side interpolation through zero and keeps the optical center stronger than the edges', () => {
+  it('projects closed world-space beam volumes through the shared camera and samples shared air', () => {
     const harness = createHarness()
     execute(harness, frame({ timeSec: 1 }))
     const sources = shaderSources(harness.gl)
-    const vertex = sources.find(source => source.includes('layout(location = 0) in vec2 aCorner')) ?? ''
+    const vertex = sources.find(source => source.includes('layout(location = 0) in vec3 aCorner')) ?? ''
     const fragment = sources.find(source => source.includes('out vec4 outColor')) ?? ''
 
-    expect(vertex).toContain('vSide = aCorner.y;')
-    expect(vertex).not.toContain('vSide = abs(aCorner.y);')
-    expect(vertex).toContain('viewportExitScale')
-    expect(vertex).toContain('extendedTargetNdc')
-    expect(vertex).toContain('gl_Position = vec4(extendedCenterNdc + offsetNdc, centerClip.z / centerClip.w, 1.0);')
-    expect(fragment).toContain('float side = clamp(abs(vSide), 0.0, 1.0);')
-    expect(beamProfileStrength(0, 0.55)).toBeGreaterThan(beamProfileStrength(1, 0.55))
+    expect(vertex).toContain('vec3 up = cross(direction, right);')
+    expect(vertex).not.toContain('viewportExitScale')
+    expect(vertex).toContain('gl_Position = uWorldToClip * vec4(vWorld, 1.0);')
+    expect(fragment).toContain('airDensity(p)')
+    expect(fragment).toContain('uSampleCount')
 
     harness.instance.lifecycle.dispose()
     harness.resources.disposeAll()

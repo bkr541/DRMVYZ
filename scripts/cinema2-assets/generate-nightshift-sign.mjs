@@ -37,3 +37,26 @@ for (const glyph of glyphs) for (const contour of glyph.contours) for (const p o
 }
 writeFileSync(resolve(root, 'src/components/vyzualz/cinema2/modules/nightshift/Cinema2NightshiftSign.generated.json'),
   JSON.stringify({ text, font: 'Anton Regular (OFL-1.1)', width: 9.2, height: (maxY - minY) * scale, glyphs }) + '\n')
+
+// Editable signs share a compact contour alphabet; no font fetch or canvas text
+// texture is needed in the render loop. Preserve Latin text and punctuation.
+const alphabet = {}
+for (const character of [...Array.from({ length: 224 }, (_, i) => String.fromCharCode(i + 32)), '€', '’', '‘', '“', '”', '–', '—']) {
+  const glyph = font.charToGlyph(character), path = new THREE.ShapePath()
+  if (!glyph.index && character !== ' ') continue
+  for (const c of glyph.getPath(0, 0, 2).commands) {
+    if (c.type === 'M') path.moveTo(c.x, -c.y)
+    else if (c.type === 'L') path.lineTo(c.x, -c.y)
+    else if (c.type === 'Q') path.quadraticCurveTo(c.x1, -c.y1, c.x, -c.y)
+    else if (c.type === 'C') path.bezierCurveTo(c.x1, -c.y1, c.x2, -c.y2, c.x, -c.y)
+    else if (c.type === 'Z') path.currentPath.closePath()
+  }
+  alphabet[character] = { advance: glyph.advanceWidth / font.unitsPerEm * 2 + .14,
+    contours: path.subPaths.filter(p => p.getLength() > .001).map(p => {
+      const points = p.getSpacedPoints(Math.max(24, Math.ceil(p.getLength() * 40)))
+      if (points[0].distanceToSquared(points.at(-1)) < 1e-8) points.pop()
+      return points.map(p => [Number(p.x.toFixed(5)), Number(p.y.toFixed(5))])
+    }) }
+}
+writeFileSync(resolve(root, 'src/components/vyzualz/cinema2/modules/nightshift/Cinema2NightshiftSignAlphabet.generated.json'),
+  JSON.stringify(alphabet) + '\n')

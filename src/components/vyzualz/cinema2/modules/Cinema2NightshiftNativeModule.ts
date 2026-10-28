@@ -26,6 +26,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
     let held: Cinema2ThreeLoadedAsset | null = null, library: Cinema2ThreeLibrary | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null, controller: Cinema2NightshiftSceneController | null = null
     let sceneFrame: NightshiftSceneFrame | null = null
+    let cameraPosition: readonly [number, number, number] | undefined
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const clock = new Cinema2BeatClock(), patterns = new NightshiftPatternController()
     const musicDelivery = new Cinema2NightshiftAudio()
@@ -101,6 +102,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
         id: `${context.module.id}:nightshift`, moduleId: context.module.id, intent: 'world',
         execute(execution) {
           if (failed || disposed) return
+          cameraPosition = execution.camera?.position
           if (!loading) {
             loading = true
             void (async () => {
@@ -122,7 +124,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
                 environmentUrl: quality => cinema2ThreeEnvironmentRegistry.resolveUrl('cinema2-nightshift-room', quality),
                 modelController: {
                   attach: root => controller!.attach(root),
-                  beforeDraw: () => { if (sceneFrame) controller!.apply(sceneFrame) },
+                  beforeDraw: () => { if (sceneFrame) controller!.apply(sceneFrame, cameraPosition) },
                   dispose: () => controller?.dispose(),
                 },
               }), value => { value.dispose(); assets.release(asset) })

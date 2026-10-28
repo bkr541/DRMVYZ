@@ -66,12 +66,12 @@ tested. This follow-up remains uncommitted.
 ## Freestanding neon signs
 
 Design contains a **Signs** group. **Enable Signs** defaults off. Enabling it
-reveals a disabled **Sign Text** input with the fixed value `NIGHTSHIFT`, then
-an enabled **Sign Size** slider directly underneath. Sign Size defaults to 1
-and ranges from 0.25 to 2 in 0.05 steps, scaling the whole sign about its center.
-Its size, enabled state and **Sign Color** (under Palette) survive preset re-entry.
-Custom wording is intentionally deferred; the placeholder is runtime-only and
-cannot be changed through persisted user edits.
+reveals four editable inputs: **Back Sign Text**, **Left Sign Text**, **Front
+Sign Text**, and **Right Sign Text**, followed by **Sign Size**. Back defaults to
+`NIGHTSHIFT`; the other sides default empty. Messages and the enabled/size/color
+settings survive preset re-entry. See [room pan and editable signs](NIGHTSHIFT-room-pan-and-signs.md)
+for the current four-sided behavior and validation. The original fixed-text
+acceptance notes below are historical.
 
 The sign is freestanding 3D glass outline text behind the dance floor. The
 previous brick wall, wall textures, mounting standoffs and wall-wash lights have

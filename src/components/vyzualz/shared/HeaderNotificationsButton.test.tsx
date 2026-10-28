@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
+import { createDeveloperLogConsumer } from '../../../lib/developerLogNotices'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,12 +13,13 @@ import { HeaderNotificationsButton } from './HeaderNotificationsButton'
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
-const EMPTY_PAGES = { 'react': [], 'show-manager': [], 'media-manager': [], 'lyric-manager': [] }
+const EMPTY_PAGES = { 'react': [], 'preset-manager': [], 'show-manager': [], 'media-manager': [], 'lyric-manager': [] }
 
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  useNotificationStore.getState().clearDeveloperEvents()
   useNotificationStore.setState({ pages: EMPTY_PAGES, slots: {}, events: EMPTY_PAGES })
 })
 
@@ -77,6 +79,17 @@ describe('DrawerNotice', () => {
     await act(async () => root.render(<Page page="media-manager"><span /></Page>))
     expect(bell().textContent).not.toContain('Notifications')
     expect(bell().classList.contains('vz-header-chip--square')).toBe(true)
+  })
+
+  it('supports icon-only navigation while retaining accessible counts, alerts and the drawer', async () => {
+    await act(async () => { notify('preset-manager', { tone: 'warning', title: 'Preset warning', message: 'Check this preset.' }) })
+    await act(async () => root.render(<HeaderNotificationsButton page="preset-manager" iconOnly />))
+    expect(bell().textContent).toBe('')
+    expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
+    expect(bell().querySelector('.vz-header-notifications-dot')).not.toBeNull()
+    await act(async () => bell().click())
+    expect(drawerTitles()).toEqual(['Preset warning'])
+    expect(useNotificationStore.getState().events['preset-manager'][0].unread).toBe(false)
   })
 
   it('draws its NoticeCard inline when there is no page around it', async () => {
@@ -208,4 +221,21 @@ describe('notify()', () => {
     await act(async () => { notify('lyric-manager', { title: 'Elsewhere', message: 'Not here.' }) })
     expect(bell().getAttribute('aria-label')).toBe('Notifications')
   })
+})
+
+it('renders global developer log cards on every workspace and clears them on access loss', async () => {
+  const consume = createDeveloperLogConsumer((event, create) => useNotificationStore.getState().upsertDeveloperEvent(event, create))
+  await act(async () => {
+    root.render(<HeaderNotificationsButton page="react" iconOnly />)
+    consume('[2026-10-28 10:00:00.001] [error] (system:window) Render failed\n')
+  })
+  expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
+  await act(async () => root.render(<HeaderNotificationsButton key="show-manager" page="show-manager" iconOnly />))
+  await act(async () => bell().click())
+  expect(drawerTitles()).toEqual(['System log error · system / window'])
+  expect(drawer()?.textContent).toContain('Render failed')
+  expect(useNotificationStore.getState().developerEvents[0].unread).toBe(false)
+  await act(async () => useNotificationStore.getState().clearDeveloperEvents())
+  expect(drawerTitles()).toEqual([])
+  expect(bell().getAttribute('aria-label')).toBe('Notifications')
 })

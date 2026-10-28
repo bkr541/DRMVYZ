@@ -7,7 +7,15 @@ import type { AppPageId } from '../../../stores/pageActivityStore'
 import './notificationDrawer.css'
 
 export function NotificationBellIcon() {
-  return <AppIcon kind="bell" />
+  // Artwork: Bell--Streamline-Solar.svg supplied by the user (streamlinehq.com).
+  // Inherit the control color so the original black strokes remain visible in dark themes.
+  return (
+    <svg className="app-icon" data-app-icon="bell" xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24" width={24} height={24} fill="none" aria-hidden="true" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" opacity={0.55} d="M7.5 19c0.65503 1.7478 2.42246 3 4.5 3 2.0775 0 3.845 -1.2522 4.5 -3" />
+      <path d="M18.7491 9.70957v-0.7046C18.7491 5.13623 15.7274 2 12 2 8.27256 2 5.25087 5.13623 5.25087 9.00497v0.7046c0 0.84563 -0.24115 1.67223 -0.69307 2.37583l-1.10744 1.7241c-1.01154 1.5748 -0.23931 3.7154 1.52 4.2134 4.60238 1.3028 9.45694 1.3028 14.05924 0 1.7594 -0.498 2.5316 -2.6386 1.52 -4.2134l-1.1074 -1.7241c-0.4519 -0.7036 -0.6931 -1.5302 -0.6931 -2.37583Z" />
+    </svg>
+  )
 }
 
 const EXIT_FALLBACK_MS = 450

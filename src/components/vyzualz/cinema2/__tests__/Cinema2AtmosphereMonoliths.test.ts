@@ -21,9 +21,7 @@ const CAPABILITIES = [
   'music.beat', 'music.downbeat', 'music.phrase', 'visual-director.significance',
 ] as const
 const PARTS = ['left', 'violet', 'right', 'back'] as const
-/** Each monolith colour has a matching crack part inside the centre crystal. */
-const CRACK_PARTS = { left: 'crackLeft', violet: 'crackViolet', right: 'crackRight', back: 'crackBack' } as const
-const CRYSTAL_PARTS = ['crystal', 'frame', ...Object.values(CRACK_PARTS)] as const
+const CRYSTAL_PARTS = ['crystal'] as const
 
 const objectModule = () => MANIFEST.modules!.find(module => module.id === CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID)!
 
@@ -31,13 +29,16 @@ function readGlb(path: string) {
   const bytes = readFileSync(resolve(process.cwd(), path))
   const jsonLength = bytes.readUInt32LE(12)
   return JSON.parse(bytes.subarray(20, 20 + jsonLength).toString('utf8')) as {
+    asset: { extras: { crystalSource: { title: string; sha256: string } } }
+    meshes: { name: string; primitives: { indices: number }[] }[]
+    accessors: { count: number }[]
     nodes: { name: string }[]
     materials: { name: string; pbrMetallicRoughness: { baseColorTexture?: unknown }; normalTexture?: unknown; emissiveTexture?: unknown; emissiveFactor?: number[] }[]
     images: { bufferView: number }[]
   }
 }
 
-describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
+describe('Cinema 2.0 Crystalized monoliths', () => {
   it('ships one model with a part per monolith (each with the full rock texture set and a crack emissive mask) and the crystal\'s parts', () => {
     for (const path of ['public/cinema2/models/atmosphere-monoliths.glb', 'public/cinema2/models/atmosphere-monoliths-512.glb']) {
       const glb = readGlb(path)
@@ -51,15 +52,17 @@ describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
         // White, so the per-part accent colour is what tints the cracks.
         expect(material.emissiveFactor).toEqual([1, 1, 1])
       }
-      // The crack parts are untextured and white-emissive too, so the same accent colour tints them.
-      for (const part of Object.values(CRACK_PARTS)) {
-        expect(glb.materials.find(material => material.name === part)).toMatchObject({ emissiveFactor: [1, 1, 1] })
-      }
-      // Only the low build bakes a translucent crystal, because that tier draws no refraction.
-      const crystal = glb.materials.find(material => material.name === 'crystal') as { alphaMode?: string }
-      expect(crystal.alphaMode === 'BLEND').toBe(path.endsWith('-512.glb'))
-      // The four monoliths share one set of four embedded images.
-      expect(glb.images).toHaveLength(4)
+      expect(glb.asset.extras.crystalSource.title).toBe('Crystal')
+      expect(glb.asset.extras.crystalSource.sha256).toMatch(/^[a-f0-9]{64}$/)
+      const sourceMesh = glb.meshes.find(mesh => mesh.name === 'crystal')!
+      expect(glb.accessors[sourceMesh.primitives[0].indices].count / 3).toBe(1800)
+      const crystal = glb.materials.find(material => material.name === 'crystal')!
+      expect(crystal.pbrMetallicRoughness.baseColorTexture).toBeDefined()
+      expect(crystal.normalTexture).toBeDefined()
+      expect(crystal.emissiveTexture).toBeDefined()
+      // Four original rock maps and all four texture maps from the supplied crystal.
+      expect(glb.images).toHaveLength(8)
+
     }
     expect(cinema2ThreeAssetRegistry.has(CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID)).toBe(true)
     expect(cinema2ThreeAssetRegistry.resolveUrl(CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID, 'low')).toContain('-512')
@@ -67,7 +70,7 @@ describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
 
   it('places that model with the preset module and gives every monolith its own accent colour and crack glow control', () => {
     const module = objectModule()
-    expect(String(module.typeId)).toBe('three-scene')
+    expect(String(module.typeId)).toBe('crystalized-native-render')
     expect(module.config).toMatchObject({ instances: [{ asset: CINEMA2_ATMOSPHERE_MONOLITHS_ASSET_ID }], parts: [...PARTS, ...CRYSTAL_PARTS] })
     const instance = (module.config as { instances: { node: string }[] }).instances[0]
     expect(MANIFEST.scene!.nodes.find(node => String(node.id) === instance.node)).toMatchObject({ kind: 'module' })
@@ -83,17 +86,14 @@ describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
       expect(bindings[`${part}.emissiveIntensity`].$ref).toBe(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)
       expect(parameters[`${part}.emissive`]).toEqual((accent as { defaultValue: unknown }).defaultValue)
       accents.add(JSON.stringify(parameters[`${part}.emissive`]))
-      // The crystal's matching crack part takes the same colour control and the same glow level.
-      const crack = CRACK_PARTS[part]
-      expect(bindings[`${crack}.emissive`].$ref).toBe(CINEMA2_ATMOSPHERE_REFERENCE_ACCENT_IDS[part])
-      expect(bindings[`${crack}.emissiveIntensity`].$ref).toBe(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)
-      expect(parameters[`${crack}.emissive`]).toEqual(parameters[`${part}.emissive`])
+
     }
     expect(accents.size).toBe(4)
     expect(declared.get(CINEMA2_ATMOSPHERE_REFERENCE_CRACK_GLOW_ID)).toMatchObject({ type: 'float' })
-    // Clear glass: see-through and prismatic, with its own two controls.
-    expect(parameters['crystal.transmission']).toBeGreaterThan(0.8)
-    expect(parameters['crystal.iridescence']).toBeGreaterThan(0)
+    // Preserve the supplied textured surface by default; glass is optional.
+    expect(MANIFEST.metadata.name).toBe('Crystalized')
+    expect(parameters['crystal.transmission']).toBe(0)
+    expect(parameters['crystal.emissiveIntensity']).toBe(1)
     expect(bindings['crystal.transmission'].$ref).toBe(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_CLARITY_ID)
     expect(bindings['crystal.dispersion'].$ref).toBe(CINEMA2_ATMOSPHERE_REFERENCE_CRYSTAL_SPARKLE_ID)
   })
@@ -107,7 +107,7 @@ describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
     for (const part of PARTS) expect(nodeIds.has(`atmosphere-reference-object-${part}`)).toBe(true)
   })
 
-  it('flares one colour per beat, in turn round a four-beat cycle, in its monolith and in the crystal', () => {
+  it('flares each surrounding monolith in turn without targeting removed crystal cracks', () => {
     const rules = MANIFEST.choreography!.rules.filter(rule => String(rule.id).startsWith('atmosphere-reference-monolith-'))
     expect(rules).toHaveLength(4)
     const phases = rules.map(rule => (rule.conditions![0] as { every: number; phase: number }))
@@ -115,10 +115,9 @@ describe('Cinema 2.0 Atmosphere Reference monoliths', () => {
     expect(phases.map(condition => condition.phase).sort()).toEqual([0, 1, 2, 3])
     rules.forEach((rule, index) => {
       expect(rule.source).toMatchObject({ signal: 'beat' })
-      // The monolith itself and the matching cracks inside the crystal flare together.
+      // Only the surrounding monolith flares; the imported crystal keeps its authored texture.
       expect(rule.actions.map(action => (action.target as { property: string }).property)).toEqual([
         `${PARTS[index]}.emissiveIntensity`,
-        `${CRACK_PARTS[PARTS[index]]}.emissiveIntensity`,
       ])
     })
   })

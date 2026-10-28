@@ -26,7 +26,7 @@ afterEach(async () => {
 })
 
 describe('VyzualzHeaderActions order', () => {
-  it('places the page status directly left of the CPU readout, then the activity ring, then the account button', async () => {
+  it('places the page status directly left of the CPU readout, then the activity ring, without notification or profile/settings controls', async () => {
     await act(async () => root.render(
       <VyzualzHeaderActions page="lyric-manager" leading={<span data-testid="page-status">Unsaved</span>} />,
     ))
@@ -34,7 +34,9 @@ describe('VyzualzHeaderActions order', () => {
     expect(order[0]).toBe('page-status')
     expect(order[1]).toContain('vz-header-cpu')
     expect(order[2]).toContain('vz-header-activity')
-    expect(order[3]).toContain('vsm-settings-btn')
+    expect(order).toHaveLength(3)
+    expect(container.querySelector('.vz-header-notifications')).toBeNull()
+    expect(container.querySelector('.vz-header-avatar, .vz-profile-control, [title="Settings"]')).toBeNull()
   })
 
   it('renders nothing extra when a page has no status to show', async () => {

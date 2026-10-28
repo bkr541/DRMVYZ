@@ -6,10 +6,15 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' | 'demo' }))
 
+vi.mock('./react/LayoutLabModal', () => ({
+  LayoutLabModal: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="Layout Lab"><button onClick={onClose}>Close Layout Lab</button></div>,
+}))
+
 vi.mock('../../context/AudioEngineContext', () => ({
   useSharedAudio: () => fixture,
 }))
 
+import { useNotificationStore } from '../../stores/notificationStore'
 import { VyzualzSidebar } from './VyzualzSidebar'
 
 let container: HTMLDivElement | null = null
@@ -61,6 +66,29 @@ describe('VyzualzSidebar workspace navigation', () => {
     expect(onAppViewChange).not.toHaveBeenCalledWith('showManager')
   })
 
+  it('places one icon-only notification button above Profile and follows the active workspace', async () => {
+    container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
+    useNotificationStore.getState().pushEvent('media-manager', { title: 'Media finished', message: 'Ready.' })
+    await act(async () => root?.render(<VyzualzSidebar compact appView="media" />))
+    const footer = container.querySelector('.az-sidebar-account')!
+    const bell = footer.querySelector<HTMLButtonElement>('.az-sidebar-notifications')!
+    expect(bell.textContent).toBe('')
+    expect(bell.getAttribute('aria-label')).toBe('Notifications (1)')
+    const layoutLab = footer.querySelector<HTMLButtonElement>('[aria-label="Layout Lab"]')!
+    expect(layoutLab.nextElementSibling).toBe(bell)
+    expect(layoutLab.querySelector('svg')?.getAttribute('width')).toBe('24')
+    expect(bell.nextElementSibling?.classList.contains('vz-profile-control')).toBe(true)
+    await act(async () => layoutLab.click())
+    expect(container.querySelector('[role="dialog"][aria-label="Layout Lab"]')).not.toBeNull()
+    await act(async () => container!.querySelector<HTMLButtonElement>('[aria-label="Layout Lab"][role="dialog"] button')!.click())
+    expect(container.querySelector('[role="dialog"][aria-label="Layout Lab"]')).toBeNull()
+    await act(async () => bell.click())
+    expect(document.body.querySelector('[role="dialog"][aria-label="Notifications"]')?.textContent).toContain('Media finished')
+    await act(async () => root?.render(<VyzualzSidebar compact appView="lyrics" />))
+    expect(document.body.querySelector('[role="dialog"][aria-label="Notifications"]')).toBeNull()
+    expect(container.querySelector('.az-sidebar-notifications')?.getAttribute('aria-label')).toBe('Notifications')
+  })
+
   it('omits the legacy Visualizer entry and keeps manager navigation intact', () => {
     const onAppViewChange = vi.fn()
     container = document.createElement('div')
@@ -77,7 +105,7 @@ describe('VyzualzSidebar workspace navigation', () => {
       )
     })
 
-    const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav-item')]
+    const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav .az-nav-item')]
     const labels = navItems.map(item => item.getAttribute('aria-label'))
     expect(labels).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
     expect(labels).not.toContain('Visualizer')

@@ -1,0 +1,36 @@
+/* Option E: a quiet caption above paired values, divided by a vertical rule. */
+.vz-header-readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 112px;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 37px;
+  padding: 1px 10px 0;
+  border-left: 1px solid #ffffff13;
+  white-space: nowrap;
+}
+.vz-header-readout-label { color: #666873; }
+.vz-header-readout-values { display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 4px; color: #fcfbff; }
+.vz-header-readout-primary, .vz-header-readout-values em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.vz-header-readout-primary { flex-shrink: 0; }
+.vz-header-readout-values em { color: #90909c; }
+.vz-header-readout[data-tone='saved'] .vz-header-readout-values { color: #a0cbb7; }
+.vz-header-readout[data-tone='saving'] .vz-header-readout-values { color: #66c2c6; }
+.vz-header-readout[data-tone='unsaved'] .vz-header-readout-values { color: #e4b66a; }
+.vz-header-readout[data-tone='error'] .vz-header-readout-values { color: #f98b7d; }
+.vz-header-readout-led { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #66c2c6; flex: none; box-shadow: 0 0 0 3px #66c2c610; }
+.vz-header-readout[data-tone='error'] .vz-header-readout-led { background: #f98b7d; }
+.vz-header-readout[data-tone='unsaved'] .vz-header-readout-led { background: #e4b66a; }
+.vz-header-readout-values button { flex: 0 0 48px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; pointer-events: auto; text-decoration: underline; }
+.vz-header-readout-values button:disabled { cursor: progress; opacity: .65; }
+.vz-header-readout-values button:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
+.vz-header-readout[data-busy='true'] .vz-header-readout-led { animation: vz-header-activity-pulse 1s ease-in-out infinite; }
+@media (max-width: 1550px) {
+  .vz-header-readout { padding-inline: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vz-header-readout[data-busy='true'] .vz-header-readout-led { animation: none; }
+}

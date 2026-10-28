@@ -29,6 +29,8 @@ import {
   packThresholdPuffs,
   visibleThresholdRanges,
 } from '../modules/threshold/Cinema2ThresholdLayout'
+import { ThresholdRenderer } from '../modules/threshold/Cinema2ThresholdRenderer'
+import { CINEMA2_CATHEDRAL_PRESET_MANIFEST } from '../presets/Cinema2CathedralPreset'
 import { ThresholdReactiveState } from '../modules/threshold/Cinema2ThresholdReactiveState'
 import { Cinema2VisualDirector } from '../director/Cinema2VisualDirector'
 import { cinema2NativePresetRegistry } from '../presets/Cinema2PresetRegistry'
@@ -39,6 +41,7 @@ import {
   CINEMA2_THRESHOLD_CAMERA_ID,
   CINEMA2_THRESHOLD_CAMERA_MOTION_ID,
   CINEMA2_THRESHOLD_INTENSITY_ID,
+  CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID,
   CINEMA2_THRESHOLD_PRESET_ID,
   CINEMA2_THRESHOLD_PRESET_MANIFEST,
 } from '../presets/Cinema2ThresholdPreset'
@@ -502,7 +505,7 @@ describe('Threshold preset', () => {
     expect(boundEffects.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('flies dead centre down the corridor with a wide lens, with camera motion large enough to see and scaled by Camera Motion', () => {
+  it('flies on a smooth spline with a slight lateral wave and no per-hit camera jolts', () => {
     const camera = manifest.cameras!.find(entry => entry.id === CINEMA2_THRESHOLD_CAMERA_ID)!
     expect(camera.fovDegrees).toBeGreaterThanOrEqual(65)
     const points = (camera.rig as { points: readonly { position: readonly number[]; target?: readonly number[] }[] }).points
@@ -512,21 +515,25 @@ describe('Threshold preset', () => {
       expect(point.position[0]).toBe(0)
       expect(point.target?.[0]).toBe(0)
     }
-    // Sized for a 52-unit-wide aisle: the old 'steady' amplitudes (0.04 units) were invisible, which made the Camera Motion slider look dead.
-    expect(camera.motion?.drift?.position).toBeGreaterThanOrEqual(0.5)
-    expect(camera.motion?.bank?.maxDegrees).toBeGreaterThanOrEqual(3)
-    expect(camera.motion?.tempo).toMatchObject({ flightSpeed: true })
-    expect(camera.motion?.tempo?.weave).toBeGreaterThanOrEqual(1)
-    expect(camera.motion?.tempo?.punch).toBeGreaterThan(0)
+    expect(camera.motion?.drift?.position).toBeLessThanOrEqual(0.1)
+    expect(camera.motion?.bank?.maxDegrees).toBeLessThanOrEqual(0.25)
+    expect(camera.motion?.tempo).toMatchObject({ flightSpeed: true, weave: 0.25, bob: 0, roll: 0, fov: 0, punch: 0 })
+    expect(camera.smoothingMs).toBeGreaterThanOrEqual(150)
+    expect(manifest.choreography!.rules.flatMap(rule => rule.actions).some(action => action.target.kind === 'camera')).toBe(false)
     // Both switches reach the runtime: the slider scales the motion, BPM Sync locks it to the track.
     expect(camera.controls).toMatchObject({ motionAmount: { $ref: CINEMA2_THRESHOLD_CAMERA_MOTION_ID }, tempoSync: { $ref: CINEMA2_THRESHOLD_BPM_SYNC_ID } })
   })
 
-  it('grades neutrally: no filmic curve to grey the whites, low saturation, minimal fringing and grain', () => {
+  it('uses Cathedral HDR bloom and highlight rolloff without clipping the intermediate targets', () => {
     const finish = manifest.effects!.find(entry => entry.typeId === 'cinematic-finish')!
     const parameters = finish.parameters as Record<string, number>
-    expect(parameters.toneMap).toBe(0)
-    expect(parameters.saturation).toBeLessThanOrEqual(0.6)
+    const cathedralBloom = CINEMA2_CATHEDRAL_PRESET_MANIFEST.effects!.find(effect => effect.typeId === 'hdr-bloom')!
+    const bloom = manifest.effects!.find(effect => effect.typeId === 'hdr-bloom')!
+    expect(bloom.parameters).toEqual(cathedralBloom.parameters)
+    expect(manifest.render!.targets!.every(target => target.descriptor.colorFormat === 'rgba16f')).toBe(true)
+    expect(parameters.toneMap).toBe(1)
+    expect(parameters.exposure).toBe(0.96)
+    expect(parameters.saturation).toBe(0.86)
     expect(parameters.aberration).toBeLessThanOrEqual(0.05)
     expect(parameters.grain).toBeLessThanOrEqual(0.1)
   })
@@ -668,6 +675,7 @@ describe('Threshold lap chunk culling', () => {
 
 describe('Threshold through the real Runtime path', () => {
   it('renders every pass, draws the monoliths in instanced laps, and releases every GL resource', () => {
+    const draw = vi.spyOn(ThresholdRenderer.prototype, 'draw')
     const gl = createCinemaMockWebGL()
     class FakeCanvas extends EventTarget {
       width = 640
@@ -691,6 +699,14 @@ describe('Threshold through the real Runtime path', () => {
     // Lap copies that cannot be seen (here the one behind the camera) are culled, so a frame at the start of the flight submits two.
     expect(vi.mocked(gl.drawElementsInstanced).mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(created.runtime.getCameraRuntimeSnapshot().camera.rig).toBe('fly')
+    expect(draw.mock.calls.at(-1)![0]).toMatchObject({ baseLevel: 2.78, accentBase: 2.36, intensity: 1 })
+    created.runtime.getParameterState().setPersistentValue(CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID, 0)
+    frameCallback.current?.(1100)
+    expect(draw.mock.calls.at(-1)![0].intensity).toBe(0)
+    created.runtime.getParameterState().setPersistentValue(CINEMA2_THRESHOLD_PANEL_BRIGHTNESS_ID, 1)
+    frameCallback.current?.(1200)
+    expect(draw.mock.calls.at(-1)![0].intensity).toBeCloseTo(1 / .7)
+    draw.mockRestore()
     created.runtime.dispose()
     expect(gl.__calls.createdBuffers).toBe(gl.__calls.deletedBuffers)
     expect(gl.__calls.createdVertexArrays).toBe(gl.__calls.deletedVertexArrays)

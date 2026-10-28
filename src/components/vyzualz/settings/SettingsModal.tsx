@@ -1,3 +1,4 @@
+import { useDeveloperAccess } from '../../../lib/developerAccess'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { IconMorphToggle } from '../react/controls/IconMorphToggle'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
@@ -558,8 +559,9 @@ export const SETTINGS_TABS: Array<{ id: SettingsTab; label: string }> = [
 
 /** The pop-up's surface: header, section navigation and content pane around whichever panel is active. Layout Lab renders it inline. */
 export function SettingsModalFrame({
-  tab, onTabChange, onClose, onSignOut, children, modalRef, dialog = true, idPrefix = 'vsm', className, style,
+  tab, onTabChange, onClose, onSignOut, children, modalRef, dialog = true, idPrefix = 'vsm', className, style, developerAccess = true,
 }: {
+  developerAccess?: boolean
   tab: SettingsTab
   onTabChange: (tab: SettingsTab) => void
   onClose: () => void
@@ -572,6 +574,7 @@ export function SettingsModalFrame({
   className?: string
   style?: React.CSSProperties
 }) {
+  const tabs = SETTINGS_TABS.filter(item => item.id !== 'developer' || developerAccess)
   return (
     <div
       ref={modalRef}
@@ -589,7 +592,7 @@ export function SettingsModalFrame({
         </div>
         <div className="vsm-body">
           <nav className="vsm-nav" role="tablist" aria-label="Settings sections">
-            {SETTINGS_TABS.map(item => (
+            {tabs.map(item => (
               <button
                 key={item.id}
                 id={`${idPrefix}-tab-${item.id}`}
@@ -601,13 +604,13 @@ export function SettingsModalFrame({
                 className={`vsm-nav-item${tab === item.id ? ' vsm-nav-item--active' : ''}`}
                 onClick={() => onTabChange(item.id)}
                 onKeyDown={event => {
-                  const index = SETTINGS_TABS.findIndex(candidate => candidate.id === item.id)
+                  const index = tabs.findIndex(candidate => candidate.id === item.id)
                   const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1
                     : event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1
                       : 0
                   if (!delta) return
                   event.preventDefault()
-                  const next = SETTINGS_TABS[(index + delta + SETTINGS_TABS.length) % SETTINGS_TABS.length]
+                  const next = tabs[(index + delta + tabs.length) % tabs.length]
                   onTabChange(next.id)
                   requestAnimationFrame(() => document.getElementById(`${idPrefix}-tab-${next.id}`)?.focus())
                 }}
@@ -636,7 +639,9 @@ export function SettingsModalFrame({
 }
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
+  const developerAccess = useDeveloperAccess()
   const [tab, setTab] = useState<SettingsTab>('account')
+  useEffect(() => { if (!developerAccess && tab === 'developer') setTab('account') }, [developerAccess, tab])
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
@@ -679,6 +684,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="vsm-backdrop" onMouseDown={onClose}>
       <SettingsModalFrame
+        developerAccess={developerAccess}
         tab={tab}
         onTabChange={setTab}
         onClose={onClose}
@@ -690,7 +696,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {tab === 'brand' && <BrandKitSettingsPanel />}
         {tab === 'system' && <SystemSettingsPanel />}
         {tab === 'dj-software' && <DjSoftwareSettingsPanel />}
-        {tab === 'developer' && <DeveloperPanel />}
+        {tab === 'developer' && developerAccess && <DeveloperPanel />}
       </SettingsModalFrame>
     </div>
   )

@@ -1,3 +1,5 @@
+import { HeaderReadout } from '../layout/HeaderReadout'
+import { usePageActivityLabels } from '../../../stores/pageActivityStore'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactPersistenceStatusStore } from '../../../stores/reactPersistenceStatusStore'
@@ -9,7 +11,8 @@ function formatSavedTime(timestamp: number | null): string | null {
   return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-export function ReactPersistenceStatus() {
+export function ReactPersistenceStatus({ presentation = 'chip' }: { presentation?: 'chip' | 'readout' } = {}) {
+  const activity = usePageActivityLabels('react')
   const { phase, error, lastSavedAt, retryPending, retry } = useReactPersistenceStatusStore(useShallow(state => ({
     phase: state.phase,
     error: state.error,
@@ -18,6 +21,29 @@ export function ReactPersistenceStatus() {
     retry: state.retry,
   })))
   const savedTime = useMemo(() => formatSavedTime(lastSavedAt), [lastSavedAt])
+
+  const failureNotice = phase === 'error' ? (<DrawerNotice tone="error" role="alert" title="Changes not safely stored">
+          Your latest React view changes could not be saved{error ? `: ${error}` : '.'}{' '}
+          <IconChipButton className="vz-media-status-action" onClick={() => { void retry() }} disabled={retryPending}>
+            {retryPending ? 'Retrying…' : 'Retry save'}
+          </IconChipButton>
+        </DrawerNotice>) : null
+
+  if (presentation === 'readout') {
+    const busy = activity.length > 0
+    const status = phase === 'error' ? 'Save failed' : phase === 'dirty' ? 'Unsaved' : phase === 'saving' ? 'Saving…' : phase === 'saved' ? 'Saved' : 'Ready'
+    const tone = phase === 'error' ? 'error' : phase === 'dirty' ? 'unsaved' : phase === 'saving' || busy ? 'saving' : 'saved'
+    const details = [busy ? `Loading: ${activity.join(', ')}` : 'Nothing loading', status, savedTime, error].filter(Boolean).join(' · ')
+    return <>
+      <HeaderReadout label="LOAD / SAVE" tone={tone} busy={busy} title={details}>
+        <i className="vz-header-readout-led" aria-hidden="true" />
+        <strong className="vz-header-readout-primary" role={phase === 'error' ? 'alert' : 'status'} aria-live="polite" aria-label={details}>{busy && phase !== 'error' ? 'Loading' : status}</strong>
+        {phase === 'error' ? <button type="button" onClick={() => { void retry() }} disabled={retryPending}>{retryPending ? 'Retrying…' : 'Retry'}</button>
+          : <em>{busy ? status : phase === 'saved' ? savedTime : ''}</em>}
+      </HeaderReadout>
+      {failureNotice}
+    </>
+  }
 
   if (phase === 'idle') return null
 
@@ -33,13 +59,7 @@ export function ReactPersistenceStatus() {
             {retryPending ? 'Retrying…' : 'Retry'}
           </button>
         </div>
-        {/* The chip is easy to miss; the same failure is listed in the Notifications drawer, with the reason and a retry. */}
-        <DrawerNotice tone="error" role="alert" title="Changes not safely stored">
-          Your latest React view changes could not be saved{error ? `: ${error}` : '.'}{' '}
-          <IconChipButton className="vz-media-status-action" onClick={() => { void retry() }} disabled={retryPending}>
-            {retryPending ? 'Retrying…' : 'Retry save'}
-          </IconChipButton>
-        </DrawerNotice>
+        {failureNotice}
       </>
     )
   }
