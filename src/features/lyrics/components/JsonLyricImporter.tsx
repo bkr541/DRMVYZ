@@ -251,7 +251,7 @@ export function JsonLyricImporter({ onImportToDraft }: Props) {
             </div>
           )}
 
-          <ErrorNoticeCards errors={result.errors.map((message, index) => ({ id: `import-${index}`, message }))} />
+          <ErrorNoticeCards errors={result.errors.map((message, index) => ({ id: `import-${index}`, message, detail: 'Correct this issue in the lyric JSON and parse it again before importing.' }))} />
           {result.warnings.length > 0 && (
             <DrawerNotice tone="warning" role="status" title="Import warnings">
               {result.warnings.map((w, i) => <div key={i}>{w}</div>)}

@@ -7,6 +7,7 @@ import { DrawerNotice, ErrorNoticeCards } from '../../../components/vyzualz/shar
 import type { LyricCue, LyricDocument, LyricStyle } from '../../../types/lyrics'
 import {
   validateLyricCues,
+  LYRIC_VALIDATION_SUPPORT,
   formatMsCompact,
   type LyricValidationIssue,
 } from '../utils/lyricValidation'
@@ -137,11 +138,11 @@ function IssueList({
     openLabel: `${issue.severity === 'error' ? 'Error' : 'Warning'}: ${issue.message}. Open affected lyric timing.`,
   })
   if (issues[0]?.severity === 'error') return <ErrorNoticeCards errors={issues.map(issue => ({
-    id: issue.id, message: issue.message, ...action(issue),
+    id: issue.id, message: issue.message, detail: LYRIC_VALIDATION_SUPPORT[issue.code], ...action(issue),
   }))} />
   return <>{issues.map(issue => (
     <DrawerNotice key={issue.id} tone="warning" title="Validation warning" {...action(issue)}>
-      {issue.message}
+      {issue.message} {LYRIC_VALIDATION_SUPPORT[issue.code]}
     </DrawerNotice>
   ))}</>
 }

@@ -6,3 +6,11 @@ on is cyan with a lighter border. A 12px SVG draws a 10px outer circle, while
 the existing 17px control footprint keeps row alignment and click handling stable.
 The surrounding control has no fill or border. Keyboard focus, disabled styling,
 switch/checkbox semantics, native form submission and reset behavior are retained.
+
+Shared controls align themselves to the centre of flex rows and use middle inline
+alignment. Labels containing a direct switch or checkbox use centered inline-flex
+layout, so the circle and text align consistently without font-specific offsets.
+
+Alignment validation: six browser cases (shared rows, inline switches and native
+checkbox labels, each on/off) showed zero vertical centre difference. Screenshot
+reviewed; focused verification-script lint and diff whitespace checks passed.

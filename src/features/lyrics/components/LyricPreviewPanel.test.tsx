@@ -25,6 +25,18 @@ describe('LyricPreviewPanel', () => {
     expect(calculateLyricCueProgress(2_000, { startMs: 2_000, endMs: 2_000 }, 0)).toBe(100)
   })
 
+  it('explains how to resolve the empty-document notice shown in Notifications', async () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      await act(async () => root.render(<LyricPreviewPanel cues={[]} document={null} />))
+      const card = [...container.querySelectorAll('.dv-notice')].find(el => el.querySelector('.dv-notice-title')?.textContent === 'No cues in document')
+      expect(card).toBeTruthy()
+      expect(card?.querySelector('.dv-notice-body')?.textContent).toContain('Add a lyric cue, import a lyric document, or extract lyrics')
+    } finally { await act(async () => root.unmount()); container.remove() }
+  })
+
   it('routes actionable cue and word issues through the navigation callback', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -45,6 +57,7 @@ describe('LyricPreviewPanel', () => {
     expect(cards).toHaveLength(errors.length)
     expect(cards.map(card => card.querySelector('.dv-notice-title')?.textContent)).toEqual(errors.map(issue => issue.message))
     expect(cards.every(card => card.getAttribute('role') === 'alert')).toBe(true)
+    expect(cards.every(card => card.querySelector('.dv-notice-body')?.textContent?.trim())).toBe(true)
     expect(issueButton).toBeTruthy()
     await act(async () => issueButton?.click())
     expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ cueId: 'cue-1', wordId: 'word-1' }))

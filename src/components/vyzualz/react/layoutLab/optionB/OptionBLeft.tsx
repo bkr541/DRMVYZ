@@ -10,7 +10,7 @@ function Notices() {
   return <div data-layout-lab-notices>{TONES.map(sample => <ObGroup key={sample.tone} title={sample.label} icon="info">
     {['body', 'title', 'dismiss', 'open'].map(variant => {
       const id = `${sample.tone}:${variant}`
-      return !dismissed.has(id) && <NoticeCard key={id} tone={sample.tone} title={variant === 'title' ? sample.titleOnly : sample.title} onDismiss={['dismiss', 'open'].includes(variant) ? () => setDismissed(current => new Set(current).add(id)) : undefined} onOpen={variant === 'open' ? () => {} : undefined} openLabel="Open details" dismissLabel="Dismiss notice">{variant !== 'title' && sample.body}</NoticeCard>
+      return !dismissed.has(id) && <NoticeCard key={id} tone={sample.tone} title={variant === 'title' ? sample.titleOnly : sample.title} onDismiss={['dismiss', 'open'].includes(variant) ? () => setDismissed(current => new Set(current).add(id)) : undefined} onOpen={variant === 'open' ? () => {} : undefined} openLabel="Open details" dismissLabel="Dismiss notice">{variant === 'title' ? sample.supportingText : sample.body}</NoticeCard>
     })}
   </ObGroup>)}</div>
 }

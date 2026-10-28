@@ -6,7 +6,7 @@ import { Collapsible } from '../ReactControlRows'
 //
 // Production's `NoticeCard` (the canonical notification card: a tone-coloured accent bar, icon, title, body, and the
 // optional dismiss and open actions) shown in each of its four looks: Info, Success, Warning and Error (the destructive
-// look), one parent group per tone, each with the card's variants stacked: title and body, title only, with dismiss
+// look), one parent group per tone, each with the card's variants stacked: title and body, compact copy, with dismiss
 // and with dismiss and open. The cards are the real component with real tone text colours; dismiss (a hover control, as
 // in the app) hides a card and open does nothing here. Switching tabs restores the dismissed cards. No store or drawer.
 
@@ -16,13 +16,14 @@ export interface ToneSample {
   title: string
   body: string
   titleOnly: string
+  supportingText: string
 }
 
 export const TONES: ToneSample[] = [
-  { tone: 'info', label: 'Info', title: 'Runtime state synchronized', titleOnly: 'Layers are read-only for this preset', body: 'Structured visuals share one authored model with modulation routes, performance rules, cameras and the authoritative timeline.' },
-  { tone: 'success', label: 'Success', title: 'Preset saved', titleOnly: 'Track analysis complete', body: 'Electric Storm was saved to your library and is ready to load from the Presets tab.' },
-  { tone: 'warning', label: 'Warning', title: 'Audio source unavailable', titleOnly: 'Beat grid is using a temporary tempo', body: 'The selected input stopped reporting a signal. Reconnect the device or choose another source in the Audio dock.' },
-  { tone: 'error', label: 'Error', title: 'Failed to load track', titleOnly: 'Output window was blocked', body: 'The file could not be decoded. Check that it is a supported audio format and try loading it again.' },
+  { tone: 'info', label: 'Info', title: 'Runtime state synchronized', titleOnly: 'Layers are read-only for this preset', supportingText: 'Choose an editable preset to change its layer structure.', body: 'Structured visuals share one authored model with modulation routes, performance rules, cameras and the authoritative timeline.' },
+  { tone: 'success', label: 'Success', title: 'Preset saved', titleOnly: 'Track analysis complete', supportingText: 'The track is ready for playback with its analyzed tempo and sections.', body: 'Electric Storm was saved to your library and is ready to load from the Presets tab.' },
+  { tone: 'warning', label: 'Warning', title: 'Audio source unavailable', titleOnly: 'Beat grid is using a temporary tempo', supportingText: 'Confirm the track tempo before relying on beat-synchronized cues.', body: 'The selected input stopped reporting a signal. Reconnect the device or choose another source in the Audio dock.' },
+  { tone: 'error', label: 'Error', title: 'Failed to load track', titleOnly: 'Output window was blocked', supportingText: 'Allow popups for DRMVYZ, then open the output window again.', body: 'The file could not be decoded. Check that it is a supported audio format and try loading it again.' },
 ]
 
 export function LayoutLabNoticeTab() {
@@ -32,13 +33,13 @@ export function LayoutLabNoticeTab() {
 
   return (
     <div className="rv-ctrl-group" data-layout-lab-notices>
-      {TONES.map(({ tone, label, title, body, titleOnly }) => {
+      {TONES.map(({ tone, label, title, body, titleOnly, supportingText }) => {
         const id = (variant: string) => `${tone}:${variant}`
         const show = (variant: string) => !dismissed.has(id(variant))
         return (
           <Collapsible key={tone} label={label}>
             {show('body') && <NoticeCard tone={tone} title={title}>{body}</NoticeCard>}
-            {show('title') && <NoticeCard tone={tone} title={titleOnly} />}
+            {show('title') && <NoticeCard tone={tone} title={titleOnly}>{supportingText}</NoticeCard>}
             {show('dismiss') && <NoticeCard tone={tone} title={title} {...dismissible(id('dismiss'))}>{body}</NoticeCard>}
             {show('open') && (
               <NoticeCard tone={tone} title={title} {...dismissible(id('open'))} onOpen={() => {}} openLabel="Open details">{body}</NoticeCard>

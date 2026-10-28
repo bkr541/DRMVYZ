@@ -600,7 +600,8 @@ describe('Layout Lab canvas', () => {
       'Delete Track', 'Delete Lyric Version', 'Replace active lyric version?', 'Unsaved lyric changes', 'This lyric version was changed elsewhere',
       'Recovered lyric draft available', 'Recovered lyric draft conflicts with the server',
     ])
-    expect(popups.querySelectorAll('.lmv-dialog').length).toBe(2)
+    expect(popups.querySelectorAll('.lmv-dialog').length).toBe(0)
+    expect(popups.querySelectorAll('.dv-confirm-dialog').length).toBe(7)
     expect(popups.querySelector('.lmv-recovery-review')).not.toBeNull()
 
     await open('EDITORS')

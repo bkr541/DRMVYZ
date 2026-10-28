@@ -341,11 +341,9 @@ export function InfoPopover({
     >
       <div className="drm-info-popover__header">
         <div className="drm-info-popover__header-row">
-          {headerIcon != null && (
-            <span className="drm-info-popover__header-icon" aria-hidden="true">
-              {headerIcon}
-            </span>
-          )}
+          <span className="drm-info-popover__header-icon" aria-hidden="true">
+            {headerIcon ?? <AppIcon kind="info" />}
+          </span>
           <h3 id={titleId} className="drm-info-popover__title">{title}</h3>
 
           <button

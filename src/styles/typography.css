@@ -241,3 +241,14 @@
 :root body .vz-header-readout-values, :root body .vz-header-readout-primary { font: var(--type-header-readout-primary); }
 :root body .vz-header-readout-values em { font: var(--type-header-readout-secondary); }
 :root body .vz-header-readout-values button { font: var(--type-header-readout-secondary); }
+
+/* Information and confirmation prompts share the centered dialog typography roles. */
+:root {
+  --type-dialog-heading: 700 14px/1.2 var(--az-font, Inter, system-ui, sans-serif);
+  --type-dialog-copy: 400 11px/1.5 var(--az-font, Inter, system-ui, sans-serif);
+}
+:root body [class].dv-confirm-dialog > h2,
+:root body [class].drm-info-popover__title { font: var(--type-dialog-heading); letter-spacing: normal; text-transform: none; }
+:root body [class].dv-confirm-dialog > p,
+:root body [class].drm-info-popover__description,
+:root body [class].drm-info-popover__body > p { font: var(--type-dialog-copy); letter-spacing: normal; }

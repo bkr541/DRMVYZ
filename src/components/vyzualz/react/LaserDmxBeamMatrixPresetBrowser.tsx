@@ -1,3 +1,4 @@
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from './controls/DreamVizTextInput'
 import { IconChipButton } from './controls/IconChipButton'
@@ -189,21 +190,16 @@ export function LaserDmxBeamMatrixPresetBrowser({ externalQuery, presetFilter, s
   return (
     <>
       {pendingId && (
-        <div className="rv-bm-confirm">
-          <span>Replace modified program with preset?</span>
-          <IconChipButton
-            className="rv-glyph-upload-btn--danger"
-            onClick={() => {
-              applyLaserDmxBeamMatrixPreset(pendingId)
-              setPendingId(null)
-            }}
-          >
-            Replace
-          </IconChipButton>
-          <IconChipButton onClick={() => setPendingId(null)}>
-            Cancel
-          </IconChipButton>
-        </div>
+        <ConfirmDialog
+          title="Replace modified program?"
+          message="Applying this preset will replace your unsaved Beam Matrix program changes."
+          confirmLabel="Replace"
+          onConfirm={() => {
+            applyLaserDmxBeamMatrixPreset(pendingId)
+            setPendingId(null)
+          }}
+          onCancel={() => setPendingId(null)}
+        />
       )}
 
       {!usesExternalSearch && (

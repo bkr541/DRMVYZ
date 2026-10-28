@@ -1,3 +1,4 @@
+import { ConfirmDialog } from './controls/ConfirmDialog'
 import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
@@ -38,23 +39,13 @@ export function ReactResetActionsControls({
       </IconChipButton>
 
       {confirmProjectClear ? (
-        <div className="rv-bm-confirm" role="alertdialog" aria-label="Confirm clearing authored React project content">
-          <span>
-            Permanently clear manual track sections, suppressed automatic sections, preset automation cues,
-            Sound Drawing layers and clips, performance-pad edits, editable presets, and LaserDMX programs?
-          </span>
-          <IconChipButton
-            className="rv-glyph-upload-btn--danger"
-            onClick={handleConfirmProjectClear}
-          >
-            Confirm Clear Project Content
-          </IconChipButton>
-          <IconChipButton
-            onClick={() => setConfirmProjectClear(false)}
-          >
-            Cancel
-          </IconChipButton>
-        </div>
+        <ConfirmDialog
+          title="Clear authored React project content?"
+          message="Permanently clear manual track sections, suppressed automatic sections, preset automation cues, Sound Drawing layers and clips, performance-pad edits, editable presets, and LaserDMX programs?"
+          confirmLabel="Confirm Clear Project Content"
+          onConfirm={handleConfirmProjectClear}
+          onCancel={() => setConfirmProjectClear(false)}
+        />
       ) : (
         <IconChipButton
           className="rv-glyph-upload-btn--danger"

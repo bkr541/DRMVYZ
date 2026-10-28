@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LyricCue } from '../../../types/lyrics'
-import { validateLyricCues } from './lyricValidation'
+import { LYRIC_VALIDATION_SUPPORT, validateLyricCues } from './lyricValidation'
 
 const cue = (overrides: Partial<LyricCue> = {}): LyricCue => ({
   id: 'cue-1',
@@ -78,4 +78,9 @@ describe('validateLyricCues structured issue navigation', () => {
     }))
     expect(result.issues.some(issue => issue.code === 'invalid_word_bounds')).toBe(false)
   })
+})
+
+it('provides actionable supporting copy for every lyric validation condition', () => {
+  expect(Object.keys(LYRIC_VALIDATION_SUPPORT)).toHaveLength(12)
+  for (const text of Object.values(LYRIC_VALIDATION_SUPPORT)) expect(text.trim().length).toBeGreaterThan(30)
 })

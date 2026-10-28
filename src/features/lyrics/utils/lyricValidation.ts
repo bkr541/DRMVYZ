@@ -30,6 +30,22 @@ export interface LyricValidationIssue {
   wordIndex: number | null
 }
 
+/** Every validation state includes a concrete explanation or recovery step in its notice. */
+export const LYRIC_VALIDATION_SUPPORT: Record<LyricValidationIssue['code'], string> = {
+  empty_document: 'Add a lyric cue, import a lyric document, or extract lyrics from the track to begin.',
+  empty_text: 'Enter the words for this cue or remove the empty cue from the document.',
+  invalid_start: 'Set the cue start to a valid time at or after the beginning of the track.',
+  invalid_end: 'Set the cue end to a valid time after the beginning of the track.',
+  invalid_bounds: 'Move the cue end after its start so the lyric has a positive display duration.',
+  invalid_confidence: 'Set the cue confidence to a value from 0 to 1, or remove the confidence value.',
+  cue_overlap: 'Review the adjacent cue boundaries and adjust the timing if the overlap is unintended.',
+  invalid_word_bounds: 'Give this word valid start and end times, with its end after its start.',
+  missing_word_timing: 'Add timing for this word before using word-level lyric highlighting.',
+  invalid_word_confidence: 'Set the word confidence to a value from 0 to 1, or remove the confidence value.',
+  word_outside_cue: 'Move the word timing inside its parent cue or extend the cue to contain the word.',
+  unknown_group_word: 'Remove the missing word reference from this group or select a word that exists in the cue.',
+}
+
 // ── Result shape ──────────────────────────────────────────────────────────────
 
 export interface LyricValidationResult {

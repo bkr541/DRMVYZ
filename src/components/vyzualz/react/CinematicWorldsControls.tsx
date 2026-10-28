@@ -592,7 +592,7 @@ export function CinematicWorldsModulationControls() {
                     <SelectRow id={`cinematic-route-${index}-target`} label="Target" value={route.target} onChange={target => updateRoute(index, { target: target as CinematicAudioTarget })} options={world.modulationTargets.map(target => ({ value: target, label: CINEMATIC_TARGET_LABELS[target] }))} />
                     {routeDiagnostic && (
                       <DrawerNotice tone="warning" title={`${CINEMATIC_SOURCE_LABELS[route.source]} unavailable`}>
-                        {routeDiagnostic.reasons.map(reason => reason.message).join(' ')}
+                        {routeDiagnostic.reasons.map(reason => reason.message).join(' ').trim() || 'This audio source is unavailable. Choose another source for this mapping.'}
                       </DrawerNotice>
                     )}
                     <SliderRow id={`cinematic-route-${index}-amount`} label="Amount" value={route.amount} min={-2} max={2} step={0.01} onChange={amount => updateRoute(index, { amount })} />

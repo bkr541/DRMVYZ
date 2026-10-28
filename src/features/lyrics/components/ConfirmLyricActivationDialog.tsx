@@ -1,4 +1,4 @@
-import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { ConfirmDialog } from '../../../components/vyzualz/react/controls/ConfirmDialog'
 
 interface Props {
   targetTitle: string | null
@@ -10,21 +10,17 @@ interface Props {
 
 export function ConfirmLyricActivationDialog({ targetTitle, currentTitle, busy, onCancel, onConfirm }: Props) {
   if (!targetTitle) return null
-  return (
-    <div className="lmv-dialog-backdrop" role="presentation">
-      <section className="lmv-dialog" role="alertdialog" aria-modal="true" aria-labelledby="lmv-activate-title">
-        <h2 id="lmv-activate-title">Replace active lyric version?</h2>
-        <p>
-          “{targetTitle}” will become the runtime version for this track
-          {currentTitle ? ` and replace “${currentTitle}”.` : '.'}
-        </p>
-        <div className="lmv-dialog-actions">
-          <IconChipButton onClick={onCancel} disabled={busy}>Cancel</IconChipButton>
-          <IconChipButton tone="primary" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Activating…' : 'Make Active'}
-          </IconChipButton>
-        </div>
-      </section>
-    </div>
-  )
+  return <ConfirmDialog
+    title="Replace active lyric version?"
+    message={`“${targetTitle}” will become the runtime version for this track${currentTitle ? ` and replace “${currentTitle}”.` : '.'}`}
+    confirmLabel="Make Active"
+    busyLabel="Activating…"
+    busy={busy}
+    danger={false}
+    iconTone="neutral"
+    confirmTone="primary"
+    dismissible={false}
+    onCancel={onCancel}
+    onConfirm={onConfirm}
+  />
 }

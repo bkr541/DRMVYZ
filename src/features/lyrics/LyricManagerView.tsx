@@ -2068,7 +2068,7 @@ export function LyricManagerView({
           onDismiss={error ? () => setError(null) : undefined}
           dismissLabel="Dismiss lyric manager error"
         >
-          {error ?? statusMsg}
+          {error || statusMsg}
         </DrawerNotice>
       )}
 

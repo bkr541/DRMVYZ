@@ -73,11 +73,12 @@ export function ConfirmDialog({
   allowCancelWhileBusy = false,
   dismissible = true,
   cancelDanger = false,
-  iconTone = 'danger',
+  iconTone = danger ? 'danger' : 'neutral',
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
   const headingId = useId()
+  const messageId = useId()
   return (
     <div
       className="dv-confirm-backdrop"
@@ -91,13 +92,14 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={headingId}
+        aria-describedby={messageId}
         onKeyDown={event => {
           if (dismissible && event.key === 'Escape' && (!busy || allowCancelWhileBusy)) onCancel()
         }}
       >
         <span className={`dv-confirm-icon${iconTone === 'neutral' ? ' dv-confirm-icon--neutral' : ''}`} aria-hidden="true"><ConfirmDialogIcon /></span>
         <h2 id={headingId}>{title}</h2>
-        <p>{message}</p>
+        <p id={messageId}>{message}</p>
         {children}
         {notice && (
           <NoticeCard tone={noticeTone} title={noticeTitle} role="status">

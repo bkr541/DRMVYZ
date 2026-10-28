@@ -1,3 +1,4 @@
+import { ConfirmDialog } from './react/controls/ConfirmDialog'
 import { AppIcon } from '../shared/icons/AppIcon'
 
 import { IconMorphCheckbox } from './react/controls/IconMorphToggle'
@@ -982,29 +983,17 @@ export function MediaUploadModal({
     <>
     {/* ── Raster SVG warning dialog ─────────────────────────────────── */}
     {rasterSvgWarning && (
-      <div className="mum-backdrop" style={{ zIndex: 1500 }} onClick={e => e.stopPropagation()}>
-        <div className="mum-modal" role="alertdialog" aria-modal="true" style={{ maxWidth: 420, padding: '24px 28px' }}>
-          <div className="mum-title" style={{ marginBottom: 8 }}>SVG Contains Only a Raster Image</div>
-          <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 16, opacity: 0.85 }}>
-            <strong>{rasterSvgWarning.file.name}</strong> wraps an embedded raster image rather than
-            vector paths. It can still be uploaded and rendered as Original Artwork, but cannot
-            be used as a Reactive Path glyph.
-          </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <IconChipButton
-              tone="primary"
-              onClick={handleRasterSvgContinue}
-            >
-              Continue Upload
-            </IconChipButton>
-            <IconChipButton
-              onClick={() => setRasterSvgWarning(null)}
-            >
-              Cancel
-            </IconChipButton>
-          </div>
-        </div>
-      </div>
+      <ConfirmDialog
+        title="SVG Contains Only a Raster Image"
+        message={<><strong>{rasterSvgWarning.file.name}</strong> wraps an embedded raster image rather than vector paths. It can still be uploaded and rendered as Original Artwork, but cannot be used as a Reactive Path glyph.</>}
+        confirmLabel="Continue Upload"
+        danger={false}
+        iconTone="neutral"
+        confirmTone="primary"
+        dismissible={false}
+        onConfirm={handleRasterSvgContinue}
+        onCancel={() => setRasterSvgWarning(null)}
+      />
     )}
 
     <div
@@ -1358,14 +1347,14 @@ export function MediaUploadModal({
         )}
         {isEdit && editMutation?.status === 'failed' && (
           <NoticeCard className="mum-conflict-panel" tone="error" role="alert" title="Media changes were not saved.">
-            <p>{editMutation.message}</p>
+            <p>{editMutation.message?.trim() || 'Your media changes could not be saved. Retry to save the values still shown in this form.'}</p>
             <div className="mum-conflict-actions">
               <IconChipButton tone="primary" disabled={saving} onClick={handleRetryEdit}>{saving ? 'Retrying…' : 'Retry Save'}</IconChipButton>
             </div>
           </NoticeCard>
         )}
         {(selectionError || batchError || (isEdit && loadError)) && (
-          <NoticeCard className="mum-batch-error" tone="error" role="alert" title="Media upload issue">{selectionError ?? batchError ?? loadError}</NoticeCard>
+          <NoticeCard className="mum-batch-error" tone="error" role="alert" title="Media upload issue">{selectionError || batchError || loadError}</NoticeCard>
         )}
         {uploading && progress.total > 0 && (
           <div className="mum-progress" aria-label={`Uploaded ${progress.completed} of ${progress.total} files`}>

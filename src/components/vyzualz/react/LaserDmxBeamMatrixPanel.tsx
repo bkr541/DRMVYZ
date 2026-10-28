@@ -98,11 +98,13 @@ export function LaserDmxBeamMatrixPanel() {
 
         {/* ── Reset with confirmation ──────────────────────────────────── */}
         {confirmReset ? (
-          <div className="rv-bm-confirm">
-            <span>Reset entire Beam Matrix program?</span>
-            <IconChipButton className="rv-glyph-upload-btn--danger" onClick={handleReset}>Confirm Reset</IconChipButton>
-            <IconChipButton onClick={() => setConfirmReset(false)}>Cancel</IconChipButton>
-          </div>
+          <ConfirmDialog
+            title="Reset Beam Matrix?"
+            message="Reset the entire Beam Matrix program and discard its current beams and settings."
+            confirmLabel="Confirm Reset"
+            onConfirm={handleReset}
+            onCancel={() => setConfirmReset(false)}
+          />
         ) : (
           <IconChipButton
             className="rv-bm-reset-btn"

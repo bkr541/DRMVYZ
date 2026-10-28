@@ -280,7 +280,7 @@ export function HeadlinerSurface({
       )}
       {showNotice && (
         <DrawerNotice tone="warning" role="alert" title={status.title}>
-          <div>{status.detail}</div>
+          <div>{status.detail?.trim() || 'The HEADLINER camera preview is not ready. Check camera access, then try again.'}</div>
           <div className="rv-ctrl-action-row">
             <IconChipButton onClick={() => runtime.retry()}>Try again</IconChipButton>
           </div>

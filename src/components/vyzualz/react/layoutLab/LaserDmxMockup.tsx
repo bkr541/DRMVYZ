@@ -1,3 +1,4 @@
+import { ConfirmDialog } from '../controls/ConfirmDialog'
 import { FIXTURE_ICON_KINDS } from '../LaserDmxShowDirectorFixtureIcon'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
@@ -45,11 +46,7 @@ function MatrixProgram({ state }: { state: LaserDmxMockState }) {
           <button type="button" className="rv-glyph-upload-btn" aria-label="Select all beams" onClick={state.selectAllBeams}>All</button>
         </div>
         {state.resetMatrixConfirm ? (
-          <div className="rv-bm-confirm">
-            <span>Reset entire Beam Matrix program?</span>
-            <button type="button" className="rv-glyph-upload-btn rv-glyph-upload-btn--danger" onClick={state.resetMatrix}>Confirm Reset</button>
-            <button type="button" className="rv-glyph-upload-btn" onClick={() => state.setResetMatrixConfirm(false)}>Cancel</button>
-          </div>
+          <ConfirmDialog title="Reset Beam Matrix?" message="Reset the entire Beam Matrix program and discard its current beams and settings." confirmLabel="Confirm Reset" onConfirm={state.resetMatrix} onCancel={() => state.setResetMatrixConfirm(false)} />
         ) : (
           <button type="button" className="rv-glyph-upload-btn rv-bm-reset-btn" aria-label="Reset Beam Matrix" onClick={() => state.setResetMatrixConfirm(true)}>Reset Matrix</button>
         )}

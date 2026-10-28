@@ -694,7 +694,7 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-version-title') as HTMLElement
     await act(async () => alternate.click())
-    const saveDialog = container.querySelector('.lmv-dialog') as HTMLElement
+    const saveDialog = container.querySelector('.dv-confirm-dialog') as HTMLElement
     await act(async () => buttonWithText('Save', saveDialog).click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
     expect(mocks.saveLyricDocumentAtomic).toHaveBeenCalled()
