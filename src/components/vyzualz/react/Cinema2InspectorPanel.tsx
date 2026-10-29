@@ -105,8 +105,9 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
     }
   }
 
+  const hasDesignControls = designParentGroups.some(parent => parent.controls.length > 0 || parent.groups.some(group => group.controls.length > 0))
   const sectionsContent = sections.length === 0
-    ? <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
+    ? hasDesignControls ? null : <div className="rv-ctrl-group"><div className="rv-ctrl-info">No Cinema 2.0 parameters are declared for this workspace.</div></div>
     : (
       <>
         {sections.map(section => {

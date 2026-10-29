@@ -31,6 +31,7 @@ import { cinema2CanopyNativeModuleDefinition } from './Cinema2CanopyNativeModule
 import { cinema2VacancyNativeModuleDefinition } from './Cinema2VacancyNativeModule'
 import { cinema2CrystalizedNativeModuleDefinition } from './Cinema2CrystalizedNativeModule'
 import { cinema2NightshiftNativeModuleDefinition } from './Cinema2NightshiftNativeModule'
+import { cinema2TrippyBroNativeModuleDefinition } from './Cinema2TrippyBroNativeModule'
 
 export interface Cinema2ModuleRegistryResult {
   ok: boolean
@@ -101,6 +102,8 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const trippyBroRegistration = cinema2NativeModuleRegistry.register(cinema2TrippyBroNativeModuleDefinition)
+if (!trippyBroRegistration.ok) throw new Error('Cinema 2.0 Trippy, Bro module registration failed.')
 const switchItRegistration=cinema2NativeModuleRegistry.register(cinema2SwitchItNativeModuleDefinition)
 if(!switchItRegistration.ok)throw new Error(JSON.stringify(switchItRegistration.diagnostics))
 

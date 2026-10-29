@@ -246,6 +246,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
       'effects',
       'palette',
     ])
+    expect(host?.textContent).not.toContain('No Cinema 2.0 parameters are declared')
     // Each of the four parent headers leads with an icon; nested group headings never do.
     const headers = [...(host?.querySelectorAll<HTMLElement>('.drc-group > .drc-header') ?? [])]
     expect(headers.filter(header => header.querySelector('.drc-header-icon')).map(header => header.textContent)).toEqual([
