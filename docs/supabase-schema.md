@@ -103,6 +103,10 @@ Deletion is a tombstone workflow. `request_media_deletion` ownership-checks and 
 
 Rows 1–26 were seeded by `0008_effect_chain_options.sql`. Rows 27–28 added by `0009_distortion_pixels_effect_options.sql` for the **Distortion Pixels** built-in preset.
 
+### Preset store (migration 0043)
+
+The marketplace tables (`preset_releases`, `preset_release_publications`, `preset_packs`, `preset_pack_editions`, `preset_pack_items`, `store_products`, `store_product_prices`, `store_product_provider_refs`, `store_orders`, `store_order_items`, `store_payment_events`, `preset_entitlement_grants`, `marketplace_holding_projections`, `user_preset_preferences`) are documented in [preset-store/SCHEMA.md](preset-store/SCHEMA.md): relationships, RLS and privilege matrix, server functions, local execution and rollback. They sit beside `presets`, `user_presets` and `preset_organization` and do not alter them.
+
 ## Storage Buckets
 
 | Bucket | Max Size | Allowed Types |

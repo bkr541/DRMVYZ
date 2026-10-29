@@ -56,6 +56,10 @@ When a historical document conflicts with canonical current documentation or the
 
 | Document | Scope |
 | --- | --- |
+| `docs/preset-store/PHASE_00_AUDIT.md` | Preset Store current-tree audit and proposed middle-only architecture; Phase 01 approval gate |
+| `docs/preset-store/IMPLEMENTATION_CHECKLIST.md` | Preset Store requirement-to-phase acceptance map and baseline status |
+| `docs/preset-store/OPEN_DECISIONS.md` | Preset Store operator decisions and local/test, payment, content and publishing gates |
+| `docs/preset-store/SCHEMA.md` | Preset Store marketplace schema (migration 0043): relationships, RLS/privilege matrix, server primitives, local execution, rollback, verification status |
 | `docs/brand-kit.md` | Brand Kit storage, palettes, assets, overlays, and engine integration |
 | `docs/react-recording-and-output.md` | React View recording and LaserDMX Production Output |
 | `docs/contracts/CROSS_ENGINE_CONTROL_SCOPES.md` | Canonical LaserDMX, Shader Pads, CANVAS, Cinematic camera, and preset-provenance control scopes |
