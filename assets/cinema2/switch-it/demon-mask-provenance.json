@@ -1,0 +1,31 @@
+{
+  "source": "/Users/kodyrobinson/Downloads/demon_mask.glb",
+  "sourceSha256": "bb52ee7d486dad710e243a658c7992b681f3e2c896c1f10af6a7dfad524d3eea",
+  "output": "public/cinema2/models/switch-it-demon-mask.glb",
+  "outputSha256": "a6bad8ab1679fa86e4489437055aae7ecdaaf23e6ce267282f6f9c87f681f83d",
+  "sourceMetadata": {
+    "author": "egorova.e (https://sketchfab.com/silentegor)",
+    "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+    "source": "https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333",
+    "title": "Demon Mask"
+  },
+  "triangles": 5686,
+  "textures": [
+    {
+      "sourceWidth": 4096,
+      "sourceHeight": 4096,
+      "maxOutputDimension": 1024
+    },
+    {
+      "sourceWidth": 4096,
+      "sourceHeight": 4096,
+      "maxOutputDimension": 1024
+    },
+    {
+      "sourceWidth": 4096,
+      "sourceHeight": 4096,
+      "maxOutputDimension": 1024
+    }
+  ],
+  "modifications": "Embedded textures limited to 1024px; mesh topology, UVs, authored transforms and material maps retained. Runtime applies portrait registration and red lighting."
+}

@@ -1,3 +1,4 @@
+import { CINEMA2_SWITCH_IT_PRESET_MANIFEST } from './Cinema2SwitchItPreset'
 import { CINEMA2_ELEVHATE_PRESET_MANIFEST } from './Cinema2ElevhatePreset'
 import { CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_PRESET_MANIFEST } from './Cinema2AfterhoursPreset'
@@ -40,6 +41,7 @@ import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST } from './Cinema2NightshiftPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  defineCinema2FirstPartyPreset({role:'keeper',manifest:CINEMA2_SWITCH_IT_PRESET_MANIFEST}),
   // Accepted NIGHTSHIFT native installation; stable identity preserves authored edits.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_NIGHTSHIFT_PRESET_MANIFEST }),
   // In-app review entry. Promote to keeper only after the remaining acceptance gates.

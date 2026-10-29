@@ -1,0 +1,9 @@
+{
+ "id":"switch-it",
+ "kind":"model",
+ "compression":"none",
+ "license":"CC-BY-4.0",
+ "origin":"User-supplied Demon Mask GLB. Original 5686-triangle topology, normals, UVs and three material maps retained; embedded 4096px textures resized to 1024px by prepare-switch-it-mask.mjs. Portrait registration and solid red material treatment are applied at runtime.",
+ "files":{"high":"public/cinema2/models/switch-it-demon-mask.glb"},
+ "attribution":"Demon Mask by egorova.e (https://sketchfab.com/silentegor), https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: textures resized to 1024px; portrait registration and solid red material/lighting at runtime. Character bust uses MakeHuman hm08 CC0 (Data Collection AB, Joel Palmius, Jonas Hauquier), extracted by generate-switch-it-human.mjs."
+}

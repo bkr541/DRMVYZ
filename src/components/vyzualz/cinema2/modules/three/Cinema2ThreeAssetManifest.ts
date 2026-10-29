@@ -1,6 +1,7 @@
 import { CINEMA2_ASSET_RECORDS, type Cinema2AssetId } from '../../assets/Cinema2AssetManifest.generated'
 import { Cinema2ThreeAssetRegistry } from './Cinema2ThreeAssetRegistry'
 
+export const CINEMA2_SWITCH_IT_MASK_ASSET_ID: Cinema2AssetId = 'switch-it'
 export const CINEMA2_REFERENCE_TORUS_KNOT_ASSET_ID: Cinema2AssetId = 'cinema2-reference-torus-knot'
 /** The owner's DVYDRM logo as a 3D model with two parts (nodes `outline`, `crystal`); shared by every logo preset. */
 export const CINEMA2_DVYDRM_LOGO_ASSET_ID: Cinema2AssetId = 'cinema2-dvydrm-logo'

@@ -1,3 +1,4 @@
+import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
 import { cinema2ElevhateNativeModuleDefinition } from './Cinema2ElevhateNativeModule'
 import type { Cinema2ModuleManifest, Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
@@ -100,6 +101,9 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const switchItRegistration=cinema2NativeModuleRegistry.register(cinema2SwitchItNativeModuleDefinition)
+if(!switchItRegistration.ok)throw new Error(JSON.stringify(switchItRegistration.diagnostics))
+
 const elevhateRegistration = cinema2NativeModuleRegistry.register(cinema2ElevhateNativeModuleDefinition)
 if (!elevhateRegistration.ok) throw new Error('Cinema 2.0 Elevhate module registration failed.')
 const crystalizedRegistration = cinema2NativeModuleRegistry.register(cinema2CrystalizedNativeModuleDefinition)

@@ -1,0 +1,114 @@
+{
+  "schema": "drmvyz.cinema2.development-geometry-provenance.v1",
+  "name": "Switch It Phase 1 static study",
+  "productionCatalogEntry": false,
+  "reference": {
+    "path": "/Users/kodyrobinson/Desktop/SwitchIt.mov",
+    "use": "Visual composition reference only; no video frames or audio embedded in the renderer"
+  },
+  "human": {
+    "source": "scripts/cinema2-assets/sources/makehuman/base.obj.gz",
+    "sourceSha256": "b5ac245636c9b37fd8c0f1f388fff2f856075502455a296d366cf57108031928",
+    "license": "CC0-1.0",
+    "attribution": "MakeHuman hm08; Data Collection AB, Joel Palmius, Jonas Hauquier",
+    "notice": "scripts/cinema2-assets/sources/makehuman/README.md",
+    "generator": "scripts/cinema2-assets/generate-switch-it-human.mjs",
+    "output": "src/components/vyzualz/cinema2/modules/switchIt/Cinema2SwitchItHuman.generated.ts",
+    "triangles": 2100,
+    "regions": [
+      "faceted head",
+      "ears",
+      "neck",
+      "cropped shoulders",
+      "registered almond eye overlays"
+    ],
+    "runtimeLayers": {
+      "intactBaseTriangles": 2100,
+      "optionalMovingFacetTriangles": 2100
+    }
+  },
+  "skull": {
+    "source": "/Users/kodyrobinson/Downloads/demon_mask.glb",
+    "sourceSha256": "bb52ee7d486dad710e243a658c7992b681f3e2c896c1f10af6a7dfad524d3eea",
+    "bundledModel": "public/cinema2/models/switch-it-demon-mask.glb",
+    "provenance": "assets/cinema2/switch-it/demon-mask-provenance.json",
+    "construction": "User-supplied Demon Mask GLB with original topology, UVs, normals and material maps retained. Runtime uses a solid, textured elevated overlay above the intact character.",
+    "triangles": 5686,
+    "license": "CC-BY-4.0",
+    "attribution": "Demon Mask by egorova.e (https://sketchfab.com/silentegor), https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333; CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Textures resized; portrait registration and red lighting by DRMVYZ.",
+    "regions": [
+      "horned skull mask",
+      "authored teeth",
+      "authored open orbital sockets"
+    ],
+    "textures": "Three embedded 4096px maps resized to at most 1024px; no map removed."
+  },
+  "registration": {
+    "axis": "+Y up; +Z toward frontal camera",
+    "crownY": 1.21,
+    "eyeY": 0.22,
+    "eyeX": [
+      -0.277,
+      0.277
+    ],
+    "chinY": -0.95,
+    "projectionNeckCutY": -0.98,
+    "orthographicHeight": 2.8,
+    "cameraPosition": [
+      0,
+      0,
+      5
+    ],
+    "cameraTarget": [
+      0,
+      0,
+      0
+    ],
+    "mask": {
+      "scale": 1.586,
+      "width": 3.6478,
+      "centerOffsetY": 0.34688,
+      "depthOffset": 0.28,
+      "sourceSocketXApprox": [
+        -0.33306,
+        0.33306
+      ],
+      "socketEyeLineY": 0.22,
+      "notes": "Enlarged another 30% relative to the accepted 22% version, around the eye line. Horns extend beyond the fixed portrait frame. The character eyes remain at X +/-0.277; there are no added mask-eye disks."
+    }
+  },
+  "states": [
+    "human",
+    "skull",
+    "hybrid",
+    "crown"
+  ],
+  "finishing": {
+    "bloom": false,
+    "audio": false,
+    "animation": false
+  },
+  "quality": "One development geometry tier. Production quality policies and measured GPU budgets belong to later phases.",
+  "compositing": {
+    "maskOpacityDefault": 1,
+    "maskDepthWrite": false,
+    "maskDepthTest": false,
+    "maskFaces": "front",
+    "baseCharacter": "Always retained, including face, neck and shoulders",
+    "divider": "Removed, including white seam core, halo and jagged clipping boundary",
+    "shadow": {
+      "source": "Projected silhouette of the supplied GLB triangles",
+      "resolution": 512,
+      "blurPixels": 4,
+      "offsetXY": [
+        0.035,
+        -0.045
+      ],
+      "strength": 0.18,
+      "opacityLinked": false,
+      "receiver": "Character base surface only",
+      "visibilityScale": 0.45
+    },
+    "surface": "Full-opacity textured PBR interior; alpha blending is used only at the feathered reveal edge."
+  }
+}

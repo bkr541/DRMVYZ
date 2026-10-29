@@ -573,6 +573,25 @@ export const CINEMA2_ASSET_RECORDS = [
       "medium": 5592405,
       "low": 1398101
     }
+  },
+  {
+    "id": "switch-it",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Demon Mask by egorova.e (https://sketchfab.com/silentegor), https://sketchfab.com/3d-models/demon-mask-e8f1ddf1cd344a50bdb4a30beaff8333, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: textures resized to 1024px; portrait registration and solid red material/lighting at runtime. Character bust uses MakeHuman hm08 CC0 (Data Collection AB, Joel Palmius, Jonas Hauquier), extracted by generate-switch-it-human.mjs.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/switch-it-demon-mask.glb",
+        "bytes": 3726508,
+        "triangles": 5686
+      }
+    },
+    "gpuBytes": {
+      "high": 17028183,
+      "medium": 17028183,
+      "low": 17028183
+    }
   }
 ] as const satisfies readonly Cinema2GeneratedAssetRecord[]
 
