@@ -1,11 +1,11 @@
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
 import { useMemo, useState } from 'react'
+import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { LyricSearchFilterRow } from './LyricSearchFilterRow'
 import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
-import type { LyricManagerTrack } from '../lyricManagerTypes'
-import { trackInitials } from '../utils/lyricManagerFormat'
-import { LyricTrackVersions, type LyricTrackVersionsProps } from './LyricTrackVersions'
+import type { LyricDocumentVersion, LyricManagerTrack } from '../lyricManagerTypes'
+import { LyricDocumentSidebar } from './LyricDocumentSidebar'
 
 
 export type LyricTrackFilter =
@@ -44,8 +44,20 @@ export function filterLyricManagerTracks(
   })
 }
 
-/** The selected track's lyric versions, shown nested inside its card (plus any unattached legacy documents). */
-export type LyricTrackBrowserVersions = LyricTrackVersionsProps
+/** The selected track's lyric versions (plus any unattached legacy documents), shown in place of the track list. */
+export interface LyricTrackBrowserVersions {
+  documents: LyricDocumentVersion[]
+  legacyDocuments?: LyricDocumentVersion[]
+  loading: boolean
+  openDocumentId: string | null
+  onSelectDocument: (doc: LyricDocumentVersion) => void
+  onDuplicateDocument: (doc: LyricDocumentVersion) => void
+  onRenameDocument: (doc: LyricDocumentVersion, title: string) => void
+  onActivateDocument: (doc: LyricDocumentVersion) => void
+  onDeleteDocument: (doc: LyricDocumentVersion) => void
+  onNewDocument: () => void
+  onImportDocument: () => void
+}
 
 interface Props {
   tracks: LyricManagerTrack[]
@@ -96,9 +108,61 @@ export function LyricTrackBrowser({
     [filter, loadedAudioTrackId, search, tracks],
   )
 
+  // A selected track that has lyric versions (or unattached legacy documents to show) replaces the list with them.
+  const versionsTrack = versions && selectedTrackId ? tracks.find(track => track.dbId === selectedTrackId) : undefined
+  const showVersions = Boolean(versions && versionsTrack
+    && (versionsTrack.lyricVersionCount > 0 || versions.documents.length > 0 || (versions.legacyDocuments?.length ?? 0) > 0))
+
+  if (versions && versionsTrack && showVersions) {
+    return (
+      <section className="lmv-track-browser lmv-track-browser--versions" aria-label={`Lyric versions for ${versionsTrack.title}`}>
+        <div className="lmv-track-library-body lmv-track-view">
+          <div className="lmv-versions-head">
+            <button
+              type="button"
+              className="lmv-versions-back"
+              aria-label={`Back to tracks from ${versionsTrack.title}`}
+              onClick={() => onSelectTrack(versionsTrack)}
+            >
+              <AppIcon kind="left" size={14} color="currentColor" />
+              <span className="lmv-versions-back-copy">
+                <span className="lmv-versions-back-title">{versionsTrack.title}</span>
+                {versionsTrack.artist && <span className="lmv-versions-back-artist">{versionsTrack.artist}</span>}
+              </span>
+            </button>
+            <IconChipButton
+              icon={<AppIcon kind="fileAdd" size={14} color="currentColor" />}
+              onClick={versions.onNewDocument}
+              title="New version"
+              aria-label="New lyric version"
+            />
+            <IconChipButton
+              icon={<AppIcon kind="fileImport" size={14} color="currentColor" />}
+              onClick={versions.onImportDocument}
+              title="Import version"
+              aria-label="Import lyric version"
+            />
+          </div>
+          <LyricDocumentSidebar
+            documents={versions.documents}
+            legacyDocuments={versions.legacyDocuments}
+            loading={versions.loading}
+            openDocumentId={versions.openDocumentId}
+            hasSelectedTrack
+            onSelectDocument={versions.onSelectDocument}
+            onDuplicateDocument={versions.onDuplicateDocument}
+            onRenameDocument={versions.onRenameDocument}
+            onActivateDocument={versions.onActivateDocument}
+            onDeleteDocument={versions.onDeleteDocument}
+          />
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className="lmv-track-browser" aria-label="Stored audio tracks">
-      <div className="lmv-track-library-body">
+      <div className="lmv-track-library-body lmv-track-view">
       <LyricSearchFilterRow
         searchValue={search}
         onSearchChange={onSearchChange}
@@ -133,7 +197,7 @@ export function LyricTrackBrowser({
         {visibleTracks.map(track => {
           const selected = selectedTrackId === track.dbId
           return (
-            <div key={track.dbId} className={`lmv-track-group${selected && versions ? ' lmv-track-group--expanded' : ''}`}>
+            <div key={track.dbId} className="lmv-track-group">
               <AudioTrackCard
                 track={track}
                 onSelect={() => onSelectTrack(track)}
@@ -145,10 +209,10 @@ export function LyricTrackBrowser({
                 canOpenLyrics
                 isActive={selected}
                 selectedBadge
-                directAiExtract
                 onOpenAiExtract={() => onOpenAiExtract(track)}
                 actionsInOverflow
-                artwork={<span>{trackInitials(track)}</span>}
+                listRow
+                artistFirst
                 onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
                 onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
                 canRemove
@@ -156,13 +220,9 @@ export function LyricTrackBrowser({
                 confirmRemove={false}
                 onRemove={() => onDeleteTrack(track)}
               />
-              {selected && versions && <LyricTrackVersions {...versions} legacyDocuments={undefined} />}
             </div>
           )
         })}
-        {selectedTrackId && versions && (versions.legacyDocuments?.length ?? 0) > 0 && (
-          <LyricTrackVersions {...versions} documents={[]} loading={false} />
-        )}
       </div>
 
       {loading && <div className="lmv-track-state">Loading tracks…</div>}

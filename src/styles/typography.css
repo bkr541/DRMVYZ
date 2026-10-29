@@ -224,12 +224,6 @@
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
 
-/* Compact header engine selector uses the shared field-value role. */
-:root body .rv-engine-dropdown--header .rv-engine-dropdown-label {
-  font: var(--type-field-value);
-  letter-spacing: 0.01em;
-}
-
 /* Option E's shared header readout roles. */
 :root {
   --type-header-readout-family: 'Inter', 'Helvetica Neue', var(--font-ui), sans-serif;

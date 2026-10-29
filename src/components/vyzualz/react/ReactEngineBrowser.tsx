@@ -12,10 +12,9 @@ function ReactEngineIcon({ engineId }: { engineId: ReactEngineId }) {
 }
 
 /**
- * Engine-family switcher shared by the React header and rail previews.
+ * Engine-family switcher shown above the tab row of the React left window.
  */
-export function ReactEngineBrowser({ presetName = null, placement = 'rail' }: {
-  placement?: 'rail' | 'header'
+export function ReactEngineBrowser({ presetName = null }: {
   /** The active engine's selected preset, shown under the engine name (Cinema 2.0 and CANVAS). */
   presetName?: string | null
 } = {}) {
@@ -56,7 +55,7 @@ export function ReactEngineBrowser({ presetName = null, placement = 'rail' }: {
   }
 
   return (
-    <div className={`rv-engine-dropdown${placement === 'header' ? ' rv-engine-dropdown--header' : ''}`} ref={rootRef}>
+    <div className="rv-engine-dropdown" ref={rootRef}>
       <button
         type="button"
         className="rv-engine-dropdown-trigger"

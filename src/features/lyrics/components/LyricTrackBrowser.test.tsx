@@ -117,15 +117,17 @@ describe('LyricTrackBrowser', () => {
     expect(baseProps.onLoadTrack).not.toHaveBeenCalled()
   })
 
-  it('renders each track as a flat list row led by an artwork tile with the title initials', async () => {
+  it('renders each track as a list row with no artwork tile and the artist above the title', async () => {
     await render({
       tracks: [track({ title: 'MPH - Raw (UrBoiN8 Remix)', artist: 'UrBoiN8' }), track({ dbId: 'track-b', id: 'audio-track-b', title: 'POP', artist: 'DVYDMR' })],
     })
     const rows = [...container.querySelectorAll<HTMLElement>('.vz-track-row--list')]
     expect(rows).toHaveLength(2)
-    // The dash in "MPH - Raw" is a separator, not an initial.
-    expect(rows.map(row => row.querySelector('.vz-track-row-art')?.textContent)).toEqual(['MR', 'PD'])
-    expect(rows[0]?.querySelector('.vz-track-row-art')?.getAttribute('aria-hidden')).toBe('true')
+    expect(container.querySelector('.vz-track-row-art')).toBeNull()
+    const lines = [...rows[0]!.querySelector('.vz-track-row-info')!.children].map(line => line.className)
+    expect(lines).toEqual(['vz-track-row-artist', 'vz-track-row-title-line', 'vz-track-row-details'])
+    expect(rows[0]!.querySelector('.vz-track-row-artist')?.textContent).toBe('UrBoiN8')
+    expect(rows[0]!.querySelector('.vz-track-row-title')?.textContent).toBe('MPH - Raw (UrBoiN8 Remix)')
   })
 
   it('forwards title-or-artist search and incremental loading actions', async () => {
@@ -152,10 +154,10 @@ describe('LyricTrackBrowser', () => {
   }
   const menuItem = (items: HTMLElement[], label: string) => items.find(item => item.textContent?.trim() === label)
 
-  it('keeps Load and AI Extract on the row and moves the other actions into a more menu — no inline delete', async () => {
+  it('keeps only the more button on the row, with every action as a text item in its menu — no inline delete', async () => {
     await render()
 
-    expect(rowActionLabels()).toEqual(['Load Reverie', 'AI extract lyrics for Reverie', 'More actions for Reverie'])
+    expect(rowActionLabels()).toEqual(['More actions for Reverie'])
     expect(container.querySelector('.vz-track-remove-btn')).toBeNull()
     expect(document.querySelector('[role="menu"]')).toBeNull()
   })
@@ -166,7 +168,7 @@ describe('LyricTrackBrowser', () => {
     await render({ onOpenActiveLyrics, onSelectTrack })
 
     const items = await openOverflowMenu()
-    expect(items.map(item => item.textContent?.trim())).toEqual(['Open Active Lyrics', 'Delete Track'])
+    expect(items.map(item => item.textContent?.trim())).toEqual(['Load Track', 'AI Extract Lyrics', 'Open Active Lyrics', 'Delete Track'])
     await act(async () => menuItem(items, 'Open Active Lyrics')!.click())
 
     expect(onOpenActiveLyrics).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
@@ -175,7 +177,7 @@ describe('LyricTrackBrowser', () => {
 
     await render({ tracks: [track({ activeLyricDocumentId: null, activeLyricDocumentName: null })] })
     const withoutActive = await openOverflowMenu()
-    expect(withoutActive.map(item => item.textContent?.trim())).toEqual(['Delete Track'])
+    expect(withoutActive.map(item => item.textContent?.trim())).toEqual(['Load Track', 'AI Extract Lyrics', 'Delete Track'])
   })
 
   it('offers Make Open Version Active only when the parent allows it, and delegates to the parent handler', async () => {
@@ -184,7 +186,7 @@ describe('LyricTrackBrowser', () => {
     await render({ onMakeOpenVersionActive, canMakeOpenVersionActive })
 
     const items = await openOverflowMenu()
-    expect(items.map(item => item.textContent?.trim())).toEqual(['Open Active Lyrics', 'Make Open Version Active', 'Delete Track'])
+    expect(items.map(item => item.textContent?.trim())).toEqual(['Load Track', 'AI Extract Lyrics', 'Open Active Lyrics', 'Make Open Version Active', 'Delete Track'])
     await act(async () => menuItem(items, 'Make Open Version Active')!.click())
     expect(onMakeOpenVersionActive).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
 
@@ -220,31 +222,28 @@ describe('LyricTrackBrowser', () => {
     expect(onRetry).toHaveBeenCalledOnce()
   })
 
-  it('loads the saved track without automatically playing from the card action button', async () => {
+  it('loads the saved track without automatically playing from the Load Track menu item', async () => {
     const onLoadTrack = vi.fn()
     const onSelectTrack = vi.fn()
     await render({ onLoadTrack, onSelectTrack })
 
-    const loadBtn = [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
-      .find(button => button.getAttribute('aria-label') === 'Load Reverie')!
-    await act(async () => loadBtn.click())
+    const items = await openOverflowMenu()
+    await act(async () => menuItem(items, 'Load Track')!.click())
 
     expect(onLoadTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }), false)
     expect(onSelectTrack).not.toHaveBeenCalled()
   })
 
-  it('runs AI extract directly from the card action button', async () => {
+  it('runs AI extract from the AI Extract Lyrics menu item', async () => {
     const onOpenAiExtract = vi.fn()
     const onSelectTrack = vi.fn()
     await render({ onOpenAiExtract, onSelectTrack })
 
-    const aiBtn = [...container.querySelectorAll<HTMLButtonElement>('.vz-track-action-btn')]
-      .find(button => button.getAttribute('aria-label') === 'AI extract lyrics for Reverie')!
-    await act(async () => aiBtn.click())
+    const items = await openOverflowMenu()
+    await act(async () => menuItem(items, 'AI Extract Lyrics')!.click())
 
     expect(onOpenAiExtract).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
     expect(onSelectTrack).not.toHaveBeenCalled()
-    expect(document.querySelector('[role="menu"]')).toBeNull()
   })
 
   it('combines repository-native filters with search and loaded-track identity', () => {
@@ -275,11 +274,13 @@ describe('LyricTrackBrowser', () => {
     expect(selected?.querySelector('.sr-only')?.textContent).toBe('Selected')
   })
 
-  it('nests the selected track\'s lyric versions inside its group, using the track-row styling and an indent', async () => {
+  it('replaces the track list with the selected track\'s lyric versions, under a back row naming the track and artist', async () => {
     const handlers = versionHandlers()
+    const onSelectTrack = vi.fn()
     await render({
       tracks: [track(), track({ dbId: 'track-b', id: 'audio-track-b', title: 'POP' })],
       selectedTrackId: 'track-a',
+      onSelectTrack,
       versions: {
         documents: [version(), version({ id: 'doc-b', title: 'Alternate Lyrics', isActive: false, cueCount: 0 })],
         loading: false,
@@ -288,33 +289,50 @@ describe('LyricTrackBrowser', () => {
       },
     })
 
-    const groups = [...container.querySelectorAll<HTMLElement>('.lmv-track-group')]
-    expect(groups).toHaveLength(2)
-    expect(groups[0]!.classList.contains('lmv-track-group--expanded')).toBe(true)
-    // Only the selected track expands, and the versions sit after its card within the same group.
-    expect(groups[1]!.querySelector('.lmv-track-versions')).toBeNull()
-    const rows = [...groups[0]!.querySelectorAll<HTMLElement>('.lmv-track-versions .vz-track-row.vz-track-row--list')]
-    expect(rows.map(row => row.querySelector('.vz-track-row-title')?.textContent)).toEqual(['Approved Lyrics', 'Alternate Lyrics'])
-    expect(groups[0]!.firstElementChild!.classList.contains('vz-track-row')).toBe(true)
-    expect(rows[0]!.classList.contains('lmv-version-row--active')).toBe(true)
-    expect(rows[1]!.classList.contains('lmv-version-row--open')).toBe(true)
+    // The track group is gone, including the other tracks and the track search.
+    expect(container.querySelector('.lmv-track-group')).toBeNull()
+    expect(container.querySelector('.lmv-track-grid')).toBeNull()
+    expect(container.querySelector('input[aria-label="Search tracks by title or artist"]')).toBeNull()
+    expect(container.textContent).not.toContain('POP')
 
-    await act(async () => rows[1]!.click())
+    const back = container.querySelector<HTMLButtonElement>('.lmv-versions-back')!
+    expect(back.querySelector('svg')).not.toBeNull()
+    expect(back.querySelector('.lmv-versions-back-title')?.textContent).toBe('Reverie')
+    expect(back.querySelector('.lmv-versions-back-artist')?.textContent).toBe('DVYDRM')
+
+    const cards = [...container.querySelectorAll<HTMLElement>('.lmv-doc-card')]
+    expect(cards.map(card => card.querySelector('.lmv-doc-card-title')?.textContent)).toEqual(['Approved Lyrics', 'Alternate Lyrics'])
+    expect(cards[0]!.classList.contains('lmv-doc-card--active')).toBe(true)
+    expect(cards[1]!.classList.contains('lmv-doc-card--open')).toBe(true)
+
+    await act(async () => cards[1]!.querySelector<HTMLButtonElement>('.lmv-doc-card-main')!.click())
     expect(handlers.onSelectDocument).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-b' }))
-    expect(baseProps.onSelectTrack).not.toHaveBeenCalled()
+    expect(onSelectTrack).not.toHaveBeenCalled()
 
-    // Row actions act on the version and never on the parent track or row selection.
-    const select = handlers.onSelectDocument.mock.calls.length
-    const duplicate = rows[0]!.querySelector<HTMLButtonElement>('button[aria-label="Duplicate"]')!
-    await act(async () => duplicate.click())
+    // Card actions act on the version and never on the track or the back row.
+    await act(async () => cards[0]!.querySelector<HTMLButtonElement>('button[aria-label="Duplicate"]')!.click())
     expect(handlers.onDuplicateDocument).toHaveBeenCalledWith(expect.objectContaining({ id: 'doc-a' }))
-    expect(handlers.onSelectDocument.mock.calls.length).toBe(select)
-    expect(baseProps.onSelectTrack).not.toHaveBeenCalled()
+    expect(onSelectTrack).not.toHaveBeenCalled()
 
     await act(async () => (container.querySelector('button[aria-label="New lyric version"]') as HTMLButtonElement).click())
     await act(async () => (container.querySelector('button[aria-label="Import lyric version"]') as HTMLButtonElement).click())
     expect(handlers.onNewDocument).toHaveBeenCalledTimes(1)
     expect(handlers.onImportDocument).toHaveBeenCalledTimes(1)
+
+    // The back row hands the track to the parent, which owns the unsaved-changes prompt and the deselect.
+    await act(async () => back.click())
+    expect(onSelectTrack).toHaveBeenCalledWith(expect.objectContaining({ dbId: 'track-a' }))
+  })
+
+  it('returns to the track list once the track is deselected', async () => {
+    const handlers = versionHandlers()
+    const versions = { documents: [version()], loading: false, openDocumentId: null, ...handlers }
+    await render({ selectedTrackId: 'track-a', versions })
+    expect(container.querySelector('.lmv-versions-back')).not.toBeNull()
+
+    await render({ selectedTrackId: null, versions })
+    expect(container.querySelector('.lmv-versions-back')).toBeNull()
+    expect(container.querySelectorAll('.lmv-track-group')).toHaveLength(1)
   })
 
   it('renames a version inline without selecting it', async () => {
@@ -332,13 +350,17 @@ describe('LyricTrackBrowser', () => {
     expect(handlers.onSelectDocument).not.toHaveBeenCalled()
   })
 
-  it('shows no version rows for a selected track without versions, a loading line while fetching, and unattached documents un-nested', async () => {
+  it('keeps the track list for a selected track without versions, and shows loading and unattached documents in the versions view', async () => {
     const handlers = versionHandlers()
-    await render({ selectedTrackId: 'track-a', versions: { documents: [], loading: false, openDocumentId: null, ...handlers } })
-    expect(container.querySelector('.lmv-track-versions')).toBeNull()
+    const empty = track({ lyricVersionCount: 0, activeLyricDocumentId: null, activeLyricDocumentName: null })
+    await render({ tracks: [empty], selectedTrackId: 'track-a', versions: { documents: [], loading: false, openDocumentId: null, ...handlers } })
+    expect(container.querySelector('.lmv-versions-back')).toBeNull()
+    expect(container.querySelectorAll('.lmv-track-group')).toHaveLength(1)
 
+    // The track is known to have versions that are still being fetched.
     await render({ selectedTrackId: 'track-a', versions: { documents: [], loading: true, openDocumentId: null, ...handlers } })
-    expect(container.querySelector('.lmv-track-versions')?.textContent).toContain('Loading lyric versions')
+    expect(container.querySelector('.lmv-versions-back')).not.toBeNull()
+    expect(container.textContent).toContain('Loading lyric versions')
 
     await render({
       selectedTrackId: 'track-a',
@@ -350,13 +372,10 @@ describe('LyricTrackBrowser', () => {
         ...handlers,
       },
     })
-    const nested = container.querySelector('.lmv-track-group .lmv-track-versions')!
-    expect(nested.textContent).toContain('Approved Lyrics')
-    expect(nested.textContent).not.toContain('Old Import')
-    const legacy = container.querySelector('.lmv-track-versions--legacy')!
-    expect(legacy.closest('.lmv-track-group')).toBeNull()
-    expect(legacy.textContent).toContain('Old Import')
-    expect(legacy.textContent).toContain('Unattached')
+    expect(container.textContent).toContain('Approved Lyrics')
+    expect(container.textContent).toContain('LEGACY UNATTACHED DOCUMENTS')
+    expect(container.textContent).toContain('Old Import')
+    expect(container.textContent).toContain('Unattached')
   })
 
 })

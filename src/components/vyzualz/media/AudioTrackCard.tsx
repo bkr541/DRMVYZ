@@ -34,11 +34,15 @@ export interface AudioTrackCardProps {
   /** Lyric Manager: replace the lyric-actions menu button with a single direct
    *  "AI Extract" icon button (calls `onOpenAiExtract`). */
   directAiExtract?: boolean
-  /** Lyric Manager: keep the row to Load / AI Extract and move Open Active Lyrics,
-   *  Make Active Version and Delete Track into one "more" (⋯) menu. Items appear only
-   *  when their handler is supplied (`onOpenActiveLyrics`, `onMakeActiveVersion`,
-   *  `canRemove` + `onRemove`). */
+  /** Lyric Manager: the row's only action is one "more" (⋯) button; Load, AI Extract, Open Active Lyrics,
+   *  Make Active Version and Delete Track are text items in its menu. Items appear only when their
+   *  handler is supplied (`canLoad`, `canOpenLyrics` + `onOpenAiExtract`, `onOpenActiveLyrics`,
+   *  `onMakeActiveVersion`, `canRemove` + `onRemove`). */
   actionsInOverflow?: boolean
+  /** Render the card as a list row (see `artwork`) without an artwork tile. */
+  listRow?: boolean
+  /** List row: the artist line sits above the title line. */
+  artistFirst?: boolean
   /** Lyric Manager: render the card as a flat list row (hairline-separated, no card chrome) led by a
    *  square artwork tile holding this content (e.g. the title initials; tracks have no artwork field). */
   artwork?: ReactNode
@@ -78,9 +82,12 @@ export function AudioTrackCard({
   confirmRemove = true,
   directAiExtract,
   actionsInOverflow,
+  listRow,
+  artistFirst,
   artwork,
 }: AudioTrackCardProps) {
-  const iconSize = artwork ? 15 : 13
+  const list = Boolean(artwork) || Boolean(listRow)
+  const iconSize = list ? 15 : 13
   const [lyricsMenu, setLyricsMenu] = useState<{ x: number; y: number } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const requestRemove = () => {
@@ -89,6 +96,15 @@ export function AudioTrackCard({
   }
   const overflowItems: ContextActionMenuItem[] = actionsInOverflow
     ? [
+        ...(canLoad
+          ? [{
+              id: 'load',
+              label: loading ? 'Loading…' : loaded ? 'Reload Track' : 'Load Track',
+              disabled: loading,
+              onSelect: onLoad,
+            }]
+          : []),
+        ...(canOpenLyrics && onOpenAiExtract ? [{ id: 'extract', label: 'AI Extract Lyrics', onSelect: onOpenAiExtract }] : []),
         ...(onOpenActiveLyrics ? [{ id: 'active', label: 'Open Active Lyrics', onSelect: onOpenActiveLyrics }] : []),
         ...(onMakeActiveVersion ? [{ id: 'make-active', label: 'Make Open Version Active', onSelect: onMakeActiveVersion }] : []),
         ...(canRemove && onRemove
@@ -96,7 +112,7 @@ export function AudioTrackCard({
               id: 'delete',
               label: 'Delete Track',
               danger: true,
-              dividerBefore: Boolean(onOpenActiveLyrics || onMakeActiveVersion),
+              dividerBefore: Boolean(canLoad || onOpenActiveLyrics || onMakeActiveVersion || (canOpenLyrics && onOpenAiExtract)),
               onSelect: requestRemove,
             }]
           : []),
@@ -116,7 +132,7 @@ export function AudioTrackCard({
 
   return (
     <div
-      className={`vz-track-row${artwork ? ' vz-track-row--list' : ''}${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
+      className={`vz-track-row${list ? ' vz-track-row--list' : ''}${loaded ? ' vz-track-row--loaded' : ''}${playing ? ' vz-track-row--playing' : ''}${isActive ? ' vz-track-row--active' : ''}`}
       onClick={onSelect}
       role={onSelect ? 'button' : undefined}
       aria-pressed={onSelect ? Boolean(isActive) : undefined}
@@ -125,6 +141,7 @@ export function AudioTrackCard({
     >
       {artwork && <div className="vz-track-row-art vz-track-row-art--list" aria-hidden="true">{artwork}</div>}
       <div className="vz-track-row-info">
+        {artistFirst && track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
           <span className="vz-track-row-state-badges">
@@ -138,12 +155,12 @@ export function AudioTrackCard({
             {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
           </span>
         </div>
-        {track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
+        {!artistFirst && track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
         {details.length > 0 && <div className="vz-track-row-details">{details.join(' · ')}</div>}
         {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
       </div>
       <div className="vz-track-row-actions">
-        {canLoad && (
+        {canLoad && !actionsInOverflow && (
           <button
             type="button"
             className="vz-track-action-btn"
@@ -155,7 +172,7 @@ export function AudioTrackCard({
             <AppIcon kind="download" size={iconSize} color="currentColor" />
           </button>
         )}
-        {canOpenLyrics && directAiExtract && onOpenAiExtract && (
+        {canOpenLyrics && directAiExtract && !actionsInOverflow && onOpenAiExtract && (
           <button
             type="button"
             className="vz-track-action-btn"

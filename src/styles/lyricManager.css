@@ -3369,68 +3369,105 @@
   height: 5px;
 }
 
-/* A track and its lyric versions are one group: the versions are child rows of the selected track's card.
-   They reuse the track-row classes (type size, colours, hairlines, washes, bare icon actions) and differ only
-   by an extra left indent, plus a hairline guide that ties them to the parent. */
+/* Tracks and lyric versions are cards: a slight wash and hairline border, rounded, with a gap between them.
+   The track list's old flat rows bled to the rail edges; cards stay on the 12px content line instead. */
 .lmv-track-group { display: flex; flex-direction: column; }
-.lmv-track-versions { position: relative; display: flex; flex-direction: column; }
-.lmv-track-versions::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--workspace-rail-inset) + 20px);
-  width: 1px;
-  background: rgba(154, 178, 188, 0.2);
-  pointer-events: none;
+.lmv-left-rail .lmv-track-grid {
+  gap: 8px;
+  margin-inline: 0;
+  padding-right: 0;
 }
-.lmv-left-rail .lmv-track-versions .vz-track-row.vz-track-row--list {
-  padding-left: calc(var(--workspace-rail-inset) + 34px);
-  padding-right: var(--workspace-rail-inset);
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list,
+.lmv-left-rail .lmv-doc-card {
+  box-sizing: border-box;
+  border: 1px solid rgba(126, 218, 232, 0.14);
+  border-radius: 10px;
+  background: rgba(154, 178, 188, 0.05);
+  box-shadow: none;
 }
-.lmv-left-rail .lmv-track-versions .vz-track-row--list::after {
-  left: calc(var(--workspace-rail-inset) + 34px);
-  right: var(--workspace-rail-inset);
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list { padding: 8px 12px; }
+.lmv-left-rail .lmv-doc-card { padding: 10px 14px; }
+.lmv-left-rail .lmv-track-grid .vz-track-row--list::after,
+.lmv-left-rail .lmv-doc-card::after { content: none; }
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list:hover,
+.lmv-left-rail .lmv-doc-card:hover {
+  border-color: rgba(126, 218, 232, 0.24);
+  background: rgba(154, 178, 188, 0.08);
 }
-.lmv-track-versions .vz-track-row--list .vz-track-row-title.lmv-version-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list.vz-track-row--loaded,
+.lmv-left-rail .lmv-doc-card.lmv-doc-card--open {
+  border-color: rgba(74, 199, 219, 0.32);
+  background: rgba(74, 199, 219, 0.08);
 }
-.lmv-track-versions .lmv-doc-rename-row { width: 100%; }
-.lmv-track-versions .vz-track-action-btn.lmv-version-delete:hover:not(:disabled) { color: #f87171; }
-.lmv-track-versions--status {
-  padding: 10px var(--workspace-rail-inset) 10px calc(var(--workspace-rail-inset) + 34px);
-  color: rgba(196, 207, 211, 0.5);
-  font-size: 9px;
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list.vz-track-row--active,
+.lmv-left-rail .lmv-doc-card.lmv-doc-card--active {
+  border-color: rgba(74, 199, 219, 0.6);
+  background: rgba(74, 199, 219, 0.12);
+  box-shadow: none;
 }
-.lmv-track-versions-actions {
+
+/* The versions view replaces the track list: a back row (arrow, track title, artist), then the version cards.
+   It animates in, the same way the track list does when the user comes back. */
+.lmv-track-view { animation: lmv-track-view-in 200ms ease-out both; }
+@keyframes lmv-track-view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lmv-track-view { animation: none; }
+}
+.lmv-versions-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 8px var(--workspace-rail-inset) 8px calc(var(--workspace-rail-inset) + 34px);
+  gap: 6px;
 }
-.lmv-track-versions-add {
-  display: inline-flex;
+.lmv-versions-back {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   align-items: center;
-  gap: 5px;
-  padding: 0;
+  gap: 10px;
+  padding: 4px 6px 4px 0;
   border: 0;
   background: none;
   color: rgba(205, 216, 221, 0.72);
   font: inherit;
-  font-size: 9px;
+  text-align: left;
   cursor: pointer;
   transition: color 0.12s;
 }
-.lmv-track-versions-add:hover { color: #67f7ff; }
-.lmv-track-versions-add:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 3px; }
-/* Unattached legacy documents are not children of any track: no indent, no guide line. */
-.lmv-track-versions--legacy::before { content: none; }
-.lmv-left-rail .lmv-track-versions--legacy .vz-track-row.vz-track-row--list { padding-left: var(--workspace-rail-inset); }
-.lmv-left-rail .lmv-track-versions--legacy .vz-track-row--list::after { left: var(--workspace-rail-inset); }
-.lmv-track-versions--legacy .lmv-doc-section-label,
-.lmv-track-versions--legacy .lmv-doc-legacy-note { margin-inline: var(--workspace-rail-inset); }
+.lmv-versions-back:hover { color: #67f7ff; }
+.lmv-versions-back:focus-visible { outline: 2px solid rgba(103, 247, 255, 0.7); outline-offset: 2px; border-radius: 4px; }
+.lmv-versions-back > svg { flex: 0 0 auto; }
+.lmv-versions-back-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.lmv-versions-back-title {
+  overflow: hidden;
+  color: rgba(245, 248, 250, 0.96);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmv-versions-back-artist {
+  overflow: hidden;
+  color: #4ac7db;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lmv-track-browser--versions .lmv-doc-sidebar {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+}
+.lmv-track-browser--versions .lmv-doc-sidebar .lmv-lyric-versions-body { margin-top: 0; padding: 0 0 8px; }
+.lmv-track-browser--versions .lmv-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
 .lmv-left-rail .lmv-workspace-tab-panel .drc-body {
   padding-inline: 0;
 }

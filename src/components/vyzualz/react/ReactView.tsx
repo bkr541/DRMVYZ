@@ -662,7 +662,6 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
             <ReactGlobalOutputControls />
           </HeaderControlGroup>
 
-          <ReactEngineBrowser presetName={activeEnginePresetName} placement="header" />
           <span className="az-spacer" />
           <VyzualzHeaderActions
             page="react"
@@ -713,6 +712,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               className="rv-context-workspace"
               aria-label={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace`}
             >
+              <header className="rv-context-workspace-header">
+                <ReactEngineBrowser presetName={activeEnginePresetName} />
+              </header>
               <div className="rv-workspace-tabs-wrap">
                 <RailTabs
                   tabs={leftTabs}

@@ -26,14 +26,10 @@ checks passed again, including full visibility of normal quality/save values.
 Shared typography is unchanged. Lint and diff whitespace checks passed; changes
 remain uncommitted.
 
-The production React engine selector now sits at the horizontal centre of the top
-header, independently of the left action toolbar and right status cluster. The
-left workspace no longer repeats it. The compact header placement keeps the same
-engine/preset labels, store action, menu choices, Escape and outside-click behavior;
-rail previews retain their original presentation. Header label typography uses the
-shared field-value role in `src/styles/typography.css`.
-At widths up to 1100px the selector narrows, and the existing loading/save stack
-moves beside the left actions to keep all fixed-width readings clear of it.
+The React engine selector briefly sat at the horizontal centre of the top header.
+It has been moved back into the left React window, above the tab row, and the
+header-only placement variant and its CSS were removed. The header now holds only
+the left action toolbar and the right status cluster.
 
 Selector relocation validation: 89 browser checks passed, including centering and
 telemetry clearance at 1440/1280/1024px, shared typography, engine selection, Escape
