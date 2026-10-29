@@ -36,8 +36,9 @@ import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRow
 import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
-import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
 import { TagsCollectionsGroup } from '../media/MediaManagerInspector'
+import { CartIcon, PresetStore } from './PresetStore'
 import {
   PRESET_MANAGER_PRESETS,
   type PresetManagerArtwork,
@@ -47,6 +48,13 @@ import '../../../styles/reactView.css'
 
 type PresetManagerTab = 'presets' | 'favorites' | 'custom'
 type PresetManagerInspectorTab = 'info' | 'design' | 'react' | 'output'
+type PresetManagerStageTab = 'visualizer' | 'store' | 'downloads'
+
+const PRESET_MANAGER_STAGE_TABS: readonly UnderlineTabOption<PresetManagerStageTab>[] = [
+  { id: 'visualizer', label: 'Visualizer', icon: <AppIcon kind="waveform" size={14} color="currentColor" aria-hidden="true" /> },
+  { id: 'store', label: 'Store', icon: <CartIcon size={14} /> },
+  { id: 'downloads', label: 'My Downloads', icon: <AppIcon kind="download" size={14} color="currentColor" aria-hidden="true" /> },
+]
 
 const PRESET_MANAGER_TABS = [
   { id: 'presets', label: 'Presets' },
@@ -184,6 +192,7 @@ function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { 
 
 export function PresetManagerView() {
   const [tab, setTab] = useState<PresetManagerTab>('presets')
+  const [stageTab, setStageTab] = useState<PresetManagerStageTab>('visualizer')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [selectedId, setSelectedId] = useState(PRESET_MANAGER_PRESETS[0]?.id ?? '')
@@ -338,7 +347,7 @@ export function PresetManagerView() {
     setCinema2Runtime(null)
     setCinema2RuntimeSnapshot(null)
     setOutputCanvas(null)
-  }, [selectedId])
+  }, [selectedId, stageTab])
 
   const renderInspectorPanel = () => {
     if (!selectedPreset) return null
@@ -432,7 +441,21 @@ export function PresetManagerView() {
             </div>
           </WorkspaceRail>
           <div className="pmv-stage fw-surface" aria-label="Preset Manager detail workspace">
-            {selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
+            <UnderlineTabs
+              tabs={PRESET_MANAGER_STAGE_TABS}
+              activeTab={stageTab}
+              onChange={setStageTab}
+              ariaLabel="Preset Manager workspace views"
+              className="pmv-stage-tabs"
+            />
+            {stageTab === 'store' ? (
+              <PresetStore />
+            ) : stageTab === 'downloads' ? (
+              <section className="pms-downloads" aria-label="My Downloads">
+                <h3>My Downloads</h3>
+                <p>Packs and presets you download will appear here. Coming soon.</p>
+              </section>
+            ) : selectedPreset?.activation === 'cinema2' && selectedCinema2PresetId && CAN_HOST_CINEMA2_STAGE ? (
               <Cinema2Stage
                 presetId={selectedCinema2PresetId}
                 restoreState={cinema2RestoreState as Readonly<Cinema2WorkspacePresetState> | null}

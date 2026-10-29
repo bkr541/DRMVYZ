@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import './canonicalControls.css'
 
 export interface UnderlineTabOption<T extends string> {
@@ -8,6 +9,8 @@ export interface UnderlineTabOption<T extends string> {
   buttonId?: string
   title?: string
   ariaControls?: string
+  /** Optional leading icon, drawn before the label. */
+  icon?: ReactNode
 }
 
 export interface UnderlineTabsProps<T extends string> {
@@ -46,6 +49,7 @@ export function UnderlineTabs<T extends string>({
           className={`dv-underline-tab${activeTab === tab.id ? ' is-active' : ''}`}
           onClick={() => onChange(tab.id)}
         >
+          {tab.icon}
           {tab.label}
         </button>
       ))}
