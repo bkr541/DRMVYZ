@@ -3,7 +3,7 @@
 
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PresetManagerView } from './PresetManagerView'
 import { usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import {
@@ -13,6 +13,13 @@ import {
   matchStoreItems,
   storeSectionItems,
 } from './storeCatalog'
+
+// The Store reads the database; these tests run against the sample catalog instead.
+vi.mock('./storeCatalogSource', async importOriginal => {
+  const original = await importOriginal<typeof import('./storeCatalogSource')>()
+  const { MOCK_STORE_CATALOG: catalog } = await import('./storeCatalog')
+  return { ...original, useStoreCatalogSource: () => ({ status: 'database' as const, catalog }) }
+})
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null

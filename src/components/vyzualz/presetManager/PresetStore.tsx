@@ -146,7 +146,7 @@ function SectionHeader({ title, onViewAll }: { title: string; onViewAll?: () => 
   )
 }
 
-export function PresetStore({ catalog = MOCK_STORE_CATALOG }: { catalog?: StoreCatalog }) {
+export function PresetStore({ catalog = MOCK_STORE_CATALOG, notice }: { catalog?: StoreCatalog; notice?: string }) {
   const [query, setQuery] = useState(DEFAULT_STORE_QUERY)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [section, setSection] = useState<StoreSectionId | null>(null)
@@ -187,6 +187,7 @@ export function PresetStore({ catalog = MOCK_STORE_CATALOG }: { catalog?: StoreC
 
   return (
     <div className="pms-root" role="tabpanel" aria-label="Preset Store">
+      {notice && <p className="pms-notice" role="status">{notice}</p>}
       <div className="pms-toolbar">
         <PresetSearchRow
           className="pms-search"

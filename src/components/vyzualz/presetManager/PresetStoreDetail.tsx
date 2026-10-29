@@ -24,7 +24,9 @@ function StorePreview({ name, engine, art, position }: { name: string; engine: s
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+/** A row the catalog has no value for is left out rather than shown empty. */
+function DetailRow({ label, value }: { label: string; value: string | undefined }) {
+  if (!value) return null
   return (
     <div className="pms-detail-row">
       <dt>{label}</dt>
@@ -95,7 +97,7 @@ export function PresetStoreDetail({ item, favorite, onToggleFavorite, onBack }: 
                 <span className="pms-content-copy">
                   <strong>{preset.name}</strong>
                   <span className="pms-content-engine">{preset.engine}</span>
-                  <span className="pms-content-desc">{preset.description}</span>
+                  {preset.description && <span className="pms-content-desc">{preset.description}</span>}
                 </span>
                 {index === previewIndex && <span className="pms-content-state">Previewing</span>}
               </button>
@@ -113,10 +115,10 @@ export function PresetStoreDetail({ item, favorite, onToggleFavorite, onBack }: 
           <DetailRow label="Category" value={details.category} />
           <DetailRow label="Author" value={details.author} />
           <DetailRow label="Version" value={details.version} />
-          <DetailRow label="Download Size" value={`${details.sizeMb} MB`} />
+          <DetailRow label="Download Size" value={details.sizeMb === undefined ? undefined : `${details.sizeMb} MB`} />
           <DetailRow label="Released" value={formatStoreDate(item.releasedAt)} />
           <DetailRow label="License" value={details.license} />
-          <DetailRow label="Tags" value={details.tags.join(', ')} />
+          <DetailRow label="Tags" value={details.tags.length > 0 ? details.tags.join(', ') : undefined} />
         </dl>
       </section>
     </article>

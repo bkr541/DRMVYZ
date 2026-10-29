@@ -311,3 +311,6 @@
 .pms-detail-row { display: flex; flex-direction: column; gap: 5px; padding: 9px 0; border-bottom: 1px solid rgba(154, 178, 188, 0.12); }
 .pms-detail-row dt { color: rgba(196, 207, 211, 0.6); font: var(--type-field-label); }
 .pms-detail-row dd { margin: 0; color: rgba(232, 238, 240, 0.92); font: var(--type-field-value); overflow-wrap: anywhere; }
+
+/* Says why the sample catalog is showing */
+.pms-notice { flex-shrink: 0; margin: 0; padding: 7px 10px; border: 1px solid rgba(216, 185, 90, 0.35); border-radius: 4px; color: rgba(232, 214, 150, 0.9); background: rgba(216, 185, 90, 0.07); font-size: 10px; }

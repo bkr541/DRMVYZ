@@ -38,7 +38,8 @@ import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
 import { TagsCollectionsGroup } from '../media/MediaManagerInspector'
-import { CartIcon, PresetStore } from './PresetStore'
+import { LivePresetStore } from './LivePresetStore'
+import { CartIcon } from './PresetStore'
 import {
   PRESET_MANAGER_PRESETS,
   type PresetManagerArtwork,
@@ -449,7 +450,7 @@ export function PresetManagerView() {
               className="pmv-stage-tabs"
             />
             {stageTab === 'store' ? (
-              <PresetStore />
+              <LivePresetStore />
             ) : stageTab === 'downloads' ? (
               <section className="pms-downloads" aria-label="My Downloads">
                 <h3>My Downloads</h3>

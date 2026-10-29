@@ -15,18 +15,20 @@ export interface StoreArtSpec {
 export interface StorePackPreset {
   id: string
   name: string
+  /** Empty when the catalog has no description for this preset. */
   description: string
   engine: string
   art: StoreArtSpec
 }
 
+/** Everything but the tags is optional: a catalog row may not carry an author, category, size or license. */
 export interface StoreItemDetails {
-  author: string
-  version: string
-  category: string
+  author?: string
+  version?: string
+  category?: string
   tags: readonly string[]
-  sizeMb: number
-  license: string
+  sizeMb?: number
+  license?: string
 }
 
 export interface StoreItem {
