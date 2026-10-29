@@ -34,14 +34,15 @@ export interface AudioTrackCardProps {
   /** Lyric Manager: replace the lyric-actions menu button with a single direct
    *  "AI Extract" icon button (calls `onOpenAiExtract`). */
   directAiExtract?: boolean
-  /** Lyric Manager: the row's only action is one "more" (⋯) button; Load, AI Extract, Open Active Lyrics,
-   *  Make Active Version and Delete Track are text items in its menu. Items appear only when their
-   *  handler is supplied (`canLoad`, `canOpenLyrics` + `onOpenAiExtract`, `onOpenActiveLyrics`,
-   *  `onMakeActiveVersion`, `canRemove` + `onRemove`). */
+  /** Lyric Manager: the row's actions are an Open Active Lyrics icon (when `onOpenActiveLyrics` is supplied)
+   *  and one "more" (⋯) button; Load, AI Extract, Make Active Version and Delete Track are text items in
+   *  its menu. Items appear only when their handler is supplied (`canLoad`, `canOpenLyrics` +
+   *  `onOpenAiExtract`, `onMakeActiveVersion`, `canRemove` + `onRemove`). */
   actionsInOverflow?: boolean
-  /** Render the card as a list row (see `artwork`) without an artwork tile. */
+  /** Render the card as a list row (see `artwork`) without an artwork tile. Duration, BPM and key then show as
+   *  separate values, each under its own label, instead of one dotted line. */
   listRow?: boolean
-  /** List row: the artist line sits above the title line. */
+  /** List row: the artist line sits above the title line, with the state badges right-aligned on it. */
   artistFirst?: boolean
   /** Lyric Manager: render the card as a flat list row (hairline-separated, no card chrome) led by a
    *  square artwork tile holding this content (e.g. the title initials; tracks have no artwork field). */
@@ -105,14 +106,13 @@ export function AudioTrackCard({
             }]
           : []),
         ...(canOpenLyrics && onOpenAiExtract ? [{ id: 'extract', label: 'AI Extract Lyrics', onSelect: onOpenAiExtract }] : []),
-        ...(onOpenActiveLyrics ? [{ id: 'active', label: 'Open Active Lyrics', onSelect: onOpenActiveLyrics }] : []),
         ...(onMakeActiveVersion ? [{ id: 'make-active', label: 'Make Open Version Active', onSelect: onMakeActiveVersion }] : []),
         ...(canRemove && onRemove
           ? [{
               id: 'delete',
               label: 'Delete Track',
               danger: true,
-              dividerBefore: Boolean(canLoad || onOpenActiveLyrics || onMakeActiveVersion || (canOpenLyrics && onOpenAiExtract)),
+              dividerBefore: Boolean(canLoad || onMakeActiveVersion || (canOpenLyrics && onOpenAiExtract)),
               onSelect: requestRemove,
             }]
           : []),
@@ -129,6 +129,25 @@ export function AudioTrackCard({
   if (track.durationSec) details.push(fmtDuration(track.durationSec))
   if (track.bpm)         details.push(`${track.bpm} BPM`)
   if (track.musicalKey)  details.push(track.musicalKey)
+  const stats = [
+    track.durationSec ? { label: 'Duration', value: fmtDuration(track.durationSec) } : null,
+    track.bpm ? { label: 'BPM', value: String(track.bpm) } : null,
+    track.musicalKey ? { label: 'Key', value: track.musicalKey } : null,
+  ].filter((stat): stat is { label: string; value: string } => stat !== null)
+
+  const stateBadges = (
+    <span className="vz-track-row-state-badges">
+      {selectedBadge && isActive && (
+        // Dot only: the row's wash and left bar already say "selected"; the text stays for assistive tech and the tooltip.
+        <span className="vz-track-row-selected-dot" title="Selected">
+          <StatusBadge tone="selected"><span className="sr-only">Selected</span></StatusBadge>
+        </span>
+      )}
+      {loaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
+      {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
+    </span>
+  )
+  const hasStateBadges = Boolean((selectedBadge && isActive) || loaded || playing)
 
   return (
     <div
@@ -141,22 +160,29 @@ export function AudioTrackCard({
     >
       {artwork && <div className="vz-track-row-art vz-track-row-art--list" aria-hidden="true">{artwork}</div>}
       <div className="vz-track-row-info">
-        {artistFirst && track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
+        {artistFirst && (track.artist || hasStateBadges) && (
+          <div className="vz-track-row-artist-line">
+            {track.artist && <span className="vz-track-row-artist">{track.artist}</span>}
+            {stateBadges}
+          </div>
+        )}
         <div className="vz-track-row-title-line">
           <span className="vz-track-row-title">{track.title}</span>
-          <span className="vz-track-row-state-badges">
-            {selectedBadge && isActive && (
-              // Dot only: the row's wash and left bar already say "selected"; the text stays for assistive tech and the tooltip.
-              <span className="vz-track-row-selected-dot" title="Selected">
-                <StatusBadge tone="selected"><span className="sr-only">Selected</span></StatusBadge>
-              </span>
-            )}
-            {loaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
-            {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
-          </span>
+          {!artistFirst && stateBadges}
         </div>
         {!artistFirst && track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
-        {details.length > 0 && <div className="vz-track-row-details">{details.join(' · ')}</div>}
+        {listRow
+          ? stats.length > 0 && (
+              <dl className="vz-track-row-stats">
+                {stats.map(stat => (
+                  <div key={stat.label} className="vz-track-row-stat">
+                    <dt>{stat.label}</dt>
+                    <dd>{stat.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )
+          : details.length > 0 && <div className="vz-track-row-details">{details.join(' · ')}</div>}
         {loadError && <div className="vz-track-row-error" role="alert">{loadError}</div>}
       </div>
       <div className="vz-track-row-actions">
@@ -195,6 +221,17 @@ export function AudioTrackCard({
               const rect = event.currentTarget.getBoundingClientRect()
               setLyricsMenu({ x: rect.right, y: rect.bottom + 4 })
             }}
+          >
+            <AppIcon kind="lyrics" size={iconSize} color="currentColor" />
+          </button>
+        )}
+        {actionsInOverflow && onOpenActiveLyrics && (
+          <button
+            type="button"
+            className="vz-track-action-btn"
+            title="Open active lyrics"
+            aria-label={`Open active lyrics for ${track.title}`}
+            onClick={event => { event.stopPropagation(); onOpenActiveLyrics() }}
           >
             <AppIcon kind="lyrics" size={iconSize} color="currentColor" />
           </button>

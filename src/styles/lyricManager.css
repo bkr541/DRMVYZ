@@ -3386,6 +3386,64 @@
   box-shadow: none;
 }
 .lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list { padding: 8px 12px; }
+
+/* Track list text: larger artist and title, and duration / BPM / key as spaced values under small labels. */
+.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-info { gap: 4px; }
+/* Artist and title use the tab rows' face (the shared tab role's family), the artist at a heavier weight. */
+.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-artist {
+  font-family: var(--type-tab-family);
+  font-size: 11px;
+  font-weight: 600;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line .vz-track-row-artist {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The badges sit on the artist line but are pinned to the card's right edge, over the action column, not just the text column. */
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line { min-height: 16px; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line:has(.vz-track-row-state-badges > *) { padding-right: 96px; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line .vz-track-row-state-badges {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  height: 16px;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-title {
+  font-family: var(--type-tab-family);
+  font-size: 12.5px;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 4px 0 0;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-stat dt {
+  margin: 0;
+  color: rgba(196, 207, 211, 0.42);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-stat dd {
+  margin: 0;
+  color: rgba(214, 224, 228, 0.86);
+  font-size: 11.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
 .lmv-left-rail .lmv-doc-card { padding: 10px 14px; }
 .lmv-left-rail .lmv-track-grid .vz-track-row--list::after,
 .lmv-left-rail .lmv-doc-card::after { content: none; }
@@ -3408,7 +3466,15 @@
 
 /* The versions view replaces the track list: a back row (arrow, track title, artist), then the version cards.
    It animates in, the same way the track list does when the user comes back. */
-.lmv-track-view { animation: lmv-track-view-in 200ms ease-out both; }
+/* Only this content animates: the search row above it never moves. */
+.lmv-track-view {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  animation: lmv-track-view-in 200ms ease-out both;
+}
 @keyframes lmv-track-view-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
@@ -3461,7 +3527,6 @@
   padding: 0;
   overflow: visible;
 }
-.lmv-track-browser--versions .lmv-doc-sidebar .lmv-lyric-versions-body { margin-top: 0; padding: 0 0 8px; }
 .lmv-track-browser--versions .lmv-doc-list {
   display: flex;
   flex-direction: column;

@@ -361,11 +361,11 @@ function trackCard(title: string): HTMLElement {
   return card
 }
 
-/** A selected track with lyric versions replaces the track list; the back row is the way to the list (and to another track). */
-async function backToTracks() {
-  const back = container.querySelector<HTMLButtonElement>('.lmv-versions-back')
-  if (!back) throw new Error('Back to tracks row not found')
-  await act(async () => back.click())
+/** Selecting a track only selects it; the lyrics icon on its row opens its lyric versions in place of the track list. */
+async function openVersions(title = 'Reverie') {
+  const button = container.querySelector<HTMLButtonElement>(`button[aria-label="Open active lyrics for ${title}"]`)
+  if (!button) throw new Error(`Open active lyrics button not found: ${title}`)
+  await act(async () => button.click())
 }
 
 function openVersionsTrackTitle(): string | null {
@@ -424,6 +424,7 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('.lmv-live-preview-body > .lmv-track-meta-header')).not.toBeNull()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
     const left = container.querySelector('.lmv-workspace-shell')!
     const tracks = left.querySelector('.lmv-track-workspace')!
     expect(tracks.parentElement).toBe(left)
@@ -444,6 +445,7 @@ describe('LyricManagerView track-first workflow', () => {
     expect(mocks.loadTrackPage).toHaveBeenCalledWith('user-1', expect.objectContaining({ offset: 0, limit: 18 }))
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
 
     expect(mocks.getVersions).toHaveBeenCalledWith(['track-a'])
     expect(mocks.getLyricDocumentById).toHaveBeenCalledWith('doc-a1')
@@ -508,6 +510,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
 
     const action = cardAction('Make Active', documentCard('Alternate Lyrics'))
     expect(action.disabled).toBe(true)
@@ -523,6 +526,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
     await act(async () => (documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLElement).click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2'))
 
@@ -538,6 +542,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
     await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
     await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
     await waitFor(() => expect(mocks.activateLyricDocument).toHaveBeenCalledWith('doc-a2', 1))
@@ -582,6 +587,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
 
     await act(async () => cardAction('Duplicate', documentCard('Approved Lyrics')).click())
     await waitFor(() => expect(mocks.getFullLyricDocument).toHaveBeenCalledWith('doc-a1'))
@@ -657,6 +663,7 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
 
     await act(async () => cardAction('Make Active', documentCard('Alternate Lyrics')).click())
     await act(async () => buttonWithText('Make Active', container.querySelector('[role="alertdialog"]') as HTMLElement).click())
@@ -692,19 +699,18 @@ describe('LyricManagerView track-first workflow', () => {
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
 
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
-    await backToTracks()
+    await act(async () => trackCard('From Grace').click())
     expect(container.textContent).toContain('Unsaved lyric changes')
     await act(async () => buttonWithText('Cancel').click())
-    expect(openVersionsTrackTitle()).toBe('Reverie')
+    expect(trackCard('Reverie').getAttribute('aria-pressed')).toBe('true')
 
-    await backToTracks()
-    await act(async () => buttonWithText('Discard').click())
-    await waitFor(() => expect(openVersionsTrackTitle()).toBeNull())
     await act(async () => trackCard('From Grace').click())
+    await act(async () => buttonWithText('Discard').click())
     await waitFor(() => expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true'))
 
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
+    await openVersions()
     await act(async () => useLyricsStore.getState().markEditorDirty(true))
     const alternate = documentCard('Alternate Lyrics').querySelector('.lmv-doc-card-main') as HTMLElement
     await act(async () => alternate.click())
@@ -726,7 +732,6 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(mocks.getVersions).toHaveBeenCalledWith(['track-a']))
-    await backToTracks()
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(mocks.getVersions).toHaveBeenCalledWith(['track-b']))
 
@@ -756,7 +761,6 @@ describe('LyricManagerView track-first workflow', () => {
     await render()
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(trackACall).toBe(1))
-    await backToTracks()
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(trackCard('From Grace').getAttribute('aria-pressed')).toBe('true'))
     await act(async () => trackCard('Reverie').click())
@@ -769,6 +773,7 @@ describe('LyricManagerView track-first workflow', () => {
     await flush()
 
     expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a2')
+    await openVersions()
     expect(container.textContent).toContain('Alternate Lyrics')
     expect(container.textContent).not.toContain('Approved Lyrics')
   })
@@ -810,7 +815,6 @@ describe('LyricManagerView track-first workflow', () => {
     await waitFor(() => expect(mocks.getSignedUrl).toHaveBeenCalledTimes(1))
 
     // Track B has no lyric editor open, so it is loaded by hand from the Load deck button.
-    await backToTracks()
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
     await act(async () => buttonWithText('Load deck').click())
@@ -839,7 +843,6 @@ describe('LyricManagerView track-first workflow', () => {
     await act(async () => trackCard('Reverie').click())
     await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
     await waitFor(() => expect(mocks.getSignedUrl).toHaveBeenCalledTimes(1))
-    await backToTracks()
     await act(async () => trackCard('From Grace').click())
     await waitFor(() => expect(buttonWithText('Load deck')).toBeTruthy())
 
@@ -1245,7 +1248,7 @@ describe('LyricManagerView track-first workflow', () => {
       await waitFor(() => expect(useLyricsStore.getState().editorDocumentId).toBe('doc-a1'))
       // Opening a version from the Tracks drawer returns the user to the editor.
       await waitFor(() => expect(leftRail().classList.contains('lmv-rail--drawer-open')).toBe(false))
-      expect(openVersionsTrackTitle()).toBe('Reverie')
+      expect(trackCard('Reverie').getAttribute('aria-pressed')).toBe('true')
 
       await act(async () => drawerToggle('Inspector')!.click())
       const reviewTab = [...rightRail().querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => tab.textContent === 'Review')!

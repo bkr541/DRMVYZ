@@ -1,11 +1,11 @@
 import { DrawerNotice } from '../../../components/vyzualz/shared/DrawerNotice'
 import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
 import { LyricSearchFilterRow } from './LyricSearchFilterRow'
 import { AudioTrackCard } from '../../../components/vyzualz/media/AudioTrackCard'
 import type { LyricDocumentVersion, LyricManagerTrack } from '../lyricManagerTypes'
-import { LyricDocumentSidebar } from './LyricDocumentSidebar'
+import { DOC_FILTERS, LyricDocumentSidebar, type DocFilter } from './LyricDocumentSidebar'
 
 
 export type LyricTrackFilter =
@@ -108,21 +108,82 @@ export function LyricTrackBrowser({
     [filter, loadedAudioTrackId, search, tracks],
   )
 
-  // A selected track that has lyric versions (or unattached legacy documents to show) replaces the list with them.
-  const versionsTrack = versions && selectedTrackId ? tracks.find(track => track.dbId === selectedTrackId) : undefined
+  // Selecting a track only selects it. Its lyric versions replace the list once the user opens them from the row's lyrics
+  // icon; `versionsOpenId` is that request, and it ends when the track is deselected or another one is selected.
+  const [versionsOpenId, setVersionsOpenId] = useState<string | null>(null)
+  const versionsSeenRef = useRef(false)
+  useEffect(() => {
+    if (versionsOpenId === null) {
+      versionsSeenRef.current = false
+    } else if (selectedTrackId === versionsOpenId) {
+      versionsSeenRef.current = true
+    } else if (versionsSeenRef.current) {
+      versionsSeenRef.current = false
+      setVersionsOpenId(null)
+    }
+  }, [selectedTrackId, versionsOpenId])
+
+  // A track whose versions are open (and that has versions, or unattached legacy documents, to show) replaces the list.
+  const versionsTrack = versions && selectedTrackId && selectedTrackId === versionsOpenId
+    ? tracks.find(track => track.dbId === selectedTrackId)
+    : undefined
   const showVersions = Boolean(versions && versionsTrack
     && (versionsTrack.lyricVersionCount > 0 || versions.documents.length > 0 || (versions.legacyDocuments?.length ?? 0) > 0))
 
-  if (versions && versionsTrack && showVersions) {
-    return (
-      <section className="lmv-track-browser lmv-track-browser--versions" aria-label={`Lyric versions for ${versionsTrack.title}`}>
-        <div className="lmv-track-library-body lmv-track-view">
+  const inVersions = Boolean(versions && versionsTrack && showVersions)
+
+  // The versions have their own search and filter, in the track search row's slot: the tabs above and this row stay
+  // put when the view changes, and only the cards below swap.
+  const [versionSearch, setVersionSearch] = useState('')
+  const [versionFilter, setVersionFilter] = useState<DocFilter>('all')
+  useEffect(() => {
+    setVersionSearch('')
+    setVersionFilter('all')
+  }, [versionsOpenId])
+
+  return (
+    <section
+      className={`lmv-track-browser${inVersions ? ' lmv-track-browser--versions' : ''}`}
+      aria-label={inVersions && versionsTrack ? `Lyric versions for ${versionsTrack.title}` : 'Stored audio tracks'}
+    >
+      <div className="lmv-track-library-body">
+      {inVersions ? (
+        <LyricSearchFilterRow
+          searchValue={versionSearch}
+          onSearchChange={setVersionSearch}
+          searchPlaceholder="Search versions…"
+          searchAriaLabel="Search lyric versions"
+          filterId="lyric-version-filter"
+          filterValue={versionFilter}
+          filterOptions={DOC_FILTERS.map(item => ({ value: item.id, label: item.label }))}
+          onFilterChange={value => setVersionFilter(value as DocFilter)}
+          filterAriaLabel={`Filter versions: ${DOC_FILTERS.find(item => item.id === versionFilter)?.label ?? 'All'}`}
+          filterMenuLabel="Lyric Version Filters"
+          filterMenuWidth={180}
+        />
+      ) : (
+        <LyricSearchFilterRow
+          searchValue={search}
+          onSearchChange={onSearchChange}
+          searchPlaceholder="Search title or artist…"
+          searchAriaLabel="Search tracks by title or artist"
+          filterId="lyric-track-filter"
+          filterValue={filter}
+          filterOptions={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
+          onFilterChange={value => setFilter(value as LyricTrackFilter)}
+          filterAriaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
+          filterMenuLabel="Track Library Filters"
+        />
+      )}
+
+      {inVersions && versions && versionsTrack ? (
+        <div className="lmv-track-view" key="versions">
           <div className="lmv-versions-head">
             <button
               type="button"
               className="lmv-versions-back"
               aria-label={`Back to tracks from ${versionsTrack.title}`}
-              onClick={() => onSelectTrack(versionsTrack)}
+              onClick={() => setVersionsOpenId(null)}
             >
               <AppIcon kind="left" size={14} color="currentColor" />
               <span className="lmv-versions-back-copy">
@@ -149,6 +210,8 @@ export function LyricTrackBrowser({
             loading={versions.loading}
             openDocumentId={versions.openDocumentId}
             hasSelectedTrack
+            search={versionSearch}
+            filter={versionFilter}
             onSelectDocument={versions.onSelectDocument}
             onDuplicateDocument={versions.onDuplicateDocument}
             onRenameDocument={versions.onRenameDocument}
@@ -156,26 +219,8 @@ export function LyricTrackBrowser({
             onDeleteDocument={versions.onDeleteDocument}
           />
         </div>
-      </section>
-    )
-  }
-
-  return (
-    <section className="lmv-track-browser" aria-label="Stored audio tracks">
-      <div className="lmv-track-library-body lmv-track-view">
-      <LyricSearchFilterRow
-        searchValue={search}
-        onSearchChange={onSearchChange}
-        searchPlaceholder="Search title or artist…"
-        searchAriaLabel="Search tracks by title or artist"
-        filterId="lyric-track-filter"
-        filterValue={filter}
-        filterOptions={(Object.entries(TRACK_FILTER_LABELS) as Array<[LyricTrackFilter, string]>).map(([value, label]) => ({ value, label }))}
-        onFilterChange={value => setFilter(value as LyricTrackFilter)}
-        filterAriaLabel={`Filter tracks: ${TRACK_FILTER_LABELS[filter]}`}
-        filterMenuLabel="Track Library Filters"
-      />
-
+      ) : (
+      <div className="lmv-track-view" key="tracks">
       {error && (
         <DrawerNotice tone="error" role="alert" title="Track browser error">
           {error}{' '}
@@ -196,11 +241,14 @@ export function LyricTrackBrowser({
       <div className="lmv-track-grid">
         {visibleTracks.map(track => {
           const selected = selectedTrackId === track.dbId
+          const hasVersions = track.lyricVersionCount > 0 || Boolean(track.activeLyricDocumentId)
+          // Unattached legacy documents are only listed with the selected track's versions.
+          const showsLegacyDocuments = selected && (versions?.legacyDocuments?.length ?? 0) > 0
           return (
             <div key={track.dbId} className="lmv-track-group">
               <AudioTrackCard
                 track={track}
-                onSelect={() => onSelectTrack(track)}
+                onSelect={() => { setVersionsOpenId(null); onSelectTrack(track) }}
                 onLoad={() => onLoadTrack(track, false)}
                 loading={false}
                 loaded={loadedAudioTrackId === track.dbId}
@@ -213,7 +261,12 @@ export function LyricTrackBrowser({
                 actionsInOverflow
                 listRow
                 artistFirst
-                onOpenActiveLyrics={track.activeLyricDocumentId ? () => onOpenActiveLyrics(track) : undefined}
+                onOpenActiveLyrics={hasVersions || showsLegacyDocuments
+                  ? () => {
+                      setVersionsOpenId(track.dbId)
+                      if (hasVersions) onOpenActiveLyrics(track)
+                    }
+                  : undefined}
                 onMakeActiveVersion={canMakeOpenVersionActive(track) ? () => onMakeOpenVersionActive(track) : undefined}
                 canRemove
                 // The Lyric Manager owns the delete confirmation (ConfirmTrackDeleteDialog); the card never deletes directly.
@@ -228,6 +281,8 @@ export function LyricTrackBrowser({
       {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
         <IconChipButton className="lmv-load-more" onClick={onLoadMore}>Load More</IconChipButton>
+      )}
+      </div>
       )}
       </div>
     </section>

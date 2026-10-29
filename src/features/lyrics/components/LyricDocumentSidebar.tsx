@@ -6,7 +6,7 @@ import { LyricSearchFilterRow } from './LyricSearchFilterRow'
 import { useEffect, useState } from 'react'
 import type { LyricDocumentVersion } from '../lyricManagerTypes'
 
-type DocFilter = 'all' | 'active' | 'manual' | 'imported' | 'ai_transcription'
+export type DocFilter = 'all' | 'active' | 'manual' | 'imported' | 'ai_transcription'
 
 interface Props {
   documents: LyricDocumentVersion[]
@@ -21,6 +21,9 @@ interface Props {
   onDeleteDocument: (doc: LyricDocumentVersion) => void
   /** Optional mockup/layout behavior: keep version actions collapsed until the version is open. */
   actionsVisibleForOpenDocumentOnly?: boolean
+  /** When both are given, the parent renders the search/filter row and this list only applies them. */
+  search?: string
+  filter?: DocFilter
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -55,7 +58,7 @@ function fmtRelativeDate(iso: string): string {
   }
 }
 
-const FILTERS: { id: DocFilter; label: string }[] = [
+export const DOC_FILTERS: { id: DocFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'manual', label: 'Manual' },
@@ -63,7 +66,7 @@ const FILTERS: { id: DocFilter; label: string }[] = [
   { id: 'ai_transcription', label: 'AI' },
 ]
 
-function matchesFilter(doc: LyricDocumentVersion, filter: DocFilter, search: string): boolean {
+export function matchesDocFilter(doc: LyricDocumentVersion, filter: DocFilter, search: string): boolean {
   if (filter === 'active' && !doc.isActive) return false
   if (filter === 'manual' && doc.sourceType !== 'manual') return false
   if (filter === 'imported' && ['manual', 'ai_transcription'].includes(doc.sourceType)) return false
@@ -189,13 +192,18 @@ export function LyricDocumentSidebar({
   onActivateDocument,
   onDeleteDocument,
   actionsVisibleForOpenDocumentOnly = false,
+  search: controlledSearch,
+  filter: controlledFilter,
 }: Props) {
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<DocFilter>('all')
+  const controlled = controlledSearch !== undefined && controlledFilter !== undefined
+  const [ownSearch, setSearch] = useState('')
+  const [ownFilter, setFilter] = useState<DocFilter>('all')
+  const search = controlledSearch ?? ownSearch
+  const filter = controlledFilter ?? ownFilter
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
-  const filtered = documents.filter(doc => matchesFilter(doc, filter, search))
-  const filteredLegacy = legacyDocuments.filter(doc => matchesFilter(doc, filter, search))
+  const filtered = documents.filter(doc => matchesDocFilter(doc, filter, search))
+  const filteredLegacy = legacyDocuments.filter(doc => matchesDocFilter(doc, filter, search))
 
   const renderCard = (doc: LyricDocumentVersion, legacy = false) => (
     <DocumentCard
@@ -221,7 +229,7 @@ export function LyricDocumentSidebar({
 
   return (
     <aside className="lmv-doc-sidebar">
-      <div className="lmv-lyric-versions-body">
+      {!controlled && <div className="lmv-lyric-versions-body">
         <LyricSearchFilterRow
           searchValue={search}
           onSearchChange={setSearch}
@@ -229,13 +237,13 @@ export function LyricDocumentSidebar({
           searchAriaLabel="Search lyric versions"
           filterId="lyric-version-filter"
           filterValue={filter}
-          filterOptions={FILTERS.map(item => ({ value: item.id, label: item.label }))}
+          filterOptions={DOC_FILTERS.map(item => ({ value: item.id, label: item.label }))}
           onFilterChange={value => setFilter(value as DocFilter)}
-          filterAriaLabel={`Filter versions: ${FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
+          filterAriaLabel={`Filter versions: ${DOC_FILTERS.find(item => item.id === filter)?.label ?? 'All'}`}
           filterMenuLabel="Lyric Version Filters"
           filterMenuWidth={180}
         />
-      </div>
+      </div>}
 
       <div className="lmv-doc-list">
         {loading && <div className="lmv-doc-empty">Loading lyric versions…</div>}

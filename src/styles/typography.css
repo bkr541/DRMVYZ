@@ -10,6 +10,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 700 11px/1 var(--font-mono, 'Manrope', sans-serif);
+  --type-tab-family: var(--font-mono, 'Manrope', sans-serif);
   --type-tab-active-nested: 800 11px/1 var(--font-mono, 'Manrope', sans-serif);
   --type-window-heading: 700 12px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
   --type-group-heading: var(--type-window-heading);
@@ -33,6 +34,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.2 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 500 12px/1 var(--font-ui);
+  --type-tab-family: var(--font-ui);
   --type-tab-active-nested: 600 11px/1 var(--font-ui);
   --type-window-heading: 700 12px/1.2 var(--font-ui);
   --type-group-heading: var(--type-window-heading);
@@ -148,6 +150,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.3 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 500 11px/1 var(--font-ui);
+  --type-tab-family: var(--font-ui);
   --type-tab-active-nested: 600 11px/1 var(--font-ui);
   --type-window-heading: 700 12px/1.2 var(--font-ui);
   --type-group-heading: var(--type-window-heading);
@@ -160,6 +163,7 @@
 /* The shared Lab selector keeps its original role inside this opt-in study. */
 [data-ui-typography='graphite'] .ll-design-switcher {
   --type-tab: 700 11px/1 'Manrope','Helvetica Neue',system-ui,sans-serif;
+  --type-tab-family: 'Manrope','Helvetica Neue',system-ui,sans-serif;
   --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
@@ -178,6 +182,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.3 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 500 12px/1 var(--font-ui);
+  --type-tab-family: var(--font-ui);
   --type-tab-active-nested: 700 12px/1 var(--font-ui);
   --type-window-heading: 700 12px/1.2 var(--font-ui);
   --type-group-heading: var(--type-window-heading);
@@ -190,6 +195,7 @@
 /* The shared Lab selector keeps its original role inside this opt-in study. */
 [data-ui-typography='tile'] .ll-design-switcher {
   --type-tab: 700 11px/1 'Manrope','Helvetica Neue',system-ui,sans-serif;
+  --type-tab-family: 'Manrope','Helvetica Neue',system-ui,sans-serif;
   --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
@@ -208,6 +214,7 @@
   --type-field-value: var(--type-field-weight) var(--type-field-size)/1.3 var(--type-field-family);
   --type-field-placeholder: var(--type-field-value);
   --type-tab: 500 12px/1 var(--font-ui);
+  --type-tab-family: var(--font-ui);
   --type-tab-active-nested: 700 12px/1 var(--font-ui);
   --type-window-heading: 700 12px/1.2 var(--font-ui);
   --type-group-heading: var(--type-window-heading);
@@ -220,6 +227,7 @@
 /* The shared Lab selector keeps its original role inside this opt-in study. */
 [data-ui-typography='studio'] .ll-design-switcher {
   --type-tab: 700 11px/1 'Manrope','Helvetica Neue',system-ui,sans-serif;
+  --type-tab-family: 'Manrope','Helvetica Neue',system-ui,sans-serif;
   --font-ui: 'Space Grotesk','Helvetica Neue',system-ui,sans-serif;
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
 }
