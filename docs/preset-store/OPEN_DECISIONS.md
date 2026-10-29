@@ -23,13 +23,13 @@ Resolved architectural decisions are in [PHASE_00_AUDIT.md](PHASE_00_AUDIT.md). 
 
 ## Phase 01 schema decisions awaiting confirmation
 
-Encoded in migration 0043 as stated in [SCHEMA.md](SCHEMA.md); each is a one-migration change if you decide otherwise. The authorized local/test instance for Phase 01 acceptance is **still unidentified** (Docker, `psql` and Postgres are not installed here).
+Encoded in migration 0043 as stated in [SCHEMA.md](SCHEMA.md). 0043 has not been applied anywhere, so each is still an in-place edit. The authorized local/test instance for Phase 01 acceptance is **still unidentified** (Docker, `psql` and Postgres are not installed here).
 
 | Decision | Encoded default |
 | --- | --- |
-| Free claims | A zero-total `internal` order, so pinning, idempotency and refunds share one path. |
-| Account deletion | `store_orders.user_id` is `SET NULL`: the payment record survives, grants cascade. Retention period is still yours to set. |
-| Retired pack editions | Publicly readable while a published product sells the pack, so owners can see what an edition held. |
-| Price environment | `test`/`live` column readable by clients; the service decides which one it exposes. |
-| Sanity caps | 200 presets per edition, 16 tags, 99,999,999 minor units, 256 KiB per payment event. Not policy; adjust freely. |
-| Update policy | `pinned` only: later editions/releases are new grants or purchases. |
+| Scope of 0043 | Free-only core: catalog, releases, free claims, favourites. Orders, prices, payments, refunds and disputes move to a later migration, after the provider, refund and tax decisions above. |
+| Pack editions | Dropped. A pack is a mutable list; each claim writes grants pinned to the releases delivered then. A preset added later is granted only when the user claims the pack again. |
+| Holdings | The store never writes `user_presets`. The app treats a preset as held with a `user_presets` row or an active grant. |
+| Store presets | Must be `scope = 'user'`; a release for a `system` preset is rejected. |
+| Release signing | Each release stores `format_version` and `signing_key_id`. |
+| Sanity caps | 200 presets per pack, 16 tags. Not policy; adjust freely. |
