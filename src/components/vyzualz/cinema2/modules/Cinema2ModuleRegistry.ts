@@ -1,4 +1,5 @@
 import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
+import { cinema2InertiaNativeModuleDefinition } from './Cinema2InertiaNativeModule'
 import { cinema2ElevhateNativeModuleDefinition } from './Cinema2ElevhateNativeModule'
 import type { Cinema2ModuleManifest, Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleDiagnostic, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
@@ -102,6 +103,8 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const inertiaRegistration = cinema2NativeModuleRegistry.register(cinema2InertiaNativeModuleDefinition)
+if (!inertiaRegistration.ok) throw new Error('Cinema 2.0 Inertia module registration failed.')
 const trippyBroRegistration = cinema2NativeModuleRegistry.register(cinema2TrippyBroNativeModuleDefinition)
 if (!trippyBroRegistration.ok) throw new Error('Cinema 2.0 Trippy, Bro module registration failed.')
 const switchItRegistration=cinema2NativeModuleRegistry.register(cinema2SwitchItNativeModuleDefinition)

@@ -1,4 +1,5 @@
 import { CINEMA2_SWITCH_IT_PRESET_MANIFEST } from './Cinema2SwitchItPreset'
+import { CINEMA2_INERTIA_PRESET_MANIFEST } from './Cinema2InertiaPreset'
 import { CINEMA2_ELEVHATE_PRESET_MANIFEST } from './Cinema2ElevhatePreset'
 import { CINEMA2_RUNTIME_FOUNDATION_PRESET_MANIFEST } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_AFTERHOURS_PRESET_MANIFEST } from './Cinema2AfterhoursPreset'
@@ -42,6 +43,8 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  // Final visual acceptance granted by the user on 2026-10-29.
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_INERTIA_PRESET_MANIFEST }),
   // User-approved native performance; production and visual acceptance are complete.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_TRIPPY_BRO_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({role:'keeper',manifest:CINEMA2_SWITCH_IT_PRESET_MANIFEST}),

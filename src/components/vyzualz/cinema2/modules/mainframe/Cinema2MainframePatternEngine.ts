@@ -487,7 +487,7 @@ const MAX_VALID_BPM = 400
 const validBpm = (value: number | null | undefined): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= MIN_VALID_BPM && value <= MAX_VALID_BPM
 
-function resolveRawCinema2MainframeBeatClock(
+export function resolveRawCinema2MainframeBeatClock(
   frame: Readonly<Cinema2ModuleFrameReadContext>,
   bpmSync: boolean,
 ): Readonly<Cinema2MainframeBeatClockFrame> {
