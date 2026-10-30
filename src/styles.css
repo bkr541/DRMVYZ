@@ -16,8 +16,10 @@
   --text:      rgba(232,238,240,0.88);
   --text-dim:  rgba(196,207,211,0.42);
   --text-faint:rgba(196,207,211,0.22);
+  /* One corner for windows and for the groups, cards, panels and menus inside them. */
+  --radius-group: 6px;
   --radius:    6px;
-  --radius-lg: 10px;
+  --radius-lg: var(--radius-group);
   /* App typography: Space Grotesk for UI, Manrope for secondary text. */
   --font-mono: 'Manrope','Helvetica Neue',system-ui,sans-serif;
   --font-ui:   'Space Grotesk','Helvetica Neue',system-ui,sans-serif;

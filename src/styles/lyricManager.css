@@ -306,7 +306,7 @@
   gap: 8px;
   padding: 28px 20px;
   border: 1.5px dashed rgba(154,178,188,0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(255,255,255,0.02);
   text-align: center;
   transition: all 0.15s;
@@ -335,7 +335,7 @@
 .lmv-validation-box {
   background: rgba(20,27,31,0.7);
   border: 1px solid rgba(154,178,188,0.1);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   padding: 12px;
   margin-top: 8px;
   display: flex;
@@ -526,7 +526,7 @@
 }
 .lmv-dialog {
   width: min(440px, 100%);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(154,178,188,0.18);
   background: #11181c;
   box-shadow: 0 24px 80px rgba(0,0,0,0.5);
@@ -577,7 +577,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   border: 1px solid rgba(154,178,188,0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: #0a0f12;
   scrollbar-color: rgba(97,214,170,0.45) rgba(255,255,255,0.03);
 }
@@ -740,7 +740,7 @@
 .lyric-cue-inspector {
   min-width: 0;
   border: 1px solid rgba(154,178,188,0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(12,18,21,0.74);
 }
 .lyric-cue-list__controls { justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid var(--color-border-faint, rgba(154,178,188,0.1)); }
@@ -797,7 +797,7 @@
   justify-content: space-between;
   gap: 14px;
   padding: 12px;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(154,178,188,0.12);
   background: rgba(20,27,31,0.72);
   margin-top: 8px;
@@ -879,7 +879,7 @@
   padding: 10px 11px 12px;
   gap: 18px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(11, 20, 24, 0.56);
 }
 
@@ -1013,7 +1013,7 @@
 .lmv-ai-offline-hint {
   margin-top: 8px;
   padding: 8px 10px;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(224,172,90,0.22);
   background: rgba(224,172,90,0.08);
   color: rgba(255,216,152,0.88);
@@ -1029,7 +1029,7 @@
   margin-top: 12px;
   padding: 12px;
   overflow: hidden;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(154,178,188,0.14);
   background: rgba(20,27,31,0.76);
 }
@@ -1499,7 +1499,7 @@
 
 .lyric-cue-timeline__scroll {
   border-color: rgba(126,218,232,0.15);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: #071014;
   box-shadow: inset 0 0 32px rgba(74,199,219,0.035);
 }
@@ -1563,7 +1563,7 @@
 }
 
 .lyric-cue-inspector {
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(11,20,24,0.75);
 }
 
@@ -1600,7 +1600,7 @@
   gap: 6px;
   margin-top: 8px;
   padding: 10px;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(216,185,90,0.08);
   border: 1px solid rgba(216,185,90,0.22);
   color: #d8b95a;
@@ -2420,7 +2420,7 @@
   gap: 14px;
   padding: 10px 14px;
   border: 1px solid rgba(126,218,232,0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(11,21,25,0.85);
   transition: opacity 200ms ease, transform 200ms ease;
 }
@@ -2883,7 +2883,7 @@
   align-items: center;
   gap: 10px;
   padding: 5px 6px 5px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(196,207,211,0.2);
   background: #1c2026;
   color: rgba(196,207,211,0.85);
@@ -3381,7 +3381,7 @@
 .lmv-left-rail .lmv-doc-card {
   box-sizing: border-box;
   border: 1px solid rgba(126, 218, 232, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   background: rgba(154, 178, 188, 0.05);
   box-shadow: none;
 }

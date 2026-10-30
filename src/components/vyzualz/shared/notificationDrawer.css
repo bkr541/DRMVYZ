@@ -65,7 +65,7 @@
   width: 36px;
   height: 32px;
   border: 1px solid rgba(154, 178, 188, 0.15);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: transparent;
   color: rgba(190, 205, 210, 0.62);
   font: 700 14px/1 var(--az-font-data, Inter, system-ui, sans-serif);

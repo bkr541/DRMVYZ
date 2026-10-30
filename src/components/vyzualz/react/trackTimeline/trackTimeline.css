@@ -171,7 +171,7 @@
   width: 36px;
   height: 32px;
   border: 1px solid rgba(154, 178, 188, 0.15);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   font: 700 14px/1 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: 0.08em;
   list-style: none;
@@ -199,7 +199,7 @@ summary.ttv-icon-btn::-webkit-details-marker {
   width: min(340px, calc(100vw - 86px));
   padding: 12px;
   border: 1px solid rgba(154, 178, 188, 0.19);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   background: color-mix(in srgb, var(--color-popover, #171b1d) 97%, transparent);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.52);
 }
@@ -228,7 +228,7 @@ summary.ttv-icon-btn::-webkit-details-marker {
   isolation: isolate;
   overflow: hidden;
   border: 1px solid rgba(154, 178, 188, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: var(--color-background, #090d0f);
 }
 
@@ -413,7 +413,7 @@ summary.ttv-icon-btn::-webkit-details-marker {
   overscroll-behavior: contain;
   scrollbar-color: rgba(var(--color-primary-rgb, 74, 199, 219), 0.32) transparent;
   border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   background: var(--color-background, #090d0f);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
   scroll-margin-top: 270px;
@@ -792,7 +792,7 @@ summary.ttv-icon-btn::-webkit-details-marker {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(var(--color-primary-rgb, 74, 199, 219), 0.24);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   background: color-mix(in srgb, var(--color-popover, #171b1d) 98%, transparent);
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
 }

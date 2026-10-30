@@ -389,7 +389,7 @@ body,
 .vsm-settings-group {
   padding: 16px;
   border: 1px solid var(--color-border-faint);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: var(--color-panel-alt);
 }
 
@@ -747,7 +747,7 @@ body,
 .vsm-dev-log-component {
   display: inline-block;
   padding: 1px 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   border: 1px solid var(--color-border-subtle);
   background: var(--color-surface);
   color: var(--color-text-muted);
@@ -808,7 +808,7 @@ body,
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--color-border-subtle);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: var(--color-card);
   color: var(--color-text);
   text-align: left;

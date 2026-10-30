@@ -30,7 +30,7 @@
   display: flex;
   width: min(940px, 94vw);
   height: min(620px, 92vh);
-  border-radius: 18px;
+  border-radius: var(--radius-group);
   overflow: hidden;
   border: 1px solid rgba(25, 191, 242, 0.14);
   box-shadow:
@@ -305,7 +305,7 @@
   color: #f87171;
   background: rgba(248, 113, 113, 0.08);
   border: 1px solid rgba(248, 113, 113, 0.22);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   padding: 8px 12px;
   margin: -2px 0;
 }
@@ -319,7 +319,7 @@
   width: 100%;
   padding: 13px;
   border: 1px solid rgba(74, 199, 219, 0.4);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(74, 199, 219, 0.16);
   color: #8ef4ff;
   font-size: 13px;
@@ -465,7 +465,7 @@
     width: 96vw;
     height: auto;
     min-height: 96vh;
-    border-radius: 14px;
+    border-radius: var(--radius-group);
   }
 
   .auth-panel--emblem { display: none; }

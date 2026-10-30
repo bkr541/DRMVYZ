@@ -43,7 +43,7 @@
 .vz-header-group > *:last-child { border-right: 0; }
 .vz-header-group > *:first-child { border-radius: 7px 0 0 7px; }
 .vz-header-group > *:last-child { border-radius: 0 7px 7px 0; }
-.vz-header-group > *:only-child { border-radius: 7px; }
+.vz-header-group > *:only-child { border-radius: var(--radius-group); }
 
 /* Nested wrappers (output controls, show actions, stage tools) just pass the height through. */
 .vz-header-group .rv-global-output,

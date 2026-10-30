@@ -21,7 +21,7 @@
   --drm-dropdown-faint: var(--color-text-faint, rgba(196, 207, 211, 0.34));
   --drm-dropdown-font: var(--az-font-data, 'Manrope', sans-serif);
   --drm-dropdown-display-font: var(--az-font, 'Space Grotesk', system-ui, sans-serif);
-  --drm-dropdown-radius: 14px;
+  --drm-dropdown-radius: var(--radius-group);
   --drm-dropdown-trigger-height: 58px;
   --drm-dropdown-trigger-padding: 18px;
   --drm-dropdown-value-size: 18px;
@@ -37,7 +37,7 @@
 }
 
 .drm-dropdown--compact {
-  --drm-dropdown-radius: 10px;
+  --drm-dropdown-radius: var(--radius-group);
   --drm-dropdown-trigger-height: 40px;
   --drm-dropdown-trigger-padding: 12px;
   --drm-dropdown-value-size: 13px;
@@ -47,7 +47,7 @@
 }
 
 .drm-dropdown--dense {
-  --drm-dropdown-radius: 8px;
+  --drm-dropdown-radius: var(--radius-group);
   --drm-dropdown-trigger-height: 30px;
   --drm-dropdown-trigger-padding: 9px;
   --drm-dropdown-value-size: 11px;
@@ -57,7 +57,7 @@
 }
 
 .drm-dropdown--large {
-  --drm-dropdown-radius: 16px;
+  --drm-dropdown-radius: var(--radius-group);
   --drm-dropdown-trigger-height: 72px;
   --drm-dropdown-trigger-padding: 22px;
   --drm-dropdown-value-size: 22px;
@@ -232,7 +232,7 @@
   min-width: 160px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--drm-dropdown-border) 84%, var(--drm-dropdown-accent) 16%);
-  border-radius: 16px;
+  border-radius: var(--radius-group);
   background:
     radial-gradient(circle at 50% -8%, rgba(var(--drm-dropdown-accent-rgb), 0.09), transparent 38%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.026), rgba(255, 255, 255, 0) 30%),
@@ -257,7 +257,7 @@
 .drm-dropdown__menu--dense {
   --drm-dropdown-option-size: 12px;
   --drm-dropdown-description-size: 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-group);
 }
 
 .drm-dropdown__menu--large {
@@ -349,7 +349,7 @@
   min-height: 44px;
   padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: var(--radius-group);
   color: var(--drm-dropdown-text);
   cursor: pointer;
   user-select: none;
@@ -406,7 +406,7 @@
 .drm-dropdown__menu--dense .drm-dropdown__option {
   min-height: 32px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
 }
 
 .drm-dropdown__menu--dense .drm-dropdown__menu-header {

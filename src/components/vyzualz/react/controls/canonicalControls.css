@@ -57,7 +57,7 @@
 }
 
 .dv-underline-dropdown .drm-dropdown__menu {
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: #0d1417;
   border: 1px solid rgba(154, 178, 188, 0.14);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
@@ -552,7 +552,7 @@ label:has(> .dv-icon-morph-checkbox) {
   gap: 6px;
   padding: 7px 14px;
   border: 1px solid rgba(154, 178, 188, 0.16);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(255, 255, 255, 0.04);
   color: rgba(196, 207, 211, 0.7);
   font: 800 9.5px/1 var(--az-font-data, Inter, system-ui, sans-serif);
@@ -638,7 +638,7 @@ label:has(> .dv-icon-morph-checkbox) {
   justify-items: center;
   gap: 10px;
   border: 1px solid rgba(103, 247, 255, 0.28);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   background: var(--color-panel-alt, #0b1115);
   font-family: var(--az-font, Inter, system-ui, sans-serif);
   text-align: center;
@@ -755,7 +755,7 @@ label:has(> .dv-icon-morph-checkbox) {
   gap: 12px;
   width: 100%;
   border: 1px solid rgba(126, 218, 232, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(11, 21, 25, 0.85);
   padding: 8px 12px;
   text-align: left;

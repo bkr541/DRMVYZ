@@ -25,7 +25,7 @@
   --az-red:          #e05a5a;
   --az-magenta:      #b84fc9;
 
-  --az-radius:       10px;
+  --az-radius:       var(--radius-group);
   --az-radius-sm:    6px;
   --az-font:         var(--font-ui);
   --az-font-data:    var(--font-mono);
@@ -736,7 +736,7 @@
 .az-trackinfo-artwork {
   width: 62px;
   height: 62px;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: linear-gradient(135deg, #1a2535, #0d1520);
   border: 1px solid rgba(255,255,255,0.1);
   display: flex;
@@ -1264,7 +1264,7 @@
   height: 32px;
   background: rgba(74,199,219,0.1);
   border: 1px solid rgba(74,199,219,0.3);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   color: var(--az-cyan);
   font-family: var(--az-font);
   font-size: 11px;
@@ -1284,7 +1284,7 @@
   display: flex; align-items: center; justify-content: center;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   color: var(--az-text-faint);
   cursor: pointer;
   transition: all 0.15s;
@@ -1299,7 +1299,7 @@
   width: 300px;
   background: #171b1d;
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   box-shadow: 0 8px 40px rgba(0,0,0,0.6);
   z-index: 200;
   overflow: hidden;

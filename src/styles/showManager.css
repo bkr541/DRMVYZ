@@ -217,7 +217,7 @@
 .sm-engine-dropdown {
   --drm-dropdown-trigger-height: 42px;
   --drm-dropdown-trigger-padding: 9px;
-  --drm-dropdown-radius: 11px;
+  --drm-dropdown-radius: var(--radius-group);
   font-family: var(--az-font);
 }
 
@@ -230,7 +230,7 @@
   padding: 8px 9px;
   border: 1px solid rgba(103, 247, 255, 0.72);
   border-color: rgba(103, 247, 255, 0.72);
-  border-radius: 11px;
+  border-radius: var(--radius-group);
   background:
     linear-gradient(135deg, rgba(74, 199, 219, 0.18), rgba(97, 214, 170, 0.045) 44%, rgba(255, 255, 255, 0.025)),
     rgba(5, 12, 18, 0.96);
@@ -309,7 +309,7 @@
   gap: 0;
   padding: 7px;
   border-color: rgba(103, 247, 255, 0.46);
-  border-radius: 12px;
+  border-radius: var(--radius-group);
   background:
     linear-gradient(180deg, rgba(74, 199, 219, 0.13), rgba(4, 9, 13, 0.98) 38%),
     rgba(4, 9, 13, 0.98);
@@ -326,7 +326,7 @@
   gap: 8px;
   padding: 8px 9px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   background: rgba(255, 255, 255, 0.025);
 }
 
@@ -560,7 +560,7 @@ button.sm-library-section-toggle:focus-visible {
 .sm-inspector .rv-ctrl-collapsible {
   margin: 7px 0;
   border-color: rgba(74, 199, 219, 0.14);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background:
     radial-gradient(circle at 0 0, rgba(74, 199, 219, 0.055), transparent 36%),
     rgba(5, 10, 16, 0.62);
@@ -599,7 +599,7 @@ button.sm-library-section-toggle:focus-visible {
   place-items: center;
   flex: 0 0 auto;
   border: 1px solid rgba(74, 199, 219, 0.24);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(74, 199, 219, 0.08);
   color: #67f7ff;
   font-size: 14px;
@@ -794,7 +794,7 @@ button.sm-library-section-toggle:focus-visible {
   align-content: center;
   gap: 5px;
   border: 1px dashed rgba(74, 199, 219, 0.42);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: rgba(74, 199, 219, 0.055);
   color: rgba(232, 244, 248, 0.82);
   cursor: pointer;
@@ -824,7 +824,7 @@ button.sm-library-section-toggle:focus-visible {
 
 .sm-deck-image-card {
   border: 1px solid rgba(154, 178, 188, 0.12);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(255, 255, 255, 0.025);
   overflow: hidden;
 }
@@ -932,7 +932,7 @@ button.sm-library-section-toggle:focus-visible {
   display: grid;
   gap: 8px;
   border: 1px solid rgba(74, 199, 219, 0.2);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(74, 199, 219, 0.045);
 }
 .sm-deck-readiness header { display: flex; justify-content: space-between; align-items: center; }
@@ -975,7 +975,7 @@ button.sm-library-section-toggle:focus-visible {
   grid-template-columns: 72px minmax(0, 1fr);
   gap: 8px;
   border: 1px solid rgba(154, 178, 188, 0.12);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(255, 255, 255, 0.025);
 }
 .sm-deck-preset-summary > :first-child { width: 72px; height: 42px; border-radius: 4px; overflow: hidden; }
@@ -1396,7 +1396,7 @@ button.sm-library-section-toggle:focus-visible {
   display: grid;
   gap: 10px;
   border: 1px solid rgba(103, 247, 255, 0.28);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   background: var(--color-panel-alt, #0b1115);
   font-family: var(--az-font, Inter, system-ui, sans-serif);
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.55);
@@ -1425,7 +1425,7 @@ button.sm-library-section-toggle:focus-visible {
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border: 1px solid rgba(154, 178, 188, 0.2);
-  border-radius: 12px;
+  border-radius: var(--radius-group);
   background: #0d1318;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
@@ -1665,7 +1665,7 @@ button.sm-library-section-toggle:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   padding: 6px;
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   background: rgba(1, 6, 9, 0.9);
   backdrop-filter: blur(5px);
 }

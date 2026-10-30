@@ -37,7 +37,7 @@
   min-width: 280px;
   overflow: visible;
   border: 1px solid var(--drm-info-border);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   background: var(--drm-info-surface-deep);
   color: var(--drm-info-text);
   font-family: var(--drm-info-font);
@@ -161,7 +161,7 @@
   margin-left: auto;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: transparent;
   color: var(--drm-info-accent);
   cursor: pointer;

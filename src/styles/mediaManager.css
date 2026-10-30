@@ -142,7 +142,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(154, 178, 188, 0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   /* Same fill as the library and details windows: the theme's panel-alt surface (see appearance.css, .vz-inspector-inner). */
   background: var(--color-panel-alt, rgba(8, 12, 18, 0.96));
   overflow: hidden;
@@ -508,7 +508,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   border: 1px solid rgba(255,255,255,0.08);
   background: rgba(255,255,255,0.03);
   color: rgba(196,207,211,0.4);
@@ -808,7 +808,7 @@
   box-sizing: border-box;
   padding: 48px;
   border: 1px solid rgba(74, 199, 219, 0.16);
-  border-radius: 12px;
+  border-radius: var(--radius-group);
   background: rgba(6, 10, 14, 0.72);
   overflow: hidden;
 }
@@ -848,7 +848,7 @@
   width: min(560px, calc(100vw - 32px));
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
+  border-radius: var(--radius-group);
   background: #0b1118;
   box-shadow: 0 24px 80px rgba(0,0,0,0.7);
 }

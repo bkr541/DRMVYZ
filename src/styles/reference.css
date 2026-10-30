@@ -148,7 +148,7 @@
 .ref-main-art {
   width: 88px;
   height: 88px;
-  border-radius: 8px;
+  border-radius: var(--radius-group);
   background: linear-gradient(135deg, #1a2535, #0c1320);
   border: 1px solid rgba(255,255,255,0.08);
   display: flex;
@@ -421,7 +421,7 @@
   gap: 6px;
   padding: 24px 16px;
   border: 1px dashed rgba(255,255,255,0.09);
-  border-radius: 7px;
+  border-radius: var(--radius-group);
   cursor: pointer;
   transition: all 0.15s;
   color: var(--az-text-faint);
@@ -430,7 +430,7 @@
 }
 .ref-empty-slot--main {
   padding: 40px 24px;
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   border-color: rgba(74,199,219,0.15);
   min-height: 140px;
   margin: 0;
@@ -555,7 +555,7 @@
   height: 50px;
   background: rgba(74,199,219,0.07);
   border: 1.5px solid rgba(74,199,219,0.32);
-  border-radius: 9px;
+  border-radius: var(--radius-group);
   color: var(--az-cyan);
   cursor: pointer;
   transition: all 0.15s;
