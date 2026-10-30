@@ -10,7 +10,7 @@
   --fw-compact-nav-width: 72px;
   --fw-outer-inset: 9px;
   --fw-region-gap: 11px;
-  --fw-surface-radius: 11px;
+  --fw-surface-radius: 6px;
   --fw-background: var(--color-background, var(--az-bg));
   --fw-surface-background: var(--color-panel-alt, var(--az-panel2));
   --fw-header-background: var(--color-panel, var(--az-sidebar));

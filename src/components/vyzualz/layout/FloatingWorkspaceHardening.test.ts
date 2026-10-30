@@ -20,7 +20,7 @@ describe('Phase 09 floating workspace hardening', () => {
   it('reuses the shared outer inset, gutter and corner tokens across all five workspaces', () => {
     expect(floatingCss).toContain('--fw-outer-inset: 9px')
     expect(floatingCss).toContain('--fw-region-gap: 11px')
-    expect(floatingCss).toContain('--fw-surface-radius: 11px')
+    expect(floatingCss).toContain('--fw-surface-radius: 6px')
     for (const css of [reactCss, presetCss, mediaCss, lyricCss, showCss]) {
       expect(css).toContain('var(--fw-region-gap)')
       expect(css).toContain('var(--fw-surface-radius)')
