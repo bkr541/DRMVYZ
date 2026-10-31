@@ -265,12 +265,14 @@
   display: block;
 }
 .vz-header-brand-name {
-  font: 700 12px/1 var(--type-tab-family, inherit);
-  letter-spacing: 0.15em;
+  position: relative;
+  font: var(--type-window-heading, 700 12px/1.2 sans-serif);
+  letter-spacing: var(--type-window-heading-tracking, 0.15em);
   text-transform: uppercase;
   color: #e6eef1;
   white-space: nowrap;
 }
+
 .vz-header-brand-divider {
   font-size: 16px;
   line-height: 1;
