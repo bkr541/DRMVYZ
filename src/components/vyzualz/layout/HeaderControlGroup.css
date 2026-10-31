@@ -239,11 +239,7 @@
   filter: none;
 }
 
-/* Output state keeps its meaning as ink and a faint tint, not a border. */
-.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-status.is-armed { background: rgba(97, 214, 170, 0.1); color: rgba(126, 239, 194, 0.98); }
-.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-status.is-dark { background: rgba(192, 49, 74, 0.1); color: rgba(255, 137, 150, 0.94); }
-.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-reveal:not(:disabled) { color: rgba(103, 247, 255, 0.9); }
-.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-blackout:not(:disabled) { color: rgba(255, 119, 134, 0.98); }
+/* React's output keys use the same ink, glyph weight and states as every other header key (armed = the pressed look). */
 .vz-header-group.vz-header-group .rv-global-output-dot { top: 4px; right: 3px; }
 
 /* Brand cluster: logo, page name and a divider before the page's controls. */
@@ -278,3 +274,10 @@
   line-height: 1;
   color: rgba(184, 197, 202, 0.4);
 }
+
+/* Brand, then the key group directly after it, with page status pushed to the far right. These headers are
+   space-between rows; with three children that would centre the key group instead of keeping it at the left. */
+:is(.mmv-header, .pmv-header, .lmv-header) { justify-content: flex-start; gap: 16px; }
+.mmv-summary, .pmv-summary, .lmv-header-right { margin-left: auto; }
+.sm-topbar { gap: 16px; }
+.sm-topbar .sm-title-block { position: absolute; width: 0; height: 0; overflow: hidden; }
