@@ -17,7 +17,6 @@ import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderContro
 import { HeaderIconKey } from '../../components/vyzualz/layout/HeaderIconKey'
 import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
-import { IconChipButton } from '../../components/vyzualz/react/controls/IconChipButton'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
 import type { OscillatorFontAsset } from '../../components/vyzualz/react/ReactTypes'
 
@@ -89,6 +88,17 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
         <header className="mmv-header">
           <HeaderControlGroup label="Media Manager controls">
             <HeaderIconKey
+              label="New Collection"
+              icon={<AppIcon kind="folderAdd" size={14} color="currentColor" />}
+              onClick={() => openCollectionEditor()}
+            />
+            <HeaderIconKey
+              label="New Media"
+              title="Add Media"
+              icon={<AppIcon kind="plus" size={14} color="currentColor" />}
+              onClick={() => openImportMediaModal()}
+            />
+            <HeaderIconKey
               label="Save Changes"
               title={headerActions?.saving ? 'Saving…' : 'Save the changes made on the Info tab'}
               icon={<SaveGlyph />}
@@ -127,23 +137,6 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
               side="left"
               icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
               label="Media Library"
-              actions={
-                <>
-                  <IconChipButton
-                    icon={<AppIcon kind="folderAdd" size={14} color="currentColor" />}
-                    onClick={() => openCollectionEditor()}
-                    title="New Collection"
-                    aria-label="New Collection"
-                  />
-                  <IconChipButton
-                    tone="primary"
-                    icon={<AppIcon kind="plus" size={14} color="currentColor" />}
-                    onClick={() => openImportMediaModal()}
-                    title="New Media"
-                    aria-label="New Media"
-                  />
-                </>
-              }
             />
             <MediaLibraryBrowser
               activeMediaId={selectedMediaId}

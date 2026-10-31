@@ -99,7 +99,7 @@ describe('MediaManagerView', () => {
     expect(container.querySelectorAll('.vz-inspector--collapsed')).toHaveLength(2)
   })
 
-  it('puts Save Changes and Delete Media in the header control group, wired to what the Info tab publishes', () => {
+  it('puts New Collection, Add Media, Save Changes and Delete Media in the header control group, wired to what the Info tab publishes', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -107,9 +107,13 @@ describe('MediaManagerView', () => {
 
     const group = container.querySelector('.mmv-header .vz-header-group')
     expect(group?.getAttribute('aria-label')).toBe('Media Manager controls')
-    const buttons = () => [...group!.querySelectorAll<HTMLButtonElement>('button')]
+    const allButtons = () => [...group!.querySelectorAll<HTMLButtonElement>('button')]
+    // The two creation keys come first, are always live, and no longer sit in the Media Library window header.
+    const buttons = () => allButtons().slice(2)
+    expect(container.querySelector('.rw-window-header-actions')).toBeNull()
     // Icon-only keys (like the Show Manager's): the accessible name is the label, there is no visible text.
-    expect(buttons().map(button => button.getAttribute('aria-label'))).toEqual(['Save Changes', 'Delete Media'])
+    expect(allButtons().map(button => button.getAttribute('aria-label'))).toEqual(['New Collection', 'New Media', 'Save Changes', 'Delete Media'])
+    expect(allButtons().slice(0, 2).every(button => !button.disabled)).toBe(true)
     expect(buttons().every(button => button.textContent?.trim() === '' && button.querySelector('svg'))).toBe(true)
     // Nothing published yet (no Info tab showing): both keys are dead.
     expect(buttons().every(button => button.disabled)).toBe(true)

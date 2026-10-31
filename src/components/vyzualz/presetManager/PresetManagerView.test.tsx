@@ -34,9 +34,13 @@ afterEach(() => {
 })
 
 describe('Preset Manager view', () => {
-  it('uses the original three surfaces without adding a local duplicate header', () => {
+  it('keeps the three surfaces and puts Create, Save, Duplicate and Delete in the header control group, with none in the library window header', () => {
     renderView()
-    expect(container?.querySelector('.pmv-header')).toBeNull()
+    const keys = [...container!.querySelectorAll<HTMLButtonElement>('.pmv-header .vz-header-group button')]
+    expect(keys.map(key => key.getAttribute('aria-label'))).toEqual(['Create preset', 'Save preset', 'Duplicate preset', 'Delete preset'])
+    // Placeholders: live (not disabled) and without any effect.
+    expect(keys.every(key => !key.disabled)).toBe(true)
+    expect(container?.querySelector('.rw-window-header-actions')).toBeNull()
     expect(container?.querySelectorAll('.pmv-content > .fw-surface')).toHaveLength(3)
     expect(container?.querySelector('.pmv-content > .vz-inspector--left.fw-surface')).not.toBeNull()
     expect(container?.querySelector('.pmv-content > .pmv-stage.fw-surface')).not.toBeNull()
@@ -141,7 +145,7 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-content.vz-content')).not.toBeNull()
     expect(container?.querySelector('.vz-inspector.vz-inspector--left.rw-frame--left')).not.toBeNull()
     expect(container?.querySelector('.rw-window-header.rw-window-header--left')).not.toBeNull()
-    expect(container?.querySelector('[aria-label="Create preset"].dv-icon-chip--primary')).not.toBeNull()
+    expect(container?.querySelector('.pmv-header [aria-label="Create preset"].vz-header-icon-key')).not.toBeNull()
     expect(container?.querySelector('.pmv-tabs.dv-underline-tabs')).not.toBeNull()
     expect(container?.querySelector('.pmv-search.rv-preset-search-row')).not.toBeNull()
     expect(container?.querySelector('.pmv-category.dv-underline-dropdown')).not.toBeNull()

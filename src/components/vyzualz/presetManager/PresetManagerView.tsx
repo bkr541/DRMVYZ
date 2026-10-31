@@ -7,7 +7,12 @@ import { EMPTY_PRESET_ORGANIZATION, usePresetOrganizationStore } from '../../../
 import { usePresetCatalogStore, usePresetScopeFilter } from '../../../features/presetCatalog/presetCatalogStore'
 import { useMediaStore } from '../../../stores/mediaStore'
 import { useReactStore } from '../../../stores/reactStore'
+import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
+import { HeaderControlGroup } from '../layout/HeaderControlGroup'
+import { HeaderIconKey } from '../layout/HeaderIconKey'
+import { SaveGlyph } from '../layout/HeaderGlyphs'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
+import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { RailTabs, type RailTabOption } from '../layout/RailTabs'
 import { WorkspaceRail } from '../layout/WorkspaceRail'
 import {
@@ -33,7 +38,6 @@ import {
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
 import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRows'
-import { IconChipButton } from '../react/controls/IconChipButton'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
@@ -379,6 +383,24 @@ export function PresetManagerView() {
 
   return (
     <main className="pmv-root" aria-label="Preset Manager">
+      <ApplicationHeaderControls fallbackWhenUnavailable>
+        <header className="pmv-header">
+          {/* Create, Save, Duplicate and Delete are placeholders: presets have no create/save/duplicate/delete actions yet. */}
+          <HeaderControlGroup label="Preset Manager controls">
+            <HeaderIconKey
+              label="Create preset"
+              icon={<AppIcon kind="plus" size={14} color="currentColor" />}
+              onClick={NOOP}
+            />
+            <HeaderIconKey label="Save preset" icon={<SaveGlyph />} onClick={NOOP} />
+            <HeaderIconKey label="Duplicate preset" icon={<AppIcon kind="copy" size={14} color="currentColor" />} onClick={NOOP} />
+            <HeaderIconKey label="Delete preset" icon={<AppIcon kind="delete" size={14} color="currentColor" />} danger onClick={NOOP} />
+          </HeaderControlGroup>
+          <div className="pmv-summary">
+            <VyzualzHeaderActions page="preset-manager" />
+          </div>
+        </header>
+      </ApplicationHeaderControls>
       <section className="pmv-workspace" aria-label="Preset Manager workspace">
         <div
           className="vz-content pmv-content"
@@ -396,14 +418,6 @@ export function PresetManagerView() {
               side="left"
               icon={<AppIcon kind="layers" size={15} color="currentColor" aria-hidden="true" />}
               label="Preset Library"
-              actions={
-                <IconChipButton
-                  tone="primary"
-                  icon={<AppIcon kind="plus" size={14} color="currentColor" />}
-                  aria-label="Create preset"
-                  title="Create preset"
-                />
-              }
             />
             <div className="vz-panel vz-media-browser vz-media-browser--manager pmv-browser">
               <UnderlineTabs
