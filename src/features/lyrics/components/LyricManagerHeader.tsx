@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { LyricHeaderIcon } from './LyricHeaderIcon'
 
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
+import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
@@ -62,28 +63,28 @@ export function LyricManagerHeader({
         <HeaderIconKey
           label="Show Lyrics"
           title="Show or hide active lyrics in the visualizer"
-          icon={<LyricHeaderIcon kind="lyrics" color="currentColor" />}
+          icon={<HeaderActionIcon action="lyrics" />}
           pressed={lyricsDisplayEnabled}
           onClick={onToggleLyricsDisplay}
         />
         <HeaderIconKey
           label="Save"
           title={isSaving ? 'Saving…' : 'Save lyric document'}
-          icon={<LyricHeaderIcon kind="save" />}
+          icon={<HeaderActionIcon action="save" />}
           disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSave}
         />
         <HeaderIconKey
           label="Save + Make Active"
           title={isSaving ? 'Saving…' : 'Save this version and make it the active runtime version'}
-          icon={<LyricHeaderIcon kind="saveActive" />}
+          icon={<HeaderActionIcon action="saveActive" />}
           disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSaveAndMakeActive}
         />
         {editActions}
         {onToggleLaneIcons && <HeaderIconKey
           label={laneIconsExpanded ? 'Collapse Track Timeline row icons' : 'Expand Track Timeline row icons'}
-          icon={<LyricHeaderIcon kind="list" />}
+          icon={<HeaderActionIcon action="list" />}
           pressed={laneIconsExpanded}
           onClick={onToggleLaneIcons}
         />}

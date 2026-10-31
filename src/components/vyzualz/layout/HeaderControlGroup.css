@@ -245,3 +245,34 @@
 .vz-header-group.vz-header-group .rv-global-output button.rv-global-output-reveal:not(:disabled) { color: rgba(103, 247, 255, 0.9); }
 .vz-header-group.vz-header-group .rv-global-output button.rv-global-output-blackout:not(:disabled) { color: rgba(255, 119, 134, 0.98); }
 .vz-header-group.vz-header-group .rv-global-output-dot { top: 4px; right: 3px; }
+
+/* Brand cluster: logo, page name and a divider before the page's controls. */
+.vz-header-brand {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  margin-right: 8px;
+  user-select: none;
+}
+.vz-header-brand-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+}
+.vz-header-brand-name {
+  font: 700 12px/1 var(--type-tab-family, inherit);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #e6eef1;
+  white-space: nowrap;
+}
+.vz-header-brand-divider {
+  font-size: 16px;
+  line-height: 1;
+  color: rgba(184, 197, 202, 0.4);
+}

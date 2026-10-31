@@ -10,6 +10,7 @@ import { useReactStore } from '../../../stores/reactStore'
 import { ApplicationHeaderControls } from '../layout/ApplicationWorkspaceFrame'
 import { HeaderControlGroup } from '../layout/HeaderControlGroup'
 import { HeaderIconKey } from '../layout/HeaderIconKey'
+import { HeaderActionIcon } from '../layout/HeaderActionIcon'
 import { SaveGlyph } from '../layout/HeaderGlyphs'
 import { RailWindowHeader } from '../layout/RailWindowHeader'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
@@ -389,12 +390,12 @@ export function PresetManagerView() {
           <HeaderControlGroup label="Preset Manager controls">
             <HeaderIconKey
               label="Create preset"
-              icon={<AppIcon kind="plus" size={14} color="currentColor" />}
+              icon={<HeaderActionIcon action="create" />}
               onClick={NOOP}
             />
             <HeaderIconKey label="Save preset" icon={<SaveGlyph />} onClick={NOOP} />
-            <HeaderIconKey label="Duplicate preset" icon={<AppIcon kind="copy" size={14} color="currentColor" />} onClick={NOOP} />
-            <HeaderIconKey label="Delete preset" icon={<AppIcon kind="delete" size={14} color="currentColor" />} danger onClick={NOOP} />
+            <HeaderIconKey label="Duplicate preset" icon={<HeaderActionIcon action="duplicate" />} onClick={NOOP} />
+            <HeaderIconKey label="Delete preset" icon={<HeaderActionIcon action="delete" />} danger onClick={NOOP} />
           </HeaderControlGroup>
           <div className="pmv-summary">
             <VyzualzHeaderActions page="preset-manager" />

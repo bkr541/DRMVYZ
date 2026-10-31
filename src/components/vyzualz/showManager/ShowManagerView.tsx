@@ -80,6 +80,7 @@ import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { SaveActiveGlyph, SaveGlyph } from '../layout/HeaderGlyphs'
 import { HeaderIconKey } from '../layout/HeaderIconKey'
+import { HeaderActionIcon } from '../layout/HeaderActionIcon'
 import { useSharedDataActivity } from '../../../stores/useSharedDataActivity'
 import { MediaLibraryBrowser } from '../media/MediaLibraryBrowser'
 import { MediaUploadModal } from '../MediaUploadModal'
@@ -339,7 +340,7 @@ function ShowBrowserDialog({
           <nav className="sm-show-browser-sidebar" aria-label="Show locations">
             <span className="sm-show-browser-sidebar-label">Workspace</span>
             <button type="button" className="is-active">
-              <AppIcon kind="folder" />
+              <HeaderActionIcon action="open" />
               <span>All Shows</span>
               <small>{shows.length}</small>
             </button>
@@ -425,7 +426,7 @@ function ShowBrowserDialog({
                 </div>
               )) : (
                 <div className="sm-show-browser-empty">
-                  <AppIcon kind="folder" />
+                  <HeaderActionIcon action="open" />
                   <strong>{shows.length === 0 ? 'No Shows yet' : 'No matching Shows'}</strong>
                   <span>{shows.length === 0 ? 'Create a new Show to begin authoring.' : 'Try a different search.'}</span>
                 </div>
@@ -2133,7 +2134,7 @@ export function ShowManagerView() {
                 aria-label="New Show"
                 title="New Show"
               >
-                <AppIcon kind="fileAdd" />
+                <HeaderActionIcon action="create" />
               </button>
               <button
                 type="button"
@@ -2142,7 +2143,7 @@ export function ShowManagerView() {
                 aria-label="Open Show"
                 title="Open Show"
               >
-                <AppIcon kind="folder" />
+                <HeaderActionIcon action="open" />
               </button>
               <button
                 type="button"
@@ -2169,13 +2170,13 @@ export function ShowManagerView() {
                   onClick={activeSectionEngineId === 'canvas' ? undoCanvasShowManagerEdit : undoLaserShowEdit}
                   disabled={(activeSectionEngineId === 'canvas' ? canvasShowUndoDepth : laserShowUndoDepth) === 0}
                   title="Undo Show edit"
-                ><AppIcon kind="undo" size={14} /></button>
+                ><HeaderActionIcon action="undo" /></button>
                 <button
                   type="button"
                   onClick={activeSectionEngineId === 'canvas' ? redoCanvasShowManagerEdit : redoLaserShowEdit}
                   disabled={(activeSectionEngineId === 'canvas' ? canvasShowRedoDepth : laserShowRedoDepth) === 0}
                   title="Redo Show edit"
-                ><AppIcon kind="redo" size={14} /></button>
+                ><HeaderActionIcon action="redo" /></button>
                 {(['pointer', 'move', 'gridSnap', 'grid', 'split'] as const).map(tool => (
                   <button key={tool} type="button" disabled aria-label={STAGE_TOOL_LABELS[tool]}><AppIcon kind={tool} size={14} /></button>
                 ))}
@@ -2189,7 +2190,7 @@ export function ShowManagerView() {
           {workspaceMode === SHOW_MANAGER_PIX_GRID_DECK_BUILDER_MODE && (
             <button type="button" className="sm-header-button" onClick={exitDeckBuilder}>Back to Show Manager</button>
           )}
-          <HeaderIconKey label="Show Lyrics" icon={<AppIcon kind="lyrics" />} disabled onClick={() => {}} />
+          <HeaderIconKey label="Show Lyrics" icon={<HeaderActionIcon action="lyrics" />} disabled onClick={() => {}} />
           <HeaderIconKey
             label="Save"
             title={(saveEngineId === 'canvas' ? canvasSavePending : laserSavePending) === 'save' ? 'Saving…' : 'Save'}

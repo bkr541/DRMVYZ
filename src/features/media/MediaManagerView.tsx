@@ -15,6 +15,7 @@ import { selectMediaEditNeedsGuard, useMediaEditStore } from '../../stores/media
 import { MEDIA_MANAGER_CAPABILITIES } from '../../components/vyzualz/media/mediaLibraryCapabilities'
 import { HeaderControlGroup } from '../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderIconKey } from '../../components/vyzualz/layout/HeaderIconKey'
+import { HeaderActionIcon } from '../../components/vyzualz/layout/HeaderActionIcon'
 import { SaveGlyph } from '../../components/vyzualz/layout/HeaderGlyphs'
 import { VyzualzHeaderActions } from '../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricManagerNavigationIntent } from '../lyrics/lyricNavigation'
@@ -89,13 +90,13 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
           <HeaderControlGroup label="Media Manager controls">
             <HeaderIconKey
               label="New Collection"
-              icon={<AppIcon kind="folderAdd" size={14} color="currentColor" />}
+              icon={<HeaderActionIcon action="createCollection" />}
               onClick={() => openCollectionEditor()}
             />
             <HeaderIconKey
               label="New Media"
               title="Add Media"
-              icon={<AppIcon kind="plus" size={14} color="currentColor" />}
+              icon={<HeaderActionIcon action="create" />}
               onClick={() => openImportMediaModal()}
             />
             <HeaderIconKey
@@ -108,7 +109,7 @@ export function MediaManagerView({ onOpenLyricManager }: MediaManagerViewProps) 
             <HeaderIconKey
               label="Delete Media"
               title="Delete this media item"
-              icon={<AppIcon kind="delete" size={16} color="currentColor" />}
+              icon={<HeaderActionIcon action="delete" />}
               danger
               disabled={!headerActions?.onDelete || headerActions.deleting}
               onClick={() => headerActions?.onDelete?.()}
