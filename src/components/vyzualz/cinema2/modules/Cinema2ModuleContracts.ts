@@ -38,6 +38,8 @@ export interface Cinema2ModuleParameterReadFacet {
 }
 
 export interface Cinema2ModuleTargetFacet {
+  /** Dispatch only an action explicitly bound by this module's manifest (for example effect history reset). */
+  dispatchBoundAction?(action: string, eventId: string): Cinema2ActionDispatchResult | null
   getTarget(targetId: Cinema2TargetId): Readonly<Cinema2TargetHandle> | null
   resolve(
     targetId: Cinema2TargetId,

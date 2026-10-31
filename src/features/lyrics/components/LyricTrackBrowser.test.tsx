@@ -106,10 +106,14 @@ describe('LyricTrackBrowser', () => {
 
     expect(container.textContent).toContain('Reverie')
     expect(container.textContent).toContain('DVYDRM')
-    // Duration, BPM and key are separate values, each under its own label.
+    // Metadata labels remain accessible; inline metadata shows an icon before each value.
     const stats = [...container.querySelectorAll('.vz-track-row-stat')].map(stat => [stat.querySelector('dt')?.textContent, stat.querySelector('dd')?.textContent])
     expect(stats).toEqual([['Duration', '3:13'], ['BPM', '150'], ['Key', 'Bb Major']])
-    expect(container.textContent).toContain('Loaded')
+    const metadata = [...container.querySelectorAll('.vz-track-row-stats--icons .lmv-track-stat-value')]
+    expect(metadata.map(node => node.querySelector('svg')?.getAttribute('data-app-icon'))).toEqual(['clock', 'rhythm', 'music'])
+    expect(metadata.map(node => node.firstElementChild?.tagName)).toEqual(['svg', 'svg', 'svg'])
+    expect(container.querySelectorAll('.vz-track-row-stats dt.sr-only')).toHaveLength(3)
+    expect(container.querySelector('[role="img"][aria-label="Loaded"]')?.getAttribute('title')).toBe('Loaded')
 
     const card = container.querySelector('.vz-track-row') as HTMLElement
     await act(async () => card.click())
@@ -125,7 +129,7 @@ describe('LyricTrackBrowser', () => {
     expect(rows).toHaveLength(2)
     expect(container.querySelector('.vz-track-row-art')).toBeNull()
     const lines = [...rows[0]!.querySelector('.vz-track-row-info')!.children].map(line => line.className)
-    expect(lines).toEqual(['vz-track-row-artist-line', 'vz-track-row-title-line', 'vz-track-row-stats'])
+    expect(lines).toEqual(['vz-track-row-artist-line', 'vz-track-row-title-line', 'vz-track-row-stats vz-track-row-stats--icons'])
     expect(rows[0]!.querySelector('.vz-track-row-artist')?.textContent).toBe('UrBoiN8')
     expect(rows[0]!.querySelector('.vz-track-row-title')?.textContent).toBe('MPH - Raw (UrBoiN8 Remix)')
   })
@@ -160,7 +164,7 @@ describe('LyricTrackBrowser', () => {
     const row = container.querySelector<HTMLElement>('.vz-track-row--list')!
     const artistLine = row.querySelector('.vz-track-row-artist-line')!
     expect(artistLine.querySelector('.vz-track-row-artist')?.textContent).toBe('DVYDRM')
-    expect(artistLine.querySelector('.vz-track-row-state-badges')?.textContent).toContain('Loaded')
+    expect(artistLine.querySelector('.vz-track-row-loaded-dot')?.getAttribute('aria-label')).toBe('Loaded')
     expect(artistLine.querySelector('.vz-track-row-state-badges')?.textContent).toContain('Playing')
     expect(row.querySelector('.vz-track-row-title-line .vz-track-row-state-badges')).toBeNull()
   })
@@ -280,7 +284,11 @@ describe('LyricTrackBrowser', () => {
     })
 
     const badges = [...container.querySelectorAll('.vz-track-row-state-badges .dv-badge')].map(node => node.textContent)
-    expect(badges).toEqual(['Selected', 'Loaded', 'Playing'])
+    expect(badges).toEqual(['Selected', 'Playing'])
+    const loaded = container.querySelector('.vz-track-row-loaded-dot')
+    expect(loaded?.textContent).toBe('')
+    expect(loaded?.children).toHaveLength(0)
+    expect(loaded?.getAttribute('aria-label')).toBe('Loaded')
 
     // Selected is dot-only: its label is visually hidden but kept for assistive tech and the tooltip.
     const selected = container.querySelector<HTMLElement>('.vz-track-row-selected-dot')

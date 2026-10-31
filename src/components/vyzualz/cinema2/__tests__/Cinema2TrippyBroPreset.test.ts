@@ -31,7 +31,7 @@ describe('Trippy, Bro native performance', () => {
     expect(byId('bpm-sync').designParentGroup).toBe('master-controls')
     expect(byId('auto-performance').defaultValue).toBe(false)
     expect(p.filter(p=>p.type==='color'&&p.designParentGroup==='palette')).toHaveLength(6)
-    expect(p.every(p=>['master-controls','design','effects','palette'].includes(p.designParentGroup!))).toBe(true)
+    expect(p.filter(p=>p.exposure==='primary').every(p=>['master-controls','design','effects','palette'].includes(p.designParentGroup!))).toBe(true)
     expect(byId('pattern').metadata).toBeUndefined() // no implicit toggle edits
   })
   it('holds manual selections, suppresses duplicate/stale triggers, and allows immediate manual selection while cycling', () => {
@@ -43,9 +43,27 @@ describe('Trippy, Bro native performance', () => {
     expect(update({event:'b'}).base).toBe('goldenFold')
     expect(update({authored:'liquidWeave',editRevision:1,event:'b'}).performing).toBe('liquidWeave')
     expect(update({authored:'liquidWeave',editRevision:1,event:'b'}).base).toBe('liquidWeave')
-    expect(update({authored:'liquidWeave',editRevision:1,event:'c'}).base).toBe('orbitalLace')
+    expect(update({authored:'liquidWeave',editRevision:1,event:'c'}).base).toBe('prismLattice')
     expect(update({authored:'liquidWeave',editRevision:1,enabled:false,event:'d'}).base).toBe('liquidWeave')
   })
+  it('stages automatic transitions, preserves immediate manual edits, and foregrounds the reference families', () => {
+    const c = new TrippyBroPerformance()
+    const u = (p: Partial<TrippyBroPerformanceInput>) => c.update({...defaults, enabled: true, ...p})
+    u({})
+    const first = u({event:'beat-1', timeSec:1})
+    expect(first).toMatchObject({performing:'goldenFold',previous:'prismLattice',transition:0,changed:true})
+    expect(u({event:'beat-1', timeSec:1.24}).transition).toBeCloseTo(0.5)
+    expect(u({event:'beat-1', timeSec:1.5}).transition).toBe(1)
+    expect(u({event:'beat-2', timeSec:2}).performing).toBe('quadBloom')
+    expect(u({event:'beat-3', timeSec:3}).performing).toBe('neonCross')
+    expect(u({event:'beat-4', timeSec:4}).performing).toBe('liquidWeave')
+    expect(u({event:'beat-5', timeSec:5}).performing).toBe('prismLattice')
+    const manual = u({event:'beat-5', timeSec:5.1, authored:'chromaticKnot', editRevision:1})
+    expect(manual.performing).toBe('chromaticKnot')
+    expect(manual.transition).toBeCloseTo(1)
+    expect(u({event:'beat-6', timeSec:6, authored:'chromaticKnot', editRevision:1}).performing).toBe('prismLattice')
+  })
+
   it('rebases trigger edits, resets and repeated edits of the same authored selection', () => {
     const c=new TrippyBroPerformance()
     const u=(p:Partial<TrippyBroPerformanceInput>)=>c.update({...defaults,enabled:true,...p})

@@ -1,6 +1,8 @@
 import { cinema2StableId, type Cinema2ParameterId } from '../../contracts/Cinema2NativePresetManifest'
 
 export const TRIPPY_BRO_PATTERNS = ['prismLattice', 'goldenFold', 'quadBloom', 'neonCross', 'liquidWeave', 'orbitalLace', 'prismEcho', 'chromaticKnot'] as const
+// Automatic progression keeps the reference families in front. Extras remain manually selectable.
+export const TRIPPY_BRO_REFERENCE_CYCLE = TRIPPY_BRO_PATTERNS.slice(0, 5)
 export type TrippyBroPattern = typeof TRIPPY_BRO_PATTERNS[number]
 export const TRIPPY_BRO_PATTERN_LABELS = ['Prism Lattice', 'Golden Fold', 'Quad Bloom', 'Neon Cross', 'Liquid Weave', 'Orbital Lace', 'Prism Echo', 'Chromatic Knot'] as const
 export const trippyBroParameterId = (name: string) => cinema2StableId<Cinema2ParameterId>(`trippy-bro-${name}`)
@@ -11,5 +13,5 @@ export const TRIPPY_BRO_COLORS = {
 export const TRIPPY_BRO_NUMBERS = {
   intensity: [0, 1, 1], reactivity: [0, 0.65, 1], scale: [0.55, 1, 1.25],
   density: [5, 13, 21], width: [0.6, 1, 2], speed: [0, 1, 2], amount: [0, 0.45, 1],
-  detail: [0, 0.3, 1], bloom: [0, 0.22, 0.7], trails: [0, 0, 0.65], split: [0, 0, 1], echo: [0, 0, 1],
+  detail: [0, 0.3, 1], bloom: [0, 0.42, 0.7], trails: [0, 0, 0.65], split: [0, 0, 1], echo: [0, 0.2, 1],
 } as const

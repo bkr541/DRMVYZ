@@ -19,8 +19,8 @@
 .sm-root *::after { box-sizing: border-box; }
 
 .sm-topbar {
-  height: 60px;
-  flex: 0 0 60px;
+  height: var(--workspace-header-height, 44px);
+  flex: 0 0 var(--workspace-header-height, 44px);
   display: flex;
   align-items: center;
   gap: 12px;

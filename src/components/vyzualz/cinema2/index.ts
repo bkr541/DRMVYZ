@@ -1478,3 +1478,5 @@ export {
   type Cinema2FirstPartyPresetRole,
   type Cinema2PresetAuthoringValidationResult,
 } from './presets/Cinema2PresetAuthoring'
+
+export { CINEMA2_GLASSFALL_PRESET_ID, CINEMA2_GLASSFALL_PRESET_MANIFEST } from './presets/Cinema2GlassfallPreset'

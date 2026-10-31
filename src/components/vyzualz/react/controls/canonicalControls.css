@@ -495,7 +495,7 @@ label:has(> .dv-icon-morph-checkbox) {
 .dv-notice-title {
   flex: 1;
   color: rgba(232, 244, 248, 0.85);
-  font: 700 13.5px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  font: 700 var(--type-notice-title-size, 12px)/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
   text-transform: capitalize;
 }
 

@@ -1,6 +1,7 @@
 /* Shared UI typography. Change a role here, never in a workspace override.
    Authored lyric, visualizer, and media fonts are separate from UI controls. */
 :root {
+  --type-notice-title-size: 12px;
   /* A field's value is set in exactly its label's face, size and weight (only line height differs, so
      multi-line values stay readable). Both roles are built from these three tokens. */
   --type-field-family: var(--font-mono, 'Manrope', sans-serif);
@@ -16,6 +17,11 @@
   --type-group-heading: var(--type-window-heading);
   --type-window-heading-tracking: 0.15em;
   --type-nested-group-heading: 800 11px/1 var(--font-ui, 'Space Grotesk', sans-serif);
+}
+
+/* Notice titles keep one size across inline cards, drawers and design variants. */
+:root body .dv-notice-title {
+  font-size: var(--type-notice-title-size) !important;
 }
 
 /* Opt-in design study. Keep the entire role contract here so labels, values,

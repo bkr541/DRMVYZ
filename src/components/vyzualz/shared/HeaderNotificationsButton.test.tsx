@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
-import { createDeveloperLogConsumer } from '../../../lib/developerLogNotices'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,7 +18,6 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  useNotificationStore.getState().clearDeveloperEvents()
   useNotificationStore.setState({ pages: EMPTY_PAGES, slots: {}, events: EMPTY_PAGES })
 })
 
@@ -223,19 +221,16 @@ describe('notify()', () => {
   })
 })
 
-it('renders global developer log cards on every workspace and clears them on access loss', async () => {
-  const consume = createDeveloperLogConsumer((event, create) => useNotificationStore.getState().upsertDeveloperEvent(event, create))
-  await act(async () => {
-    root.render(<HeaderNotificationsButton page="react" iconOnly />)
-    consume('[2026-10-28 10:00:00.001] [error] (system:window) Render failed\n')
-  })
-  expect(bell().getAttribute('aria-label')).toBe('Notifications (1)')
-  await act(async () => root.render(<HeaderNotificationsButton key="show-manager" page="show-manager" iconOnly />))
-  await act(async () => bell().click())
-  expect(drawerTitles()).toEqual(['System log error · system / window'])
-  expect(drawer()?.textContent).toContain('Render failed')
-  expect(useNotificationStore.getState().developerEvents[0].unread).toBe(false)
-  await act(async () => useNotificationStore.getState().clearDeveloperEvents())
-  expect(drawerTitles()).toEqual([])
-  expect(bell().getAttribute('aria-label')).toBe('Notifications')
+it('does not subscribe to system logs when showing notifications', async () => {
+  const watchMainLog = vi.fn(() => () => {})
+  window.drmvyzNative = { runtime: { isElectron: true, platform: 'darwin' }, diagnostics: { watchMainLog } }
+  try {
+    await act(async () => root.render(<HeaderNotificationsButton page="react" iconOnly />))
+    await act(async () => bell().click())
+    expect(watchMainLog).not.toHaveBeenCalled()
+    expect(drawerTitles()).toEqual([])
+    expect(bell().getAttribute('aria-label')).toBe('Notifications')
+  } finally {
+    delete window.drmvyzNative
+  }
 })

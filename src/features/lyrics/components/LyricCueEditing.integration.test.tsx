@@ -181,8 +181,8 @@ describe('Lyric Manager cue editing workspace', () => {
   it('keeps commands in the header and toggles canonical Track Map lane labels together', async () => {
     await renderWorkspace()
     const timeline = container.querySelector('[aria-label="Track Timeline"]')!
-    expect(timeline.querySelector('[aria-label="Cue editing"]')).toBeNull()
-    expect(container.querySelector('header [aria-label="Cue editing"]')).not.toBeNull()
+    expect(timeline.querySelector('[aria-label="Lyric Manager controls"]')).toBeNull()
+    expect(container.querySelector('header [aria-label="Lyric Manager controls"]')).not.toBeNull()
     expect(timeline.querySelector('.rv-timeline-lane-icon[title="Beats"] .app-icon')).not.toBeNull()
     expect(timeline.querySelector('.rv-timeline-lane-icon[title="Lyrics 1"]')).not.toBeNull()
     expect(timeline.querySelector('.rv-timeline-lanes--icons-expanded')).not.toBeNull()
@@ -331,8 +331,8 @@ describe('Lyric Manager cue editing workspace', () => {
     const analyzeButton = container.querySelector<HTMLButtonElement>('[aria-label="Analyze Track"]')
     expect(analyzeButton).toBeTruthy()
     expect(analyzeButton!.textContent?.trim()).toBe('')
-    const row = container.querySelector('[aria-label="Cue editing"]')!
-    expect(row.lastElementChild).toBe(analyzeButton)
+    const row = container.querySelector('[aria-label="Lyric Manager controls"]')!
+    expect(analyzeButton!.previousElementSibling?.getAttribute('aria-label')).toBe('Delete cue')
     expect(row.querySelector('[aria-label="Delete cue"]')!.compareDocumentPosition(analyzeButton!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(container.textContent).not.toContain('Temporary grid in use.')
     await act(async () => analyzeButton?.click())

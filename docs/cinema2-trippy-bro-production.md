@@ -1,6 +1,6 @@
 # Trippy, Bro — implementation and acceptance
 
-Status: all eight implementation phases are complete. Automated acceptance passed, and the user approved the complete preset on October 29, 2026. The preset is promoted to first-party `keeper` status at revision 3, with review-only metadata removed. The approved enlarged composition and musical behavior are preserved.
+Status: revision 4 implements the October 31 reference rework following the user's rejection of revision 3. The earlier approval and acceptance below describe the historical implementation, not proof of current reference fidelity. See `cinema2-trippy-bro-reference-rework.md` for the new motion, transitions, emission and moving validation. Visual review of this rework is pending.
 
 ## Visual implementation
 
@@ -33,17 +33,17 @@ All controls use generic parameter definitions/bindings and the existing Inspect
 | Master Controls | Auto Performance | OFF by default |
 | Design | Pattern | Eight choices above; Prism Lattice default |
 | Design | Pattern Change | OFF by default |
-| Design | Trigger | Canonical 11 choices; Phrase default; visible only while Pattern Change is ON |
+| Design | Trigger | Canonical 11 choices; Bar default; visible only while Pattern Change is ON |
 | Design | Composition Scale | 0.55 / 1 / 1.25, relative to approved cover framing |
 | Design | Line Density | 5 / 13 / 21 subdivisions; pattern-specific equivalent |
 | Design | Stroke Width | 0.6 / 1 / 2 × approved stroke widths |
 | Design | Motion Speed | 0 / 1 / 2; zero stops phase travel |
 | Design | Motion Amount | 0 / 0.45 / 1; zero stops procedural deformation |
 | Design | Secondary Detail | 0 / 0.3 / 1; zero removes supporting details |
-| Effects | Bloom | 0 / 0.22 / 0.7 |
+| Effects | Bloom | 0 / 0.42 / 0.7 |
 | Effects | Trails | 0 / 0 / 0.65 |
 | Effects | Chromatic Separation | 0 / 0 / 1; bounded stroke-edge separation |
-| Effects | Geometric Echo | 0 / 0 / 1; two faint enlarged, delayed contours |
+| Effects | Geometric Echo | 0 / 0.2 / 1; two local contour echoes |
 | Palette | Background, Cyan Structure, Blue Weave, Magenta Accent, Amber Orbit, Highlight | Six independently editable RGBA color parameters |
 
 The default intensity remains 1 to preserve the approved static geometry's weight. The outer warm border derives from Amber Orbit, rather than retaining an uneditable unrelated color. Colors stay user-owned under all performance modes.
@@ -77,20 +77,20 @@ Music Reactivity scales all these musical contributions. It does not change the 
 
 ## Pattern authority
 
-The runtime reuses the canonical shared trigger resolver and generic `Cinema2MainframePatternController` with this preset's eight-pattern cycle. It does not create alternate event definitions. The dropdown imports `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` verbatim.
+The runtime reuses the canonical shared trigger resolver and generic `Cinema2MainframePatternController` with this preset's five reference-family automatic cycle and eight manually selectable patterns. It does not create alternate event definitions. The dropdown imports `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` verbatim.
 
 1. Manual Pattern establishes the authored base immediately. Pattern Change remains ON if it was enabled.
 2. With Pattern Change ON, only a fresh qualifying selected Trigger advances the runtime base. Duplicate events, trigger edits, toggles, resets, and manual edits watermark current events rather than causing stale transitions. Persisted Pattern is never overwritten by cycling.
 3. Auto Performance is a separate permission. A new build section may temporarily perform Golden Fold for at most four seconds; a new shared drop event may perform Quad Bloom for at most 1.2 seconds. Section exit also ends a build override.
 4. The base controller continues to receive valid selected triggers while an override performs. The current base resumes when the override expires.
 5. A manual Pattern edit immediately cancels the visible override and suppresses the already-active event. A later separately qualifying event may override again. Turning Auto Performance OFF returns to the current base immediately, including while paused. Pattern Change permission edits also update the visible base without depending on transport time advancing.
-6. Automatic changes dissolve over 180 ms. Manual selection is immediate. Transitions share the central anchor and avoid sustained full-density superposition.
+6. Automatic changes use staged 480–640 ms component withdrawal and reveal. Manual selection is immediate. The central anchor remains; complete drawings are never dissolved together.
 
-This is a finite deterministic sequence of eight looks, with no immediate repetition. It deliberately uses no random scene selector.
+Automatic progression uses the five reference families, with no immediate repetition; supplemental looks remain manually selectable. It deliberately uses no random scene selector.
 
 ## Finishing and resource policy
 
-Bloom and Trails use the existing shared effects and authored render graph: scene → feedback trails → bloom → output. Trails have finite 0.8 retention, no drift, and bypass/clear on inactive transport. Mix zero writes clean base output and removes old retained contours. Native chromatic separation changes the distances sampled by RGB channels by at most 0.003 local units; Geometric Echo renders two faint contour samples at 16% and 8% strength, under the user's effect amount.
+Bloom and Trails use the existing shared effects and authored render graph: scene → feedback trails → bloom → output. Trails have finite 0.8 retention, no drift, and bypass/clear on inactive transport. Mix zero writes clean base output and removes old retained contours. Native chromatic separation changes the distances sampled by RGB channels by at most 0.003 local units; Geometric Echo renders two local distance-offset contours at 18% and 7% strength, under the user's effect amount, without repeating the scene.
 
 The module acquires ShaderProgram and FullscreenPass through host resource leases. Render targets/history belong to the engine. No imported model, external texture, new dependency, separate canvas, or private WebGL context was needed. Native loops have fixed 21-subdivision bounds; low quality uses engine render-resolution policy without changing hero topology.
 
@@ -109,9 +109,9 @@ node scripts/run-cinema2-trippy-bro-browser.mjs
 
 The production runner writes captures and reports to `artifacts/cinema2-trippy-bro/acceptance/`. Coverage includes distinct patterns, control extrema, independent palette roles, timing, canonical triggers, manual authority, continuous/rhythmic/structural channels, envelope return, pause/resume, seek/loop/track replacement, missing analysis, preset re-entry, effect OFF/maximum behavior, master-off authority, three aspect ratios, and disposal. The harness mounts the real Cinema2InspectorPanel and publishes deterministic upstream Music Intelligence fixtures into the shared bus; it does not bypass target resolution with renderer-only values.
 
-The performance snapshot is a measurement from the local browser test environment, not a frame-rate guarantee for live hardware. Reference-video audio was not used to infer undocumented source behavior. Musical mappings are authored and verified with deterministic fixtures.
+The historical revision 3 performance snapshot is a measurement from the local browser test environment, not a frame-rate guarantee for live hardware. Reference-video audio was not used to infer undocumented source behavior. Musical mappings are authored and verified with deterministic fixtures.
 
-Validation results:
+Historical revision 3 validation results (new revision 4 evidence is documented separately):
 
 - Five focused preset/controller tests passed.
 - Eight existing Inspector tests passed in the DOM environment, including the new empty-state regression assertion.
@@ -124,4 +124,4 @@ Validation results:
 
 The full command runs all checks; `--music-only` and `--authority-only` narrow later verification without repeating already-passed design capture work.
 
-The user's October 29, 2026 approval clears the final human visual acceptance gate. Catalog promotion is complete; no implementation phases remain. Promotion changes only catalog role, revision, and discovery metadata. Existing production-canvas evidence remains valid because geometry, controls, motion, musical behavior, and effects are unchanged. Focused preset and keeper-framework tests verify the promoted registration and authoring gate. No commit was requested; implementation remains uncommitted.
+Historical revision 3: the user's October 29, 2026 approval cleared that implementation's human visual acceptance gate. The October 31 audit subsequently rejected its reference fidelity; revision 4 requires a new moving visual review. The catalog identity remains stable, but the rebuilt rendering needs new moving acceptance evidence; revision 3 pixel captures do not validate revision 4. No commit was requested; implementation remains uncommitted.

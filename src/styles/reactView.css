@@ -23317,8 +23317,21 @@ button.llhr-chip { cursor: pointer; }
 .llhr-row--relief-stack .llhr-stack > .llhr-chip--icon { padding: 0 9px; }
 
 /* Option E's three readout groups keep stable widths as live values change. */
-.rv-header-status { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
-.rv-header-status > .vz-header-readout:first-child { width: 148px; }
+/* The cluster is exactly as wide as the Inspector below it (the same clamp as --rv-floating-rail-width, which the
+   portaled header cannot read) and ends at the Inspector's right edge, past the header's own 20px right padding. */
+.rv-header-status {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  flex: 0 0 auto;
+  align-items: center;
+  box-sizing: border-box;
+  width: clamp(210px, 22vw, 354px);
+  margin-right: -20px;
+}
+.rv-header-status > .vz-header-readout { width: auto; }
+@media (max-width: 1100px) {
+  .rv-header-status { width: clamp(190px, 24vw, 260px); }
+}
 /* ── Layout Lab · Template · Design tab: Preset Manager card studies ─────────────────────────────────────── */
 
 .llpm-gallery { display: flex; flex-direction: column; gap: 28px; padding: 18px 16px 32px; }

@@ -17,7 +17,7 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
     const performance = new TrippyBroPerformance()
     let phase = 0, lastBeat = 0, previousTime: number | null = null, generation: number | null = null
     let track: string | null | undefined, contextGeneration = -1, analysisRevision = ''
-    let selected = { base: 'prismLattice', performing: 'prismLattice', previous: 'prismLattice', transition: 1, overridden: false } as ReturnType<TrippyBroPerformance['update']>
+    let selected = { base: 'prismLattice', performing: 'prismLattice', previous: 'prismLattice', transition: 1, overridden: false, changed: false } as ReturnType<TrippyBroPerformance['update']>
     const number = (name: string, fallback: number) => { const value = context.parameters.get(name); return typeof value === 'number' && Number.isFinite(value) ? value : fallback }
     return {
       lifecycle: {
@@ -45,6 +45,10 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
             dropEvent: resolveCinema2AfterhoursTriggerEventIdentity(frame,'drop',reset ? null : previousTime),
             timeSec: time, beats: beat, playing, reset,
           })
+          // The shared history effect must never retain a previous topology or manual selection.
+          if (reset || selected.changed || selected.transition < 1) {
+            context.targets.dispatchBoundAction?.('clearTrails', `trippy-bro:history:${frame.contextGeneration}:${frame.frameId}`)
+          }
           previousTime = time
         },
         dispose() { clock.reset(); performance.reset() },
@@ -68,6 +72,7 @@ export const cinema2TrippyBroNativeModuleDefinition = Object.freeze<Cinema2Modul
           program.setFloat('u_previous', TRIPPY_BRO_PATTERNS.indexOf(selected.previous))
           program.setFloat('u_transition', selected.transition)
           program.setFloat('u_phase', phase)
+          program.setFloat('u_glow', number('bloom',0.42))
           for (const [name, fallback] of Object.entries({ scale: 1, density: 13, width: 1, amount: 0.45, detail: 0.3, intensity: 1, split: 0, echo: 0 })) program.setFloat(`u_${name}`, (name === 'density' ? Math.min(number(name,fallback),2*Math.ceil((number(name,fallback)*(1-Math.min(1,number('vocal',0))*0.25)-1)/2)+1) : number(name, fallback)))
           for (const name of ['bass','energy','kick','snare','build','drop','highs','vocal']) {
             const director = name === 'energy' ? number('directorIntensity',0) : name === 'build' ? number('directorBuild',0) : name === 'drop' ? number('directorImpact',0)*0.3 : 0

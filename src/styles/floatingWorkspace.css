@@ -6,7 +6,7 @@
  * Never apply these rules to unmarked legacy layouts or assume clipping.
  */
 [data-workspace-layout='floating'] {
-  --fw-header-height: 60px;
+  --fw-header-height: var(--workspace-header-height, 44px);
   --fw-compact-nav-width: 72px;
   --fw-outer-inset: 9px;
   --fw-region-gap: 11px;
@@ -44,7 +44,7 @@
   box-shadow: var(--fw-surface-shadow);
 }
 
-/* A header keeps its canonical 60px chrome when the composition uses a surface. */
+/* Primary headers share the same height in floating and embedded layouts. */
 [data-workspace-layout='floating'] .fw-region[data-workspace-slot='header'] > .fw-surface {
   height: var(--fw-header-height);
   flex-shrink: 0;

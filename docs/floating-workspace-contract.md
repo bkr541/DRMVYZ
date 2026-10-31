@@ -82,3 +82,8 @@ npx playwright test src/test/e2e/floatingWorkspaceAuthenticated.spec.ts --projec
 Without both variables the test is **skipped**; a skip is not a pass, and a
 report that does not show it as passed means the browser smoke has not been
 established for that build.
+
+Primary top headers in React, Preset Manager, Show Manager, Media Manager and
+Lyric Manager share `--workspace-header-height: 44px`, including borders. Floating
+header surfaces use the same value via `--fw-header-height`. Panel title bars and
+collapsible group headers retain their own sizing.

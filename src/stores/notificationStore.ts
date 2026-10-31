@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import { create } from 'zustand'
-import { useShallow } from 'zustand/react/shallow'
 import type { AppPageId } from './pageActivityStore'
 import type { NoticeCardTone } from '../components/vyzualz/react/controls/NoticeCard'
 
@@ -46,9 +45,6 @@ const EMPTY_EVENT_PAGES: Readonly<Record<AppPageId, readonly NotificationEvent[]
 })
 
 interface NotificationState {
-  developerEvents: readonly NotificationEvent[]
-  upsertDeveloperEvent: (event: NotificationEvent, create?: boolean) => void
-  clearDeveloperEvents: () => void
   /** Page-scoped navigation requests close the overlay without dismissing its notices. */
   drawerCloseRequests: Partial<Record<AppPageId, number>>
   requestDrawerClose: (page: AppPageId) => void
@@ -77,15 +73,6 @@ const EMPTY_PAGES: NotificationState['pages'] = Object.freeze({
 let nextEventId = 0
 
 export const useNotificationStore = create<NotificationState>(set => ({
-  developerEvents: EMPTY_EVENTS,
-  upsertDeveloperEvent: (event, create = true) => set(state => {
-    const existing = state.developerEvents.find(item => item.id === event.id)
-    if (!existing && !create) return state
-    return { developerEvents: existing
-      ? state.developerEvents.map(item => item.id === event.id ? { ...event, unread: item.unread } : item)
-      : [event, ...state.developerEvents].slice(0, MAX_EVENTS_PER_PAGE) }
-  }),
-  clearDeveloperEvents: () => set({ developerEvents: EMPTY_EVENTS }),
   drawerCloseRequests: {},
   requestDrawerClose: page => set(state => ({ drawerCloseRequests: {
     ...state.drawerCloseRequests, [page]: (state.drawerCloseRequests[page] ?? 0) + 1,
@@ -99,14 +86,13 @@ export const useNotificationStore = create<NotificationState>(set => ({
     return id
   },
   dismissEvent: (page, id) => set(state => {
-    if (state.developerEvents.some(event => event.id === id)) return { developerEvents: state.developerEvents.filter(event => event.id !== id) }
     if (!state.events[page].some(event => event.id === id)) return state
     const next = state.events[page].filter(event => event.id !== id)
     return { events: { ...state.events, [page]: next.length ? next : EMPTY_EVENTS } }
   }),
   markEventsRead: page => set(state => {
-    if (!state.events[page].some(event => event.unread) && !state.developerEvents.some(event => event.unread)) return state
-    return { developerEvents: state.developerEvents.map(event => event.unread ? { ...event, unread: false } : event), events: { ...state.events, [page]: state.events[page].map(event => event.unread ? { ...event, unread: false } : event) } }
+    if (!state.events[page].some(event => event.unread)) return state
+    return { events: { ...state.events, [page]: state.events[page].map(event => event.unread ? { ...event, unread: false } : event) } }
   }),
   pages: EMPTY_PAGES,
   slots: {},
@@ -138,7 +124,7 @@ export function notify(page: AppPageId, options: NotifyOptions): string {
 }
 
 export function usePageNotificationEvents(page: AppPageId): readonly NotificationEvent[] {
-  return useNotificationStore(useShallow(state => [...state.developerEvents, ...state.events[page]]))
+  return useNotificationStore(state => state.events[page])
 }
 
 /** Every notice currently showing on `page`, in the order they appeared. */

@@ -891,10 +891,12 @@ describe('LyricManagerView track-first workflow', () => {
     // Snap and Overlays are not offered; all cue-editing commands share one icon-only row.
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
-    const editActions = container.querySelector('[aria-label="Cue editing"]')
-    // Eleven cue commands, then the icon-only analyse button last (this track has no analysed beat grid yet); no hint text beside it.
-    expect(editActions?.querySelectorAll('button')).toHaveLength(12)
-    expect(editActions?.lastElementChild?.getAttribute('aria-label')).toMatch(/Analyze Track$/)
+    const editActions = container.querySelector('[aria-label="Lyric Manager controls"]')
+    // Save/display, eleven cue commands, analysis and lane controls are direct buttons in one group.
+    expect(editActions?.querySelectorAll('button')).toHaveLength(16)
+    expect([...editActions!.children].every(child => child.tagName === 'BUTTON')).toBe(true)
+    expect(editActions?.querySelector('[role="toolbar"]')).toBeNull()
+    expect(editActions?.querySelector('[aria-label$="Analyze Track"]')?.previousElementSibling?.getAttribute('aria-label')).toBe('Delete cue')
     expect(container.textContent).not.toMatch(/No BPM or beat grid|Beat snapping/)
     expect(container.querySelector('[aria-label="Cue timing actions"]')).toBeNull()
   })

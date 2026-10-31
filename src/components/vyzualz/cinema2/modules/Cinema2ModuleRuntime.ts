@@ -89,7 +89,7 @@ export class Cinema2ModuleRuntime {
       instance: null,
       resources: null,
       parameters: createParameterFacet(module, moduleTargets.get(module.id) ?? new Map(), targetResolver),
-      targets: createTargetFacet(targetResolver),
+      targets: createTargetFacet(targetResolver, module, plan.targets.targets),
       media: createMediaFacet(module, mediaRuntime),
       randomness: createRandomnessFacet(module.id, randomService),
       diagnostics: [],
@@ -312,8 +312,13 @@ function createParameterFacet(
   })
 }
 
-function createTargetFacet(resolver: Cinema2FinalValueResolver): Cinema2ModuleTargetFacet {
+function createTargetFacet(resolver: Cinema2FinalValueResolver, module: Readonly<Cinema2ModuleManifest>, targets: readonly Readonly<Cinema2TargetHandle>[]): Cinema2ModuleTargetFacet {
   const facet: Cinema2ModuleTargetFacet = {
+    dispatchBoundAction(action: string, eventId: string) {
+      const binding = module.actionBindings?.[action]
+      const target = binding && targets.find(target => target.kind === 'parameter' && target.channel === 'action' && target.parameterId === binding.$ref)
+      return target ? resolver.dispatch(target.id, [{ contributorId: `module:${module.id}`, operation: 'action', eventId }]) : null
+    },
     getTarget(targetId: Cinema2TargetId) {
       return resolver.getTarget(targetId)
     },

@@ -1,3 +1,4 @@
+import { cinema2GlassfallNativeModule } from './glassfall/Cinema2GlassfallNativeModule'
 import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
 import { cinema2IfritNativeModuleDefinition } from './Cinema2IfritNativeModule'
 import { cinema2InertiaNativeModuleDefinition } from './Cinema2InertiaNativeModule'
@@ -104,6 +105,8 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const glassfallRegistration = cinema2NativeModuleRegistry.register(cinema2GlassfallNativeModule)
+if (!glassfallRegistration.ok) throw new Error('Cinema 2.0 GLASSFALL module registration failed.')
 const ifritRegistration = cinema2NativeModuleRegistry.register(cinema2IfritNativeModuleDefinition)
 if (!ifritRegistration.ok) throw new Error('Cinema 2.0 Ifrit module registration failed.')
 const inertiaRegistration = cinema2NativeModuleRegistry.register(cinema2InertiaNativeModuleDefinition)

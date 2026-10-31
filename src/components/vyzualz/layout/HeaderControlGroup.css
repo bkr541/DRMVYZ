@@ -1,3 +1,12 @@
+/* Primary workspace toolbar height, including its border. */
+:root { --workspace-header-height: 44px; }
+:is(.vz-header, .pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
+  box-sizing: border-box;
+  height: var(--workspace-header-height, 44px);
+  min-height: var(--workspace-header-height, 44px);
+  max-height: var(--workspace-header-height, 44px);
+}
+
 /* Left-aligned, background-free header actions shared by the four workspaces. */
 
 .vz-header,
@@ -176,3 +185,63 @@
 
 .vz-header-group .sm-header-icon-button,
 .vz-header-group .sm-stage-tools button { width: 38px; padding: 0; flex-shrink: 0; }
+
+/* One toolbar style for every workspace header, taken from the Lyric Manager's: a 32px row of 28px borderless
+   keys, 2px apart, with a 12px glyph in muted ink that lifts on hover and tints cyan when pressed. The doubled
+   class outranks each workspace's own boxed button rules (output controls, Show Manager file and stage keys). */
+.vz-header-group.vz-header-group,
+.vz-header-group.vz-header-group :is(.rv-global-output, .sm-header-show-actions, .sm-stage-tools, .rv-header-output) {
+  gap: 2px;
+}
+.vz-header-group.vz-header-group { height: 32px; }
+
+.vz-header-group.vz-header-group :is(button.vz-header-icon-key, .sm-header-icon-button, .sm-stage-tools button, .rv-global-output button):not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  align-self: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  color: #b8c5ca;
+  transition: background 120ms ease, color 120ms ease;
+}
+.vz-header-group.vz-header-group :is(button.vz-header-icon-key, .sm-header-icon-button, .sm-stage-tools button, .rv-global-output button):not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled),
+.vz-header-group.vz-header-group .sm-header-icon-button:focus-visible {
+  background: rgba(196, 207, 211, 0.1);
+  color: #edf5f7;
+  box-shadow: none;
+  transform: none;
+}
+.vz-header-group.vz-header-group :is(button.vz-header-icon-key, .sm-header-icon-button, .sm-stage-tools button, .rv-global-output button):not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):is([aria-pressed='true'], .sm-header-icon-button--primary) {
+  background: rgba(74, 199, 219, 0.13);
+  color: #79deed;
+}
+.vz-header-group.vz-header-group :is(button.vz-header-icon-key, .sm-header-icon-button, .sm-stage-tools button, .rv-global-output button):not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):disabled {
+  opacity: 0.32;
+  box-shadow: none;
+}
+.vz-header-group.vz-header-group .vz-header-icon-key--danger:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.vz-header-group.vz-header-group :is(button.vz-header-icon-key, .sm-header-icon-button, .sm-stage-tools button, .rv-global-output button):not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) svg {
+  width: 12px;
+  height: 12px;
+  filter: none;
+}
+
+/* Output state keeps its meaning as ink and a faint tint, not a border. */
+.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-status.is-armed { background: rgba(97, 214, 170, 0.1); color: rgba(126, 239, 194, 0.98); }
+.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-status.is-dark { background: rgba(192, 49, 74, 0.1); color: rgba(255, 137, 150, 0.94); }
+.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-reveal:not(:disabled) { color: rgba(103, 247, 255, 0.9); }
+.vz-header-group.vz-header-group .rv-global-output button.rv-global-output-blackout:not(:disabled) { color: rgba(255, 119, 134, 0.98); }
+.vz-header-group.vz-header-group .rv-global-output-dot { top: 4px; right: 3px; }

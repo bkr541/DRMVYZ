@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
+import { LyricHeaderIcon } from './LyricHeaderIcon'
 
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
-import { SaveActiveGlyph, SaveGlyph } from '../../../components/vyzualz/layout/HeaderGlyphs'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
 import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
@@ -59,32 +58,32 @@ export function LyricManagerHeader({
 
   return (
     <header className="lmv-header" data-layout={layout}>
-      <HeaderControlGroup label="Lyric Manager controls">
+      <HeaderControlGroup label="Lyric Manager controls" className="lmv-header-controls">
         <HeaderIconKey
           label="Show Lyrics"
           title="Show or hide active lyrics in the visualizer"
-          icon={<AppIcon kind="lyrics" size={16} color="currentColor" />}
+          icon={<LyricHeaderIcon kind="lyrics" color="currentColor" />}
           pressed={lyricsDisplayEnabled}
           onClick={onToggleLyricsDisplay}
         />
         <HeaderIconKey
           label="Save"
           title={isSaving ? 'Saving…' : 'Save lyric document'}
-          icon={<SaveGlyph />}
+          icon={<LyricHeaderIcon kind="save" />}
           disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSave}
         />
         <HeaderIconKey
           label="Save + Make Active"
           title={isSaving ? 'Saving…' : 'Save this version and make it the active runtime version'}
-          icon={<SaveActiveGlyph />}
+          icon={<LyricHeaderIcon kind="saveActive" />}
           disabled={isSaving || (!dirty && !hasDocument)}
           onClick={onSaveAndMakeActive}
         />
         {editActions}
         {onToggleLaneIcons && <HeaderIconKey
           label={laneIconsExpanded ? 'Collapse Track Timeline row icons' : 'Expand Track Timeline row icons'}
-          icon={<AppIcon kind="list" size={16} />}
+          icon={<LyricHeaderIcon kind="list" />}
           pressed={laneIconsExpanded}
           onClick={onToggleLaneIcons}
         />}

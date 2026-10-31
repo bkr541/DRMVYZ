@@ -24,7 +24,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 20px 0 0;
-  height: 60px;
+  height: var(--workspace-header-height, 44px);
   flex-shrink: 0;
   background: rgba(12,16,19,0.96);
   border-bottom: 1px solid rgba(154,178,188,0.14);
@@ -1147,7 +1147,7 @@
 }
 
 .lmv-header {
-  height: 60px;
+  height: var(--workspace-header-height, 44px);
   padding: 0 20px 0 0;
   background: rgba(12,16,19,0.96);
   box-shadow: none;
@@ -3242,26 +3242,7 @@
 }
 .lmv-track-timeline-playhead-layer .lyric-cue-timeline__playhead { left: 0; will-change: transform; }
 
-/* Cue editing: one icon-only row beneath the heading. */
-.lmv-timeline-edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  overflow-x: auto;
-}
-.lmv-icon-only-chip {
-  box-sizing: border-box;
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  min-height: 30px;
-  padding: 0;
-  justify-content: center;
-}
-.lmv-icon-only-chip .dv-icon-chip__icon { margin: 0; }
-
+/* Audio transport remains docked beneath the track heading. */
 .lmv-timeline-toolbar { padding-top: 12px; }
 
 /* AI Extract review summary: two columns of label/value rows. */
@@ -3270,21 +3251,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
 }
-
-/* Load & Analyze Track keeps its green identity (the colour the text button had) as an icon-only chip. */
-.dv-icon-chip.lmv-analyze-chip {
-  border-color: rgba(97, 214, 170, 0.38);
-  background: rgba(97, 214, 170, 0.08);
-  color: #61d6aa;
-}
-
-.dv-icon-chip.lmv-analyze-chip:hover:not(:disabled),
-.dv-icon-chip.lmv-analyze-chip:focus-visible {
-  border-color: rgba(97, 214, 170, 0.6);
-  background: rgba(97, 214, 170, 0.16);
-  color: #a6f1d2;
-}
-
 
 /* Side windows follow React's rail -> scroll panel -> Collapsible spacing.
    Headers remain edge-to-edge; each content layer owns its inset once. */
@@ -3388,7 +3354,7 @@
 .lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list { padding: 8px 12px; }
 
 /* Track list text: larger artist and title, and duration / BPM / key as spaced values under small labels. */
-.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-info { gap: 4px; }
+.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-info { gap: 2px; }
 /* Artist and title use the tab rows' face (the shared tab role's family), the artist at a heavier weight. */
 .lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-artist {
   font-family: var(--type-tab-family);
@@ -3425,7 +3391,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px 20px;
-  margin: 4px 0 0;
+  margin: 2px 0 0;
 }
 .lmv-left-rail .lmv-track-grid .vz-track-row-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .lmv-left-rail .lmv-track-grid .vz-track-row-stat dt {
@@ -3633,17 +3599,53 @@
   margin: 0;
   overflow-x: auto;
 }
-.lmv-header .lmv-timeline-edit-actions {
-  align-items: stretch;
-  flex-shrink: 0;
-  margin: 0;
-  gap: 0;
-  overflow: visible;
+/* Compact editing toolbar: one row of direct buttons, with a consistent rhythm. */
+.lmv-header:has(> .lmv-header-controls) {
+  height: var(--workspace-header-height, 44px);
+  padding-inline: 10px;
+  gap: 12px;
 }
-.lmv-header .lmv-timeline-edit-actions button { flex-shrink: 0; width: 38px; padding: 0; }
+.lmv-header .lmv-header-controls {
+  height: 32px;
+  gap: 2px;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+.lmv-header .lmv-header-controls::-webkit-scrollbar { display: none; }
+.lmv-header .lmv-header-controls > button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) {
+  box-sizing: border-box;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  align-self: center;
+  padding: 0;
+  border-radius: 5px;
+  color: #b8c5ca;
+  transition: background 120ms ease, color 120ms ease;
+}
+.lmv-header .lmv-header-controls > button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled) {
+  background: rgba(196, 207, 211, 0.1);
+  color: #edf5f7;
+}
+.lmv-header .lmv-header-controls > button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle)[aria-pressed='true'] {
+  background: rgba(74, 199, 219, 0.13);
+  color: #79deed;
+}
+.lmv-header .lmv-header-controls > button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):disabled {
+  opacity: 0.32;
+}
+.lmv-header .lmv-header-controls > button.vz-header-icon-key--danger:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle):hover:not(:disabled) {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.lmv-header .lmv-header-controls > button.vz-header-icon-key:not(.drm-help-info-trigger):not(.dv-icon-morph-toggle) > svg {
+  width: 12px;
+  height: 12px;
+  filter: none;
+}
 .lmv-header[data-layout='narrow'] .vz-header-group button:not(.dv-icon-morph-toggle) { padding: 0; }
 .lmv-header .vz-header-group > button { flex-shrink: 0; }
-.lmv-header .vz-header-group .dv-icon-chip--danger:hover:not(:disabled) { color: #f87171; }
 
 .lmv-track-timeline-window,
 .lmv-lyric-cues-window { padding: 0 var(--workspace-rail-inset, 12px); }
@@ -3851,3 +3853,45 @@
 [data-workspace-layout='floating'][data-app-workspace='lyrics'] .lmv-rail--drawer > .vz-inspector-inner {
   border-radius: calc(var(--fw-surface-radius) - 1px);
 }
+
+/* Inline icon/value metadata in the Lyric Manager track list. */
+.lmv-left-rail .lmv-track-grid .vz-track-row-stats--icons {
+  gap: 4px 12px;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-stats--icons .lmv-track-stat-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.lmv-track-stat-value .app-icon { --app-icon-accent: currentColor; }
+
+.lmv-track-grid .vz-track-row-loaded-dot {
+  display: inline-block;
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4ac7db;
+}
+
+/* Actions share the title's grid row instead of centering against the whole card. */
+.lmv-left-rail .lmv-track-grid .vz-track-row.vz-track-row--list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 2px;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-info { display: contents; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-artist-line { grid-area: 1 / 1 / 2 / -1; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-title-line { grid-area: 2 / 1; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-actions {
+  grid-area: 2 / 2;
+  align-self: center;
+}
+.lmv-left-rail .lmv-track-grid .vz-track-row-stats { grid-area: 3 / 1 / 4 / -1; }
+.lmv-left-rail .lmv-track-grid .vz-track-row-error { grid-area: 4 / 1 / 5 / -1; }

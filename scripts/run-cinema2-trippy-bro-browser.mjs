@@ -5,6 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 import sharp from 'sharp'
+process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY = '1'
 
 // A focused real-runtime check; no repository build or unrelated acceptance suite.
 const output = path.resolve('artifacts/cinema2-trippy-bro/acceptance')
@@ -49,7 +50,7 @@ function measure(data, width, height, channels) {
   let jewelStrokePixels = 0
   for (let y = sampleY - 10; y <= sampleY + 10; y++) {
     const i = (y * width + sampleX) * channels
-    if (data[i] > 150 && data[i + 2] > 70 && data[i + 1] < 110) jewelStrokePixels++
+    if (data[i] > 150 && data[i + 2] > 70 && data[i] > data[i + 1] * 1.15) jewelStrokePixels++
   }
   assert(jewelStrokePixels >= 7, 'Jewel contour must have substantial visible thickness')
   return { count, central, edgeCounts, jewelStrokePixels, bounds: { minX, minY, maxX, maxY } }
@@ -72,7 +73,7 @@ try {
   await page.goto(url)
   await page.waitForFunction(() => Boolean(window.__trippyBroProduction))
   const api = (method, ...args) => page.evaluate(({ method, args }) => window.__trippyBroProduction[method](...args), { method, args })
-  const raw = async () => sharp(await page.screenshot()).removeAlpha().raw().toBuffer()
+  const raw = async () => sharp(Buffer.from((await api('capture')).split(',')[1],'base64')).removeAlpha().raw().toBuffer()
   const change = (a,b) => { let total=0; for(let i=0;i<a.length;i++) total+=Math.abs(a[i]-b[i]); return total/a.length }
   const report = []
   if(!process.argv.includes('--music-only') && !process.argv.includes('--authority-only')) {
@@ -126,10 +127,10 @@ try {
   await api('showInspector',false)
   }
   // Musical checks use a smaller canvas; final gallery above remains at source resolution.
-  await page.setViewportSize({width:720,height:720})
+  await page.setViewportSize({width:540,height:540})
   const clean = async (extra={}) => {
     await api('reset')
-    await api('set',{reactivity:0,speed:0,amount:0,detail:0,bloom:0,trails:0,...extra})
+    await api('set',{reactivity:0,speed:0,amount:0,detail:0,bloom:0,trails:0,echo:0,...extra})
   }
   const values = state => state.parameters.persistentValues
   const pvalue = (state,key) => values(state)[`trippy-bro-${key}`]
@@ -153,7 +154,7 @@ try {
   assert.equal(pvalue(await api('status'),'pattern'),'orbitalLace')
   assert.equal(pvalue(await api('status'),'pattern-change'),true)
   await api('showInspector',false)
-  await page.setViewportSize({width:720,height:720})
+  await page.setViewportSize({width:540,height:540})
   report.push({inspector:{triggerOptions:labels,patternCount:8}})
   for (const trigger of ['beat','kick','snare','downbeat','beat2','beat4','bar','bar4','bar8','phrase','drop']) {
     await clean({'pattern-change':true,trigger})
@@ -161,7 +162,7 @@ try {
     const before=await raw()
     const event=trigger==='beat2'||trigger==='beat4'?'beat':trigger==='bar4'||trigger==='bar8'?'bar':trigger
     await api('music',{timeSec:0.1,event,eventId:64,beatIndex:64,energy:0})
-    await api('advance',0.22)
+    await api('advance',0.72)
     const after=await raw()
     assert(change(before,after)>2, `${trigger} must change actual rendered pattern`)
     await api('set',{pattern:'goldenFold','pattern-change':false})
@@ -189,7 +190,7 @@ try {
   await api('music',{timeSec:0,energy:0,revision:'analysis-a'})
   const analysisBase=await raw()
   await api('music',{timeSec:0.1,event:'beat',eventId:1,beatIndex:1,energy:0,revision:'analysis-a'})
-  await api('advance',0.22)
+  await api('advance',0.72)
   assert(change(analysisBase,await raw())>2)
   await api('music',{timeSec:0.32,event:null,energy:0,revision:'analysis-b'})
   assert(change(analysisBase,await raw())<0.02,'Analysis revision must reset runtime-only pattern state')
@@ -223,7 +224,7 @@ try {
   await clean({'auto-performance':true,'pattern-change':true,trigger:'beat'})
   await api('music',{timeSec:0,energy:0})
   await api('music',{timeSec:0.1,sectionBuild:true,sectionStart:0.1,energy:0})
-  await api('advance',0.22)
+  await api('advance',0.72)
   const overridden=await raw()
   const autoState=await api('status')
   assert.equal(pvalue(autoState,'pattern'),'prismLattice')
@@ -232,10 +233,10 @@ try {
   const taken=await raw()
   assert(change(taken,overridden)>2,'Manual edit must replace visible Auto Performance override')
   await api('repeatMusic'); assert(change(taken,await raw())<0.02,'Active build cannot steal manual edit')
-  await api('music',{timeSec:0.4,event:'beat',eventId:1,beatIndex:1,energy:0,sectionBuild:true,sectionStart:0.1})
-  await api('advance',0.22)
+  await api('music',{timeSec:0.9,event:'beat',eventId:1,beatIndex:1,energy:0,sectionBuild:true,sectionStart:0.1})
+  await api('advance',0.72)
   const advanced=await raw()
-  await api('set',{pattern:'orbitalLace','pattern-change':false})
+  await api('set',{pattern:'prismLattice','pattern-change':false})
   assert(change(advanced,await raw())<0.02,'Fresh trigger resumes progression from manual selection')
   // Pause/resume, seek, loop, track replacement, missing analysis, and preset re-entry.
   await clean({speed:1,amount:0.7})
@@ -285,14 +286,14 @@ try {
   await api('music',{timeSec:0,energy:0})
   const baseImage=await raw()
   await api('music',{timeSec:0.1,sectionBuild:true,sectionStart:0.1,energy:0})
-  await api('advance',0.22)
+  await api('advance',0.72)
   const buildImage=await raw()
   assert(change(baseImage,buildImage)>2,'Fresh build must substitute an authored performance pattern')
-  await api('music',{timeSec:0.4,event:'beat',eventId:1,beatIndex:1,sectionBuild:true,sectionStart:0.1,energy:0})
-  await api('music',{timeSec:0.5,event:'beat',eventId:2,beatIndex:2,sectionBuild:true,sectionStart:0.1,energy:0})
+  await api('music',{timeSec:0.9,event:'beat',eventId:1,beatIndex:1,sectionBuild:true,sectionStart:0.1,energy:0})
+  await api('music',{timeSec:1.0,event:'beat',eventId:2,beatIndex:2,sectionBuild:true,sectionStart:0.1,energy:0})
   assert(change(buildImage,await raw())<0.02,'Visible override must stay stable while the base advances')
-  await api('music',{timeSec:0.6,sectionBuild:false,energy:0})
-  await api('advance',0.22)
+  await api('music',{timeSec:1.1,sectionBuild:false,energy:0})
+  await api('advance',0.72)
   const restored=await raw()
   await api('set',{pattern:'quadBloom','pattern-change':false})
   assert(change(restored,await raw())<0.02,'Override exit must restore the advanced underlying base')
@@ -300,10 +301,10 @@ try {
   await api('music',{timeSec:0,energy:0})
   const authored=await raw()
   await api('music',{timeSec:0.1,sectionBuild:true,sectionStart:0.1,energy:0})
-  await api('advance',4.3)
+  await api('advance',4.72)
   assert(change(authored,await raw())<0.02,'Build override must expire even if the same build section persists')
-  await api('music',{timeSec:4.5,event:'drop',eventId:301,energy:0})
-  await api('advance',0.22)
+  await api('music',{timeSec:5,event:'drop',eventId:301,energy:0})
+  await api('advance',0.72)
   assert(change(authored,await raw())>2,'Fresh drop must authorize a temporary performance pattern')
   await api('advance',0,{paused:true})
   await api('set',{'auto-performance':false})

@@ -20,8 +20,8 @@ const numberDescriptions: Record<string, string> = {
   intensity: 'Emission ceiling; zero extinguishes artwork while retaining Background.', reactivity: 'Strength of bounded shared musical responses.',
   scale: 'Uniform cover scale. Overscan beyond all four edges is intentional.', density: 'Subdivision budget for the active geometric pattern.',
   width: 'Multiplies the approved bold stroke weight.', speed: 'Pattern travel rate. Zero stops phase travel.', amount: 'Geometric motion range. Zero stops procedural deformation.',
-  detail: 'Budget for orbiting tracers and peripheral ticks. Zero removes them.', bloom: 'Shared bloom mix. Zero bypasses the halo.',
-  trails: 'Shared finite feedback persistence mix. Zero clears history.', split: 'Bounded color separation across stroke edges. Zero disables separation.', echo: 'Two faint, delayed geometric contours. Zero removes both.',
+  detail: 'Articulated jewel coronas, orbit tracers and connectors tied to the active composition. Zero removes supporting accents.', bloom: 'Colored stroke halos and shared bloom. Zero removes halos while preserving bright stroke cores.',
+  trails: 'Shared finite feedback persistence mix. Zero clears history.', split: 'Bounded color separation across stroke edges. Zero disables separation.', echo: 'Short local contour echoes on moving outlines and ribbons. Zero removes them; complete scenes are never duplicated.',
 }
 // Controls are authored generically; artwork and transient performance stay module-local.
 const designKeys = ['intensity', 'reactivity', 'scale', 'density', 'width', 'speed', 'amount', 'detail', 'bloom', 'trails', 'split', 'echo'] as const
@@ -32,22 +32,24 @@ const parameters: Cinema2ParameterManifest[] = [
   { ...base, id: pid('auto-performance'), label: 'Auto Performance', description: 'Allows temporary build/drop pattern substitutions. Manual selection takes effect immediately; the underlying base resumes afterward.', type: 'boolean', defaultValue: false, designParentGroup: 'master-controls', group: 'Timing', order: 2 },
   { ...base, id: pid('bpm-sync'), label: 'BPM Sync', description: 'Locks motion cycles to shared musical timing; OFF uses authored seconds-based rates. Host sync does not veto this choice.', type: 'boolean', defaultValue: true, designParentGroup: 'master-controls', group: 'Timing', order: 1 },
   { ...base, id: pid('pattern'), label: 'Pattern', type: 'enum', defaultValue: 'prismLattice', options: TRIPPY_BRO_PATTERNS.map((value, i) => ({ value, label: TRIPPY_BRO_PATTERN_LABELS[i] })), designParentGroup: 'design', group: 'Pattern', order: 0 },
-  { ...base, id: pid('pattern-change'), label: 'Pattern Change', type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Pattern', order: 1 },
-  { ...base, id: pid('trigger'), label: 'Trigger', type: 'enum', defaultValue: 'phrase', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: pid('pattern-change'), value: true }], designParentGroup: 'design', group: 'Pattern', order: 2 },
+  { ...base, id: pid('pattern-change'), label: 'Pattern Change', description: 'Advances the five reference families on fresh selected triggers. All eight patterns remain manually selectable.', type: 'boolean', defaultValue: false, designParentGroup: 'design', group: 'Pattern', order: 1 },
+  { ...base, id: pid('trigger'), label: 'Trigger', type: 'enum', defaultValue: 'bar', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: pid('pattern-change'), value: true }], designParentGroup: 'design', group: 'Pattern', order: 2 },
+  { id: pid('clear-trails'), label: 'Clear transition history', type: 'trigger', exposure: 'hidden', persistence: 'runtime-only' },
   ...Object.entries(TRIPPY_BRO_COLORS).map(([key, defaultValue], order) => ({ ...base, id: pid(key), label: ({ background: 'Background', cyan: 'Cyan Structure', blue: 'Blue Weave', magenta: 'Magenta Accent', amber: 'Amber Orbit', highlight: 'Highlight' } as Record<string, string>)[key], type: 'color' as const, defaultValue: [...defaultValue], designParentGroup: 'palette' as const, group: 'Colors', order })),
 ]
 
 export const CINEMA2_TRIPPY_BRO_PRESET_MANIFEST = Object.freeze<Cinema2NativePresetManifest>({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
-  id: CINEMA2_TRIPPY_BRO_PRESET_ID, revision: 3,
-  metadata: { name: 'Trippy, Bro', description: 'Eight oversized neon geometric instruments with woven lattices, rotating fans, and musical choreography.', tags: ['geometric', 'neon', 'psychedelic', 'audio-reactive'] },
+  id: CINEMA2_TRIPPY_BRO_PRESET_ID, revision: 4,
+  metadata: { name: 'Trippy, Bro', description: 'Transforming neon lattices, articulated optical fans, luminous ribbons and mirrored woven lenses.', tags: ['geometric', 'neon', 'psychedelic', 'audio-reactive'] },
   capabilities: [{ id: 'render.webgl2', requirement: 'required', purpose: 'Native screen-space geometric artwork.' },
     ...(['audio.transport','audio.features','audio.bands','music.beat','music.rhythm-events','music.downbeat','music.bar','music.phrase','music.section','music.build','music.drop','music.vocal-presence','visual-director.significance','render.history'] as const).map(id=>({id, requirement:'optional' as const,purpose:'Shared musical timing and bounded neon instrument performance.'})),
   ],
   parameters,
   modules: [{ id: TRIPPY_BRO_MODULE_ID, typeId: CINEMA2_TRIPPY_BRO_NATIVE_MODULE_TYPE_ID, version: 1, enabled: true,
-    parameters: { ...Object.fromEntries(parameters.map(p => [p.id.replace('trippy-bro-', ''), p.defaultValue!])), ...Object.fromEntries(TRIPPY_BRO_CHANNELS.map(name=>[name,0])) },
-    parameterBindings: Object.fromEntries(parameters.map(p => [p.id.replace('trippy-bro-', ''), cinema2Ref(p.id)])),
+    parameters: { ...Object.fromEntries(parameters.filter(p=>p.defaultValue!==undefined).map(p => [p.id.replace('trippy-bro-', ''), p.defaultValue!])), ...Object.fromEntries(TRIPPY_BRO_CHANNELS.map(name=>[name,0])) },
+    actionBindings: { clearTrails: cinema2Ref(pid('clear-trails')) },
+    parameterBindings: Object.fromEntries(parameters.filter(p=>p.defaultValue!==undefined).map(p => [p.id.replace('trippy-bro-', ''), cinema2Ref(p.id)])),
   }],
   choreography: { rules: [...TRIPPY_BRO_CHOREOGRAPHY,...TRIPPY_BRO_FINISHING_RULES] },
   effects: TRIPPY_BRO_EFFECTS, render: TRIPPY_BRO_RENDER_GRAPH,

@@ -9,6 +9,8 @@ import {
   Cinema2Runtime,
   cinema2FullscreenShaderModuleDefinition,
   cinema2NamespacedId,
+  cinema2Ref,
+  type Cinema2ParameterId,
   cinema2StableId,
   type Cinema2ModuleId,
   type Cinema2ModuleTypeDefinition,
@@ -78,6 +80,33 @@ describe('Cinema 2.0 focused module runtime', () => {
       ok: false,
       diagnostics: [{ code: 'CINEMA2_MODULE_REGISTRY_VERSION_CONFLICT' }],
     })
+  })
+
+  it('dispatches only explicitly bound module actions through canonical targets', () => {
+    const registry = new Cinema2PresetRegistry()
+    const modules = new Cinema2ModuleRegistry()
+    const typeId = cinema2StableId<Cinema2ModuleTypeId>('bound-action-test')
+    const moduleId = cinema2StableId<Cinema2ModuleId>('bound-action-module')
+    const resetId = cinema2StableId<Cinema2ParameterId>('bound-history-reset')
+    const received = vi.fn()
+    let invoke: ((name: string, eventId: string) => unknown) | undefined
+    modules.register(createDefinition(typeId, 1, context => {
+      invoke = (name, id) => context.targets.dispatchBoundAction?.(name,id)
+      return { lifecycle: {update() {},dispose() {}}, handleAction: received }
+    }))
+    const manifest = presetWithModules('drmvyz.cinema2.bound-actions', [{id:moduleId,typeId,version:1,actionBindings:{clear:cinema2Ref(resetId)}}])
+    manifest.parameters = [{id:resetId,label:'Reset',type:'trigger',exposure:'hidden',persistence:'runtime-only'}]
+    expect(registry.register(manifest).ok).toBe(true)
+    const created = Cinema2Runtime.create(new FakeCanvas(createCinemaMockWebGL()) as unknown as HTMLCanvasElement, {
+      presetId:manifest.id,presetRegistry:registry,moduleRegistry:modules,
+    })
+    expect(created.runtime).not.toBeNull()
+    try {
+      expect(invoke?.('unbound','ignored')).toBeNull()
+      expect(received).not.toHaveBeenCalled()
+      expect(invoke?.('clear','topology-change')).toMatchObject({ok:true})
+      expect(received).toHaveBeenCalledWith('clear',expect.objectContaining({eventId:'topology-change'}))
+    } finally { created.runtime?.dispose() }
   })
 
   it('rejects an unregistered authored module version before acquiring WebGL2', () => {

@@ -22,6 +22,7 @@ let fixture: Partial<TrippyBroFixtureOptions> = {}
 let published = trippyBroMusicFixture({ timeSec: 0, frameId: 0 })
 let quality: Cinema2RenderQualityLevel = 'high'
 let runtime: Cinema2Runtime
+let captureNext: ((png: string) => void) | null = null
 const create = (presetId: Cinema2PresetId = CINEMA2_TRIPPY_BRO_PRESET_ID, serializedParameterState?: string) => Cinema2Runtime.create(canvas, {
   presetId, serializedParameterState, renderQuality: quality, diagnosticsEnabled: true,
   randomness: { mode: 'deterministic', seed: 'trippy-bro-review' },
@@ -35,6 +36,8 @@ const create = (presetId: Cinema2PresetId = CINEMA2_TRIPPY_BRO_PRESET_ID, serial
       dirty=false
     }
     callback(timestamp)
+    // Capture the actual final production canvas before WebGL's default buffer is retired.
+    if (captureNext) { const complete=captureNext; captureNext=null; complete(canvas.toDataURL('image/png')) }
   }), cancelAnimationFrame: id => cancelAnimationFrame(id),
   transportSource: { getState: () => ({ sourcePresent: source, playing: source&&!paused, analysisActive: source, paused,
     trackId: source ? published.trackId : null, timeSec: source ? musicTime : timestamp/1000, bpm, bpmSync: false }) },
@@ -63,6 +66,7 @@ const status=()=>({ snapshot:runtime.getSnapshot(), modules:runtime.getModuleRun
 })
 const api={
   status,
+  capture(){ return new Promise<string>(resolve=>{ captureNext=resolve }) },
   async prepare(){ await settle(); const s=status(); if(s.modules.failedModuleCount || s.render.failedPassCount) throw new Error(JSON.stringify(s)); return s },
   async set(values:Record<string,unknown>){
     for(const [name,value] of Object.entries(values)) {

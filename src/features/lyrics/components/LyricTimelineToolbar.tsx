@@ -1,7 +1,8 @@
 import { AppIcon } from '../../../components/shared/icons/AppIcon'
+import { LyricHeaderIcon } from './LyricHeaderIcon'
 
 import { BubbleRevealSlider } from '../../../components/vyzualz/react/controls/BubbleRevealSlider'
-import { IconChipButton } from '../../../components/vyzualz/react/controls/IconChipButton'
+import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import type { useLyricCueEditor } from '../editor/useLyricCueEditor'
 import { formatDuration } from '../utils/lyricManagerFormat'
 
@@ -31,49 +32,49 @@ export function LyricTimelineEditActions({ editor, analyze }: {
   const actionButtons = [
     {
       label: 'Set start to playhead',
-      icon: <AppIcon kind="alignStart" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="alignStart" color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.setStartToPlayhead,
     },
     {
       label: 'Set end to playhead',
-      icon: <AppIcon kind="alignEnd" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="alignEnd" color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.setEndToPlayhead,
     },
     {
       label: 'Move to playhead',
-      icon: <AppIcon kind="move" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="move" color="currentColor" />,
       disabled: !actions || playheadUnavailable,
       onClick: actions?.moveToPlayhead,
     },
     {
       label: 'Duplicate cue',
-      icon: <AppIcon kind="copy" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="copy" color="currentColor" />,
       disabled: !actions,
       onClick: actions?.duplicate,
     },
     {
       label: 'Split at playhead',
-      icon: <AppIcon kind="scissors" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="scissors" color="currentColor" />,
       disabled: !actions || playheadUnavailable || !cue || editor.canonicalPlayheadMs! <= cue.startMs || editor.canonicalPlayheadMs! >= cue.endMs,
       onClick: actions?.split,
     },
     {
       label: 'Merge previous cue',
-      icon: <AppIcon kind="left" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="left" color="currentColor" />,
       disabled: !actions || editor.selectedIndex <= 0,
       onClick: actions?.mergePrevious,
     },
     {
       label: 'Merge next cue',
-      icon: <AppIcon kind="right" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="right" color="currentColor" />,
       disabled: !actions || editor.selectedIndex < 0 || editor.selectedIndex >= editor.orderedCues.length - 1,
       onClick: actions?.mergeNext,
     },
     {
       label: 'Delete cue',
-      icon: <AppIcon kind="delete" size={14} color="currentColor" />,
+      icon: <LyricHeaderIcon kind="delete" color="currentColor" />,
       disabled: !actions,
       onClick: actions?.delete,
       danger: true,
@@ -81,51 +82,47 @@ export function LyricTimelineEditActions({ editor, analyze }: {
   ]
 
   return (
-    <div className="lmv-timeline-edit-actions" role="toolbar" aria-label="Cue editing">
-      <IconChipButton
-        className="lmv-icon-only-chip"
-        icon={<AppIcon kind="plus" size={14} color="currentColor" />}
+    <>
+      <HeaderIconKey
+        icon={<LyricHeaderIcon kind="plus" color="currentColor" />}
         title="Add cue at playhead"
-        aria-label="Add cue"
+        label="Add cue"
         onClick={editor.addAtPlayhead}
       />
-      <IconChipButton
-        className="lmv-icon-only-chip"
-        icon={<AppIcon kind="undo" size={14} color="currentColor" />}
+      <HeaderIconKey
+        icon={<LyricHeaderIcon kind="undo" color="currentColor" />}
         title="Undo lyric edit"
-        aria-label="Undo lyric edit"
+        label="Undo lyric edit"
         disabled={editor.cueHistoryPast.length === 0}
         onClick={editor.undoCueEdit}
       />
-      <IconChipButton
-        className="lmv-icon-only-chip"
-        icon={<AppIcon kind="redo" size={14} color="currentColor" />}
+      <HeaderIconKey
+        icon={<LyricHeaderIcon kind="redo" color="currentColor" />}
         title="Redo lyric edit"
-        aria-label="Redo lyric edit"
+        label="Redo lyric edit"
         disabled={editor.cueHistoryFuture.length === 0}
         onClick={editor.redoCueEdit}
       />
       {actionButtons.map(action => (
-        <IconChipButton
+        <HeaderIconKey
           key={action.label}
-          className={`lmv-icon-only-chip${action.danger ? ' dv-icon-chip--danger' : ''}`}
+          danger={action.danger}
           icon={action.icon}
           title={action.label}
-          aria-label={action.label}
+          label={action.label}
           disabled={action.disabled}
-          onClick={action.onClick}
+          onClick={() => action.onClick?.()}
         />
       ))}
       {analyze && (
-        <IconChipButton
-          className="lmv-icon-only-chip lmv-analyze-chip"
-          icon={<AppIcon kind="bars" size={14} color="currentColor" />}
+        <HeaderIconKey
+          icon={<LyricHeaderIcon kind="bars" color="currentColor" />}
           title={analyze.label}
-          aria-label={analyze.label}
+          label={analyze.label}
           onClick={analyze.onClick}
         />
       )}
-    </div>
+    </>
   )
 }
 

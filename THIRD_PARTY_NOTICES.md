@@ -13,3 +13,9 @@ The path data in `src/components/shared/icons/carbonGlyphs.ts` is Carbon's, with
 shapes removed and circles written as arc paths. No other changes were made to the glyph geometry.
 The licence permits use, modification and distribution, provided this notice and the licence
 reference are retained.
+
+## Lyric Versions icon
+
+The user-supplied Lyrics — Streamline Sharp Material artwork is used for the
+Lyric Versions action on audio track cards. Source attribution supplied with
+the SVG: https://streamlinehq.com. Its fill inherits the application icon color.

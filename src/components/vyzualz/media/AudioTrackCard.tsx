@@ -12,6 +12,8 @@ export interface AudioTrackCardProps {
   onRemove?: () => void
   loading: boolean
   loaded: boolean
+  /** Show loaded state as a single accessible dot instead of a capsule. */
+  loadedDot?: boolean
   playing: boolean
   loadError?: string | null
   canLoad: boolean
@@ -44,6 +46,8 @@ export interface AudioTrackCardProps {
   listRow?: boolean
   /** List row: the artist line sits above the title line, with the state badges right-aligned on it. */
   artistFirst?: boolean
+  /** Compact icon/value metadata, used by Lyric Manager. */
+  metadataIcons?: boolean
   /** Lyric Manager: render the card as a flat list row (hairline-separated, no card chrome) led by a
    *  square artwork tile holding this content (e.g. the title initials; tracks have no artwork field). */
   artwork?: ReactNode
@@ -67,6 +71,7 @@ export function AudioTrackCard({
   onRemove,
   loading,
   loaded,
+  loadedDot,
   playing,
   loadError,
   canLoad,
@@ -85,6 +90,7 @@ export function AudioTrackCard({
   actionsInOverflow,
   listRow,
   artistFirst,
+  metadataIcons,
   artwork,
 }: AudioTrackCardProps) {
   const list = Boolean(artwork) || Boolean(listRow)
@@ -130,10 +136,10 @@ export function AudioTrackCard({
   if (track.bpm)         details.push(`${track.bpm} BPM`)
   if (track.musicalKey)  details.push(track.musicalKey)
   const stats = [
-    track.durationSec ? { label: 'Duration', value: fmtDuration(track.durationSec) } : null,
-    track.bpm ? { label: 'BPM', value: String(track.bpm) } : null,
-    track.musicalKey ? { label: 'Key', value: track.musicalKey } : null,
-  ].filter((stat): stat is { label: string; value: string } => stat !== null)
+    track.durationSec ? { label: 'Duration', icon: 'clock' as const, value: fmtDuration(track.durationSec) } : null,
+    track.bpm ? { label: 'BPM', icon: 'rhythm' as const, value: String(track.bpm) } : null,
+    track.musicalKey ? { label: 'Key', icon: 'music' as const, value: track.musicalKey } : null,
+  ].filter((stat): stat is NonNullable<typeof stat> => stat !== null)
 
   const stateBadges = (
     <span className="vz-track-row-state-badges">
@@ -143,7 +149,9 @@ export function AudioTrackCard({
           <StatusBadge tone="selected"><span className="sr-only">Selected</span></StatusBadge>
         </span>
       )}
-      {loaded && <StatusBadge tone="loaded">Loaded</StatusBadge>}
+      {loaded && (loadedDot
+        ? <span className="vz-track-row-loaded-dot" role="img" aria-label="Loaded" title="Loaded" />
+        : <StatusBadge tone="loaded">Loaded</StatusBadge>)}
       {playing && <StatusBadge tone="playing">Playing</StatusBadge>}
     </span>
   )
@@ -173,11 +181,14 @@ export function AudioTrackCard({
         {!artistFirst && track.artist && <div className="vz-track-row-artist">{track.artist}</div>}
         {listRow
           ? stats.length > 0 && (
-              <dl className="vz-track-row-stats">
+              <dl className={`vz-track-row-stats${metadataIcons ? ' vz-track-row-stats--icons' : ''}`}>
                 {stats.map(stat => (
                   <div key={stat.label} className="vz-track-row-stat">
-                    <dt>{stat.label}</dt>
-                    <dd>{stat.value}</dd>
+                    <dt className={metadataIcons ? 'sr-only' : undefined}>{stat.label}</dt>
+                    <dd className={metadataIcons ? 'lmv-track-stat-value' : undefined} title={metadataIcons ? `${stat.label}: ${stat.value}` : undefined}>
+                      {metadataIcons && <AppIcon kind={stat.icon} size={12} />}
+                      {stat.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -233,7 +244,7 @@ export function AudioTrackCard({
             aria-label={`Open active lyrics for ${track.title}`}
             onClick={event => { event.stopPropagation(); onOpenActiveLyrics() }}
           >
-            <AppIcon kind="lyrics" size={iconSize} color="currentColor" />
+            <AppIcon kind="lyricVersions" size={iconSize} color="currentColor" />
           </button>
         )}
         {actionsInOverflow && overflowItems.length > 0 && (

@@ -1,7 +1,13 @@
 # Notice card content audit
 
+Shared notice titles use the 12px notice-title size in `src/styles/typography.css`
+across inline cards, notification drawers and Layout Lab variants. Supporting copy
+retains its existing typography.
+
 Audited 118 JSX notice-card entry points, plus the ErrorNoticeCards adapter,
-NotificationDrawer fixed cards/events, developer log events and page-notification producers.
+NotificationDrawer fixed cards/events and page-notification producers.
+System/debug log forwarding to notice cards has since been removed; those entries
+are viewed in Settings → Developer → Logging.
 
 ## Contract and corrections
 
@@ -40,8 +46,8 @@ Worlds mapping reasons have context-specific copy when their message is absent.
   track load, extraction compatibility/offset/warnings/errors/stalled polling, provider
   review and manager status/error states were checked.
 - Shared consumers: confirm-dialog notices, error adapters, registered drawer cards,
-  fixed Track Timeline analysis cards and warning lists, notification events and
-  developer log entries all converge on the guarded NoticeCard. Notification producers
+  fixed Track Timeline analysis cards and warning lists, and notification events
+  all converge on the guarded NoticeCard. Notification producers
   provide explicit messages; malformed/empty event payloads still get supporting copy.
 - Layout Lab: title-only variants are now compact-copy examples. Preview popup,
   cast, delete-confirm and fixed notification samples retain their supporting text.

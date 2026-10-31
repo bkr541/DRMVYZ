@@ -58,3 +58,20 @@ Track Timeline and Cue list parent groups share the standard workspace side inse
 The Cue list uses the shared dropdown and a search field. Search highlights matching literal text (case insensitive) and scrolls to the first matching record within the current filter, without changing the document or cue selection. Expanded word text fields highlight matches as well. Row status dots use amber for unreviewed, green for reviewed, cyan for corrected, and red for rejected. Cue records use the timeline lyric-row height.
 
 Cue presentation uses the shared inline palette color picker. Animation preset sits in the appearance grid; opacity spans its own row below the positions. Advanced warning toggles use two columns. Advanced diagnostics offer icon-only identifier copying.
+
+The header actions use a single toolbar of direct icon buttons. Lyrics display,
+save, cue editing, analysis and lane controls share centered 12px artwork with no
+nested editing toolbar or icon wrappers. Header SVG view boxes fit the artwork
+bounds so source-canvas padding does not shrink the visible icons.
+The toolbar uses a 44px header, 28px button targets and 2px gaps, with subtle
+hover and active surfaces and muted disabled actions.
+
+Track cards use a 2px gap between artist and title and a 4px total gap between
+the title and the duration/BPM/key row. Metadata values use plain 10px text with leading clock,
+metronome and music-note icons, without visible labels or badge styling.
+
+Loaded tracks use a single cyan status dot with a Loaded tooltip and accessible
+label, without a capsule or visible status text.
+
+Track card action icons share the title row, centering vertically on the title
+rather than the full card; metadata remains on its own row below.

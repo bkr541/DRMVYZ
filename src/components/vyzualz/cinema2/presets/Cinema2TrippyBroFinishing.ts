@@ -10,9 +10,9 @@ const trails = cinema2StableId<Cinema2EffectId>('trippy-bro-trails')
 const bloom = cinema2StableId<Cinema2EffectId>('trippy-bro-bloom')
 export const TRIPPY_BRO_EFFECTS: readonly Cinema2EffectManifest[] = [
   { id: trails, typeId: CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID, version: 1, enabled: true, order: 0, scope: 'output',
-    parameters: { mix: 0, persistence: 0.8, drift: 0, transportAware: true }, parameterBindings: { mix: cinema2Ref(pid('trails')) } },
+    parameters: { mix: 0, persistence: 0.8, drift: 0, transportAware: true }, parameterBindings: { mix: cinema2Ref(pid('trails')) }, actionBindings: { reset: cinema2Ref(pid('clear-trails')) } },
   { id: bloom, typeId: CINEMA2_BLOOM_EFFECT_TYPE_ID, version: 1, enabled: true, order: 1, scope: 'output',
-    parameters: { mix: 0.22, threshold: 0.35, radius: 2.6, intensity: 1.4 }, parameterBindings: { mix: cinema2Ref(pid('bloom')) } },
+    parameters: { mix: 0.42, threshold: 0.42, radius: 3.2, intensity: 1.2 }, parameterBindings: { mix: cinema2Ref(pid('bloom')) } },
 ]
 // The user's master ceiling also removes retained light, even when trails are at maximum.
 export const TRIPPY_BRO_FINISHING_RULES: readonly Cinema2ChoreographyRuleManifest[] = [trails,bloom].map((effect,index)=>({

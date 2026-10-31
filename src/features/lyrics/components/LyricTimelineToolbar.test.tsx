@@ -72,7 +72,7 @@ function Harness({ playing = false, loaded = true }: { playing?: boolean; loaded
   const editor = fakeEditor('none', mode => { spies.snapChanges.push(mode) })
   return (
     <>
-      <LyricTimelineEditActions editor={editor} />
+      <div aria-label="Test cue actions"><LyricTimelineEditActions editor={editor} /></div>
       <LyricTimelineToolbar
         selectedTrackLoaded={loaded}
         selectedTrackPlaying={playing}
@@ -149,13 +149,13 @@ describe('LyricTimelineToolbar', () => {
   it('offers every cue action in one icon-only row with tooltip text, wired to the owner handlers', async () => {
     await act(async () => root.render(<Harness playing />))
 
-    const actions = container.querySelector('[aria-label="Cue editing"]')!
+    const actions = container.querySelector('[aria-label="Test cue actions"]')!
     expect(actions.closest('[aria-label="Timeline controls"]')).toBeNull()
     expect(actions.querySelectorAll('button')).toHaveLength(11)
     for (const item of actions.querySelectorAll('button')) {
       expect(item.textContent?.trim()).toBe('')
       expect(item.getAttribute('title')).not.toBe('')
-      expect(item.classList.contains('lmv-icon-only-chip')).toBe(true)
+      expect(item.classList.contains('vz-header-icon-key')).toBe(true)
     }
     await act(async () => button('Pause lyric preview').click())
     await act(async () => button('Add cue').click())

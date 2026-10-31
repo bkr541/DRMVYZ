@@ -5,6 +5,9 @@ import { CARBON_GLYPHS, type CarbonGlyphKind } from './carbonGlyphs'
 
 /** Custom 32px artwork for icons Carbon has no equivalent for (brand, workspace, lighting and effect icons): 1.5px round strokes, subdued structural lines and cyan functional details. */
 const DRAWINGS = {
+  clock: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26', 'M16 8v8l5 3'],
+  // User-supplied Streamline Sharp Material lyrics artwork (24px, filled).
+  lyricVersions: ['M2 22V2h15v2.975c-0.28335 0.15 -0.553 0.325 -0.809 0.525 -0.25585 0.2 -0.48615 0.425 -0.691 0.675V3.5H3.5v13h12v-4.675c0.20485 0.25 0.43515 0.475 0.691 0.675 0.256 0.2 0.52565 0.375 0.809 0.525V18H6l-4 4Zm4 -8.25h4v-1.5h-4v1.5Zm12.997 -2c-0.76465 0 -1.41365 -0.26765 -1.947 -0.803s-0.8 -1.18535 -0.8 -1.95 0.26715 -1.41365 0.8015 -1.947 1.18315 -0.8 1.9465 -0.8c0.168 0 0.35615 0.025 0.5645 0.075 0.20835 0.05 0.4375 0.11665 0.6875 0.2V1H24v1.5h-2.25v6.5c0 0.76385 -0.26765 1.41315 -0.803 1.948 -0.53535 0.53465 -1.18535 0.802 -1.95 0.802ZM6 10.75h7v-1.5H6v1.5Zm0 -3h7v-1.5H6v1.5Z', ''],
   brand: ['M8 25q-7-1-5-8 1-4 6-4 0-9 9-9 6 0 8 8 7 0 6 7 0 6-7 6Z', 'M16 10q1 5 6 6-5 1-6 6-1-5-6-6 5-1 6-6Z'],
   rekordbox: ['M16 2 29 9v14l-13 7L3 23V9Z', 'M9 22V10h8a4 4 0 0 1 0 8H9M17 18l7 6'],
   navReact: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26M16 8a8 8 0 1 0 0 16 8 8 0 1 0 0-16M16 14a2 2 0 1 0 0 4 2 2 0 1 0 0-4', 'M16 3v6M23 12l2 1M24 20l-2 1'],
@@ -66,12 +69,19 @@ function isCarbonGlyph(kind: AppIconKind): kind is CarbonGlyphKind {
 }
 
 /** Shared production renderer: Carbon glyphs where Carbon has an equivalent, custom linework otherwise. */
-export function AppIcon({ kind, size = 18, className, signalClassName, style, ...props }: AppIconProps) {
+export function AppIcon({ kind, size = 18, className, signalClassName, style, viewBox, ...props }: AppIconProps) {
   const appearance = useContext(AppIconAppearanceContext)
+  if (kind === 'lyricVersions') return (
+    <svg {...props} className={`app-icon${className ? ` ${className}` : ''}`} data-app-icon={kind}
+      viewBox={viewBox ?? '0 0 24 24'} width={size} height={size} aria-hidden="true"
+      fill="currentColor" style={{ ...style, fill: 'currentColor', stroke: 'none' }}>
+      <path d={DRAWINGS.lyricVersions[0]} />
+    </svg>
+  )
   const outline = appearance === 'outline' ? OUTLINE_GLYPHS[kind] : undefined
   if (outline) return (
     <svg {...props} className={`app-icon app-icon--outline${className ? ` ${className}` : ''}`} data-app-icon={kind}
-      viewBox="0 0 24 24" width={size} height={size} aria-hidden="true" fill="none" stroke="currentColor"
+      viewBox={viewBox ?? '0 0 24 24'} width={size} height={size} aria-hidden="true" fill="none" stroke="currentColor"
       strokeLinecap="round" strokeLinejoin="round" style={{ ...style, fill: 'none', stroke: 'currentColor', strokeWidth: 1.25 }}>
       {outline.map((d, index) => <path key={d} d={d} className={index === 0 ? signalClassName : undefined} />)}
     </svg>
@@ -82,7 +92,7 @@ export function AppIcon({ kind, size = 18, className, signalClassName, style, ..
         {...props}
         className={`app-icon app-icon--carbon${className ? ` ${className}` : ''}`}
         data-app-icon={kind}
-        viewBox="0 0 32 32"
+        viewBox={viewBox ?? '0 0 32 32'}
         width={size}
         height={size}
         fill="currentColor"
@@ -101,7 +111,7 @@ export function AppIcon({ kind, size = 18, className, signalClassName, style, ..
       {...props}
       className={`app-icon${className ? ` ${className}` : ''}`}
       data-app-icon={kind}
-      viewBox="0 0 32 32"
+      viewBox={viewBox ?? '0 0 32 32'}
       width={size}
       height={size}
       fill="none"

@@ -252,6 +252,7 @@ export function LyricTrackBrowser({
                 onLoad={() => onLoadTrack(track, false)}
                 loading={false}
                 loaded={loadedAudioTrackId === track.dbId}
+                loadedDot
                 playing={playingAudioTrackId === track.dbId}
                 canLoad
                 canOpenLyrics
@@ -261,6 +262,7 @@ export function LyricTrackBrowser({
                 actionsInOverflow
                 listRow
                 artistFirst
+                metadataIcons
                 onOpenActiveLyrics={hasVersions || showsLegacyDocuments
                   ? () => {
                       setVersionsOpenId(track.dbId)

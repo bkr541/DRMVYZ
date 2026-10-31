@@ -1,6 +1,6 @@
 import { Cinema2MainframePatternController } from '../mainframe/Cinema2MainframePatternController'
 import type { Cinema2AfterhoursTriggerId } from '../Cinema2AfterhoursNativeModule'
-import { TRIPPY_BRO_PATTERNS, type TrippyBroPattern } from './Cinema2TrippyBroDomain'
+import { TRIPPY_BRO_REFERENCE_CYCLE, type TrippyBroPattern } from './Cinema2TrippyBroDomain'
 
 export interface TrippyBroPerformanceInput {
   authored: TrippyBroPattern; editRevision: number; enabled: boolean; trigger: Cinema2AfterhoursTriggerId
@@ -10,7 +10,7 @@ export interface TrippyBroPerformanceInput {
 
 /** Creative performance state only. Musical event identities and timing are supplied by the host. */
 export class TrippyBroPerformance {
-  private readonly base = new Cinema2MainframePatternController<TrippyBroPattern>(TRIPPY_BRO_PATTERNS, 'prismLattice')
+  private readonly base = new Cinema2MainframePatternController<TrippyBroPattern>(TRIPPY_BRO_REFERENCE_CYCLE, 'prismLattice')
   private revision: number | null = null
   private auto: boolean | null = null
   private enabled: boolean | null = null
@@ -20,6 +20,7 @@ export class TrippyBroPerformance {
   private visible: TrippyBroPattern = 'prismLattice'
   private previous: TrippyBroPattern = 'prismLattice'
   private transitionStart = 0
+  private transitionDuration = 0.6
 
   update(input: TrippyBroPerformanceInput) {
     const manual = this.revision != null && input.editRevision !== this.revision
@@ -45,13 +46,16 @@ export class TrippyBroPerformance {
     this.enabled = input.enabled
     this.revision = input.editRevision
     const performing = this.override?.pattern ?? base
+    const previousVisible = this.visible
     if (performing !== this.visible) {
       this.previous = this.visible
       this.visible = performing
-      this.transitionStart = rebase || changedAuto || toggled ? input.timeSec - 0.18 : input.timeSec
+      this.transitionDuration = this.previous === 'quadBloom' || performing === 'quadBloom' ? 0.64
+        : this.previous === 'liquidWeave' || performing === 'liquidWeave' ? 0.56 : 0.48
+      this.transitionStart = rebase || changedAuto || toggled ? input.timeSec - this.transitionDuration : input.timeSec
     }
-    if (input.reset) { this.previous = performing; this.transitionStart = input.timeSec - 0.18 }
-    return { base, performing, previous: this.previous, transition: Math.min(1, Math.max(0, (input.timeSec-this.transitionStart)/0.18)), overridden: this.override != null }
+    if (input.reset) { this.previous = performing; this.transitionStart = input.timeSec - this.transitionDuration }
+    return { base, performing, previous: this.previous, transition: Math.min(1, Math.max(0, (input.timeSec-this.transitionStart)/this.transitionDuration)), overridden: this.override != null, changed: performing !== previousVisible }
   }
 
   reset() {

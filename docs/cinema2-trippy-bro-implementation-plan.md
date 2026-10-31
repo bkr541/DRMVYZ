@@ -1,6 +1,6 @@
 # Cinema 2.0 — Trippy, Bro
 
-Status: all eight phases are complete. The user approved the complete preset on October 29, 2026, clearing the final visual acceptance gate. The preset is promoted to first-party keeper status at revision 3. See `cinema2-trippy-bro-production.md` for implementation and acceptance evidence.
+Status: the October 31 audit rejected revision 3's reference fidelity. Revision 4 implements the five requested visual corrections; see `cinema2-trippy-bro-reference-rework.md`. Earlier phase acceptance is historical and does not replace review of the rebuilt moving output.
 
 ## 1. Reference and analysis boundary
 
