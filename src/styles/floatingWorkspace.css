@@ -143,3 +143,11 @@
 [data-workspace-layout='floating'] .az-sidebar-utility svg {
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }
+
+/* Every workspace places the shared status readouts at the React header's right edge. */
+[data-workspace-layout='floating'][data-app-workspace] .fw-app-header-controls > :is(.pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
+  padding-right: 8px;
+}
+[data-workspace-layout='floating'] .fw-app-header-controls .mmv-summary {
+  display: flex;
+}

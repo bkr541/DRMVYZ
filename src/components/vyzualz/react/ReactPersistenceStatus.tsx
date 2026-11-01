@@ -5,14 +5,20 @@ import { useShallow } from 'zustand/react/shallow'
 import { useReactPersistenceStatusStore } from '../../../stores/reactPersistenceStatusStore'
 import { DrawerNotice } from '../shared/DrawerNotice'
 import { IconChipButton } from './controls/IconChipButton'
+import type { AppPageId } from '../../../stores/pageActivityStore'
+import type { HeaderSaveTone } from '../shared/HeaderSaveChip'
 
 function formatSavedTime(timestamp: number | null): string | null {
   if (!timestamp) return null
   return new Date(timestamp).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
 
-export function ReactPersistenceStatus({ presentation = 'chip' }: { presentation?: 'chip' | 'readout' } = {}) {
-  const activity = usePageActivityLabels('react')
+export function ReactPersistenceStatus({ presentation = 'chip', page = 'react', saveStatus }: {
+  presentation?: 'chip' | 'readout'
+  page?: AppPageId
+  saveStatus?: { label: string; tone: HeaderSaveTone }
+} = {}) {
+  const activity = usePageActivityLabels(page)
   const { phase, error, lastSavedAt, retryPending, retry } = useReactPersistenceStatusStore(useShallow(state => ({
     phase: state.phase,
     error: state.error,
@@ -31,17 +37,17 @@ export function ReactPersistenceStatus({ presentation = 'chip' }: { presentation
 
   if (presentation === 'readout') {
     const busy = activity.length > 0
-    const status = phase === 'error' ? 'Save failed' : phase === 'dirty' ? 'Unsaved' : phase === 'saving' ? 'Saving…' : phase === 'saved' ? 'Saved' : 'Ready'
-    const tone = phase === 'error' ? 'error' : phase === 'dirty' ? 'unsaved' : phase === 'saving' || busy ? 'saving' : 'saved'
-    const details = [busy ? `Loading: ${activity.join(', ')}` : 'Nothing loading', status, savedTime, error].filter(Boolean).join(' · ')
+    const status = saveStatus?.label ?? (phase === 'error' ? 'Save failed' : phase === 'dirty' ? 'Unsaved' : phase === 'saving' ? 'Saving…' : phase === 'saved' ? 'Saved' : 'Ready')
+    const tone = saveStatus?.tone ?? (phase === 'error' ? 'error' : phase === 'dirty' ? 'unsaved' : phase === 'saving' || busy ? 'saving' : 'saved')
+    const details = [busy ? `Loading: ${activity.join(', ')}` : 'Nothing loading', status, !saveStatus && savedTime, !saveStatus && error].filter(Boolean).join(' · ')
     return <>
       <HeaderReadout label="LOAD / SAVE" tone={tone} busy={busy} title={details}>
         <i className="vz-header-readout-led" aria-hidden="true" />
-        <strong className="vz-header-readout-primary" role={phase === 'error' ? 'alert' : 'status'} aria-live="polite" aria-label={details}>{busy && phase !== 'error' ? 'Loading' : status}</strong>
-        {phase === 'error' ? <button type="button" onClick={() => { void retry() }} disabled={retryPending}>{retryPending ? 'Retrying…' : 'Retry'}</button>
-          : <em>{busy ? status : phase === 'saved' ? savedTime : ''}</em>}
+        <strong className="vz-header-readout-primary" role={tone === 'error' ? 'alert' : 'status'} aria-live="polite" aria-label={details}>{busy && tone !== 'error' ? 'Loading' : status}</strong>
+        {!saveStatus && phase === 'error' ? <button type="button" onClick={() => { void retry() }} disabled={retryPending}>{retryPending ? 'Retrying…' : 'Retry'}</button>
+          : <em>{busy && tone !== 'error' ? status : !saveStatus && phase === 'saved' ? savedTime : ''}</em>}
       </HeaderReadout>
-      {failureNotice}
+      {!saveStatus && failureNotice}
     </>
   }
 

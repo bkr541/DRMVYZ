@@ -4,7 +4,7 @@ import { LyricHeaderIcon } from './LyricHeaderIcon'
 import { HeaderIconKey } from '../../../components/vyzualz/layout/HeaderIconKey'
 import { HeaderActionIcon } from '../../../components/vyzualz/layout/HeaderActionIcon'
 import { HeaderControlGroup } from '../../../components/vyzualz/layout/HeaderControlGroup'
-import { HeaderSaveChip, type HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
+import type { HeaderSaveTone } from '../../../components/vyzualz/shared/HeaderSaveChip'
 import { VyzualzHeaderActions } from '../../../components/vyzualz/shared/VyzualzHeaderActions'
 import type { LyricWriteStatus } from '../../../stores/lyricsStore'
 import type { LyricLayoutMode } from '../lyricLayoutMode'
@@ -55,7 +55,7 @@ export function LyricManagerHeader({
     ? 'error'
     : saveStatus === 'queued' || saveStatus === 'saving'
       ? 'saving'
-      : 'unsaved'
+      : saveStatusLabel ? 'unsaved' : 'saved'
 
   return (
     <header className="lmv-header" data-layout={layout}>
@@ -93,9 +93,7 @@ export function LyricManagerHeader({
       <div className="lmv-header-right">
         <VyzualzHeaderActions
           page="lyric-manager"
-          leading={saveStatusLabel && (
-            <HeaderSaveChip className="lmv-save-status-badge" label={saveStatusLabel} tone={saveTone} />
-          )}
+          saveStatus={{ label: saveStatusLabel ?? 'Saved', tone: saveTone }}
         />
       </div>
     </header>

@@ -65,7 +65,6 @@ import {
 } from '../react/laserDmxScannerAuthoring'
 import { ReactPlaceholderCanvas } from '../react/ReactPlaceholderCanvas'
 import { CanvasEngineSurface } from '../react/ReactCanvasEngineShell'
-import { ReactPersistenceStatus } from '../react/ReactPersistenceStatus'
 import { EditSectionForm, SectionTimeline, drawBeatGridCanvas } from '../react/ReactTrackMapStrip'
 import type { PixGridLayer } from '../react/pixGrid/PixGridTypes'
 import { applyPixGridPresetSettings } from '../react/pixGrid/PixGridState'
@@ -2211,9 +2210,6 @@ export function ShowManagerView() {
         </HeaderControlGroup>
 
         <div className="sm-topbar-spacer" />
-        {(activeSectionEngineId === 'laserDmx' || activeSectionEngineId === 'canvas' || activeSectionEngineId === 'pixGrid') && (
-          <ReactPersistenceStatus />
-        )}
         <VyzualzHeaderActions page="show-manager" />
       </header>
       </ApplicationHeaderControls>

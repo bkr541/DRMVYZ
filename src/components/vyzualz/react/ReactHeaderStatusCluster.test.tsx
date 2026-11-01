@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactPersistenceStatusStore } from '../../../stores/reactPersistenceStatusStore'
 import { usePageActivityStore } from '../../../stores/pageActivityStore'
 import { ReactHeaderStatusCluster } from './ReactHeaderStatusCluster'
+import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 vi.mock('../../../native/useAppCpuUsage', () => ({ useAppCpuUsage: () => ({ status: 'ready', usage: { percent: 12.4, processCount: 6 } }) }))
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -20,9 +21,25 @@ afterEach(async () => {
   container.remove()
   useReactPersistenceStatusStore.getState().reset()
   usePageActivityStore.getState().replaceOwnerSources('react', 'readout-test', {})
+  usePageActivityStore.getState().replaceOwnerSources('lyric-manager', 'readout-test', {})
 })
 const render = () => act(async () => root.render(<ReactHeaderStatusCluster fps={67} frameTimeMs={15} qualityTier="high" />))
 describe('Option E React header readouts', () => {
+  it.each(['preset-manager', 'show-manager', 'lyric-manager', 'media-manager'] as const)('uses the same three readouts in %s', async page => {
+    await act(async () => root.render(<VyzualzHeaderActions page={page} />))
+    expect([...container.querySelectorAll('.vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
+    expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('—')
+    expect(container.querySelector('.vz-header-activity')).toBeNull()
+  })
+  it('uses the manager loading activity and preserves lyric save conflicts', async () => {
+    useReactPersistenceStatusStore.setState({ phase: 'error', error: 'React save error' })
+    usePageActivityStore.getState().replaceOwnerSources('lyric-manager', 'readout-test', { lyrics: 'Loading lyrics' })
+    await act(async () => root.render(<VyzualzHeaderActions page="lyric-manager" saveStatus={{ label: 'Conflict', tone: 'error' }} />))
+    expect(container.querySelector('.vz-header-readout-primary')?.textContent).toBe('Conflict')
+    expect(container.querySelector('.vz-header-readout')?.getAttribute('data-busy')).toBe('true')
+    expect(container.querySelector('.vz-header-readout')?.getAttribute('title')).toContain('Loading lyrics')
+    expect(container.textContent).not.toContain('React save error')
+  })
   it('groups live values under three captions without header notification/profile actions', async () => {
     await render()
     expect([...container.querySelectorAll('.vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
