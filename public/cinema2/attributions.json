@@ -177,6 +177,20 @@
       "origin": "scripts/cinema2-assets/build-vacancy-runtime.mjs. Owner-supplied source GLBs in docs/Vacancy: abandoned_brick_room, old_school_tv, old_tv2, sony_pvm-14l2_crt_tv, tv__old_tv__retro_tv, tv_set and vintage_tv4. Merged into one set, each television normalised to a real-world width with its pivot at the bottom centre facing +Z, textures re-sized to WebP per quality tier. The owner states no attribution is required."
     },
     {
+      "id": "cinema2-war-of-worlds-a",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+      "origin": "Owner-supplied Downloads/warofworlds.glb; prepared with scripts/cinema2-assets/prepare-war-of-worlds.mjs. Complete source geometry partitioned into two aligned assets; unique mesh names, lossless geometry compression, color textures converted to WebP and capped to 512px (high) / 256px (low)."
+    },
+    {
+      "id": "cinema2-war-of-worlds-b",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+      "origin": "Owner-supplied Downloads/warofworlds.glb; prepared with scripts/cinema2-assets/prepare-war-of-worlds.mjs. Complete source geometry partitioned into two aligned assets; unique mesh names, lossless geometry compression, color textures converted to WebP and capped to 512px (high) / 256px (low)."
+    },
+    {
       "id": "cinema2-wet-concrete",
       "kind": "texture",
       "license": "generated-in-house",

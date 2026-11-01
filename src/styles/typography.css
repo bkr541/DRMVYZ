@@ -1,5 +1,24 @@
 /* Shared UI typography. Change a role here, never in a workspace override.
    Authored lyric, visualizer, and media fonts are separate from UI controls. */
+
+/* Cinema engine identity display roles; toolbar, fields and menus retain their
+   shared control typography. Container units fit the available rail width. */
+:root body .rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-eyebrow {
+  font: 500 8px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
+  letter-spacing: .24em;
+  color: #9bbfc8;
+}
+:root body .rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-label {
+  font: 800 clamp(18px, 7.3cqi, 28px)/1.1 var(--font-ui, 'Space Grotesk', sans-serif);
+  letter-spacing: .015em;
+  text-transform: uppercase;
+  color: #edf9fc;
+}
+:root body .rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-preset {
+  font: 500 13px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
 :root {
   --type-notice-title-size: 12px;
   /* A field's value is set in exactly its label's face, size and weight (only line height differs, so

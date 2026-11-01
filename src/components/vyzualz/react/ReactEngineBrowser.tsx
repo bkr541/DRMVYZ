@@ -11,6 +11,22 @@ function ReactEngineIcon({ engineId }: { engineId: ReactEngineId }) {
   return <IconComponent />
 }
 
+/** Decorative blueprint geometry for the Cinema engine identity. */
+function Cinema2EngineBlueprint() {
+  return (
+    <svg viewBox="0 0 140 150" fill="none" focusable="false">
+      <g stroke="currentColor" strokeWidth=".8">
+        <path d="M70 2 138 40 138 116 70 154 2 116 2 40Z" fill="currentColor" fillOpacity=".04" />
+        <path d="M2 40 70 78 138 40M70 78V154M70 2V40M2 116 70 78 138 116" />
+        <path d="M2 47 70 85 138 47M131 44V112L70 147M9 44V112L70 147" opacity=".5" />
+        <path d="M40 48 70 31 100 48 70 65ZM40 48V53L70 70 100 53V48M70 65V70" fill="currentColor" fillOpacity=".12" />
+        <path d="M70 2V154M2 40 138 116M138 40 2 116" strokeDasharray="4 3" opacity=".35" />
+        <path d="M24 27V130M116 27V130M2 66 116 130M24 130 138 66" opacity=".2" />
+      </g>
+    </svg>
+  )
+}
+
 /**
  * Engine-family switcher shown above the tab row of the React left window.
  */
@@ -55,7 +71,7 @@ export function ReactEngineBrowser({ presetName = null }: {
   }
 
   return (
-    <div className="rv-engine-dropdown" ref={rootRef}>
+    <div className="rv-engine-dropdown" data-engine={activeReactEngineId} ref={rootRef}>
       <button
         type="button"
         className="rv-engine-dropdown-trigger"
@@ -67,12 +83,12 @@ export function ReactEngineBrowser({ presetName = null }: {
       >
         <span className="rv-engine-dropdown-glow" aria-hidden="true" />
         <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          <ReactEngineIcon engineId={activeReactEngineId} />
+          {activeReactEngineId === 'cinema2' ? <Cinema2EngineBlueprint /> : <ReactEngineIcon engineId={activeReactEngineId} />}
         </span>
         <span className="rv-engine-dropdown-copy">
           <span className="rv-engine-dropdown-eyebrow">Engine</span>
           <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
-          {presetName && <span className="rv-engine-dropdown-preset">{presetName}</span>}
+          {presetName && <span className="rv-engine-dropdown-preset" title={presetName}>{presetName}</span>}
         </span>
       </button>
 

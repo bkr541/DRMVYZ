@@ -1,0 +1,12 @@
+{
+  "id": "cinema2-war-of-worlds-a",
+  "kind": "model",
+  "compression": "meshopt",
+  "license": "CC-BY-4.0",
+  "origin": "Owner-supplied Downloads/warofworlds.glb; prepared with scripts/cinema2-assets/prepare-war-of-worlds.mjs. Complete source geometry partitioned into two aligned assets; unique mesh names, lossless geometry compression, color textures converted to WebP and capped to 512px (high) / 256px (low).",
+  "files": {
+    "high": "public/cinema2/models/war-of-worlds-a.glb",
+    "low": "public/cinema2/models/war-of-worlds-a-low.glb"
+  },
+  "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP."
+}

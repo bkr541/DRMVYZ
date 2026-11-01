@@ -5171,6 +5171,64 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow: hidden;
 }
 
+/* Cinema 2.0 identity: cyan blueprint frame, oversized wireframe geometry and
+   a right-aligned live preset name, composed for the actual left-rail width. */
+.rv-engine-dropdown[data-engine='cinema2'] { container-type: inline-size; }
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger {
+  display: block;
+  min-height: 112px;
+  padding: 22px 12px 10px 30%;
+  border: 1px solid rgba(67, 227, 239, .8);
+  border-radius: 4px;
+  background:
+    linear-gradient(115deg, rgba(32, 123, 138, .23), transparent 55%),
+    radial-gradient(ellipse at 3% 20%, rgba(39, 195, 215, .2), transparent 65%),
+    #071319;
+  box-shadow: inset 0 0 18px rgba(44, 192, 212, .09), 0 0 6px rgba(44, 192, 212, .13);
+}
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .22;
+  background:
+    linear-gradient(90deg, transparent 94%, #388a98 95%, transparent 96%) 0 0 / 82px 100%,
+    linear-gradient(0deg, transparent 97%, #388a98 98%, transparent 99%) 0 0 / 100% 42px;
+  mask-image: linear-gradient(90deg, #000, transparent 58%, #000);
+}
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-glow { display: none; }
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-icon {
+  position: absolute;
+  inset: -3px auto auto -18px;
+  width: 34%;
+  height: 122px;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #58d4e4;
+  opacity: .65;
+  filter: drop-shadow(0 0 5px rgba(53, 213, 233, .35));
+}
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-icon svg { width: 100%; height: 100%; }
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-copy { gap: 5px; }
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 9px rgba(168, 241, 250, .16);
+}
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-preset {
+  padding-top: 9px;
+  text-align: right;
+  color: #398b9b;
+}
+.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger:is(:hover, [aria-expanded='true']) {
+  border-color: #6be9f3;
+  box-shadow: inset 0 0 20px rgba(44, 192, 212, .15), 0 0 12px rgba(44, 192, 212, .22);
+}
+
 .rv-engine-dropdown-menu {
   position: absolute;
   top: calc(100% + 10px);

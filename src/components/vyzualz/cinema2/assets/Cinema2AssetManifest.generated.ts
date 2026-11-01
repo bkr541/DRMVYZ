@@ -549,6 +549,54 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-war-of-worlds-a",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "CC-BY-4.0",
+    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/war-of-worlds-a.glb",
+        "bytes": 5402732,
+        "triangles": 177893
+      },
+      "low": {
+        "url": "/cinema2/models/war-of-worlds-a-low.glb",
+        "bytes": 4998844,
+        "triangles": 177893
+      }
+    },
+    "gpuBytes": {
+      "high": 30825384,
+      "medium": 30825384,
+      "low": 14048168
+    }
+  },
+  {
+    "id": "cinema2-war-of-worlds-b",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "CC-BY-4.0",
+    "attribution": "WAR OF THE TRIPODS by pinguinoconpulgares (https://sketchfab.com/pinguinoconpulgares), https://sketchfab.com/3d-models/war-of-the-tripods-9df8ea66182749bd90abc717a9153c53, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: split into aligned parts, mesh names made unique, geometry compressed losslessly, textures resized and color maps converted to WebP.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/war-of-worlds-b.glb",
+        "bytes": 5441448,
+        "triangles": 203822
+      },
+      "low": {
+        "url": "/cinema2/models/war-of-worlds-b-low.glb",
+        "bytes": 5061056,
+        "triangles": 203822
+      }
+    },
+    "gpuBytes": {
+      "high": 23942207,
+      "medium": 23942207,
+      "low": 12407871
+    }
+  },
+  {
     "id": "cinema2-wet-concrete",
     "kind": "texture",
     "layout": "surface-normal-crack-roughness",
