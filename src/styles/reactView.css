@@ -4987,15 +4987,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: -8px calc(var(--rv-rail-inline-padding) * -1) 0;
 }
 
-/* Escape .vz-inspector-inner's 12px padding via negative margin, then
-   restore the same inset via its own padding — a net-zero move for every
-   existing consumer, but it pushes this shell's own border-box out to the
-   rail's true edge. Without this, .rv-engine-dropdown's negative margin
-   (reactView.css, near .rv-engine-dropdown) gets clipped by this element's
-   own overflow:hidden before it can reach the true edge, since this
-   container's border-box would otherwise still sit inset by 12px — unlike
-   RailWindowHeader, which sits one level shallower (a direct child of
-   .vz-inspector-inner, outside this wrapper) and never needs this escape. */
+/* Keep the shell at the rail's edges while restoring the shared inline
+   inset for the engine card, tab row, and workspace content. */
 .rv-left-workspace-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -5027,16 +5020,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   position: relative;
   z-index: 6;
   min-width: 0;
-  /* No explicit width: with an auto width, align-items:stretch on the
-     flex-column parent (.rv-context-workspace-header) solves the box's
-     width accounting for the negative margin below, so it correctly
-     expands past both edges. A fixed `width: 100%` would resolve against
-     the (still-inset) container *before* the margin is applied, so the
-     left edge reaches the rail's true edge (margin-left shifts the start
-     position) but the right edge would stay put 24px short (a fixed width
-     doesn't grow just because margin-right went negative) — exactly the
-     left-fixed-right-not bug this replaced. */
-  margin: 0 calc(var(--rv-rail-inline-padding) * -1);
+  container-type: inline-size;
+  /* Match the rail's side inset above the card as well. */
+  margin: var(--rv-rail-inline-padding) 0 0;
 }
 
 /* Styled to match Layout Lab / Template's "Radial Spotlight" engine
@@ -5059,9 +5045,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   align-items: center;
   gap: 16px;
   padding: 18px 20px;
-  /* Square, not rounded, so it fits flush edge-to-edge under
-     RailWindowHeader and flush with the rail's true left/right edges
-     (see .rv-engine-dropdown's negative margin). */
+  /* Base treatment for legacy previews; production cards override the radius. */
   border-radius: 0;
   border: 1px solid rgba(74, 199, 219, 0.22);
   background:
@@ -5171,182 +5155,147 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overflow: hidden;
 }
 
-/* Cinema 2.0 identity: cyan blueprint frame, oversized wireframe geometry and
-   a right-aligned live preset name, composed for the actual left-rail width. */
-.rv-engine-dropdown[data-engine='cinema2'] { container-type: inline-size; }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger {
+/* Cinema's identity is shared by the selected card and every engine option. */
+.rv-engine-card {
   display: block;
-  min-height: 112px;
-  padding: 22px 12px 10px 30%;
-  border: 1px solid rgba(67, 227, 239, .8);
+  box-sizing: border-box;
+  width: 100%;
+  /* Keep the top inset + card at 96px to preserve the tab/search alignment. */
+  height: calc(96px - var(--rv-rail-inline-padding));
+  min-height: calc(96px - var(--rv-rail-inline-padding));
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  padding: 6px 12px 4px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 80%, transparent);
   border-radius: 4px;
   background:
-    linear-gradient(115deg, rgba(32, 123, 138, .23), transparent 55%),
-    radial-gradient(ellipse at 3% 20%, rgba(39, 195, 215, .2), transparent 65%),
-    #071319;
-  box-shadow: inset 0 0 18px rgba(44, 192, 212, .09), 0 0 6px rgba(44, 192, 212, .13);
+    linear-gradient(245deg, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 55%),
+    radial-gradient(ellipse at 97% 20%, color-mix(in srgb, var(--color-primary) 20%, transparent), transparent 65%),
+    var(--color-panel);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--color-primary) 9%, transparent);
 }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger::before {
+.rv-engine-card::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
   opacity: .22;
   background:
-    linear-gradient(90deg, transparent 94%, #388a98 95%, transparent 96%) 0 0 / 82px 100%,
-    linear-gradient(0deg, transparent 97%, #388a98 98%, transparent 99%) 0 0 / 100% 42px;
+    linear-gradient(90deg, transparent 94%, var(--color-primary) 95%, transparent 96%) 0 0 / 82px 100%,
+    linear-gradient(0deg, transparent 97%, var(--color-primary) 98%, transparent 99%) 0 0 / 100% 42px;
   mask-image: linear-gradient(90deg, #000, transparent 58%, #000);
+  transform: scaleX(-1);
 }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-glow { display: none; }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-icon {
+.rv-engine-card .rv-engine-dropdown-glow { display: none; }
+.rv-engine-card .rv-engine-dropdown-icon {
   position: absolute;
-  inset: -3px auto auto -18px;
-  width: 34%;
-  height: 122px;
+  inset: -40px -12px auto auto;
+  width: 56%;
+  height: 170px;
   display: block;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: #58d4e4;
-  opacity: .65;
-  filter: drop-shadow(0 0 5px rgba(53, 213, 233, .35));
+  color: var(--color-primary);
+  opacity: .48;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-primary) 30%, transparent));
 }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-icon svg { width: 100%; height: 100%; }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-copy { gap: 5px; }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-label {
+.rv-engine-card .rv-engine-dropdown-icon svg { width: 100%; height: 100%; }
+.rv-engine-card .rv-engine-dropdown-copy { gap: 3px; }
+.rv-engine-card .rv-engine-dropdown-eyebrow,
+.rv-engine-card .rv-engine-dropdown-label {
+  position: relative;
+  z-index: 1;
+}
+.rv-engine-card .rv-engine-dropdown-label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   text-shadow: 0 0 9px rgba(168, 241, 250, .16);
 }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-preset {
-  padding-top: 9px;
+.rv-engine-card .rv-engine-dropdown-preset {
+  position: relative;
+  min-width: 0;
+  overflow: visible;
+  padding-top: 4px;
   text-align: right;
-  color: #398b9b;
+  color: var(--color-primary);
 }
-.rv-engine-dropdown[data-engine='cinema2'] .rv-engine-dropdown-trigger:is(:hover, [aria-expanded='true']) {
-  border-color: #6be9f3;
-  box-shadow: inset 0 0 20px rgba(44, 192, 212, .15), 0 0 12px rgba(44, 192, 212, .22);
+.rv-engine-dropdown-preset-value {
+  position: relative;
+  z-index: 1;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rv-engine-dropdown-preset-echoes {
+  position: absolute;
+  z-index: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  pointer-events: none;
+  user-select: none;
+  mask-image: linear-gradient(to top, black, transparent 95%);
+}
+.rv-engine-dropdown-preset-echo {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translate(-8px, -10px);
+  opacity: .26;
+  filter: blur(.15px);
+}
+.rv-engine-dropdown-preset-echo:nth-child(2) {
+  transform: translate(-16px, -20px);
+  opacity: .16;
+  filter: blur(.4px);
+}
+.rv-engine-dropdown-preset-echo:nth-child(3) {
+  transform: translate(-24px, -30px);
+  opacity: .08;
+  filter: blur(.7px);
+}
+.rv-engine-card:is(:hover, :focus-visible, [aria-expanded='true']) {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .rv-engine-dropdown-menu {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 8px);
   left: 0;
   right: 0;
   z-index: 20;
-  padding: 8px;
-  border-radius: var(--radius-group);
-  border: 1px solid rgba(74, 199, 219, 0.24);
-  background:
-    radial-gradient(circle at 12% 0%, rgba(74, 199, 219, 0.1), transparent 55%),
-    rgba(4, 9, 13, 0.98);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55), 0 0 30px rgba(74, 199, 219, 0.14);
-  animation: lldd-fade-scale 160ms ease;
-  max-height: 360px;
-  overflow-y: auto;
-}
-
-@keyframes rv-engine-dropdown-option-in {
-  from { opacity: 0; transform: scale(0.94) translateY(-4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-.rv-engine-dropdown-option {
-  position: relative;
-  min-width: 0;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  margin-top: 3px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-group);
-  background: rgba(255, 255, 255, 0.015);
-  color: rgba(232, 244, 248, 0.7);
-  text-align: left;
-  cursor: pointer;
-  opacity: 0;
-  animation: rv-engine-dropdown-option-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  animation-delay: calc(var(--rv-engine-i, 0) * 40ms);
-  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
-}
-
-.rv-engine-dropdown-option:hover,
-.rv-engine-dropdown-option:focus-visible {
-  color: rgba(236, 248, 250, 0.92);
-  border-color: rgba(74, 199, 219, 0.3);
-  background: rgba(74, 199, 219, 0.06);
-  outline: none;
-}
-
-.rv-engine-dropdown-option.is-active {
-  color: #8ef4ff;
-  border-color: rgba(103, 247, 255, 0.45);
-  background: rgba(74, 199, 219, 0.1);
-}
-
-.rv-engine-dropdown-option-icon {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: #67f7ff;
-  font-size: 14px;
-  line-height: 1;
-  text-align: center;
-}
-
-.rv-engine-dropdown-option-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.rv-engine-dropdown-option.is-active .rv-engine-dropdown-option-icon {
-  background: rgba(74, 199, 219, 0.16);
-  animation: rv-engine-dropdown-breathe 2.4s ease-in-out infinite;
-}
-
-.rv-engine-dropdown-option-copy {
-  flex: 1;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.rv-engine-dropdown-option-copy span {
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  color: inherit;
-}
-
-.rv-engine-dropdown-option-copy small {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  color: rgba(232, 244, 248, 0.4);
-  font-size: 9.5px;
-  line-height: 1.3;
+  gap: 8px;
+  border-radius: 4px;
+  background: var(--color-popover);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-primary) var(--color-popover);
 }
 
 .rv-engine-dropdown-option-check {
-  flex-shrink: 0;
+  position: absolute;
+  top: 8px;
+  right: 8px;
   color: #67f7ff;
-  font-size: 13px;
-  text-align: center;
 }
 
-/* Same escape-then-restore move as .rv-left-workspace-shell just above (and
-   for the same reason: this is the second of two overflow:hidden wrappers
-   .rv-engine-dropdown's own negative margin needs to see through to reach
-   the rail's true edge without being clipped). Net-zero for every other
-   consumer of this container. */
+/* Extend the workspace surface to the rail edges and preserve its content inset. */
 .rv-context-workspace {
   min-width: 0;
   min-height: 0;
@@ -10539,13 +10488,8 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* ── Show Director / transport tightening pass ─────────────────────────────── */
-/* Zero horizontal/top padding so the Engine dropdown (its sole child) can
-   reach the rail's true left/right edges and sit flush under RailWindowHeader
-   — see .rv-engine-dropdown's own negative margin, which cancels the
-   remaining inset from .vz-inspector-inner's padding, and
-   .rv-engine-dropdown-trigger's removed border-radius, which lets it fit
-   flush into that square corner. Bottom padding is kept as the gap before
-   the Source/Layers tab row. */
+/* The rail owns the card's horizontal inset; tabRows.css owns the gap
+   before Source/Layers. */
 .rv-context-workspace-header {
   min-height: 0;
   padding: 0 0 8px;

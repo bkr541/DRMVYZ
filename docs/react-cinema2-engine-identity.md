@@ -1,9 +1,15 @@
-# React Cinema 2.0 engine identity
+# React engine selector identity
 
-The Cinema 2.0 engine selector in the React left rail follows the supplied blueprint reference: a cyan hairline frame over a dark technical grid, a decorative wireframe cube on the left, an Engine eyebrow, a bold uppercase engine name, and the current preset right-aligned beneath it.
+All six engines use Cinema 2.0's card styling in both the selected engine and dropdown options. Engine and title text are left-aligned at a 12px internal inset, with the same bold uppercase display typography. Preset names share the right-aligned lower row; cards without a preset reserve that line to keep text positions identical.
 
-`ReactEngineBrowser` keeps the existing engine picker behavior and accessible selection label. The preset name remains live data; long names truncate visually and retain their full text in the tooltip and accessible button label. The decorative SVG is hidden from accessibility APIs. Other engines retain their existing appearance.
+The active preset name uses 16px display type. Three decorative copies recede upward and left into the artwork, with progressively lower opacity and greater blur under a fading mask. The foreground name remains crisp and truncates independently. Echoes use the same primary color, ignore pointer events, and are hidden from assistive technology; cards without preset names do not render them.
 
-Layout and artwork rules live in `src/styles/reactView.css`; the display typography roles live in `src/styles/typography.css`. The title scales with the selector's available width.
+Each engine keeps its own technical illustration: Cinema's wireframe geometry, Sound Drawing's phase portrait, CANVAS's layered media planes, LaserDMX's optical assembly, PixGrid's isometric pixel lattice, and HEADLINER's faceted performer. All artwork sits on the right at 56% card width and 170px height, with a −8° tilt. The frame, technical grid, background glow, colors, and hover treatment are shared.
 
-Validation: seven Cinema 2.0 production-path tests, focused ESLint, and 351 shared typography browser checks passed. The actual selector was visually reviewed at compact, normal and wide widths with short and long preset names; menu switching and Escape dismissal were also checked in Chromium.
+Colors come from the app's `--color-*` theme tokens. Gradients and glows blend primary color with standard surfaces or transparency; titles and labels use the standard text roles. The menu surface and scrollbar also follow the appearance theme.
+
+Cards retain their 84px height, shared 12px side inset, and 12px clearance below the window header. The combined 96px header footprint preserves the Source/Layers divider's alignment with the Presets search underline. The menu measures the remaining left-window space and scrolls internally with an 8px bottom inset. Long titles and preset names truncate while retaining their accessible labels or tooltips. Decorative artwork and empty preset lines are hidden from assistive technology.
+
+Shared layout and artwork styling live in `src/styles/reactView.css`; display typography lives in `src/styles/typography.css`. `ReactEngineBlueprint.tsx` contains the five companion illustrations; Cinema's illustration remains in `ReactEngineBrowser.tsx`. Engine-specific comparison styling has been removed so the designs cannot drift apart.
+
+Validation: focused ESLint passed. Browser checks and visual review at 1700px, 1180px, and 900px confirm identical frames, gradients, typography, text positions, and artwork treatment for all six engines in selected and dropdown states. Theme consistency, reserved empty preset rows, long-name truncation, tab/search alignment, compact scrolling, engine selection, Escape, and outside dismissal also passed.

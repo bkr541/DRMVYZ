@@ -1,0 +1,4659 @@
+{
+  "phase": 1,
+  "sources": [
+    {
+      "file": "stylized_mushrooms.glb",
+      "sha256": "09a4cb387b9ca8b4649ce04093faf81ec3de37d43c04203fd86e90fd5268b361",
+      "bytes": 2304192,
+      "author": "QumoDone (https://sketchfab.com/QumoDone)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/stylized-mushrooms-9d22e02ce2a548959b1c4c4c1d546842",
+      "title": "Stylized mushrooms",
+      "speciesIds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "file": "stylized_mushrooms_-_low_poly.glb",
+      "sha256": "4f89f569cf9556061d1a9c7f95c1e711677584bbbc625a464293e75ca0971ac6",
+      "bytes": 720872,
+      "author": "Camille Barral (https://sketchfab.com/CamilleBarral)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/stylized-mushrooms-low-poly-33e4073b371a4fbd93e65bfb16473032",
+      "title": "Stylized Mushrooms - Low Poly",
+      "speciesIds": [
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "file": "mushrooms (1).glb",
+      "sha256": "63cd0969ebe0d04e1085b3764b7857b77101c5a2f6a8fccd60494929d1c30d9e",
+      "bytes": 696604,
+      "author": "leha_pu (https://sketchfab.com/leha_pu)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushrooms-f9dbd4c34a4f4389bf3901527ecc89a0",
+      "title": "Mushrooms",
+      "speciesIds": [
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ]
+    },
+    {
+      "file": "mushrooms.glb",
+      "sha256": "92b7c6ce0e2f69280c3178b0b3cbeebe4a686aefbdb1032daebf4a1bb7b45c4d",
+      "bytes": 1976700,
+      "author": "Gwappa (https://sketchfab.com/Gwappa)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushrooms-c2dbb88a5e9c4e82a180e13b472015ed",
+      "title": "Mushrooms",
+      "speciesIds": [
+        16
+      ]
+    },
+    {
+      "file": "mushroom_magic.glb",
+      "sha256": "d58af7c6e1af989599f8ab202f61897039f7bd7db830ea6becdc4b6fe9c3c401",
+      "bytes": 25012072,
+      "author": "Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushroom-magic-a1afc8a3ebc74648965127cac2da5349",
+      "title": "Mushroom Magic",
+      "speciesIds": [
+        17
+      ]
+    }
+  ],
+  "inspection": {
+    "name": "psylo-static",
+    "container": "glb",
+    "fileBytes": 3730336,
+    "generator": "DRMVYZ PSYLO Phase 1",
+    "counts": {
+      "scenes": 1,
+      "nodes": 25,
+      "meshes": 25,
+      "primitives": 25,
+      "materials": 19,
+      "textures": 24,
+      "animations": 0,
+      "skins": 0,
+      "cameras": 0
+    },
+    "geometry": {
+      "triangles": 205371,
+      "vertices": 129177,
+      "bytes": 7801843,
+      "compression": "meshopt",
+      "customAttributes": [
+        "_PSYLO_HEIGHT",
+        "_PSYLO_ID",
+        "_PSYLO_PART",
+        "_PSYLO_ROOT",
+        "_PSYLO_SPECIES",
+        "_PSYLO_ZONE"
+      ]
+    },
+    "textures": {
+      "count": 24,
+      "gpuBytes": 18481152,
+      "formats": [
+        "image/webp",
+        "image/png"
+      ],
+      "items": [
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 12398,
+          "gpuBytes": 786432,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 22226,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 61490,
+          "gpuBytes": 786432,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 12890,
+          "gpuBytes": 786432,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 14178,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 77722,
+          "gpuBytes": 786432,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 16849,
+          "gpuBytes": 786432,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 12642,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 56997,
+          "gpuBytes": 786432,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 15741,
+          "gpuBytes": 786432,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 11596,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 23336,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 90643,
+          "gpuBytes": 786432,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 10256,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 84050,
+          "gpuBytes": 786432,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 12024,
+          "gpuBytes": 786432,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 15530,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 125048,
+          "gpuBytes": 786432,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 33004,
+          "gpuBytes": 786432,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 192,
+          "fileBytes": 72895,
+          "gpuBytes": 393216,
+          "slots": [
+            "clearcoatRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 1488,
+          "gpuBytes": 786432,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 47030,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 123890,
+          "gpuBytes": 786432,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 384,
+          "height": 384,
+          "fileBytes": 1182,
+          "gpuBytes": 786432,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        }
+      ]
+    },
+    "memory": {
+      "geometryBytes": 7801843,
+      "textureBytes": 18481152,
+      "totalBytes": 26282995
+    },
+    "extensions": {
+      "used": [
+        "KHR_materials_emissive_strength",
+        "KHR_materials_specular",
+        "KHR_materials_clearcoat",
+        "KHR_texture_transform",
+        "EXT_texture_webp",
+        "KHR_mesh_quantization",
+        "EXT_meshopt_compression"
+      ],
+      "required": [
+        "EXT_texture_webp",
+        "KHR_mesh_quantization",
+        "EXT_meshopt_compression"
+      ],
+      "features": [
+        "WebP textures",
+        "Quantized vertex attributes",
+        "Meshopt geometry compression"
+      ]
+    },
+    "materials": [
+      {
+        "name": "psylo.source.0.mushroms",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Large",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": [
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Small",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Thin",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.2.Mushrooms1",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.3.standardSurface2SG",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.3.standardSurface3SG",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.4.material_0",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_clearcoat",
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_4",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_clearcoat",
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_5",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_6",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_8",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.terrain",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "psylo.mycelium.teal",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.mycelium.amber",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.groundcover",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "psylo.stone",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      }
+    ],
+    "meshes": [
+      {
+        "name": "psylo.source.0.mushroms",
+        "primitives": 1,
+        "triangles": 4768,
+        "vertices": 3453,
+        "materials": [
+          "psylo.source.0.mushroms"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Small",
+        "primitives": 1,
+        "triangles": 19872,
+        "vertices": 13122,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Small"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Thin",
+        "primitives": 1,
+        "triangles": 19008,
+        "vertices": 13068,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Thin"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material",
+        "primitives": 1,
+        "triangles": 762,
+        "vertices": 405,
+        "materials": [
+          "psylo.source.4.material"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_2",
+        "primitives": 1,
+        "triangles": 3491,
+        "vertices": 1931,
+        "materials": [
+          "psylo.source.4.material_2"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_4",
+        "primitives": 1,
+        "triangles": 22560,
+        "vertices": 11940,
+        "materials": [
+          "psylo.source.4.material_4"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_5",
+        "primitives": 1,
+        "triangles": 2950,
+        "vertices": 1623,
+        "materials": [
+          "psylo.source.4.material_5"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_6",
+        "primitives": 1,
+        "triangles": 52092,
+        "vertices": 25428,
+        "materials": [
+          "psylo.source.4.material_6"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_0",
+        "primitives": 1,
+        "triangles": 2046,
+        "vertices": 1111,
+        "materials": [
+          "psylo.source.4.material_0"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_8",
+        "primitives": 1,
+        "triangles": 186,
+        "vertices": 101,
+        "materials": [
+          "psylo.source.4.material_8"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.3.standardSurface2SG",
+        "primitives": 1,
+        "triangles": 672,
+        "vertices": 483,
+        "materials": [
+          "psylo.source.3.standardSurface2SG"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.3.standardSurface3SG",
+        "primitives": 1,
+        "triangles": 384,
+        "vertices": 315,
+        "materials": [
+          "psylo.source.3.standardSurface3SG"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Large",
+        "primitives": 1,
+        "triangles": 24928,
+        "vertices": 15334,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Large"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms2",
+        "primitives": 1,
+        "triangles": 2400,
+        "vertices": 1452,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms4",
+        "primitives": 1,
+        "triangles": 2304,
+        "vertices": 1392,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms6",
+        "primitives": 1,
+        "triangles": 2064,
+        "vertices": 1230,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms1",
+        "primitives": 1,
+        "triangles": 3540,
+        "vertices": 2184,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms3",
+        "primitives": 1,
+        "triangles": 2016,
+        "vertices": 1260,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms5",
+        "primitives": 1,
+        "triangles": 3728,
+        "vertices": 2240,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms7",
+        "primitives": 1,
+        "triangles": 1344,
+        "vertices": 804,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.terrain",
+        "primitives": 1,
+        "triangles": 20000,
+        "vertices": 10201,
+        "materials": [
+          "psylo.terrain"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.mycelium.teal",
+        "primitives": 1,
+        "triangles": 4256,
+        "vertices": 2730,
+        "materials": [
+          "psylo.mycelium.teal"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.mycelium.amber",
+        "primitives": 1,
+        "triangles": 4256,
+        "vertices": 2730,
+        "materials": [
+          "psylo.mycelium.amber"
+        ],
+        "customAttributes": [
+          "_PSYLO_ZONE",
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.groundcover",
+        "primitives": 1,
+        "triangles": 5184,
+        "vertices": 12960,
+        "materials": [
+          "psylo.groundcover"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.stone",
+        "primitives": 1,
+        "triangles": 560,
+        "vertices": 1680,
+        "materials": [
+          "psylo.stone"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      }
+    ],
+    "animations": [],
+    "skins": [],
+    "bounds": {
+      "min": [
+        -2457525,
+        -150725.7861947175,
+        -2457525
+      ],
+      "max": [
+        2457525,
+        150734.87890633382,
+        2457525
+      ]
+    },
+    "budgets": {
+      "installerBytes": 134217728,
+      "maxFileBytes": 16777216,
+      "maxTextureDimension": 4096,
+      "maxVolumeDimension": 128,
+      "maxEnvironmentWidth": 2048,
+      "maxTrianglesPerAsset": 250000,
+      "assetGpuBytes": {
+        "low": 33554432,
+        "medium": 50331648,
+        "high": 83886080
+      }
+    },
+    "issues": [],
+    "ok": true
+  },
+  "lowInspection": {
+    "name": "psylo-static-low",
+    "container": "glb",
+    "fileBytes": 3237900,
+    "generator": "DRMVYZ PSYLO Phase 1",
+    "counts": {
+      "scenes": 1,
+      "nodes": 25,
+      "meshes": 25,
+      "primitives": 25,
+      "materials": 19,
+      "textures": 24,
+      "animations": 0,
+      "skins": 0,
+      "cameras": 0
+    },
+    "geometry": {
+      "triangles": 205371,
+      "vertices": 129177,
+      "bytes": 7801843,
+      "compression": "meshopt",
+      "customAttributes": [
+        "_PSYLO_HEIGHT",
+        "_PSYLO_ID",
+        "_PSYLO_PART",
+        "_PSYLO_ROOT",
+        "_PSYLO_SPECIES",
+        "_PSYLO_ZONE"
+      ]
+    },
+    "textures": {
+      "count": 24,
+      "gpuBytes": 8213838,
+      "formats": [
+        "image/webp",
+        "image/png"
+      ],
+      "items": [
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 6370,
+          "gpuBytes": 349525,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 10440,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 30328,
+          "gpuBytes": 349525,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 7358,
+          "gpuBytes": 349525,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 6786,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 38146,
+          "gpuBytes": 349525,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 8974,
+          "gpuBytes": 349525,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 6530,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 28141,
+          "gpuBytes": 349525,
+          "slots": [
+            "occlusionTexture",
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 9136,
+          "gpuBytes": 349525,
+          "slots": [
+            "normalTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 6182,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 11710,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 46590,
+          "gpuBytes": 349525,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 4562,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 39987,
+          "gpuBytes": 349525,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 5182,
+          "gpuBytes": 349525,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 6736,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 60957,
+          "gpuBytes": 349525,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 11186,
+          "gpuBytes": 349525,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 128,
+          "fileBytes": 37801,
+          "gpuBytes": 174763,
+          "slots": [
+            "clearcoatRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 858,
+          "gpuBytes": 349525,
+          "slots": [
+            "emissiveTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 17918,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/png",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 60178,
+          "gpuBytes": 349525,
+          "slots": [
+            "metallicRoughnessTexture"
+          ],
+          "colorSpace": null
+        },
+        {
+          "name": "(unnamed)",
+          "mime": "image/webp",
+          "width": 256,
+          "height": 256,
+          "fileBytes": 658,
+          "gpuBytes": 349525,
+          "slots": [
+            "baseColorTexture"
+          ],
+          "colorSpace": "srgb"
+        }
+      ]
+    },
+    "memory": {
+      "geometryBytes": 7801843,
+      "textureBytes": 8213838,
+      "totalBytes": 16015681
+    },
+    "extensions": {
+      "used": [
+        "KHR_materials_emissive_strength",
+        "KHR_materials_specular",
+        "KHR_materials_clearcoat",
+        "KHR_texture_transform",
+        "EXT_texture_webp",
+        "KHR_mesh_quantization",
+        "EXT_meshopt_compression"
+      ],
+      "required": [
+        "EXT_texture_webp",
+        "KHR_mesh_quantization",
+        "EXT_meshopt_compression"
+      ],
+      "features": [
+        "WebP textures",
+        "Quantized vertex attributes",
+        "Meshopt geometry compression"
+      ]
+    },
+    "materials": [
+      {
+        "name": "psylo.source.0.mushroms",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Large",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": [
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Small",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Thin",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "normalTexture",
+          "occlusionTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.2.Mushrooms1",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.3.standardSurface2SG",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": false,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.3.standardSurface3SG",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": []
+      },
+      {
+        "name": "psylo.source.4.material_0",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_2",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture",
+          "emissiveTexture"
+        ],
+        "extensions": [
+          "KHR_materials_clearcoat",
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_4",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_clearcoat",
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_5",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [
+          "baseColorTexture",
+          "metallicRoughnessTexture"
+        ],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_6",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.source.4.material_8",
+        "alphaMode": "OPAQUE",
+        "doubleSided": true,
+        "metallic": 0.02,
+        "roughness": 0.68,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength",
+          "KHR_materials_specular"
+        ]
+      },
+      {
+        "name": "psylo.terrain",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "psylo.mycelium.teal",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.mycelium.amber",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": true,
+        "textureSlots": [],
+        "extensions": [
+          "KHR_materials_emissive_strength"
+        ]
+      },
+      {
+        "name": "psylo.groundcover",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      },
+      {
+        "name": "psylo.stone",
+        "alphaMode": "OPAQUE",
+        "doubleSided": false,
+        "metallic": 0,
+        "roughness": 0.9,
+        "emissive": false,
+        "textureSlots": [],
+        "extensions": []
+      }
+    ],
+    "meshes": [
+      {
+        "name": "psylo.source.0.mushroms",
+        "primitives": 1,
+        "triangles": 4768,
+        "vertices": 3453,
+        "materials": [
+          "psylo.source.0.mushroms"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Small",
+        "primitives": 1,
+        "triangles": 19872,
+        "vertices": 13122,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Small"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Thin",
+        "primitives": 1,
+        "triangles": 19008,
+        "vertices": 13068,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Thin"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material",
+        "primitives": 1,
+        "triangles": 762,
+        "vertices": 405,
+        "materials": [
+          "psylo.source.4.material"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_2",
+        "primitives": 1,
+        "triangles": 3491,
+        "vertices": 1931,
+        "materials": [
+          "psylo.source.4.material_2"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_4",
+        "primitives": 1,
+        "triangles": 22560,
+        "vertices": 11940,
+        "materials": [
+          "psylo.source.4.material_4"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_5",
+        "primitives": 1,
+        "triangles": 2950,
+        "vertices": 1623,
+        "materials": [
+          "psylo.source.4.material_5"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_6",
+        "primitives": 1,
+        "triangles": 52092,
+        "vertices": 25428,
+        "materials": [
+          "psylo.source.4.material_6"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_0",
+        "primitives": 1,
+        "triangles": 2046,
+        "vertices": 1111,
+        "materials": [
+          "psylo.source.4.material_0"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.4.material_8",
+        "primitives": 1,
+        "triangles": 186,
+        "vertices": 101,
+        "materials": [
+          "psylo.source.4.material_8"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.3.standardSurface2SG",
+        "primitives": 1,
+        "triangles": 672,
+        "vertices": 483,
+        "materials": [
+          "psylo.source.3.standardSurface2SG"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.3.standardSurface3SG",
+        "primitives": 1,
+        "triangles": 384,
+        "vertices": 315,
+        "materials": [
+          "psylo.source.3.standardSurface3SG"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.1.M_Mushroom_Large",
+        "primitives": 1,
+        "triangles": 24928,
+        "vertices": 15334,
+        "materials": [
+          "psylo.source.1.M_Mushroom_Large"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms2",
+        "primitives": 1,
+        "triangles": 2400,
+        "vertices": 1452,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms4",
+        "primitives": 1,
+        "triangles": 2304,
+        "vertices": 1392,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms6",
+        "primitives": 1,
+        "triangles": 2064,
+        "vertices": 1230,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms1",
+        "primitives": 1,
+        "triangles": 3540,
+        "vertices": 2184,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms3",
+        "primitives": 1,
+        "triangles": 2016,
+        "vertices": 1260,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms5",
+        "primitives": 1,
+        "triangles": 3728,
+        "vertices": 2240,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.source.2.Mushrooms7",
+        "primitives": 1,
+        "triangles": 1344,
+        "vertices": 804,
+        "materials": [
+          "psylo.source.2.Mushrooms1"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.terrain",
+        "primitives": 1,
+        "triangles": 20000,
+        "vertices": 10201,
+        "materials": [
+          "psylo.terrain"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.mycelium.teal",
+        "primitives": 1,
+        "triangles": 4256,
+        "vertices": 2730,
+        "materials": [
+          "psylo.mycelium.teal"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.mycelium.amber",
+        "primitives": 1,
+        "triangles": 4256,
+        "vertices": 2730,
+        "materials": [
+          "psylo.mycelium.amber"
+        ],
+        "customAttributes": [
+          "_PSYLO_ZONE",
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.groundcover",
+        "primitives": 1,
+        "triangles": 5184,
+        "vertices": 12960,
+        "materials": [
+          "psylo.groundcover"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      },
+      {
+        "name": "psylo.stone",
+        "primitives": 1,
+        "triangles": 560,
+        "vertices": 1680,
+        "materials": [
+          "psylo.stone"
+        ],
+        "customAttributes": [
+          "_PSYLO_ROOT",
+          "_PSYLO_HEIGHT",
+          "_PSYLO_ID",
+          "_PSYLO_ZONE",
+          "_PSYLO_SPECIES",
+          "_PSYLO_PART"
+        ],
+        "morphTargets": 0,
+        "hasNormals": true
+      }
+    ],
+    "animations": [],
+    "skins": [],
+    "bounds": {
+      "min": [
+        -2457525,
+        -150725.7861947175,
+        -2457525
+      ],
+      "max": [
+        2457525,
+        150734.87890633382,
+        2457525
+      ]
+    },
+    "budgets": {
+      "installerBytes": 134217728,
+      "maxFileBytes": 16777216,
+      "maxTextureDimension": 4096,
+      "maxVolumeDimension": 128,
+      "maxEnvironmentWidth": 2048,
+      "maxTrianglesPerAsset": 250000,
+      "assetGpuBytes": {
+        "low": 33554432,
+        "medium": 50331648,
+        "high": 83886080
+      }
+    },
+    "issues": [],
+    "ok": true
+  },
+  "instances": [
+    {
+      "id": 0,
+      "species": 0,
+      "source": "stylized_mushrooms.glb",
+      "position": [
+        0,
+        -0.05364401214398911,
+        -8
+      ],
+      "height": 9.2,
+      "heading": -0.35,
+      "zone": 0
+    },
+    {
+      "id": 1,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -9.5,
+        0.08714684504744621,
+        -13
+      ],
+      "height": 7,
+      "heading": 0.4,
+      "zone": 1
+    },
+    {
+      "id": 2,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        8.5,
+        -0.25350049195706376,
+        -17
+      ],
+      "height": 6.2,
+      "heading": 2.1,
+      "zone": 2
+    },
+    {
+      "id": 3,
+      "species": 17,
+      "source": "mushroom_magic.glb",
+      "position": [
+        11,
+        0.12410972419771381,
+        -2
+      ],
+      "height": 5.8,
+      "heading": -0.8,
+      "zone": 2
+    },
+    {
+      "id": 4,
+      "species": 1,
+      "source": "stylized_mushrooms.glb",
+      "position": [
+        -5.7,
+        -0.022764860736520492,
+        -7
+      ],
+      "height": 3.5,
+      "heading": 0.7,
+      "zone": 0
+    },
+    {
+      "id": 5,
+      "species": 2,
+      "source": "stylized_mushrooms.glb",
+      "position": [
+        5.1,
+        -0.029852354860047406,
+        -10
+      ],
+      "height": 2.8,
+      "heading": -0.3,
+      "zone": 0
+    },
+    {
+      "id": 6,
+      "species": 16,
+      "source": "mushrooms.glb",
+      "position": [
+        -10,
+        -0.11032445998607184,
+        1
+      ],
+      "height": 2.5,
+      "heading": 0.3,
+      "zone": 1
+    },
+    {
+      "id": 7,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        22.143389417324215,
+        0.07872800846655746,
+        -19.885710175847635
+      ],
+      "height": 6.416000791359693,
+      "heading": 2.5312911945986194,
+      "zone": 2
+    },
+    {
+      "id": 8,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -14.85023581655696,
+        0.05238687371596165,
+        6.071863760473207
+      ],
+      "height": 4.481421162560582,
+      "heading": 5.517080082541906,
+      "zone": 1
+    },
+    {
+      "id": 9,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        9.482755430508405,
+        -0.09107079234126024,
+        13.327385237673298
+      ],
+      "height": 4.275473422091454,
+      "heading": 4.694853137900749,
+      "zone": 2
+    },
+    {
+      "id": 10,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -4.121513518039137,
+        -0.21917753562827605,
+        2.555804140167311
+      ],
+      "height": 6.522962615080178,
+      "heading": 1.2594990028918378,
+      "zone": 1
+    },
+    {
+      "id": 11,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -5.583180782850832,
+        -0.07852720691326212,
+        -29.14815654582344
+      ],
+      "height": 4.527706466708333,
+      "heading": 5.438009167252329,
+      "zone": 1
+    },
+    {
+      "id": 12,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.16246111690998,
+        0.053363062600882236,
+        -24.564957179361954
+      ],
+      "height": 4.192006082227453,
+      "heading": 4.002406480775207,
+      "zone": 2
+    },
+    {
+      "id": 13,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -24.445648258551955,
+        0.18025083727551455,
+        2.176852041622624
+      ],
+      "height": 5.514656931860372,
+      "heading": 1.5263715321410252,
+      "zone": 1
+    },
+    {
+      "id": 14,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        5.576215363107622,
+        -0.2335743173925628,
+        14.7216949488502
+      ],
+      "height": 6.813928590575233,
+      "heading": 4.971489311147756,
+      "zone": 2
+    },
+    {
+      "id": 15,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -21.626905109733343,
+        -0.23691177066876035,
+        -24.383360658073798
+      ],
+      "height": 5.644056356465445,
+      "heading": 3.831045008527773,
+      "zone": 1
+    },
+    {
+      "id": 16,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        9.666188643313944,
+        -0.16656470385880548,
+        -27.504069621907547
+      ],
+      "height": 4.116694678040221,
+      "heading": 4.272649564501517,
+      "zone": 2
+    },
+    {
+      "id": 17,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        5.5573961534537375,
+        -0.18096477410630224,
+        19.67674581729807
+      ],
+      "height": 3.906255570892245,
+      "heading": 5.945985304143114,
+      "zone": 2
+    },
+    {
+      "id": 18,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -26.378874212969095,
+        -0.047816948737387864,
+        -10.754924147156999
+      ],
+      "height": 5.86126151457429,
+      "heading": 2.977410175324846,
+      "zone": 1
+    },
+    {
+      "id": 19,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.84785858215764,
+        0.282515517222003,
+        16.65088418335654
+      ],
+      "height": 6.067089154478163,
+      "heading": 0.715917891802392,
+      "zone": 2
+    },
+    {
+      "id": 20,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        29.66029158094898,
+        -0.042599427582448016,
+        6.688197333598509
+      ],
+      "height": 4.986889893282205,
+      "heading": 1.4826970754846003,
+      "zone": 2
+    },
+    {
+      "id": 21,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        26.506199967116117,
+        -0.0009575022271616496,
+        -7.655317809665576
+      ],
+      "height": 5.678604984050617,
+      "heading": 2.1569870291562783,
+      "zone": 2
+    },
+    {
+      "id": 22,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.61540718609467,
+        -0.05249840811608608,
+        -25.802015998167917
+      ],
+      "height": 5.49322756100446,
+      "heading": 6.021736460397115,
+      "zone": 1
+    },
+    {
+      "id": 23,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        25.489291029516608,
+        0.20689078982918468,
+        -13.00467563397251
+      ],
+      "height": 6.68199314782396,
+      "heading": 4.616641944456323,
+      "zone": 2
+    },
+    {
+      "id": 24,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.080590076278895,
+        -0.3488621628904885,
+        -0.9588636371772736
+      ],
+      "height": 7.026917025446892,
+      "heading": 2.3041379649834055,
+      "zone": 2
+    },
+    {
+      "id": 25,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -4.3737316015176475,
+        0.21068766408329728,
+        14.250402072677389
+      ],
+      "height": 7.225755365099758,
+      "heading": 2.8700786202833313,
+      "zone": 1
+    },
+    {
+      "id": 26,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        29.203406961169094,
+        0.14599738024260223,
+        10.816458220826462
+      ],
+      "height": 4.223032145015895,
+      "heading": 4.962656823284898,
+      "zone": 2
+    },
+    {
+      "id": 27,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -13.798180574085563,
+        0.004805889794886162,
+        13.324338462436572
+      ],
+      "height": 4.180638515669853,
+      "heading": 1.666341137705493,
+      "zone": 1
+    },
+    {
+      "id": 28,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        30.36830263910815,
+        -0.20388090600460917,
+        -6.205220269737765
+      ],
+      "height": 6.578803258761764,
+      "heading": 0.3059512448516932,
+      "zone": 2
+    },
+    {
+      "id": 29,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -29.98016756726429,
+        -0.04597256895270499,
+        -23.57548235519789
+      ],
+      "height": 6.545871839951724,
+      "heading": 2.1033882298768622,
+      "zone": 1
+    },
+    {
+      "id": 30,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -10.496170262340456,
+        -0.2967703015930859,
+        -42.96150401304476
+      ],
+      "height": 3.3903315553441646,
+      "heading": 2.2608530395239472,
+      "zone": 1
+    },
+    {
+      "id": 31,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -11.122775033582002,
+        -0.01783475553353423,
+        12.731645153136924
+      ],
+      "height": 5.31645626053214,
+      "heading": 6.242497364134869,
+      "zone": 1
+    },
+    {
+      "id": 32,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.52331844996661,
+        -0.15861971548836384,
+        -11.798512435751036
+      ],
+      "height": 4.617829059856012,
+      "heading": 1.360308322004618,
+      "zone": 1
+    },
+    {
+      "id": 33,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -20.888735668268055,
+        -0.0835953131917007,
+        -17.893805648898706
+      ],
+      "height": 5.746703784633429,
+      "heading": 1.9466319816756341,
+      "zone": 1
+    },
+    {
+      "id": 34,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        24.93983081309125,
+        0.04259382697464796,
+        11.728578944923356
+      ],
+      "height": 7.050995110347867,
+      "heading": 6.065676141175475,
+      "zone": 2
+    },
+    {
+      "id": 35,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -14.473856769036502,
+        -0.2246945704552114,
+        -36.59406224801205
+      ],
+      "height": 7.425976887624711,
+      "heading": 6.12824751735302,
+      "zone": 1
+    },
+    {
+      "id": 36,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        1.4604508853517473,
+        -0.055735870825561855,
+        -38.145641647977754
+      ],
+      "height": 3.278082579560578,
+      "heading": 5.729147695072045,
+      "zone": 3
+    },
+    {
+      "id": 37,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -29.73536774283275,
+        0.10700611016489092,
+        -33.14772044843994
+      ],
+      "height": 3.925375516805798,
+      "heading": 1.6032401442215474,
+      "zone": 1
+    },
+    {
+      "id": 38,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -20.54154969751835,
+        0.02709086694795254,
+        -33.1658434944693
+      ],
+      "height": 3.511041275551543,
+      "heading": 5.982585615618711,
+      "zone": 1
+    },
+    {
+      "id": 39,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -22.56443429272622,
+        -0.08345285807443206,
+        19.85331812570803
+      ],
+      "height": 6.8184574351180345,
+      "heading": 5.665507467058244,
+      "zone": 1
+    },
+    {
+      "id": 40,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        9.097385490313172,
+        -0.28912913748458724,
+        -24.57231823191978
+      ],
+      "height": 6.331685499055311,
+      "heading": 0.32206048034601253,
+      "zone": 2
+    },
+    {
+      "id": 41,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        10.091522461734712,
+        -0.11035103877230758,
+        -28.729962793411687
+      ],
+      "height": 5.120162661233917,
+      "heading": 6.091449770453445,
+      "zone": 2
+    },
+    {
+      "id": 42,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -22.118900772184134,
+        -0.11703947591709195,
+        -28.463401559973136
+      ],
+      "height": 5.63861626139842,
+      "heading": 4.745407101413391,
+      "zone": 1
+    },
+    {
+      "id": 43,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -28.58453647699207,
+        0.26093149220275513,
+        4.265053008450195
+      ],
+      "height": 4.701911197276786,
+      "heading": 1.9737083980199142,
+      "zone": 1
+    },
+    {
+      "id": 44,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        25.805786354467273,
+        0.0817635587711422,
+        -23.623912127921358
+      ],
+      "height": 5.714487180439756,
+      "heading": 1.8836606232143644,
+      "zone": 2
+    },
+    {
+      "id": 45,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        11.458667959086597,
+        -0.03805397511895221,
+        -30.870983147295192
+      ],
+      "height": 3.3403233359102162,
+      "heading": 1.4842903600455832,
+      "zone": 2
+    },
+    {
+      "id": 46,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        3.3708765730261803,
+        -0.19417177529207766,
+        -16.82786536240019
+      ],
+      "height": 4.37436764552258,
+      "heading": 3.682612541834027,
+      "zone": 3
+    },
+    {
+      "id": 47,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -28.7002400518395,
+        0.07924258492488945,
+        7.772130090044811
+      ],
+      "height": 6.850537928007543,
+      "heading": 1.4023324958858556,
+      "zone": 1
+    },
+    {
+      "id": 48,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -23.25260026846081,
+        -0.30366104016679374,
+        -19.617441495181993
+      ],
+      "height": 5.749546105274931,
+      "heading": 3.574073119702857,
+      "zone": 1
+    },
+    {
+      "id": 49,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -11.130246836692095,
+        -0.03124615378576806,
+        -9.271426674211398
+      ],
+      "height": 3.786091753607616,
+      "heading": 4.224734895383223,
+      "zone": 1
+    },
+    {
+      "id": 50,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.776698582805693,
+        -0.34060490562644363,
+        -0.9470371187198907
+      ],
+      "height": 6.400812897505238,
+      "heading": 1.1738045007089952,
+      "zone": 2
+    },
+    {
+      "id": 51,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        10.349288212601095,
+        0.2957881088086838,
+        -36.19350192672573
+      ],
+      "height": 5.617912167403848,
+      "heading": 1.410852981358276,
+      "zone": 2
+    },
+    {
+      "id": 52,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        13.895866132806987,
+        -0.01899482490749064,
+        -33.58087121578865
+      ],
+      "height": 3.2452464282512667,
+      "heading": 0.4764659567081578,
+      "zone": 2
+    },
+    {
+      "id": 53,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -9.765308934729546,
+        0.2876403800089559,
+        18.989837536821142
+      ],
+      "height": 6.485887698736041,
+      "heading": 3.4145910542804003,
+      "zone": 1
+    },
+    {
+      "id": 54,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.74228245159611,
+        0.022460025946557802,
+        -17.457838748348877
+      ],
+      "height": 6.92458212506026,
+      "heading": 4.05748850343683,
+      "zone": 2
+    },
+    {
+      "id": 55,
+      "species": 9,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -1.944532043300569,
+        -0.03285375193241434,
+        -27.507432454731315
+      ],
+      "height": 0.8671307695563882,
+      "heading": 3.8413852675382083,
+      "zone": 1
+    },
+    {
+      "id": 56,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        26.85708689223975,
+        0.2734514034803781,
+        -14.748752206098288
+      ],
+      "height": 1.77315216679126,
+      "heading": 1.961769842491156,
+      "zone": 2
+    },
+    {
+      "id": 57,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -19.3638373343274,
+        -0.03463284195769888,
+        -0.6469788900576532
+      ],
+      "height": 1.2788742302451284,
+      "heading": 5.07160229295815,
+      "zone": 1
+    },
+    {
+      "id": 58,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        19.50474867131561,
+        -0.024808158172659172,
+        8.47406404139474
+      ],
+      "height": 1.478511125128716,
+      "heading": 3.9989373490262303,
+      "zone": 2
+    },
+    {
+      "id": 59,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -14.618636547587812,
+        0.04771036541083683,
+        6.692568822298199
+      ],
+      "height": 0.5952719583641737,
+      "heading": 4.761331470875869,
+      "zone": 1
+    },
+    {
+      "id": 60,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        11.745019021444023,
+        0.094248583299927,
+        -3.5213884632103145
+      ],
+      "height": 1.5140054319053888,
+      "heading": 1.6632712860395635,
+      "zone": 2
+    },
+    {
+      "id": 61,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        12.188077305443585,
+        0.08519768539565586,
+        8.06878590816632
+      ],
+      "height": 1.5388933241833,
+      "heading": 1.7451428819201567,
+      "zone": 2
+    },
+    {
+      "id": 62,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        24.299184716306627,
+        0.20565143359153662,
+        15.131852712947875
+      ],
+      "height": 1.3707240496762094,
+      "heading": 4.0779426261074265,
+      "zone": 2
+    },
+    {
+      "id": 63,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -22.09246515389532,
+        0.16512652638252348,
+        -5.8683451800607145
+      ],
+      "height": 0.6107775466050953,
+      "heading": 2.331544500495617,
+      "zone": 1
+    },
+    {
+      "id": 64,
+      "species": 11,
+      "source": "mushrooms (1).glb",
+      "position": [
+        23.219709287397563,
+        0.09791562694217976,
+        -16.706452145706862
+      ],
+      "height": 1.1108527427539228,
+      "heading": 5.216911575844468,
+      "zone": 2
+    },
+    {
+      "id": 65,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.88034657854587,
+        0.027576380767464204,
+        11.580596486572176
+      ],
+      "height": 0.7014688494149595,
+      "heading": 1.8583972012457202,
+      "zone": 2
+    },
+    {
+      "id": 66,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        26.487889274023473,
+        0.2716695594158242,
+        14.585786346811801
+      ],
+      "height": 0.7927717334590851,
+      "heading": 1.7850076394987517,
+      "zone": 2
+    },
+    {
+      "id": 67,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.596659139730036,
+        -0.025493967219603342,
+        -15.25349843641743
+      ],
+      "height": 0.9551766175311058,
+      "heading": 4.3401406902920945,
+      "zone": 2
+    },
+    {
+      "id": 68,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        25.736510473303497,
+        0.1715075541956821,
+        -20.212482071947306
+      ],
+      "height": 1.7992783583700658,
+      "heading": 5.207523457065924,
+      "zone": 2
+    },
+    {
+      "id": 69,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        12.481311549432576,
+        -0.19815938596787017,
+        -24.201238316949457
+      ],
+      "height": 1.5870605532545596,
+      "heading": 4.808606675095026,
+      "zone": 2
+    },
+    {
+      "id": 70,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        13.097504190169275,
+        -0.14270001722233375,
+        -28.145916062872857
+      ],
+      "height": 1.3689347245730459,
+      "heading": 3.7470252666654202,
+      "zone": 2
+    },
+    {
+      "id": 71,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -8.196008539758623,
+        0.11579254813960074,
+        13.577300703618675
+      ],
+      "height": 0.4536408325191587,
+      "heading": 3.462457651910609,
+      "zone": 1
+    },
+    {
+      "id": 72,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -17.77838536351919,
+        -0.10377171053287713,
+        -34.2052693576552
+      ],
+      "height": 0.49285978518892076,
+      "heading": 5.530243691521915,
+      "zone": 1
+    },
+    {
+      "id": 73,
+      "species": 13,
+      "source": "mushrooms (1).glb",
+      "position": [
+        24.05333044566214,
+        0.0668998317923074,
+        -25.44799180002883
+      ],
+      "height": 1.278524985886179,
+      "heading": 5.609067783273157,
+      "zone": 2
+    },
+    {
+      "id": 74,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.6291959695518,
+        0.01225054298930361,
+        -28.88683936232701
+      ],
+      "height": 0.5850591264897957,
+      "heading": 6.000740908819546,
+      "zone": 2
+    },
+    {
+      "id": 75,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        17.724377242848277,
+        -0.09795268855383678,
+        -12.277905546594411
+      ],
+      "height": 0.47404993406962603,
+      "heading": 0.9048038381973725,
+      "zone": 2
+    },
+    {
+      "id": 76,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -0.012172773480415344,
+        0.01768934021274039,
+        -15.193835063371807
+      ],
+      "height": 1.3345770866842939,
+      "heading": 5.0590983312950994,
+      "zone": 1
+    },
+    {
+      "id": 77,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -10.468724934384227,
+        -0.024928511455786413,
+        12.320536519866437
+      ],
+      "height": 1.168566827639006,
+      "heading": 3.8612313341608293,
+      "zone": 1
+    },
+    {
+      "id": 78,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        1.8014184720814228,
+        0.035490450893027714,
+        -31.225816244725138
+      ],
+      "height": 1.147679782868363,
+      "heading": 2.3090815309027692,
+      "zone": 2
+    },
+    {
+      "id": 79,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -24.983430767431855,
+        0.3012426053617973,
+        -4.406217083800584
+      ],
+      "height": 0.8800132314441725,
+      "heading": 0.07092707416876229,
+      "zone": 1
+    },
+    {
+      "id": 80,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -26.05099815875292,
+        0.02339227980479104,
+        6.981744223739952
+      ],
+      "height": 0.5373990792082622,
+      "heading": 4.30990846706722,
+      "zone": 1
+    },
+    {
+      "id": 81,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        23.334255257621408,
+        -0.21952423214088432,
+        1.9246346983127296
+      ],
+      "height": 1.2565787855302915,
+      "heading": 4.962777680799099,
+      "zone": 2
+    },
+    {
+      "id": 82,
+      "species": 15,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -11.311362210661173,
+        0.1890725712365787,
+        -22.491758363787085
+      ],
+      "height": 1.3900364931905642,
+      "heading": 2.106498905734712,
+      "zone": 1
+    },
+    {
+      "id": 83,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -5.183814899995923,
+        0.2917106075729066,
+        17.19552671117708
+      ],
+      "height": 1.0447716113878414,
+      "heading": 0.6878740594356372,
+      "zone": 1
+    },
+    {
+      "id": 84,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.213678658008575,
+        -0.3460280358516427,
+        -17.776279299054295
+      ],
+      "height": 1.6097921018721535,
+      "heading": 2.559498031149438,
+      "zone": 1
+    },
+    {
+      "id": 85,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.57561127189547,
+        -0.33532727528775186,
+        -17.66040937928483
+      ],
+      "height": 0.6192472086288034,
+      "heading": 0.6596972770738385,
+      "zone": 1
+    },
+    {
+      "id": 86,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        0.660737925209105,
+        -0.08162582400793725,
+        -34.51309888949618
+      ],
+      "height": 1.4940725950058549,
+      "heading": 2.50677722848782,
+      "zone": 2
+    },
+    {
+      "id": 87,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -23.442503635771573,
+        -0.17184711904424804,
+        -26.6723902518861
+      ],
+      "height": 1.7826980428770183,
+      "heading": 3.0424415184727467,
+      "zone": 1
+    },
+    {
+      "id": 88,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        21.863977876491845,
+        -0.05963718173825632,
+        -1.5331899872981012
+      ],
+      "height": 1.1157083763275295,
+      "heading": 5.318630312129552,
+      "zone": 2
+    },
+    {
+      "id": 89,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        20.434667496941984,
+        0.12736979302491222,
+        -22.392710219603032
+      ],
+      "height": 0.742841442208737,
+      "heading": 5.606729165357477,
+      "zone": 2
+    },
+    {
+      "id": 90,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -14.721828340552747,
+        0.2067756434491654,
+        -20.626616136636585
+      ],
+      "height": 1.636677685333416,
+      "heading": 4.187973382038635,
+      "zone": 1
+    },
+    {
+      "id": 91,
+      "species": 10,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -18.62625348288566,
+        0.06716249244619937,
+        -17.886657826136798
+      ],
+      "height": 0.5643473017960786,
+      "heading": 5.350763547659221,
+      "zone": 1
+    },
+    {
+      "id": 92,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        0.28665438760071993,
+        0.050254278105699685,
+        -17.91353648668155
+      ],
+      "height": 1.459286220418289,
+      "heading": 2.766076192804771,
+      "zone": 2
+    },
+    {
+      "id": 93,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        23.11359832342714,
+        0.04420623754345952,
+        -31.05875501362607
+      ],
+      "height": 1.7875721623189746,
+      "heading": 4.5316176313781185,
+      "zone": 2
+    },
+    {
+      "id": 94,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -4.36511885561049,
+        0.1150176815146618,
+        -10.771192625630647
+      ],
+      "height": 1.507169114309363,
+      "heading": 3.303197710117636,
+      "zone": 1
+    },
+    {
+      "id": 95,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -17.806373527273536,
+        0.1162961139951855,
+        10.796457442920655
+      ],
+      "height": 1.0254279982065782,
+      "heading": 4.034296204813073,
+      "zone": 1
+    },
+    {
+      "id": 96,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -4.4400314427912235,
+        -0.16090618455207809,
+        -4.645369636360556
+      ],
+      "height": 1.794949484267272,
+      "heading": 3.1745188916597717,
+      "zone": 1
+    },
+    {
+      "id": 97,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        25.642528313212097,
+        -0.05061382726084357,
+        -29.867508209776133
+      ],
+      "height": 0.6897266201674939,
+      "heading": 5.177053752497569,
+      "zone": 2
+    },
+    {
+      "id": 98,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        15.128785421140492,
+        0.018375651394454507,
+        -19.75493369763717
+      ],
+      "height": 0.41697207284159954,
+      "heading": 4.471223966756716,
+      "zone": 2
+    },
+    {
+      "id": 99,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -18.43750084284693,
+        0.049373407410800166,
+        -20.398497361224145
+      ],
+      "height": 1.2217937701381743,
+      "heading": 2.459272550938749,
+      "zone": 1
+    },
+    {
+      "id": 100,
+      "species": 12,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -12.700464523397386,
+        -0.04004363426069066,
+        9.981134390924126
+      ],
+      "height": 1.435349885141477,
+      "heading": 4.809295966983942,
+      "zone": 1
+    },
+    {
+      "id": 101,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -9.789156352169812,
+        -0.10565356925977895,
+        -2.785153030883521
+      ],
+      "height": 1.5210802758112547,
+      "heading": 5.149582936364954,
+      "zone": 1
+    },
+    {
+      "id": 102,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -13.678749802522361,
+        0.19722812197399875,
+        -20.32310110842809
+      ],
+      "height": 0.8954859039280563,
+      "heading": 5.271524911737692,
+      "zone": 1
+    },
+    {
+      "id": 103,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        18.153330980800092,
+        -0.022963619941959966,
+        11.942758698482066
+      ],
+      "height": 1.5528633321635423,
+      "heading": 0.7811432822559986,
+      "zone": 2
+    },
+    {
+      "id": 104,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        9.807611376978457,
+        0.14809887854713422,
+        -8.980792508926243
+      ],
+      "height": 1.7510255492758007,
+      "heading": 0.6270482985528332,
+      "zone": 2
+    },
+    {
+      "id": 105,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -15.689655390568078,
+        0.018618395805436543,
+        15.052957095671445
+      ],
+      "height": 1.077540373429656,
+      "heading": 5.990178965055051,
+      "zone": 1
+    },
+    {
+      "id": 106,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -7.859292654320598,
+        0.05280521652700128,
+        -26.41349056782201
+      ],
+      "height": 0.45761346237268297,
+      "heading": 5.8097990797602295,
+      "zone": 1
+    },
+    {
+      "id": 107,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.779069174081087,
+        0.031453062203927115,
+        8.808929746504873
+      ],
+      "height": 1.7869560862192881,
+      "heading": 3.127348116384785,
+      "zone": 2
+    },
+    {
+      "id": 108,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -22.587009275332093,
+        -0.014212029230072254,
+        7.077920272480696
+      ],
+      "height": 0.7233373339055106,
+      "heading": 1.1613823717574632,
+      "zone": 1
+    },
+    {
+      "id": 109,
+      "species": 14,
+      "source": "mushrooms (1).glb",
+      "position": [
+        7.826320746913552,
+        0.34094864818714854,
+        -36.76680129440501
+      ],
+      "height": 0.9941843230044469,
+      "heading": 3.2609625044517925,
+      "zone": 2
+    },
+    {
+      "id": 110,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        22.295564766973257,
+        -0.06394793882042699,
+        -2.3643114143051207
+      ],
+      "height": 0.9558761548483744,
+      "heading": 4.54533230404357,
+      "zone": 2
+    },
+    {
+      "id": 111,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        15.589502496644855,
+        0.038720004576801435,
+        -20.664829798508435
+      ],
+      "height": 0.6467895042849705,
+      "heading": 1.4816119325926145,
+      "zone": 2
+    },
+    {
+      "id": 112,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.412567853927612,
+        -0.31707352598897903,
+        2.199001283850521
+      ],
+      "height": 1.2075985928298905,
+      "heading": 0.3901153240634191,
+      "zone": 2
+    },
+    {
+      "id": 113,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        3.843103753402829,
+        -0.09278455998533604,
+        10.967075269203633
+      ],
+      "height": 1.7663603400578722,
+      "heading": 4.061682335543914,
+      "zone": 2
+    },
+    {
+      "id": 114,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        19.83972346317023,
+        0.11018900835383838,
+        -29.610524147283286
+      ],
+      "height": 0.8496421428397298,
+      "heading": 3.5970536580088046,
+      "zone": 2
+    },
+    {
+      "id": 115,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        6.066086882725358,
+        0.29146594049732505,
+        -4.039589148480445
+      ],
+      "height": 0.514114200300537,
+      "heading": 5.3366074599442035,
+      "zone": 2
+    },
+    {
+      "id": 116,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        20.289512337185442,
+        -0.0558877297493651,
+        -8.785003976430744
+      ],
+      "height": 1.573701851023361,
+      "heading": 4.185352020094102,
+      "zone": 2
+    },
+    {
+      "id": 117,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        13.601869764737785,
+        0.1223305252689483,
+        8.962092586327344
+      ],
+      "height": 1.1713549736887217,
+      "heading": 1.6460982662572157,
+      "zone": 2
+    },
+    {
+      "id": 118,
+      "species": 9,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -12.83519699703902,
+        0.17385630164247332,
+        -27.589553949888796
+      ],
+      "height": 1.1850875944364816,
+      "heading": 3.7717655696097716,
+      "zone": 1
+    },
+    {
+      "id": 119,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        11.975669641047716,
+        -0.12119469479599686,
+        18.201207374688238
+      ],
+      "height": 0.659932384104468,
+      "heading": 3.6570307274487748,
+      "zone": 2
+    },
+    {
+      "id": 120,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -25.904206265695393,
+        0.13491849206665532,
+        -8.242464199196547
+      ],
+      "height": 0.399269369803369,
+      "heading": 5.806835421317674,
+      "zone": 1
+    },
+    {
+      "id": 121,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        21.550256174989045,
+        0.13879309905208473,
+        -25.148383935447782
+      ],
+      "height": 1.7980447801295667,
+      "heading": 4.679645905509908,
+      "zone": 2
+    },
+    {
+      "id": 122,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.031488521955907,
+        0.1421905109160999,
+        4.123951081652194
+      ],
+      "height": 0.5841532385908067,
+      "heading": 0.26763736183896314,
+      "zone": 2
+    },
+    {
+      "id": 123,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.538511677645147,
+        0.23469233149458057,
+        -34.45828986307606
+      ],
+      "height": 1.4189401436131446,
+      "heading": 1.4509661482784029,
+      "zone": 1
+    },
+    {
+      "id": 124,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -6.4419018449261785,
+        0.12489309783811942,
+        -9.976483322214335
+      ],
+      "height": 1.6947508402168752,
+      "heading": 4.049883658390224,
+      "zone": 1
+    },
+    {
+      "id": 125,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        18.028487076051533,
+        -0.14073061200433545,
+        -37.85779289668426
+      ],
+      "height": 0.9242647264618427,
+      "heading": 2.756422384696342,
+      "zone": 2
+    },
+    {
+      "id": 126,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        7.22637752071023,
+        -0.13800666133384482,
+        -13.26539737964049
+      ],
+      "height": 0.8529649084666744,
+      "heading": 5.878305736948909,
+      "zone": 2
+    },
+    {
+      "id": 127,
+      "species": 11,
+      "source": "mushrooms (1).glb",
+      "position": [
+        3.6492139352485538,
+        -0.1311217750695593,
+        -11.482487976085395
+      ],
+      "height": 1.134838722087443,
+      "heading": 3.1033785869405297,
+      "zone": 2
+    },
+    {
+      "id": 128,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -19.39583510439843,
+        0.025240424886353564,
+        -17.7352063707076
+      ],
+      "height": 1.2326935088727624,
+      "heading": 4.572230595482519,
+      "zone": 1
+    },
+    {
+      "id": 129,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        5.435956715606153,
+        0.28812980503322905,
+        0.5439867568202317
+      ],
+      "height": 1.531208465527743,
+      "heading": 2.874583828651915,
+      "zone": 2
+    },
+    {
+      "id": 130,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        4.190216748043895,
+        0.0873220442258604,
+        -6.775519811082631
+      ],
+      "height": 0.9894600027007981,
+      "heading": 1.5309050626036231,
+      "zone": 2
+    },
+    {
+      "id": 131,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        5.614847227931023,
+        0.2841458415821103,
+        -3.7259856895543635
+      ],
+      "height": 0.534050923702307,
+      "heading": 1.1096284789486637,
+      "zone": 2
+    },
+    {
+      "id": 132,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -22.775708762928843,
+        -0.2281193700073622,
+        -17.93667170824483
+      ],
+      "height": 1.530419404967688,
+      "heading": 4.126763183839617,
+      "zone": 1
+    },
+    {
+      "id": 133,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        1.9383910186588764,
+        -0.007275977231208062,
+        -34.99772440874949
+      ],
+      "height": 1.311761716962792,
+      "heading": 5.911506955341493,
+      "zone": 2
+    },
+    {
+      "id": 134,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -18.543584609404206,
+        0.11201425820826058,
+        10.519973888527602
+      ],
+      "height": 1.4307185957906765,
+      "heading": 1.789438335597886,
+      "zone": 1
+    },
+    {
+      "id": 135,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        3.164408378303051,
+        0.09116280710179456,
+        -28.452162689063698
+      ],
+      "height": 1.5397982168244195,
+      "heading": 0.2996785944506262,
+      "zone": 2
+    },
+    {
+      "id": 136,
+      "species": 13,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -11.330509027466178,
+        -0.12663157723336096,
+        7.152999285142869
+      ],
+      "height": 1.6956761214649303,
+      "heading": 5.149525235950072,
+      "zone": 1
+    },
+    {
+      "id": 137,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        27.742366012185812,
+        -0.16022976765284416,
+        6.478376013692468
+      ],
+      "height": 0.5131533470237627,
+      "heading": 5.274639988053124,
+      "zone": 2
+    },
+    {
+      "id": 138,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -26.050723807886243,
+        0.33669036002998054,
+        -0.35437942342832685
+      ],
+      "height": 1.6070540097309274,
+      "heading": 1.377299928241792,
+      "zone": 1
+    },
+    {
+      "id": 139,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        24.754665195941925,
+        -0.1958970937437921,
+        -2.2227823422290385
+      ],
+      "height": 0.5228435908677056,
+      "heading": 4.638237116896223,
+      "zone": 2
+    },
+    {
+      "id": 140,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        21.375791953876615,
+        0.06286462552964384,
+        -19.20603110315278
+      ],
+      "height": 1.5692491760244591,
+      "heading": 1.417056201667301,
+      "zone": 2
+    },
+    {
+      "id": 141,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -25.829451974481344,
+        -0.19868860411375855,
+        12.144118865486234
+      ],
+      "height": 1.2286628974834457,
+      "heading": 4.990721926480525,
+      "zone": 1
+    },
+    {
+      "id": 142,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -16.16027189232409,
+        0.0993047611645914,
+        10.120371669065207
+      ],
+      "height": 1.3336098297266288,
+      "heading": 2.791139446618465,
+      "zone": 1
+    },
+    {
+      "id": 143,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        5.22500366717577,
+        0.2574860548974894,
+        -4.07895182678476
+      ],
+      "height": 1.0100615880684927,
+      "heading": 5.014321030437929,
+      "zone": 2
+    },
+    {
+      "id": 144,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -27.01615030132234,
+        0.088847305019637,
+        -28.888366144616157
+      ],
+      "height": 0.8508768804138526,
+      "heading": 6.203754702758943,
+      "zone": 1
+    },
+    {
+      "id": 145,
+      "species": 15,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -5.193989514373243,
+        0.2928949450714838,
+        17.295530302915722
+      ],
+      "height": 1.0067350804340094,
+      "heading": 0.8755639532673705,
+      "zone": 1
+    },
+    {
+      "id": 146,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -23.33323709666729,
+        0.33070333953246456,
+        -37.78638769546524
+      ],
+      "height": 1.267828703788109,
+      "heading": 0.7170261136899961,
+      "zone": 1
+    },
+    {
+      "id": 147,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        24.16752284951508,
+        0.1530554022700831,
+        -15.336968485731632
+      ],
+      "height": 1.7055807495256885,
+      "heading": 5.153957409596466,
+      "zone": 2
+    },
+    {
+      "id": 148,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -20.987063568085432,
+        -0.10951442401487449,
+        -29.293724978808314
+      ],
+      "height": 0.45303978791926053,
+      "heading": 3.6628148012472366,
+      "zone": 1
+    },
+    {
+      "id": 149,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        2.475636726245284,
+        -0.06443834257110014,
+        -20.086304143536836
+      ],
+      "height": 0.5571855443296954,
+      "heading": 3.295309468580714,
+      "zone": 2
+    },
+    {
+      "id": 150,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        28.54823514074087,
+        -0.07229651288597205,
+        -28.210415876004845
+      ],
+      "height": 1.280148386512883,
+      "heading": 2.969818675016958,
+      "zone": 2
+    },
+    {
+      "id": 151,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        18.758873173967004,
+        0.07546600138277111,
+        -29.93816014798358
+      ],
+      "height": 1.2417905013775452,
+      "heading": 3.7985279267007943,
+      "zone": 2
+    },
+    {
+      "id": 152,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -11.105022702366114,
+        0.1324535191434496,
+        16.778286469634622
+      ],
+      "height": 0.6744452748680487,
+      "heading": 3.9581827130091978,
+      "zone": 1
+    },
+    {
+      "id": 153,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        7.916466964408755,
+        0.19229095362123272,
+        -32.13412509160116
+      ],
+      "height": 0.7280961249722168,
+      "heading": 0.1937731738761935,
+      "zone": 2
+    },
+    {
+      "id": 154,
+      "species": 10,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -22.16033425927162,
+        -0.016020652793959533,
+        8.309028328862041
+      ],
+      "height": 1.0267760378541424,
+      "heading": 0.7657154447446404,
+      "zone": 1
+    },
+    {
+      "id": 155,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        3.873165564611554,
+        0.1567172492316858,
+        -4.39662252785638
+      ],
+      "height": 1.389469057112001,
+      "heading": 5.956407299312474,
+      "zone": 2
+    },
+    {
+      "id": 156,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -25.413105871528387,
+        -0.04177102822615064,
+        -11.358863363508135
+      ],
+      "height": 0.9412949761608616,
+      "heading": 1.7874263375500912,
+      "zone": 1
+    },
+    {
+      "id": 157,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        2.395635386928916,
+        -0.1250231134123947,
+        -16.315629721153527
+      ],
+      "height": 1.2532584837405012,
+      "heading": 1.603064678901284,
+      "zone": 2
+    },
+    {
+      "id": 158,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        25.138253189623356,
+        -0.05790769066030989,
+        -32.41759975859895
+      ],
+      "height": 1.6613440125482155,
+      "heading": 2.10068715352619,
+      "zone": 2
+    },
+    {
+      "id": 159,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        16.033868039026856,
+        -0.05367192026564067,
+        -37.1103963968344
+      ],
+      "height": 1.3782375409966332,
+      "heading": 4.70253513432102,
+      "zone": 2
+    },
+    {
+      "id": 160,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        1.7962369732558727,
+        -0.10082148858089197,
+        -13.96014884347096
+      ],
+      "height": 1.623456598096527,
+      "heading": 3.4069821920607475,
+      "zone": 2
+    },
+    {
+      "id": 161,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -26.81241342611611,
+        0.1280070539583686,
+        -29.766163491178304
+      ],
+      "height": 1.3601697214646262,
+      "heading": 5.19086206947511,
+      "zone": 1
+    },
+    {
+      "id": 162,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        18.79314909875393,
+        0.0027520150851254943,
+        9.195545808877796
+      ],
+      "height": 0.8894866184564307,
+      "heading": 6.092023731732664,
+      "zone": 2
+    },
+    {
+      "id": 163,
+      "species": 12,
+      "source": "mushrooms (1).glb",
+      "position": [
+        -16.702348260208964,
+        0.000012660852762546847,
+        16.454118098597974
+      ],
+      "height": 0.36550028042402116,
+      "heading": 4.751697257092194,
+      "zone": 1
+    },
+    {
+      "id": 164,
+      "species": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -3.9549909941852093,
+        -0.211781922726069,
+        -2.69265371048823
+      ],
+      "height": 0.9568623000988736,
+      "heading": 4.820159207504371,
+      "zone": 1
+    },
+    {
+      "id": 165,
+      "species": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        -17.837531769648194,
+        -0.07415825921077235,
+        -0.8769312356598675
+      ],
+      "height": 0.793172642099671,
+      "heading": 3.1822795959985437,
+      "zone": 1
+    },
+    {
+      "id": 166,
+      "species": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "position": [
+        12.87860466260463,
+        0.12505489837113942,
+        -35.88203560328111
+      ],
+      "height": 0.4594847733620554,
+      "heading": 0.5835954066911856,
+      "zone": 2
+    }
+  ],
+  "species": [
+    {
+      "id": 0,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle_mushroms_0"
+      ]
+    },
+    {
+      "id": 1,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle.001_mushroms_0"
+      ]
+    },
+    {
+      "id": 2,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle.002_mushroms_0"
+      ]
+    },
+    {
+      "id": 3,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle.005_mushroms_0"
+      ]
+    },
+    {
+      "id": 4,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle.006_mushroms_0"
+      ]
+    },
+    {
+      "id": 5,
+      "source": "stylized_mushrooms.glb",
+      "sourceNodes": [
+        "Circle.004_mushroms_0"
+      ]
+    },
+    {
+      "id": 6,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "sourceNodes": [
+        "Demo_Sketchfab_Mushrooms_M_Mushroom_Large_0"
+      ]
+    },
+    {
+      "id": 7,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "sourceNodes": [
+        "Demo_Sketchfab_Mushrooms_M_Mushroom_Small_0"
+      ]
+    },
+    {
+      "id": 8,
+      "source": "stylized_mushrooms_-_low_poly.glb",
+      "sourceNodes": [
+        "Demo_Sketchfab_Mushrooms_M_Mushroom_Thin_0"
+      ]
+    },
+    {
+      "id": 9,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_2"
+      ]
+    },
+    {
+      "id": 10,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_3"
+      ]
+    },
+    {
+      "id": 11,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_4"
+      ]
+    },
+    {
+      "id": 12,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_5"
+      ]
+    },
+    {
+      "id": 13,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_6"
+      ]
+    },
+    {
+      "id": 14,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_7"
+      ]
+    },
+    {
+      "id": 15,
+      "source": "mushrooms (1).glb",
+      "sourceNodes": [
+        "Object_8"
+      ]
+    },
+    {
+      "id": 16,
+      "source": "mushrooms.glb",
+      "sourceNodes": [
+        "Object_2",
+        "Object_3"
+      ]
+    },
+    {
+      "id": 17,
+      "source": "mushroom_magic.glb",
+      "sourceNodes": [
+        "Object_4",
+        "Object_6",
+        "Object_8",
+        "Object_12",
+        "Object_14",
+        "Object_16",
+        "Object_18",
+        "Object_20",
+        "Object_22",
+        "Object_24",
+        "Object_26",
+        "Object_28",
+        "Object_30",
+        "Object_32",
+        "Object_34",
+        "Object_36",
+        "Object_38",
+        "Object_40",
+        "Object_42",
+        "Object_44",
+        "Object_48",
+        "Object_50",
+        "Object_52",
+        "Object_54",
+        "Object_56",
+        "Object_58",
+        "Object_60",
+        "Object_62",
+        "Object_64",
+        "Object_66",
+        "Object_68",
+        "Object_70"
+      ]
+    }
+  ],
+  "sourcePresentationRemoved": true,
+  "sourceAnimations": 0
+}

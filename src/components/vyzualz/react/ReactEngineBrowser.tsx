@@ -1,15 +1,10 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactEngineId } from './ReactTypes'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
-import { getReactEngineIconComponent } from './reactEngineIcons'
-
-function ReactEngineIcon({ engineId }: { engineId: ReactEngineId }) {
-  const IconComponent = getReactEngineIconComponent(engineId)
-  return <IconComponent />
-}
+import { ReactEngineBlueprint } from './ReactEngineBlueprint'
 
 /** Decorative blueprint geometry for the Cinema engine identity. */
 function Cinema2EngineBlueprint() {
@@ -27,6 +22,29 @@ function Cinema2EngineBlueprint() {
   )
 }
 
+function EngineCardContents({ engineId, presetName }: { engineId: ReactEngineId; presetName?: string | null }) {
+  return (
+    <>
+      <span className="rv-engine-dropdown-icon" aria-hidden="true">
+        {engineId === 'cinema2' ? <Cinema2EngineBlueprint /> : <ReactEngineBlueprint engineId={engineId} />}
+      </span>
+      <span className="rv-engine-dropdown-copy">
+        <span className="rv-engine-dropdown-eyebrow">Engine</span>
+        <span className="rv-engine-dropdown-label">{REACT_ENGINE_CATALOG[engineId].label}</span>
+        {/* Reserve the preset line so every engine shares Cinema's text positions. */}
+        <span className="rv-engine-dropdown-preset" title={presetName || undefined} aria-hidden={!presetName || undefined}>
+          {presetName && (
+            <span className="rv-engine-dropdown-preset-echoes" aria-hidden="true">
+              {[0, 1, 2].map(index => <span className="rv-engine-dropdown-preset-echo" key={index}>{presetName}</span>)}
+            </span>
+          )}
+          <span className="rv-engine-dropdown-preset-value">{presetName || '\u00a0'}</span>
+        </span>
+      </span>
+    </>
+  )
+}
+
 /**
  * Engine-family switcher shown above the tab row of the React left window.
  */
@@ -39,8 +57,31 @@ export function ReactEngineBrowser({ presetName = null }: {
     selectReactEngine: state.selectReactEngine,
   })))
   const [open, setOpen] = useState(false)
+  const [menuMaxHeight, setMenuMaxHeight] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const root = rootRef.current
+    const rail = root?.closest('.vz-inspector-inner')
+    if (!root || !rail) return
+
+    const updateMenuHeight = () => {
+      const bottom = Math.min(rail.getBoundingClientRect().bottom, window.innerHeight)
+      // Leave 8px between the trigger and menu, and 8px at the window's bottom.
+      setMenuMaxHeight(Math.max(0, bottom - root.getBoundingClientRect().bottom - 16))
+    }
+    updateMenuHeight()
+    const observer = new ResizeObserver(updateMenuHeight)
+    observer.observe(rail)
+    observer.observe(root)
+    window.addEventListener('resize', updateMenuHeight)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateMenuHeight)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -74,27 +115,20 @@ export function ReactEngineBrowser({ presetName = null }: {
     <div className="rv-engine-dropdown" data-engine={activeReactEngineId} ref={rootRef}>
       <button
         type="button"
-        className="rv-engine-dropdown-trigger"
+        className="rv-engine-dropdown-trigger rv-engine-card"
+        data-engine={activeReactEngineId}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Selected React engine: ${activeEngine.label}${presetName ? `, preset ${presetName}` : ''}`}
         title="Choose React engine"
         onClick={() => setOpen(value => !value)}
       >
-        <span className="rv-engine-dropdown-glow" aria-hidden="true" />
-        <span className="rv-engine-dropdown-icon" aria-hidden="true">
-          {activeReactEngineId === 'cinema2' ? <Cinema2EngineBlueprint /> : <ReactEngineIcon engineId={activeReactEngineId} />}
-        </span>
-        <span className="rv-engine-dropdown-copy">
-          <span className="rv-engine-dropdown-eyebrow">Engine</span>
-          <span className="rv-engine-dropdown-label">{activeEngine.label}</span>
-          {presetName && <span className="rv-engine-dropdown-preset" title={presetName}>{presetName}</span>}
-        </span>
+        <EngineCardContents engineId={activeReactEngineId} presetName={presetName} />
       </button>
 
       {open && (
-        <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines">
-          {REACT_ENGINE_IDS.map((engineId, index) => {
+        <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines" style={{ maxHeight: menuMaxHeight }}>
+          {REACT_ENGINE_IDS.map(engineId => {
             const engine = REACT_ENGINE_CATALOG[engineId]
             const active = engineId === activeReactEngineId
             return (
@@ -103,17 +137,12 @@ export function ReactEngineBrowser({ presetName = null }: {
                 type="button"
                 role="option"
                 aria-selected={active}
-                className={`rv-engine-dropdown-option${active ? ' is-active' : ''}`}
-                style={{ '--rv-engine-i': index } as CSSProperties}
+                className={`rv-engine-dropdown-option rv-engine-card${active ? ' is-active' : ''}`}
+                data-engine={engineId}
+                title={engine.description}
                 onClick={() => handleSelect(engineId)}
               >
-                <span className="rv-engine-dropdown-option-icon" aria-hidden="true">
-                  <ReactEngineIcon engineId={engineId} />
-                </span>
-                <span className="rv-engine-dropdown-option-copy">
-                  <span>{engine.label}</span>
-                  <small className="rv-control-helper-copy">{engine.description}</small>
-                </span>
+                <EngineCardContents engineId={engineId} presetName={active ? presetName : null} />
                 {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true"><AppIcon kind="check" size={14} /></span>}
               </button>
             )

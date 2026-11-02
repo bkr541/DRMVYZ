@@ -182,11 +182,11 @@ function PresetArtwork({ kind }: { kind: PresetManagerArtwork }) {
 function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { preset: PresetManagerRecord; active: boolean; favorite: boolean; onSelect: () => void; onToggleFavorite: () => void }) {
   return (
     <article className={`pmv-card${active ? ' is-active' : ''}`} data-preset-id={preset.sourceId} data-preset-engine={preset.engineName}>
-      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`}>
+      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`} aria-pressed={active}>
         <span className="pmv-thumbnail"><PresetArtwork kind={preset.artwork} /></span>
         <span className="pmv-card-copy">
-          <strong>{preset.name}</strong>
           <span className="pmv-card-type">{preset.engineName}</span>
+          <strong>{preset.name}</strong>
         </span>
       </button>
       <button className={`vz-media-star${favorite ? ' vz-media-star--active' : ''}`} type="button" onClick={onToggleFavorite} aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.name} ${favorite ? 'from' : 'to'} favorites`}>

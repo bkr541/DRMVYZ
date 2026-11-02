@@ -1,3 +1,4 @@
+import { CINEMA2_PSYLO_PRESET_MANIFEST } from './Cinema2PsyloPreset'
 import { CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST } from './Cinema2WarOfWorldsPreset'
 import { CINEMA2_GLASSFALL_PRESET_MANIFEST } from './Cinema2GlassfallPreset'
 import { CINEMA2_SWITCH_IT_PRESET_MANIFEST } from './Cinema2SwitchItPreset'
@@ -46,6 +47,8 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  // Phase 3 shared-audio and native performance review; choreography/finishing gates pending.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
   // Static imported scene for visual review; musical behavior is not authored yet.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST }),
   // Full implementation and automated acceptance; human musical acceptance pending.

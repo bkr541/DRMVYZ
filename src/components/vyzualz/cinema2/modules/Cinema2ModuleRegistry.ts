@@ -1,3 +1,4 @@
+import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
 import { cinema2GlassfallNativeModule } from './glassfall/Cinema2GlassfallNativeModule'
 import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
 import { cinema2IfritNativeModuleDefinition } from './Cinema2IfritNativeModule'
@@ -105,6 +106,8 @@ function failure(code: string, message: string, path: string): Cinema2ModuleRegi
 }
 
 export const cinema2NativeModuleRegistry = new Cinema2ModuleRegistry()
+const psyloRegistration = cinema2NativeModuleRegistry.register(cinema2PsyloNativeModuleDefinition)
+if (!psyloRegistration.ok) throw new Error('Cinema 2.0 PSYLO module registration failed.')
 const glassfallRegistration = cinema2NativeModuleRegistry.register(cinema2GlassfallNativeModule)
 if (!glassfallRegistration.ok) throw new Error('Cinema 2.0 GLASSFALL module registration failed.')
 const ifritRegistration = cinema2NativeModuleRegistry.register(cinema2IfritNativeModuleDefinition)

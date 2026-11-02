@@ -334,6 +334,30 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-psylo-static",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "CC-BY-4.0",
+    "attribution": "Derived from Stylized mushrooms by QumoDone (https://sketchfab.com/3d-models/stylized-mushrooms-9d22e02ce2a548959b1c4c4c1d546842), Stylized Mushrooms - Low Poly by Camille Barral (https://sketchfab.com/3d-models/stylized-mushrooms-low-poly-33e4073b371a4fbd93e65bfb16473032), Mushrooms by leha_pu (https://sketchfab.com/3d-models/mushrooms-f9dbd4c34a4f4389bf3901527ecc89a0), Mushrooms by Gwappa (https://sketchfab.com/3d-models/mushrooms-c2dbb88a5e9c4e82a180e13b472015ed), and Mushroom Magic by Tycho Magnetic Anomaly (https://sketchfab.com/3d-models/mushroom-magic-a1afc8a3ebc74648965127cac2da5349). All licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: geometry selected, normalized, grounded, simplified and batched; unlit materials adapted to PBR; textures resized and color maps converted to WebP; positions quantized to 16 bits; terrain, groundcover and mycelium added. Full source hashes and metadata in scripts/cinema2-assets/sources/psylo/sources.json.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/psylo-static.glb",
+        "bytes": 3730336,
+        "triangles": 205371
+      },
+      "low": {
+        "url": "/cinema2/models/psylo-static-low.glb",
+        "bytes": 3237900,
+        "triangles": 205371
+      }
+    },
+    "gpuBytes": {
+      "high": 26282995,
+      "medium": 26282995,
+      "low": 16015681
+    }
+  },
+  {
     "id": "cinema2-reference-torus-knot",
     "kind": "model",
     "compression": "meshopt",

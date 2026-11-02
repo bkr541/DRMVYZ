@@ -397,6 +397,8 @@ export interface Cinema2CameraTempoManifest {
 }
 
 export interface Cinema2CameraMotionManifest {
+  /** Opt-in ambient movement with no source loaded; explicit pause/stop still holds. */
+  idleMotion?: boolean
   /** Path/fly rigs only. `spline` is a Catmull-Rom curve through the points, with no corners. Default `linear`. */
   interpolation?: Cinema2CameraPathInterpolation
   /** Path/fly rigs only. Travel at constant speed along the curve. Default: true with `spline`, false with `linear`. */
@@ -428,6 +430,8 @@ export interface Cinema2CameraTransitionManifest {
 
 /** Optional parameter bindings expose only implemented Camera controls through the shared schema Inspector. */
 export interface Cinema2CameraControlBindingsManifest {
+  /** Enum selects an authored rig variant; unmatched values use the base rig. */
+  rigMode?: Cinema2ParameterRef
   /** Hard enable for authored motion; OFF restores the user-controlled base view. Requires motion. */
   motionEnabled?: Cinema2ParameterRef
   /** Multiplies the integrated tempo-aware motion clock without jumping its phase. Requires motion.tempo. */
@@ -497,6 +501,8 @@ export interface Cinema2CameraManifest {
   near?: number
   far?: number
   rig?: Cinema2CameraRigManifest
+  /** Alternative authored rigs selected through controls.rigMode. All share final camera authority. */
+  rigVariants?: Readonly<Record<string, Cinema2CameraRigManifest>>
   transition?: Cinema2CameraTransitionManifest
   motion?: Cinema2CameraMotionManifest
   controls?: Cinema2CameraControlBindingsManifest

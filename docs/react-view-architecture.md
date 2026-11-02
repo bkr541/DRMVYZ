@@ -68,6 +68,8 @@ horizontal Settings navigation on narrow screens. Leading wrappers remove
 their top inset so it does not compound with the row's spacing. The Settings
 sidebar remains a vertical navigation list on wider screens.
 
+The Preset Manager library cards follow the Lyric Manager audio track cards: an 8px gap, 8px/12px content inset, a subtle wash and hairline rounded border, and muted cyan hover/selection states without glow. Preset artwork and favorites remain available. Both card types use the shared engine/artist eyebrow (11px/600) and item title (12.5px/700) roles in `src/styles/typography.css`.
+
 ## Shell regions
 
 `styles/groupSpacing.css` aligns the audited Lyric and Preset inspectors,

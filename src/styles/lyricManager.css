@@ -3355,12 +3355,7 @@
 
 /* Track list text: larger artist and title, and duration / BPM / key as spaced values under small labels. */
 .lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-info { gap: 2px; }
-/* Artist and title use the tab rows' face (the shared tab role's family), the artist at a heavier weight. */
-.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-artist {
-  font-family: var(--type-tab-family);
-  font-size: 11px;
-  font-weight: 600;
-}
+/* Artist and title use the shared library card roles in typography.css. */
 .lmv-left-rail .lmv-track-grid .vz-track-row-artist-line {
   display: flex;
   min-width: 0;
@@ -3382,10 +3377,6 @@
   top: 8px;
   right: 12px;
   height: 16px;
-}
-.lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-title {
-  font-family: var(--type-tab-family);
-  font-size: 12.5px;
 }
 .lmv-left-rail .lmv-track-grid .vz-track-row-stats {
   display: flex;

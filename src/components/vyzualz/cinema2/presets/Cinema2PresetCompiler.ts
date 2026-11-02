@@ -838,6 +838,14 @@ function validateCameraDefinition(
     }
   }
 
+  if (camera.rigVariants != null) {
+    if (!isPlainObject(camera.rigVariants)) diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'rigVariants must be an authored rig map.', `${path}.rigVariants`))
+    else for (const [name, variant] of Object.entries(camera.rigVariants)) {
+      if (!isPlainObject(variant)) { diagnostics.push(error('CINEMA2_PRESET_CAMERA_RIG_INVALID', 'Rig variant must be an authored rig object.', `${path}.rigVariants.${name}`)); continue }
+      validateCameraDefinition({ id: camera.id, label: camera.label, projection: camera.projection, rig: variant, motion: variant.kind === 'path' || variant.kind === 'fly' ? camera.motion : undefined }, `${path}.rigVariants.${name}`, manifest, index, diagnostics)
+    }
+  }
+
   const transition = camera.transition
   if (transition != null) {
     if (typeof transition !== 'object' || Array.isArray(transition)) {
@@ -876,6 +884,7 @@ function validateCameraMotion(
     return
   }
   if (motion.interpolation != null && motion.interpolation !== 'linear' && motion.interpolation !== 'spline') invalid('Motion interpolation must be linear or spline.', '.interpolation')
+  if (motion.idleMotion != null && typeof motion.idleMotion !== 'boolean') invalid('idleMotion must be boolean.', '.idleMotion')
   if (motion.constantSpeed != null && typeof motion.constantSpeed !== 'boolean') invalid('Motion constantSpeed must be boolean.', '.constantSpeed')
   const isPath = camera.rig?.kind === 'path' || camera.rig?.kind === 'fly'
   if ((motion.interpolation != null || motion.constantSpeed != null) && !isPath) invalid('interpolation/constantSpeed require a path or fly rig.', '.interpolation')
@@ -932,6 +941,12 @@ function validateCameraControls(
   diagnostics: Cinema2PresetDiagnostic[],
 ): void {
   const controls = camera.controls
+  if (controls?.rigMode) {
+    const parameter = manifest.parameters?.find(p => p.id === controls.rigMode!.$ref)
+    if (!camera.rigVariants || parameter?.type !== 'enum' || parameter.options?.some(o => !camera.rigVariants?.[String(o.value)])) {
+      diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'rigMode requires an enum with an authored rig for every option.', `${path}.rigMode`))
+    }
+  }
   if (controls == null) return
   if (typeof controls !== 'object' || Array.isArray(controls)) {
     diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', 'Camera controls must be an object of parameter references.', path))
@@ -941,6 +956,7 @@ function validateCameraControls(
     ['positionOffset', ['vec3']],
     ['targetOffset', ['vec3']],
     ['fovDegrees', ['float', 'integer']],
+    ['rigMode', ['enum']],
     ['orbitRadius', ['float', 'integer']],
     ['orbitAzimuthDegrees', ['float', 'integer']],
     ['orbitElevationDegrees', ['float', 'integer']],
@@ -968,7 +984,7 @@ function validateCameraControls(
     if (parameter && !types.includes(parameter.type)) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROL_TYPE_MISMATCH', `Camera control "${name}" requires parameter type ${types.join(' or ')}, not "${parameter.type}".`, controlPath))
     }
-    if (['orbitRadius', 'orbitAzimuthDegrees', 'orbitElevationDegrees'].includes(name) && camera.rig?.kind !== 'orbit') {
+    if (['orbitRadius', 'orbitAzimuthDegrees', 'orbitElevationDegrees'].includes(name) && camera.rig?.kind !== 'orbit' && !Object.values(camera.rigVariants ?? {}).some(r => r?.kind === 'orbit')) {
       diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `Camera control "${name}" requires an orbit rig.`, controlPath))
     }
     if ((name === 'orbitMotionEnabled' || name === 'orbitMotionSpeed') && camera.motion?.orbit == null) diagnostics.push(error('CINEMA2_PRESET_CAMERA_CONTROLS_INVALID', `${name} requires motion.orbit.`, controlPath))

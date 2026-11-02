@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "file": "stylized_mushrooms.glb",
+      "sha256": "09a4cb387b9ca8b4649ce04093faf81ec3de37d43c04203fd86e90fd5268b361",
+      "bytes": 2304192,
+      "author": "QumoDone (https://sketchfab.com/QumoDone)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/stylized-mushrooms-9d22e02ce2a548959b1c4c4c1d546842",
+      "title": "Stylized mushrooms"
+    },
+    {
+      "file": "stylized_mushrooms_-_low_poly.glb",
+      "sha256": "4f89f569cf9556061d1a9c7f95c1e711677584bbbc625a464293e75ca0971ac6",
+      "bytes": 720872,
+      "author": "Camille Barral (https://sketchfab.com/CamilleBarral)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/stylized-mushrooms-low-poly-33e4073b371a4fbd93e65bfb16473032",
+      "title": "Stylized Mushrooms - Low Poly"
+    },
+    {
+      "file": "mushrooms (1).glb",
+      "sha256": "63cd0969ebe0d04e1085b3764b7857b77101c5a2f6a8fccd60494929d1c30d9e",
+      "bytes": 696604,
+      "author": "leha_pu (https://sketchfab.com/leha_pu)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushrooms-f9dbd4c34a4f4389bf3901527ecc89a0",
+      "title": "Mushrooms"
+    },
+    {
+      "file": "mushrooms.glb",
+      "sha256": "92b7c6ce0e2f69280c3178b0b3cbeebe4a686aefbdb1032daebf4a1bb7b45c4d",
+      "bytes": 1976700,
+      "author": "Gwappa (https://sketchfab.com/Gwappa)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushrooms-c2dbb88a5e9c4e82a180e13b472015ed",
+      "title": "Mushrooms"
+    },
+    {
+      "file": "mushroom_magic.glb",
+      "sha256": "d58af7c6e1af989599f8ab202f61897039f7bd7db830ea6becdc4b6fe9c3c401",
+      "bytes": 25012072,
+      "author": "Tycho Magnetic Anomaly (https://sketchfab.com/Tycho_Magnetic_Anomaly)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/mushroom-magic-a1afc8a3ebc74648965127cac2da5349",
+      "title": "Mushroom Magic"
+    }
+  ]
+}

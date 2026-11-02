@@ -135,6 +135,7 @@ export class Cinema2CameraRuntime {
   private orbitAngle = 0
   private lastOrbitBeat: number | null = null
   private lastRoomTimestamp: number | null = null
+  private lastAuthoredTimestamp: number | null = null
   private controlsSignature = ''
   private lastControlledTrack: string | null | undefined
   private lastControlledTime: number | null = null
@@ -148,6 +149,7 @@ export class Cinema2CameraRuntime {
   private sinceKickSec = Infinity
   private lastPunchBeat: number | null = null
   private splinePath: Readonly<SplinePath> | null = null
+  private rigMode: string | null = null
   private currentFrame: Readonly<Cinema2CameraFrame>
   private frameCount = 0
   private resetCount = 0
@@ -181,6 +183,12 @@ export class Cinema2CameraRuntime {
       }
     }
 
+    if (this.authoredCamera?.motion?.idleMotion && frame.transport) {
+      const active = !frame.transport.paused && (!frame.transport.sourcePresent || frame.transport.playing)
+      const dt = this.lastAuthoredTimestamp == null ? frame.deltaTimeSec : clamp((frame.timestampMs - this.lastAuthoredTimestamp) / 1000, 0, .25)
+      this.lastAuthoredTimestamp = frame.timestampMs
+      frame = { ...frame, deltaTimeSec: active ? dt : 0, transport: { ...frame.transport, playing: active, animationActive: active } }
+    }
     const aspect = safeAspect(frame.viewport.width, frame.viewport.height)
     if (!this.authoredCamera) {
       this.currentFrame = createImplicitSafeFrame(aspect)
@@ -188,7 +196,16 @@ export class Cinema2CameraRuntime {
       return this.currentFrame
     }
 
-    const camera = this.authoredCamera
+    const selectedMode = this.authoredCamera.controls?.rigMode
+      ? this.parameters.getValue(this.authoredCamera.controls.rigMode.$ref as Cinema2ParameterId) : null
+    const mode = typeof selectedMode === 'string' ? selectedMode : null
+    const variant = mode == null ? null : this.authoredCamera.rigVariants?.[mode]
+    const camera = variant ? { ...this.authoredCamera, rig: variant } : this.authoredCamera
+    if (mode !== this.rigMode) {
+      this.splinePath = null; this.flightTimeSec = 0; this.tempoInitialized = false
+      this.previousPose = null; this.previousBasePosition = null; this.previousHeadingDegrees = null
+      this.rigMode = mode
+    }
     const motion = camera.motion
     const controlled = camera.controls?.motionEnabled != null || camera.controls?.motionSpeed != null || camera.motion?.orbit?.center != null
     const track = frame.transport?.trackId ?? null
@@ -462,7 +479,7 @@ export class Cinema2CameraRuntime {
     if (rig.kind === 'orbit') {
       const radius = positive(readNumberControl(camera.controls, 'orbitRadius', this.parameters) ?? undefined, positive(rig.radius, distance(authoredPosition, authoredTarget) || 5))
       const azimuth = finite(readNumberControl(camera.controls, 'orbitAzimuthDegrees', this.parameters) ?? undefined, finite(rig.azimuthDegrees, 0))
-        + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, frame.elapsedTimeSec)
+        + finite(rig.angularVelocityDegreesPerSecond, 0) * Math.max(0, camera.controls?.rigMode ? pathTimeSec : frame.elapsedTimeSec)
       const elevation = clamp(finite(readNumberControl(camera.controls, 'orbitElevationDegrees', this.parameters) ?? undefined, finite(rig.elevationDegrees, 15)), -89.9, 89.9)
       const azimuthRad = degreesToRadians(azimuth)
       const elevationRad = degreesToRadians(elevation)
