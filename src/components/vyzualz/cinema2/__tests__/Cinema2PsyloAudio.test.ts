@@ -1,31 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { Cinema2AudioIntelligenceBridge } from '../audio/Cinema2AudioIntelligenceBridge'
-import { Cinema2PsyloAudio, PSYLO_MUSIC_DEFAULTS as neutral, PsyloPatternController, selectPsyloAudio, resolvePsyloEvent, resolvePsyloMusic } from '../modules/psylo/Cinema2PsyloAudio'
-import { psyloMusicFixture, type PsyloFixtureOptions } from '../../../../test/support/PsyloMusicFixture'
-import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
+import { psyloChoreographyHarness as harness } from '../../../../test/support/PsyloChoreographyHarness'
+import { PSYLO_MUSIC_DEFAULTS as neutral, PsyloPatternController, selectPsyloAudio, resolvePsyloEvent, resolvePsyloMusic } from '../modules/psylo/Cinema2PsyloAudio'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS } from '../modules/Cinema2AfterhoursNativeModule'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { CINEMA2_PSYLO_PRESET_MANIFEST } from '../presets/Cinema2PsyloPreset'
 import { Cinema2FinalValueResolver } from '../parameters/Cinema2TargetRuntime'
 
-function harness() {
-  let upstream = psyloMusicFixture({ timeSec: 0, frameId: 1 }), sequence = 1, previous: number | null = null
-  const bridge = new Cinema2AudioIntelligenceBridge({ getFrame: () => upstream,
-    getPublicationMeta: () => ({ sequence, publisherId: 'psylo-test', kind: 'frame', publishedAtMs: 0 }) })
-  const delivery = new Cinema2PsyloAudio()
-  const publish = (options: Partial<PsyloFixtureOptions> = {}, amount = 1, paused = false, reset?: boolean) => {
-    upstream = psyloMusicFixture({ timeSec: sequence * .1, frameId: ++sequence, ...options })
-    const frame: Cinema2ModuleFrameReadContext = {
-      frameId: sequence, timestampMs: upstream.timeSec * 1000, elapsedTimeSec: upstream.timeSec, deltaTimeSec: paused ? 0 : .1,
-      viewport: { width: 1280, height: 720, dpr: 1 }, contextGeneration: 1, audio: bridge.capture(sequence), director: null,
-      transport: { sourcePresent: true, playing: !paused, analysisActive: true, animationActive: !paused, paused, trackId: upstream.trackId!, timeSec: upstream.timeSec },
-    }
-    const output = delivery.update(frame, amount, previous, reset ?? frame.audio!.discontinuity.occurred)
-    const old = previous; previous = upstream.timeSec
-    return { frame, output, previous: old }
-  }
-  return { publish, delivery }
-}
 describe('PSYLO native shared-audio delivery', () => {
   it('maps continuous facts to separate bounded geometry and spore dimensions', () => {
     const { publish } = harness()
@@ -34,7 +14,7 @@ describe('PSYLO native shared-audio delivery', () => {
     const loud = publish({ energy: .95, bass: 1, high: 1 }).output
     expect(loud.musicRange).toBeGreaterThan(quiet.musicRange)
     expect(loud.musicSpore).toBeGreaterThan(quiet.musicSpore)
-    expect(loud.musicBend).toBe(1)
+    expect(loud.musicBend).toBeGreaterThan(quiet.musicBend)
     const vocal = publish({ energy: .95, bass: 1, high: 1, vocal: 1 }).output
     expect(vocal.musicRange).toBeLessThan(loud.musicRange)
     expect(vocal.musicSpore).toBeLessThan(loud.musicSpore)
@@ -43,19 +23,21 @@ describe('PSYLO native shared-audio delivery', () => {
   it('latches activation events, deduplicates held hits and releases envelopes', () => {
     const { publish } = harness()
     expect(publish({ event: 'kick', timeSec: .1, frameId: 1 }).output.musicKick).toBe(0)
-    expect(publish({ event: 'kick', timeSec: .2, frameId: 2 }).output.musicKick).toBe(1)
-    expect(publish({ event: 'kick', timeSec: .3, frameId: 2 }).output.musicKick).toBeLessThan(1)
-    expect(publish({ event: 'snare', timeSec: .4 }).output.musicSnare).toBe(1)
+    expect(publish({ event: 'kick', timeSec: .2, frameId: 2 }).output.musicKick).toBe(0)
+    expect(publish({ timeSec: .22 }).output.musicKick).toBeCloseTo(.12)
+    expect(publish({ event: 'kick', timeSec: .3, frameId: 2 }).output.musicKick).toBeLessThan(.12)
+    expect(publish({ event: 'snare', timeSec: .4 }).output.musicSnare).toBe(0)
+    expect(publish({ timeSec: .41 }).output.musicSnare).toBeCloseTo(.15)
     expect(publish({ timeSec: .7 }).output.musicKick).toBe(0)
     expect(publish({ timeSec: .7 }).output.musicSnare).toBe(0)
   })
   it('delivers supported builds and fresh semantic drops without Director input', () => {
     const { publish } = harness(); publish({ timeSec: .1 })
-    expect(publish({ timeSec: .2, build: .9 }).output.musicBuild).toBe(.9)
-    const drop = publish({ timeSec: .3, event: 'drop' }).output
-    expect(drop.musicDrop).toBe(1)
+    expect(publish({ timeSec: .2, build: .9 }).output.musicBuild).toBeGreaterThan(0)
+    publish({ timeSec: .3, event: 'drop' })
+    expect(publish({ timeSec: .32 }).output.musicDrop).toBeCloseTo(.25 * .95)
     expect(publish({ timeSec: .5 }).output.musicDropTravel).toBeGreaterThan(0)
-    expect(publish({ timeSec: 1.1 }).output.musicDrop).toBe(0)
+    expect(publish({ timeSec: 1.2 }).output.musicDrop).toBe(0)
     expect(publish({ timeSec: .1 }).output.musicDrop).toBe(0)
   })
   it('holds on pause, honors response zero immediately and latches paused events', () => {
@@ -68,11 +50,12 @@ describe('PSYLO native shared-audio delivery', () => {
   })
   it('holds through the host pause gate and latches resume hits without erasing the active envelope', () => {
     const { publish, delivery } = harness(); publish({ timeSec: .1 })
-    const { frame, output } = publish({ timeSec: .2, event: 'kick' })
+    publish({ timeSec: .2, event: 'kick' })
+    const { frame, output, channels } = publish({ timeSec: .22 })
     const paused = { ...frame, audio: null, transport: { ...frame.transport!, paused: true, playing: false, animationActive: false } }
     expect(delivery.update(paused, 1, .2, false)).toEqual(output)
     const resumed = { ...frame, audio: { ...frame.audio!, upstream: { ...frame.audio!.upstream, timeSec: .3 } } }
-    const held = delivery.update(resumed, 1, .2, false, true)
+    const held = delivery.update(resumed, 1, .2, false, true, channels)
     expect(held.musicKick).toBeGreaterThan(0); expect(held.musicKick).toBeLessThan(1)
     expect(delivery.update(paused, 0, .3, false)).toEqual(neutral)
   })

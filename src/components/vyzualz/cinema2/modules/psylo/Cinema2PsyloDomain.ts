@@ -30,7 +30,7 @@ export const PSYLO_CAMERA_RIGS: Readonly<Record<string, Cinema2CameraRigManifest
   fixed: { kind: 'static' },
 }
 export interface PsyloControls {
-  musicResponse: number; master: number; motion: boolean; amount: number; speed: number; bpmSync: boolean; pattern: number
+  autoPerformance: boolean; musicResponse: number; master: number; motion: boolean; amount: number; speed: number; bpmSync: boolean; pattern: number
   patternChange: boolean; trigger: string; density: number; scale: number; emission: number; spores: number
   colors: Record<keyof typeof PSYLO_COLORS, readonly number[]>
 }
@@ -38,7 +38,7 @@ export function readPsyloControls(p: Cinema2ModuleParameterReadFacet): PsyloCont
   const num = (key: string, fallback: number, min = 0, max = 1) => { const x = p.get(key); return typeof x === 'number' && Number.isFinite(x) ? Math.max(min, Math.min(max, x)) : fallback }
   const boolean = (key: string, fallback: boolean) => typeof p.get(key) === 'boolean' ? p.get(key) as boolean : fallback
   return {
-    musicResponse: num('musicResponse', .8), master: num('master', .85), motion: boolean('motion', true), amount: num('amount', .5), speed: num('speed', 1, 0, 2), bpmSync: boolean('bpmSync', true),
+    autoPerformance: boolean('autoPerformance', false), musicResponse: num('musicResponse', .8), master: num('master', .85), motion: boolean('motion', true), amount: num('amount', .5), speed: num('speed', 1, 0, 2), bpmSync: boolean('bpmSync', true),
     pattern: Math.max(0, PSYLO_PATTERNS.findIndex(x => x.value === p.get('pattern'))),
     patternChange: boolean('patternChange', false), trigger: String(p.get('trigger') ?? 'bar4'),
     density: num('density', 1), scale: num('scale', 1, .8, PSYLO_MAX_SCALE), emission: num('emission', .6), spores: num('spores', .6),

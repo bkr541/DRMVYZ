@@ -12,37 +12,56 @@ attribute float _psylo_id;
 attribute float _psylo_species;
 attribute float _psylo_zone;
 uniform float uMusicBend, uMusicKick, uMusicKickTravel, uMusicSnare, uMusicBeat, uMusicBuild, uMusicDrop, uMusicDropTravel;
-uniform float uPsyloPhase, uPsyloAmount, uPsyloScale, uPsyloPattern, uPsyloDensity;
-varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep;
-vec3 psyloPosition(vec3 p, float h) {
-  if (_psylo_id < 0.0) return p;
-  vec3 local = (p - _psylo_root) * uPsyloScale;
+uniform float uPsyloPhase, uPsyloAmount, uPsyloScale, uPsyloDensity;
+uniform float uPsyloWeights[8];
+uniform vec4 uPsyloLightEvents;
+uniform float uPsyloLightBuild;
+varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse;
+float psyloPulse(vec3 world) {
+  float r = length(world.xz - vec2(0.0, -8.0));
+  float a = atan(world.x, world.z + 8.0);
+  float kick = exp(-abs(r - uMusicKickTravel * 36.0) * 0.12);
+  float drop = exp(-abs(r - uMusicDropTravel * 36.0) * 0.12);
+  float masks[8];
+  masks[0] = kick;
+  masks[1] = 0.5 + 0.5 * sin(a * 2.0 + uMusicKickTravel * 6.2831853);
+  masks[2] = 0.3 + 0.7 * max(0.0, sin(_psylo_zone * 2.1 + 1.0));
+  masks[3] = smoothstep(1.0, 8.0, world.y);
+  masks[4] = pow(max(0.0, cos(a - uMusicKickTravel * 6.2831853)), 4.0);
+  masks[5] = exp(-abs(world.z + 30.0 - uMusicKickTravel * 48.0) * 0.16);
+  masks[6] = smoothstep(0.0, 9.0, world.y);
+  masks[7] = drop;
+  float mask = 0.0;
+  for (int i = 0; i < 8; i++) mask += masks[i] * uPsyloWeights[i];
+  return clamp(mask * max(max(uPsyloLightEvents.x, uPsyloLightEvents.y), uPsyloLightEvents.z) + drop * uPsyloLightEvents.w - uPsyloLightBuild * 0.1, 0.0, 1.0);
+}
+vec3 psyloDisplacement(vec3 local, float h, float pattern) {
   float t = uPsyloPhase * 1.570796327;
   float a = atan(_psylo_root.x, _psylo_root.z + 8.0);
   float r = length(_psylo_root.xz - vec2(0.0, -8.0));
   float w = h * h;
   vec3 d = vec3(0.0);
   vec2 radial = normalize(_psylo_root.xz - vec2(0.0, -8.001));
-  if (uPsyloPattern < 0.5) {
+  if (pattern < 0.5) {
     float wave = sin(t - r * 0.42);
     d.xz = radial * wave * 0.65 * w; d.y = sin(t - r * 0.42 + 0.7) * 0.18 * w;
-  } else if (uPsyloPattern < 1.5) {
+  } else if (pattern < 1.5) {
     float turn = sin(t * 0.7 + a * 2.0) * 0.14 * w;
     d.xz = vec2(local.x * cos(turn) - local.z * sin(turn), local.x * sin(turn) + local.z * cos(turn)) - local.xz;
     d.y = cos(t + a * 2.0) * 0.18 * w;
-  } else if (uPsyloPattern < 2.5) {
+  } else if (pattern < 2.5) {
     float answer = pow(max(0.0, sin(t - _psylo_zone * 1.8)), 3.0);
     d.x = answer * 0.5 * w * sin(_psylo_id * 1.7); d.y = answer * 0.48 * w;
-  } else if (uPsyloPattern < 3.5) {
+  } else if (pattern < 3.5) {
     float breath = sin(t * 0.45 + _psylo_zone * 0.3);
     d.xz = local.xz * breath * 0.11 * smoothstep(0.4, 0.85, h); d.y = breath * 0.3 * w;
-  } else if (uPsyloPattern < 4.5) {
+  } else if (pattern < 4.5) {
     float relay = pow(max(0.0, cos(a - t * 0.65)), 8.0);
     d.xz = radial * relay * 0.62 * w; d.y = relay * 0.34 * w;
-  } else if (uPsyloPattern < 5.5) {
+  } else if (pattern < 5.5) {
     float relay = sin(t * 1.2 - _psylo_root.z * 0.32);
     d.x = relay * 0.68 * w; d.z = cos(t * 0.6 + _psylo_root.x * 0.25) * 0.18 * w;
-  } else if (uPsyloPattern < 6.5) {
+  } else if (pattern < 6.5) {
     float rise = 0.5 + 0.5 * sin(t * 0.6 - r * 0.16);
     d.y = rise * 0.62 * w; d.xz = local.xz * rise * 0.08 * smoothstep(0.48, 0.9, h);
   } else {
@@ -50,15 +69,50 @@ vec3 psyloPosition(vec3 p, float h) {
     float front = sign(release) * release * release;
     d.xz = radial * front * 0.72 * w; d.y = -cos(t * 0.65 - r * 0.22) * 0.32 * w;
   }
-  d.x += sin(t * 0.7 + _psylo_id * 0.2) * uMusicBend * 0.24 * w;
+  vec2 tangent = vec2(radial.y, -radial.x);
   float kickFront = exp(-abs(r - uMusicKickTravel * 36.0) * 0.12);
   float dropFront = exp(-abs(r - uMusicDropTravel * 36.0) * 0.12);
-  d.y += (uMusicKick * kickFront * 0.5 + uMusicBeat * 0.2) * w;
-  d.xz += vec2(radial.y, -radial.x) * sin(_psylo_zone * 2.1 + 1.0) * uMusicSnare * 0.35 * w;
-  d.xz -= radial * uMusicBuild * 0.3 * w;
-  d.y -= uMusicBuild * 0.18 * w;
-  d.xz += radial * uMusicDrop * dropFront * 0.65 * w;
-  d.y += uMusicDrop * dropFront * 0.3 * w;
+  float bank = 0.25 + 0.75 * pow(max(0.0, cos(a - uMusicKickTravel * 6.2831853)), 4.0);
+  float answer = 0.3 + 0.7 * max(0.0, sin(_psylo_zone * 2.1 + 1.0));
+  vec3 event = vec3(0.0);
+  if (pattern < 0.5) {
+    event.y = uMusicKick * kickFront + uMusicBeat;
+    event.xz = tangent * uMusicSnare + radial * (uMusicDrop * dropFront - uMusicBuild);
+  } else if (pattern < 1.5) {
+    event.xz = tangent * (uMusicKick * kickFront + uMusicSnare * sin(a * 2.0) + uMusicDrop * dropFront);
+    event.y = (uMusicBeat - uMusicBuild) * cos(a * 2.0);
+  } else if (pattern < 2.5) {
+    event.y = (uMusicKick + uMusicSnare + uMusicDrop * dropFront) * answer - uMusicBuild;
+    event.xz = tangent * uMusicBeat * answer;
+  } else if (pattern < 3.5) {
+    event.xz = normalize(local.xz + vec2(0.0001)) * (uMusicKick + uMusicDrop * dropFront - uMusicBuild);
+    event.y = uMusicBeat + uMusicSnare * 0.5 - uMusicBuild;
+  } else if (pattern < 4.5) {
+    event.xz = radial * (uMusicKick + uMusicSnare + uMusicDrop * dropFront) * bank - radial * uMusicBuild;
+    event.y = (uMusicBeat + uMusicKick) * bank;
+  } else if (pattern < 5.5) {
+    float relay = 0.3 + 0.7 * exp(-abs(_psylo_root.z + 30.0 - uMusicKickTravel * 48.0) * 0.16);
+    event.x = (uMusicKick + uMusicSnare) * relay;
+    event.z = uMusicDrop * dropFront - uMusicBuild;
+    event.y = uMusicBeat * answer;
+  } else if (pattern < 6.5) {
+    event.y = uMusicKick + uMusicSnare + uMusicBeat + uMusicDrop * dropFront - uMusicBuild;
+    event.xz = normalize(local.xz + vec2(0.0001)) * (uMusicDrop * dropFront - uMusicBuild);
+  } else {
+    event.xz = radial * (uMusicDrop * dropFront - uMusicBuild) + tangent * uMusicSnare;
+    event.y = uMusicKick * kickFront + uMusicBeat + uMusicDrop * dropFront - uMusicBuild;
+  }
+  d += event * w;
+  d.x += sin(t * 0.7 + _psylo_id * 0.2) * uMusicBend * 0.24 * w;
+  return d;
+}
+vec3 psyloPosition(vec3 p, float h) {
+  if (_psylo_id < 0.0) return p;
+  vec3 local = (p - _psylo_root) * uPsyloScale;
+  vec3 d = vec3(0.0);
+  for (int i = 0; i < 8; i++) {
+    if (uPsyloWeights[i] > 0.00001) d += psyloDisplacement(local, h, float(i)) * uPsyloWeights[i];
+  }
   d *= uPsyloAmount;
   d *= min(1.0, 0.75 * uPsyloAmount / max(0.0001, length(d)));
   return _psylo_root + local + d;
@@ -68,19 +122,19 @@ const fragmentShader = `
 uniform float uMusicLight;
 uniform float uPsyloMaster, uPsyloEmission, uPsyloRole;
 uniform vec3 uPsyloPrimary, uPsyloSecondary, uPsyloStem, uPsyloGill, uPsyloMycelium;
-varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep;
+varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse;
 `
 
 export class Cinema2PsyloSceneController {
-  private readonly uniforms: Record<string, { value: number | Three.Color }>
+  private readonly uniforms: Record<string, { value: number | Three.Color | readonly number[] }>
   private points: Three.Points<Three.BufferGeometry, Three.PointsMaterial> | null = null
   private readonly colors: Record<keyof typeof PSYLO_COLORS, Three.Color>
   constructor(private readonly library: Cinema2ThreeLibrary) {
     const { THREE } = library
     this.colors = Object.fromEntries(Object.entries(PSYLO_COLORS).map(([key, c]) => [key, new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace)])) as typeof this.colors
     this.uniforms = Object.fromEntries(Object.entries({
-      uPsyloPhase: 0, uPsyloAmount: .5, uPsyloScale: 1, uPsyloPattern: 0, uPsyloDensity: 1, uPsyloMaster: .85, uPsyloEmission: .6,
-      uMusicBend: 0, uMusicKick: 0, uMusicKickTravel: 0, uMusicSnare: 0, uMusicBeat: 0, uMusicBuild: 0, uMusicDrop: 0, uMusicDropTravel: 0, uMusicLight: 1,
+      uPsyloPhase: 0, uPsyloAmount: .5, uPsyloScale: 1, uPsyloWeights: [1, 0, 0, 0, 0, 0, 0, 0], uPsyloDensity: 1, uPsyloMaster: .85, uPsyloEmission: .6,
+      uMusicBend: 0, uMusicKick: 0, uMusicKickTravel: 0, uMusicSnare: 0, uMusicBeat: 0, uMusicBuild: 0, uMusicDrop: 0, uMusicDropTravel: 0, uMusicLight: 1, uPsyloLightEvents: [0, 0, 0, 0], uPsyloLightBuild: 0,
       uPsyloPrimary: new THREE.Color(1, 1, 1), uPsyloSecondary: new THREE.Color(1, 1, 1), uPsyloStem: new THREE.Color(1, 1, 1),
       uPsyloGill: this.colors.gillColor.clone(), uPsyloMycelium: new THREE.Color(1, 1, 1),
     }).map(([key, value]) => [key, { value }]))
@@ -103,6 +157,7 @@ export class Cinema2PsyloSceneController {
           shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
 #include <begin_vertex>
 vec3 psyloWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+vPsyloPulse = psyloPulse(psyloWorld);
 transformed += inverse(mat3(modelMatrix)) * (psyloPosition(psyloWorld, _psylo_height) - psyloWorld);
 vPsyloHeight = _psylo_height; vPsyloSpecies = _psylo_species;
 vPsyloGill = smoothstep(0.38, 0.65, _psylo_height) * (1.0 - smoothstep(-0.55, -0.08, normalize(mat3(modelMatrix) * normal).y));
@@ -134,13 +189,17 @@ if (uPsyloRole < 0.5) {
 `)
           shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `
 #include <emissivemap_fragment>
-if (uPsyloRole < 0.5) totalEmissiveRadiance += uPsyloGill * vPsyloGill * 0.65;
+if (uPsyloRole < 0.5) {
+  float cap = smoothstep(0.58, 0.88, vPsyloHeight);
+  float spots = smoothstep(0.30, 0.65, dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
+  totalEmissiveRadiance += uPsyloGill * vPsyloGill * 1.3 + diffuseColor.rgb * cap * (0.12 + spots * 1.2);
+}
 else if (uPsyloRole < 1.5) totalEmissiveRadiance *= uPsyloMycelium;
-totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight;
+totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight * mix(0.85, 1.0, vPsyloPulse) * 2.4;
 `)
         }
         const priorKey = material.customProgramCacheKey.bind(material)
-        material.customProgramCacheKey = () => `${priorKey()}:psylo-native-v3:${role}`
+        material.customProgramCacheKey = () => `${priorKey()}:psylo-native-v7:${role}`
       }
     })
     const geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(128 * 3), 3))
@@ -149,12 +208,15 @@ totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight;
     material.onBeforeCompile = shader => { shader.fragmentShader = shader.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (length(gl_PointCoord - vec2(0.5)) > 0.5) discard;') }
     this.points = new THREE.Points(geometry, material); this.points.frustumCulled = false; root.add(this.points)
   }
-  apply(c: PsyloControls, phase: number, music: PsyloMusic = { ...PSYLO_MUSIC_DEFAULTS }): void {
+  apply(c: PsyloControls, phase: number, music: PsyloMusic = { ...PSYLO_MUSIC_DEFAULTS }, weights: readonly number[] = Array.from({ length: 8 }, (_, i) => i === c.pattern ? 1 : 0)): void {
     const { THREE } = this.library, u = this.uniforms
     const moving = c.motion && c.amount > 0 && c.speed > 0
-    for (const [key, value] of Object.entries({ uMusicBend: music.musicBend, uMusicKick: music.musicKick, uMusicKickTravel: music.musicKickTravel, uMusicSnare: music.musicSnare, uMusicBeat: music.musicBeat, uMusicBuild: music.musicBuild, uMusicDrop: music.musicDrop, uMusicDropTravel: music.musicDropTravel })) u[key].value = moving ? value : 0
+    for (const [key, value] of Object.entries({ uMusicBend: music.musicBend, uMusicKick: music.musicKick, uMusicKickTravel: music.musicKickTravel, uMusicSnare: music.musicSnare, uMusicBeat: music.musicBeat, uMusicBuild: music.musicBuild, uMusicDrop: music.musicDrop, uMusicDropTravel: music.musicDropTravel })) u[key].value = moving || key.endsWith('Travel') ? value : 0
     u.uMusicLight.value = music.musicLight
-    for (const [key, value] of Object.entries({ uPsyloPhase: phase, uPsyloAmount: c.motion ? c.amount * (moving ? music.musicRange : 1) : 0, uPsyloScale: c.scale, uPsyloPattern: c.pattern, uPsyloDensity: c.density, uPsyloMaster: c.master, uPsyloEmission: c.emission })) u[key].value = value
+    u.uPsyloLightEvents.value = [music.musicKick / .12, music.musicSnare / .15, music.musicBeat / .06, music.musicDrop / .25]
+    u.uPsyloLightBuild.value = music.musicBuild / .15
+    u.uPsyloWeights.value = weights
+    for (const [key, value] of Object.entries({ uPsyloPhase: phase, uPsyloAmount: c.motion ? c.amount * (moving ? music.musicRange : 1) : 0, uPsyloScale: c.scale, uPsyloDensity: c.density, uPsyloMaster: c.master, uPsyloEmission: c.emission })) u[key].value = value
     for (const [key, uniform] of [['primaryColor', 'uPsyloPrimary'], ['secondaryColor', 'uPsyloSecondary'], ['stemColor', 'uPsyloStem'], ['myceliumColor', 'uPsyloMycelium']] as const) {
       const color = c.colors[key], base = this.colors[key]
       const output = u[uniform].value as Three.Color
@@ -167,9 +229,9 @@ totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight;
       const count = Math.round(c.spores * 128 * music.musicSpore), p = this.points.geometry.attributes.position as Three.BufferAttribute
       for (let i = 0; i < count; i++) {
         const a = i * 2.39996, r = 4 + (i * 7.13 % 22), t = phase * .08
-        const accent = moving ? music.musicSnare * .25 * Math.sin(i * 2.1) : 0
-        const lift = c.pattern === 2 ? Math.max(0, Math.sin(phase * 1.57 - i % 3 * 1.8)) : 0
-        p.setXYZ(i, Math.sin(a + t * .08) * r, .6 + ((i * .37 + t + lift + accent) % 5), -8 + Math.cos(a + t * .08) * r)
+        const accent = moving ? music.musicSnare * Math.sin(i * 2.1) : 0
+        const lift = weights[2] * Math.max(0, Math.sin(phase * 1.57 - i % 3 * 1.8)) + (moving ? weights[6] * music.musicDrop : 0)
+        p.setXYZ(i, Math.sin(a + t * .08) * r, .6 + ((i * .37 + t) % 5) + lift + accent, -8 + Math.cos(a + t * .08) * r)
       }
       p.needsUpdate = true; this.points.geometry.setDrawRange(0, count)
       const color = c.colors.sporeColor

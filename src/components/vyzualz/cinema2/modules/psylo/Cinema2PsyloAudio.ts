@@ -1,7 +1,8 @@
-import type { Cinema2AudioEvent, Cinema2AudioSignal } from '../../audio/Cinema2AudioIntelligenceBridge'
+import type { Cinema2AudioEvent } from '../../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2ModuleFrameReadContext, Cinema2ModuleParameterReadFacet, Cinema2ModuleTargetFacet } from '../Cinema2ModuleContracts'
 import { selectCinema2MainframeAudio } from '../mainframe/Cinema2MainframeAudioDelivery'
 import { resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from '../Cinema2AfterhoursNativeModule'
+import { PSYLO_CHOREOGRAPHY_DEFAULTS, PSYLO_EVENT_ACTIONS, type PsyloChoreography } from '../../presets/Cinema2PsyloChoreography'
 import { PSYLO_PATTERNS } from './Cinema2PsyloDomain'
 
 export const PSYLO_MUSIC_DEFAULTS = {
@@ -11,7 +12,12 @@ export const PSYLO_MUSIC_DEFAULTS = {
 } as const
 export type PsyloMusic = { -readonly [K in keyof typeof PSYLO_MUSIC_DEFAULTS]: number }
 const clamp = (x: number, min = 0, max = 1) => Math.max(min, Math.min(max, x))
-const value = (s: Readonly<Cinema2AudioSignal<number>> | undefined): number | null => s?.available && typeof s.value === 'number' && Number.isFinite(s.value) ? clamp(s.value) : null
+export function readPsyloChoreography(parameters: Cinema2ModuleParameterReadFacet): PsyloChoreography {
+  return Object.fromEntries(Object.entries(PSYLO_CHOREOGRAPHY_DEFAULTS).map(([key, fallback]) => {
+    const value = parameters.get(key)
+    return [key, typeof value === 'number' && Number.isFinite(value) ? clamp(value, fallback === -1 ? -1 : 0) : fallback]
+  })) as PsyloChoreography
+}
 
 /** Shared delivery validity, track identity and timeline freshness, not detection. */
 export function selectPsyloAudio(frame: Readonly<Cinema2ModuleFrameReadContext>) {
@@ -20,7 +26,7 @@ export function selectPsyloAudio(frame: Readonly<Cinema2ModuleFrameReadContext>)
   return frame.transport && Math.abs(audio.upstream.timeSec - frame.transport.timeSec) > .5 ? null : audio
 }
 
-/** Canonical event semantics; Director fallback is deliberately excluded in Phase 3. */
+/** Canonical event semantics; Director fallback is deliberately excluded from raw musical events. */
 export function resolvePsyloEvent(frame: Readonly<Cinema2ModuleFrameReadContext>, trigger: Cinema2AfterhoursTriggerId, previousTime: number | null): string | null {
   if (!frame.audio) return null
   const a = frame.audio
@@ -56,16 +62,19 @@ export class PsyloPatternController {
     return this.base
   }
 }
-interface Hit { time: number; strength: number }
+interface Hit { time: number }
 
-/** Minimal native delivery from shared facts. Phase 4 owns expanded choreography. */
+/** Freshness/permission adapter, not an envelope engine. Shared Choreography
+ * owns all response amplitudes; native state only gates accepted event windows
+ * and supplies spatial travel progress. This prevents stale shared envelopes
+ * from taking authority on activation, resume or analysis replacement. */
 export class Cinema2PsyloAudio {
   private readonly seen = new Set<string>()
   private readonly hits: Partial<Record<'kick' | 'snare' | 'beat' | 'drop', Hit>> = {}
   private held: PsyloMusic = { ...PSYLO_MUSIC_DEFAULTS }
   reset(): void { this.seen.clear(); this.clear() }
   private clear(): void { for (const key of Object.keys(this.hits) as (keyof typeof this.hits)[]) delete this.hits[key]; this.held = { ...PSYLO_MUSIC_DEFAULTS } }
-  update(frame: Readonly<Cinema2ModuleFrameReadContext>, amount: number, previousTime: number | null, reset: boolean, latch = false): PsyloMusic {
+  update(frame: Readonly<Cinema2ModuleFrameReadContext>, amount: number, previousTime: number | null, reset: boolean, latch = false, channels: PsyloChoreography = { ...PSYLO_CHOREOGRAPHY_DEFAULTS }): PsyloMusic {
     if (reset) this.reset()
     const strength = clamp(amount), paused = frame.transport?.paused === true
     const a = frame.audio
@@ -77,12 +86,16 @@ export class Cinema2PsyloAudio {
     const consume = (id: string | null, kind: keyof typeof this.hits, event: Readonly<Cinema2AudioEvent> | null = null) => {
       if (!id || this.seen.has(id)) return
       this.seen.add(id)
-      if (reset || latch || !playing || strength === 0 || (event && (event.timeSec < now - .25 || event.timeSec > now + .05))) return
-      this.hits[kind] = { time: event?.timeSec ?? now, strength: event ? clamp(event.strength) : 1 }
+      if (reset || latch || !playing || strength === 0 || (event && (event.timeSec < now - .25 || event.timeSec > now + .05))) {
+        // A newly latched event may have replaced the shared envelope. It must
+        // not borrow the previous accepted event's still-open native window.
+        delete this.hits[kind]; return
+      }
+      this.hits[kind] = { time: event?.timeSec ?? now }
     }
     consume(a.rhythm.kick?.id ?? null, 'kick', a.rhythm.kick)
     consume(a.rhythm.snare?.id ?? null, 'snare', a.rhythm.snare)
-    consume(a.rhythm.downbeat?.id ?? a.rhythm.beat?.id ?? null, 'beat', a.rhythm.downbeat ?? a.rhythm.beat)
+    consume(a.rhythm.beat?.id ?? null, 'beat', a.rhythm.beat)
     // Resolve while held too, to consume paused events without replaying them.
     const eventFrame = frame.transport ? { ...frame, transport: { ...frame.transport, playing: true, paused: false } } : frame
     consume(resolvePsyloEvent(eventFrame, 'drop', reset ? null : previousTime), 'drop')
@@ -90,18 +103,25 @@ export class Cinema2PsyloAudio {
     if (strength === 0 || (!playing && !paused)) { this.clear(); return this.held }
     if (paused) return this.held
     const age = (kind: keyof typeof this.hits) => this.hits[kind] ? Math.max(0, now - this.hits[kind]!.time) : Infinity
-    const envelope = (kind: keyof typeof this.hits, duration: number) => (this.hits[kind]?.strength ?? 0) * Math.max(0, 1 - age(kind) / duration) * strength
-    const energy = value(a.features.overallEnergy), bass = value(a.bands.bass) ?? 0, high = value(a.bands.high) ?? 0
-    const vocal = value(a.features.vocalPresence) ?? 0
-    const build = (value(a.structure.buildConfidence) ?? 0) >= .45 ? value(a.features.buildProgress) ?? 0 : 0
+    const envelope = (kind: keyof typeof this.hits) => {
+      const action = PSYLO_EVENT_ACTIONS[kind]
+      return age(kind) <= action.attack + action.release ? Math.min(action.maximum, channels[action.property]) * strength : 0
+    }
+    const energy = channels.choreoEnergy, bass = Math.max(0, channels.choreoBass), high = Math.max(0, channels.choreoHigh)
+    const vocal = Math.max(0, channels.choreoVocal)
+    const build = channels.choreoBuildConfidence >= .45 ? Math.max(0, channels.choreoBuild) : 0
+    const range = 1 - strength * .4 * (1 - (energy < 0 ? 1 : energy))
+    const restraint = 1 - strength * .35 * vocal
+    const spore = 1 - strength * .45 * (1 - (channels.choreoHigh < 0 ? 1 : high))
+    const accent = Math.max(...(['kick', 'snare', 'beat', 'drop'] as const).map(kind => envelope(kind) / PSYLO_EVENT_ACTIONS[kind].maximum))
     this.held = {
-      musicRange: 1 - strength * ((energy == null ? 0 : .45 * (1 - energy)) + .15 * vocal),
-      musicSpore: 1 - strength * ((value(a.bands.high) == null ? 0 : .45 * (1 - high)) + .15 * vocal),
-      musicLight: clamp(1 - strength * .25 * (1 - (energy ?? 1)) + .2 * Math.max(envelope('kick', .36), envelope('snare', .2), envelope('beat', .25), envelope('drop', .8))),
+      musicRange: range * restraint,
+      musicSpore: clamp(spore * restraint + envelope('snare') * (1 - spore * restraint)),
+      musicLight: clamp(1 - strength * .25 * (1 - (energy < 0 ? 1 : energy)) + .2 * accent),
       musicBend: strength * bass, musicVocal: strength * vocal, musicHigh: strength * high,
-      musicKick: envelope('kick', .36), musicKickTravel: clamp(age('kick') / .36),
-      musicSnare: envelope('snare', .2), musicBeat: envelope('beat', .25),
-      musicBuild: strength * build, musicDrop: envelope('drop', .8), musicDropTravel: clamp(age('drop') / .8),
+      musicKick: envelope('kick'), musicKickTravel: clamp(age('kick') / .24),
+      musicSnare: envelope('snare'), musicBeat: envelope('beat'),
+      musicBuild: strength * build * .15, musicDrop: envelope('drop'), musicDropTravel: clamp(age('drop') / .82),
     }
     return this.held
   }

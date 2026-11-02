@@ -1,4 +1,7 @@
-import { Cinema2PsyloAudio, PSYLO_MUSIC_DEFAULTS, PsyloPatternController, resolvePsyloEvent, resolvePsyloMusic, selectPsyloAudio } from './psylo/Cinema2PsyloAudio'
+import { Cinema2PsyloAutoPerformance } from './psylo/Cinema2PsyloAutoPerformance'
+import { Cinema2PsyloDirector } from './psylo/Cinema2PsyloDirector'
+import { PsyloPatternTransition } from './psylo/Cinema2PsyloTransition'
+import { Cinema2PsyloAudio, PSYLO_MUSIC_DEFAULTS, PsyloPatternController, readPsyloChoreography, resolvePsyloEvent, resolvePsyloMusic, selectPsyloAudio } from './psylo/Cinema2PsyloAudio'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
 import { readPsyloControls, type PsyloControls } from './psylo/Cinema2PsyloDomain'
@@ -26,9 +29,10 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
     let library: Cinema2ThreeLibrary | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
     const diagnostics: Cinema2ModuleDiagnostic[] = []
-    const clock = new Cinema2BeatClock(), delivery = new Cinema2PsyloAudio(), patterns = new PsyloPatternController()
+    const clock = new Cinema2BeatClock(), delivery = new Cinema2PsyloAudio(), patterns = new PsyloPatternController(), transition = new PsyloPatternTransition(), director = new Cinema2PsyloDirector(), performance = new Cinema2PsyloAutoPerformance()
     let music = { ...PSYLO_MUSIC_DEFAULTS } as import('./psylo/Cinema2PsyloAudio').PsyloMusic
     let audioAvailable = false, wasPaused = false
+    let patternWeights: readonly number[] = [1, 0, 0, 0, 0, 0, 0, 0], patternAuthority = ''
     let sourceIdentity: string | null = null, analysisIdentity: string | null = null, discontinuity = -1
     let controller: Cinema2PsyloSceneController | null = null
     let controls: PsyloControls | null = null
@@ -42,7 +46,7 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
       lifecycle: {
         update({ parameters, frame: incoming, targets }) {
           const selected = selectPsyloAudio(incoming)
-          const frame = { ...incoming, audio: selected, director: null }
+          const frame = { ...incoming, audio: selected, director: selected ? incoming.director : null }
           controls = readPsyloControls(parameters)
           const resuming = wasPaused && frame.transport?.paused !== true
           const currentTime = frame.transport?.timeSec ?? frame.elapsedTimeSec
@@ -65,12 +69,22 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
           const eventFrame = frame.transport ? { ...frame, transport: { ...frame.transport, paused: false, playing: true } } : frame
           const trigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(controls.trigger as Cinema2AfterhoursTriggerId) ? controls.trigger as Cinema2AfterhoursTriggerId : 'bar4'
           const event = resolvePsyloEvent(eventFrame, trigger, reset || activated ? null : time)
-          music = resolvePsyloMusic(delivery.update(frame, controls.musicResponse, reset || activated ? null : time, reset || activated || refreshed || returning, resuming), parameters, targets)
+          const channels = readPsyloChoreography(parameters)
+          const responseReset = reset || activated || refreshed || returning
+          const delivered = delivery.update(frame, controls.musicResponse, reset || activated ? null : time, responseReset, resuming, channels)
+          music = resolvePsyloMusic(director.apply(frame, controls.musicResponse, delivered, channels, responseReset, resuming), parameters, targets)
+          const authority = JSON.stringify([controls.pattern, parameters.getEditRevision?.('pattern') ?? 0, controls.patternChange, trigger])
+          const manual = authority !== patternAuthority
           controls.pattern = patterns.update(controls.pattern, controls.patternChange, trigger, event, parameters.getEditRevision?.('pattern') ?? 0, reset || activated, !active || refreshed || returning || resuming)
+          const current = clock.update(governedFrame, controls.bpmSync, 100).beats
+          const performing = performance.update({ frame, base: controls.pattern, enabled: controls.autoPerformance,
+            manual, reset: responseReset, latch: resuming, beats: current, previousTime: time })
+          controls.pattern = performing.pattern
+          patternWeights = transition.update(controls.pattern, active && controls.motion && controls.amount > 0 && controls.speed > 0 ? dt : 0, reset || activated || manual || performing.immediate)
+          patternAuthority = authority
           if (!frame.transport?.paused) audioAvailable = selected != null
           wasPaused = frame.transport?.paused === true
           sourceIdentity = source; analysisIdentity = revision; discontinuity = newDiscontinuity
-          const current = clock.update(governedFrame, controls.bpmSync, 100).beats
           if (controls.motion && controls.amount > 0 && active) phase += Math.max(0, current - beats) * controls.speed
           beats = current; time = currentTime; track = frame.transport?.trackId; generation = frame.contextGeneration
         },
@@ -105,7 +119,7 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
               controller = new Cinema2PsyloSceneController(lib)
               bridge = context.resources.acquire('psylo:bridge', 'PsyloThreeSceneBridge',
                 gl => new Cinema2ThreeSceneBridge(gl, lib, [{ asset, node: null }], {
-                  modelController: { attach: root => controller!.attach(root), beforeDraw: () => { if (controls) controller!.apply(controls, phase, music) }, dispose: () => controller?.dispose() },
+                  modelController: { attach: root => controller!.attach(root), beforeDraw: () => { if (controls) controller!.apply(controls, phase, music, patternWeights) }, dispose: () => controller?.dispose() },
                 }),
                 value => { value.dispose(); assets.release(asset) })
             } catch (error) {

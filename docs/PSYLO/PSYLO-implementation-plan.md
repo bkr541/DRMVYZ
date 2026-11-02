@@ -1,9 +1,9 @@
 # PSYLO — asset analysis and proposed implementation phases
 
-Status: the user authorized Phase 3 after reviewing the Phase 2 handoff on
-November 1, 2026. Camera, manual controls, native geometry, shared audio response
-and musical Pattern switching are implemented. See the current behavior
-specification and Phase 3 report. Phase 4 has not begun.
+Status: the user authorized all remaining phases on November 2, 2026.
+All eight phases are complete. The user approved the final handoff on November 2,
+2026, and PSYLO is registered as a keeper. See the current
+behavior specification and [final report](PSYLO-final-report.md).
 Prepared November 1, 2026.
 
 ## Scope and inspected sources
@@ -361,8 +361,9 @@ only when requested.
 
 ## Current handoff
 
-Phases 1–3 implement the static world, camera/manual design, native motion and
-shared-audio response with canonical musical Pattern switching. See
-[the Phase 3 report](PSYLO-phase3-report.md) for focused validation and review
-captures. Choreography, Director, Auto Performance and atmosphere/finishing remain
-in their later phases; Phase 4 has not begun.
+All implementation phases and acceptance are complete; final user approval is recorded. See
+[the final report](PSYLO-final-report.md) for controls/authority, reference-lighting
+comparisons, 1080p performance limits, reproducible validation and the recorded
+user acceptance. Camera automation was conditional and is not implemented;
+manual travel/orbit/canopy/fixed controls remain authoritative. No commit was
+requested or created. Earlier phase reports are historical checkpoints.

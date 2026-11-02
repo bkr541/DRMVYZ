@@ -9,6 +9,7 @@ import {
   type Cinema2JsonValue,
   type Cinema2RenderQualityLevel,
 } from '../contracts/Cinema2NativePresetManifest'
+import type { Cinema2ModuleFrameReadContext } from '../modules/Cinema2ModuleContracts'
 import type { Cinema2Matrix4 } from '../scene/Cinema2SceneGraph'
 import type { Cinema2LightingEnvironmentFrame, Cinema2ResolvedLightFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
 import { assertCinema2NoGlErrors } from '../runtime/Cinema2GpuValidation'
@@ -575,6 +576,14 @@ function createProgram(gl: WebGL2RenderingContext, label: string, fragSrc: strin
   return result.program
 }
 
+/** Opt-in authored atmosphere motion survives analysis gaps while explicit
+ * transport pause/stop still holds. Other presets retain their host delta. */
+export function cinema2AtmosphereAuthoredDelta(frame: Readonly<Cinema2ModuleFrameReadContext>, previousTimestamp: number | null): number {
+  const t = frame.transport
+  if (previousTimestamp == null || t?.paused || (t?.sourcePresent && !t.playing)) return 0
+  return Math.max(0, Math.min(.25, (frame.timestampMs - previousTimestamp) / 1000))
+}
+
 class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
   private readonly pass: FullscreenPass
   private readonly historyName: string
@@ -591,6 +600,9 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
   private disposed = false
   private impactEnvelope = 0
   private driftClock = 0
+  private readonly idleMotion: boolean
+  private authoredTime = 0
+  private previousTimestamp: number | null = null
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
@@ -598,6 +610,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     effect: Readonly<Cinema2EffectManifest>,
     private readonly textures?: Cinema2AssetTextureService,
   ) {
+    this.idleMotion = effect.config?.idleMotion === true
     const smokeId = effect.parameters?.smokeTexture
     this.smokeAssetId = typeof smokeId === 'string' && smokeId.trim() ? smokeId.trim() : null
     this.label = `Cinema2/Effect/VolumetricAtmosphere/${effect.id}`
@@ -624,7 +637,9 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     // authority decays over ~0.35 s so a single hit swells and settles instead of strobing.
     const reactivity = clamp(numberValue(parameters, 'reactivity', 0), 0, 2)
     const director = context.frame.director
-    const dt = Math.max(0, context.frame.deltaTimeSec)
+    const dt = this.idleMotion ? cinema2AtmosphereAuthoredDelta(context.frame, this.previousTimestamp) : Math.max(0, context.frame.deltaTimeSec)
+    this.previousTimestamp = context.frame.timestampMs
+    this.authoredTime += dt
     const impact = director?.authority.impact.available ? clamp(director.authority.impact.authority, 0, 1) : 0
     this.impactEnvelope = Math.max(impact, this.impactEnvelope * Math.exp(-dt / 0.35))
     const intensity = director?.continuous.intensity.value
@@ -642,7 +657,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
       hasDepth: depthInput != null,
       shadow: context.shadow ?? null,
       smoke: this.smokeAmount(context, clamp(numberValue(parameters, 'smokeStrength', 1), 0, 1)),
-      elapsedTimeSec: context.frame.elapsedTimeSec,
+      elapsedTimeSec: this.idleMotion ? this.authoredTime : context.frame.elapsedTimeSec,
       historyBlend: 0,
     }
 
@@ -712,7 +727,7 @@ class VolumetricAtmosphereEffectInstance implements Cinema2EffectInstance {
     }
     const handle = this.smokeHandle
     if (!handle || handle.status !== 'ready' || !handle.texture || handle.dimension !== '3d') return 0
-    const now = context.frame.elapsedTimeSec
+    const now = this.idleMotion ? this.authoredTime : context.frame.elapsedTimeSec
     this.smokeReadySinceSec ??= now
     return strength * clamp((now - this.smokeReadySinceSec) / SMOKE_FADE_IN_SEC, 0, 1)
   }

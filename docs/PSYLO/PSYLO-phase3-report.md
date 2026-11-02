@@ -1,5 +1,7 @@
 # PSYLO — Phase 3 shared audio and musical switching
 
+Historical checkpoint. Current implementation: [Phase 4 report](PSYLO-phase4-report.md).
+
 November 1, 2026. Phase 3 implementation and focused automated validation are
 complete. Human review of the musical response remains the next gate. **Phase 4
 has not begun.** PSYLO remains a reference preset, revision 2; no commit was

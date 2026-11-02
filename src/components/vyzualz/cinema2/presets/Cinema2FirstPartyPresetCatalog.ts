@@ -47,8 +47,8 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
-  // Phase 3 shared-audio and native performance review; choreography/finishing gates pending.
-  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
+  // Final PSYLO acceptance granted by the user on 2026-11-02.
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
   // Static imported scene for visual review; musical behavior is not authored yet.
   defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST }),
   // Full implementation and automated acceptance; human musical acceptance pending.
