@@ -378,6 +378,7 @@
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card {
   /* 01 · Preset Card (Layout Lab → Template): a row with a small thumbnail, the name and chips, and a
      left accent rail that is the border's grey until the preset is selected. */
+  --rv-preset-elevation: 0 2px 5px rgba(0, 0, 0, 0.3);
   position: relative;
   display: flex;
   align-items: center;
@@ -386,9 +387,10 @@
   height: 70px;
   padding: 8px 34px 8px 16px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(205, 213, 223, 0.21);
   border-radius: 6px;
   background: transparent;
+  box-shadow: var(--rv-preset-elevation);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, background 0.15s;
@@ -413,7 +415,6 @@
 .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--active {
   border-color: #4ac7db;
   background: rgba(74, 199, 219, 0.07);
-  box-shadow: none;
 }
 
 .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--no-thumb {
@@ -596,7 +597,8 @@
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster.rv-preset-spotlight-card--active {
   border-color: var(--rv-preset-tone);
   background: transparent;
-  box-shadow: 0 0 0 1px var(--rv-preset-tone), 0 0 14px color-mix(in srgb, var(--rv-preset-tone) 32%, transparent);
+  box-shadow: 0 0 0 1px var(--rv-preset-tone),
+    0 0 14px color-mix(in srgb, var(--rv-preset-tone) 32%, transparent), var(--rv-preset-elevation);
 }
 
 .rv-preset-spotlight-card--poster .rv-preset-spotlight-thumb {
