@@ -814,8 +814,8 @@ function CanvasGenericOrchestrationStage({
           : now / 1000
         if (selectedRendererKind === 'fragmentCollage') {
           // Final output is owned by the Fractures renderer mounted below.
-        } else if (selectedRendererKind === 'imageMutation') {
-          // MUTAGEN is direct-only. Authored media/effects already own this
+        } else if (selectedRendererKind === 'imageMutation' || selectedRendererKind === 'dataBleed' || selectedRendererKind === 'phaseDrag' || selectedRendererKind === 'cellular' || selectedRendererKind === 'terminal' || selectedRendererKind === 'fluidity' || selectedRendererKind === 'divinity' || selectedRendererKind === 'vhs') {
+          // These image processors are direct-only. Authored media/effects already own this
           // composition; its zero dry mix must not erase or mutate those layers.
           drawAuthoredPresetSource({ context: outputContext, source: compositionCanvas,
             width: outputWidth, height: outputHeight, engineSettings: liveProps.engineSettings,

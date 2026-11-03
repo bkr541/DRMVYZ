@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSharedPerformanceFallbackContext } from '../../../../../features/performanceCore'
 import { MutagenPerformanceController } from './MutagenPerformanceController'
-import { CANVAS_PRESET_BY_ID } from '../../ReactTypes'
+import { CANVAS_PRESET_BY_ID, CANVAS_PRESET_SETTINGS_SCHEMA_VERSION } from '../../ReactTypes'
 import { resolveCanvasPresetProvenance } from '../../canvasPerformance/CanvasPresetProvenance'
 import { mergeReactStoreState, normalizeCanvasPresetSettings, useReactStore } from '../../../../../stores/reactStore'
 import { DEFAULT_CANVAS_MUTAGEN_SETTINGS as defaults, MUTAGEN_PATTERNS, MUTAGEN_SETTINGS_VERSION, normalizeCanvasMutagenSettings } from './MutagenSettings'
@@ -16,7 +16,7 @@ describe('MUTAGEN pattern recipes and resource plans', () => {
     expect(normalizeCanvasMutagenSettings(old)).toEqual({ ...defaults, ...old, version: MUTAGEN_SETTINGS_VERSION })
     const hydrated = mergeReactStoreState({ selectedCanvasPresetId: 'canvas-mutagen', canvasPresetSettings: { schemaVersion: 14, mutagen: old } }, useReactStore.getState())
     expect(hydrated.canvasPresetSettings.mutagen).toEqual(normalizeCanvasMutagenSettings(old))
-    expect(hydrated.canvasPresetSettings.schemaVersion).toBe(14)
+    expect(hydrated.canvasPresetSettings.schemaVersion).toBe(CANVAS_PRESET_SETTINGS_SCHEMA_VERSION)
   })
 
   it('clamps new controls strictly, including integer mode limits and Auto quality', () => {

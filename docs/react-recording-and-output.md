@@ -38,6 +38,44 @@ effect. See [CANVAS](canvas.md#mutagen-production-ownership-and-output) and the
 [production smoke](verification.md#mutagen-production-smoke) for limits, resize/seek,
 live/output parity and MediaRecorder evidence.
 
+CANVAS Data Bleed uses the same direct-source capture ownership. Its visible
+processed snapshot is reused for recording and casting. During a video seek,
+it holds that snapshot until the replacement frame is drawable, then resets
+history. Zero Bleed Amount and full Source Reconstruction use the original
+source contribution. Authored layers and active Shows own their own output.
+See the [Data Bleed specification](canvas-data-bleed.md).
+
+
+CANVAS Phase Drag publishes its processed temporal snapshot through the same
+direct-source capture compositor. Frozen video seeks retain the prior drawable
+snapshot until the replacement frame is ready. Clean reconstruction uses the
+native source. See the [Phase Drag specification](canvas-phase-drag.md).
+
+CANVAS Cellular publishes the current reaction–diffusion frame through the
+same direct capture compositor. Zero Growth Amount or full Source Reconstruction
+captures the native source. Authored layers and active Shows retain their
+output ownership. See the [Cellular specification](canvas-cellular.md).
+
+CANVAS Terminal publishes the direct glyph-rendered frame through the same
+compositor. Zero Glyph Amount or full Source Reconstruction captures the
+native source. See the [Terminal specification](canvas-terminal.md).
+
+CANVAS Fluidity publishes its current refracted frame through the same direct
+compositor. Alpha stays within the source silhouette. Zero Glass Amount or full
+Source Reconstruction captures the native source. See the
+[Fluidity specification](canvas-fluidity.md).
+
+CANVAS Divinity publishes its current light shafts through the same direct
+compositor. Its optional alpha expansion reaches beyond the selected source
+where the shafts are visible. Clean settings capture the native source.
+See the [Divinity specification](canvas-divinity.md).
+
+CANVAS VHS publishes the current tape or CRT frame, including active phosphor
+afterglow, through the direct compositor. Zero Signal Amount or full Source
+Reconstruction captures the native source. See the
+[VHS specification](canvas-vhs.md).
+
+
 Cinema 2.0 publishes the visible `Cinema2Stage` canvas. The removed legacy
 Cinema runtime has no recording or casting target and must never be used as a
 fallback canvas source.

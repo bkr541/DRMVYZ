@@ -52,6 +52,20 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/laser-dmx-webgl-hdr-post-processing.md` | Current HDR and post-processing behavior |
 | `docs/laser-dmx-production-output.md` | LaserDMX output summary and safety boundary |
 
+### CANVAS preset specifications
+
+Each specification tracks its preset’s implementation status and requirements.
+
+| Document | Preset / visual effect | Implementation status |
+| --- | --- | --- |
+| [canvas-data-bleed.md](canvas-data-bleed.md) | Data Bleed / data moshing | Completed |
+| [canvas-phase-drag.md](canvas-phase-drag.md) | Phase Drag / slit scan | Completed |
+| [canvas-cellular.md](canvas-cellular.md) | Cellular / reaction diffusion | Started |
+| [canvas-terminal.md](canvas-terminal.md) | Terminal / ASCII effect | Started |
+| [canvas-fluidity.md](canvas-fluidity.md) | Fluidity / liquid glass | Started |
+| [canvas-divinity.md](canvas-divinity.md) | Divinity / god rays | Started |
+| [canvas-vhs.md](canvas-vhs.md) | VHS / CRT and analog treatment | Started |
+
 ### Cross-engine systems
 
 | Document | Scope |

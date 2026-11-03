@@ -256,6 +256,13 @@ import {
   removeCanvasPoolTextItemState,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
+import { normalizeCanvasVhsSettings } from '../components/vyzualz/react/renderers/vhs/VhsSettings'
+import { normalizeCanvasDivinitySettings } from '../components/vyzualz/react/renderers/divinity/DivinitySettings'
+import { normalizeCanvasFluiditySettings } from '../components/vyzualz/react/renderers/fluidity/FluiditySettings'
+import { normalizeCanvasTerminalSettings } from '../components/vyzualz/react/renderers/terminal/TerminalSettings'
+import { normalizeCanvasCellularSettings } from '../components/vyzualz/react/renderers/cellular/CellularSettings'
+import { normalizeCanvasPhaseDragSettings } from '../components/vyzualz/react/renderers/phaseDrag/PhaseDragSettings'
+import { normalizeCanvasDataBleedSettings } from '../components/vyzualz/react/renderers/dataBleed/DataBleedSettings'
 import { normalizeCanvasMutagenSettings } from '../components/vyzualz/react/renderers/mutagen/MutagenSettings'
 import { normalizeCanvasShiftgridSettings } from '../components/vyzualz/react/renderers/shiftgrid/ShiftgridSettings'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
@@ -4885,6 +4892,13 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureStructuralResponse: clampCanvasNumber(source.fractureStructuralResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStructuralResponse, 0, 1),
     cutbank: normalizeCanvasCutbankSettings(source.cutbank),
     mutagen: normalizeCanvasMutagenSettings(source.mutagen),
+    dataBleed: normalizeCanvasDataBleedSettings(source.dataBleed),
+    phaseDrag: normalizeCanvasPhaseDragSettings(source.phaseDrag),
+    cellular: normalizeCanvasCellularSettings(source.cellular),
+    terminal: normalizeCanvasTerminalSettings(source.terminal),
+    fluidity: normalizeCanvasFluiditySettings(source.fluidity),
+    divinity: normalizeCanvasDivinitySettings(source.divinity),
+    vhs: normalizeCanvasVhsSettings(source.vhs),
     shiftgrid: normalizeCanvasShiftgridSettings(source.shiftgrid),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,

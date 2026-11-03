@@ -222,3 +222,111 @@ recipe/media ID after reload. Pixel reads and `gl.finish` are confined to the
 validation harness. Timings identify the actual Chromium GL driver and do not
 promise hardware-independent frame rates. This does not exercise native Electron
 cast windows, authenticated cloud scope or prolonged hardware endurance.
+
+### Data Bleed browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-data-bleed-browser.mjs
+```
+
+Set `DATA_BLEED_BASE_URL` to override `http://127.0.0.1:5173` and
+`DATA_BLEED_OUTPUT_DIR` to override `/tmp/data-bleed-validation`.
+`DATA_BLEED_SOAK_SECONDS` defaults to 60. Use 1 for a short functional check.
+
+The harness generates image and video fixtures, exercises the CANVAS surface,
+compares live preview and published output, and checks seek/freeze, media
+replacement, renderer fallback, owner handoff, and persistence. It saves PNG
+captures, a WebM recording, and a report with GPU diagnostics. Run focused unit
+tests with `npx vitest run src/components/vyzualz/react/renderers/dataBleed`.
+
+### Phase Drag browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-phase-drag-browser.mjs
+```
+
+Set `PHASE_DRAG_BASE_URL` to override `http://127.0.0.1:5173` and
+`PHASE_DRAG_OUTPUT_DIR` to override `/tmp/phase-drag-validation`. The check
+uses generated frames and a local WebM fixture to verify GPU temporal sampling,
+scan fields, reconstruction, and CANVAS preview and frozen video seek behavior.
+
+
+### Cellular browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-cellular-browser.mjs
+```
+
+Set `CELLULAR_BASE_URL` to override `http://127.0.0.1:5173` and
+`CELLULAR_OUTPUT_DIR` to override `/tmp/cellular-validation`. The check generates
+an alpha PNG, compares two feed/kill regimes, and verifies alpha expansion,
+native reconstruction, processed CANVAS screenshots, pause and reseed.
+
+
+### Terminal browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-terminal-browser.mjs
+```
+
+Set `TERMINAL_BASE_URL` to override `http://127.0.0.1:5173` and
+`TERMINAL_OUTPUT_DIR` to override `/tmp/terminal-validation`. The check generates
+an alpha PNG and a moving WebM fixture. It verifies glyph density, transparency,
+seeded substitutions, fit, native reconstruction, processed CANVAS screenshots,
+context-loss fallback and recovery, and decoded video updates, pause and seek.
+
+
+### Fluidity browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-fluidity-browser.mjs
+```
+
+Set `FLUIDITY_BASE_URL` to override `http://127.0.0.1:5173` and
+`FLUIDITY_OUTPUT_DIR` to override `/tmp/fluidity-validation`. The check compares
+all four surfaces on a transparent PNG and an opaque JPEG. It exercises
+reconstruction, dispersion gating, audio pressure, Auto sizes, CANVAS preview
+and screenshot capture, browser recording, decoded video, resize, context
+recovery and authored and Show ownership. It saves a contact sheet and WebM.
+
+
+### Divinity browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-divinity-browser.mjs
+```
+
+Set `DIVINITY_BASE_URL` to override `http://127.0.0.1:5173` and
+`DIVINITY_OUTPUT_DIR` to override `/tmp/divinity-validation`. The check compares
+luminance and alpha masks, origin direction, alpha expansion and clipping,
+manual tint, musical accents, clean reconstruction, preview and capture. It
+also exercises browser recording, decoded video, resize, context recovery,
+and authored and Show ownership. It saves a contact sheet and WebM.
+
+
+### VHS browser smoke
+
+With Node 22, Playwright Chromium and the Vite dev server running:
+
+```bash
+node scripts/validate-vhs-browser.mjs
+```
+
+Set `VHS_BASE_URL` to override `http://127.0.0.1:5173` and
+`VHS_OUTPUT_DIR` to override `/tmp/vhs-validation`. The check compares Tape,
+CRT and Hybrid on the same color chart and transparent logo. It exercises
+seeded reconstruction, phosphor warmup and reset, control visibility, preview
+and capture, browser recording, decoded video, resize, WebGL2 recovery, and
+authored and Show ownership. It saves a contact sheet and WebM.

@@ -8,6 +8,13 @@ import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
 import type { PresetDiscoveryFields, PresetDiscoveryMetadata } from './presetDiscovery'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './renderers/cutbank/CutbankSettings'
+import { DEFAULT_CANVAS_VHS_SETTINGS, type CanvasVhsSettings } from './renderers/vhs/VhsSettings'
+import { DEFAULT_CANVAS_DIVINITY_SETTINGS, type CanvasDivinitySettings } from './renderers/divinity/DivinitySettings'
+import { DEFAULT_CANVAS_FLUIDITY_SETTINGS, type CanvasFluiditySettings } from './renderers/fluidity/FluiditySettings'
+import { DEFAULT_CANVAS_TERMINAL_SETTINGS, type CanvasTerminalSettings } from './renderers/terminal/TerminalSettings'
+import { DEFAULT_CANVAS_CELLULAR_SETTINGS, type CanvasCellularSettings } from './renderers/cellular/CellularSettings'
+import { DEFAULT_CANVAS_PHASE_DRAG_SETTINGS, type CanvasPhaseDragSettings } from './renderers/phaseDrag/PhaseDragSettings'
+import { DEFAULT_CANVAS_DATA_BLEED_SETTINGS, type CanvasDataBleedSettings } from './renderers/dataBleed/DataBleedSettings'
 import { DEFAULT_CANVAS_MUTAGEN_SETTINGS, type CanvasMutagenSettings } from './renderers/mutagen/MutagenSettings'
 import { DEFAULT_CANVAS_SHIFTGRID_SETTINGS, type CanvasShiftgridSettings } from './renderers/shiftgrid/ShiftgridSettings'
 import type {
@@ -227,8 +234,15 @@ export type CanvasPresetId =
   | 'canvas-cutbank'
   | 'canvas-shiftgrid'
   | 'canvas-mutagen'
+  | 'canvas-data-bleed'
+  | 'canvas-phase-drag'
+  | 'canvas-cellular'
+  | 'canvas-terminal'
+  | 'canvas-fluidity'
+  | 'canvas-divinity'
+  | 'canvas-vhs'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation' | 'dataBleed' | 'phaseDrag' | 'cellular' | 'terminal' | 'fluidity' | 'divinity' | 'vhs'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasLaserImageEffect =
@@ -324,7 +338,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 14 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 21 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -411,6 +425,14 @@ export interface CanvasPresetSettings {
   cutbank: CanvasCutbankSettings
   /** MUTAGEN's authored recipe (schema v14); textures and feedback remain runtime-only. */
   mutagen: CanvasMutagenSettings
+  /** Data Bleed authored recipe; motion/history resources remain renderer-local. */
+  dataBleed: CanvasDataBleedSettings
+  phaseDrag: CanvasPhaseDragSettings
+  cellular: CanvasCellularSettings
+  terminal: CanvasTerminalSettings
+  fluidity: CanvasFluiditySettings
+  divinity: CanvasDivinitySettings
+  vhs: CanvasVhsSettings
   /** SHIFTGRID's dedicated durable preferences (schema v11). Runtime grid/source state is never persisted here. */
   shiftgrid: CanvasShiftgridSettings
   /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
@@ -589,6 +611,13 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureStructuralResponse: 0.35,
   cutbank: DEFAULT_CANVAS_CUTBANK_SETTINGS,
   mutagen: DEFAULT_CANVAS_MUTAGEN_SETTINGS,
+  dataBleed: DEFAULT_CANVAS_DATA_BLEED_SETTINGS,
+  phaseDrag: DEFAULT_CANVAS_PHASE_DRAG_SETTINGS,
+  cellular: DEFAULT_CANVAS_CELLULAR_SETTINGS,
+  terminal: DEFAULT_CANVAS_TERMINAL_SETTINGS,
+  fluidity: DEFAULT_CANVAS_FLUIDITY_SETTINGS,
+  divinity: DEFAULT_CANVAS_DIVINITY_SETTINGS,
+  vhs: DEFAULT_CANVAS_VHS_SETTINGS,
   shiftgrid: DEFAULT_CANVAS_SHIFTGRID_SETTINGS,
   motionTrailAmount: 0,
   particleAmount: 0,
@@ -977,6 +1006,112 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
       mutagen: DEFAULT_CANVAS_MUTAGEN_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-data-bleed',
+    name: 'Data Bleed',
+    description: 'Motion-driven video corruption and block-based image bleed with bounded temporal history, source refresh, and musical displacement.',
+    accent: '#ff6b91',
+    rendererKind: 'dataBleed',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0, sourceVisibility: 0,
+      intensity: 0, bassReactivity: 0, beatPulse: 0,
+      glow: 0, trailAmount: 0, rgbSplit: 0, glitchAmount: 0, stutterRate: 0,
+      motionAmount: 0, turbulence: 0, particleDensity: 0,
+      dataBleed: DEFAULT_CANVAS_DATA_BLEED_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-phase-drag',
+    name: 'Phase Drag',
+    description: 'Slit-scan time displacement across video or animated stills, with a sweep that reveals different moments across the source.',
+    accent: '#74d5ff',
+    rendererKind: 'phaseDrag',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      phaseDrag: DEFAULT_CANVAS_PHASE_DRAG_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-cellular',
+    name: 'Cellular',
+    description: 'Source-seeded reaction–diffusion growth with evolving organic cells, contours, and duotone color.',
+    accent: '#55ffcc',
+    rendererKind: 'cellular',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      cellular: DEFAULT_CANVAS_CELLULAR_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-terminal',
+    name: 'Terminal',
+    description: 'Reconstructs images and video as an animated grid of luminance-mapped characters.',
+    accent: '#55ff99',
+    rendererKind: 'terminal',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      terminal: DEFAULT_CANVAS_TERMINAL_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-fluidity',
+    name: 'Fluidity',
+    description: 'Animated optical glass with refractive ripples, rounded lenses, bowed ribs, and source-traced bevels.',
+    accent: '#9ddaff',
+    rendererKind: 'fluidity',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      fluidity: DEFAULT_CANVAS_FLUIDITY_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-divinity',
+    name: 'Divinity',
+    description: 'Image-driven shafts of light with a movable origin, highlight and silhouette masks, and musical expansion.',
+    accent: '#ffe2a0',
+    rendererKind: 'divinity',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      divinity: DEFAULT_CANVAS_DIVINITY_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-vhs',
+    name: 'VHS',
+    description: 'Tape tracking, chroma bleed, dropouts, and a curved CRT with scanlines and phosphor afterglow.',
+    accent: '#a6e8b4',
+    rendererKind: 'vhs',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      vhs: DEFAULT_CANVAS_VHS_SETTINGS,
     },
     controls: [],
   },

@@ -11276,11 +11276,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 }
 
 /* Match MUTAGEN's published alpha/background, with output opacity applied once. */
-.rv-canvas-engine-surface[data-renderer-kind='imageMutation'] { background: transparent; }
-.rv-canvas-live-output[data-mutagen-active='true']:not(.rv-canvas-live-output--transparent) { background: #02070a; }
+.rv-canvas-engine-surface[data-renderer-kind='imageMutation'],
+.rv-canvas-engine-surface[data-renderer-kind='dataBleed'],
+.rv-canvas-engine-surface[data-renderer-kind='phaseDrag'],
+.rv-canvas-engine-surface[data-renderer-kind='cellular'],
+.rv-canvas-engine-surface[data-renderer-kind='terminal'],
+.rv-canvas-engine-surface[data-renderer-kind='fluidity'],
+.rv-canvas-engine-surface[data-renderer-kind='divinity'],
+.rv-canvas-engine-surface[data-renderer-kind='vhs'] { background: transparent; }
+.rv-canvas-live-output[data-direct-image-active='true']:not(.rv-canvas-live-output--transparent) { background: #02070a; }
 
 /* MUTAGEN replaces the dry image atomically, including partially transparent art. */
-.rv-canvas-mutagen-layer {
+.rv-canvas-mutagen-layer,
+.rv-canvas-data-bleed-layer,
+.rv-canvas-phase-drag-layer,
+.rv-canvas-cellular-layer,
+.rv-canvas-terminal-layer,
+.rv-canvas-fluidity-layer,
+.rv-canvas-divinity-layer,
+.rv-canvas-vhs-layer {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -11291,18 +11305,25 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   visibility: hidden;
 }
 
-.rv-canvas-mutagen-layer[data-ready='true'] {
+.rv-canvas-mutagen-layer[data-ready='true'],
+.rv-canvas-data-bleed-layer[data-ready='true'],
+.rv-canvas-phase-drag-layer[data-ready='true'],
+.rv-canvas-cellular-layer[data-ready='true'],
+.rv-canvas-terminal-layer[data-ready='true'],
+.rv-canvas-fluidity-layer[data-ready='true'],
+.rv-canvas-divinity-layer[data-ready='true'],
+.rv-canvas-vhs-layer[data-ready='true'] {
   visibility: visible;
 }
 
-.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media {
+.rv-canvas-param-output[data-direct-image-active='true'] .rv-canvas-live-media {
   transition: none;
 }
 
-.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-preset-aura,
-.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-grid,
-.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media-shell::before,
-.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media-shell::after {
+.rv-canvas-param-output[data-direct-image-active='true'] .rv-canvas-preset-aura,
+.rv-canvas-param-output[data-direct-image-active='true'] .rv-canvas-live-grid,
+.rv-canvas-param-output[data-direct-image-active='true'] .rv-canvas-live-media-shell::before,
+.rv-canvas-param-output[data-direct-image-active='true'] .rv-canvas-live-media-shell::after {
   opacity: 0;
 }
 

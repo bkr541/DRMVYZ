@@ -6,6 +6,18 @@ CANVAS is the media-performance engine for still images, SVG, and video. It comb
 
 The React View engine ID is `canvas`.
 
+## Preset specifications
+
+Data Bleed, Phase Drag, Cellular, Terminal, Fluidity, Divinity and VHS are selectable presets.
+
+- [Data Bleed — data moshing](canvas-data-bleed.md)
+- [Phase Drag — slit scan](canvas-phase-drag.md)
+- [Cellular — reaction diffusion](canvas-cellular.md)
+- [Terminal — ASCII effect](canvas-terminal.md)
+- [Fluidity — liquid glass](canvas-fluidity.md)
+- [Divinity — god rays](canvas-divinity.md)
+- [VHS — CRT and analog treatment](canvas-vhs.md)
+
 ## Canonical implementation
 
 | Responsibility | Current authority |
@@ -184,6 +196,116 @@ pixel comparisons, texture-atlas memory, and GPU timing to
 another destination. The command fails if a clean WebGL capture exceeds the
 configured tolerance or if an opaque moving-pattern fixture exposes a hole.
 
+## Data Bleed
+
+`canvas-data-bleed` applies block-based GPU displacement to the active CANVAS
+source. Motion mode estimates local movement between consecutive decoded video
+frames. Procedural mode animates a seeded block field. Mixed combines both, and
+still images use the procedural field. The direct preset uses Media Manager,
+the current source decoder, and the existing fit, transform and output controls.
+
+Data Bleed adds a version 1 nested recipe to CANVAS schema 15. Its Design controls
+cover flow mode, bleed amount, block size, motion sensitivity, flow speed,
+retention, source refresh, direction, freeze, reconstruction, audio response,
+BPM sync, Auto Performance, seed and quality. Clear History resets the live
+buffer. Shared Performance supplies bass/sub, kick, snare, transient and
+qualified section cues. Authored media and Flow Mode retain their authority.
+
+The renderer keeps two reduced source-frame targets and two reusable feedback
+targets, with at most one recursive update per frame. Data Bleed publishes the
+same processed frame through the existing CANVAS capture compositor. Authored
+layers and active Shows retain stage ownership. See the [Data Bleed
+specification](canvas-data-bleed.md) for the reset rules, quality budgets and
+verification limits.
+
+
+## Phase Drag
+
+`canvas-phase-drag` is a direct slit-scan preset for video and animated stills.
+Vertical, Horizontal, Radial and Map scans select different moments from a
+timestamped GPU texture ring and interpolate neighboring samples. The existing
+video decoder supplies the frames. Animated Still Movement generates variation
+before history sampling. Zero movement on stills, zero Drag Amount, and full
+Source Reconstruction show the native source.
+
+The version 1 recipe was introduced in CANVAS schema 16. Freeze History holds the
+published frame. Seek, source replacement, transport discontinuity, resize and
+Clear History restart from the current drawable source. Qualified audio accents
+change temporal depth and slit width. Auto Performance can change runtime scan
+direction at a phrase boundary. Authored layers and active Shows retain output
+ownership. See the [Phase Drag specification](canvas-phase-drag.md).
+
+
+## Cellular
+
+`canvas-cellular` is a direct reaction–diffusion preset that seeds an evolving
+Gray–Scott field from the selected image or decoded video. Design controls tune
+growth, reaction rates, source injection, edges and color. CANVAS stores the
+version 1 recipe in settings schema 17. Shared audio features modulate growth
+and edge detail, and Auto Performance can add section-based reconstruction.
+
+Source alpha is confined by default. Zero Growth Amount and full Source
+Reconstruction use the native source. The direct GPU result feeds CANVAS
+capture, while authored layers and active Shows retain ownership of their
+output. See the [Cellular specification](canvas-cellular.md).
+
+## Terminal
+
+`canvas-terminal` rebuilds the selected image or video as a grid of actual
+monospace glyphs. ASCII, Numbers and Symbols families use measured ink
+coverage to map local brightness to character density. Design controls set
+cell size, edge weighting, substitution speed, palette, glow and
+reconstruction. The nested recipe is version 1 in CANVAS settings schema 18.
+
+Shared audio features can accent coverage and substitutions. BPM Sync is
+independent of Audio Reactivity. Auto Performance can temporarily change the
+runtime family at a qualified phrase without changing the authored selection.
+The direct GPU output feeds CANVAS capture, and active Shows and authored
+compositions keep their stage and output ownership. See the
+[Terminal specification](canvas-terminal.md).
+
+## Fluidity
+
+`canvas-fluidity` treats the selected image or video as an optical glass surface.
+Source Contours, Ripples, Lenses and Ribs each supply a distinct animated normal
+field. Design controls refraction, bevel, lighting, frost and optional dispersion.
+The nested recipe is version 1 in CANVAS settings schema 19.
+
+Qualified audio can change curvature and drive traveling pressure rings or rim
+accents. BPM Sync is independent of Audio Reactivity. Auto Performance can
+reconstruct the source during quieter sections while preserving the authored
+surface. The direct GPU output feeds CANVAS capture, and active Shows and
+authored compositions keep their stage and output ownership. See the
+[Fluidity specification](canvas-fluidity.md).
+
+## Divinity
+
+`canvas-divinity` casts screen-space light shafts through the selected image
+or video. A luminance or alpha mask defines where the light originates. The
+Design controls move the light origin and shape its reach, spread, density,
+decay and tint. Light can contribute alpha outside the source silhouette or
+stay clipped to it. The nested recipe is version 1 in CANVAS settings schema 20.
+
+Qualified audio can expand shafts and accent their intensity or spread.
+BPM Sync is independent of Audio Reactivity. Auto Performance reduces the
+effect in quieter sections without changing the authored mask. Divinity is
+a direct renderer. Its GPU output feeds CANVAS capture, while active Shows
+and authored compositions keep their own output. See the
+[Divinity specification](canvas-divinity.md).
+
+## VHS
+
+`canvas-vhs` treats the selected image or video as an analog signal. Tape
+adds tracking errors, chroma lag and seeded dropouts. CRT adds a curved
+display, scanlines, a phosphor mask and optional afterglow. Hybrid combines
+both in signal order. The nested recipe is version 1 in CANVAS settings schema 21.
+
+Qualified audio can intensify tracking, dropouts and phosphor brightness.
+BPM Sync is independent of Audio Reactivity. Auto Performance softens the
+effect during quieter sections while preserving the authored Treatment.
+Preview and capture use the same direct frame. Authored compositions and
+active Shows keep their own output. See the [VHS specification](canvas-vhs.md).
+
 ## MUTAGEN
 
 `canvas-mutagen` is one visible CANVAS preset with renderer kind `imageMutation`.
@@ -194,7 +316,7 @@ or resetting the recipe preserves the selected image and its library ID.
 There is no new uploader, media collection, engine, or analysis pipeline.
 
 `MutagenSettings.ts` owns version 3 of the nested `mutagen` recipe in CANVAS
-settings schema 14. Strict normalization supplies missing defaults, validates
+settings schema 21. Strict normalization supplies missing defaults, validates
 the eight pattern IDs and Auto/Low/Balanced/High quality enums, clamps Mutation, Feedback Trails, and
 Source Reconstruction to 0–1 and Flow Speed to 0–4, and strips runtime fields.
 The canonical Design controls reuse the shared control rows and Reset action;
@@ -345,9 +467,8 @@ canonical `getAudioTime` into the existing MUTAGEN layer.
 The v3 nested recipe adds Pattern Change, Trigger, Auto Performance, BPM Sync,
 Audio Reactivity, and Deterministic Seed. Migrating v1/v2 settings preserves their
 authored values and supplies defaults: Pattern Change off, Auto Performance off,
-Trigger Every 4 Bars, BPM Sync off, Audio Reactivity 0.65, Seed 91817. CANVAS's
-parent schema remains 14 because its existing nested normalizer/migration owns
-this extension. The explicit preset provenance list already compares `mutagen`
+Trigger Every 4 Bars, BPM Sync off, Audio Reactivity 0.65, Seed 91817. The nested migration does not require a separate parent migration. CANVAS schema
+15 adds the independent Data Bleed recipe. The explicit preset provenance list already compares `mutagen`
 as a whole, so these preferences persist and participate in Exact/Modified status;
 per-frame recipes, envelopes, and pattern cursors never do.
 

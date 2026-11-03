@@ -27,6 +27,13 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'cutbank',
   'shiftgrid',
   'mutagen',
+  'dataBleed',
+  'phaseDrag',
+  'cellular',
+  'terminal',
+  'fluidity',
+  'divinity',
+  'vhs',
 ]
 
 function canonicalValues(value: Partial<CanvasPresetSettings>): Record<string, unknown> {
