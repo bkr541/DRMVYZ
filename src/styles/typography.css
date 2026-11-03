@@ -11,6 +11,13 @@
 /* Shared UI typography. Change a role here, never in a workspace override.
    Authored lyric, visualizer, and media fonts are separate from UI controls. */
 
+/* Preset names share their face and stroke weight in cards and engine selectors. */
+:root {
+  --type-preset-name-family: 'Manrope', 'Avenir Next', Avenir, sans-serif;
+  --type-preset-name-weight: 400;
+  --type-preset-name-tracking: .12em;
+}
+
 /* Engine identity display roles shared by the selected card and menu cards.
    Container units fit the available rail width. */
 :root body .rv-engine-card .rv-engine-dropdown-eyebrow {
@@ -26,8 +33,8 @@
 }
 :root body .rv-engine-card .rv-engine-dropdown-preset,
 :root body .rv-engine-card .rv-engine-dropdown-preset-echo {
-  font: 500 16px/1.2 var(--font-ui, 'Space Grotesk', sans-serif);
-  letter-spacing: .18em;
+  font: var(--type-preset-name-weight) 16px/1.2 var(--type-preset-name-family);
+  letter-spacing: var(--type-preset-name-tracking);
   text-transform: uppercase;
 }
 
@@ -292,3 +299,16 @@
 :root body [class].dv-confirm-dialog > p,
 :root body [class].drm-info-popover__description,
 :root body [class].drm-info-popover__body > p { font: var(--type-dialog-copy); letter-spacing: normal; }
+
+/* Reusable preset thumbnail titles keep one role across engines and workspaces. */
+:root body .rv-preset-spotlight-name {
+  font: var(--type-preset-name-weight) 12px/1.22 var(--type-preset-name-family);
+  letter-spacing: var(--type-preset-name-tracking);
+  text-transform: uppercase;
+  color: #fff;
+}
+:root body .rv-preset-poster-chip {
+  font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}

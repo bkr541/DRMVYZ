@@ -5,8 +5,8 @@ import {
   renderReactPresetThumbnail,
 } from './renderers/ReactPresetThumbnailRenderer'
 
-const THUMB_W = 112
-const THUMB_H = 64
+const THUMB_W = 480
+const THUMB_H = 270
 const THUMBNAIL_PRELOAD_MARGIN_PX = 240
 
 export function ReactPresetThumbnail({

@@ -200,6 +200,7 @@ function StandardReactPresetCard({
         : preset.description}
       layout={layout}
       thumbnail={layout === 'row' ? <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} /> : undefined}
+      backdrop={preset.engine !== 'canvas' ? <ReactPresetThumbnail preset={preset} generationKey={thumbnailGenerationKey} /> : undefined}
       chips={chips}
       palette={Object.values(preset.palette).slice(0, 5).map(color => ({ color }))}
       isActive={isActive}

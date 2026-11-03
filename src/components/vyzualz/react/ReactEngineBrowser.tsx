@@ -1,3 +1,4 @@
+import { ENGINE_BLUEPRINT_STROKE_WIDTH } from './blueprintDrawing'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -10,7 +11,7 @@ import { ReactEngineBlueprint } from './ReactEngineBlueprint'
 function Cinema2EngineBlueprint() {
   return (
     <svg viewBox="0 0 140 150" fill="none" focusable="false">
-      <g stroke="currentColor" strokeWidth=".8">
+      <g stroke="currentColor" strokeWidth={ENGINE_BLUEPRINT_STROKE_WIDTH}>
         <path d="M70 2 138 40 138 116 70 154 2 116 2 40Z" fill="currentColor" fillOpacity=".04" />
         <path d="M2 40 70 78 138 40M70 78V154M70 2V40M2 116 70 78 138 116" />
         <path d="M2 47 70 85 138 47M131 44V112L70 147M9 44V112L70 147" opacity=".5" />

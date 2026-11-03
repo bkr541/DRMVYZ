@@ -1,10 +1,11 @@
+import { ENGINE_BLUEPRINT_STROKE_WIDTH } from './blueprintDrawing'
 import type { ReactEngineId } from './ReactTypes'
 
 /** Engine-specific technical illustrations, drawn in the Cinema blueprint's scale. */
 export function ReactEngineBlueprint({ engineId }: { engineId: ReactEngineId }) {
   return (
     <svg viewBox="0 0 140 150" fill="none" focusable="false">
-      <g stroke="currentColor" strokeWidth=".8">
+      <g stroke="currentColor" strokeWidth={ENGINE_BLUEPRINT_STROKE_WIDTH}>
         {engineId === 'oscilloscope' && <>
           {/* A phase portrait suspended in an oscilloscope's calibration cage. */}
           <path d="M70 8 138 46 138 112 70 150 2 112 2 46Z" fill="currentColor" fillOpacity=".025" />

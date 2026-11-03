@@ -64,3 +64,7 @@ its actual rendered readout dividers, sizing and typography. Header centering an
 clearance passed at 1440/1280/1024px; screenshot reviewed. All 18 state/telemetry
 stability cases, two CPU updates and five focused component/save-retry tests passed.
 Focused lint and whitespace checks passed. Changes remain uncommitted.
+
+The shared load/save indicator is now a 4px dot without the outer halo. Quality
+values use title case (High, Medium, Low), matching Saved's existing shared
+11px/700 primary readout typography while retaining their neutral text color.

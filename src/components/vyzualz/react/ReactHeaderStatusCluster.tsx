@@ -24,7 +24,7 @@ export function ReactHeaderStatusCluster({ fps = 0, frameTimeMs, qualityTier, pa
       <em data-performance-metric="frame-time" aria-label={`Frame time ${metrics.frameTime.value}`}>{metrics.frameTime.value.replace(' ms', 'ms')}</em>
     </HeaderReadout>
     <HeaderReadout label="QUALITY / CPU" title={`${metrics.quality.title}; ${cpuTitle}`}>
-      <strong className="vz-header-readout-primary" data-performance-metric="quality" aria-label={`Quality ${metrics.quality.value}`}>{metrics.quality.value.toUpperCase()}</strong>
+      <strong className="vz-header-readout-primary" data-performance-metric="quality" aria-label={`Quality ${metrics.quality.value}`}>{metrics.quality.value[0].toUpperCase() + metrics.quality.value.slice(1)}</strong>
       <em data-header-cpu aria-label={cpuTitle}>{cpuText}</em>
     </HeaderReadout>
   </div>

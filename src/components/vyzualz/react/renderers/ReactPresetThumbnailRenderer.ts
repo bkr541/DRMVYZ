@@ -43,7 +43,7 @@ const PREVIEW_START_TIME_SEC = 31.5
 const PREVIEW_SECONDS = 2.4
 const MAX_CONCURRENT_WEBGL_THUMBNAILS = 1
 const MAX_THUMBNAIL_CACHE_ENTRIES = 256
-const THUMBNAIL_FINGERPRINT_VERSION = 8
+const THUMBNAIL_FINGERPRINT_VERSION = 9
 const THUMBNAIL_QUALITY_MODE = 'low-cost-v1'
 const MIN_THUMBNAIL_DIMENSION = 16
 const MAX_THUMBNAIL_DIMENSION = 1024
@@ -807,6 +807,23 @@ function buildFrame(
   const high = clamp01(0.18 + energyBias * 0.38 + Math.sin(timeSec * 6.4 + 1.2) * 0.11)
   const volume = clamp01((bass * 0.44) + (mid * 0.33) + (high * 0.23))
 
+  // Preview-only signals let the real scope/spectrum renderers show their authored
+  // geometry. They never enter the shared audio bus or the live transport.
+  const sampleCount = 512
+  const left = new Float32Array(sampleCount)
+  const right = new Float32Array(sampleCount)
+  const timeDomainData = new Uint8Array(sampleCount)
+  const freqData = new Uint8Array(256)
+  for (let sample = 0; sample < sampleCount; sample++) {
+    const phase = sample / sampleCount * Math.PI * 2
+    left[sample] = Math.sin(phase * 3) * .72 + Math.sin(phase * 7) * .12
+    right[sample] = Math.sin(phase * 2 + .65) * .68
+    timeDomainData[sample] = Math.round(128 + left[sample] * 120)
+  }
+  for (let bin = 0; bin < freqData.length; bin++) {
+    freqData[bin] = Math.round(220 * Math.exp(-bin / 90) * (.55 + .45 * Math.sin(bin * .13 + timeSec) ** 2))
+  }
+
   return {
     W: width,
     H: height,
@@ -823,8 +840,12 @@ function buildFrame(
     isPlaying: true,
     isPaused: false,
     audio: { bass, mid, high, volume },
-    freqData: null,
-    timeDomainData: null,
+    freqData,
+    timeDomainData,
+    scopeStereo: {
+      left, right, channelCount: 2, sampleRate: 48000, startFrame: index * sampleCount,
+      sequenceNumber: index + 1, audioTimeSeconds: timeSec,
+    },
     musicIntelligence: null,
     resolvedSection: sectionType ? {
       type: sectionType,

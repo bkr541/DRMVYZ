@@ -94,6 +94,9 @@ describe('canonical React preset card architecture', () => {
     expect(card.classList.contains('rv-preset-spotlight-card--active')).toBe(true)
     expect(card.querySelector('.rv-preset-spotlight-thumb')).not.toBeNull()
     expect(card.querySelector('.rv-preset-spotlight-caption')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-blueprint-scene img')?.getAttribute('src')).toContain('preset-artwork/shared-card.webp')
+    expect(card.getAttribute('aria-label')).toBe('Load Shared Card')
+    expect(card.querySelector('.rv-preset-spotlight-caption .rv-preset-poster-chip')).toBeNull()
     expect(card.querySelector('.rv-preset-desc')).toBeNull()
     expect(card.querySelector('.rv-preset-palette')).toBeNull()
     expect(container.querySelector('.rv-preset-more-btn')).toBeNull()
@@ -143,9 +146,9 @@ describe('canonical React preset card architecture', () => {
     const card = container.querySelector('[data-preset-card-id="minimal-crossfire"][data-preset-card]')!
     expect(card.classList.contains('rv-preset-card')).toBe(true)
     expect(card.className).not.toContain('rv-laser-dmx-preset-card')
-    // The standard card is the Poster Tile: a tinted plate for now (generated backgrounds come later), not a rendered thumbnail.
+    // The shared poster uses a preset-specific renderer frame behind its centered title.
     expect(card.classList.contains('rv-preset-spotlight-card--poster')).toBe(true)
-    expect(card.querySelector('[data-thumbnail-kind]')).toBeNull()
+    expect(card.querySelector('[data-thumbnail-kind="blueprint"]')).not.toBeNull()
 
     await click(card)
     expect(useReactStore.getState().activeLaserDmxBeamMatrixPresetId).toBe('minimal-crossfire')
@@ -238,7 +241,7 @@ describe('canonical React preset card architecture', () => {
     expect(card.classList.contains('rv-preset-card')).toBe(true)
     expect(card.className).not.toContain('rv-show-director-template-preset-card')
     expect(card.classList.contains('rv-preset-spotlight-card--poster')).toBe(true)
-    expect(card.querySelector('[data-thumbnail-kind]')).toBeNull()
+    expect(card.querySelector('[data-thumbnail-kind="blueprint"]')).not.toBeNull()
 
     await click(card)
     expect(useReactStore.getState().laserDmxShowDirector.sourceTemplateId).toBe('small-club-rig')
@@ -301,6 +304,8 @@ describe('canonical React preset card architecture', () => {
     expect(card.classList.contains('rv-shader-scene-card')).toBe(false)
     expect(card.querySelector('.rv-preset-spotlight-thumb')).not.toBeNull()
     expect(card.querySelector('.rv-preset-spotlight-caption')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-blueprint-scene [data-thumbnail-kind="standard"]')).not.toBeNull()
+    expect(card.querySelector('.rv-preset-spotlight-caption .rv-preset-poster-chip')).toBeNull()
     expect(card.querySelector('.rv-preset-desc')).toBeNull()
     expect(card.querySelector('.rv-preset-palette')).toBeNull()
     expect(container.querySelector('.rv-preset-more-btn')).toBeNull()

@@ -21,7 +21,7 @@
 .vz-header-readout[data-tone='saving'] .vz-header-readout-values { color: #66c2c6; }
 .vz-header-readout[data-tone='unsaved'] .vz-header-readout-values { color: #e4b66a; }
 .vz-header-readout[data-tone='error'] .vz-header-readout-values { color: #f98b7d; }
-.vz-header-readout-led { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #66c2c6; flex: none; box-shadow: 0 0 0 3px #66c2c610; }
+.vz-header-readout-led { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: #66c2c6; flex: none; }
 .vz-header-readout[data-tone='error'] .vz-header-readout-led { background: #f98b7d; }
 .vz-header-readout[data-tone='unsaved'] .vz-header-readout-led { background: #e4b66a; }
 .vz-header-readout-values button { flex: 0 0 48px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; pointer-events: auto; text-decoration: underline; }

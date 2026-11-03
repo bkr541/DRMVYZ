@@ -194,6 +194,11 @@ describe('React preset thumbnail renderer scheduling', () => {
     expect(budget).toBeLessThan(12)
     expect(mocks.renderReactEngine).toHaveBeenCalledTimes(budget)
     expect(mocks.renderReactEngine.mock.calls[0][1]).toMatchObject({ timingDiscontinuity: true, isPlaying: true })
+    const previewFrame = mocks.renderReactEngine.mock.calls[0][1]
+    expect(previewFrame.scopeStereo.left.some((sample: number) => Math.abs(sample) > .5)).toBe(true)
+    expect(previewFrame.scopeStereo.left).not.toEqual(previewFrame.scopeStereo.right)
+    expect(previewFrame.timeDomainData.some((sample: number) => sample !== 128)).toBe(true)
+
     expect(mocks.renderReactEngine.mock.calls[0][2]).toMatchObject({
       cinematicConfig: expect.objectContaining({ qualityTier: 'low' }),
     })

@@ -45,7 +45,7 @@ describe('Option E React header readouts', () => {
     expect([...container.querySelectorAll('.vz-header-readout-label')].map(el => el.textContent)).toEqual(['LOAD / SAVE', 'RENDER / FPS', 'QUALITY / CPU'])
     expect(container.querySelector('[data-performance-metric="fps"]')?.textContent).toBe('67')
     expect(container.querySelector('[data-performance-metric="frame-time"]')?.textContent).toBe('15.0ms')
-    expect(container.querySelector('[data-performance-metric="quality"]')?.textContent).toBe('HIGH')
+    expect(container.querySelector('[data-performance-metric="quality"]')?.textContent).toBe('High')
     expect(container.querySelector('[data-header-cpu]')?.textContent).toBe('12%')
     expect(container.querySelector('.vz-header-notifications')).toBeNull()
     expect(container.querySelectorAll('.vz-header-readout')).toHaveLength(3)

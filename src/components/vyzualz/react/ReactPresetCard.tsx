@@ -1,5 +1,7 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useId, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { PresetBlueprintImage } from './PresetBlueprintImage'
+import { hasPresetBlueprintArtwork, PresetBlueprintArtwork } from './PresetBlueprintArtwork'
 
 import { Badge } from './controls/Badge'
 
@@ -28,8 +30,8 @@ export interface ReactPresetCardSecondaryAction {
 }
 
 /**
- * How the card is laid out. `poster` is the standard: a responsive tile 24px shorter than 3:2 for a two-column grid, the picture
- * filling the card and the name centred at its foot. `row` is the older single-column row with a small thumbnail used by compatibility browsers.
+ * How the card is laid out. `poster` is the standard: a responsive tile 30px shorter than 3:2 for a two-column grid, the picture
+ * filling the card and the name centred horizontally and vertically. `row` is the older single-column row with a small thumbnail used by compatibility browsers.
  */
 export type ReactPresetCardLayout = 'poster' | 'row'
 
@@ -39,7 +41,7 @@ export interface ReactPresetCardProps {
   description: string
   /** Row layout only: the small thumbnail beside the name. */
   thumbnail?: ReactNode
-  /** Poster layout only: what fills the card behind the name. Without it the card shows a plate tinted by the preset's first palette colour. */
+  /** Poster layout only: renderer content behind the name. Defaults to the preset's composed blueprint or generated representative frame. */
   backdrop?: ReactNode
   layout?: ReactPresetCardLayout
   /** Extra `data-*` attributes for the card button (tests and automation look presets up by them). */
@@ -119,7 +121,9 @@ export function ReactPresetCard({
   shellClassName = '',
   disabled = false,
 }: ReactPresetCardProps) {
+  const artworkFilterId = `preset-blueprint-${useId().replaceAll(':', '')}`
   const poster = layout === 'poster'
+  const authoredArtworkId = backdrop == null && hasPresetBlueprintArtwork(id) ? id : null
   const hasThumbnail = !poster && Boolean(thumbnail)
   const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
   const visibleChips = chips.slice(0, 2)
@@ -150,7 +154,23 @@ export function ReactPresetCard({
       >
         {poster ? (
           <>
-            <span className="rv-preset-spotlight-thumb" aria-hidden="true">{backdrop}</span>
+            <span className="rv-preset-spotlight-thumb" aria-hidden="true">
+              {!authoredArtworkId && <svg className="rv-preset-blueprint-defs" width="0" height="0" focusable="false">
+                <defs>
+                  <filter id={artworkFilterId} colorInterpolationFilters="sRGB" x="0" y="0" width="100%" height="100%">
+                    <feColorMatrix type="saturate" values="0" />
+                    <feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" divisor="1" bias="0" preserveAlpha="true" />
+                    <feColorMatrix values="0 0 0 0 .29  0 0 0 0 .78  0 0 0 0 .86  0 2.5 0 0 0" />
+                  </filter>
+                </defs>
+              </svg>}
+              <span
+                className={`rv-preset-blueprint-scene${authoredArtworkId ? ' rv-preset-blueprint-scene--authored' : ''}`}
+                style={authoredArtworkId ? undefined : { filter: `url(#${artworkFilterId})` }}
+              >
+                {backdrop ?? (authoredArtworkId ? <PresetBlueprintArtwork presetId={authoredArtworkId} /> : <PresetBlueprintImage presetId={id} />)}
+              </span>
+            </span>
             {(switchChip || isModified) && (
               <span className="rv-preset-poster-badges">
                 {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}
@@ -159,8 +179,8 @@ export function ReactPresetCard({
             )}
             <span className="rv-preset-spotlight-caption">
               <span className="rv-preset-spotlight-name">{title}</span>
-              {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
             </span>
+            {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
           </>
         ) : (
           <>

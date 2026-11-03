@@ -110,7 +110,7 @@ describe('ReactPresetThumbnail viewport lifecycle', () => {
     })
 
     expect(thumbnailMocks.render).toHaveBeenCalledOnce()
-    expect(thumbnailMocks.render.mock.calls[0][1]).toMatchObject({ width: 112, height: 64 })
+    expect(thumbnailMocks.render.mock.calls[0][1]).toMatchObject({ width: 480, height: 270 })
     expect(thumbnailMocks.render.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
     expect(container.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,visible')
     expect(container.querySelector('.rv-preset-thumb')?.getAttribute('data-thumbnail-state')).toBe('ready')
