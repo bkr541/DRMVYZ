@@ -1,6 +1,5 @@
 import { ENGINE_BLUEPRINT_STROKE_WIDTH } from './blueprintDrawing'
-import { AppIcon } from '../../shared/icons/AppIcon'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useReactStore } from '../../../stores/reactStore'
 import type { ReactEngineId } from './ReactTypes'
@@ -58,98 +57,111 @@ export function ReactEngineBrowser({ presetName = null }: {
     selectReactEngine: state.selectReactEngine,
   })))
   const [open, setOpen] = useState(false)
-  const [menuMaxHeight, setMenuMaxHeight] = useState(0)
-  const rootRef = useRef<HTMLDivElement | null>(null)
+  const [closingEngine, setClosingEngine] = useState(activeReactEngineId)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
   const activeEngine = REACT_ENGINE_CATALOG[activeReactEngineId]
+  const close = useCallback(() => {
+    // Keep the displayed list stable during the exit, even after selection changes.
+    setClosingEngine(activeReactEngineId)
+    setOpen(false)
+  }, [activeReactEngineId])
 
   useLayoutEffect(() => {
-    if (!open) return
-    const root = rootRef.current
-    const rail = root?.closest('.vz-inspector-inner')
-    if (!root || !rail) return
-
-    const updateMenuHeight = () => {
-      const bottom = Math.min(rail.getBoundingClientRect().bottom, window.innerHeight)
-      // Leave 8px between the trigger and menu, and 8px at the window's bottom.
-      setMenuMaxHeight(Math.max(0, bottom - root.getBoundingClientRect().bottom - 16))
+    const trigger = triggerRef.current
+    const popover = popoverRef.current
+    if (!trigger || !popover) return
+    if (!open) {
+      popover.hidePopover()
+      return
     }
-    updateMenuHeight()
-    const observer = new ResizeObserver(updateMenuHeight)
-    observer.observe(rail)
-    observer.observe(root)
-    window.addEventListener('resize', updateMenuHeight)
+    const rail = trigger.closest('.vz-inspector-inner')
+
+    const updatePosition = () => {
+      const { left, top, right, bottom, width } = trigger.getBoundingClientRect()
+      const railBottom = Math.min(rail?.getBoundingClientRect().bottom ?? window.innerHeight, window.innerHeight)
+      popover.style.setProperty('--rv-engine-trigger-left', `${left}px`)
+      popover.style.setProperty('--rv-engine-trigger-top', `${top}px`)
+      popover.style.setProperty('--rv-engine-trigger-right', `${right}px`)
+      popover.style.setProperty('--rv-engine-trigger-bottom', `${bottom}px`)
+      popover.style.setProperty('--rv-engine-trigger-width', `${width}px`)
+      popover.style.setProperty('--rv-engine-menu-height', `${Math.max(0, railBottom - bottom - 16)}px`)
+    }
+    updatePosition()
+    popover.showPopover()
+    const observer = new ResizeObserver(updatePosition)
+    if (rail) observer.observe(rail)
+    observer.observe(trigger)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
     return () => {
       observer.disconnect()
-      window.removeEventListener('resize', updateMenuHeight)
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
     }
   }, [open])
 
   useEffect(() => {
     if (!open) return
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const root = rootRef.current
-      if (!root || root.contains(event.target as Node)) return
-      setOpen(false)
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      close()
+      triggerRef.current?.focus({ preventScroll: true })
     }
 
-    window.addEventListener('pointerdown', handlePointerDown)
     window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown)
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [open])
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [close, open])
 
-  const handleSelect = (engineId: ReactEngineId) => {
-    if (engineId !== activeReactEngineId) {
-      selectReactEngine(engineId)
-    }
-    setOpen(false)
-  }
+  const listedEngines = REACT_ENGINE_IDS.filter(engineId => engineId !== (open ? activeReactEngineId : closingEngine))
+  // The installed React DOM types omit these native attributes.
+  const popoverAttributes = { popover: 'manual', inert: !open }
 
   return (
-    <div className="rv-engine-dropdown" data-engine={activeReactEngineId} ref={rootRef}>
+    <div className="rv-engine-dropdown" data-engine={activeReactEngineId} onBlur={event => {
+      if (open && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) close()
+    }}>
       <button
         type="button"
         className="rv-engine-dropdown-trigger rv-engine-card"
+        ref={triggerRef}
         data-engine={activeReactEngineId}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={menuId}
         aria-label={`Selected React engine: ${activeEngine.label}${presetName ? `, preset ${presetName}` : ''}`}
         title="Choose React engine"
-        onClick={() => setOpen(value => !value)}
+        onClick={() => open ? close() : setOpen(true)}
       >
         <EngineCardContents engineId={activeReactEngineId} presetName={presetName} />
       </button>
 
-      {open && (
-        <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines" style={{ maxHeight: menuMaxHeight }}>
-          {REACT_ENGINE_IDS.map(engineId => {
-            const engine = REACT_ENGINE_CATALOG[engineId]
-            const active = engineId === activeReactEngineId
-            return (
-              <button
-                key={engineId}
-                type="button"
-                role="option"
-                aria-selected={active}
-                className={`rv-engine-dropdown-option rv-engine-card${active ? ' is-active' : ''}`}
-                data-engine={engineId}
-                title={engine.description}
-                onClick={() => handleSelect(engineId)}
-              >
-                <EngineCardContents engineId={engineId} presetName={active ? presetName : null} />
-                {active && <span className="rv-engine-dropdown-option-check" aria-hidden="true"><AppIcon kind="check" size={14} /></span>}
-              </button>
-            )
-          })}
+      <div className="rv-engine-dropdown-popover" {...popoverAttributes} ref={popoverRef}>
+        <div className="rv-engine-dropdown-scrim" aria-hidden="true" onClick={close} />
+        <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines" id={menuId}>
+          {listedEngines.map(engineId => (
+            <button
+              key={engineId}
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="rv-engine-dropdown-option rv-engine-card"
+              data-engine={engineId}
+              title={REACT_ENGINE_CATALOG[engineId].description}
+              onClick={() => {
+                close()
+                selectReactEngine(engineId)
+                triggerRef.current?.focus({ preventScroll: true })
+              }}
+            >
+              <EngineCardContents engineId={engineId} />
+            </button>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   )
 }

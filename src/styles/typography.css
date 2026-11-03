@@ -302,7 +302,7 @@
 
 /* Reusable preset thumbnail titles keep one role across engines and workspaces. */
 :root body .rv-preset-spotlight-name {
-  font: var(--type-preset-name-weight) 12px/1.22 var(--type-preset-name-family);
+  font: 500 12px/1.22 var(--type-preset-name-family);
   letter-spacing: var(--type-preset-name-tracking);
   text-transform: uppercase;
   color: #fff;

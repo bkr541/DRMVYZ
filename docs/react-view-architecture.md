@@ -97,6 +97,11 @@ It does not own engine-specific control stacks or a second transport.
 
 The left `WorkspaceRail` owns contextual source and setup surfaces.
 
+The Engine dropdown shows the current engine in its trigger and lists the
+other engines in a popover. The popover dims the viewport around the trigger
+and options. Selecting an engine, clicking the backdrop, or pressing Escape
+dismisses it. The opening and closing motion respects reduced-motion preferences.
+
 `resolveReactWorkspaceComposition()` decides the available tabs, so engine code must not mount left-rail tabs independently.
 
 The left rail uses compact description density. Control labels, values, actions,

@@ -387,7 +387,7 @@
   height: 70px;
   padding: 8px 34px 8px 16px;
   overflow: hidden;
-  border: 1px solid rgba(205, 213, 223, 0.21);
+  border: 1px solid rgba(212, 215, 219, 0.42);
   border-radius: 6px;
   background: transparent;
   box-shadow: var(--rv-preset-elevation);
@@ -477,7 +477,7 @@
 
 .rv-preset-spotlight-name {
   overflow: hidden;
-  color: rgba(232, 244, 248, 0.9);
+  color: #f4f9fc;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -648,7 +648,7 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  color: rgba(238, 244, 246, 0.97);
+  color: #fff;
   text-shadow: 0 1px 5px #020508, 0 0 12px #020508;
   overflow-wrap: anywhere;
   text-overflow: clip;
@@ -662,7 +662,7 @@
   text-align: center;
   pointer-events: none;
   max-width: 100%;
-  color: color-mix(in srgb, var(--rv-preset-tone) 82%, white);
+  color: color-mix(in srgb, var(--rv-preset-tone) 65%, white);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -5073,12 +5073,7 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   margin: var(--rv-rail-inline-padding) 0 0;
 }
 
-/* Styled to match Layout Lab / Template's "Radial Spotlight" engine
-   dropdown treatment — this is the single most load-bearing control in the
-   app, so it's full-width, keeps the engine name large, and carries real
-   motion: a breathing radial glow behind the icon and a spring-staggered
-   menu entrance. The description is clamped to two lines so the card holds
-   a fixed size regardless of which engine is selected. */
+/* Engine cards share the Layout Lab spotlight treatment. */
 
 @keyframes rv-engine-dropdown-breathe {
   0%, 100% { transform: scale(1); opacity: 0.55; }
@@ -5318,12 +5313,46 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
+.rv-engine-dropdown-popover {
+  --rv-engine-menu-duration: 180ms;
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  pointer-events: none;
+  transition: display var(--rv-engine-menu-duration) allow-discrete,
+    overlay var(--rv-engine-menu-duration) allow-discrete;
+}
+
+.rv-engine-dropdown-scrim {
+  position: absolute;
+  inset: 0;
+  /* Cut out the real trigger so its artwork and hit area stay in place. */
+  clip-path: polygon(evenodd,
+    0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+    var(--rv-engine-trigger-left) var(--rv-engine-trigger-top),
+    var(--rv-engine-trigger-right) var(--rv-engine-trigger-top),
+    var(--rv-engine-trigger-right) var(--rv-engine-trigger-bottom),
+    var(--rv-engine-trigger-left) var(--rv-engine-trigger-bottom),
+    var(--rv-engine-trigger-left) var(--rv-engine-trigger-top));
+  background: linear-gradient(145deg, rgba(2, 6, 12, 0.22), rgba(2, 6, 12, 0.46));
+  opacity: 0;
+  transition: opacity var(--rv-engine-menu-duration) ease;
+}
+
 .rv-engine-dropdown-menu {
   position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  right: 0;
-  z-index: 20;
+  top: calc(var(--rv-engine-trigger-bottom) + 8px);
+  left: var(--rv-engine-trigger-left);
+  width: var(--rv-engine-trigger-width);
+  max-height: var(--rv-engine-menu-height);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -5334,13 +5363,34 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--color-primary) var(--color-popover);
+  opacity: 0;
+  transform: translateY(-12px);
+  transition: opacity var(--rv-engine-menu-duration) ease, transform var(--rv-engine-menu-duration) ease;
 }
 
-.rv-engine-dropdown-option-check {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  color: #67f7ff;
+.rv-engine-dropdown-popover:popover-open > :is(.rv-engine-dropdown-scrim, .rv-engine-dropdown-menu) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rv-engine-dropdown-popover:popover-open > .rv-engine-dropdown-menu {
+  transform: translateY(0);
+}
+
+@starting-style {
+  .rv-engine-dropdown-popover:popover-open > :is(.rv-engine-dropdown-scrim, .rv-engine-dropdown-menu) {
+    opacity: 0;
+  }
+
+  .rv-engine-dropdown-popover:popover-open > .rv-engine-dropdown-menu {
+    transform: translateY(-12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-engine-dropdown-popover {
+    --rv-engine-menu-duration: 0ms;
+  }
 }
 
 /* Extend the workspace surface to the rail edges and preserve its content inset. */
