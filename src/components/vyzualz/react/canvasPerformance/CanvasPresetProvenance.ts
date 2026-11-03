@@ -26,6 +26,7 @@ const CANONICAL_CANVAS_PRESET_FIELDS: ReadonlyArray<keyof CanvasPresetSettings> 
   'fractureBassMotion', 'fractureTransientGlitch', 'fractureStructuralResponse',
   'cutbank',
   'shiftgrid',
+  'mutagen',
 ]
 
 function canonicalValues(value: Partial<CanvasPresetSettings>): Record<string, unknown> {

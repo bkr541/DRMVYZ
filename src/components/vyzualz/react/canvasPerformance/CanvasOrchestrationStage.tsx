@@ -814,6 +814,12 @@ function CanvasGenericOrchestrationStage({
           : now / 1000
         if (selectedRendererKind === 'fragmentCollage') {
           // Final output is owned by the Fractures renderer mounted below.
+        } else if (selectedRendererKind === 'imageMutation') {
+          // MUTAGEN is direct-only. Authored media/effects already own this
+          // composition; its zero dry mix must not erase or mutate those layers.
+          drawAuthoredPresetSource({ context: outputContext, source: compositionCanvas,
+            width: outputWidth, height: outputHeight, engineSettings: liveProps.engineSettings,
+            alpha: liveOutputContract.canvasOutputOpacity })
         } else if (selectedRendererKind === 'laserImageFx') {
           const dryAlpha = liveOutputContract.drySourceMix * liveOutputContract.canvasOutputOpacity
           let renderedLaser = false

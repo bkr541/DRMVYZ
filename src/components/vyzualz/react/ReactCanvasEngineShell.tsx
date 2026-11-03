@@ -60,6 +60,9 @@ import { CanvasFracturesRendererLayer } from './renderers/CanvasFracturesRendere
 import { CanvasLaserImageFxLayer } from './renderers/laserImageFx/CanvasLaserImageFxLayer'
 import { CanvasCutbankLayer } from './renderers/cutbank/CanvasCutbankLayer'
 import { CutbankDesignControls } from './renderers/cutbank/CutbankDesignControls'
+import { isMutagenOwnerPending, resolveMutagenCaptureCapability, resolveMutagenSourceAlpha } from './renderers/mutagen/MutagenOutputContract'
+import { CanvasMutagenLayer } from './renderers/mutagen/CanvasMutagenLayer'
+import { MutagenDesignControls } from './renderers/mutagen/MutagenDesignControls'
 import { CanvasShiftgridLayer } from './renderers/shiftgrid/CanvasShiftgridLayer'
 import { ShiftgridDesignControls } from './renderers/shiftgrid/ShiftgridControls'
 import {
@@ -1514,6 +1517,12 @@ export function CanvasEngineSurface({
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const mutagenOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const mutagenPausedRef = useRef(isPaused)
+  mutagenPausedRef.current = isPaused
+  const [mutagenSourceReadyKey, setMutagenSourceReadyKey] = useState<string | null>(null)
+  const [mutagenReadySourceKey, setMutagenReadySourceKey] = useState<string | null>(null)
+  const [mutagenRendererNotice, setMutagenRendererNotice] = useState<string | null>(null)
   const laserImageFxOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const orchestrationPreloadManagerRef = useRef<CanvasPreloadManager | null>(null)
   if (!orchestrationPreloadManagerRef.current) orchestrationPreloadManagerRef.current = new CanvasPreloadManager({
@@ -1573,6 +1582,7 @@ export function CanvasEngineSurface({
   const particleReconstructionActive = rendererKind === 'particleAura'
   const fragmentCollageActive = rendererKind === 'fragmentCollage'
   const laserImageFxActive = rendererKind === 'laserImageFx'
+  const mutagenSelected = rendererKind === 'imageMutation'
   const cutbankActive = rendererKind === 'cutbank'
   const shiftgridDirectActive = canRenderShiftgridDirectPreset(rendererKind, runtimeCanvasShow != null)
   const effectPassActive = rendererKind === 'standard' && hasCanvasEffectPass(canvasPresetSettings)
@@ -1584,9 +1594,13 @@ export function CanvasEngineSurface({
       ? orchestrationSettings.authoredLayers.find(layer => layer.id === primary.layerId) ?? null
       : primary.layer
   }, [orchestrationSettings])
-  const singleLayerEffectRuntime = rendererKind === 'standard'
+  const singleLayerEffectRuntime = (rendererKind === 'standard' || mutagenSelected)
     && Boolean(singleLayerEffectOwner?.effects.length)
     && singleLayerEffectOwner?.mediaId === activeItem?.id
+  const mutagenAuthored = orchestrationSettings.renderMode === 'layers' || singleLayerEffectRuntime
+  const mutagenActive = mutagenSelected && !runtimeCanvasShow && !mutagenAuthored
+  const mutagenReconstructed = mutagenActive && (canvasPresetSettings.mutagen.mutation === 0 || canvasPresetSettings.mutagen.sourceMix === 1)
+  const mutagenSourceAlpha = resolveMutagenSourceAlpha(outputContract)
   const activeVideo = activeItem?.type === 'video'
   const activeMediaTransparencyKey = activeItem ? getCanvasMediaTransparencyKey(activeItem) : null
   const activeMediaTransparencyKeyRef = useRef<string | null>(activeMediaTransparencyKey)
@@ -1607,10 +1621,11 @@ export function CanvasEngineSurface({
   const mediaStyle = useMemo(
     () => makeCanvasMediaStyle(
       settings,
-      fragmentCollageActive && fracturesReadySourceKey === fracturesSourceKey ? 0 : outputContract.drySourceMix,
+      mutagenActive ? (!mutagenReconstructed && mutagenReadySourceKey === fracturesSourceKey ? 0 : mutagenSourceAlpha)
+        : fragmentCollageActive && fracturesReadySourceKey === fracturesSourceKey ? 0 : outputContract.drySourceMix,
       activeMediaAspect,
     ),
-    [activeMediaAspect, fracturesReadySourceKey, fracturesSourceKey, fragmentCollageActive, outputContract.drySourceMix, settings],
+    [mutagenActive, mutagenReconstructed, mutagenSourceAlpha, mutagenReadySourceKey, activeMediaAspect, fracturesReadySourceKey, fracturesSourceKey, fragmentCollageActive, outputContract.drySourceMix, settings],
   )
   const particleSourceRef = activeVideo ? videoRef : imageRef
   const handleParticleCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
@@ -1619,9 +1634,19 @@ export function CanvasEngineSurface({
   const handleLaserImageFxCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
     laserImageFxOutputCanvasRef.current = canvas
   }, [])
+  const handleMutagenCanvasReady = useCallback((canvas: HTMLCanvasElement | null) => {
+    mutagenOutputCanvasRef.current = canvas
+    setMutagenReadySourceKey(canvas ? fracturesSourceKey : null)
+  }, [fracturesSourceKey])
   const handleFracturesPreviewReady = useCallback((ready: boolean) => {
     setFracturesReadySourceKey(ready ? fracturesSourceKey : null)
   }, [fracturesSourceKey])
+
+  useLayoutEffect(() => {
+    if (!mutagenActive) return
+    const drawable = isCanvasParticleSourceReady(particleSourceRef.current)
+    setMutagenSourceReadyKey(drawable ? fracturesSourceKey : null)
+  }, [mutagenActive, fracturesSourceKey, particleSourceRef])
 
   trackAnalysisRef.current = trackAnalysis
   trackSectionsRef.current = trackSections
@@ -1872,7 +1897,7 @@ export function CanvasEngineSurface({
   }, [orchestrationPreloadManager])
 
   useEffect(() => {
-    if (!particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive && !shiftgridDirectActive) {
+    if (!mutagenActive && !particleReconstructionActive && !fragmentCollageActive && !laserImageFxActive && !cutbankActive && !shiftgridDirectActive) {
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
       return
@@ -1880,16 +1905,24 @@ export function CanvasEngineSurface({
 
     const trackIdentity = activeAudioTrackId ?? 'canvas:unloaded-track'
     previousParticlePerformanceContextRef.current = null
+    let mutagenDiscontinuityRevision = 0
 
     const resolveParticleContext = () => {
+      const audioTimeSec = resolveCanvasAudioTime(getAudioTimeRef.current)
+      const previous = previousParticlePerformanceContextRef.current
+      // This boundary samples the existing transport position. Publish forward
+      // jumps through Core's identity too; backward jumps already identify loops.
+      if (mutagenActive && previous && (audioTimeSec - previous.audioTimeSec > 0.5
+        || (mutagenPausedRef.current && Math.abs(audioTimeSec - previous.audioTimeSec) > 1e-5))) mutagenDiscontinuityRevision++
       const context = buildSharedPerformanceContext({
-        audioTimeSec: resolveCanvasAudioTime(getAudioTimeRef.current),
+        audioTimeSec,
         frame: AudioFeatureBus.getFrame(),
         analysis: trackAnalysisRef.current,
         resolvedSections: trackSectionsRef.current,
         trackIdentity,
         trackChangeIdentity: `track:${trackIdentity}`,
-        previous: previousParticlePerformanceContextRef.current,
+        ...(mutagenActive ? { timingDiscontinuityIdentity: `mutagen-transport:${mutagenDiscontinuityRevision}` } : {}),
+        previous,
       })
       previousParticlePerformanceContextRef.current = context
       particlePerformanceContextRef.current = context
@@ -1902,23 +1935,32 @@ export function CanvasEngineSurface({
       previousParticlePerformanceContextRef.current = null
       particlePerformanceContextRef.current = null
     }
-  }, [activeAudioTrackId, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive, shiftgridDirectActive])
+  }, [activeAudioTrackId, mutagenActive, cutbankActive, fragmentCollageActive, laserImageFxActive, particleReconstructionActive, shiftgridDirectActive])
 
   // Keep the direct renderer visible only while every authored source is still
   // preloading. Once a source is drawable, or all authored sources have failed,
   // the authored stage owns the frame so the layer stack and any load error are
   // truthful instead of leaving stale single-source media on screen indefinitely.
-  const orchestrationRenderable = orchestrationFrame?.runtimeMode === 'show'
+  const mutagenOwnerPending = mutagenSelected && isMutagenOwnerPending({ showId: runtimeCanvasShow?.id ?? null, authored: mutagenAuthored, frame: orchestrationFrame })
+  const mutagenAllowsOrchestration = !mutagenSelected || Boolean(runtimeCanvasShow) || mutagenAuthored || orchestrationSettings.renderMode === 'performance'
+  const orchestrationRenderable = mutagenAllowsOrchestration && !mutagenOwnerPending && (orchestrationFrame?.runtimeMode === 'show'
     ? true
     : orchestrationFrame?.runtimeMode === 'authored'
       ? (orchestrationSettings.renderMode === 'layers' || singleLayerEffectRuntime)
         && canRenderCanvasAuthoredLayerFrame(orchestrationFrame, Boolean(activeItem))
-      : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame)
-  const outputCapability = useMemo(() => resolveCanvasOutputCapability({
-    selectedPresetId: selectedCanvasPresetId,
+      : canRenderCanvasOrchestrationFrame(orchestrationSettings, orchestrationFrame))
+  const mutagenSourceReady = Boolean(activeItem && mutagenSourceReadyKey === fracturesSourceKey && !(mediaLoadError.mediaId === activeItem.id && mediaLoadError.message))
+  const outputCapability = useMemo(() => resolveMutagenCaptureCapability({
+    selected: mutagenSelected,
     orchestrationRenderable,
-    orchestrationFrame,
-  }), [orchestrationFrame, orchestrationRenderable, selectedCanvasPresetId])
+    ownerPending: mutagenOwnerPending,
+    sourceReady: mutagenSourceReady,
+    base: resolveCanvasOutputCapability({
+      selectedPresetId: selectedCanvasPresetId,
+      orchestrationRenderable,
+      orchestrationFrame,
+    }),
+  }), [mutagenSelected, mutagenOwnerPending, mutagenSourceReady, orchestrationFrame, orchestrationRenderable, selectedCanvasPresetId])
   const outputAvailable = isCanvasOutputAvailable(outputCapability)
 
   // Resolve output policy from the renderer that actually owns this frame. A layout
@@ -1926,19 +1968,25 @@ export function CanvasEngineSurface({
   // newly deferred Fractures frame.
   useLayoutEffect(() => {
     onOutputCapabilityChange?.(outputCapability)
-    if (!outputAvailable) onCanvasReady?.(null)
-  }, [onCanvasReady, onOutputCapabilityChange, outputAvailable, outputCapability])
+    if (!outputAvailable) {
+      if (mutagenSelected) {
+        const capture = outputCaptureCanvasRef.current
+        capture?.getContext('2d')?.clearRect(0, 0, capture.width, capture.height)
+      }
+      onCanvasReady?.(null)
+    }
+  }, [mutagenSelected, onCanvasReady, onOutputCapabilityChange, outputAvailable, outputCapability])
 
   useEffect(() => {
     // CUTBANK publishes its own capture canvas from CanvasCutbankLayer.
-    if (orchestrationRenderable || !outputAvailable || cutbankActive || shiftgridDirectActive) return
+    if (mutagenOwnerPending || orchestrationRenderable || !outputAvailable || cutbankActive || shiftgridDirectActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     onCanvasReady?.(captureCanvas)
     return () => onCanvasReady?.(null)
-  }, [cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable, shiftgridDirectActive])
+  }, [mutagenOwnerPending, cutbankActive, onCanvasReady, orchestrationRenderable, outputAvailable, shiftgridDirectActive])
 
   useEffect(() => {
-    if (orchestrationRenderable || fragmentCollageActive || cutbankActive || shiftgridDirectActive) return
+    if (mutagenOwnerPending || orchestrationRenderable || fragmentCollageActive || cutbankActive || shiftgridDirectActive) return
     const captureCanvas = outputCaptureCanvasRef.current
     const effectsCanvas = sourceEffectsCanvasRef.current
     if (!captureCanvas || !effectsCanvas) return
@@ -1978,7 +2026,10 @@ export function CanvasEngineSurface({
       effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
       const source = particleSourceRef.current
-      if (!activeItem || !source || !isCanvasParticleSourceReady(source)) return
+      if (!activeItem || !source || !isCanvasParticleSourceReady(source) || (mutagenSelected && !mutagenSourceReady)) {
+        if (mutagenSelected) captureContext.clearRect(0, 0, targetWidth, targetHeight)
+        return
+      }
 
       let bass = 0.14
       let high = 0.1
@@ -2021,12 +2072,12 @@ export function CanvasEngineSurface({
         else drawHeight = cssWidth / sourceAspect
       }
 
-      const drySourceAlpha = liveOutputContract.drySourceMix
+      const drySourceAlpha = mutagenActive ? resolveMutagenSourceAlpha(liveOutputContract) : liveOutputContract.drySourceMix
       const processedAlpha = liveOutputContract.sourceMixMode === 'legacyComposite'
         ? liveOutputContract.drySourceMix
         : 1
-      const baseTranslateX = cssWidth * 0.5 + cssWidth * 0.5 * (liveSettings.positionX / 100)
-      const baseTranslateY = cssHeight * 0.5 + cssHeight * 0.5 * (liveSettings.positionY / 100)
+      const baseTranslateX = cssWidth * 0.5 + cssWidth * (mutagenActive ? 1 : 0.5) * (liveSettings.positionX / 100)
+      const baseTranslateY = cssHeight * 0.5 + cssHeight * (mutagenActive ? 1 : 0.5) * (liveSettings.positionY / 100)
       const liveScale = liveSettings.scale
         + bass * canvasPresetSettings.bassReactivity * canvasPresetSettings.intensity * 0.16
         + beat * canvasPresetSettings.beatPulse * canvasPresetSettings.intensity * 0.045
@@ -2067,7 +2118,20 @@ export function CanvasEngineSurface({
       // pristine, unfiltered fidelity anchor shown by the browser-owned source. Fractures
       // exits this effect above because recording/output is intentionally
       // deferred until its final renderer contract is implemented.
-      drawMediaFrame({
+      // Clean endpoints use the native source path, avoiding quality downsampling
+      // at large outputs while the controller keeps its musical authority alive.
+      const mutagenFrame = mutagenActive && !mutagenReconstructed ? mutagenOutputCanvasRef.current : null
+      let mutagenCopied = false
+      if (mutagenFrame && mutagenFrame.width > 0 && mutagenFrame.height > 0) {
+        compositionContext.save()
+        try {
+          compositionContext.globalAlpha = resolveMutagenSourceAlpha(liveOutputContract)
+          compositionContext.drawImage(mutagenFrame, 0, 0, cssWidth, cssHeight)
+          mutagenCopied = true
+        } catch { /* The original remains the fallback if a snapshot is unavailable. */ }
+        finally { compositionContext.restore() }
+      }
+      if (!mutagenCopied) drawMediaFrame({
         context: compositionContext,
         alpha: drySourceAlpha,
         filter: 'none',
@@ -2140,7 +2204,7 @@ export function CanvasEngineSurface({
       window.cancelAnimationFrame(frameId)
       onLiveFps?.(0)
     }
-  }, [activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
+  }, [mutagenSelected, mutagenOwnerPending, mutagenSourceReady, mutagenActive, mutagenReconstructed, activeItem, analyser, canvasPresetSettings, effectPassActive, effectiveBackgroundMode, cutbankActive, fragmentCollageActive, isPaused, isPlaying, laserImageFxActive, liveInputAnalysisOnly, onLiveFps, orchestrationRenderable, particleReconstructionActive, particleSourceRef, reactivityActive, shiftgridDirectActive])
 
   useEffect(() => {
     setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
@@ -2490,6 +2554,10 @@ export function CanvasEngineSurface({
     />
   )
 
+  if (mutagenOwnerPending) {
+    return <div className="rv-canvas-engine-surface" data-renderer-kind="imageMutation" aria-label="CANVAS composition handoff" />
+  }
+
   if (shiftgridDirectActive) {
     return (
       <CanvasShiftgridLayer
@@ -2580,6 +2648,7 @@ export function CanvasEngineSurface({
       role="region"
       aria-label="CANVAS engine media surface"
       data-background-mode={effectiveBackgroundMode}
+      data-renderer-kind={rendererKind}
     >
       {captureCanvasNode}
       <div
@@ -2590,6 +2659,7 @@ export function CanvasEngineSurface({
         data-source-effect-active={effectPassActive ? 'true' : 'false'}
         data-particle-reconstruction-active={particleReconstructionActive ? 'true' : 'false'}
         data-laser-image-fx-active={laserImageFxActive ? 'true' : 'false'}
+        data-mutagen-active={mutagenActive ? 'true' : 'false'}
         data-renderer-kind={rendererKind}
         style={{ ...presetStyle, opacity: outputContract.canvasOutputOpacity }}
       >
@@ -2617,6 +2687,7 @@ export function CanvasEngineSurface({
                   handle: event.currentTarget,
                 }
                 setMediaLoadError(EMPTY_CANVAS_MEDIA_LOAD_STATE)
+                if (mutagenActive) setMutagenSourceReadyKey(fracturesSourceKey)
               }}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
             />
@@ -2638,6 +2709,7 @@ export function CanvasEngineSurface({
                   handle: event.currentTarget,
                 }
                 reportMediaSize(activeItem.id, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
+                if (mutagenActive) setMutagenSourceReadyKey(fracturesSourceKey)
                 handleCanvasImageLoad(event.currentTarget)
               }}
               onError={() => setMediaLoadError({ mediaId: activeItem.id, message: getCanvasMediaLoadErrorMessage(activeItem) })}
@@ -2670,6 +2742,25 @@ export function CanvasEngineSurface({
           onStatusChange={setParticleRendererNotice}
           outputAlpha={outputContract.sourceMixMode === 'legacyComposite' ? outputContract.drySourceMix : 1}
         />
+        {mutagenActive && (
+          <CanvasMutagenLayer
+            active
+            activeItem={activeItem}
+            outputAlpha={mutagenReconstructed ? 0 : mutagenSourceAlpha}
+            sourceRef={imageRef}
+            settings={canvasPresetSettings.mutagen}
+            fitMode={settings.fitMode}
+            sourceTransform={{ scale: settings.scale, positionX: settings.positionX, positionY: settings.positionY, rotation: settings.rotation }}
+            performanceContextRef={particlePerformanceContextRef}
+            trackIdentity={activeAudioTrackId ?? null}
+            audioActive={reactivityActive}
+            getAudioTime={getAudioTime}
+            isPlaying={isPlaying}
+            isPaused={isPaused}
+            onCanvasReady={handleMutagenCanvasReady}
+            onStatusChange={setMutagenRendererNotice}
+          />
+        )}
         {laserImageFxActive && (
           <CanvasLaserImageFxLayer
             active
@@ -2724,6 +2815,9 @@ export function CanvasEngineSurface({
         )}
         {particleRendererNotice && particleReconstructionActive && (
           <DrawerNotice tone="warning" role="status" title="Particle renderer">{particleRendererNotice}</DrawerNotice>
+        )}
+        {mutagenRendererNotice && mutagenActive && (
+          <DrawerNotice tone="warning" role="status" title="MUTAGEN">{mutagenRendererNotice}</DrawerNotice>
         )}
         {laserImageFxRendererNotice && laserImageFxActive && (
           <DrawerNotice tone="warning" role="status" title="Laser Image FX renderer">{laserImageFxRendererNotice}</DrawerNotice>
@@ -4515,6 +4609,8 @@ function CanvasPresetControls() {
       />
     )
   }
+
+  if (selectedPreset.rendererKind === 'imageMutation') return <MutagenDesignControls />
 
   if (selectedPreset.rendererKind === 'laserImageFx') {
     return (

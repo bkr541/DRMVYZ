@@ -11275,6 +11275,37 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   filter: none;
 }
 
+/* Match MUTAGEN's published alpha/background, with output opacity applied once. */
+.rv-canvas-engine-surface[data-renderer-kind='imageMutation'] { background: transparent; }
+.rv-canvas-live-output[data-mutagen-active='true']:not(.rv-canvas-live-output--transparent) { background: #02070a; }
+
+/* MUTAGEN replaces the dry image atomically, including partially transparent art. */
+.rv-canvas-mutagen-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.rv-canvas-mutagen-layer[data-ready='true'] {
+  visibility: visible;
+}
+
+.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media {
+  transition: none;
+}
+
+.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-preset-aura,
+.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-grid,
+.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media-shell::before,
+.rv-canvas-param-output[data-mutagen-active='true'] .rv-canvas-live-media-shell::after {
+  opacity: 0;
+}
+
 .rv-canvas-fractures-renderer-layer {
   position: absolute;
   inset: 0;

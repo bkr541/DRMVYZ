@@ -193,3 +193,32 @@ npm run clean:all
 ```
 
 See `docs/source-packaging.md`.
+
+### MUTAGEN production smoke
+
+With Node 22 and Playwright Chromium installed, start the existing Vite server
+(`npm run dev -- --host 127.0.0.1`) and run:
+
+```bash
+node scripts/validate-mutagen-production-browser.mjs
+```
+
+`MUTAGEN_BASE_URL` defaults to `http://127.0.0.1:5173`.
+`MUTAGEN_OUTPUT_DIR` defaults to `/tmp/mutagen-production-validation`.
+`MUTAGEN_SOAK_SECONDS` defaults to 60 seconds of real browser playback; raise it
+for an endurance run. Synthetic fixtures require no external image/audio service.
+The script mounts the real CANVAS surface/stores and uses WebGL2, generated media,
+a known deterministic Shared Performance context, Canvas2D pixel comparisons and
+MediaRecorder. It writes all patterns, original/low/high strength, arrangement and
+failure captures, a contact sheet, WebM, live/output parity captures and JSON GPU
+profiles at 720p/1080p/4K logical sizes (Auto may internally downscale).
+
+Assertions cover clean reconstruction, alpha and transforms/aspect extremes,
+Auto shader/history budgets, stable allocations after warmup, pause/seek/resize,
+context loss with one restoration retry, unavailable WebGL2 and shader failure,
+signed/expired/deleted media, authored/Show priority, source/preset manual locks,
+rapid preset disposal, the canonical preset card/modified badge and persisted
+recipe/media ID after reload. Pixel reads and `gl.finish` are confined to the
+validation harness. Timings identify the actual Chromium GL driver and do not
+promise hardware-independent frame rates. This does not exercise native Electron
+cast windows, authenticated cloud scope or prolonged hardware endurance.

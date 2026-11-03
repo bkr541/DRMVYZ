@@ -8,6 +8,7 @@ import type { PixGridPresetSettings } from './pixGrid/PixGridTypes'
 import type { PresetDiscoveryFields, PresetDiscoveryMetadata } from './presetDiscovery'
 import { createDefaultProductionStageModel } from './LaserDmxProductionRig'
 import { DEFAULT_CANVAS_CUTBANK_SETTINGS, type CanvasCutbankSettings } from './renderers/cutbank/CutbankSettings'
+import { DEFAULT_CANVAS_MUTAGEN_SETTINGS, type CanvasMutagenSettings } from './renderers/mutagen/MutagenSettings'
 import { DEFAULT_CANVAS_SHIFTGRID_SETTINGS, type CanvasShiftgridSettings } from './renderers/shiftgrid/ShiftgridSettings'
 import type {
   ProductionChoreographySettings,
@@ -225,8 +226,9 @@ export type CanvasPresetId =
   | 'canvas-laser-image-fx'
   | 'canvas-cutbank'
   | 'canvas-shiftgrid'
+  | 'canvas-mutagen'
 
-export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid'
+export type CanvasPresetRendererKind = 'standard' | 'particleAura' | 'fragmentCollage' | 'laserImageFx' | 'cutbank' | 'shiftgrid' | 'imageMutation'
 export type CanvasPresetColorMode = 'original' | 'palette' | 'audioReactive'
 export type CanvasParticleQuality = 'low' | 'balanced' | 'high'
 export type CanvasLaserImageEffect =
@@ -322,7 +324,7 @@ export const DEFAULT_CANVAS_VIDEO_TIMING_SETTINGS: CanvasVideoTimingSettings = {
   sectionTriggerTypes: ['intro', 'build', 'drop', 'breakdown', 'outro'],
 }
 
-export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 13 as const
+export const CANVAS_PRESET_SETTINGS_SCHEMA_VERSION = 14 as const
 
 export interface CanvasPresetSettings {
   schemaVersion: typeof CANVAS_PRESET_SETTINGS_SCHEMA_VERSION
@@ -407,6 +409,8 @@ export interface CanvasPresetSettings {
   fractureStructuralResponse: number
   /** CUTBANK's dedicated settings block (schema v7). Consumed only by the CUTBANK renderer. */
   cutbank: CanvasCutbankSettings
+  /** MUTAGEN's authored recipe (schema v14); textures and feedback remain runtime-only. */
+  mutagen: CanvasMutagenSettings
   /** SHIFTGRID's dedicated durable preferences (schema v11). Runtime grid/source state is never persisted here. */
   shiftgrid: CanvasShiftgridSettings
   /** @deprecated Read/write compatibility for persisted pre-recipe CANVAS sessions only. */
@@ -584,6 +588,7 @@ export const DEFAULT_CANVAS_PRESET_SETTINGS: CanvasPresetSettings = {
   fractureTransientGlitch: 0.25,
   fractureStructuralResponse: 0.35,
   cutbank: DEFAULT_CANVAS_CUTBANK_SETTINGS,
+  mutagen: DEFAULT_CANVAS_MUTAGEN_SETTINGS,
   shiftgrid: DEFAULT_CANVAS_SHIFTGRID_SETTINGS,
   motionTrailAmount: 0,
   particleAmount: 0,
@@ -947,6 +952,31 @@ export const CANVAS_PRESETS: CanvasPresetDefinition[] = [
       turbulence: 0,
       particleDensity: 0,
       shiftgrid: DEFAULT_CANVAS_SHIFTGRID_SETTINGS,
+    },
+    controls: [],
+  },
+  {
+    id: 'canvas-mutagen',
+    name: 'MUTAGEN',
+    description: 'Continuous molten LIQUIFY motion from the selected still image, with optional feedback trails and source reconstruction.',
+    accent: '#b8ff4a',
+    rendererKind: 'imageMutation',
+    settings: {
+      ...DEFAULT_CANVAS_PRESET_SETTINGS,
+      drySourceMix: 0,
+      sourceVisibility: 0,
+      intensity: 0,
+      bassReactivity: 0,
+      beatPulse: 0,
+      glow: 0,
+      trailAmount: 0,
+      rgbSplit: 0,
+      glitchAmount: 0,
+      stutterRate: 0,
+      motionAmount: 0,
+      turbulence: 0,
+      particleDensity: 0,
+      mutagen: DEFAULT_CANVAS_MUTAGEN_SETTINGS,
     },
     controls: [],
   },

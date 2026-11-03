@@ -27,6 +27,17 @@ React View owns one recorder instance and records the active engine's published 
 
 Each engine surface must publish the canvas that corresponds to the visible stage. Engine changes must update the target without leaving a stale canvas reference.
 
+CANVAS MUTAGEN publishes through the existing shell capture compositor: a current
+2D snapshot of its eight-pattern WebGL2 output replaces the dry image even at
+Dry Source Mix 0 in dryOnly mode. Legacy composite mix multiplies the processed
+source once; global output opacity applies once afterwards. Missing/failed media
+unpublishes and clears stale capture; GPU failure retains drawable original-source
+capture. Authored layers and active Shows retain their own unprocessed output
+and owner contracts, including during handoff. There is no MUTAGEN authored/show
+effect. See [CANVAS](canvas.md#mutagen-production-ownership-and-output) and the
+[production smoke](verification.md#mutagen-production-smoke) for limits, resize/seek,
+live/output parity and MediaRecorder evidence.
+
 Cinema 2.0 publishes the visible `Cinema2Stage` canvas. The removed legacy
 Cinema runtime has no recording or casting target and must never be used as a
 fallback canvas source.

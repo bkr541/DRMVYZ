@@ -256,6 +256,7 @@ import {
   removeCanvasPoolTextItemState,
 } from '../components/vyzualz/react/canvasPerformance/CanvasAuthoringState'
 import { normalizeCanvasCutbankSettings } from '../components/vyzualz/react/renderers/cutbank/CutbankSettings'
+import { normalizeCanvasMutagenSettings } from '../components/vyzualz/react/renderers/mutagen/MutagenSettings'
 import { normalizeCanvasShiftgridSettings } from '../components/vyzualz/react/renderers/shiftgrid/ShiftgridSettings'
 import { CANVAS_COMPOSITION_TEMPLATES } from '../components/vyzualz/react/canvasPerformance/CanvasCompositionTemplates'
 import { CANVAS_TRANSITIONS } from '../components/vyzualz/react/canvasPerformance/CanvasTransitions'
@@ -4883,6 +4884,7 @@ export function normalizeCanvasPresetSettings(value: unknown): CanvasPresetSetti
     fractureTransientGlitch: clampCanvasNumber(source.fractureTransientGlitch, DEFAULT_CANVAS_PRESET_SETTINGS.fractureTransientGlitch, 0, 1),
     fractureStructuralResponse: clampCanvasNumber(source.fractureStructuralResponse, DEFAULT_CANVAS_PRESET_SETTINGS.fractureStructuralResponse, 0, 1),
     cutbank: normalizeCanvasCutbankSettings(source.cutbank),
+    mutagen: normalizeCanvasMutagenSettings(source.mutagen),
     shiftgrid: normalizeCanvasShiftgridSettings(source.shiftgrid),
     motionTrailAmount: trailAmount,
     particleAmount: particleDensity,
