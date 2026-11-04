@@ -77,12 +77,9 @@
 .mum-close:hover { color: rgba(245,248,250,0.85); }
 
 /* ── Body ─────────────────────────────────────────────────────────────── */
-/* Single stacked column: drop zone on top, form fields below, both
-   scrolling together as one region. */
-/* The upload dialog keeps one height from the moment it opens, so choosing media, audio or a font (each with a different form) never makes it
-   jump in size; the body scrolls instead. Edit mode keeps its content-sized height. */
+/* Size to the form. The body can scroll when a short viewport or a large queue needs extra room. */
 .mum-modal--upload {
-  height: min(90vh, 740px);
+  max-width: 864px;
 }
 .mum-body {
   display: flex;
@@ -107,14 +104,40 @@
   margin: 16px;
   border: 1.5px dashed rgba(255,255,255,0.15);
   border-radius: var(--radius-group);
+  display: grid;
+  grid-template-rows: 1fr 0px;
+  transition: grid-template-rows 200ms ease, border-color 0.15s, background 0.15s;
+}
+.mum-dropzone--compact { grid-template-rows: 0fr 40px; }
+.mum-dropzone-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+.mum-dropzone-panel[aria-hidden="true"] { visibility: hidden; }
+.mum-dropzone-full {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 20px 20px;
   gap: 6px;
-  transition: border-color 0.15s, background 0.15s;
-  cursor: default;
+}
+.mum-dropzone-add {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: rgba(245,248,250,0.85);
+  font: inherit;
+  cursor: pointer;
+}
+.mum-dropzone-add:focus-visible {
+  outline: 1px solid #4ac7db;
+  outline-offset: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mum-dropzone { transition: none; }
 }
 .mum-dropzone--over {
   border-color: #4ac7db;
@@ -171,9 +194,20 @@
   margin-bottom: 8px;
 }
 .mum-filelist-items {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
+}
+.mum-filelist-items:has(> :nth-child(2)) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mum-filelist-items:has(> :nth-child(3)) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mum-filelist-items:has(> :nth-child(2)) .mum-badge {
+  max-width: 40%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .mum-file-row {
   display: flex;
@@ -185,6 +219,19 @@
   padding: 6px 8px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
+}
+@media (max-width: 720px) {
+  .mum-filelist-items:has(> :nth-child(2)) .mum-file-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px;
+  }
+  .mum-filelist-items:has(> :nth-child(2)) .mum-file-thumb { display: none; }
+  .mum-filelist-items:has(> :nth-child(2)) .mum-file-info { grid-column: 1 / -1; }
+  .mum-filelist-items:has(> :nth-child(2)) .mum-badge {
+    justify-self: start;
+    max-width: 100%;
+  }
 }
 .mum-file-row:hover { background: rgba(255,255,255,0.05); }
 .mum-file-row--selected {
@@ -271,6 +318,7 @@
   font-family: var(--az-font);
 }
 .mum-editing-banner strong { color: #4ac7db; }
+.mum-apply-to-all { align-self: flex-end; }
 
 /* Fields */
 .mum-field { display: flex; flex-direction: column; gap: 5px; }
@@ -436,6 +484,28 @@
   flex: 1;
   min-width: 0;
 }
+.mum-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.mum-upload-grid > * { min-width: 0; }
+.mum-upload-grid--halves > *,
+.mum-upload-grid--identity > :nth-child(2) { grid-column: span 2; }
+.mum-upload-toggles {
+  display: flex;
+  gap: 12px;
+}
+.mum-upload-toggles .mum-addinfo-item { gap: 5px; }
+.mum-upload-metadata > * { min-width: 0; gap: 5px; }
+.mum-upload-metadata .mum-select-wrap--sm { max-width: none; }
+.mum-upload-metadata .mum-toggle { min-height: 30px; }
+.mum-modal--upload .mum-right :is(.mum-input, .mum-chip-input, .mum-addinfo-input, .dv-underline-dropdown .drm-dropdown__trigger, .mum-collections-dropdown .drm-dropdown__search-trigger) {
+  box-sizing: border-box;
+  height: 30px;
+  min-height: 0;
+}
+.mum-modal--upload:has(.mum-upload-metadata) .mum-right { gap: 10px; }
 .mum-addinfo-label {
   font-size: 9px;
   font-weight: 700;
@@ -494,6 +564,15 @@
 /* Upload-mode footer centers Cancel / Upload as one cluster; edit mode
    (Cancel + Save Changes only) stays right-aligned. Both buttons share a
    min-width so Cancel isn't narrower than the primary action next to it. */
+.mum-inline-error {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 20px 10px;
+  color: #f87171;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .mum-footer {
   display: flex;
   align-items: center;
@@ -522,12 +601,12 @@
   }
 
   /* Compact drop zone: slim horizontal strip */
-  .mum-dropzone {
+  .mum-dropzone { margin: 10px 12px; }
+  .mum-dropzone-full {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
     padding: 10px 14px;
-    margin: 10px 12px;
     gap: 10px;
   }
 
@@ -559,27 +638,8 @@
   }
 }
 
-/* ── Audio upload — role badge ────────────────────────────────────────── */
-.mum-audio-role-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--az-font);
-  letter-spacing: 0.05em;
-  color: rgba(74,199,219,0.85);
-  background: rgba(74,199,219,0.1);
-  border: 1px solid rgba(74,199,219,0.2);
-  border-radius: 5px;
-}
-
 /* ── Audio upload — Track Details group ──────────────────────────────── */
 .mum-track-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
   margin-top: 6px;
 }
 
@@ -643,16 +703,14 @@
   color: rgba(74,199,219,0.55);
 }
 
-@media (max-width: 760px) {
-  .mum-track-details {
-    grid-template-columns: 1fr;
+@media (max-width: 720px) {
+  .mum-upload-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .mum-upload-grid--halves > *,
+  .mum-upload-grid--identity > :nth-child(2) { grid-column: auto; }
 }
 
-.mum-batch-error {
-  flex-shrink: 0;
-  margin: 0 20px 8px;
-}
 .mum-progress {
   position: relative;
   flex-shrink: 0;

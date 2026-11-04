@@ -39,6 +39,9 @@ import {
 import { CANVAS_OUTPUT_AVAILABLE } from '../react/canvasFracturesOutputContract'
 import { useCinema2WorkspaceRestoreState } from '../react/useCinema2WorkspaceRestoreState'
 import { Collapsible, TextAreaRow, TextInputRow } from '../react/ReactControlRows'
+import { ReactPresetArtwork } from '../react/ReactPresetCard'
+import { ReactPresetThumbnail } from '../react/ReactPresetThumbnail'
+import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { UnderlineDropdown } from '../react/controls/UnderlineDropdown'
 import { UnderlineTabs, type UnderlineTabOption } from '../react/controls/UnderlineTabs'
@@ -47,7 +50,6 @@ import { LivePresetStore } from './LivePresetStore'
 import { CartIcon } from './PresetStore'
 import {
   PRESET_MANAGER_PRESETS,
-  type PresetManagerArtwork,
   type PresetManagerRecord,
 } from './presetManagerCatalog'
 import '../../../styles/reactView.css'
@@ -158,24 +160,20 @@ const CATEGORY_OPTIONS = [
     .map(category => ({ value: category.toLowerCase(), label: category })),
 ]
 
-function PresetArtwork({ kind }: { kind: PresetManagerArtwork }) {
-  if (kind === 'cinema2') return (
-    <svg className="pmv-art" viewBox="0 0 120 120" aria-hidden="true">
-      <defs><radialGradient id="pm-main-bg"><stop stopColor="#153b69" /><stop offset="1" stopColor="#02060d" /></radialGradient><filter id="pm-main-glow"><feGaussianBlur stdDeviation="2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
-      <rect width="120" height="120" fill="url(#pm-main-bg)" /><g fill="none" stroke="#49dfff" filter="url(#pm-main-glow)"><path d="M60 15 103 96H17Z" strokeWidth="5" /><path d="M60 34 84 81H36Z" strokeWidth="2" /><path d="m60 48 12 23H48Z" /></g><path d="M0 105 34 76M120 105 86 76M12 120l40-39M108 120 68 81" stroke="#4968d9" opacity=".7" />
-    </svg>
-  )
-  if (kind === 'soundDrawing' || kind === 'headliner') return (
-    <svg className="pmv-art" viewBox="0 0 120 120" aria-hidden="true"><defs><radialGradient id="pm-con-bg"><stop stopColor="#20346e" /><stop offset="1" stopColor="#02040c" /><filter id="x" /></radialGradient></defs><rect width="120" height="120" fill="url(#pm-con-bg)" /><g fill="none" strokeLinecap="round"><path d="M-8 84C22 22 51 23 73 57s36 28 57-12" stroke="#e9f4ff" strokeWidth="10" opacity=".8" /><path d="M-5 91C30 28 56 35 74 62s33 27 54-5" stroke="#55c7ff" strokeWidth="5" /><path d="M4 104C32 57 59 51 77 72s30 20 45 2" stroke="#8057ff" strokeWidth="4" /><path d="M12 22c34 16 42 38 48 69" stroke="#50efff" strokeWidth="3" /></g></svg>
-  )
-  if (kind === 'canvas') return (
-    <svg className="pmv-art" viewBox="0 0 120 120" aria-hidden="true"><rect width="120" height="120" fill="#02050a" /><g transform="translate(60 60)" fill="none" strokeLinecap="round">{Array.from({ length: 18 }, (_, index) => <path key={index} d={`M0 0 Q${20 + index % 3 * 8} ${-10 + index % 5 * 5} ${54 + index % 2 * 8} 0`} transform={`rotate(${index * 20})`} stroke={index % 3 === 0 ? '#d9f8ff' : index % 3 === 1 ? '#4aa6d5' : '#314d72'} strokeWidth={index % 4 === 0 ? 3 : 1.5} opacity=".9" />)}<circle r="9" fill="#07111c" stroke="#92efff" /></g></svg>
-  )
-  if (kind === 'pixGrid') return (
-    <svg className="pmv-art" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="pm-night" x2="0" y2="1"><stop stopColor="#05041d" /><stop offset=".56" stopColor="#4b246b" /><stop offset=".72" stopColor="#b45ac5" /><stop offset="1" stopColor="#06111b" /></linearGradient><radialGradient id="pm-ring"><stop offset=".65" stopColor="#0a0820" /><stop offset=".72" stopColor="#f4b3ff" /><stop offset=".79" stopColor="#9c55ff" /><stop offset=".88" stopColor="#0a0820" stopOpacity="0" /></radialGradient></defs><rect width="120" height="120" fill="url(#pm-night)" /><circle cx="61" cy="52" r="32" fill="url(#pm-ring)" /><path d="M0 91Q17 80 33 89t29 0q17-12 32 0t26 0v31H0Z" fill="#020914" /><path d="M0 99q27-8 54 0t66-2M0 108q30-7 57 0t63-2" fill="none" stroke="#9855df" opacity=".65" /></svg>
-  )
+const LIVE_ARTWORK_PRESETS = new Map(
+  DEFAULT_REACT_PRESETS
+    .filter(preset => preset.engine === 'oscilloscope' || preset.engine === 'pixGrid')
+    .map(preset => [preset.id, preset]),
+)
+
+function PresetArtwork({ preset, className }: { preset: PresetManagerRecord; className: string }) {
+  const livePreset = preset.activation === 'react' ? LIVE_ARTWORK_PRESETS.get(preset.sourceId) : undefined
   return (
-    <svg className="pmv-art" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="pm-storm" x2="0" y2="1"><stop stopColor="#0b2750" /><stop offset=".5" stopColor="#26558a" /><stop offset="1" stopColor="#020713" /></linearGradient><filter id="pm-bolt"><feGaussianBlur stdDeviation="1.5" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs><rect width="120" height="120" fill="url(#pm-storm)" /><g fill="#7da9d1" opacity=".48"><ellipse cx="28" cy="32" rx="35" ry="18" /><ellipse cx="87" cy="28" rx="42" ry="20" /></g><path d="m75 5-20 43 15-4-22 62 39-72-18 5Z" fill="#e9fbff" stroke="#66cfff" filter="url(#pm-bolt)" /><path d="M0 96 24 78l18 11 22-16 19 15 19-10 18 19v23H0Z" fill="#01050c" /><path d="M0 104q31-7 59 0t61-1" stroke="#5acaff" fill="none" opacity=".7" /></svg>
+    <ReactPresetArtwork
+      id={preset.sourceId}
+      className={className}
+      backdrop={livePreset ? <ReactPresetThumbnail preset={livePreset} /> : undefined}
+    />
   )
 }
 
@@ -183,7 +181,7 @@ function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { 
   return (
     <article className={`pmv-card${active ? ' is-active' : ''}`} data-preset-id={preset.sourceId} data-preset-engine={preset.engineName}>
       <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`} aria-pressed={active}>
-        <span className="pmv-thumbnail"><PresetArtwork kind={preset.artwork} /></span>
+        <PresetArtwork preset={preset} className="pmv-thumbnail" />
         <span className="pmv-card-copy">
           <span className="pmv-card-type">{preset.engineName}</span>
           <strong>{preset.name}</strong>
@@ -482,7 +480,7 @@ export function PresetManagerView() {
               />
             ) : selectedPreset ? (
               <section className="pmv-selection-summary" aria-label={`${selectedPreset.name} selection`}>
-                <span className="pmv-selection-art"><PresetArtwork kind={selectedPreset.artwork} /></span>
+                <PresetArtwork preset={selectedPreset} className="pmv-selection-art" />
                 <div>
                   <span>{selectedPreset.engineName}</span>
                   <h2>{selectedPreset.name}</h2>

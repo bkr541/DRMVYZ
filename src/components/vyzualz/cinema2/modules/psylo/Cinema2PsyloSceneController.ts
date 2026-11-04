@@ -16,7 +16,23 @@ uniform float uPsyloPhase, uPsyloAmount, uPsyloScale, uPsyloDensity;
 uniform float uPsyloWeights[8];
 uniform vec4 uPsyloLightEvents;
 uniform float uPsyloLightBuild;
-varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse;
+varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse, vPsyloVine;
+float psyloVine(vec3 world) {
+  float r = length(world.xz - vec2(0.0, -8.0));
+  float a = atan(world.x, world.z + 8.0);
+  float phase = uPsyloPhase * 1.570796327;
+  float direction = (uPsyloWeights[1] + uPsyloWeights[4]) * a * 3.0 + uPsyloWeights[5] * world.z * 0.28;
+  float runner = pow(0.5 + 0.5 * cos(r * 0.82 - phase + direction), 7.0);
+  float kick = exp(-abs(r - uMusicKickTravel * 36.0) * 0.45) * uPsyloLightEvents.x;
+  float drop = exp(-abs(r - uMusicDropTravel * 36.0) * 0.28) * uPsyloLightEvents.w;
+  float answer = (0.5 + 0.5 * sin(a * 7.0)) * uPsyloLightEvents.y;
+  return clamp(runner * (0.55 + 0.35 * uPsyloLightBuild) + kick + drop + answer * 0.45 + uPsyloLightEvents.z * 0.12, 0.0, 1.0);
+}
+vec3 psyloVinePosition(vec3 world, float pulse) {
+  vec2 radial = normalize(world.xz - vec2(0.0, -8.0) + vec2(0.0001));
+  float sway = sin(length(world.xz - vec2(0.0, -8.0)) * 0.65 - uPsyloPhase * 1.57);
+  return world + vec3(radial.y * sway * 0.13, pulse * 0.32, -radial.x * sway * 0.13) * uPsyloAmount;
+}
 float psyloPulse(vec3 world) {
   float r = length(world.xz - vec2(0.0, -8.0));
   float a = atan(world.x, world.z + 8.0);
@@ -122,11 +138,13 @@ const fragmentShader = `
 uniform float uMusicLight;
 uniform float uPsyloMaster, uPsyloEmission, uPsyloRole;
 uniform vec3 uPsyloPrimary, uPsyloSecondary, uPsyloStem, uPsyloGill, uPsyloMycelium;
-varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse;
+varying float vPsyloHeight, vPsyloSpecies, vPsyloGill, vPsyloKeep, vPsyloPulse, vPsyloVine;
 `
 
 export class Cinema2PsyloSceneController {
   private readonly uniforms: Record<string, { value: number | Three.Color | readonly number[] }>
+  private emitters: Three.Mesh<Three.BufferGeometry, Three.ShaderMaterial> | null = null
+  private vineHalos: Three.Mesh<Three.BufferGeometry, Three.ShaderMaterial>[] = []
   private points: Three.Points<Three.BufferGeometry, Three.PointsMaterial> | null = null
   private readonly colors: Record<keyof typeof PSYLO_COLORS, Three.Color>
   constructor(private readonly library: Cinema2ThreeLibrary) {
@@ -141,6 +159,10 @@ export class Cinema2PsyloSceneController {
   }
   attach(root: Three.Object3D): void {
     const { THREE } = this.library
+    const caps = new Map<number, { root: Three.Vector3; point: Three.Vector3; height: number; zone: number; radius: number }>()
+    const vines: { mesh: Three.Mesh; amber: boolean }[] = []
+    root.updateMatrixWorld(true)
+    const point = new THREE.Vector3(), base = new THREE.Vector3(), normal = new THREE.Vector3(), normalMatrix = new THREE.Matrix3()
     root.traverse(object => {
       const mesh = object as Three.Mesh
       if (!mesh.isMesh) return
@@ -149,16 +171,38 @@ export class Cinema2PsyloSceneController {
       for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
         const material = m as Three.MeshStandardMaterial
         const role = material.name.includes('mycelium') ? 1 : material.name.includes('source.') ? 0 : 2
+        if (role === 1) vines.push({ mesh, amber: material.name.includes('amber') })
+        if (role === 0) {
+          const attrs = mesh.geometry.attributes
+          normalMatrix.getNormalMatrix(mesh.matrixWorld)
+          for (let i = 0; i < attrs.position.count; i++) {
+            const id = attrs._psylo_id.getX(i), height = attrs._psylo_height.getX(i)
+            if (id < 0 || height < 0.38) continue
+            normal.fromBufferAttribute(attrs.normal, i).applyNormalMatrix(normalMatrix)
+            if (normal.y > -0.32) continue
+            point.fromBufferAttribute(attrs.position, i).applyMatrix4(mesh.matrixWorld)
+            base.fromBufferAttribute(attrs._psylo_root, i)
+            const radius = Math.hypot(point.x - base.x, point.z - base.z)
+            if (radius <= (caps.get(id)?.radius ?? 0)) continue
+            caps.set(id, { root: base.clone(), point: point.clone(), height, radius, zone: attrs._psylo_zone.getX(i) })
+          }
+        }
         const prior = material.onBeforeCompile
         material.onBeforeCompile = (shader, renderer) => {
           prior.call(material, shader, renderer)
           Object.assign(shader.uniforms, this.uniforms, { uPsyloRole: { value: role } })
-          shader.vertexShader = motionShader + shader.vertexShader
+          shader.vertexShader = `#define PSYLO_VINE ${role === 1 ? 1 : 0}\n` + motionShader + shader.vertexShader
           shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
 #include <begin_vertex>
 vec3 psyloWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
 vPsyloPulse = psyloPulse(psyloWorld);
+vPsyloVine = 0.0;
+#if PSYLO_VINE
+vPsyloVine = psyloVine(psyloWorld);
+transformed += inverse(mat3(modelMatrix)) * (psyloVinePosition(psyloWorld, vPsyloVine) - psyloWorld);
+#else
 transformed += inverse(mat3(modelMatrix)) * (psyloPosition(psyloWorld, _psylo_height) - psyloWorld);
+#endif
 vPsyloHeight = _psylo_height; vPsyloSpecies = _psylo_species;
 vPsyloGill = smoothstep(0.38, 0.65, _psylo_height) * (1.0 - smoothstep(-0.55, -0.08, normalize(mat3(modelMatrix) * normal).y));
 vPsyloKeep = _psylo_id < 7.0 || fract(sin(_psylo_id * 127.1) * 43758.5453) < uPsyloDensity ? 1.0 : 0.0;
@@ -192,16 +236,101 @@ if (uPsyloRole < 0.5) {
 if (uPsyloRole < 0.5) {
   float cap = smoothstep(0.58, 0.88, vPsyloHeight);
   float spots = smoothstep(0.30, 0.65, dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
-  totalEmissiveRadiance += uPsyloGill * vPsyloGill * 1.3 + diffuseColor.rgb * cap * (0.12 + spots * 1.2);
+  float upperStem = smoothstep(0.25, 0.65, vPsyloHeight) * (1.0 - cap);
+  totalEmissiveRadiance += uPsyloGill * (vPsyloGill * (0.55 + vPsyloPulse * 0.48) + upperStem * 0.14)
+    + diffuseColor.rgb * cap * (0.12 + spots * 1.2);
 }
-else if (uPsyloRole < 1.5) totalEmissiveRadiance *= uPsyloMycelium;
+else if (uPsyloRole < 1.5) totalEmissiveRadiance = diffuseColor.rgb * (0.22 + vPsyloVine * 2.35);
 totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight * mix(0.85, 1.0, vPsyloPulse) * 2.4;
 `)
         }
         const priorKey = material.customProgramCacheKey.bind(material)
-        material.customProgramCacheKey = () => `${priorKey()}:psylo-native-v7:${role}`
+        material.customProgramCacheKey = () => `${priorKey()}:psylo-native-v8:${role}`
       }
     })
+    const buffers: Record<string, number[]> = { position: [], uv: [], _psylo_root: [], _psylo_height: [], _psylo_id: [], _psylo_zone: [], aBeam: [] }
+    for (const [id, cap] of caps) {
+      const height = cap.point.y - cap.root.y
+      if (height <= 0) continue
+      const shaft = id % 3 !== 1 && height > 0.75
+      const anchor = cap.point.clone().lerp(new THREE.Vector3(cap.root.x, cap.point.y, cap.root.z), 0.45)
+      const opposite = new THREE.Vector3(2 * cap.root.x - anchor.x, anchor.y, 2 * cap.root.z - anchor.z)
+      const anchors = shaft && height > 2.5 ? [anchor, opposite] : [anchor]
+      for (const source of anchors) for (const [side, down] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) {
+        buffers.position.push(source.x, source.y - 0.035, source.z)
+        buffers.uv.push(side, down)
+        buffers._psylo_root.push(cap.root.x, cap.root.y, cap.root.z)
+        buffers._psylo_height.push(cap.height)
+        buffers._psylo_id.push(id)
+        buffers._psylo_zone.push(cap.zone)
+        buffers.aBeam.push(cap.radius * (shaft ? 0.36 : 0.68), height * (shaft ? 0.91 : 0.30), shaft ? 1 : 0)
+      }
+    }
+    const beamGeometry = new THREE.BufferGeometry()
+    for (const [name, values] of Object.entries(buffers)) {
+      beamGeometry.setAttribute(name, new THREE.Float32BufferAttribute(values, name === 'uv' ? 2 : ['position', '_psylo_root', 'aBeam'].includes(name) ? 3 : 1))
+    }
+    // A single batch of depth-tested light volumes follows the exact cap deformation.
+    const beamMaterial = new THREE.ShaderMaterial({
+      uniforms: this.uniforms, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+      vertexShader: motionShader + `
+attribute vec3 aBeam;
+varying vec2 vBeamUV;
+varying vec3 vBeam;
+void main() {
+  vBeamUV = uv;
+  float pulse = psyloPulse(position);
+  vBeam = vec3(aBeam.z, pulse, _psylo_id < 7.0 || fract(sin(_psylo_id * 127.1) * 43758.5453) < uPsyloDensity ? 1.0 : 0.0);
+  vec3 anchor = psyloPosition(position, _psylo_height);
+  vec3 view = (modelMatrix * vec4(anchor, 1.0)).xyz - cameraPosition;
+  vec2 right = normalize(vec2(-view.z, view.x) + vec2(0.0001));
+  float width = aBeam.x * mix(1.0, mix(0.4, 3.2, aBeam.z), uv.y);
+  vec2 drift = normalize(position.xz - _psylo_root.xz + vec2(0.0001)) * uv.y * aBeam.y * (0.20 + pulse * 0.14);
+  vec2 xz = anchor.xz + drift + right * (uv.x * 2.0 - 1.0) * width;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(xz.x, anchor.y - uv.y * aBeam.y * (0.90 + pulse * 0.10), xz.y, 1.0);
+}`,
+      fragmentShader: fragmentShader + `
+varying vec2 vBeamUV;
+varying vec3 vBeam;
+void main() {
+  float edge = 1.0 - smoothstep(0.06, 1.0, abs(vBeamUV.x * 2.0 - 1.0));
+  float falloff = (1.0 - smoothstep(0.08, 1.0, vBeamUV.y)) * smoothstep(0.0, 0.06, vBeamUV.y);
+  float alpha = edge * falloff * vBeam.z * uPsyloMaster * uPsyloEmission * uMusicLight * (0.42 + vBeam.x * 0.26 + vBeam.y * 0.68);
+  gl_FragColor = vec4(uPsyloGill * 1.35, min(alpha, 0.68));
+}`,
+    })
+    this.emitters = new THREE.Mesh(beamGeometry, beamMaterial)
+    this.emitters.frustumCulled = false
+    root.add(this.emitters)
+    for (const { mesh, amber } of vines) {
+      const halo = new THREE.Mesh(mesh.geometry, new THREE.ShaderMaterial({
+        uniforms: { ...this.uniforms, uHalo: { value: new THREE.Color(amber ? '#ffad58' : '#57ffc7') } },
+        transparent: true, depthWrite: false, side: THREE.FrontSide, blending: THREE.AdditiveBlending,
+        vertexShader: motionShader + `
+varying float vHaloCore;
+void main() {
+  vec3 world = (modelMatrix * vec4(position, 1.0)).xyz;
+  vec3 n = normalize(mat3(modelMatrix) * normal);
+  vPsyloVine = psyloVine(world);
+  world = psyloVinePosition(world, vPsyloVine);
+  float width = 0.15 + vPsyloVine * 0.38;
+  world += vec3(n.x * width, 0.035 + max(0.0, n.y) * 0.045, n.z * width);
+  vHaloCore = max(0.0, n.y);
+  gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
+}`,
+        fragmentShader: fragmentShader + `
+uniform vec3 uHalo;
+varying float vHaloCore;
+void main() {
+  float edge = smoothstep(0.0, 0.86, vHaloCore);
+  float alpha = edge * edge * (0.07 + vPsyloVine * 0.66) * uPsyloMaster * uPsyloEmission * uMusicLight;
+  gl_FragColor = vec4(uHalo * uPsyloMycelium, min(0.6, alpha));
+}`,
+      }))
+      halo.frustumCulled = false
+      mesh.add(halo)
+      this.vineHalos.push(halo)
+    }
     const geometry = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(128 * 3), 3))
     const material = new THREE.PointsMaterial({ color: this.colors.sporeColor, size: .14, transparent: true, opacity: .65, depthWrite: false, sizeAttenuation: true })
     // Circular native particles, no external texture or screen-space overlay.
@@ -240,6 +369,9 @@ totalEmissiveRadiance *= uPsyloMaster * uPsyloEmission / 0.6 * uMusicLight * mix
     }
   }
   dispose(): void {
+    if (this.emitters) { this.emitters.removeFromParent(); this.emitters.geometry.dispose(); this.emitters.material.dispose(); this.emitters = null }
+    for (const halo of this.vineHalos) { halo.removeFromParent(); halo.material.dispose() }
+    this.vineHalos = []
     if (this.points) { this.points.removeFromParent(); this.points.geometry.dispose(); this.points.material.dispose(); this.points = null }
   }
 }

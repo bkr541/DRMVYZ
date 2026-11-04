@@ -607,6 +607,9 @@
   width: auto;
   height: auto;
   border-radius: inherit;
+}
+
+.rv-preset-spotlight-thumb.rv-preset-spotlight-thumb--blueprint {
   background:
     linear-gradient(245deg, color-mix(in srgb, var(--color-primary, #4ac7db) 18%, transparent), transparent 55%),
     radial-gradient(ellipse at 97% 20%, color-mix(in srgb, var(--color-primary, #4ac7db) 20%, transparent), transparent 65%),
@@ -615,7 +618,7 @@
 }
 
 /* The Engine card's fading registration grid, beneath the foreground art. */
-.rv-preset-spotlight-card--poster .rv-preset-spotlight-thumb::before {
+.rv-preset-spotlight-thumb.rv-preset-spotlight-thumb--blueprint::before {
   content: '';
   position: absolute;
   inset: 0;

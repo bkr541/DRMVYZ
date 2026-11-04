@@ -2040,6 +2040,10 @@ export function LyricManagerView({
         lyricsDisplayEnabled={lyricsDisplayEnabled}
         hasDocument={!!editorDocument}
         dirty={editorDirty}
+        onAddTracks={() => {
+          setUploadPurpose('canonical')
+          setUploadOpen(true)
+        }}
         onToggleLyricsDisplay={() => setLyricsDisplayEnabled(!lyricsDisplayEnabled)}
         onSave={() => {
           void doSave()
@@ -2099,18 +2103,6 @@ export function LyricManagerView({
               side="left"
               icon={<AppIcon kind="waveform" size={15} color="currentColor" aria-hidden="true" />}
               label="Tracks"
-              actions={
-                <IconChipButton
-                  tone="primary"
-                  icon={<AppIcon kind="plus" size={14} color="currentColor" />}
-                  onClick={() => {
-                    setUploadPurpose('canonical')
-                    setUploadOpen(true)
-                  }}
-                  title="Add tracks"
-                  aria-label="Add tracks"
-                />
-              }
             />
 
             <RailTabs

@@ -418,6 +418,25 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.querySelector('.lmv-body')).not.toBeNull()
   })
 
+  it('opens the audio upload from the shared header toolbar', async () => {
+    await act(async () => root.render(
+      <ApplicationWorkspaceFrame
+        appView="lyrics"
+        onAppViewChange={() => undefined}
+        sidebarCollapsed
+        onSidebarCollapsedChange={() => undefined}
+      >
+        <LyricManagerView onBack={() => undefined} />
+      </ApplicationWorkspaceFrame>,
+    ))
+    await waitFor(() => expect(container.textContent).toContain('Reverie'))
+    const toolbar = container.querySelector('.fw-app-header [aria-label="Lyric Manager controls"]')!
+    const addTracks = buttonWithText('Add tracks', toolbar)
+    expect(container.querySelectorAll('button[aria-label="Add tracks"]')).toHaveLength(1)
+    await act(async () => addTracks.click())
+    expect(container.querySelector('[data-testid="audio-upload-modal"]')).not.toBeNull()
+  })
+
   it('keeps preview, transport, timeline and cues distinct, with lyric versions replacing the track list in the Tracks window', async () => {
     await render()
     expect(container.querySelector('.lmv-live-preview-body > .lmv-preview-stage')).not.toBeNull()
@@ -892,8 +911,8 @@ describe('LyricManagerView track-first workflow', () => {
     expect(container.textContent).not.toMatch(/Snap|Overlays/)
     expect(container.querySelector('[aria-label="Snap resolution"]')).toBeNull()
     const editActions = container.querySelector('[aria-label="Lyric Manager controls"]')
-    // Save/display, eleven cue commands, analysis and lane controls are direct buttons in one group.
-    expect(editActions?.querySelectorAll('button')).toHaveLength(16)
+    // Add, save/display, eleven cue commands, analysis and lane controls are direct buttons in one group.
+    expect(editActions?.querySelectorAll('button')).toHaveLength(17)
     expect([...editActions!.children].every(child => child.tagName === 'BUTTON')).toBe(true)
     expect(editActions?.querySelector('[role="toolbar"]')).toBeNull()
     expect(editActions?.querySelector('[aria-label$="Analyze Track"]')?.previousElementSibling?.getAttribute('aria-label')).toBe('Delete cue')

@@ -1,4 +1,4 @@
-import { AppIcon } from '../../shared/icons/AppIcon'
+import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
 import { useState, type ReactNode } from 'react'
 
 import { ContextActionMenu, type ContextActionMenuItem } from '../context-menu/ContextActionMenu'
@@ -46,6 +46,8 @@ export interface AudioTrackCardProps {
   listRow?: boolean
   /** List row: the artist line sits above the title line, with the state badges right-aligned on it. */
   artistFirst?: boolean
+  activeLyricsIcon?: AppIconKind
+  cueStyleOverflowMenu?: boolean
   /** Compact icon/value metadata, used by Lyric Manager. */
   metadataIcons?: boolean
   /** Lyric Manager: render the card as a flat list row (hairline-separated, no card chrome) led by a
@@ -90,6 +92,8 @@ export function AudioTrackCard({
   actionsInOverflow,
   listRow,
   artistFirst,
+  activeLyricsIcon = 'lyricVersions',
+  cueStyleOverflowMenu = false,
   metadataIcons,
   artwork,
 }: AudioTrackCardProps) {
@@ -118,7 +122,7 @@ export function AudioTrackCard({
               id: 'delete',
               label: 'Delete Track',
               danger: true,
-              dividerBefore: Boolean(canLoad || onMakeActiveVersion || (canOpenLyrics && onOpenAiExtract)),
+              dividerBefore: !cueStyleOverflowMenu && Boolean(canLoad || onMakeActiveVersion || (canOpenLyrics && onOpenAiExtract)),
               onSelect: requestRemove,
             }]
           : []),
@@ -244,7 +248,7 @@ export function AudioTrackCard({
             aria-label={`Open active lyrics for ${track.title}`}
             onClick={event => { event.stopPropagation(); onOpenActiveLyrics() }}
           >
-            <AppIcon kind="lyricVersions" size={iconSize} color="currentColor" />
+            <AppIcon kind={activeLyricsIcon} size={iconSize} color="currentColor" />
           </button>
         )}
         {actionsInOverflow && overflowItems.length > 0 && (
@@ -285,7 +289,8 @@ export function AudioTrackCard({
             x={lyricsMenu.x}
             y={lyricsMenu.y}
             ariaLabel={`Lyric actions for ${track.title}`}
-            header={{ title: track.title, subtitle: track.artist || 'Unknown artist' }}
+            appearance={cueStyleOverflowMenu ? 'lyric-cue' : undefined}
+            header={cueStyleOverflowMenu ? undefined : { title: track.title, subtitle: track.artist || 'Unknown artist' }}
             onClose={() => setLyricsMenu(null)}
             items={actionsInOverflow ? overflowItems : lyricsMenuItems}
           />

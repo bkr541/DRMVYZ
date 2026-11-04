@@ -7,6 +7,9 @@
 .app-icon__signal {
   stroke: var(--app-icon-accent, var(--llni-accent, var(--az-cyan, #4ac7db)));
 }
+.app-icon[data-app-icon='audioTrack'] .app-icon__signal {
+  stroke: currentColor;
+}
 /* Disabled and destructive controls keep their existing semantic colors. */
 :disabled .app-icon,
 [aria-disabled='true'] .app-icon,

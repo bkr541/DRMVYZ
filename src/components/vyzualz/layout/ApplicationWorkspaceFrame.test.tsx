@@ -11,6 +11,10 @@ import { ApplicationHeaderControls, ApplicationWorkspaceFrame } from './Applicat
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' }))
 vi.mock('../../../context/AudioEngineContext', () => ({ useSharedAudio: () => fixture }))
 
+vi.mock('../react/LayoutLabModal', () => ({
+  LayoutLabModal: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="Layout Lab"><button onClick={onClose}>Close</button></div>,
+}))
+
 const FeatureContext = createContext('missing')
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -56,6 +60,15 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
+  it('opens and closes Layout Lab from the floating launcher', async () => {
+    await render(<Harness />)
+    await act(async () => host.querySelector<HTMLButtonElement>('.fw-layout-lab-launcher')!.click())
+    const dialog = host.querySelector('[role="dialog"][aria-label="Layout Lab"]')!
+    expect(dialog).not.toBeNull()
+    await act(async () => dialog.querySelector('button')!.click())
+    expect(host.querySelector('[role="dialog"][aria-label="Layout Lab"]')).toBeNull()
+  })
+
   it.each(APP_VIEWS)('keeps the shared header and rail single-owned on the %s route', async (view: AppView) => {
     await render(<Harness initialView={view}><main data-testid="route-stage" /></Harness>)
     const frame = host.querySelector(`[data-app-workspace="${view}"]`)
@@ -65,7 +78,8 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(frame?.querySelectorAll('[data-workspace-slot="stage"]')).toHaveLength(1)
     expect(frame?.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
     expect(frame?.querySelector('.fw-app-header .fw-sidebar-toggle')).toBeNull()
-    expect(frame?.querySelector('.fw-sidebar-toggle')?.nextElementSibling?.classList.contains('az-sidebar-layout-lab')).toBe(true)
+    expect(frame?.querySelectorAll('[aria-label="Layout Lab"]')).toHaveLength(1)
+    expect(frame?.querySelector('.fw-layout-lab-launcher')?.closest('aside')).toBeNull()
     expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
     expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('DRMVYZ')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)

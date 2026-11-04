@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
 import { APP_VIEW_LABELS } from '../appView'
+import { AppIcon } from '../../shared/icons/AppIcon'
+import { LayoutLabModal } from '../react/LayoutLabModal'
 import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
 
@@ -48,6 +50,7 @@ export function ApplicationWorkspaceFrame({
   onSidebarCollapsedChange,
   children,
 }: ApplicationWorkspaceFrameProps) {
+  const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const [headerTarget, setHeaderTarget] = useState<HTMLDivElement | null>(null)
   const [headerOccupied, setHeaderOccupied] = useState(false)
   const setTarget = useCallback((target: HTMLDivElement | null) => setHeaderTarget(target), [])
@@ -86,6 +89,11 @@ export function ApplicationWorkspaceFrame({
             </WorkspaceRegion>
           </div>
         </div>
+        <button type="button" className="fw-layout-lab-launcher" aria-label="Layout Lab"
+          title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
+          <AppIcon kind="sliders" size={20} />
+        </button>
+        {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
       </FloatingWorkspaceFrame>
     </HeaderSlotContext.Provider>
   )

@@ -226,3 +226,18 @@ Revision remains 2 so Phase 2–5 saved values still restore; new controls use a
 defaults when absent. Original assets/provenance remain immutable. No commit was
 requested. Final acceptance was explicitly granted by the user on November 2, 2026;
 automated pixels and timing measurements are retained as supporting evidence.
+
+### Local mushroom and vine light
+
+The scene derives light origins from down-facing cap geometry in each asset
+tier. Every retained mushroom has emissive gills and a soft under-cap glow
+or a longer, flared shaft. Large shaft emitters can send light from two sides
+of the cap. Emitters follow the same deformation and density as the mushroom.
+The visible shafts use depth-tested additive geometry with soft falloff.
+
+Mycelium tubes flex and lift as light travels along them. Soft additive spill
+follows the tubes and widens at the active front. Existing PSYLO choreography
+and Cinema 2.0 audio delivery drive both systems. Kicks and drops travel out
+from the grove, snares accent sectors, beats lift the base intensity, and
+builds strengthen the traveling vine light. The Master and Emission controls
+scale both treatments.

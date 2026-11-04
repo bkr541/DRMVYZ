@@ -3,20 +3,31 @@
 
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { existsSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PresetManagerView } from './PresetManagerView'
 import { PRESET_MANAGER_PRESETS } from './presetManagerCatalog'
 import { usePresetOrganizationStore } from '../../../features/presetOrganization/presetOrganizationStore'
 import { useReactStore } from '../../../stores/reactStore'
 import { cinema2NativePresetRegistry } from '../cinema2'
-import { DEFAULT_REACT_PRESETS } from '../react/ReactTypes'
+import { DEFAULT_REACT_PRESETS, type ReactPreset } from '../react/ReactTypes'
+import { hasPresetBlueprintArtwork } from '../react/PresetBlueprintArtwork'
 import presetCss from '../../../styles/presetManager.css?raw'
+
+vi.mock('../react/ReactPresetThumbnail', () => ({
+  ReactPresetThumbnail: ({ preset }: { preset: ReactPreset }) => <span data-live-artwork={preset.id} />,
+}))
 
 let container: HTMLDivElement | null = null
 let root: ReturnType<typeof createRoot> | null = null
 
 beforeEach(() => {
   usePresetOrganizationStore.setState({ records: {}, status: 'ready', error: null })
+  Object.defineProperty(SVGElement.prototype, 'getScreenCTM', { configurable: true, value: () => null })
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    disconnect() {}
+  })
 })
 
 function renderView() {
@@ -31,9 +42,32 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  Reflect.deleteProperty(SVGElement.prototype, 'getScreenCTM')
+  vi.unstubAllGlobals()
 })
 
 describe('Preset Manager view', () => {
+  it('uses the production artwork and backdrop for each library preset', () => {
+    renderView()
+    const missingArtwork: string[] = []
+    for (const preset of PRESET_MANAGER_PRESETS) {
+      const thumbnail = container!.querySelector(
+        `.pmv-card[data-preset-id="${preset.sourceId}"][data-preset-engine="${preset.engineName}"] .pmv-thumbnail`,
+      )
+      expect(thumbnail?.classList.contains('rv-preset-spotlight-thumb--blueprint'), preset.id).toBe(true)
+      if (preset.activation === 'react') {
+        expect(thumbnail?.querySelector('[data-live-artwork]')?.getAttribute('data-live-artwork')).toBe(preset.sourceId)
+      } else if (hasPresetBlueprintArtwork(preset.sourceId)) {
+        expect(thumbnail?.querySelector('[data-artwork-preset]')?.getAttribute('data-artwork-preset')).toBe(preset.sourceId)
+      } else {
+        const asset = `preset-artwork/${encodeURIComponent(preset.sourceId)}.webp`
+        expect(thumbnail?.querySelector('img')?.getAttribute('src')).toBe(`${import.meta.env.BASE_URL}${asset}`)
+        if (!existsSync(`public/${asset}`)) missingArtwork.push(preset.sourceId)
+      }
+    }
+    expect(missingArtwork).toEqual([])
+  })
+
   it('keeps the three surfaces and puts Create, Save, Duplicate and Delete in the header control group, with none in the library window header', () => {
     renderView()
     const keys = [...container!.querySelectorAll<HTMLButtonElement>('.pmv-header .vz-header-group button')]

@@ -65,7 +65,7 @@ function Workspace({ onAnalyzeTrack, ...overrides }: WorkspaceProps) {
   return (
     <>
       <LyricManagerHeader isSaving={false} saveStatus="saved" lyricsDisplayEnabled hasDocument dirty={false}
-        onToggleLyricsDisplay={() => undefined} onSave={() => undefined} onSaveAndMakeActive={() => undefined}
+        onAddTracks={() => undefined} onToggleLyricsDisplay={() => undefined} onSave={() => undefined} onSaveAndMakeActive={() => undefined}
         laneIconsExpanded={laneIconsExpanded} onToggleLaneIcons={() => setLaneIconsExpanded(value => !value)}
         editActions={<LyricTimelineEditActions
           editor={editor}

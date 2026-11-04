@@ -106,10 +106,30 @@ describe('font helpers', () => {
 })
 
 describe('media upload dialog with a font', () => {
+  it('collapses the drop zone, opens the picker from the compact row, and expands on clear', async () => {
+    await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
+    const dropZone = container.querySelector('.mum-dropzone')!
+    const addMore = dropZone.querySelector<HTMLButtonElement>('.mum-dropzone-add')!
+    expect(addMore.closest('[aria-hidden="true"]')).not.toBeNull()
+
+    await chooseFiles([fontFile()])
+    expect(dropZone.classList.contains('mum-dropzone--compact')).toBe(true)
+    expect(dropZone.querySelector('.mum-browse-btn')?.closest('[aria-hidden="true"]')).toBeTruthy()
+    expect(addMore.closest('[aria-hidden="true"]')).toBeNull()
+    const picker = vi.spyOn(container.querySelector<HTMLInputElement>('input[type="file"]')!, 'click')
+    await act(async () => addMore.click())
+    expect(picker).toHaveBeenCalledOnce()
+
+    const clear = [...container.querySelectorAll('button')].find(button => button.textContent === 'Clear')!
+    await act(async () => clear.click())
+    expect(dropZone.classList.contains('mum-dropzone--compact')).toBe(false)
+    expect(addMore.closest('[aria-hidden="true"]')).not.toBeNull()
+  })
+
   it('offers fonts in the drop zone and switches the form to font fields once a font is chosen', async () => {
     await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
     expect(text()).toContain('MEDIA UPLOAD')
-    expect(text()).toContain('Drag & drop media or fonts here')
+    expect(text()).toContain('Drag & Drop Media Here')
     expect(container.querySelector<HTMLInputElement>('input[type="file"]')!.accept).toContain('.ttf')
     expect(text()).toContain('MEDIA ROLE')
 
@@ -180,7 +200,7 @@ describe('media upload dialog with a font', () => {
   it('refuses to mix fonts with images in one batch', async () => {
     await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
     await chooseFiles([fontFile(), new File([new Uint8Array(4)], 'a.png', { type: 'image/png' })])
-    expect(text()).toContain('Upload fonts in a separate batch')
+    expect(container.querySelector('.mum-inline-error')?.textContent).toContain('Upload fonts in a separate batch')
     expect(text()).toContain('MEDIA UPLOAD')
     expect(mocks.addFilesToUploadQueue).not.toHaveBeenCalled()
   })
@@ -188,11 +208,11 @@ describe('media upload dialog with a font', () => {
   it('rejects fonts in the audio-only dialog', async () => {
     await act(async () => { root.render(<MediaUploadModal audioOnly onClose={() => undefined} />) })
     await chooseFiles([fontFile()])
-    expect(text()).toContain('Only audio files can be uploaded here.')
+    expect(container.querySelector('.mum-inline-error')?.textContent).toBe('Only audio files can be uploaded here.')
   })
 })
 
-describe('upload success card in the page Notifications drawer', () => {
+describe('upload feedback', () => {
   const events = () => useNotificationStore.getState().events['media-manager']
   const renderInMediaManager = async () => {
     await act(async () => {
@@ -206,6 +226,18 @@ describe('upload success card in the page Notifications drawer', () => {
   }
   beforeEach(() => { useNotificationStore.setState({ events: { ...useNotificationStore.getState().events, 'media-manager': [] } }) })
 
+  it('reports a mixed audio and visual selection directly above the footer and clears it after a valid selection', async () => {
+    await renderInMediaManager()
+    await chooseFiles([new File([], 'clip.wav', { type: 'audio/wav' }), new File([], 'still.png', { type: 'image/png' })])
+    const error = container.querySelector('.mum-inline-error[role="alert"]')
+    expect(error?.textContent).toContain('separate batches')
+    expect(error?.nextElementSibling?.classList.contains('mum-footer')).toBe(true)
+    expect(events()).toHaveLength(0)
+    expect(mocks.addFilesToUploadQueue).not.toHaveBeenCalled()
+    await chooseFiles([new File([], 'still.png', { type: 'image/png' })])
+    expect(container.querySelector('.mum-inline-error')).toBeNull()
+  })
+
   it('posts a success card naming the font after it uploads', async () => {
     await renderInMediaManager()
     await chooseFiles([fontFile()])
@@ -215,12 +247,13 @@ describe('upload success card in the page Notifications drawer', () => {
     expect(events()[0]!.message).toContain('was added to your font library')
   })
 
-  it('posts no card when the font fails to upload', async () => {
+  it('shows an inline error when the font fails to upload', async () => {
     mocks.uploadOscillatorFont.mockResolvedValue(null)
     await renderInMediaManager()
     await chooseFiles([fontFile()])
     await clickUpload(/Upload 1 Font/)
     expect(events()).toHaveLength(0)
+    expect(container.querySelector('.mum-inline-error')?.textContent).toBe('The font could not be uploaded.')
   })
 
   it('posts a success card for uploaded media, and reports the count for a batch', async () => {
@@ -239,6 +272,10 @@ describe('upload success card in the page Notifications drawer', () => {
     mocks.activeKey = 't-a.png'
     state.uploadQueuedMedia.mockResolvedValue({ total: 2, succeeded: 2, failures: [] })
     await renderInMediaManager()
+    expect(container.querySelector('.mum-editing-banner')).toBeNull()
+    expect(container.querySelector('.mum-file-row--selected')?.getAttribute('aria-label')).toBe('Edit details for a.png')
+    await clickUpload(/^Apply To All$/)
+    expect(useMediaStore.getState().applyUploadDraftToAllQueued).toHaveBeenCalled()
     await clickUpload(/Upload 2 Media/)
     expect(events()[0]).toMatchObject({ title: 'Media items uploaded', message: '2 media items were uploaded to your media library.' })
   })
@@ -253,34 +290,47 @@ describe('upload success card in the page Notifications drawer', () => {
 
 describe('Additional Info shows only fields that apply to the file', () => {
   const queued = (name: string, type: string) => ({
-    tempId: `t-${name}`, file: new File([new Uint8Array(4)], name, { type }), previewUrl: `blob:${name}`, isAudio: false,
+    tempId: `t-${name}`, file: new File([new Uint8Array(4)], name, { type }), previewUrl: `blob:${name}`, isAudio: type.startsWith('audio/'),
     suggestedRole: name.endsWith('.svg') ? 'svg' : name.match(/\.(mp4|mov|webm)$/) ? 'background_video' : 'background_image',
   })
   const labelsFor = async (name: string, type: string) => {
     mocks.queue = [queued(name, type)]
     mocks.activeKey = `t-${name}`
     await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
-    const labels = [...container.querySelectorAll('.mum-addinfo-label')].map(node => (node.textContent ?? '').replace(/\s*\*$/, '').trim())
+    const labels = [...container.querySelectorAll('.mum-upload-metadata')].map(row =>
+      [...row.querySelectorAll('.mum-field-label')].map(node => (node.textContent ?? '').replace(/\s*\*$/, '').trim()),
+    )
     act(() => root.unmount())
     root = createRoot(container)
     return labels
   }
 
   it('gives a PNG resolution, alpha and energy, but no duration, FPS, loop, BPM or key', async () => {
-    expect(await labelsFor('logo.png', 'image/png')).toEqual(['RESOLUTION', 'HAS ALPHA', 'ENERGY'])
+    expect(await labelsFor('logo.png', 'image/png')).toEqual([['TAGS', 'RESOLUTION', 'ENERGY', 'HAS ALPHA']])
   })
 
   it('does not offer alpha for a JPEG', async () => {
-    expect(await labelsFor('photo.jpg', 'image/jpeg')).toEqual(['RESOLUTION', 'ENERGY'])
+    expect(await labelsFor('photo.jpg', 'image/jpeg')).toEqual([['TAGS', 'RESOLUTION', 'ENERGY']])
   })
 
   it('adds loopable for a GIF', async () => {
-    expect(await labelsFor('spin.gif', 'image/gif')).toEqual(['RESOLUTION', 'LOOPABLE', 'HAS ALPHA', 'ENERGY'])
+    expect(await labelsFor('spin.gif', 'image/gif')).toEqual([['TAGS', 'RESOLUTION', 'ENERGY', 'HAS ALPHA', 'LOOPABLE']])
   })
 
   it('gives a video the timing and music fields, with alpha only for formats that can carry it', async () => {
-    expect(await labelsFor('clip.mp4', 'video/mp4')).toEqual(['DURATION (SEC)', 'RESOLUTION', 'FPS', 'LOOPABLE', 'BPM', 'KEY', 'ENERGY'])
-    expect(await labelsFor('clip.webm', 'video/webm')).toContain('HAS ALPHA')
+    expect(await labelsFor('clip.mp4', 'video/mp4')).toEqual([['TAGS', 'RESOLUTION', 'ENERGY', 'LOOPABLE'], ['DURATION (SEC)', 'FPS', 'BPM', 'KEY']])
+    expect((await labelsFor('clip.webm', 'video/webm'))[0]).toEqual(['TAGS', 'RESOLUTION', 'ENERGY', 'HAS ALPHA', 'LOOPABLE'])
+  })
+
+  it('uses a disabled Media Role dropdown and groups all four audio track details', async () => {
+    mocks.queue = [queued('song.wav', 'audio/wav')]
+    mocks.activeKey = 't-song.wav'
+    await act(async () => { root.render(<MediaUploadModal onClose={() => undefined} />) })
+    const role = container.querySelector<HTMLButtonElement>('#mum-role')!
+    expect(role.disabled).toBe(true)
+    expect(role.textContent).toContain('Audio Track')
+    const fields = [...container.querySelectorAll<HTMLLabelElement>('.mum-track-details label')].map(label => label.htmlFor)
+    expect(fields).toEqual(['mum-track-artist', 'mum-track-genre', 'mum-track-bpm', 'mum-track-key'])
   })
 
   it('hides the whole section for an SVG', async () => {

@@ -132,6 +132,12 @@ describe('LyricTrackBrowser', () => {
     expect(lines).toEqual(['vz-track-row-artist-line', 'vz-track-row-title-line', 'vz-track-row-stats vz-track-row-stats--icons'])
     expect(rows[0]!.querySelector('.vz-track-row-artist')?.textContent).toBe('UrBoiN8')
     expect(rows[0]!.querySelector('.vz-track-row-title')?.textContent).toBe('MPH - Raw (UrBoiN8 Remix)')
+    for (const row of rows) {
+      expect(row.querySelector('.vz-track-row-title-line [data-app-icon]')).toBeNull()
+      const actions = row.querySelectorAll('.vz-track-action-btn')
+      expect(actions[0]?.querySelector('[data-app-icon="audioTrack"][aria-hidden="true"]')).toBeTruthy()
+      expect(actions[1]?.querySelector('[data-app-icon="more"]')).toBeTruthy()
+    }
   })
 
   it('forwards title-or-artist search and incremental loading actions', async () => {
@@ -184,6 +190,10 @@ describe('LyricTrackBrowser', () => {
 
     const items = await openOverflowMenu()
     expect(items.map(item => item.textContent?.trim())).toEqual(['Load Track', 'AI Extract Lyrics', 'Delete Track'])
+    const menu = items[0]?.closest('[role="menu"]')
+    expect(menu?.classList.contains('lyric-cue-context-menu')).toBe(true)
+    expect(menu?.querySelector('[role="separator"]')).toBeNull()
+    expect(menu?.textContent).not.toContain('Reverie')
     await act(async () => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
 
     await act(async () => lyricsIcon()!.click())
@@ -231,10 +241,19 @@ describe('LyricTrackBrowser', () => {
     expect(container.textContent).toContain('No stored tracks match the current search and filter.')
 
     await render({ tracks: [], search: '', loading: true })
-    expect(container.textContent).toContain('Loading tracks…')
+    const loadingStatus = container.querySelector('.lmv-track-loading[role="status"]')
+    expect(loadingStatus?.textContent).toContain('Loading tracks…')
+    expect(loadingStatus?.querySelector('svg[aria-hidden="true"]')).not.toBeNull()
+    expect(container.textContent).not.toContain('No stored audio tracks yet')
+
+    await render({ loading: true, hasMore: true })
+    expect(container.querySelector('.vz-track-row-title')?.textContent).toBe('Reverie')
+    expect(container.querySelector('.lmv-track-loading')).not.toBeNull()
+    expect(container.querySelector('.lmv-load-more')).toBeNull()
 
     const onRetry = vi.fn()
     await render({ tracks: [], loading: false, error: 'Network unavailable', onRetry })
+    expect(container.querySelector('.lmv-track-loading')).toBeNull()
     expect(container.textContent).toContain('Network unavailable')
     await act(async () => ([...container.querySelectorAll('button')].find(button => button.textContent === 'Retry') as HTMLButtonElement).click())
     expect(onRetry).toHaveBeenCalledOnce()

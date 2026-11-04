@@ -68,7 +68,7 @@ horizontal Settings navigation on narrow screens. Leading wrappers remove
 their top inset so it does not compound with the row's spacing. The Settings
 sidebar remains a vertical navigation list on wider screens.
 
-The Preset Manager library cards follow the Lyric Manager audio track cards: an 8px gap, 8px/12px content inset, a subtle wash and hairline rounded border, and muted cyan hover/selection states without glow. Preset artwork and favorites remain available. Both card types use the shared engine/artist eyebrow (11px/600) and item title (12.5px/700) roles in `src/styles/typography.css`.
+The Preset Manager library cards follow the Lyric Manager audio track cards: an 8px gap, 8px/12px content inset, a subtle wash and hairline rounded border, and muted cyan hover/selection states without glow. Preset Manager uses the production preset artwork component and background, with authored vectors, preset-specific image assets, or renderer-generated thumbnails selected by preset. Both card types use the shared engine/artist eyebrow (11px/600) and item title (12.5px/700) roles in `src/styles/typography.css`.
 
 ## Shell regions
 
@@ -96,6 +96,9 @@ It does not own engine-specific control stacks or a second transport.
 ### Left rail
 
 The left `WorkspaceRail` owns contextual source and setup surfaces.
+
+Layout Lab opens from a single floating launcher at the bottom-right of the
+application frame.
 
 The Engine dropdown shows the current engine in its trigger and lists the
 other engines in a popover. The popover dims the viewport around the trigger

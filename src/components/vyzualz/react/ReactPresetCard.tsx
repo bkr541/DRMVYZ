@@ -101,6 +101,35 @@ const SWITCH_CHIP_TONE = '#b84fc9'
 const MODIFIED_CHIP_TONE = '#ffb347'
 const DEFAULT_CHIP_TONE = '#4ac7db'
 
+export function ReactPresetArtwork({ id, backdrop, className = '' }: {
+  id: string
+  backdrop?: ReactNode
+  className?: string
+}) {
+  const artworkFilterId = `preset-blueprint-${useId().replaceAll(':', '')}`
+  const authoredArtworkId = backdrop == null && hasPresetBlueprintArtwork(id) ? id : null
+
+  return (
+    <span className={`rv-preset-spotlight-thumb rv-preset-spotlight-thumb--blueprint ${className}`.trim()} aria-hidden="true">
+      {!authoredArtworkId && <svg className="rv-preset-blueprint-defs" width="0" height="0" focusable="false">
+        <defs>
+          <filter id={artworkFilterId} colorInterpolationFilters="sRGB" x="0" y="0" width="100%" height="100%">
+            <feColorMatrix type="saturate" values="0" />
+            <feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" divisor="1" bias="0" preserveAlpha="true" />
+            <feColorMatrix values="0 0 0 0 .29  0 0 0 0 .78  0 0 0 0 .86  0 2.5 0 0 0" />
+          </filter>
+        </defs>
+      </svg>}
+      <span
+        className={`rv-preset-blueprint-scene${authoredArtworkId ? ' rv-preset-blueprint-scene--authored' : ''}`}
+        style={authoredArtworkId ? undefined : { filter: `url(#${artworkFilterId})` }}
+      >
+        {backdrop ?? (authoredArtworkId ? <PresetBlueprintArtwork presetId={authoredArtworkId} /> : <PresetBlueprintImage presetId={id} />)}
+      </span>
+    </span>
+  )
+}
+
 export function ReactPresetCard({
   id,
   title,
@@ -121,9 +150,7 @@ export function ReactPresetCard({
   shellClassName = '',
   disabled = false,
 }: ReactPresetCardProps) {
-  const artworkFilterId = `preset-blueprint-${useId().replaceAll(':', '')}`
   const poster = layout === 'poster'
-  const authoredArtworkId = backdrop == null && hasPresetBlueprintArtwork(id) ? id : null
   const hasThumbnail = !poster && Boolean(thumbnail)
   const hasActions = Boolean(onToggleFavorite) || secondaryActions.length > 0
   const visibleChips = chips.slice(0, 2)
@@ -154,23 +181,7 @@ export function ReactPresetCard({
       >
         {poster ? (
           <>
-            <span className="rv-preset-spotlight-thumb" aria-hidden="true">
-              {!authoredArtworkId && <svg className="rv-preset-blueprint-defs" width="0" height="0" focusable="false">
-                <defs>
-                  <filter id={artworkFilterId} colorInterpolationFilters="sRGB" x="0" y="0" width="100%" height="100%">
-                    <feColorMatrix type="saturate" values="0" />
-                    <feConvolveMatrix order="3" kernelMatrix="-1 -1 -1 -1 8 -1 -1 -1 -1" divisor="1" bias="0" preserveAlpha="true" />
-                    <feColorMatrix values="0 0 0 0 .29  0 0 0 0 .78  0 0 0 0 .86  0 2.5 0 0 0" />
-                  </filter>
-                </defs>
-              </svg>}
-              <span
-                className={`rv-preset-blueprint-scene${authoredArtworkId ? ' rv-preset-blueprint-scene--authored' : ''}`}
-                style={authoredArtworkId ? undefined : { filter: `url(#${artworkFilterId})` }}
-              >
-                {backdrop ?? (authoredArtworkId ? <PresetBlueprintArtwork presetId={authoredArtworkId} /> : <PresetBlueprintImage presetId={id} />)}
-              </span>
-            </span>
+            <ReactPresetArtwork id={id} backdrop={backdrop} />
             {(switchChip || isModified) && (
               <span className="rv-preset-poster-badges">
                 {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}

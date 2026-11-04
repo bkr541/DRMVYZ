@@ -6,10 +6,6 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 const fixture = vi.hoisted(() => ({ source: 'file' as 'file' | 'microphone' | 'demo' }))
 
-vi.mock('./react/LayoutLabModal', () => ({
-  LayoutLabModal: ({ onClose }: { onClose: () => void }) => <div role="dialog" aria-label="Layout Lab"><button onClick={onClose}>Close Layout Lab</button></div>,
-}))
-
 vi.mock('../../context/AudioEngineContext', () => ({
   useSharedAudio: () => fixture,
 }))
@@ -74,14 +70,8 @@ describe('VyzualzSidebar workspace navigation', () => {
     const bell = footer.querySelector<HTMLButtonElement>('.az-sidebar-notifications')!
     expect(bell.textContent).toBe('')
     expect(bell.getAttribute('aria-label')).toBe('Notifications (1)')
-    const layoutLab = footer.querySelector<HTMLButtonElement>('[aria-label="Layout Lab"]')!
-    expect(layoutLab.nextElementSibling).toBe(bell)
-    expect(layoutLab.querySelector('svg')?.getAttribute('width')).toBe('24')
+    expect(footer.querySelector('[aria-label="Layout Lab"]')).toBeNull()
     expect(bell.nextElementSibling?.classList.contains('vz-profile-control')).toBe(true)
-    await act(async () => layoutLab.click())
-    expect(container.querySelector('[role="dialog"][aria-label="Layout Lab"]')).not.toBeNull()
-    await act(async () => container!.querySelector<HTMLButtonElement>('[aria-label="Layout Lab"][role="dialog"] button')!.click())
-    expect(container.querySelector('[role="dialog"][aria-label="Layout Lab"]')).toBeNull()
     await act(async () => bell.click())
     expect(document.body.querySelector('[role="dialog"][aria-label="Notifications"]')?.textContent).toContain('Media finished')
     await act(async () => root?.render(<VyzualzSidebar compact appView="lyrics" />))

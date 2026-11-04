@@ -14,7 +14,7 @@ import { LyricManagerHeader } from './LyricManagerHeader'
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
-const handlers = { onToggleLyricsDisplay: vi.fn(), onSave: vi.fn(), onSaveAndMakeActive: vi.fn() }
+const handlers = { onAddTracks: vi.fn(), onToggleLyricsDisplay: vi.fn(), onSave: vi.fn(), onSaveAndMakeActive: vi.fn() }
 
 async function render(overrides: Partial<React.ComponentProps<typeof LyricManagerHeader>> = {}) {
   await act(async () => root.render(
@@ -38,9 +38,9 @@ afterEach(async () => {
 })
 
 describe('LyricManagerHeader control group', () => {
-  it('is three icon-only keys: Show Lyrics, Save and Save + Make Active', async () => {
+  it('uses icon-only keys for adding tracks, toggling lyrics and saving', async () => {
     await render()
-    expect(keys().map(button => button.getAttribute('aria-label'))).toEqual(['Show Lyrics', 'Save', 'Save + Make Active'])
+    expect(keys().map(button => button.getAttribute('aria-label'))).toEqual(['Add tracks', 'Show Lyrics', 'Save', 'Save + Make Active'])
     for (const button of keys()) {
       expect(button.textContent?.trim()).toBe('')
       expect(button.querySelector('svg')).not.toBeNull()

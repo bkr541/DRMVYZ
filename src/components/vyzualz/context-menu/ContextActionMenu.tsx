@@ -39,6 +39,7 @@ interface ContextActionMenuProps {
   items: readonly ContextActionMenuItem[]
   onClose: () => void
   className?: string
+  appearance?: 'default' | 'lyric-cue'
 }
 
 function clampMenu(element: HTMLElement, point: { x: number; y: number }, viewport: Window = window) {
@@ -67,6 +68,7 @@ export function ContextActionMenu({
   items,
   onClose,
   className = '',
+  appearance,
 }: ContextActionMenuProps) {
   const presentation = useContext(ContextMenuPresentationContext)
   const menuDocument = presentation?.ownerRef.current?.ownerDocument
@@ -143,6 +145,7 @@ export function ContextActionMenu({
         header={header}
         items={items}
         className={className}
+        appearance={appearance}
         onSelect={onClose}
       />
     </MenuRootRegistryContext.Provider>
@@ -150,22 +153,24 @@ export function ContextActionMenu({
 }
 
 /** The menu's box, header and rows, without the portal, positioning or dismissal handling. Layout Lab draws it inline. */
-export function ContextActionMenuSurface({ menuRef, style, ariaLabel, header, items, className = '', onSelect }: {
+export function ContextActionMenuSurface({ menuRef, style, ariaLabel, header, items, className = '', appearance, onSelect }: {
   menuRef?: RefObject<HTMLDivElement>
   style?: CSSProperties
   ariaLabel: string
   header?: ContextActionMenuProps['header']
   items: readonly ContextActionMenuItem[]
   className?: string
+  appearance?: ContextActionMenuProps['appearance']
   onSelect?: () => void
 }) {
   const presentation = useContext(ContextMenuPresentationContext)
+  const surfaceClass = appearance === 'lyric-cue' ? 'lyric-cue-context-menu' : 'rv-show-director-context-menu vz-app-context-menu'
   return (
     <div
       ref={menuRef}
       data-ui-theme={presentation?.theme}
       data-ui-typography={presentation?.typography}
-      className={`rv-show-director-context-menu vz-app-context-menu ${className}`.trim()}
+      className={`${surfaceClass} ${className}`.trim()}
       style={style}
       role="menu"
       aria-label={ariaLabel}

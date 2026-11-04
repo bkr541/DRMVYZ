@@ -199,6 +199,8 @@ export function MediaUploadModal({
     if (notificationPage) notify(notificationPage, { tone: 'success', title, message })
   }, [notificationPage])
 
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const {
     uploadQueue,
     addFilesToUploadQueue,
@@ -269,6 +271,7 @@ export function MediaUploadModal({
     clearMediaMutation: state.clearMediaMutation,
   })))
 
+  const inlineError = uploadError || (isEdit ? loadError : null)
   const uploadDraft = uploadDrafts[activeUploadDraftKey ?? ''] ?? DEFAULT_UPLOAD_DRAFT
   const activeQueueItem = uploadQueue.find(q => q.tempId === activeUploadDraftKey) ?? null
 
@@ -286,8 +289,6 @@ export function MediaUploadModal({
   const [uploading, setUploading] = useState(false)
   const [saving,    setSaving]    = useState(false)
   const [bpmError,  setBpmError]  = useState('')
-  const [batchError, setBatchError] = useState<string | null>(null)
-  const [selectionError, setSelectionError] = useState<string | null>(null)
   const [progress, setProgress] = useState({ completed: 0, total: 0 })
   const [rasterSvgWarning, setRasterSvgWarning] = useState<{ file: File } | null>(null)
 
@@ -298,9 +299,11 @@ export function MediaUploadModal({
   const [fontPreviewReady, setFontPreviewReady] = useState<ReadonlySet<string>>(new Set())
   const registeredFacesRef = useRef(new Map<string, FontFace>())
   const isFontQueue = !isEdit && fontQueue.length > 0
+  const hasQueuedFiles = isFontQueue || uploadQueue.length > 0
   const activeFont = fontQueue.find(entry => entry.id === activeFontId) ?? fontQueue[0] ?? null
 
   const fileInputId = useId()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
   const uploadAbortRef = useRef<AbortController | null>(null)
 
@@ -445,9 +448,9 @@ export function MediaUploadModal({
 
   const addFiles = useCallback(async (files: File[]) => {
     const selectionProblem = explainFontSelection({ files, mediaQueued: uploadQueue.length, fontsQueued: fontQueue.length, audioOnly })
-    if (selectionProblem) { setSelectionError(selectionProblem); return }
+    if (selectionProblem) { setUploadError(selectionProblem); return }
     if (files.length > 0 && files.every(isFontUploadFile)) {
-      setSelectionError(null)
+      setUploadError(null)
       await addFontFiles(files)
       return
     }
@@ -458,16 +461,17 @@ export function MediaUploadModal({
           /\.(png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav|aiff?|m4a|ogg|flac)$/i.test(f.name)
         )
     if (!valid.length) {
-      setSelectionError('No supported files were selected.')
+      setUploadError('No supported files were selected.')
       return
     }
     const kinds = new Set(valid.map(file => isAudioFile(file) ? 'audio' : 'visual'))
     const queuedKind = uploadQueue[0] ? (uploadQueue[0].isAudio ? 'audio' : 'visual') : null
     if (kinds.size > 1 || (queuedKind && !kinds.has(queuedKind))) {
-      setSelectionError('Upload audio and visual files in separate batches so each receives the correct metadata.')
+      setUploadError('Upload audio and visual files in separate batches so each receives the correct metadata.')
       return
     }
-    setSelectionError(null)
+
+    setUploadError(null)
 
     // Screen SVG files for raster-only content before queuing
     const safeFiles: File[] = []
@@ -570,6 +574,7 @@ export function MediaUploadModal({
   }
 
   const clearAll = () => {
+    setUploadError(null)
     clearUploadQueue()
     setDisplayMeta(new Map())
     setFontQueue([])
@@ -647,8 +652,8 @@ export function MediaUploadModal({
     const pending = fontQueue.filter(isFontEntryUploadable)
     if (pending.length === 0) return
     setUploading(true)
+    setUploadError(null)
     clearLoadError()
-    setBatchError(null)
     setProgress({ completed: 0, total: pending.length })
     let completed = 0
     let failed = 0
@@ -679,7 +684,7 @@ export function MediaUploadModal({
       )
     }
     if (failed === 0) { onClose(); return }
-    setBatchError(completed > 0
+    setUploadError(completed > 0
       ? `${completed} font${completed === 1 ? '' : 's'} uploaded. ${failed} failed and can be retried.`
       : (useReactStore.getState().fontUploadError ?? 'The font could not be uploaded.'))
   }
@@ -691,8 +696,8 @@ export function MediaUploadModal({
     const controller = new AbortController()
     uploadAbortRef.current = controller
     setUploading(true)
+    setUploadError(null)
     clearLoadError()
-    setBatchError(null)
     setProgress({ completed: 0, total: uploadQueue.length })
     setDisplayMeta(prev => {
       const next = new Map(prev)
@@ -730,7 +735,7 @@ export function MediaUploadModal({
       }
 
       if (result.failures.length > 0) {
-        setBatchError(result.succeeded > 0
+        setUploadError(result.succeeded > 0
           ? `${result.succeeded} file${result.succeeded === 1 ? '' : 's'} uploaded. ${result.failures.length} failed and can be retried.`
           : result.failures[0].error)
         return
@@ -738,7 +743,7 @@ export function MediaUploadModal({
 
       onClose()
     } catch (error) {
-      setBatchError(error instanceof Error ? error.message : 'The upload workflow stopped unexpectedly. Retry the remaining queued files.')
+      setUploadError(error instanceof Error ? error.message : 'The upload workflow stopped unexpectedly. Retry the remaining queued files.')
     } finally {
       uploadAbortRef.current = null
       setUploading(false)
@@ -818,7 +823,7 @@ export function MediaUploadModal({
   // ── Additional Info item renderer ──────────────────────────────────────
   const adItem = (label: React.ReactNode, content: React.ReactNode, spanTwo = false) => (
     <div className={spanTwo ? 'mum-addinfo-item mum-addinfo-item--span2' : 'mum-addinfo-item'}>
-      <div className="mum-addinfo-label">{label}</div>
+      <div className={isEdit ? "mum-addinfo-label" : "mum-field-label"}>{label}</div>
       {content}
     </div>
   )
@@ -826,8 +831,8 @@ export function MediaUploadModal({
   const resContent    = <DreamVizTextInput id="mum-resolution" className="mum-addinfo-input" placeholder="—" value={detectedRes ?? (uploadDraft.metadata.width && uploadDraft.metadata.height ? `${uploadDraft.metadata.width} × ${uploadDraft.metadata.height}` : '')} readOnly />
   const fpsContent    = <DreamVizTextInput id="mum-fps" className="mum-addinfo-input" type="number" min="1" max="240" placeholder="e.g. 30" value={uploadDraft.metadata.fps ?? ''} onChange={e => setUploadDraftMetadata({ fps: parseFloat(e.target.value) || undefined })} />
   const bpmContent    = <DreamVizTextInput id="mum-bpm" className="mum-addinfo-input" type="number" min="20" max="300" placeholder="e.g. 128" value={uploadDraft.metadata.bpm ?? ''} onChange={e => setUploadDraftMetadata({ bpm: parseFloat(e.target.value) || undefined })} />
-  const loopContent   = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /></label>
-  const alphaContent  = <label className="mum-toggle"><IconMorphCheckbox checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /></label>
+  const loopContent   = <label className="mum-toggle"><IconMorphCheckbox aria-label="Loopable" checked={uploadDraft.metadata.loopable ?? false} onChange={e => setUploadDraftMetadata({ loopable: e.target.checked })} /></label>
+  const alphaContent  = <label className="mum-toggle"><IconMorphCheckbox aria-label="Has alpha" checked={uploadDraft.metadata.hasAlpha ?? false} onChange={e => setUploadDraftMetadata({ hasAlpha: e.target.checked })} /></label>
   const keyContent    = (
     <div className="mum-select-wrap--sm">
       <UnderlineDropdown
@@ -880,14 +885,17 @@ export function MediaUploadModal({
 
   // ── Role / Title fields — shared between the edit-mode (stacked) and
   // upload-mode (side-by-side row) layouts below ────────────────────────
+  const lockedAudioRole = isAudioQueue && !isEdit
+  const showVisualMetadata = !isEdit && !isSvgQueue && metadataFields !== null
   const roleField = (
     <div className="mum-field">
       <label className="mum-field-label" htmlFor="mum-role">MEDIA ROLE<span className="mum-req">*</span></label>
       <UnderlineDropdown
         triggerId="mum-role"
-        value={uploadDraft.role}
+        value={lockedAudioRole ? 'audio_track' : uploadDraft.role}
+        disabled={lockedAudioRole}
         onChange={value => handleRoleChange(value as MediaRole)}
-        options={compatibleRoles.map(r => ({ value: r, label: MEDIA_ROLE_LABELS[r] }))}
+        options={(lockedAudioRole ? ['audio_track' as const] : compatibleRoles).map(r => ({ value: r, label: MEDIA_ROLE_LABELS[r] }))}
         ariaLabel="Media Role"
         menuLabel="Media Role"
         size="compact"
@@ -909,55 +917,60 @@ export function MediaUploadModal({
     </div>
   )
 
-  const tagsAndCollectionsRow = (
-        <div className="mum-fields-row">
-          <div className="mum-field">
-            <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
-            <DreamVizTextInput
-              id="mum-tags-input"
-              className="mum-chip-input"
-              placeholder="Type to add tags…"
-              value={tagInput}
-              onChange={e => setTagInput(e.target.value)}
-              onKeyDown={handleTagKey}
-              onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
-            />
-            {currentTags.length > 0 && (
-              <div className="mum-chip-field">
-                <TagChips tags={currentTags} onRemove={removeTag} />
-              </div>
-            )}
-          </div>
-
-          <div className="mum-field">
-            <label className="mum-field-label">COLLECTIONS</label>
-            <Dropdown
-              id="media-collections"
-              searchable
-              searchValue={collInput}
-              onSearchChange={setCollInput}
-              value={null}
-              options={collectionDropdownOptions}
-              onChange={value => { void handleCollectionDropdownChange(value) }}
-              placeholder="Type to search or create…"
-              ariaLabel="Collections"
-              menuLabel="Collections"
-              size="compact"
-              maxMenuHeight={260}
-              showDescriptions={false}
-              className="mum-collections-dropdown"
-            />
-            {currentCollectionIds.length > 0 && (
-              <div className="mum-chip-field">
-                <CollectionChips
-                  ids={currentCollectionIds}
-                  collections={collections}
-                  onRemove={removeCollection}
-                />
-              </div>
-            )}
-          </div>
+  const tagsField = (
+    <div className="mum-field">
+      <label className="mum-field-label" htmlFor="mum-tags-input">TAGS</label>
+      <DreamVizTextInput
+        id="mum-tags-input"
+        className="mum-chip-input"
+        placeholder="Type to add tags…"
+        value={tagInput}
+        onChange={e => setTagInput(e.target.value)}
+        onKeyDown={handleTagKey}
+        onBlur={() => { if (tagInput.trim()) addTag(tagInput) }}
+      />
+      {currentTags.length > 0 && (
+        <div className="mum-chip-field">
+          <TagChips tags={currentTags} onRemove={removeTag} />
         </div>
+      )}
+    </div>
+  )
+  const collectionsField = (
+    <div className="mum-field">
+      <label className="mum-field-label">COLLECTIONS</label>
+      <Dropdown
+        id="media-collections"
+        searchable
+        searchValue={collInput}
+        onSearchChange={setCollInput}
+        value={null}
+        options={collectionDropdownOptions}
+        onChange={value => { void handleCollectionDropdownChange(value) }}
+        placeholder="Type to search or create…"
+        ariaLabel="Collections"
+        menuLabel="Collections"
+        size="compact"
+        maxMenuHeight={260}
+        showDescriptions={false}
+        className="mum-collections-dropdown"
+      />
+      {currentCollectionIds.length > 0 && (
+        <div className="mum-chip-field">
+          <CollectionChips
+            ids={currentCollectionIds}
+            collections={collections}
+            onRemove={removeCollection}
+          />
+        </div>
+      )}
+    </div>
+  )
+  const tagsAndCollectionsRow = (
+    <div className="mum-fields-row">
+      {tagsField}
+      {collectionsField}
+    </div>
   )
 
   // ── Raster SVG warning handler ──────────────────────────────────────────────
@@ -1020,15 +1033,26 @@ export function MediaUploadModal({
           {!isEdit && <div className="mum-left">
             <div
               ref={dropRef}
-              className={`mum-dropzone${dragOver ? ' mum-dropzone--over' : ''}`}
+              className={`mum-dropzone${dragOver ? ' mum-dropzone--over' : ''}${hasQueuedFiles ? ' mum-dropzone--compact' : ''}`}
               onDragOver={e => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
             >
-              <div className="mum-drop-label">{audioOnly ? 'Drag & drop media here' : 'Drag & drop media or fonts here'}</div>
-              <div className="mum-drop-or">or</div>
-              <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
+              <div className="mum-dropzone-panel" aria-hidden={hasQueuedFiles}>
+                <div className="mum-dropzone-full">
+                  <div className="mum-drop-label">Drag &amp; Drop Media Here</div>
+                  <div className="mum-drop-or">or</div>
+                  <label htmlFor={fileInputId} className="mum-browse-btn">Browse Files</label>
+                  <div className="mum-drop-hint">{audioOnly ? `Max file size: ${MAX_FILE_LABEL}` : `Media up to ${MAX_FILE_LABEL} · Fonts: ${FONT_UPLOAD_LABEL}`}</div>
+                </div>
+              </div>
+              <div className="mum-dropzone-panel" aria-hidden={!hasQueuedFiles}>
+                <button type="button" className="mum-dropzone-add" onClick={() => fileInputRef.current?.click()}>
+                  Add more media
+                </button>
+              </div>
               <input
+                ref={fileInputRef}
                 id={fileInputId}
                 type="file"
                 accept={audioOnly ? AUDIO_ACCEPT : `${ACCEPT},${FONT_UPLOAD_ACCEPT}`}
@@ -1036,7 +1060,6 @@ export function MediaUploadModal({
                 style={{ display: 'none' }}
                 onChange={e => { addFiles(Array.from(e.target.files ?? [])); e.target.value = '' }}
               />
-              <div className="mum-drop-hint">{audioOnly ? `Max file size: ${MAX_FILE_LABEL}` : `Media up to ${MAX_FILE_LABEL} · Fonts: ${FONT_UPLOAD_LABEL}`}</div>
             </div>
 
             {/* Font list */}
@@ -1165,12 +1188,13 @@ export function MediaUploadModal({
             )}
 
             {!isEdit && !isFontQueue && uploadQueue.length > 1 && (
-              <div className="mum-editing-banner">
-                <span>Editing <strong>{activeQueueItem?.file.name ?? 'a file'}</strong></span>
-                <IconChipButton onClick={applyUploadDraftToAllQueued} disabled={!activeQueueItem}>
-                  Apply to all {uploadQueue.length} files
-                </IconChipButton>
-              </div>
+              <IconChipButton
+                className="mum-apply-to-all"
+                onClick={applyUploadDraftToAllQueued}
+                disabled={!activeQueueItem}
+              >
+                Apply To All
+              </IconChipButton>
             )}
 
             {/* ── Font queue: font name, preview, tags, collections and file details ─── */}
@@ -1183,25 +1207,21 @@ export function MediaUploadModal({
                 onPreviewTextChange={setFontPreviewText}
                 tagsAndCollections={tagsAndCollectionsRow}
               />
-            ) : /* ── Audio queue: locked role badge + Track Details ─── */ isAudioQueue && !isEdit ? (
+            ) : lockedAudioRole ? (
               <>
-                {/* Locked role indicator */}
-                <div className="mum-field">
-                  <label className="mum-field-label">MEDIA ROLE</label>
-                  <div className="mum-audio-role-badge">♪ Audio Track</div>
-                </div>
-
-                {/* Track title */}
-                <div className="mum-field">
-                  <label className="mum-field-label" htmlFor="mum-track-title">TRACK TITLE <span className="mum-opt">*</span></label>
-                  <DreamVizTextInput
-                    id="mum-track-title"
-                    className="mum-input"
-                    placeholder={activeQueueItem ? getFilenameWithoutExt(activeQueueItem.file.name) : 'e.g. My Track'}
-                    maxLength={120}
-                    value={uploadDraft.title}
-                    onChange={e => setUploadDraftTitle(e.target.value)}
-                  />
+                <div className="mum-upload-grid mum-upload-grid--halves">
+                  {roleField}
+                  <div className="mum-field">
+                    <label className="mum-field-label" htmlFor="mum-track-title">TRACK TITLE <span className="mum-opt">*</span></label>
+                    <DreamVizTextInput
+                      id="mum-track-title"
+                      className="mum-input"
+                      placeholder={activeQueueItem ? getFilenameWithoutExt(activeQueueItem.file.name) : 'e.g. My Track'}
+                      maxLength={120}
+                      value={uploadDraft.title}
+                      onChange={e => setUploadDraftTitle(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 {/* Track Details group */}
@@ -1210,7 +1230,7 @@ export function MediaUploadModal({
                     TRACK DETAILS
                     {analyzingAudio && <span className="mum-analyzing"> — Analyzing…</span>}
                   </label>
-                  <div className="mum-track-details">
+                  <div className="mum-upload-grid mum-track-details">
                     <div className="mum-track-detail-field">
                       <label className="mum-track-detail-label" htmlFor="mum-track-artist">ARTIST <span className="mum-opt">*</span></label>
                       <DreamVizTextInput
@@ -1270,16 +1290,16 @@ export function MediaUploadModal({
               <>
                 {/* ── Visual media fields (existing) ─────────────── */}
 
-                {/* Media Role + Title: side-by-side row in upload mode, stacked in edit mode */}
                 {isEdit ? (
                   <>
                     {roleField}
                     {titleField}
                   </>
                 ) : (
-                  <div className="mum-fields-row">
+                  <div className={`mum-upload-grid ${showVisualMetadata ? 'mum-upload-grid--identity' : 'mum-upload-grid--halves'}`}>
                     {roleField}
                     {titleField}
+                    {showVisualMetadata && collectionsField}
                   </div>
                 )}
 
@@ -1289,45 +1309,50 @@ export function MediaUploadModal({
                   <textarea
                     id="mum-description"
                     className="dv-text-input mum-textarea"
-                    rows={3}
+                    rows={isEdit ? 3 : 2}
                     placeholder="Describe this media…"
                     value={uploadDraft.description}
                     onChange={e => setUploadDraftDescription(e.target.value)}
                   />
                 </div>
 
-                {tagsAndCollectionsRow}
+                {showVisualMetadata ? (
+                  <div className="mum-upload-grid mum-upload-metadata">
+                    {tagsField}
+                    {metadataFields.resolution && adItem('RESOLUTION', resContent)}
+                    {metadataFields.energy && adItem('ENERGY', energyContent)}
+                    {(metadataFields.hasAlpha || metadataFields.loopable) && (
+                      <div className="mum-upload-toggles">
+                        {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
+                        {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
+                      </div>
+                    )}
+                  </div>
+                ) : tagsAndCollectionsRow}
 
-                {/* Additional Info — hidden until a file is actually queued (nothing to
-                    detect duration/resolution/etc. from yet) or we're editing an already-
-                    uploaded item, and hidden for SVG-only queues (duration/fps/energy
-                    don't apply to vector glyphs) */}
-                {!isSvgQueue && (isEdit || uploadQueue.length > 0) && (
+                {showVisualMetadata && metadataFields.duration && (
+                  <div className="mum-upload-grid mum-upload-metadata">
+                    {metadataFields.duration && adItem('DURATION (SEC)', durContent)}
+                    {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent)}
+                    {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent)}
+                    {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
+                  </div>
+                )}
+
+                {/* Edit mode retains its stacked metadata layout. */}
+                {!isSvgQueue && isEdit && metadataFields && (
                   <div className="mum-field">
                     <label className="mum-field-label">ADDITIONAL INFO</label>
-                    {metadataFields && (isEdit ? (
-                      <div className="mum-addinfo-grid mum-addinfo-grid--edit">
-                        {metadataFields.duration && adItem('DURATION (SEC)', durContent, true)}
-                        {metadataFields.resolution && adItem('RESOLUTION', resContent, true)}
-                        {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent, true)}
-                        {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent, true)}
-                        {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
-                        {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
-                        {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
-                        {metadataFields.energy && adItem('ENERGY', energyContent)}
-                      </div>
-                    ) : (
-                      <div className="mum-addinfo-grid">
-                        {metadataFields.duration && adItem('DURATION (SEC)', durContent)}
-                        {metadataFields.resolution && adItem('RESOLUTION', resContent)}
-                        {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent)}
-                        {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
-                        {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
-                        {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent)}
-                        {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
-                        {metadataFields.energy && adItem('ENERGY', energyContent)}
-                      </div>
-                    ))}
+                    <div className="mum-addinfo-grid mum-addinfo-grid--edit">
+                      {metadataFields.duration && adItem('DURATION (SEC)', durContent, true)}
+                      {metadataFields.resolution && adItem('RESOLUTION', resContent, true)}
+                      {metadataFields.fps && adItem(<>FPS <span className="mum-opt">*</span></>, fpsContent, true)}
+                      {metadataFields.bpm && adItem(<>BPM <span className="mum-opt">*</span></>, bpmContent, true)}
+                      {metadataFields.hasAlpha && adItem('HAS ALPHA', alphaContent)}
+                      {metadataFields.key && adItem(<>KEY <span className="mum-opt">*</span></>, keyContent)}
+                      {metadataFields.loopable && adItem('LOOPABLE', loopContent)}
+                      {metadataFields.energy && adItem('ENERGY', energyContent)}
+                    </div>
                   </div>
                 )}
               </>
@@ -1353,15 +1378,15 @@ export function MediaUploadModal({
             </div>
           </NoticeCard>
         )}
-        {(selectionError || batchError || (isEdit && loadError)) && (
-          <NoticeCard className="mum-batch-error" tone="error" role="alert" title="Media upload issue">{selectionError || batchError || loadError}</NoticeCard>
-        )}
+
         {uploading && progress.total > 0 && (
           <div className="mum-progress" aria-label={`Uploaded ${progress.completed} of ${progress.total} files`}>
             <div className="mum-progress-bar" style={{ width: `${Math.round((progress.completed / progress.total) * 100)}%` }} />
             <span>{progress.completed} / {progress.total}</span>
           </div>
         )}
+
+        {inlineError && <p className="mum-inline-error" role="alert">{inlineError}</p>}
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className={`mum-footer${isEdit ? ' mum-footer--edit' : ''}`}>

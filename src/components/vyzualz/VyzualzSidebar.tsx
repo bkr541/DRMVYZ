@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
 import type { AppPageId } from '../../stores/pageActivityStore'
-import { LayoutLabModal } from './react/LayoutLabModal'
 import { VyzualzProfileControl } from './shared/VyzualzProfileControl'
 import type { AppView } from './appView'
 
@@ -47,7 +46,6 @@ export function VyzualzBrandToggle({
 export function VyzualzSidebar(props: Props) {
   const { compact = false, appView, onAppViewChange } = props
   const notificationPage = NOTIFICATION_PAGES[appView ?? 'react']
-  const [layoutLabOpen, setLayoutLabOpen] = useState(false)
   const engine = useSharedAudio()
   const [legacyCollapsed, setLegacyCollapsed] = useState(compact)
   const isCollapsed = props.variant === 'floating' ? props.collapsed : legacyCollapsed
@@ -181,19 +179,9 @@ export function VyzualzSidebar(props: Props) {
         >
           <AppIcon kind="chevronRight" size={24} style={{ transform: isCollapsed ? undefined : 'rotate(180deg)' }} />
         </button>}
-        <button
-          type="button"
-          className="az-sidebar-utility az-sidebar-layout-lab"
-          title="Layout Lab"
-          aria-label="Layout Lab"
-          onClick={() => setLayoutLabOpen(true)}
-        >
-          <AppIcon kind="sliders" size={24} />
-        </button>
         <HeaderNotificationsButton key={notificationPage} page={notificationPage} iconOnly className="az-sidebar-notifications" />
         <VyzualzProfileControl />
       </div>
-      {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
     </aside>
   )
 }

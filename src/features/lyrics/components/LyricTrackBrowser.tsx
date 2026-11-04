@@ -260,8 +260,10 @@ export function LyricTrackBrowser({
                 selectedBadge
                 onOpenAiExtract={() => onOpenAiExtract(track)}
                 actionsInOverflow
+                cueStyleOverflowMenu
                 listRow
                 artistFirst
+                activeLyricsIcon="audioTrack"
                 metadataIcons
                 onOpenActiveLyrics={hasVersions || showsLegacyDocuments
                   ? () => {
@@ -280,13 +282,24 @@ export function LyricTrackBrowser({
         })}
       </div>
 
-      {loading && <div className="lmv-track-state">Loading tracks…</div>}
       {!loading && hasMore && (
         <IconChipButton className="lmv-load-more" onClick={onLoadMore}>Load More</IconChipButton>
       )}
       </div>
       )}
       </div>
+      {!inVersions && loading && (
+        <div className="lmv-track-state lmv-track-loading" role="status">
+          <svg className="lmv-track-loading-wave" width="28" height="18" viewBox="0 0 28 18" aria-hidden="true">
+            <rect x="0" y="5" width="3" height="8" rx="1.5" />
+            <rect x="6" y="2" width="3" height="14" rx="1.5" />
+            <rect x="12" y="0" width="3" height="18" rx="1.5" />
+            <rect x="18" y="3" width="3" height="12" rx="1.5" />
+            <rect x="24" y="5" width="3" height="8" rx="1.5" />
+          </svg>
+          <span>Loading tracks…</span>
+        </div>
+      )}
     </section>
   )
 }

@@ -151,3 +151,25 @@
 [data-workspace-layout='floating'] .fw-app-header-controls .mmv-summary {
   display: flex;
 }
+
+.fw-layout-lab-launcher {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--az-border);
+  border-radius: 8px;
+  background: var(--color-panel, #101820);
+  color: var(--az-text);
+  box-shadow: 0 2px 8px #0006;
+  cursor: pointer;
+}
+
+.fw-layout-lab-launcher:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

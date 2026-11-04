@@ -20,6 +20,7 @@ interface Props {
   lyricsDisplayEnabled: boolean
   hasDocument: boolean
   dirty: boolean
+  onAddTracks: () => void
   onToggleLyricsDisplay: () => void
   onSave: () => void
   onSaveAndMakeActive: () => void
@@ -35,6 +36,7 @@ export function LyricManagerHeader({
   lyricsDisplayEnabled,
   hasDocument,
   dirty,
+  onAddTracks,
   onToggleLyricsDisplay,
   onSave,
   onSaveAndMakeActive,
@@ -60,6 +62,11 @@ export function LyricManagerHeader({
   return (
     <header className="lmv-header" data-layout={layout}>
       <HeaderControlGroup label="Lyric Manager controls" className="lmv-header-controls">
+        <HeaderIconKey
+          label="Add tracks"
+          icon={<HeaderActionIcon action="create" />}
+          onClick={onAddTracks}
+        />
         <HeaderIconKey
           label="Show Lyrics"
           title="Show or hide active lyrics in the visualizer"
