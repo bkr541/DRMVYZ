@@ -4,6 +4,10 @@
             gold #d8b95a · crimson #c0314a · purple #b84fc9
    ───────────────────────────────────────────────────────────────────────────── */
 
+:root {
+  --rv-preset-neutral-border: rgba(212, 215, 219, 0.42);
+}
+
 /* ── Root layout ─────────────────────────────────────────────────────────────── */
 /* Shared measurements for React and Lyric Manager side windows. */
 .rv-shell,
@@ -387,7 +391,7 @@
   height: 70px;
   padding: 8px 34px 8px 16px;
   overflow: hidden;
-  border: 1px solid rgba(212, 215, 219, 0.42);
+  border: 1px solid var(--rv-preset-neutral-border);
   border-radius: 6px;
   background: transparent;
   box-shadow: var(--rv-preset-elevation);
@@ -5251,6 +5255,16 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-primary) 30%, transparent));
 }
 .rv-engine-card .rv-engine-dropdown-icon svg { width: 100%; height: 100%; }
+.rv-engine-card[data-engine='headliner']::before { content: none; }
+.rv-engine-card[data-engine='headliner'] .rv-engine-dropdown-icon {
+  inset: 0 0 0 auto;
+  width: 64%;
+  height: 100%;
+  opacity: 1;
+  transform: none;
+  filter: none;
+  mask-image: linear-gradient(to right, transparent, #000 36%);
+}
 .rv-engine-card .rv-engine-dropdown-copy { gap: 3px; }
 .rv-engine-card .rv-engine-dropdown-eyebrow,
 .rv-engine-card .rv-engine-dropdown-label {
@@ -5314,6 +5328,9 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-engine-card:is(:hover, :focus-visible, [aria-expanded='true']) {
   border-color: var(--color-primary);
   box-shadow: inset 0 0 20px color-mix(in srgb, var(--color-primary) 15%, transparent);
+}
+.rv-engine-dropdown-option.rv-engine-card {
+  border-color: var(--rv-preset-neutral-border);
 }
 
 .rv-engine-dropdown-popover {

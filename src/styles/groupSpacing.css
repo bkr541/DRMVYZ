@@ -15,6 +15,11 @@
   padding-inline: 7px;
 }
 
+/* Match the Design inspector's panel inset for the CANVAS Media Library. */
+:root body .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-ctrl-group:has(> .rv-canvas-engine-panel) {
+  padding-inline: var(--workspace-panel-inset, 6px);
+}
+
 /* Brand Kit tabs use a 12px inset; the editor previously added 20px. */
 :root body .bk-editor {
   padding-inline: 12px;

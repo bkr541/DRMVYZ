@@ -22,7 +22,12 @@ function Cinema2EngineBlueprint() {
   )
 }
 
-function EngineCardContents({ engineId, presetName }: { engineId: ReactEngineId; presetName?: string | null }) {
+function EngineCardContents({ engineId, presetName, pixelLabel = false }: {
+  engineId: ReactEngineId
+  presetName?: string | null
+  pixelLabel?: boolean
+}) {
+  const label = REACT_ENGINE_CATALOG[engineId].label
   return (
     <>
       <span className="rv-engine-dropdown-icon" aria-hidden="true">
@@ -30,7 +35,22 @@ function EngineCardContents({ engineId, presetName }: { engineId: ReactEngineId;
       </span>
       <span className="rv-engine-dropdown-copy">
         <span className="rv-engine-dropdown-eyebrow">Engine</span>
-        <span className="rv-engine-dropdown-label">{REACT_ENGINE_CATALOG[engineId].label}</span>
+        <span className="rv-engine-dropdown-label">
+          {pixelLabel ? (
+            <>
+              <span className="sr-only">{label}</span>
+              <svg className="rv-engine-dropdown-pixel-label" viewBox="0 0 41 7" fill="currentColor" shapeRendering="crispEdges" aria-hidden="true" focusable="false">
+                <path fillRule="evenodd" d="M0 0h4v1h1v3H4v1H1v2H0ZM1 1v3h3V1Z" />
+                <path d="M6 0h5v1H9v5h2v1H6V6h2V1H6Z" />
+                <path d="M12 0h1v2h1v1h1V2h1V0h1v2h-1v1h-1v1h1v1h1v2h-1V5h-1V4h-1v1h-1v2h-1V5h1V4h1V3h-1V2h-1Z" />
+                <path d="M19 0h4v1h-4v5h3V4h-2V3h3v3h-1v1h-3V6h-1V1h1Z" />
+                <path fillRule="evenodd" d="M24 0h4v1h1v2h-1v1h-1v1h1v1h1v1h-1V6h-1V5h-1V4h-1v3h-1Zm1 1v2h3V1Z" />
+                <path d="M30 0h5v1h-2v5h2v1h-5V6h2V1h-2Z" />
+                <path fillRule="evenodd" d="M36 0h3v1h1v1h1v3h-1v1h-1v1h-3Zm1 1v5h2V5h1V2h-1V1Z" />
+              </svg>
+            </>
+          ) : label}
+        </span>
         {/* Reserve the preset line so every engine shares Cinema's text positions. */}
         <span className="rv-engine-dropdown-preset" title={presetName || undefined} aria-hidden={!presetName || undefined}>
           {presetName && (
@@ -157,7 +177,7 @@ export function ReactEngineBrowser({ presetName = null }: {
                 triggerRef.current?.focus({ preventScroll: true })
               }}
             >
-              <EngineCardContents engineId={engineId} />
+              <EngineCardContents engineId={engineId} pixelLabel={engineId === 'pixGrid'} />
             </button>
           ))}
         </div>

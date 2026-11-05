@@ -184,6 +184,13 @@ describe('Preset Manager view', () => {
     expect(container?.querySelector('.pmv-search.rv-preset-search-row')).not.toBeNull()
     expect(container?.querySelector('.pmv-category.dv-underline-dropdown')).not.toBeNull()
     expect(container?.querySelectorAll('.pmv-card')).toHaveLength(PRESET_MANAGER_PRESETS.length)
+    const reactor = PRESET_MANAGER_PRESETS.find(preset => preset.name === 'Reactor' && preset.activation === 'cinema2')!
+    const card = container?.querySelector(`.pmv-card[data-preset-id="${reactor.sourceId}"]`)
+    const metadata = card?.querySelector('.pmv-card-meta')
+    expect(metadata?.textContent).toBe(reactor.engineName)
+    expect(metadata?.querySelector('[role="img"][aria-label="User Media"]')).toBeTruthy()
+    expect(metadata?.querySelector('[role="img"][aria-label="3D Environment"]')).toBeNull()
+    expect(card?.querySelector('.pmv-card-main')?.getAttribute('aria-describedby')).toBe(metadata?.id)
     expect(container?.textContent).toContain('Cinema 2.0')
     expect(container?.textContent).toContain('Sound Drawing')
     expect(container?.textContent).toContain('CANVAS')
@@ -191,7 +198,6 @@ describe('Preset Manager view', () => {
     expect(container?.textContent).toContain('PixGrid')
     expect(container?.textContent).toContain('HEADLINER')
     expect(container?.textContent).not.toMatch(/\d+ BPM|Reactivity/)
-    expect(container?.querySelector('.pmv-card .dv-badge')).toBeNull()
 
     const search = container?.querySelector<HTMLInputElement>('[placeholder="Search presets…"]')
     act(() => {

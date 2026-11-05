@@ -1,5 +1,5 @@
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 
 import { useShallow } from 'zustand/react/shallow'
 import { useRecorder } from '../../../hooks/useRecorder'
@@ -178,17 +178,33 @@ function PresetArtwork({ preset, className }: { preset: PresetManagerRecord; cla
 }
 
 function PresetCard({ preset, active, favorite, onSelect, onToggleFavorite }: { preset: PresetManagerRecord; active: boolean; favorite: boolean; onSelect: () => void; onToggleFavorite: () => void }) {
+  const metadataId = useId()
+  const capabilities = [
+    { label: 'Camera', icon: 'camera', available: preset.hasCamera },
+    { label: 'User Media', icon: 'image', available: preset.canIntegrateUserMedia },
+    { label: '3D Environment', icon: 'shader', available: preset.is3dEnvironment },
+  ] as const
+
   return (
     <article className={`pmv-card${active ? ' is-active' : ''}`} data-preset-id={preset.sourceId} data-preset-engine={preset.engineName}>
-      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`} aria-pressed={active}>
+      <button className="pmv-card-main" type="button" onClick={onSelect} aria-label={`Select ${preset.name}`} aria-describedby={metadataId} aria-pressed={active}>
         <PresetArtwork preset={preset} className="pmv-thumbnail" />
         <span className="pmv-card-copy">
-          <span className="pmv-card-type">{preset.engineName}</span>
           <strong>{preset.name}</strong>
+          <span className="pmv-card-meta" id={metadataId}>
+            <span className="pmv-card-type">{preset.engineName}</span>
+            <span className="pmv-card-capabilities">
+              {capabilities.filter(capability => capability.available).map(({ label, icon }) => (
+                <span key={label} className="pmv-capability-badge" role="img" aria-label={label} title={label}>
+                  <AppIcon kind={icon} size={12} />
+                </span>
+              ))}
+            </span>
+          </span>
         </span>
       </button>
       <button className={`vz-media-star${favorite ? ' vz-media-star--active' : ''}`} type="button" onClick={onToggleFavorite} aria-label={`${favorite ? 'Remove' : 'Add'} ${preset.name} ${favorite ? 'from' : 'to'} favorites`}>
-        <AppIcon kind={favorite ? 'starOff' : 'star'} size={12} color="currentColor" />
+        <AppIcon kind={favorite ? 'star' : 'starOff'} size={13} color="currentColor" />
       </button>
     </article>
   )

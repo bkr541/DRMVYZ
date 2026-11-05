@@ -1,8 +1,80 @@
+import { useId } from 'react'
 import { ENGINE_BLUEPRINT_STROKE_WIDTH } from './blueprintDrawing'
 import type { ReactEngineId } from './ReactTypes'
 
+function HeadlinerArtwork() {
+  const id = useId()
+  const silhouette = `${id}-dj`
+  const backdrop = `${id}-color`
+  const dots = `${id}-dots`
+  const scanlines = `${id}-scanlines`
+  const cdj = `${id}-cdj`
+
+  return (
+    <svg viewBox="0 0 220 90" preserveAspectRatio="xMaxYMid slice" focusable="false">
+      <defs>
+        <path id={silhouette} d="M45 30C42 20 48 9 58 6c12-5 25 0 30 10 2 4 2 9 1 14l7 10c1 2 0 4-3 4h-5l-1 7c-1 4-5 6-12 5l-2 6c13 2 22 9 28 19l11-3 9 3v7l-21 8-12-6 3 16H30l5-19c-8 5-20 8-25 1-4-6 2-16 8-24l14-20 4-14-1-9c0-2 2-3 4-1l4 9 4-7 4 2-1 15-7 9-9 22 16-12 5-10c-6-6-9-12-10-18Z" />
+        <linearGradient id={backdrop}>
+          <stop stopColor="#101026" />
+          <stop offset=".45" stopColor="#6029a9" />
+          <stop offset="1" stopColor="#f64f9a" />
+        </linearGradient>
+        <pattern id={dots} width="4" height="4" patternUnits="userSpaceOnUse">
+          <circle cx="1.5" cy="1.5" r="1.05" fill="#caffee" />
+        </pattern>
+        <pattern id={scanlines} width="4" height="3" patternUnits="userSpaceOnUse">
+          <rect width="4" height="1" fill="#ffb5d9" />
+        </pattern>
+        <g id={cdj}>
+          <path d="M7 0h38l8 25H0Z" fill="#171b25" stroke="#69788a" strokeWidth=".7" />
+          <path d="M0 25h53v5H0Z" fill="#080b11" />
+          <rect x="18" y="2" width="18" height="5" rx=".7" fill="#59c9d3" />
+          <path d="M20 4h6m2 0h6" stroke="#0a2c3b" strokeWidth=".8" />
+          <ellipse cx="27" cy="16" rx="13" ry="7" fill="#090c14" stroke="#d2d8e2" strokeWidth="1.6" />
+          <ellipse cx="27" cy="16" rx="8.5" ry="4.5" fill="#303947" stroke="#8f9eae" strokeWidth=".7" />
+          <ellipse cx="27" cy="16" rx="2.5" ry="1.4" fill="#a4b5c3" />
+          <path d="M46 9v12" stroke="#788799" strokeWidth="1.1" />
+          <path d="M44 15h4" stroke="#eef4ff" strokeWidth="1.6" />
+          <circle cx="8" cy="20" r="2.1" fill="#75dcad" />
+          <circle cx="8" cy="13" r="1.7" fill="#d5aa57" />
+          <path d="M16 25h5m3 0h5m3 0h5" stroke="#d2d8e2" strokeWidth="1.2" />
+        </g>
+      </defs>
+      <rect width="220" height="90" fill={`url(#${backdrop})`} />
+      <path d="M108 90 174 0h46v28l-57 62Z" fill="#f78bb7" opacity=".27" />
+      <g transform="translate(116 -7)">
+        <use href={`#${silhouette}`} fill="#37d9db" />
+        <use href={`#${silhouette}`} fill={`url(#${dots})`} opacity=".65" />
+      </g>
+      <g transform="translate(87 -3)">
+        <use href={`#${silhouette}`} fill="#e42f86" />
+        <use href={`#${silhouette}`} fill={`url(#${scanlines})`} opacity=".56" />
+      </g>
+      <g transform="translate(42 -6) scale(.86)">
+        <use href={`#${silhouette}`} fill="#0a0915" />
+        <path d="M47 31c-4-12 2-23 13-25 7-2 14 0 19 4" fill="none" stroke="#f4ecff" strokeWidth="2" strokeLinecap="round" />
+        <rect x="44" y="28" width="8" height="12" rx="3" transform="rotate(-12 48 34)" fill="#f4ecff" />
+        <path d="M48 39c2 14 21 17 16 32-3 9 1 14 7 18" fill="none" stroke="#f4ecff" strokeWidth="1.2" strokeLinecap="round" />
+      </g>
+      <path d="M62 61h142l16 29H47Z" fill="#060913" />
+      <use href={`#${cdj}`} transform="translate(55 61)" />
+      <use href={`#${cdj}`} transform="translate(162 61)" />
+      <path d="M116 61h37l6 29h-49Z" fill="#202530" stroke="#69788a" strokeWidth=".7" />
+      <g fill="#b8c8d2">
+        <circle cx="124" cy="66" r="1.4" /><circle cx="135" cy="66" r="1.4" /><circle cx="146" cy="66" r="1.4" />
+        <circle cx="123" cy="71" r="1.4" /><circle cx="135" cy="71" r="1.4" /><circle cx="147" cy="71" r="1.4" />
+      </g>
+      <path d="M122 76v7m13-7v7m13-7v7m-27 3h29" stroke="#788799" strokeWidth=".8" />
+      <path d="M119 79h6m7-2h6m7 4h6m-17 3v4" stroke="#e9f2ff" strokeWidth="1.5" />
+      <path d="M155 63 148 61 143 63 140 68Q142 71 147 69l4-3 5 1Z" fill="#0a0915" />
+    </svg>
+  )
+}
+
 /** Engine-specific technical illustrations, drawn in the Cinema blueprint's scale. */
 export function ReactEngineBlueprint({ engineId }: { engineId: ReactEngineId }) {
+  if (engineId === 'headliner') return <HeadlinerArtwork />
+
   return (
     <svg viewBox="0 0 140 150" fill="none" focusable="false">
       <g stroke="currentColor" strokeWidth={ENGINE_BLUEPRINT_STROKE_WIDTH}>
@@ -58,17 +130,6 @@ export function ReactEngineBlueprint({ engineId }: { engineId: ReactEngineId }) 
           <path d="M104 31 121 40.5 138 31M121 40.5V59.5" />
           <path d="M2 88 70 126 138 88M2 107 70 145 138 107M2 69V107M70 107V145M138 69V107" strokeDasharray="3 4" opacity=".3" />
           <path d="M19 78.5V83M36 88V92.5M53 97.5V102M87 97.5V102M104 88V92.5M121 78.5V83" opacity=".5" />
-        </>}
-        {engineId === 'headliner' && <>
-          {/* A faceted performer study inside a spatial capture volume. */}
-          <path d="M70 5 125 36 125 113 70 145 15 113 15 36Z" opacity=".35" />
-          <ellipse cx="70" cy="72" rx="68" ry="34" transform="rotate(-30 70 72)" opacity=".35" />
-          <path d="M70 16 95 28 103 54 91 82 70 97 49 82 37 54 45 28Z" fill="currentColor" fillOpacity=".045" />
-          <path d="M45 28 70 39 95 28M37 54 57 50 70 39 83 50 103 54M49 82 60 67 70 74 80 67 91 82M70 16V39M70 39V74M60 67 57 50M80 67 83 50M49 82 70 86 91 82M70 86V97" opacity=".65" />
-          <path d="M43 55 55 58 62 55M78 55 85 58 97 55M63 78 70 80 77 78" opacity=".55" />
-          <path d="M49 82V105L19 120 3 150M91 82V105L121 120 137 150M49 105 70 117 91 105M19 120 70 143 121 120M70 97V117M70 117V153" opacity=".65" />
-          <path d="M15 36 70 68 125 36M70 5V145M15 113 125 49M15 49 125 113" strokeDasharray="3 4" opacity=".2" />
-          <path d="M6 28V18H19M121 18H134V28M6 115V125H19M121 125H134V115" opacity=".4" />
         </>}
       </g>
     </svg>

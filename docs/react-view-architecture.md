@@ -68,7 +68,7 @@ horizontal Settings navigation on narrow screens. Leading wrappers remove
 their top inset so it does not compound with the row's spacing. The Settings
 sidebar remains a vertical navigation list on wider screens.
 
-The Preset Manager library cards follow the Lyric Manager audio track cards: an 8px gap, 8px/12px content inset, a subtle wash and hairline rounded border, and muted cyan hover/selection states without glow. Preset Manager uses the production preset artwork component and background, with authored vectors, preset-specific image assets, or renderer-generated thumbnails selected by preset. Both card types use the shared engine/artist eyebrow (11px/600) and item title (12.5px/700) roles in `src/styles/typography.css`.
+The Preset Manager library cards use an 8px gap, a subtle wash and hairline rounded border, and a muted cyan edge for selection. The preset name leads on the left, with the engine label below it. The production artwork fades in across the right half, with the favorite action above the supported capability icons. Tags remain in the inspector. Artwork is selected by preset from authored vectors, preset-specific image assets, or renderer-generated thumbnails. Preset cards and Lyric Manager audio track cards use the shared engine/artist label (11px/600) and item title (12.5px/700) roles in `src/styles/typography.css`.
 
 ## Shell regions
 
