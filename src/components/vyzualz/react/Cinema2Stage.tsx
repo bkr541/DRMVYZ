@@ -173,7 +173,9 @@ export function Cinema2Stage({
           }
           return {
             sourcePresent: transport.analysisActive || transport.activeAudioTrackId != null,
-            playing: transport.isPlaying,
+            // Live Input has no file transport, but its realtime analysis is the performance: report it as playing so
+            // presets that gate triggers and camera motion on `playing` stay active.
+            playing: transport.isPlaying || transport.analysisActive,
             analysisActive: transport.analysisActive,
             paused: transport.isPaused,
             trackId: transport.activeAudioTrackId,

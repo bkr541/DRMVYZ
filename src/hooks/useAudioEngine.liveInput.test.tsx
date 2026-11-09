@@ -224,7 +224,10 @@ describe('useAudioEngine Live Input lifecycle', () => {
 
     await act(async () => { await engine?.setSource('microphone') })
 
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: true, video: false })
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      video: false,
+    })
     expect(engine?.source).toBe('microphone')
     expect(engine?.liveInputActive).toBe(true)
     expect(engine?.analysisActive).toBe(true)
@@ -305,19 +308,21 @@ describe('useAudioEngine Live Input lifecycle', () => {
     const context = FakeAudioContext.instances[0]
     const masterAnalyser = context?.analysers[0]
     expect(masterAnalyser).toBeDefined()
-    expect(engine?.liveInputSensitivity).toBe(1)
-    expect(engine?.liveInputNoiseGate).toBe(0.02)
+    expect(engine?.liveInputSensitivity).toBe(1.5)
+    expect(engine?.liveInputNoiseGate).toBe(0.005)
 
     masterAnalyser!.frequencyDataValue = 60
     masterAnalyser!.timeDomainDataValue = 140
     act(() => { rafCallbacks.shift()?.(16) })
     const baselineFrequency = AudioFeatureBus.getFrame().raw.freqData?.[0]
+    // The analyser reads 60; the default 1.5x gain shapes it to 90.
+    expect(baselineFrequency).toBe(90)
 
     act(() => { engine?.setLiveInputSensitivity(2) })
     if (context) context.currentTime += 0.02
     act(() => { rafCallbacks.shift()?.(32) })
     expect(engine?.liveInputSensitivity).toBe(2)
-    expect(AudioFeatureBus.getFrame().raw.freqData?.[0]).toBe((baselineFrequency ?? 0) * 2)
+    expect(AudioFeatureBus.getFrame().raw.freqData?.[0]).toBe(120)
 
     act(() => { engine?.setLiveInputNoiseGate(0.2) })
     masterAnalyser!.frequencyDataValue = 220

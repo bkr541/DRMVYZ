@@ -1,5 +1,6 @@
 import { useReactStore } from '../../../stores/reactStore'
 import { useSharedAudio } from '../../../context/AudioEngineContext'
+import { LIVE_INPUT_DEFAULT_NOISE_GATE, LIVE_INPUT_DEFAULT_SENSITIVITY } from '../../../hooks/useAudioEngine'
 import { MusicIntelligenceDiagnosticsPanel } from '../modulation/MusicIntelligenceDiagnosticsPanel'
 import { LaserDmxRendererDiagnosticsPanel } from './LaserDmxRendererDiagnosticsPanel'
 import { LaserDmxRuntimeCueInspectorPanel } from './LaserDmxRuntimeCueInspectorPanel'
@@ -24,7 +25,7 @@ export function ReactAudioPanel() {
             min={0.25}
             max={4}
             step={0.05}
-            resetValue={1}
+            resetValue={LIVE_INPUT_DEFAULT_SENSITIVITY}
             onChange={audio.setLiveInputSensitivity}
             description="Shapes the shared analysis signal only; Live Input remains inaudible."
           />
@@ -35,7 +36,7 @@ export function ReactAudioPanel() {
             min={0}
             max={0.2}
             step={0.005}
-            resetValue={0.02}
+            resetValue={LIVE_INPUT_DEFAULT_NOISE_GATE}
             onChange={audio.setLiveInputNoiseGate}
             description="Suppresses low-level room noise before shared realtime feature analysis."
           />

@@ -62,6 +62,9 @@ function resolveAuthoritativeSectionsForTrack(
 }
 
 const LIVE_INPUT_ANALYSIS_PUBLISHER_ID = 'audio:live-input'
+/** Music is quiet at a mic or line-in; a low gate and a little gain keep the analysis alive. */
+export const LIVE_INPUT_DEFAULT_SENSITIVITY = 1.5
+export const LIVE_INPUT_DEFAULT_NOISE_GATE = 0.005
 
 function publishAuthoritativeTrackState(track: Track, analysis: TrackIntelligenceAnalysis | null): boolean {
   return musicIntelligenceEngine.setAuthoritativeTrackState({
@@ -289,8 +292,8 @@ export function useAudioEngine(): AudioEngine {
   const [micError, setMicError] = useState<string | null>(null)
   const [trackLoadError, setTrackLoadError] = useState<string | null>(null)
   const [liveInputActive, setLiveInputActive] = useState(false)
-  const [liveInputSensitivity, setLiveInputSensitivityState] = useState(1)
-  const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(0.02)
+  const [liveInputSensitivity, setLiveInputSensitivityState] = useState(LIVE_INPUT_DEFAULT_SENSITIVITY)
+  const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(LIVE_INPUT_DEFAULT_NOISE_GATE)
   const [tracks, setTracks] = useState<Track[]>([])
   const [currentIndex, setCurrentIndex] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -353,8 +356,8 @@ export function useAudioEngine(): AudioEngine {
   const disposedRef      = useRef(false)
   const liveClockEpochRef = useRef<number | null>(null)
   const liveAnalysisSourceIdRef = useRef<string | null>(null)
-  const liveInputSensitivityRef = useRef(1)
-  const liveInputNoiseGateRef = useRef(0.02)
+  const liveInputSensitivityRef = useRef(LIVE_INPUT_DEFAULT_SENSITIVITY)
+  const liveInputNoiseGateRef = useRef(LIVE_INPUT_DEFAULT_NOISE_GATE)
   const liveAnalysisPumpRef = useRef<MusicIntelligenceAnalyserFramePump | null>(null)
   if (!liveAnalysisPumpRef.current) {
     liveAnalysisPumpRef.current = new MusicIntelligenceAnalyserFramePump({
@@ -829,7 +832,11 @@ export function useAudioEngine(): AudioEngine {
     let stream: MediaStream | null = null
     let micNode: MediaStreamAudioSourceNode | null = null
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      stream = await navigator.mediaDevices.getUserMedia({
+        // Voice-call processing (echo cancellation, noise suppression, auto gain) flattens and suppresses music.
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        video: false,
+      })
       if (disposedRef.current || sourceRequestIdRef.current !== requestId) {
         stream.getTracks().forEach(track => track.stop())
         return false
