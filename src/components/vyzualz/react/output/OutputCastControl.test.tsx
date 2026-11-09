@@ -200,7 +200,7 @@ describe('OutputCastControl', () => {
   })
 
 
-  it('reuses one relay capture while renderer transitions replace the canonical output canvas', async () => {
+  it('keeps the receiver relay running through missing, undrawable, and replaced preset canvases', async () => {
     const originalCaptureStream = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'captureStream')
     const originalPeer = globalThis.RTCPeerConnection
     const drawImage = vi.fn()
@@ -261,12 +261,33 @@ describe('OutputCastControl', () => {
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1280, 720)
 
+      const tick = () => {
+        const callback = animationFrame as FrameRequestCallback | null
+        animationFrame = null
+        expect(callback).not.toBeNull()
+        callback?.(performance.now())
+        expect(animationFrame).not.toBeNull()
+      }
+      const copyCount = drawImage.mock.calls.length
+      await act(async () => root.render(<OutputCastControl canvas={null} />))
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(copyCount)
+      expect(stopCast).not.toHaveBeenCalled()
+      expect(track.stop).not.toHaveBeenCalled()
+
+      // Renderer teardown can leave a canvas with dimensions but no drawable image.
+      await act(async () => root.render(<OutputCastControl canvas={canvas} />))
+      drawImage.mockImplementationOnce(() => { throw new DOMException('Canvas retired', 'InvalidStateError') })
+      expect(tick).not.toThrow()
+
       const nextCanvas = document.createElement('canvas')
       nextCanvas.width = 1920
       nextCanvas.height = 1080
       await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
-      const nextAnimationFrame = animationFrame as FrameRequestCallback | null
-      nextAnimationFrame?.(performance.now())
+      tick()
+      expect(track.stop).not.toHaveBeenCalled()
+      expect(bridge.failSession).not.toHaveBeenCalled()
+      expect(startCast).not.toHaveBeenCalled()
 
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1920, 1080)
@@ -320,7 +341,7 @@ describe('OutputCastControl', () => {
     expect(startCast).not.toHaveBeenCalled()
   })
 
-  it('keeps one Google Cast encoder relay across session-state and canonical-canvas replacement', async () => {
+  it('keeps the Google Cast encoder running through missing, undrawable, and replaced preset canvases', async () => {
     const originalCaptureStream = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'captureStream')
     const originalMediaRecorder = globalThis.MediaRecorder
     const drawImage = vi.fn()
@@ -404,12 +425,33 @@ describe('OutputCastControl', () => {
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(beginGoogleCastStream).toHaveBeenCalledTimes(1)
 
+      const tick = () => {
+        const callback = animationFrame as FrameRequestCallback | null
+        animationFrame = null
+        expect(callback).not.toBeNull()
+        callback?.(performance.now())
+        expect(animationFrame).not.toBeNull()
+      }
+      const copyCount = drawImage.mock.calls.length
+      await act(async () => root.render(<OutputCastControl canvas={null} />))
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(copyCount)
+      expect(stopCast).not.toHaveBeenCalled()
+      expect(track.stop).not.toHaveBeenCalled()
+
+      // Renderer teardown can leave a canvas with dimensions but no drawable image.
+      await act(async () => root.render(<OutputCastControl canvas={canvas} />))
+      drawImage.mockImplementationOnce(() => { throw new DOMException('Canvas retired', 'InvalidStateError') })
+      expect(tick).not.toThrow()
+
       const nextCanvas = document.createElement('canvas')
       nextCanvas.width = 1920
       nextCanvas.height = 1080
       await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
-      const nextAnimationFrame = animationFrame as FrameRequestCallback | null
-      nextAnimationFrame?.(performance.now())
+      tick()
+      expect(track.stop).not.toHaveBeenCalled()
+      expect(bridge.failSession).not.toHaveBeenCalled()
+      expect(startCast).not.toHaveBeenCalled()
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenLastCalledWith(nextCanvas, 0, 0, 1280, 720)
     } finally {

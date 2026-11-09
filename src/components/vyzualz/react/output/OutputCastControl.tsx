@@ -137,18 +137,24 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
   let frameId = 0
   const render = () => {
     if (stopped) return
-    const source = sourceRef.current
-    if (source && source.width > 0 && source.height > 0) {
-      const next = fitRelaySize(source.width, source.height)
-      if (relay.width !== next.width || relay.height !== next.height) {
-        relay.width = next.width
-        relay.height = next.height
+    try {
+      const source = sourceRef.current
+      if (source && source.width > 0 && source.height > 0) {
+        const next = fitRelaySize(source.width, source.height)
+        if (relay.width !== next.width || relay.height !== next.height) {
+          relay.width = next.width
+          relay.height = next.height
+        }
+        context.drawImage(source, 0, 0, relay.width, relay.height)
+      } else {
+        context.fillStyle = '#000'
+        context.fillRect(0, 0, relay.width, relay.height)
       }
-      context.drawImage(source, 0, 0, relay.width, relay.height)
-    } else {
-      context.fillStyle = '#000'
-      context.fillRect(0, 0, relay.width, relay.height)
+    } catch (error) {
+      // A nonzero canvas can still be undrawable during renderer teardown.
+      if (!(error instanceof DOMException && error.name === 'InvalidStateError')) throw error
     }
+    // Retry transient copy failures without restarting the capture or receiver.
     frameId = window.requestAnimationFrame(render)
   }
   render()
@@ -365,18 +371,24 @@ function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElem
   let frameId = 0
   const render = () => {
     if (stopped) return
-    const source = sourceRef.current
-    if (source && source.width > 0 && source.height > 0) {
-      const next = fitGoogleCastRelaySize(source.width, source.height)
-      if (relay.width !== next.width || relay.height !== next.height) {
-        relay.width = next.width
-        relay.height = next.height
+    try {
+      const source = sourceRef.current
+      if (source && source.width > 0 && source.height > 0) {
+        const next = fitGoogleCastRelaySize(source.width, source.height)
+        if (relay.width !== next.width || relay.height !== next.height) {
+          relay.width = next.width
+          relay.height = next.height
+        }
+        context.drawImage(source, 0, 0, relay.width, relay.height)
+      } else {
+        context.fillStyle = '#000'
+        context.fillRect(0, 0, relay.width, relay.height)
       }
-      context.drawImage(source, 0, 0, relay.width, relay.height)
-    } else {
-      context.fillStyle = '#000'
-      context.fillRect(0, 0, relay.width, relay.height)
+    } catch (error) {
+      // A nonzero canvas can still be undrawable during renderer teardown.
+      if (!(error instanceof DOMException && error.name === 'InvalidStateError')) throw error
     }
+    // Retry transient copy failures without restarting the capture or receiver.
     frameId = window.requestAnimationFrame(render)
   }
   render()

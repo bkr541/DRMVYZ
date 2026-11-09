@@ -123,6 +123,13 @@ Browser recording availability depends on browser support. Chrome or Edge is the
 | Electron display routing, LAN discovery, receiver server, and output windows | `native/output/outputCastBridge.cjs` |
 | Preload exposure | `native/rekordbox/preloadRekordboxBridge.cjs` |
 
+Preset selection must preserve the active cast session, window mode, and aspect
+ratio for every audio source, including Live Input. Both the WebRTC and Google
+Cast relay loops keep running while an engine temporarily unpublishes its
+canvas and retry after a transient `InvalidStateError` during canvas copying.
+They resume from the newly published canvas without restarting the receiver,
+capture stream, or encoder.
+
 The cast icon lives in the lower visualizer toolbar beside Stage Focus. The chooser requires an explicit window mode and aspect ratio before any target can be selected.
 
 Local display targets come from Electron's display inventory. Network targets are other running DRMVYZ desktop instances discovered on the local network. The receiving instance opens a sandboxed output-only window and loads a token-scoped receiver page from the sender. The live canvas is copied into one stable relay canvas and transmitted with WebRTC so engine canvas replacement does not create a second rendering source of truth.
