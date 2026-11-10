@@ -1,3 +1,5 @@
+import { resolveCanvasResolution, type CanvasResolution } from './rendering/canvasResolution'
+import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 
@@ -1535,6 +1537,7 @@ export function CanvasEngineSurface({
   } | null>(null)
   const outputRef = useRef<HTMLDivElement | null>(null)
   const outputCaptureCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const compositionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const sourceEffectsCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const particleOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const directImageOutputCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -1943,6 +1946,12 @@ export function CanvasEngineSurface({
   }, [activeAudioTrackId, activeItem, cutbankActive, mediaItems, orchestrationPreloadManager, orchestrationSettings, previewSelectedElementId, previewShowTimeSec, runtimeCanvasShow, shiftgridDirectActive, showPreviewMode, singleLayerEffectOwner, singleLayerEffectRuntime])
 
   useEffect(() => () => {
+    const composition = compositionCanvasRef.current
+    if (composition) { composition.width = 0; composition.height = 0 }
+    compositionCanvasRef.current = null
+  }, [])
+
+  useEffect(() => () => {
     orchestrationPreloadManager.dispose()
     clearSharedPerformanceDiagnostics('canvas')
   }, [orchestrationPreloadManager])
@@ -2044,9 +2053,11 @@ export function CanvasEngineSurface({
     const captureContext = captureCanvas.getContext('2d', { alpha: true })
     const effectsContext = effectsCanvas.getContext('2d', { alpha: true })
     if (!captureContext || !effectsContext) return
-    const compositionCanvas = document.createElement('canvas')
+    const compositionCanvas = compositionCanvasRef.current ?? document.createElement('canvas')
+    compositionCanvasRef.current = compositionCanvas
     const compositionContext = compositionCanvas.getContext('2d', { alpha: true })
     if (!compositionContext) return
+    let previousCaptureResolution: CanvasResolution | null = null
 
     const frequencyData = analyser ? new Uint8Array(Math.max(1, analyser.frequencyBinCount)) : null
     let frameId = 0
@@ -2061,19 +2072,30 @@ export function CanvasEngineSurface({
       const visibleRect = outputRef.current?.getBoundingClientRect()
       const cssWidth = Math.max(1, Math.round(visibleRect?.width || 1280))
       const cssHeight = Math.max(1, Math.round(visibleRect?.height || 720))
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1))
-      const targetWidth = Math.max(1, Math.round(cssWidth * dpr))
-      const targetHeight = Math.max(1, Math.round(cssHeight * dpr))
+      const resolution = resolveCanvasResolution({ cssWidth, cssHeight,
+        devicePixelRatio: window.devicePixelRatio, quality: 'ultra', previous: previousCaptureResolution })
+      if (!resolution.valid) return
+      const targetWidth = resolution.backingWidth
+      const targetHeight = resolution.backingHeight
+      if (previousCaptureResolution?.backingWidth !== targetWidth || previousCaptureResolution?.backingHeight !== targetHeight) {
+        recordPerformanceEvent('canvas', 'capture-size', { width: targetWidth, height: targetHeight,
+          capped: resolution.cappedByPixelBudget || resolution.cappedByDimension })
+      }
+      previousCaptureResolution = resolution
       for (const canvas of [captureCanvas, compositionCanvas, effectsCanvas]) {
-        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-          canvas.width = targetWidth
-          canvas.height = targetHeight
+        // The effect scratch surface has no consumer outside the standard effect pass.
+        const width = canvas === effectsCanvas && !effectPassActive ? 1 : targetWidth
+        const height = canvas === effectsCanvas && !effectPassActive ? 1 : targetHeight
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width
+          canvas.height = height
         }
       }
-
-      compositionContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const scaleX = targetWidth / cssWidth
+      const scaleY = targetHeight / cssHeight
+      compositionContext.setTransform(scaleX, 0, 0, scaleY, 0, 0)
       prepareCanvasCaptureBackground(compositionContext, cssWidth, cssHeight, effectiveBackgroundMode)
-      effectsContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      effectsContext.setTransform(scaleX, 0, 0, scaleY, 0, 0)
       effectsContext.clearRect(0, 0, cssWidth, cssHeight)
 
       const source = particleSourceRef.current

@@ -1,3 +1,5 @@
+import { requestTextSceneNavigation } from '../../../features/cinema2Text/textSceneNavigation'
+import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { lazy, Suspense, useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { adaptMIAnalysis, resolveTrackSections } from '../../../features/trackIntelligence/trackMapAdapter'
@@ -60,11 +62,13 @@ import { FontLibraryPanel } from './FontLibraryPanel'
 import { ReactEngineBrowser } from './ReactEngineBrowser'
 import { useActiveEnginePresetName } from './activeEnginePresetName'
 import { Cinema2InspectorPanel } from './Cinema2InspectorPanel'
+import { Cinema2TextLibraryPanel } from './Cinema2TextLibraryPanel'
 import { Cinema2LayersPanel } from './Cinema2LayersPanel'
 import { Cinema2PresetsPanel } from './Cinema2PresetsPanel'
 import { Cinema2Stage } from './Cinema2Stage'
 import {
   CINEMA2_RUNTIME_FOUNDATION_PRESET_ID,
+  captureCinema2WorkspacePresetState,
   cinema2NativePresetRegistry,
   getCinema2WorkspacePresetState,
   type Cinema2PresetId,
@@ -304,9 +308,17 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
   const { overlay: activeBrandOverlay } = useActiveBrandOverlay()
 
+  const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
+  const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
+  const [cinema2InitialPresetId] = useState<Cinema2PresetId>(() => {
+    const lastPresetId = readCinema2LastPresetId()
+    if (lastPresetId && cinema2NativePresetRegistry.has(lastPresetId)) return lastPresetId
+    return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
+  })
+  const cinema2PresetId = cinema2Workspace.activePresetId ?? cinema2InitialPresetId
   const workspaceComposition = useMemo(
-    () => resolveReactWorkspaceComposition(activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible),
-    [activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible],
+    () => resolveReactWorkspaceComposition(activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible, cinema2PresetId),
+    [activeReactEngineId, laserDmxWorkspaceMode, beamEditorVisible, cinema2PresetId],
   )
   const lowerSurfaces = useMemo(
     () => getReactLowerSurfaces(workspaceComposition),
@@ -390,14 +402,12 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   const { startVideoRecording } = recorder
   const { hasActiveProgramAudio, getRecordingStream } = engine
   const [outputCanvas, setOutputCanvas] = useState<HTMLCanvasElement | null>(null)
-  const [cinema2Runtime, setCinema2Runtime] = useState<Cinema2Runtime | null>(null)
-  const [cinema2RuntimeSnapshot, setCinema2RuntimeSnapshot] = useState<Cinema2RuntimeSnapshot | null>(null)
-  const [cinema2InitialPresetId] = useState<Cinema2PresetId>(() => {
-    const lastPresetId = readCinema2LastPresetId()
-    if (lastPresetId && cinema2NativePresetRegistry.has(lastPresetId)) return lastPresetId
-    return CINEMA2_RUNTIME_FOUNDATION_PRESET_ID
-  })
-  const cinema2PresetId = cinema2Workspace.activePresetId ?? cinema2InitialPresetId
+
+  useEffect(() => {
+    recordPerformanceEvent('engine', 'preset-selected', { engine: activeReactEngineId,
+      presetId: activeReactEngineId === 'cinema2' ? cinema2PresetId
+        : activeReactEngineId === 'canvas' ? selectedCanvasPresetId : activeReactPresetId })
+  }, [activeReactEngineId, activeReactPresetId, cinema2PresetId, selectedCanvasPresetId])
   const cinema2RestoreState = useCinema2WorkspaceRestoreState(
     cinema2PresetId,
     getCinema2WorkspacePresetState(cinema2Workspace, cinema2PresetId),
@@ -405,9 +415,11 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   )
   const activeEnginePresetName = useActiveEnginePresetName(activeReactEngineId, cinema2PresetId)
   const handleCinema2PresetSelect = useCallback((presetId: Cinema2PresetId) => {
-    const result = activateCinema2Workspace({ presetId })
-    if (!result.ok) return
-    writeCinema2LastPresetId(presetId)
+    requestTextSceneNavigation(() => {
+      const result = activateCinema2Workspace({ presetId })
+      if (!result.ok) return
+      writeCinema2LastPresetId(presetId)
+    })
   }, [activateCinema2Workspace])
   const handleCinema2RuntimeRetiring = useCallback((state: Readonly<Cinema2WorkspacePresetState>) => {
     storeCinema2WorkspacePresetState(state)
@@ -719,7 +731,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 <RailTabs
                   tabs={leftTabs}
                   activeTab={leftTab}
-                  onChange={setLeftTab}
+                  onChange={tab => { if (tab !== leftTab) requestTextSceneNavigation(() => setLeftTab(tab)) }}
                   ariaLabel={`${REACT_ENGINE_CATALOG[activeReactEngineId].label} workspace tabs`}
                   className="rv-context-workspace-tabs"
                   variant="underline"
@@ -751,6 +763,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   {leftTab === 'layers' && (activeReactEngineId === 'cinema2' ? <Cinema2LayersPanel runtime={cinema2Runtime} /> : activeReactEngineId === 'canvas' ? <CanvasLayersPanel /> : workspaceComposition.showLaserLayersTab ? (
                     <Suspense fallback={<LazyWorkspaceFallback label="LaserDMX layers" />}><LaserDmxLayersPanel /></Suspense>
                   ) : null)}
+                  {leftTab === 'pool' && activeReactEngineId === 'cinema2' && <Cinema2TextLibraryPanel runtime={cinema2Runtime} mode="pool" />}
                   {leftTab === 'fonts' && <FontLibraryPanel />}
                 </div>
               </div>
@@ -1045,7 +1058,9 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               ))}
             {activeRightPanel === 'design' && (
               activeReactEngineId === 'cinema2'
-                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" />
+                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" onTextChange={() => {
+                    if (cinema2Runtime) storeCinema2WorkspacePresetState(captureCinema2WorkspacePresetState(cinema2Runtime))
+                  }} />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerDesignPanel />
                   : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />

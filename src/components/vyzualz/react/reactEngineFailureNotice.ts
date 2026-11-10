@@ -1,3 +1,4 @@
+import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { notify } from '../../../stores/notificationStore'
 import { REACT_ENGINE_CATALOG } from './reactEngineCatalog'
 import type { ReactEngineId } from './ReactTypes'
@@ -7,6 +8,7 @@ import type { ReactEngineId } from './ReactTypes'
  * happens, so without a card the user is left looking at a frozen or empty canvas with no explanation.
  */
 export function reportReactEngineFailure(engine: ReactEngineId, stage: 'setup-failed' | 'render-failed', error: unknown): void {
+  recordPerformanceEvent('engine', stage, { engine, error: error instanceof Error ? error.message : String(error) })
   const label = REACT_ENGINE_CATALOG[engine]?.label ?? 'The engine'
   const detail = (error instanceof Error ? error.message : typeof error === 'string' ? error : '').trim()
   notify('react', {

@@ -1,6 +1,11 @@
+import { CastPreviewWindow } from './CastPreviewWindow'
+import { isCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
+import { FrameCadence } from '../../../../lib/frameCadence'
+import { recordPerformanceEvent, setPerformanceCastActive } from '../../../../lib/performanceTelemetry'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import {
   useCallback,
+  useId,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -99,6 +104,7 @@ function waitForIceGatheringComplete(peer: RTCPeerConnection): Promise<void> {
 }
 
 interface RelayCapture {
+  canvas: HTMLCanvasElement
   stream: MediaStream
   stop: () => void
 }
@@ -135,11 +141,20 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
 
   let stopped = false
   let frameId = 0
-  const render = () => {
+  const cadence = new FrameCadence(RECEIVER_MAX_FPS)
+  const render = (now = performance.now()) => {
     if (stopped) return
+    if (!cadence.due(now)) {
+      frameId = window.requestAnimationFrame(render)
+      return
+    }
     try {
       const source = sourceRef.current
       if (source && source.width > 0 && source.height > 0) {
+        if (!isCanvasFrameReady(source)) {
+          frameId = window.requestAnimationFrame(render)
+          return
+        }
         const next = fitRelaySize(source.width, source.height)
         if (relay.width !== next.width || relay.height !== next.height) {
           relay.width = next.width
@@ -165,6 +180,7 @@ function createRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElement | null
   }
 
   return {
+    canvas: relay,
     stream,
     stop: () => {
       stopped = true
@@ -231,6 +247,7 @@ function useOutputBroadcaster(
   bridge: NativeOutputBridge | null,
   canvas: HTMLCanvasElement | null,
   session: OutputCastSession | null,
+  previewSourceRef: MutableRefObject<HTMLCanvasElement | null>,
 ) {
   const canvasRef = useRef(canvas)
   const activeRef = useRef<{
@@ -252,8 +269,9 @@ function useOutputBroadcaster(
     if (active.disconnectTimer !== null) window.clearTimeout(active.disconnectTimer)
     active.peer.close()
     active.relay.stop()
+    if (previewSourceRef.current === active.relay.canvas) previewSourceRef.current = null
     activeRef.current = null
-  }, [])
+  }, [previewSourceRef])
 
   useLayoutEffect(() => {
     if (session) return
@@ -271,6 +289,7 @@ function useOutputBroadcaster(
           const relay = createRelayCapture(canvasRef)
           const peer = new RTCPeerConnection({ iceServers: [] })
           activeRef.current = { sessionId, peer, relay, statsTimer: null, disconnectTimer: null }
+          previewSourceRef.current = relay.canvas
           let previousStats: { bytesSent: number; timestamp: number } | null = null
 
           const failAfterGrace = () => {
@@ -335,7 +354,7 @@ function useOutputBroadcaster(
         }
       })()
     })
-  }, [bridge, closeActive])
+  }, [bridge, closeActive, previewSourceRef])
 
   useEffect(() => closeActive, [closeActive])
 }
@@ -369,11 +388,20 @@ function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElem
 
   let stopped = false
   let frameId = 0
-  const render = () => {
+  const cadence = new FrameCadence(GOOGLE_CAST_MAX_FPS)
+  const render = (now = performance.now()) => {
     if (stopped) return
+    if (!cadence.due(now)) {
+      frameId = window.requestAnimationFrame(render)
+      return
+    }
     try {
       const source = sourceRef.current
       if (source && source.width > 0 && source.height > 0) {
+        if (!isCanvasFrameReady(source)) {
+          frameId = window.requestAnimationFrame(render)
+          return
+        }
         const next = fitGoogleCastRelaySize(source.width, source.height)
         if (relay.width !== next.width || relay.height !== next.height) {
           relay.width = next.width
@@ -398,6 +426,7 @@ function createGoogleCastRelayCapture(sourceRef: MutableRefObject<HTMLCanvasElem
     void track.applyConstraints?.({ frameRate: { ideal: GOOGLE_CAST_MAX_FPS, max: GOOGLE_CAST_MAX_FPS } }).catch(() => undefined)
   }
   return {
+    canvas: relay,
     stream,
     stop: () => {
       stopped = true
@@ -418,6 +447,7 @@ function useGoogleCastBroadcaster(
   bridge: NativeOutputBridge | null,
   canvas: HTMLCanvasElement | null,
   session: OutputCastSession | null,
+  previewSourceRef: MutableRefObject<HTMLCanvasElement | null>,
 ) {
   const canvasRef = useRef(canvas)
   const activeRef = useRef<{
@@ -444,8 +474,9 @@ function useGoogleCastBroadcaster(
       try { active.recorder.stop() } catch { /* Recorder may already be tearing down. */ }
     }
     active.relay.stop()
+    if (previewSourceRef.current === active.relay.canvas) previewSourceRef.current = null
     void bridge?.endGoogleCastStream?.(active.sessionId).catch(() => false)
-  }, [bridge])
+  }, [bridge, previewSourceRef])
 
   const activeSessionId = session?.providerId === 'google-cast'
     && session.transport === 'google-cast-webm'
@@ -490,6 +521,7 @@ function useGoogleCastBroadcaster(
           publishChain: Promise.resolve(),
         }
         activeRef.current = active
+        previewSourceRef.current = relay.canvas
         pendingRelay = null
 
         const fail = async (message: string) => {
@@ -560,7 +592,7 @@ function useGoogleCastBroadcaster(
       cancelled = true
       if (activeRef.current?.sessionId === sessionId) closeActive()
     }
-  }, [activeSessionId, bridge, closeActive])
+  }, [activeSessionId, bridge, closeActive, previewSourceRef])
 
   useEffect(() => closeActive, [closeActive])
 }
@@ -997,14 +1029,46 @@ export function OutputCastControl({
   const unmountStopTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
+  const previewId = useId()
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const previewSourceRef = useRef<HTMLCanvasElement | null>(null)
+  const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
   const [targets, setTargets] = useState<OutputTarget[]>([])
   const [session, setSession] = useState<OutputCastSession | null>(null)
   const [providerStatuses, setProviderStatuses] = useState<OutputProviderStatus[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useOutputBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null)
-  useGoogleCastBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null)
+  const lastStatsLogRef = useRef(0)
+  const castState = outputAvailable ? session?.state ?? 'disconnected' : 'unavailable'
+  const castId = session?.id ?? null
+  const castTransport = session?.transport ?? 'webrtc'
+  useEffect(() => {
+    const active = castState === 'connecting' || castState === 'connected'
+    setPerformanceCastActive(active)
+    recordPerformanceEvent('cast', 'cast-state', { state: castState, transport: castTransport, sessionId: castId })
+    return () => setPerformanceCastActive(false)
+  }, [castState, castId, castTransport])
+  useEffect(() => {
+    if (!session?.stats || performance.now() - lastStatsLogRef.current < 10_000) return
+    lastStatsLogRef.current = performance.now()
+    recordPerformanceEvent('cast', 'cast-summary', { state: session.state, transport: castTransport,
+      width: session.stats.width, height: session.stats.height, fps: session.stats.framesPerSecond,
+      bitrateKbps: session.stats.bitrateKbps, packetsLost: session.stats.packetsLost })
+  }, [session, castTransport])
+
+  const castConnected = outputAvailable && session?.state === 'connected'
+  const previewOpen = castConnected && previewSessionId === session.id
+  useEffect(() => {
+    if (!castConnected) setPreviewSessionId(null)
+  }, [castConnected])
+  const closePreview = () => {
+    setPreviewSessionId(null)
+    previewTriggerRef.current?.focus({ preventScroll: true })
+  }
+
+  useOutputBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null, previewSourceRef)
+  useGoogleCastBroadcaster(outputAvailable ? bridge : null, safeCanvas, outputAvailable ? session : null, previewSourceRef)
 
   useLayoutEffect(() => {
     outputAvailableRef.current = outputAvailable
@@ -1160,6 +1224,18 @@ export function OutputCastControl({
         <CastIcon />
         {session?.state === 'connected' && <span className="rv-cast-live-dot" aria-hidden="true" />}
       </button>
+      {castConnected && (
+        <button ref={previewTriggerRef} type="button" className={`rv-cast-trigger${previewOpen ? ' is-active' : ''}`}
+          aria-label={previewOpen ? 'Hide cast preview' : 'Show cast preview'} title={previewOpen ? 'Hide cast preview' : 'Show cast preview'}
+          aria-pressed={previewOpen} aria-expanded={previewOpen} aria-controls={previewOpen ? previewId : undefined}
+          onClick={() => setPreviewSessionId(previewOpen ? null : session.id)}>
+          <AppIcon kind="eye" />
+        </button>
+      )}
+      {previewOpen && (
+        <CastPreviewWindow key={session.id} id={previewId} anchor={previewTriggerRef.current}
+          sourceRef={previewSourceRef} onClose={closePreview} />
+      )}
       {open && (
         <OutputCastPopover
           anchor={triggerRef.current}

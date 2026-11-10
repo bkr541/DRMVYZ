@@ -8,6 +8,7 @@
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
 import type { AppView } from './appView'
@@ -228,4 +229,26 @@ describe('Lyric Manager unsaved guard (unchanged)', () => {
     await clickLabel('React')
     expect(has('react-workspace')).toBe(true)
   })
+})
+
+
+it('holds application navigation while a Text Scene draft awaits a decision', async () => {
+  await renderView('react')
+  const discard = vi.fn()
+  const release = useTextSceneNavigation.getState().register({ owner: Symbol(), isDirty: () => true, save: () => true, discard })
+  try {
+    await clickLabel('Media Manager')
+    expect(container?.querySelector('[data-testid="react-workspace"]')).toBeTruthy()
+    expect(useTextSceneNavigation.getState().pending).not.toBeNull()
+    await act(async () => useTextSceneNavigation.getState().cancel())
+    expect(discard).not.toHaveBeenCalled()
+    await clickLabel('Media Manager')
+    await act(async () => useTextSceneNavigation.getState().discardAndProceed())
+    await flush()
+    expect(discard).toHaveBeenCalledOnce()
+    expect(container?.querySelector('[data-testid="media-manager"]')).toBeTruthy()
+  } finally {
+    release()
+    useTextSceneNavigation.setState({ session: null, pending: null, error: null })
+  }
 })

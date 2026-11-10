@@ -36,3 +36,12 @@
 :root body .rv-right-subtabs + .rv-workspace-panel-body > .rv-inspector > .rv-ctrl-group:first-child:has(> .drc-group:first-child) {
   padding-top: var(--workspace-control-gap, 9px);
 }
+
+/* Text Scenes uses the same flat library content line as Lyric Manager Tracks. */
+:root body .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-ctrl-group:has(> .rv-cinema2-text-library) {
+  padding-inline: var(--workspace-rail-inset, 12px);
+}
+
+:root body .rv-context-workspace > .rv-left-tab-body > .rv-engine-viewport > .rv-cinema2-text-library {
+  padding: 8px var(--workspace-rail-inset, 12px) 12px;
+}

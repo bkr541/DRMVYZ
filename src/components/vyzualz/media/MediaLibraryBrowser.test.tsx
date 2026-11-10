@@ -657,16 +657,24 @@ describe('MediaLibraryBrowser contact-sheet tiles', () => {
     expect(tile?.title).toBe('Stage Image · PNG · 1920×1080 · stage')
   })
 
-  it('does not swap in the contact sheet for list view', async () => {
+  it('uses one icon to switch between grid and list in both directions', async () => {
     await renderBrowser({
       activeMediaId: null,
       onSelect: vi.fn(),
       context: 'visualizer',
       capabilities: MEDIA_DECK_CAPABILITIES,
     })
+    expect(container?.querySelectorAll('.dv-library-view-toggle button')).toHaveLength(1)
+    expect(findButtonByTitle('Grid view')).toBeNull()
     act(() => findButtonByTitle('List view')?.click())
     expect(container?.querySelector('.vz-media-sheet')).toBeNull()
     expect(container?.querySelector('.vz-media-row')).not.toBeNull()
+    expect(findButtonByTitle('List view')).toBeNull()
+    expect(container?.querySelectorAll('.dv-library-view-toggle button')).toHaveLength(1)
+    act(() => findButtonByTitle('Grid view')?.click())
+    expect(container?.querySelector('.vz-media-sheet')).not.toBeNull()
+    expect(findButtonByTitle('List view')).not.toBeNull()
+    expect(findButtonByTitle('Grid view')).toBeNull()
   })
 })
 

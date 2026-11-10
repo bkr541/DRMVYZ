@@ -130,6 +130,14 @@ canvas and retry after a transient `InvalidStateError` during canvas copying.
 They resume from the newly published canvas without restarting the receiver,
 capture stream, or encoder.
 
+Relay copies are paced to the existing transport limits: 60 FPS for WebRTC and
+30 FPS for Google Cast, independently of preview refresh rate. During Cinema
+preset activation, the relay skips setup clears until the replacement produces
+its first completed frame. The existing session and capture stream stay active.
+Canvas direct-source intermediates reuse composition storage and share the UHD
+pixel/edge budget while retaining up to 2× DPR; CSS layout, source transforms,
+parameter values, and audio-analysis ownership are unchanged.
+
 The cast icon lives in the lower visualizer toolbar beside Stage Focus. The chooser requires an explicit window mode and aspect ratio before any target can be selected.
 
 Local display targets come from Electron's display inventory. Network targets are other running DRMVYZ desktop instances discovered on the local network. The receiving instance opens a sandboxed output-only window and loads a token-scoped receiver page from the sender. The live canvas is copied into one stable relay canvas and transmitted with WebRTC so engine canvas replacement does not create a second rendering source of truth.
@@ -137,6 +145,21 @@ Local display targets come from Electron's display inventory. Network targets ar
 AirPlay and Miracast remain operating-system display connections. Once the operating system exposes one as a display, it appears in the local display list. This bridge does not claim direct control of proprietary AirPlay, Chromecast, or Miracast device protocols.
 
 Receiver HTTP endpoints require random session tokens. LAN cast-start requests require the receiver token advertised by discovery, must originate from a private-network address, and may load only the requesting sender's `/receiver` URL. Output windows keep Node integration disabled, context isolation enabled, and sandboxing enabled.
+
+### Floating cast preview
+
+While a cast session is connected, an eye icon appears immediately to the right
+of Cast in the React timeline/Track Map header. Click it to show or hide the
+modeless Cast preview window. The window matches the current engine-selector
+card width and approximately twice its height, stays within the application
+viewport, and can be moved by dragging its title bar. Its Close button or Escape
+while focused also hides it. Stopping, disconnecting, or failing the cast removes
+both the preview and its toggle; a new session starts with the preview hidden.
+
+The preview samples the existing transport relay, including preset handoffs,
+at up to 30 FPS into a small canvas with contained scaling. It creates no new
+engine renderer, capture stream, encoder, audio path, or cast session. Closing
+it cancels its drawing loop without affecting the active cast.
 
 ### Window and aspect ownership
 

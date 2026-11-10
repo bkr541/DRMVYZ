@@ -1,3 +1,4 @@
+import { recordPerformanceEvent } from '../../../../lib/performanceTelemetry'
 import type { ReactPreset } from '../ReactTypes'
 
 export type ReactLiveEngineId = ReactPreset['engine']
@@ -54,6 +55,8 @@ export function acquireReactLiveEngineOwnership(
     retireOwnedResources,
   }
   activeOwner = owner
+  const startedAt = performance.now()
+  recordPerformanceEvent('engine', 'engine-initializing', { engine, generation: owner.generation })
   emitSnapshot()
 
   return {
@@ -63,6 +66,8 @@ export function acquireReactLiveEngineOwnership(
     markStable: () => {
       if (activeOwner !== owner || owner.retired || owner.stable) return
       owner.stable = true
+      recordPerformanceEvent('engine', 'engine-ready', { engine, generation: owner.generation,
+        activationMs: performance.now() - startedAt })
       emitSnapshot()
     },
     retire: (reason = 'unmount') => retireOwner(owner, reason),
@@ -138,6 +143,7 @@ function retireOwner(
 ): void {
   if (!owner || owner.retired) return
   owner.retired = true
+  recordPerformanceEvent('engine', 'engine-retired', { engine: owner.engine, generation: owner.generation, reason })
   if (activeOwner === owner) activeOwner = null
   try {
     owner.retireOwnedResources(reason)

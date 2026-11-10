@@ -5,6 +5,8 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
+import { Cinema2TextLibraryPanel } from './Cinema2TextLibraryPanel'
+import { isCinema2TextPreset } from '../cinema2/text/Cinema2TextConfiguration'
 import { Cinema2MediaSourcePanel } from './Cinema2MediaSourcePanel'
 import type { Cinema2Runtime } from '../cinema2'
 import { useShallow } from 'zustand/react/shallow'
@@ -445,7 +447,9 @@ export function ReactEnginePanel({
   return (
     <div className="rv-ctrl-group">
       {activeReactEngineId === 'cinema2' && (
-        <Cinema2MediaSourcePanel runtime={cinema2Runtime} onOpenMediaManager={onOpenMediaManager} />
+        isCinema2TextPreset(cinema2Runtime?.getCompiledPresetPlan().presetId)
+          ? <Cinema2TextLibraryPanel runtime={cinema2Runtime} />
+          : <Cinema2MediaSourcePanel runtime={cinema2Runtime} onOpenMediaManager={onOpenMediaManager} />
       )}
 
       {/* Cinematic Worlds source selection lives in the left rail. */}

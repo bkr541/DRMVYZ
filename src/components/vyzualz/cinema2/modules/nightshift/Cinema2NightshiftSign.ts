@@ -49,7 +49,7 @@ export class Cinema2NightshiftSign {
         '#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vColor.rgb;')
     }
     this.material.customProgramCacheKey = () => 'nightshift-neon-outline-v1'
-    this.setText(side === 0 ? fixedOutlines.text : '')
+    this.setText('')
   }
 
   setText(text: string): void {

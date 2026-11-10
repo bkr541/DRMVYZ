@@ -1,3 +1,4 @@
+import { isPerformanceCastActive, recordPerformanceEvent, PerformanceFrameSampler } from '../../../../lib/performanceTelemetry'
 import type { Cinema2CapabilityId, Cinema2ParameterId, Cinema2PresetId, Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER_ID, readCinema2QualityMode, type Cinema2QualityMode } from '../parameters/Cinema2PerformanceParameters'
 import { Cinema2PerformanceDiagnostics, type Cinema2PerformanceSnapshot } from './Cinema2PerformanceDiagnostics'
@@ -142,6 +143,8 @@ export interface Cinema2RuntimeCreateOptions {
   requestAnimationFrame?: typeof requestAnimationFrame
   cancelAnimationFrame?: typeof cancelAnimationFrame
   onSnapshot?: (snapshot: Cinema2RuntimeSnapshot) => void
+  /** Presentation-only notification; no parameter or transport ownership. */
+  onFirstFrame?: () => void
   presetId?: Cinema2PresetId
   presetRegistry?: Cinema2PresetRegistry
   moduleRegistry?: Cinema2ModuleRegistry
@@ -388,6 +391,7 @@ export class Cinema2Runtime {
   private readonly requestFrame: typeof requestAnimationFrame
   private readonly cancelFrame: typeof cancelAnimationFrame
   private readonly onSnapshot: ((snapshot: Cinema2RuntimeSnapshot) => void) | null
+  private readonly onFirstFrame: (() => void) | undefined
   private readonly contextHandle: WebGLContextDiagnosticHandle | null
   private readonly onContextLostHandler: (event: Event) => void
   private readonly onContextRestoredHandler: () => void
@@ -428,6 +432,8 @@ export class Cinema2Runtime {
   private listenersAttached = false
   private contextOwned = false
   private lastFrameTimestampMs: number | null = null
+  private readonly performanceSampler = new PerformanceFrameSampler()
+  private skipNextPacingSample = false
   private visualElapsedTimeSec = 0
   private lastTransportState: Readonly<Cinema2TransportFrameState> | null = null
 
@@ -443,6 +449,7 @@ export class Cinema2Runtime {
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
+    this.onFirstFrame = options.onFirstFrame
     this.audioIntelligenceBridge = options.audioIntelligenceBridge ?? new Cinema2AudioIntelligenceBridge()
     this.transportSource = options.transportSource ?? null
     this.visualDirector = new Cinema2VisualDirector()
@@ -515,6 +522,7 @@ export class Cinema2Runtime {
     this.onContextLostHandler = event => {
       if (this.disposed || this.phase === 'unavailable') return
       event.preventDefault()
+      recordPerformanceEvent('cinema2', 'context-lost', { presetId: this.compiledPresetPlan.presetId })
       this.contextLost = true
       this.phase = 'context-lost'
       this.statusMessage = 'Cinema 2.0 paused because its WebGL2 context was lost.'
@@ -556,6 +564,8 @@ export class Cinema2Runtime {
         this.renderSafeFrame()
         this.phase = this.suspended ? 'suspended' : this.runningRequested ? 'running' : 'initializing'
         this.refreshRecoverableStatus()
+        recordPerformanceEvent('cinema2', 'context-restored', { presetId: this.compiledPresetPlan.presetId,
+          generation: this.contextGeneration })
         this.emitSnapshot()
         this.scheduleFrame()
       } catch (error) {
@@ -602,6 +612,9 @@ export class Cinema2Runtime {
   setSuspended(suspended: boolean): void {
     if (this.disposed || this.phase === 'unavailable' || this.suspended === suspended) return
     this.suspended = suspended
+    // Reset adaptation only; leave the established visual/transport clock untouched.
+    this.skipNextPacingSample = true
+    this.performanceDiagnostics.resetFramePacing()
     if (suspended) {
       this.phase = 'suspended'
       this.cancelScheduledFrame()
@@ -874,6 +887,7 @@ export class Cinema2Runtime {
       const qualityChanged = this.applyPerformancePolicy()
       const visualFrameId = this.frameCount + 1
       const safeTimestampMs = Number.isFinite(timestampMs) ? Math.max(0, timestampMs) : (this.lastFrameTimestampMs ?? 0)
+      const frameIntervalMs = this.lastFrameTimestampMs == null ? null : safeTimestampMs - this.lastFrameTimestampMs
       const rawDeltaTimeSec = this.lastFrameTimestampMs == null
         ? 0
         : Math.min(0.1, Math.max(0, (safeTimestampMs - this.lastFrameTimestampMs) / 1000))
@@ -932,8 +946,32 @@ export class Cinema2Runtime {
       )
       this.performanceDiagnostics.markDegraded(budgetDiagnostic?.message ?? null)
       this.frameCount = visualFrameId
-      const autoQualityChanged = this.performanceDiagnostics.sampleCpuFrame(Math.max(0, readMonotonicTimeMs() - cpuFrameStartedAt))
+      if (visualFrameId === 1) {
+        try { this.onFirstFrame?.() } catch { /* Presentation notifications never stop the renderer. */ }
+      }
+      const autoQualityChanged = this.performanceDiagnostics.sampleCpuFrame(
+        Math.max(0, readMonotonicTimeMs() - cpuFrameStartedAt),
+        transport.animationActive && !this.skipNextPacingSample ? frameIntervalMs : null,
+        isPerformanceCastActive(),
+      )
+      this.skipNextPacingSample = false
       if (autoQualityChanged) this.applyPerformancePolicy()
+      if (this.frameCount === 1) recordPerformanceEvent('cinema2', 'first-frame', {
+        presetId: this.compiledPresetPlan.presetId, width: this.viewport.width, height: this.viewport.height,
+      })
+      const frameSummary = this.performanceSampler.sample(safeTimestampMs)
+      if (frameSummary) {
+        const timing = this.performanceDiagnostics.getSnapshot()
+        recordPerformanceEvent('cinema2', 'render-summary', { ...frameSummary,
+          presetId: this.compiledPresetPlan.presetId, quality: this.activeRenderQuality,
+          width: this.viewport.width, height: this.viewport.height,
+          cpuMs: timing.cpuFrameTimeAverageMs, gpuMs: timing.gpuFrameTimeMs,
+          estimatedTargetBytes: this.resourceManager.getSnapshot().estimatedGpuMemoryBytes,
+        })
+      }
+      if (qualityChanged || autoQualityChanged) recordPerformanceEvent('cinema2', 'quality-changed', {
+        presetId: this.compiledPresetPlan.presetId, quality: this.activeRenderQuality,
+      })
       const recoveryStatusChanged = this.refreshRecoverableStatus()
       if (qualityChanged || autoQualityChanged || recoveryStatusChanged) this.emitSnapshot()
     } catch (error) {

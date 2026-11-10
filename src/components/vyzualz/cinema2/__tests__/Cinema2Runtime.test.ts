@@ -216,6 +216,8 @@ describe('Cinema2Runtime sibling foundation', () => {
     runtime.start()
     expect(raf.callbacks.size).toBe(1)
 
+    const parameterState = runtime.getParameterState()
+    const serializedParameters = parameterState.serialize()
     const lost = new Event('webglcontextlost', { cancelable: true })
     canvas.dispatchEvent(lost)
     expect(lost.defaultPrevented).toBe(true)
@@ -236,6 +238,12 @@ describe('Cinema2Runtime sibling foundation', () => {
     })
     expect(runtime.getResourceManagerSnapshot()).toMatchObject({ contextAvailable: true, activeLeaseCount: 0 })
     expect(raf.callbacks.size).toBe(1)
+    expect(runtime.getParameterState()).toBe(parameterState)
+    expect(parameterState.serialize()).toBe(serializedParameters)
+    raf.runNext(5000)
+    expect(runtime.getSnapshot().phase).toBe('running')
+    expect(raf.callbacks.size).toBe(1)
+    expect(parameterState.serialize()).toBe(serializedParameters)
 
     runtime.dispose()
   })

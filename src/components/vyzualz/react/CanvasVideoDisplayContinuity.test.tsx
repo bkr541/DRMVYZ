@@ -31,6 +31,41 @@ describe('CANVAS video Display continuity', () => {
     window.cancelAnimationFrame = originalCancelAnimationFrame
   })
 
+  it('bounds capture allocations at UHD while retaining source and Display parameters', async () => {
+    const context = { setTransform: vi.fn(), clearRect: vi.fn(), fillRect: vi.fn() }
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => context) as unknown as typeof HTMLCanvasElement.prototype.getContext
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 3840, height: 2160, top: 0, left: 0, right: 3840, bottom: 2160,
+      x: 0, y: 0, toJSON: () => ({}),
+    })
+    const dpr = vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    useReactStore.setState({
+      selectedCanvasPresetId: 'canvas-clean-playback',
+      activeCanvasMediaId: 'allocation-video',
+      canvasMediaItems: [{ id: 'allocation-video', name: 'Allocation video', type: 'video',
+        objectUrl: 'blob:allocation-video', createdAt: '2026-11-09T00:00:00Z' }],
+    })
+    const settings = useReactStore.getState().canvasEngineSettings
+    try {
+      await act(async () => root.render(<CanvasEngineSurface isPlaying isPaused={false} />))
+      const capture = host.querySelector<HTMLCanvasElement>('.rv-canvas-output-capture')
+      expect(capture?.width).toBe(3840)
+      expect(capture?.height).toBe(2160)
+      const scratch = host.querySelector<HTMLCanvasElement>('.rv-canvas-source-fx-canvas')
+      expect(scratch?.width).toBe(1)
+      expect(scratch?.height).toBe(1)
+      expect(useReactStore.getState().canvasEngineSettings).toBe(settings)
+      expect(useReactStore.getState().activeCanvasMediaId).toBe('allocation-video')
+      expect(context.setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0)
+    } finally {
+      await act(async () => root.unmount())
+      host.remove(); bounds.mockRestore(); dpr.mockRestore()
+    }
+  })
+
   it('preserves the media element, playhead, timing state, and live render loop', async () => {
     useReactStore.setState({
       canvasMediaItems: [{

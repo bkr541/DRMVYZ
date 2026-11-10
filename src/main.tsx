@@ -1,3 +1,4 @@
+import { installPerformanceTelemetry } from './lib/performanceTelemetry'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
@@ -19,6 +20,9 @@ import './styles/typography.css'
 import { bootstrapAppearanceTheme } from './features/appearance/appearanceStore'
 
 bootstrapAppearanceTheme()
+
+const stopPerformanceTelemetry = installPerformanceTelemetry()
+if (import.meta.hot) import.meta.hot.dispose(stopPerformanceTelemetry)
 
 // Development builds only: exposes `__CINEMA2_RENDER_DIAGNOSTICS__` in the console (frame time, draw calls, GPU memory, shader compiles). Not in production.
 if (import.meta.env.DEV) {

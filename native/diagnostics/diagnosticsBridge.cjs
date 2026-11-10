@@ -30,10 +30,27 @@ const watchersBySenderId = new Map()
  * the renderer for the Settings → Developer → Logging panel: a one-shot
  * tail read plus a live-tail subscription.
  */
-function installDiagnosticsBridge({ ipcMain, log }) {
+function installDiagnosticsBridge({ ipcMain, log, app }) {
+  const recentPerformance = []
+  app?.on('child-process-gone', (_event, details) => {
+    if (details.type !== 'GPU') return
+    log.scope('system:performance').error('gpu-process-failure-context', {
+      reason: details.reason, exitCode: details.exitCode, recentPerformance: [...recentPerformance],
+    })
+  })
   ipcMain.on('drmvyz:diagnostics:log', (_event, entry) => {
     if (!entry || typeof entry !== 'object') return
     const { level, component, category, message, context } = entry
+    if (category === 'performance') {
+      // Bound copies of recent performance records; never retain arbitrary-sized IPC payloads.
+      try {
+        const serialized = JSON.stringify({ timestamp: Date.now(), message, context })
+        if (serialized.length <= 8192) {
+          recentPerformance.push(JSON.parse(serialized))
+          if (recentPerformance.length > 16) recentPerformance.shift()
+        }
+      } catch { /* Diagnostics must not interfere with rendering or recovery. */ }
+    }
     const componentPrefix = LOG_COMPONENTS.has(component) ? component : 'system'
     const categoryPart = typeof category === 'string' && category ? `:${category}` : ''
     const scoped = log.scope(`${componentPrefix}${categoryPart}`)

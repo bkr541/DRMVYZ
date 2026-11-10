@@ -1,0 +1,52 @@
+.rv-cinema2-text-library { display: flex; flex-direction: column; gap: var(--workspace-group-gap, 12px); min-width: 0; }
+.rv-cinema2-text-toolbar { display: flex; justify-content: flex-end; gap: 8px; padding: 4px 0; }
+.rv-cinema2-text-records { display: grid; gap: 8px; padding: 0; }
+.rv-cinema2-text-records.is-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rv-cinema2-text-card { display: flex; flex-direction: column; gap: 8px; width: 100%; min-height: 120px; padding: 12px; border: 1px solid rgba(126, 218, 232, 0.14); border-radius: var(--radius-group, 6px); background: rgba(154, 178, 188, 0.05); color: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.rv-cinema2-text-card:hover, .rv-cinema2-text-card:focus-visible, .rv-cinema2-text-card.is-active { border-color: var(--color-accent, #4ac7db); }
+.rv-cinema2-text-preview { white-space: pre-wrap; }
+.rv-cinema2-text-swatches { display: flex; gap: 4px; }
+.rv-cinema2-text-swatches > span { width: 12px; height: 12px; border: 1px solid var(--color-border, #26333e); border-radius: 50%; }
+.rv-cinema2-text-pool-create { display: flex; gap: 8px; padding: 8px 0; }
+.rv-cinema2-text-pool-create input { min-width: 0; flex: 1; }
+.rv-cinema2-text-pools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.rv-cinema2-text-editor { display: flex; flex-direction: column; gap: var(--workspace-control-gap, 9px); }
+
+.rv-cinema2-text-actions { flex: 0 0 auto; max-width: none; }
+
+.rv-cinema2-text-editor-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.rv-cinema2-text-screen { min-width: 0; overflow: clip; }
+
+/* Grid tiles share the Cinema 2.0 preset shell, poster proportions and active treatment. */
+.rv-cinema2-text-caption { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-card { min-height: 0; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-card > .rv-cinema2-text-caption { gap: 4px; padding: 12px 10px 22px; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; max-width: 100%; flex-shrink: 0; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-swatches { position: absolute; left: 8px; bottom: 8px; z-index: 1; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-swatches > span { width: 8px; height: 8px; }
+.rv-cinema2-text-records.is-grid .rv-cinema2-text-card-status { position: absolute; bottom: 6px; right: 8px; left: 44px; z-index: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+
+/* List rows use the same preset surface and typography in a compact horizontal layout. */
+.rv-cinema2-text-records.is-list .rv-preset-spotlight-shell > .rv-cinema2-text-card.rv-preset-spotlight-card {
+  --rv-preset-tone: #4ac7db;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  height: auto;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: var(--radius-group, 6px);
+  background: transparent;
+}
+.rv-cinema2-text-records.is-list .rv-cinema2-text-card:hover { border-color: color-mix(in srgb, var(--rv-preset-tone) 55%, transparent); }
+.rv-cinema2-text-records.is-list .rv-cinema2-text-card.rv-preset-spotlight-card--active {
+  border-color: var(--rv-preset-tone);
+  box-shadow: 0 0 0 1px var(--rv-preset-tone), 0 0 14px color-mix(in srgb, var(--rv-preset-tone) 32%, transparent), var(--rv-preset-elevation);
+}
+.rv-cinema2-text-records.is-list .rv-cinema2-text-caption { grid-row: 1 / span 2; gap: 4px; }
+.rv-cinema2-text-records.is-list .rv-cinema2-text-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.rv-cinema2-text-records.is-list .rv-cinema2-text-swatches { justify-self: end; }
+.rv-cinema2-text-records.is-list .rv-cinema2-text-swatches > span { width: 8px; height: 8px; }
+.rv-cinema2-text-records.is-list .rv-cinema2-text-card-status { max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }

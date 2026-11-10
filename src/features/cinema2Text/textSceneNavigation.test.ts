@@ -1,0 +1,80 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { blockTextSceneNavigation, requestTextSceneNavigation, useTextSceneNavigation } from './textSceneNavigation'
+import { useReactStore } from '../../stores/reactStore'
+const original = useReactStore.getState()
+afterEach(() => {
+  useTextSceneNavigation.setState({ session: null, pending: null, error: null })
+  useReactStore.setState({ activeReactEngineId: original.activeReactEngineId, activeReactPresetId: original.activeReactPresetId, activePadId: original.activePadId, cinema2Workspace: original.cinema2Workspace })
+})
+function session() {
+  const edit = { owner: Symbol(), isDirty: () => true, save: vi.fn(() => true), discard: vi.fn() }
+  useTextSceneNavigation.getState().register(edit)
+  return edit
+}
+describe('Text Scene unsaved navigation', () => {
+  it('keeps the draft on Cancel and resumes the original action once after Discard or Save', () => {
+    const edit = session(), navigate = vi.fn(), other = vi.fn()
+    requestTextSceneNavigation(navigate)
+    requestTextSceneNavigation(other)
+    expect(navigate).not.toHaveBeenCalled()
+    useTextSceneNavigation.getState().cancel()
+    expect(useTextSceneNavigation.getState().session).toBe(edit)
+    expect(edit.discard).not.toHaveBeenCalled()
+    requestTextSceneNavigation(navigate)
+    useTextSceneNavigation.getState().discardAndProceed()
+    expect(edit.discard).toHaveBeenCalledOnce()
+    expect(navigate).toHaveBeenCalledOnce()
+    expect(other).not.toHaveBeenCalled()
+    const next = session()
+    requestTextSceneNavigation(navigate)
+    useTextSceneNavigation.getState().saveAndProceed()
+    expect(next.save).toHaveBeenCalledOnce()
+    expect(navigate).toHaveBeenCalledTimes(2)
+  })
+  it('keeps failed saves and their destination pending, and ignores stale session cleanup', () => {
+    const edit = session(), navigate = vi.fn()
+    edit.save.mockReturnValue(false)
+    requestTextSceneNavigation(navigate)
+    useTextSceneNavigation.getState().saveAndProceed()
+    expect(navigate).not.toHaveBeenCalled()
+    expect(useTextSceneNavigation.getState().pending).toBe(navigate)
+    const cleanup = useTextSceneNavigation.getState().register(edit)
+    const replacement = session()
+    cleanup()
+    expect(useTextSceneNavigation.getState().session).toBe(replacement)
+  })
+  it('allows clean navigation without creating a pending decision', () => {
+    const edit = session(), navigate = vi.fn()
+    edit.isDirty = () => false
+    expect(blockTextSceneNavigation(navigate)).toBe(false)
+    requestTextSceneNavigation(navigate)
+    expect(navigate).toHaveBeenCalledOnce()
+    expect(useTextSceneNavigation.getState().pending).toBeNull()
+  })
+  it('guards actual engine selection, native preset activation, and performance-pad navigation', () => {
+    session()
+    const before = useReactStore.getState()
+    const target = before.activeReactEngineId === 'canvas' ? 'cinema2' : 'canvas'
+    useReactStore.getState().selectReactEngine(target)
+    expect(useReactStore.getState().activeReactEngineId).toBe(before.activeReactEngineId)
+    useTextSceneNavigation.getState().discardAndProceed()
+    expect(useReactStore.getState().activeReactEngineId).toBe(target)
+    session()
+    const activation = useReactStore.getState().activateCinema2Workspace({ presetId: 'drmvyz.cinema2.marquee' as Parameters<typeof before.activateCinema2Workspace>[0]['presetId'] })
+    expect(activation.ok).toBe(false)
+    expect(useReactStore.getState().cinema2Workspace.activePresetId).toBe(before.cinema2Workspace.activePresetId)
+    useTextSceneNavigation.getState().discardAndProceed()
+    expect(useReactStore.getState().cinema2Workspace.activePresetId).toBe('drmvyz.cinema2.marquee')
+    session()
+    useReactStore.getState().setActivePadId('navigation-test-pad')
+    expect(useReactStore.getState().activePadId).toBe(before.activePadId)
+    useTextSceneNavigation.getState().cancel()
+    expect(useReactStore.getState().activePadId).toBe(before.activePadId)
+    session()
+    const beforeReset = useReactStore.getState()
+    useReactStore.getState().resetReactViewPreferences()
+    expect(useReactStore.getState()).toBe(beforeReset)
+    expect(useTextSceneNavigation.getState().pending).not.toBeNull()
+    useTextSceneNavigation.getState().cancel()
+  })
+})

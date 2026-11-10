@@ -18,7 +18,7 @@ export const NIGHTSHIFT_COLORS = {
   amber: [1, 179 / 255, 28 / 255, 1], ball: [218 / 255, 192 / 255, 216 / 255, 1],
   sign: [1, 1, 1, 1],
 } as const
-export const NIGHTSHIFT_SIGN_TEXT = 'NIGHTSHIFT'
+export const NIGHTSHIFT_SIGN_TEXT = ''
 
 export interface NightshiftControls {
   master: number; bpmSync: boolean; motion: number; rotation: boolean; musicResponse: number; autoPerformance: boolean

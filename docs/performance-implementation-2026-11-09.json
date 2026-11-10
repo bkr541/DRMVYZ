@@ -1,0 +1,338 @@
+{
+  "date": "2026-11-09",
+  "gpu": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3 Pro, Unspecified Version)",
+  "methodology": [
+    "Headless Chromium, isolated surfaces, synthetic still image and transport; no venue devices or live audio.",
+    "WebRTC uses a real local peer/video loopback in one page; Google Cast uses real MediaRecorder with an in-memory chunk sink, without native IPC/network/receiver.",
+    "Single bounded sample per scenario; order and cold caches confound cross-preset timing.",
+    "Timing drawImage measures JavaScript submission, not complete asynchronous GPU work."
+  ],
+  "measurementNotes": [
+    "Preview RAF cadence is callback timing, not an exhaustive changed-pixel or end-to-end venue FPS measurement.",
+    "No live audio, camera, venue receiver, native GPU-process kill, or real network stress was used.",
+    "The local HMR socket emitted isolated-harness network-access warnings; no application page or casting errors were observed.",
+    "The final handoff/context-loss check followed the output-readiness change; telemetry-only refinements do not change presentation."
+  ],
+  "samples": [
+    {
+      "engine": "canvas",
+      "preset": "canvas-clean-playback",
+      "mode": "off",
+      "publicationMs": 40,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1303,
+      "rafFps": 120,
+      "frameP95Ms": 9.800000000000182,
+      "relayCopiesPerSecond": 0,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-clean-playback",
+      "mode": "webrtc",
+      "publicationMs": 40,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1307,
+      "rafFps": 119,
+      "frameP95Ms": 9.900000000000546,
+      "relayCopiesPerSecond": 59.701492537313435,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": {
+        "framesDecoded": 103,
+        "framesPerSecond": 58,
+        "framesDropped": 0
+      },
+      "effectReady": null
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-clean-playback",
+      "mode": "google-cast-webm",
+      "publicationMs": 40,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1301,
+      "rafFps": 120,
+      "frameP95Ms": 9.700000000000728,
+      "relayCopiesPerSecond": 29.981549815502447,
+      "encodedBytes": 3696,
+      "encodedChunks": 5,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-mutagen",
+      "mode": "off",
+      "publicationMs": 59,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 120,
+      "frameP95Ms": 9.899999999999636,
+      "relayCopiesPerSecond": 0,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": null,
+      "effectReady": "true"
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-mutagen",
+      "mode": "webrtc",
+      "publicationMs": 59,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1303,
+      "rafFps": 119,
+      "frameP95Ms": 9.5,
+      "relayCopiesPerSecond": 59.88023952097521,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": {
+        "framesDecoded": 110,
+        "framesPerSecond": 60,
+        "framesDropped": 0
+      },
+      "effectReady": "true"
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-mutagen",
+      "mode": "google-cast-webm",
+      "publicationMs": 59,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 120,
+      "frameP95Ms": 9.899999999999636,
+      "relayCopiesPerSecond": 29.953917050691246,
+      "encodedBytes": 18627,
+      "encodedChunks": 5,
+      "inbound": null,
+      "effectReady": "true"
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-terminal",
+      "mode": "off",
+      "publicationMs": 45,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1301,
+      "rafFps": 119,
+      "frameP95Ms": 9.599999999998545,
+      "relayCopiesPerSecond": 0,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-terminal",
+      "mode": "webrtc",
+      "publicationMs": 45,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 119,
+      "frameP95Ms": 9.600000000002183,
+      "relayCopiesPerSecond": 59.88943488946059,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": {
+        "framesDecoded": 78,
+        "framesPerSecond": 47,
+        "framesDropped": 0
+      },
+      "effectReady": null
+    },
+    {
+      "engine": "canvas",
+      "preset": "canvas-terminal",
+      "mode": "google-cast-webm",
+      "publicationMs": 45,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 120,
+      "frameP95Ms": 9.799999999999272,
+      "relayCopiesPerSecond": 29.96542451018056,
+      "encodedBytes": 304302,
+      "encodedChunks": 5,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.blockshift",
+      "mode": "off",
+      "publicationMs": 54,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1303,
+      "rafFps": 120,
+      "frameP95Ms": 9.900000000001455,
+      "relayCopiesPerSecond": 0,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.blockshift",
+      "mode": "webrtc",
+      "publicationMs": 54,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 119,
+      "frameP95Ms": 10,
+      "relayCopiesPerSecond": 59.90783410138249,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": {
+        "framesDecoded": 103,
+        "framesPerSecond": 57,
+        "framesDropped": 0
+      },
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.blockshift",
+      "mode": "google-cast-webm",
+      "publicationMs": 54,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1301,
+      "rafFps": 119,
+      "frameP95Ms": 10.099999999998545,
+      "relayCopiesPerSecond": 29.986160233746862,
+      "encodedBytes": 77234,
+      "encodedChunks": 5,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.mainframe",
+      "mode": "off",
+      "publicationMs": 35,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1302,
+      "rafFps": 119,
+      "frameP95Ms": 9.899999999997817,
+      "relayCopiesPerSecond": 0,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": null,
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.mainframe",
+      "mode": "webrtc",
+      "publicationMs": 35,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1301,
+      "rafFps": 119,
+      "frameP95Ms": 9.599999999998545,
+      "relayCopiesPerSecond": 59.953881629515756,
+      "encodedBytes": 0,
+      "encodedChunks": 0,
+      "inbound": {
+        "framesDecoded": 97,
+        "framesPerSecond": 55,
+        "framesDropped": 0
+      },
+      "effectReady": null
+    },
+    {
+      "engine": "cinema2",
+      "preset": "drmvyz.cinema2.mainframe",
+      "mode": "google-cast-webm",
+      "publicationMs": 35,
+      "canvas": [
+        960,
+        540
+      ],
+      "elapsedMs": 1301,
+      "rafFps": 119,
+      "frameP95Ms": 10,
+      "relayCopiesPerSecond": 29.983854847385572,
+      "encodedBytes": 202323,
+      "encodedChunks": 5,
+      "inbound": null,
+      "effectReady": null
+    }
+  ],
+  "castErrors": [],
+  "finalContextRecovery": {
+    "phase": "running",
+    "frameAdvanced": true,
+    "parametersPreserved": true,
+    "peer": "connected"
+  },
+  "finalPresetHandoff": {
+    "preset": "drmvyz.cinema2.mainframe",
+    "frames": 21,
+    "samePeer": true,
+    "captureCountUnchanged": true,
+    "pendingCopies": 0,
+    "ready": true
+  },
+  "finalOwnershipCounters": {
+    "creationCount": 2,
+    "acquisitionCount": 2,
+    "retirementCount": 2,
+    "terminalRetirementCount": 0,
+    "duplicateOwnershipCount": 0,
+    "activeCount": 0,
+    "activeByLifetime": {
+      "live-reusable": 0,
+      "transient-thumbnail": 0
+    },
+    "activeByRole": {},
+    "activeByEngine": {},
+    "activeLiveByEngine": {}
+  }
+}

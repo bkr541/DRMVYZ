@@ -1,5 +1,5 @@
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
@@ -23,6 +23,8 @@ export interface Cinema2InspectorPanelProps {
   surface: Cinema2InspectorSurface
   /** Isolated design previews must not mount shared audio-analysis controls. */
   sharedAudioAnalysis?: boolean
+  /** Checkpoint edited text without waiting for the live runtime to retire. */
+  onTextChange?: () => void
 }
 
 // Design's ENGINE/SELECTION split and React's PERFORMANCE/ANALYSIS split
@@ -34,15 +36,19 @@ export interface Cinema2InspectorPanelProps {
 // selection model (Cinema2LayersPanel, the only "layer" UI that exists, is
 // read-only/disabled and lives in its own left-rail Layers tab, unrelated
 // to this), so it stays permanently disabled until that feature exists.
+const noopSubscribe = () => () => {}
+const zeroRevision = () => 0
+
 type Cinema2DesignSurface = 'engine' | 'selection'
 type Cinema2ReactSurface = 'performance' | 'analysis'
 
-export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = true }: Cinema2InspectorPanelProps) {
+export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = true, onTextChange }: Cinema2InspectorPanelProps) {
   const [, setRevision] = useState(0)
   const actionSequence = useRef(0)
   const [designSurface, setDesignSurface] = useState<Cinema2DesignSurface>('engine')
   const [reactSurface, setReactSurface] = useState<Cinema2ReactSurface>('performance')
   const plan = runtime?.getCompiledPresetPlan() ?? null
+  useSyncExternalStore(runtime?.getParameterState().subscribe ?? noopSubscribe, runtime?.getParameterState().getPersistentRevision ?? zeroRevision)
   const snapshot = runtime?.getParameterState().getSnapshot() ?? null
   const sections = useMemo(() => (
     plan && snapshot ? createCinema2InspectorModel(plan, snapshot, surface) : []
@@ -70,6 +76,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
   const commit = (control: Readonly<Cinema2InspectorControlModel>, candidate: unknown) => {
     const result = parameterState.setPersistentValue(control.definition.id, candidate)
     if (result.ok) {
+      if (control.definition.type === 'string' || control.definition.type === 'text') onTextChange?.()
       refresh()
     } else {
       notify('react', {
@@ -355,13 +362,15 @@ function Cinema2InspectorGroup({
   )
 }
 
-function Cinema2PaletteControls({
+export function Cinema2PaletteControls({
   controls,
   onChange,
   onTrigger,
+  idPrefix = 'cinema2-parameter',
 }: {
   controls: readonly Readonly<Cinema2InspectorControlModel>[]
   onChange: (control: Readonly<Cinema2InspectorControlModel>, value: Cinema2JsonValue) => void
+  idPrefix?: string
   onTrigger?: (control: Readonly<Cinema2InspectorControlModel>) => void
 }) {
   return (
@@ -372,6 +381,7 @@ function Cinema2PaletteControls({
             <Cinema2SchemaControl
               key={control.definition.id}
               control={control}
+              idPrefix={idPrefix}
               onChange={candidate => onChange(control, candidate)}
               onTrigger={() => onTrigger?.(control)}
             />
@@ -388,7 +398,7 @@ function Cinema2PaletteControls({
             style={{ display: 'contents' }}
           >
             <PaletteColorRow
-              id={`cinema2-parameter-${definition.id}`}
+              id={`${idPrefix}-${definition.id}`}
               label={definition.label}
               value={rgbaToHex(rgba)}
               disabled={!enabled}
@@ -425,19 +435,21 @@ function Cinema2InspectorControls({
   )
 }
 
-function Cinema2SchemaControl({
+export function Cinema2SchemaControl({
   control,
   onChange,
   onTrigger,
+  idPrefix = 'cinema2-parameter',
 }: {
   control: Readonly<Cinema2InspectorControlModel>
   onChange: (value: Cinema2JsonValue) => void
   onTrigger: () => void
+  idPrefix?: string
 }) {
   const { definition, value, enabled, disabledReason } = control
   const description = [definition.description, disabledReason].filter(Boolean).join(' ')
   const disabled = !enabled
-  const controlId = `cinema2-parameter-${definition.id}`
+  const controlId = `${idPrefix}-${definition.id}`
 
   switch (definition.type) {
     case 'float':

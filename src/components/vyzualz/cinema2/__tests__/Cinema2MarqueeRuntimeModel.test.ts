@@ -48,7 +48,7 @@ const zeroZone = Object.fromEntries(KINDS.map(kind => [kind, 1])) as Record<Cine
 function frame(overrides: Partial<Cinema2MarqueeSceneFrame> = {}, pattern: 'opening-night' | 'canopy-cascade' = 'opening-night', beats = 1.3): Cinema2MarqueeSceneFrame {
   return {
     performance: { pattern, beats, patternBeats: beats, signals: { ...CINEMA2_MARQUEE_ZERO_SIGNALS, overall: 0.6, bass: 0.6 }, impulses: { ...CINEMA2_MARQUEE_ZERO_IMPULSES, kick: 0.5 } },
-    text: { front: 'DVYDRM', left: 'SHOWINGS', right: 'SHOWINGS' },
+    text: { front: 'MARQUEE', left: 'SHOWINGS', right: 'SHOWINGS' },
     masterIntensity: 1, signIllumination: 0.8, zoneIntensity: zeroZone,
     colors: { night: [0.01, 0.02, 0.03], marquee: [0.86, 0.035, 0.025], incandescent: [1, 0.55, 0.14], blue: [0.04, 0.38, 1], architecture: [0.19, 0.11, 0.075] },
     reflection: 0.7,
@@ -212,7 +212,7 @@ describe('MARQUEE shipped asset and preset', () => {
     const record = CINEMA2_ASSET_RECORDS.find(item => item.id === 'cinema2-marquee-theater')!
     expect((record.files as { high: { url: string } }).high.url).toBe('/cinema2/models/marquee-theater-v2.glb')
     const defaults = (CINEMA2_MARQUEE_PRESET_MANIFEST.parameters ?? []).filter(parameter => /text$/.test(parameter.id)).map(parameter => (parameter as { defaultValue: string }).defaultValue)
-    expect(defaults).toEqual(['DVYDRM', 'SHOWINGS', 'SHOWINGS'])
+    expect(defaults).toEqual(['MARQUEE', 'SHOWINGS', 'SHOWINGS'])
   })
 
   it('keeps the hero camera, and adds authored three-quarter and low-canopy views without changing the default', () => {

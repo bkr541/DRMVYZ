@@ -322,3 +322,23 @@ test('watch-main-log follows replacement files through rotation without replayin
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+
+test('GPU failure preserves bounded recent performance context without requiring a live renderer', () => {
+  const app = new EventEmitter()
+  const ipcMain = fakeIpcMain()
+  const log = fakeLog()
+  installDiagnosticsBridge({ ipcMain, log, app })
+  for (let i = 0; i < 30; i++) ipcMain.emit('drmvyz:diagnostics:log', null, {
+    level: 'info', component: 'system', category: 'performance', message: 'render-summary', context: { frame: i },
+  })
+  app.emit('child-process-gone', {}, { type: 'GPU', reason: 'abnormal-exit', exitCode: 8704 })
+  const failure = log.calls.at(-1)
+  assert.equal(failure.args[0], 'gpu-process-failure-context')
+  assert.equal(failure.level, 'error')
+  assert.equal(failure.args[1].recentPerformance.length, 16)
+  assert.equal(failure.args[1].recentPerformance.at(-1).context.frame, 29)
+  const before = log.calls.length
+  app.emit('child-process-gone', {}, { type: 'Utility', reason: 'clean-exit' })
+  assert.equal(log.calls.length, before)
+})

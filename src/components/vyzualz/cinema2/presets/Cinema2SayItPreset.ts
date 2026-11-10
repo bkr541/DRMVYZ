@@ -251,14 +251,14 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     Object.freeze({
-      ...base(CINEMA2_SAY_IT_LINE_ONE_TEXT_ID, 'Line 1', 'First line of printable English letters, numbers and punctuation; limited to 12 characters.', 'master-controls', 1, 'Text'),
+      ...base(CINEMA2_SAY_IT_LINE_ONE_TEXT_ID, 'Line 1', 'First line of printable English letters, numbers and punctuation; limited to 12 characters.', 'design', 2, 'Layout'),
       type: 'string' as const,
       defaultValue: 'SAY IT',
       modulatable: false,
       choreographable: false,
     }),
     Object.freeze({
-      ...base(CINEMA2_SAY_IT_LINE_TWO_TEXT_ID, 'Line 2', 'Second line of printable English letters, numbers and punctuation; limited to 12 characters and 20 total across both lines.', 'master-controls', 2, 'Text'),
+      ...base(CINEMA2_SAY_IT_LINE_TWO_TEXT_ID, 'Line 2', 'Second line of printable English letters, numbers and punctuation; limited to 12 characters and 20 total across both lines.', 'design', 3, 'Layout'),
       type: 'string' as const,
       defaultValue: '',
       modulatable: false,
@@ -296,7 +296,7 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
       ]),
     }),
     Object.freeze({
-      ...base(CINEMA2_SAY_IT_ALIGNMENT_ID, 'Alignment', 'Align lines within the centered two-line text block.', 'design', 2, 'Layout'),
+      ...base(CINEMA2_SAY_IT_ALIGNMENT_ID, 'Alignment', 'Align lines within the centered two-line text block.', 'design', 4, 'Layout'),
       type: 'enum' as const,
       defaultValue: 'center',
       options: Object.freeze([
@@ -305,9 +305,9 @@ export const CINEMA2_SAY_IT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
         Object.freeze({ value: 'right', label: 'Right' }),
       ]),
     }),
-    floatParameter(CINEMA2_SAY_IT_TRACKING_ID, 'Tracking', 'Additional space between characters.', 'design', 3, 'Layout', 0.06, -0.15, 0.5, 0.01),
-    floatParameter(CINEMA2_SAY_IT_LINE_SPACING_ID, 'Line Spacing', 'Vertical distance between two lines.', 'design', 4, 'Layout', 0.7, 0.55, 1.2, 0.01),
-    floatParameter(CINEMA2_SAY_IT_GLYPH_SCALE_ID, 'Glyph Scale', 'Overall size before automatic fit-to-frame scaling.', 'design', 5, 'Layout', 1, 0.35, 1.5, 0.01),
+    floatParameter(CINEMA2_SAY_IT_TRACKING_ID, 'Tracking', 'Additional space between characters.', 'design', 5, 'Layout', 0.06, -0.15, 0.5, 0.01),
+    floatParameter(CINEMA2_SAY_IT_LINE_SPACING_ID, 'Line Spacing', 'Vertical distance between two lines.', 'design', 6, 'Layout', 0.7, 0.55, 1.2, 0.01),
+    floatParameter(CINEMA2_SAY_IT_GLYPH_SCALE_ID, 'Glyph Scale', 'Overall size before automatic fit-to-frame scaling.', 'design', 7, 'Layout', 1, 0.35, 1.5, 0.01),
     Object.freeze({
       ...base(CINEMA2_SAY_IT_MOTION_PROGRAM_ID, 'Motion Program', 'Choose the independent glyph movement vocabulary.', 'design', 6, 'Motion'),
       type: 'enum' as const,

@@ -43,6 +43,9 @@ export class Cinema2PerformanceDiagnostics {
   private cpuFrameTimeMs: number | null = null
   private cpuFrameTimeAverageMs: number | null = null
   private gpuFrameTimeMs: number | null = null
+  private frameIntervalAverageMs: number | null = null
+  private gpuSampleAge = 0
+  private resetCpuAverageOnNextFrame = false
   private slowSamples = 0
   private fastSamples = 0
   private degraded = false
@@ -66,6 +69,7 @@ export class Cinema2PerformanceDiagnostics {
     this.activeGpuQuery = null
     this.pendingGpuQuery = null
     this.gpuFrameTimeMs = null
+    this.resetFramePacing()
   }
 
   /** Extensions must be requested again after a restore, otherwise timer queries raise INVALID_ENUM and poison render-target validation. */
@@ -119,20 +123,44 @@ export class Cinema2PerformanceDiagnostics {
     }
   }
 
-  sampleCpuFrame(frameMs: number): boolean {
+  resetFramePacing(): void {
+    this.frameIntervalAverageMs = null
+    this.resetCpuAverageOnNextFrame = true
+    this.slowSamples = 0
+    this.fastSamples = 0
+    this.gpuSampleAge = 121
+  }
+
+  sampleCpuFrame(frameMs: number, frameIntervalMs?: number | null, casting = false): boolean {
     if (!Number.isFinite(frameMs) || frameMs < 0) return false
     this.cpuFrameTimeMs = frameMs
-    this.cpuFrameTimeAverageMs = this.cpuFrameTimeAverageMs == null
+    this.cpuFrameTimeAverageMs = this.cpuFrameTimeAverageMs == null || this.resetCpuAverageOnNextFrame
       ? frameMs
       : this.cpuFrameTimeAverageMs * 0.9 + frameMs * 0.1
+    this.resetCpuAverageOnNextFrame = false
+    this.gpuSampleAge++
+    this.pollGpuResult()
+    // First frame, suspension, pause and long discontinuities are not steady-state load.
+    if (frameIntervalMs === null || (frameIntervalMs !== undefined
+      && (!Number.isFinite(frameIntervalMs) || frameIntervalMs <= 0 || frameIntervalMs >= 250))) {
+      this.resetFramePacing()
+      return false
+    }
+    if (frameIntervalMs !== undefined) {
+      this.frameIntervalAverageMs = this.frameIntervalAverageMs === null ? frameIntervalMs
+        : this.frameIntervalAverageMs * 0.9 + frameIntervalMs * 0.1
+    }
     if (this.requestedMode !== 'auto') return false
+    const workMs = Math.max(this.cpuFrameTimeAverageMs ?? 0,
+      this.gpuSampleAge <= 120 ? this.gpuFrameTimeMs ?? 0 : 0)
+    const pacingMs = this.frameIntervalAverageMs ?? 0
 
     const previous = this.autoQuality
-    if (this.cpuFrameTimeAverageMs > 20) {
+    if (workMs > (casting ? 17 : 20) || pacingMs > 20) {
       this.slowSamples += 1
       this.fastSamples = 0
       if (this.slowSamples >= 12) this.autoQuality = stepQuality(this.autoQuality, -1)
-    } else if (this.cpuFrameTimeAverageMs < 13.5) {
+    } else if (workMs < (casting ? 12 : 13.5) && pacingMs < 18) {
       this.fastSamples += 1
       this.slowSamples = 0
       if (this.fastSamples >= 90) this.autoQuality = stepQuality(this.autoQuality, 1)
@@ -183,10 +211,14 @@ export class Cinema2PerformanceDiagnostics {
     try {
       const available = this.gl.getQueryParameter(this.pendingGpuQuery, this.gl.QUERY_RESULT_AVAILABLE)
       const disjoint = typeof this.gl.getParameter === 'function' ? Boolean(this.gl.getParameter(this.ext.GPU_DISJOINT_EXT)) : false
+      if (disjoint) this.gpuFrameTimeMs = null
       if (!available) return
       if (!disjoint) {
         const nanoseconds = Number(this.gl.getQueryParameter(this.pendingGpuQuery, this.gl.QUERY_RESULT))
-        if (Number.isFinite(nanoseconds) && nanoseconds >= 0) this.gpuFrameTimeMs = nanoseconds / 1_000_000
+        if (Number.isFinite(nanoseconds) && nanoseconds >= 0) {
+          this.gpuFrameTimeMs = nanoseconds / 1_000_000
+          this.gpuSampleAge = 0
+        }
       }
       this.gl.deleteQuery(this.pendingGpuQuery)
       this.pendingGpuQuery = null

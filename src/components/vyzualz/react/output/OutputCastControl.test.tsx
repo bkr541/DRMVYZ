@@ -1,3 +1,4 @@
+import { markCanvasFramePending, markCanvasFrameReady } from '../../../../lib/canvasFrameReadiness'
 // @vitest-environment jsdom
 ;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
 
@@ -140,6 +141,46 @@ afterEach(async () => {
 })
 
 describe('OutputCastControl', () => {
+  it('shows a preview toggle immediately after Cast only while connected and removes it on stop', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const session: OutputCastSession = { id: 'preview-session', targetId: 'display:2', targetName: 'Stage Screen',
+      windowMode: 'fullscreen', aspectRatio: '16:9', state: 'connecting', error: null }
+    expect(container.querySelector('[aria-label="Show cast preview"]')).toBeNull()
+    await act(async () => { sessionChanged?.(session) })
+    expect(container.querySelector('[aria-label="Show cast preview"]')).toBeNull()
+    await act(async () => { sessionChanged?.({ ...session, state: 'connected' }) })
+    const trigger = container.querySelector<HTMLButtonElement>('[aria-label="Show cast preview"]')!
+    expect(trigger.previousElementSibling?.getAttribute('aria-label')).toBe('Output casting to Stage Screen')
+    expect(trigger.getAttribute('aria-pressed')).toBe('false')
+    await act(async () => trigger.click())
+    expect(document.querySelector('[role="dialog"][aria-label="Cast preview"]')).not.toBeNull()
+    expect(trigger.getAttribute('aria-pressed')).toBe('true')
+    await act(async () => trigger.click())
+    expect(document.querySelector('[aria-label="Current cast visual"]')).toBeNull()
+    await act(async () => trigger.click())
+    expect(document.querySelector('[aria-label="Current cast visual"]')).not.toBeNull()
+    await act(async () => { sessionChanged?.(null) })
+    expect(document.querySelector('[aria-label="Current cast visual"]')).toBeNull()
+    expect(trigger.isConnected).toBe(false)
+    await act(async () => { sessionChanged?.({ ...session, state: 'connected' }) })
+    expect(container.querySelector('[aria-label="Show cast preview"]')).not.toBeNull()
+    expect(document.querySelector('[aria-label="Current cast visual"]')).toBeNull()
+    expect(startCast).not.toHaveBeenCalled()
+    expect(stopCast).not.toHaveBeenCalled()
+  })
+
+  it.each(['disconnecting', 'disconnected', 'failed'] as const)('removes the preview on %s session updates', async state => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+    const session: OutputCastSession = { id: 'preview-session', targetId: 'display:2', targetName: 'Stage Screen',
+      windowMode: 'windowed', aspectRatio: '9:16', state: 'connected', error: null }
+    await act(async () => { sessionChanged?.(session) })
+    await act(async () => container.querySelector<HTMLButtonElement>('[aria-label="Show cast preview"]')?.click())
+    await act(async () => { sessionChanged?.({ ...session, state }) })
+    expect(document.querySelector('.rv-cast-preview-window')).toBeNull()
+    expect(container.querySelector('[aria-label="Show cast preview"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Hide cast preview"]')).toBeNull()
+  })
+
   it('keeps casting failures in the Notifications drawer after the popover is closed', async () => {
     await act(async () => root.render(<WithNotificationDrawer><OutputCastControl canvas={canvas} /></WithNotificationDrawer>))
     // The popover was never opened: a session that fails in the background must still be reported.
@@ -261,11 +302,13 @@ describe('OutputCastControl', () => {
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(drawImage).toHaveBeenCalledWith(canvas, 0, 0, 1280, 720)
 
+      let frameTime = performance.now()
       const tick = () => {
+        frameTime += 40
         const callback = animationFrame as FrameRequestCallback | null
         animationFrame = null
         expect(callback).not.toBeNull()
-        callback?.(performance.now())
+        callback?.(frameTime)
         expect(animationFrame).not.toBeNull()
       }
       const copyCount = drawImage.mock.calls.length
@@ -283,7 +326,12 @@ describe('OutputCastControl', () => {
       const nextCanvas = document.createElement('canvas')
       nextCanvas.width = 1920
       nextCanvas.height = 1080
+      markCanvasFramePending(nextCanvas)
+      const beforePending = drawImage.mock.calls.length
       await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(beforePending)
+      markCanvasFrameReady(nextCanvas)
       tick()
       expect(track.stop).not.toHaveBeenCalled()
       expect(bridge.failSession).not.toHaveBeenCalled()
@@ -425,11 +473,13 @@ describe('OutputCastControl', () => {
       expect(captureStream).toHaveBeenCalledTimes(1)
       expect(beginGoogleCastStream).toHaveBeenCalledTimes(1)
 
+      let frameTime = performance.now()
       const tick = () => {
+        frameTime += 40
         const callback = animationFrame as FrameRequestCallback | null
         animationFrame = null
         expect(callback).not.toBeNull()
-        callback?.(performance.now())
+        callback?.(frameTime)
         expect(animationFrame).not.toBeNull()
       }
       const copyCount = drawImage.mock.calls.length
@@ -447,7 +497,12 @@ describe('OutputCastControl', () => {
       const nextCanvas = document.createElement('canvas')
       nextCanvas.width = 1920
       nextCanvas.height = 1080
+      markCanvasFramePending(nextCanvas)
+      const beforePending = drawImage.mock.calls.length
       await act(async () => root.render(<OutputCastControl canvas={nextCanvas} />))
+      tick()
+      expect(drawImage).toHaveBeenCalledTimes(beforePending)
+      markCanvasFrameReady(nextCanvas)
       tick()
       expect(track.stop).not.toHaveBeenCalled()
       expect(bridge.failSession).not.toHaveBeenCalled()

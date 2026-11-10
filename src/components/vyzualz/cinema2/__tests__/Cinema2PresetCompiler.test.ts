@@ -3,6 +3,7 @@ import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   Cinema2PresetRegistry,
+  Cinema2ParameterState,
   cinema2NamespacedId,
   cinema2Ref,
   cinema2StableId,
@@ -282,6 +283,29 @@ describe('Cinema 2.0 native preset compiler', () => {
     })
     expect(first.plan.render.passes.map(pass => pass.id)).toEqual([scenePassId, outputPassId])
     expect(JSON.stringify(first.plan)).toBe(JSON.stringify(second.plan))
+  })
+
+  it('reuses immutable plans while keeping capability validation isolated', () => {
+    const registry = new Cinema2PresetRegistry()
+    const manifest = { ...minimalManifest('drmvyz.cinema2.cached'),
+      capabilities: [{ id: 'render.webgl2' as const, requirement: 'required' as const }] }
+    expect(registry.register(manifest).ok).toBe(true)
+    const first = registry.compile(manifest.id)
+    expect(first.ok).toBe(true)
+    expect(registry.compile(manifest.id)).toBe(first)
+    if (first.ok) expect(Object.isFrozen(first.plan)).toBe(true)
+    const available = registry.compile(manifest.id, { availableCapabilities: ['render.webgl2'] })
+    expect(registry.compile(manifest.id, { availableCapabilities: new Set(['render.webgl2']) })).toBe(available)
+    expect(available.ok).toBe(true)
+    expect(registry.compile(manifest.id, { availableCapabilities: [] }).ok).toBe(false)
+    // Sharing compiled definitions must not share mutable user/runtime state.
+    if (first.ok) {
+      const left = new Cinema2ParameterState(first.plan.parameters)
+      const right = new Cinema2ParameterState(first.plan.parameters)
+      expect(left).not.toBe(right)
+      expect(left.serialize()).toEqual(right.serialize())
+    }
+    expect(registry.compile(manifest.id)).toBe(first)
   })
 
   it('keeps registry identity independent and rejects duplicate preset registrations', () => {

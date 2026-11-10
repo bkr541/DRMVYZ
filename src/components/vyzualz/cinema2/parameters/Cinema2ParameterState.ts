@@ -43,6 +43,17 @@ export class Cinema2ParameterState {
   private readonly definitions = new Map<Cinema2ParameterId, Readonly<Cinema2CompiledParameterDefinition>>()
   private persistentValues: Record<string, Cinema2JsonValue> = {}
   private runtimeOnlyValues: Record<string, Cinema2JsonValue> = {}
+  private persistentRevision = 0
+  private readonly listeners = new Set<() => void>()
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => { this.listeners.delete(listener) }
+  }
+  readonly getPersistentRevision = (): number => this.persistentRevision
+  private changed(): void {
+    this.persistentRevision += 1
+    this.listeners.forEach(listener => listener())
+  }
   private readonly editRevisions = new Map<Cinema2ParameterId, number>()
 
   /** Runtime-only edit identity, including reselecting an unchanged enum value. */
@@ -73,11 +84,24 @@ export class Cinema2ParameterState {
       return failure('CINEMA2_PARAMETER_STATE_NOT_PERSISTENT', `Parameter "${parameterId}" does not accept persistent authored/user values.`, `values.${parameterId}`)
     }
 
-    const dependentEdits = userEditSetParameters(definition)
-    // `metadata.mirrorParameters` lists parameters that take the edited value too (one visible control that overrides several hidden ones).
-    const mirrored = Object.fromEntries(mirrorParameters(definition).map(id => [id, candidate]))
-    const result = this.setPersistentValuesAtomically({ ...dependentEdits, ...mirrored, [parameterId]: candidate })
-    if (result.ok) this.editRevisions.set(parameterId, this.getEditRevision(parameterId) + 1)
+    return this.setPersistentValues({ [parameterId]: candidate })
+  }
+
+  /** Validate a complete user patch before publishing any field; leave unrelated controls intact. */
+  setPersistentValues(candidates: Readonly<Record<string, unknown>>): Cinema2ParameterStateMutationResult {
+    const expanded: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(candidates)) {
+      const definition = this.definitions.get(key as Cinema2ParameterId)
+      if (definition) {
+        Object.assign(expanded, userEditSetParameters(definition))
+        for (const id of mirrorParameters(definition)) expanded[id] = value
+      }
+    }
+    const result = this.setPersistentValuesAtomically({ ...expanded, ...candidates })
+    if (result.ok) {
+      for (const id of Object.keys(candidates)) this.editRevisions.set(id as Cinema2ParameterId, this.getEditRevision(id as Cinema2ParameterId) + 1)
+      this.changed()
+    }
     return result
   }
 
@@ -132,6 +156,7 @@ export class Cinema2ParameterState {
       this.persistentValues = { ...this.persistentValues, [parameterId]: cloneJson(authoredDefault) }
       this.editRevisions.set(parameterId, this.getEditRevision(parameterId) + 1)
     }
+    this.changed()
     return success()
   }
 
@@ -147,6 +172,7 @@ export class Cinema2ParameterState {
     }
     this.persistentValues = persistentValues
     this.runtimeOnlyValues = runtimeOnlyValues
+    this.changed()
   }
 
   serialize(): string {
@@ -200,6 +226,7 @@ export class Cinema2ParameterState {
     if (diagnostics.length > 0) return { ok: false, diagnostics: deepFreeze(diagnostics) }
 
     this.persistentValues = nextValues
+    this.changed()
     return success()
   }
 

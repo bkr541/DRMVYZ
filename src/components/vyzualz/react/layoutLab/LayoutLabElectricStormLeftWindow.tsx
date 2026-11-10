@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../controls/LibraryViewToggle'
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { RailTabs, type RailTabOption } from '../../layout/RailTabs'
@@ -146,14 +147,7 @@ export function LayoutLabElectricStormLeftWindow({ appearance, engineSlot }: { a
                                 onChange={event => setQuery(event.target.value)}
                               />
                             </div>
-                            <div className="vz-md-view-toggles">
-                              <button type="button" className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`} onClick={() => setViewMode('grid')} title="Grid view">
-                                <AppIcon kind="grid" size={13} color="currentColor" />
-                              </button>
-                              <button type="button" className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`} onClick={() => setViewMode('list')} title="List view">
-                                <AppIcon kind="list" size={13} color="currentColor" />
-                              </button>
-                            </div>
+                            <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
                           </div>
                           <div className="vz-media-scroll">
                             {filter === 'collections' ? (

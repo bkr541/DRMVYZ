@@ -232,7 +232,7 @@ if (!app.requestSingleInstanceLock()) {
     configureSessionSecurity()
     installRekordboxUsbBridge({ ipcMain, dialog, BrowserWindow, app, log })
     installOutputCastBridge({ app, BrowserWindow, ipcMain, screen, shell, dialog, isTrustedAppUrl })
-    installDiagnosticsBridge({ ipcMain, log })
+    installDiagnosticsBridge({ ipcMain, log, app })
     installSystemMetricsBridge({ app, ipcMain, log })
     installCameraAccessBridge({ ipcMain, shell, systemPreferences, log })
     createMainWindow()

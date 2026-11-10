@@ -1,3 +1,8 @@
+import { CINEMA2_SAY_IT_PRESET_MANIFEST, CINEMA2_SAY_IT_LINE_MODE_ID } from '../presets/Cinema2SayItPreset'
+import { CINEMA2_MARQUEE_PRESET_MANIFEST, CINEMA2_MARQUEE_PARAMETER_IDS } from '../presets/Cinema2MarqueePreset'
+import { CINEMA2_NIGHTSHIFT_PRESET_MANIFEST, CINEMA2_NIGHTSHIFT_PARAMETER_IDS } from '../presets/Cinema2NightshiftPreset'
+import { captureCinema2WorkspacePresetState } from '../runtime/Cinema2WorkspaceSession'
+import { getCinema2WorkspacePresetState } from '../runtime/Cinema2WorkspacePersistence'
 import { act, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
@@ -187,6 +192,57 @@ afterEach(async () => {
 })
 
 describe('Cinema 2.0 schema-driven Inspector', () => {
+  it('renders SAY IT text between Line Mode and Alignment, and hides only Line 2 in one-line mode', async () => {
+    const runtime = createRuntimeForManifest(CINEMA2_SAY_IT_PRESET_MANIFEST)
+    const render = () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" />)
+    const designLabels = () => [...(host?.querySelectorAll('[data-cinema2-parent-group="design"] [data-cinema2-control-id]') ?? [])]
+      .map(element => runtime.getParameterState().getDefinition(element.getAttribute('data-cinema2-control-id') as Cinema2ParameterId)?.label)
+    await act(async () => { render() })
+    expect(designLabels().slice(0, 7)).toEqual(['Line Mode', 'Line 1', 'Line 2', 'Alignment', 'Tracking', 'Line Spacing', 'Glyph Scale'])
+    expect(host?.querySelector('[data-cinema2-parent-group="master-controls"]')?.textContent).not.toContain('Line 1')
+    await act(async () => {
+      runtime.getParameterState().setPersistentValue(CINEMA2_SAY_IT_LINE_MODE_ID, 'one')
+      render()
+    })
+    expect(designLabels().slice(0, 3)).toEqual(['Line Mode', 'Line 1', 'Alignment'])
+    runtime.dispose()
+  })
+
+  it.each([
+    { manifest: CINEMA2_MARQUEE_PRESET_MANIFEST, ids: [CINEMA2_MARQUEE_PARAMETER_IDS.frontText, CINEMA2_MARQUEE_PARAMETER_IDS.leftText, CINEMA2_MARQUEE_PARAMETER_IDS.rightText] },
+    { manifest: CINEMA2_NIGHTSHIFT_PRESET_MANIFEST, ids: [CINEMA2_NIGHTSHIFT_PARAMETER_IDS.signText, CINEMA2_NIGHTSHIFT_PARAMETER_IDS.signTextLeft, CINEMA2_NIGHTSHIFT_PARAMETER_IDS.signTextFront, CINEMA2_NIGHTSHIFT_PARAMETER_IDS.signTextRight] },
+  ])('checkpoints $manifest.metadata.name text before runtime retirement, including cleared fields', async ({ manifest, ids }) => {
+    const previousWorkspace = useReactStore.getState().cinema2Workspace
+    const runtime = createRuntimeForManifest(manifest)
+    if (manifest.id === CINEMA2_NIGHTSHIFT_PRESET_MANIFEST.id) runtime.getParameterState().setPersistentValue(CINEMA2_NIGHTSHIFT_PARAMETER_IDS.signs, true)
+    try {
+      await act(async () => root?.render(<Cinema2InspectorPanel runtime={runtime} surface="design" onTextChange={() => {
+        useReactStore.getState().storeCinema2WorkspacePresetState(captureCinema2WorkspacePresetState(runtime))
+      }} />))
+      for (const [index, id] of ids.entries()) {
+        const input = host?.querySelector<HTMLInputElement>(`#cinema2-parameter-${id}`)
+        expect(input).toBeTruthy()
+        await act(async () => {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!
+          setter.call(input, `LAST MESSAGE ${index}`)
+          input!.dispatchEvent(new Event('input', { bubbles: true }))
+        })
+      }
+      const lastInput = host!.querySelector<HTMLInputElement>(`#cinema2-parameter-${ids.at(-1)}`)!
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(lastInput, '')
+        lastInput.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      const saved = getCinema2WorkspacePresetState(useReactStore.getState().cinema2Workspace, manifest.id)!
+      const restored = new Cinema2ParameterState(runtime.getCompiledPresetPlan().parameters)
+      expect(restored.restore(saved.serializedParameterState).ok).toBe(true)
+      expect(ids.map(id => restored.getValue(id))).toEqual(ids.map((_, index) => index === ids.length - 1 ? '' : `LAST MESSAGE ${index}`))
+    } finally {
+      runtime.dispose()
+      useReactStore.setState({ cinema2Workspace: previousWorkspace })
+    }
+  })
+
   it('projects Electric Storm into the exact four declarative Design parents without changing runtime ownership', () => {
     const result = compileCinema2NativePreset(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST)
     expect(result.ok).toBe(true)

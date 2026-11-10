@@ -107,7 +107,7 @@ Step 1 deliberately does not expose editable text. Its acceptance criteria are f
 2. Built all 95 printable Basic Latin characters with consistent extrusion, bevel, centered local origins, winding and normals. Space is metrics-only; the other 94 code points are named GLB meshes.
 3. Exported advance widths, visual bounds, local centers, line metrics and kerning pairs in the versioned generated metrics manifest.
 4. Replaced the proof asset with `cinema2-say-it-glyphs` while preserving the `say-it-native` module boundary.
-5. Added separate user-facing `Line 1` and `Line 2` single-line text inputs, newline/tab normalization, unsupported-character fallback and bounded truncation. `Line 2` is shown in two-line mode.
+5. Added separate user-facing `Line 1` and `Line 2` single-line text inputs, newline/tab normalization, unsupported-character fallback and bounded truncation. `Line 2` is shown in two-line mode. Both inputs live in Design → Layout, immediately after Line Mode and before Alignment.
 6. Added controls for one/two-line mode, alignment, tracking, line spacing and glyph scale. Character limits remain authored invariants rather than editable performance controls.
 7. Layouts are centered from actual visual bounds, preserve space advances without allocating meshes and automatically fit the camera frame.
 8. Repeated characters reuse shared decoded geometry; only lightweight roots and material instances are created per visible occurrence.

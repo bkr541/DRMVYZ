@@ -1,3 +1,4 @@
+import { requestTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
 import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
 import { LyricRuntimePreviewIndicator } from '../../features/lyrics/components/LyricRuntimePreviewIndicator'
@@ -105,9 +106,12 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   }, [appView])
 
   const requestAppViewChange = useCallback((next: AppView) => {
-    const decision = resolveAppViewNavigation(appView, next, { lyrics: lyricEditorDirty, media: mediaEditorNeedsGuard })
-    setPendingAppView(decision.pendingView)
-    if (decision.nextView !== appView) commitAppViewChange(decision.nextView)
+    if (next === appView) return
+    requestTextSceneNavigation(() => {
+      const decision = resolveAppViewNavigation(appView, next, { lyrics: lyricEditorDirty, media: mediaEditorNeedsGuard })
+      setPendingAppView(decision.pendingView)
+      if (decision.nextView !== appView) commitAppViewChange(decision.nextView)
+    })
   }, [appView, commitAppViewChange, lyricEditorDirty, mediaEditorNeedsGuard])
 
   const finishPendingNavigation = useCallback((next: AppView | null) => {

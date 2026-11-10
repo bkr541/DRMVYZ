@@ -1,3 +1,4 @@
+import { blockTextSceneNavigation, requestTextSceneNavigation } from '../features/cinema2Text/textSceneNavigation'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { createSplitPersistStorage } from '../lib/splitPersistStorage'
@@ -6684,6 +6685,9 @@ export const useReactStore = create<ReactStoreState>()(
       completeCinemaLegacySelectionMigration: () => set({ pendingCinemaLegacySelectionMigration: null }),
       cinema2Workspace: createEmptyCinema2WorkspaceDocument(),
       activateCinema2Workspace: (request) => {
+        if (blockTextSceneNavigation(() => { get().activateCinema2Workspace(request) })) {
+          return { ok: false, document: get().cinema2Workspace, state: null, diagnostics: [{ code: 'CINEMA2_TEXT_SCENE_NAVIGATION_PENDING', message: 'Resolve unsaved Text Scene changes before switching presets.', path: '$.activePresetId' }] }
+        }
         const result = activateCinema2WorkspaceDocument(get().cinema2Workspace, request)
         if (result.ok) set({ cinema2Workspace: result.document })
         return result
@@ -9365,7 +9369,7 @@ export const useReactStore = create<ReactStoreState>()(
       },
 
       setActiveReactPresetId: (id) =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           if (id != null) {
             const preset = s.reactPresets.find(p => p.id === id)
             if (preset && isSelectableReactEngineId(preset.engine)) {
@@ -9422,12 +9426,12 @@ export const useReactStore = create<ReactStoreState>()(
                 performancePadTransition: null,
                 ...clearPerformanceActionPatch(),
               }
-        }),
+        })),
 
       setActiveReactEngineId: (id) => get().selectReactEngine(id),
 
       selectReactEngine: (engineId) =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           const pixGridCleanup = engineId === 'pixGrid'
             ? {}
             : {
@@ -9527,10 +9531,10 @@ export const useReactStore = create<ReactStoreState>()(
             ...clearPerformanceActionPatch(),
             ...pixGridCleanup,
           }
-        }),
+        })),
 
       selectReactPreset: (id) =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           const safePresetId = replaceLockedLaserDmxPresetId(id) ?? id
           const selected = s.reactPresets.find((p) => p.id === safePresetId)
           if (!selected) return {}
@@ -9560,7 +9564,7 @@ export const useReactStore = create<ReactStoreState>()(
                 pixGridHistoryTransaction: null,
               }
           return { ...buildPresetPatchForState(selected, s), performancePadTransition: null, ...pixGridCleanup }
-        }),
+        })),
 
       updateReactPresetParams: (id, patch) =>
         set((s) => ({
@@ -10101,7 +10105,7 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       setActivePadId: (id) =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
           if (pad?.destination?.engineId === 'cinema2') {
@@ -10139,7 +10143,7 @@ export const useReactStore = create<ReactStoreState>()(
               ? { startedAtMs: nowMs, durationMs, from, to }
               : null,
           }
-        }),
+        })),
 
       updatePerformancePad: (id, patch) =>
         set((s) => {
@@ -12966,7 +12970,7 @@ export const useReactStore = create<ReactStoreState>()(
         }),
 
       resetReactViewPreferences: () =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           const defaultMatrix = createDefaultLaserDmxBeamMatrixSettings()
           const selectedFixtureId = s.laserDmxSettings.fixtures.some(
             fixture => fixture.id === s.laserDmxSettings.selectedFixtureId,
@@ -13014,10 +13018,10 @@ export const useReactStore = create<ReactStoreState>()(
               selectedFixtureId: null,
             }),
           }
-        }),
+        })),
 
       clearReactProjectContent: () =>
-        set((s) => {
+        requestTextSceneNavigation(() => set((s) => {
           const repairedSelection = repairReactEnginePresetSelection(
             s.activeReactPresetId,
             s.activeReactEngineId,
@@ -13095,10 +13099,11 @@ export const useReactStore = create<ReactStoreState>()(
             performancePadTransition: null,
             ...clearPerformanceActionPatch(),
           }
-        }),
+        })),
 
       // Legacy compatibility only. The React UI uses the three scoped actions above.
       resetReactView: () => {
+        if (blockTextSceneNavigation(() => get().resetReactView())) return
         const previousCanvasItems = get().canvasMediaItems
         revokeCanvasMediaObjectUrls(previousCanvasItems)
         clearSvgVisualCache()

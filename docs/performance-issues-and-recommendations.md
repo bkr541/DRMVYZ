@@ -2,7 +2,24 @@
 
 Date: November 9, 2026
 
-This document covers the four performance issues discussed after the venue test. It records the current analysis and recommended fixes; these recommendations have not been implemented. The earlier transient canvas-copy recovery patch addresses a separate casting failure path.
+This document covers the four performance issues discussed after the venue test. The analysis and recommendations below record the original review; the implementation status describes the subsequent performance changes. The earlier transient canvas-copy recovery patch addresses a separate casting failure path.
+
+## Implementation status
+
+Implemented the following internal changes without modifying preset definitions, parameter schemas or stored values, audio-analysis algorithms, or performance-pad actions:
+
+- **Casting:** source copies are gated to 60 FPS for WebRTC and 30 FPS for Google Cast. The stable relay, capture stream, and connection remain in place. Cinema marks replacement output pending until its first rendered frame, so casting skips setup clears and retains the previous relay frame during that handoff. Explicit unavailable output still follows the existing failure path.
+- **Auto quality:** Cinema combines its CPU rolling average, frame pacing, and recent valid GPU timings. Auto reserves modest casting headroom; explicit Performance/Balanced/Quality choices retain their existing policies. Pause, suspension, first-frame discontinuities, and context loss reset adaptation windows. CPU telemetry remains available independently of adaptation.
+- **Activation and buffers:** a 64-entry LRU caches deeply immutable Cinema compilation results by preset and capability set, including capability revalidation on a cache miss. Each activation retains fresh parameter, media, audio, and runtime ownership. Canvas reuses its composition surface across effect restarts, applies the shared UHD/edge budget while retaining the previous 2× DPR ceiling, and shrinks unused effect scratch storage to 1×1. No mutable GPU-runtime pooling or retained background engine was introduced.
+- **Diagnostics:** lifecycle/activation/first-frame/quality/cast/context events are persisted. Frame summaries are emitted every ten seconds using fixed sample storage; cast summaries are rate limited. Passive renderer exception/rejection capture is burst limited and redacts URLs and credentials. Electron retains at most 16 recent performance records (8 KiB each) and includes them with GPU-process failure context.
+
+Validation: 100 focused unit/integration tests passed across the affected suites, including all-six-engine pad actions, shared analyser behavior, repeated Cinema activation, parameter restoration, and Canvas media/Display continuity. TypeScript passed. Focused ESLint checks passed with one existing unrelated `recorder` dependency warning in ReactView. All 17 native diagnostics/preload tests passed. Three filesystem-watcher tests initially encountered sandbox `EMFILE` restrictions; those three passed when run with normal host permissions. Watcher implementation was not changed.
+
+Real-browser evidence: 15 short 960×540 samples on the Apple M3 Pro measured approximately 60 relay copies/second for WebRTC and 30 for Google Cast, with preview scheduling near 120 FPS. Persistent parameter snapshots were unchanged during casting. A focused final check restored a real WebGL context, then switched Blockshift to Mainframe while keeping the same WebRTC peer and capture stream; rendering resumed and no pending replacement frame was copied. This simulated context loss, not a native GPU-process crash.
+
+Limitations: no exhaustive preset/venue hardware matrix or sustained real-network soak was completed. The driver-level GPU exit remains unattributed. Existing context-restoration behavior is exercised and logged; these changes do not guarantee recovery from every GPU-process failure. Runtime creation and GPU-resource ownership remain isolated by activation; broad GPU-resource pooling was intentionally avoided to preserve behavior.
+
+Evidence: [implementation measurements](performance-implementation-2026-11-09.json).
 
 ## Overview
 

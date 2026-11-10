@@ -1,6 +1,7 @@
+import { isCinema2TextPreset } from '../cinema2/text/Cinema2TextConfiguration'
 import type { ReactEngineId } from './ReactTypes'
 
-export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts'
+export type ReactLeftTab = 'workspace' | 'media' | 'layers' | 'fonts' | 'pool'
 export type ReactLowerSurface = 'trackMap' | 'soundDrawing' | 'performancePads'
 export type ReactWorkspaceTabLabel = 'SETUP' | 'SOURCE' | 'RIG' | 'LAYOUT'
 
@@ -28,6 +29,7 @@ export function resolveReactWorkspaceComposition(
   engineId: ReactEngineId,
   laserWorkspaceMode: unknown,
   beamEditorVisible: boolean,
+  cinema2PresetId?: string,
 ): ReactWorkspaceComposition {
   const isSoundDrawing = engineId === 'oscilloscope'
   const isCinematic = engineId === 'cinematicPortal'
@@ -46,7 +48,7 @@ export function resolveReactWorkspaceComposition(
     // performance pads) is shared with every other engine.
     leftTabs = ['workspace']
   } else if (isCinema2) {
-    leftTabs = ['workspace', 'layers']
+    leftTabs = ['workspace', isCinema2TextPreset(cinema2PresetId) ? 'pool' : 'layers']
     workspaceTabLabel = 'SOURCE'
   } else if (isCinematic) {
     // Cinematic Worlds chooses its World in the left source rail while preset
@@ -97,6 +99,7 @@ export function getReactLeftTabLabel(
   if (tab === 'workspace') return composition.workspaceTabLabel
   if (tab === 'media') return 'MEDIA'
   if (tab === 'layers') return 'LAYERS'
+  if (tab === 'pool') return 'POOL'
   return 'FONTS'
 }
 

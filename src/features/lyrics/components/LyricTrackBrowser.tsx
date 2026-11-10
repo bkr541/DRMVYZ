@@ -146,7 +146,7 @@ export function LyricTrackBrowser({
       className={`lmv-track-browser${inVersions ? ' lmv-track-browser--versions' : ''}`}
       aria-label={inVersions && versionsTrack ? `Lyric versions for ${versionsTrack.title}` : 'Stored audio tracks'}
     >
-      <div className="lmv-track-library-body">
+      <div className="lmv-track-library-body dv-library-body">
       {inVersions ? (
         <LyricSearchFilterRow
           searchValue={versionSearch}

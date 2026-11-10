@@ -1,3 +1,5 @@
+import { markCanvasFramePending, markCanvasFrameReady } from '../../../lib/canvasFrameReadiness'
+import { recordPerformanceEvent } from '../../../lib/performanceTelemetry'
 import { useEffect, useRef, useState } from 'react'
 import { MusicIntelligenceAnalyserFramePump } from '../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
 import {
@@ -98,6 +100,9 @@ export function Cinema2Stage({
     const canvas = canvasRef.current
     if (!canvas) return
 
+    markCanvasFramePending(canvas)
+    const activationStarted = performance.now()
+    recordPerformanceEvent('cinema2', 'activation-started', { presetId: presetId ?? 'foundation' })
     let runtime: Cinema2Runtime | null = null
     let resizeObserver: ResizeObserver | null = null
     let lastResolution: CanvasResolution | null = null
@@ -106,6 +111,7 @@ export function Cinema2Stage({
 
     const reportSnapshot = (snapshot: Cinema2RuntimeSnapshot) => {
       if (retired) return
+      if (snapshot.phase === 'unavailable') markCanvasFrameReady(canvas)
       setRuntimeSnapshot(snapshot)
       onRuntimeSnapshotRef.current?.(snapshot)
     }
@@ -187,6 +193,7 @@ export function Cinema2Stage({
       }
       let created = Cinema2Runtime.create(canvas, {
         onSnapshot: reportSnapshot,
+        onFirstFrame: () => markCanvasFrameReady(canvas),
         presetId,
         serializedParameterState: restoreState?.serializedParameterState,
         transportSource,
@@ -198,10 +205,11 @@ export function Cinema2Stage({
         if (import.meta.env.DEV) {
           console.warn('[Cinema2Stage] discarding incompatible session parameter state and retrying with defaults:', created.error)
         }
-        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, presetId, transportSource })
+        created = Cinema2Runtime.create(canvas, { onSnapshot: reportSnapshot, onFirstFrame: () => markCanvasFrameReady(canvas), presetId, transportSource })
       }
       reportSnapshot(created.snapshot)
       if (!created.runtime) {
+        markCanvasFrameReady(canvas)
         onRuntimeReadyRef.current?.(null)
         onCanvasReadyRef.current?.(canvas)
         ownership.markStable()
@@ -221,10 +229,13 @@ export function Cinema2Stage({
       resize()
       runtime.setSuspended(document.visibilityState === 'hidden')
       runtime.start()
+      recordPerformanceEvent('cinema2', 'canvas-published', { presetId: presetId ?? 'foundation',
+        activationMs: performance.now() - activationStarted, width: canvas.width, height: canvas.height })
       onCanvasReadyRef.current?.(canvas)
       ownership.markStable()
       assertDrmvyzWebGLContextOwnershipBoundsForDevelopment('cinema2')
     } catch (error) {
+      markCanvasFrameReady(canvas)
       const message = error instanceof Error ? error.message : String(error)
       setRuntimeSnapshot({
         phase: 'unavailable',

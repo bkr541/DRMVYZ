@@ -1,5 +1,4 @@
-import { AppIcon } from '../../../components/shared/icons/AppIcon'
-import { DreamVizTextInput } from '../../../components/vyzualz/react/controls/DreamVizTextInput'
+import { LibrarySearchRow } from '../../../components/vyzualz/react/controls/LibrarySearchRow'
 import { UnderlineDropdown } from '../../../components/vyzualz/react/controls/UnderlineDropdown'
 
 export interface LyricSearchFilterOption {
@@ -24,7 +23,7 @@ interface Props {
 /**
  * The Lyric Manager left rail's search field + filter dropdown row. One component serves both the
  * Tracks and the Versions windows so they share width, icon, spacing and underline alignment
- * (styles: .lmv-track-search-row in lyricManager.css).
+ * using the shared flat library search treatment.
  */
 export function LyricSearchFilterRow({
   searchValue,
@@ -40,18 +39,7 @@ export function LyricSearchFilterRow({
   filterMenuWidth = 220,
 }: Props) {
   return (
-    <div className="lmv-track-search-row">
-      <div className="lmv-track-search-wrap">
-        <AppIcon kind="search" className="lmv-track-search-icon" size="12" />
-        <DreamVizTextInput
-          className="lmv-input lmv-track-search"
-          type="search"
-          value={searchValue}
-          onChange={event => onSearchChange(event.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={searchAriaLabel}
-        />
-      </div>
+    <LibrarySearchRow className="lmv-track-search-row" value={searchValue} onChange={onSearchChange} placeholder={searchPlaceholder} label={searchAriaLabel}>
       <UnderlineDropdown
         id={filterId}
         value={filterValue}
@@ -65,6 +53,6 @@ export function LyricSearchFilterRow({
         showDescriptions={false}
         className="lmv-track-filter-dropdown"
       />
-    </div>
+    </LibrarySearchRow>
   )
 }

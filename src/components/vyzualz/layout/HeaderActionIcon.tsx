@@ -6,6 +6,8 @@ import { AppIcon } from '../../shared/icons/AppIcon'
  */
 const HEADER_ACTIONS = {
   create: { kind: 'plus', bounds: '8 8 16 16' },
+  capture: { kind: 'camera', bounds: '2 4 28 22' },
+  back: { kind: 'left', bounds: '4 6 24 20' },
   createCollection: { kind: 'folderAdd', bounds: '2 2 28 28' },
   open: { kind: 'folder', bounds: '2 2 28 28' },
   save: { kind: 'save', bounds: '4 4 24 24' },
@@ -16,6 +18,7 @@ const HEADER_ACTIONS = {
   undo: { kind: 'undo', bounds: '4 5 24 21' },
   redo: { kind: 'redo', bounds: '4 5 24 21' },
   list: { kind: 'list', bounds: '4 6 24 20' },
+  grid: { kind: 'grid', bounds: '4 4 24 24' },
 } as const
 
 export type HeaderAction = keyof typeof HEADER_ACTIONS

@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../../controls/LibraryViewToggle'
 import { useMemo, useState } from 'react'
 import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { getReactEngineIconComponent } from '../../reactEngineIcons'
@@ -12,7 +13,7 @@ import { OptionANoticeTab } from './OptionANoticeTab'
 //
 // The React workspace's left window, rebuilt: a window head with the title set large and light, an engine display (the
 // identity ring with the engine and preset), a three-key bank (Source / Layers / Notice) and the tab bodies. The Media
-// Library is Option A's own construction: segmented filter keys, an inset search display, two view keys and tiles that
+// Library is Option A's own construction: segmented filter keys, an inset search display, a single view toggle and tiles that
 // carry their caption under the picture. Layers are rack rows drawn from the compiled Electric Storm manifest (the same
 // data production's Layers tab lists). The Notice tab is Option A's own card (a lit tone tile in an inset well) in every tone.
 
@@ -73,10 +74,7 @@ export function OptionALeftModule() {
                 <AppIcon kind="search" size={14} aria-hidden="true" />
                 <input type="text" aria-label="Search media" placeholder="Search media" value={query} onChange={event => setQuery(event.target.value)} />
               </label>
-              <div className="oa-search__views" role="group" aria-label="View">
-                <button type="button" className="oa-iconkey oa-iconkey--sm" data-selected={viewMode === 'grid'} aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} title="Grid view"><AppIcon kind="grid" size={14} color="currentColor" /></button>
-                <button type="button" className="oa-iconkey oa-iconkey--sm" data-selected={viewMode === 'list'} aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} title="List view"><AppIcon kind="list" size={14} color="currentColor" /></button>
-              </div>
+              <div className="oa-search__views"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
             </div>
             {filter === 'collections' ? (
               <p className="oa-empty">No collections in this mockup.</p>

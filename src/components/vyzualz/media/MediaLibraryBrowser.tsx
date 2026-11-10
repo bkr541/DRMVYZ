@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../react/controls/LibraryViewToggle'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
 import { PoolTextEntries } from './PoolTextEntries'
@@ -1583,22 +1584,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           )}
         </div>
         {libraryFilter !== 'tracks' && libraryFilter !== 'fonts' && (
-          <div className="vz-md-view-toggles">
-            <button
-              className={`vz-md-view-btn${viewMode === 'grid' ? ' vz-md-view-btn--active' : ''}`}
-              onClick={() => setViewMode('grid')}
-              title="Grid view"
-            >
-              <AppIcon kind="grid" size={13} color="currentColor" />
-            </button>
-            <button
-              className={`vz-md-view-btn${viewMode === 'list' ? ' vz-md-view-btn--active' : ''}`}
-              onClick={() => setViewMode('list')}
-              title="List view"
-            >
-              <AppIcon kind="list" size={13} color="currentColor" />
-            </button>
-          </div>
+          <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
         )}
       </div>
 

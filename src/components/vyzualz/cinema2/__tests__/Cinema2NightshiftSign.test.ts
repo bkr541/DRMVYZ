@@ -6,13 +6,16 @@ import { shadeNightshiftMusicCell, type NightshiftSceneFrame } from '../modules/
 import { readNightshiftControls, CINEMA2_NIGHTSHIFT_PATTERNS } from '../modules/nightshift/Cinema2NightshiftDomain'
 import { NIGHTSHIFT_MUSIC_TARGET_DEFAULTS } from '../modules/nightshift/Cinema2NightshiftAudio'
 
-const frame = (): NightshiftSceneFrame => ({ controls: { ...readNightshiftControls({ get: () => undefined, resolve: () => null, getAuthored: () => undefined }), signs: true },
+const frame = (): NightshiftSceneFrame => ({ controls: { ...readNightshiftControls({ get: () => undefined, resolve: () => null, getAuthored: () => undefined }), signs: true, signTexts: ['NIGHTSHIFT', '', '', ''] },
   phase: 2.5, angle: 0, glintPhase: 0, pattern: 'nightshift', outgoingPattern: null, blend: 1, music: { ...NIGHTSHIFT_MUSIC_TARGET_DEFAULTS } })
 
 describe('NIGHTSHIFT freestanding neon sign', () => {
   it('builds only freestanding outline tubes and scales them about their center', async () => {
     const sign = new Cinema2NightshiftSign(await loadCinema2ThreeLibrary())
     expect(sign.root.visible).toBe(false)
+    expect(sign.root.userData.text).toBe('')
+    expect(sign.root.children).toHaveLength(0)
+    sign.apply(frame(), shadeNightshiftMusicCell)
     expect(sign.root.userData.text).toBe('NIGHTSHIFT')
     expect(sign.root.position.z).toBeLessThan(-7.3)
     const letters = sign.root.children.filter(o => o.name.startsWith('nightshift.sign.letter.')) as THREE.Mesh[]
@@ -39,6 +42,7 @@ describe('NIGHTSHIFT freestanding neon sign', () => {
 
   it('performs spatial choreography, audio accents and pattern crossfades through tube buffers', async () => {
     const sign = new Cinema2NightshiftSign(await loadCinema2ThreeLibrary()), f = frame()
+    sign.apply(f, shadeNightshiftMusicCell)
     const letters = sign.root.children.filter(o => o.name.startsWith('nightshift.sign.letter.')) as THREE.Mesh[]
     const signature = () => JSON.stringify(letters.map(m => Array.from(m.geometry.getAttribute('color').array)))
     const patterns = CINEMA2_NIGHTSHIFT_PATTERNS.map(p => { sign.apply({ ...f, pattern: p.value }, shadeNightshiftMusicCell); return signature() })
@@ -57,6 +61,7 @@ describe('NIGHTSHIFT freestanding neon sign', () => {
 
   it('applies the palette to tubes, honors OFF/master zero, and disposes owned resources', async () => {
     const sign = new Cinema2NightshiftSign(await loadCinema2ThreeLibrary()), f = frame()
+    sign.apply(f, shadeNightshiftMusicCell)
     const tube = sign.root.children.find(o => o.name.startsWith('nightshift.sign.letter.')) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>
     const geometryDispose = vi.spyOn(tube.geometry, 'dispose'), materialDispose = vi.spyOn(tube.material, 'dispose')
     sign.apply({ ...f, controls: { ...f.controls, colors: { ...f.controls.colors, sign: [1, .1, .25] } } }, shadeNightshiftMusicCell)

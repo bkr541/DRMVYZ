@@ -2,7 +2,7 @@
 
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
 import { DEFAULT_MI_FRAME } from '../../../../features/musicIntelligence/constants'
 import { useReactStore } from '../../../../stores/reactStore'
@@ -92,6 +92,19 @@ function StrictModeRestoreHarness({
     />
   )
 }
+
+// The production engine selector uses the native Popover API, absent from jsdom.
+const popoverDescriptors = ['showPopover', 'hidePopover'].map(key => [key, Object.getOwnPropertyDescriptor(HTMLElement.prototype, key)] as const)
+beforeAll(() => {
+  for (const [key, descriptor] of popoverDescriptors) {
+    if (!descriptor) Object.defineProperty(HTMLElement.prototype, key, { configurable: true, value: () => {} })
+  }
+})
+afterAll(() => {
+  for (const [key, descriptor] of popoverDescriptors) {
+    if (!descriptor) delete (HTMLElement.prototype as unknown as Record<string, unknown>)[key]
+  }
+})
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

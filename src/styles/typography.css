@@ -295,13 +295,13 @@
 :root body .vz-header-readout-values em { font: var(--type-header-readout-secondary); }
 :root body .vz-header-readout-values button { font: var(--type-header-readout-secondary); }
 
-/* Information and confirmation prompts share the centered dialog typography roles. */
+/* Information and confirmation prompts share centered typography and capitalize every heading word. */
 :root {
   --type-dialog-heading: 700 14px/1.2 var(--az-font, Inter, system-ui, sans-serif);
   --type-dialog-copy: 400 11px/1.5 var(--az-font, Inter, system-ui, sans-serif);
 }
 :root body [class].dv-confirm-dialog > h2,
-:root body [class].drm-info-popover__title { font: var(--type-dialog-heading); letter-spacing: normal; text-transform: none; }
+:root body [class].drm-info-popover__title { font: var(--type-dialog-heading); letter-spacing: normal; text-transform: capitalize; }
 :root body [class].dv-confirm-dialog > p,
 :root body [class].drm-info-popover__description,
 :root body [class].drm-info-popover__body > p { font: var(--type-dialog-copy); letter-spacing: normal; }
@@ -317,4 +317,11 @@
   font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: .14em;
   text-transform: uppercase;
+}
+
+/* Supporting content inside library records remains visible independently of control helper copy. */
+:root body .dv-library-record-copy {
+  font: 400 10px/1.3 var(--az-font-data, Inter, system-ui, sans-serif);
+  letter-spacing: normal;
+  color: var(--ui-text-muted, #8a9aa0);
 }

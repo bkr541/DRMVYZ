@@ -38,6 +38,47 @@ describe('Cinema2 performance quality and diagnostics', () => {
     disabled.dispose()
   })
 
+  it('adapts to frame pacing and reserves casting headroom without changing explicit modes', () => {
+    const paced = new Cinema2PerformanceDiagnostics(createCinemaMockWebGL(), 'auto')
+    for (let i = 0; i < 24; i++) paced.sampleCpuFrame(2, 33.3)
+    expect(paced.getPolicy().resolvedQuality).toBe('low')
+    const casting = new Cinema2PerformanceDiagnostics(createCinemaMockWebGL(), 'auto')
+    const explicit = new Cinema2PerformanceDiagnostics(createCinemaMockWebGL(), 'quality')
+    for (let i = 0; i < 24; i++) {
+      casting.sampleCpuFrame(18, 16.7, true)
+      explicit.sampleCpuFrame(30, 33.3, true)
+    }
+    expect(casting.getPolicy().resolvedQuality).toBe('low')
+    expect(explicit.getPolicy().resolvedQuality).toBe('high')
+    for (let i = 0; i < 220; i++) casting.sampleCpuFrame(3, 16.7, false)
+    expect(casting.getPolicy().resolvedQuality).toBe('high')
+    paced.dispose(); casting.dispose(); explicit.dispose()
+  })
+
+  it('excludes pauses and stalls from adaptation and ignores disjoint GPU timings', () => {
+    const gl = createCinemaMockWebGL()
+    const extension = { TIME_ELAPSED_EXT: 0x88bf, GPU_DISJOINT_EXT: 0x8fbb }
+    let disjoint = false
+    Object.assign(gl, {
+      QUERY_RESULT_AVAILABLE: 0x8867, QUERY_RESULT: 0x8866,
+      getExtension: vi.fn(() => extension), getParameter: vi.fn(() => disjoint),
+      createQuery: vi.fn(() => ({})), beginQuery: vi.fn(), endQuery: vi.fn(), deleteQuery: vi.fn(),
+      getQueryParameter: vi.fn((_query, parameter) => parameter === 0x8867 ? true : 30_000_000),
+    })
+    const telemetry = new Cinema2PerformanceDiagnostics(gl, 'auto')
+    for (let i = 0; i < 24; i++) { telemetry.sampleCpuFrame(80, null); telemetry.sampleCpuFrame(80, 1000) }
+    expect(telemetry.getPolicy().resolvedQuality).toBe('high')
+    expect(telemetry.getSnapshot().cpuFrameTimeAverageMs).toBe(80)
+    for (let i = 0; i < 24; i++) {
+      telemetry.beginGpuFrame(); telemetry.endGpuFrame(); telemetry.sampleCpuFrame(1, 16.7)
+    }
+    expect(telemetry.getPolicy().resolvedQuality).toBe('low')
+    disjoint = true
+    telemetry.beginGpuFrame(); telemetry.endGpuFrame(); telemetry.sampleCpuFrame(1, 16.7)
+    expect(telemetry.getSnapshot().gpuFrameTimeMs).toBeNull()
+    telemetry.dispose()
+  })
+
   it('requests the GPU timer extension again after a context restore and drops stale queries on loss', () => {
     const gl = createCinemaMockWebGL()
     const extension = { TIME_ELAPSED_EXT: 0x88bf, GPU_DISJOINT_EXT: 0x8fbb }

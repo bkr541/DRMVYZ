@@ -98,7 +98,7 @@ const PARAMETERS = Object.freeze([
   Object.freeze({ ...baseParameter, id: P.patternChange, label: 'Pattern Change', type: 'boolean' as const, defaultValue: false, designParentGroup: 'design' as const, group: 'Pattern', order: 2 }),
   Object.freeze({ ...baseParameter, id: P.trigger, label: 'Trigger', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
     visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: P.patternChange, value: true })]), designParentGroup: 'design' as const, group: 'Pattern', order: 3 }),
-  textParameter(P.frontText, 'Front Marquee Text', 'DVYDRM', 10),
+  textParameter(P.frontText, 'Front Marquee Text', 'MARQUEE', 10),
   textParameter(P.leftText, 'Left Marquee Text', 'SHOWINGS', 11),
   textParameter(P.rightText, 'Right Marquee Text', 'SHOWINGS', 12),
   floatParameter(P.signIllumination, 'Sign Illumination', 0.78, 'design', 'Marquee Copy', 13),
@@ -180,7 +180,7 @@ export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   modules: Object.freeze([Object.freeze({
     id: CINEMA2_MARQUEE_MODULE_ID, typeId: CINEMA2_MARQUEE_NATIVE_MODULE_TYPE_ID, version: CINEMA2_MARQUEE_NATIVE_MODULE_VERSION, enabled: true,
     parameters: Object.freeze({ masterIntensity: 0.9, bpmSync: true, autoPerformance: true, pattern: CINEMA2_MARQUEE_DEFAULT_PATTERN, patternChange: false, trigger: 'bar4',
-      frontText: 'DVYDRM', leftText: 'SHOWINGS', rightText: 'SHOWINGS', signIllumination: 0.78,
+      frontText: 'MARQUEE', leftText: 'SHOWINGS', rightText: 'SHOWINGS', signIllumination: 0.78,
       frontIntensity: 1, sideIntensity: 0.86, canopyIntensity: 0.72, towerIntensity: 0.82, entranceIntensity: 0.68, neonIntensity: 0.92,
       reflection: 0.72, nightColor: NIGHT, marqueeColor: RED, incandescentColor: GOLD, blueColor: BLUE, architectureColor: ARCHITECTURE }),
     parameterBindings: Object.freeze({ masterIntensity: cinema2Ref(P.masterIntensity), bpmSync: cinema2Ref(P.bpmSync), autoPerformance: cinema2Ref(P.autoPerformance), pattern: cinema2Ref(P.pattern), patternChange: cinema2Ref(P.patternChange), trigger: cinema2Ref(P.trigger),

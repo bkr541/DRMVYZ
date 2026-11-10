@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../controls/LibraryViewToggle'
 import { AppIcon } from '../../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../controls/DreamVizTextInput'
 import { useEffect, useMemo, useState } from 'react'
@@ -159,10 +160,7 @@ function PixGridMediaMockup({ state }: { state: PixGridMockState }) {
           <DreamVizTextInput className="vz-md-search-input" type="text" placeholder="Search media…" value={state.mediaSearch} onChange={event => state.setMediaSearch(event.target.value)} />
           {state.mediaSearch && <button type="button" className="vz-md-search-clear" title="Clear search" onClick={() => state.setMediaSearch('')}><AppIcon kind="close" size={14} /></button>}
         </div>
-        <div className="vz-md-view-toggles">
-          <button type="button" className={`vz-md-view-btn${state.mediaView === 'grid' ? ' vz-md-view-btn--active' : ''}`} title="Grid view" onClick={() => state.setMediaView('grid')}><AppIcon kind="pixGrid" size={14} /></button>
-          <button type="button" className={`vz-md-view-btn${state.mediaView === 'list' ? ' vz-md-view-btn--active' : ''}`} title="List view" onClick={() => state.setMediaView('list')}>☷</button>
-        </div>
+        <div className="vz-md-view-toggles"><LibraryViewToggle view={state.mediaView} onChange={state.setMediaView} /></div>
       </div>
 
       <div className="vz-media-status-bar rv-layout-lab-media-status" role="status">

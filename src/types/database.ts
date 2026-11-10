@@ -709,6 +709,30 @@ export interface FontAssetInsert {
 // can use it when widening insert/update arguments to the indexed form.
 export type DBRec<T> = T & { [k: string]: unknown }
 
+// 0044: account-owned Cinema 2.0 text library (append-only MVP).
+export interface Cinema2SavedTextRow {
+  user_id: string
+  preset_id: string
+  id: string
+  name: string
+  schema_version: number
+  parameters: Json
+  created_at: string
+}
+export interface Cinema2TextPoolRow {
+  user_id: string
+  preset_id: string
+  id: string
+  name: string
+  created_at: string
+}
+export interface Cinema2TextPoolEntryRow {
+  user_id: string
+  preset_id: string
+  pool_id: string
+  record_id: string
+}
+
 export interface Database {
   public: {
     Views:          Record<string, never>
@@ -909,6 +933,27 @@ export interface Database {
         Relationships: [
           { foreignKeyName: 'user_presets_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] },
           { foreignKeyName: 'user_presets_preset_id_fkey'; columns: ['preset_id']; isOneToOne: false; referencedRelation: 'presets'; referencedColumns: ['id'] },
+        ]
+      }
+      cinema2_saved_text: {
+        Row: DBRec<Cinema2SavedTextRow>
+        Insert: DBRec<Omit<Cinema2SavedTextRow, 'created_at' | 'schema_version'> & { created_at?: string; schema_version?: number }>
+        Update: never
+        Relationships: [{ foreignKeyName: 'cinema2_saved_text_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] }]
+      }
+      cinema2_text_pools: {
+        Row: DBRec<Cinema2TextPoolRow>
+        Insert: DBRec<Omit<Cinema2TextPoolRow, 'created_at'> & { created_at?: string }>
+        Update: never
+        Relationships: [{ foreignKeyName: 'cinema2_text_pools_user_id_fkey'; columns: ['user_id']; isOneToOne: false; referencedRelation: 'profiles'; referencedColumns: ['id'] }]
+      }
+      cinema2_text_pool_entries: {
+        Row: DBRec<Cinema2TextPoolEntryRow>
+        Insert: DBRec<Cinema2TextPoolEntryRow>
+        Update: never
+        Relationships: [
+          { foreignKeyName: 'cinema2_text_pool_entries_user_id_preset_id_pool_id_fkey'; columns: ['user_id', 'preset_id', 'pool_id']; isOneToOne: false; referencedRelation: 'cinema2_text_pools'; referencedColumns: ['user_id', 'preset_id', 'id'] },
+          { foreignKeyName: 'cinema2_text_pool_entries_user_id_preset_id_record_id_fkey'; columns: ['user_id', 'preset_id', 'record_id']; isOneToOne: false; referencedRelation: 'cinema2_saved_text'; referencedColumns: ['user_id', 'preset_id', 'id'] },
         ]
       }
       preset_organization: {

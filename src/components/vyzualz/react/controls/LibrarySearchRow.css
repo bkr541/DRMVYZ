@@ -1,0 +1,20 @@
+/* The Tracks library's flat body treatment, including when used by a Collapsible. */
+.dv-library-body,
+.drc-body.dv-library-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--workspace-group-gap, 12px);
+  margin-top: var(--workspace-group-body-top, 10px);
+  padding: 0 0 8px;
+  background: transparent;
+  border-radius: 0;
+}
+.dv-library-search-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0; border: 0; flex-shrink: 0; }
+.dv-library-search-wrap { position: relative; flex: 1 1 auto; min-width: 0; margin: 0; }
+.dv-library-search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); z-index: 1; color: rgba(196, 207, 211, 0.4); pointer-events: none; }
+.dv-library-search-row .dv-library-search-input.dv-text-input { height: 32px; padding-left: 24px !important; }
+.dv-library-search-row .dv-library-search-input.has-clear { padding-right: 24px !important; }
+.dv-library-search-input.is-clearable::-webkit-search-cancel-button { appearance: none; -webkit-appearance: none; }
+.dv-library-search-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; background: transparent; color: rgba(196, 207, 211, 0.4); cursor: pointer; }
+.dv-library-search-clear:hover { color: #f87171; }

@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../../controls/LibraryViewToggle'
 import { useMemo, useState } from 'react'
 import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { ELECTRIC_STORM_LAYERS, FILTER_TABS, MEDIA, SELECTED_ID, thumbnailStyle, type LibraryFilter } from '../LayoutLabElectricStormLeftWindow'
@@ -29,7 +30,7 @@ export function OptionBLeft() {
     <div className="ob-left-content ob-scroll">
       {tab === 'source' ? <ObGroup title="Media Library" icon="navMedia" index={String(MEDIA.length)}>
         <div className="ob-library-filters" role="group" aria-label="Media library filter">{FILTER_TABS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label[0] + item.label.slice(1).toLowerCase()}</button>)}</div>
-        <div className="ob-library-tools"><label className="ob-search"><AppIcon kind="search" size={14} /><input aria-label="Search media" placeholder="Find media…" value={query} onChange={event => setQuery(event.target.value)} /></label><ObKey icon={mode === 'grid' ? 'list' : 'grid'} label={mode === 'grid' ? 'List view' : 'Grid view'} onClick={() => setMode(value => value === 'grid' ? 'list' : 'grid')} /></div>
+        <div className="ob-library-tools"><label className="ob-search"><AppIcon kind="search" size={14} /><input aria-label="Search media" placeholder="Find media…" value={query} onChange={event => setQuery(event.target.value)} /></label><LibraryViewToggle view={mode} onChange={setMode} /></div>
         {filter === 'collections' ? <p className="ob-empty">No collections in this mockup.</p> : !visible.length ? <p className="ob-empty">No media matches “{query}”.</p> : <div className={`ob-media ob-media--${mode}`}>{visible.map((item, index) => <button type="button" className="ob-media-item" key={item.id} aria-pressed={selected === item.id} data-kind={item.video ? 'video' : 'image'} title={item.title} onClick={() => setSelected(item.id)}>
           <span className="ob-media-art" style={thumbnailStyle(item.tint)} role="img" aria-label={item.title}><AppIcon kind={item.video ? 'play' : 'navMedia'} size={22} /><span>{String(index + 1).padStart(2, '0')}</span>{selected === item.id && <i><AppIcon kind="check" size={12} /></i>}</span>
           <span className="ob-media-copy"><strong>{item.title}</strong><small>{item.badge}{item.favorite && <AppIcon kind="star" size={10} />}</small></span>

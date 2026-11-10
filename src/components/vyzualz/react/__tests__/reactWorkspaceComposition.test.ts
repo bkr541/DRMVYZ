@@ -151,3 +151,12 @@ describe('React workspace composition', () => {
     }
   })
 })
+
+it('shows Pool only for native Cinema 2.0 text presets', () => {
+  for (const preset of ['say-it', 'marquee', 'nightshift']) {
+    const composition = resolveReactWorkspaceComposition('cinema2', null, false, `drmvyz.cinema2.${preset}`)
+    expect(composition.leftTabs).toEqual(['workspace', 'pool'])
+    expect(getReactLeftTabLabel('pool', composition)).toBe('POOL')
+  }
+  expect(resolveReactWorkspaceComposition('cinema2', null, false, 'drmvyz.cinema2.inertia').leftTabs).toEqual(['workspace', 'layers'])
+})

@@ -1,3 +1,4 @@
+import { LibraryViewToggle } from '../../controls/LibraryViewToggle'
 import { useMemo, useState } from 'react'
 import { AppIcon } from '../../../../shared/icons/AppIcon'
 import { ELECTRIC_STORM_LAYERS, FILTER_TABS, MEDIA, SELECTED_ID, thumbnailStyle, type LibraryFilter } from '../LayoutLabElectricStormLeftWindow'
@@ -35,7 +36,7 @@ export function OptionDLeft() {
     <div className="od-left-content od-scroll">{tab === 'source'
       ? <OdGroup title="Media Library" icon="navMedia" detail={String(MEDIA.length)}>
         <div className="od-filter" role="group" aria-label="Media library filter">{FILTER_TABS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label[0] + item.label.slice(1).toLowerCase()}</button>)}</div>
-        <div className="od-library-tools"><label className="od-search"><AppIcon kind="search" size={14} /><input aria-label="Search media" placeholder="Search your media…" value={query} onChange={event => setQuery(event.target.value)} /></label><OdKey icon={mode === 'grid' ? 'list' : 'grid'} label={mode === 'grid' ? 'List view' : 'Grid view'} onClick={() => setMode(value => value === 'grid' ? 'list' : 'grid')} /></div>
+        <div className="od-library-tools"><label className="od-search"><AppIcon kind="search" size={14} /><input aria-label="Search media" placeholder="Search your media…" value={query} onChange={event => setQuery(event.target.value)} /></label><LibraryViewToggle view={mode} onChange={setMode} /></div>
         {filter === 'collections' ? <p className="od-empty">No collections in this mockup.</p> : !visible.length ? <p className="od-empty">No media matches “{query}”.</p>
           : <div className={`od-media od-media--${mode}`}>{visible.map(item => <button type="button" className="od-media-item" key={item.id} aria-pressed={selected === item.id} title={item.title} onClick={() => setSelected(item.id)}>
             <span className="od-media-art" style={thumbnailStyle(item.tint)} role="img" aria-label={item.title}><AppIcon kind={item.video ? 'play' : 'navMedia'} size={18} />{selected === item.id && <i><AppIcon kind="check" size={11} /></i>}</span>

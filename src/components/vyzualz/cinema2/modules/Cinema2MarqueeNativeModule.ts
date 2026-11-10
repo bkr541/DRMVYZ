@@ -99,7 +99,7 @@ export function resolveCinema2MarqueeStaticFrame(parameters: Cinema2ModuleParame
     patternChange: bool(parameters, 'patternChange', false),
     trigger: isCinema2MarqueeTrigger(trigger) ? trigger : 'bar4',
     text: Object.freeze({
-      front: string(parameters, 'frontText', 'DVYDRM'),
+      front: string(parameters, 'frontText', 'MARQUEE'),
       left: string(parameters, 'leftText', 'SHOWINGS'),
       right: string(parameters, 'rightText', 'SHOWINGS'),
     }),

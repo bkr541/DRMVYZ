@@ -10,6 +10,7 @@ import { applyBrandAppAccent, restoreStandardAppAccent } from './features/person
 import { productionOutputController } from './components/vyzualz/react/output/ProductionOutput'
 import { startPixGridDeckCompilerRuntime } from './components/vyzualz/react/pixGrid/PixGridDeckCompilerRuntime'
 import { useMediaStore } from './stores/mediaStore'
+import { useCinema2TextLibraryStore } from './features/cinema2Text/cinema2TextStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
 import './stores/mediaDeletionGuardBootstrap'
 
@@ -49,6 +50,16 @@ export default function App() {
   }, [authGate])
 
   useEffect(() => {
+    const retry = () => { void useCinema2TextLibraryStore.getState().sync() }
+    window.addEventListener('online', retry)
+    window.addEventListener('focus', retry)
+    return () => {
+      window.removeEventListener('online', retry)
+      window.removeEventListener('focus', retry)
+    }
+  }, [])
+
+  useEffect(() => {
     let activeUserId: string | null = null
 
     function activateUser(userId: string) {
@@ -56,6 +67,7 @@ export default function App() {
       setAuthGate('authenticated')
       void useBrandKitStore.getState().initializeForUser(userId)
       void useAppearanceStore.getState().initializeForUser(userId)
+      void useCinema2TextLibraryStore.getState().initializeForUser(userId)
     }
 
     function deactivateUser() {
@@ -63,6 +75,7 @@ export default function App() {
       setAuthGate('signed-out')
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
+      useCinema2TextLibraryStore.getState().clearForSignedOut()
     }
 
     // Unconfigured environments get an explicit configuration gate. Authentication
@@ -70,6 +83,7 @@ export default function App() {
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
+      useCinema2TextLibraryStore.getState().clearForSignedOut()
       useMediaStore.getState().clear()
       setAuthGate('configuration-required')
       return

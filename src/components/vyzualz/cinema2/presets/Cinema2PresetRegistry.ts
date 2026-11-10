@@ -26,6 +26,7 @@ export interface Cinema2PresetRegistryCompileOptions {
  * on the Cinema 1 catalog, graph compiler, adapters or runtime owners.
  */
 export class Cinema2PresetRegistry {
+  private readonly compiled = new Map<string, Cinema2PresetCompilationResult>()
   private readonly manifests = new Map<Cinema2PresetId, Readonly<Cinema2NativePresetManifest>>()
 
   register(value: unknown): Cinema2PresetRegistryRegisterResult {
@@ -76,7 +77,21 @@ export class Cinema2PresetRegistry {
         })]),
       }
     }
-    return compileCinema2NativePreset(manifest, options)
+    const capabilities = options.availableCapabilities == null ? undefined : [...new Set(options.availableCapabilities)].sort()
+    const key = JSON.stringify([presetId, capabilities ?? null])
+    const cached = this.compiled.get(key)
+    if (cached) {
+      this.compiled.delete(key)
+      this.compiled.set(key, cached)
+      return cached
+    }
+    const result = compileCinema2NativePreset(manifest, { availableCapabilities: capabilities })
+    if (result.ok) {
+      // Plans are deeply frozen by the compiler; never cache parameter state or GPU resources.
+      this.compiled.set(key, Object.freeze(result))
+      if (this.compiled.size > 64) this.compiled.delete(this.compiled.keys().next().value!)
+    }
+    return result
   }
 }
 
