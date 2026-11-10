@@ -132,7 +132,7 @@ function TextLibrary({ runtime, presetId, mode }: { runtime: Cinema2Runtime; pre
   // Reuse canonical definitions and controls; signs remain editable while disabled in the draft.
   const controls: Cinema2InspectorControlModel[] = draft ? CINEMA2_TEXT_FIELDS[presetId].flatMap(id => {
     const definition = draft.getDefinition(id as Parameters<Cinema2ParameterState['getDefinition']>[0])!
-    if (id === 'say-it-line-2-text' && draftValues?.['say-it-line-mode'] !== 'two') return []
+    if (id.endsWith('-line-2-text') && draftValues?.[id.replace('line-2-text', 'line-mode')] !== 'two') return []
     return [{ definition, value: draft.getValue(definition.id), enabled: true, disabledReason: null }]
   }) : []
   const change = (control: Cinema2InspectorControlModel, value: Parameters<Cinema2ParameterState['setPersistentValue']>[1]) => {

@@ -1,3 +1,5 @@
+import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
+import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
 import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
 import { cinema2GlassfallNativeModule } from './glassfall/Cinema2GlassfallNativeModule'
 import { cinema2SwitchItNativeModuleDefinition } from './switchIt/Cinema2SwitchItPhase1Module'
@@ -161,6 +163,10 @@ const threeSceneRegistration = cinema2NativeModuleRegistry.register(cinema2Three
 if (!threeSceneRegistration.ok) {
   throw new Error(`Cinema 2.0 Three scene module registration failed: ${threeSceneRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
+const orbitalRegistration = cinema2NativeModuleRegistry.register(cinema2OrbitalNativeModuleDefinition)
+if (!orbitalRegistration.ok) throw new Error('Cinema 2.0 ORBITAL module registration failed.')
+const submergeRegistration = cinema2NativeModuleRegistry.register(cinema2SubmergeNativeModuleDefinition)
+if (!submergeRegistration.ok) throw new Error('Cinema 2.0 SUBMERGE module registration failed.')
 const sayItRegistration = cinema2NativeModuleRegistry.register(cinema2SayItNativeModuleDefinition)
 if (!sayItRegistration.ok) {
   throw new Error(`Cinema 2.0 SAY IT native module registration failed: ${sayItRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)

@@ -1,3 +1,5 @@
+import { CINEMA2_ORBITAL_PRESET_MANIFEST } from './Cinema2OrbitalPreset'
+import { CINEMA2_SUBMERGE_PRESET_MANIFEST } from './Cinema2SubmergePreset'
 import { CINEMA2_PSYLO_PRESET_MANIFEST } from './Cinema2PsyloPreset'
 import { CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST } from './Cinema2WarOfWorldsPreset'
 import { CINEMA2_GLASSFALL_PRESET_MANIFEST } from './Cinema2GlassfallPreset'
@@ -47,6 +49,9 @@ import { CINEMA2_TRIPPY_BRO_PRESET_MANIFEST } from './Cinema2TrippyBroPreset'
  * the runtime and schema-driven Inspector remain preset-agnostic.
  */
 export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
+  // Native text/environment implementation; musical review remains available in-app.
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_SUBMERGE_PRESET_MANIFEST }),
+  defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
   // Final PSYLO acceptance granted by the user on 2026-11-02.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
   // Static imported scene for visual review; musical behavior is not authored yet.

@@ -9,7 +9,7 @@ Text edits in the production Design Inspector checkpoint the existing Cinema 2.0
 
 ## Text Scenes MVP
 
-SAY IT, MARQUEE, and NIGHTSHIFT expose their account-owned Text Scenes library in Source. Other Cinema 2.0 presets retain their existing Source and Layers surfaces. The three text presets show Pool in place of Layers.
+SAY IT, MARQUEE, NIGHTSHIFT, SUBMERGE, and ORBITAL expose their account-owned Text Scenes library in Source. Other Cinema 2.0 presets retain their existing Source and Layers surfaces. The text presets show Pool in place of Layers.
 
 - Capture Current and Add sit inside the Text Scenes group, immediately to the right of the single grid/list toggle in the search row, using the shared Lyric Manager/header icon keys. Capture Current opens a named draft populated from the current authored Design values, excluding transient musical modulation. Add opens a named draft with preset appearance defaults and blank message fields.
 - Add, Capture, and Back animate the group height and fade/slide its contents over 320 ms, respecting reduced-motion preferences. Add and Capture replace the library group with a New Text Scene editor group. The editor navigation row contains only the shared header-style Back icon at its top left; Add and Capture remain on the library screen. Search, view mode, and pool selection are retained. Editing and saving a draft leave the live visualizer unchanged; Save creates an independent record and restores the library.
@@ -25,11 +25,13 @@ SAY IT, MARQUEE, and NIGHTSHIFT expose their account-owned Text Scenes library i
 
 | Preset | Fields recalled |
 | --- | --- |
+| ORBITAL | Line mode, both lines, alignment, tracking, line spacing, glyph scale and depth, material, roughness, inlay and palette, gyroscope size, planet, debris |
+| SUBMERGE | Line mode, both lines, alignment, tracking, line spacing, glyph scale and depth, material, roughness, edge glow and palette, architecture, caustics, haze, particles, bubbles |
 | SAY IT | Line mode, both lines, alignment, tracking, line spacing, glyph scale, material style, LED Outline enabled, background, chrome tint, outline color |
 | MARQUEE | Front/left/right text, sign illumination, Marquee Red (also affects the theater's shared red accents) |
 | NIGHTSHIFT | Enable Signs, back/left/front/right text, sign size, sign color |
 
-The editor reports renderer limits before Save: SAY IT supports Basic Latin with 12 characters per line and 20 total; MARQUEE supports 48 characters per sign; NIGHTSHIFT supports its bundled alphabet with 64 characters per sign. At least one displayed message and a name of up to 100 characters are required. A NIGHTSHIFT configuration may intentionally keep its signs disabled while retaining messages.
+The editor reports renderer limits before Save: SAY IT, SUBMERGE, and ORBITAL support Basic Latin with 12 characters per line and 20 total; MARQUEE supports 48 characters per sign; NIGHTSHIFT supports its bundled alphabet with 64 characters per sign. At least one displayed message and a name of up to 100 characters are required. A NIGHTSHIFT configuration may intentionally keep its signs disabled while retaining messages.
 
 ### Account persistence and deployment
 
@@ -42,4 +44,4 @@ Cloud integration is covered with mocked service boundaries and account/cache te
 ### Focused verification
 
 - Unit/UI: Cinema2TextConfiguration, cinema2TextStore, cinema2TextDb, Cinema2TextLibraryPanel, and Cinema2ParameterSchemaState.
-- Browser: start Vite on localhost port 5176, then run `node scripts/verify-cinema2-text-library.mjs`. It exercises all three real Source forms beside Design, list/search, conditional lines, portaled dropdowns/context menus, activation, pools, and duplicate DOM IDs. Captures and typography measurements are written under `artifacts/cinema2-text-library/`.
+- Browser: start Vite on localhost port 5176, then run `node scripts/verify-cinema2-text-library.mjs`. It exercises the real Source forms beside Design, list/search, conditional lines, portaled dropdowns/context menus, activation, pools, and duplicate DOM IDs. Captures and typography measurements are written under `artifacts/cinema2-text-library/`.

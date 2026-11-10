@@ -114,6 +114,13 @@
       "origin": "scripts/cinema2-assets/build-nightshift-runtime.mjs. Static Step 1 review asset; ball geometry and floor chassis derived from owner-supplied source GLBs in docs/NIGHTSHIFT. No baked musical animation."
     },
     {
+      "id": "cinema2-orbital-gyroscope",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Magical gyroscope by reddification (https://sketchfab.com/reddification), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Original model: https://sketchfab.com/3d-models/magical-gyroscope-a3f110c0d2944a2dbff78709eb8f3984. Adapted for ORBITAL with glTF metadata cleanup, new motion and texture reuse on lettering.",
+      "origin": "User-supplied magical_gyroscope.glb from Sketchfab. Normalized packed animation accessors and skin weights, using the original first joint for vertices with zero total weight. Geometry uses lossless Meshopt and the four original texture maps use lossless WebP. Named rig and clips are retained."
+    },
+    {
       "id": "cinema2-psylo-static",
       "kind": "model",
       "license": "CC-BY-4.0",

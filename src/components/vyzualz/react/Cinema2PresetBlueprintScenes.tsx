@@ -28,6 +28,8 @@ export const ADDITIONAL_BLUEPRINT_MOTIFS = {
   'drmvyz.cinema2.reactor': ['Procedural reactor core', 'Radial struts', 'Flying shrapnel', 'Impact shockwave'],
   'drmvyz.cinema2.reliquary': ['Cut-crystal cloud', 'Supporting golden tree', 'Vine-wrapped forest', 'Overhead spot rig'],
   'drmvyz.cinema2.say-it': ['Bevelled letter faces', 'Extruded letter sides', 'Independent rotations', 'Assembly registration'],
+  'drmvyz.cinema2.orbital': ['Gyroscope rings', 'Engraved letterforms', 'Planetary limb', 'Orbit markers'],
+  'drmvyz.cinema2.submerge': ['Suspended letterforms', 'Submerged colonnade', 'Caustic ripples', 'Rising bubbles'],
   'drmvyz.cinema2.sixfold': ['Seven hexagonal cells', 'Mirror carriers', 'Optical iris', 'Structural locks'],
   'drmvyz.cinema2.starters': ['Field case', 'Three capture balls', 'Case latches', 'Ground vegetation'],
   'drmvyz.cinema2.switch-it': ['Horned mask', 'Faceted face', 'Portrait shoulders', 'Reveal fragments'],
@@ -62,6 +64,8 @@ const SUBJECT_PLANES: Record<SceneId, readonly [string, string, string, string]>
   'drmvyz.cinema2.reactor': ['translate(-28 30)', 'translate(-28 30)', 'translate(10 -18)', 'translate(-28 30)'],
   'drmvyz.cinema2.reliquary': ['translate(-25 28)', 'translate(-25 -10)', 'translate(10 -20)', 'translate(-10 25)'],
   'drmvyz.cinema2.say-it': ['translate(-10 18)', 'translate(-10 18)', 'translate(10 -17)', 'translate(5 0)'],
+  'drmvyz.cinema2.orbital': ['', '', '', ''],
+  'drmvyz.cinema2.submerge': ['', '', '', ''],
   'drmvyz.cinema2.sixfold': ['translate(-28 35)', 'translate(-28 35)', 'translate(-28 35)', 'translate(10 -18)'],
   'drmvyz.cinema2.starters': ['translate(-15 20)', '', 'translate(-25 28)', 'translate(5 -12)'],
   'drmvyz.cinema2.switch-it': ['translate(-25 40)', 'translate(-25 40)', 'translate(-25 10)', 'translate(10 -16)'],
@@ -265,6 +269,34 @@ function SayIt() {
     <g opacity=".35"><path d="M100-20H238V58M22 99H76V147M25 104H30M25 143H30M221 67V76M217 72H226" strokeDasharray="3 5" /></g>
   </Scene>
 }
+function Orbital() {
+  return <Scene id="drmvyz.cinema2.orbital">
+    <g transform="translate(153 63)">
+      <ellipse rx="73" ry="60" />
+      <ellipse rx="67" ry="54" opacity=".5" />
+      <ellipse rx="68" ry="27" transform="rotate(-38)" />
+      <ellipse rx="64" ry="22" transform="rotate(52)" />
+      <circle r="12" opacity=".6" />
+    </g>
+    <g transform="translate(119 54) skewY(-7)" fill="currentColor" fillOpacity=".12">
+      <path d="M0 2Q17-7 34 2V37Q17 46 0 37ZM9 8V31Q17 36 25 31V8Q17 4 9 8Z" fillRule="evenodd" />
+      <path d="M43 0H70V23H61L72 40H61L51 24V40H43ZM51 8V16H62V8Z" fillRule="evenodd" />
+    </g>
+    <path d="M-4 156Q99 91 248 121M-4 163Q99 99 248 128" opacity=".45" />
+    <g>{[[70, 53], [104, 109], [209, 18], [225, 75], [149, 8], [179, 119]].map(([x, y]) => <circle key={x} cx={x} cy={y} r="3" fill="currentColor" fillOpacity=".23" />)}</g>
+  </Scene>
+}
+function Submerge() {
+  return <Scene id="drmvyz.cinema2.submerge">
+    <g transform="translate(115 46) skewY(-9)">
+      <path d="M0 0H36V9H10V20H36V43H0V34H26V29H0ZM48 0H58V33H76V0H86V43H48Z" fill="currentColor" fillOpacity=".13" />
+      <path d="M0 0 5-5H41L36 0M36 20 41 15V38L36 43M86 0 91-5V38L86 43" opacity=".65" />
+    </g>
+    <g>{[0, 1, 2, 3].map(index => <path key={index} d="M68 132V45A72 44 0 0 1 212 45V132M62 132H75M206 132H219" transform={`translate(${140 * index * .13} ${68 * index * .13}) scale(${1 - index * .13})`} opacity={.72 - index * .13} />)}</g>
+    <g opacity=".42"><path d="M12 121Q52 104 92 125T174 125M3 134Q43 117 83 138T165 138M147 110Q183 96 239 110M149 124Q191 105 241 121" /></g>
+    <g>{[[30, 116, 4], [39, 99, 2], [23, 86, 3], [42, 67, 5], [199, 126, 3], [212, 100, 4], [218, 79, 2], [231, 53, 5]].map(([x, y, radius]) => <circle key={x} cx={x} cy={y} r={radius} opacity=".7" />)}</g>
+  </Scene>
+}
 function Sixfold() {
   const cells = [[161, 24, 30], [212, -6, 30], [212, 54, 30], [161, 84, 30], [110, -6, 30], [110, 54, 30], [161, -36, 30]]
   return <Scene id="drmvyz.cinema2.sixfold">
@@ -342,7 +374,7 @@ export const ADDITIONAL_BLUEPRINT_DRAWINGS = {
   'drmvyz.cinema2.inertia': Inertia, 'drmvyz.cinema2.mainframe': Mainframe,
   'drmvyz.cinema2.marquee': Marquee, 'drmvyz.cinema2.nightshift': Nightshift,
   'drmvyz.cinema2.psylo': Psylo, 'drmvyz.cinema2.reactor': Reactor,
-  'drmvyz.cinema2.reliquary': Reliquary, 'drmvyz.cinema2.say-it': SayIt,
+  'drmvyz.cinema2.reliquary': Reliquary, 'drmvyz.cinema2.say-it': SayIt, 'drmvyz.cinema2.submerge': Submerge, 'drmvyz.cinema2.orbital': Orbital,
   'drmvyz.cinema2.sixfold': Sixfold, 'drmvyz.cinema2.starters': Starters,
   'drmvyz.cinema2.switch-it': SwitchIt, 'drmvyz.cinema2.threshold': Threshold,
   'drmvyz.cinema2.trippy-bro': TrippyBro, 'drmvyz.cinema2.vacancy': Vacancy,
@@ -370,6 +402,8 @@ export const ADDITIONAL_BLUEPRINT_FRAMING = {
   'drmvyz.cinema2.psylo': 'translate(111 82) rotate(-7) scale(1.04) translate(-120 -75)',
   'drmvyz.cinema2.reactor': 'translate(113 81) rotate(-8) scale(1.03) translate(-120 -75)',
   'drmvyz.cinema2.reliquary': 'translate(111 80) rotate(-5) scale(1.01) translate(-120 -75)',
+  'drmvyz.cinema2.orbital': 'translate(112 76) scale(.96) translate(-120 -75)',
+  'drmvyz.cinema2.submerge': 'translate(114 74) scale(.97) translate(-120 -75)',
   'drmvyz.cinema2.say-it': 'translate(111 79) rotate(-7) scale(1.02) translate(-120 -75)',
   'drmvyz.cinema2.sixfold': 'translate(112 81) rotate(-6) scale(1.04) translate(-120 -75)',
   'drmvyz.cinema2.starters': 'translate(110 83) rotate(-7) scale(1.01) translate(-120 -75)',

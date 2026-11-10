@@ -21,6 +21,7 @@ export interface Cinema2SayItDrawState {
   outlineColor: readonly [number, number, number]
   pattern: Cinema2SayItPatternId
   patternPhaseBeats: number
+  absoluteBeat?: number
   ledMusicIntensity: number
   roughness: number
   environmentIntensity: number
@@ -48,7 +49,7 @@ interface GlyphInstance {
  */
 export class Cinema2SayItBridge {
   private readonly renderer: ThreeNamespace.WebGLRenderer
-  private readonly scene: ThreeNamespace.Scene
+  protected readonly scene: ThreeNamespace.Scene
   private readonly camera: ThreeNamespace.PerspectiveCamera
   private readonly target: ThreeNamespace.WebGLRenderTarget
   private readonly warmTarget: ThreeNamespace.WebGLRenderTarget
@@ -56,14 +57,14 @@ export class Cinema2SayItBridge {
   private readonly guard: Cinema2GlStateGuard
   private readonly assembly: ThreeNamespace.Group
   private readonly sourceMeshes = new Map<string, ThreeNamespace.Mesh>()
-  private readonly glyphs: GlyphInstance[] = []
+  protected readonly glyphs: GlyphInstance[] = []
   private glyphSignature = ''
   private warmedSignature = ''
   private disposed = false
 
   constructor(
     private readonly gl: WebGL2RenderingContext,
-    private readonly library: Cinema2ThreeLibrary,
+    protected readonly library: Cinema2ThreeLibrary,
     asset: Readonly<Cinema2ThreeLoadedAsset>,
   ) {
     const { THREE } = library
@@ -184,7 +185,7 @@ export class Cinema2SayItBridge {
     if (!exec.camera || !exec.lightingEnvironment) throw new Error('The SAY IT module requires final Camera and Lighting state.')
   }
 
-  private applyState(
+  protected applyState(
     exec: Cinema2ModuleRenderExecutionContext & {
       camera: NonNullable<Cinema2ModuleRenderExecutionContext['camera']>
       lightingEnvironment: NonNullable<Cinema2ModuleRenderExecutionContext['lightingEnvironment']>

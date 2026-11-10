@@ -50,6 +50,7 @@ import {
 } from './sayIt/Cinema2SayItTextLayout'
 import { Cinema2ThreeAssetCache, Cinema2ThreeAssetError, type Cinema2ThreeLoadedAsset } from './three/Cinema2ThreeAssetCache'
 import { CINEMA2_SAY_IT_GLYPH_ASSET_ID, cinema2ThreeAssetRegistry } from './three/Cinema2ThreeAssetManifest'
+import { cloneCinema2AssetScene } from './three/Cinema2ThreeAnimation'
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
 
 export const CINEMA2_SAY_IT_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('say-it-native')
@@ -77,6 +78,7 @@ export interface Cinema2SayItModuleInspection {
   visibleGlyphCount: number
   renderedGlyphCount: number
   quality: Cinema2RenderQualityLevel | null
+  activePattern: Cinema2SayItDrawState['pattern']
   motionProgram: Cinema2SayItMotionProgram
   motionSafety: Cinema2SayItMotionSafety
   materialStyle: Cinema2SayItMaterialStyle
@@ -92,6 +94,11 @@ interface Cinema2SayItBridgeRuntime {
   dispose(): void
 }
 
+interface Cinema2TypographyCompanion {
+  asset: Cinema2ThreeLoadedAsset
+  scene: Cinema2ThreeLoadedAsset['scene']
+}
+
 interface Cinema2SayItAssetCache {
   acquire(library: Cinema2ThreeLibrary, id: string, quality: Cinema2RenderQualityLevel): Promise<Cinema2ThreeLoadedAsset>
   release(asset: Cinema2ThreeLoadedAsset): void
@@ -104,11 +111,14 @@ const defaultAssetCache = new Cinema2ThreeAssetCache(cinema2ThreeAssetRegistry)
  * package. Text layout is pure and bounded; only visible glyphs are instanced.
  */
 export function createCinema2SayItNativeModuleDefinition(options: {
+  displayName?: string
+  companionAssetId?: string
   assets?: Cinema2SayItAssetCache
   loadLibrary?: () => Promise<Cinema2ThreeLibrary>
-  createBridge?: (gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, asset: Readonly<Cinema2ThreeLoadedAsset>) => Cinema2SayItBridgeRuntime
+  createBridge?: (gl: WebGL2RenderingContext, library: Cinema2ThreeLibrary, asset: Readonly<Cinema2ThreeLoadedAsset>, companion?: Readonly<Cinema2TypographyCompanion>) => Cinema2SayItBridgeRuntime
   now?: () => number
 } = {}): Readonly<Cinema2ModuleTypeDefinition> {
+  const displayName = options.displayName ?? 'SAY IT'
   const assets = options.assets ?? defaultAssetCache
   const loadLibrary = options.loadLibrary ?? loadCinema2ThreeLibrary
   const createBridge = options.createBridge ?? ((gl, library, asset) => new Cinema2SayItBridge(gl, library, asset))
@@ -125,6 +135,8 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       let bridgeCreateFailed = false
       let library: Cinema2ThreeLibrary | null = null
       let asset: Cinema2ThreeLoadedAsset | null = null
+      let companionAsset: Cinema2ThreeLoadedAsset | null = null
+      let companion: Cinema2TypographyCompanion | undefined
       let reportedBytes = -1
       let renderedGlyphCount = 0
       let resolvedQuality: Cinema2RenderQualityLevel | null = null
@@ -162,6 +174,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         outlineColor: Object.freeze([0.16, 0.92, 1] as const),
         pattern: CINEMA2_SAY_IT_DEFAULT_PATTERN,
         patternPhaseBeats: 0,
+        absoluteBeat: 0,
         ledMusicIntensity: 1,
         roughness: 0.16,
         environmentIntensity: 1.25,
@@ -179,9 +192,11 @@ export function createCinema2SayItNativeModuleDefinition(options: {
       }
 
       const releaseAsset = () => {
-        if (!asset) return
-        assets.release(asset)
+        if (asset) assets.release(asset)
+        if (companionAsset) assets.release(companionAsset)
         asset = null
+        companionAsset = null
+        companion = undefined
       }
 
       const startLoading = (quality: Cinema2RenderQualityLevel) => {
@@ -193,16 +208,25 @@ export function createCinema2SayItNativeModuleDefinition(options: {
             libraryLoadMs = elapsedMilliseconds(libraryStartedAt, now())
             const assetStartedAt = now()
             const loaded = await assets.acquire(library, CINEMA2_SAY_IT_GLYPH_ASSET_ID, quality)
-            assetDecodeMs = elapsedMilliseconds(assetStartedAt, now())
             if (disposed) { assets.release(loaded); return }
             asset = loaded
+            if (options.companionAssetId) {
+              const model = await assets.acquire(library, options.companionAssetId, quality)
+              if (disposed) { assets.release(model); return }
+              companionAsset = model
+              const scene = await cloneCinema2AssetScene(model.scene)
+              if (disposed) return
+              companion = { asset: model, scene }
+            }
+            assetDecodeMs = elapsedMilliseconds(assetStartedAt, now())
             state = 'building'
           } catch (error) {
+            releaseAsset()
             if (disposed) return
             state = 'failed'
             report(
               error instanceof Cinema2ThreeAssetError ? error.code : 'CINEMA2_SAY_IT_LOAD_FAILED',
-              `SAY IT could not load its production glyph package: ${message(error)}`,
+              `${displayName} could not load its scene assets: ${message(error)}`,
             )
           }
         })()
@@ -214,14 +238,14 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           bridge = context.resources.acquire(
             'say-it:bridge',
             'SayItBridge',
-            gl => createBridge(gl, library!, asset!),
-            value => { value.dispose(); releaseAsset() },
+            gl => createBridge(gl, library!, asset!, companion),
+            value => { try { value.dispose() } finally { releaseAsset() } },
           )
           state = 'prewarming'
         } catch (error) {
           bridgeCreateFailed = true
           state = 'failed'
-          report('CINEMA2_SAY_IT_BUILD_FAILED', `SAY IT could not build its 3D scene: ${message(error)}`)
+          report('CINEMA2_SAY_IT_BUILD_FAILED', `${displayName} could not build its 3D scene: ${message(error)}`)
           releaseAsset()
         }
       }
@@ -231,7 +255,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
         memoryDiagnostic = bytes > profile.gpuBudgetBytes
           ? {
               code: 'CINEMA2_SAY_IT_GPU_BUDGET_EXCEEDED',
-              message: `SAY IT estimates ${formatMegabytes(bytes)} MB of GPU memory, above the ${formatMegabytes(profile.gpuBudgetBytes)} MB ${profile.quality}-quality budget.`,
+              message: `${displayName} estimates ${formatMegabytes(bytes)} MB of GPU memory, above the ${formatMegabytes(profile.gpuBudgetBytes)} MB ${profile.quality}-quality budget.`,
               path: `module.${context.module.id}.resources`,
             }
           : null
@@ -258,7 +282,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           qualityDiagnostic = omittedGlyphs > 0
             ? {
                 code: 'CINEMA2_SAY_IT_QUALITY_GLYPH_BUDGET',
-                message: `SAY IT ${quality} quality draws ${profile.maxVisibleGlyphs} glyphs; ${omittedGlyphs} trailing glyph${omittedGlyphs === 1 ? ' was' : 's were'} omitted. Choose a higher quality tier to draw the complete message.`,
+                message: `${displayName} ${quality} quality draws ${profile.maxVisibleGlyphs} glyphs; ${omittedGlyphs} trailing glyph${omittedGlyphs === 1 ? ' was' : 's were'} omitted. Choose a higher quality tier to draw the complete message.`,
                 path: `module.${context.module.id}.quality`,
               }
             : null
@@ -283,7 +307,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           performanceDiagnostic = drawSampleCount >= 30 && averageDrawMs > profile.frameBudgetMs
             ? {
                 code: 'CINEMA2_SAY_IT_FRAME_BUDGET_EXCEEDED',
-                message: `SAY IT averages ${averageDrawMs.toFixed(2)} ms of module draw time, above the ${profile.frameBudgetMs.toFixed(2)} ms ${quality}-quality budget.`,
+                message: `${displayName} averages ${averageDrawMs.toFixed(2)} ms of module draw time, above the ${profile.frameBudgetMs.toFixed(2)} ms ${quality}-quality budget.`,
                 path: `module.${context.module.id}.performance`,
               }
             : null
@@ -358,13 +382,13 @@ export function createCinema2SayItNativeModuleDefinition(options: {
               if (layout.truncated) contentDiagnostics.push({
                 code: 'CINEMA2_SAY_IT_TEXT_TRUNCATED',
                 message: lineMode === 'one'
-                  ? 'SAY IT limited Line 1 to 12 characters.'
-                  : 'SAY IT limited the text to 12 characters per line and 20 characters total.',
+                  ? `${displayName} limited Line 1 to 12 characters.`
+                  : `${displayName} limited the text to 12 characters per line and 20 characters total.`,
                 path: `module.${context.module.id}.parameters`,
               })
               if (layout.replacementCount > 0) contentDiagnostics.push({
                 code: 'CINEMA2_SAY_IT_UNSUPPORTED_CHARACTERS',
-                message: `SAY IT replaced ${layout.replacementCount} unsupported character${layout.replacementCount === 1 ? '' : 's'} with ?; the preset supports printable Basic Latin.`,
+                message: `${displayName} replaced ${layout.replacementCount} unsupported character${layout.replacementCount === 1 ? '' : 's'} with ?; the preset supports printable Basic Latin.`,
                 path: `module.${context.module.id}.parameters`,
               })
             }
@@ -408,6 +432,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
               outlineColor: Object.freeze(outlineColor),
               pattern: patternSelection.activePattern,
               patternPhaseBeats: Math.max(0, beatState.beats - patternSelection.patternStartBeat),
+              absoluteBeat: beatState.beats,
               ledMusicIntensity: Math.min(3, 1
                 + overallEnergy * 0.65 + bassEnergy * 0.35
                 + beatAccent * 0.28 + downbeatAccent * 0.5 + phraseAccent * 0.35
@@ -447,6 +472,7 @@ export function createCinema2SayItNativeModuleDefinition(options: {
           visibleGlyphCount: layout.glyphs.length,
           renderedGlyphCount,
           quality: resolvedQuality,
+          activePattern: drawState.pattern,
           motionProgram,
           motionSafety,
           materialStyle,

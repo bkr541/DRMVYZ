@@ -1,0 +1,11 @@
+{
+  "id": "cinema2-orbital-gyroscope",
+  "kind": "model",
+  "compression": "meshopt",
+  "license": "CC-BY-4.0",
+  "attribution": "Magical gyroscope by reddification (https://sketchfab.com/reddification), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Original model: https://sketchfab.com/3d-models/magical-gyroscope-a3f110c0d2944a2dbff78709eb8f3984. Adapted for ORBITAL with glTF metadata cleanup, new motion and texture reuse on lettering.",
+  "origin": "User-supplied magical_gyroscope.glb from Sketchfab. Normalized packed animation accessors and skin weights, using the original first joint for vertices with zero total weight. Geometry uses lossless Meshopt and the four original texture maps use lossless WebP. Named rig and clips are retained.",
+  "files": {
+    "high": "public/cinema2/models/orbital-gyroscope.glb"
+  }
+}

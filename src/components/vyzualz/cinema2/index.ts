@@ -1480,3 +1480,9 @@ export {
 } from './presets/Cinema2PresetAuthoring'
 
 export { CINEMA2_GLASSFALL_PRESET_ID, CINEMA2_GLASSFALL_PRESET_MANIFEST } from './presets/Cinema2GlassfallPreset'
+
+export { CINEMA2_SUBMERGE_PRESET_ID, CINEMA2_SUBMERGE_PRESET_MANIFEST } from './presets/Cinema2SubmergePreset'
+export { CINEMA2_SUBMERGE_MODULE_TYPE_ID, cinema2SubmergeNativeModuleDefinition } from './modules/Cinema2SubmergeNativeModule'
+
+export { CINEMA2_ORBITAL_PRESET_ID, CINEMA2_ORBITAL_PRESET_MANIFEST } from './presets/Cinema2OrbitalPreset'
+export { CINEMA2_ORBITAL_MODULE_TYPE_ID, cinema2OrbitalNativeModuleDefinition } from './modules/Cinema2OrbitalNativeModule'

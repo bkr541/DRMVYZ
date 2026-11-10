@@ -334,6 +334,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-orbital-gyroscope",
+    "kind": "model",
+    "compression": "meshopt",
+    "license": "CC-BY-4.0",
+    "attribution": "Magical gyroscope by reddification (https://sketchfab.com/reddification), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Original model: https://sketchfab.com/3d-models/magical-gyroscope-a3f110c0d2944a2dbff78709eb8f3984. Adapted for ORBITAL with glTF metadata cleanup, new motion and texture reuse on lettering.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/orbital-gyroscope.glb",
+        "bytes": 1035764,
+        "triangles": 5750
+      }
+    },
+    "gpuBytes": {
+      "high": 6042140,
+      "medium": 6042140,
+      "low": 6042140
+    }
+  },
+  {
     "id": "cinema2-psylo-static",
     "kind": "model",
     "compression": "meshopt",

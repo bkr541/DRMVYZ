@@ -41,7 +41,7 @@ function Fixture() {
   return <main className="rv-shell" style={{ overflow: 'auto', padding: 20 }}>
     <div style={{ display: 'flex', gap: 16, paddingBottom: 16 }}>
       <select aria-label="Review preset" value={preset} onChange={event => { const next = event.target.value as Cinema2TextPresetId; requestTextSceneNavigation(() => { setPreset(next); setRuntime(makeRuntime(next)); setMode('source') }) }}>
-        {['say-it', 'marquee', 'nightshift'].map(id => <option key={id} value={`drmvyz.cinema2.${id}`}>{id.toUpperCase()}</option>)}
+        {['say-it', 'marquee', 'nightshift', 'submerge', 'orbital'].map(id => <option key={id} value={`drmvyz.cinema2.${id}`}>{id.toUpperCase()}</option>)}
       </select>
       <button onClick={() => { if (mode !== 'source') requestTextSceneNavigation(() => setMode('source')) }}>Source</button><button onClick={() => { if (mode !== 'pool') requestTextSceneNavigation(() => setMode('pool')) }}>Pool</button>
       <button ref={infoAnchor} onClick={() => setInfoOpen(true)}>Info Popover</button>
@@ -63,7 +63,7 @@ function Fixture() {
     </div>
     <section aria-label="Preset grid reference" style={{ width: 330, marginTop: 24 }}>
       <div className="rv-preset-group-cards rv-preset-group-cards--poster">
-        <ReactPresetCard id={preset} title="Preset Reference" description="Shared Cinema 2.0 grid tile" onActivate={() => {}} />
+        <ReactPresetCard id={preset} title="Preset Reference" activateLabel="Load preset reference" description="Shared Cinema 2.0 grid tile" onActivate={() => {}} />
       </div>
     </section>
     <InfoPopover open={infoOpen} anchorRef={infoAnchor} title="audio source settings" description="Review shared popover typography." onOpenChange={setInfoOpen} />

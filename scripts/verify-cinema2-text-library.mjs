@@ -30,9 +30,24 @@ async function navigateScene(button, reducedMotion = false) {
 try {
   await page.goto(`${process.env.CINEMA2_TEXT_REVIEW_URL ?? 'http://127.0.0.1:5176'}/src/test/browser/cinema2-text-library.html`)
   await page.getByRole('button', { name: 'Capture Current', exact: true }).waitFor()
-  for (const [preset, field] of [['say-it', 'say-it-text'], ['marquee', 'marquee-front-text'], ['nightshift', 'nightshift-sign-text']]) {
+  for (const [preset, field] of [['say-it', 'say-it-text'], ['marquee', 'marquee-front-text'], ['nightshift', 'nightshift-sign-text'], ['submerge', 'submerge-text'], ['orbital', 'orbital-text']]) {
     if (process.env.CINEMA2_TEXT_REVIEW_PRESETS && !process.env.CINEMA2_TEXT_REVIEW_PRESETS.split(',').includes(preset)) continue
     await page.getByLabel('Review preset').selectOption(`drmvyz.cinema2.${preset}`)
+    if (preset === 'orbital') {
+      const toggle = page.locator('#cinema2-parameter-orbital-pattern-change')
+      const trigger = page.locator('#cinema2-parameter-orbital-trigger')
+      await expect(trigger).toHaveCount(0)
+      await toggle.click()
+      await expect(trigger).toContainText('Every 4 Bars')
+      await trigger.click()
+      await expect(page.getByRole('listbox').getByRole('option')).toHaveText([
+        'Beat', 'Kick', 'Snare', 'Downbeat', 'Every 2 Beats', 'Every 4 Beats', 'Bar', 'Every 4 Bars', 'Every 8 Bars', 'Phrase', 'Drop',
+      ])
+      await page.getByRole('option', { name: 'Kick', exact: true }).click()
+      await expect(trigger).toContainText('Kick')
+      await toggle.click()
+      await expect(trigger).toHaveCount(0)
+    }
     const source = page.getByRole('region', { name: 'Source review' })
     const reference = page.getByRole('region', { name: 'Tracks reference', exact: true })
     const styleMetrics = element => {
