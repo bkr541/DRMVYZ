@@ -1,0 +1,222 @@
+// @vitest-environment jsdom
+;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+
+import React, { act } from 'react'
+import { createRoot } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useReactStore } from '../../../../stores/reactStore'
+import { ReactEnginePanel } from '../ReactEnginePanel'
+import {
+  XyScopeDesignPanel,
+  XyScopeEnginePanel,
+  XyScopePresetsPanel,
+  XyScopeReactivityPanel,
+  XyScopeSurface,
+} from './XyScopeWorkspace'
+
+vi.mock('../../../../context/AudioEngineContext', () => ({
+  useSharedAudio: () => ({ currentAudioTrackId: null }),
+}))
+
+vi.mock('../ReactAudioPanel', () => ({
+  ReactAudioPanel: () => <div data-xyscope-shared-analysis="true">Shared Music Analysis</div>,
+}))
+
+vi.mock('../../../../features/lyrics/runtime/useLyricPlayback', () => ({
+  useLyricPlaybackSelector: (selector: (state: Record<string, unknown>) => unknown) => selector({
+    activeCue: null, activeWord: null, documentId: null, sourceIdentity: null,
+  }),
+}))
+
+let container: HTMLElement
+let root: ReturnType<typeof createRoot>
+let nextRafId = 1
+let rafCallbacks = new Map<number, FrameRequestCallback>()
+let fillRect: ReturnType<typeof vi.fn>
+let stroke: ReturnType<typeof vi.fn>
+
+function setInputValue(element: HTMLInputElement, value: string) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, value)
+  element.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+beforeEach(() => {
+  nextRafId = 1
+  rafCallbacks = new Map()
+  fillRect = vi.fn()
+  stroke = vi.fn()
+  vi.stubGlobal('Path2D', class { moveTo() {} lineTo() {} })
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function getContext(this: HTMLCanvasElement) {
+    return {
+      canvas: this, fillStyle: '', strokeStyle: '', lineWidth: 1, lineCap: 'butt', lineJoin: 'miter', globalCompositeOperation: 'source-over',
+      setTransform: vi.fn(), fillRect, stroke,
+    } as unknown as CanvasRenderingContext2D
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}),
+  })
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    const id = nextRafId++
+    rafCallbacks.set(id, callback)
+    return id
+  }))
+  vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => { rafCallbacks.delete(id) }))
+  vi.stubGlobal('ResizeObserver', class { observe = vi.fn(); disconnect = vi.fn() })
+
+  useReactStore.getState().resetReactView()
+  useReactStore.getState().selectReactEngine('xyScope')
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+
+afterEach(async () => {
+  await act(async () => root.unmount())
+  container.remove()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+describe('Sound Drawing XY engine selection', () => {
+  it('enters as a standalone, preset-free engine with its own defaults', () => {
+    const state = useReactStore.getState()
+    expect(state.activeReactEngineId).toBe('xyScope')
+    expect(state.activeReactPresetId).toBeNull()
+    expect(state.xyScopeSettings.text).toBe('DRMVYZ')
+    expect(state.xyScopeSettings.presetId).toBe('conversation')
+  })
+})
+
+describe('Sound Drawing XY Design inspector standard', () => {
+  it('shows Master Controls, Design, React and Palette in that order', async () => {
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    const groups = container.querySelector('[data-xyscope-design-groups]')
+    expect(groups?.getAttribute('data-xyscope-design-groups')).toBe('master-controls design react palette')
+    const ids = [...container.querySelectorAll('[data-xyscope-parent-group]')].map(node => node.getAttribute('data-xyscope-parent-group'))
+    expect(ids).toEqual(['master-controls', 'design', 'react', 'palette'])
+    // The visible group headers, not control text, carry the four standard labels in order.
+    const standard = ['Master Controls', 'Design', 'React', 'Palette']
+    const headers = [...(groups?.querySelectorAll('button[aria-expanded]') ?? [])]
+      .map(button => button.textContent?.trim() ?? '')
+      .filter(label => standard.includes(label))
+    expect(headers).toEqual(standard)
+  })
+
+  it('puts each control under its own group and every control carries a plain description', async () => {
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    const group = (id: string) => container.querySelector(`[data-xyscope-parent-group="${id}"]`)?.textContent ?? ''
+    expect(group('master-controls')).toContain('Master Intensity')
+    expect(group('master-controls')).toContain('Audio Reactivity')
+    expect(group('design')).toContain('Phosphor Trail')
+    expect(group('design')).toContain('Ignore Small Pieces')
+    expect(group('react')).toContain('Dissolve Depth')
+    expect(group('react')).toContain('Answer Delay')
+    expect(group('react')).toContain('Line Vibration')
+    expect(group('palette')).toContain('Beam Core')
+    expect(group('palette')).toContain('Beam Glow')
+    expect(group('palette')).toContain('Background')
+    expect(container.querySelectorAll('.rv-ctrl-description').length).toBeGreaterThanOrEqual(12)
+    // No label is a cryptic routing arrow.
+    expect(container.textContent).not.toMatch(/→\s*(Scale|Twist|Jitter|Bloom)/)
+  })
+
+  it('writes a slider change to the store and keeps the preset id', async () => {
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    const slider = container.querySelector<HTMLInputElement>('#xyscope-parameter-dissolveDepth')!
+    await act(async () => setInputValue(slider, '1.5'))
+    const state = useReactStore.getState().xyScopeSettings
+    expect(state.parameters.dissolveDepth).toBe(1.5)
+    expect(state.presetId).toBe('conversation')
+  })
+
+  it('hides Phrase Length while Phrase Dissolve is off, keeps its value, and brings it back', async () => {
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    expect(container.textContent).toContain('Phrase Length')
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-phraseDissolve')?.click())
+    expect(useReactStore.getState().xyScopeSettings.parameters.phraseDissolve).toBe(false)
+    expect(container.textContent).not.toContain('Phrase Length')
+    expect(useReactStore.getState().xyScopeSettings.parameters.phraseLength).toBe('bar4')
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-phraseDissolve')?.click())
+    expect(container.textContent).toContain('Phrase Length')
+  })
+
+  it('resets parameters to the active preset and leaves the word, font and preset alone', async () => {
+    await act(async () => useReactStore.getState().setXyScopeSettings({ text: 'HELLO', fontId: 'font-1' }))
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    const reset = () => [...container.querySelectorAll('button')].find(button => button.textContent === 'Reset Parameters') as HTMLButtonElement
+    expect(reset().disabled).toBe(true)
+    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('#xyscope-parameter-vibration')!, '0.2'))
+    expect(reset().disabled).toBe(false)
+    await act(async () => reset().click())
+    const state = useReactStore.getState().xyScopeSettings
+    expect(state.parameters.vibration).toBe(1)
+    expect(state.text).toBe('HELLO')
+    expect(state.fontId).toBe('font-1')
+    expect(state.presetId).toBe('conversation')
+  })
+})
+
+describe('Sound Drawing XY source, presets and React tab', () => {
+  it('edits the word and picks a font from the left Source panel', async () => {
+    await act(async () => root.render(<XyScopeEnginePanel />))
+    expect(container.textContent).toContain('Word')
+    expect(container.textContent).toContain('Anton (default)')
+    const text = container.querySelector<HTMLInputElement>('#xyscope-text')!
+    await act(async () => setInputValue(text, 'WILDFLY'))
+    expect(useReactStore.getState().xyScopeSettings.text).toBe('WILDFLY')
+  })
+
+  it('renders this engine in the left panel through the shared engine panel', async () => {
+    await act(async () => root.render(<ReactEnginePanel />))
+    expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()
+  })
+
+  it('lists the presets, loads one, and marks it Modified after a manual edit', async () => {
+    await act(async () => root.render(<XyScopePresetsPanel />))
+    const card = (id: string) => container.querySelector<HTMLElement>(`[data-xyscope-preset-id="${id}"]`)
+    expect(['conversation', 'clean-scope', 'storm'].every(id => card(id) !== null)).toBe(true)
+    await act(async () => card('storm')?.click())
+    const settings = useReactStore.getState().xyScopeSettings
+    expect(settings.presetId).toBe('storm')
+    expect(settings.parameters.dissolveDepth).toBe(1.5)
+    await act(async () => useReactStore.getState().setXyScopeSettings({ parameters: { ...settings.parameters, dissolveDepth: 0.4 } }))
+    expect(useReactStore.getState().xyScopeSettings.presetId).toBe('storm')
+  })
+
+  it('keeps shared music analysis on the React tab and points to Design → React', async () => {
+    await act(async () => root.render(<XyScopeReactivityPanel />))
+    expect(container.querySelector('[data-xyscope-react-note="true"]')?.textContent).toContain('Design → React')
+    expect(container.querySelector('[data-xyscope-shared-analysis="true"]')).not.toBeNull()
+  })
+})
+
+describe('Sound Drawing XY surface', () => {
+  it('draws to its own canvas, reports it for recording, and releases everything on unmount', async () => {
+    const onCanvasReady = vi.fn()
+    await act(async () => root.render(<XyScopeSurface onCanvasReady={onCanvasReady} onLiveFps={vi.fn()} />))
+    const canvas = container.querySelector<HTMLCanvasElement>('[data-xyscope-output-canvas="true"]')
+    expect(canvas).not.toBeNull()
+    expect(onCanvasReady).toHaveBeenCalledWith(canvas)
+    expect(rafCallbacks.size).toBe(1)
+
+    const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
+    rafCallbacks.delete(id)
+    await act(async () => callback(16))
+    expect(fillRect).toHaveBeenCalled()
+    expect(stroke).toHaveBeenCalled()
+    expect(rafCallbacks.size).toBe(1)
+
+    await act(async () => root.render(null))
+    expect(onCanvasReady).toHaveBeenLastCalledWith(null)
+    expect(rafCallbacks.size).toBe(0)
+  })
+
+  it('keeps drawing the word while nothing is playing and reports the missing stereo signal honestly', async () => {
+    await act(async () => root.render(<XyScopeSurface audio={{ trackIdentity: 'track-1' }} />))
+    const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
+    rafCallbacks.delete(id)
+    await act(async () => callback(16))
+    expect(stroke).toHaveBeenCalled()
+    expect(container.textContent).toContain('No live stereo signal')
+  })
+})

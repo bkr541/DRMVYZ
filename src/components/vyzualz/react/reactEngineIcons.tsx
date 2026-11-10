@@ -8,6 +8,7 @@ const REACT_ENGINE_ICON_COMPONENTS: Record<ReactEngineId, () => ReactElement> = 
   cinema: () => <AppIcon kind="cinema" />,
   cinema2: () => <AppIcon kind="cinema" />,
   oscilloscope: () => <AppIcon kind="waveform" />,
+  xyScope: () => <AppIcon kind="waveform" />,
   canvas: () => <AppIcon kind="canvas" />,
   laserDmx: () => <AppIcon kind="laser" />,
   pixGrid: () => <AppIcon kind="pixGrid" />,

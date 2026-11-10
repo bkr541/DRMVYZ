@@ -5,6 +5,7 @@ import { LaserDmxEnginePanel } from './LaserDmxEnginePanel'
 import { CanvasEnginePanel } from './ReactCanvasEngineShell'
 import { PixGridEnginePanel } from './pixGrid/PixGridEnginePanel'
 import { HeadlinerEnginePanel } from './headliner/HeadlinerWorkspace'
+import { XyScopeEnginePanel } from './xyScope/XyScopeWorkspace'
 import { Cinema2TextLibraryPanel } from './Cinema2TextLibraryPanel'
 import { isCinema2TextPreset } from '../cinema2/text/Cinema2TextConfiguration'
 import { Cinema2MediaSourcePanel } from './Cinema2MediaSourcePanel'
@@ -483,6 +484,9 @@ export function ReactEnginePanel({
 
       {/* ── Engine Mode: Headliner ────────────────────────────────────── */}
       {activeReactEngineId === 'headliner' && <HeadlinerEnginePanel />}
+
+      {/* ── Engine Mode: Sound Drawing XY ─────────────────────────────── */}
+      {activeReactEngineId === 'xyScope' && <XyScopeEnginePanel />}
 
       {/* ── Engine Mode: LaserDMX ─────────────────────────────────────── */}
       {activeReactEngineId === 'laserDmx' && <LaserDmxEnginePanel />}

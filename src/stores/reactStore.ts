@@ -19,6 +19,11 @@ import {
   normalizeHeadlinerSettings,
   type HeadlinerSettings,
 } from '../components/vyzualz/react/headliner/HeadlinerSettings'
+import {
+  DEFAULT_XY_SCOPE_SETTINGS,
+  normalizeXyScopeSettings,
+  type XyScopeSettings,
+} from '../components/vyzualz/react/xyScope/XyScopeSettings'
 import { normalizeSoundDrawingScopeState } from '../audio/scope/scopeStateNormalization'
 import {
   activateCinema2Workspace as activateCinema2WorkspaceDocument,
@@ -2566,6 +2571,10 @@ export interface ReactStoreState {
   headlinerSettings: HeadlinerSettings
   setHeadlinerSettings: (patch: Partial<HeadlinerSettings>) => void
 
+  // Sound Drawing XY authoring settings (word, font, preset and every Design/React/Palette value).
+  xyScopeSettings: XyScopeSettings
+  setXyScopeSettings: (patch: Partial<XyScopeSettings>) => void
+
   /** Transient Stage-23 compatibility token. Phase 4 decodes old values but never persists a new one. */
   pendingCinemaLegacySelectionMigration: Cinema2LegacySelectionMigration | null
   completeCinemaLegacySelectionMigration: () => void
@@ -4078,6 +4087,7 @@ export function sanitizeRetiredNeonLatticeReactState(persistedState: unknown): R
     || activeEngineId === 'canvas'
     || activeEngineId === 'oscilloscope'
     || activeEngineId === 'headliner'
+    || activeEngineId === 'xyScope'
   ) && activePresetId == null
   const validPresetSelection = activeEngineId != null
     && activeEngineId !== RETIRED_NEON_LATTICE_ENGINE_ID
@@ -4272,7 +4282,7 @@ function normalizeLockedLaserDmxPadAssignments(pads: ReactPerformancePad[]): Rea
 
 const VALID_REACT_ENGINE_IDS = new Set<ReactEngineId>(REACT_ENGINE_IDS)
 
-const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema2', 'headliner'])
+const STANDALONE_REACT_ENGINE_IDS = new Set<ReactEngineId>(['canvas', 'cinema2', 'headliner', 'xyScope'])
 
 function isStandaloneReactEngineId(engineId: ReactEngineId): boolean {
   return STANDALONE_REACT_ENGINE_IDS.has(engineId)
@@ -5953,6 +5963,7 @@ export function migrateReactStore(persistedState: unknown, version: number): Rec
     ...state,
     showManagerShows: normalizedShowManagerShows,
     headlinerSettings: normalizeHeadlinerSettings(state.headlinerSettings),
+    xyScopeSettings: normalizeXyScopeSettings(state.xyScopeSettings),
     canvasEngineSettings: normalizeCanvasEngineSettings(state.canvasEngineSettings),
     canvasShowManagerShows: normalizedCanvasShowManagerShows,
     canvasShowManagerActiveShowId: normalizeCanvasShowManagerActiveShowId(
@@ -6158,6 +6169,7 @@ export function reactStorePartialize(s: ReactStoreState) {
     activeReactPresetId:                persistedSelection.activeReactPresetId,
     activeReactEngineId:                persistedSelection.activeReactEngineId,
     headlinerSettings:                   normalizeHeadlinerSettings(s.headlinerSettings),
+    xyScopeSettings:                     normalizeXyScopeSettings(s.xyScopeSettings),
     cinema2Workspace:                   normalizeCinema2WorkspaceDocument(s.cinema2Workspace),
     reactPresets:                       coherentReactPresets,
     pixGridState:                       coherentPixGridState,
@@ -6234,6 +6246,7 @@ export type ReactPersistedState = ReturnType<typeof reactStorePartialize>
  */
 export const REACT_PROJECT_STATE_KEYS = [
   'headlinerSettings',
+  'xyScopeSettings',
   'cinema2Workspace',
   'reactPresets',
   'pixGridState',
@@ -6341,6 +6354,7 @@ export function mergeReactStoreState(
     ...persisted,
     reactPresets,
     headlinerSettings: normalizeHeadlinerSettings(persisted.headlinerSettings ?? currentState.headlinerSettings),
+    xyScopeSettings: normalizeXyScopeSettings(persisted.xyScopeSettings ?? currentState.xyScopeSettings),
     cinema2Workspace: normalizeCinema2WorkspaceDocument(
       persisted.cinema2Workspace ?? currentState.cinema2Workspace,
     ),
@@ -6680,6 +6694,10 @@ export const useReactStore = create<ReactStoreState>()(
       headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
       setHeadlinerSettings: (patch) => set((state) => ({
         headlinerSettings: normalizeHeadlinerSettings({ ...state.headlinerSettings, ...patch }),
+      })),
+      xyScopeSettings: normalizeXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS),
+      setXyScopeSettings: (patch) => set((state) => ({
+        xyScopeSettings: normalizeXyScopeSettings({ ...state.xyScopeSettings, ...patch }),
       })),
       pendingCinemaLegacySelectionMigration: null,
       completeCinemaLegacySelectionMigration: () => set({ pendingCinemaLegacySelectionMigration: null }),
@@ -12946,6 +12964,13 @@ export const useReactStore = create<ReactStoreState>()(
             }
           }
 
+          if (s.activeReactEngineId === 'xyScope') {
+            return {
+              ...sharedDefaults,
+              xyScopeSettings: normalizeXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS),
+            }
+          }
+
           if (s.activeReactEngineId === 'canvas') {
             revokeCanvasMediaObjectUrls(s.canvasMediaItems)
             return {
@@ -13047,6 +13072,7 @@ export const useReactStore = create<ReactStoreState>()(
             cinematicConfigsByPresetId: {},
             cinematicSeedLocksByPresetId: {},
             headlinerSettings: normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
+            xyScopeSettings: normalizeXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS),
             canvasEngineSettings: { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
             canvasMediaItems: [],
             canvasMediaTimingById: {},
@@ -13126,6 +13152,7 @@ export const useReactStore = create<ReactStoreState>()(
           cinematicSeedLocksByPresetId: {},
           cinematicWorldsUiMode:        'simple',
           headlinerSettings:             normalizeHeadlinerSettings(DEFAULT_HEADLINER_SETTINGS),
+          xyScopeSettings:               normalizeXyScopeSettings(DEFAULT_XY_SCOPE_SETTINGS),
           canvasEngineSettings:         { ...DEFAULT_CANVAS_ENGINE_SETTINGS },
           canvasMediaItems:             [],
           canvasMediaTimingById:        {},

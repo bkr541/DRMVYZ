@@ -159,6 +159,7 @@ This keeps transport, waveform, cue, BPM, Rekordbox, and track controls shared a
 | --- | --- | --- |
 | `cinema2` | Cinema 2.0 | `Cinema2Stage` → `Cinema2Runtime` |
 | `oscilloscope` | Sound Drawing | `ReactPlaceholderCanvas` → Sound Drawing renderer |
+| `xyScope` | Sound Drawing XY | `XyScopeSurface` phosphor-beam text renderer (standalone, preset-free; see `docs/sound-drawing-xy.md`) |
 | `canvas` | CANVAS | `CanvasEngineSurface` from `ReactCanvasEngineShell.tsx` |
 | `laserDmx` | LaserDMX | `ReactPlaceholderCanvas` → LaserDMX renderer |
 | `pixGrid` | PixGrid | `PixGridSurface` |

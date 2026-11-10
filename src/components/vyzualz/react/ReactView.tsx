@@ -24,6 +24,12 @@ import {
   HeadlinerReactivityPanel,
   HeadlinerSurface,
 } from './headliner/HeadlinerWorkspace'
+import {
+  XyScopeDesignPanel,
+  XyScopePresetsPanel,
+  XyScopeReactivityPanel,
+  XyScopeSurface,
+} from './xyScope/XyScopeWorkspace'
 import { PixGridEditorOverlay, shouldShowPixGridEditorOverlay } from './pixGrid/PixGridEditorOverlay'
 import { addPixGridMediaLayer } from './pixGrid/PixGridAuthoring'
 import { isReactTransportPaused }  from './reactTransportState'
@@ -546,7 +552,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
   // Fall back only within the active engine family. Never render a preset from
   // another engine merely because it appears first in the global collection.
   const activePreset =
-    activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema2' || activeReactEngineId === 'headliner'
+    activeReactEngineId === 'canvas' || activeReactEngineId === 'cinema2' || activeReactEngineId === 'headliner' || activeReactEngineId === 'xyScope'
       ? null
       : (selectedPresetForEngine ?? reactPresets.find((p) => p.engine === activeReactEngineId) ?? null)
 
@@ -847,6 +853,18 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   trackIdentity: engine.currentAudioTrackId ?? engine.currentTrackId,
                 }}
               />
+            ) : activeReactEngineId === 'xyScope' ? (
+              <XyScopeSurface
+                onCanvasReady={setOutputCanvas}
+                onLiveFps={setLiveFps}
+                scopeStereoTap={engine.scopeStereoTap}
+                audio={{
+                  getAudioTime: engine.getCurrentTime,
+                  trackAnalysis: effectiveTrackAnalysis,
+                  trackSections: resolvedTrackSections,
+                  trackIdentity: engine.currentAudioTrackId ?? engine.currentTrackId,
+                }}
+              />
             ) : activeReactEngineId === 'oscilloscope' || activeReactEngineId === 'laserDmx' ? (
               <ReactPlaceholderCanvas
                 key={`react-live-${activeReactEngineId}`}
@@ -1057,6 +1075,8 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                 <Cinema2PresetsPanel activePresetId={cinema2PresetId} onSelectPreset={handleCinema2PresetSelect} />
               ) : activeReactEngineId === 'headliner' ? (
                 <HeadlinerPresetsPanel />
+              ) : activeReactEngineId === 'xyScope' ? (
+                <XyScopePresetsPanel />
               ) : (
                 <ReactPresetsPanel />
               ))}
@@ -1067,14 +1087,18 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                   }} />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerDesignPanel />
-                  : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
+                  : activeReactEngineId === 'xyScope'
+                    ? <XyScopeDesignPanel />
+                    : <ReactDesignWorkspacePanel hasSelection={inspectableSelection !== null} />
             )}
             {activeRightPanel === 'react' && (
               activeReactEngineId === 'cinema2'
                 ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="react" />
                 : activeReactEngineId === 'headliner'
                   ? <HeadlinerReactivityPanel />
-                  : <ReactReactivityWorkspacePanel />
+                  : activeReactEngineId === 'xyScope'
+                    ? <XyScopeReactivityPanel />
+                    : <ReactReactivityWorkspacePanel />
             )}
             {activeRightPanel === 'output' && (
               <ReactOutputWorkspacePanel

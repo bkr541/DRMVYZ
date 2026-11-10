@@ -60,7 +60,7 @@ let rafCallbacks = new Map<number, FrameRequestCallback>()
 type LiveCanvasEngineId = Extract<ReactEngineId, 'cinematicPortal' | 'oscilloscope' | 'laserDmx'>
 
 const LIVE_CANVAS_ENGINE_IDS = REACT_ENGINE_IDS.filter((engine): engine is Extract<typeof REACT_ENGINE_IDS[number], LiveCanvasEngineId> => (
-  engine !== 'canvas' && engine !== 'pixGrid' && engine !== 'cinema2' && engine !== 'headliner'
+  engine !== 'canvas' && engine !== 'pixGrid' && engine !== 'cinema2' && engine !== 'headliner' && engine !== 'xyScope'
 ))
 
 function findPreset(engine: LiveCanvasEngineId): ReactPreset {

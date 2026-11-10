@@ -38,6 +38,7 @@ export function resolveReactWorkspaceComposition(
   const isCanvas = engineId === 'canvas'
   const isPixGrid = engineId === 'pixGrid'
   const isHeadliner = engineId === 'headliner'
+  const isXyScope = engineId === 'xyScope'
   void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
@@ -47,6 +48,10 @@ export function resolveReactWorkspaceComposition(
     // Headliner owns a minimal setup workspace plus a Media tab for Virtual Backdrop's background;
     // the lower workspace (Track Map and performance pads) is shared with every other engine.
     leftTabs = ['workspace', 'media']
+  } else if (isXyScope) {
+    // Sound Drawing XY owns its word and font in the SOURCE tab; the timeline lane belongs to the legacy engine.
+    leftTabs = ['workspace']
+    workspaceTabLabel = 'SOURCE'
   } else if (isCinema2) {
     leftTabs = ['workspace', isCinema2TextPreset(cinema2PresetId) ? 'pool' : 'layers']
     workspaceTabLabel = 'SOURCE'

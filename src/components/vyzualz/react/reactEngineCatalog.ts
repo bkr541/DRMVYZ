@@ -17,6 +17,7 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
   'cinema',
   'cinema2',
   'oscilloscope',
+  'xyScope',
   'canvas',
   'laserDmx',
   'pixGrid',
@@ -27,6 +28,7 @@ export const REACT_KNOWN_ENGINE_IDS: ReactEngineId[] = [
 export const REACT_ENGINE_IDS: ReactLiveEngineId[] = [
   'cinema2',
   'oscilloscope',
+  'xyScope',
   'canvas',
   'laserDmx',
   'pixGrid',
@@ -68,6 +70,13 @@ export const REACT_ENGINE_CATALOG: Record<ReactEngineId, ReactEngineCatalogEntry
     shortLabel: 'Draw',
     icon: 'waveform',
     description: 'Live audio waveform drawing with glyph, SVG and text rendering.',
+  },
+  xyScope: {
+    id: 'xyScope',
+    label: 'Sound Drawing XY',
+    shortLabel: 'Draw XY',
+    icon: 'waveform',
+    description: 'Text drawn by a single phosphor beam that answers the track, dissolves into the live stereo scope, and re-forms.',
   },
   canvas: {
     id: 'canvas',

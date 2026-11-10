@@ -29,7 +29,7 @@ describe('phase 2 production icon integration', () => {
       return <div key={id} data-engine={id}><Icon /></div>
     })}</>))
     const kinds = [...container.querySelectorAll('svg')].map(icon => icon.getAttribute('data-app-icon'))
-    expect(kinds).toEqual(['shader', 'orbit', 'cinema', 'cinema', 'waveform', 'canvas', 'laser', 'pixGrid', 'headliner'])
+    expect(kinds).toEqual(['shader', 'orbit', 'cinema', 'cinema', 'waveform', 'waveform', 'canvas', 'laser', 'pixGrid', 'headliner'])
     expect(container.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(REACT_KNOWN_ENGINE_IDS.length)
   })
 
