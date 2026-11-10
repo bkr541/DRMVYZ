@@ -19,6 +19,7 @@ import { CanvasEngineSurface, CanvasLayersPanel } from './ReactCanvasEngineShell
 import { PixGridSurface } from './pixGrid/PixGridSurface'
 import {
   HeadlinerDesignPanel,
+  HeadlinerBackdropPanel,
   HeadlinerPresetsPanel,
   HeadlinerReactivityPanel,
   HeadlinerSurface,
@@ -745,7 +746,10 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
                       onOpenMediaManager={onOpenMediaManager}
                     />
                   )}
-                  {leftTab === 'media' && (
+                  {leftTab === 'media' && activeReactEngineId === 'headliner' && (
+                    <HeadlinerBackdropPanel onOpenMediaManager={onOpenMediaManager} />
+                  )}
+                  {leftTab === 'media' && activeReactEngineId !== 'headliner' && (
                     <MediaDeckPanel
                       mode={mediaSourceCapability === 'pixGridStill' ? 'pixGrid' : 'react'}
                       activeMediaId={activeMediaId}

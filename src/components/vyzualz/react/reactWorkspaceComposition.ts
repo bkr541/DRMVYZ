@@ -44,9 +44,9 @@ export function resolveReactWorkspaceComposition(
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isHeadliner) {
-    // Headliner owns a minimal setup workspace; the lower workspace (Track Map and
-    // performance pads) is shared with every other engine.
-    leftTabs = ['workspace']
+    // Headliner owns a minimal setup workspace plus a Media tab for Virtual Backdrop's background;
+    // the lower workspace (Track Map and performance pads) is shared with every other engine.
+    leftTabs = ['workspace', 'media']
   } else if (isCinema2) {
     leftTabs = ['workspace', isCinema2TextPreset(cinema2PresetId) ? 'pool' : 'layers']
     workspaceTabLabel = 'SOURCE'

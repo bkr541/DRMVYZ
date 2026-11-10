@@ -27,6 +27,7 @@ export type HeadlinerPresetId =
   | 'portal-body'
   | 'x-ray'
   | 'posterize-pulse'
+  | 'virtual-backdrop'
 
 /** The four standard Design parent groups. */
 export type HeadlinerParameterGroup = 'master' | 'design' | 'effects' | 'palette'
@@ -1398,6 +1399,49 @@ const POSTERIZE_PULSE: HeadlinerPresetDefinition = {
   ],
 }
 
+const VIRTUAL_BACKDROP: HeadlinerPresetDefinition = {
+  id: 'virtual-backdrop',
+  name: 'Virtual Backdrop',
+  description: 'Removes the room behind you as you move and puts a picture or video from the media library there instead. Choose the background in the left window’s Media tab.',
+  tone: '#4ac7db',
+  parameters: [
+    // The standard Master Controls, except that the music and kick reactions start at 0: by default the
+    // background replaces the room completely and steadily. Raising them makes it fade in on the music.
+    ...masterControls().map(parameter => (
+      parameter.kind === 'slider' && (parameter.id === 'musicReactivity' || parameter.id === 'kickReactivity')
+        ? { ...parameter, default: 0 }
+        : parameter
+    )),
+    {
+      id: 'backdropFit', kind: 'select', group: 'design', label: 'Background Fit', default: 'cover',
+      options: [
+        { value: 'cover', label: 'Fill Frame' },
+        { value: 'contain', label: 'Fit Inside' },
+      ],
+      description: 'Fill Frame crops the background to cover the screen; Fit Inside shows all of it with bars in the backdrop colour.',
+    },
+    {
+      id: 'edgeSoftness', kind: 'slider', group: 'design', label: 'Edge Softness',
+      min: 0, max: 1, step: 0.01, default: 0.3, format: 'percent',
+      description: 'How soft the cut-out edge around you is. Lower is crisper; higher hides jagged edges and flicker.',
+    },
+    {
+      id: 'backdropBlur', kind: 'slider', group: 'effects', label: 'Background Blur',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      description: 'Softens the background so you stand out from it.',
+    },
+    {
+      id: 'backdropDim', kind: 'slider', group: 'effects', label: 'Background Dim',
+      min: 0, max: 1, step: 0.01, default: 0, format: 'percent',
+      description: 'Darkens the background.',
+    },
+    {
+      id: 'backdropColor', kind: 'color', group: 'palette', label: 'Backdrop Colour', default: '#0a1014',
+      description: 'Shown behind you until a background is chosen or while it loads, and in the bars of Fit Inside.',
+    },
+  ],
+}
+
 export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.freeze([
   MOTION_ECHO,
   GHOST_TRAILS,
@@ -1419,6 +1463,7 @@ export const HEADLINER_PRESETS: readonly HeadlinerPresetDefinition[] = Object.fr
   PORTAL_BODY,
   X_RAY,
   POSTERIZE_PULSE,
+  VIRTUAL_BACKDROP,
 ])
 
 export function getHeadlinerPreset(id: unknown): HeadlinerPresetDefinition {

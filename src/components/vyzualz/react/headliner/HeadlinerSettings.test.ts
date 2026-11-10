@@ -30,4 +30,12 @@ describe('Headliner settings normalization', () => {
     expect(normalizeHeadlinerSettings(undefined)).toEqual(DEFAULT_HEADLINER_SETTINGS)
     expect(normalizeHeadlinerSettings('invalid')).toEqual(DEFAULT_HEADLINER_SETTINGS)
   })
+
+  it('keeps a chosen Virtual Backdrop media id and drops anything that is not a usable id', () => {
+    expect(normalizeHeadlinerSettings({ backdropMediaId: 'media-7' }).backdropMediaId).toBe('media-7')
+    expect(normalizeHeadlinerSettings({ backdropMediaId: '' }).backdropMediaId).toBeNull()
+    expect(normalizeHeadlinerSettings({ backdropMediaId: 12 }).backdropMediaId).toBeNull()
+    expect(normalizeHeadlinerSettings({ backdropMediaId: 'x'.repeat(513) }).backdropMediaId).toBeNull()
+    expect(DEFAULT_HEADLINER_SETTINGS.backdropMediaId).toBeNull()
+  })
 })

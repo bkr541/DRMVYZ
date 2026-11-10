@@ -1,6 +1,7 @@
 // Shared building blocks of the Headliner effect processors: work surfaces, the render contract, palette
 // handling and layer compositing. Kept apart from the processors so each effect file stays focused.
 
+import type { HeadlinerBackdropFrame } from './HeadlinerBackdrop'
 import {
   HEADLINER_BLEND_OPERATIONS,
   getHeadlinerNumber,
@@ -18,6 +19,8 @@ export interface HeadlinerEffectRenderArgs {
   sourceRect: HeadlinerSourceRect
   parameters: HeadlinerParameterValues
   timing: HeadlinerEffectTiming
+  /** The library picture or video chosen for Virtual Backdrop; null until one is chosen and loaded. */
+  backdrop?: HeadlinerBackdropFrame | null
 }
 
 export interface HeadlinerEffectProcessor {

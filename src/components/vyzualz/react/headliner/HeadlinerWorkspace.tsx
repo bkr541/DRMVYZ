@@ -1,6 +1,10 @@
 import { AppIcon } from '../../../shared/icons/AppIcon'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useReactStore } from '../../../../stores/reactStore'
+import { useMediaStore, type UploadedMedia } from '../../../../stores/mediaStore'
+import { MediaLibraryBrowser } from '../../media/MediaLibraryBrowser'
+import { CANVAS_MEDIA_LIBRARY_CAPABILITIES } from '../../media/mediaLibraryCapabilities'
+import { HeadlinerBackdropLoader, type HeadlinerBackdropMedia } from './HeadlinerBackdrop'
 import { Collapsible, CtrlSection, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { ConfirmDialog } from '../controls/ConfirmDialog'
@@ -136,9 +140,20 @@ export function HeadlinerSurface({
   const status = describeHeadlinerCameraStatus(snapshot)
   const presetId = useReactStore(state => state.headlinerSettings.presetId)
   const parameterOverrides = useReactStore(state => state.headlinerSettings.parameters)
+  const backdropMediaId = useReactStore(state => state.headlinerSettings.backdropMediaId)
   const effectRef = useRef<{ presetId: string; processor: HeadlinerEffectProcessor } | null>(null)
   const effectInputRef = useRef({ presetId, parameterOverrides, audio })
   effectInputRef.current = { presetId, parameterOverrides, audio }
+  // Virtual Backdrop: the library item chosen in the left window's Media tab, loaded once and reused every frame.
+  const backdropItem = useMediaStore(state => backdropMediaId ? state.items.find(item => item.id === backdropMediaId) : undefined)
+  const backdropMedia = useMemo(() => resolveBackdropMedia(backdropItem), [backdropItem])
+  const backdropLoaderRef = useRef<HeadlinerBackdropLoader | null>(null)
+  if (!backdropLoaderRef.current) backdropLoaderRef.current = new HeadlinerBackdropLoader()
+  const backdropLoader = backdropLoaderRef.current
+  useEffect(() => {
+    backdropLoader.setMedia(backdropMedia)
+  }, [backdropLoader, backdropMedia])
+  useEffect(() => () => backdropLoader.dispose(), [backdropLoader])
 
   useEffect(() => {
     const video = videoRef.current
@@ -179,6 +194,7 @@ export function HeadlinerSurface({
           effect = {
             processor: effectRef.current.processor,
             parameters,
+            backdrop: activePresetId === 'virtual-backdrop' ? backdropLoader.getFrame() : null,
             timing: timingTracker.update(
               performance.now() / 1000,
               previousContext,
@@ -215,7 +231,7 @@ export function HeadlinerSurface({
       runtime.stop()
       onCanvasReady?.(null)
     }
-  }, [onCanvasReady, onLiveFps, runtime])
+  }, [backdropLoader, onCanvasReady, onLiveFps, runtime])
 
   // Switching cameras in the setup panel reopens the stream; the first run is covered by start() above.
   useEffect(() => {
@@ -293,6 +309,52 @@ export function HeadlinerSurface({
         </div>
       )}
     </section>
+  )
+}
+
+/** The chosen library item as something the backdrop loader can open, or null when none is chosen or it has no usable URL. */
+function resolveBackdropMedia(media: UploadedMedia | undefined): HeadlinerBackdropMedia | null {
+  const url = (media?.proxyUrl ?? media?.url ?? '').trim()
+  if (!media || !url) return null
+  return { id: media.id, url, kind: media.type, revision: `${media.storagePath ?? media.id}:${media.urlExpiresAt ?? 0}` }
+}
+
+/** Left window, Media tab: pick the picture or video Virtual Backdrop shows behind you. */
+export function HeadlinerBackdropPanel({ onOpenMediaManager }: { onOpenMediaManager?: () => void }) {
+  const backdropMediaId = useReactStore(state => state.headlinerSettings.backdropMediaId)
+  const activePresetId = useReactStore(state => state.headlinerSettings.presetId)
+  const setHeadlinerSettings = useReactStore(state => state.setHeadlinerSettings)
+  const chosen = useMediaStore(state => backdropMediaId ? state.items.find(item => item.id === backdropMediaId) : undefined)
+  const active = activePresetId === 'virtual-backdrop'
+
+  return (
+    <div className="rv-canvas-engine-panel" data-headliner-backdrop-panel="true">
+      <div className="rv-canvas-library-shell">
+        <MediaLibraryBrowser
+          activeMediaId={backdropMediaId}
+          // Choosing a background also turns Virtual Backdrop on, so one click does what the user asked for.
+          onSelect={mediaId => setHeadlinerSettings({ backdropMediaId: mediaId, presetId: 'virtual-backdrop' })}
+          context="canvas"
+          title="Backgrounds"
+          capabilities={CANVAS_MEDIA_LIBRARY_CAPABILITIES}
+          onOpenMediaManager={onOpenMediaManager}
+        />
+      </div>
+      <div className="rv-canvas-panel-status">
+        <span>Background</span>
+        <strong>{chosen ? (chosen.title ?? chosen.name) : backdropMediaId ? 'Not in your library' : 'None chosen'}</strong>
+      </div>
+      {!active && (
+        <div className="rv-ctrl-info" data-headliner-backdrop-inactive="true">
+          Virtual Backdrop is not the active preset. Choosing a background turns it on.
+        </div>
+      )}
+      {backdropMediaId && (
+        <div className="rv-ctrl-action-row">
+          <IconChipButton onClick={() => setHeadlinerSettings({ backdropMediaId: null })}>Clear Background</IconChipButton>
+        </div>
+      )}
+    </div>
   )
 }
 

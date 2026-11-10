@@ -36,6 +36,7 @@ import { createParticleBodyProcessor, createParticleShedProcessor } from './Head
 import { createSparkSkeletonProcessor } from './HeadlinerSkeletonEffect'
 import { createDigitalSilhouetteProcessor, createPortalBodyProcessor } from './HeadlinerSilhouetteFillEffects'
 import { createPosterizePulseProcessor, createXRayProcessor } from './HeadlinerToneEffects'
+import { createVirtualBackdropProcessor } from './HeadlinerBackdropEffect'
 import { createRgbGhostProcessor } from './HeadlinerTemporalEffects'
 
 export { HEADLINER_MAX_ECHOES, HEADLINER_SMEAR_DRAW_BUDGET, HEADLINER_WORK_MAX_WIDTH, hexToRgb, resolveHeadlinerWorkSize } from './HeadlinerEffectKit'
@@ -590,6 +591,8 @@ export function createHeadlinerEffectProcessor(presetId: HeadlinerPresetId): Hea
       return createXRayProcessor()
     case 'posterize-pulse':
       return createPosterizePulseProcessor()
+    case 'virtual-backdrop':
+      return createVirtualBackdropProcessor()
     case 'motion-echo':
     default:
       return new MotionEchoProcessor()

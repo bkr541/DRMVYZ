@@ -1,3 +1,4 @@
+import type { HeadlinerBackdropFrame } from './HeadlinerBackdrop'
 import {
   applyCanvasResolution,
   resolveCanvasResolution,
@@ -47,6 +48,7 @@ export interface HeadlinerEffectFrame {
   processor: HeadlinerEffectProcessor
   parameters: HeadlinerParameterValues
   timing: HeadlinerEffectTiming
+  backdrop?: HeadlinerBackdropFrame | null
 }
 
 export interface HeadlinerProgramInput {
@@ -420,6 +422,7 @@ export class HeadlinerFullscreenCompositor {
         sourceRect,
         parameters: effect.parameters,
         timing: effect.timing,
+        backdrop: effect.backdrop ?? null,
       })
       return true
     } catch {

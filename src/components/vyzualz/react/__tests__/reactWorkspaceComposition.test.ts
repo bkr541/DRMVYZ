@@ -131,11 +131,12 @@ describe('React workspace composition', () => {
     expect(getReactLeftTabLabel('workspace', pixGrid)).toBe('SETUP')
   })
 
-  it('gives Headliner its minimal setup rail plus the same Track Map and performance pads as every other engine', () => {
+  it('gives Headliner its setup rail and a Media tab for the Virtual Backdrop background, plus the same Track Map and performance pads as every other engine', () => {
     const headliner = resolveReactWorkspaceComposition('headliner', 'beamMatrix', false)
 
-    expect(getReactLeftTabs(headliner)).toEqual(['workspace'])
+    expect(getReactLeftTabs(headliner)).toEqual(['workspace', 'media'])
     expect(getReactLeftTabLabel('workspace', headliner)).toBe('SETUP')
+    expect(getReactLeftTabLabel('media', headliner)).toBe('MEDIA')
     expect(getReactLowerSurfaces(headliner)).toEqual(['trackMap', 'performancePads'])
     expect(headliner.showTrackMap).toBe(true)
     expect(headliner.showPerformancePads).toBe(true)
@@ -147,7 +148,7 @@ describe('React workspace composition', () => {
       const tabs = getReactLeftTabs(resolveReactWorkspaceComposition(engine, 'beamMatrix', false))
       expect(tabs).not.toContain('sessions')
       if (engine !== 'oscilloscope') expect(tabs).not.toContain('fonts')
-      if (engine !== 'oscilloscope' && engine !== 'pixGrid') expect(tabs).not.toContain('media')
+      if (engine !== 'oscilloscope' && engine !== 'pixGrid' && engine !== 'headliner') expect(tabs).not.toContain('media')
     }
   })
 })

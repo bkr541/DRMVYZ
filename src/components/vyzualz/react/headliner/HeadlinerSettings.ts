@@ -18,6 +18,8 @@ export interface HeadlinerSettings {
   presetId: HeadlinerPresetId | null
   /** Design-tab values that differ from the preset's defaults, keyed by preset id then parameter id. */
   parameters: Readonly<Record<string, Readonly<Record<string, HeadlinerParameterValue>>>>
+  /** Media-library item shown behind the performer by Virtual Backdrop, or null for none. */
+  backdropMediaId: string | null
 }
 
 export const DEFAULT_HEADLINER_SETTINGS: Readonly<HeadlinerSettings> = Object.freeze({
@@ -25,6 +27,7 @@ export const DEFAULT_HEADLINER_SETTINGS: Readonly<HeadlinerSettings> = Object.fr
   inputSourceId: HEADLINER_DEFAULT_CAMERA_SOURCE_ID,
   presetId: HEADLINER_DEFAULT_PRESET_ID,
   parameters: Object.freeze({}),
+  backdropMediaId: null,
 })
 
 export function normalizeHeadlinerEngineMode(value: unknown): HeadlinerEngineModeId {
@@ -47,5 +50,8 @@ export function normalizeHeadlinerSettings(value: unknown): HeadlinerSettings {
     inputSourceId: normalizeHeadlinerInputSource(record.inputSourceId),
     presetId: record.presetId === null || isHeadlinerPresetId(record.presetId) ? record.presetId : DEFAULT_HEADLINER_SETTINGS.presetId,
     parameters: normalizeHeadlinerParameterOverrides(record.parameters),
+    backdropMediaId: typeof record.backdropMediaId === 'string' && record.backdropMediaId.length > 0 && record.backdropMediaId.length <= 512
+      ? record.backdropMediaId
+      : null,
   }
 }
