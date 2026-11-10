@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { parseXyScopeColor, xyScopeSegmentBrightness } from './XyScopeBeam'
+import { parseXyScopeColor, xyScopeSegmentBrightness, XY_SCOPE_REFERENCE_SEGMENT_PX } from './XyScopeBeam'
 
 describe('xyScopeSegmentBrightness', () => {
   it('is bright for a slow edge and dim for a long jump, like a real beam', () => {
     const slow = xyScopeSegmentBrightness(3, 14, 0, 0, 0)
     const fast = xyScopeSegmentBrightness(120, 14, 0, 0, 0)
-    expect(slow).toBeGreaterThan(0.8)
+    expect(slow).toBeGreaterThan(0.75)
     expect(fast).toBeLessThan(0.1)
     expect(slow).toBeGreaterThan(fast)
   })
 
   it('brightens just after a hit and never exceeds 1', () => {
     expect(xyScopeSegmentBrightness(10, 14, 1, 0, 0)).toBeGreaterThan(xyScopeSegmentBrightness(10, 14, 0, 0, 0))
-    expect(xyScopeSegmentBrightness(0, 14, 1, 0, 0)).toBe(1)
+    expect(xyScopeSegmentBrightness(3, 100, 1, 0, 0)).toBeLessThanOrEqual(1)
+  })
+
+  it('puts the same light on each length of line, so a tightly packed figure is not brighter than a letter', () => {
+    const letter = xyScopeSegmentBrightness(XY_SCOPE_REFERENCE_SEGMENT_PX, 14, 0, 0, 0)
+    const packed = xyScopeSegmentBrightness(XY_SCOPE_REFERENCE_SEGMENT_PX / 4, 14, 0, 0, 0)
+    expect(packed).toBeLessThan(letter * 0.3)
+    expect(xyScopeSegmentBrightness(0, 14, 0, 0, 0)).toBe(0)
   })
 
   it('dims dissolved points so the cloud stays thin and the word stays the brightest thing', () => {

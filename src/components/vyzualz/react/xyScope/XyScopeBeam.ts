@@ -15,12 +15,17 @@ export function parseXyScopeColor(hex: string, fallback: XyScopeRgb): XyScopeRgb
   return match ? [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)] : fallback
 }
 
+/** A segment shorter than this is dimmed in proportion, so a tightly packed figure is as bright per length as a letter. */
+export const XY_SCOPE_REFERENCE_SEGMENT_PX = 2.4
+
 /**
  * Brightness 0..1 of one beam segment. `jumpScale` is the length (px) at which a segment is half as bright.
- * A flash brightens a letter just after a hit; dissolved points are dimmed so clouds stay thin.
+ * A flash brightens a letter just after a hit; dissolved points are dimmed so clouds stay thin. Segments shorter
+ * than the reference length are dimmed so the same amount of light falls on each length of line.
  */
 export function xyScopeSegmentBrightness(lengthPx: number, jumpScale: number, flash: number, dissolveA: number, dissolveB: number): number {
   let value = 1 / (1 + Math.pow(lengthPx / Math.max(1e-3, jumpScale), 1.3))
+  value *= Math.min(1, lengthPx / XY_SCOPE_REFERENCE_SEGMENT_PX)
   value *= 1 + 0.45 * flash
   value *= 1 - 0.78 * Math.max(dissolveA, dissolveB)
   return Math.min(1, Math.max(0, value))
@@ -108,7 +113,13 @@ export class XyScopeBeamRenderer {
         for (let i = from; i < to; i += 1) {
           const j = i + 1 < to ? i + 1 : from
           const length = Math.hypot(buffer.x[j] - buffer.x[i], buffer.y[j] - buffer.y[i])
-          const brightness = xyScopeSegmentBrightness(length, jumpScale, flash, buffer.dissolved[i], buffer.dissolved[j])
+          let brightness = xyScopeSegmentBrightness(length, jumpScale, flash, buffer.dissolved[i], buffer.dissolved[j])
+          // The segment that closes a letter's contour has no place in an oscillator figure: it fades as the points leave.
+          if (j === from && i !== from) brightness *= 1 - 0.97 * Math.min(1, 0.5 * (buffer.form[i] + buffer.form[j]))
+          // The beam lifts between separate strokes of a form (the arms of a pinwheel).
+          brightness *= 1 - Math.min(1, buffer.gap[i] * 1.2)
+          // A hidden segment (a closed-loop seam inside a figure, a repeated point) is not drawn at all.
+          if (brightness < 0.02) continue
           const bucket = Math.min(XY_SCOPE_BRIGHTNESS_BUCKETS - 1, Math.floor(brightness * XY_SCOPE_BRIGHTNESS_BUCKETS))
           paths[bucket].moveTo(buffer.x[i], buffer.y[i])
           paths[bucket].lineTo(buffer.x[j], buffer.y[j])

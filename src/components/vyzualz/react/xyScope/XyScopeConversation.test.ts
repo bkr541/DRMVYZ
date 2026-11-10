@@ -33,20 +33,6 @@ describe('XyScopeConversation', () => {
     expect(c.states[0].ripple).toBe(0)
   })
 
-  it('fully dissolves on a phrase, then re-forms completely and readably', () => {
-    const c = new XyScopeConversation()
-    c.reset(5)
-    c.push({ type: 'phrase', strength: 1 }, 0, params)
-    let now = run(c, 0.28)
-    expect(c.dissolve(0)).toBeGreaterThan(0.9)
-    expect(c.dissolve(4)).toBe(0) // the wave has not reached the last letter yet
-    now = run(c, 0.22, now)
-    expect(c.dissolve(4)).toBeGreaterThan(0.5)
-    now = run(c, 2, now)
-    for (let i = 0; i < 5; i += 1) expect(c.dissolve(i)).toBe(0)
-    expect(now).toBeGreaterThan(2)
-  })
-
   it('keeps kicks and snares to a light fray so the word stays readable', () => {
     const c = new XyScopeConversation()
     c.reset(3)
@@ -60,11 +46,10 @@ describe('XyScopeConversation', () => {
     expect(peak).toBeLessThan(0.2)
   })
 
-  it('never dissolves with zero depth, and ignores zero-strength events', () => {
+  it('never frays with zero depth, and ignores zero-strength events', () => {
     const c = new XyScopeConversation()
     c.reset(3)
     const flat = { dissolveDepth: 0, answerDelayMs: 0 }
-    c.push({ type: 'phrase', strength: 1 }, 0, flat)
     c.push({ type: 'snare', strength: 1 }, 0, flat)
     c.update(1 / 60, 0.1, flat)
     expect(c.dissolve(0) + c.dissolve(1) + c.dissolve(2)).toBe(0)
@@ -78,15 +63,14 @@ describe('XyScopeConversation', () => {
     const c = new XyScopeConversation()
     c.reset(3)
     c.push({ type: 'kick', strength: 1 }, 0, params)
-    c.push({ type: 'phrase', strength: 1 }, 0.1, params)
+    c.push({ type: 'snare', strength: 1 }, 0.1, params)
     run(c, 4)
     for (const state of c.states) {
       expect(state.dissolveHit).toBe(0)
-      expect(state.dissolvePhrase).toBe(0)
       expect(state.flash).toBeLessThan(1e-3)
       expect(state.vibration).toBeLessThan(1e-3)
     }
-    c.push({ type: 'phrase', strength: 1 }, 5, params)
+    c.push({ type: 'snare', strength: 1 }, 5, params)
     c.reset(2)
     expect(c.states).toHaveLength(2)
     c.update(1 / 60, 6, params)

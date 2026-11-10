@@ -1,8 +1,15 @@
 // Sound Drawing XY: persisted settings, the parameter catalog behind the Design inspector, and the typed
 // values the runtime reads. The inspector follows the Cinema 2.0 / Headliner Design standard: every
 // user-visible control sits under exactly one of four parent groups (Master Controls, Design, React,
-// Palette). The catalog is the single source of truth for labels, ranges, defaults and visibility, so the
-// panel, the store normaliser and the renderer can never disagree.
+// Palette), with nested groups inside Design. The catalog is the single source of truth for labels, ranges,
+// defaults and visibility, so the panel, the store normaliser and the renderer can never disagree.
+//
+// Pacing follows the Cinema 2.0 choreography contract: Pattern, Pattern Change (a toggle) and Trigger (the
+// canonical eleven musical events, imported unchanged), with Transition Length in beats.
+
+import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../../cinema2/presets/Cinema2AfterhoursPreset'
+import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from '../../cinema2/modules/Cinema2AfterhoursNativeModule'
+import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
 
 export const XY_SCOPE_ENGINE_ID = 'xyScope' as const
 
@@ -19,6 +26,9 @@ export const XY_SCOPE_GROUP_LABELS: Readonly<Record<XyScopeParameterGroup, strin
   palette: 'Palette',
 })
 
+/** Nested groups inside the Design parent, in order. Controls with no subgroup come first. */
+export const XY_SCOPE_DESIGN_SUBGROUPS: readonly string[] = Object.freeze(['Pattern', 'Letters', 'Beam'])
+
 export interface XyScopeParameterVisibility {
   /** The controlling parameter's id. */
   parameterId: string
@@ -28,6 +38,8 @@ export interface XyScopeParameterVisibility {
 interface XyScopeParameterBase {
   id: string
   group: XyScopeParameterGroup
+  /** A nested group inside the parent (Design only). */
+  subgroup?: string
   label: string
   /** One plain-language sentence: what changes on screen. */
   description: string
@@ -67,13 +79,19 @@ export type XyScopeParameterDefinition =
   | XyScopeSelectParameter
   | XyScopeColorParameter
 
-export const XY_SCOPE_PHRASE_LENGTHS = Object.freeze([
-  { value: 'bar4', label: 'Every 4 Bars' },
-  { value: 'bar8', label: 'Every 8 Bars' },
-  { value: 'bar16', label: 'Every 16 Bars' },
+/** Transition Length in beats, as the Cinema 2.0 choreography offers it. */
+export const XY_SCOPE_TRANSITION_LENGTHS = Object.freeze([
+  { value: '0.5', label: '½ Beat' },
+  { value: '1', label: '1 Beat' },
+  { value: '2', label: '2 Beats' },
+  { value: '4', label: '4 Beats' },
 ] as const)
 
-export type XyScopePhraseLength = typeof XY_SCOPE_PHRASE_LENGTHS[number]['value']
+export type XyScopeTrigger = Cinema2AfterhoursTriggerId
+
+export function isXyScopeTrigger(value: unknown): value is XyScopeTrigger {
+  return typeof value === 'string' && (CINEMA2_AFTERHOURS_TRIGGER_IDS as readonly string[]).includes(value)
+}
 
 export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object.freeze([
   // ── Master Controls ─────────────────────────────────────────────────────────
@@ -84,66 +102,88 @@ export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object
   },
   {
     id: 'audioReactivity', group: 'master-controls', kind: 'slider', label: 'Audio Reactivity',
-    description: 'Scales every change the music makes. Zero holds the text still while it keeps drawing.',
+    description: 'Scales every change the music makes. Zero holds the current pattern still while it keeps drawing.',
     default: 1, min: 0, max: 1, step: 0.01, format: 'percent',
   },
-  // ── Design ──────────────────────────────────────────────────────────────────
   {
-    id: 'size', group: 'design', kind: 'slider', label: 'Text Size',
+    id: 'motionAmount', group: 'master-controls', kind: 'slider', label: 'Motion Amount',
+    description: 'How fast the oscillator figures turn. Zero freezes them and makes pattern changes land at once.',
+    default: 0.7, min: 0, max: 1, step: 0.01, format: 'percent',
+  },
+  {
+    id: 'bpmSync', group: 'master-controls', kind: 'toggle', label: 'BPM Sync',
+    description: 'On: the figures turn in time with the loaded track. Off: they turn at a steady tempo.',
+    default: true,
+  },
+  // ── Design › Pattern ────────────────────────────────────────────────────────
+  {
+    id: 'pattern', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Pattern',
+    description: 'The form the word is in: the letters themselves, a waveform, or an oscillator figure.',
+    default: 'word', options: XY_SCOPE_PATTERN_OPTIONS,
+  },
+  {
+    id: 'patternChange', group: 'design', subgroup: 'Pattern', kind: 'toggle', label: 'Pattern Change',
+    description: 'Moves the word to the next pattern on each Trigger, and back to the letters at the end of the cycle.',
+    default: true,
+  },
+  {
+    id: 'trigger', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Trigger',
+    description: 'The musical event that moves the word to the next pattern while Pattern Change is on.',
+    default: 'bar', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
+    visibleWhen: { parameterId: 'patternChange', equals: true },
+  },
+  {
+    id: 'transitionLength', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Transition Length',
+    description: 'How long the letters take to flow into the next pattern.',
+    default: '1', options: XY_SCOPE_TRANSITION_LENGTHS,
+  },
+  // ── Design › Letters ────────────────────────────────────────────────────────
+  {
+    id: 'size', group: 'design', subgroup: 'Letters', kind: 'slider', label: 'Text Size',
     description: 'How much of the stage the word fills.',
     default: 0.84, min: 0.3, max: 1, step: 0.01, format: 'percent',
   },
   {
-    id: 'letterSpacing', group: 'design', kind: 'slider', label: 'Letter Spacing',
+    id: 'letterSpacing', group: 'design', subgroup: 'Letters', kind: 'slider', label: 'Letter Spacing',
     description: 'Space between letters as a share of the letter size. Negative tightens, positive opens.',
     default: 0.024, min: -0.05, max: 0.3, step: 0.002, format: 'percent',
   },
   {
-    id: 'trail', group: 'design', kind: 'slider', label: 'Phosphor Trail',
+    id: 'minPieceSize', group: 'design', subgroup: 'Letters', kind: 'slider', label: 'Ignore Small Pieces',
+    description: 'Skips tiny fragments some display fonts are built from, so grunge and stencil fonts draw cleanly.',
+    default: 0.07, min: 0, max: 0.3, step: 0.01, format: 'percent',
+  },
+  // ── Design › Beam ───────────────────────────────────────────────────────────
+  {
+    id: 'trail', group: 'design', subgroup: 'Beam', kind: 'slider', label: 'Phosphor Trail',
     description: 'How long the glow lingers after the beam has moved on.',
     default: 110, min: 40, max: 300, step: 5, format: 'ms',
   },
   {
-    id: 'glow', group: 'design', kind: 'slider', label: 'Glow',
+    id: 'glow', group: 'design', subgroup: 'Beam', kind: 'slider', label: 'Glow',
     description: 'Brightness of the halo around each line.',
     default: 1, min: 0, max: 2, step: 0.01, format: 'percent',
   },
-  {
-    id: 'minPieceSize', group: 'design', kind: 'slider', label: 'Ignore Small Pieces',
-    description: 'Skips tiny fragments some display fonts are built from, so grunge and stencil fonts draw cleanly.',
-    default: 0.07, min: 0, max: 0.3, step: 0.01, format: 'percent',
-  },
   // ── React ───────────────────────────────────────────────────────────────────
   {
-    id: 'dissolveDepth', group: 'react', kind: 'slider', label: 'Dissolve Depth',
-    description: 'How far letters break apart into the live stereo scope on snare answers and phrase changes. Zero keeps the text solid.',
+    id: 'formResponse', group: 'react', kind: 'slider', label: 'Form Response',
+    description: 'How strongly the figures follow the music: bass swells them, mids add detail, highs sharpen the edge.',
+    default: 1, min: 0, max: 1.5, step: 0.01, format: 'percent',
+  },
+  {
+    id: 'vibration', group: 'react', kind: 'slider', label: 'Line Vibration',
+    description: 'How strongly the letter outlines ring after each kick, like a plucked string settling.',
+    default: 1, min: 0, max: 1.5, step: 0.01, format: 'percent',
+  },
+  {
+    id: 'dissolveDepth', group: 'react', kind: 'slider', label: 'Snare Fray',
+    description: 'How far the letters fray into the live stereo scope when the snare answers. Zero keeps them solid.',
     default: 1, min: 0, max: 1.5, step: 0.01, format: 'percent',
   },
   {
     id: 'answerDelay', group: 'react', kind: 'slider', label: 'Answer Delay',
-    description: 'How long each letter waits before answering its neighbour. Longer makes the call-and-response easier to see.',
+    description: 'How long each letter waits after its neighbour, in a pattern change or a kick. Longer makes the wave easier to see.',
     default: 45, min: 0, max: 120, step: 1, format: 'ms',
-  },
-  {
-    id: 'vibration', group: 'react', kind: 'slider', label: 'Line Vibration',
-    description: 'How strongly the outlines ring after each kick, like a plucked string settling.',
-    default: 1, min: 0, max: 1.5, step: 0.01, format: 'percent',
-  },
-  {
-    id: 'phraseDissolve', group: 'react', kind: 'toggle', label: 'Phrase Dissolve',
-    description: 'Dissolves the whole word into the scope at each musical phrase, then re-forms it.',
-    default: true,
-  },
-  {
-    id: 'phraseLength', group: 'react', kind: 'select', label: 'Phrase Length',
-    description: 'How often the whole word dissolves.',
-    default: 'bar4', options: XY_SCOPE_PHRASE_LENGTHS,
-    visibleWhen: { parameterId: 'phraseDissolve', equals: true },
-  },
-  {
-    id: 'dropDissolve', group: 'react', kind: 'toggle', label: 'Dissolve On Drops',
-    description: 'Dissolves the word when the music drops after a break.',
-    default: true,
   },
   // ── Palette ─────────────────────────────────────────────────────────────────
   {
@@ -181,18 +221,18 @@ export interface XyScopePreset {
 export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
   {
     id: 'conversation', name: 'Converse',
-    description: 'Letters answer each other with the track and dissolve at every phrase.',
-    parameters: { intensity: 1, audioReactivity: 1, trail: 110, glow: 1, dissolveDepth: 1, answerDelay: 45, vibration: 1, phraseDissolve: true, phraseLength: 'bar4', dropDissolve: true },
+    description: 'The word flows through every form on each bar and comes back as letters.',
+    parameters: { intensity: 1, audioReactivity: 1, motionAmount: 0.7, bpmSync: true, pattern: 'word', patternChange: true, trigger: 'bar', transitionLength: '1', trail: 110, glow: 1, formResponse: 1, vibration: 1, dissolveDepth: 1, answerDelay: 45 },
   },
   {
     id: 'clean-scope', name: 'Clean Scope',
-    description: 'Crisp, mostly solid lines with a light ring on each kick.',
-    parameters: { intensity: 1, audioReactivity: 0.8, trail: 70, glow: 0.8, dissolveDepth: 0.35, answerDelay: 30, vibration: 0.55, phraseDissolve: true, phraseLength: 'bar8', dropDissolve: true },
+    description: 'Crisp letters held solid, with a light ring on each kick.',
+    parameters: { intensity: 1, audioReactivity: 0.8, motionAmount: 0.5, bpmSync: true, pattern: 'word', patternChange: false, trigger: 'bar', transitionLength: '2', trail: 70, glow: 0.8, formResponse: 0.7, vibration: 0.55, dissolveDepth: 0.35, answerDelay: 30 },
   },
   {
     id: 'storm', name: 'Storm',
-    description: 'Deep dissolves, long trails and a heavy ring.',
-    parameters: { intensity: 1.2, audioReactivity: 1, trail: 200, glow: 1.5, dissolveDepth: 1.5, answerDelay: 70, vibration: 1.4, phraseDissolve: true, phraseLength: 'bar4', dropDissolve: true },
+    description: 'Fast changes every two beats with long trails and a heavy ring.',
+    parameters: { intensity: 1.2, audioReactivity: 1, motionAmount: 1, bpmSync: true, pattern: 'word', patternChange: true, trigger: 'beat2', transitionLength: '0.5', trail: 200, glow: 1.5, formResponse: 1.4, vibration: 1.4, dissolveDepth: 1.5, answerDelay: 70 },
   },
 ] satisfies readonly XyScopePreset[])
 
@@ -246,8 +286,7 @@ export function normalizeXyScopeParameterValue(definition: XyScopeParameterDefin
 export function normalizeXyScopeText(value: unknown): string {
   if (typeof value !== 'string') return XY_SCOPE_DEFAULT_TEXT
   // One line only; control characters never reach the outline lookup.
-  const cleaned = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, XY_SCOPE_TEXT_MAX_LENGTH)
-  return cleaned
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').slice(0, XY_SCOPE_TEXT_MAX_LENGTH)
 }
 
 export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
@@ -282,17 +321,22 @@ export function applyXyScopePreset(settings: XyScopeSettings, presetId: string):
 export interface XyScopeResolvedParameters {
   intensity: number
   audioReactivity: number
+  motionAmount: number
+  bpmSync: boolean
+  pattern: XyScopePattern
+  patternChange: boolean
+  trigger: XyScopeTrigger
+  /** Transition Length in beats. */
+  transitionBeats: number
   size: number
   letterSpacing: number
+  minPieceSize: number
   trailMs: number
   glow: number
-  minPieceSize: number
+  formResponse: number
+  vibration: number
   dissolveDepth: number
   answerDelayMs: number
-  vibration: number
-  phraseDissolve: boolean
-  phraseLength: XyScopePhraseLength
-  dropDissolve: boolean
   beamColor: string
   glowColor: string
   backgroundColor: string
@@ -303,17 +347,21 @@ export function resolveXyScopeParameters(settings: XyScopeSettings): XyScopeReso
   return {
     intensity: p.intensity as number,
     audioReactivity: p.audioReactivity as number,
+    motionAmount: p.motionAmount as number,
+    bpmSync: p.bpmSync as boolean,
+    pattern: p.pattern as XyScopePattern,
+    patternChange: p.patternChange as boolean,
+    trigger: p.trigger as XyScopeTrigger,
+    transitionBeats: Number(p.transitionLength),
     size: p.size as number,
     letterSpacing: p.letterSpacing as number,
+    minPieceSize: p.minPieceSize as number,
     trailMs: p.trail as number,
     glow: p.glow as number,
-    minPieceSize: p.minPieceSize as number,
+    formResponse: p.formResponse as number,
+    vibration: p.vibration as number,
     dissolveDepth: p.dissolveDepth as number,
     answerDelayMs: p.answerDelay as number,
-    vibration: p.vibration as number,
-    phraseDissolve: p.phraseDissolve as boolean,
-    phraseLength: p.phraseLength as XyScopePhraseLength,
-    dropDissolve: p.dropDissolve as boolean,
     beamColor: p.beamColor as string,
     glowColor: p.glowColor as string,
     backgroundColor: p.backgroundColor as string,

@@ -12,6 +12,7 @@ import {
   getXyScopeDefaultParameters,
   getXyScopePreset,
   isXyScopeParameterVisible,
+  XY_SCOPE_DESIGN_SUBGROUPS,
   XY_SCOPE_GROUP_LABELS,
   XY_SCOPE_GROUP_ORDER,
   XY_SCOPE_PARAMETERS,
@@ -206,6 +207,30 @@ export function XyScopeDesignPanel() {
   }
   const resetParameters = () => setXyScopeSettings({ parameters: baseline })
 
+  const renderControl = (definition: XyScopeParameterDefinition) => (
+    <XyScopeParameterControl
+      key={definition.id}
+      definition={definition}
+      value={values[definition.id]}
+      onChange={value => setValue(definition.id, value)}
+    />
+  )
+  // Nested groups sit inside their parent as collapsible sub-headings, exactly as in the Cinema 2.0 Design inspector.
+  const renderControls = (controls: readonly XyScopeParameterDefinition[]) => (
+    <>
+      {controls.filter(definition => !definition.subgroup).map(renderControl)}
+      {XY_SCOPE_DESIGN_SUBGROUPS.map(subgroup => {
+        const inGroup = controls.filter(definition => definition.subgroup === subgroup)
+        if (inGroup.length === 0) return null
+        return (
+          <Collapsible key={subgroup} label={subgroup}>
+            <div data-xyscope-subgroup={subgroup} style={{ display: 'contents' }}>{inGroup.map(renderControl)}</div>
+          </Collapsible>
+        )
+      })}
+    </>
+  )
+
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true">
       <div className="rv-workspace-panel-body">
@@ -223,14 +248,7 @@ export function XyScopeDesignPanel() {
                   <div data-xyscope-parent-group={group} style={{ display: 'contents' }}>
                     {controls.length === 0
                       ? <div className="rv-ctrl-info">No controls yet.</div>
-                      : controls.map(definition => (
-                        <XyScopeParameterControl
-                          key={definition.id}
-                          definition={definition}
-                          value={values[definition.id]}
-                          onChange={value => setValue(definition.id, value)}
-                        />
-                      ))}
+                      : renderControls(controls)}
                   </div>
                 </Collapsible>
               )

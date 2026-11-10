@@ -2,9 +2,30 @@
 
 ## Purpose
 
-Sound Drawing XY draws a word as a single phosphor beam in the style of an analog XY scope. The letters answer each other in time with the loaded track, dissolve into the track's live stereo signal, and re-form crisp and readable. It replaces the point-offset model of the legacy Sound Drawing engine for text; shapes, SVG and Classic Scope are not part of this engine yet.
+Sound Drawing XY draws a word as a single phosphor beam in the style of an analog XY scope. The letters answer each other in time with the loaded track, then dissolve along their outlines into a waveform and a series of oscillator figures, perform as them, and are drawn again as crisp, bold letters. It replaces the point-offset model of the legacy Sound Drawing engine for text; shapes, SVG and Classic Scope are not part of this engine yet.
 
 The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It ships **side by side** with the legacy `oscilloscope` engine, which is untouched. When the new engine is approved in the full app, the legacy engine, its store slices and its presets are removed in one change and `oscilloscope` becomes a retired identity that restores as `xyScope`. That migration is deliberately not part of this document's scope.
+
+## Choreography
+
+Pacing follows the Cinema 2.0 choreography contract and reuses its code: `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` for the Trigger dropdown (the eleven canonical events, unchanged) and `Cinema2MainframePatternController`, whose pattern-list contract is generic, for choosing the active pattern.
+
+- **Pattern** is the form the word is in. The cycle is Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word, so the letters are drawn again at the end of every cycle.
+- **Pattern Change** (a boolean toggle) steps to the next pattern on each **Trigger** event. **Trigger** is shown only while Pattern Change is on and keeps its value while hidden. **Transition Length** (½, 1, 2 or 4 beats) sets how long the letters take to flow into the next pattern.
+- A manual Pattern edit takes effect at once, leaves Pattern Change on, and the next Trigger continues from the chosen pattern. An event already present on the frame Pattern Change is switched on, or on a seek or track change, is not consumed. A seek returns to the authored pattern.
+- Motion Amount zero freezes the figures and makes pattern changes land at once. BPM Sync locks the figures' rotation to the loaded track's beat grid (so it stops when the music stops); off, they turn at a steady tempo.
+
+| Pattern | What the beam draws |
+| --- | --- |
+| Word | The letters: bold Anton outlines, or the chosen font |
+| Waveform | The real audio as an oscilloscope trace across the stage, low-passed to about 1 kHz so it reads as a waveform |
+| Stereo Scope | The track's live mid/side vectorscope trace |
+| Ring | A circle that swells with the bass, with serrations that sharpen with the highs and snares |
+| Rosette | A looping epicycle flower with rotating petals (5, 6 or 7, a different count on each visit) |
+| Weave | A Lissajous figure (3:2, 5:4, 4:3, 5:3 or 7:5, a different ratio on each visit) |
+| Pinwheel | Spinning crescent arms; the beam lifts between arms |
+
+Each form is a pure function of a position along the whole word (letters left to right, each letter along its outline) and a drive built from the music. Every letter holds a weight per pattern that eases toward its target (`XyScopeBlender`), so the change runs through the word letter by letter at Answer Delay, an interrupted change never pops, and each letter unspools along its outline: the start of a letter leaves first and the letters are visible through the lines mid-change.
 
 ## Why a new motion model
 
@@ -22,7 +43,9 @@ The XY engine never scatters points. Letters ring like a plucked string (a stand
 | Library font loading | `XyScopeFontLibrary.ts` |
 | Conversation between letters | `XyScopeConversation.ts` |
 | Motion model and live scope window | `XyScopeMotion.ts` |
-| Musical events from the shared context | `XyScopeEvents.ts` |
+| Patterns (the forms) | `XyScopePatterns.ts` |
+| Letter-to-letter pattern blending | `XyScopeBlender.ts` |
+| Musical events and Trigger identities from the shared context | `XyScopeEvents.ts` |
 | Beam drawing | `XyScopeBeam.ts` |
 | Per-canvas runtime | `XyScopeRuntime.ts` |
 | Surface and inspector panels | `XyScopeSurface.tsx`, `XyScopeWorkspace.tsx` |
@@ -32,16 +55,16 @@ The XY engine never scatters points. Letters ring like a plucked string (a stand
 
 The engine reads the shared performance context built from the Music Intelligence frame. It has no beat grid, phrase clock or analyser of its own.
 
-| Event | Source | Result |
+| Signal | Source | Result |
 | --- | --- | --- |
-| Kick | `context.kick` and `kickStrength` | Ring-down, pop and flash, left to right |
-| Snare | `context.snare` and `snareStrength` | Travelling ripple and a light fray, right to left |
-| Phrase | 4, 8 or 16 bar boundary | Whole word dissolves left to right, then re-forms |
-| Drop | `context.dropOccurrence` increases | Same as a phrase |
+| Kick | `context.kick` and `kickStrength` | Ring-down, pop and flash across the letters, left to right |
+| Snare | `context.snare` and `snareStrength` | Travelling ripple and a light fray into the stereo scope, right to left |
+| Trigger | The chosen Trigger (below) | Advances Pattern Change |
+| Bass, mid, high | `context.bass`, `mid`, `high` | Drive the figures through Form Response |
 
-Phrases are counted from the current macro-section start when the track has analysed sections, so a dissolve lands on a section entry. Without sections the performance block indexes never advance, so the plain bar-grid boundaries are used instead.
+The eleven Triggers resolve to a unique event identity per event: Beat, Downbeat, Every 2 Beats and Every 4 Beats from the beat boundary and beat index; Bar, Every 4 Bars and Every 8 Bars from the bar grid; Kick and Snare from the one-frame hit flags (numbered by fresh audio frame); Phrase from a new analysed phrase, or the 16-bar clock; Drop from a new drop occurrence. The controller advances exactly once per identity however many frames carry it.
 
-Each fresh audio frame is processed once (`frame.frameId` changes), so a one-frame hit is never counted twice. A seek, loop wrap or track replacement (`seekDetected`, `loopWrapDetected`, `trackReplacementDetected`) resets every letter to rest. A new track identity also clears the phosphor trail. Audio Reactivity scales event strength, so zero produces no events and the word holds perfectly still.
+Each fresh audio frame is processed once (`frame.frameId` changes), so a one-frame hit is never counted twice. A seek, loop wrap or track replacement (`seekDetected`, `loopWrapDetected`, `trackReplacementDetected`) resets every letter to rest and the controller to the authored pattern. A new track identity also clears the phosphor trail. Audio Reactivity scales event strength and the figures' response, so zero holds the current pattern perfectly still.
 
 ## Scope window
 
@@ -51,18 +74,22 @@ When no stereo capture is available the cloud is a slow procedural figure, and t
 
 ## Inspector standard
 
-The Design tab follows the same hierarchy as the Cinema 2.0 and Headliner Design inspectors: every user-visible control sits under exactly one collapsible parent group, with the shared control rows (`SliderRow`, `ToggleRow`, `SelectRow`, `PaletteColorRow`), a one-sentence description on every control, and a **Reset Parameters** action.
+The Design tab follows the same hierarchy as the Cinema 2.0 and Headliner Design inspectors: every user-visible control sits under exactly one collapsible parent group, with nested collapsible groups inside Design, the shared control rows (`SliderRow`, `ToggleRow`, `SelectRow`, `PaletteColorRow`), a one-sentence description on every control, and a **Reset Parameters** action.
 
 | Group | Controls |
 | --- | --- |
-| Master Controls | Master Intensity, Audio Reactivity |
-| Design | Text Size, Letter Spacing, Phosphor Trail, Glow, Ignore Small Pieces |
-| React | Dissolve Depth, Answer Delay, Line Vibration, Phrase Dissolve, Phrase Length (only while Phrase Dissolve is on), Dissolve On Drops |
+| Master Controls | Master Intensity, Audio Reactivity, Motion Amount, BPM Sync |
+| Design › Pattern | Pattern, Pattern Change, Trigger (only while Pattern Change is on), Transition Length |
+| Design › Letters | Text Size, Letter Spacing, Ignore Small Pieces |
+| Design › Beam | Phosphor Trail, Glow |
+| React | Form Response, Line Vibration, Snare Fray, Answer Delay |
 | Palette | Beam Core, Beam Glow, Background |
 
 Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY uses **React** there because the music's effect on the word is this engine's effects. The REACT tab keeps the shared music-analysis panel and points to Design → React.
 
-The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and the font. The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets only Master Controls and React values and leaves the word, font and palette alone. A manual edit keeps the preset id and the card shows Modified.
+Pattern Change defaults to **on** so the engine performs when it is first opened. The Cinema 2.0 Blockshift contract defaults it off for that preset; this engine's identity is the choreography, and the Clean Scope preset turns it off and holds the letters.
+
+The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and the font. The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 
@@ -80,8 +107,9 @@ The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and 
 - **Ownership:** `XyScopeSurface` creates the runtime on mount and disposes it on unmount. It owns one `requestAnimationFrame` loop and one `ResizeObserver`, publishes its canvas for recording through `onCanvasReady`, and clears both on unmount.
 - **Store:** the animation loop never subscribes to Zustand. Settings and the resolved font reach the runtime through an effect, so dragging a slider does not recreate the runtime or drop the trail.
 - **Paused audio:** the word keeps drawing and settles to its crisp rest state; the stage is never blank.
+- **Beam:** brightness falls with beam speed and is normalised per length of line, so a tightly packed figure is as bright as a letter. The segment that closes a letter's contour fades as its points move into a form, and the beam lifts between the arms of a pinwheel.
 - **Rendering:** Canvas2D only. The phosphor trail is capped at 300 ms because an 8-bit canvas cannot fade a long trail fully to the background. The shared GPU phosphor pipeline can replace the stroke passes later without changing the motion model.
-- **Not implemented:** quality tiers, multi-line text, kerning, shapes, SVG, Classic Scope, preview thumbnails for the preset cards, Preset Manager and Help Center entries, and the Sound Drawing timeline lane. The engine has no context-loss path because Canvas2D has none.
+- **Not implemented:** Auto Performance, user-authored pattern cycles, a stationary noise-blob or parked-dot pattern, quality tiers, multi-line text, kerning, shapes, SVG, Classic Scope, preview thumbnails for the preset cards, Preset Manager and Help Center entries, and the Sound Drawing timeline lane. The engine has no context-loss path because Canvas2D has none.
 
 ## Persistence
 
@@ -91,4 +119,4 @@ The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and 
 
 - Unit tests in `src/components/vyzualz/react/xyScope/` cover settings and the four-group standard, geometry, the conversation, the motion model, event derivation, the beam brightness rules, and the panels and surface lifecycle.
 - `src/stores/xyScopePersistence.test.ts` covers selection, normalization, persistence, migration and reset.
-- Browser verification used a temporary harness that rendered the real surface and panels with the app's CSS against a synthetic audio-feature feed driven from a real track. It confirmed kick ring-downs, snare frays, the left-to-right phrase dissolve and re-form, a still word while paused, and that the Design inspector matches the Headliner Design inspector's structure and row styling.
+- Browser verification used temporary harnesses that rendered the real surface, runtime and panels with the app's CSS against a synthetic audio-feature feed driven from a real track. They confirmed kick ring-downs, snare frays, a still word while paused, the full pattern cycle (Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word) with the letters visible through the lines mid-change, and that the Design inspector matches the Headliner Design inspector's structure and row styling.

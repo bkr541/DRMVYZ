@@ -3,11 +3,13 @@
 // inputs always draw the same frame.
 //
 // The audio never scatters points. Letters ring like a plucked string (a standing wave along the outline that
-// starts on each hit and settles), ripple when answered, and dissolve into the live stereo scope — a short
-// slice of the track's real left/right signal — before re-forming.
+// starts on each hit and settles), ripple when answered, and fray into the live stereo scope — a short slice of the
+// track's real left/right signal. When the pattern changes, the points unspool along the outlines into an
+// oscillator form (a waveform, a ring, a rosette...) and are drawn back into letters when it changes again.
 
 import type { XyScopeGlyphGeometry } from './XyScopeGeometry'
 import type { XyScopeGlyphState } from './XyScopeConversation'
+import { computeXyScopeFormPoint, xyScopeFormBreak, XY_SCOPE_PATTERN_IDS, type XyScopeFormDrive, type XyScopeFormPattern, type XyScopePoint } from './XyScopePatterns'
 
 export const XY_SCOPE_CLOUD_SAMPLES = 512
 export const XY_SCOPE_WAVE_SAMPLES = 32
@@ -18,9 +20,12 @@ export interface XyScopeScopeFrame {
   cloudX: Float32Array
   cloudY: Float32Array
   wave: Float32Array
+  /** The mid signal low-passed to a readable oscilloscope trace (about 1 kHz), for the Waveform pattern. */
+  trace: Float32Array
   /** Gain that fits the trace to the letter box. */
   cloudGain: number
   waveGain: number
+  traceGain: number
   /** 0..1 loudness relative to the recent peak. */
   level: number
   source: 'stereo' | 'fallback'
@@ -31,7 +36,8 @@ export function createXyScopeScopeFrame(): XyScopeScopeFrame {
     cloudX: new Float32Array(XY_SCOPE_CLOUD_SAMPLES),
     cloudY: new Float32Array(XY_SCOPE_CLOUD_SAMPLES),
     wave: new Float32Array(XY_SCOPE_WAVE_SAMPLES),
-    cloudGain: 1, waveGain: 1, level: 0, source: 'fallback',
+    trace: new Float32Array(XY_SCOPE_CLOUD_SAMPLES),
+    cloudGain: 1, waveGain: 1, traceGain: 1, level: 0, source: 'fallback',
   }
 }
 
@@ -83,12 +89,30 @@ export class XyScopeScopeWindow {
       wave[k] = sum / block
       wavePeak = Math.max(wavePeak, Math.abs(wave[k]))
     }
+    // A box low-pass over the mid signal: the bass and body of the track, without the hair of the top end.
+    const { trace } = frame
+    let tracePeak = 1e-4
+    const radius = 5
+    for (let k = 0; k < XY_SCOPE_CLOUD_SAMPLES; k += 1) {
+      let sum = 0
+      let count = 0
+      for (let q = -radius; q <= radius; q += 1) {
+        const index = k + q
+        if (index < 0 || index >= XY_SCOPE_CLOUD_SAMPLES) continue
+        sum += cloudY[index]
+        count += 1
+      }
+      trace[k] = sum / count
+      tracePeak = Math.max(tracePeak, Math.abs(trace[k]))
+    }
     const targetCloud = 1 / Math.max(peak, 0.03)
     const targetWave = 1 / Math.max(wavePeak, 0.02)
+    const targetTrace = 1 / Math.max(tracePeak, 0.02)
     const ease = 1 - Math.exp(-Math.max(0, dtSec) / 0.35)
     // Gain drops at once (never clip) and recovers slowly.
     frame.cloudGain = targetCloud < frame.cloudGain ? targetCloud : frame.cloudGain + (targetCloud - frame.cloudGain) * ease
     frame.waveGain = targetWave < frame.waveGain ? targetWave : frame.waveGain + (targetWave - frame.waveGain) * ease
+    frame.traceGain = targetTrace < frame.traceGain ? targetTrace : frame.traceGain + (targetTrace - frame.traceGain) * ease
     this.levelPeak = Math.max(energy, this.levelPeak * Math.exp(-Math.max(0, dtSec) / 6))
     frame.level = Math.min(1, energy / (this.levelPeak + 1e-6))
     return frame
@@ -106,13 +130,29 @@ export interface XyScopePointBuffers {
   /** Screen position, px from the stage centre. */
   x: Float32Array
   y: Float32Array
-  /** 0..1 how far each point has dissolved, so the renderer can dim the cloud. */
+  /** 0..1 how far each point has frayed into the scope, so the renderer can dim the cloud. */
   dissolved: Float32Array
+  /** 0..1 how far each point has moved into an oscillator form, so the renderer can open the letter's closed loops. */
+  form: Float32Array
+  /** 0..1 how much the line from this point to the next is a hand-over between separate strokes of a form (not drawn). */
+  gap: Float32Array
 }
 
 export function createXyScopePointBuffers(count: number): XyScopePointBuffers {
-  return { x: new Float32Array(count), y: new Float32Array(count), dissolved: new Float32Array(count) }
+  return { x: new Float32Array(count), y: new Float32Array(count), dissolved: new Float32Array(count), form: new Float32Array(count), gap: new Float32Array(count) }
 }
+
+/** A letter's share of the pattern blend: its weights, where it sits in the whole word, and what the music is doing. */
+export interface XyScopeGlyphForm {
+  /** Weight per pattern in `XY_SCOPE_PATTERN_IDS` order; they sum to 1 and index 0 is the letters themselves. */
+  weights: Float32Array
+  /** Index of this letter's first point within the whole word, and the word's total point count. */
+  globalOffset: number
+  globalTotal: number
+  drive: XyScopeFormDrive
+}
+
+const formPoint: XyScopePoint = { x: 0, y: 0 }
 
 const smoothstep = (value: number) => value * value * (3 - 2 * value)
 
@@ -137,6 +177,7 @@ export function computeXyScopeGlyphPoints(
   params: XyScopeMotionParams,
   scope: XyScopeScopeFrame,
   out: XyScopePointBuffers,
+  form: XyScopeGlyphForm | null = null,
 ): number {
   const height = glyph.heightPx
   const vk = params.vibration
@@ -147,6 +188,7 @@ export function computeXyScopeGlyphPoints(
   const cloudRadiusX = scope.cloudGain * 0.9 * height
   const cloudRadiusY = scope.cloudGain * 0.66 * height
   const dissolving = dissolve > 0.004
+  const formActive = form != null && form.weights[0] < 0.998
 
   for (let i = 0; i < glyph.count; i += 1) {
     const s = glyph.s[i]
@@ -169,9 +211,42 @@ export function computeXyScopeGlyphPoints(
         y = py + (-scope.cloudY[j] * cloudRadiusY - py) * amount
       }
     }
-    out.x[i] = glyph.centerX + x
-    out.y[i] = y
+    let outX = glyph.centerX + x
+    let outY = y
+    let formAmount = 0
+    if (form && formActive) {
+      // Letters unspool along their outline into each active form, so a change runs through the lines.
+      let fx = 0
+      let fy = 0
+      let sum = 0
+      let gapAmount = 0
+      for (let p = 1; p < XY_SCOPE_PATTERN_IDS.length; p += 1) {
+        const weight = form.weights[p]
+        if (weight < 0.002) continue
+        const effective = smoothstep(Math.max(0, Math.min(1, (weight * 1.25 - s) / 0.25)))
+        if (effective <= 0) continue
+        const formId = XY_SCOPE_PATTERN_IDS[p] as XyScopeFormPattern
+        const g = (form.globalOffset + i) / form.globalTotal
+        computeXyScopeFormPoint(formId, g, form.drive, formPoint)
+        if (xyScopeFormBreak(formId, g, (form.globalOffset + i + 1) / form.globalTotal, form.drive.variation)) gapAmount = Math.max(gapAmount, effective)
+        fx += effective * formPoint.x
+        fy += effective * formPoint.y
+        sum += effective
+      }
+      if (sum > 1) { fx /= sum; fy /= sum; sum = 1 }
+      if (sum > 0) {
+        outX = outX * (1 - sum) + fx
+        outY = outY * (1 - sum) + fy
+        formAmount = sum
+      }
+      out.gap[i] = Math.min(1, gapAmount)
+    } else {
+      out.gap[i] = 0
+    }
+    out.x[i] = outX
+    out.y[i] = outY
     out.dissolved[i] = amount
+    out.form[i] = formAmount
   }
   return dissolve
 }

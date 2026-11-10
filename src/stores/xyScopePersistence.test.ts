@@ -25,14 +25,14 @@ describe('Sound Drawing XY store and persistence contract', () => {
     useReactStore.getState().setXyScopeSettings({
       text: 'A'.repeat(99),
       fontId: 12 as never,
-      parameters: { intensity: 50, beamColor: 'nope', phraseLength: 'bar9' },
+      parameters: { intensity: 50, beamColor: 'nope', trigger: 'every-second' },
     })
     const settings = useReactStore.getState().xyScopeSettings
     expect(settings.text).toHaveLength(16)
     expect(settings.fontId).toBeNull()
     expect(settings.parameters.intensity).toBe(2)
     expect(settings.parameters.beamColor).toBe('#96fff0')
-    expect(settings.parameters.phraseLength).toBe('bar4')
+    expect(settings.parameters.trigger).toBe('bar')
   })
 
   it('persists the word, font and every value as project data and restores them', () => {

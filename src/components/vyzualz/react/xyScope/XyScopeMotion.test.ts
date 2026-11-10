@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildXyScopeLayout, getDefaultXyScopeFont } from './XyScopeGeometry'
 import { createXyScopeGlyphState } from './XyScopeConversation'
+import { createXyScopeFormDrive, XY_SCOPE_PATTERN_IDS, xyScopePatternIndex, type XyScopePattern } from './XyScopePatterns'
 import {
   computeXyScopeGlyphPoints,
   createXyScopePointBuffers,
@@ -131,5 +132,69 @@ describe('computeXyScopeGlyphPoints', () => {
     computeXyScopeGlyphPoints(glyph, 1, state, 0.3, { vibration: 1, dissolveDepth: 1 }, scope, b)
     expect(Array.from(a.x)).toEqual(Array.from(b.x))
     expect(Array.from(a.y)).toEqual(Array.from(b.y))
+  })
+})
+
+describe('computeXyScopeGlyphPoints: moving into an oscillator form and back', () => {
+  const scope = createXyScopeScopeFrame()
+  const total = layout.totalPoints
+  const offset = layout.glyphs.slice(0, 1).reduce((sum, g) => sum + g.count, 0)
+  const rest = createXyScopeGlyphState()
+
+  function formFor(pattern: XyScopePattern, weight: number) {
+    const weights = new Float32Array(XY_SCOPE_PATTERN_IDS.length)
+    weights[xyScopePatternIndex(pattern)] = weight
+    weights[0] = 1 - weight
+    const drive = createXyScopeFormDrive()
+    drive.radius = 220
+    drive.cloudX.fill(0.2); drive.cloudY.fill(0.3)
+    return { weights, globalOffset: offset, globalTotal: total, drive }
+  }
+
+  it('is exactly the letter when the word weight is one, with the loops closed', () => {
+    const out = createXyScopePointBuffers(glyph.count)
+    computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 0, dissolveDepth: 1 }, scope, out, formFor('ring', 0))
+    for (let i = 0; i < glyph.count; i += 1) {
+      expect(out.x[i]).toBeCloseTo(glyph.centerX + glyph.x[i], 3)
+      expect(out.form[i]).toBe(0)
+    }
+  })
+
+  it('puts every point on the form at full weight, and none of the letter remains', () => {
+    const out = createXyScopePointBuffers(glyph.count)
+    computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 0, dissolveDepth: 1 }, scope, out, formFor('ring', 1))
+    for (let i = 0; i < glyph.count; i += 1) {
+      expect(out.form[i]).toBeGreaterThan(0.999)
+      // The ring is centred on the stage, so every point sits at about the ring radius from the origin.
+      expect(Math.hypot(out.x[i], out.y[i])).toBeGreaterThan(100)
+      expect(Math.hypot(out.x[i], out.y[i])).toBeLessThan(260)
+    }
+  })
+
+  it('unspools along the outline: a half-way change moves the start of the letter first', () => {
+    const out = createXyScopePointBuffers(glyph.count)
+    computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 0, dissolveDepth: 1 }, scope, out, formFor('ring', 0.5))
+    let early = 0
+    let late = 0
+    let earlyN = 0
+    let lateN = 0
+    for (let i = 0; i < glyph.count; i += 1) {
+      if (glyph.s[i] < 0.3) { early += out.form[i]; earlyN += 1 }
+      if (glyph.s[i] > 0.8) { late += out.form[i]; lateN += 1 }
+    }
+    expect(early / earlyN).toBeGreaterThan(late / lateN)
+    expect(early / earlyN).toBeGreaterThan(0.5)
+    expect(late / lateN).toBeLessThan(0.2)
+  })
+
+  it('is deterministic and never produces NaN', () => {
+    const a = createXyScopePointBuffers(glyph.count)
+    const b = createXyScopePointBuffers(glyph.count)
+    for (const pattern of XY_SCOPE_PATTERN_IDS.filter(id => id !== 'word')) {
+      computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 1, dissolveDepth: 1 }, scope, a, formFor(pattern, 0.6))
+      computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 1, dissolveDepth: 1 }, scope, b, formFor(pattern, 0.6))
+      expect(Array.from(a.x)).toEqual(Array.from(b.x))
+      expect(Array.from(a.x).every(Number.isFinite) && Array.from(a.y).every(Number.isFinite)).toBe(true)
+    }
   })
 })

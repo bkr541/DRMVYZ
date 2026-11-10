@@ -107,17 +107,32 @@ describe('Sound Drawing XY Design inspector standard', () => {
     const group = (id: string) => container.querySelector(`[data-xyscope-parent-group="${id}"]`)?.textContent ?? ''
     expect(group('master-controls')).toContain('Master Intensity')
     expect(group('master-controls')).toContain('Audio Reactivity')
+    expect(group('master-controls')).toContain('Motion Amount')
+    expect(group('master-controls')).toContain('BPM Sync')
     expect(group('design')).toContain('Phosphor Trail')
     expect(group('design')).toContain('Ignore Small Pieces')
-    expect(group('react')).toContain('Dissolve Depth')
+    expect(group('react')).toContain('Form Response')
+    expect(group('react')).toContain('Snare Fray')
     expect(group('react')).toContain('Answer Delay')
     expect(group('react')).toContain('Line Vibration')
     expect(group('palette')).toContain('Beam Core')
     expect(group('palette')).toContain('Beam Glow')
     expect(group('palette')).toContain('Background')
-    expect(container.querySelectorAll('.rv-ctrl-description').length).toBeGreaterThanOrEqual(12)
+    expect(container.querySelectorAll('.rv-ctrl-description').length).toBeGreaterThanOrEqual(14)
     // No label is a cryptic routing arrow.
     expect(container.textContent).not.toMatch(/→\s*(Scale|Twist|Jitter|Bloom)/)
+  })
+
+  it('nests Pattern, Letters and Beam inside Design, with Pattern first and its controls in the Cinema 2.0 order', async () => {
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    const subgroups = [...container.querySelectorAll('[data-xyscope-subgroup]')].map(node => node.getAttribute('data-xyscope-subgroup'))
+    expect(subgroups).toEqual(['Pattern', 'Letters', 'Beam'])
+    const pattern = container.querySelector('[data-xyscope-subgroup="Pattern"]')!
+    const text = pattern.textContent ?? ''
+    const order = ['Pattern', 'Pattern Change', 'Trigger', 'Transition Length'].map(label => text.indexOf(label))
+    expect(order.every(index => index >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    expect(container.querySelector('#xyscope-parameter-patternChange')).not.toBeNull()
   })
 
   it('writes a slider change to the store and keeps the preset id', async () => {
@@ -129,15 +144,15 @@ describe('Sound Drawing XY Design inspector standard', () => {
     expect(state.presetId).toBe('conversation')
   })
 
-  it('hides Phrase Length while Phrase Dissolve is off, keeps its value, and brings it back', async () => {
+  it('hides Trigger while Pattern Change is off, keeps its value, and brings it back', async () => {
     await act(async () => root.render(<XyScopeDesignPanel />))
-    expect(container.textContent).toContain('Phrase Length')
-    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-phraseDissolve')?.click())
-    expect(useReactStore.getState().xyScopeSettings.parameters.phraseDissolve).toBe(false)
-    expect(container.textContent).not.toContain('Phrase Length')
-    expect(useReactStore.getState().xyScopeSettings.parameters.phraseLength).toBe('bar4')
-    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-phraseDissolve')?.click())
-    expect(container.textContent).toContain('Phrase Length')
+    expect(container.querySelector('#xyscope-parameter-trigger')).not.toBeNull()
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-patternChange')?.click())
+    expect(useReactStore.getState().xyScopeSettings.parameters.patternChange).toBe(false)
+    expect(container.querySelector('#xyscope-parameter-trigger')).toBeNull()
+    expect(useReactStore.getState().xyScopeSettings.parameters.trigger).toBe('bar')
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-parameter-patternChange')?.click())
+    expect(container.querySelector('#xyscope-parameter-trigger')).not.toBeNull()
   })
 
   it('resets parameters to the active preset and leaves the word, font and preset alone', async () => {
