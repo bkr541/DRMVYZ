@@ -103,6 +103,19 @@ function setPlistValue(plistPath, key, value) {
   execFileSync('/usr/bin/plutil', ['-replace', key, '-string', value, plistPath])
 }
 
+// macOS only exposes an iPhone (Continuity Camera) to an app whose bundle declares this key, and the capture
+// runs in the helper processes, so the main app and every helper must carry it.
+const CONTINUITY_CAMERA_KEY = 'NSCameraUseContinuityCameraDeviceType'
+
+function hasContinuityCameraKey(plistPath) {
+  try {
+    execFileSync('/usr/bin/plutil', ['-extract', CONTINUITY_CAMERA_KEY, 'raw', plistPath], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 function resolveElectronBinary() {
   if (process.platform !== 'darwin') return stockElectronBinary
 
@@ -115,7 +128,8 @@ function resolveElectronBinary() {
   const cacheRoot = path.join(process.cwd(), 'node_modules', '.cache', 'drmvyz-electron', electronVersion)
   const appPath = path.join(cacheRoot, 'DRMVYZ Dev.app')
   const binaryPath = path.join(appPath, 'Contents', 'MacOS', 'Electron')
-  if (existsSync(binaryPath)) return binaryPath
+  // A shell prepared before the Continuity Camera key existed is rebuilt once.
+  if (existsSync(binaryPath) && hasContinuityCameraKey(path.join(appPath, 'Contents', 'Info.plist'))) return binaryPath
 
   mkdirSync(cacheRoot, { recursive: true })
   const stagingPath = path.join(cacheRoot, `DRMVYZ Dev.app.preparing-${process.pid}`)
@@ -136,6 +150,7 @@ function resolveElectronBinary() {
   ])
   for (const [relativePlistPath, bundleId] of bundleIds) {
     setPlistValue(path.join(stagingPath, relativePlistPath), 'CFBundleIdentifier', bundleId)
+    execFileSync('/usr/bin/plutil', ['-replace', CONTINUITY_CAMERA_KEY, '-bool', 'true', path.join(stagingPath, relativePlistPath)])
   }
   const mainPlist = path.join(stagingPath, 'Contents', 'Info.plist')
   setPlistValue(mainPlist, 'CFBundleName', 'DRMVYZ Dev')

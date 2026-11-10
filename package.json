@@ -162,6 +162,7 @@
   },
   "build": {
     "appId": "com.dvydrm.drmvyz",
+    "afterPack": "scripts/after-pack-continuity-camera.cjs",
     "productName": "DRMVYZ",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
@@ -190,7 +191,8 @@
         "NSBonjourServices": [
           "_drmvyz-cast._tcp"
         ],
-        "NSCameraUsageDescription": "DRMVYZ uses the camera only when you open Headliner to display the camera feed in your visual performance."
+        "NSCameraUsageDescription": "DRMVYZ uses the camera only when you open Headliner to display the camera feed in your visual performance.",
+        "NSCameraUseContinuityCameraDeviceType": true
       }
     },
     "win": {
