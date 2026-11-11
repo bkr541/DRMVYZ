@@ -855,14 +855,20 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               />
             ) : activeReactEngineId === 'xyScope' ? (
               <XyScopeSurface
+                key="react-live-xyScope"
                 onCanvasReady={setOutputCanvas}
                 onLiveFps={setLiveFps}
                 scopeStereoTap={engine.scopeStereoTap}
+                analyser={analyser}
+                isPlaying={engine.isPlaying}
+                isPaused={transportPaused}
+                analysisActive={engine.analysisActive}
                 audio={{
                   getAudioTime: engine.getCurrentTime,
                   trackAnalysis: effectiveTrackAnalysis,
                   trackSections: resolvedTrackSections,
                   trackIdentity: engine.currentAudioTrackId ?? engine.currentTrackId,
+                  durationSec: audioDurationSec,
                 }}
               />
             ) : activeReactEngineId === 'oscilloscope' || activeReactEngineId === 'laserDmx' ? (

@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StereoScopeAudioTap } from '../../../../audio/scope/StereoScopeAudioTap'
 import { AudioFeatureBus } from '../../../../features/musicIntelligence/AudioFeatureBus'
+import { MusicIntelligenceAnalyserFramePump } from '../../../../features/musicIntelligence/MusicIntelligenceAnalyserFramePump'
 import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntelligence/types'
 import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactTrackSection } from '../ReactTypes'
 import { XyScopeRuntime } from './XyScopeRuntime'
 import { useXyScopeFont } from './XyScopeFontLibrary'
+import { XyScopeTransportTracker } from './XyScopeTransport'
 
 /** Samples read from the stereo tap each frame; matches the scope window the runtime expects. */
 const STEREO_READ_FRAMES = 2048
+/** Publisher id for the frames this surface pumps into the shared audio path. */
+export const XY_SCOPE_PUBLISHER_ID = 'react:xyScope'
 
 export interface XyScopeAudioInput {
   /** Fresh audio-clock time in seconds. */
@@ -17,17 +21,31 @@ export interface XyScopeAudioInput {
   trackAnalysis?: TrackIntelligenceAnalysis | null
   trackSections?: ReactTrackSection[]
   trackIdentity?: string | null
+  durationSec?: number
 }
 
 export function XyScopeSurface({
   onCanvasReady,
   onLiveFps,
   audio,
+  analyser = null,
+  isPlaying = false,
+  isPaused = false,
+  analysisActive,
   scopeStereoTap = null,
 }: {
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void
   onLiveFps?: (fps: number) => void
   audio?: XyScopeAudioInput
+  /**
+   * The master analyser. Like PixGrid and Cinema 2.0, this surface owns the analysis pump while it is the active
+   * engine: it feeds the one shared Music Intelligence engine, so kicks, beats and bars exist for it to read.
+   */
+  analyser?: AnalyserNode | null
+  isPlaying?: boolean
+  isPaused?: boolean
+  /** Live Input analysis is the performance and counts as playing. */
+  analysisActive?: boolean
   scopeStereoTap?: StereoScopeAudioTap | null
 }) {
   const hostRef = useRef<HTMLElement | null>(null)
@@ -37,8 +55,8 @@ export function XyScopeSurface({
   const resolution = useXyScopeFont(settings.fontId)
   const [scopeSource, setScopeSource] = useState<'stereo' | 'fallback'>('fallback')
 
-  const inputRef = useRef({ audio, scopeStereoTap, onLiveFps })
-  inputRef.current = { audio, scopeStereoTap, onLiveFps }
+  const inputRef = useRef({ audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive })
+  inputRef.current = { audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive }
   const settingsRef = useRef({ settings, font: resolution.font })
   settingsRef.current = { settings, font: resolution.font }
 
@@ -54,6 +72,8 @@ export function XyScopeSurface({
     const runtime = new XyScopeRuntime(canvas)
     runtimeRef.current = runtime
     runtime.setSettings(settingsRef.current.settings, settingsRef.current.font)
+    const pump = new MusicIntelligenceAnalyserFramePump({ publisherId: XY_SCOPE_PUBLISHER_ID })
+    const transport = new XyScopeTransportTracker()
 
     const measure = () => {
       const rect = host.getBoundingClientRect()
@@ -64,8 +84,8 @@ export function XyScopeSurface({
     observer?.observe(host)
 
     let previousContext: SharedPerformanceContext | null = null
+    let context: SharedPerformanceContext | null = null
     let lastFrameId = -1
-    let lastTrackIdentity: string | null = null
     let raf = 0
     let fpsFrames = 0
     let fpsStart = performance.now()
@@ -73,38 +93,53 @@ export function XyScopeSurface({
 
     const loop = (timestamp: number) => {
       raf = requestAnimationFrame(loop)
-      const { audio: audioInput, scopeStereoTap: tap, onLiveFps: report } = inputRef.current
-      const frame = AudioFeatureBus.getFrame()
-      const audioTimeSec = audioInput?.getAudioTime?.() ?? frame.timeSec
-      const identity = audioInput?.trackIdentity ?? 'xyScope:unloaded-track'
-      if (identity !== lastTrackIdentity) {
-        // A new track starts from rest: no carried-over dissolve or trail.
-        if (lastTrackIdentity !== null) runtime.reset()
-        lastTrackIdentity = identity
+      const current = inputRef.current
+      const audioInput = current.audio
+      const identity = audioInput?.trackIdentity ?? null
+      const rawTime = audioInput?.getAudioTime?.()
+      const audioTime = typeof rawTime === 'number' && Number.isFinite(rawTime) ? Math.max(0, rawTime) : AudioFeatureBus.getFrame().timeSec
+
+      // The music is "active" for reactivity when analysis runs and the transport is not paused; the clock runs
+      // only while it is playing. Live Input has no file transport but its analysis is the performance.
+      const reactivityActive = (current.analysisActive ?? current.isPlaying) && !current.isPaused
+      const clockActive = (current.isPlaying && !current.isPaused) || reactivityActive
+      const state = transport.update({ audioTime, clockActive, wallMs: performance.now(), durationSec: audioInput?.durationSec ?? 0, trackIdentity: identity })
+      if (state.trackChanged) {
+        // A new track starts from rest: no carried-over pattern, dissolve or trail.
+        runtime.reset()
         previousContext = null
+        context = null
+        lastFrameId = -1
       }
+
+      // Publish this frame's analysis to the shared Music Intelligence engine, as every renderer-owned loop does.
+      const frame = current.analyser
+        ? pump.sample({ analyser: current.analyser, audioTime, isPlaying: reactivityActive, trackIdentity: identity })
+        : AudioFeatureBus.getFrame()
       const fresh = frame.frameId !== lastFrameId
       lastFrameId = frame.frameId
-      let context = previousContext
-      if (fresh) {
+      if (fresh || state.discontinuity) {
         context = buildSharedPerformanceContext({
-          audioTimeSec: Number.isFinite(audioTimeSec) && audioTimeSec >= 0 ? audioTimeSec : 0,
+          audioTimeSec: audioTime,
           frame,
           analysis: audioInput?.trackAnalysis ?? null,
-          resolvedSections: audioInput?.trackSections ?? [],
-          trackIdentity: identity,
-          trackChangeIdentity: `track:${identity}`,
+          resolvedSections: audioInput?.trackSections ?? frame.resolvedSections ?? [],
+          durationSec: audioInput?.durationSec,
+          trackIdentity: identity ?? frame.trackId ?? frame.sourceId,
+          seekIdentity: state.seekIdentity,
+          loopIdentity: state.loopIdentity,
+          timingDiscontinuityIdentity: state.timingIdentity,
           previous: previousContext,
         })
         previousContext = context
       }
-      const stereo = tap?.readLatest(STEREO_READ_FRAMES, audioTimeSec) ?? null
-      runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh, stereo })
+      const stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
+      runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo })
 
       fpsFrames += 1
       const elapsed = timestamp - fpsStart
       if (elapsed >= 1000) {
-        report?.(Math.round(fpsFrames * 1000 / elapsed))
+        current.onLiveFps?.(Math.round(fpsFrames * 1000 / elapsed))
         fpsFrames = 0
         fpsStart = timestamp
         statusTick += 1
@@ -118,6 +153,7 @@ export function XyScopeSurface({
     return () => {
       cancelAnimationFrame(raf)
       observer?.disconnect()
+      pump.dispose()
       runtime.dispose()
       runtimeRef.current = null
       onCanvasReady?.(null)

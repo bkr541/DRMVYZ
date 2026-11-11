@@ -205,6 +205,53 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   })
 })
 
+describe('Sound Drawing XY audio ownership', () => {
+  // Regression: in the app, music analysis is published by whichever surface is active. A surface that only reads
+  // the shared audio bus sees an empty frame forever, so no kick, beat or bar ever reaches the choreography.
+  function fakeAnalyser(): AnalyserNode {
+    return {
+      context: { sampleRate: 48000 },
+      frequencyBinCount: 1024,
+      fftSize: 2048,
+      getByteFrequencyData: (data: Uint8Array) => { for (let i = 0; i < data.length; i += 1) data[i] = i < 12 ? 220 : 40 },
+      getByteTimeDomainData: (data: Uint8Array) => { for (let i = 0; i < data.length; i += 1) data[i] = 128 + Math.round(60 * Math.sin(i * 0.3)) },
+    } as unknown as AnalyserNode
+  }
+
+  it('pumps the analyser into the shared audio path under its own publisher id when nothing else does', async () => {
+    const { AudioFeatureBus } = await import('../../../../features/musicIntelligence/AudioFeatureBus')
+    const { musicIntelligenceEngine } = await import('../../../../features/musicIntelligence/MusicIntelligenceEngine')
+    musicIntelligenceEngine.initialize({ sampleRate: 48000 })
+    AudioFeatureBus.reset()
+    const analyser = fakeAnalyser()
+    let time = 5
+    await act(async () => root.render(
+      <XyScopeSurface analyser={analyser} isPlaying audio={{ trackIdentity: 'track-1', getAudioTime: () => time }} />,
+    ))
+    expect(AudioFeatureBus.getFrame().frameId).toBe(0)
+    for (let i = 0; i < 4; i += 1) {
+      time += 1 / 60
+      const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
+      rafCallbacks.delete(id)
+      await act(async () => callback(16 * (i + 1)))
+    }
+    expect(AudioFeatureBus.getFrame().frameId).toBeGreaterThan(0)
+    expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('react:xyScope')
+    expect(AudioFeatureBus.getFrame().timeSec).toBeCloseTo(time, 1)
+  })
+
+  it('does not publish anything when it has no analyser, and still draws', async () => {
+    const { AudioFeatureBus } = await import('../../../../features/musicIntelligence/AudioFeatureBus')
+    AudioFeatureBus.reset()
+    await act(async () => root.render(<XyScopeSurface audio={{ trackIdentity: 'track-1' }} />))
+    const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
+    rafCallbacks.delete(id)
+    await act(async () => callback(16))
+    expect(AudioFeatureBus.getFrame().frameId).toBe(0)
+    expect(stroke).toHaveBeenCalled()
+  })
+})
+
 describe('Sound Drawing XY surface', () => {
   it('draws to its own canvas, reports it for recording, and releases everything on unmount', async () => {
     const onCanvasReady = vi.fn()

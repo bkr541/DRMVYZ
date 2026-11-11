@@ -51,6 +51,18 @@ The XY engine never scatters points. Letters ring like a plucked string (a stand
 | Surface and inspector panels | `XyScopeSurface.tsx`, `XyScopeWorkspace.tsx` |
 | Persisted state | `xyScopeSettings` in `src/stores/reactStore.ts` |
 
+## Audio ownership
+
+In the app, music analysis is not published by a background service: whichever renderer-owned loop is active pumps the analyser into the one shared Music Intelligence engine (the Sound Drawing canvas, CANVAS, Cinema 2.0 and PixGrid each do). A surface that only *reads* the shared audio bus sees an empty frame forever, so no kick, beat or bar reaches it.
+
+`XyScopeSurface` therefore owns the pump while it is the active engine, as PixGrid does:
+
+- It samples the master analyser every frame through `MusicIntelligenceAnalyserFramePump` under the publisher id `react:xyScope`. The pump respects bus authority and skips duplicates; this is the shared analysis path, not a second one.
+- It watches the transport itself (`XyScopeTransportTracker`, the same rule PixGrid applies) and passes seek, loop and timing identities to the performance context, so a seek returns to the authored pattern and never advances it.
+- It builds the performance context from the real track analysis and sections, and hands the runtime the context plus whether the frame is fresh.
+
+ReactView passes the analyser, `isPlaying`, `isPaused`, `analysisActive` and the track duration, exactly as it does for PixGrid. This was missing in the first version: the engine worked against hand-fed frames in a test harness, but in the app the bus was empty and the letters never changed. `XyScopeWorkspace.test.tsx` now has a regression test that the surface publishes frames when nothing else does.
+
 ## Musical events
 
 The engine reads the shared performance context built from the Music Intelligence frame. It has no beat grid, phrase clock or analyser of its own.
