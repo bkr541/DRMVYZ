@@ -25,7 +25,7 @@ Pacing follows the Cinema 2.0 choreography contract and reuses its code: `CINEMA
 | Weave | A Lissajous figure (3:2, 5:4, 4:3, 5:3 or 7:5, a different ratio on each visit) |
 | Pinwheel | Spinning crescent arms; the beam lifts between arms |
 
-Each form is a pure function of a position along the whole word (letters left to right, each letter along its outline) and a drive built from the music. Every letter holds a weight per pattern that eases toward its target (`XyScopeBlender`), so the change runs through the word letter by letter at Answer Delay, an interrupted change never pops, and each letter unspools along its outline: the start of a letter leaves first and the letters are visible through the lines mid-change.
+Each form is a pure function of a position along the whole word (letters left to right, each letter along its outline) and a drive built from the music. Every letter holds a weight per pattern that eases toward its target (`XyScopeBlender`), so the change runs through the word letter by letter at Answer Delay, an interrupted change never pops, and the whole outline of each letter eases into the form together (a slight stagger along the outline, `FORM_STAGGER`), so a change never sends one stretch of a letter off alone while the rest sits still; the letters are visible through the lines mid-change.
 
 ## Why a new motion model
 
@@ -120,7 +120,7 @@ The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and 
 - **Store:** the animation loop never subscribes to Zustand. Settings and the resolved font reach the runtime through an effect, so dragging a slider does not recreate the runtime or drop the trail.
 - **Paused audio:** the word keeps drawing and settles to its crisp rest state; the stage is never blank.
 - **Beam:** brightness falls with beam speed and is normalised per length of line, so a tightly packed figure is as bright as a letter. The segment that closes a letter's contour fades as its points move into a form, and the beam lifts between the arms of a pinwheel.
-- **Rendering:** Canvas2D only. The phosphor trail is capped at 300 ms because an 8-bit canvas cannot fade a long trail fully to the background. The shared GPU phosphor pipeline can replace the stroke passes later without changing the motion model.
+- **Rendering:** Canvas2D only. The phosphor trail is capped at 300 ms. An 8-bit canvas rounds a slow fade to "no change" a few levels above the background, which left a grey ghost of every earlier figure on screen, so each frame also takes one level off (`color-burn`) and clamps to the background (`lighten`); a trail then reaches the background exactly. The shared GPU phosphor pipeline can replace the stroke passes later without changing the motion model.
 - **Not implemented:** Auto Performance, user-authored pattern cycles, a stationary noise-blob or parked-dot pattern, quality tiers, multi-line text, kerning, shapes, SVG, Classic Scope, preview thumbnails for the preset cards, Preset Manager and Help Center entries, and the Sound Drawing timeline lane. The engine has no context-loss path because Canvas2D has none.
 
 ## Persistence

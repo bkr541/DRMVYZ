@@ -96,6 +96,17 @@ export class XyScopeBeamRenderer {
     ctx.globalCompositeOperation = 'source-over'
     ctx.fillStyle = `rgba(${bg[0]},${bg[1]},${bg[2]},${fade.toFixed(4)})`
     ctx.fillRect(0, 0, canvas.width, canvas.height)
+    // A canvas stores 8 bits per channel, so a slow proportional fade rounds to "no change" once a pixel is within
+    // a few levels of the background, and the faint ghost of every earlier figure stays on screen for good (a grey
+    // box where a waveform once swept). Taking one level off each frame, never below the background, lets every
+    // trail reach the background exactly.
+    ctx.globalCompositeOperation = 'color-burn'
+    ctx.fillStyle = 'rgb(254,254,254)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.globalCompositeOperation = 'lighten'
+    ctx.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.globalCompositeOperation = 'source-over'
     if (style.intensity <= 0 || glyphs.length === 0) return
 
     // Origin at the centre of the screen; sizes are CSS px.

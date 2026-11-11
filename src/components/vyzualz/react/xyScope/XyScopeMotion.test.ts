@@ -171,7 +171,7 @@ describe('computeXyScopeGlyphPoints: moving into an oscillator form and back', (
     }
   })
 
-  it('unspools along the outline: a half-way change moves the start of the letter first', () => {
+  it('moves the whole outline together: a half-way change has every stretch under way, the start slightly ahead', () => {
     const out = createXyScopePointBuffers(glyph.count)
     computeXyScopeGlyphPoints(glyph, 1, rest, 0, { vibration: 0, dissolveDepth: 1 }, scope, out, formFor('ring', 0.5))
     let early = 0
@@ -183,8 +183,9 @@ describe('computeXyScopeGlyphPoints: moving into an oscillator form and back', (
       if (glyph.s[i] > 0.8) { late += out.form[i]; lateN += 1 }
     }
     expect(early / earlyN).toBeGreaterThan(late / lateN)
-    expect(early / earlyN).toBeGreaterThan(0.5)
-    expect(late / lateN).toBeLessThan(0.2)
+    // No stretch of the letter is left behind while another has gone: even the end has begun to move.
+    expect(late / lateN).toBeGreaterThan(0.2)
+    expect(early / earlyN - late / lateN).toBeLessThan(0.5)
   })
 
   it('is deterministic and never produces NaN', () => {

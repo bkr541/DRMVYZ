@@ -154,6 +154,9 @@ export interface XyScopeGlyphForm {
 
 const formPoint: XyScopePoint = { x: 0, y: 0 }
 
+/** How far along a letter's outline the start of the move into a form lags (0 = every point at once). */
+const FORM_STAGGER = 0.35
+
 const smoothstep = (value: number) => value * value * (3 - 2 * value)
 
 function waveAt(frame: XyScopeScopeFrame, u: number): number {
@@ -215,7 +218,9 @@ export function computeXyScopeGlyphPoints(
     let outY = y
     let formAmount = 0
     if (form && formActive) {
-      // Letters unspool along their outline into each active form, so a change runs through the lines.
+      // The whole outline eases into each active form together, with a slight stagger along the outline so the
+      // change runs through the lines. (A steep stagger would send only the first stretch of each outline out to
+      // the form while the rest of the letter sat still, which reads as one tendril per letter.)
       let fx = 0
       let fy = 0
       let sum = 0
@@ -223,7 +228,7 @@ export function computeXyScopeGlyphPoints(
       for (let p = 1; p < XY_SCOPE_PATTERN_IDS.length; p += 1) {
         const weight = form.weights[p]
         if (weight < 0.002) continue
-        const effective = smoothstep(Math.max(0, Math.min(1, (weight * 1.25 - s) / 0.25)))
+        const effective = smoothstep(Math.max(0, Math.min(1, weight * (1 + FORM_STAGGER) - s * FORM_STAGGER)))
         if (effective <= 0) continue
         const formId = XY_SCOPE_PATTERN_IDS[p] as XyScopeFormPattern
         const g = (form.globalOffset + i) / form.globalTotal

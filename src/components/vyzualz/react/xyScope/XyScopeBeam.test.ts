@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { parseXyScopeColor, xyScopeSegmentBrightness, XY_SCOPE_REFERENCE_SEGMENT_PX } from './XyScopeBeam'
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest'
+import { XyScopeBeamRenderer, parseXyScopeColor, xyScopeSegmentBrightness, XY_SCOPE_REFERENCE_SEGMENT_PX } from './XyScopeBeam'
 
 describe('xyScopeSegmentBrightness', () => {
   it('is bright for a slow edge and dim for a long jump, like a real beam', () => {
@@ -42,5 +43,26 @@ describe('parseXyScopeColor', () => {
     expect(parseXyScopeColor('#14d9c5', [0, 0, 0])).toEqual([20, 217, 197])
     expect(parseXyScopeColor('teal', [1, 2, 3])).toEqual([1, 2, 3])
     expect(parseXyScopeColor('#fff', [1, 2, 3])).toEqual([1, 2, 3])
+  })
+})
+
+describe('XyScopeBeamRenderer fade', () => {
+  it('takes one level off each frame and clamps to the background, so a trail reaches the background exactly', () => {
+    const ops: string[] = []
+    const fills: string[] = []
+    const ctx = {
+      set globalCompositeOperation(value: string) { ops.push(value) },
+      get globalCompositeOperation() { return ops[ops.length - 1] ?? 'source-over' },
+      set fillStyle(value: string) { fills.push(value) },
+      setTransform: vi.fn(), fillRect: vi.fn(), stroke: vi.fn(),
+    }
+    const canvas = document.createElement('canvas')
+    vi.spyOn(canvas, 'getContext').mockReturnValue(ctx as unknown as CanvasRenderingContext2D)
+    const renderer = new XyScopeBeamRenderer(canvas)
+    renderer.resize(100, 100, 1)
+    renderer.draw([], [], [], 1 / 60, { beamColor: [255, 255, 255], glowColor: [0, 255, 255], backgroundColor: [3, 9, 12], intensity: 1, glow: 1, trailMs: 110 })
+    expect(ops.indexOf('color-burn')).toBeGreaterThan(-1)
+    expect(ops.indexOf('lighten')).toBeGreaterThan(ops.indexOf('color-burn'))
+    expect(fills).toContain('rgb(3,9,12)')
   })
 })
