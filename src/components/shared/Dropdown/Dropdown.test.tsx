@@ -347,3 +347,81 @@ describe('Dropdown', () => {
     expect(document.body.querySelector('[role="listbox"]')).toBeNull()
   })
 })
+
+describe('Dropdown menu search', () => {
+  const FONTS: readonly DropdownOption[] = [
+    { value: '', label: 'Anton (default)' },
+    { value: 'a', label: 'Bebas Display' },
+    { value: 'b', label: 'Chrome Script' },
+    { value: 'c', label: 'Dirty Stencil' },
+  ]
+  const search = () => document.body.querySelector<HTMLInputElement>('.drm-dropdown__menu-search input')
+  const labels = () => [...document.body.querySelectorAll('.drm-dropdown__option-label')].map(node => node.textContent)
+  const type = (value: string) => act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search()!, value)
+    search()!.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const trigger = () => container!.querySelector('button[role="combobox"]')!
+
+  it('is off unless asked for: an ordinary dropdown has no search field', () => {
+    renderDropdown(<Dropdown options={FONTS} value="" menuLabel="Font" />)
+    click(trigger())
+    expect(search()).toBeNull()
+  })
+
+  it('puts a search field under the header and filters the options as the user types', () => {
+    renderDropdown(<Dropdown options={FONTS} value="" menuLabel="Font" menuSearch menuSearchPlaceholder="Search fonts…" />)
+    click(trigger())
+    const header = document.body.querySelector('.drm-dropdown__menu-header')!
+    expect(header.nextElementSibling?.classList.contains('drm-dropdown__menu-search')).toBe(true)
+    expect(labels()).toHaveLength(4)
+    type('SCRI')
+    expect(labels()).toEqual(['Chrome Script'])
+    type('zzz')
+    expect(labels()).toEqual([])
+    expect(document.body.textContent).toContain('No matches for “zzz”')
+  })
+
+  it('keeps naming the selected option on the trigger while it is filtered out of the list', () => {
+    renderDropdown(<Dropdown options={FONTS} value="b" menuSearch />)
+    click(trigger())
+    type('dirty')
+    expect(labels()).toEqual(['Dirty Stencil'])
+    expect(trigger().textContent).toContain('Chrome Script')
+  })
+
+  it('chooses the first match with Enter, and treats the space bar as text', () => {
+    const onChange = vi.fn()
+    renderDropdown(<Dropdown options={FONTS} value="" menuSearch onChange={onChange} />)
+    click(trigger())
+    type('dirty s')
+    expect(labels()).toEqual(['Dirty Stencil'])
+    expect(onChange).not.toHaveBeenCalled()
+    keyDown(search()!, ' ')
+    expect(onChange).not.toHaveBeenCalled()
+    keyDown(search()!, 'Enter')
+    expect(onChange).toHaveBeenCalledWith('c', expect.objectContaining({ label: 'Dirty Stencil' }))
+  })
+
+  it('moves the highlight with the arrow keys over the filtered list only', () => {
+    const onChange = vi.fn()
+    renderDropdown(<Dropdown options={FONTS} value="" menuSearch onChange={onChange} />)
+    click(trigger())
+    type('c')
+    // Only Chrome Script and Dirty Stencil contain a c.
+    expect(labels()).toEqual(['Chrome Script', 'Dirty Stencil'])
+    keyDown(search()!, 'ArrowDown')
+    keyDown(search()!, 'Enter')
+    expect(onChange).toHaveBeenCalledWith('c', expect.anything())
+  })
+
+  it('starts unfiltered each time the menu opens', () => {
+    renderDropdown(<Dropdown options={FONTS} value="" menuSearch />)
+    click(trigger())
+    type('chrome')
+    keyDown(search()!, 'Escape')
+    click(trigger())
+    expect(search()!.value).toBe('')
+    expect(labels()).toHaveLength(4)
+  })
+})

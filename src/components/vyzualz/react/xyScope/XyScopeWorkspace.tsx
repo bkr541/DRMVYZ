@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { useReactStore } from '../../../../stores/reactStore'
-import { Collapsible, CtrlSection, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { IconChipButton } from '../controls/IconChipButton'
 import { PresetSearchRow } from '../controls/PresetSearchRow'
@@ -133,24 +133,29 @@ export function XyScopeEnginePanel() {
 
   return (
     <section className="rv-xyscope-engine-panel" aria-label="Sound Drawing XY source" data-xyscope-engine-panel="true">
-      <CtrlSection label="Word" />
-      <TextInputRow
-        id="xyscope-text"
-        label="Text"
-        value={settings.text}
-        maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
-        placeholder="Type a word"
-        description={`Up to ${XY_SCOPE_TEXT_MAX_LENGTH} characters, drawn in capitals.`}
-        onChange={text => setXyScopeSettings({ text })}
-      />
-      <SelectRow
-        id="xyscope-font"
-        label="Font"
-        value={settings.fontId ?? ''}
-        options={options}
-        description={fontDescription}
-        onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
-      />
+      <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
+        <div data-xyscope-input-group="true" style={{ display: 'contents' }}>
+          <TextInputRow
+            id="xyscope-text"
+            label="Text"
+            value={settings.text}
+            maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
+            placeholder="Type a word"
+            description={`Up to ${XY_SCOPE_TEXT_MAX_LENGTH} characters, drawn in capitals.`}
+            onChange={text => setXyScopeSettings({ text })}
+          />
+          <SelectRow
+            id="xyscope-font"
+            label="Font"
+            value={settings.fontId ?? ''}
+            options={options}
+            menuSearch
+            menuSearchPlaceholder="Search fonts…"
+            description={fontDescription}
+            onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
+          />
+        </div>
+      </Collapsible>
     </section>
   )
 }

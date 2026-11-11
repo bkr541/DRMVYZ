@@ -174,8 +174,15 @@ describe('Sound Drawing XY Design inspector standard', () => {
 describe('Sound Drawing XY source, presets and React tab', () => {
   it('edits the word and picks a font from the left Source panel', async () => {
     await act(async () => root.render(<XyScopeEnginePanel />))
-    expect(container.textContent).toContain('Word')
+    // The word and font sit in one standard parent group named Input.
+    const group = container.querySelector('[data-xyscope-input-group="true"]')!
+    expect(container.textContent).toContain('Input')
+    expect(group.querySelector('#xyscope-text')).not.toBeNull()
+    expect(group.querySelector('#xyscope-font')).not.toBeNull()
     expect(container.textContent).toContain('Anton (default)')
+    // Only the Font dropdown has a menu search; the word field is an ordinary text input.
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-font')!.click())
+    expect(document.body.querySelector('.drm-dropdown__menu-search input[aria-label="Search fonts…"]')).not.toBeNull()
     const text = container.querySelector<HTMLInputElement>('#xyscope-text')!
     await act(async () => setInputValue(text, 'WILDFLY'))
     expect(useReactStore.getState().xyScopeSettings.text).toBe('WILDFLY')

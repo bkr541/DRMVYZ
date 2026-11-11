@@ -18,6 +18,8 @@ export interface ReactWorkspaceComposition {
   showLaserBeamEditor: boolean
   showLaserLayersTab: boolean
   leftTabs: ReactLeftTab[]
+  /** Tabs shown in the strip but not usable yet (they cannot be opened or restored from preferences). */
+  disabledLeftTabs: ReactLeftTab[]
   workspaceTabLabel: ReactWorkspaceTabLabel
 }
 
@@ -42,6 +44,7 @@ export function resolveReactWorkspaceComposition(
   void laserWorkspaceMode
 
   let leftTabs: ReactLeftTab[] = ['workspace']
+  let disabledLeftTabs: ReactLeftTab[] = []
   let workspaceTabLabel: ReactWorkspaceTabLabel = 'SETUP'
 
   if (isHeadliner) {
@@ -49,8 +52,10 @@ export function resolveReactWorkspaceComposition(
     // the lower workspace (Track Map and performance pads) is shared with every other engine.
     leftTabs = ['workspace', 'media']
   } else if (isXyScope) {
-    // Sound Drawing XY owns its word and font in the SOURCE tab; the timeline lane belongs to the legacy engine.
-    leftTabs = ['workspace']
+    // Sound Drawing XY owns its word and font in the SOURCE tab; MEDIA is reserved for SVG artwork and is shown
+    // disabled until that source exists. The timeline lane belongs to the legacy engine.
+    leftTabs = ['workspace', 'media']
+    disabledLeftTabs = ['media']
     workspaceTabLabel = 'SOURCE'
   } else if (isCinema2) {
     leftTabs = ['workspace', isCinema2TextPreset(cinema2PresetId) ? 'pool' : 'layers']
@@ -87,6 +92,7 @@ export function resolveReactWorkspaceComposition(
     showLaserBeamEditor: isLaser && beamEditorVisible,
     showLaserLayersTab: isLaser,
     leftTabs,
+    disabledLeftTabs,
     workspaceTabLabel,
   }
 }
@@ -112,7 +118,14 @@ export function isReactLeftTabAvailable(
   tab: ReactLeftTab,
   composition: ReactWorkspaceComposition,
 ): boolean {
-  return getReactLeftTabs(composition).includes(tab)
+  return getReactLeftTabs(composition).includes(tab) && !isReactLeftTabDisabled(tab, composition)
+}
+
+export function isReactLeftTabDisabled(
+  tab: ReactLeftTab,
+  composition: ReactWorkspaceComposition,
+): boolean {
+  return composition.disabledLeftTabs.includes(tab)
 }
 
 export function getReactDefaultLeftTab(

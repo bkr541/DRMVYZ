@@ -156,9 +156,12 @@ export interface SelectRowProps {
    *  per-option adornments (e.g. a colored dot) without touching other
    *  SelectRow menus. */
   menuClassName?: string
+  /** Opt-in: a search field in the open menu that filters the options as the user types. */
+  menuSearch?: boolean
+  menuSearchPlaceholder?: string
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -181,6 +184,8 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         showDescriptions={false}
         className="rv-ctrl-dropdown"
         menuClassName={menuClassName}
+        menuSearch={menuSearch}
+        menuSearchPlaceholder={menuSearchPlaceholder}
       />
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>

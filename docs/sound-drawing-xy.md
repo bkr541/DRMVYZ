@@ -101,7 +101,7 @@ Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY us
 
 Pattern Change defaults to **on** so the engine performs when it is first opened. The Cinema 2.0 Blockshift contract defaults it off for that preset; this engine's identity is the choreography, and the Clean Scope preset turns it off and holds the letters.
 
-The left SOURCE tab holds the word (up to 16 characters, drawn in capitals) and the font. The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
+The left rail has two tabs. SOURCE holds one standard parent group, **Input**, with the word (up to 16 characters, drawn in capitals) and a Font dropdown listing the built-in Anton and the user's font library (fonts are uploaded in Media Manager). MEDIA is shown disabled until SVG artwork is supported; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 

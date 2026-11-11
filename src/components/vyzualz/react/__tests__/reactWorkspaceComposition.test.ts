@@ -7,6 +7,7 @@ import {
   getReactLowerSurfaces,
   isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
+  isReactLeftTabDisabled,
   resolveReactWorkspaceComposition,
 } from '../reactWorkspaceComposition'
 
@@ -118,7 +119,7 @@ describe('React workspace composition', () => {
     expect(isReactLeftTabAvailable('media', cinematic)).toBe(false)
 
     const soundDrawing = resolveReactWorkspaceComposition('oscilloscope', 'beamMatrix', false)
-    expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media', 'fonts'])
+    expect(getReactLeftTabs(soundDrawing)).toEqual(['workspace', 'media'])
     expect(getReactLeftTabLabel('workspace', soundDrawing)).toBe('SOURCE')
 
     const canvas = resolveReactWorkspaceComposition('canvas', 'beamMatrix', false)
@@ -160,4 +161,14 @@ it('shows Pool only for native Cinema 2.0 text presets', () => {
     expect(getReactLeftTabLabel('pool', composition)).toBe('POOL')
   }
   expect(resolveReactWorkspaceComposition('cinema2', null, false, 'drmvyz.cinema2.inertia').leftTabs).toEqual(['workspace', 'layers'])
+})
+
+it('gives Sound Drawing XY Source and a disabled Media tab', () => {
+  const composition = resolveReactWorkspaceComposition('xyScope', null, false)
+  expect(getReactLeftTabs(composition)).toEqual(['workspace', 'media'])
+  expect(getReactLeftTabLabel('workspace', composition)).toBe('SOURCE')
+  expect(isReactLeftTabDisabled('media', composition)).toBe(true)
+  // A disabled tab can never be the open tab, even when it was the last one used on another engine.
+  expect(isReactLeftTabAvailable('media', composition)).toBe(false)
+  expect(isReactLeftTabAvailable('workspace', composition)).toBe(true)
 })

@@ -101,6 +101,7 @@ import {
   getReactLowerSurfaces,
   isReactLowerSurfaceAvailable,
   isReactLeftTabAvailable,
+  isReactLeftTabDisabled,
   resolveReactWorkspaceComposition,
   type ReactLeftTab,
 } from './reactWorkspaceComposition'
@@ -336,6 +337,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
       getReactLeftTabs(workspaceComposition).map((id) => ({
       id,
       label: getReactLeftTabLabel(id, workspaceComposition),
+      disabled: isReactLeftTabDisabled(id, workspaceComposition),
     })),
     [workspaceComposition],
   )

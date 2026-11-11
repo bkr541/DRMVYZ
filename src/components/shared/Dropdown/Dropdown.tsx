@@ -19,6 +19,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { DreamVizTextInput } from '../../vyzualz/react/controls/DreamVizTextInput'
+import { LibrarySearchRow } from '../../vyzualz/react/controls/LibrarySearchRow'
 import './Dropdown.css'
 
 const VIEWPORT_MARGIN = 12
@@ -74,6 +75,13 @@ export interface DropdownProps {
   defaultSearchValue?: string
   onSearchChange?: (value: string) => void
   clearSearchOnSelect?: boolean
+  /**
+   * Puts a search input in the open menu, under its header. Typing filters the options by label; the trigger still
+   * shows the selected option. Unlike `searchable` (where the trigger itself is the text field), the closed
+   * dropdown looks the same as any other.
+   */
+  menuSearch?: boolean
+  menuSearchPlaceholder?: string
 }
 
 interface MenuPosition {
@@ -104,6 +112,11 @@ function buildOptionRuns(options: readonly DropdownOption[]): DropdownOptionRun[
   })
 
   return runs
+}
+
+function filterOptionsByLabel(options: readonly DropdownOption[], query: string): readonly DropdownOption[] {
+  const needle = query.trim().toLocaleLowerCase()
+  return needle === '' ? options : options.filter(option => option.label.toLocaleLowerCase().includes(needle))
 }
 
 function findFirstEnabled(options: readonly DropdownOption[]): number {
@@ -161,7 +174,7 @@ export function Dropdown({
   title,
   value,
   defaultValue = null,
-  options,
+  options: allOptions,
   onChange,
   disabled = false,
   required = false,
@@ -185,6 +198,8 @@ export function Dropdown({
   defaultSearchValue = '',
   onSearchChange,
   clearSearchOnSelect = true,
+  menuSearch = false,
+  menuSearchPlaceholder = 'Search…',
 }: DropdownProps) {
   const generatedId = normalizeIdPart(useId())
   const baseId = id ?? `drm-dropdown-${generatedId}`
@@ -197,6 +212,7 @@ export function Dropdown({
   const searchTriggerRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuSearchInputRef = useRef<HTMLInputElement>(null)
   const typeaheadBufferRef = useRef('')
   const typeaheadTimerRef = useRef<number | null>(null)
 
@@ -205,6 +221,7 @@ export function Dropdown({
   const [internalValue, setInternalValue] = useState<string | null>(defaultValue)
   const [internalOpen, setInternalOpen] = useState(defaultOpen)
   const [internalSearchValue, setInternalSearchValue] = useState(defaultSearchValue)
+  const [menuQuery, setMenuQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(-1)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
 
@@ -213,12 +230,19 @@ export function Dropdown({
   const isOpen = !disabled && requestedOpen
   const searchIsControlled = searchValue !== undefined
   const resolvedSearchValue = searchIsControlled ? searchValue : internalSearchValue
+  // The trigger always names the selected option, even when the menu search has filtered it out of the list.
   const selectedOption = useMemo(
-    () => options.find(option => option.value === selectedValue) ?? null,
-    [options, selectedValue],
+    () => allOptions.find(option => option.value === selectedValue) ?? null,
+    [allOptions, selectedValue],
+  )
+  // Everything the menu shows and navigates (keyboard, typeahead, positions) works on the filtered list.
+  const options = useMemo(
+    () => (menuSearch ? filterOptionsByLabel(allOptions, menuQuery) : allOptions),
+    [allOptions, menuQuery, menuSearch],
   )
   const hasVisibleOptionDescriptions = showDescriptions
-    && options.some(option => Boolean(option.description))
+    && allOptions.some(option => Boolean(option.description))
+  const menuSearchActive = menuSearch && isOpen
 
   const setOpen = useCallback((nextOpen: boolean) => {
     if (disabled && nextOpen) return
@@ -418,6 +442,20 @@ export function Dropdown({
     }
   }, [])
 
+  // Each time the menu opens it starts unfiltered, and the search field takes focus once the menu is visible.
+  useEffect(() => {
+    if (!isOpen) setMenuQuery('')
+  }, [isOpen])
+  const menuVisible = menuPosition != null
+  useEffect(() => {
+    if (menuSearch && isOpen && menuVisible) menuSearchInputRef.current?.focus({ preventScroll: true })
+  }, [isOpen, menuSearch, menuVisible])
+
+  const changeMenuQuery = (nextQuery: string) => {
+    setMenuQuery(nextQuery)
+    setActiveIndex(findFirstEnabled(filterOptionsByLabel(allOptions, nextQuery)))
+  }
+
   useEffect(() => {
     if (!isOpen) return
     setActiveIndex(current => {
@@ -491,7 +529,7 @@ export function Dropdown({
       return
     }
 
-    if (event.key === 'Enter' || (!searchable && event.key === ' ')) {
+    if (event.key === 'Enter' || (!searchable && !menuSearchActive && event.key === ' ')) {
       event.preventDefault()
       if (!isOpen) {
         openMenu()
@@ -516,6 +554,7 @@ export function Dropdown({
 
     if (
       !searchable
+      && !menuSearchActive
       && event.key.length === 1
       && !event.altKey
       && !event.ctrlKey
@@ -719,9 +758,30 @@ export function Dropdown({
             </div>
           )}
 
+          {menuSearch && (
+            <div className="drm-dropdown__menu-search">
+              <LibrarySearchRow
+                value={menuQuery}
+                onChange={changeMenuQuery}
+                placeholder={menuSearchPlaceholder}
+                label={menuSearchPlaceholder}
+                clearable
+                inputRef={menuSearchInputRef}
+                onKeyDown={handleKeyDown}
+                inputProps={{
+                  role: 'combobox',
+                  autoComplete: 'off',
+                  'aria-controls': listboxId,
+                  'aria-expanded': true,
+                  'aria-activedescendant': activeOptionId,
+                }}
+              />
+            </div>
+          )}
+
           <div className="drm-dropdown__options">
             {options.length === 0 ? (
-              <div className="drm-dropdown__empty">{emptyMessage}</div>
+              <div className="drm-dropdown__empty">{menuSearch && menuQuery.trim() !== '' ? `No matches for “${menuQuery.trim()}”` : emptyMessage}</div>
             ) : optionRuns.map((run, runIndex) => {
               if (run.group == null) {
                 return (
