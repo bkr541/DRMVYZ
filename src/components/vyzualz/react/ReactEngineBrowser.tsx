@@ -22,7 +22,7 @@ function Cinema2EngineBlueprint() {
   )
 }
 
-function EngineCardContents({ engineId, presetName, pixelLabel = false }: {
+export function ReactEngineCardContents({ engineId, presetName, pixelLabel = false }: {
   engineId: ReactEngineId
   presetName?: string | null
   pixelLabel?: boolean
@@ -156,7 +156,7 @@ export function ReactEngineBrowser({ presetName = null }: {
         title="Choose React engine"
         onClick={() => open ? close() : setOpen(true)}
       >
-        <EngineCardContents engineId={activeReactEngineId} presetName={presetName} />
+        <ReactEngineCardContents engineId={activeReactEngineId} presetName={presetName} />
       </button>
 
       <div className="rv-engine-dropdown-popover" {...popoverAttributes} ref={popoverRef}>
@@ -177,7 +177,7 @@ export function ReactEngineBrowser({ presetName = null }: {
                 triggerRef.current?.focus({ preventScroll: true })
               }}
             >
-              <EngineCardContents engineId={engineId} pixelLabel={engineId === 'pixGrid'} />
+              <ReactEngineCardContents engineId={engineId} pixelLabel={engineId === 'pixGrid'} />
             </button>
           ))}
         </div>

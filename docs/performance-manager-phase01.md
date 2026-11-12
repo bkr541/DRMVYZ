@@ -10,7 +10,9 @@ WorkspaceRail, preset cards/search/scope controls and VyzualzAudioDock are reuse
 - The left window has ENGINE and two disabled placeholder tabs. ENGINE lists all
   seven currently selectable engines in a two-column grid: Cinema 2.0, Sound
   Drawing, Sound Drawing XY, CANVAS, LaserDMX, PixGrid and HEADLINER. Retired
-  Shader Pads/Cinema identities are not resurrected.
+  Shader Pads/Cinema identities are not resurrected. Cards reuse React’s engine
+  dropdown blueprint artwork, themed surfaces and shared identity typography,
+  with wrapped names and a highlighted selected border in the two-column grid.
 - The main area mirrors the current twenty performance pads from the live store,
   including labels, colors, active state and contextual engine actions. It
   subscribes to the same state as React. Its mirror mode does not fire actions,

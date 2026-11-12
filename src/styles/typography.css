@@ -40,6 +40,10 @@
   text-transform: uppercase;
   color: var(--color-text-strong);
 }
+/* Compact engine identity cards retain whole words in two-column libraries. */
+:root body .rv-engine-card--compact .rv-engine-dropdown-label {
+  font-size: clamp(11px, 11cqi, 16px);
+}
 .rv-engine-dropdown-pixel-label {
   width: auto;
   height: .75em;

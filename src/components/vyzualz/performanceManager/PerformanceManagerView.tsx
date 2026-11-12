@@ -11,6 +11,7 @@ import { VyzualzHeaderActions } from '../shared/VyzualzHeaderActions'
 import { VyzualzAudioDock } from '../shared/VyzualzAudioDock'
 import { ReactPerformancePads } from '../react/ReactPerformancePads'
 import { ReactPresetCard } from '../react/ReactPresetCard'
+import { ReactEngineCardContents } from '../react/ReactEngineBrowser'
 import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS, isSelectableReactEngineId, type ReactLiveEngineId } from '../react/reactEngineCatalog'
 import { PresetSearchRow } from '../react/controls/PresetSearchRow'
 import { PanelSubtabs } from '../react/PanelSubtabs'
@@ -54,7 +55,7 @@ export function PerformanceManagerView() {
         <RailTabs variant="underline" className="rv-main-workspace-tabs" ariaLabel="Performance Manager library tabs" activeTab={leftTab} onChange={setLeftTab} tabs={[{ id: 'engine', label: 'ENGINE' }, { id: 'placeholder-1', label: '—', disabled: true }, { id: 'placeholder-2', label: '—', disabled: true }]} />
         <div className="vz-panel-body">
           {leftTab === 'engine' && <div className="pfm-engine-grid" role="group" aria-label="Engines">
-            {REACT_ENGINE_IDS.map(id => <button type="button" key={id} className="pfm-engine-card" aria-pressed={engine === id} onClick={() => pickEngine(id)}><AppIcon kind={REACT_ENGINE_CATALOG[id].icon} size={28} /><span>{REACT_ENGINE_CATALOG[id].label}</span></button>)}
+            {REACT_ENGINE_IDS.map(id => <button type="button" key={id} className="rv-engine-card rv-engine-card--compact pfm-engine-card" data-engine={id} aria-label={REACT_ENGINE_CATALOG[id].label} title={REACT_ENGINE_CATALOG[id].description} aria-pressed={engine === id} onClick={() => pickEngine(id)}><ReactEngineCardContents engineId={id} pixelLabel={id === 'pixGrid'} /></button>)}
           </div>}
         </div>
       </WorkspaceRail>

@@ -13,10 +13,36 @@
 .pfm-pad-body .rv-pads-grid { min-height: 100%; grid-auto-rows: minmax(52px, 1fr); }
 .pfm-configuration-canvas { flex: 1; min-height: 0; }
 .pfm-engine-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
-.pfm-engine-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-width: 0; min-height: 98px; padding: 12px 6px; border: 1px solid var(--fw-surface-border); border-radius: var(--fw-surface-radius); background: var(--fw-surface-background); color: var(--text); cursor: pointer; }
-.pfm-engine-card > span { font: var(--type-field-value); text-align: center; }
-.pfm-engine-card[aria-pressed='true'] { border-color: var(--az-cyan, #4ac7db); background: rgba(74,199,219,.09); }
-.pfm-engine-card:hover { border-color: var(--az-cyan, #4ac7db); }
-.pfm-engine-card:focus-visible { outline: 2px solid var(--az-cyan, #4ac7db); outline-offset: 2px; }
+/* Reuse React's engine identity artwork and surface in the two-column library. */
+.pfm-engine-card.rv-engine-card {
+  container-type: inline-size;
+  min-width: 0;
+  height: 112px;
+  min-height: 112px;
+  padding: 10px 8px;
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+}
+.pfm-engine-card.rv-engine-card .rv-engine-dropdown-label {
+  white-space: normal;
+  overflow-wrap: normal;
+}
+.pfm-engine-card .rv-engine-dropdown-preset { display: none; }
+.pfm-engine-card.rv-engine-card .rv-engine-dropdown-icon {
+  inset: -20px -20px auto auto;
+  width: 85%;
+  height: 145px;
+  opacity: .3;
+}
+.pfm-engine-card.rv-engine-card[data-engine='headliner'] .rv-engine-dropdown-icon {
+  inset: 0 0 0 auto;
+  height: 100%;
+  opacity: .7;
+}
+.pfm-engine-card.rv-engine-card[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 var(--color-primary), inset 0 0 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+.pfm-engine-card.rv-engine-card:hover { border-color: var(--color-primary); }
+.pfm-engine-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 /* Keep the shared poster content legible when both narrow rails are expanded. */
 .pfm-root .rv-preset-card.rv-preset-spotlight-card--poster { min-height: 64px; }
