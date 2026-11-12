@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { modelAssetRepository } from '../../../features/models/data/modelAssetRepository'
 import type { ModelListCursor } from '../../../features/models/data/modelAssetRepository'
 import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes'
@@ -8,6 +8,7 @@ import { useMediaStore } from '../../../stores/mediaStore'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { NoticeCard } from '../react/controls/NoticeCard'
 import { IconChipButton } from '../react/controls/IconChipButton'
+import { Collapsible } from '../react/ReactControlRows'
 import { computeVirtualMediaWindow } from './mediaLibraryWindow'
 
 function ModelThumbnail({ asset }: { asset: ModelAsset }) {
@@ -20,8 +21,8 @@ function ModelThumbnail({ asset }: { asset: ModelAsset }) {
   }, [asset.id, asset.currentVersion, retry])
   return url ? <img src={url} alt="" loading="lazy" onError={() => { setUrl(null); if (!retry) setRetry(1) }} /> : <AppIcon kind="layers" size={28} />
 }
-export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSelect, sectioned = false, collectionId }: {
-  search: string; favorites: boolean; viewMode: 'grid' | 'list'; activeId: string | null; onSelect(asset: ModelAsset): void; sectioned?: boolean; collectionId?: string
+export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSelect, sectioned = false, collectionId, searchControl }: {
+  search: string; favorites: boolean; viewMode: 'grid' | 'list'; activeId: string | null; onSelect(asset: ModelAsset): void; sectioned?: boolean; collectionId?: string; searchControl?: ReactNode
 }) {
   const libraryRevision = useModelEditorStore(s => s.libraryRevision)
   const accountId = useMediaStore(s => s.accountId)
@@ -30,6 +31,7 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
   const key = JSON.stringify([accountId, search, favorites, collectionId, libraryRevision])
   const [error, setError] = useState<string | null>(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0), [metrics, setMetrics] = useState({ width: 280, height: 320, scrollTop: 0 })
+  const [expanded, setExpanded] = useState(true)
   const root = useRef<HTMLDivElement>(null), generation = useRef(0), inFlight = useRef(false)
   const items = page.key === key ? page.items : []
   useEffect(() => {
@@ -48,7 +50,7 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     update(); element.addEventListener('scroll', update, { passive: true })
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null; observer?.observe(element)
     return () => { observer?.disconnect(); element.removeEventListener('scroll', update) }
-  }, [])
+  }, [expanded])
   const windowed = computeVirtualMediaWindow({ itemCount: items.length, ...metrics, viewMode, manager: true })
   const loadMore = async () => {
     if (inFlight.current || page.key !== key || !page.cursor) return
@@ -68,8 +70,9 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     } catch (error) { if (generation.current === token) setError(error instanceof Error ? error.message : 'The model favorite could not be updated.') }
     finally { setBusy(null) }
   }
-  return <section className={`mm-model-library${sectioned ? ' mm-model-library--sectioned' : ''}`} aria-label="3D Models">
-    <div className="mm-model-section-heading"><AppIcon kind="layers" size={14} /><span>3D Models</span><span className="mm-model-count">{items.length}{page.key === key && page.cursor ? '+' : ''} loaded · Newest first</span></div>
+  return <section className={`mm-model-library${sectioned ? ' mm-model-library--sectioned' : ''}`} aria-label="3D Models" data-expanded={expanded}>
+    <Collapsible label="3D Models" icon={<AppIcon kind="layers" size={15} />} open={expanded} onOpenChange={setExpanded} bodyClassName="mm-model-group-body" headerAccessory={<span className="mm-model-count">{items.length}{page.key === key && page.cursor ? '+' : ''} loaded · Newest first</span>}>
+    {searchControl}
     <div className="mm-model-card-scroll" ref={root}>
       {draftId && !favorites && !collectionId && draftName.toLowerCase().includes(search.toLowerCase()) && <div className="mm-model-draft-card" role="status"><AppIcon kind="layers" size={14} /> {draftName} · Draft / Unsaved</div>}
       {error && <NoticeCard tone="error" title="Model library unavailable" role="alert">{error} <IconChipButton onClick={() => setRefresh(n => n + 1)}>Retry models</IconChipButton></NoticeCard>}
@@ -87,5 +90,6 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
       {loading && <div role="status" className="vz-media-page-state">Loading models…</div>}
       {page.key === key && page.cursor && <IconChipButton disabled={loading} onClick={() => { void loadMore() }}>Load more models</IconChipButton>}
     </div>
+    </Collapsible>
   </section>
 }

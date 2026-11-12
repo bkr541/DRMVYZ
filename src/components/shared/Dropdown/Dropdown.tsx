@@ -62,6 +62,8 @@ export interface DropdownProps {
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
   placement?: DropdownPlacement
+  /** Optional ancestor whose bounds constrain the portaled menu. */
+  menuBoundarySelector?: string
   menuWidth?: 'trigger' | number
   maxMenuHeight?: number
   size?: DropdownSize
@@ -186,6 +188,7 @@ export function Dropdown({
   onOpenChange,
   placement = 'auto',
   menuWidth = 'trigger',
+  menuBoundarySelector,
   maxMenuHeight = 420,
   size = 'default',
   showDescriptions = true,
@@ -296,16 +299,18 @@ export function Dropdown({
     const menuRect = menu.getBoundingClientRect()
     const viewportWidth = ownerWindow.innerWidth
     const viewportHeight = ownerWindow.innerHeight
+    const boundary = menuBoundarySelector ? trigger.closest(menuBoundarySelector) : null
+    const boundaryRect = boundary?.getBoundingClientRect()
+    const bounds = {
+      left: Math.max(VIEWPORT_MARGIN, (boundaryRect?.left ?? 0) + VIEWPORT_MARGIN),
+      right: Math.min(viewportWidth - VIEWPORT_MARGIN, (boundaryRect?.right ?? viewportWidth) - VIEWPORT_MARGIN),
+      top: Math.max(VIEWPORT_MARGIN, (boundaryRect?.top ?? 0) + VIEWPORT_MARGIN),
+      bottom: Math.min(viewportHeight - VIEWPORT_MARGIN, (boundaryRect?.bottom ?? viewportHeight) - VIEWPORT_MARGIN),
+    }
     const requestedWidth = menuWidth === 'trigger' ? triggerRect.width : menuWidth
-    const width = Math.max(
-      0,
-      Math.min(requestedWidth, Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2)),
-    )
-    const availableBelow = Math.max(
-      0,
-      viewportHeight - triggerRect.bottom - MENU_GAP - VIEWPORT_MARGIN,
-    )
-    const availableAbove = Math.max(0, triggerRect.top - MENU_GAP - VIEWPORT_MARGIN)
+    const width = Math.max(0, Math.min(requestedWidth, bounds.right - bounds.left))
+    const availableBelow = Math.max(0, bounds.bottom - triggerRect.bottom - MENU_GAP)
+    const availableAbove = Math.max(0, triggerRect.top - MENU_GAP - bounds.top)
     const measuredHeight = Math.min(menuRect.height || maxMenuHeight, maxMenuHeight)
 
     let resolvedPlacement: 'above' | 'below'
@@ -318,23 +323,23 @@ export function Dropdown({
     }
 
     const availableHeight = resolvedPlacement === 'below' ? availableBelow : availableAbove
-    const maxHeight = Math.max(
+    const maxHeight = boundary ? Math.max(0, Math.min(maxMenuHeight, availableHeight)) : Math.max(
       Math.min(MIN_AVAILABLE_MENU_HEIGHT, Math.max(availableBelow, availableAbove, 0)),
       Math.min(maxMenuHeight, availableHeight || maxMenuHeight),
     )
     const renderedHeight = Math.min(menuRect.height || maxHeight, maxHeight)
     const preferredLeft = triggerRect.left
     const left = Math.round(Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(preferredLeft, viewportWidth - width - VIEWPORT_MARGIN),
+      bounds.left,
+      Math.min(preferredLeft, bounds.right - width),
     ))
     const top = resolvedPlacement === 'below'
       ? Math.round(Math.min(
         triggerRect.bottom + MENU_GAP,
-        viewportHeight - renderedHeight - VIEWPORT_MARGIN,
+        bounds.bottom - renderedHeight,
       ))
       : Math.round(Math.max(
-        VIEWPORT_MARGIN,
+        bounds.top,
         triggerRect.top - MENU_GAP - renderedHeight,
       ))
 
@@ -359,7 +364,7 @@ export function Dropdown({
       }
       return nextPosition
     })
-  }, [maxMenuHeight, menuWidth, placement, searchable])
+  }, [maxMenuHeight, menuWidth, menuBoundarySelector, placement, searchable])
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -384,13 +389,15 @@ export function Dropdown({
     if (searchable && searchTriggerRef.current) resizeObserver?.observe(searchTriggerRef.current)
     if (!searchable && triggerRef.current) resizeObserver?.observe(triggerRef.current)
     if (menuRef.current) resizeObserver?.observe(menuRef.current)
+    const boundary = menuBoundarySelector ? trigger?.closest(menuBoundarySelector) : null
+    if (boundary) resizeObserver?.observe(boundary)
 
     return () => {
       ownerWindow.removeEventListener('resize', handleViewportChange)
       ownerWindow.removeEventListener('scroll', handleViewportChange, true)
       resizeObserver?.disconnect()
     }
-  }, [isOpen, options.length, searchable, showDescriptions, updateMenuPosition])
+  }, [isOpen, options.length, searchable, showDescriptions, menuBoundarySelector, updateMenuPosition])
 
   useEffect(() => {
     if (!isOpen) return
@@ -752,7 +759,7 @@ export function Dropdown({
           data-placement={menuPosition?.placement ?? 'below'}
           data-ui-theme={themeScope?.getAttribute('data-ui-theme') ?? undefined}
           data-ui-typography={themeScope?.getAttribute('data-ui-typography') ?? undefined}
-          style={menuStyle as CSSProperties}
+          style={{ ...menuStyle, ...(menuBoundarySelector ? { minWidth: 0, boxSizing: 'border-box' } : {}) } as CSSProperties}
           onPointerDown={event => event.stopPropagation()}
         >
           {menuLabel != null && (

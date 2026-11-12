@@ -159,9 +159,10 @@ export interface SelectRowProps {
   /** Opt-in: a search field in the open menu that filters the options as the user types. */
   menuSearch?: boolean
   menuSearchPlaceholder?: string
+  menuBoundarySelector?: string
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder, menuBoundarySelector }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -186,6 +187,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         menuClassName={menuClassName}
         menuSearch={menuSearch}
         menuSearchPlaceholder={menuSearchPlaceholder}
+        menuBoundarySelector={menuBoundarySelector}
       />
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>

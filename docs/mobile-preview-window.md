@@ -1,39 +1,49 @@
 # Mobile Preview window
 
-The phone-shaped floating button immediately left of Layout Lab opens a separate
-window titled **DRMVYZ — iPhone 16 Preview**. Both keys are 36px square, share the
-same baseline/style, and have a 10px gap. The shared application frame includes
-this launcher in all workspaces.
+The floating phone button immediately left of Layout Lab opens **DRMVYZ — Mobile
+Preview**, a resizable desktop window initially requesting **1200 × 1000 content
+pixels**. Both floating buttons retain the same size, baseline and 10px gap.
 
-The blank portrait screen is **393 × 852 logical pixels**. This design canvas
-uses a 3× interpretation of the iPhone 16's 1179 × 2556 physical-pixel display,
-as documented in [Apple's specifications](https://www.apple.com/iphone-16/specs/).
-Rounded corners, a Dynamic Island area, a home indicator and reserved top/bottom
-content insets provide the phone layout. Those visual inset/shape measurements
-are design approximations. No mobile performance controls or live renderer have
-been added; this change supplies the requested external mobile-format shell.
+A left navigation bar contains four selectable MVP concepts, each with
+navigable Presets, Pads, Controls and Cast screens:
 
-The launcher opens synchronously from the click, reuses/focuses its existing
-window, and can reopen after manual close. Escape closes it. Parent teardown
-removes listeners and closes its child. A blocked browser popup shows actionable
-feedback next to the launchers.
+- **Option 1 — Classic controller:** persistent current scene and bottom navigation.
+- **Option 2 — Scene deck:** top segments, a panoramic scene and preset list.
+- **Option 3 — Live console:** vertical tool rail, compact preset tiles and status strip.
+- **Option 4 — Session dashboard:** a shortcut hub opens full-page workspaces with
+  a back link and persistent session footer.
+
+Preset cards and scene arrows update the example scene. Search/favorites filter
+sample presets; pads, sliders, output selection and casting show local demo
+feedback. Casting never transmits video, and nothing loads into the live desktop
+runtime. Switching concepts resets the sample state; reopening starts on Option 1.
+These are visual MVPs for comparing layouts, not production mobile clients.
+
+The iPhone screen retains its **393 × 852 logical-pixel** layout, Dynamic Island,
+rounded corners and home indicator. The rendered phone stays at exactly 393 × 852 CSS pixels regardless of the
+sidebar or window size. It centers when there is space; smaller windows scroll
+the preview area horizontally/vertically instead of shrinking the phone. The
+left navigation remains outside that scrolling area.
+Shared typography roles and application icons are used in the popout.
+
+The launcher reuses/focuses its existing window and can reopen after manual
+close. Escape closes it; parent teardown removes listeners and closes the child.
+Blocked browser popups show actionable feedback. Reopening starts on Option 1.
 
 Electron permits only the named `drmvyz-mobile-preview` blank-window request.
-Its BrowserWindow uses a fixed 393 × 852 **content** size (OS title-bar chrome is
-additional), `useContentSize`, and disabled resizing/maximize/fullscreen. It
-retains context isolation, sandbox, web security and disabled Node integration.
-Layout Lab and other existing popup sizes are unchanged. The preview has its own
-small stylesheet and does not mount another app, audio engine or visualizer.
+The native window allows resizing/maximizing with a 800 × 960 minimum content
+size, while retaining context isolation, sandbox, web security and disabled Node
+integration. Other application popouts keep their existing window policies.
+The preview never mounts another app, audio engine or renderer.
 
-**Relaunch through `launch.command` after updating:** the native popup policy is
-main-process code and is not replaced by renderer hot reload. Browsers may apply
-their own popup sizing or window-manager constraints.
+**Relaunch through `launch.command` after updating:** Electron main-process
+window dimensions are not replaced by renderer hot reload. Close any old preview
+before reopening it. Browsers may constrain popup dimensions to their display.
 
-Validation: `node scripts/verify-mobile-preview.mjs` passed five browser/native
-checks for position, dimensions, reuse, close/reopen/Escape, blocked-popup feedback
-and actual Electron sizing/security preferences. It uses a disposable app-data
-directory and loads the actual Electron main file, leaving existing application
-windows/profile untouched. Screenshots/results are in ignored
-`artifacts/mobile-preview/`. The 16 shared-frame tests, TypeScript, focused ESLint
-Electron syntax checks and the production build passed. Changes are uncommitted; no new dependency,
-cloud schema or mobile connectivity service is introduced.
+Validation is maintained in `scripts/verify-mobile-preview.mjs`: all four
+concepts and their internal navigation, sample controls, floating-button placement,
+popup dimensions, fixed-size phone bounds, compact-window scrolling, reuse,
+close/reopen/Escape and blocked-popup feedback. The default run also checks actual
+Electron sizing/security preferences using disposable application data; use
+`--browser-only` for renderer-only changes. Screenshots and results are written to
+ignored `artifacts/mobile-preview/`. No dependency or migration added.

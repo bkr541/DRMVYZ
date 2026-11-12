@@ -148,3 +148,10 @@ source-card styling. TEXT is selected initially and shows the existing Input
 group with Text and Font controls. Selecting another card hides that group;
 returning to TEXT preserves its settings. SVG and OSCILATOR are UI placeholders
 at this stage and do not change the live renderer or add authoring controls.
+
+### Dropdown window bounds
+
+Font and parameter dropdowns use the shared dropdown’s optional ancestor
+boundary and stay inside their owning inspector window. Menus open above when
+there is more room, cap their height to the window, and scroll their options
+internally. Window resizing updates the bounds; font previews/search are kept.

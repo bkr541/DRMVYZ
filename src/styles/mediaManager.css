@@ -1209,10 +1209,13 @@
 .mm-model-inspector { overflow-y: auto; min-height: 0; }
 .mm-model-source-preview { height: 160px; display: flex; justify-content: center; margin: 8px 0; background: repeating-conic-gradient(#27353b 0% 25%, #162026 0% 50%) 0 0 / 16px 16px; }
 .mm-model-source-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.mm-model-library { display: flex; flex-direction: column; min-width: 0; height: 440px; }
-.mm-model-library--sectioned { height: 300px; border-bottom: 1px solid var(--az-border, #273b45); margin-bottom: 8px; }
+.mm-model-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 440px; }
+.mm-model-library--sectioned { height: auto; max-height: 300px; flex-shrink: 0; border-bottom: 1px solid var(--az-border, #273b45); margin-bottom: 8px; }
 .mm-model-card-scroll { overflow: auto; min-height: 0; flex: 1; padding: 6px; }
-.mm-model-section-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 6px; }
+.mm-model-library > .drc-group { display: flex; flex-direction: column; min-height: 0; }
+.mm-model-group-body { min-height: 0; overflow: hidden; }
+.mm-model-library[data-expanded='false'] { height: auto; }
+.mm-visual-library-group { flex: 0 0 auto; min-width: 0; }
 .mm-model-count { margin-left: auto; letter-spacing: normal; color: var(--color-text-muted); }
 .mm-model-card { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--az-border, #273b45); border-radius: 6px; }
 .mm-model-card-select { display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%; min-height: 65px; padding: 5px; gap: 3px; border: 0; color: inherit; background: var(--az-bg, #10181d); cursor: pointer; }
@@ -1228,3 +1231,6 @@
 .mm-model-draft-card { display: flex; gap: 6px; padding: 8px 4px; color: var(--az-accent, #4ac7db); }
 .mm-model-organization { min-width: 0; border: 0; padding: 0; margin: 0; }
 .mm-model-inspector > .dv-icon-chip { margin: 8px 0; }
+
+/* Group search rows align with shared group contents instead of outer rail insets. */
+.vz-media-browser--manager .mm-library-group-search { padding: 0 0 8px; border-bottom: 0; }

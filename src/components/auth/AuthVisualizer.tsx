@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
  * Pre-auth ambient visualizer for the login / signup card’s right panel. A
  * self-driven 2D-canvas animation that cycles through stylized takes on the
  * React engines' signature looks — Sound Drawing scope, Cinema constellation,
- * CANVAS depth field, LaserDMX beam matrix, PixGrid, Headliner performer echoes
+ * CANVAS depth field, LaserDMX beam matrix, PixGrid, Headliner DJ/deck echoes
  * — on a synthetic 124 BPM
  * pulse. No audio, no engine runtime.
  */
@@ -270,8 +270,8 @@ const drawScope: SceneFn = (ctx, w, h, s, alpha) => {
   const size = Math.min(w * .52, h * .65)
   const yaw = s.t * .17 + .55
   const pitch = .42 + Math.sin(s.t * .23) * .22
-  const points = Array.from({ length: 321 }, (_, i) => {
-    const u = i / 320 * TAU
+  const points = Array.from({ length: 161 }, (_, i) => {
+    const u = i / 160 * TAU
     const x = Math.sin(3 * u + s.t * .45)
     const y = Math.sin(2 * u + s.t * .28) * .72
     const z = Math.cos(5 * u + s.t * .32) * .62
@@ -287,12 +287,19 @@ const drawScope: SceneFn = (ctx, w, h, s, alpha) => {
   ctx.save()
   ctx.globalAlpha = alpha
   ctx.lineCap = 'round'
+  // One shared glow pass avoids a blurred draw call for every short segment.
+  ctx.strokeStyle = `rgba(${CYAN}, .3)`
+  ctx.lineWidth = 4
+  ctx.shadowColor = `rgba(${CYAN}, .5)`
+  ctx.shadowBlur = 10
+  ctx.beginPath()
+  points.forEach((point, i) => i === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y))
+  ctx.stroke()
+  ctx.shadowBlur = 0
   for (const { a, b } of segments) {
     const near = clamp01((b.depth + 1.3) / 2.6)
     ctx.strokeStyle = `rgba(${near > .65 ? ICE : DEEP}, ${.16 + near * .8})`
     ctx.lineWidth = .7 + near * 3.2 + s.beat * near
-    ctx.shadowColor = `rgba(${CYAN}, ${near * .7})`
-    ctx.shadowBlur = near * 15
     ctx.beginPath()
     ctx.moveTo(a.x, a.y)
     ctx.lineTo(b.x, b.y)
@@ -646,109 +653,280 @@ const drawPixGrid: SceneFn = (ctx, w, h, s, alpha) => {
   ctx.restore()
 }
 
-// ── Scene: Headliner — performer silhouette, motion echoes and hand sparks ──
-// Authored poses evoke Motion Echo / Energy Outline / Spark Skeleton without
-// opening a camera, loading a tracker or importing the live Headliner runtime.
-type PosePoint = readonly [number, number]
-function performerPose(t: number) {
-  const sway = Math.sin(t * 1.35) * 0.09
+// ── Scene: Headliner — DJ at twin decks with delayed silhouette echoes ─────
+// Procedural, camera-free poses: one hand scratches a platter while the other mixes.
+function djPose(t: number) {
   return {
-    sway,
-    left: [
-      [sway - 0.16, -0.23],
-      [sway - 0.32, -0.10 - Math.sin(t * 2.1) * 0.14],
-      [sway - 0.40, -0.28 - Math.sin(t * 2.1 - 0.6) * 0.22],
-    ] as readonly PosePoint[],
-    right: [
-      [sway + 0.16, -0.23],
-      [sway + 0.31, -0.22 - Math.sin(t * 1.8 + 1) * 0.16],
-      [sway + 0.39, -0.43 - Math.sin(t * 1.8 + 0.4) * 0.18],
-    ] as readonly PosePoint[],
+    sway: Math.sin(t * 1.5) * .025,
+    nod: Math.sin(t * 2.1) * .012,
+    left: [-.28 + Math.sin(t * 3.1) * .035, .245 + Math.cos(t * 3.1) * .012],
+    right: [.065 + Math.sin(t * .85) * .09, .22 + Math.sin(t * 2.2) * .012],
   }
 }
 
-const drawHeadliner: SceneFn = (ctx, w, h, s, alpha) => {
-  const scale = Math.min(w * 0.9, h * 0.69)
-  const cx = w / 2
-  const cy = h * 0.53
+function drawDjSilhouette(ctx: CanvasRenderingContext2D, t: number, color: string, outline: string, handsOnly = false) {
+  const pose = djPose(t)
+  const live = color === '#03171f'
   ctx.save()
-  ctx.globalAlpha = alpha
-  ctx.lineCap = 'round'
-  ctx.lineJoin = 'round'
-
-  // Sample past poses rather than offsetting identical copies: moving arms
-  // leave distinct temporal silhouettes, as in Headliner's Motion Echo.
-  for (let echo = 4; echo >= 0; echo--) {
-    const pose = performerPose(s.t - echo * 0.18)
-    const col = echo % 2 ? MAGENTA : CYAN
-    const opacity = echo === 0 ? 0.88 : (5 - echo) * 0.055
-    const x = cx - echo * scale * 0.045
-    const y = cy + echo * scale * 0.008
-    const px = (v: number) => x + v * scale
-    const py = (v: number) => y + v * scale
-    ctx.strokeStyle = `rgba(${col}, ${opacity})`
-    ctx.fillStyle = `rgba(${DEEP}, ${echo === 0 ? 0.25 : opacity * 0.3})`
-    ctx.shadowColor = `rgba(${col}, ${opacity})`
-    ctx.shadowBlur = echo === 0 ? 12 + s.beat * 10 : 5
-    ctx.lineWidth = 1.4 + (echo === 0 ? s.beat : 0)
-
+  ctx.translate(pose.sway, pose.nod)
+  const cloth = ctx.createLinearGradient(-.3, -.2, .3, .3)
+  cloth.addColorStop(0, '#102c37')
+  cloth.addColorStop(.4, '#03171f')
+  cloth.addColorStop(.75, '#071b25')
+  cloth.addColorStop(1, '#12303a')
+  const bodyFill = live ? cloth : color
+  ctx.fillStyle = bodyFill
+  ctx.strokeStyle = outline
+  ctx.lineWidth = .002
+  if (!handsOnly) {
+    // Jacket: sloping shoulders, collar, upper chest and a relaxed waist.
     ctx.beginPath()
-    ctx.ellipse(px(pose.sway), py(-0.43), scale * 0.095, scale * 0.12, Math.sin(s.t - echo * 0.18) * 0.1, 0, TAU)
-    ctx.fill()
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(px(pose.sway - 0.055), py(-0.31))
-    ctx.bezierCurveTo(px(pose.sway - 0.22), py(-0.27), px(pose.sway - 0.17), py(0.03), px(pose.sway - 0.14), py(0.31))
-    ctx.quadraticCurveTo(px(pose.sway), py(0.36), px(pose.sway + 0.14), py(0.31))
-    ctx.bezierCurveTo(px(pose.sway + 0.17), py(0.03), px(pose.sway + 0.22), py(-0.27), px(pose.sway + 0.055), py(-0.31))
+    ctx.moveTo(-.052, -.29)
+    ctx.bezierCurveTo(-.06, -.24, -.085, -.238, -.15, -.221)
+    ctx.bezierCurveTo(-.22, -.207, -.275, -.193, -.286, -.124)
+    ctx.bezierCurveTo(-.28, -.045, -.218, -.025, -.208, .07)
+    ctx.bezierCurveTo(-.203, .16, -.225, .246, -.207, .35)
+    ctx.quadraticCurveTo(.005, .388, .214, .35)
+    ctx.bezierCurveTo(.23, .25, .205, .15, .213, .055)
+    ctx.bezierCurveTo(.223, -.023, .29, -.065, .282, -.131)
+    ctx.bezierCurveTo(.269, -.19, .206, -.208, .13, -.224)
+    ctx.quadraticCurveTo(.065, -.24, .055, -.29)
     ctx.closePath()
     ctx.fill()
     ctx.stroke()
-
-    for (const arm of [pose.left, pose.right]) {
-      ctx.beginPath()
-      arm.forEach(([ax, ay], i) => i === 0 ? ctx.moveTo(px(ax), py(ay)) : ctx.lineTo(px(ax), py(ay)))
-      ctx.lineWidth = scale * 0.065
-      ctx.strokeStyle = `rgba(${col}, ${opacity * 0.25})`
-      ctx.stroke()
-      ctx.lineWidth = 1.3 + s.beat
-      ctx.strokeStyle = `rgba(${echo === 0 ? ICE : col}, ${opacity})`
-      ctx.stroke()
-      if (echo === 0) {
-        for (const [ax, ay] of arm) {
-          ctx.beginPath()
-          ctx.arc(px(ax), py(ay), 2 + s.beat * 1.5, 0, TAU)
-          ctx.fillStyle = `rgba(${ICE}, 0.9)`
-          ctx.fill()
-        }
+    if (live) {
+      // Collar, zipper, shoulder seams and loose fabric folds catch the stage light.
+      ctx.strokeStyle = 'rgba(108, 184, 199, .18)'
+      ctx.lineWidth = .003
+      for (const side of [-1, 1]) {
+        ctx.beginPath()
+        ctx.moveTo(side * .055, -.255)
+        ctx.lineTo(side * .095, -.207)
+        ctx.lineTo(side * .035, -.153)
+        ctx.lineTo(0, -.207)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(side * .142, -.209)
+        ctx.quadraticCurveTo(side * .19, -.14, side * .184, -.07)
+        ctx.moveTo(side * .18, .09)
+        ctx.quadraticCurveTo(side * .115, .12, side * .16, .155)
+        ctx.moveTo(side * .193, .21)
+        ctx.quadraticCurveTo(side * .12, .2, side * .14, .24)
+        ctx.stroke()
       }
-    }
-  }
-
-  // A bounded, deterministic particle field sheds from the moving wrists.
-  const live = performerPose(s.t)
-  ctx.shadowBlur = 6
-  ctx.shadowColor = `rgba(${CYAN}, 0.7)`
-  for (let side = 0; side < 2; side++) {
-    const arm = side === 0 ? live.left : live.right
-    for (let i = 0; i < 18; i++) {
-      const age = (s.t * 0.8 + hash01(i + side * 31)) % 1
-      const past = performerPose(s.t - age * 0.7)
-      const [hx, hy] = (side === 0 ? past.left : past.right)[2]
-      const angle = hash01(i * 7 + side * 43) * TAU
-      const reach = age * (0.04 + s.high * 0.07)
-      const strength = (1 - age) * (0.35 + s.beat * 0.5)
-      ctx.fillStyle = `rgba(${side === 0 ? CYAN : ICE}, ${strength})`
       ctx.beginPath()
-      ctx.arc(cx + (hx + Math.cos(angle) * reach) * scale, cy + (hy + age * 0.08) * scale, 0.8 + (1 - age) * 1.2, 0, TAU)
-      ctx.fill()
+      ctx.moveTo(0, -.17)
+      ctx.quadraticCurveTo(.016, .02, .005, .34)
+      ctx.stroke()
     }
-    // Keep the live hand readable over its particle trail.
-    ctx.fillStyle = `rgba(${ICE}, 0.9)`
-    ctx.beginPath()
-    ctx.arc(cx + arm[2][0] * scale, cy + arm[2][1] * scale, 2.5 + s.beat * 1.5, 0, TAU)
-    ctx.fill()
   }
+  // Tapered, bent sleeves use filled contours instead of round line segments.
+  for (const side of [-1, 1]) {
+    const hand = side < 0 ? pose.left : pose.right
+    const hx = hand[0] - pose.sway
+    const hy = hand[1] - pose.nod
+    ctx.fillStyle = bodyFill
+    ctx.beginPath()
+    ctx.moveTo(side * .195, -.195)
+    ctx.bezierCurveTo(side * .29, -.208, side * .315, -.105, side * .341, -.025)
+    ctx.bezierCurveTo(side * .362, .02, side * .391, .071, side * .35, .125)
+    ctx.quadraticCurveTo(side * .32, .163, hx + side * .034, hy - .008)
+    ctx.lineTo(hx - side * .033, hy - .029)
+    ctx.quadraticCurveTo(side * .245, .091, side * .261, .054)
+    ctx.quadraticCurveTo(side * .23, -.004, side * .19, -.071)
+    ctx.closePath()
+    ctx.fill()
+    ctx.strokeStyle = outline
+    ctx.lineWidth = .002
+    ctx.stroke()
+    if (live) {
+      ctx.strokeStyle = 'rgba(106, 182, 197, .19)'
+      ctx.beginPath()
+      ctx.moveTo(side * .283, .053)
+      ctx.quadraticCurveTo(side * .306, .07, side * .338, .059)
+      ctx.moveTo(side * .279, .077)
+      ctx.quadraticCurveTo(side * .301, .096, side * .325, .081)
+      ctx.moveTo(hx - side * .028, hy - .034)
+      ctx.lineTo(hx + side * .035, hy - .015)
+      ctx.stroke()
+    }
+    // Palm, thumb and individually bent fingers on the platter/mixer.
+    ctx.save()
+    ctx.translate(hx, hy)
+    ctx.rotate(side * .2)
+    ctx.fillStyle = live ? '#102c35' : color
+    ctx.beginPath()
+    ctx.moveTo(-.029, -.025)
+    ctx.bezierCurveTo(-.038, -.006, -.047, .002, -.044, .018)
+    ctx.quadraticCurveTo(-.04, .029, -.029, .011)
+    ctx.lineTo(-.023, .024)
+    for (let finger = 0; finger < 4; finger++) {
+      const x = -.023 + finger * .014
+      const length = finger === 0 || finger === 3 ? .036 : .045
+      ctx.lineTo(x, length - .008)
+      ctx.quadraticCurveTo(x + .002, length + .005, x + .009, length - .002)
+      ctx.lineTo(x + .012, .019)
+    }
+    ctx.quadraticCurveTo(.04, -.011, .022, -.023)
+    ctx.closePath()
+    ctx.fill()
+    ctx.restore()
+  }
+  if (!handsOnly) {
+    ctx.save()
+    ctx.translate(0, -.33)
+    ctx.rotate(-.09 + Math.sin(t * 1.25) * .07)
+    ctx.fillStyle = live ? '#09212a' : color
+    // Natural jaw, temples and a slightly turned face rather than an oval head.
+    ctx.beginPath()
+    ctx.moveTo(-.086, -.104)
+    ctx.bezierCurveTo(-.112, -.058, -.088, -.01, -.072, .036)
+    ctx.quadraticCurveTo(-.058, .068, -.01, .079)
+    ctx.quadraticCurveTo(.025, .082, .054, .057)
+    ctx.lineTo(.072, .033)
+    ctx.lineTo(.083, .002)
+    ctx.quadraticCurveTo(.111, -.003, .092, -.024)
+    ctx.bezierCurveTo(.103, -.085, .074, -.128, .007, -.133)
+    ctx.closePath()
+    ctx.fill()
+    // Irregular short hair silhouette.
+    ctx.fillStyle = live ? '#020c13' : color
+    ctx.beginPath()
+    ctx.moveTo(-.089, -.018)
+    for (let i = 0; i <= 24; i++) {
+      const angle = Math.PI + i / 24 * Math.PI
+      const radius = 1 + hash01(i * 7) * .075
+      ctx.lineTo(Math.cos(angle) * .103 * radius, -.061 + Math.sin(angle) * .091 * radius)
+    }
+    ctx.bezierCurveTo(.085, -.071, .045, -.075, .025, -.082)
+    ctx.quadraticCurveTo(-.009, -.048, -.063, -.046)
+    ctx.lineTo(-.07, -.008)
+    ctx.closePath()
+    ctx.fill()
+    if (live) {
+      ctx.strokeStyle = 'rgba(123, 201, 213, .18)'
+      ctx.lineWidth = .0025
+      ctx.beginPath()
+      ctx.moveTo(.051, -.042)
+      ctx.lineTo(.069, -.038)
+      ctx.moveTo(.07, -.017)
+      ctx.lineTo(.083, .005)
+      ctx.lineTo(.068, .013)
+      ctx.moveTo(.042, .041)
+      ctx.quadraticCurveTo(.055, .045, .067, .038)
+      ctx.stroke()
+    }
+    // Headphones follow the head tilt, with padded cups and a dark curved band.
+    ctx.lineWidth = .018
+    ctx.strokeStyle = live ? '#163a47' : color
+    ctx.beginPath()
+    ctx.ellipse(-.003, -.061, .114, .111, 0, Math.PI, TAU)
+    ctx.stroke()
+    for (const side of [-1, 1]) {
+      ctx.fillStyle = live ? '#08222e' : color
+      roundRectPath(ctx, side * .103 - .018, -.073, .036, .078, .012)
+      ctx.fill()
+      ctx.strokeStyle = outline
+      ctx.lineWidth = .003
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+  ctx.restore()
+}
+
+function drawDjDecks(ctx: CanvasRenderingContext2D, t: number, beat: number) {
+  // Perspective console: two jog wheels and a central channel mixer.
+  const surface = ctx.createLinearGradient(0, .19, 0, .43)
+  surface.addColorStop(0, '#164350')
+  surface.addColorStop(1, '#021219')
+  ctx.fillStyle = surface
+  ctx.strokeStyle = `rgba(${CYAN}, .58)`
+  ctx.lineWidth = .003
+  ctx.beginPath()
+  ctx.moveTo(-.46, .18)
+  ctx.lineTo(.46, .18)
+  ctx.lineTo(.55, .37)
+  ctx.lineTo(-.55, .37)
+  ctx.closePath()
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = '#020c12'
+  ctx.fillRect(-.55, .37, 1.1, .12)
+  // Turntable rims, grooves, rotating markers and cue/play buttons.
+  for (const side of [-1, 1]) {
+    const x = side * .295
+    for (let ring = 0; ring < 4; ring++) {
+      ctx.beginPath()
+      ctx.ellipse(x, .277, .142 - ring * .021, .061 - ring * .009, 0, 0, TAU)
+      ctx.fillStyle = ring === 0 ? '#07141e' : '#10303c'
+      ctx.strokeStyle = `rgba(${ring === 0 ? ICE : CYAN}, ${ring === 0 ? .65 : .23})`
+      ctx.fill()
+      ctx.stroke()
+    }
+    const spin = t * (side < 0 ? 2 : 1.6) + Math.sin(t * 3.1) * (side < 0 ? .6 : .1)
+    ctx.strokeStyle = `rgba(${ICE}, .85)`
+    ctx.lineWidth = .005
+    ctx.beginPath()
+    ctx.moveTo(x + Math.cos(spin) * .07, .277 + Math.sin(spin) * .028)
+    ctx.lineTo(x + Math.cos(spin) * .124, .277 + Math.sin(spin) * .052)
+    ctx.stroke()
+    ctx.fillStyle = `rgba(${GREEN}, ${.45 + beat * .5})`
+    ctx.fillRect(x - .12, .345, .027, .009)
+    ctx.fillStyle = `rgba(${CYAN}, .8)`
+    ctx.fillRect(x - .075, .345, .027, .009)
+  }
+  // Channel knobs, faders, crossfader and animated level meters.
+  for (let channel = 0; channel < 4; channel++) {
+    const x = -.07 + channel * .045
+    ctx.fillStyle = '#040d14'
+    ctx.fillRect(x, .2, .014, .105)
+    ctx.fillStyle = `rgba(${ICE}, .7)`
+    ctx.fillRect(x - .004, .23 + Math.sin(t * .9 + channel) * .015, .022, .008)
+    ctx.beginPath()
+    ctx.ellipse(x + .007, .205, .01, .005, 0, 0, TAU)
+    ctx.fill()
+    for (let led = 0; led < 5; led++) {
+      ctx.fillStyle = `rgba(${led > 3 ? MAGENTA : GREEN}, ${led < 2 + beat * 3 ? .85 : .15})`
+      ctx.fillRect(x + .018, .31 - led * .009, .006, .005)
+    }
+  }
+  ctx.fillStyle = '#031019'
+  ctx.fillRect(-.07, .337, .15, .009)
+  ctx.fillStyle = `rgba(${ICE}, .8)`
+  ctx.fillRect(Math.sin(t * .7) * .045, .332, .018, .019)
+}
+
+const drawHeadliner: SceneFn = (ctx, w, h, s, alpha) => {
+  ctx.save()
+  ctx.globalAlpha = alpha
+  const glow = ctx.createRadialGradient(w * .5, h * .3, 0, w * .5, h * .4, Math.max(w, h) * .75)
+  glow.addColorStop(0, `rgba(${MAGENTA}, .24)`)
+  glow.addColorStop(.45, `rgba(${CYAN}, .13)`)
+  glow.addColorStop(1, 'rgba(3, 5, 8, 0)')
+  ctx.fillStyle = glow
+  ctx.fillRect(0, 0, w, h)
+  // Subtle stage scanlines echo the supplied silhouette reference.
+  ctx.fillStyle = `rgba(${CYAN}, .055)`
+  for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 1)
+  const scale = Math.min(w * .91, h * .88)
+  ctx.translate(w / 2, h * .5)
+  ctx.scale(scale, scale)
+  ctx.lineJoin = 'round'
+  // Symmetric left/right echoes sample different earlier poses and sit behind the DJ.
+  for (const [offset, delay, opacity, color] of [
+    [-.31, .72, .22, CYAN], [.31, .54, .2, CYAN],
+    [-.16, .36, .43, MAGENTA], [.16, .18, .35, CYAN],
+  ] as const) {
+    ctx.save()
+    ctx.translate(offset, -.025)
+    ctx.scale(.88, .94)
+    drawDjSilhouette(ctx, s.t - delay, `rgba(${color}, ${opacity})`, `rgba(${color}, .15)`)
+    ctx.restore()
+  }
+  drawDjSilhouette(ctx, s.t, '#03171f', `rgba(${CYAN}, .35)`)
+  drawDjDecks(ctx, s.t, s.beat)
+  drawDjSilhouette(ctx, s.t, '#03171f', `rgba(${CYAN}, .35)`, true)
   ctx.restore()
 }
 
@@ -783,38 +961,34 @@ export function AuthVisualizer() {
     let width = 0
     let height = 0
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.25)
       const rect = parent.getBoundingClientRect()
       width = rect.width || parent.clientWidth
       height = rect.height || parent.clientHeight
-      canvas.width = Math.max(1, Math.round(width * dpr))
-      canvas.height = Math.max(1, Math.round(height * dpr))
+      const pixelWidth = Math.max(1, Math.round(width * dpr))
+      const pixelHeight = Math.max(1, Math.round(height * dpr))
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
-    resize()
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null
-    observer?.observe(parent)
-    window.addEventListener('resize', resize)
-
     let raf = 0
-    let bootTimer = 0
+    let lastPaint = -Infinity
     let disposed = false
     let prev = performance.now()
     let beatEnv = 0
     const started = prev
 
     const frame = (now: number) => {
+      if (disposed || document.hidden || width < 2 || height < 2) return
+      // Decorative motion stays at 30 fps, including on 120 Hz desktop screens.
+      if (now - lastPaint < 1000 / 30 - 1) {
+        raf = requestAnimationFrame(frame)
+        return
+      }
+      lastPaint = now
       const dt = Math.min((now - prev) / 1000, 0.05)
       prev = now
       const t = Math.max(0, (now - started) / 1000)
-
-      if (width < 2 || height < 2) {
-        resize()
-        if (width < 2 || height < 2) {
-          raf = requestAnimationFrame(frame)
-          return
-        }
-      }
 
       const beatsPerSec = BPM / 60
       if (Math.floor(t * beatsPerSec) !== Math.floor((t - dt) * beatsPerSec)) beatEnv = 1
@@ -830,7 +1004,7 @@ export function AuthVisualizer() {
         high: clamp01(0.36 + 0.28 * Math.abs(Math.sin(t * 7.7)) + beat * 0.3),
       }
 
-      ctx.fillStyle = 'rgba(3, 5, 8, 0.24)'
+      ctx.fillStyle = 'rgba(3, 5, 8, 0.42)'
       ctx.fillRect(0, 0, width, height)
 
       const elapsed = t * 1000
@@ -858,28 +1032,26 @@ export function AuthVisualizer() {
       drawEngineLabels(ctx, width, height, staticSig, null)
     }
 
-    // (Re)start the loop. Runs on a setTimeout watchdog until the emblem panel
-    // has a real size — rAF alone can't self-heal here because it's paused
-    // while the Electron window is still coming up, and the panel is 0×0 until
-    // its `vh`-based layout settles.
+    // ResizeObserver wakes the animation once layout is ready. Hidden mobile
+    // panels and background documents do no drawing and run no polling timers.
     const start = () => {
       if (disposed) return
       cancelAnimationFrame(raf)
       resize()
-      if (width < 2 || height < 2) {
-        window.clearTimeout(bootTimer)
-        bootTimer = window.setTimeout(start, 80)
-        return
-      }
+      if (document.hidden || width < 2 || height < 2) return
       prev = performance.now()
+      lastPaint = -Infinity
       raf = requestAnimationFrame(reduce ? paintStatic : frame)
     }
-    start()
-
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(start) : null
+    observer?.observe(parent)
+    window.addEventListener('resize', start)
     const onVisibility = () => {
-      if (!document.hidden) start()
+      if (document.hidden) cancelAnimationFrame(raf)
+      else start()
     }
     document.addEventListener('visibilitychange', onVisibility)
+    start()
     if (typeof document.fonts?.ready?.then === 'function') {
       document.fonts.ready.then(start).catch(() => { /* metrics stay on fallback */ })
     }
@@ -887,9 +1059,8 @@ export function AuthVisualizer() {
     return () => {
       disposed = true
       cancelAnimationFrame(raf)
-      window.clearTimeout(bootTimer)
       observer?.disconnect()
-      window.removeEventListener('resize', resize)
+      window.removeEventListener('resize', start)
       document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [])

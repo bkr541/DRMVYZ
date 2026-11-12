@@ -1023,3 +1023,37 @@ describe('MediaLibraryBrowser manager: success cards', () => {
     expect(cards().map(card => card.title)).toEqual(['Added to pool', 'Pool created', 'Added to pool'])
   })
 })
+
+
+describe('MediaLibraryBrowser visual-media skeleton loader', () => {
+  it('shows eight grid skeletons while loading and replaces them with loaded media', async () => {
+    mocks.mediaState.items = []
+    mocks.mediaState.loading = true
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    expect(container?.querySelector('[aria-label="Loading images and videos"]')?.getAttribute('aria-busy')).toBe('true')
+    expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(8)
+    mocks.mediaState.items = [visual]
+    mocks.mediaState.loading = false
+    await act(async () => root?.render(<MediaLibraryBrowser context="manager" capabilities={MEDIA_MANAGER_CAPABILITIES} activeMediaId={visual.id} onSelect={vi.fn()} />))
+    expect(container?.querySelector('.vz-media-loading')).toBeNull()
+    expect(container?.querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+  })
+  it('uses row skeletons when the user switches to list view', async () => {
+    mocks.mediaState.items = []
+    mocks.mediaState.loading = true
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    await act(async () => findButtonByTitle('List view')!.click())
+    expect(container?.querySelectorAll('.vz-media-skeleton-row')).toHaveLength(8)
+    expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(0)
+  })
+  it('shows skeletons during an empty refresh while retaining populated media during refresh', async () => {
+    mocks.mediaState.items = []
+    mocks.mediaState.refreshing = true
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    expect(container?.querySelector('.vz-media-loading')).not.toBeNull()
+    mocks.mediaState.items = [visual]
+    await act(async () => root?.render(<MediaLibraryBrowser context="manager" capabilities={MEDIA_MANAGER_CAPABILITIES} activeMediaId={visual.id} onSelect={vi.fn()} />))
+    expect(container?.querySelector('.vz-media-loading')).toBeNull()
+    expect(container?.querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+  })
+})

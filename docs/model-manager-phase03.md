@@ -149,3 +149,30 @@ ready for Phase 01's prepared save API. Recipe changes can leave the prior model
 visible until regeneration; a future Save must ensure artifact and edited recipe
 agree. Preserve snapshots even when `sourceMediaId` is no longer a live media row.
 Only enable Save/Discard-and-Save navigation after actual persistence succeeds.
+
+### Media Library groups
+
+All Visuals, Audio Tracks and Fonts remain the first manager tabs; 3D Models
+follows those standard entries. The 3D Models and Images & Videos sections use
+the actual shared Collapsible component: icon, uppercase group title, divider,
+arrow, body spacing and expand/collapse behavior. Counts/sort metadata use its
+header accessory. There is no separate imitation of the group-header styling.
+
+The mixed model section fits its content up to 300px. Image virtualization
+measures its inner group width and scroll offset, preserving square cards with
+the shared body padding. Model measurements resume when a group reopens.
+Rendered checks exercise both groups, the model tab and image scrolling at two
+widths, and compare typography against an actual shared group. Evidence is in
+ignored `artifacts/media-library-style/`. The earlier broad library test run had
+two audio-loading expectation failures; audio behavior is unchanged here.
+
+In grouped views, each group contains its own search row. 3D Models uses an
+independent debounced model query; Images & Videos uses the visual-media query.
+Clearing one leaves the other unchanged. The outer search row remains for
+audio, fonts and other ungrouped filters. Both group rows retain the grid/list
+control and shared input styling; collection groups use the same behavior.
+
+Images & Videos displays eight skeleton tiles (or rows in list view) during
+initial loading and empty refreshes, then replaces them with media. Previously
+loaded media stays visible during refresh. The loader has an accessible busy
+status and a static reduced-motion variant.

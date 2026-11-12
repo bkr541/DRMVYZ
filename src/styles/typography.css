@@ -358,7 +358,7 @@
 .auth-error { font: 400 12px/1.5 var(--font-mono); }
 .auth-submit { font: var(--type-tab); letter-spacing: .06em; }
 
-/* Media Manager model mode uses the existing field/window roles. */
-.mm-model-section-heading { font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); }
+/* Model metadata uses shared field roles; section headers use Collapsible. */
 .mm-model-card-name, .mm-model-stage-toolbar, .mm-model-inspector p, .mm-model-draft-card { font: var(--type-field-value); }
 .mm-model-card-type, .mm-model-count, .mm-model-navigation { font: var(--type-field-value); }
+.mm-model-count { text-transform: none; }

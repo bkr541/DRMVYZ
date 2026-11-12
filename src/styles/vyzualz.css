@@ -7009,3 +7009,16 @@ input[type='range'].vz-slider::-webkit-slider-thumb {
   align-items: center;
   gap: 8px;
 }
+
+/* Images/video loading preserves the active contact-sheet or list layout. */
+.vz-media-loading { flex: 0 0 auto; min-width: 0; }
+.vz-media-loading .vz-media-sheet { grid-auto-rows: auto; }
+.vz-media-loading .vz-media-card--skeleton { position: relative; }
+.vz-media-skeleton-name { display: block; height: 7px; border-radius: 3px; background: rgba(154, 178, 188, .16); }
+.vz-media-card--skeleton .vz-media-skeleton-name { position: absolute; bottom: 8px; left: 8px; right: 22%; }
+.vz-media-skeleton-row { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 6px 8px; border-radius: var(--radius-group); background: linear-gradient(90deg, #0a1420 25%, #0f1f30 50%, #0a1420 75%); background-size: 200% 100%; animation: vz-skeleton-shimmer 1.4s infinite; }
+.vz-media-skeleton-row .vz-media-skeleton-name { width: 52%; }
+.vz-media-skeleton-thumb { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 4px; background: rgba(154, 178, 188, .09); }
+@media (prefers-reduced-motion: reduce) {
+  .vz-media-loading .vz-media-card--skeleton, .vz-media-skeleton-row { animation: none; }
+}

@@ -157,9 +157,9 @@ function createMainWindow() {
     // Device preview is a blank same-origin design surface, never arbitrary web content.
     if (frameName === 'drmvyz-mobile-preview' && (url === '' || url === 'about:blank')) {
       return { action: 'allow', overrideBrowserWindowOptions: {
-        width: 393, height: 852, useContentSize: true, resizable: false,
-        minimizable: true, maximizable: false, fullscreenable: false,
-        backgroundColor: '#020304', title: 'DRMVYZ — iPhone 16 Preview',
+        width: 1200, height: 1000, minWidth: 800, minHeight: 960, useContentSize: true, resizable: true,
+        minimizable: true, maximizable: true, fullscreenable: false,
+        backgroundColor: '#020304', title: 'DRMVYZ — Mobile Preview',
         autoHideMenuBar: true,
         webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
       } }

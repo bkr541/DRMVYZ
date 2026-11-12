@@ -48,6 +48,18 @@ import { computeVirtualMediaWindow } from './mediaLibraryWindow'
 export { computeVirtualMediaWindow, MEDIA_SHEET_COLUMNS, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
 export type { VirtualMediaWindow } from './mediaLibraryWindow'
 
+function MediaLibrarySkeleton({ viewMode }: { viewMode: ViewMode }) {
+  return <div className="vz-media-loading" role="status" aria-label="Loading images and videos" aria-busy="true">
+    <span className="sr-only">Loading images and videos…</span>
+    <div className={viewMode === 'grid' ? 'vz-media-sheet' : 'vz-media-list'}>
+      {Array.from({ length: 8 }, (_, index) => <div key={index} aria-hidden="true" className={viewMode === 'grid' ? 'vz-media-card vz-media-card--sheet vz-media-card--skeleton' : 'vz-media-skeleton-row'}>
+        {viewMode === 'list' && <span className="vz-media-skeleton-thumb" />}
+        <span className="vz-media-skeleton-name" />
+      </div>)}
+    </div>
+  </div>
+}
+
 const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   items,
   viewMode,
@@ -81,7 +93,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
       const style = getComputedStyle(element)
       const paddingX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
       setMetrics({
-        width: Math.max(0, element.clientWidth - paddingX) || (manager ? 900 : 320),
+        width: virtualRoot.current?.clientWidth || Math.max(0, element.clientWidth - paddingX) || (manager ? 900 : 320),
         height: element.clientHeight || 600,
         scrollTop: Math.max(0, element.scrollTop - ((virtualRoot.current?.getBoundingClientRect().top ?? element.getBoundingClientRect().top) - element.getBoundingClientRect().top + element.scrollTop)),
       })
@@ -90,6 +102,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
     element.addEventListener('scroll', update, { passive: true })
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
     observer?.observe(element)
+    if (virtualRoot.current) observer?.observe(virtualRoot.current)
     return () => {
       element.removeEventListener('scroll', update)
       observer?.disconnect()
@@ -215,10 +228,10 @@ const PIX_GRID_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
 ]
 
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
-  { key: 'models', label: '3D Models' },
   { key: 'all',         label: 'All Visuals' },
   { key: 'tracks',      label: 'Audio Tracks' },
   { key: 'fonts',       label: 'Fonts' },
+  { key: 'models',      label: '3D Models' },
   { key: 'collections', label: 'Collections' },
   { key: 'pools',       label: 'Pools' },
   { key: 'favorites',   label: 'Favorites' },
@@ -712,6 +725,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [openPoolId, setOpenPoolId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [modelSearch, setModelSearch] = useState('')
+  const [debouncedModelSearch, setDebouncedModelSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [dragOver, setDragOver]       = useState(false)
   const [previewItem, setPreviewItem] = useState<UploadedMedia | null>(null)
@@ -751,6 +766,11 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     return () => window.clearTimeout(timer)
   }, [searchQuery])
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedModelSearch(modelSearch.trim()), 180)
+    return () => window.clearTimeout(timer)
+  }, [modelSearch])
+
   const capabilitySet = useMemo(() => new Set<MediaLibraryCapability>(capabilities), [capabilities])
   const isManager = context === 'manager'
   const isCanvasMode = context === 'canvas'
@@ -766,6 +786,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canDragMedia = capabilitySet.has('drag-media')
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
   const canBrowseModels = isManager && capabilitySet.has('models') && !!onSelectModel
+  const hasGroupSearch = canBrowseModels && (['all', 'favorites', 'models'].includes(libraryFilter) || (libraryFilter === 'collections' && !!openCollectionId))
   const canBrowsePools = (isManager || isCanvasMode) && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
@@ -1200,6 +1221,26 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     )
   }
 
+  const renderGroupSearch = (query: string, onChange: (value: string) => void, label: string) => (
+    <div className="vz-md-search-row mm-library-group-search">
+      <div className="vz-md-search-wrap">
+        <AppIcon kind="search" className="vz-md-search-icon" size={12} />
+        <DreamVizTextInput className="vz-md-search-input" type="text" aria-label={label} placeholder={`${label}…`} value={query} onChange={event => onChange(event.target.value)} />
+        {query && <button type="button" className="vz-md-search-clear" aria-label={`Clear ${label.toLowerCase()}`} onClick={() => onChange('')}><AppIcon kind="close" size={14} /></button>}
+      </div>
+      <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
+    </div>
+  )
+
+  const renderVisualLibraryGroup = (content: ReactNode, enabled: boolean) => enabled ? (
+    <section className="mm-visual-library-group">
+      <Collapsible label="Images & Videos" icon={<AppIcon kind="image" size={15} />} headerAccessory={<span className="mm-model-count">Newest first</span>}>
+        {renderGroupSearch(searchQuery, setSearchQuery, 'Search images and videos')}
+        {content}
+      </Collapsible>
+    </section>
+  ) : content
+
   const renderTracksView = () => {
     if (tracksLoading && savedTracks.length === 0) {
       return (
@@ -1327,9 +1368,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             <span className="vz-coll-breadcrumb-name">{openCollection.name}</span>
             <span className="vz-coll-folder-count">{openCollectionItems.length} {canBrowseModels ? 'images / videos' : openCollectionItems.length === 1 ? 'item' : 'items'}</span>
           </div>
-          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedSearch} favorites={false} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
-          {canBrowseModels && <div className="mm-model-section-heading"><AppIcon kind="image" size={14} /><span>Images &amp; Videos</span></div>}
-          {openCollectionItems.length === 0 ? (
+          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models')} favorites={false} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
+          {renderVisualLibraryGroup((
+            (loading || refreshing) && openCollectionItems.length === 0 ? <MediaLibrarySkeleton viewMode={viewMode} /> : openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
               <div className="vz-coll-empty-wrap">
                 {isManager ? (
@@ -1342,7 +1383,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
                 )}
               </div>
             </div>
-          ) : renderGrid(openCollectionItems)}
+          ) : renderGrid(openCollectionItems)
+          ), canBrowseModels)}
         </>
       )
     }
@@ -1537,7 +1579,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         className="vz-filter-tabs dv-underline-tabs--scroll"
       />
 
-      <div className="vz-md-search-row">
+      {!hasGroupSearch && (<div className="vz-md-search-row">
         <div className="vz-md-search-wrap">
           <AppIcon kind="search" className="vz-md-search-icon" size="12" />
           <DreamVizTextInput
@@ -1555,15 +1597,15 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         {libraryFilter !== 'tracks' && libraryFilter !== 'fonts' && (
           <div className="vz-md-view-toggles"><LibraryViewToggle view={viewMode} onChange={setViewMode} /></div>
         )}
-      </div>
+      </div>)}
 
       <MediaStatusBar includeAudio={isManager} />
 
       <div className="vz-media-scroll" ref={scrollRef}>
-        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedSearch} favorites={libraryFilter === 'favorites'} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
-        {canBrowseModels && ['all', 'favorites'].includes(libraryFilter) && <div className="mm-model-section-heading"><AppIcon kind="image" size={14} /><span>Images &amp; Videos · Newest first</span></div>}
+        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedModelSearch} searchControl={renderGroupSearch(modelSearch, setModelSearch, 'Search 3D models')} favorites={libraryFilter === 'favorites'} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
 
-        {libraryFilter === 'models' ? null : libraryFilter === 'tracks' ? (
+        {renderVisualLibraryGroup((
+          libraryFilter === 'models' ? null : libraryFilter === 'tracks' ? (
           renderTracksView()
         ) : libraryFilter === 'fonts' ? (
           renderFontsView()
@@ -1576,12 +1618,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             {queryError}{' '}
             <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton>
           </DrawerNotice>
-        ) : loading && filtered.length === 0 ? (
-          <div className="vz-media-sheet" style={{ '--vz-sheet-tile': 'auto' } as CSSProperties}>
-            {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
-              <div key={i} className="vz-media-card vz-media-card--sheet vz-media-card--skeleton" aria-hidden="true" />
-            ))}
-          </div>
+        ) : (loading || refreshing) && filtered.length === 0 ? (
+          <MediaLibrarySkeleton viewMode={viewMode} />
         ) : filtered.length === 0 && !searchActive && canUpload ? (
           <div
             className="ref-empty-slot"
@@ -1611,7 +1649,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           )
         ) : (
           renderGrid(filtered)
-        )}
+        )
+        ), canBrowseModels && ['all', 'favorites'].includes(libraryFilter))}
       </div>
     </>
   )

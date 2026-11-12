@@ -82,6 +82,7 @@ function XyScopeParameterControl({
     case 'select':
       return (
         <SelectRow
+          menuBoundarySelector=".vz-inspector"
           id={id}
           label={definition.label}
           value={typeof value === 'string' ? value : definition.default}
@@ -166,6 +167,7 @@ export function XyScopeEnginePanel() {
             onChange={text => setXyScopeSettings({ text })}
           />
           <SelectRow
+            menuBoundarySelector=".vz-inspector"
             id="xyscope-font"
             label="Font"
             value={settings.fontId ?? ''}

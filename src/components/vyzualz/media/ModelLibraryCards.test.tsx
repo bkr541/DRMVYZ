@@ -42,6 +42,18 @@ describe('model card paging and interactions', () => {
     expect(host.textContent).toContain('Model filtered'); expect(host.textContent).not.toContain('Model old')
     expect(host.querySelector('.mm-model-card--list')).not.toBeNull()
   })
+  it('uses the shared group header and preserves the model page across collapse/reopen', async () => {
+    await render()
+    const header = host.querySelector<HTMLButtonElement>('.drc-header')!
+    expect(header.getAttribute('aria-expanded')).toBe('true')
+    expect(header.querySelector('.drc-header-icon')).not.toBeNull()
+    expect(header.querySelector('.drc-arrow')).not.toBeNull()
+    await act(async () => header.click())
+    expect(host.querySelector('.mm-model-card')).toBeNull()
+    await act(async () => header.click())
+    expect(host.textContent).toContain('Model shared-id')
+    expect(mocks.list).toHaveBeenCalledTimes(1)
+  })
   it('renders and retries explicit repository errors', async () => {
     mocks.list.mockRejectedValueOnce(new Error('Sign in to access model assets.'))
     await render(); expect(host.querySelector('[role="alert"]')?.textContent).toContain('Sign in')

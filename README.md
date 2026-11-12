@@ -178,7 +178,7 @@ The LUFS and true-peak displays are approximate visual tools, not broadcast-comp
 
 Authentication fields use `DreamVizTextInput` with the same label, value, placeholder, and focus styling as reusable groups. Remember Me uses the shared `IconMorphToggle` after its label, matching Cinema 2.0's Pattern Change control: an outlined circle off and a cyan dot with a thin outline on. The outer focus ring appears for keyboard navigation. Auth typography is defined in `src/styles/typography.css`, using Space Grotesk for primary UI and Manrope for supporting copy.
 
-The auth panel's ambient Canvas 2D animation cycles through Sound Drawing, Cinema, CANVAS, LaserDMX, PixGrid, and Headliner. Each scene lasts 4.6 seconds with a 950 ms transition, driven by a synthetic 124 BPM pulse. Headliner depicts a moving performer with delayed pose echoes, glowing joints, hand particles, and a ghosted name reveal; it does not request camera access or load the engine runtime. Reduced-motion mode keeps the existing static Cinema constellation.
+The auth panel's ambient Canvas 2D animation cycles through Sound Drawing, Cinema, CANVAS, LaserDMX, PixGrid, and Headliner. Each scene lasts 4.6 seconds with a 950 ms transition, driven by a synthetic 124 BPM pulse. Headliner depicts a headphone-wearing DJ working twin decks and a mixer, with delayed cyan/magenta silhouette echoes and a centered animated name; it does not request camera access or load the engine runtime. Reduced-motion mode keeps the existing static Cinema constellation.
 
 ## Verification
 
