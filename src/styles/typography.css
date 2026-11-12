@@ -1,3 +1,12 @@
+/* Bundled font used by font-picker specimens; shared UI roles keep their own family. */
+@font-face {
+  font-family: 'DRMVYZ Anton';
+  src: url('../../scripts/cinema2-assets/sources/anton/Anton-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 /* Library cards share the artist/engine eyebrow and item title hierarchy. */
 .lmv-left-rail .lmv-track-grid .vz-track-row--list .vz-track-row-artist,
 .pmv-card-type {
@@ -167,6 +176,8 @@
 
 :root body [class].drm-dropdown__option-label {
   font: var(--type-field-value) !important;
+  /* Font previews opt into their own family while retaining shared control metrics. */
+  font-family: var(--drm-dropdown-option-font-family, var(--type-field-family, var(--font-ui))) !important;
   letter-spacing: normal !important;
 }
 
@@ -325,3 +336,25 @@
   letter-spacing: normal;
   color: var(--ui-text-muted, #8a9aa0);
 }
+
+/* Reusable field labels keep their secondary color outside workspace shells too. */
+:root body .rv-ctrl-label {
+  color: var(--ui-text-secondary, rgba(214, 228, 234, 0.68));
+}
+
+/* Authentication uses the app's primary UI and secondary copy faces.
+   Inputs and placeholders inherit the same field roles as reusable groups. */
+.auth-root { font-family: var(--font-ui); }
+.auth-form-title { font: 700 22px/1.2 var(--font-ui); }
+.auth-form-sub,
+.auth-switch,
+.auth-remember,
+.auth-checkbox,
+.auth-link,
+.auth-error { font: 400 12px/1.5 var(--font-mono); }
+.auth-submit { font: var(--type-tab); letter-spacing: .06em; }
+
+/* Media Manager model mode uses the existing field/window roles. */
+.mm-model-section-heading { font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); }
+.mm-model-card-name, .mm-model-stage-toolbar, .mm-model-inspector p, .mm-model-draft-card { font: var(--type-field-value); }
+.mm-model-card-type, .mm-model-count, .mm-model-navigation { font: var(--type-field-value); }

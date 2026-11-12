@@ -1,3 +1,10 @@
+import { Cinema2UserModelPreviewEffects } from '../model/Cinema2UserModelPreviewEffects'
+import { isCinema2UserModelPreview } from '../model/Cinema2UserModelPreviewPatterns'
+import { createCinema2ModelPlaceholder } from '../model/Cinema2ModelPlaceholder'
+import { Cinema2UserModelSlot, type Cinema2UserModelSlotSnapshot } from '../model/Cinema2UserModelSlot'
+import type { Cinema2UserModelCache } from '../model/Cinema2UserModelCache'
+import { DEFAULT_MODEL_BINDING } from '../model/Cinema2ModelBinding'
+import { disposeObject } from './three/Cinema2ThreeAssetCache'
 import {
   cinema2StableId,
   type Cinema2ModuleManifest,
@@ -139,6 +146,8 @@ export type Cinema2ThreeSceneModuleState = 'idle' | 'loading' | 'building' | 're
  * light the models: 0 on low, 2 on medium, 4 on high.
  */
 export interface Cinema2ThreeSceneModuleOptions {
+  userModels?: Cinema2UserModelCache
+  subscribeModelAccount?: (listener: () => void) => () => void
   environments?: Cinema2ThreeEnvironmentRegistry
   registry?: Cinema2ThreeAssetRegistry
   assets?: Cinema2ThreeAssetCache
@@ -153,6 +162,7 @@ export interface Cinema2ThreeSceneModuleOptions {
 
 export interface Cinema2ThreeSceneModuleInspection {
   state: Cinema2ThreeSceneModuleState
+  userModel?: Cinema2UserModelSlotSnapshot
   loadedAssetCount: number
   skippedInstanceCount: number
 }
@@ -176,6 +186,11 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
     create(context: Cinema2ModuleCreateContext) {
       let modelController: ReturnType<NonNullable<Cinema2ThreeSceneModuleOptions['createModelController']>> | undefined
       let latestControllerUpdate: Cinema2ModuleUpdateContext | null = null
+      const userConfig = parseUserModelConfig(context.module)
+      let userSlot: Cinema2UserModelSlot | null = null
+      let userBinding = context.parameters.get('userModel') ?? DEFAULT_MODEL_BINDING
+      let userPalette = context.parameters.get('userModelPalette') === true
+      const ownedTemplates: Cinema2ThreeLoadedAsset[] = []
       const requested = parseInstances(context.module)
       const panels = parsePanels(context.module)
       const atlHoeLights = parseAtlHoeLights(context.module)
@@ -224,6 +239,8 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
         const releasing = held
         held = []
         for (const asset of releasing) assets.release(asset)
+        userSlot?.dispose()
+        for (const asset of ownedTemplates.splice(0)) disposeObject(asset.scene)
       }
 
       const startLoading = (quality: Cinema2RenderQualityLevel) => {
@@ -258,6 +275,18 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           }
           held = ok.map(entry => entry.asset)
           loaded = ok.map(entry => ({ asset: entry.asset, node: entry.instance.node, spin: entry.instance.spin }))
+          if (userConfig) {
+            const fallback = createCinema2ModelPlaceholder(library!)
+            ownedTemplates.push(fallback)
+            loaded.push({ asset: fallback, node: userConfig.node, spin: userConfig.spin, userModel: true })
+            if (userConfig.neutralFloor) { const floor = createCinema2ModelPlaceholder(library!, true); ownedTemplates.push(floor); loaded.push({ asset: floor, node: null, preserveMaterials: true }) }
+            userSlot = new Cinema2UserModelSlot(library!, fallback, asset => {
+              const instance = { asset, node: userConfig.node, spin: userConfig.spin, userModel: true }
+              loaded = [...loaded.filter(entry => !entry.userModel), instance]
+              bridge?.replaceUserModel(instance)
+            }, options.userModels, options.subscribeModelAccount)
+            userSlot.select(userBinding)
+          }
           state = loaded.length > 0 ? 'building' : 'failed'
         })()
       }
@@ -268,7 +297,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             options.resourceKey ?? 'three-scene:bridge',
             'ThreeSceneBridge',
             gl => {
-              modelController = options.createModelController?.(library!)
+              modelController = options.createModelController?.(library!) ?? (isCinema2UserModelPreview(context.module.config?.userModelPreview) ? new Cinema2UserModelPreviewEffects(library!, context.module.config!.userModelPreview) : undefined)
               if (latestControllerUpdate) modelController?.update?.(latestControllerUpdate)
               return new Cinema2ThreeSceneBridge(gl, library!, loaded, { modelController, panels: areaLightTables ? panels : [], areaLightTables, environmentUrl: environmentId ? quality => environments.resolveUrl(environmentId, quality) : null, ...(glowShares ? { glow: glowShares } : {}), ...(segmentRoles ? { segments: segmentRoles } : {}), ...(atlHoeRoles ? { atlHoe: atlHoeRoles } : {}), ...(atlHoeLights.length > 0 ? { atlHoeLights } : {}), conduitSemantics: context.module.config?.conduitSemantics === true, hdr: context.module.config?.hdr === true, ...(particles.length > 0 ? { particles } : {}), ...(shadowParts ? { shadows: shadowParts } : {}) })
             },
@@ -292,6 +321,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           if (state === 'idle') startLoading(quality)
           if (state === 'building' && !bridge && !bridgeCreateFailed && library) buildBridge()
           if (!bridge || state === 'failed' || state === 'loading') return
+          bridge.setUserModelPalette(userPalette)
           bridge.draw(execution, overrides, spinRadians, glowDraw, segmentDraw, null, null, atlHoeDraw)
           if (bridge.ready && state !== 'ready') state = 'ready'
           const bytes = bridge.estimateGpuBytes()
@@ -304,6 +334,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           update: (updateContext: Cinema2ModuleUpdateContext) => {
             const { frame, parameters } = updateContext
             latestControllerUpdate = updateContext
+            if (userConfig) { userBinding = parameters.get('userModel') ?? DEFAULT_MODEL_BINDING; userPalette = parameters.get('userModelPalette') === true; userSlot?.select(userBinding) }
             modelController?.update?.(updateContext)
             overrides = readOverrides(parameters, overrides, partNames)
             const turnSeconds = readNumber(parameters.get('spinTurnSeconds'), 0, 3600) ?? 0
@@ -431,6 +462,7 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
           },
           dispose: () => {
             disposed = true
+            userSlot?.stop()
             beatClock.reset()
             audioGlow?.reset()
             segmentLighting?.reset()
@@ -449,8 +481,12 @@ export function createCinema2ThreeSceneModuleDefinition(options: Cinema2ThreeSce
             segmentLighting.enqueueCue(kind as Cinema2ConduitCueKind, event.eventId)
           }
         } : undefined,
-        getDiagnostics: () => (bridge ? [...diagnostics, ...bridge.getDiagnostics().map(entry => ({ ...entry, path: `module.${context.module.id}` }))] : diagnostics),
-        inspect: (): Cinema2ThreeSceneModuleInspection => ({ state, loadedAssetCount: loaded.length, skippedInstanceCount: requested.length - loaded.length }),
+        getDiagnostics: () => {
+          const status = userSlot?.getSnapshot()
+          const modelDiagnostics: Cinema2ModuleDiagnostic[] = status && status.status !== 'ready' ? [{ code: `CINEMA2_USER_MODEL_${status.status.toUpperCase()}`, path: `module.${context.module.id}.userModel`, message: status.message ?? 'Loading the pinned private model…' }] : []
+          return [...modelDiagnostics, ...(bridge ? [...diagnostics, ...bridge.getDiagnostics().map(entry => ({ ...entry, path: `module.${context.module.id}` }))] : diagnostics)]
+        },
+        inspect: (): Cinema2ThreeSceneModuleInspection => ({ state, loadedAssetCount: loaded.length, skippedInstanceCount: Math.max(0, requested.length - held.length), ...(userSlot ? { userModel: userSlot.getSnapshot() } : {}) }),
       }
     },
   })
@@ -490,10 +526,14 @@ function parseInstances(module: Readonly<Cinema2ModuleManifest>): RequestedInsta
 function validateConfig(module: Readonly<Cinema2ModuleManifest>, registry: Cinema2ThreeAssetRegistry, environments: Cinema2ThreeEnvironmentRegistry): Cinema2ModuleDiagnostic[] {
   const diagnostics: Cinema2ModuleDiagnostic[] = []
   const raw = module.config?.instances
-  if (!Array.isArray(raw) || raw.length === 0) {
+  const userModel = parseUserModelConfig(module)
+  if (module.config?.userModelPreview !== undefined && (!userModel || !isCinema2UserModelPreview(module.config.userModelPreview))) diagnostics.push({ code: 'CINEMA2_USER_MODEL_PREVIEW_INVALID', path: '$.config.userModelPreview', message: 'A model preview requires one dynamic slot and a supported preview representation.' })
+  if (module.config?.userModel !== undefined && !userModel) diagnostics.push({ code: 'CINEMA2_USER_MODEL_CONFIG_INVALID', path: '$.config.userModel', message: 'The dynamic model slot needs a node string (or null), optional spin and neutralFloor booleans.' })
+  if ((!Array.isArray(raw) || raw.length === 0) && !userModel) {
     return [{ code: 'CINEMA2_THREE_SCENE_INSTANCES_REQUIRED', path: '$.config.instances', message: 'A three-scene module needs a non-empty config.instances list of { asset, node? }.' }]
   }
-  raw.forEach((entry, index) => {
+  if (raw !== undefined && !Array.isArray(raw)) diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path: '$.config.instances', message: 'Static instances must be a list.' })
+  ;(Array.isArray(raw) ? raw : []).forEach((entry, index) => {
     const path = `$.config.instances[${index}]`
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
       diagnostics.push({ code: 'CINEMA2_THREE_SCENE_INSTANCE_INVALID', path, message: 'Each instance must be an object with an "asset" id.' })
@@ -734,4 +774,14 @@ function readAtlHoeTrigger(value: unknown): Cinema2AtlHoeTriggerId {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function parseUserModelConfig(module: Readonly<Cinema2ModuleManifest>): { node: string | null; spin: boolean; neutralFloor: boolean } | null {
+  const raw = module.config?.userModel
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const config = raw as Record<string, unknown>
+  if (config.node !== null && (typeof config.node !== 'string' || !config.node.trim())) return null
+  if (config.spin !== undefined && typeof config.spin !== 'boolean') return null
+  if (config.neutralFloor !== undefined && typeof config.neutralFloor !== 'boolean') return null
+  return { node: config.node, spin: config.spin === true, neutralFloor: config.neutralFloor === true }
 }

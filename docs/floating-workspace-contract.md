@@ -19,6 +19,7 @@ surface**. Common inset/gap/radius/border/elevation tokens live in
 | View (`data-app-workspace`) | Composition owner | Notes |
 | --- | --- | --- |
 | `react` | `ReactView.tsx`, `reactView.css` | Rails + live canvas/stage + lower workspace; original `VyzualzAudioDock` owns a separate second grid row. |
+| `performanceManager` | `PerformanceManagerView.tsx`, `performanceManager.css` | Engine library + mirrored pads + empty Configuration + preset Inspector; shared audio dock. |
 | `presetManager` | `PresetManagerView.tsx`, `presetManager.css` | Preset rail + detail stage + Inspector; no redundant feature header. |
 | `showManager` | `ShowManagerView.tsx`, `showManager.css` | Library + visualizer/Track Map + Inspector, with its own second-row audio dock. |
 | `lyrics` | `LyricManagerView.tsx`, `lyricManager.css`, `lyricLayoutMode.ts` | Independent track/timeline/cue surfaces; rails become drawers at manager-width breakpoints. |
@@ -65,9 +66,8 @@ grid row, collapse/expand by blank-gap click, bottom edge fixed), the Lyric
 Manager drawers, and that the page never scrolls horizontally.
 
 Per-workspace responsive facts the spec encodes (change them here and in the
-spec together): Preset Manager intentionally hides `.pmv-stage` at viewport
-widths of 900px and below (the preview stays mounted; both rails remain), and
-Lyric Manager's rails become drawers at the manager-width breakpoints.
+spec together): Preset Manager uses the same expanded and collapsed side-window widths as
+React and keeps its preview visible at narrow widths. Lyric Manager's rails become drawers at the manager-width breakpoints.
 
 **Running it.** It needs a production build served on the preview origin and an
 approved Playwright storage state for a signed-in user (never commit it):
@@ -87,3 +87,15 @@ Primary top headers in React, Preset Manager, Show Manager, Media Manager and
 Lyric Manager share `--workspace-header-height: 44px`, including borders. Floating
 header surfaces use the same value via `--fw-header-height`. Panel title bars and
 collapsible group headers retain their own sizing.
+
+## Mobile preview launcher
+
+The shared frame also owns a phone-shaped floating key immediately left of
+Layout Lab. It opens an independent iPhone 16 portrait design shell; see
+[mobile-preview-window.md](mobile-preview-window.md) for dimensions, lifecycle,
+Electron policy and validation. It does not replace the current workspace.
+
+React, Performance Manager and Preset Manager consume `--fw-performance-rail-width`
+from `floatingWorkspace.css`: clamp(210px, 22vw, 354px), then
+clamp(190px, 24vw, 260px) at 1100px and below, and
+clamp(150px, 22vw, 190px) at 800px and below. Each rail collapses to 32px.

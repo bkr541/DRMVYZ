@@ -20,6 +20,7 @@ Historical patch records are useful evidence, but they are not automatically cur
 | --- | --- |
 | **React** | Main VJ workspace with six visual engines, Track Map, performance controls, recording, and production output |
 | **Visualizer** | Classic modular spectrum, waveform, meter, and social-layout workspace |
+| **Performance Manager** | Engine/preset browsing and a mirror of current performance pads, with Configuration reserved for later phases |
 | **Media Manager** | Shared image, SVG, video, audio, and Brand Kit asset management, including offline image background removal |
 | **Lyric Manager** | Lyric extraction, timing, cue styling, editing, and preview |
 
@@ -130,6 +131,36 @@ Brand Kit supplies persisted palettes, assets, effective engine palettes, brande
 
 Sound Drawing control ownership, Pro Scope Trace Size and linked-axis semantics, preset provenance, and versioned trail-lock compatibility are documented in [`docs/sound-drawing-control-ownership-and-provenance.md`](docs/sound-drawing-control-ownership-and-provenance.md).
 
+## User-created 3D models
+
+In **Media Manager → Images**, select an uploaded PNG, SVG, JPG or WebP and choose
+**Create 3D Model**. Transparent logos work best. Opaque images require reviewing
+and confirming the foreground; adjust the threshold or inversion when needed.
+The generator extrudes a silhouette into a real mesh. It does not reconstruct a
+photographed object with AI.
+
+Drag the center viewport to orbit, use the wheel to zoom, and use its pan,
+fit/reset controls. **Edit** changes depth, bevel and front/side materials;
+**Info** changes the name, tags, collections and favorite status. **Save Changes**
+stores the GLB, source snapshot, trace and thumbnail in your private account.
+**3D Models** reopens saved assets. **Output** selects immutable versions,
+downloads GLB/PNG, or creates an independent asset with **Save As New Model**.
+Deleting the original image preserves the saved model's independent source
+snapshot. Unsaved edits must be saved before closing the application.
+
+In Cinema 2.0 select **3D FORM / SHATTER / DUST / HOLOGRAM / SLICES / VOXEL
+(Preview)**, then choose a saved model/version under **Design → Model**. Each
+preview has six patterns and shared musical triggers. These are basic reactive
+reference effects: fragment, particle, ribbon and voxel representations use
+bounded surface proxies. Full fracture/dissolution/volumetric choreography and
+the final authored stage remain future work. The stage replacement seam is
+`Cinema2UserModelBaseEnvironment.ts`; model/version bindings stay independent.
+
+Migrations **0047/0048** are required and have been reported pushed by the owner.
+Live authenticated acceptance is still pending. See the
+[migration and account-testing guide](docs/model-migrations.md) and
+[release validation report](docs/model-release-phase07.md).
+
 ## Classic Visualizer
 
 The Visualizer workspace retains the modular analyzer system:
@@ -142,6 +173,12 @@ The Visualizer workspace retains the modular analyzer system:
 - Preset import/export and screen-recording layouts
 
 The LUFS and true-peak displays are approximate visual tools, not broadcast-compliance meters.
+
+## Authentication UI
+
+Authentication fields use `DreamVizTextInput` with the same label, value, placeholder, and focus styling as reusable groups. Remember Me uses the shared `IconMorphToggle` after its label, matching Cinema 2.0's Pattern Change control: an outlined circle off and a cyan dot with a thin outline on. The outer focus ring appears for keyboard navigation. Auth typography is defined in `src/styles/typography.css`, using Space Grotesk for primary UI and Manrope for supporting copy.
+
+The auth panel's ambient Canvas 2D animation cycles through Sound Drawing, Cinema, CANVAS, LaserDMX, PixGrid, and Headliner. Each scene lasts 4.6 seconds with a 950 ms transition, driven by a synthetic 124 BPM pulse. Headliner depicts a moving performer with delayed pose echoes, glowing joints, hand particles, and a ghosted name reveal; it does not request camera access or load the engine runtime. Reduced-motion mode keeps the existing static Cinema constellation.
 
 ## Verification
 

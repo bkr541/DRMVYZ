@@ -646,7 +646,10 @@ export function Dropdown({
           {selected && <span className="drm-dropdown__selection-dot" />}
         </span>
         <span className="drm-dropdown__option-copy">
-          <span className="drm-dropdown__option-label" style={option.style}>{option.label}</span>
+          <span className="drm-dropdown__option-label" style={{
+            ...option.style,
+            ...(option.style?.fontFamily ? { '--drm-dropdown-option-font-family': option.style.fontFamily } : {}),
+          } as CSSProperties}>{option.label}</span>
           {showDescriptions && option.description && (
             <span className="drm-dropdown__option-description">{option.description}</span>
           )}

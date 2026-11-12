@@ -9,11 +9,11 @@ import sharp from 'sharp'
 
 const output = resolve('artifacts/cinema2-orbital')
 await mkdir(output, { recursive: true })
-const server = await createServer({ server: { host: '127.0.0.1', port: 0, hmr: false }, logLevel: 'error' })
+const server = await createServer({ cacheDir: 'node_modules/.cache/orbital-review-vite', server: { watch: null, host: '127.0.0.1', port: 0, hmr: false }, logLevel: 'error' })
 let browser
 try {
   await server.listen()
-  browser = await chromium.launch({ headless: true })
+  browser = await chromium.launch({ headless: true, args: ['--enable-webgl','--ignore-gpu-blocklist','--enable-unsafe-swiftshader','--use-angle=swiftshader'] })
   const page = await browser.newPage({ viewport: { width: 840, height: 525 }, deviceScaleFactor: 1 })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -44,11 +44,11 @@ try {
     assert(delta > min, `${name} did not visibly change (${delta})`)
     changes.push({ name, meanPixelChange: delta })
   }
-  const assetResponse = page.waitForResponse(response => response.url().endsWith('/orbital-gyroscope.glb'))
+  const assetResponse = page.waitForResponse(response => response.url().endsWith('/orbital-metal-sphere.glb'))
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/src/test/browser/cinema2-submerge-production.html?preset=orbital`)
   await page.waitForFunction(() => window.__orbital)
   const ready = await api('prepare')
-  assert((await assetResponse).ok(), 'The shipped gyroscope must load through the native asset registry')
+  assert((await assetResponse).ok(), 'The supplied metal sphere must load through the native asset registry')
   assert(ready.modules.estimatedGpuBytes > 0)
   await api('setParameters', { 'camera-motion': 0, 'auto-performance': false })
   const baseline = await pixels('orbital')
@@ -56,9 +56,9 @@ try {
   const brass = await pixels('two-lines')
   changed('two-line text edit', baseline, brass)
   await api('setParameters', { 'material-style': 'polished' })
-  changed('source texture versus polished brass', brass, await pixels())
+  changed('source texture versus polished silver', brass, await pixels())
   await api('setParameters', { 'material-style': 'artifact', 'gyroscope-size': .55 })
-  changed('gyroscope size', brass, await pixels())
+  changed('sphere size', brass, await pixels())
   await api('setParameters', { 'gyroscope-size': 1 })
   await api('setMusic', { active: true, bass: 0, energy: 0, high: 0 })
   await api('advanceBy', .3)

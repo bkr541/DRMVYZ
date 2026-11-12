@@ -5,7 +5,7 @@ import { Cinema2OrbitalBridge, type OrbitalDrawSettings } from './orbital/Cinema
 import { orbitalControllerPattern } from './orbital/Cinema2OrbitalMotion'
 
 export const CINEMA2_ORBITAL_MODULE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('orbital-native')
-const GYROSCOPE_ASSET_ID = 'cinema2-orbital-gyroscope'
+const SPHERE_ASSET_ID = 'cinema2-orbital-gyroscope'
 const defaults: Readonly<OrbitalDrawSettings> = Object.freeze({
   amount: .7, ringTravel: 1, period: 8, size: 1, depth: 1, planet: .8, debris: .55,
   material: 'artifact', bass: 0, mids: 0, highs: 0, beat: 0,
@@ -39,9 +39,9 @@ export function createCinema2OrbitalNativeModuleDefinition(options: Pick<GlyphMo
       const typography = createCinema2SayItNativeModuleDefinition({
         ...options,
         displayName: 'ORBITAL',
-        companionAssetId: GYROSCOPE_ASSET_ID,
+        companionAssetId: SPHERE_ASSET_ID,
         createBridge: options.createBridge ?? ((gl, library, glyphs, companion) => {
-          if (!companion) throw new Error('The ORBITAL gyroscope asset is missing.')
+          if (!companion) throw new Error('The ORBITAL metal sphere asset is missing.')
           return new Cinema2OrbitalBridge(gl, library, glyphs, companion.asset, companion.scene,
             () => settings, index => context.randomness.sample('orbital-environment', index))
         }),

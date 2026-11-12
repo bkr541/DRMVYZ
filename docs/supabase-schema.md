@@ -107,6 +107,21 @@ Rows 1–26 were seeded by `0008_effect_chain_options.sql`. Rows 27–28 added b
 
 The marketplace tables (`preset_releases`, `preset_release_publications`, `preset_packs`, `preset_pack_editions`, `preset_pack_items`, `store_products`, `store_product_prices`, `store_product_provider_refs`, `store_orders`, `store_order_items`, `store_payment_events`, `preset_entitlement_grants`, `marketplace_holding_projections`, `user_preset_preferences`) are documented in [preset-store/SCHEMA.md](preset-store/SCHEMA.md): relationships, RLS and privilege matrix, server functions, local execution and rollback. They sit beside `presets`, `user_presets` and `preset_organization` and do not alter them.
 
+### User-created model assets (migrations 0047–0048)
+
+`model_assets`, `model_asset_versions`, `model_version_operations` and
+`model_collection_items` form an independent model domain. Version publication is
+an owner-checked compare-and-swap after required private Storage objects exist;
+operations retain retry/cleanup state, and published versions/files are immutable
+for clients. Existing image/video types and collection joins are unchanged.
+See [model-assets-phase01.md](model-assets-phase01.md) for RPCs, policies, APIs,
+security regression SQL and the real-Supabase validation gate.
+Migration 0048 adds owned `model_asset_tags` and authenticated organization/metadata
+RPCs with expected-version checks and atomic collection/tag replacement; see
+[model-editor-phase04.md](model-editor-phase04.md). The owner reports both model
+migrations pushed. Deployment has not been independently verified and live
+authenticated acceptance remains pending; see [model-migrations.md](model-migrations.md).
+
 ## Storage Buckets
 
 | Bucket | Max Size | Allowed Types |
@@ -115,6 +130,7 @@ The marketplace tables (`preset_releases`, `preset_release_publications`, `prese
 | `media-items` | 200 MB | JPEG, PNG, GIF, WebP, MP4, WebM, MOV |
 | `ring-buffers` | 100 MB | WAV |
 | `canvas-exports` | 100 MB | PNG, JPEG, WebM, GIF |
+| `model-assets` (0047; owner reports deployed) | 64 MiB | GLB, PNG, SVG |
 
 All buckets are private. Storage RLS policies enforce that each user can only access files under their own `user_id/` path prefix.
 

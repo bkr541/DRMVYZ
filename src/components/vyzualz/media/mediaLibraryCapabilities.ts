@@ -1,6 +1,7 @@
 export type MediaLibraryContext = 'visualizer' | 'react' | 'canvas' | 'pixGrid' | 'manager'
 
 export type MediaLibraryCapability =
+  | 'models'
   | 'select'
   | 'load-track'
   | 'lyrics'
@@ -39,6 +40,7 @@ export const MEDIA_DECK_CAPABILITIES = [
 /** Full management mode backed by the canonical upload, signed-URL, collection,
  * visual-media, and saved-audio services. */
 export const MEDIA_MANAGER_CAPABILITIES = [
+  'models',
   'select',
   'load-track',
   'lyrics',

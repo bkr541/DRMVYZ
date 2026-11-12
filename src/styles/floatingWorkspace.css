@@ -6,6 +6,7 @@
  * Never apply these rules to unmarked legacy layouts or assume clipping.
  */
 [data-workspace-layout='floating'] {
+  --fw-performance-rail-width: clamp(210px, 22vw, 354px);
   --fw-header-height: var(--workspace-header-height, 44px);
   --fw-compact-nav-width: 72px;
   --fw-outer-inset: 9px;
@@ -144,15 +145,25 @@
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.55));
 }
 
-/* Every workspace places the shared status readouts at the React header's right edge. */
-[data-workspace-layout='floating'][data-app-workspace] .fw-app-header-controls > :is(.pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
-  padding-right: 8px;
+/* One toolbar geometry, including React: feature CSS must not offset the status columns. */
+[data-workspace-layout='floating'][data-app-workspace] .fw-app-header .fw-app-header-controls > :is(.vz-header, .pmv-header, .sm-topbar, .mmv-header, .lmv-header) {
+  box-sizing: border-box;
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0 8px 0 0;
 }
-[data-workspace-layout='floating'] .fw-app-header-controls .mmv-summary {
-  display: flex;
+/* Manager wrappers carry no extra width, gap or margin around the shared cluster. */
+[data-workspace-layout='floating'] .fw-app-header .fw-app-header-controls :is(.mmv-summary, .pmv-summary, .lmv-header-right) {
+  display: contents;
+}
+[data-workspace-layout='floating'] .fw-app-header .rv-header-status {
+  margin-left: auto;
 }
 
-.fw-layout-lab-launcher {
+:is(.fw-layout-lab-launcher, .fw-mobile-preview-launcher) {
   position: fixed;
   right: 16px;
   bottom: 16px;
@@ -169,7 +180,19 @@
   cursor: pointer;
 }
 
-.fw-layout-lab-launcher:focus-visible {
+:is(.fw-layout-lab-launcher, .fw-mobile-preview-launcher):focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* A 10px gap from the existing 36px Layout Lab key. */
+.fw-mobile-preview-launcher { right: 62px; }
+.fw-mobile-preview-blocked { position: fixed; right: 16px; bottom: 62px; z-index: 51; max-width: min(320px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--az-border); border-radius: var(--radius-group); background: var(--color-panel, #101820); color: var(--az-text); font: var(--type-field-value); }
+
+/* React and Preset Manager consume the same responsive side-window measurement. */
+@media (max-width: 1100px) {
+  [data-workspace-layout='floating'] { --fw-performance-rail-width: clamp(190px, 24vw, 260px); }
+}
+@media (max-width: 800px) {
+  [data-workspace-layout='floating'] { --fw-performance-rail-width: clamp(150px, 22vw, 190px); }
 }

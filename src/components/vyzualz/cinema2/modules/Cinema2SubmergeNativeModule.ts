@@ -60,6 +60,10 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
             const signal = (key: 'bass' | 'mids' | 'highs' | 'energy') => {
               return audioEnabled ? number(key, 0, 0, 1) : 0
             }
+            const color = (key: string, fallback: readonly [number, number, number]): readonly [number, number, number] => {
+              const value = parameters.get(key)
+              return Array.isArray(value) && value.length >= 3 && value.slice(0,3).every(v => typeof v === 'number' && Number.isFinite(v)) ? [value[0], value[1], value[2]] : fallback
+            }
             const water = parameters.get('waterColor')
             const material = parameters.get('materialStyle')
             const safety = parameters.get('motionSafety')
@@ -68,6 +72,8 @@ export function createCinema2SubmergeNativeModuleDefinition(options: GlyphModule
               safety: safety === 'reduced' || safety === 'lockoff' ? safety : 'full',
               reach: number('spread', 1, 0, 1.5), period: number('cycleSeconds', 8, 2, 20),
               buoyancy: number('buoyancy', 0.6, 0, 1), depth: number('letter-depth', 1, 0.4, 2),
+              waves: number('waves', 0.85, 0, 1.5), sunlight: number('sunlight', 1, 0, 2),
+              sun: color('sun-color', DEFAULT_SUBMERGE_STATE.sun), foam: color('foam-color', DEFAULT_SUBMERGE_STATE.foam),
               caustics: number('caustics', 0.75, 0, 1.5), haze: number('haze', 0.055, 0, 0.15),
               particles: number('particles', 0.65, 0, 1), bubbles: number('bubbles', 0.5, 0, 1), architecture: number('architecture', 1, 0, 1),
               material: material === 'metal' || material === 'glass' ? material : 'ceramic',

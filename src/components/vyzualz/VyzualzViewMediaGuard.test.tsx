@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
 import { useLyricsStore } from '../../stores/lyricsStore'
+import { useModelEditorStore } from '../../features/models/state/modelEditorStore'
 import { useMediaEditStore } from '../../stores/mediaEditStore'
 import type { AppView } from './appView'
 
@@ -90,6 +91,7 @@ beforeEach(() => {
   useMediaEditStore.getState().endSession()
 })
 afterEach(() => {
+  useModelEditorStore.getState().reset()
   if (root) act(() => root?.unmount())
   container?.remove()
   root = null
@@ -251,4 +253,21 @@ it('holds application navigation while a Text Scene draft awaits a decision', as
     release()
     useTextSceneNavigation.setState({ session: null, pending: null, error: null })
   }
+})
+
+
+describe('Model draft workspace navigation', () => {
+  it('keeps a model draft on Cancel, gates Save, and navigates only after Discard', async () => {
+    await renderView('media')
+    await act(async () => { useModelEditorStore.setState({ id: 'draft-test', name: 'Draft model', dirty: true }) })
+    await clickLabel('React')
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Unsaved model')
+    expect(dialogButton('Save')?.disabled).toBe(true)
+    await press('Cancel')
+    expect(has('media-manager')).toBe(true)
+    expect(useModelEditorStore.getState().dirty).toBe(true)
+    await clickLabel('React'); await press('Discard Changes')
+    expect(has('react-workspace')).toBe(true)
+    expect(useModelEditorStore.getState().dirty).toBe(false)
+  })
 })

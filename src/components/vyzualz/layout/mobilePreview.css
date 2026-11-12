@@ -1,0 +1,6 @@
+/* iPhone 16 portrait screen: 1179 × 2556 physical pixels at a logical 3× scale. */
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #020304; }
+.mobile-preview-screen { box-sizing: border-box; position: relative; width: 393px; height: 852px; max-width: 100vw; max-height: 100vh; overflow: hidden; border-radius: 48px; background: #090d0f; box-shadow: inset 0 0 0 1px #ffffff13; }
+.mobile-preview-island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 126px; height: 37px; border-radius: 22px; background: #000; }
+.mobile-preview-content { box-sizing: border-box; position: absolute; inset: 59px 0 34px; overflow: auto; }
+.mobile-preview-home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 4px; background: #e1e7e9; }

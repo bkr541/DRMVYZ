@@ -1,3 +1,4 @@
+import { Cinema2ModelSelector, Cinema2ModelSelectorContext } from '../cinema2/model/Cinema2ModelSelector'
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
@@ -20,6 +21,7 @@ import { ReactAudioPanel } from './ReactAudioPanel'
 
 export interface Cinema2InspectorPanelProps {
   runtime: Cinema2Runtime | null
+  onOpenMediaManager?: () => void
   surface: Cinema2InspectorSurface
   /** Isolated design previews must not mount shared audio-analysis controls. */
   sharedAudioAnalysis?: boolean
@@ -42,7 +44,7 @@ const zeroRevision = () => 0
 type Cinema2DesignSurface = 'engine' | 'selection'
 type Cinema2ReactSurface = 'performance' | 'analysis'
 
-export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = true, onTextChange }: Cinema2InspectorPanelProps) {
+export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = true, onTextChange, onOpenMediaManager }: Cinema2InspectorPanelProps) {
   const [, setRevision] = useState(0)
   const actionSequence = useRef(0)
   const [designSurface, setDesignSurface] = useState<Cinema2DesignSurface>('engine')
@@ -160,7 +162,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
 
   if (surface === 'design') {
     return (
-      <div className="rv-workspace-panel" data-cinema2-inspector={surface}>
+      <Cinema2ModelSelectorContext.Provider value={{ openManager: onOpenMediaManager, runtime }}><div className="rv-workspace-panel" data-cinema2-inspector={surface}>
         <PanelSubtabs
           value={designSurface}
           onChange={setDesignSurface}
@@ -195,7 +197,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
             )}
           </div>
         </div>
-      </div>
+      </div></Cinema2ModelSelectorContext.Provider>
     )
   }
 
@@ -539,6 +541,8 @@ export function Cinema2SchemaControl({
         </div>
       )
     case 'string':
+      if (definition.metadata?.editor === 'user-model-selector') return <Cinema2ModelSelector id={controlId} label={definition.label} value={value} disabled={disabled} onChange={onChange} />
+      return <ScalarTextControl id={controlId} control={control} value={value == null ? '' : String(value)} onChange={onChange} />
     case 'media':
       return (
         <ScalarTextControl

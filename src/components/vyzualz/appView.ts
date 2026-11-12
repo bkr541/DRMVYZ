@@ -1,4 +1,4 @@
-export const APP_VIEWS = ['react', 'presetManager', 'showManager', 'lyrics', 'media'] as const
+export const APP_VIEWS = ['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media'] as const
 
 export type AppView = (typeof APP_VIEWS)[number]
 export type PerformanceAppView = Extract<AppView, 'react' | 'showManager'>
@@ -8,6 +8,7 @@ export const DEFAULT_PERFORMANCE_VIEW: PerformanceAppView = 'react'
 /** Each workspace explicitly opts into the shared floating chrome. */
 export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
   react: true,
+  performanceManager: true,
   presetManager: true,
   showManager: true,
   lyrics: true,
@@ -16,6 +17,7 @@ export const FLOATING_APP_VIEWS: Readonly<Record<AppView, boolean>> = {
 
 export const APP_VIEW_LABELS: Readonly<Record<AppView, string>> = {
   react: 'React',
+  performanceManager: 'Performance Manager',
   presetManager: 'Preset Manager',
   showManager: 'Show Manager',
   lyrics: 'Lyric Manager',

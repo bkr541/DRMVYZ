@@ -1,0 +1,2 @@
+.cinema2-model-selection { display: flex; align-items: center; gap: 8px; min-height: 48px; margin-block: 6px; }
+.cinema2-model-selection img { width: 48px; height: 48px; object-fit: contain; }

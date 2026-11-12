@@ -23637,18 +23637,18 @@ button.llhr-chip { cursor: pointer; }
 /* Phase 03 — React-only floating composition. The application frame owns outer
    chrome; React keeps the same rails, renderer and timeline. This block follows
    all historical React dock/card overrides. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-content > .vz-main {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main {
   min-height: 0;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-content > .vz-main > div {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-content > .vz-main > div {
   min-height: 0;
 }
 
 /* Portaled controls no longer inherit ReactView's .rv-shell control tokens.
    Publish only those existing tokens on the opted-in ancestor, without
    changing any intrinsic controls or another workspace's palette. */
-[data-workspace-layout='floating'][data-app-workspace='react'] {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) {
   --ui-control-height: 30px;
   --ui-control-radius: 6px;
   --ui-control-padding-inline: 9px;
@@ -23659,7 +23659,7 @@ button.llhr-chip { cursor: pointer; }
   --ui-text-muted: rgba(196, 212, 220, 0.5);
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .fw-app-header-controls > .vz-header {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .fw-app-header-controls > .vz-header {
   box-sizing: border-box;
   flex: 1 1 0;
   min-width: 0;
@@ -23669,8 +23669,8 @@ button.llhr-chip { cursor: pointer; }
   border: 0;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
-  --rv-floating-rail-width: clamp(210px, 22vw, var(--workspace-rail-width));
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating {
+  --rv-floating-rail-width: var(--fw-performance-rail-width);
   display: grid;
   grid-template-rows: minmax(0, 1fr) var(--rv-react-dock-height);
   gap: var(--fw-region-gap);
@@ -23680,7 +23680,7 @@ button.llhr-chip { cursor: pointer; }
   background: transparent;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout {
   --rv-left-width: var(--rv-floating-rail-width);
   --rv-right-width: var(--rv-floating-rail-width);
   grid-row: 1;
@@ -23691,17 +23691,17 @@ button.llhr-chip { cursor: pointer; }
   overflow: visible;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout[data-left-collapsed='true'] {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout[data-left-collapsed='true'] {
   --rv-left-width: var(--rv-collapsed-width);
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout[data-right-collapsed='true'] {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout[data-right-collapsed='true'] {
   --rv-right-width: var(--rv-collapsed-width);
 }
 
 /* Only the actual rail hosts gain the full frame. Existing inner padding,
    scroll ownership and collapse grips remain untouched. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .vz-inspector {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout > .vz-inspector {
   box-sizing: border-box;
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
@@ -23709,37 +23709,37 @@ button.llhr-chip { cursor: pointer; }
   box-shadow: var(--fw-surface-shadow);
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .vz-inspector > .vz-inspector-inner {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout > .vz-inspector > .vz-inspector-inner {
   border-radius: calc(var(--fw-surface-radius) - 1px);
 }
 
 /* The former inter-pane seam must not protrude across independent gaps. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .rw-frame--left::after,
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-layout > .rw-frame--right::after {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout > .rw-frame--left::after,
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-layout > .rw-frame--right::after {
   content: none;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-center-col {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-center-col {
   min-height: 0;
   gap: var(--fw-region-gap);
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-canvas-wrap,
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-lower-workspace {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-canvas-wrap,
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-lower-workspace {
   box-sizing: border-box;
   border: 1px solid var(--fw-surface-border);
   border-radius: var(--fw-surface-radius);
   box-shadow: var(--fw-surface-shadow);
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating .rv-canvas-wrap {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating .rv-canvas-wrap {
   background: var(--fw-surface-background);
 }
 
 /* Phase 04 — The original audio dock stays mounted after .rv-layout, now as
    an actual second grid row. These declarations override React's historical
    viewport-fixed dock without changing Show Manager's shared component. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .az-dock.vz-transport-dock {
   --vz-left-width: var(--rv-floating-rail-width);
   --vz-right-width: var(--rv-floating-rail-width);
   /* Cap side groups at narrow widths so the waveform never forces a wider
@@ -23768,7 +23768,7 @@ button.llhr-chip { cursor: pointer; }
 
 /* One surface spans the whole dock: transport, waveform and the BPM / source /
    action region, with no additional wrapper or hit targets. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .az-dock.vz-transport-dock::before {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .az-dock.vz-transport-dock::before {
   content: '';
   grid-column: 1 / -1;
   grid-row: 1;
@@ -23779,37 +23779,37 @@ button.llhr-chip { cursor: pointer; }
   pointer-events: none;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .vz-transport-dock > .vz-dock-region {
   grid-row: 1;
   z-index: 1;
 }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(1) { grid-column: 1; }
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(2) { grid-column: 2; }
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(3) { grid-column: 3; }
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(1) { grid-column: 1; }
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(2) { grid-column: 2; }
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .vz-transport-dock > .vz-dock-region:nth-of-type(3) { grid-column: 3; }
 
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating > .vz-transport-dock > .vz-dock-region + .vz-dock-region::before {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating > .vz-transport-dock > .vz-dock-region + .vz-dock-region::before {
   content: none;
 }
 
 /* Stage Focus retains the lower toolbar's restore button and dock, while the
    same live canvas expands between the outer surfaces without a remount. */
-[data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating[data-stage-focus='true'] .rv-layout {
+[data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating[data-stage-focus='true'] .rv-layout {
   --rv-left-width: 0px;
   --rv-right-width: 0px;
   gap: 0;
 }
 
 @media (max-width: 1100px) {
-  [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
-    --rv-floating-rail-width: clamp(190px, 24vw, 260px);
+  [data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating {
+    --rv-floating-rail-width: var(--fw-performance-rail-width);
   }
 }
 
 @media (max-width: 800px) {
   /* Constrain peripheral rails rather than removing Inspector interactions.
      Users can still use either original collapse grip to grow the stage. */
-  [data-workspace-layout='floating'][data-app-workspace='react'] .rv-shell--floating {
-    --rv-floating-rail-width: clamp(150px, 22vw, 190px);
+  [data-workspace-layout='floating']:is([data-app-workspace='react'], [data-app-workspace='performanceManager']) .rv-shell--floating {
+    --rv-floating-rail-width: var(--fw-performance-rail-width);
   }
 }

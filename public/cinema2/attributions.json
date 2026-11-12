@@ -117,8 +117,8 @@
       "id": "cinema2-orbital-gyroscope",
       "kind": "model",
       "license": "CC-BY-4.0",
-      "attribution": "Magical gyroscope by reddification (https://sketchfab.com/reddification), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Original model: https://sketchfab.com/3d-models/magical-gyroscope-a3f110c0d2944a2dbff78709eb8f3984. Adapted for ORBITAL with glTF metadata cleanup, new motion and texture reuse on lettering.",
-      "origin": "User-supplied magical_gyroscope.glb from Sketchfab. Normalized packed animation accessors and skin weights, using the original first joint for vertices with zero total weight. Geometry uses lossless Meshopt and the four original texture maps use lossless WebP. Named rig and clips are retained."
+      "attribution": "Abstract sphere by deecube1 (https://sketchfab.com/deecube1), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Source: https://sketchfab.com/3d-models/abstract-sphere-a525fc48c1d245e2883241e344773aa4. Supplied as metal_sphere.glb; converted from specular/glossiness to metal/rough PBR for DRMVYZ; original meshes and animation retained; textures reused on ORBITAL lettering.",
+      "origin": "User-supplied metal_sphere.glb; spec/gloss converted to metal/rough, maps capped at 1024px and WebP quality 95 encoded. Legacy asset ID retained for saved references."
     },
     {
       "id": "cinema2-psylo-static",

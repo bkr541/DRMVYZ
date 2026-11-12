@@ -1,7 +1,8 @@
 import { AppIcon } from '../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../vyzualz/react/controls/DreamVizTextInput'
+import { IconMorphToggle } from '../vyzualz/react/controls/IconMorphToggle'
 import { AuthVisualizer } from './AuthVisualizer'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { supabase, supabaseConfigured } from '../../lib/supabase'
 import { setRememberSession } from '../../lib/authSessionStorage'
 import '../../styles/auth.css'
@@ -164,12 +165,14 @@ interface FieldProps {
 }
 
 function Field({ label, type, placeholder, value, onChange, icon, showToggle, autoComplete }: FieldProps) {
+  const id = useId()
   return (
     <div className="auth-field">
-      <label className="auth-field-label">{label}</label>
+      <label className="rv-ctrl-label" htmlFor={id}>{label}</label>
       <div className="auth-field-wrap">
         <span className="auth-field-icon">{icon}</span>
         <DreamVizTextInput
+          id={id}
           className="auth-field-input"
           type={showToggle ? (showToggle.visible ? 'text' : 'password') : type}
           placeholder={placeholder}
@@ -181,7 +184,7 @@ function Field({ label, type, placeholder, value, onChange, icon, showToggle, au
           <button
             className="auth-field-eye"
             type="button"
-            tabIndex={-1}
+            aria-label={showToggle.visible ? 'Hide password' : 'Show password'}
             onClick={showToggle.onToggle}
           >
             {showToggle.visible ? <EyeOpen/> : <EyeClosed/>}
@@ -250,19 +253,22 @@ function LoginForm({
       </div>
 
       <Field
-        label="EMAIL" type="email" placeholder="you@example.com"
+        label="Email" type="email" placeholder="you@example.com"
         value={email} onChange={setEmail} icon={<IconUser/>}
         autoComplete="email"
       />
       <Field
-        label="PASSWORD" type="password" placeholder="••••••••"
+        label="Password" type="password" placeholder="••••••••"
         value={password} onChange={setPassword} icon={<IconLock/>}
         showToggle={{ visible: showPwd, onToggle: () => setShowPwd(p => !p) }}
         autoComplete="current-password"
       />
 
       <div className="auth-form-row">
-        <Checkbox checked={remember} onChange={setRemember}>Remember me</Checkbox>
+        <label className="auth-remember" htmlFor="auth-remember">
+          <span>Remember me</span>
+          <IconMorphToggle id="auth-remember" checked={remember} onCheckedChange={setRemember} aria-label="Remember me" />
+        </label>
         <button type="button" className="auth-link" onClick={onForgotPassword}>Forgot password?</button>
       </div>
 
@@ -341,28 +347,28 @@ function SignupForm({ onSuccess, onSwitch }: { onSuccess: () => void; onSwitch: 
       </div>
 
       <Field
-        label="FULL NAME" type="text" placeholder="Your name"
+        label="Full Name" type="text" placeholder="Your name"
         value={name} onChange={setName} icon={<IconUser/>}
         autoComplete="name"
       />
       <Field
-        label="ARTIST NAME" type="text" placeholder="Your artist / stage name"
+        label="Artist Name" type="text" placeholder="Your artist / stage name"
         value={artistName} onChange={setArtistName} icon={<IconMic/>}
         autoComplete="off"
       />
       <Field
-        label="EMAIL" type="email" placeholder="you@example.com"
+        label="Email" type="email" placeholder="you@example.com"
         value={email} onChange={setEmail} icon={<IconMail/>}
         autoComplete="email"
       />
       <Field
-        label="PASSWORD" type="password" placeholder="••••••••"
+        label="Password" type="password" placeholder="••••••••"
         value={password} onChange={setPassword} icon={<IconLock/>}
         showToggle={{ visible: showPwd, onToggle: () => setShowPwd(p => !p) }}
         autoComplete="new-password"
       />
       <Field
-        label="CONFIRM PASSWORD" type="password" placeholder="••••••••"
+        label="Confirm Password" type="password" placeholder="••••••••"
         value={confirm} onChange={setConfirm} icon={<IconLock/>}
         showToggle={{ visible: showCfm, onToggle: () => setShowCfm(p => !p) }}
         autoComplete="new-password"
@@ -430,7 +436,7 @@ function ResetPasswordForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
 
         <Field
-          label="EMAIL" type="email" placeholder="you@example.com"
+          label="Email" type="email" placeholder="you@example.com"
           value={email} onChange={setEmail} icon={<IconUser/>}
           autoComplete="email"
         />
@@ -458,7 +464,7 @@ function ResetPasswordForm({ onSwitch }: { onSwitch: () => void }) {
       </div>
 
       <Field
-        label="CODE" type="text" placeholder="123456"
+        label="Code" type="text" placeholder="123456"
         value={code} onChange={setCode} icon={<IconLock/>}
         autoComplete="one-time-code"
       />
@@ -510,13 +516,13 @@ export function ResetPasswordCompletionScreen() {
             </div>
 
             <Field
-              label="NEW PASSWORD" type="password" placeholder="••••••••"
+              label="New Password" type="password" placeholder="••••••••"
               value={password} onChange={setPassword} icon={<IconLock/>}
               showToggle={{ visible: showPwd, onToggle: () => setShowPwd(p => !p) }}
               autoComplete="new-password"
             />
             <Field
-              label="CONFIRM PASSWORD" type="password" placeholder="••••••••"
+              label="Confirm Password" type="password" placeholder="••••••••"
               value={confirm} onChange={setConfirm} icon={<IconLock/>}
               autoComplete="new-password"
             />

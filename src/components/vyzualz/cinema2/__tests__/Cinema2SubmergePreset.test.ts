@@ -30,7 +30,7 @@ describe('Cinema 2.0 SUBMERGE', () => {
   })
 
   it('uses six native geometric patterns with the standard change toggle and exact trigger options', () => {
-    expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern')).toMatchObject({ defaultValue: 'suspension', options: CINEMA2_SUBMERGE_PATTERNS, designParentGroup: 'effects', group: 'Pattern' })
+    expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern')).toMatchObject({ defaultValue: 'suspension', options: CINEMA2_SUBMERGE_PATTERNS, designParentGroup: 'design', group: 'Pattern' })
     expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-pattern-change')).toMatchObject({ type: 'boolean', defaultValue: false })
     expect(manifest.parameters!.find(parameter => parameter.id === 'submerge-trigger')).toMatchObject({ defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: 'submerge-pattern-change', value: true }] })
     const signatures = CINEMA2_SUBMERGE_PATTERNS.map(({ value }) => {

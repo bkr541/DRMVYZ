@@ -83,7 +83,7 @@ describe('Cinema 2.0 ORBITAL', () => {
     instance.lifecycle.dispose()
   })
 
-  it('releases the glyph lease when the companion gyroscope cannot load', async () => {
+  it('releases the glyph lease when the companion sphere cannot load', async () => {
     const glyphAsset = { id: 'glyphs' } as Cinema2ThreeLoadedAsset
     const acquire = vi.fn().mockResolvedValueOnce(glyphAsset).mockRejectedValueOnce(new Error('unavailable'))
     const release = vi.fn()

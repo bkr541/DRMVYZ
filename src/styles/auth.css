@@ -10,7 +10,6 @@
   justify-content: center;
   background: #04060a;
   z-index: 9999;
-  font-family: var(--az-font-data, 'Inter', 'Helvetica Neue', system-ui, sans-serif);
 }
 
 .auth-root::before {
@@ -155,14 +154,10 @@
 }
 
 .auth-form-title {
-  font-size: 22px;
-  font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
-  line-height: 1.2;
 }
 
 .auth-form-sub {
-  font-size: 12.5px;
   color: rgba(255, 255, 255, 0.38);
   margin-top: 4px;
 }
@@ -175,50 +170,24 @@
   gap: 5px;
 }
 
-.auth-field-label {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #4ac7db;
-  font-family: var(--az-font-data, 'Inter', 'Helvetica Neue', system-ui, sans-serif);
-}
-
-/* Canonical DreamVizTextInput treatment: no box — a single bottom rule that
-   spans the icon + input + toggle, and takes the accent on focus. */
+/* Fields retain the shared component's underline, padding and focus states. */
 .auth-field-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid rgba(154, 178, 188, 0.22);
-  border-radius: 0;
-  transition: border-color 140ms ease;
-}
-
-.auth-field-wrap:focus-within {
-  border-bottom-color: #4ac7db;
-  box-shadow: none;
+  gap: 8px;
 }
 
 .auth-field-icon {
-  padding: 0 8px 0 2px;
-  color: rgba(196, 207, 211, 0.4);
+  color: var(--text-dim);
   display: flex;
   align-items: center;
   flex-shrink: 0;
 }
 
-/* The input itself is the reusable component; the wrap owns the rule, so the
-   input drops its own underline and fills the row. */
 .auth-field-input {
   flex: 1;
   min-width: 0;
-}
-
-.auth-field-input.dv-text-input {
-  border-bottom: 0 !important;
 }
 
 .auth-field-eye {
@@ -243,6 +212,14 @@
   margin-top: -2px;
 }
 
+.auth-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
 /* ── Checkbox ────────────────────────────────────────────────────────────────── */
 
 .auth-checkbox {
@@ -250,7 +227,6 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: 12px;
   color: rgba(255, 255, 255, 0.45);
   user-select: none;
 }
@@ -291,9 +267,7 @@
   border: none;
   padding: 0;
   cursor: pointer;
-  font-size: 12px;
   color: #4ac7db;
-  font-family: inherit;
   transition: color 0.15s;
 }
 .auth-link:hover { color: #7ae8ff; text-decoration: underline; }
@@ -301,7 +275,6 @@
 /* ── Error ───────────────────────────────────────────────────────────────────── */
 
 .auth-error {
-  font-size: 12px;
   color: #f87171;
   background: rgba(248, 113, 113, 0.08);
   border: 1px solid rgba(248, 113, 113, 0.22);
@@ -322,10 +295,6 @@
   border-radius: var(--radius-group);
   background: rgba(74, 199, 219, 0.16);
   color: #8ef4ff;
-  font-size: 13px;
-  font-weight: 800;
-  font-family: inherit;
-  letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
   transition: background 140ms ease, border-color 140ms ease;
@@ -364,7 +333,6 @@
 
 .auth-switch {
   text-align: center;
-  font-size: 12px;
   color: rgba(255, 255, 255, 0.3);
   margin-top: 2px;
 }

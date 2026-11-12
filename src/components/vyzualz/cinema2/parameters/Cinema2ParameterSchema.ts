@@ -1,3 +1,4 @@
+import { parseUserModelBinding } from '../model/Cinema2ModelBinding'
 import {
   CINEMA2_CAPABILITY_IDS,
   CINEMA2_DESIGN_PARENT_GROUP_IDS,
@@ -144,7 +145,7 @@ export function compileCinema2ParameterPlan(
 }
 
 export function normalizeCinema2ParameterValue(
-  definition: Pick<Cinema2ParameterManifest, 'id' | 'type' | 'min' | 'max' | 'step' | 'options'>,
+  definition: Pick<Cinema2ParameterManifest, 'id' | 'type' | 'min' | 'max' | 'step' | 'options' | 'metadata'>,
   candidate: unknown,
   options: { mode: 'authored' | 'runtime'; path?: string },
 ): Cinema2ParameterValueNormalizationResult {
@@ -209,7 +210,9 @@ export function normalizeCinema2ParameterValue(
     case 'string':
     case 'text':
       if (typeof candidate !== 'string') diagnostics.push(issue('CINEMA2_PARAMETER_VALUE_TYPE_INVALID', 'String parameters require a string value.', path))
-      else value = candidate
+      else if (definition.metadata?.editor === 'user-model-selector') {
+        try { parseUserModelBinding(candidate); value = candidate } catch { diagnostics.push(issue('CINEMA2_MODEL_BINDING_INVALID', 'Choose a default model or an immutable user-model ID and version.', path)) }
+      } else value = candidate
       break
     case 'media':
       if (candidate !== null && typeof candidate !== 'string') diagnostics.push(issue('CINEMA2_PARAMETER_VALUE_TYPE_INVALID', 'Media parameters require a media reference string or null.', path))

@@ -6,7 +6,7 @@ import type { AppPageId } from '../../stores/pageActivityStore'
 import { VyzualzProfileControl } from './shared/VyzualzProfileControl'
 import type { AppView } from './appView'
 
-const NOTIFICATION_PAGES: Record<AppView, AppPageId> = { react: 'react', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager' }
+const NOTIFICATION_PAGES: Record<AppView, AppPageId> = { react: 'react', performanceManager: 'performance-manager', presetManager: 'preset-manager', showManager: 'show-manager', lyrics: 'lyric-manager', media: 'media-manager' }
 
 type Props = {
   compact?: boolean
@@ -94,6 +94,11 @@ export function VyzualzSidebar(props: Props) {
         </button>
 
         <div className="az-nav-section-label">Managers</div>
+
+        <button type="button" className={`az-nav-item${appView === 'performanceManager' ? ' az-nav-item--active' : ''}`}
+          onClick={() => onAppViewChange?.('performanceManager')} title="Performance Manager" aria-label="Performance Manager" aria-current={appView === 'performanceManager' ? 'page' : undefined}>
+          <span className="az-nav-fill" aria-hidden="true" /><AppIcon kind="navPerformance" size={28} /><span className="az-nav-label">Performance Manager</span>
+        </button>
 
         {/* Preset Manager icon */}
         <button

@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import type { AppView } from '../appView'
 import { APP_VIEW_LABELS } from '../appView'
 import { AppIcon } from '../../shared/icons/AppIcon'
+import { MobilePreviewLauncher } from './MobilePreviewLauncher'
 import { LayoutLabModal } from '../react/LayoutLabModal'
 import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
@@ -89,6 +90,7 @@ export function ApplicationWorkspaceFrame({
             </WorkspaceRegion>
           </div>
         </div>
+        <MobilePreviewLauncher />
         <button type="button" className="fw-layout-lab-launcher" aria-label="Layout Lab"
           title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
           <AppIcon kind="sliders" size={20} />

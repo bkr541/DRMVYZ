@@ -35,6 +35,10 @@ export interface Cinema2SubmergeState {
   particles: number
   bubbles: number
   architecture: number
+  waves: number
+  sunlight: number
+  sun: readonly [number, number, number]
+  foam: readonly [number, number, number]
   depth: number
   material: 'ceramic' | 'metal' | 'glass'
   water: readonly [number, number, number]
@@ -42,6 +46,7 @@ export interface Cinema2SubmergeState {
 export const DEFAULT_SUBMERGE_STATE: Readonly<Cinema2SubmergeState> = Object.freeze({
   beats: 0, amount: 0.65, safety: 'full', reach: 1, period: 8, buoyancy: 0.6,
   bass: 0, mids: 0, highs: 0, energy: 0, caustics: 0.75, haze: 0.055,
+  waves: 0.85, sunlight: 1, sun: [0.57, 0.85, 0.94] as const, foam: [0.72, 0.84, 0.86] as const,
   particles: 0.65, bubbles: 0.5, architecture: 1, depth: 1, material: 'ceramic', water: [0.012, 0.11, 0.16] as const,
 })
 export function submergeMotionAmount(state: Readonly<Cinema2SubmergeState>): number {

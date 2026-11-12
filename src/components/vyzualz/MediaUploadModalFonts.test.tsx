@@ -337,3 +337,22 @@ describe('Additional Info shows only fields that apply to the file', () => {
     expect(await labelsFor('glyph.svg', 'image/svg+xml')).toEqual([])
   })
 })
+
+
+describe('verified visual upload completion', () => {
+  it('returns only completed image records from this upload operation', async () => {
+    const state = useMediaStore.getState() as unknown as { items: import('../../stores/mediaStore').UploadedMedia[]; uploadQueuedMedia: ReturnType<typeof vi.fn> }
+    const file = new File([new Uint8Array(4)], 'logo.png', { type: 'image/png' })
+    mocks.queue = [{ tempId: 'logo-temp', operationId: 'own-upload', file, previewUrl: 'blob:logo', isAudio: false, suggestedRole: 'logo' }]
+    mocks.activeKey = 'logo-temp'
+    const own = { id: 'own', dbId: 'own', type: 'image', uploadOperationId: 'own-upload' } as import('../../stores/mediaStore').UploadedMedia
+    const unrelated = { ...own, id: 'other', dbId: 'other', uploadOperationId: 'external-upload' }
+    state.uploadQueuedMedia.mockImplementationOnce(async () => { state.items = [own, unrelated]; return { total: 1, succeeded: 1, failures: [] } })
+    const onVisualUploaded = vi.fn()
+    await act(async () => root.render(<MediaUploadModal preserveQueuedFiles onClose={() => {}} onVisualUploaded={onVisualUploaded} />))
+    const upload = [...container.querySelectorAll<HTMLButtonElement>('button')].find(button => /Upload 1 Media/.test(button.textContent ?? ''))!
+    await act(async () => upload.click())
+    expect(onVisualUploaded).toHaveBeenCalledWith([own])
+    state.items = []
+  })
+})

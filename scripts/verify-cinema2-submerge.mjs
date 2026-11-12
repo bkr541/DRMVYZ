@@ -14,7 +14,7 @@ let browser
 const errors = [], checks = []
 try {
   await server.listen()
-  browser = await chromium.launch({ headless: true })
+  browser = await chromium.launch({ headless: true, args: ['--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--use-angle=swiftshader'] })
   const page = await browser.newPage({ viewport: { width: 840, height: 525 }, deviceScaleFactor: 1 })
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error' && !/Failed to load resource|CONTEXT_LOST_WEBGL/.test(message.text())) errors.push(message.text()) })
@@ -54,10 +54,14 @@ try {
   let litLowerGlyphPixels = 0
   for (let y = Math.floor(height * 0.66); y < Math.floor(height * 0.86); y += 1) {
     for (let x = Math.floor(width * 0.2); x < Math.floor(width * 0.8); x += 1) {
-      if (twoLines[(y * width + x) * 3 + 1] > 120) litLowerGlyphPixels += 1
+      if (twoLines[(y * width + x) * 3 + 1] > 45) litLowerGlyphPixels += 1
     }
   }
-  assert(litLowerGlyphPixels > width * height * 0.02, 'Both lines must remain visible with architecture enabled')
+  assert(litLowerGlyphPixels > width * height * 0.01, 'Lower glyphs must remain readable under selective ocean lighting')
+  for (const name of ['sun-color', 'foam-color']) {
+    await api('setParameters', { [name]: [1,0.05,0.03,1] }); const warm = await pixels()
+    await api('setParameters', { [name]: [0.57,0.85,0.94,1] }); changed(name,warm,await pixels())
+  }
   await api('setMusic', { active: true, energy: 0, bass: 0, high: 0 })
   const signatures = []
   for (const pattern of ['suspension', 'pressure-wave', 'undertow', 'crosscurrent', 'vortex', 'upwelling']) {
@@ -67,7 +71,7 @@ try {
     for (const [name, previous] of signatures) changed(`patterns ${name}/${pattern}`, previous, image)
     signatures.push([pattern, image])
   }
-  for (const [name, off, on] of [['architecture', 0, 1], ['caustics', 0, 1.5], ['bubbles', 0, 1], ['particles', 0, 1], ['haze', 0, 0.1], ['letter-depth', 0.4, 2]]) {
+  for (const [name, off, on] of [['waves', 0, 1.5], ['sunlight', 0, 2], ['architecture', 0, 1], ['caustics', 0, 1.5], ['bubbles', 0, 1], ['particles', 0, 1], ['haze', 0, 0.1], ['letter-depth', 0.4, 2]]) {
     await api('setParameters', { [name]: off }); const a = await pixels()
     await api('setParameters', { [name]: on }); changed(name, a, await pixels(), name === 'particles' ? 0.002 : 0.005)
   }
@@ -105,6 +109,8 @@ try {
   assert.deepEqual(errors, [])
   await writeFile(join(output, 'review.json'), JSON.stringify({ checks, errors, final: restored }, null, 2))
   console.log(`SUBMERGE browser checks passed (${checks.length}); captures: ${output}`)
+} catch (error) {
+  console.error(JSON.stringify(errors,null,2));throw error
 } finally {
   await browser?.close()
   await server.close()

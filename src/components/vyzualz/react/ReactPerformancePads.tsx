@@ -48,7 +48,7 @@ function contextualHint(target: ReactPerformanceActionTarget, actions: readonly 
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 
-export function ReactPerformancePads({ embedded = false }: { embedded?: boolean }) {
+export function ReactPerformancePads({ embedded = false, mirror = false }: { embedded?: boolean; mirror?: boolean }) {
   const [collapsed, setCollapsed] = useState(() => !embedded)
   const [pressedActionId, setPressedActionId] = useState<string | null>(null)
 
@@ -133,9 +133,10 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
   }, [contextualActions, fireAction, setActivePadId])
 
   useEffect(() => {
+    if (mirror) return
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [handleKey])
+  }, [handleKey, mirror])
 
   const padIcon = (
     <AppIcon kind="grid" size="14" style={{ flexShrink: 0 }} />
@@ -155,8 +156,9 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
                 <button
                   key={pad.id}
                   className={`rv-pad rv-pad--action${isPressed ? ' rv-pad--pressed' : ''}`}
-                  onClick={() => fireAction(action)}
+                  onClick={() => { if (!mirror) fireAction(action) }}
                   disabled={!available}
+                  aria-disabled={mirror || !available}
                   aria-label={`${action.label}. ${action.description}`}
                   {...(isToggle ? { 'aria-pressed': isPressed } : {})}
                   title={`${action.label} [${action.keyBinding.toUpperCase()}]: ${action.description}`}
@@ -174,8 +176,9 @@ export function ReactPerformancePads({ embedded = false }: { embedded?: boolean 
               <button
                 key={pad.id}
                 className={`rv-pad${isActive ? ' rv-pad--active' : ''}${!hasDestination ? ' rv-pad--empty' : ''}`}
-                onClick={() => hasDestination && setActivePadId(pad.id)}
+                onClick={() => { if (!mirror && hasDestination) setActivePadId(pad.id) }}
                 disabled={!hasDestination}
+                aria-disabled={mirror || !hasDestination}
                 title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
                 style={{ '--pad-color': (pad.presetId ? (effectivePresetById.get(pad.presetId)?.palette.accent ?? pad.color) : pad.color) } as React.CSSProperties}
               >

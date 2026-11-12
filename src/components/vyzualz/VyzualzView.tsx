@@ -1,3 +1,5 @@
+import { selectModelEditorNeedsGuard, useModelEditorStore } from '../../features/models/state/modelEditorStore'
+import { UnsavedModelChangesDialog } from './media/UnsavedModelChangesDialog'
 import { requestTextSceneNavigation } from '../../features/cinema2Text/textSceneNavigation'
 import { lazy, Suspense, useCallback, useLayoutEffect, useState } from 'react'
 import { useLyricsStore } from '../../stores/lyricsStore'
@@ -71,6 +73,8 @@ function ManagedWorkspaceShell({
   )
 }
 
+const PerformanceManagerView = lazy(() => import('./performanceManager/PerformanceManagerView').then(module => ({ default: module.PerformanceManagerView })))
+
 interface Props {
   activeView: 'analyzer' | 'reference' | 'vyzualz'
   onNavigate: (view: 'analyzer' | 'reference' | 'vyzualz') => void
@@ -91,7 +95,9 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
   const [lyricNavigationIntent, setLyricNavigationIntent] = useState<LyricManagerNavigationIntent | null>(null)
   const lyricEditorDirty = useLyricsStore(state => state.editorDirty)
   const lyricEditorSaving = useLyricsStore(state => state.isSaving)
-  const mediaEditorNeedsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
+  const modelEditorNeedsGuard = useModelEditorStore(selectModelEditorNeedsGuard)
+  const imageEditorNeedsGuard = useMediaEditStore(selectMediaEditNeedsGuard)
+  const mediaEditorNeedsGuard = imageEditorNeedsGuard || modelEditorNeedsGuard
 
   useLayoutEffect(() => {
     setAudioSourcePolicyAppView(appView)
@@ -161,6 +167,14 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
     )
   }
 
+  if (appView === 'performanceManager') {
+    return <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
+      <Suspense fallback={<WorkspaceLoader label="Performance Manager" />}>
+        <NotificationPageProvider value="performance-manager"><PerformanceManagerView /></NotificationPageProvider>
+      </Suspense>
+    </ManagedWorkspaceShell>
+  }
+
   if (appView === 'presetManager') {
     return (
       <ManagedWorkspaceShell appView={appView} onAppViewChange={requestAppViewChange} sidebarCollapsed={sidebarCollapsed} onSidebarCollapsedChange={setSidebarCollapsed}>
@@ -185,11 +199,11 @@ export function VyzualzView({ initialAppView = DEFAULT_PERFORMANCE_VIEW }: Props
             </NotificationPageProvider>
           </Suspense>
         </ManagedWorkspaceShell>
-        <UnsavedMediaChangesDialog
+        {modelEditorNeedsGuard ? <UnsavedModelChangesDialog open={pendingAppView !== null} onCancel={() => setPendingAppView(null)} onProceed={() => finishPendingNavigation(pendingAppView)} /> : <UnsavedMediaChangesDialog
           open={pendingAppView !== null}
           onCancel={() => setPendingAppView(null)}
           onProceed={() => finishPendingNavigation(pendingAppView)}
-        />
+        />}
       </>
     )
   }

@@ -1,21 +1,55 @@
 # SUBMERGE
 
-SUBMERGE is a native Cinema 2.0 preset. One or two lines of beveled, extruded 3D lettering float in a submerged colonnade with moving caustic light, depth haze, suspended particles and rising bubbles.
+SUBMERGE renders configurable beveled 3D lettering floating in dark water above
+an uneven ocean floor. The previous columns, arches and floor inlays have been
+removed entirely, including for previously saved settings. An overhead displaced
+water mesh forms rolling, curling crests with broken foam highlights. Three
+selective downward spotlights and translucent light shafts illuminate parts of
+the letters and seabed, leaving the surrounding water dark. Environment
+reflections and fill light are deliberately restrained.
 
-- **Master Controls** provides Motion Amount, BPM Sync, Auto Performance and Motion Safety. Lock Off holds the letter and architecture geometry in place.
-- **Design** provides Line Mode, Line 1, optional Line 2, alignment, tracking, line spacing, glyph scale, letter depth and three finishes (glazed ceramic, metal and frosted glass). Environment controls set buoyancy, architecture visibility, caustics, haze, particles and bubbles. The bundled glyphs support printable Basic Latin, with up to 12 characters per line and 20 total. Clearing both displayed lines restores the SUBMERGE wordmark.
-- **Effects** provides Pattern, Pattern Change and the standard Trigger dropdown, plus Trails, Depth of Field, Bloom and Cinematic Finish. Pattern Change is off by default and defaults to Every 4 Bars when enabled. The shared musical event resolver advances through a shuffled cycle and keeps the authored selection for recall.
-- **Palette** provides Water Tint, Letter Tint and Edge Glow. Source and Pool use the shared Text Scenes library. Apply migration `0045_cinema2_submerge_text_scenes.sql` to enable account sync for SUBMERGE scenes and pools.
+- **Master Controls** retains Motion Amount, BPM Sync, Auto Performance and Motion
+  Safety. The existing shared beat clock owns timing; pause freezes the water,
+  particles, lights and lettering. Lock Off assembles letters and holds water.
+- **Design** retains editable one/two-line text, alignment, tracking, line spacing,
+  scale, letter depth and rusted-metal/clean-metal/frosted-glass finishes. Breaking Waves
+  controls crest height/curl; Surface Light controls the actual spotlights and
+  visible shafts. Seabed controls the ocean floor. Its persisted ID remains
+  `submerge-architecture` for compatibility, but it cannot restore any arches.
+  Caustic Light, Depth Haze, Suspended Particles and Bubble Trails remain active.
+- **Design > Pattern** contains Pattern, Pattern Change and the canonical Trigger
+  options. Six patterns move the glyphs: Suspension, Pressure Wave, Undertow,
+  Crosscurrent, Vortex and Upwelling. Pattern Change defaults OFF and uses the
+  existing musical event controller without overwriting authored parameters.
+- **Palette** offers independent Water Tint, Letter Tint, Edge Glow, Surface Light
+  Tint and Wave Foam Tint. Water Tint is attenuated for the deep-water background.
+- Source/Pool use the existing Text Scenes library and migration 0045. New water
+  and light parameters are included in saved SUBMERGE Text Scenes.
 
-| Pattern | Letter and environment movement |
-| --- | --- |
-| Suspension | Small buoyant letter drifts and slow movement in the arches |
-| Pressure Wave | A bass-driven depth wave across letters with successive expansion of the arches |
-| Undertow | Staggered sideways and depth pulls through the glyphs and columns |
-| Crosscurrent | The two lines drift in opposite directions as neighboring arches counter-rotate |
-| Vortex | Letter faces follow bounded circular paths as the colonnade twists |
-| Upwelling | Lift passes across the glyphs and arches as the bubbles rise faster |
+Bass adds bounded swell and letter displacement; mids drive localized seabed
+caustics; highs accent bubbles and particles. Shared timing drives crest motion
+and slow light modulation. No new analyzer, transport, canvas or context is used.
 
-Cinema's choreography routes smooth the bass, mid, high and energy signals. Bass increases geometric displacement, mids intensify caustics, and highs and transients accent bubble motion. Phrase and drop events add bounded camera accents. Authored values stay separate from transient performance values.
+The waves are stylized displaced geometry with procedural crest foam, not a fluid
+simulation or physically simulated breaking-water collision. Light shafts use
+bounded translucent geometry paired with real spotlights, not volumetric ray
+marching. Wave geometry, beam materials and shadow resources are owned by the
+bridge and disposed on teardown/context restoration. Low/medium tiers disable
+shadow rendering through the existing shared quality profile and reduce particles.
 
-`node scripts/verify-cinema2-submerge.mjs` exercises the native WebGL runtime and writes review captures to `artifacts/cinema2-submerge/`. Run the shared Text Scenes browser review with `CINEMA2_TEXT_REVIEW_PRESETS=submerge` to exercise the Source editor and Pool.
+`node scripts/verify-cinema2-submerge.mjs` runs the real native WebGL renderer,
+text edits, all six patterns, water/light/environment controls, materials, musical
+response, pause/resume, aspect ratios and context recovery. Captures and results
+are written to `artifacts/cinema2-submerge/`.
+
+This revision passed 6 focused SUBMERGE tests, TypeScript, focused ESLint and
+33 real WebGL checks, including the two new palette consumers, pause/resume,
+portrait/square framing and context restoration. The baseline capture was
+visually reviewed. Changes are uncommitted; no new migration is required.
+The owner's visual/musical acceptance remains separate from automated checks.
+
+The default Rusted Metal finish uses object-space procedural oxide patches,
+mineral streaks, variable roughness/metalness and derivative-based pitting.
+Corrosion stays attached as letters float; there are no external texture fetches.
+The legacy `ceramic` material ID is retained so existing saved scenes receive
+the weathered finish. Clean Metal and Frosted Glass remain selectable.

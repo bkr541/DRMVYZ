@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { AppIcon, type AppIconKind } from '../../../shared/icons/AppIcon'
 import { useReactStore } from '../../../../stores/reactStore'
-import { Collapsible, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from '../ReactControlRows'
+import { Collapsible, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow, type SelectOption } from '../ReactControlRows'
 import { ReactAudioPanel } from '../ReactAudioPanel'
 import { IconChipButton } from '../controls/IconChipButton'
 import { PresetSearchRow } from '../controls/PresetSearchRow'
@@ -23,6 +23,7 @@ import {
   type XyScopeParameterValue,
 } from './XyScopeSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
+import { useFontPreviewPreload } from '../useFontPreviewPreload'
 
 export { XyScopeSurface } from './XyScopeSurface'
 
@@ -110,18 +111,20 @@ export function XyScopeEnginePanel() {
     fontAssets: state.oscillatorFontAssets,
   })))
   const resolution = useXyScopeFont(settings.fontId)
+  const previewStatus = useFontPreviewPreload(fontAssets)
   const options = useMemo(() => {
     const seen = new Set<string>()
-    const list = [{ value: '', label: 'Anton (default)' }]
+    const list: SelectOption[] = [{ value: '', label: 'Anton (default)', style: { fontFamily: '"DRMVYZ Anton", sans-serif' } }]
     for (const asset of fontAssets) {
       if (seen.has(asset.id)) continue
       seen.add(asset.id)
-      list.push({ value: asset.id, label: asset.name })
+      list.push({ value: asset.id, label: asset.name, style: previewStatus[asset.id] === 'ready'
+        ? { fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` } : undefined })
     }
     // A selected font that is not in the list (library still loading) stays visible instead of silently resetting.
     if (settings.fontId && !seen.has(settings.fontId)) list.push({ value: settings.fontId, label: 'Selected font' })
     return list
-  }, [fontAssets, settings.fontId])
+  }, [fontAssets, settings.fontId, previewStatus])
 
   const fontDescription = resolution.status === 'loading'
     ? 'Loading this font…'

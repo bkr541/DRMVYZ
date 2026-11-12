@@ -733,10 +733,63 @@ export interface Cinema2TextPoolEntryRow {
   record_id: string
 }
 
+export interface ModelAssetRow {
+  id: string
+  user_id: string
+  source_media_id: string | null
+  name: string
+  description: string | null
+  favorite: boolean
+  current_version: number
+  status: 'draft' | 'ready' | 'deletion_pending'
+  created_at: string
+  updated_at: string
+}
+export interface ModelAssetVersionRow {
+  id: string
+  model_asset_id: string
+  version: number
+  operation_id: string
+  glb_path: string
+  source_snapshot_path: string
+  trace_svg_path: string
+  thumbnail_path: string | null
+  generator_recipe: Json
+  geometry_stats: Json
+  created_at: string
+}
+export interface ModelVersionOperationRow {
+  id: string
+  model_asset_id: string
+  expected_version: number
+  state: 'uploading' | 'published' | 'cleanup_pending' | 'cancelled'
+  source_extension: 'png' | 'svg'
+  has_thumbnail: boolean
+  generator_recipe: Json
+  geometry_stats: Json
+  created_at: string
+}
+export interface ModelCollectionItemRow {
+  collection_id: string
+  model_asset_id: string
+  created_at: string
+}
+
 export interface Database {
   public: {
     Views:          Record<string, never>
     Functions: {
+      get_model_organization: { Args: { p_model_id: string }; Returns: Json }
+      update_model_metadata: { Args: { p_model_id: string; p_expected_version: number; p_name: string; p_description: string | null; p_favorite: boolean; p_tags: string[]; p_collection_ids: string[] }; Returns: Json }
+      begin_model_version: {
+        Args: { p_model_id: string; p_operation_id: string; p_expected_version: number; p_source_extension: string; p_has_thumbnail: boolean; p_recipe: Json; p_stats: Json }
+        Returns: Json
+      }
+      publish_model_version: { Args: { p_operation_id: string }; Returns: Json }
+      cancel_model_version: { Args: { p_operation_id: string; p_finalize?: boolean }; Returns: Json }
+      request_model_deletion: { Args: { p_model_id: string }; Returns: undefined }
+      finalize_model_deletion: { Args: { p_model_id: string }; Returns: undefined }
+      model_storage_write_allowed: { Args: { p_name: string; p_action: string }; Returns: boolean }
       activate_lyric_document: {
         Args: {
           p_document_id: string
@@ -873,6 +926,35 @@ export interface Database {
     Enums:          Record<string, never>
     CompositeTypes: Record<string, never>
     Tables: {
+      model_asset_tags: {
+        Row: DBRec<{ model_asset_id: string; tag_id: string }>; Insert: never; Update: never
+        Relationships: [
+          { foreignKeyName: 'model_asset_tags_model_asset_id_fkey'; columns: ['model_asset_id']; isOneToOne: false; referencedRelation: 'model_assets'; referencedColumns: ['id'] },
+          { foreignKeyName: 'model_asset_tags_tag_id_fkey'; columns: ['tag_id']; isOneToOne: false; referencedRelation: 'media_tags'; referencedColumns: ['id'] }
+        ]
+      }
+      model_assets: {
+        Row: DBRec<ModelAssetRow>
+        Insert: DBRec<Pick<ModelAssetRow, 'user_id' | 'name'> & Partial<Pick<ModelAssetRow, 'id' | 'source_media_id' | 'description' | 'favorite'>>>
+        Update: DBRec<Partial<Pick<ModelAssetRow, 'name' | 'description' | 'favorite'>>>
+        Relationships: [{ foreignKeyName: 'model_assets_source_media_id_fkey'; columns: ['source_media_id']; isOneToOne: false; referencedRelation: 'media_items'; referencedColumns: ['id'] }]
+      }
+      model_asset_versions: {
+        Row: DBRec<ModelAssetVersionRow>; Insert: never; Update: never
+        Relationships: [{ foreignKeyName: 'model_asset_versions_model_asset_id_fkey'; columns: ['model_asset_id']; isOneToOne: false; referencedRelation: 'model_assets'; referencedColumns: ['id'] }]
+      }
+      model_version_operations: {
+        Row: DBRec<ModelVersionOperationRow>; Insert: never; Update: never
+        Relationships: [{ foreignKeyName: 'model_version_operations_model_asset_id_fkey'; columns: ['model_asset_id']; isOneToOne: false; referencedRelation: 'model_assets'; referencedColumns: ['id'] }]
+      }
+      model_collection_items: {
+        Row: DBRec<ModelCollectionItemRow>
+        Insert: DBRec<Pick<ModelCollectionItemRow, 'collection_id' | 'model_asset_id'>>; Update: never
+        Relationships: [
+          { foreignKeyName: 'model_collection_items_model_asset_id_fkey'; columns: ['model_asset_id']; isOneToOne: false; referencedRelation: 'model_assets'; referencedColumns: ['id'] },
+          { foreignKeyName: 'model_collection_items_collection_id_fkey'; columns: ['collection_id']; isOneToOne: false; referencedRelation: 'media_collections'; referencedColumns: ['id'] }
+        ]
+      }
       profiles:               { Row: DBRec<Profile>;              Insert: DBRec<Omit<Profile, 'created_at'|'updated_at'>>;              Update: DBRec<Partial<Omit<Profile, 'id'>>>; Relationships: [] }
       sessions:               { Row: DBRec<Session>;              Insert: DBRec<Omit<Session, 'id'>>;                                    Update: DBRec<Partial<Omit<Session, 'id'>>>; Relationships: [] }
       user_settings: {

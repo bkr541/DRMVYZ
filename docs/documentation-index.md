@@ -75,6 +75,16 @@ Each specification tracks its preset’s implementation status and requirements.
 | `docs/preset-store/IMPLEMENTATION_CHECKLIST.md` | Preset Store requirement-to-phase acceptance map and baseline status |
 | `docs/preset-store/OPEN_DECISIONS.md` | Preset Store operator decisions and local/test, payment, content and publishing gates |
 | `docs/preset-store/SCHEMA.md` | Preset Store marketplace schema (migration 0043): relationships, RLS/privilege matrix, server primitives, local execution, rollback, verification status |
+| `docs/model-assets-phase01.md` | User model domain, private storage, immutable version/recovery APIs, Phase 01 validation and deployment gate |
+| `docs/mobile-preview-window.md` | Floating mobile-preview launcher, iPhone 16 portrait shell, native window policy and validation |
+| `docs/performance-manager-phase01.md` | Performance Manager engine/preset browsing, read-only pad mirror, Configuration and shared dock |
+| `docs/model-release-phase07.md` | Executed release checks, acceptance matrix and remaining production gates |
+| `docs/model-migrations.md` | Model migration rollout, read-only verification, owner acceptance and recovery |
+| `docs/model-generator-phase02.md` | Image-to-3D engine, browser/Electron VTracer runtime, geometry budgets, GLB export and Phase 03 handoff |
+| `docs/model-preview-phase06.md` | Six selectable model reference previews, 36 patterns, shared trigger/control contracts and Phase 07 gates |
+| `docs/model-runtime-phase05.md` | Cinema private model resolver/cache, pinned bindings, dynamic scene slot, generic selector and Phase 06 seam |
+| `docs/model-editor-phase04.md` | Model styling, versioned save/retry/reopen/export, organization migration and pending cloud acceptance |
+| `docs/model-manager-phase03.md` | Media Manager model discovery, source preparation, viewport, draft guards and Phase 04 handoff |
 | `docs/brand-kit.md` | Brand Kit storage, palettes, assets, overlays, and engine integration |
 | `docs/react-recording-and-output.md` | React View recording and LaserDMX Production Output |
 | `docs/contracts/CROSS_ENGINE_CONTROL_SCOPES.md` | Canonical LaserDMX, Shader Pads, CANVAS, Cinematic camera, and preset-provenance control scopes |

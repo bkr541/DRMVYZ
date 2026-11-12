@@ -12,7 +12,7 @@ import { HeaderNotificationsButton } from './HeaderNotificationsButton'
 let container: HTMLElement
 let root: ReturnType<typeof createRoot>
 
-const EMPTY_PAGES = { 'react': [], 'preset-manager': [], 'show-manager': [], 'media-manager': [], 'lyric-manager': [] }
+const EMPTY_PAGES = { 'react': [], 'performance-manager': [], 'preset-manager': [], 'show-manager': [], 'media-manager': [], 'lyric-manager': [] }
 
 beforeEach(() => {
   container = document.createElement('div')

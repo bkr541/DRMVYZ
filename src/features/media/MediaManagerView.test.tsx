@@ -109,10 +109,10 @@ describe('MediaManagerView', () => {
     expect(group?.getAttribute('aria-label')).toBe('Media Manager controls')
     const allButtons = () => [...group!.querySelectorAll<HTMLButtonElement>('button')]
     // The two creation keys come first, are always live, and no longer sit in the Media Library window header.
-    const buttons = () => allButtons().slice(2)
+    const buttons = () => allButtons().slice(4)
     expect(container.querySelector('.rw-window-header-actions')).toBeNull()
     // Icon-only keys (like the Show Manager's): the accessible name is the label, there is no visible text.
-    expect(allButtons().map(button => button.getAttribute('aria-label'))).toEqual(['New Collection', 'New Media', 'Save Changes', 'Delete Media'])
+    expect(allButtons().map(button => button.getAttribute('aria-label'))).toEqual(['New Collection', 'New Media', 'Create 3D Model', 'Import Image for 3D', 'Save Changes', 'Delete Media'])
     expect(allButtons().slice(0, 2).every(button => !button.disabled)).toBe(true)
     expect(buttons().every(button => button.textContent?.trim() === '' && button.querySelector('svg'))).toBe(true)
     // Nothing published yet (no Info tab showing): both keys are dead.

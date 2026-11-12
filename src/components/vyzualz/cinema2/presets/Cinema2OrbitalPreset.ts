@@ -18,15 +18,15 @@ const removed = new Set(['motion-program', 'motion-direction', 'glyph-delay', 'a
 const changes: Record<string, Partial<Cinema2ParameterManifest>> = {
   text: { defaultValue: 'ORBITAL' },
   'glyph-scale': { defaultValue: .80 },
-  motion: { defaultValue: .7, description: 'Strength of movement across the letters, rings, docking arms and debris.' },
+  motion: { defaultValue: .7, description: 'Strength of movement across the letters, sphere and debris.' },
   'motion-safety': { description: 'Reduced limits geometry movement. Lock Off holds the lettering and orbital assembly in place.' },
   'cycle-seconds': { label: 'Orbit Period', defaultValue: 8, description: 'Time in seconds for one orbital cycle at 120 BPM. BPM Sync follows the detected tempo.' },
-  'material-style': { defaultValue: 'artifact', description: 'Use the supplied gyroscope texture atlas, polished brass or an amethyst finish.', options: [
-    { value: 'artifact', label: 'Gyroscope Brass' }, { value: 'polished', label: 'Polished Brass' }, { value: 'amethyst', label: 'Amethyst' },
+  'material-style': { defaultValue: 'artifact', description: 'Use the supplied sphere material or a clean silver finish.', options: [
+    { value: 'artifact', label: 'Sphere Material' }, { value: 'polished', label: 'Polished Silver' }, { value: 'amethyst', label: 'Brushed Silver' },
   ] },
   roughness: { defaultValue: .54 },
   'environment-reflection': { defaultValue: .85 },
-  'led-outline': { label: 'Inlay Glow', defaultValue: true, description: 'Show violet light around the metal letter contours.' },
+  'led-outline': { exposure: 'hidden', label: 'Inlay Glow', defaultValue: true, description: 'Show violet light around the metal letter contours.' },
   'highlight-sweep': { defaultValue: .2 },
   'camera-motion': { defaultValue: .3 },
   trails: { defaultValue: 0 },
@@ -35,9 +35,9 @@ const changes: Record<string, Partial<Cinema2ParameterManifest>> = {
   finish: { defaultValue: .42 },
   pattern: { defaultValue: 'gyroscopic-drift', options: CINEMA2_ORBITAL_PATTERNS, description: 'Choose the geometric choreography for the lettering and orbital assembly.' },
   trigger: { description: 'The standard musical event that advances the geometric pattern while Pattern Change is enabled.' },
-  background: { label: 'Space Tint', defaultValue: [.018, .013, .055, 1], description: 'Background color of the orbital scene.' },
-  chrome: { label: 'Letter Tint', defaultValue: [1, .93, .78, 1], description: 'Tint mixed with the source brass texture or the selected solid finish.' },
-  'outline-color': { label: 'Inlay Color', defaultValue: [.49, .23, .98, 1], description: 'Accent color of the letter contours and the orbital lights.' },
+  background: { label: 'Space Tint', defaultValue: [.008, .012, .018, 1], description: 'Background color of the orbital scene.' },
+  chrome: { label: 'Letter Tint', defaultValue: [1, 1, 1, 1], description: 'Tint mixed with the sphere texture or the selected solid finish.' },
+  'outline-color': { exposure: 'hidden', label: 'Inlay Color', defaultValue: [.49, .23, .98, 1], description: 'Accent color of the letter contours and the orbital lights.' },
 }
 function control(name: string, label: string, defaultValue: number, min: number, max: number, order: number, description: string): Cinema2ParameterManifest {
   return { id: id(name), label, description, type: 'float', defaultValue, min, max, step: .01,
@@ -46,9 +46,9 @@ function control(name: string, label: string, defaultValue: number, min: number,
 }
 const orbitalParameters = [
   control('letter-depth', 'Letter Depth', 1, .4, 2, 30, 'Extrusion depth of the solid letter meshes.'),
-  control('gyroscope-size', 'Gyroscope Size', 1, .55, 1.35, 31, 'Scale of the supplied rig behind the lettering.'),
-  control('ring-travel', 'Ring Travel', 1, 0, 1.4, 32, 'Maximum movement of the three articulated rings and the docking arms.'),
-  control('planet', 'Planet Horizon', .8, 0, 1, 33, 'Visibility of the distant planetary limb.'),
+  control('gyroscope-size', 'Sphere Size', 1, .55, 1.35, 31, 'Scale of the supplied metal sphere behind the curved lettering.'),
+  control('ring-travel', 'Sphere Motion', 1, 0, 1.4, 32, 'Amount of the sphere’s original three-part animation.'),
+  { ...control('planet', 'Legacy Planet', 0, 0, 1, 33, 'Retained only for saved scene compatibility; the old planet is removed.'), exposure: 'hidden' as const },
   control('debris', 'Orbital Debris', .55, 0, 1, 34, 'Density of the drifting debris field.'),
 ]
 const sourceModule = template.modules![0]!
@@ -72,7 +72,7 @@ const parameters = template.parameters!.filter(parameter => !removed.has(paramet
 export const CINEMA2_ORBITAL_PRESET_MANIFEST = Object.freeze<Cinema2NativePresetManifest>({
   ...template,
   id: CINEMA2_ORBITAL_PRESET_ID, revision: 1,
-  metadata: { ...template.metadata, name: 'ORBITAL', description: 'Engraved 3D lettering suspended before a rigged brass gyroscope, with drifting debris and a distant planetary horizon.', tags: ['3d', 'typography', 'space', 'gyroscope'] },
+  metadata: { ...template.metadata, name: 'ORBITAL', description: 'Metal lettering gently wrapped around the supplied textured sphere, sharing its physical surface finish in a dark neutral space.', tags: ['3d', 'typography', 'space', 'sphere'] },
   capabilities: [...template.capabilities!, { id: 'audio.bands', requirement: 'optional', purpose: 'Bass drives ring expansion, mids articulate the rig, and highs animate debris and docking lights.' }],
   parameters: [...parameters, ...orbitalParameters],
   modules: [{ ...sourceModule, typeId: CINEMA2_ORBITAL_MODULE_TYPE_ID, parameterBindings, parameters: {
@@ -81,8 +81,8 @@ export const CINEMA2_ORBITAL_PRESET_MANIFEST = Object.freeze<Cinema2NativePreset
   } }],
   choreography: { ...template.choreography, rules: [...template.choreography!.rules, ...geometryRules] },
   lighting: { ...template.lighting, lights: template.lighting!.lights.map(light => ({ ...light,
-    color: light.type === 'ambient' ? [.62, .43, .82, 1] as const : light.transform?.position?.[0] && light.transform.position[0] < 0 ? [1, .83, .62, 1] as const : [.62, .52, 1, 1] as const,
-    intensity: light.type === 'ambient' ? .38 : (light.intensity ?? 1) * .82,
+    color: light.type === 'ambient' ? [.3, .35, .4, 1] as const : [1, .98, .94, 1] as const,
+    intensity: light.type === 'ambient' ? .38 : (light.intensity ?? 1) * .18,
   })) },
-  environment: { ...template.environment, backgroundColor: [.018, .013, .055, 1] },
+  environment: { ...template.environment, backgroundColor: [.008, .012, .018, 1] },
 })

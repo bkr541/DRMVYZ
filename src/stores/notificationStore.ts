@@ -38,6 +38,7 @@ const MAX_EVENTS_PER_PAGE = 20
 const EMPTY_EVENTS: readonly NotificationEvent[] = Object.freeze([])
 const EMPTY_EVENT_PAGES: Readonly<Record<AppPageId, readonly NotificationEvent[]>> = Object.freeze({
   'react': EMPTY_EVENTS,
+  'performance-manager': EMPTY_EVENTS,
   'preset-manager': EMPTY_EVENTS,
   'show-manager': EMPTY_EVENTS,
   'media-manager': EMPTY_EVENTS,
@@ -64,6 +65,7 @@ interface NotificationState {
 const EMPTY: readonly NotificationEntry[] = Object.freeze([])
 const EMPTY_PAGES: NotificationState['pages'] = Object.freeze({
   'react': EMPTY,
+  'performance-manager': EMPTY,
   'preset-manager': EMPTY,
   'show-manager': EMPTY,
   'media-manager': EMPTY,

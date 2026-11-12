@@ -1,0 +1,22 @@
+/* Performance Manager owns only its content layout; chrome/rails/dock use React's floating composition. */
+[data-app-workspace='performanceManager'] .pfm-center {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(140px, 26%);
+  gap: var(--fw-region-gap);
+  min-width: 0;
+  min-height: 0;
+}
+.pfm-window { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--fw-surface-border); border-radius: var(--fw-surface-radius); background: var(--fw-surface-background); box-shadow: var(--fw-surface-shadow); }
+.pfm-window > .rw-window-header { border-radius: var(--fw-surface-radius) var(--fw-surface-radius) 0 0; }
+.pfm-pad-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+.pfm-pad-body .rv-pads-section { height: 100%; }
+.pfm-pad-body .rv-pads-grid { min-height: 100%; grid-auto-rows: minmax(52px, 1fr); }
+.pfm-configuration-canvas { flex: 1; min-height: 0; }
+.pfm-engine-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+.pfm-engine-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-width: 0; min-height: 98px; padding: 12px 6px; border: 1px solid var(--fw-surface-border); border-radius: var(--fw-surface-radius); background: var(--fw-surface-background); color: var(--text); cursor: pointer; }
+.pfm-engine-card > span { font: var(--type-field-value); text-align: center; }
+.pfm-engine-card[aria-pressed='true'] { border-color: var(--az-cyan, #4ac7db); background: rgba(74,199,219,.09); }
+.pfm-engine-card:hover { border-color: var(--az-cyan, #4ac7db); }
+.pfm-engine-card:focus-visible { outline: 2px solid var(--az-cyan, #4ac7db); outline-offset: 2px; }
+/* Keep the shared poster content legible when both narrow rails are expanded. */
+.pfm-root .rv-preset-card.rv-preset-spotlight-card--poster { min-height: 64px; }

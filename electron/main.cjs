@@ -154,6 +154,16 @@ function createMainWindow() {
   wc.on('unresponsive', () => windowLog.warn('renderer unresponsive'))
 
   window.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // Device preview is a blank same-origin design surface, never arbitrary web content.
+    if (frameName === 'drmvyz-mobile-preview' && (url === '' || url === 'about:blank')) {
+      return { action: 'allow', overrideBrowserWindowOptions: {
+        width: 393, height: 852, useContentSize: true, resizable: false,
+        minimizable: true, maximizable: false, fullscreenable: false,
+        backgroundColor: '#020304', title: 'DRMVYZ — iPhone 16 Preview',
+        autoHideMenuBar: true,
+        webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true },
+      } }
+    }
     const popupConfig = frameName === 'drmvyz-layout-lab'
       ? { title: 'DRMVYZ — Layout Lab', backgroundColor: '#060d10' }
       : frameName === 'drmvyz-lyric-manager-layout'

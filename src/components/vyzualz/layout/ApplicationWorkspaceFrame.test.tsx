@@ -51,9 +51,9 @@ function render(element: React.ReactElement) {
   return act(async () => root.render(element))
 }
 
-describe('application floating chrome (all five workspaces)', () => {
-  it('activates all five production workspaces', () => {
-    expect(APP_VIEWS).toEqual(['react', 'presetManager', 'showManager', 'lyrics', 'media'])
+describe('application floating chrome (all six workspaces)', () => {
+  it('activates all six production workspaces', () => {
+    expect(APP_VIEWS).toEqual(['react', 'performanceManager', 'presetManager', 'showManager', 'lyrics', 'media'])
     expect(FLOATING_APP_VIEWS.react).toBe(true)
     expect(FLOATING_APP_VIEWS.presetManager).toBe(true)
     expect(FLOATING_APP_VIEWS.media).toBe(true)
@@ -162,7 +162,7 @@ describe('application floating chrome (all five workspaces)', () => {
     expect(frame.querySelector('.fw-app-navigation .fw-sidebar-toggle')).not.toBeNull()
     expect(frame.querySelector('[data-workspace-slot="stage"] [data-testid="feature-content"]')).not.toBeNull()
     expect([...frame.querySelectorAll('.az-nav .az-nav-item')].map(item => item.getAttribute('aria-label'))).toEqual([
-      'React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager',
+      'React', 'Performance Manager', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager',
     ])
     await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Preset Manager"]')!.click())
     expect(host.querySelector('[data-app-workspace="presetManager"]')).not.toBeNull()

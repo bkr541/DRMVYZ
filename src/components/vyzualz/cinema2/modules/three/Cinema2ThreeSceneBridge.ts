@@ -107,8 +107,11 @@ export interface Cinema2ThreeAtlHoeLightSpec {
 export interface Cinema2ThreeSceneOptions {
   /** Optional preset-owned controller for named model surfaces that need richer runtime behavior than material overrides. */
   modelController?: Readonly<{
-    attach(root: ThreeNamespace.Object3D): void
-    beforeDraw?(): void
+    /** Opt-in ordering for proxy controllers that hide the source mesh. */
+    afterVisibility?: boolean
+    attach(root: ThreeNamespace.Object3D, userModel?: boolean): void
+    detach?(root: ThreeNamespace.Object3D): void
+    beforeDraw?(quality: Cinema2RenderQualityLevel): void
     dispose?(): void
   }>
   panels?: readonly Cinema2ThreePanelSpec[]
@@ -202,6 +205,9 @@ export const CINEMA2_THREE_DEFAULT_OVERRIDES: Readonly<Cinema2ThreeMaterialOverr
 
 export interface Cinema2ThreeSceneInstance {
   asset: Cinema2ThreeLoadedAsset
+  /** Dedicated dynamic slot; shipped instances retain their original semantics. */
+  userModel?: boolean
+  preserveMaterials?: boolean
   /** Scene Graph node that places this instance; when omitted the instance sits at the world origin. */
   node: string | null
   /** The instance turns about its own vertical axis by the angle the module passes to `draw` (a turntable spin). */
@@ -209,6 +215,8 @@ export interface Cinema2ThreeSceneInstance {
 }
 
 interface PlacedInstance {
+  userModel: boolean
+  preserveMaterials: boolean
   node: string | null
   spin: boolean
   root: ThreeNamespace.Group
@@ -286,6 +294,7 @@ export class Cinema2ThreeSceneBridge {
   private compiling = false
   private quality: Cinema2RenderQualityLevel | null = null
   private appliedOverrides: Readonly<Cinema2ThreeMaterialOverrides> | null = null
+  private userModelPalette = false
   private disposed = false
   /** Shared by every glowing material, so one write a frame drives them all. */
   private readonly glowUniforms: GlowUniforms
@@ -399,52 +408,7 @@ export class Cinema2ThreeSceneBridge {
       uCinema2AtlMotion: { value: new THREE.Vector4(0, 0, 0, 0) },
     }
 
-    for (const instance of instances) {
-      const root = new THREE.Group()
-      root.matrixAutoUpdate = false
-      const model = instance.asset.scene.clone(true)
-      const materials: OwnedMaterial[] = []
-      model.traverse(object => {
-        const mesh = object as ThreeNamespace.Mesh
-        if (!mesh.isMesh) return
-        // Per-instance material clones so overrides never touch the shared asset; textures and geometry stay shared.
-        const cloned = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((material, index) => {
-          const standard = material.clone() as ThreeNamespace.MeshStandardMaterial
-          if ((standard as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) {
-            const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
-            materials.push({
-              part: mesh.name || standard.name,
-              materialName: standard.name,
-              material: standard,
-              slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
-              base: {
-                clearcoat: physical.clearcoat ?? 0, clearcoatRoughness: physical.clearcoatRoughness ?? 0,
-                iridescence: physical.iridescence ?? 0, iridescenceIOR: physical.iridescenceIOR ?? 1.3,
-                iridescenceThicknessRange: [physical.iridescenceThicknessRange?.[0] ?? 100, physical.iridescenceThicknessRange?.[1] ?? 400],
-                transmission: physical.transmission ?? 0, ior: physical.ior ?? 1.5, thickness: physical.thickness ?? 0, dispersion: physical.dispersion ?? 0,
-                color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
-                roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
-              },
-            })
-          }
-          return standard
-        })
-        mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!
-      })
-      for (const owned of materials) this.decorate(owned)
-      const shadows = options.shadows
-      if (shadows) {
-        for (const owned of materials) {
-          const inList = (list: readonly string[]) => list.includes(owned.part) || list.includes(owned.materialName)
-          owned.slot.mesh.castShadow ||= inList(shadows.cast)
-          owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
-        }
-      }
-      options.modelController?.attach(model)
-      root.add(model)
-      this.scene.add(root)
-      this.placed.push({ node: instance.node, spin: instance.spin === true, root, materials })
-    }
+    for (const instance of instances) this.addInstance(instance)
 
     // Panel lights: a fixed pool (unused ones simply hidden per tier), so the shader's light count only changes when the quality tier does.
     const panelSpecs = options.panels ?? []
@@ -477,6 +441,76 @@ export class Cinema2ThreeSceneBridge {
       this.scene.add(field.points)
       this.particleFields.push(field)
     })
+  }
+
+  private addInstance(instance: Readonly<Cinema2ThreeSceneInstance>): void {
+    const root = new this.library.THREE.Group()
+    root.matrixAutoUpdate = false
+    const model = instance.asset.scene.clone(true)
+    const materials: OwnedMaterial[] = []
+    model.traverse(object => {
+      const mesh = object as ThreeNamespace.Mesh
+      if (!mesh.isMesh) return
+      // Per-instance material clones so overrides never touch the shared asset; textures and geometry stay shared.
+      const cloned = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((material, index) => {
+        const standard = material.clone() as ThreeNamespace.MeshStandardMaterial
+        if ((standard as { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) {
+          const physical = standard as Partial<ThreeNamespace.MeshPhysicalMaterial>
+          materials.push({
+            part: mesh.name || standard.name,
+            materialName: standard.name,
+            material: standard,
+            slot: { mesh, index: Array.isArray(mesh.material) ? index : null },
+            base: {
+              clearcoat: physical.clearcoat ?? 0, clearcoatRoughness: physical.clearcoatRoughness ?? 0,
+              iridescence: physical.iridescence ?? 0, iridescenceIOR: physical.iridescenceIOR ?? 1.3,
+              iridescenceThicknessRange: [physical.iridescenceThicknessRange?.[0] ?? 100, physical.iridescenceThicknessRange?.[1] ?? 400],
+              transmission: physical.transmission ?? 0, ior: physical.ior ?? 1.5, thickness: physical.thickness ?? 0, dispersion: physical.dispersion ?? 0,
+              color: standard.color.clone(), emissive: standard.emissive.clone(), emissiveIntensity: standard.emissiveIntensity,
+              roughness: standard.roughness, metalness: standard.metalness, normalMap: standard.normalMap, aoMap: standard.aoMap,
+            },
+          })
+        }
+        return standard
+      })
+      mesh.material = Array.isArray(mesh.material) ? cloned : cloned[0]!
+    })
+    for (const owned of materials) this.decorate(owned)
+    const shadows = this.options.shadows
+    if (shadows) {
+      for (const owned of materials) {
+        const inList = (list: readonly string[]) => list.includes(owned.part) || list.includes(owned.materialName)
+        owned.slot.mesh.castShadow ||= inList(shadows.cast)
+        owned.slot.mesh.receiveShadow ||= inList(shadows.receive)
+      }
+    }
+    this.options.modelController?.attach(model, instance.userModel)
+    root.add(model)
+    this.scene.add(root)
+    this.placed.push({ preserveMaterials: instance.preserveMaterials === true, userModel: instance.userModel === true, node: instance.node, spin: instance.spin === true, root, materials })
+  }
+
+  /** Replace only the private-model subtree; renderer, camera, environment and static instances survive. */
+  replaceUserModel(instance: Readonly<Cinema2ThreeSceneInstance>): void {
+    if (this.disposed) return
+    for (let index = this.placed.length - 1; index >= 0; index--) {
+      const placed = this.placed[index]
+      if (!placed.userModel) continue
+      for (const model of placed.root.children) this.options.modelController?.detach?.(model)
+      this.scene.remove(placed.root)
+      for (const owned of placed.materials) owned.material.dispose()
+      this.placed.splice(index, 1)
+    }
+    this.upgraded = false
+    this.addInstance({ ...instance, userModel: true })
+    this.appliedOverrides = null; this.quality = null
+    // Private generated models have no textures; warm the new materials without reloading the environment.
+    this.stage = 'textures'
+  }
+
+  setUserModelPalette(enabled: boolean): void {
+    if (this.userModelPalette === enabled) return
+    this.userModelPalette = enabled; this.appliedOverrides = null
   }
 
   /** Non-fatal problems (for example a shipped environment that failed to load and fell back to the built-in room). */
@@ -524,8 +558,9 @@ export class Cinema2ThreeSceneBridge {
       this.applySegments(segments)
       this.applyMainframe(mainframe)
       this.applyAtlHoe(atlHoe)
-      this.options.modelController?.beforeDraw?.()
+      if (!this.options.modelController?.afterVisibility) this.options.modelController?.beforeDraw?.(lighting.quality)
       this.applyPartVisibility(placement?.parts ?? null)
+      if (this.options.modelController?.afterVisibility) this.options.modelController.beforeDraw?.(lighting.quality)
       this.place(exec, spinRadians, placement?.scale ?? 1)
       applyCinema2CameraFrame(this.camera, camera)
       if (this.particleFields.length > 0) {
@@ -957,13 +992,16 @@ export class Cinema2ThreeSceneBridge {
     const { THREE } = this.library
     if (overrides.clearcoat != null || Object.values(overrides.parts).some(part => part.clearcoat != null || part.iridescence != null || part.transmission != null)) this.upgradeToPhysical()
     const detailed = this.quality !== 'low'
-    const tint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
-    const emissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
+    const globalTint = overrides.color ? new THREE.Color().setRGB(overrides.color[0], overrides.color[1], overrides.color[2], THREE.SRGBColorSpace) : null
+    const globalEmissive = overrides.emissive ? new THREE.Color().setRGB(overrides.emissive[0], overrides.emissive[1], overrides.emissive[2], THREE.SRGBColorSpace) : null
     const colorOf = (rgb: readonly [number, number, number]) => new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace)
-    for (const { materials } of this.placed) {
+    for (const { materials, userModel, preserveMaterials } of this.placed) {
+      const values = preserveMaterials || (userModel && !this.userModelPalette) ? CINEMA2_THREE_DEFAULT_OVERRIDES : overrides
+      const tint = values === overrides ? globalTint : null
+      const emissive = values === overrides ? globalEmissive : null
       for (const owned of materials) {
         const { material, base, part, materialName } = owned
-        const own = overrides.parts[part] ?? overrides.parts[materialName]
+        const own = values.parts[part] ?? values.parts[materialName]
         const partTint = own?.color ? colorOf(own.color) : null
         const partEmissive = own?.emissive ? colorOf(own.emissive) : null
         // A part's own value wins over the global one; the tint multiplies the asset's base color.
@@ -971,16 +1009,16 @@ export class Cinema2ThreeSceneBridge {
         const effectiveTint = partTint ?? tint
         if (effectiveTint) material.color.multiply(effectiveTint)
         material.emissive.copy(partEmissive ?? emissive ?? base.emissive)
-        material.emissiveIntensity = own?.emissiveIntensity ?? overrides.emissiveIntensity ?? base.emissiveIntensity
-        material.roughness = own?.roughness ?? overrides.roughness ?? base.roughness
-        material.metalness = own?.metalness ?? overrides.metalness ?? base.metalness
+        material.emissiveIntensity = own?.emissiveIntensity ?? values.emissiveIntensity ?? base.emissiveIntensity
+        material.roughness = own?.roughness ?? values.roughness ?? base.roughness
+        material.metalness = own?.metalness ?? values.metalness ?? base.metalness
         owned.environmentShare = own?.environmentIntensity ?? null
         const physical = material as Partial<ThreeNamespace.MeshPhysicalMaterial>
         if ('clearcoat' in physical && this.upgraded) {
-          const requested = own?.clearcoat ?? overrides.clearcoat
+          const requested = own?.clearcoat ?? values.clearcoat
           const wanted = requested ?? base.clearcoat
           physical.clearcoat = detailed && (requested != null || base.clearcoat > 0) ? Math.max(0.001, wanted) : 0
-          physical.clearcoatRoughness = own?.clearcoatRoughness ?? overrides.clearcoatRoughness ?? base.clearcoatRoughness
+          physical.clearcoatRoughness = own?.clearcoatRoughness ?? values.clearcoatRoughness ?? base.clearcoatRoughness
           // Iridescence stays on every tier: the thin-film term is a few instructions per pixel, and dropping it would change the logo's color.
           const iridescence = own?.iridescence
           physical.iridescence = iridescence != null || base.iridescence > 0 ? Math.max(0.001, iridescence ?? base.iridescence) : 0

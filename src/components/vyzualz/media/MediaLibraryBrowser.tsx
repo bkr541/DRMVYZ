@@ -1,3 +1,5 @@
+import { ModelLibraryCards } from './ModelLibraryCards'
+import type { ModelAsset } from '../../../features/models/domain/modelAssetTypes'
 import { LibraryViewToggle } from '../react/controls/LibraryViewToggle'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { DreamVizTextInput } from '../react/controls/DreamVizTextInput'
@@ -39,56 +41,12 @@ import type { LyricManagerNavigationIntent } from '../../../features/lyrics/lyri
 import { useFontPreviewPreload } from '../react/useFontPreviewPreload'
 import type { OscillatorFontAsset } from '../react/ReactTypes'
 
-type MediaLibraryFilter = 'all' | 'tracks' | 'fonts' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
+type MediaLibraryFilter = 'all' | 'models' | 'tracks' | 'fonts' | 'collections' | 'pools' | 'images' | 'videos' | 'favorites' | 'backgrounds' | 'logos' | 'transparent' | 'overlays' | 'svg'
 type ViewMode = 'grid' | 'list'
 
-/** Contact-sheet grid: four square tiles across, with this gap between tiles (px). Mirrors .vz-media-sheet in vyzualz.css. */
-export const MEDIA_SHEET_COLUMNS = 4
-export const MEDIA_SHEET_GAP = 6
-
-export interface VirtualMediaWindow {
-  columns: number
-  rowHeight: number
-  /** Edge length of one square tile in grid view (0 in list view). */
-  tileSize: number
-  startIndex: number
-  endIndex: number
-  topSpacer: number
-  bottomSpacer: number
-}
-
-export function computeVirtualMediaWindow(input: {
-  itemCount: number
-  /** Content width of the scroll area (padding excluded); grid tiles are sized from it. */
-  width: number
-  height: number
-  scrollTop: number
-  viewMode: ViewMode
-  manager: boolean
-  compact?: boolean
-  overscanRows?: number
-}): VirtualMediaWindow {
-  const height = Math.max(240, input.height || 600)
-  const isList = input.viewMode === 'list'
-  const columns = isList ? 1 : MEDIA_SHEET_COLUMNS
-  const tileSize = isList ? 0 : Math.max(24, Math.floor((input.width - MEDIA_SHEET_GAP * (MEDIA_SHEET_COLUMNS - 1)) / MEDIA_SHEET_COLUMNS))
-  const rowHeight = isList ? 58 : tileSize + MEDIA_SHEET_GAP
-  const totalRows = Math.ceil(input.itemCount / columns)
-  const overscan = input.overscanRows ?? 3
-  const firstVisibleRow = Math.max(0, Math.floor(Math.max(0, input.scrollTop) / rowHeight))
-  const visibleRows = Math.max(1, Math.ceil(height / rowHeight))
-  const startRow = Math.max(0, firstVisibleRow - overscan)
-  const endRow = Math.min(totalRows, firstVisibleRow + visibleRows + overscan)
-  return {
-    columns,
-    rowHeight,
-    tileSize,
-    startIndex: Math.min(input.itemCount, startRow * columns),
-    endIndex: Math.min(input.itemCount, endRow * columns),
-    topSpacer: startRow * rowHeight,
-    bottomSpacer: Math.max(0, (totalRows - endRow) * rowHeight),
-  }
-}
+import { computeVirtualMediaWindow } from './mediaLibraryWindow'
+export { computeVirtualMediaWindow, MEDIA_SHEET_COLUMNS, MEDIA_SHEET_GAP } from './mediaLibraryWindow'
+export type { VirtualMediaWindow } from './mediaLibraryWindow'
 
 const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   items,
@@ -113,6 +71,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   hasMore?: boolean
   loadingMore?: boolean
 }) {
+  const virtualRoot = useRef<HTMLDivElement>(null)
   const [metrics, setMetrics] = useState({ width: manager ? 900 : 320, height: 600, scrollTop: 0 })
 
   useEffect(() => {
@@ -124,7 +83,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
       setMetrics({
         width: Math.max(0, element.clientWidth - paddingX) || (manager ? 900 : 320),
         height: element.clientHeight || 600,
-        scrollTop: element.scrollTop,
+        scrollTop: Math.max(0, element.scrollTop - ((virtualRoot.current?.getBoundingClientRect().top ?? element.getBoundingClientRect().top) - element.getBoundingClientRect().top + element.scrollTop)),
       })
     }
     update()
@@ -157,7 +116,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
   }, [hasMore, items.length, loadingMore, onNearEnd, windowed.columns, windowed.endIndex])
 
   return (
-    <div className={`vz-media-virtual${compact ? ' vz-media-virtual--compact' : ''}`} data-rendered-cards={visibleItems.length}>
+    <div ref={virtualRoot} className={`vz-media-virtual${compact ? ' vz-media-virtual--compact' : ''}`} data-rendered-cards={visibleItems.length}>
       {windowed.topSpacer > 0 && <div className="vz-media-virtual-spacer" style={{ height: windowed.topSpacer }} aria-hidden="true" />}
       {viewMode === 'list' ? (
         <div className="vz-media-list">{visibleItems.map(renderCard)}</div>
@@ -174,7 +133,7 @@ const VirtualizedMediaCards = memo(function VirtualizedMediaCards({
 })
 
 function toServerFilter(filter: MediaLibraryFilter): MediaLibraryServerFilter {
-  if (filter === 'tracks' || filter === 'fonts' || filter === 'collections' || filter === 'pools') return 'all'
+  if (filter === 'models' || filter === 'tracks' || filter === 'fonts' || filter === 'collections' || filter === 'pools') return 'all'
   return filter
 }
 
@@ -256,6 +215,7 @@ const PIX_GRID_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
 ]
 
 const MANAGER_FILTERS: { key: MediaLibraryFilter; label: string }[] = [
+  { key: 'models', label: '3D Models' },
   { key: 'all',         label: 'All Visuals' },
   { key: 'tracks',      label: 'Audio Tracks' },
   { key: 'fonts',       label: 'Fonts' },
@@ -624,6 +584,10 @@ function MediaCard({
 
 export interface MediaLibraryBrowserProps {
   activeMediaId: string | null
+  activeModelId?: string | null
+  onSelectModel?: (asset: ModelAsset) => void
+  onVisualUploaded?: (items: UploadedMedia[]) => void
+  onImportClosed?: () => void
   onSelect?: (id: string) => void
   /** Optional card-click interception for anchored action menus. When supplied,
    * it replaces immediate selection without changing the default behavior of
@@ -666,6 +630,7 @@ function AddMediaIcon({ size = 14 }: { size?: number }) {
 
 export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   activeMediaId,
+  activeModelId = null, onSelectModel, onVisualUploaded, onImportClosed,
   onSelect,
   onCardActionRequest,
   onOpenMediaManager,
@@ -800,6 +765,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canBrowseCollections = capabilitySet.has('collections')
   const canDragMedia = capabilitySet.has('drag-media')
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
+  const canBrowseModels = isManager && capabilitySet.has('models') && !!onSelectModel
   const canBrowsePools = (isManager || isCanvasMode) && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
@@ -814,9 +780,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             ? REACT_FILTERS
             : VISUALIZER_FILTERS
     return source
+      .filter(filter => canBrowseModels || filter.key !== 'models')
       .filter(filter => canBrowseCollections || filter.key !== 'collections')
       .filter(filter => canBrowsePools || filter.key !== 'pools')
-  }, [canBrowseCollections, canBrowsePools, context, isCanvasMode, isPixGridMode, isReactMode])
+  }, [canBrowseModels, canBrowseCollections, canBrowsePools, context, isCanvasMode, isPixGridMode, isReactMode])
 
   const loadCollectionsRef = useRef(loadCollections)
   useEffect(() => { loadCollectionsRef.current = loadCollections }, [loadCollections])
@@ -1358,8 +1325,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
             </button>
             <AppIcon kind="folder" size={12} color="currentColor" style={{ flexShrink: 0 }} />
             <span className="vz-coll-breadcrumb-name">{openCollection.name}</span>
-            <span className="vz-coll-folder-count">{openCollectionItems.length} {openCollectionItems.length === 1 ? 'item' : 'items'}</span>
+            <span className="vz-coll-folder-count">{openCollectionItems.length} {canBrowseModels ? 'images / videos' : openCollectionItems.length === 1 ? 'item' : 'items'}</span>
           </div>
+          {canBrowseModels && <ModelLibraryCards collectionId={openCollectionId} search={debouncedSearch} favorites={false} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned />}
+          {canBrowseModels && <div className="mm-model-section-heading"><AppIcon kind="image" size={14} /><span>Images &amp; Videos</span></div>}
           {openCollectionItems.length === 0 ? (
             <div className="vz-media-grid">
               <div className="vz-coll-empty-wrap">
@@ -1574,8 +1543,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
           <DreamVizTextInput
             className="vz-md-search-input"
             type="text"
-            aria-label={libraryFilter === 'fonts' ? 'Search fonts' : libraryFilter === 'tracks' ? 'Search tracks' : 'Search media'}
-            placeholder={libraryFilter === 'fonts' ? 'Search fonts…' : libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
+            aria-label={libraryFilter === 'models' ? 'Search models' : libraryFilter === 'fonts' ? 'Search fonts' : libraryFilter === 'tracks' ? 'Search tracks' : 'Search media'}
+            placeholder={libraryFilter === 'models' ? 'Search models…' : libraryFilter === 'fonts' ? 'Search fonts…' : libraryFilter === 'tracks' ? 'Search tracks…' : 'Search media…'}
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
           />
@@ -1591,7 +1560,10 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
       <MediaStatusBar includeAudio={isManager} />
 
       <div className="vz-media-scroll" ref={scrollRef}>
-        {libraryFilter === 'tracks' ? (
+        {canBrowseModels && ['all', 'favorites', 'models'].includes(libraryFilter) && <ModelLibraryCards search={debouncedSearch} favorites={libraryFilter === 'favorites'} viewMode={viewMode} activeId={activeModelId} onSelect={onSelectModel!} sectioned={libraryFilter !== 'models'} />}
+        {canBrowseModels && ['all', 'favorites'].includes(libraryFilter) && <div className="mm-model-section-heading"><AppIcon kind="image" size={14} /><span>Images &amp; Videos · Newest first</span></div>}
+
+        {libraryFilter === 'models' ? null : libraryFilter === 'tracks' ? (
           renderTracksView()
         ) : libraryFilter === 'fonts' ? (
           renderFontsView()
@@ -1646,7 +1618,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
 
   return (
     <>
-      {canUpload && importModalOpen && <MediaUploadModal preserveQueuedFiles={preserveQueuedFiles} initialFiles={quickDropFonts ?? undefined} onClose={() => { setPreserveQueuedFiles(false); setQuickDropFonts(null); closeImportMediaModal() }} />}
+      {canUpload && importModalOpen && <MediaUploadModal onVisualUploaded={isManager ? onVisualUploaded : undefined} preserveQueuedFiles={preserveQueuedFiles} initialFiles={quickDropFonts ?? undefined} onClose={() => { setPreserveQueuedFiles(false); setQuickDropFonts(null); closeImportMediaModal(); onImportClosed?.() }} />}
       {canPreview && !isManager && previewItem && <MediaPreviewModal media={previewItem} onClose={() => setPreviewItem(null)} />}
       {isManager && collectionEditorOpen && <CollectionEditorModal collection={collectionEditorTarget ?? undefined} onClose={closeCollectionEditor} />}
       {cardContextMenu && (

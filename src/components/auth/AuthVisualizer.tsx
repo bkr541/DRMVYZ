@@ -4,7 +4,8 @@ import { useEffect, useRef } from 'react'
  * Pre-auth ambient visualizer for the login / signup emblem panel. A
  * self-driven 2D-canvas animation that cycles through stylized takes on the
  * React engines' signature looks — Sound Drawing scope, Cinema constellation,
- * CANVAS depth field, LaserDMX beam matrix, PixGrid — on a synthetic 124 BPM
+ * CANVAS depth field, LaserDMX beam matrix, PixGrid, Headliner performer echoes
+ * — on a synthetic 124 BPM
  * pulse. No audio, no engine runtime.
  */
 
@@ -62,7 +63,7 @@ function hash01(n: number): number {
 // Drawing warbles them through waveform noise, Cinema gathers particles into
 // each letter, CANVAS shimmers them into focus through refraction blur,
 // LaserDMX runs a beat-quantised scanline strobe, PixGrid does a mosaic
-// block-dissolve.
+// block-dissolve, Headliner leaves delayed motion-echo glyphs.
 
 // Manrope is the app's secondary font, loaded through index.html.
 const DISPLAY_FONT = '"Manrope", sans-serif'
@@ -223,6 +224,20 @@ function drawEngineLabel(
       ctx.shadowColor = `rgba(${ICE}, ${0.6 * fade})`
       ctx.fillStyle = `rgba(${ICE}, ${(0.4 + lp * 0.5) * strobe * fade})`
       ctx.fillText(g, 0, 0)
+    } else if (mode === 5) {
+      // Headliner — temporal copies settle into the live letter's pose.
+      const spread = (1 - lp) * K
+      for (let echo = 3; echo >= 0; echo--) {
+        ctx.save()
+        ctx.translate(-echo * spread * 5, Math.sin(s.t * 2.4 - echo * 0.4 + i * 0.2) * spread * 4)
+        const a = (echo === 0 ? 0.4 + lp * 0.55 : (1 - lp) * 0.24) * fade
+        glyphHalo(ctx, ch, a)
+        ctx.shadowBlur = 5 * K
+        ctx.shadowColor = `rgba(${CYAN}, ${a})`
+        ctx.fillStyle = `rgba(${echo % 2 ? MAGENTA : ICE}, ${a})`
+        ctx.fillText(ch, 0, 0)
+        ctx.restore()
+      }
     } else {
       // PixGrid — mosaic block-dissolve.
       glyphHalo(ctx, ch, (0.35 + lp * 0.6) * fade)
@@ -609,8 +624,114 @@ const drawPixGrid: SceneFn = (ctx, w, h, s, alpha) => {
   ctx.restore()
 }
 
-const SCENES: SceneFn[] = [drawScope, drawConstellation, drawTunnel, drawBeams, drawPixGrid]
-const SCENE_NAMES = ['SOUND DRAWING', 'CINEMA', 'CANVAS', 'LASERDMX', 'PIXGRID']
+// ── Scene: Headliner — performer silhouette, motion echoes and hand sparks ──
+// Authored poses evoke Motion Echo / Energy Outline / Spark Skeleton without
+// opening a camera, loading a tracker or importing the live Headliner runtime.
+type PosePoint = readonly [number, number]
+function performerPose(t: number) {
+  const sway = Math.sin(t * 1.35) * 0.09
+  return {
+    sway,
+    left: [
+      [sway - 0.16, -0.23],
+      [sway - 0.32, -0.10 - Math.sin(t * 2.1) * 0.14],
+      [sway - 0.40, -0.28 - Math.sin(t * 2.1 - 0.6) * 0.22],
+    ] as readonly PosePoint[],
+    right: [
+      [sway + 0.16, -0.23],
+      [sway + 0.31, -0.22 - Math.sin(t * 1.8 + 1) * 0.16],
+      [sway + 0.39, -0.43 - Math.sin(t * 1.8 + 0.4) * 0.18],
+    ] as readonly PosePoint[],
+  }
+}
+
+const drawHeadliner: SceneFn = (ctx, w, h, s, alpha) => {
+  const scale = Math.min(w * 0.9, h * 0.69)
+  const cx = w / 2
+  const cy = h * 0.53
+  ctx.save()
+  ctx.globalAlpha = alpha
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  // Sample past poses rather than offsetting identical copies: moving arms
+  // leave distinct temporal silhouettes, as in Headliner's Motion Echo.
+  for (let echo = 4; echo >= 0; echo--) {
+    const pose = performerPose(s.t - echo * 0.18)
+    const col = echo % 2 ? MAGENTA : CYAN
+    const opacity = echo === 0 ? 0.88 : (5 - echo) * 0.055
+    const x = cx - echo * scale * 0.045
+    const y = cy + echo * scale * 0.008
+    const px = (v: number) => x + v * scale
+    const py = (v: number) => y + v * scale
+    ctx.strokeStyle = `rgba(${col}, ${opacity})`
+    ctx.fillStyle = `rgba(${DEEP}, ${echo === 0 ? 0.25 : opacity * 0.3})`
+    ctx.shadowColor = `rgba(${col}, ${opacity})`
+    ctx.shadowBlur = echo === 0 ? 12 + s.beat * 10 : 5
+    ctx.lineWidth = 1.4 + (echo === 0 ? s.beat : 0)
+
+    ctx.beginPath()
+    ctx.ellipse(px(pose.sway), py(-0.43), scale * 0.095, scale * 0.12, Math.sin(s.t - echo * 0.18) * 0.1, 0, TAU)
+    ctx.fill()
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(px(pose.sway - 0.055), py(-0.31))
+    ctx.bezierCurveTo(px(pose.sway - 0.22), py(-0.27), px(pose.sway - 0.17), py(0.03), px(pose.sway - 0.14), py(0.31))
+    ctx.quadraticCurveTo(px(pose.sway), py(0.36), px(pose.sway + 0.14), py(0.31))
+    ctx.bezierCurveTo(px(pose.sway + 0.17), py(0.03), px(pose.sway + 0.22), py(-0.27), px(pose.sway + 0.055), py(-0.31))
+    ctx.closePath()
+    ctx.fill()
+    ctx.stroke()
+
+    for (const arm of [pose.left, pose.right]) {
+      ctx.beginPath()
+      arm.forEach(([ax, ay], i) => i === 0 ? ctx.moveTo(px(ax), py(ay)) : ctx.lineTo(px(ax), py(ay)))
+      ctx.lineWidth = scale * 0.065
+      ctx.strokeStyle = `rgba(${col}, ${opacity * 0.25})`
+      ctx.stroke()
+      ctx.lineWidth = 1.3 + s.beat
+      ctx.strokeStyle = `rgba(${echo === 0 ? ICE : col}, ${opacity})`
+      ctx.stroke()
+      if (echo === 0) {
+        for (const [ax, ay] of arm) {
+          ctx.beginPath()
+          ctx.arc(px(ax), py(ay), 2 + s.beat * 1.5, 0, TAU)
+          ctx.fillStyle = `rgba(${ICE}, 0.9)`
+          ctx.fill()
+        }
+      }
+    }
+  }
+
+  // A bounded, deterministic particle field sheds from the moving wrists.
+  const live = performerPose(s.t)
+  ctx.shadowBlur = 6
+  ctx.shadowColor = `rgba(${CYAN}, 0.7)`
+  for (let side = 0; side < 2; side++) {
+    const arm = side === 0 ? live.left : live.right
+    for (let i = 0; i < 18; i++) {
+      const age = (s.t * 0.8 + hash01(i + side * 31)) % 1
+      const past = performerPose(s.t - age * 0.7)
+      const [hx, hy] = (side === 0 ? past.left : past.right)[2]
+      const angle = hash01(i * 7 + side * 43) * TAU
+      const reach = age * (0.04 + s.high * 0.07)
+      const strength = (1 - age) * (0.35 + s.beat * 0.5)
+      ctx.fillStyle = `rgba(${side === 0 ? CYAN : ICE}, ${strength})`
+      ctx.beginPath()
+      ctx.arc(cx + (hx + Math.cos(angle) * reach) * scale, cy + (hy + age * 0.08) * scale, 0.8 + (1 - age) * 1.2, 0, TAU)
+      ctx.fill()
+    }
+    // Keep the live hand readable over its particle trail.
+    ctx.fillStyle = `rgba(${ICE}, 0.9)`
+    ctx.beginPath()
+    ctx.arc(cx + arm[2][0] * scale, cy + arm[2][1] * scale, 2.5 + s.beat * 1.5, 0, TAU)
+    ctx.fill()
+  }
+  ctx.restore()
+}
+
+const SCENES: SceneFn[] = [drawScope, drawConstellation, drawTunnel, drawBeams, drawPixGrid, drawHeadliner]
+const SCENE_NAMES = ['SOUND DRAWING', 'CINEMA', 'CANVAS', 'LASERDMX', 'PIXGRID', 'HEADLINER']
 const LABEL_IN_MS = 900
 
 export function AuthVisualizer() {

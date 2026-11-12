@@ -107,6 +107,14 @@ The left rail has two tabs. SOURCE holds one standard parent group, **Input**, w
 
 ## Fonts
 
+The SOURCE font dropdown previews each font name in its actual typeface, including
+the bundled Anton default. Library previews use the shared background font cache;
+names use the standard UI font while loading or when a preview cannot be loaded.
+Previewing does not select a font or change the drawing. The closed selector,
+placeholders and ordinary dropdowns retain shared UI typography; font specimens
+keep the same option size, weight and spacing. The shared dropdown honors an
+option's font family through its typography variable, including in portaled menus.
+
 - The default font is Anton Regular, baked to path commands so the runtime never fetches or parses a font for it. The license text ships at `public/cinema2/licenses/Anton-OFL-1.1.txt`. Regenerate with `node scripts/xy-scope/generate-default-font.mjs`.
 - A font from the user's library uses the same cache and storage as the rest of the font system (`getFontFromCache`, `downloadFontFile`, `storeFontRuntime`). While it loads, or if it fails or has been removed, the word keeps drawing in the default font and the surface shows why.
 - Outlines are flattened from path commands with sharp corners kept as mandatory points. Contours smaller than **Ignore Small Pieces** (a share of the cap height) are dropped. The point count is bounded (12,000), and ornate fonts thin their spacing until they fit.

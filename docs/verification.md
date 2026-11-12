@@ -330,3 +330,54 @@ CRT and Hybrid on the same color chart and transparent logo. It exercises
 seeded reconstruction, phosphor warmup and reset, control visibility, preview
 and capture, browser recording, decoded video, resize, WebGL2 recovery, and
 authored and Show ownership. It saves a contact sheet and WebM.
+
+
+### Private Cinema model runtime (Phase 05)
+
+With Node 22 and Playwright Chromium installed, run
+`node scripts/model-assets/verify-cinema-runtime.mjs`. It mounts the actual
+Cinema2Runtime/three-scene bridge and generic model inspector with local
+Auth/repository boundary fixtures. Evidence is written to the ignored
+`artifacts/model-runtime-phase05/` directory. It validates render switching,
+resource release, palette reset, pinned workspace restore, context recovery and
+safe denial/deletion fallbacks. It does not deploy Supabase or establish cloud
+end-to-end acceptance; see [model-runtime-phase05.md](model-runtime-phase05.md).
+
+
+### Six model reference previews (Phase 06)
+
+`node scripts/model-assets/verify-previews.mjs` validates the six actual Cinema
+reference presets and their 36 patterns using WebGL and a local repository/Auth
+fixture. `--controls-only` runs focused scalar minimum/mid/maximum checks.
+`--thumbnails` refreshes the public, neutral default-model WebP artwork after
+the full checks pass. Evidence is written to ignored
+`artifacts/model-preview-phase06/`. See [model-preview-phase06.md](model-preview-phase06.md)
+for scope and cloud/human acceptance gates. This script does not deploy a
+Supabase migration or validate cloud storage credentials.
+
+### Model release acceptance (Phase 07)
+
+`node scripts/model-assets/verify-editor.mjs --release` extends the real Media
+Manager workflow to use the same saved GLB in all six native Cinema previews,
+restore pinned workspace state, return to the manager and reopen after original
+source deletion. Only the remote repository boundary is a local HTTP fixture.
+`node scripts/model-assets/verify-generator.mjs browser` exercises VTracer,
+source formats, SVG rejection and GLB export in Vite and production bundles.
+
+The unsigned macOS arm64 product package check is
+`node scripts/model-assets/verify-desktop-package.mjs`. Set
+`DRMVYZ_MODEL_ELECTRON_DISTRIBUTION` to the matching cached Electron distribution
+and `DRMVYZ_MODEL_PACKAGE_OUTPUT` to a disposable directory. It uses the actual
+builder configuration/main/preload, launches the packaged product, checks the
+setup gate, and executes the packaged VTracer worker/WASM and GLB export. It does
+not publish, sign or notarize an installer. Run `npm run build` first.
+
+`scripts/model-assets/verify-sql-fixture.mjs` requires an existing disposable
+PGlite module through `DRMVYZ_MODEL_PGLITE_MODULE`. It tests the model migrations
+and security SQL against minimal Supabase-shaped dependencies. The separate
+`supabase/tests/model_release_preflight.sql` is a read-only deployed-schema
+catalog check. See [model-migrations.md](model-migrations.md) before using either.
+
+Evidence is under ignored `artifacts/model-release-phase07/`. Actual results,
+baseline failures and the still-pending authenticated cloud gate are recorded in
+[model-release-phase07.md](model-release-phase07.md).

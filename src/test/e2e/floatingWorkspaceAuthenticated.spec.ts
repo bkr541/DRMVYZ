@@ -27,7 +27,7 @@ test('five floating workspaces preserve app chrome, stage geometry and drawer bo
     label: string
     view: string
     stage: string
-    /** Viewport width at or below which the workspace intentionally hides its stage (Preset Manager: presetManager.css `@media (max-width: 900px)`). */
+    /** Viewport width at or below which the workspace intentionally hides its stage. */
     hideStageAtOrBelow?: number
     /** The grid that owns the rail collapse state (`data-left-collapsed` / `data-right-collapsed`). */
     rails?: string
@@ -42,7 +42,7 @@ test('five floating workspaces preserve app chrome, stage geometry and drawer bo
   }
   const routes: Route[] = [
     { label: 'React', view: 'react', stage: '.rv-canvas-wrap', rails: '.rv-layout', dock: '.rv-shell--floating > .az-dock.vz-transport-dock', canvas: '.rv-canvas-wrap canvas', stageFocus: true },
-    { label: 'Preset Manager', view: 'presetManager', stage: '.pmv-stage', hideStageAtOrBelow: 900, rails: '.pmv-content', surfaces: '.pmv-content > .fw-surface' },
+    { label: 'Preset Manager', view: 'presetManager', stage: '.pmv-stage', rails: '.pmv-content', surfaces: '.pmv-content > .fw-surface' },
     { label: 'Show Manager', view: 'showManager', stage: '.sm-center', dock: '.sm-root > .az-dock.vz-transport-dock' },
     { label: 'Lyric Manager', view: 'lyrics', stage: '.lmv-center' },
     { label: 'Media Manager', view: 'media', stage: '.mmv-stage-area', rails: '.mmv-content', surfaces: '.mmv-content > .fw-surface' },

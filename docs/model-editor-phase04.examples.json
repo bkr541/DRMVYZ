@@ -1,0 +1,125 @@
+{
+  "model_assets": {
+    "id": "c0000000-0000-4000-8000-000000000001",
+    "user_id": "a0000000-0000-4000-8000-000000000001",
+    "source_media_id": null,
+    "name": "Gold emblem",
+    "description": "Illustrative saved SVG model",
+    "favorite": true,
+    "current_version": 1,
+    "status": "ready",
+    "created_at": "2026-11-12T06:00:00Z",
+    "updated_at": "2026-11-12T06:00:00Z"
+  },
+  "model_asset_versions": {
+    "id": "e0000000-0000-4000-8000-000000000001",
+    "model_asset_id": "c0000000-0000-4000-8000-000000000001",
+    "version": 1,
+    "operation_id": "d0000000-0000-4000-8000-000000000001",
+    "glb_path": "a0000000-0000-4000-8000-000000000001/c0000000-0000-4000-8000-000000000001/1/d0000000-0000-4000-8000-000000000001/model.glb",
+    "source_snapshot_path": "a0000000-0000-4000-8000-000000000001/c0000000-0000-4000-8000-000000000001/1/d0000000-0000-4000-8000-000000000001/source.svg",
+    "trace_svg_path": "a0000000-0000-4000-8000-000000000001/c0000000-0000-4000-8000-000000000001/1/d0000000-0000-4000-8000-000000000001/trace.svg",
+    "thumbnail_path": "a0000000-0000-4000-8000-000000000001/c0000000-0000-4000-8000-000000000001/1/d0000000-0000-4000-8000-000000000001/thumbnail.png",
+    "generator_recipe": {
+      "schemaVersion": 1,
+      "quality": "normal",
+      "engine": {
+        "name": "drmvyz-svg-extrude",
+        "version": "1",
+        "threeVersion": "0.186.1"
+      },
+      "foreground": {
+        "mode": "alpha",
+        "threshold": 0.5,
+        "invert": false
+      },
+      "trace": {
+        "colorMode": "silhouette",
+        "threshold": 0.5,
+        "smoothing": 0.35,
+        "maxColors": 1
+      },
+      "geometry": {
+        "depth": 0.65,
+        "bevelEnabled": true,
+        "bevelThickness": 0.015,
+        "bevelSize": 0.02,
+        "bevelSegments": 3,
+        "curveSegments": 12
+      },
+      "materials": [
+        {
+          "region": "front",
+          "color": "#e7b64c",
+          "metalness": 1,
+          "roughness": 0.2,
+          "opacity": 1,
+          "emissive": "#000000",
+          "emissiveIntensity": 1,
+          "clearcoat": 1,
+          "clearcoatRoughness": 0.1
+        },
+        {
+          "region": "side",
+          "color": "#bb7964",
+          "metalness": 0,
+          "roughness": 1,
+          "opacity": 0.99,
+          "emissive": "#000000"
+        }
+      ],
+      "transform": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "pivot": "center"
+      },
+      "preview": {
+        "background": "#111111",
+        "lightIntensity": 1,
+        "environment": "neutral",
+        "grid": true,
+        "shadows": true,
+        "turntable": false
+      }
+    },
+    "geometry_stats": {
+      "glbBytes": 16000,
+      "materialCount": 2,
+      "triangles": 128,
+      "vertices": 768,
+      "meshes": 1,
+      "bounds": {
+        "min": [
+          -1.02,
+          -1.02,
+          -0.34
+        ],
+        "max": [
+          1.02,
+          1.02,
+          0.34
+        ]
+      },
+      "source": {
+        "width": 100,
+        "height": 100,
+        "mimeType": "image/svg+xml",
+        "byteSize": 300
+      }
+    },
+    "created_at": "2026-11-12T06:00:00Z"
+  }
+}

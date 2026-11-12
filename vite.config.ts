@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   // Relative asset URLs let the built renderer resolve its own JS/CSS bundle
@@ -8,6 +9,18 @@ export default defineConfig({
   // (see electron/main.cjs) instead of the dev server's HTTP origin.
   base: './',
   plugins: [react()],
+  // Standalone generation engine: Phase 03 can import it lazily without adding
+  // tracing or WASM to the app's initial renderer bundle.
+  build: {
+    rollupOptions: {
+      input: {
+        app: fileURLToPath(new URL('./index.html', import.meta.url)),
+        modelGenerator: fileURLToPath(new URL('./src/features/models/generator/createModelArtifact.ts', import.meta.url)),
+      },
+      preserveEntrySignatures: 'exports-only',
+      output: { entryFileNames: chunk => chunk.name === 'modelGenerator' ? 'assets/model-generator.js' : 'assets/[name]-[hash].js' },
+    },
+  },
   // Cinema 2.0 intentionally loads Three.js only when a 3D preset is selected.
   // Keep every package entry used by that lazy path in Vite's initial dependency
   // optimization pass. Otherwise the first activation after a backend dependency

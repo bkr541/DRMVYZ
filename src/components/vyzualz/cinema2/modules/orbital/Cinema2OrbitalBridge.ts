@@ -19,34 +19,17 @@ type OrbitalExecution = Cinema2ModuleRenderExecutionContext & {
   lightingEnvironment: NonNullable<Cinema2ModuleRenderExecutionContext['lightingEnvironment']>
 }
 
-interface RingJoint {
-  bone: Three.Bone
-  restRotation: Three.Quaternion
-  restPosition: Three.Vector3
-  pivot: Three.Vector3
-  axis: Three.Vector3
-}
-
 const MAX_DEBRIS = 40
 
-/** Draws the imported skinned gyroscope and applies the same PBR atlas to the text. */
+/** Draws the supplied metal sphere; lettering shares its physical material and textures. */
 export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
   private readonly instrument: Three.Group
-  private readonly skinnedMesh: Three.SkinnedMesh
   private readonly sourceMaterial: Three.MeshStandardMaterial
-  private readonly artifactMaterial: Three.MeshStandardMaterial
-  private readonly rings: RingJoint[]
+  private readonly mixer: Three.AnimationMixer
   private readonly normalization: number
-  private readonly arms: Three.Group
-  private readonly markerMaterial: Three.MeshStandardMaterial
-  private readonly planetMaterial: Three.ShaderMaterial
-  private readonly planet: Three.Mesh
   private readonly debris: Three.InstancedMesh
   private readonly stars: Three.Points
   private readonly dummy: Three.Object3D
-  private readonly amethyst: Three.Color
-  private readonly rotation: Three.Quaternion
-  private readonly offset: Three.Vector3
   private readonly glyphGeometry = new Map<Three.BufferGeometry, Three.BufferGeometry>()
   private readonly ownedGeometries: Three.BufferGeometry[] = []
   private readonly ownedMaterials: Three.Material[] = []
@@ -59,93 +42,31 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
     private readonly settings: () => Readonly<OrbitalDrawSettings>,
     sample: (index: number) => number,
   ) {
-    // Validate the imported asset before acquiring render targets and material instances.
-    const skinned = instance.getObjectByProperty('isSkinnedMesh', true) as Three.SkinnedMesh | undefined
-    const material = skinned?.material as Three.MeshStandardMaterial | undefined
-    const joints = ['ringouter', 'ringmiddle', 'ringinner'].map(name => skinned?.skeleton.bones.find(bone => bone.name.toLowerCase().replace(/[^a-z0-9]/g, '').startsWith(name)))
-    if (!skinned || !material?.isMeshStandardMaterial || !material.map || !material.normalMap || joints.some(bone => !bone)) {
-      throw new Error('ORBITAL requires the supplied gyroscope rig and its PBR texture atlas.')
-    }
+    let material: Three.MeshStandardMaterial | undefined
+    instance.traverse(object => {
+      const mesh = object as Three.Mesh
+      if (!mesh.isMesh) return
+      const candidate = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+      if ((candidate as Three.MeshStandardMaterial)?.isMeshStandardMaterial) material ??= candidate as Three.MeshStandardMaterial
+    })
+    if (!material?.map || !material.normalMap) throw new Error('ORBITAL requires the supplied metal sphere and its PBR texture maps.')
     super(gl, library, glyphs)
     const { THREE } = library
     this.seeds = Float32Array.from({ length: 1100 }, (_, index) => sample(index))
     this.dummy = new THREE.Object3D()
-    this.rotation = new THREE.Quaternion()
-    this.amethyst = new THREE.Color(0x9a50d6)
-    this.offset = new THREE.Vector3()
     this.sourceMaterial = material
-    this.artifactMaterial = this.material(material.clone())
-    this.skinnedMesh = skinned
-    skinned.material = this.artifactMaterial
-    skinned.frustumCulled = false
+    this.mixer = new THREE.AnimationMixer(instance)
+    for (const clip of rig.animations) this.mixer.clipAction(clip).play()
     instance.updateMatrixWorld(true)
-    skinned.skeleton.update()
     const bounds = new THREE.Box3().setFromObject(instance, true)
     const center = bounds.getCenter(new THREE.Vector3())
-    this.normalization = 1 / Math.max(.01, bounds.getSize(new THREE.Vector3()).length() * .5)
-    // Each authored joint shares the center of the instrument as its rotation pivot.
-    this.rings = joints.map((joint, index) => {
-      const bone = joint!
-      return {
-        bone, restRotation: bone.quaternion.clone(), restPosition: bone.position.clone(),
-        pivot: bone.worldToLocal(center.clone()),
-        axis: new THREE.Vector3(index === 1 ? 0 : 1, index === 1 ? 1 : 0, 0),
-      }
-    })
+    this.normalization = 2 / Math.max(.01, ...bounds.getSize(new THREE.Vector3()).toArray())
     const centered = new THREE.Group()
     centered.position.copy(center).negate()
     centered.add(instance)
     this.instrument = new THREE.Group()
     this.instrument.add(centered)
     this.scene.add(this.instrument)
-
-    this.arms = new THREE.Group()
-    const strutMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x8c6635, metalness: .78, roughness: .5 }))
-    this.markerMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x391c68, emissive: 0x6737cc, metalness: .45, roughness: .3 }))
-    const strut = this.geometry(new THREE.BoxGeometry(1.05, .055, .12))
-    const collar = this.geometry(new THREE.CylinderGeometry(.11, .12, .16, 8))
-    const lamp = this.geometry(new THREE.SphereGeometry(.067, 8, 6))
-    for (let index = 0; index < 8; index += 1) {
-      const mount = new THREE.Group()
-      mount.rotation.z = index * Math.PI / 4
-      const spar = new THREE.Mesh(strut, strutMaterial)
-      spar.position.x = 3.58
-      const socket = new THREE.Mesh(collar, strutMaterial)
-      socket.rotation.z = Math.PI / 2
-      socket.position.x = 3.1
-      const indicator = new THREE.Mesh(lamp, this.markerMaterial)
-      indicator.position.set(3.04, 0, .11)
-      mount.add(spar, socket, indicator)
-      this.arms.add(mount)
-    }
-    this.arms.position.z = -5.7
-    this.scene.add(this.arms)
-
-    this.planetMaterial = this.material(new THREE.ShaderMaterial({
-      transparent: true,
-      uniforms: { visibility: { value: .8 }, limb: { value: new THREE.Color(0x7f55d8) } },
-      vertexShader: `varying vec3 vViewNormal; varying vec3 vViewPosition; varying vec3 vLocal;
-        void main() {
-          vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-          vViewPosition = -viewPosition.xyz;
-          vViewNormal = normalize(normalMatrix * normal);
-          vLocal = position;
-          gl_Position = projectionMatrix * viewPosition;
-        }`,
-      fragmentShader: `uniform float visibility; uniform vec3 limb;
-        varying vec3 vViewNormal; varying vec3 vViewPosition; varying vec3 vLocal;
-        void main() {
-          float facing = max(0.0, dot(normalize(vViewNormal), normalize(vViewPosition)));
-          float rim = pow(1.0 - facing, 5.0);
-          float bands = 0.5 + 0.5 * sin(vLocal.y * 2.3 + sin(vLocal.x * 1.9) * 0.45);
-          vec3 body = vec3(0.016, 0.008, 0.043) * (0.7 + bands * 0.6);
-          gl_FragColor = vec4(body + limb * rim * 0.95, visibility * smoothstep(0.0, 0.045, facing));
-          #include <colorspace_fragment>
-        }`,
-    }))
-    this.planet = new THREE.Mesh(this.geometry(new THREE.SphereGeometry(15, 48, 24)), this.planetMaterial)
-    this.planet.position.set(7, -19, -23)
-    this.scene.add(this.planet)
 
     const starGeometry = this.geometry(new THREE.BufferGeometry())
     const starPositions = new Float32Array(320 * 3)
@@ -155,10 +76,10 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
       starPositions[index + 2] = -15 - this.seeds[index + 2]! * 19
     }
     starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3))
-    this.stars = new THREE.Points(starGeometry, this.material(new THREE.PointsMaterial({ color: 0xc7c3f8, size: .065, transparent: true, opacity: .66, depthWrite: false })))
+    this.stars = new THREE.Points(starGeometry, this.material(new THREE.PointsMaterial({ color: 0xb5c6d0, size: .065, transparent: true, opacity: .66, depthWrite: false })))
     this.scene.add(this.stars)
     this.debris = new THREE.InstancedMesh(this.geometry(new THREE.IcosahedronGeometry(1, 0)),
-      this.material(new THREE.MeshStandardMaterial({ color: 0x847082, metalness: .6, roughness: .67, emissive: 0x251747, emissiveIntensity: .17 })), MAX_DEBRIS)
+      this.material(new THREE.MeshStandardMaterial({ color: 0x737c82, metalness: .6, roughness: .67 })), MAX_DEBRIS)
     this.debris.frustumCulled = false
     this.scene.add(this.debris)
   }
@@ -168,32 +89,24 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
     const pattern = orbitalPattern(draw.pattern)
     const motion = { ...settings, phaseBeats: draw.patternPhaseBeats }
     const movement = resolveOrbitalPose(pattern, motion)
+    const sphereRadius = 3.2 * settings.size
+    const wrapRadius = Math.max(8, sphereRadius * 1.8)
+    const curved = resolveOrbitalGlyphs(draw.poses, pattern, motion).map(glyph => {
+      const angle = glyph.position[0] / wrapRadius
+      return { ...glyph, position: [Math.sin(angle)*wrapRadius, glyph.position[1], glyph.position[2] + wrapRadius*(Math.cos(angle)-1)] as const,
+        rotation: [glyph.rotation[0], glyph.rotation[1]+angle, glyph.rotation[2]] as const }
+    })
     super.applyState(exec, {
-      ...draw, pattern: 'solid', ledMusicIntensity: .10 + settings.highs * .07,
-      poses: resolveOrbitalGlyphs(draw.poses, pattern, motion),
+      ...draw, pattern: 'solid', ledOutlineEnabled: false, ledMusicIntensity: 0,
+      poses: curved,
     }, profile)
 
-    const { THREE } = this.library
-    const radius = 4.8 * settings.size * (1 + movement.expansion)
-    this.instrument.position.set(0, .34 + movement.lift, -1.2 - radius)
+    const radius = 3.2 * settings.size * (1 + movement.expansion)
+    this.instrument.position.set(0, .34 + movement.lift, -2.2 - radius)
     this.instrument.rotation.set(.13 + movement.tilt[0], 1.26 + movement.tilt[1], -.13 + movement.tilt[2])
     this.instrument.scale.setScalar(radius * this.normalization)
-    for (const [index, ring] of this.rings.entries()) {
-      ring.bone.quaternion.copy(ring.restRotation).multiply(this.rotation.setFromAxisAngle(ring.axis, movement.rings[index]!))
-      this.offset.copy(ring.pivot).applyQuaternion(ring.restRotation)
-      ring.bone.position.copy(ring.restPosition).add(this.offset)
-      this.offset.copy(ring.pivot).applyQuaternion(ring.bone.quaternion)
-      ring.bone.position.sub(this.offset)
-    }
-    this.artifactMaterial.emissiveIntensity = 1 + settings.highs * 1.6 + settings.beat * .4
-    this.arms.rotation.set(.12, movement.tilt[1] * .6, movement.armPhase - .18)
-    this.arms.scale.setScalar(settings.size * (1 + movement.expansion * .7))
-    this.arms.position.z = -1.2 - radius
-    this.markerMaterial.emissive.setRGB(...draw.outlineColor, THREE.SRGBColorSpace)
-    this.markerMaterial.emissiveIntensity = .6 + settings.highs * 1.3 + settings.beat * .5
-    this.planet.visible = settings.planet > 0
-    this.planetMaterial.uniforms.visibility!.value = settings.planet
-    ;(this.planetMaterial.uniforms.limb!.value as Three.Color).setRGB(...draw.outlineColor, THREE.SRGBColorSpace)
+    this.mixer.setTime((draw.absoluteBeat ?? draw.patternPhaseBeats) * .12 * settings.amount * settings.ringTravel)
+    this.scene.environmentIntensity *= .25
     this.stars.geometry.setDrawRange(0, profile.quality === 'low' ? 180 : 320)
     this.updateDebris(settings, draw.absoluteBeat ?? 0, profile)
     this.applyLetterMaterial(draw, settings)
@@ -202,6 +115,12 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
   private applyLetterMaterial(draw: Readonly<Cinema2SayItDrawState>, settings: Readonly<OrbitalDrawSettings>): void {
     const mapped = settings.material === 'artifact'
     for (const glyph of this.glyphs) {
+      if (!glyph.material.userData.orbitalSphere) {
+        glyph.material.dispose()
+        glyph.material = this.sourceMaterial.clone()
+        glyph.material.userData.orbitalSphere = true
+        glyph.mesh.material = glyph.material
+      }
       const material = glyph.material
       const map = mapped ? this.sourceMaterial.map : null
       if (material.map !== map) {
@@ -211,17 +130,19 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
         material.metalnessMap = mapped ? this.sourceMaterial.metalnessMap : null
         material.needsUpdate = true
       }
-      if (mapped && !glyph.mesh.geometry.userData.orbitalAtlas) glyph.mesh.geometry = this.atlasGeometry(glyph.mesh.geometry)
-      material.metalness = mapped ? .85 : settings.material === 'polished' ? .82 : .39
-      material.roughness = mapped ? Math.min(1, .28 + draw.roughness) : draw.roughness
-      material.normalScale.set(.48, -.48)
-      if (settings.material === 'amethyst') material.color.multiply(this.amethyst)
+      if (!glyph.mesh.geometry.userData.orbitalAtlas) glyph.mesh.geometry = this.atlasGeometry(glyph.mesh.geometry)
+      material.color.setRGB(...draw.color, this.library.THREE.SRGBColorSpace).multiply(this.sourceMaterial.color)
+      material.emissive.copy(this.sourceMaterial.emissive)
+      material.emissiveIntensity = this.sourceMaterial.emissiveIntensity
+      material.metalness = mapped ? this.sourceMaterial.metalness : .9
+      material.roughness = mapped ? Math.min(1,this.sourceMaterial.roughness * draw.roughness / .54) : settings.material === 'amethyst' ? Math.max(.45,draw.roughness) : draw.roughness
+      material.normalScale.copy(this.sourceMaterial.normalScale)
       glyph.mesh.scale.z = settings.depth
       glyph.ledMesh.scale.z = settings.depth
     }
   }
 
-  /** Each glyph samples the brass face and engraved strip of the supplied atlas in local space. */
+  /** Reproject glyphs across the supplied sphere texture without the old gyroscope atlas offsets. */
   private atlasGeometry(source: Three.BufferGeometry): Three.BufferGeometry {
     const cached = this.glyphGeometry.get(source)
     if (cached) return cached
@@ -239,8 +160,8 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
       const x = (position.getX(index) - bounds.min.x) / spanX
       const y = (bounds.max.y - position.getY(index)) / spanY
       const face = Math.abs(normal.getZ(index)) > .8
-      uvs[index * 2] = face ? .244 + x * .088 : .129 + x * .226
-      uvs[index * 2 + 1] = face ? .44 + y * .27 : .053 + y * .062
+      uvs[index * 2] = face ? x : (position.getZ(index) - bounds.min.z) / Math.max(.001,bounds.max.z-bounds.min.z)
+      uvs[index * 2 + 1] = y
     }
     geometry.setAttribute('uv', new this.library.THREE.BufferAttribute(uvs, 2))
     this.glyphGeometry.set(source, geometry)
@@ -267,8 +188,8 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
   override estimateGpuBytes(): number {
     // The parent accounts for active glyphs and their shared atlas. Count each map once.
     const parentBytes = super.estimateGpuBytes()
-    const sharedMaps = this.settings().material === 'artifact' && this.glyphs.length
-      ? new Set([this.sourceMaterial.map, this.sourceMaterial.normalMap, this.sourceMaterial.roughnessMap, this.sourceMaterial.metalnessMap]) : new Set<Three.Texture | null>()
+    const sphereMaps = new Set(Object.values(this.sourceMaterial).filter((value): value is Three.Texture => !!value && (value as Three.Texture).isTexture === true))
+    const sharedMaps = new Set(this.glyphs.flatMap(glyph => Object.values(glyph.material).filter((value): value is Three.Texture => sphereMaps.has(value as Three.Texture))))
     let duplicateBytes = 0
     for (const texture of sharedMaps) {
       const image = texture?.image as { width?: number; height?: number } | undefined
@@ -287,9 +208,10 @@ export class Cinema2OrbitalBridge extends Cinema2SayItBridge {
   override dispose(): void {
     if (this.disposedOrbital) return
     this.disposedOrbital = true
-    this.scene.remove(this.instrument, this.arms, this.planet, this.stars, this.debris)
+    this.scene.remove(this.instrument, this.stars, this.debris)
     this.debris.dispose()
-    this.skinnedMesh.skeleton.dispose()
+    this.mixer.stopAllAction()
+    this.mixer.uncacheRoot(this.mixer.getRoot())
     for (const geometry of this.ownedGeometries) geometry.dispose()
     for (const geometry of this.glyphGeometry.values()) geometry.dispose()
     for (const material of this.ownedMaterials) material.dispose()

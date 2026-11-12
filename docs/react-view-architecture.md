@@ -93,6 +93,15 @@ The header owns:
 
 It does not own engine-specific control stacks or a second transport.
 
+React, Preset Manager, Show Manager, Lyric Manager and Media Manager share the
+same toolbar geometry in `styles/floatingWorkspace.css`. Manager status wrappers
+add no layout box; the shared `ReactHeaderStatusCluster` owns the three readout
+columns through `HeaderReadout.css`. Header padding, right-edge anchoring and
+vertical centering are common, so page-specific toolbar styles cannot offset
+LOAD / SAVE, RENDER / FPS or QUALITY / CPU. Browser measurements verified exact
+cluster, column and caption bounds across all five workspaces at 1600, 1280 and
+1024px viewport widths.
+
 ### Left rail
 
 The left `WorkspaceRail` owns contextual source and setup surfaces.
@@ -366,3 +375,25 @@ When adding or changing an engine surface:
 8. Update the engine document, this document when shell composition changes, and the implementation contract.
 9. Add architecture and lifecycle tests.
 10. Run the verification appropriate to the changed engine.
+
+
+## Cinema private model selection
+
+Cinema's generic Design inspector recognizes a string parameter with
+`metadata.editor: 'user-model-selector'`. It uses the existing model repository
+and shared controls under Design > Design, with the host's Media Manager action.
+The persisted value is a canonical default or pinned asset-ID/version binding;
+private GLBs use a dedicated resolver/cache inside the existing three-scene
+module and bridge. They are not 2D media slots. Existing shipped instance URLs
+and license records retain their original registry rules. See
+[model-runtime-phase05.md](model-runtime-phase05.md) for configuration, lifecycle,
+validation and the unregistered reference harness.
+
+
+Cinema now registers six separately selectable `3D … (Preview)` first-party
+reference entries through `Cinema2FirstPartyPresetCatalog.ts`. They reuse the
+private model selector, shared Three.js scene and neutral base environment;
+`config.userModelPreview` opts into bounded model-informed representations.
+The generic Inspector and four Design parents remain unchanged. See
+[model-preview-phase06.md](model-preview-phase06.md) for the 36 patterns,
+parameter consumers, resource limits, tests and pending human acceptance.

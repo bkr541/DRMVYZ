@@ -1090,7 +1090,7 @@ export function ReactView({ onOpenMediaManager, onOpenLyricManager }: ReactViewP
               ))}
             {activeRightPanel === 'design' && (
               activeReactEngineId === 'cinema2'
-                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" onTextChange={() => {
+                ? <Cinema2InspectorPanel runtime={cinema2Runtime} surface="design" onOpenMediaManager={onOpenMediaManager} onTextChange={() => {
                     if (cinema2Runtime) storeCinema2WorkspacePresetState(captureCinema2WorkspacePresetState(cinema2Runtime))
                   }} />
                 : activeReactEngineId === 'headliner'

@@ -304,37 +304,18 @@
   border-radius: calc(var(--fw-surface-radius) - 1px);
 }
 
-@media (max-width: 1180px) {
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
-    --vz-left-width: clamp(220px, 26vw, 320px);
-    --vz-right-width: clamp(240px, 27vw, 340px);
-  }
-
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
-    --vz-left-width: var(--vz-collapsed-inspector-width);
-  }
-
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
-    --vz-right-width: var(--vz-collapsed-inspector-width);
-  }
+/* Match React's two rails and center-stage layout at every viewport width. */
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
+  --vz-left-width: var(--fw-performance-rail-width);
+  --vz-right-width: var(--fw-performance-rail-width);
+  grid-template-columns: minmax(0, var(--vz-left-width)) minmax(0, 1fr) minmax(0, var(--vz-right-width));
 }
-
-/* Preserve the existing two-rail mode, including the hidden-but-mounted
-   preview, while allowing either original rail grip to reclaim space. */
-@media (max-width: 900px) {
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
-    grid-template-columns: var(--vz-collapsed-inspector-width) minmax(0, 1fr);
-  }
-
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
-    grid-template-columns: minmax(0, 1fr) var(--vz-collapsed-inspector-width);
-  }
-
-  [data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'][data-right-collapsed='true'] {
-    grid-template-columns: var(--vz-collapsed-inspector-width) var(--vz-collapsed-inspector-width);
-  }
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-left-collapsed='true'] {
+  --vz-left-width: 32px;
+}
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-content[data-right-collapsed='true'] {
+  --vz-right-width: 32px;
+}
+[data-workspace-layout='floating'][data-app-workspace='presetManager'] .pmv-stage {
+  display: flex;
 }

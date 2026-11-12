@@ -183,6 +183,7 @@ interface MediaUploadModalProps {
   editItem?: UploadedMedia
   audioOnly?: boolean
   onAudioUploaded?: (tracks: SavedAudioTrack[]) => void
+  onVisualUploaded?: (items: UploadedMedia[]) => void
   /** Keep files preloaded by Media Manager drag-and-drop instead of clearing them on mount. */
   preserveQueuedFiles?: boolean
   /** Files dropped on the Media Library before the dialog opened (for example fonts, which the media queue does not take). */
@@ -190,7 +191,7 @@ interface MediaUploadModalProps {
 }
 
 export function MediaUploadModal({
-  onClose, editItem, audioOnly = false, onAudioUploaded, preserveQueuedFiles = false, initialFiles,
+  onClose, editItem, audioOnly = false, onAudioUploaded, onVisualUploaded, preserveQueuedFiles = false, initialFiles,
 }: MediaUploadModalProps) {
   const isEdit = !!editItem
   const notificationPage = useNotificationPage()
@@ -705,6 +706,7 @@ export function MediaUploadModal({
       return next
     })
 
+    const visualOperations = new Set(uploadQueue.filter(item => !item.isAudio).map(item => item.operationId).filter(Boolean))
     const beforeIds = new Set(useAudioStore.getState().savedTracks.map(track => track.dbId))
     const queuedAudio = uploadQueue.every(q => q.isAudio)
     const queuedName = uploadQueue[0]?.file.name ?? ''
@@ -721,6 +723,8 @@ export function MediaUploadModal({
           })
         },
       })
+      const uploadedMedia = useMediaStore.getState().items.filter(item => item.uploadOperationId && visualOperations.has(item.uploadOperationId) && item.dbId && !item.uploading && !item.uploadError)
+      if (uploadedMedia.length) onVisualUploaded?.(uploadedMedia)
       const uploadedTracks = useAudioStore.getState().savedTracks.filter(track => !beforeIds.has(track.dbId))
       if (uploadedTracks.length > 0) onAudioUploaded?.(uploadedTracks)
 
