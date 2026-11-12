@@ -70,7 +70,7 @@ reference and earlier phase captures are preserved as historical checkpoints.
 
 The user's request is to create a new Cinema 2.0 preset named **NIGHTSHIFT** using
 the attached image as the desired result. The supplied
-[creation contract](DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md) supplies the
+[creation contract](../../DRMVYZ_Cinema_2_0_Preset_Creation_Contract.md) supplies the
 implementation requirements. Asset metadata supplies provenance and technical
 facts; imported animations are candidates, not instructions defining the preset.
 

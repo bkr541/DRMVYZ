@@ -51,3 +51,6 @@ Thumbs.db
 android-tv-receiver/.gradle/
 android-tv-receiver/local.properties
 android-tv-receiver/**/build/
+
+# Supabase CLI linked-project metadata (local only)
+supabase/.temp/

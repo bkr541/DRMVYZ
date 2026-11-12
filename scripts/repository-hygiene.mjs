@@ -19,6 +19,7 @@ export const GENERATED_DIRECTORY_NAMES = new Set([
 ])
 
 export function isForbiddenRepositoryPath(file) {
+  if (file.startsWith('supabase/.temp/')) return true
   const parts = file.split('/')
   if (parts.some((part) => GENERATED_DIRECTORY_NAMES.has(part))) return true
   if (parts.some((part) => part === '.DS_Store' || part === 'Thumbs.db')) return true
