@@ -2,7 +2,7 @@ import type { VzTransitionType } from '../types/timeline'
 
 /**
  * Transition types handled entirely on the GPU by GPU_TRANSITION_FRAG.
- * All others fall back to the Canvas 2D transitionRenderer path.
+ * This table maps supported transition identifiers to shader indices.
  */
 export const GPU_TRANSITION_TYPES: ReadonlySet<VzTransitionType> = new Set([
   'crossfade',

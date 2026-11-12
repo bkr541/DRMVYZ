@@ -207,7 +207,7 @@ See [`docs/source-packaging.md`](docs/source-packaging.md).
 - React 18, TypeScript, Vite 6, Zustand
 - Electron desktop shell
 - Web Audio API, Canvas 2D, WebGL2
-- Meyda, Essentia.js, Pitchy, Tonal, and web-audio-beat-detector
+- Meyda, Pitchy, Tonal, and web-audio-beat-detector
 - Supabase database, storage, and Edge Functions
 - Groq Whisper for new server-side lyric transcription jobs
 - Playwright, Vitest, ESLint, and Node native tests
