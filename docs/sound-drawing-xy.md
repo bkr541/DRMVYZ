@@ -140,3 +140,11 @@ option's font family through its typography variable, including in portaled menu
 - Unit tests in `src/components/vyzualz/react/xyScope/` cover settings and the four-group standard, geometry, the conversation, the motion model, event derivation, the beam brightness rules, and the panels and surface lifecycle.
 - `src/stores/xyScopePersistence.test.ts` covers selection, normalization, persistence, migration and reset.
 - Browser verification used temporary harnesses that rendered the real surface, runtime and panels with the app's CSS against a synthetic audio-feature feed driven from a real track. They confirmed kick ring-downs, snare frays, a still word while paused, the full pattern cycle (Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word) with the letters visible through the lines mid-change, and that the Design inspector matches the Headliner Design inspector's structure and row styling.
+
+### SOURCE cards
+
+SOURCE begins with TEXT, SVG and OSCILATOR cards, using the shared Sound Drawing
+source-card styling. TEXT is selected initially and shows the existing Input
+group with Text and Font controls. Selecting another card hides that group;
+returning to TEXT preserves its settings. SVG and OSCILATOR are UI placeholders
+at this stage and do not change the live renderer or add authoring controls.

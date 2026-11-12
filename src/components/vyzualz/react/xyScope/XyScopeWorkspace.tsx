@@ -103,8 +103,15 @@ function XyScopeParameterControl({
   }
 }
 
-/** Left window, SOURCE tab: the word and its font. Everything about how it looks and moves lives in the inspector. */
+const XY_SOURCE_CARDS = [
+  { id: 'text', label: 'TEXT', icon: 'text' },
+  { id: 'svg', label: 'SVG', icon: 'svg' },
+  { id: 'oscillator', label: 'OSCILATOR', icon: 'scope' },
+] as const
+
+/** Left SOURCE tab: source cards, with existing text controls under TEXT. */
 export function XyScopeEnginePanel() {
+  const [source, setSource] = useState<typeof XY_SOURCE_CARDS[number]['id']>('text')
   const { settings, setXyScopeSettings, fontAssets } = useReactStore(useShallow(state => ({
     settings: state.xyScopeSettings,
     setXyScopeSettings: state.setXyScopeSettings,
@@ -136,7 +143,18 @@ export function XyScopeEnginePanel() {
 
   return (
     <section className="rv-xyscope-engine-panel" aria-label="Sound Drawing XY source" data-xyscope-engine-panel="true">
-      <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
+      <div className="rv-sound-source-grid rv-xyscope-source-grid" role="group" aria-label="Sound Drawing XY source types">
+        {XY_SOURCE_CARDS.map(option => (
+          <button key={option.id} type="button"
+            className={`rv-sound-source-card${source === option.id ? ' is-active' : ''}`}
+            aria-pressed={source === option.id}
+            onClick={() => setSource(option.id)}>
+            <span className="rv-sound-source-card-icon"><AppIcon kind={option.icon} /></span>
+            <span className="rv-sound-source-card-label">{option.label}</span>
+          </button>
+        ))}
+      </div>
+      {source === 'text' && <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
         <div data-xyscope-input-group="true" style={{ display: 'contents' }}>
           <TextInputRow
             id="xyscope-text"
@@ -158,7 +176,7 @@ export function XyScopeEnginePanel() {
             onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
           />
         </div>
-      </Collapsible>
+      </Collapsible>}
     </section>
   )
 }

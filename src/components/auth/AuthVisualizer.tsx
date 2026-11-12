@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 /**
- * Pre-auth ambient visualizer for the login / signup emblem panel. A
+ * Pre-auth ambient visualizer for the login / signup card’s right panel. A
  * self-driven 2D-canvas animation that cycles through stylized takes on the
  * React engines' signature looks — Sound Drawing scope, Cinema constellation,
  * CANVAS depth field, LaserDMX beam matrix, PixGrid, Headliner performer echoes
@@ -267,30 +267,52 @@ function drawEngineLabel(
 
 // ── Scene: Sound Drawing — a glowing Lissajous scope trace ────────────────────
 const drawScope: SceneFn = (ctx, w, h, s, alpha) => {
-  const cx = w / 2
-  const cy = h / 2
-  const rx = w * (0.38 + 0.06 * s.energy + 0.03 * s.beat)
-  const ry = h * (0.33 + 0.06 * s.energy + 0.03 * s.beat)
-  const a = 3 + Math.round(s.mid * 2)
-  const b = 2 + Math.round(s.low * 2)
-  const steps = 260
+  const size = Math.min(w * .52, h * .65)
+  const yaw = s.t * .17 + .55
+  const pitch = .42 + Math.sin(s.t * .23) * .22
+  const points = Array.from({ length: 321 }, (_, i) => {
+    const u = i / 320 * TAU
+    const x = Math.sin(3 * u + s.t * .45)
+    const y = Math.sin(2 * u + s.t * .28) * .72
+    const z = Math.cos(5 * u + s.t * .32) * .62
+    const rx = x * Math.cos(yaw) - z * Math.sin(yaw)
+    const rz = x * Math.sin(yaw) + z * Math.cos(yaw)
+    const ry = y * Math.cos(pitch) - rz * Math.sin(pitch)
+    const depth = y * Math.sin(pitch) + rz * Math.cos(pitch)
+    const perspective = 2.7 / (3.2 - depth)
+    return { x: w / 2 + rx * size * perspective, y: h / 2 + ry * size * perspective, depth }
+  })
+  const segments = points.slice(1).map((point, i) => ({ a: points[i], b: point }))
+    .sort((a, b) => a.b.depth - b.b.depth)
   ctx.save()
   ctx.globalAlpha = alpha
-  ctx.lineWidth = 1.5 + s.beat * 1.6
-  ctx.shadowColor = `rgba(${ICE}, ${0.5 * alpha})`
-  // three phosphor-persistence passes so the trace fills the panel
-  for (let pass = 2; pass >= 0; pass--) {
-    ctx.strokeStyle = `rgba(${ICE}, ${pass === 0 ? 0.9 : 0.26 / pass})`
-    ctx.shadowBlur = pass === 0 ? 14 + s.beat * 20 : 5
-    const ph = s.t - pass * 0.05
+  ctx.lineCap = 'round'
+  for (const { a, b } of segments) {
+    const near = clamp01((b.depth + 1.3) / 2.6)
+    ctx.strokeStyle = `rgba(${near > .65 ? ICE : DEEP}, ${.16 + near * .8})`
+    ctx.lineWidth = .7 + near * 3.2 + s.beat * near
+    ctx.shadowColor = `rgba(${CYAN}, ${near * .7})`
+    ctx.shadowBlur = near * 15
     ctx.beginPath()
-    for (let i = 0; i <= steps; i++) {
-      const u = (i / steps) * Math.PI * 2
-      const x = cx + Math.sin(a * u + ph * 1.3) * rx
-      const y = cy + Math.sin(b * u + ph * 0.7) * ry
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-    }
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
     ctx.stroke()
+  }
+  ctx.restore()
+}
+
+// A perspective particle volume adds near/far motion to every engine scene.
+function drawDepthField(ctx: CanvasRenderingContext2D, w: number, h: number, s: Signal) {
+  ctx.save()
+  for (let i = 0; i < 90; i++) {
+    const z = 1 + ((hash01(i * 3) * 5 - s.t * .12) % 5 + 5) % 5
+    const perspective = 1.8 / z
+    const x = w / 2 + (hash01(i * 3 + 1) - .5) * w * perspective
+    const y = h / 2 + (hash01(i * 3 + 2) - .5) * h * perspective
+    ctx.fillStyle = `rgba(${ICE}, ${.08 + .26 / z})`
+    ctx.beginPath()
+    ctx.arc(x, y, Math.max(.4, 1.6 / z), 0, TAU)
+    ctx.fill()
   }
   ctx.restore()
 }
@@ -734,6 +756,18 @@ const SCENES: SceneFn[] = [drawScope, drawConstellation, drawTunnel, drawBeams, 
 const SCENE_NAMES = ['SOUND DRAWING', 'CINEMA', 'CANVAS', 'LASERDMX', 'PIXGRID', 'HEADLINER']
 const LABEL_IN_MS = 900
 
+/** One centered engine identity, retaining the scene-specific decode animation. */
+function drawEngineLabels(
+  ctx: CanvasRenderingContext2D, w: number, h: number, signal: Signal,
+  elapsed: number | null,
+) {
+  const mode = elapsed === null ? 1 : Math.floor(elapsed / SCENE_MS) % SCENE_NAMES.length
+  const into = elapsed === null ? 0 : elapsed % SCENE_MS
+  const reveal = elapsed === null ? 1 : clamp01(into / LABEL_IN_MS)
+  const exit = elapsed === null ? 0 : clamp01((into - SCENE_MS + FADE_MS) / FADE_MS)
+  drawEngineLabel(ctx, w, h, SCENE_NAMES[mode], mode, signal, reveal, exit)
+}
+
 export function AuthVisualizer() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -772,7 +806,7 @@ export function AuthVisualizer() {
     const frame = (now: number) => {
       const dt = Math.min((now - prev) / 1000, 0.05)
       prev = now
-      const t = (now - started) / 1000
+      const t = Math.max(0, (now - started) / 1000)
 
       if (width < 2 || height < 2) {
         resize()
@@ -809,11 +843,8 @@ export function AuthVisualizer() {
         SCENES[nextIdx](ctx, width, height, s, k * k)
       }
 
-      const reveal = clamp01(into / LABEL_IN_MS)
-      const exit = into > SCENE_MS - FADE_MS
-        ? clamp01((into - (SCENE_MS - FADE_MS)) / FADE_MS)
-        : 0
-      drawEngineLabel(ctx, width, height, SCENE_NAMES[idx], idx, s, reveal, exit)
+      drawDepthField(ctx, width, height, s)
+      drawEngineLabels(ctx, width, height, s, elapsed)
 
       raf = requestAnimationFrame(frame)
     }
@@ -823,7 +854,8 @@ export function AuthVisualizer() {
       ctx.fillStyle = '#030508'
       ctx.fillRect(0, 0, width, height)
       drawConstellation(ctx, width, height, staticSig, 1)
-      drawEngineLabel(ctx, width, height, SCENE_NAMES[1], 1, staticSig, 1, 0)
+      drawDepthField(ctx, width, height, staticSig)
+      drawEngineLabels(ctx, width, height, staticSig, null)
     }
 
     // (Re)start the loop. Runs on a setTimeout watchdog until the emblem panel

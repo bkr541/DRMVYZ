@@ -1303,6 +1303,10 @@
   margin: 3px 0 8px;
 }
 
+.rv-xyscope-source-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .rv-sound-source-card {
   min-width: 0;
   min-height: 76px;

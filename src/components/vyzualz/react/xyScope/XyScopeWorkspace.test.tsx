@@ -188,6 +188,24 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(useReactStore.getState().xyScopeSettings.text).toBe('WILDFLY')
   })
 
+  it('defaults to TEXT and preserves text settings while browsing source cards', async () => {
+    await act(async () => root.render(<XyScopeEnginePanel />))
+    const cards = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button'))
+    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'SVG', 'OSCILATOR'])
+    expect(cards[0].getAttribute('aria-pressed')).toBe('true')
+    const settings = useReactStore.getState().xyScopeSettings
+    for (const card of cards.slice(1)) {
+      await act(async () => card.click())
+      expect(card.getAttribute('aria-pressed')).toBe('true')
+      expect(container.querySelector('#xyscope-text')).toBeNull()
+      expect(container.querySelector('#xyscope-font')).toBeNull()
+      expect(useReactStore.getState().xyScopeSettings).toEqual(settings)
+    }
+    await act(async () => cards[0].click())
+    expect(container.querySelector<HTMLInputElement>('#xyscope-text')?.value).toBe(settings.text)
+    expect(container.querySelector('#xyscope-font')).not.toBeNull()
+  })
+
   it('renders this engine in the left panel through the shared engine panel', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()

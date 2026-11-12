@@ -112,11 +112,11 @@ function AuthLogo({ compact = false }: { compact?: boolean }) {
   )
 }
 
-// ── Large emblem background panel ────────────────────────────────────────────
+// ── Auth card animated panel ────────────────────────────────────────────
 
 function EmblemPanel() {
   return (
-    <div className="auth-emblem-panel">
+    <div className="auth-emblem-panel" aria-hidden="true">
       <div className="auth-emblem-glow-outer"/>
       <div className="auth-emblem-glow-inner"/>
       <AuthVisualizer />
@@ -534,10 +534,7 @@ export function ResetPasswordCompletionScreen() {
             </button>
           </form>
         </div>
-
-        <div className="auth-panel auth-panel--emblem">
-          <EmblemPanel/>
-        </div>
+        <div className="auth-panel auth-panel--emblem"><EmblemPanel/></div>
       </div>
     </div>
   )
@@ -580,11 +577,7 @@ export function AuthPage({ onAuth }: { onAuth: () => void }) {
               : <ResetPasswordForm onSwitch={() => setMode('login')} />
           }
         </div>
-
-        {/* Emblem panel */}
-        <div className="auth-panel auth-panel--emblem">
-          <EmblemPanel/>
-        </div>
+        <div className="auth-panel auth-panel--emblem"><EmblemPanel/></div>
       </div>
     </div>
   )

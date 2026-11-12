@@ -1,5 +1,5 @@
 /* ── Auth Page ─────────────────────────────────────────────────────────────────
-   DRMVYZ login / signup — two-panel split layout
+   DRMVYZ login / signup — form and animated right panel
 ───────────────────────────────────────────────────────────────────────────── */
 
 .auth-root {
@@ -23,7 +23,7 @@
   pointer-events: none;
 }
 
-/* ── Two-panel card ──────────────────────────────────────────────────────────── */
+/* ── Authentication card ──────────────────────────────────────────────────────────── */
 
 .auth-panels {
   display: flex;
@@ -39,10 +39,6 @@
   position: relative;
   z-index: 1;
 }
-
-/* Signup: swap panel order */
-.auth-panels--signup .auth-panel--form   { order: 2; }
-.auth-panels--signup .auth-panel--emblem { order: 1; }
 
 .auth-panel { flex: 1; min-width: 0; }
 
@@ -337,17 +333,20 @@
   margin-top: 2px;
 }
 
-/* ── Emblem panel ────────────────────────────────────────────────────────────── */
+/* ── Right animation panel ────────────────────────────────────────────────────────────── */
 
 .auth-panel--emblem {
-  background: #030508;
   position: relative;
   overflow: hidden;
+  background: #030508;
 }
 
 .auth-emblem-panel {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -428,19 +427,18 @@
 /* ── Responsive ──────────────────────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
+  .auth-panel--emblem { display: none; }
   .auth-panels {
     flex-direction: column;
-    width: 96vw;
+    width: min(470px, 96vw);
     height: auto;
-    min-height: 96vh;
+    min-height: 0;
+    max-height: 92dvh;
     border-radius: var(--radius-group);
   }
-
-  .auth-panel--emblem { display: none; }
 
   .auth-panel--form {
     padding: 28px 24px 24px;
   }
 
-  .auth-panels--signup .auth-panel--form   { order: unset; }
 }
