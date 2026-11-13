@@ -22,6 +22,7 @@ import {
   CINEMA2_FEEDBACK_TRAILS_EFFECT_TYPE_ID,
 } from '../effects/Cinema2BuiltinEffects'
 import { CINEMA2_REACTOR_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2ReactorNativeModule'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 export const CINEMA2_REACTOR_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.reactor')
 export const CINEMA2_REACTOR_CORE_SIZE_ID = cinema2StableId<Cinema2ParameterId>('reactor-core-size')
@@ -90,7 +91,7 @@ const REACTOR_IMPACT_GENERATOR_ACTION_ID = cinema2StableId<Cinema2ChoreographyAc
  * local modules while media, musical response, temporal feedback and bloom use
  * engine-owned Cinema 2.0 services.
  */
-export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_REACTOR_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_REACTOR_PRESET_ID,
@@ -560,4 +561,30 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     ]),
     outputPass: cinema2Ref(REACTOR_BLOOM_PASS_ID),
   }),
+})
+
+/**
+ * Auto Performance (off by default). With it on the core contracts harder as a build charges, the last downbeats before a drop pulse the refraction,
+ * each drop adds a second impact (burst, shockwave and bloom flare), and every fourth bar sends a slow shockwave. Reference: Reactor's own drop-impact
+ * and build-contraction rules, and Cathedral's and Event Horizon's build/drop accents. The existing reactions are unchanged either way.
+ */
+export const CINEMA2_REACTOR_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_REACTOR_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'reactor',
+  group: 'Response',
+  order: 14,
+  description: 'Lets the music direct the core: it contracts harder as a build charges, the last downbeats before a drop pulse the refraction, each drop adds a second impact with a shockwave and bloom flare, and every fourth bar sends a slow shockwave. Your controls are never changed, and the core keeps reacting to the music exactly as it does with this off.',
+  strengthParameter: CINEMA2_REACTOR_REACTIVITY_ID,
+  gestures: {
+    build: [
+      { id: 'contraction', target: cinema2AutoTargets.module('reactor-generator', 'buildContraction'), operation: 'add', value: 0.2 },
+      { id: 'response', target: cinema2AutoTargets.module('reactor-generator', 'buildResponse'), operation: 'add', value: 0.25 },
+    ],
+    peak: [{ id: 'refraction', target: cinema2AutoTargets.module('reactor-composite', 'refractionPulse'), operation: 'envelope', value: 0.4, hold: 0.1, release: 0.9 }],
+    drop: [
+      { id: 'burst', target: cinema2AutoTargets.module('reactor-generator', 'impactBurst'), operation: 'envelope', value: 0.6, hold: 0.1, release: 1.5 },
+      { id: 'shockwave', target: cinema2AutoTargets.module('reactor-composite', 'shockwavePulse'), operation: 'envelope', value: 0.6, hold: 0.1, release: 2 },
+      { id: 'bloom', target: cinema2AutoTargets.effect('reactor-bloom', 'intensity'), operation: 'envelope', value: 0.6, hold: 0.1, release: 1.5 },
+    ],
+    lift: [{ id: 'shockwave', target: cinema2AutoTargets.module('reactor-composite', 'shockwavePulse'), operation: 'envelope', value: 0.45, hold: 0.1, release: 2 }],
+  },
 })

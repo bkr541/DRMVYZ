@@ -9,6 +9,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 export const CINEMA2_WAR_OF_WORLDS_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.war-of-worlds')
 export const warOfWorldsParameterId = (name: string) => cinema2StableId<Cinema2ParameterId>(`war-of-worlds-${name}`)
@@ -31,7 +32,7 @@ function number(name: string, label: string, group: Cinema2ParameterManifest['de
 }
 
 /** Static asset-review preset. No invented musical behavior or material replacement. */
-export const CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_WAR_OF_WORLDS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_WAR_OF_WORLDS_PRESET_ID, revision: 1,
   metadata: {
@@ -97,3 +98,30 @@ export const CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST: Readonly<Cinema2NativePreset
   defaults: { camera: cinema2Ref(camera) },
   output: { renderPass: cinema2Ref(finishPass), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+/**
+ * Auto Performance (off by default). The scene is a static imported review scene with no reactions of its own, so with it on the music directs only
+ * the camera and exposure: a slow push-in as a build charges, an exposure lift on the last downbeats before a drop, a push-in and exposure flash on
+ * each drop, and a gentle push on every fourth bar. Reference: Threshold's and Reliquary's camera push-in and drop-flash rules. The scene, its
+ * materials and your framing, exposure and colour controls are never changed.
+ */
+export const CINEMA2_WAR_OF_WORLDS_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_WAR_OF_WORLDS_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'war-of-worlds',
+  group: 'Master',
+  order: 1,
+  description: 'Lets the music direct the camera and exposure: a slow push-in as a build charges, an exposure lift on the last downbeats before a drop, a push-in and exposure flash on each drop, and a gentle push on every fourth bar. The scene and your framing, exposure and colour controls are never changed.',
+  capabilities: [
+    { id: 'music.downbeat', purpose: 'Downbeats before a drop and on every fourth bar drive the exposure lift and camera push when Auto Performance is on.' },
+    { id: 'music.drop', purpose: 'Each drop pushes the camera in and flashes the exposure when Auto Performance is on.' },
+    { id: 'visual-director.significance', purpose: 'The Director build signal drives the slow push-in when Auto Performance is on.' },
+  ],
+  gestures: {
+    build: [{ id: 'push-in', target: cinema2AutoTargets.camera('war-of-worlds-camera', 'fovDegrees'), operation: 'add', value: -4 }],
+    peak: [{ id: 'exposure', target: cinema2AutoTargets.effect('war-of-worlds-finish', 'exposure'), operation: 'envelope', value: 0.12, hold: 0.1, release: 0.8 }],
+    drop: [
+      { id: 'push-in', target: cinema2AutoTargets.camera('war-of-worlds-camera', 'fovDegrees'), operation: 'envelope', value: -5, hold: 0.25, release: 1.5 },
+      { id: 'exposure', target: cinema2AutoTargets.effect('war-of-worlds-finish', 'exposure'), operation: 'envelope', value: 0.35, hold: 0.1, release: 2 },
+    ],
+    lift: [{ id: 'push-in', target: cinema2AutoTargets.camera('war-of-worlds-camera', 'fovDegrees'), operation: 'envelope', value: -3, hold: 0.5, release: 4 }],
+  },
+})

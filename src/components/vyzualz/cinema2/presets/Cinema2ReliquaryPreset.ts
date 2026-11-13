@@ -30,6 +30,7 @@ import { CINEMA2_DVYDRM_LOGO_FACETED_ASSET_ID, CINEMA2_GOLDEN_ROOTS_ASSET_ID, CI
 import { CINEMA2_STUDIO_GEM_ENVIRONMENT_ASSET_ID } from '../modules/three/Cinema2ThreeEnvironmentRegistry'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 /**
  * RELIQUARY: the DVYDRM logo as clear, faceted crystal held by a golden tree, framed by a forest of dark trees wrapped in the same golden
@@ -462,7 +463,7 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
   })
 }
 
-export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_RELIQUARY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_RELIQUARY_PRESET_ID,
@@ -771,3 +772,30 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 }) as Readonly<Cinema2NativePresetManifest>
+
+/**
+ * Auto Performance (off by default). With it on the haze beams, cue lights and spill light rise as a build charges (the camera is left alone), the last downbeats
+ * before a drop flare the spill light, each drop adds a beam, cue and spill burst on top of the strobe, and every fourth bar swells the beams.
+ * Reference: Reliquary's own cue ramp, downbeat and strobe rules, and GO-TO's beam rules. The existing cues and strobes are unchanged either way.
+ */
+export const CINEMA2_RELIQUARY_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_RELIQUARY_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'reliquary',
+  group: 'Master',
+  order: 13,
+  description: 'Lets the music direct the stage: the haze beams, cue lights and spill light rise as a build charges, the last downbeats before a drop flare the spill light, each drop adds a burst of beam, cue and spill light on top of the strobe, and every fourth bar swells the beams. Your controls are never changed, and the stage keeps reacting to the music exactly as it does with this off.',
+  strengthParameter: CINEMA2_RELIQUARY_MASTER_INTENSITY_ID,
+  gestures: {
+    build: [
+      { id: 'beams', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), operation: 'add', value: 1 },
+      { id: 'cues', target: cinema2AutoTargets.lightGroup('reliquary-cues'), operation: 'add', value: 0.8 },
+      { id: 'spill', target: cinema2AutoTargets.lightGroup('reliquary-spill'), operation: 'add', value: 0.4 },
+    ],
+    peak: [{ id: 'spill', target: cinema2AutoTargets.lightGroup('reliquary-spill'), operation: 'envelope', value: 0.7, hold: 0.1, release: 0.8 }],
+    drop: [
+      { id: 'beams', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), operation: 'envelope', value: 3, hold: 0.25, release: 2 },
+      { id: 'cues', target: cinema2AutoTargets.lightGroup('reliquary-cues'), operation: 'envelope', value: 1.2, hold: 0.25, release: 2 },
+      { id: 'spill', target: cinema2AutoTargets.lightGroup('reliquary-spill'), operation: 'envelope', value: 1, hold: 0.25, release: 2 },
+    ],
+    lift: [{ id: 'beams', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), operation: 'envelope', value: 0.9, hold: 0.5, release: 4 }],
+  },
+})

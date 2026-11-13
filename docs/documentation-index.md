@@ -37,6 +37,7 @@ When a historical document conflicts with canonical current documentation or the
 | `docs/cinema-legacy-engine-removal-inventory.md` | Historical removal boundary, deletion inventory, and retained data policy |
 | `docs/cinema2-say-it-preset-plan.md` | Current architecture, scope and staged implementation plan for the Cinema 2.0 SAY IT kinetic-type keeper preset |
 | `docs/cinema2-hypnotize-phase-a.md` | Hypnotize Phase A specification, Phase B Three.js environment, Phase C choreography, Phase D cinematic polish, and final technical-acceptance record |
+| `docs/cinema2-auto-performance.md` | Cinema 2.0 Auto Performance: inventory of every preset, the pattern-substitution and gated-choreography implementations, per-preset behavior, lifecycle, saved-settings rules and how to add it to a new preset |
 | `docs/cinema2-mainframe.md` | Mainframe operator controls, source regeneration, model attributes, patterns, quality policy, lifecycle, acceptance, and known limits |
 | `docs/cinema2-sixfold.md` | Sixfold recursive mirror chamber geometry, materials, controls, lifecycle, capture harness, and Phase C boundary |
 | `docs/sound-drawing.md` | Sound Drawing sources, timeline, performance programs, Living Ribbon, professional scope signal core, and rendering |

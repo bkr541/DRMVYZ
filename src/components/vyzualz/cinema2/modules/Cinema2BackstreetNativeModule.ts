@@ -43,6 +43,7 @@ import {
   type Cinema2MainframePatternSelection,
   type Cinema2MainframeTriggerId,
 } from './mainframe/Cinema2MainframePatternController'
+import { Cinema2PatternAutoPerformance } from './mainframe/Cinema2PatternAutoPerformance'
 import {
   diagnoseCinema2MainframeAudio,
   resolveCinema2MainframePlaybackState,
@@ -88,6 +89,8 @@ export interface Cinema2BackstreetStaticFrame {
   readonly pattern: Cinema2MainframePatternId
   readonly patternChange: boolean
   readonly trigger: Cinema2MainframeTriggerId
+  /** Substitutes a pattern for builds and drops; off by default. Never alters the authored Pattern. */
+  readonly autoPerformance: boolean
   readonly scale: number
   /** How much of the sign stays lit between hits, 0 (dark until a program lights it) to 1 (steady neon with the programs riding on top). */
   readonly idleGlow: number
@@ -162,6 +165,7 @@ export function resolveCinema2BackstreetStaticFrame(parameters: Cinema2ModulePar
     bpmSync: readBoolean(parameters, 'bpmSync', true),
     pattern: isBackstreetPattern(patternValue) ? patternValue : CINEMA2_MAINFRAME_DEFAULT_PATTERN,
     patternChange: readBoolean(parameters, 'patternChange', false),
+    autoPerformance: readBoolean(parameters, 'autoPerformance', false),
     trigger: isBackstreetTrigger(triggerValue) ? triggerValue : 'bar4',
     scale: readNumber(parameters, 'scale', 1, CINEMA2_BACKSTREET_MIN_SCALE, CINEMA2_BACKSTREET_MAX_SCALE),
     idleGlow: readNumber(parameters, 'idleGlow', DEFAULT_IDLE_GLOW, 0, 1),
@@ -247,6 +251,10 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
     const dropCoordinator = new Cinema2MainframeDropCoordinator()
     // Filled only by the engine-owned choreography dispatcher before module.update; no second subscription to the Audio Feature Bus.
     const musicalCues: Cinema2MainframeMusicalCue[] = []
+    // Auto Performance: a build puts System Surge on stage, a drop restarts Outward Bus from the drop (see Cinema2PatternAutoPerformance).
+    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({ buildPattern: 'system-surge', dropPattern: 'outward-bus' })
+    let previousAuthoredPattern: Cinema2MainframePatternId | null = null
+    let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
       createCinema2MainframePatternCycle(index => context.randomness.sample('backstreet-pattern-cycle', index)),
       frame.pattern,
@@ -373,7 +381,21 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
             absoluteBeat: timing.beats,
             reset: triggerReset,
           })
-          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+          // Auto Performance (when on) substitutes a pattern for a build or a drop; the base controller above keeps running underneath.
+          const performing = autoPerformance.update({
+            enabled: frame.autoPerformance && playback === 'playing',
+            absoluteBeat: timing.beats,
+            buildCharge: lighting?.buildCharge ?? 0,
+            dropEventId: coordinated.dropEventId,
+            patternEdited: previousAuthoredPattern != null && frame.pattern !== previousAuthoredPattern,
+            reset: triggerReset,
+          })
+          previousAuthoredPattern = frame.pattern
+          performance = performing
+          lighting = reactivity.update(
+            updateFrame, performing.pattern ?? selection.activePattern, frame.bpmSync,
+            performing.pattern ? performing.startBeat : selection.patternStartBeat, coordinated.events, timing.beats,
+          )
           void audioSelection
           triggerPreviousTimeSec = timeSec
           triggerPreviousBeat = timing.beats
@@ -390,6 +412,8 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
           triggerPreviousBeat = null
           reactivity.reset()
           patternController.reset()
+          autoPerformance.reset()
+          previousAuthoredPattern = null
           if (!bridge && held) { assets.release(held); held = null }
         },
       },
@@ -412,6 +436,9 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
         activePattern: selection.activePattern,
         patternChange: frame.patternChange,
         trigger: frame.trigger,
+        autoPerformance: frame.autoPerformance,
+        performance,
+        onStage: performance.pattern ?? selection.activePattern,
         patternStartBeat: selection.patternStartBeat,
         scale: frame.scale,
         intensity: frame.intensity,

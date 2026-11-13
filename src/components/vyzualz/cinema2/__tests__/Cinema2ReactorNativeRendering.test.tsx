@@ -123,7 +123,9 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     ])
     expect(manifest?.revision).toBe(3)
     expect(manifest?.metadata.tags).toContain('keeper')
-    expect(manifest?.choreography?.rules).toHaveLength(6)
+    // The six authored rules, plus the four Auto Performance rules that are enabled only by its toggle.
+    expect(manifest?.choreography?.rules.filter(rule => rule.enabledParameter == null)).toHaveLength(6)
+    expect(manifest?.choreography?.rules.filter(rule => rule.enabledParameter?.$ref === 'reactor-auto-performance')).toHaveLength(4)
 
     const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
     expect(definitions.get(CINEMA2_REACTOR_ROTATION_SPEED_ID)).toMatchObject({ defaultValue: 0.21, min: -2, max: 2 })
@@ -156,7 +158,8 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(10)
+    // Ten authored choreography targets, plus the seven Auto Performance adds that are not already among them (all gated by its toggle).
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(17)
   })
 
   it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {

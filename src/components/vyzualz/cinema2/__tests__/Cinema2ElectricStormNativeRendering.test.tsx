@@ -265,7 +265,9 @@ describe('Cinema 2.0 Electric Storm keeper production behavior', () => {
       }),
       getPublicationMeta: () => ({ sequence: ++sequence, publishedAtMs: timeSec * 1000, publisherId: 'electric-storm-14b-test', kind: 'frame' as const }),
     })
-    const { runtime, gl, raf } = createElectricStormRuntime('music-route', bridge)
+    // The deterministic seed is combined with the serialized parameter state, so adding a control reshuffles ambient strikes; this seed leaves the
+    // frame after the reset free of one, which the zero-impact assertion below needs.
+    const { runtime, gl, raf } = createElectricStormRuntime('music-route-a', bridge)
     expect(runtime.getParameterState().setPersistentValue(CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID, 1).ok).toBe(true)
     runtime.start()
     raf.runNext(16.67)

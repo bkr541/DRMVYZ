@@ -22,6 +22,7 @@ import { Cinema2ParameterState } from '../parameters/Cinema2ParameterState'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../presets/Cinema2AfterhoursPreset'
 import {
   CINEMA2_BACKSTREET_BPM_SYNC_ID,
+  CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID,
   CINEMA2_BACKSTREET_IDLE_GLOW_ID,
   CINEMA2_BACKSTREET_MASTER_INTENSITY_ID,
   CINEMA2_BACKSTREET_MUSICAL_CUE_ID,
@@ -109,7 +110,7 @@ describe('Backstreet preset', () => {
       .filter(parameter => parameter.designParentGroup === group)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(parameter => parameter.label)
-    expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync'])
+    expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
     expect(inGroup('design')).toEqual(['Scale'])
     expect(inGroup('effects')).toEqual(['Pattern', 'Pattern Change', 'Trigger', 'Idle Glow'])
     expect(inGroup('palette')).toEqual(['Tube Color'])
@@ -139,6 +140,7 @@ describe('Backstreet preset', () => {
     expect(module.parameterBindings).toEqual({
       masterIntensity: ref(CINEMA2_BACKSTREET_MASTER_INTENSITY_ID),
       bpmSync: ref(CINEMA2_BACKSTREET_BPM_SYNC_ID),
+      autoPerformance: ref(CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID),
       pattern: ref(CINEMA2_BACKSTREET_PATTERN_ID),
       patternChange: ref(CINEMA2_BACKSTREET_PATTERN_CHANGE_ID),
       trigger: ref(CINEMA2_BACKSTREET_TRIGGER_ID),

@@ -43,6 +43,7 @@ import {
   type Cinema2MainframePatternSelection,
   type Cinema2MainframeTriggerId,
 } from './mainframe/Cinema2MainframePatternController'
+import { Cinema2PatternAutoPerformance } from './mainframe/Cinema2PatternAutoPerformance'
 import {
   resolveCinema2MainframeQualityProfile,
   type Cinema2MainframeQualityProfile,
@@ -88,6 +89,8 @@ export interface Cinema2MainframeStaticFrame {
   readonly pattern: Cinema2MainframePatternId
   readonly patternChange: boolean
   readonly trigger: Cinema2MainframeTriggerId
+  /** Substitutes a pattern for builds and drops; off by default. Never alters the authored Pattern. */
+  readonly autoPerformance: boolean
   readonly scale: number
   readonly colors: Readonly<{ logo: Rgb; circuits: Rgb; indicators: Rgb }>
   readonly visibility: Readonly<Record<string, boolean>>
@@ -249,6 +252,7 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
   const patternValue = parameters.get('pattern')
   const pattern = isMainframePattern(patternValue) ? patternValue : CINEMA2_MAINFRAME_DEFAULT_PATTERN
   const patternChange = readBoolean(parameters, 'patternChange', false)
+  const autoPerformance = readBoolean(parameters, 'autoPerformance', false)
   const triggerValue = parameters.get('trigger')
   const trigger = isMainframeTrigger(triggerValue) ? triggerValue : 'bar4'
   const scale = readNumber(parameters, 'scale', 1, CINEMA2_MAINFRAME_MIN_SCALE, CINEMA2_MAINFRAME_MAX_SCALE)
@@ -281,6 +285,7 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
     bpmSync,
     pattern,
     patternChange,
+    autoPerformance,
     trigger,
     scale,
     colors: Object.freeze({ logo, circuits, indicators }),
@@ -325,6 +330,10 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     // Populated solely by the engine-owned choreography dispatcher before module.update.
     // A bounded local queue avoids subscribing to the Audio Feature Bus a second time.
     const musicalCues: Cinema2MainframeMusicalCue[] = []
+    // Auto Performance: a build puts System Surge on stage, a drop restarts Outward Bus from the drop (see Cinema2PatternAutoPerformance).
+    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({ buildPattern: 'system-surge', dropPattern: 'outward-bus' })
+    let previousAuthoredPattern: Cinema2MainframePatternId | null = null
+    let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
       createCinema2MainframePatternCycle(index => context.randomness.sample('mainframe-pattern-cycle', index)),
       frame.pattern,
@@ -496,7 +505,21 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             absoluteBeat: timing.beats,
             reset: triggerReset,
           })
-          lighting = reactivity.update(updateFrame, selection.activePattern, frame.bpmSync, selection.patternStartBeat, coordinated.events, timing.beats)
+          // Auto Performance (when on) substitutes a pattern for a build or a drop; the base controller above keeps running underneath.
+          const performing = autoPerformance.update({
+            enabled: frame.autoPerformance && playback === 'playing',
+            absoluteBeat: timing.beats,
+            buildCharge: lighting?.buildCharge ?? 0,
+            dropEventId: coordinated.dropEventId,
+            patternEdited: previousAuthoredPattern != null && frame.pattern !== previousAuthoredPattern,
+            reset: triggerReset,
+          })
+          previousAuthoredPattern = frame.pattern
+          performance = performing
+          lighting = reactivity.update(
+            updateFrame, performing.pattern ?? selection.activePattern, frame.bpmSync,
+            performing.pattern ? performing.startBeat : selection.patternStartBeat, coordinated.events, timing.beats,
+          )
           if (audioSelection.reason !== debugPreviousSelectionReason) {
             debugPreviousSelectionReason = audioSelection.reason
             debug.record('audio-selection', {
@@ -562,6 +585,8 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           triggerPreviousBeat = null
           reactivity.reset()
           patternController.reset()
+          autoPerformance.reset()
+          previousAuthoredPattern = null
           if (!bridge && held) { assets.release(held); held = null }
           debug.dispose()
         },
@@ -586,6 +611,9 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
         activePattern: selection.activePattern,
         patternChange: frame.patternChange,
         trigger: frame.trigger,
+        autoPerformance: frame.autoPerformance,
+        performance,
+        onStage: performance.pattern ?? selection.activePattern,
         patternStartBeat: selection.patternStartBeat,
         scale: frame.scale,
         intensity: frame.intensity,

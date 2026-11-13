@@ -22,10 +22,12 @@ describe('War Of Worlds initial scene', () => {
     expect(compilation.ok).toBe(true)
   })
 
-  it('exposes all four standard Design parents with connected controls and no choreography', () => {
+  it('exposes all four standard Design parents with connected controls and no choreography of its own: only Auto Performance rules, all gated by that toggle', () => {
     const groups = new Set(manifest.parameters?.filter(p => p.section === 'Design').map(p => p.designParentGroup))
     expect([...groups].sort()).toEqual([...CINEMA2_DESIGN_PARENT_GROUP_IDS].sort())
-    expect(manifest.choreography?.rules ?? []).toHaveLength(0)
+    const rules = manifest.choreography?.rules ?? []
+    expect(rules.length).toBeGreaterThan(0)
+    for (const rule of rules) expect(rule.enabledParameter?.$ref, rule.id).toBe('war-of-worlds-auto-performance')
     expect(manifest.modules?.[0]?.config?.instances).toEqual([
       { asset: 'cinema2-war-of-worlds-a', node: 'war-of-worlds-model' },
       { asset: 'cinema2-war-of-worlds-b', node: 'war-of-worlds-model' },

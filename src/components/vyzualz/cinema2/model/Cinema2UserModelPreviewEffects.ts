@@ -3,7 +3,9 @@ import type { Cinema2RenderQualityLevel } from '../contracts/Cinema2NativePreset
 import type { Cinema2ThreeLibrary } from '../modules/three/Cinema2ThreeLibrary'
 import type { Cinema2ModuleUpdateContext } from '../modules/Cinema2ModuleContracts'
 import { Cinema2MainframePatternController } from '../modules/mainframe/Cinema2MainframePatternController'
-import { Cinema2MainframeBeatClockResolver, resolveCinema2MainframeTimeSec } from '../modules/mainframe/Cinema2MainframePatternEngine'
+import { Cinema2MainframeBeatClockResolver, computeCinema2MainframeBuildCharge, resolveCinema2MainframeTimeSec } from '../modules/mainframe/Cinema2MainframePatternEngine'
+import { readCinema2MainframeContinuous } from '../modules/mainframe/Cinema2MainframeMusicAdapter'
+import { Cinema2PatternAutoPerformance } from '../modules/mainframe/Cinema2PatternAutoPerformance'
 import { resolveCinema2MainframeSourceIdentity, selectCinema2MainframeAudio, resolveCinema2MainframePlaybackState } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, resolveCinema2AfterhoursTriggerEventIdentity, type Cinema2AfterhoursTriggerId } from '../modules/Cinema2AfterhoursNativeModule'
 import { CINEMA2_USER_MODEL_PREVIEWS, CINEMA2_USER_MODEL_PROXY_LIMITS, type Cinema2UserModelPreviewKind } from './Cinema2UserModelPreviewPatterns'
@@ -19,6 +21,18 @@ interface Attached {
   primary: Three.MeshStandardMaterial; secondary: Three.MeshStandardMaterial; pointMaterials: Three.PointsMaterial[]
   geometries: Set<Three.BufferGeometry>; materials: Set<Three.Material>; extent: number
 }
+/**
+ * What Auto Performance puts on stage for each preview: a build gathers the model toward a compact or charged form, and a drop releases it
+ * into the preview's most energetic arrangement. Both are patterns the preview already offers in its Pattern list.
+ */
+export const CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS: Readonly<Record<Cinema2UserModelPreviewKind, Readonly<{ build: string; drop: string }>>> = Object.freeze({
+  form: Object.freeze({ build: 'Breathing Form', drop: 'Rocking Plinth' }),
+  shatter: Object.freeze({ build: 'Rejoined Clusters', drop: 'Radial Burst' }),
+  dust: Object.freeze({ build: 'Compressed Mist', drop: 'Twin Plumes' }),
+  hologram: Object.freeze({ build: 'Scan Sweep', drop: 'Signal Pulse' }),
+  slices: Object.freeze({ build: 'Collapsed Layers', drop: 'Fan Sections' }),
+  voxel: Object.freeze({ build: 'Compact Blocks', drop: 'Column Lift' }),
+})
 /** Runtime-only visual controller; source geometry stays owned by the private asset lease. */
 export class Cinema2UserModelPreviewEffects {
   readonly afterVisibility = true
@@ -32,11 +46,17 @@ export class Cinema2UserModelPreviewEffects {
   private lastImpulse: string | null = null
   private impulse = 0
   private previousDiscontinuity: string | null = null
+  private previousAuthored: string | null = null
+  private readonly autoPerformance: Cinema2PatternAutoPerformance<string>
+  /** The pattern Auto Performance has on stage right now, or null while the authored/triggered one is. For inspection and tests. */
+  performancePattern: string | null = null
   private controls: Controls = { pattern: 0, phase: 0, movement: 0.35, intensity: 0.8, opacity: 1, emission: 0.2, reaction: 0, primary: [0.55, 0.85, 1], secondary: [0.7, 0.3, 0.9], accent: [0.1, 0.9, 0.8] }
   private readonly dummy: Three.Object3D
   private readonly tint: Three.Color
   constructor(private readonly library: Cinema2ThreeLibrary, readonly kind: Cinema2UserModelPreviewKind) {
     this.patterns = new Cinema2MainframePatternController<string>(CINEMA2_USER_MODEL_PREVIEWS[kind], CINEMA2_USER_MODEL_PREVIEWS[kind][0])
+    const programs = CINEMA2_USER_MODEL_AUTO_PERFORMANCE_PATTERNS[kind]
+    this.autoPerformance = new Cinema2PatternAutoPerformance<string>({ buildPattern: programs.build, dropPattern: programs.drop })
     this.dummy = new library.THREE.Object3D(); this.tint = new library.THREE.Color()
   }
   update({ frame, parameters }: Cinema2ModuleUpdateContext): void {
@@ -55,6 +75,17 @@ export class Cinema2UserModelPreviewEffects {
     const sameValueEdit = this.previousEdit !== null && edit !== this.previousEdit
     const selection = this.patterns.update({ authoredPattern: authored, patternChange: parameters.get('patternChange') === true, trigger, triggerEventId: event, absoluteBeat: timing.beats, reset: reset || sameValueEdit })
     const playing = resolveCinema2MainframePlaybackState(frame, audio) === 'playing'
+    // Auto Performance (when on): the canonical drop identity and the shared build charge substitute a pattern for a bounded moment. The
+    // authored Pattern, Pattern Change and Trigger keep running underneath; nothing is written back to the saved settings.
+    const dropEventId = playing ? resolveCinema2AfterhoursTriggerEventIdentity(acceptedFrame, 'drop', this.previousTime) : null
+    const buildCharge = playing && audio ? computeCinema2MainframeBuildCharge(readCinema2MainframeContinuous(audio, frame.director)) : 0
+    const performing = this.autoPerformance.update({
+      enabled: parameters.get('autoPerformance') === true && playing, absoluteBeat: timing.beats, buildCharge, dropEventId,
+      patternEdited: this.previousAuthored != null && authored !== this.previousAuthored || sameValueEdit, reset,
+    })
+    this.performancePattern = performing.pattern
+    this.previousAuthored = authored
+    const onStage = performing.pattern ?? selection.activePattern
     if (reset) { this.impulse = 0; this.lastImpulse = null }
     const dt = playing ? clamp(frame.deltaTimeSec, 0, 0.25) : 0
     this.impulse *= Math.exp(-dt / number('response', 0.35, 0.05, 1.5))
@@ -64,7 +95,7 @@ export class Cinema2UserModelPreviewEffects {
     if (impulseId && impulseId !== this.lastImpulse && !reset) { this.impulse = structural ? 1 : 0.7; this.lastImpulse = impulseId }
     const energy = playing && audio?.features.overallEnergy.available ? clamp(audio.features.overallEnergy.value ?? 0) : 0
     const reaction = number('reactivity', 0.6) * clamp(energy * 0.5 + this.impulse * 0.7)
-    this.controls = { pattern: names.indexOf(selection.activePattern), phase: timing.beats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1), emission: number('emission', 0.2, 0, 2), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
+    this.controls = { pattern: names.indexOf(onStage), phase: timing.beats * Math.PI * 0.25 * number('speed', 1, 0, 3) * (number('movement', .35, 0, .8) > 0 ? 1 : 0), movement: number('movement', 0.35, 0, 0.8), intensity: number('intensity', 0.8, 0, 2), opacity: number('opacity', 1, 0.1, 1), emission: number('emission', 0.2, 0, 2), reaction, primary: color('primary', this.controls.primary), secondary: color('secondary', this.controls.secondary), accent: color('accent', this.controls.accent) }
     this.previousTime = time; this.previousIdentity = identity; this.previousGeneration = frame.contextGeneration; this.previousEdit = edit; this.previousDiscontinuity = discontinuity
   }
   attach(root: Three.Object3D, userModel?: boolean): void {

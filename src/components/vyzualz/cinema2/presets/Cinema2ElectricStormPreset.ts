@@ -16,6 +16,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { CINEMA2_ELECTRIC_STORM_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2ElectricStormNativeModule'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 export const CINEMA2_ELECTRIC_STORM_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.electric-storm')
 export const CINEMA2_ELECTRIC_STORM_LIGHTNING_COLOR_ID = cinema2StableId<Cinema2ParameterId>('electric-storm-lightning-color')
@@ -70,7 +71,7 @@ const strikeAction = (id: string, kind: string, tier: string, options: Readonly<
 })
 
 /** Native Electric Storm 2.0 preset with shared Audio -> Director -> Choreography ownership. */
-export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_ELECTRIC_STORM_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ELECTRIC_STORM_PRESET_ID,
@@ -444,4 +445,32 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST: Readonly<Cinema2NativePrese
       fogDensity: cinema2Ref(CINEMA2_ELECTRIC_STORM_HAZE_ID),
     }),
   }),
+})
+
+/**
+ * Auto Performance (off by default). The storm's own reactions are unchanged; with it on, builds charge the storm (more strikes, more branching),
+ * the last downbeats before a drop send strong strikes, each drop adds a hero barrage with a shake and zoom punch, and every fourth bar surges the
+ * strike rate. Reference implementation for the extra-accent style: Electric Storm's own strike tiers and the Cathedral and Event Horizon build/drop rules.
+ */
+const ES_MODULE = 'electric-storm-procedural-lightning'
+const esStrike = (id: string, kind: string, tier: string, count: number) => ({ id, target: cinema2AutoTargets.parameter('electric-storm-strike-intent'), operation: 'spawn' as const, value: { kind, tier, count } })
+export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_ELECTRIC_STORM_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'electric-storm',
+  group: 'Lightning',
+  order: 13,
+  description: 'Lets the music direct the storm: strikes quicken and branch as a build charges, the last downbeats before a drop send strong strikes, each drop adds a hero barrage with a shake and zoom punch, and every fourth bar surges the strike rate. Your controls are never changed, and the storm keeps reacting to the music exactly as it does with this off.',
+  strengthParameter: CINEMA2_ELECTRIC_STORM_MUSIC_REACTIVITY_ID,
+  gestures: {
+    build: [
+      { id: 'strike-rate', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), operation: 'add', value: 0.3 },
+      { id: 'branching', target: cinema2AutoTargets.module(ES_MODULE, 'branching'), operation: 'add', value: 0.12 },
+    ],
+    peak: [esStrike('strike', 'downbeat', 'strong', 2)],
+    drop: [
+      esStrike('barrage', 'drop', 'hero', 3),
+      { id: 'shake', target: cinema2AutoTargets.module(ES_MODULE, 'impactShake'), operation: 'envelope', value: 0.3, hold: 0.1, release: 1.5 },
+      { id: 'zoom', target: cinema2AutoTargets.module(ES_MODULE, 'zoomPunch'), operation: 'envelope', value: 0.25, hold: 0.1, release: 1.5 },
+    ],
+    lift: [{ id: 'surge', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), operation: 'envelope', value: 0.25, hold: 0.5, release: 3 }],
+  },
 })

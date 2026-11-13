@@ -54,6 +54,7 @@ export const CINEMA2_BACKSTREET_CAMERA_ID = cinema2StableId<Cinema2CameraId>('ba
 
 export const CINEMA2_BACKSTREET_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('backstreet-master-intensity')
 export const CINEMA2_BACKSTREET_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('backstreet-bpm-sync')
+export const CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('backstreet-auto-performance')
 export const CINEMA2_BACKSTREET_SCALE_ID = cinema2StableId<Cinema2ParameterId>('backstreet-scale')
 export const CINEMA2_BACKSTREET_PATTERN_ID = cinema2StableId<Cinema2ParameterId>('backstreet-pattern')
 export const CINEMA2_BACKSTREET_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('backstreet-pattern-change')
@@ -149,6 +150,17 @@ const PARAMETERS = Object.freeze([
     designParentGroup: 'master-controls' as const,
     group: 'Output',
     order: 1,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID,
+    label: 'Auto Performance',
+    description: 'Lets the music take the lighting program for a moment: System Surge while a build charges, then Outward Bus restarted from each drop, and your Pattern resumes afterward. It never changes your Pattern, Pattern Change or Trigger, colours or intensity, and choosing a Pattern during one ends it at once.',
+    type: 'boolean' as const,
+    defaultValue: false,
+    designParentGroup: 'master-controls' as const,
+    group: 'Timing',
+    order: 3,
   }),
   Object.freeze({
     ...baseParameter,
@@ -320,6 +332,7 @@ export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     parameters: Object.freeze({
       masterIntensity: 1,
       bpmSync: true,
+      autoPerformance: false,
       pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN,
       patternChange: false,
       trigger: 'bar4',
@@ -330,6 +343,7 @@ export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_BACKSTREET_MASTER_INTENSITY_ID),
       bpmSync: cinema2Ref(CINEMA2_BACKSTREET_BPM_SYNC_ID),
+      autoPerformance: cinema2Ref(CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID),
       pattern: cinema2Ref(CINEMA2_BACKSTREET_PATTERN_ID),
       patternChange: cinema2Ref(CINEMA2_BACKSTREET_PATTERN_CHANGE_ID),
       trigger: cinema2Ref(CINEMA2_BACKSTREET_TRIGGER_ID),

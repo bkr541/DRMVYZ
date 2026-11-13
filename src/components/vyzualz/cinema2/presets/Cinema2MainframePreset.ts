@@ -47,6 +47,7 @@ export const CINEMA2_MAINFRAME_CAMERA_ID = cinema2StableId<Cinema2CameraId>('mai
 
 export const CINEMA2_MAINFRAME_MASTER_INTENSITY_ID = cinema2StableId<Cinema2ParameterId>('mainframe-master-intensity')
 export const CINEMA2_MAINFRAME_BPM_SYNC_ID = cinema2StableId<Cinema2ParameterId>('mainframe-bpm-sync')
+export const CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID = cinema2StableId<Cinema2ParameterId>('mainframe-auto-performance')
 export const CINEMA2_MAINFRAME_PATTERN_ID = cinema2StableId<Cinema2ParameterId>('mainframe-pattern')
 export const CINEMA2_MAINFRAME_PATTERN_CHANGE_ID = cinema2StableId<Cinema2ParameterId>('mainframe-pattern-change')
 export const CINEMA2_MAINFRAME_TRIGGER_ID = cinema2StableId<Cinema2ParameterId>('mainframe-trigger')
@@ -140,6 +141,17 @@ const PARAMETERS = Object.freeze([
     designParentGroup: 'master-controls' as const,
     group: 'Output',
     order: 1,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID,
+    label: 'Auto Performance',
+    description: 'Lets the music take the lighting program for a moment: System Surge while a build charges, then Outward Bus restarted from each drop, and your Pattern resumes afterward. It never changes your Pattern, Pattern Change or Trigger, colours or intensity, and choosing a Pattern during one ends it at once.',
+    type: 'boolean' as const,
+    defaultValue: false,
+    designParentGroup: 'master-controls' as const,
+    group: 'Timing',
+    order: 3,
   }),
   Object.freeze({
     ...baseParameter,
@@ -336,6 +348,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     parameters: Object.freeze({
       masterIntensity: 0.8,
       bpmSync: true,
+      autoPerformance: false,
       pattern: CINEMA2_MAINFRAME_DEFAULT_PATTERN,
       patternChange: false,
       trigger: 'bar4',
@@ -350,6 +363,7 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     parameterBindings: Object.freeze({
       masterIntensity: cinema2Ref(CINEMA2_MAINFRAME_MASTER_INTENSITY_ID),
       bpmSync: cinema2Ref(CINEMA2_MAINFRAME_BPM_SYNC_ID),
+      autoPerformance: cinema2Ref(CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID),
       pattern: cinema2Ref(CINEMA2_MAINFRAME_PATTERN_ID),
       patternChange: cinema2Ref(CINEMA2_MAINFRAME_PATTERN_CHANGE_ID),
       trigger: cinema2Ref(CINEMA2_MAINFRAME_TRIGGER_ID),

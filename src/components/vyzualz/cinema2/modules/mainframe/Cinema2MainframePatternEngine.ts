@@ -96,6 +96,19 @@ function combineImpulses(...values: readonly number[]): number {
   return clamp01((sorted[0] ?? 0) + 0.38 * (sorted[1] ?? 0) + 0.16 * (sorted[2] ?? 0))
 }
 
+/**
+ * The shared build charge, 0..1: build progress gated by a confident build (or a build section) and weighted by build intensity. It is zero
+ * without a confident build, so no beat-clock fallback can manufacture one. Every preset that reacts to builds reads it from here.
+ */
+export function computeCinema2MainframeBuildCharge(s: Readonly<Pick<Cinema2MainframeSignals, 'section' | 'buildProgress' | 'build' | 'buildConfidence' | 'buildIntensity' | 'overall'>>): number {
+  const buildProgress = clamp01(s.buildProgress ?? s.build)
+  const buildConfidence = clamp01(s.buildConfidence ?? 0)
+  const buildIntensity = clamp01(s.buildIntensity ?? s.overall)
+  const buildSection = s.section === 'buildup'
+  const buildGate = buildSection || buildConfidence >= 0.5 ? clamp01((buildConfidence - 0.32) / 0.46) : 0
+  return clamp01(buildProgress * buildGate * (0.72 + 0.28 * buildIntensity))
+}
+
 /** Pure deterministic choreography planner. No random or wall-clock state is read here. */
 export function evaluateCinema2MainframePattern(input: Readonly<Cinema2MainframePatternInput>): Readonly<Cinema2MainframeLightingFrame> {
   const { signals: s, impulses: e } = input
@@ -106,12 +119,7 @@ export function evaluateCinema2MainframePattern(input: Readonly<Cinema2Mainframe
   const sectionConfidence = clamp01(s.sectionConfidence ?? 0)
   const sectionProgress = clamp01(s.sectionProgress ?? 0)
   const phraseProgress = clamp01(s.phraseProgress ?? fract(beats / 16))
-  const buildProgress = clamp01(s.buildProgress ?? s.build)
-  const buildConfidence = clamp01(s.buildConfidence ?? 0)
-  const buildIntensity = clamp01(s.buildIntensity ?? s.overall)
-  const buildGate = sectionMode === 2 || buildConfidence >= 0.5
-    ? clamp01((buildConfidence - 0.32) / 0.46) : 0
-  const buildCharge = clamp01(buildProgress * buildGate * (0.72 + 0.28 * buildIntensity))
+  const buildCharge = computeCinema2MainframeBuildCharge(s)
   const sectionActivity = sectionMode === 1 ? 0.78 : sectionMode === 3 ? 0.46
     : sectionMode === 2 ? 0.82 + 0.18 * buildCharge : 1
   // Frame-level energy is the primary global intensity signal; the existing bands

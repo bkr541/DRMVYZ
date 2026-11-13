@@ -29,6 +29,7 @@ import { CINEMA2_STUDIO_NEUTRAL_ENVIRONMENT_ASSET_ID } from '../modules/three/Ci
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { cinema2LightRigAlternate, cinema2LightRigHit, cinema2LightRigRamp } from './Cinema2LightRigAuthoring'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 /**
  * GO-TO: the DVYDRM logo as a real 3D object, made to match the production logo: a smooth, glossy pearl-white cloud (soft ice-blue, lavender, pink and peach along its rounded edges) inside a thin
@@ -242,7 +243,7 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, afterOu
 
 const master = cinema2Ref(CINEMA2_GO_TO_MASTER_INTENSITY_ID)
 
-export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_GO_TO_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_GO_TO_PRESET_ID,
@@ -466,3 +467,31 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 }) as Readonly<Cinema2NativePresetManifest>
+
+/**
+ * Auto Performance (off by default). With it on the beams, key and side lights rise as a build charges (the camera is left alone, so Motion Amount stays in charge of it), the last downbeats before
+ * a drop flare the beams, each drop adds a beam and key-light burst, and every fourth bar swells the beams. Reference: GO-TO's own light-rig ramp and
+ * hit rules and the Reliquary beam rules. The existing light rig and beam reactions are unchanged either way.
+ */
+export const CINEMA2_GO_TO_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_GO_TO_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'go-to',
+  group: 'Master',
+  order: 13,
+  description: 'Lets the music direct the stage: the beams, key and side lights rise as a build charges, the last downbeats before a drop flare the beams, each drop adds a burst of beam and key light, and every fourth bar swells the beams. Your controls are never changed, and the stage keeps reacting to the music exactly as it does with this off.',
+  strengthParameter: CINEMA2_GO_TO_MASTER_INTENSITY_ID,
+  capabilities: [{ id: 'music.drop', purpose: 'Each drop adds a burst of beam and key light when Auto Performance is on.' }],
+  gestures: {
+    build: [
+      { id: 'beams', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), operation: 'add', value: 1.2 },
+      { id: 'sides', target: cinema2AutoTargets.lightGroup('go-to-sides'), operation: 'add', value: 0.8 },
+      { id: 'key', target: cinema2AutoTargets.lightGroup('go-to-key'), operation: 'add', value: 0.5 },
+    ],
+    peak: [{ id: 'beams', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), operation: 'envelope', value: 1.5, hold: 0.1, release: 0.6 }],
+    drop: [
+      { id: 'beams', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), operation: 'envelope', value: 3.5, hold: 0.25, release: 2 },
+      { id: 'key', target: cinema2AutoTargets.lightGroup('go-to-key'), operation: 'envelope', value: 2.5, hold: 0.25, release: 2 },
+      { id: 'sides', target: cinema2AutoTargets.lightGroup('go-to-sides'), operation: 'envelope', value: 2, hold: 0.25, release: 2 },
+    ],
+    lift: [{ id: 'beams', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), operation: 'envelope', value: 1.2, hold: 0.5, release: 4 }],
+  },
+})

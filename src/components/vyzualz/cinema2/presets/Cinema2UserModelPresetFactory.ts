@@ -20,6 +20,7 @@ export function createCinema2UserModelPreset(kind: Cinema2UserModelPreviewKind):
   const parameters: Cinema2ParameterManifest[] = [CINEMA2_QUALITY_MODE_PARAMETER,
     parameter('intensity', 'Master Intensity', 'float', .8, 'master-controls', { min: 0, max: 2, step: .01, order: 1 }),
     parameter('bpmSync', 'BPM Sync', 'boolean', true, 'master-controls', { order: 2, description: 'Motion follows the shared track grid/tempo; OFF uses a steady 120 BPM reference. Rhythm triggers continue following musical events.' }),
+    parameter('autoPerformance', 'Auto Performance', 'boolean', false, 'master-controls', { order: 3, description: 'Lets the music take the Pattern for a moment: the preview gathers while a build charges and breaks into its most energetic arrangement from each drop, then your Pattern resumes. It never changes your Pattern, Pattern Change or Trigger, and choosing a Pattern during one ends it at once.' }),
     { ...createCinema2UserModelParameter(id('model')), order: 0 },
     parameter('pattern', 'Pattern', 'enum', CINEMA2_USER_MODEL_PREVIEWS[kind][0], 'design', { order: 1, options: CINEMA2_USER_MODEL_PREVIEWS[kind].map(label => ({ value: label, label })) }),
     parameter('patternChange', 'Pattern Change', 'boolean', false, 'design', { order: 2 }),

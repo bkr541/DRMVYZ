@@ -28,6 +28,7 @@ import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2Performance
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { THRESHOLD_CORRIDOR, THRESHOLD_PERIOD } from '../modules/threshold/Cinema2ThresholdLayout'
 import { CINEMA2_SMOKE_VOLUME_TEXTURE_ASSET_ID, CINEMA2_WET_CONCRETE_TEXTURE_ASSET_ID } from '../assets/Cinema2TextureAssetManifest'
+import { cinema2AutoTargets, withCinema2AutoPerformance } from './Cinema2AutoPerformanceAuthoring'
 
 /**
  * THRESHOLD
@@ -189,7 +190,7 @@ function flightPoints() {
   ])
 }
 
-export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_THRESHOLD_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_THRESHOLD_PRESET_ID,
@@ -584,4 +585,34 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_THRESHOLD_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(passId('finish')), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+/**
+ * Auto Performance (off by default). With it on the corridor fills with light shafts, haze and floor glare as a build charges, the last downbeats
+ * before a drop flare the bloom and floor glare, each drop adds a bloom, glare and shaft burst, and every fourth bar swells the shafts. It never
+ * touches the camera: Threshold's flight is authored without per-hit camera moves. Reference: Threshold's own build-shafts and drop rules.
+ */
+export const CINEMA2_THRESHOLD_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_THRESHOLD_AUTHORED_PRESET_MANIFEST, {
+  prefix: 'threshold',
+  group: 'Master',
+  order: 14,
+  description: 'Lets the music direct the corridor: light shafts, haze and floor glare build as a build charges, the last downbeats before a drop flare the bloom and floor glare, each drop adds a burst of light, and every fourth bar swells the shafts. Your controls are never changed, and the corridor keeps reacting to the music exactly as it does with this off.',
+  strengthParameter: cinema2StableId<Cinema2ParameterId>('threshold-master-reactivity'),
+  gestures: {
+    build: [
+      { id: 'shafts', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), operation: 'add', value: 0.3 },
+      { id: 'haze', target: cinema2AutoTargets.effect('threshold-atmosphere', 'density'), operation: 'add', value: 0.01 },
+      { id: 'glare', target: cinema2AutoTargets.effect('threshold-floor', 'glareIntensity'), operation: 'add', value: 0.25 },
+    ],
+    peak: [
+      { id: 'bloom', target: cinema2AutoTargets.effect('threshold-bloom', 'intensity'), operation: 'envelope', value: 0.3, hold: 0.1, release: 1 },
+      { id: 'glare', target: cinema2AutoTargets.effect('threshold-floor', 'glareIntensity'), operation: 'envelope', value: 0.4, hold: 0.1, release: 1 },
+    ],
+    drop: [
+      { id: 'bloom', target: cinema2AutoTargets.effect('threshold-bloom', 'intensity'), operation: 'envelope', value: 0.9, hold: 0.25, release: 3 },
+      { id: 'glare', target: cinema2AutoTargets.effect('threshold-floor', 'glareIntensity'), operation: 'envelope', value: 1, hold: 0.25, release: 3 },
+      { id: 'shafts', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), operation: 'envelope', value: 0.6, hold: 0.25, release: 3 },
+    ],
+    lift: [{ id: 'shafts', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), operation: 'envelope', value: 0.5, hold: 0.5, release: 4 }],
+  },
 })

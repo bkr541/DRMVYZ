@@ -23,6 +23,7 @@ import {
 import {
   CINEMA2_MAINFRAME_BACKGROUND_ID,
   CINEMA2_MAINFRAME_BPM_SYNC_ID,
+  CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID,
   CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID,
   CINEMA2_MAINFRAME_ENABLE_CHIP_ID,
   CINEMA2_MAINFRAME_ENABLE_RADAR_ID,
@@ -88,7 +89,7 @@ describe('Mainframe Stage 5 preset', () => {
       .filter(parameter => parameter.designParentGroup === group)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(parameter => parameter.label)
-    expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync'])
+    expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
     expect(inGroup('design')).toEqual(['Enable Radar Circuit', 'Enable Chip', 'Scale'])
     expect(inGroup('effects')).toEqual(['Pattern', 'Pattern Change', 'Trigger'])
     expect(inGroup('palette')).toEqual(['Background', 'Logo', 'Circuits', 'Indicators'])
@@ -120,6 +121,7 @@ describe('Mainframe Stage 5 preset', () => {
     expect(module.parameterBindings).toEqual({
       masterIntensity: ref(CINEMA2_MAINFRAME_MASTER_INTENSITY_ID),
       bpmSync: ref(CINEMA2_MAINFRAME_BPM_SYNC_ID),
+      autoPerformance: ref(CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID),
       pattern: ref(CINEMA2_MAINFRAME_PATTERN_ID),
       patternChange: ref(CINEMA2_MAINFRAME_PATTERN_CHANGE_ID),
       trigger: ref(CINEMA2_MAINFRAME_TRIGGER_ID),
