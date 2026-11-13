@@ -1,88 +1,130 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
+import { HeaderControlGroup } from './HeaderControlGroup'
+import { HeaderIconKey } from './HeaderIconKey'
+import { HeaderActionIcon } from './HeaderActionIcon'
+import { RailWindowHeader } from './RailWindowHeader'
+import { UnderlineTabs } from '../react/controls/UnderlineTabs'
+import { PanelSubtabs } from '../react/PanelSubtabs'
+import { PresetSearchRow } from '../react/controls/PresetSearchRow'
+import { ReactPresetCard, ReactPresetArtwork } from '../react/ReactPresetCard'
+import { PerformancePad } from '../react/controls/PerformancePad'
+import { DEFAULT_PERFORMANCE_PADS } from '../react/ReactTypes'
+import { ReactEngineCardContents } from '../react/ReactEngineBrowser'
+import { DualRailCollapsible } from '../react/DualRailCollapsible'
+import { SliderRow, ToggleRow, SelectRow } from '../react/ReactControlRows'
+import { IconChipButton } from '../react/controls/IconChipButton'
+import { NoticeCard } from '../react/controls/NoticeCard'
+import { cinema2NativePresetRegistry } from '../cinema2/presets/Cinema2PresetRegistry'
 
-const PRESETS = ['Nightshift', 'Reactor', 'Psylo', 'Sixfold', 'Threshold', 'Starters']
-const TABS: { label: string; icon: AppIconKind }[] = [
-  { label: 'Presets', icon: 'navPreset' },
-  { label: 'Pads', icon: 'navPerformance' },
-  { label: 'Controls', icon: 'sliders' },
-  { label: 'Cast', icon: 'cast' },
+const PREFERRED = ['nightshift', 'glassfall', 'reactor', 'sixfold', 'threshold', 'afterhours', 'psylo', 'starters']
+const catalog = cinema2NativePresetRegistry.list().filter(preset => !preset.metadata.tags?.includes('internal'))
+export const MOBILE_SAMPLE_PRESETS = PREFERRED.map(name => catalog.find(preset => preset.id === `drmvyz.cinema2.${name}`)).filter((preset): preset is typeof catalog[number] => Boolean(preset))
+const TABS: { id: string; label: string; icon: AppIconKind }[] = [
+  { id: 'Presets', label: 'Presets', icon: 'navPreset' },
+  { id: 'Pads', label: 'Pads', icon: 'navPerformance' },
+  { id: 'Controls', label: 'Controls', icon: 'sliders' },
+  { id: 'Cast', label: 'Cast', icon: 'cast' },
 ]
+const COLORS = ['#5993e8', '#df706d', '#64b98b', '#d9a35e', '#a855f7', '#eab308', '#14b8a6', '#ec4899', '#06b6d4', '#8b5cf6', '#84cc16', '#f59e0b', '#0ea5e9', '#6366f1', '#10b981', '#f43f5e', '#d946ef', '#2dd4bf', '#fb7185', '#38bdf8']
 const CONCEPTS = ['Classic controller', 'Scene deck', 'Live console', 'Session dashboard']
-const PADS = ['Flash', 'Strobe', 'Freeze', 'Invert', 'Mirror', 'Glitch', 'Pulse', 'Blackout', 'Zoom']
-const artwork = (name: string) => new URL(`${import.meta.env.BASE_URL}preset-artwork/drmvyz.cinema2.${name.toLowerCase()}.webp`, window.location.href).href
 
-/** Local visual prototype: navigation and sample feedback never touch the app runtime. */
+function MobileWindow({ title, icon, children, actions }: { title: string; icon: AppIconKind; children: ReactNode; actions?: ReactNode }) {
+  return <section className="mpm-window fw-surface" aria-label={title}>
+    <RailWindowHeader side="left" label={title} icon={<AppIcon kind={icon} size={15} />} actions={actions} />
+    {children}
+  </section>
+}
+
+/** Store-free interactions: actual production presentation, no audio/cast runtime. */
 export function MobilePerformanceMockup({ variant = 1 }: { variant?: number }) {
   const [page, setPage] = useState(variant === 4 ? 'Home' : 'Presets')
-  const [preset, setPreset] = useState('Nightshift')
+  const [presetId, setPresetId] = useState(MOBILE_SAMPLE_PRESETS[0].id)
   const [pad, setPad] = useState<string | null>(null)
   const [output, setOutput] = useState('Stage display')
   const [casting, setCasting] = useState(false)
-  const [favorites, setFavorites] = useState(false)
+  const [scope, setScope] = useState('system')
+  const [controlsQuality, setControlsQuality] = useState('1080p / 60 fps')
+  const [favorites, setFavorites] = useState<Set<string>>(new Set([MOBILE_SAMPLE_PRESETS[0].id]))
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [query, setQuery] = useState('')
+  const [controls, setControls] = useState({ intensity: .75, motion: .4, scale: .6, colorShift: .25, bpmSync: true, autoPerformance: false })
+  const preset = MOBILE_SAMPLE_PRESETS.find(item => item.id === presetId)!
   const navigate = (next: string) => setPage(next)
-  const scene = <section className="mpm-now" aria-label="Example current scene">
-    <img src={artwork(preset)} alt="" />
-    <div className="mpm-now-content">
-      <div className="mpm-eyebrow">{variant === 3 ? 'PROGRAM / 01' : 'CURRENT SCENE'}<AppIcon kind="cinema" size={16} /></div>
-      <h2>{preset}</h2><p>Cinema 2.0 <span>·</span> 128 BPM</p>
-      <div className="mpm-scene-actions"><span><i />Preview only</span><button type="button" className="mpm-scene-arrow" aria-label="Previous preset" onClick={() => setPreset(PRESETS[(PRESETS.indexOf(preset) + PRESETS.length - 1) % PRESETS.length])}><AppIcon kind="chevronRight" size={18} style={{ transform: 'rotate(180deg)' }} /></button><button type="button" className="mpm-scene-arrow" aria-label="Next preset" onClick={() => setPreset(PRESETS[(PRESETS.indexOf(preset) + 1) % PRESETS.length])}><AppIcon kind="chevronRight" size={18} /></button></div>
-    </div>
-  </section>
-  const navigation = <nav className="mpm-tabs" aria-label="Mockup mobile navigation">{TABS.map(item => <button type="button" key={item.label} aria-current={page === item.label ? 'page' : undefined} onClick={() => navigate(item.label)}><AppIcon kind={item.icon} size={20} /><span>{item.label}</span></button>)}</nav>
+  const nextPreset = () => setPresetId(MOBILE_SAMPLE_PRESETS[(MOBILE_SAMPLE_PRESETS.findIndex(item => item.id === presetId) + 1) % MOBILE_SAMPLE_PRESETS.length].id)
+  const scene = <ReactPresetCard id={preset.id} title={preset.metadata.name} description={preset.metadata.description ?? preset.metadata.name} isActive activateLabel={`Open ${preset.metadata.name} controls`} onActivate={() => navigate('Controls')} />
+  const navigation = <nav className="mpm-navigation" aria-label="Mockup mobile navigation">
+    <UnderlineTabs className="dv-underline-tabs--equal mpm-tabs" tabs={TABS.map(item => ({ ...item, icon: <AppIcon kind={item.icon} size={15} /> }))} activeTab={page} onChange={navigate} ariaLabel="Mobile workspaces" />
+  </nav>
+  const content = page === 'Home' ? <>
+    <MobileWindow title="Current Preset" icon="cinema"><div className="mpm-panel-content">{scene}</div></MobileWindow>
+    <MobileWindow title="Workspaces" icon="grid"><div className="mpm-panel-content mpm-hub">
+      {TABS.map(item => <IconChipButton key={item.id} onClick={() => navigate(item.id)}><AppIcon kind={item.icon} size={18} /><span>{item.label}</span><AppIcon kind="chevronRight" size={12} /></IconChipButton>)}
+    </div></MobileWindow>
+  </> : <>
+    {variant === 2 && page === 'Presets' && <MobileWindow title="Current Preset" icon="cinema"><div className="mpm-panel-content">{scene}</div></MobileWindow>}
+    <MobileWindow title={page === 'Presets' ? 'Inspector' : page === 'Pads' ? 'Performance Pads' : page === 'Controls' ? 'Design' : 'Output'} icon={TABS.find(item => item.id === page)!.icon}
+      actions={page === 'Presets' ? <IconChipButton aria-label="Show favorites" title="Show favorites" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}><AppIcon kind="star" size={12} /></IconChipButton> : undefined}>
+      {page === 'Presets' && <div className="mpm-panel-content">
+        <PanelSubtabs value={scope} onChange={setScope} ariaLabel="Preset scope" options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]} />
+        <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel="Search presets" />
+        <div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
+          {scope === 'system' && MOBILE_SAMPLE_PRESETS.filter(item => item.metadata.name.toLowerCase().includes(query.toLowerCase()) && (!favoritesOnly || favorites.has(item.id))).map(item => <ReactPresetCard key={item.id} id={item.id} title={item.metadata.name} description={item.metadata.description ?? item.metadata.name}
+            isActive={item.id === presetId} isFavorite={favorites.has(item.id)} activateLabel={`Select ${item.metadata.name}`} onActivate={() => setPresetId(item.id)}
+            onToggleFavorite={() => setFavorites(current => { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next })} />)}
+        </div>
+        {scope === 'user' && <NoticeCard title="No user presets">Save a preset to build your personal library.</NoticeCard>}
+        {scope === 'system' && !MOBILE_SAMPLE_PRESETS.some(item => item.metadata.name.toLowerCase().includes(query.toLowerCase()) && (!favoritesOnly || favorites.has(item.id))) && <NoticeCard title="No matching presets">Try another search or turn off the favorites filter.</NoticeCard>}
+      </div>}
+      {page === 'Pads' && <div className="mpm-panel-content">
+        <div className="mpm-pads" role="group" aria-label="Performance pads">
+          {DEFAULT_PERFORMANCE_PADS.map(item => {
+            const assigned = Boolean(item.presetId || item.destination)
+            return <PerformancePad key={item.id} label={item.label} shortcut={item.keyBinding.toUpperCase()} color={COLORS[(Number(item.id.slice(4)) - 1) % COLORS.length]} density="compact" disabled={!assigned} selected={pad === item.id} onActivate={() => setPad(item.id)} aria-label={`${item.label}, pad ${item.keyBinding.toUpperCase()}`} />
+          })}
+        </div>
+        <NoticeCard title={pad ? 'Pad selected' : 'Performance ready'}>{pad ? `${DEFAULT_PERFORMANCE_PADS.find(item => item.id === pad)!.label} · Preview` : 'Choose an assigned pad to preview its selected and press states.'}</NoticeCard>
+        <IconChipButton onClick={() => setPad(null)}>Release pads</IconChipButton>
+      </div>}
+      {page === 'Controls' && <div className="mpm-panel-content mpm-controls">
+        <DualRailCollapsible label="Master Controls">
+          <SliderRow label="Intensity" value={controls.intensity} onChange={intensity => setControls(current => ({ ...current, intensity }))} />
+          <SliderRow label="Motion" value={controls.motion} onChange={motion => setControls(current => ({ ...current, motion }))} />
+          <ToggleRow label="BPM Sync" value={controls.bpmSync} onChange={bpmSync => setControls(current => ({ ...current, bpmSync }))} />
+          <ToggleRow label="Auto Performance" value={controls.autoPerformance} onChange={autoPerformance => setControls(current => ({ ...current, autoPerformance }))} />
+        </DualRailCollapsible>
+        <DualRailCollapsible label="Design"><DualRailCollapsible label="Geometry">
+          <SliderRow label="Scale" value={controls.scale} onChange={scale => setControls(current => ({ ...current, scale }))} />
+          <SliderRow label="Color shift" value={controls.colorShift} onChange={colorShift => setControls(current => ({ ...current, colorShift }))} />
+        </DualRailCollapsible></DualRailCollapsible>
+        <IconChipButton onClick={() => navigate('Pads')}>Open performance pads<AppIcon kind="chevronRight" size={12} /></IconChipButton>
+      </div>}
+      {page === 'Cast' && <div className="mpm-panel-content">
+        <div className="mpm-output-canvas" aria-label="Output preview"><ReactPresetArtwork id={preset.id} /></div>
+        <DualRailCollapsible label="Available Displays" icon={<AppIcon kind="cast" size={15} />}>
+          <div className="mpm-devices">{['Stage display', 'Studio projector'].map((name, index) => <IconChipButton key={name} aria-pressed={output === name} onClick={() => { setOutput(name); setCasting(false) }}>
+            <AppIcon kind="cast" size={18} /><span><strong>{name}</strong><small>{index ? '1920 × 1080' : '3840 × 2160'}</small></span><span className="mpm-device-radio" aria-hidden="true" />
+          </IconChipButton>)}</div>
+        </DualRailCollapsible>
+        <SelectRow label="Output quality" value={controlsQuality} onChange={setControlsQuality} menuBoundarySelector=".mobile-preview-screen" placement="below" options={['1080p / 60 fps', '720p / 30 fps', '4K / 30 fps'].map(value => ({ value, label: value }))} />
+        <IconChipButton tone="primary" onClick={() => setCasting(!casting)}><AppIcon kind="cast" size={14} />{casting ? 'Stop casting' : 'Start casting'}</IconChipButton>
+        <NoticeCard tone={casting ? 'success' : 'info'} title={casting ? 'Display connected' : 'Output ready'}>{casting ? `Preview connected to ${output}` : 'Choose an available display.'}</NoticeCard>
+      </div>}
+    </MobileWindow>
+  </>
 
-  return <div className={`mpm mpm--${variant}`} aria-label="Mobile performance layout mockup" data-concept={variant}>
-    <header className="mpm-header">
-      <div className="mpm-wordmark"><AppIcon kind="navPerformance" size={24} /><div><strong>DRMVYZ</strong><span>{CONCEPTS[variant - 1]}</span></div></div>
-      <span className="mpm-demo">MOCKUP</span>
-    </header>
+  return <div className={`mpm mpm--${variant}`} aria-label="Mobile performance layout mockup" data-concept={variant} data-workspace-layout="floating">
+    <div className="fw-region mpm-header-region" data-workspace-slot="header"><header className="vz-header mpm-header fw-surface fw-app-header-surface"><HeaderControlGroup label="React controls">
+      {variant === 4 && page !== 'Home' && <HeaderIconKey label="Session dashboard" icon={<HeaderActionIcon action="back" />} onClick={() => navigate('Home')} />}
+      <HeaderIconKey label="Next preset" icon={<AppIcon kind="next" size={12} />} onClick={nextPreset} />
+      <HeaderIconKey label="Cast output" icon={<AppIcon kind="cast" size={12} />} pressed={casting} onClick={() => navigate('Cast')} />
+    </HeaderControlGroup></header></div>
     {variant === 2 && navigation}
-    {variant !== 3 && <button type="button" className="mpm-session" onClick={() => navigate('Cast')}><span className="mpm-status-dot" /><span>Desktop host <small>{casting ? `Casting to ${output}` : 'Demo session · Ready to perform'}</small></span><AppIcon kind="cast" size={19} /></button>}
-    {variant === 1 && scene}
-    {variant === 2 && <div className="mpm-deck-strip"><span>LIVE SET / 01</span><strong>{preset}</strong><span>128 BPM</span></div>}
-    <div className="mpm-workspace">
-      {variant === 3 && navigation}
-      <div className="mpm-body" key={page} data-mobile-page={page}>
-        {variant === 4 && page !== 'Home' && <button type="button" className="mpm-back" onClick={() => navigate('Home')}>← Session dashboard</button>}
-        {page === 'Home' ? <>
-          <div className="mpm-section-title"><h3><AppIcon kind="navPerformance" size={17} />Tonight’s session</h3><span className="mpm-muted">01 / DEMO</span></div>
-          {scene}
-          <div className="mpm-hub">{TABS.map((item, index) => <button type="button" key={item.label} onClick={() => navigate(item.label)}><AppIcon kind={item.icon} size={25} /><strong>{item.label}</strong><small>{['Choose your next scene', 'Play live effects', 'Shape the look', 'Connect a display'][index]}</small><AppIcon kind="chevronRight" size={16} /></button>)}</div>
-          <div className="mpm-note">Your set, in your pocket. Choose a workspace to explore.</div>
-        </> : <>
-          <div className="mpm-section-title"><h3><AppIcon kind={TABS.find(tab => tab.label === page)!.icon} size={17} />{page === 'Cast' ? 'Casting & output' : page === 'Pads' ? 'Performance pads' : page === 'Controls' ? 'Scene controls' : 'Your next scene'}</h3><span className="mpm-muted">{variant === 3 ? 'LIVE' : 'DEMO'}</span></div>
-          {page === 'Presets' && <>
-            {variant === 2 && scene}
-            <label className="mpm-search"><AppIcon kind="search" size={17} /><input aria-label="Find a preset" placeholder="Find a preset…" value={query} onChange={event => setQuery(event.target.value)} /></label>
-            <div className="mpm-engine"><AppIcon kind="cinema" size={19} /><span>Cinema 2.0</span><button type="button" className="mpm-favorites-label" aria-pressed={favorites} onClick={() => setFavorites(!favorites)}><AppIcon kind="star" size={13} />Favorites</button></div>
-            <div className="mpm-presets">{PRESETS.filter((name, index) => (!favorites || index < 3) && name.toLowerCase().includes(query.toLowerCase())).map((name, index) => <button type="button" className="mpm-preset" key={name} aria-pressed={name === preset} onClick={() => setPreset(name)}><img src={artwork(name)} alt="" /><span><small>0{index + 1} / CINEMA</small>{name}</span>{name === preset && <i />}</button>)}</div>
-          </>}
-          {page === 'Pads' && <>
-            <div className="mpm-info"><strong>{preset}</strong><span>Bank A · Tap to preview an effect</span></div>
-            <div className="mpm-pads">{PADS.map((name, index) => <button type="button" key={name} aria-pressed={pad === name} onClick={() => setPad(pad === name ? null : name)}><small>0{index + 1}</small><AppIcon kind={index % 2 ? 'sliders' : 'navPerformance'} size={22} /><strong>{name}</strong></button>)}</div>
-            <div className="mpm-note" role="status">{pad ? `${pad} selected · Visual demo only` : 'Ready · No effect selected'}</div>
-            <button type="button" className="mpm-action" onClick={() => setPad(null)}>Release all effects</button>
-          </>}
-          {page === 'Controls' && <>
-            <div className="mpm-info"><strong>{preset}</strong><span>Shape your current scene</span></div>
-            <div className="mpm-controls">{['Intensity', 'Motion', 'Scale', 'Color shift'].map((name, index) => <label key={name}><span>{name}<small>{['MASTER', 'SPEED', 'SIZE', 'PALETTE'][index]}</small></span><input type="range" aria-label={name} min="0" max="100" defaultValue={[75, 40, 60, 25][index]} /></label>)}</div>
-            <div className="mpm-info"><AppIcon kind="navPerformance" size={20} /><span>Audio reactive <small>Demo input · 128 BPM</small></span><input type="checkbox" aria-label="Audio reactive" defaultChecked /></div>
-            <button type="button" className="mpm-action" onClick={() => navigate('Pads')}>Open performance pads →</button>
-          </>}
-          {page === 'Cast' && <>
-            <div className="mpm-output-preview">{scene}<span><AppIcon kind="cast" size={16} />{casting ? `Casting · ${output}` : 'Output preview'}</span></div>
-            <div className="mpm-engine"><AppIcon kind="cast" size={18} /><span>Available displays</span><small>2 FOUND</small></div>
-            <div className="mpm-devices">{['Stage display', 'Studio projector'].map((name, index) => <button type="button" key={name} aria-pressed={output === name} onClick={() => { setOutput(name); setCasting(false) }}><AppIcon kind="cast" size={22} /><span><strong>{name}</strong><small>{index ? '1920 × 1080 · Local network' : '3840 × 2160 · Local network'}</small></span><span className="mpm-device-radio" /></button>)}</div>
-            <label className="mpm-quality">Output quality<select aria-label="Output quality" defaultValue="1080p / 60 fps"><option>1080p / 60 fps</option><option>720p / 30 fps</option><option>4K / 30 fps</option></select></label>
-            <button type="button" className="mpm-action" onClick={() => setCasting(!casting)}>{casting ? 'Stop casting' : 'Start casting'}</button>
-            <div className="mpm-note" role="status">{casting ? `Demo connected to ${output}` : 'Choose a display to preview the connected state.'} No video is transmitted.</div>
-          </>}
-        </>}
-      </div>
-    </div>
-    {variant === 1 && navigation}
-    {variant === 4 && <footer className="mpm-dashboard-footer"><span><i />{preset}</span><button type="button" onClick={() => navigate(page === 'Home' ? 'Cast' : 'Home')}>{page === 'Home' ? 'Cast output →' : '⌂ Home'}</button></footer>}
-    {variant === 3 && <footer className="mpm-console-footer"><span>HOST / DEMO</span><span>128 BPM</span><span>60 FPS</span></footer>}
+    {variant === 1 && <button type="button" className="rv-engine-card mpm-engine-card" aria-label={`Cinema 2.0, ${preset.metadata.name}`} aria-pressed="true" onClick={() => navigate('Presets')}><ReactEngineCardContents engineId="cinema2" presetName={preset.metadata.name} /></button>}
+    {variant === 3 && <div className="mpm-console-strip"><span>Cinema 2.0</span><span>128 BPM</span><span>{casting ? 'Connected' : 'Preview'}</span></div>}
+    <div className="mpm-body" key={page} data-mobile-page={page}>{content}</div>
+    {(variant === 1 || variant === 3) && navigation}
+    {variant === 4 && <footer className="mpm-dashboard-footer"><span>{preset.metadata.name}</span><IconChipButton onClick={() => navigate(page === 'Home' ? 'Cast' : 'Home')}>{page === 'Home' ? 'Cast output' : 'Home'}</IconChipButton></footer>}
+    <span className="mpm-concept-label">{CONCEPTS[variant - 1]}</span>
   </div>
 }

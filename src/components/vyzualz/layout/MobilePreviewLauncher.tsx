@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { MobilePerformanceMockup } from './MobilePerformanceMockup'
 import previewStyles from './mobilePreview.css?inline'
-import typographyStyles from '../../../styles/typography.css?inline'
+import { mobilePreviewProductionStyles, mirrorMobilePreviewAppearance } from './mobilePreviewProductionStyles'
 
 export const MOBILE_PREVIEW_WINDOW_NAME = 'drmvyz-mobile-preview'
 export const MOBILE_PREVIEW_WIDTH = 1200
@@ -60,19 +60,21 @@ export function MobilePreviewLauncher() {
     popupRef.current = popup
     popup.document.title = 'DRMVYZ — Mobile Preview'
     const style = popup.document.createElement('style')
-    style.textContent = `${typographyStyles}\n${previewStyles}`
+    style.textContent = `${mobilePreviewProductionStyles}\n${previewStyles}`
     popup.document.head.appendChild(style)
+    const stopMirroring = mirrorMobilePreviewAppearance(document, popup.document)
     const viewport = popup.document.createElement('meta')
     viewport.name = 'viewport'
     viewport.content = 'width=device-width, initial-scale=1, viewport-fit=cover'
     popup.document.head.appendChild(viewport)
     const root = popup.document.createElement('div')
     popup.document.body.appendChild(root)
-    const closed = () => { popupRef.current = null; setContainer(null) }
+    const closed = () => { cleanupRef.current?.(); popupRef.current = null; setContainer(null) }
     const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') popup.close() }
     popup.addEventListener('beforeunload', closed)
     popup.addEventListener('keydown', keydown)
     cleanupRef.current = () => {
+      stopMirroring()
       popup.removeEventListener('beforeunload', closed)
       popup.removeEventListener('keydown', keydown)
     }
