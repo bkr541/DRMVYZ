@@ -90,6 +90,8 @@ describe('Dropdown', () => {
     expect(container?.contains(listbox)).toBe(false)
     expect(trigger?.getAttribute('aria-expanded')).toBe('true')
     expect(listbox?.textContent).toContain('Camera Modes')
+    expect(listbox?.querySelector('.drm-dropdown__menu-header')).toBeNull()
+    expect(listbox?.querySelector('[hidden]')?.textContent).toBe('Camera Modes')
     expect(listbox?.textContent).toContain('Manual orbit camera')
     expect(listbox?.querySelector('[aria-selected="true"]')?.textContent).toContain('Orbit')
     expect(listbox?.classList.contains('drm-dropdown__menu--described-options')).toBe(true)
@@ -369,11 +371,15 @@ describe('Dropdown menu search', () => {
     expect(search()).toBeNull()
   })
 
-  it('puts a search field under the header and filters the options as the user types', () => {
+  it('starts with search without a redundant heading and filters the options as the user types', () => {
     renderDropdown(<Dropdown options={FONTS} value="" menuLabel="Font" menuSearch menuSearchPlaceholder="Search fonts…" />)
     click(trigger())
-    const header = document.body.querySelector('.drm-dropdown__menu-header')!
-    expect(header.nextElementSibling?.classList.contains('drm-dropdown__menu-search')).toBe(true)
+    const menu = document.body.querySelector<HTMLElement>('[role="listbox"]')!
+    expect(menu.querySelector('.drm-dropdown__menu-header')).toBeNull()
+    const accessibleLabel = document.getElementById(menu.getAttribute('aria-labelledby')!)!
+    expect(accessibleLabel.hidden).toBe(true)
+    expect(accessibleLabel.textContent).toBe('Font')
+    expect(search()).not.toBeNull()
     expect(labels()).toHaveLength(4)
     type('SCRI')
     expect(labels()).toEqual(['Chrome Script'])

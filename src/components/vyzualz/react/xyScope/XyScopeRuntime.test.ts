@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSharedPerformanceFallbackContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { DEFAULT_XY_SCOPE_SETTINGS, normalizeXyScopeSettings, type XyScopeSettings } from './XyScopeSettings'
+import { XyScopeBeamRenderer } from './XyScopeBeam'
+import { XY_SCOPE_PATTERN_IDS } from './XyScopePatterns'
 import { XyScopeRuntime } from './XyScopeRuntime'
 
 let stroke: ReturnType<typeof vi.fn>
@@ -59,6 +61,58 @@ describe('Sound Drawing XY choreography runtime', () => {
     expect(runtime.getStatus().pattern).toBe('word')
     expect(runtime.getStatus().letters).toBe(6)
     expect(stroke).toHaveBeenCalled()
+  })
+
+  it.each(XY_SCOPE_PATTERN_IDS)('fully departs, blanks and redraws in fixed %s without Pattern Change or drum hits', pattern => {
+    const runtime = makeRuntime(settingsWith({ pattern, patternChange: false, motionAmount: 0.7, vibration: 0, dissolveDepth: 0 }))
+    const samples: { xs: number[]; ys: number[]; form: number; gap: number }[] = []
+    const draw = XyScopeBeamRenderer.prototype.draw
+    vi.spyOn(XyScopeBeamRenderer.prototype, 'draw').mockImplementation(function (this: XyScopeBeamRenderer, ...args) {
+      samples.push({ xs: Array.from(args[1][0].x), ys: Array.from(args[1][0].y), form: Math.max(...args[1][0].form), gap: Math.min(...args[1][0].gap) })
+      return draw.apply(this, args)
+    })
+    for (let frame = 0; frame <= 1080; frame += 1) {
+      const t = frame / 60
+      runtime.renderFrame({ nowSec: t, context: context({ absoluteBeat: t * 2 }), fresh: true, stereo: null, playing: true })
+    }
+    const home = samples[0]
+    const distance = (sample: typeof home) => Math.max(...sample.xs.map((x, i) => Math.hypot(x - home.xs[i], sample.ys[i] - home.ys[i])))
+    expect(Math.max(...samples.map(distance))).toBeGreaterThan(40)
+    for (const frame of [360, 720, 1080]) expect(distance(samples[frame])).toBeLessThan(0.01)
+    expect(samples.some(sample => sample.form === 1)).toBe(true)
+    expect(samples.some(sample => sample.gap > 0.8)).toBe(true)
+    expect(runtime.getStatus().pattern).toBe(pattern)
+  })
+
+  it('finishes the current departure before accepting an automatically selected routine', () => {
+    const runtime = makeRuntime(settingsWith({ patternChange: true, trigger: 'beat' }))
+    runtime.renderFrame({ nowSec: 0, context: context({ absoluteBeat: 0 }), fresh: true, stereo: null, playing: true })
+    runtime.renderFrame({ nowSec: 0.5, context: context({ absoluteBeat: 1, beatIndex: 1, boundaries: { beatBoundary: true } }), fresh: true, stereo: null, playing: true })
+    expect(runtime.getStatus().pattern).toBe('waveform')
+    expect(runtime.getStatus().performingPattern).toBe('word')
+    for (let i = 31; i <= 370; i += 1) runtime.renderFrame({ nowSec: i / 60, context: context({ absoluteBeat: i / 30 }), fresh: true, stereo: null, playing: true })
+    expect(runtime.getStatus().performingPattern).toBe('waveform')
+  })
+
+  it('settles to the word on pause and with Motion Amount or Audio Reactivity at zero', () => {
+    const runtime = makeRuntime(settingsWith({ pattern: 'ring', patternChange: false, motionAmount: 1, vibration: 0, dissolveDepth: 0 }))
+    const positions: number[][] = []
+    const draw = XyScopeBeamRenderer.prototype.draw
+    vi.spyOn(XyScopeBeamRenderer.prototype, 'draw').mockImplementation(function (this: XyScopeBeamRenderer, ...args) {
+      positions.push(Array.from(args[1][0].y))
+      return draw.apply(this, args)
+    })
+    const render = (frame: number, playing: boolean) => runtime.renderFrame({ nowSec: frame / 60, context: context({ absoluteBeat: Math.min(frame / 30, 3) }), fresh: true, stereo: null, playing })
+    render(0, true)
+    const home = positions[0]
+    for (let i = 1; i <= 90; i += 1) render(i, true)
+    for (let i = 91; i <= 360; i += 1) render(i, false)
+    expect(positions.at(-1)!.every((y, i) => Math.abs(y - home[i]) < 0.01)).toBe(true)
+    for (const parameter of ['motionAmount', 'audioReactivity']) {
+      runtime.setSettings(settingsWith({ pattern: 'ring', patternChange: false, vibration: 0, dissolveDepth: 0, [parameter]: 0 }), null)
+      for (let i = 361; i <= 660; i += 1) render(i, true)
+      expect(positions.at(-1)!.every((y, i) => Math.abs(y - home[i]) < 0.01)).toBe(true)
+    }
   })
 
   it('steps through every pattern on each Trigger and comes back to the letters at the end of the cycle', () => {

@@ -8,24 +8,43 @@ The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It shi
 
 ## Choreography
 
-Pacing follows the Cinema 2.0 choreography contract and reuses its code: `CINEMA2_AFTERHOURS_TRIGGER_OPTIONS` for the Trigger dropdown (the eleven canonical events, unchanged) and `Cinema2MainframePatternController`, whose pattern-list contract is generic, for choosing the active pattern.
+Each Pattern is a complete repeating oscilloscope performance. The word is a
+recurring destination, not a permanent overlay: it holds legibly, moves through
+its letters, unravels into a full-field drawing, performs as that drawing, fades
+and briefly blanks, then is traced back into lettering. No stationary word is
+left behind during the figure or blank phase.
 
-- **Pattern** is the form the word is in. The cycle is Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word, so the letters are drawn again at the end of every cycle.
-- **Pattern Change** (a boolean toggle) steps to the next pattern on each **Trigger** event. **Trigger** is shown only while Pattern Change is on and keeps its value while hidden. **Transition Length** (½, 1, 2 or 4 beats) sets how long the letters take to flow into the next pattern.
-- A manual Pattern edit takes effect at once, leaves Pattern Change on, and the next Trigger continues from the chosen pattern. An event already present on the frame Pattern Change is switched on, or on a seek or track change, is not consumed. A seek returns to the authored pattern.
-- Motion Amount zero freezes the figures and makes pattern changes land at once. BPM Sync locks the figures' rotation to the loaded track's beat grid (so it stops when the music stops); off, they turn at a steady tempo.
+**Pattern Change off still performs this entire sequence.** The toggle only
+controls selection of another performance style. With it on, the canonical
+Cinema 2.0 Trigger events queue a style through
+`Cinema2MainframePatternController`. The latest queued style starts at the next
+return to lettering, so fast triggers cannot interrupt every departure. A manual
+Pattern selection starts a fresh performance from the word immediately. A seek
+returns to the authored routine; it is not consumed as a trigger.
 
-| Pattern | What the beam draws |
+| Pattern | Performance between visits to the word |
 | --- | --- |
-| Word | The letters: bold Anton outlines, or the chosen font |
-| Waveform | The real audio as an oscilloscope trace across the stage, low-passed to about 1 kHz so it reads as a waveform |
-| Stereo Scope | The track's live mid/side vectorscope trace |
-| Ring | A circle that swells with the bass, with serrations that sharpen with the highs and snares |
-| Rosette | A looping epicycle flower with rotating petals (5, 6 or 7, a different count on each visit) |
-| Weave | A Lissajous figure (3:2, 5:4, 4:3, 5:3 or 7:5, a different ratio on each visit) |
-| Pinwheel | Spinning crescent arms; the beam lifts between arms |
+| Word | Cycles through perimeter tracing, individual-letter focus into off-centre nested orbits, and a corner-to-corner signal sweep |
+| Waveform | The live smoothed audio trace sweeps through changing orientations across the field |
+| Stereo Scope | The live mid/side trace travels across the stage; the fallback is disclosed when stereo is unavailable |
+| Ring | Large expanding, tilting orbital rings with bass and snare detail |
+| Rosette | Full-field rotating epicycle petals with a different variant on repeat visits |
+| Weave | Evolving Lissajous drawings across the field |
+| Pinwheel | Rotating crescent arms, with the beam blanked between separate strokes |
 
-Each form is a pure function of a position along the whole word (letters left to right, each letter along its outline) and a drive built from the music. Every letter holds a weight per pattern that eases toward its target (`XyScopeBlender`), so the change runs through the word letter by letter at Answer Delay, an interrupted change never pops, and the whole outline of each letter eases into the form together (a slight stagger along the outline, `FORM_STAGGER`), so a change never sends one stretch of a letter off alone while the rest sits still; the letters are visible through the lines mid-change.
+`XyScopeChoreography` reuses the same letter beam points for the figure, then
+blanks and progressively redraws the word. Whole outlines depart coherently,
+with Answer Delay staggering the letters. Every fixed style varies over repeated
+visits without requiring Pattern Change. The active routine has its own clock,
+independent of style-switch events.
+
+Transition Length controls performance phrasing (8 + 4 × Transition Length beats).
+Motion Amount controls pacing; zero settles to the word. Audio Reactivity zero
+also settles to the word. Playback pause freezes the performance clock and eases
+back to readable lettering. BPM Sync follows the real beat clock; without an
+available beat grid, active playback uses the existing steady-tempo fallback.
+The references reviewed were Desktop `ref1.mov`, `ref2.mov` and `ref3.mov`, with
+ref3 providing the lettering → full drawing → fade → lettering direction.
 
 ## Why a new motion model
 
@@ -44,7 +63,7 @@ The XY engine never scatters points. Letters ring like a plucked string (a stand
 | Conversation between letters | `XyScopeConversation.ts` |
 | Motion model and live scope window | `XyScopeMotion.ts` |
 | Patterns (the forms) | `XyScopePatterns.ts` |
-| Letter-to-letter pattern blending | `XyScopeBlender.ts` |
+| Complete beam performance, blanking and redraw | `XyScopeChoreography.ts` |
 | Musical events and Trigger identities from the shared context | `XyScopeEvents.ts` |
 | Beam drawing | `XyScopeBeam.ts` |
 | Per-canvas runtime | `XyScopeRuntime.ts` |
@@ -58,7 +77,7 @@ In the app, music analysis is not published by a background service: whichever r
 `XyScopeSurface` therefore owns the pump while it is the active engine, as PixGrid does:
 
 - It samples the master analyser every frame through `MusicIntelligenceAnalyserFramePump` under the publisher id `react:xyScope`. The pump respects bus authority and skips duplicates; this is the shared analysis path, not a second one.
-- It watches the transport itself (`XyScopeTransportTracker`, the same rule PixGrid applies) and passes seek, loop and timing identities to the performance context, so a seek returns to the authored pattern and never advances it.
+- It watches the transport itself (`XyScopeTransportTracker`, the same rule PixGrid applies) and passes seek, loop and timing identities to the performance context, so a seek returns to the authored performance and never advances it.
 - It builds the performance context from the real track analysis and sections, and hands the runtime the context plus whether the frame is fresh.
 
 ReactView passes the analyser, `isPlaying`, `isPaused`, `analysisActive` and the track duration, exactly as it does for PixGrid. This was missing in the first version: the engine worked against hand-fed frames in a test harness, but in the app the bus was empty and the letters never changed. `XyScopeWorkspace.test.tsx` now has a regression test that the surface publishes frames when nothing else does.
@@ -76,7 +95,7 @@ The engine reads the shared performance context built from the Music Intelligenc
 
 The eleven Triggers resolve to a unique event identity per event: Beat, Downbeat, Every 2 Beats and Every 4 Beats from the beat boundary and beat index; Bar, Every 4 Bars and Every 8 Bars from the bar grid; Kick and Snare from the one-frame hit flags (numbered by fresh audio frame); Phrase from a new analysed phrase, or the 16-bar clock; Drop from a new drop occurrence. The controller advances exactly once per identity however many frames carry it.
 
-Each fresh audio frame is processed once (`frame.frameId` changes), so a one-frame hit is never counted twice. A seek, loop wrap or track replacement (`seekDetected`, `loopWrapDetected`, `trackReplacementDetected`) resets every letter to rest and the controller to the authored pattern. A new track identity also clears the phosphor trail. Audio Reactivity scales event strength and the figures' response, so zero holds the current pattern perfectly still.
+Each fresh audio frame is processed once (`frame.frameId` changes), so a one-frame hit is never counted twice. A seek, loop wrap or track replacement (`seekDetected`, `loopWrapDetected`, `trackReplacementDetected`) resets every letter to rest and the controller to the authored pattern. A new track identity also clears the phosphor trail. Audio Reactivity scales event strength and figure response; zero settles to the readable word.
 
 ## Scope window
 
@@ -99,7 +118,7 @@ The Design tab follows the same hierarchy as the Cinema 2.0 and Headliner Design
 
 Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY uses **React** there because the music's effect on the word is this engine's effects. The REACT tab keeps the shared music-analysis panel and points to Design → React.
 
-Pattern Change defaults to **on** so the engine performs when it is first opened. The Cinema 2.0 Blockshift contract defaults it off for that preset; this engine's identity is the choreography, and the Clean Scope preset turns it off and holds the letters.
+Pattern Change defaults to **on** so the engine performs when it is first opened. The Clean Scope preset turns it off, retaining the Word performance; Motion Amount or Audio Reactivity at zero provides a still word.
 
 The left rail has two tabs. SOURCE holds one standard parent group, **Input**, with the word (up to 16 characters, drawn in capitals) and a Font dropdown listing the built-in Anton and the user's font library (fonts are uploaded in Media Manager). MEDIA is shown disabled until SVG artwork is supported; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
@@ -139,7 +158,9 @@ option's font family through its typography variable, including in portaled menu
 
 - Unit tests in `src/components/vyzualz/react/xyScope/` cover settings and the four-group standard, geometry, the conversation, the motion model, event derivation, the beam brightness rules, and the panels and surface lifecycle.
 - `src/stores/xyScopePersistence.test.ts` covers selection, normalization, persistence, migration and reset.
-- Browser verification used temporary harnesses that rendered the real surface, runtime and panels with the app's CSS against a synthetic audio-feature feed driven from a real track. They confirmed kick ring-downs, snare frays, a still word while paused, the full pattern cycle (Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word) with the letters visible through the lines mid-change, and that the Design inspector matches the Headliner Design inspector's structure and row styling.
+- The surface integration test feeds the real analyser pump, shared music context and runtime through a complete pattern cycle, and checks kick delivery and changing beam coordinates. Pattern Change is needed only to switch styles; a fixed style still performs the entire departure, figure, blank and word-return sequence.
+- Current browser verification exercised all seven fixed-pattern performances with Pattern Change off, including departures, non-text figures, pixel-empty blank frames and readable word returns. It also covered subsequent Word variants, a portrait canvas and long transitions. Reviewed frames/results are in ignored `artifacts/xy-scope-choreography/`.
+- Earlier browser verification used temporary harnesses that rendered the real surface, runtime and panels with the app's CSS against a synthetic audio-feature feed driven from a real track. They confirmed kick ring-downs, snare frays, a still word while paused, the original pattern controller cycle (Word → Waveform → Stereo Scope → Ring → Rosette → Weave → Pinwheel → Word), and that the Design inspector matches the Headliner Design inspector's structure and row styling.
 
 ### SOURCE cards
 
@@ -152,6 +173,11 @@ at this stage and do not change the live renderer or add authoring controls.
 ### Dropdown window bounds
 
 Font and parameter dropdowns use the shared dropdown’s optional ancestor
-boundary and stay inside their owning inspector window. Menus open above when
-there is more room, cap their height to the window, and scroll their options
-internally. Window resizing updates the bounds; font previews/search are kept.
+boundary and stay inside their owning inspector window. The Font menu always
+opens below its field; parameter menus choose the side with more room. Menus
+retain their existing width and height limit, cap to the available window space,
+and scroll their options internally. Window resizing updates the bounds; font previews/search are kept.
+
+The shared dropdown omits the redundant heading above its options. Search, when
+enabled, is the first visible menu row; the menu name remains available to
+assistive technology. Field labels and option-group labels are retained.

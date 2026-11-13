@@ -168,6 +168,7 @@ export function XyScopeEnginePanel() {
           />
           <SelectRow
             menuBoundarySelector=".vz-inspector"
+            placement="below"
             id="xyscope-font"
             label="Font"
             value={settings.fontId ?? ''}

@@ -1,3 +1,4 @@
+import type { DropdownPlacement } from '../../shared/Dropdown/Dropdown'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEventHandler, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
@@ -160,9 +161,10 @@ export interface SelectRowProps {
   menuSearch?: boolean
   menuSearchPlaceholder?: string
   menuBoundarySelector?: string
+  placement?: DropdownPlacement
 }
 
-export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder, menuBoundarySelector }: SelectRowProps) {
+export function SelectRow({ label, value, onChange, options, disabled, id, description, placeholder, labelHidden = false, ariaLabel, menuClassName, menuSearch, menuSearchPlaceholder, menuBoundarySelector, placement }: SelectRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   return (
@@ -188,6 +190,7 @@ export function SelectRow({ label, value, onChange, options, disabled, id, descr
         menuSearch={menuSearch}
         menuSearchPlaceholder={menuSearchPlaceholder}
         menuBoundarySelector={menuBoundarySelector}
+        placement={placement}
       />
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>

@@ -1,10 +1,6 @@
-// Sound Drawing XY: the choreography patterns. A pattern is a form the whole word can be in. `word` is the letters
-// themselves; every other pattern is an oscillator figure drawn by the same beam, so the letters dissolve along
-// their outlines into a waveform or an XY oscillator, perform as it, and are then drawn again.
-//
-// Each form is a pure function of a position `g` in [0, 1) along the whole word (letters left to right, each letter
-// along its outline) and a drive describing the music. No randomness and no hidden state: the same inputs always
-// give the same point, so seeks and loops are deterministic.
+// Sound Drawing XY choreography identities and supporting oscillator paths.
+// Every identity owns a complete departure from lettering and a return. These
+// forms give the beam its full-field paths during the non-text part of a phrase.
 
 export const XY_SCOPE_PATTERN_IDS = ['word', 'waveform', 'scope', 'ring', 'rosette', 'weave', 'pinwheel'] as const
 export type XyScopePattern = typeof XY_SCOPE_PATTERN_IDS[number]
@@ -22,7 +18,7 @@ export const XY_SCOPE_PATTERN_LABELS: Readonly<Record<XyScopePattern, string>> =
 
 export const XY_SCOPE_PATTERN_OPTIONS = Object.freeze(XY_SCOPE_PATTERN_IDS.map(value => Object.freeze({ value, label: XY_SCOPE_PATTERN_LABELS[value] })))
 
-/** The order Pattern Change steps through. The word comes back at the end of every cycle. */
+/** The order Pattern Change steps through; every style returns to readable text on its own. */
 export const XY_SCOPE_PATTERN_CYCLE: readonly XyScopePattern[] = XY_SCOPE_PATTERN_IDS
 
 export function isXyScopePattern(value: unknown): value is XyScopePattern {

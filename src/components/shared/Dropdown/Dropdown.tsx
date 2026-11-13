@@ -78,7 +78,7 @@ export interface DropdownProps {
   onSearchChange?: (value: string) => void
   clearSearchOnSelect?: boolean
   /**
-   * Puts a search input in the open menu, under its header. Typing filters the options by label; the trigger still
+   * Puts a search input in the open menu, above its options. Typing filters the options by label; the trigger still
    * shows the selected option. Unlike `searchable` (where the trigger itself is the text field), the closed
    * dropdown looks the same as any other.
    */
@@ -762,11 +762,7 @@ export function Dropdown({
           style={{ ...menuStyle, ...(menuBoundarySelector ? { minWidth: 0, boxSizing: 'border-box' } : {}) } as CSSProperties}
           onPointerDown={event => event.stopPropagation()}
         >
-          {menuLabel != null && (
-            <div className="drm-dropdown__menu-header">
-              <span id={menuLabelId} className="drm-dropdown__menu-title">{menuLabel}</span>
-            </div>
-          )}
+          {menuLabel != null && <span id={menuLabelId} hidden>{menuLabel}</span>}
 
           {menuSearch && (
             <div className="drm-dropdown__menu-search">

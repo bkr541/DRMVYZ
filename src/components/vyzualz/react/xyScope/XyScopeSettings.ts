@@ -79,7 +79,7 @@ export type XyScopeParameterDefinition =
   | XyScopeSelectParameter
   | XyScopeColorParameter
 
-/** Transition Length in beats, as the Cinema 2.0 choreography offers it. */
+/** Transition Length in beats for departure, blanking and word-return phrasing. */
 export const XY_SCOPE_TRANSITION_LENGTHS = Object.freeze([
   { value: '0.5', label: '½ Beat' },
   { value: '1', label: '1 Beat' },
@@ -102,12 +102,12 @@ export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object
   },
   {
     id: 'audioReactivity', group: 'master-controls', kind: 'slider', label: 'Audio Reactivity',
-    description: 'Scales every change the music makes. Zero holds the current pattern still while it keeps drawing.',
+    description: 'Scales the text performance and its response to the music. Zero settles to the readable word.',
     default: 1, min: 0, max: 1, step: 0.01, format: 'percent',
   },
   {
     id: 'motionAmount', group: 'master-controls', kind: 'slider', label: 'Motion Amount',
-    description: 'How fast the oscillator figures turn. Zero freezes them and makes pattern changes land at once.',
+    description: 'Controls performance pacing and beam-path rotation. Zero settles to the readable word.',
     default: 0.7, min: 0, max: 1, step: 0.01, format: 'percent',
   },
   {
@@ -118,23 +118,23 @@ export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object
   // ── Design › Pattern ────────────────────────────────────────────────────────
   {
     id: 'pattern', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Pattern',
-    description: 'The form the word is in: the letters themselves, a waveform, or an oscillator figure.',
+    description: 'A complete beam performance: lettering dissolves into moving traces or figures, fades, and is drawn again.',
     default: 'word', options: XY_SCOPE_PATTERN_OPTIONS,
   },
   {
     id: 'patternChange', group: 'design', subgroup: 'Pattern', kind: 'toggle', label: 'Pattern Change',
-    description: 'Moves the word to the next pattern on each Trigger, and back to the letters at the end of the cycle.',
+    description: 'Queues the next performance style on each Trigger. Off repeats the selected performance, including its departures and returns.',
     default: true,
   },
   {
     id: 'trigger', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Trigger',
-    description: 'The musical event that moves the word to the next pattern while Pattern Change is on.',
+    description: 'Queues a new style on this musical event; it begins when the current performance returns to lettering.',
     default: 'bar', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
     visibleWhen: { parameterId: 'patternChange', equals: true },
   },
   {
     id: 'transitionLength', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Transition Length',
-    description: 'How long the letters take to flow into the next pattern.',
+    description: 'How long the letters take to leave and reform. Longer values give each complete performance more time.',
     default: '1', options: XY_SCOPE_TRANSITION_LENGTHS,
   },
   // ── Design › Letters ────────────────────────────────────────────────────────

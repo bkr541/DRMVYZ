@@ -134,7 +134,7 @@ export function XyScopeSurface({
         previousContext = context
       }
       const stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
-      runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo })
+      runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo, playing: clockActive })
 
       fpsFrames += 1
       const elapsed = timestamp - fpsStart

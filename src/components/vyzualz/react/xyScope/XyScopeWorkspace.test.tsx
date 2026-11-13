@@ -172,7 +172,13 @@ describe('Sound Drawing XY Design inspector standard', () => {
 })
 
 describe('Sound Drawing XY source, presets and React tab', () => {
-  it('edits the word and picks a font from the left Source panel', async () => {
+  it('edits the word and opens the font menu below the field even with more room above', async () => {
+    container.className = 'vz-inspector'
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'xyscope-font') return { left: 45, top: 500, right: 305, bottom: 530, width: 260, height: 30 } as DOMRect
+      if (this === container) return { left: 20, top: 40, right: 340, bottom: 700, width: 320, height: 660 } as DOMRect
+      return { left: 0, top: 0, right: 260, bottom: 420, width: 260, height: 420 } as DOMRect
+    })
     await act(async () => root.render(<XyScopeEnginePanel />))
     // The word and font sit in one standard parent group named Input.
     const group = container.querySelector('[data-xyscope-input-group="true"]')!
@@ -183,6 +189,11 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     // Only the Font dropdown has a menu search; the word field is an ordinary text input.
     await act(async () => container.querySelector<HTMLElement>('#xyscope-font')!.click())
     expect(document.body.querySelector('.drm-dropdown__menu-search input[aria-label="Search fonts…"]')).not.toBeNull()
+    const menu = document.body.querySelector<HTMLElement>('[role="listbox"]')!
+    expect(menu.dataset.placement).toBe('below')
+    expect(parseFloat(menu.style.top)).toBe(540)
+    expect(parseFloat(menu.style.maxHeight)).toBe(148)
+    expect(parseFloat(menu.style.width)).toBe(260)
     const text = container.querySelector<HTMLInputElement>('#xyscope-text')!
     await act(async () => setInputValue(text, 'WILDFLY'))
     expect(useReactStore.getState().xyScopeSettings.text).toBe('WILDFLY')
@@ -263,6 +274,45 @@ describe('Sound Drawing XY audio ownership', () => {
     expect(AudioFeatureBus.getFrame().frameId).toBeGreaterThan(0)
     expect(AudioFeatureBus.getFramePublicationMeta().publisherId).toBe('react:xyScope')
     expect(AudioFeatureBus.getFrame().timeSec).toBeCloseTo(time, 1)
+  })
+
+  it('delivers playing audio to letter motion and automatic pattern choreography', async () => {
+    const { AudioFeatureBus } = await import('../../../../features/musicIntelligence/AudioFeatureBus')
+    const { musicIntelligenceEngine } = await import('../../../../features/musicIntelligence/MusicIntelligenceEngine')
+    const { XyScopeRuntime } = await import('./XyScopeRuntime')
+    const { XyScopeBeamRenderer } = await import('./XyScopeBeam')
+    const positions: number[] = []
+    const draw = XyScopeBeamRenderer.prototype.draw
+    vi.spyOn(XyScopeBeamRenderer.prototype, 'draw').mockImplementation(function (this: InstanceType<typeof XyScopeBeamRenderer>, ...args) {
+      positions.push(args[1][0]?.x[0] ?? 0)
+      return draw.apply(this, args)
+    })
+    musicIntelligenceEngine.initialize({ sampleRate: 48000 })
+    musicIntelligenceEngine.setEffectiveBpm(120, 1, 0, 60)
+    AudioFeatureBus.setAuthoritativeFramePublisherId(null)
+    AudioFeatureBus.reset()
+    let time = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => time * 1000)
+    const render = vi.spyOn(XyScopeRuntime.prototype, 'renderFrame')
+    const status = vi.spyOn(XyScopeRuntime.prototype, 'getStatus')
+    const analyser = fakeAnalyser()
+    analyser.getByteFrequencyData = data => {
+      const hit = time % 0.5 < 0.08
+      for (let i = 0; i < data.length; i += 1) data[i] = hit && i < 12 ? 255 : 0
+    }
+    await act(async () => root.render(<XyScopeSurface analyser={analyser} isPlaying analysisActive audio={{ trackIdentity: 'track-motion', getAudioTime: () => time }} />))
+    for (let i = 0; i < 480; i += 1) {
+      time += 1 / 30
+      const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
+      rafCallbacks.delete(id)
+      await act(async () => callback(time * 1000))
+    }
+    const frames = render.mock.calls.map(([input]) => input)
+    expect(frames.some(input => input.context?.boundaries.barBoundary)).toBe(true)
+    expect(frames.filter(input => input.context?.seekDetected)).toHaveLength(0)
+    expect(new Set(status.mock.results.map(result => result.value.pattern))).toEqual(new Set(['word', 'waveform', 'scope', 'ring', 'rosette', 'weave', 'pinwheel']))
+    expect(frames.some(input => input.context?.kick)).toBe(true)
+    expect(Math.max(...positions) - Math.min(...positions)).toBeGreaterThan(10)
   })
 
   it('does not publish anything when it has no analyser, and still draws', async () => {
