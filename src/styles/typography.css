@@ -362,3 +362,17 @@
 .mm-model-card-name, .mm-model-stage-toolbar, .mm-model-inspector p, .mm-model-draft-card { font: var(--type-field-value); }
 .mm-model-card-type, .mm-model-count, .mm-model-navigation { font: var(--type-field-value); }
 .mm-model-count { text-transform: none; }
+
+
+/* Reusable performance-pad type roles. Expanded tiles use their own width,
+   so long labels remain readable in narrow managers without workspace fonts. */
+:root {
+  --type-pad-label: 700 8.5px/1.2 var(--type-tab-family);
+  --type-pad-shortcut: 600 7.5px/1.2 var(--type-tab-family);
+  --type-pad-label-expanded: 700 clamp(12px, 12cqi, 18px)/1.2 var(--type-tab-family);
+  --type-pad-shortcut-expanded: var(--type-field-value);
+}
+.rv-pad-label { font: var(--type-pad-label); letter-spacing: .05em; }
+.rv-pad-key { font: var(--type-pad-shortcut); letter-spacing: .08em; }
+.rv-pads-section--expanded .rv-pad-label { font: var(--type-pad-label-expanded); }
+.rv-pads-section--expanded .rv-pad-key { font: var(--type-pad-shortcut-expanded); }

@@ -52,7 +52,9 @@ export function PerformanceManagerView() {
     <div className="rv-layout" data-left-collapsed={leftCollapsed || undefined} data-right-collapsed={rightCollapsed || undefined}>
       <WorkspaceRail side="left" label="Performance Manager engines" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(v => !v)} className="rw-frame--left">
         <RailWindowHeader side="left" label="Performance Workspace" icon={<AppIcon kind="grid" size={15} />} />
-        <RailTabs variant="underline" className="rv-main-workspace-tabs" ariaLabel="Performance Manager library tabs" activeTab={leftTab} onChange={setLeftTab} tabs={[{ id: 'engine', label: 'ENGINE' }, { id: 'placeholder-1', label: '—', disabled: true }, { id: 'placeholder-2', label: '—', disabled: true }]} />
+        <div className="rv-workspace-tabs-wrap">
+          <RailTabs variant="underline" className="rv-context-workspace-tabs" ariaLabel="Performance Manager library tabs" activeTab={leftTab} onChange={setLeftTab} tabs={[{ id: 'engine', label: 'ENGINE' }, { id: 'placeholder-1', label: '—', disabled: true }, { id: 'placeholder-2', label: '—', disabled: true }]} />
+        </div>
         <div className="vz-panel-body">
           {leftTab === 'engine' && <div className="pfm-engine-grid" role="group" aria-label="Engines">
             {REACT_ENGINE_IDS.map(id => <button type="button" key={id} className="rv-engine-card rv-engine-card--compact pfm-engine-card" data-engine={id} aria-label={REACT_ENGINE_CATALOG[id].label} title={REACT_ENGINE_CATALOG[id].description} aria-pressed={engine === id} onClick={() => pickEngine(id)}><ReactEngineCardContents engineId={id} pixelLabel={id === 'pixGrid'} /></button>)}
@@ -62,7 +64,7 @@ export function PerformanceManagerView() {
       <div className="pfm-center">
         <section className="pfm-window pfm-pad-window" aria-label="Current performance pads">
           <RailWindowHeader side="left" label="Performance Pads" icon={<AppIcon kind="grid" size={15} />} />
-          <div className="pfm-pad-body"><ReactPerformancePads embedded mirror /></div>
+          <div className="pfm-pad-body"><ReactPerformancePads embedded mirror presentation="expanded" /></div>
         </section>
         <section className="pfm-window pfm-configuration" aria-label="Configuration">
           <RailWindowHeader side="left" label="Configuration" icon={<AppIcon kind="sliders" size={15} />} />

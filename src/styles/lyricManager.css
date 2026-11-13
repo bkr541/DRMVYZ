@@ -3301,6 +3301,10 @@
   padding-inline: var(--workspace-rail-inset);
 }
 
+.lmv-left-rail .lmv-workspace-tabs {
+  margin-bottom: 0;
+}
+
 /* Track-workspace content shares the tabs' single rail inset. */
 .lmv-left-rail .lmv-workspace-tab-panel {
   padding-inline: var(--workspace-rail-inset);

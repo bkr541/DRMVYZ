@@ -20,6 +20,15 @@ export const PERFORMANCE_PAD_KEY_MAP: Readonly<Record<string, string>> = {
   'z': 'pad-13', 'x': 'pad-14', 'c': 'pad-15', 'v': 'pad-16', 'b': 'pad-20',
 }
 
+// Stable slot identities for the expanded pad surface, independent of the
+// selected preset's artwork palette or the currently browsed engine.
+const EXPANDED_PAD_COLORS = [
+  '#3b82f6', '#ef4444', '#22c55e', '#f97316', '#a855f7',
+  '#eab308', '#14b8a6', '#ec4899', '#06b6d4', '#8b5cf6',
+  '#84cc16', '#f59e0b', '#0ea5e9', '#6366f1', '#10b981',
+  '#f43f5e', '#d946ef', '#2dd4bf', '#fb7185', '#38bdf8',
+] as const
+
 const PRESSED_DURATION_MS = 150
 
 export type PerformancePadKeyboardRoute =
@@ -48,7 +57,7 @@ function contextualHint(target: ReactPerformanceActionTarget, actions: readonly 
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 
-export function ReactPerformancePads({ embedded = false, mirror = false }: { embedded?: boolean; mirror?: boolean }) {
+export function ReactPerformancePads({ embedded = false, mirror = false, presentation = 'compact' }: { embedded?: boolean; mirror?: boolean; presentation?: 'compact' | 'expanded' }) {
   const [collapsed, setCollapsed] = useState(() => !embedded)
   const [pressedActionId, setPressedActionId] = useState<string | null>(null)
 
@@ -144,7 +153,9 @@ export function ReactPerformancePads({ embedded = false, mirror = false }: { emb
 
   const padButtons = (
     <>
-      {performancePads.map((pad) => {
+      {performancePads.map((pad, index) => {
+            const slot = Number(pad.id.replace('pad-', '')) - 1
+            const slotColor = presentation === 'expanded' ? EXPANDED_PAD_COLORS[(Number.isInteger(slot) && slot >= 0 ? slot : index) % EXPANDED_PAD_COLORS.length] : undefined
             const action = actionsByPadId.get(pad.id)
             if (action) {
               const available = isReactPerformanceActionCompatible(action, target)
@@ -162,7 +173,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false }: { emb
                   aria-label={`${action.label}. ${action.description}`}
                   {...(isToggle ? { 'aria-pressed': isPressed } : {})}
                   title={`${action.label} [${action.keyBinding.toUpperCase()}]: ${action.description}`}
-                  style={{ '--pad-color': action.color } as React.CSSProperties}
+                  style={{ '--pad-color': slotColor ?? action.color } as React.CSSProperties}
                 >
                   <span className="rv-pad-label">{action.label}</span>
                   <span className="rv-pad-key">{action.keyBinding.toUpperCase()}</span>
@@ -170,8 +181,8 @@ export function ReactPerformancePads({ embedded = false, mirror = false }: { emb
               )
             }
 
-            const isActive = pad.id === activePadId
             const hasDestination = Boolean(pad.presetId || pad.destination)
+            const isActive = hasDestination && pad.id === activePadId
             return (
               <button
                 key={pad.id}
@@ -180,7 +191,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false }: { emb
                 disabled={!hasDestination}
                 aria-disabled={mirror || !hasDestination}
                 title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
-                style={{ '--pad-color': (pad.presetId ? (effectivePresetById.get(pad.presetId)?.palette.accent ?? pad.color) : pad.color) } as React.CSSProperties}
+                style={{ '--pad-color': presentation === 'expanded' && !hasDestination ? undefined : slotColor ?? (pad.presetId ? (effectivePresetById.get(pad.presetId)?.palette.accent ?? pad.color) : pad.color) } as React.CSSProperties}
               >
                 <span className="rv-pad-label">{pad.label}</span>
                 <span className="rv-pad-key">{pad.keyBinding.toUpperCase()}</span>
@@ -191,7 +202,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false }: { emb
   )
 
   return (
-    <div className={`rv-pads-section${embedded ? ' rv-pads-section--embedded' : ''}`}>
+    <div className={`rv-pads-section${embedded ? ' rv-pads-section--embedded' : ''}${presentation === 'expanded' ? ' rv-pads-section--expanded' : ''}`}>
       {embedded ? (
         <div className="rv-pads-grid">{padButtons}</div>
       ) : (

@@ -1,7 +1,12 @@
 /* Performance Manager owns only its content layout; chrome/rails/dock use React's floating composition. */
+/* Match Lyric Manager's left content lead: 8px panel inset + library-body spacing. */
+.pfm-root .vz-inspector--left .vz-panel-body {
+  padding-top: calc(8px + var(--workspace-group-body-top));
+}
+
 [data-app-workspace='performanceManager'] .pfm-center {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(140px, 26%);
+  grid-template-rows: minmax(0, 1fr) minmax(188px, calc(26% + 48px));
   gap: var(--fw-region-gap);
   min-width: 0;
   min-height: 0;
@@ -10,7 +15,7 @@
 .pfm-window > .rw-window-header { border-radius: var(--fw-surface-radius) var(--fw-surface-radius) 0 0; }
 .pfm-pad-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
 .pfm-pad-body .rv-pads-section { height: 100%; }
-.pfm-pad-body .rv-pads-grid { min-height: 100%; grid-auto-rows: minmax(52px, 1fr); }
+.pfm-pad-body .rv-pads-grid { min-height: 100%; grid-auto-rows: minmax(94px, 1fr); }
 .pfm-configuration-canvas { flex: 1; min-height: 0; }
 .pfm-engine-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
 /* Reuse React's engine identity artwork and surface in the two-column library. */
@@ -20,7 +25,6 @@
   height: 112px;
   min-height: 112px;
   padding: 10px 8px;
-  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 .pfm-engine-card.rv-engine-card .rv-engine-dropdown-label {
   white-space: normal;
@@ -38,9 +42,8 @@
   height: 100%;
   opacity: .7;
 }
-.pfm-engine-card.rv-engine-card[aria-pressed='true'] {
-  border-color: var(--color-primary);
-  box-shadow: inset 3px 0 var(--color-primary), inset 0 0 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+.pfm-engine-card.rv-engine-card:not([aria-pressed='true']) {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 .pfm-engine-card.rv-engine-card:hover { border-color: var(--color-primary); }
 .pfm-engine-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
