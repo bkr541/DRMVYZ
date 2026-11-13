@@ -5,7 +5,7 @@ ApplicationWorkspaceFrame. Its pad-grid icon uses the shared AppIcon system.
 The shared application header/status cluster, RailWindowHeader, RailTabs,
 WorkspaceRail, preset cards/search/scope controls and VyzualzAudioDock are reused.
 
-## Phase 1 behavior
+## Current behavior
 
 - Tab rows reuse React’s actual left/right layouts: the left uses `rv-workspace-tabs-wrap` and `rv-context-workspace-tabs` (7px internal padding, 18px gap); the right uses `rv-main-workspace-tabs` (22px gap). Both keep React’s normal 12px rail content inset, shared 25px top padding, centred labels and underline treatment. No Performance Manager tab geometry override remains.
 - The left engine grid starts 18px below its tab row, matching Lyric Manager after removal of its 12px tab-bottom margin (8px panel inset + shared 10px library-body spacing).
@@ -15,13 +15,9 @@ WorkspaceRail, preset cards/search/scope controls and VyzualzAudioDock are reuse
   Shader Pads/Cinema identities are not resurrected. Cards reuse React’s engine
   dropdown blueprint artwork, themed surfaces and shared identity typography,
   with wrapped names and the same selected outline/glow as shared preset poster cards.
-- The main area mirrors the current twenty performance pads from the live store,
-  including labels, active state and contextual engine actions. Its expanded presentation gives assigned slots stable, distinct standard colors (blue, red, green, orange, purple and related hues), displayed as restrained tinted fills; empty pads have transparent backgrounds, neutral borders and no slot color, independent of preset palette or browsed engine. Larger names sit at each tile’s centre, with the shortcut beneath; compact pads retain their existing type size. It
-  subscribes to the same state as React. Its mirror mode does not fire actions,
-  switch presets or install keyboard triggers. Engine browsing does not replace
-  the live engine used to resolve the mirrored pad group.
+- The main area edits the shared performance pad slots, initially twenty. Its expanded presentation uses the store-free `PerformancePad` element with stable slot accents, transparent empty pads, centered preset-card titles and outlined background shortcuts. Clicking a pad selects it for management without performing it or installing live keyboard triggers. Engine browsing stays local; explicit linking changes shared assignments only after confirmation.
 - The lower area is an empty Configuration surface, 48px taller than its original 26% allocation (including a minimum height increase from 140px to 188px), with the canonical window
-  title bar. It has no editor or assignment functionality in this phase.
+  title bar. It remains a blank canvas; assignment editing happens through the pad window and header actions.
 - The right window has PRESETS, EDIT and one disabled placeholder. EDIT is empty.
   PRESETS filters the canonical engine definitions with the shared account scope
   and discovery search. Cinema uses the current native registry; Sound Drawing
@@ -90,3 +86,43 @@ those measurements, including padding, margins, gaps, font, flex sizing, row
 width, height, side insets and label centring. Empty pads are explicitly checked
 for transparent backgrounds and no slot color. The additional 48px Configuration
 height and scrolling, non-overlapping pad rows are retained.
+
+## Reusable production pad
+
+`react/controls/PerformancePad.tsx` owns only rendering, pointer/keyboard press
+feedback and activation callbacks. `ReactPerformancePads` owns assignments,
+contextual action routing and physical shortcut-key state. Performance Manager
+uses its read-only mirror mode; React uses the live mode. The manager uses expanded density: preset-title typography, outlined background
+numbers, 8px corners and 94px-minimum rows. Its base surface is #10171b, slightly darker than the group background; selected pads mix their accent into that same dark base. React uses compact density, preserving
+its original 40px-minimum cards, 8px embedded grid padding, 5px corners, 8.5px
+labels. React’s reusable compact pads now follow Layout Lab’s Accent Rail: left-aligned white titles, an inset vertical color marker and a 32px outlined shortcut, right-aligned and vertically centered. Both densities share activation and fast strike handling.
+
+Layout Lab remains an independent study, with no production component import.
+The existing compact/expanded API explicitly selects these two presentations. Empty slots remain transparent and disabled. Performance Manager uses an 8px gap between pads; React retains its compact 4px gap.
+
+Compact correction validation: the browser compared React's rendered pads with
+an inert reference using the original repository CSS. Both measured exactly
+147.796875×40px at 1600×1000. The same check retained manager/Lab row-02 parity
+at two widths, keyboard release and inert manager activation. Eleven focused
+component/cross-engine tests and focused lint passed. The earlier broader action
+suite has an unrelated jsdom contentEditable assertion failure; it was not rerun.
+
+Accent Rail production validation: 11 focused component/engine tests and focused ESLint passed. Browser comparisons at 1600×1000, 1280×844 and 1180×844 verified matching normal/selected colors, card geometry, typography, inset marker and right-aligned vertically centered numbers against the Lab study. A focused final check verified matching press halos and immediate pointer/shortcut release. Expanded Full typography and corners were retained. Screenshot: `artifacts/layout-lab-tabs/react-accent-rail.png` (ignored).
+
+Reusable pad border contrast: compact and expanded pads use a 25% white border (`#ffffff40`) normally and a 44% white border (`#ffffff70`) when selected, giving clearer separation from the dark surface. The bright press border and pad geometry are retained. Focused CSS and diff checks passed.
+
+## Shared assignment workflow and toolbar
+
+The canonical `HeaderControlGroup` places Add, Clear, Clear all, Delete and Reset immediately after the brand divider, using `HeaderIconKey` and shared header action glyphs.
+
+- Add links the selected preset to the selected pad, or the first empty pad, through the same confirmation flow. With no selected preset, it restores the next missing default slot; otherwise it explains how to select or drag a preset.
+- Clear unlinks the selected pad. Clear all confirms before clearing every assignment while keeping the slots.
+- Delete confirms before removing the selected pad slot. Add can restore a missing slot. Reset confirms before restoring the default layout and assignments.
+
+Preset cards in the right rail carry a typed drag payload containing engine and preset IDs. Drops on assigned or empty pads resolve the current canonical preset and open the standard `ConfirmDialog`, naming the preset and pad shortcut. Cancel leaves assignments unchanged. Link updates the persisted `reactStore.performancePads` entry; browsing and linking do not activate the preset. Target and catalog membership are checked again on confirmation. Invalid drops and unavailable presets produce an error notice.
+
+Cinema 2.0 and native CANVAS, HEADLINER, Sound Drawing XY and LaserDMX destinations are supported alongside live React preset IDs (including Sound Drawing and PixGrid). Native destinations are validated and use their existing store activation actions when performed. Explicit assignments take precedence over contextual engine actions for both clicks and shortcuts. The saved `assignmentOverridesAction` flag preserves this choice across navigation and persistence.
+
+`notify('performance-manager', ...)` records review, cancellation, success and failure cards in the existing Notifications drawer and unread bell system. The confirmation also uses the standard informational NoticeCard to explain the shared assignment. No new notification UI or cloud schema is introduced.
+
+Validation: 19 focused component, workflow and engine tests passed, as did TypeScript, focused ESLint and diff checks. The real browser workflow verified the five canonical header keys after the divider, empty/assigned pad drops, Cancel/Link, workflow cards in Notifications, shared React activation, and a CANVAS link overriding contextual pad actions. Reviewed screenshots: `artifacts/performance-manager-phase01/pad-link-confirm.png` and `pad-link-notifications.png` (ignored). No production build was run. Changes are uncommitted.

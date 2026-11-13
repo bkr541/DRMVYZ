@@ -71,7 +71,7 @@ export function ModelLibraryCards({ search, favorites, viewMode, activeId, onSel
     finally { setBusy(null) }
   }
   return <section className={`mm-model-library${sectioned ? ' mm-model-library--sectioned' : ''}`} aria-label="3D Models" data-expanded={expanded}>
-    <Collapsible label="3D Models" icon={<AppIcon kind="layers" size={15} />} open={expanded} onOpenChange={setExpanded} bodyClassName="mm-model-group-body" headerAccessory={<span className="mm-model-count">{items.length}{page.key === key && page.cursor ? '+' : ''} loaded · Newest first</span>}>
+    <Collapsible label="3D Models" icon={<AppIcon kind="layers" size={15} />} open={expanded} onOpenChange={setExpanded} bodyClassName="mm-model-group-body">
     {searchControl}
     <div className="mm-model-card-scroll" ref={root}>
       {draftId && !favorites && !collectionId && draftName.toLowerCase().includes(search.toLowerCase()) && <div className="mm-model-draft-card" role="status"><AppIcon kind="layers" size={14} /> {draftName} · Draft / Unsaved</div>}

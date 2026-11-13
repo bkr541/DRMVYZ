@@ -1026,12 +1026,12 @@ describe('MediaLibraryBrowser manager: success cards', () => {
 
 
 describe('MediaLibraryBrowser visual-media skeleton loader', () => {
-  it('shows eight grid skeletons while loading and replaces them with loaded media', async () => {
+  it('shows eight grid skeletons per media group while loading and replaces them with loaded media', async () => {
     mocks.mediaState.items = []
     mocks.mediaState.loading = true
     await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
     expect(container?.querySelector('[aria-label="Loading images and videos"]')?.getAttribute('aria-busy')).toBe('true')
-    expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(8)
+    expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(16)
     mocks.mediaState.items = [visual]
     mocks.mediaState.loading = false
     await act(async () => root?.render(<MediaLibraryBrowser context="manager" capabilities={MEDIA_MANAGER_CAPABILITIES} activeMediaId={visual.id} onSelect={vi.fn()} />))
@@ -1043,7 +1043,7 @@ describe('MediaLibraryBrowser visual-media skeleton loader', () => {
     mocks.mediaState.loading = true
     await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
     await act(async () => findButtonByTitle('List view')!.click())
-    expect(container?.querySelectorAll('.vz-media-skeleton-row')).toHaveLength(8)
+    expect(container?.querySelectorAll('.vz-media-skeleton-row')).toHaveLength(16)
     expect(container?.querySelectorAll('.vz-media-card--skeleton')).toHaveLength(0)
   })
   it('shows skeletons during an empty refresh while retaining populated media during refresh', async () => {
@@ -1053,7 +1053,52 @@ describe('MediaLibraryBrowser visual-media skeleton loader', () => {
     expect(container?.querySelector('.vz-media-loading')).not.toBeNull()
     mocks.mediaState.items = [visual]
     await act(async () => root?.render(<MediaLibraryBrowser context="manager" capabilities={MEDIA_MANAGER_CAPABILITIES} activeMediaId={visual.id} onSelect={vi.fn()} />))
-    expect(container?.querySelector('.vz-media-loading')).toBeNull()
-    expect(container?.querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+    expect(container?.querySelector('[aria-label="Images"] .vz-media-loading')).toBeNull()
+    expect(container?.querySelector('[aria-label="Videos"] .vz-media-loading')).not.toBeNull()
+    expect(container?.querySelectorAll('[aria-label="Images"] .vz-media-card--sheet')).toHaveLength(1)
+  })
+})
+
+
+describe('Media Manager separate visual groups', () => {
+  const group = (label: string) => container!.querySelector<HTMLElement>(`section[aria-label="${label}"]`)!
+  async function search(label: string, value: string) {
+    const input = container!.querySelector<HTMLInputElement>(`input[aria-label="Search ${label}"]`)!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+  }
+  it('searches Images and Videos independently and keeps their header rows free of counts and sort labels', async () => {
+    mocks.mediaState.items = [visual,
+      { ...visual, id: 'image-2', name: 'Ocean.png', title: 'Ocean', tags: [] },
+      { ...visual, id: 'video-1', name: 'Stage.mp4', title: 'Stage clip', type: 'video', tags: [] },
+      { ...visual, id: 'video-2', name: 'Clouds.mp4', title: 'Clouds', type: 'video', tags: [] },
+    ]
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    expect(group('Images').querySelectorAll('.vz-media-card--sheet')).toHaveLength(2)
+    expect(group('Videos').querySelectorAll('.vz-media-card--sheet')).toHaveLength(2)
+    for (const name of ['Images', 'Videos']) expect(group(name).querySelector('.drc-header')?.textContent).toBe(name)
+    expect(container!.textContent).not.toContain('Newest first')
+    await search('images', 'Ocean')
+    expect(group('Images').querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+    expect(group('Videos').querySelectorAll('.vz-media-card--sheet')).toHaveLength(2)
+    await search('videos', 'Stage')
+    expect(group('Images').textContent).toContain('Ocean')
+    expect(group('Videos').querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+    await act(async () => container!.querySelector<HTMLButtonElement>('[aria-label="Clear search images"]')!.click())
+    expect(group('Images').querySelectorAll('.vz-media-card--sheet')).toHaveLength(2)
+    expect(group('Videos').querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
+  })
+  it('continues loading metadata pages for a group search instead of silently searching only the first page', async () => {
+    mocks.mediaState.items = [visual, { ...visual, id: 'video-1', type: 'video' }]
+    mocks.mediaState.hasMore = true
+    const loadNextPage = vi.fn()
+    mocks.mediaState.loadNextPage = loadNextPage
+    await renderBrowser({ context: 'manager', capabilities: MEDIA_MANAGER_CAPABILITIES, activeMediaId: null, onSelect: vi.fn() })
+    loadNextPage.mockClear()
+    await search('images', 'not-on-first-page')
+    expect(loadNextPage).toHaveBeenCalled()
+    expect(group('Videos').querySelectorAll('.vz-media-card--sheet')).toHaveLength(1)
   })
 })

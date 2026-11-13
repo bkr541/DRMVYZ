@@ -3516,6 +3516,8 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
 }
 
 export interface ReactPerformancePad {
+  /** Explicit user links take precedence over engine contextual actions. */
+  assignmentOverridesAction?: boolean
   id: string
   presetId: string | null
   /** Versioned cross-engine destination. Legacy `cinemaCompositionId` is decoded only during migration. */

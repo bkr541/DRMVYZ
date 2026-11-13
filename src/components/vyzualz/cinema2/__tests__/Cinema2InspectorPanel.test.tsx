@@ -260,12 +260,13 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(parents.map(parent => parent.label)).toEqual(['Master Controls', 'Design', 'Effects', 'Palette'])
     expect(labelsFor('Master Controls')).toEqual([
       'Master Intensity',
-      'BPM Sync',
       'Music Reactivity',
       'Kick Reaction',
       'Transient Reaction',
       'Drop Reaction',
       'Structure Reaction',
+      'BPM Sync',
+      'Auto Performance',
     ])
     expect(labelsFor('Design')).toEqual(['Strike Rate', 'Branching', 'Thickness', 'Media Influence'])
     expect(labelsFor('Effects')).toEqual(['Glow', 'Haze', 'Flash Intensity', 'Flash Duration', 'Flash Decay', 'Impact Shake', 'Zoom Punch'])
@@ -273,7 +274,7 @@ describe('Cinema 2.0 schema-driven Inspector', () => {
     expect(parents.flatMap(parent => [
       ...parent.controls,
       ...parent.groups.flatMap(group => group.controls),
-    ])).toHaveLength(20)
+    ])).toHaveLength(21)
 
     const legacyDesignControls = createCinema2InspectorModel(result.plan, state.getSnapshot(), 'design')
       .flatMap(section => section.groups.flatMap(group => group.controls))

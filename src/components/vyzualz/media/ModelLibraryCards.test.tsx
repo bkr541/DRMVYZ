@@ -31,7 +31,8 @@ describe('model card paging and interactions', () => {
     expect(host.querySelectorAll('.mm-model-card').length).toBeLessThan(50)
     await act(async () => [...host.querySelectorAll<HTMLButtonElement>('button')].find(b => b.textContent === 'Load more models')!.click())
     expect(mocks.list).toHaveBeenLastCalledWith(expect.objectContaining({ cursor, limit: 50 }))
-    expect(host.textContent).toContain('51 loaded')
+    expect(host.textContent).not.toContain('loaded · Newest first')
+    expect(mocks.list).toHaveBeenCalledTimes(2)
   })
   it('ignores a stale search response, and supports list/favorites query state', async () => {
     let resolve!: (v: unknown) => void

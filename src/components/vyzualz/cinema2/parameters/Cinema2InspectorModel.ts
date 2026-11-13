@@ -288,7 +288,7 @@ export function createCinema2DesignParentGroupModel(
       sectionId,
       // Secondary grouping is intentionally preserved only inside Design.
       // Master Controls, Effects, and Palette stay flat, matching the current
-      // Reactor presentation without any preset/label special-casing.
+      // Reactor presentation. Standard master permission toggles are placed last below.
       groupLabel: parentId === 'design' ? definition.group?.trim() || null : null,
       order: definition.order ?? authoredIndex,
       authoredIndex,
@@ -305,7 +305,7 @@ export function createCinema2DesignParentGroupModel(
     const groups = parent == null ? [] : [...parent.groups.values()].map(finalizeGroup).sort(compareGroups)
     return {
       ...definition,
-      controls: parent == null ? [] : sortControls(parent.controls).map(item => item.control),
+      controls: parent == null ? [] : sortDesignParentControls(parent.controls, definition.id).map(item => item.control),
       groups,
     }
   }))
@@ -502,6 +502,18 @@ function sortControls(items: readonly ProjectedControl[]): ProjectedControl[] {
     || left.order - right.order
     || left.authoredIndex - right.authoredIndex
   ))
+}
+
+function sortDesignParentControls(items: readonly ProjectedControl[], parent: Cinema2DesignParentGroup): ProjectedControl[] {
+  const sorted = sortControls(items)
+  if (parent !== 'master-controls') return sorted
+  // These standard boolean controls have fixed presentation slots; retain the
+  // authored order of every other control and leave parameter state untouched.
+  const rank = (item: ProjectedControl) => {
+    const { type, label } = item.control.definition
+    return type !== 'boolean' ? 0 : label === 'BPM Sync' ? 1 : label === 'Auto Performance' ? 2 : 0
+  }
+  return sorted.sort((left, right) => rank(left) - rank(right))
 }
 
 function compareEntries(left: Cinema2InspectorEntryModel, right: Cinema2InspectorEntryModel): number {

@@ -5,6 +5,7 @@ import { CARBON_GLYPHS, type CarbonGlyphKind } from './carbonGlyphs'
 
 /** Custom 32px artwork for icons Carbon has no equivalent for (brand, workspace, lighting and effect icons): 1.5px round strokes, subdued structural lines and cyan functional details. */
 const DRAWINGS = {
+  clearAll: ['M4 6h24M4 14h14M4 22h10', 'M21 19l8 8M29 19l-8 8'],
   clock: ['M16 3a13 13 0 1 0 0 26 13 13 0 1 0 0-26', 'M16 8v8l5 3'],
   audioTrack: [
     'M10 4H4.25v26.5h23.5V4H22M10 1.5h12V6H10Z',

@@ -4,6 +4,26 @@ Every user-facing Cinema 2.0 preset has an **Auto Performance** toggle under **D
 
 Auto Performance never changes authored values. It adds temporary, music-driven behavior on top of the preset's own reactions, and turning it off removes exactly that and nothing else: normal animation, existing audio reactions, BPM Sync and independently enabled Pattern Change and Trigger keep running.
 
+## Master Controls placement
+
+Cinema 2.0's shared Inspector projection puts the standard boolean **BPM Sync**
+control followed by **Auto Performance** in the final two slots of Master
+Controls, matching Glassfall. All other controls retain their authored relative
+order. This presentation rule changes no parameter IDs, values, bindings,
+persistence, musical behavior or other parent groups.
+
+The catalog audit covered all 45 user-facing presets: 27 required reordering,
+17 already matched, and War Of Worlds has no BPM Sync parameter; its existing
+Auto Performance control remains last. Internal foundations/diagnostics have no
+user-facing toggle requirement. Future registered presets are included in the
+catalog-wide placement test automatically.
+
+Validation: 46 catalog-order checks, 30 Auto Performance inventory/persistence
+checks, the updated Electric Storm Inspector projection check, and focused
+ESLint passed (77 focused tests). The broader Inspector suite also exposed its
+unrelated jsdom `hidePopover` limitation; that production-selector case was not
+changed or rerun. No production build was run for this ordering-only change.
+
 ## Inventory
 
 **Already had the toggle (each keeps its own implementation, unchanged):** Submerge, Orbital, PSYLO, Glassfall, Ifrit, Inertia, Trippy Bro, Switch It, Nightshift, Blockshift, Atmosphere Reference (Crystalized), Afterhours, HUM:N, SAY IT, Depth, Conduit, ATL HOE, Marquee, Echoform, Echowave, Cathedral, Ancient Machine, Event Horizon, Constellation, Sixfold, Hypnotize, Starters, BWC, Canopy, Vacancy, Elevhate.

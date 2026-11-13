@@ -1,3 +1,4 @@
+import { isNativePadDestination, activateNativePadDestination } from '../components/vyzualz/react/performancePadDestinations'
 import { blockTextSceneNavigation, requestTextSceneNavigation } from '../features/cinema2Text/textSceneNavigation'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
@@ -10122,7 +10123,15 @@ export const useReactStore = create<ReactStoreState>()(
           }
         }),
 
-      setActivePadId: (id) =>
+      setActivePadId: (id) => {
+        const destination = get().performancePads.find(pad => pad.id === id)?.destination
+        if (destination && isNativePadDestination(destination)) {
+          requestTextSceneNavigation(() => {
+            activateNativePadDestination(get(), destination)
+            set({ activePadId: id, performancePadTransition: null, ...clearPerformanceActionPatch() })
+          })
+          return
+        }
         requestTextSceneNavigation(() => set((s) => {
           if (!id) return { activePadId: null, performancePadTransition: null }
           const pad = s.performancePads.find((p) => p.id === id)
@@ -10161,13 +10170,14 @@ export const useReactStore = create<ReactStoreState>()(
               ? { startedAtMs: nowMs, durationMs, from, to }
               : null,
           }
-        })),
+        }))
+      },
 
       updatePerformancePad: (id, patch) =>
         set((s) => {
           let safePatch: Partial<ReactPerformancePad> = { ...patch }
           if ('destination' in patch && patch.destination) {
-            const destinationIsValid = isLiveAutomationCueDestination(s.reactPresets, {
+            const destinationIsValid = isNativePadDestination(patch.destination) || isLiveAutomationCueDestination(s.reactPresets, {
               presetId: null,
               destination: patch.destination,
             })

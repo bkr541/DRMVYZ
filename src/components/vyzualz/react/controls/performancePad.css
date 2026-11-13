@@ -1,0 +1,30 @@
+/* Row 02's production surface. Geometry follows the grid, never a workspace. */
+.rv-pads-section--expanded .rv-pads-grid { grid-auto-rows: minmax(94px, 1fr); padding: 20px; }
+button.performance-pad { box-sizing: border-box; position: relative; min-width: 0; min-height: 94px; padding: 0; overflow: hidden; border: 1px solid #ffffff40; border-radius: 8px; background: #10171b; color: #dbe5e9; cursor: pointer; transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
+.performance-pad-surface { position: absolute; inset: 0; container-type: size; pointer-events: none; }
+.performance-pad-label { position: absolute; z-index: 1; top: 50%; left: 16px; right: 16px; transform: translateY(-50%); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; text-align: center; }
+.performance-pad-number { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: transparent; -webkit-text-stroke: 1px var(--pad-color, #607079); opacity: .24; }
+.performance-pad-line { position: absolute; z-index: 1; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); width: calc(100cqh - 32px); height: 2px; border-radius: 2px; background: var(--pad-color, #607079); }
+button.performance-pad[data-selected='true'] { background: color-mix(in srgb, var(--pad-color) 12%, #10171b); border-color: #ffffff70; }
+button.performance-pad[data-hit='true'] { transition-duration: 0ms; transform: translateY(1px); border-color: #e8f4f8; box-shadow: 0 0 0 1px var(--pad-color), 0 0 22px color-mix(in srgb, var(--pad-color) 75%, transparent), inset 0 0 32px color-mix(in srgb, var(--pad-color) 30%, transparent); }
+button.performance-pad:focus-visible { outline: 2px solid #8ef4ff; outline-offset: 2px; }
+button.performance-pad:disabled { background: transparent; border-color: #ffffff12; opacity: .62; box-shadow: none; cursor: default; }
+.performance-pad:disabled .performance-pad-line { background: #607079; opacity: .35; }
+@media (prefers-reduced-motion: reduce) { button.performance-pad { transition: none; } button.performance-pad[data-hit='true'] { transform: none; } }
+
+/* React's original compact footprint, independent of the manager presentation. */
+.rv-pads-section:not(.rv-pads-section--expanded) .rv-pads-grid { grid-auto-rows: auto; padding: 8px 10px 10px; }
+.rv-pads-section--embedded:not(.rv-pads-section--expanded) .rv-pads-grid { padding: 8px; }
+/* Accent Rail: compact dimensions with an inset marker and a floating shortcut. */
+button.performance-pad[data-density='compact'] { display: flex; align-items: flex-start; flex-direction: column; justify-content: center; height: 40px; min-height: 40px; padding: 6px 4px 5px 14px; border-radius: 5px; border-color: #ffffff40; background: #10171b; }
+.performance-pad[data-density='compact'] .performance-pad-surface { display: contents; container-type: normal; }
+.performance-pad[data-density='compact'] .performance-pad-line { left: 6px; right: auto; top: 9px; bottom: 9px; width: 2px; height: auto; transform: none; }
+.performance-pad[data-density='compact'] .performance-pad-label { position: relative; top: auto; left: auto; right: auto; transform: none; display: block; max-width: calc(100% - 12px); white-space: nowrap; text-align: left; text-overflow: ellipsis; }
+.performance-pad[data-density='compact'] .performance-pad-number { right: 4px; top: 50%; transform: translateY(-50%); opacity: .22; }
+button.performance-pad[data-density='compact'][data-selected='true'] { border-color: #ffffff70; background: color-mix(in srgb, var(--pad-color) 12%, #10171b); }
+button.performance-pad[data-density='compact']:disabled { background: transparent; opacity: .3; box-shadow: none; }
+button.performance-pad[data-density='compact'][data-hit='true'] { border-color: #e8f4f8; }
+
+/* Empty slots remain drop/select targets while editing assignments. */
+button.performance-pad[data-empty='true'] { background: transparent; border-color: #ffffff30; opacity: .62; }
+button.performance-pad[data-empty='true'][data-selected='true'] { border-color: #ffffff70; }

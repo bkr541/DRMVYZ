@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PERFORMANCE_PRESET_MIME, usePerformanceManagerPads } from './usePerformanceManagerPads'
 import { useShallow } from 'zustand/react/shallow'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { useReactStore } from '../../../stores/reactStore'
@@ -26,7 +27,7 @@ import '../../../styles/performanceManager.css'
 
 const ARTWORK_ENGINE = { cinema2: 'cinema2', soundDrawing: 'oscilloscope', canvas: 'canvas', laserDmx: 'laserDmx', pixGrid: 'pixGrid', headliner: 'headliner' } as const
 
-/** Phase 1 is a browse-only workspace: engine/preset choices never apply live presets or assign pads. */
+/** Browse presets without activating them; explicitly confirmed links edit shared pad assignments. */
 export function PerformanceManagerView() {
   const activeEngine = useReactStore(state => state.activeReactEngineId)
   const [engine, setEngine] = useState<ReactLiveEngineId>(() => isSelectableReactEngineId(activeEngine) ? activeEngine : 'cinema2')
@@ -46,9 +47,10 @@ export function PerformanceManagerView() {
     return PRESET_MANAGER_PRESETS.filter(p => ARTWORK_ENGINE[p.artwork] === engine && (engine !== 'laserDmx' || (laserMode === 'showDirector' ? p.activation !== 'laserDmxBeamMatrix' : p.activation === 'laserDmxBeamMatrix'))).map(p => ({ id: p.sourceId, name: p.name, description: p.description, tags: p.tags }))
   })()
   const visible = presets.filter(p => inScope(p.id) && presetMatchesDiscoveryQuery(query.trim().toLowerCase(), p))
+  const padTools = usePerformanceManagerPads(engine, presets, selectedPreset)
   const pickEngine = (id: ReactLiveEngineId) => { setEngine(id); setQuery(''); setSelectedPreset(null) }
   return <div className="rv-shell rv-shell--floating pfm-root">
-    <ApplicationHeaderControls><div className="vz-header"><HeaderControlGroup label="Performance Manager controls">{null}</HeaderControlGroup><VyzualzHeaderActions page="performance-manager" /></div></ApplicationHeaderControls>
+    <ApplicationHeaderControls><div className="vz-header"><HeaderControlGroup label="Performance Manager controls">{padTools.toolbar}</HeaderControlGroup><VyzualzHeaderActions page="performance-manager" /></div></ApplicationHeaderControls>
     <div className="rv-layout" data-left-collapsed={leftCollapsed || undefined} data-right-collapsed={rightCollapsed || undefined}>
       <WorkspaceRail side="left" label="Performance Manager engines" collapsed={leftCollapsed} onToggleCollapsed={() => setLeftCollapsed(v => !v)} className="rw-frame--left">
         <RailWindowHeader side="left" label="Performance Workspace" icon={<AppIcon kind="grid" size={15} />} />
@@ -64,7 +66,7 @@ export function PerformanceManagerView() {
       <div className="pfm-center">
         <section className="pfm-window pfm-pad-window" aria-label="Current performance pads">
           <RailWindowHeader side="left" label="Performance Pads" icon={<AppIcon kind="grid" size={15} />} />
-          <div className="pfm-pad-body"><ReactPerformancePads embedded mirror presentation="expanded" /></div>
+          <div className="pfm-pad-body" onDragOver={padTools.onDragOver} onDrop={padTools.onDrop}><ReactPerformancePads embedded mirror presentation="expanded" editor={padTools.editor} /></div>
         </section>
         <section className="pfm-window pfm-configuration" aria-label="Configuration">
           <RailWindowHeader side="left" label="Configuration" icon={<AppIcon kind="sliders" size={15} />} />
@@ -79,13 +81,14 @@ export function PerformanceManagerView() {
             <PanelSubtabs value={scope} onChange={setScope} ariaLabel="Preset scope" options={[{ id: 'system', label: 'SYSTEM' }, { id: 'user', label: 'USER' }]} />
             <PresetSearchRow query={query} onQueryChange={setQuery} ariaLabel={`Search ${REACT_ENGINE_CATALOG[engine].label} presets`} />
             <div className="rv-preset-scroll"><div className="rv-preset-group-cards rv-preset-group-cards--poster" data-preset-grid data-preset-columns="2">
-              {visible.map(p => <ReactPresetCard key={p.id} id={p.id} title={p.name} description={p.description} isActive={p.id === selectedPreset} activateLabel={`Select ${p.name}`} onActivate={() => setSelectedPreset(p.id)} />)}
+              {visible.map(p => <div key={p.id} draggable data-performance-preset={p.id} onDragStart={event => { event.dataTransfer.effectAllowed = 'link'; event.dataTransfer.setData(PERFORMANCE_PRESET_MIME, JSON.stringify({ engineId: engine, presetId: p.id })) }}><ReactPresetCard id={p.id} title={p.name} description={p.description} isActive={p.id === selectedPreset} activateLabel={`Select ${p.name}`} onActivate={() => setSelectedPreset(p.id)} /></div>)}
               {!visible.length && <div className="rv-preset-library-empty" role="status">{query ? 'No presets match your search.' : scope === 'user' ? 'No user presets yet.' : 'No presets available.'}</div>}
             </div></div>
           </section>}
         </div>
       </WorkspaceRail>
     </div>
+    {padTools.dialog}
     <VyzualzAudioDock expandable waveformAppearance="deck" showAudioSourceControl activityPage="performance-manager" />
   </div>
 }

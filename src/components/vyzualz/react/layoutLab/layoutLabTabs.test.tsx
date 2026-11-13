@@ -43,13 +43,16 @@ describe('persistent Layout Lab tabs', () => {
     const studies = panel.querySelector('.ll-pad-studies')
     const rows = [...panel.querySelectorAll('[data-pad-study]')]
     expect(rows).toHaveLength(5)
+    expect(rows[0].getAttribute('data-pad-study')).toBe('signal')
+    expect(rows.map(row => row.querySelector('h2')?.textContent)).toEqual(['Full', 'Compact', 'Underline', 'Accent Rail', 'Glow'])
     for (const row of rows) {
       expect(row.querySelectorAll('button')).toHaveLength(4)
       expect(row.querySelectorAll('button:disabled')).toHaveLength(0)
     }
     await act(async () => panel.querySelector<HTMLButtonElement>('[data-pad-study-item="signal-drop-cage"]')!.click())
     expect(panel.querySelector('[data-pad-study-item="signal-drop-cage"]')?.getAttribute('aria-pressed')).toBe('true')
-    expect(panel.querySelector('[data-pad-study-item="edge-reactor"]')?.getAttribute('aria-pressed')).toBe('true')
+    expect(panel.querySelector('[data-pad-study-item="signal-reactor"]')?.getAttribute('aria-pressed')).toBe('false')
+    expect(panel.querySelector('[data-pad-study-item="compact-reactor"]')?.getAttribute('aria-pressed')).toBe('true')
     const child = document.createElement('div')
     child.dataset.study = 'retained-element'
     panel.append(child)

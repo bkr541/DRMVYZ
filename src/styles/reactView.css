@@ -2610,84 +2610,6 @@
   padding: 8px 10px 10px;
 }
 
-.rv-pad {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 4px 5px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
-  min-height: 40px;
-  overflow: hidden;
-}
-
-.rv-pad::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 4px;
-  background: var(--pad-color, #4ac7db);
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.rv-pad:hover:not(:disabled)::before { opacity: 0.06; }
-.rv-pad:active:not(:disabled)::before { opacity: 0.18; }
-
-.rv-pad:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--pad-color, #4ac7db) 40%, transparent);
-}
-
-.rv-pad--active {
-  border-color: var(--pad-color, #4ac7db) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pad-color, #4ac7db) 50%, transparent),
-              0 0 12px color-mix(in srgb, var(--pad-color, #4ac7db) 30%, transparent);
-}
-
-.rv-pad--active::before { opacity: 0.12 !important; }
-
-.rv-pad--pressed {
-  border-color: var(--pad-color, #4ac7db) !important;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pad-color, #4ac7db) 60%, transparent),
-              0 0 16px color-mix(in srgb, var(--pad-color, #4ac7db) 40%, transparent) !important;
-  transform: scale(0.96);
-  transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
-}
-
-.rv-pad--pressed::before { opacity: 0.22 !important; }
-
-.rv-pad--empty {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.rv-pad-label {
-  position: relative;
-  text-transform: uppercase;
-  color: rgba(232, 244, 248, 0.7);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  text-align: center;
-}
-
-.rv-pad--active .rv-pad-label {
-  color: var(--pad-color, #4ac7db);
-}
-
-.rv-pad-key {
-  position: relative;
-  color: rgba(232, 244, 248, 0.25);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Strip header actions + generate button ──────────────────────────────────── */
 .rv-strip-actions {
   display: flex;
@@ -6761,7 +6683,6 @@ div.rv-preset-group-hdr > .rv-preset-group-hdr-label {
 .rv-pads-section--embedded .rv-pads-grid {
   max-height: 205px;
   overflow-y: auto;
-  padding: 8px;
 }
 
 /* ── Stage Focus: keep an exit handle while collapsing peripheral chrome ──── */
@@ -23817,37 +23738,3 @@ button.llhr-chip { cursor: pointer; }
     --rv-floating-rail-width: var(--fw-performance-rail-width);
   }
 }
-
-
-/* Expanded reusable pad presentation: labels occupy the tile centre, with the
-   shortcut on its own line below. Slot color is a quiet wash, not a neon fill. */
-.rv-pads-section--expanded .rv-pad {
-  container-type: inline-size;
-  min-width: 0;
-  min-height: 94px;
-  padding: 16px 8px;
-  gap: 0;
-  background: color-mix(in srgb, var(--pad-color) 12%, var(--color-panel, #171e22));
-  border-color: color-mix(in srgb, var(--pad-color) 38%, transparent);
-}
-.rv-pads-section--expanded .rv-pad-label {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  color: rgba(232, 244, 248, 0.92);
-}
-.rv-pads-section--expanded .rv-pad-key {
-  position: absolute;
-  top: calc(50% + 24px);
-  color: color-mix(in srgb, var(--pad-color) 65%, #dce6e9);
-}
-.rv-pads-section--expanded .rv-pad--empty {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.07);
-  box-shadow: none;
-  opacity: 0.62;
-}
-.rv-pads-section--expanded .rv-pad--empty::before { background: transparent; }
-.rv-pads-section--expanded .rv-pad--empty .rv-pad-key { color: rgba(232, 244, 248, 0.4); }

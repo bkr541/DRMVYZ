@@ -725,6 +725,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const [openPoolId, setOpenPoolId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [imageSearch, setImageSearch] = useState('')
+  const [videoSearch, setVideoSearch] = useState('')
   const [modelSearch, setModelSearch] = useState('')
   const [debouncedModelSearch, setDebouncedModelSearch] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
@@ -786,7 +788,8 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const canDragMedia = capabilitySet.has('drag-media')
   const canMultiSelect = isManager && capabilitySet.has('multi-select')
   const canBrowseModels = isManager && capabilitySet.has('models') && !!onSelectModel
-  const hasGroupSearch = canBrowseModels && (['all', 'favorites', 'models'].includes(libraryFilter) || (libraryFilter === 'collections' && !!openCollectionId))
+  const hasVisualGroups = isManager && (['all', 'favorites', 'images', 'videos'].includes(libraryFilter) || (libraryFilter === 'collections' && !!openCollectionId))
+  const hasGroupSearch = hasVisualGroups || (canBrowseModels && libraryFilter === 'models')
   const canBrowsePools = (isManager || isCanvasMode) && capabilitySet.has('pools')
 
   const isReactMode = context === 'react'
@@ -812,12 +815,12 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   useEffect(() => { loadSavedTracksRef.current = loadSavedTracks }, [loadSavedTracks])
 
   const libraryQuery = useMemo<MediaLibraryQuery>(() => ({
-    search: debouncedSearch,
+    search: hasVisualGroups ? '' : debouncedSearch,
     filter: toServerFilter(libraryFilter),
     scope: isReactMode ? 'react' : 'all',
     collectionId: openCollectionId,
     sort: 'created_desc',
-  }), [debouncedSearch, isReactMode, libraryFilter, openCollectionId])
+  }), [debouncedSearch, hasVisualGroups, isReactMode, libraryFilter, openCollectionId])
 
   useEffect(() => {
     if (typeof setLibraryQuery === 'function' && typeof ensureLibraryLoaded === 'function') {
@@ -867,10 +870,18 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const filtered = useMemo(() => {
     const source = serverManaged ? queryItems : (isReactMode ? items.filter(isReactEligibleMedia) : items)
     const base = serverManaged ? source : source.filter(item => matchesMediaLibraryFilter(item, libraryFilter))
-    if (!searchActive) return base
+    if (hasVisualGroups || !searchActive) return base
     if (serverManaged && searchQuery.trim() === debouncedSearch) return base
     return base.filter(item => matchesSearch(item, searchQuery))
-  }, [debouncedSearch, isReactMode, items, libraryFilter, queryItems, searchActive, searchQuery, serverManaged])
+  }, [debouncedSearch, hasVisualGroups, isReactMode, items, libraryFilter, queryItems, searchActive, searchQuery, serverManaged])
+
+  useEffect(() => {
+    if (!hasVisualGroups || !hasMore || loading || refreshing || nextPageLoading || queryError) return
+    const searching = imageSearch.trim() || videoSearch.trim()
+    const missingType = (libraryFilter !== 'videos' && !filtered.some(item => item.type === 'image'))
+      || (libraryFilter !== 'images' && !filtered.some(item => item.type === 'video'))
+    if (searching || missingType) void loadNextPage?.()
+  }, [filtered, hasMore, hasVisualGroups, imageSearch, libraryFilter, loadNextPage, loading, nextPageLoading, queryError, refreshing, videoSearch])
 
   const filteredTracks = useMemo(() => {
     if (!searchActive) return savedTracks
@@ -942,9 +953,9 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
   const openCollectionItems = useMemo(() => {
     const raw = serverManaged && openCollectionId ? queryItems : (openCollectionId ? (itemsByCollection.get(openCollectionId) ?? []) : [])
     const base = isReactMode ? raw.filter(isReactEligibleMedia) : raw
-    if (!searchActive || (serverManaged && searchQuery.trim() === debouncedSearch)) return base
+    if (hasVisualGroups || !searchActive || (serverManaged && searchQuery.trim() === debouncedSearch)) return base
     return base.filter(item => matchesSearch(item, searchQuery))
-  }, [debouncedSearch, isReactMode, itemsByCollection, openCollectionId, queryItems, searchActive, searchQuery, serverManaged])
+  }, [debouncedSearch, hasVisualGroups, isReactMode, itemsByCollection, openCollectionId, queryItems, searchActive, searchQuery, serverManaged])
 
   const filteredCollections = useMemo(() => {
     let list = collections
@@ -1198,13 +1209,13 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     void loadNextPage?.()
   }, [loadNextPage])
 
-  const renderGrid = (mediaList: UploadedMedia[]) => {
+  const renderGrid = (mediaList: UploadedMedia[], ownsSelectionOrder = true) => {
     // Written directly during render (not a dependency-tracked effect) so
     // shift-click range-select always resolves against whichever list is
     // actually on screen right now -- the flat filtered grid or one expanded
     // collection -- without giving renderMediaCard's memoization a reason to
     // recompute per list.
-    visibleOrderedIdsRef.current = mediaList.map(item => item.id)
+    if (ownsSelectionOrder) visibleOrderedIdsRef.current = mediaList.map(item => item.id)
     return (
       <VirtualizedMediaCards
         items={mediaList}
@@ -1232,14 +1243,24 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
     </div>
   )
 
-  const renderVisualLibraryGroup = (content: ReactNode, enabled: boolean) => enabled ? (
-    <section className="mm-visual-library-group">
-      <Collapsible label="Images & Videos" icon={<AppIcon kind="image" size={15} />} headerAccessory={<span className="mm-model-count">Newest first</span>}>
-        {renderGroupSearch(searchQuery, setSearchQuery, 'Search images and videos')}
-        {content}
+  const renderVisualLibraryGroup = (content: ReactNode, enabled: boolean, mediaList = filtered) => {
+    if (!enabled) return content
+    const groups = [
+      { type: 'image', label: 'Images', icon: 'image', query: imageSearch, setQuery: setImageSearch },
+      { type: 'video', label: 'Videos', icon: 'play', query: videoSearch, setQuery: setVideoSearch },
+    ] as const
+    const visibleGroups = groups.filter(group => libraryFilter !== 'images' && libraryFilter !== 'videos' || libraryFilter === `${group.type}s`)
+      .map(group => ({ ...group, media: mediaList.filter(item => item.type === group.type && matchesSearch(item, group.query)) }))
+    visibleOrderedIdsRef.current = visibleGroups.flatMap(group => group.media.map(item => item.id))
+    return visibleGroups.map(group => <section key={group.type} className="mm-visual-library-group" aria-label={group.label}>
+      <Collapsible label={group.label} icon={<AppIcon kind={group.icon} size={15} />}>
+        {renderGroupSearch(group.query, group.setQuery, `Search ${group.label.toLowerCase()}`)}
+        {queryError ? <DrawerNotice tone="error" role="alert" title={`${group.label} unavailable`}>{queryError} <IconChipButton onClick={() => { void refreshLibrary?.() }}>Retry</IconChipButton></DrawerNotice> : null}
+        {(loading || refreshing) && !group.media.length ? <MediaLibrarySkeleton viewMode={viewMode} /> : group.media.length ? renderGrid(group.media, false) : <div className="vz-media-page-state">{group.query ? `No ${group.label.toLowerCase()} match "${group.query}".` : `No ${group.label.toLowerCase()} yet.`}</div>}
+        {hasMore && <IconChipButton disabled={nextPageLoading} onClick={() => { void loadNextPage?.() }}>{nextPageLoading ? 'Loading media…' : 'Load more media'}</IconChipButton>}
       </Collapsible>
-    </section>
-  ) : content
+    </section>)
+  }
 
   const renderTracksView = () => {
     if (tracksLoading && savedTracks.length === 0) {
@@ -1384,7 +1405,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
               </div>
             </div>
           ) : renderGrid(openCollectionItems)
-          ), canBrowseModels)}
+          ), isManager, openCollectionItems)}
         </>
       )
     }
@@ -1650,7 +1671,7 @@ export const MediaLibraryBrowser = memo(function MediaLibraryBrowser({
         ) : (
           renderGrid(filtered)
         )
-        ), canBrowseModels && ['all', 'favorites'].includes(libraryFilter))}
+        ), hasVisualGroups && libraryFilter !== 'collections')}
       </div>
     </>
   )

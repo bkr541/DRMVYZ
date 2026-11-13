@@ -322,7 +322,9 @@
 :root body [class].drm-info-popover__body > p { font: var(--type-dialog-copy); letter-spacing: normal; }
 
 /* Reusable preset thumbnail titles keep one role across engines and workspaces. */
-:root body .rv-preset-spotlight-name {
+:root body .rv-preset-spotlight-name,
+:root body .performance-pad .performance-pad-label,
+:root body .ll-pad-study--signal .ll-study-pad-label {
   font: 500 12px/1.22 var(--type-preset-name-family);
   letter-spacing: var(--type-preset-name-tracking);
   text-transform: uppercase;
@@ -376,3 +378,18 @@
 .rv-pad-key { font: var(--type-pad-shortcut); letter-spacing: .08em; }
 .rv-pads-section--expanded .rv-pad-label { font: var(--type-pad-label-expanded); }
 .rv-pads-section--expanded .rv-pad-key { font: var(--type-pad-shortcut-expanded); }
+
+/* Decorative pad shortcut: a background numeral rather than a field value. */
+.ll-pad-studies .ll-study-pad-key { font: 700 clamp(64px, 60cqi, 92px)/1 var(--type-preset-name-family); }
+
+/* Size the outlined numeral from the full study card width. */
+.ll-pad-study--signal .ll-study-pad-key { font-size: clamp(64px, calc((var(--ll-pad-width) - 14px) * .6), 92px); }
+
+/* Same outlined numeral as the approved Row 02, using the inner surface size. */
+.performance-pad .performance-pad-number { font: 700 clamp(64px, calc((100cqw - 12px) * .6), 92px)/1 var(--type-preset-name-family); letter-spacing: normal; }
+
+/* Compact Accent Rail pads share the Lab study's label and watermark roles. */
+:root body .performance-pad[data-density='compact'] .performance-pad-label,
+:root body .ll-pad-study--compact .ll-study-pad-label { font: var(--type-pad-label); letter-spacing: .05em; color: #fff; }
+:root body .performance-pad[data-density='compact'] .performance-pad-number,
+:root body .ll-pad-study--compact .ll-study-pad-key { font: 700 32px/1 var(--type-preset-name-family); letter-spacing: normal; }
