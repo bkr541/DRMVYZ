@@ -8,8 +8,8 @@ remaining phases; that human judgment remains an explicit release gate.
 
 ## Phase 6: Auto Performance
 
-Auto Performance defaults OFF. Its sole auto-owned domain is temporary pattern
-substitution: a fresh build performs Dark Windows for at most 4 seconds (ending
+Auto Performance defaults OFF. It enables shared musical choreography and
+Director enhancement alongside temporary pattern substitution: a fresh build performs Dark Windows for at most 4 seconds (ending
 earlier if the build ends); a fresh drop performs Prism Relay for 1.2 seconds.
 Drop takes priority when both moments qualify. The canonical base Pattern Change
 controller continues progressing while the substitute is visible; its current
@@ -21,10 +21,22 @@ separately qualifying event can authorize another temporary performance. Auto
 OFF, source/analysis reset, seek/loop and re-entry clear overrides. Paused time
 does not advance their expiration; manual OFF while paused restores base at once.
 
-Choreography, Music Reactivity, Pattern Change and Auto Performance are separate
-permissions. Choreography OFF removes modulation; it does not silently change
-explicit Auto Performance or Pattern Change settings. Colors, geometry, camera,
-brightness ceilings and finishing remain user-owned in every mode.
+The production preset has one Auto Performance permission for the eight musical
+choreography routes, four Director routes and temporary pattern performances.
+The former Choreography control is removed; its module input is bound directly
+to Auto Performance, so old saved choreography values cannot independently gate
+the result. OFF clears musical modulation and temporary overrides while the
+authored base animation continues. Music Reactivity controls modulation strength;
+Director Influence controls significance enhancement. BPM Sync and Pattern Change
+remain independent. Colors, geometry, camera, brightness ceilings and finishing
+remain user-owned. Historical phase-four/five review presets retain their
+original separate gate.
+
+The old choreography parameter remains hidden solely so existing saved states
+restore successfully. Its value has no runtime authority. Merge validation:
+16 focused production-wiring, saved-state, choreography-gate, Director and
+temporary-pattern tests passed, along with focused ESLint. The running Inspector
+was checked for the single Auto Performance control; live music was not auditioned.
 
 ## Phase 7: finishing
 

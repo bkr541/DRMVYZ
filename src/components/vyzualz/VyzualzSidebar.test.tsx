@@ -97,10 +97,10 @@ describe('VyzualzSidebar workspace navigation', () => {
 
     const navItems = [...container.querySelectorAll<HTMLElement>('.az-nav .az-nav-item')]
     const labels = navItems.map(item => item.getAttribute('aria-label'))
-    expect(labels).toEqual(['React', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
+    expect(labels).toEqual(['React', 'Performance Manager', 'Preset Manager', 'Show Manager', 'Lyric Manager', 'Media Manager'])
     expect(labels).not.toContain('Visualizer')
     expect(navItems.map(item => item.querySelector('svg')?.getAttribute('data-app-icon'))).toEqual([
-      'navReact', 'navPreset', 'navShow', 'navLyrics', 'navMedia',
+      'navReact', 'navPerformance', 'navPreset', 'navShow', 'navLyrics', 'navMedia',
     ])
     expect(labels.indexOf('Media Manager')).toBe(labels.indexOf('Lyric Manager') + 1)
 

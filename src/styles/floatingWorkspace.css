@@ -163,31 +163,7 @@
   margin-left: auto;
 }
 
-:is(.fw-layout-lab-launcher, .fw-mobile-preview-launcher) {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--az-border);
-  border-radius: 8px;
-  background: var(--color-panel, #101820);
-  color: var(--az-text);
-  box-shadow: 0 2px 8px #0006;
-  cursor: pointer;
-}
-
-:is(.fw-layout-lab-launcher, .fw-mobile-preview-launcher):focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* A 10px gap from the existing 36px Layout Lab key. */
-.fw-mobile-preview-launcher { right: 62px; }
-.fw-mobile-preview-blocked { position: fixed; right: 16px; bottom: 62px; z-index: 51; max-width: min(320px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--az-border); border-radius: var(--radius-group); background: var(--color-panel, #101820); color: var(--az-text); font: var(--type-field-value); }
+.fw-mobile-preview-blocked { position: fixed; left: calc(var(--vz-sidebar-width, 72px) + 20px); bottom: 16px; z-index: 51; max-width: min(320px, calc(100vw - 32px)); padding: 12px; border: 1px solid var(--az-border); border-radius: var(--radius-group); background: var(--color-panel, #101820); color: var(--az-text); font: var(--type-field-value); }
 
 /* React and Preset Manager consume the same responsive side-window measurement. */
 @media (max-width: 1100px) {

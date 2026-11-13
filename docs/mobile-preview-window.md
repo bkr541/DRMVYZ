@@ -1,8 +1,10 @@
 # Mobile Preview window
 
-The floating phone button immediately left of Layout Lab opens **DRMVYZ — Mobile
+The iPhone launcher sits in the lower-left sidebar, below Layout Lab and directly above the expand/collapse control.
+
+The sidebar phone button opens **DRMVYZ — Mobile
 Preview**, a resizable desktop window initially requesting **1200 × 1000 content
-pixels**. Both floating buttons retain the same size, baseline and 10px gap.
+pixels**. Both launchers use the sidebar's standard utility-button sizing and spacing.
 
 A left navigation bar contains four selectable MVP concepts, each with
 navigable Presets, Pads, Controls and Cast screens:

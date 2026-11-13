@@ -106,8 +106,7 @@ cluster, column and caption bounds across all five workspaces at 1600, 1280 and
 
 The left `WorkspaceRail` owns contextual source and setup surfaces.
 
-Layout Lab opens from a single floating launcher at the bottom-right of the
-application frame. It now opens an empty, isolated canvas with no mockups, controls, production component imports, or mirrored application styles.
+Layout Lab and Mobile Preview launchers sit in the lower-left sidebar, immediately above its expand/collapse control. Layout Lab opens an isolated workspace with seven renameable tabs and empty content panels. Tab labels persist locally against permanent IDs; no production feature components or application styles are mirrored. See [Layout Lab tab workspace](layout-lab-design-workbench.md).
 
 The Engine dropdown shows the current engine in its trigger and lists the
 other engines in a popover. The popover dims the viewport around the trigger

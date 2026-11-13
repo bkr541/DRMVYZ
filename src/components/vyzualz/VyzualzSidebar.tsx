@@ -1,5 +1,5 @@
 import { AppIcon } from '../shared/icons/AppIcon'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
 import type { AppPageId } from '../../stores/pageActivityStore'
@@ -12,6 +12,7 @@ type Props = {
   compact?: boolean
   appView?: AppView
   onAppViewChange?: (v: AppView) => void
+  utilityControls?: ReactNode
 } & (
   | { variant?: 'legacy'; collapsed?: never; onCollapsedChange?: never }
   | { variant: 'floating'; collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void }
@@ -174,6 +175,7 @@ export function VyzualzSidebar(props: Props) {
         </div>
       </div>
       <div className="az-sidebar-account">
+        {props.utilityControls}
         {props.variant === 'floating' && <button
           type="button"
           className="fw-sidebar-toggle az-sidebar-utility"

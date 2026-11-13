@@ -83,6 +83,13 @@ export function ApplicationWorkspaceFrame({
                 onCollapsedChange={onSidebarCollapsedChange}
                 appView={appView}
                 onAppViewChange={onAppViewChange}
+                utilityControls={<>
+                  <button type="button" className="fw-layout-lab-launcher az-sidebar-utility" aria-label="Layout Lab"
+                    title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
+                    <AppIcon kind="sliders" size={20} />
+                  </button>
+                  <MobilePreviewLauncher />
+                </>}
               />
             </WorkspaceRegion>
             <WorkspaceRegion slot="stage" className="fw-app-content">
@@ -90,11 +97,6 @@ export function ApplicationWorkspaceFrame({
             </WorkspaceRegion>
           </div>
         </div>
-        <MobilePreviewLauncher />
-        <button type="button" className="fw-layout-lab-launcher" aria-label="Layout Lab"
-          title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
-          <AppIcon kind="sliders" size={20} />
-        </button>
         {layoutLabOpen && <LayoutLabModal onClose={() => setLayoutLabOpen(false)} />}
       </FloatingWorkspaceFrame>
     </HeaderSlotContext.Provider>

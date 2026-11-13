@@ -81,7 +81,7 @@ export function MobilePreviewLauncher() {
   }
 
   return <>
-    <button type="button" className="fw-mobile-preview-launcher" aria-label="Mobile Preview" title="Mobile Preview — iPhone 16" aria-haspopup="dialog" onClick={open}>
+    <button type="button" className="fw-mobile-preview-launcher az-sidebar-utility" aria-label="Mobile Preview" title="Mobile Preview — iPhone 16" aria-haspopup="dialog" onClick={open}>
       <AppIcon kind="mobilePreview" size={20} />
     </button>
     {blocked && <div className="fw-mobile-preview-blocked" role="alert">The preview window was blocked. Allow pop-up windows, then press Mobile Preview again.</div>}

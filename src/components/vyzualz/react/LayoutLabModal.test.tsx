@@ -16,7 +16,7 @@ afterEach(async () => {
 })
 
 describe('isolated Layout Lab', () => {
-  it('opens an empty canvas without production styles and keeps popup close controls', async () => {
+  it('opens isolated pad studies and keeps popup close controls', async () => {
     const popupDocument = document.implementation.createHTMLDocument()
     const events = new EventTarget()
     const close = vi.fn()
@@ -33,9 +33,12 @@ describe('isolated Layout Lab', () => {
       await act(async () => root!.render(<LayoutLabModal onClose={onClose} />))
       const canvas = popupDocument.querySelector('main[aria-label="Layout Lab canvas"]')!
       expect(canvas).not.toBeNull()
-      expect(canvas.childElementCount).toBe(0)
-      expect(canvas.textContent).toBe('')
-      expect(popupDocument.querySelector('style, link[rel="stylesheet"], button, input, canvas, video, audio')).toBeNull()
+      expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(7)
+      expect(canvas.querySelectorAll('[data-pad-study]')).toHaveLength(5)
+      expect([...canvas.querySelectorAll('[role="tabpanel"]')].slice(1).every(panel => panel.childElementCount === 0)).toBe(true)
+      expect(popupDocument.head.querySelector('style, link[rel="stylesheet"]')).toBeNull()
+      expect(popupDocument.querySelector('style')?.textContent).not.toContain('main { display: none; }')
+      expect(popupDocument.querySelector('canvas, video, audio')).toBeNull()
       events.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
       expect(close).toHaveBeenCalledOnce()
       events.dispatchEvent(new Event('beforeunload'))

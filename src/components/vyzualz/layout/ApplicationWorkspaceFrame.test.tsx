@@ -60,7 +60,7 @@ describe('application floating chrome (all six workspaces)', () => {
     expect(APP_VIEWS.every(view => FLOATING_APP_VIEWS[view])).toBe(true)
   })
 
-  it('opens and closes Layout Lab from the floating launcher', async () => {
+  it('opens and closes Layout Lab from the sidebar launcher', async () => {
     await render(<Harness />)
     await act(async () => host.querySelector<HTMLButtonElement>('.fw-layout-lab-launcher')!.click())
     const dialog = host.querySelector('[role="dialog"][aria-label="Layout Lab"]')!
@@ -79,7 +79,10 @@ describe('application floating chrome (all six workspaces)', () => {
     expect(frame?.querySelectorAll('.fw-app-navigation .fw-sidebar-toggle')).toHaveLength(1)
     expect(frame?.querySelector('.fw-app-header .fw-sidebar-toggle')).toBeNull()
     expect(frame?.querySelectorAll('[aria-label="Layout Lab"]')).toHaveLength(1)
-    expect(frame?.querySelector('.fw-layout-lab-launcher')?.closest('aside')).toBeNull()
+    const lab = frame?.querySelector('.az-sidebar-account > .fw-layout-lab-launcher')
+    expect(lab).not.toBeNull()
+    expect(lab?.nextElementSibling?.classList.contains('fw-mobile-preview-launcher')).toBe(true)
+    expect(lab?.nextElementSibling?.nextElementSibling?.classList.contains('fw-sidebar-toggle')).toBe(true)
     expect(frame?.querySelector('.fw-app-header [data-app-icon="brand"]')).toBeNull()
     expect(frame?.querySelector('.fw-app-header')?.textContent).not.toContain('DRMVYZ')
     expect(frame?.querySelectorAll('.az-sidebar')).toHaveLength(1)

@@ -7,6 +7,13 @@ human visual/musical acceptance pending. See FINAL_HANDOFF.md for Auto
 Performance, finishing, production integration and final validation. PHASE_5.md
 and PHASE_4.md specify the underlying meaning/choreography bounds.
 
+Master Controls ends with BPM Sync followed by Auto Performance, after Master
+Intensity. This display order is authored in the production preset manifest;
+Auto Performance now also owns musical choreography and Director enhancement.
+The separate Choreography control is removed from the production preset; its
+former module input and every choreography route share the Auto Performance
+parameter. OFF removes those musical contributions while base animation continues.
+
 ## Reference layout and geometry
 
 Reference: `/Users/kodyrobinson/Desktop/Glassfall.mov`, approximately 11.1 seconds,
@@ -48,7 +55,8 @@ Lazy GLTF loading aborts/cleans up safely; failures surface diagnostics.
 Each color independently affects its named visible role. In the phase 3 review, Pattern Change and Trigger are active. Trigger is
 conditional on Pattern Change. The canonical 11 options are reused unchanged.
 Music Reactivity independently controls bounded audio responses. Phase 4 adds
-a hard Choreography permission and shared smoothing/event envelopes. Phase 5
+a historical Choreography permission and shared smoothing/event envelopes.
+In the current production preset, Auto Performance owns that permission. Phase 5
 adds user-owned Director Influence without automatic pattern/camera/color control.
 Auto Performance and finishing are now implemented; FINAL_HANDOFF.md defines
 their scope and authority. The entry remains explicitly available for review.
