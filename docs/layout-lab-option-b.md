@@ -1,5 +1,7 @@
 # Layout Lab Option B — Signal Desk
 
+> Archived: Layout Lab has been cleared to an isolated blank canvas. The studies and their implementation files described below have been removed.
+
 Option B now has a dedicated presentation architecture in `src/components/vyzualz/react/layoutLab/optionB/`. Select **B** in the existing Layout Lab selector. The shared selector and lazy-mount/state-retention mechanism remain in `LayoutLabDesignWorkbench`; C–E still render their original React View frame, and A still renders its existing Instrument Rack.
 
 ## Design rationale

@@ -1,5 +1,7 @@
 # Layout Lab application icon review
 
+> Archived: Layout Lab has been cleared to an isolated blank canvas. The studies and their implementation files described below have been removed.
+
 The Cinema 2.0 Layout Lab mockups have been cleared, including the middle visualizer icon gallery and concept preview. The standalone gallery source remains available for reference. Previously, **Layout Lab → Cinema 2.0 → Icons** opened the gallery in the middle visualizer. The review sheet contains 336 labeled entries using 140 original SVG drawings, arranged in five columns. Labels sit above the artwork and wrap rather than truncate. Search matches labels and screens. **Concept preview** retains the existing filmstrip preview.
 
 ## Style reference

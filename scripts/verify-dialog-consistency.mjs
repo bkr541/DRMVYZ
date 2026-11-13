@@ -16,7 +16,6 @@ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__dialog-c
 await page.evaluate(async()=>{
 const Refresh=(await import('/@react-refresh')).default;Refresh.injectIntoGlobalHook(globalThis);globalThis.$RefreshReg$=()=>{};globalThis.$RefreshSig$=()=>type=>type;globalThis.__vite_plugin_react_preamble_installed__=true
 for(const css of ['styles.css','styles/appearance.css','styles/vyzualz.css','styles/reactView.css','styles/lyricManager.css','styles/typography.css'])await import(`/src/${css}`)
-await import('/src/components/vyzualz/react/layoutLab/optionB/optionB.css')
 const R=await import('/node_modules/.vite/deps/react.js'),React=R.default??R,C=await import('/node_modules/.vite/deps/react-dom_client.js'),Client=C.default??C
 const {ConfirmDialog}=await import('/src/components/vyzualz/react/controls/ConfirmDialog.tsx')
 const {IconChipButton}=await import('/src/components/vyzualz/react/controls/IconChipButton.tsx')

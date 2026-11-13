@@ -31,9 +31,6 @@ const {ReactGlobalOutputControls}=await import('/src/components/vyzualz/react/Re
 const {ReactEngineBrowser}=await import('/src/components/vyzualz/react/ReactEngineBrowser.tsx')
 const {ReactHeaderStatusCluster}=await import('/src/components/vyzualz/react/ReactHeaderStatusCluster.tsx')
 const e=React.createElement,app=Client.createRoot(globalThis.document.querySelector('#root'))
-const {OptionEHeader}=await import('/src/components/vyzualz/react/layoutLab/optionE/OptionEChrome.tsx')
-await import('/src/components/vyzualz/react/layoutLab/optionE/optionE.css')
-const referenceNode=globalThis.document.createElement('div');referenceNode.className='ll-design-workbench oe-root';referenceNode.style.cssText='position:fixed;left:-10000px;width:1600px';globalThis.document.body.append(referenceNode);const referenceRoot=Client.createRoot(referenceNode);referenceRoot.render(e(OptionEHeader));
 function Header({view}) {
 if(view==='presetManager')return null
 if(view==='lyrics')return e(LyricManagerHeader,{isSaving:false,saveStatus:'saved',lyricsDisplayEnabled:false,hasDocument:true,dirty:false,onToggleLyricsDisplay:()=>{},onSave:()=>{},onSaveAndMakeActive:()=>{}})
@@ -46,7 +43,7 @@ return e('header',{className:headerClass},e(HeaderControlGroup,{label:`${view} c
 }
 function Harness(){const[view,setView]=React.useState('react'),[collapsed,setCollapsed]=React.useState(true)
 return e(AudioEngineProvider,null,e(ApplicationWorkspaceFrame,{appView:view,onAppViewChange:setView,sidebarCollapsed:collapsed,onSidebarCollapsedChange:setCollapsed},e(NotificationPageProvider,{value:'react'},e(ApplicationHeaderControls,null,e(Header,{view})),e('main',null,view))))}
-app.render(e(Harness));globalThis.profileCheck={dispose:()=>{app.unmount();referenceRoot.unmount();referenceNode.remove()},notify:(page,title)=>notify(page,{tone:'warning',title,message:'Navigation notification check'}),unread:page=>useNotificationStore.getState().events[page].filter(e=>e.unread).length}
+app.render(e(Harness));globalThis.profileCheck={dispose:()=>app.unmount(),notify:(page,title)=>notify(page,{tone:'warning',title,message:'Navigation notification check'}),unread:page=>useNotificationStore.getState().events[page].filter(e=>e.unread).length}
 })
 const button=page.getByRole('button',{name:'Profile and settings',exact:true})
 await button.waitFor();await page.evaluate(()=>globalThis.document.fonts.ready)
@@ -75,10 +72,10 @@ check(geometry.font==='11px'&&geometry.weight==='600',`React ${width}px: engine 
 const readouts=await page.evaluate(()=>{
 const shape=el=>{const s=globalThis.getComputedStyle(el);return{height:s.height,border:s.borderLeftWidth,padding:s.padding,background:s.backgroundColor,borderTop:s.borderTopWidth}}
 const font=el=>{const s=globalThis.getComputedStyle(el);return{size:s.fontSize,weight:s.fontWeight,tracking:s.letterSpacing}}
-return{production:[...globalThis.document.querySelectorAll('.rv-header-status .vz-header-readout')].map(shape),reference:shape(globalThis.document.querySelector('.oe-readout')),label:font(globalThis.document.querySelector('.vz-header-readout-label')),referenceLabel:font(globalThis.document.querySelector('.oe-readout-label')),primary:font(globalThis.document.querySelector('.vz-header-readout-primary')),referencePrimary:font(globalThis.document.querySelector('.oe-readout strong'))}
+return{production:[...globalThis.document.querySelectorAll('.rv-header-status .vz-header-readout')].map(shape),label:font(globalThis.document.querySelector('.vz-header-readout-label')),primary:font(globalThis.document.querySelector('.vz-header-readout-primary'))}
 })
-check(readouts.production.length===3&&readouts.production.every(style=>JSON.stringify(style)===JSON.stringify(readouts.reference)),`React: three readout surfaces and dividers match Option E (${JSON.stringify(readouts)})`)
-check(JSON.stringify(readouts.label)===JSON.stringify(readouts.referenceLabel)&&JSON.stringify(readouts.primary)===JSON.stringify(readouts.referencePrimary),'React: readout typography matches Option E')
+check(readouts.production.length===3&&readouts.production.every(style=>JSON.stringify(style)===JSON.stringify(readouts.production[0])),`React: three readout surfaces and dividers match each other (${JSON.stringify(readouts)})`)
+check(readouts.label.size==='8px'&&readouts.primary.size==='11px','React: readout typography uses shared label and primary sizes')
 const trigger=page.getByTitle('Choose React engine',{exact:true})
 await trigger.click()
 const menu=page.getByRole('listbox',{name:'React visual engines'})

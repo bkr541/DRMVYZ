@@ -107,7 +107,7 @@ cluster, column and caption bounds across all five workspaces at 1600, 1280 and
 The left `WorkspaceRail` owns contextual source and setup surfaces.
 
 Layout Lab opens from a single floating launcher at the bottom-right of the
-application frame.
+application frame. It now opens an empty, isolated canvas with no mockups, controls, production component imports, or mirrored application styles.
 
 The Engine dropdown shows the current engine in its trigger and lists the
 other engines in a popover. The popover dims the viewport around the trigger

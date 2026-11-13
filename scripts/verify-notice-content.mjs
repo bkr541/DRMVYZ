@@ -18,7 +18,6 @@ const Refresh=(await import('/@react-refresh')).default;Refresh.injectIntoGlobal
 for(const css of ['styles.css','styles/appearance.css','styles/vyzualz.css','styles/reactView.css','styles/lyricManager.css','styles/typography.css'])await import(`/src/${css}`)
 const R=await import('/node_modules/.vite/deps/react.js'),React=R.default??R,C=await import('/node_modules/.vite/deps/react-dom_client.js'),Client=C.default??C
 const {LyricPreviewPanel}=await import('/src/features/lyrics/components/LyricPreviewPanel.tsx')
-const {LayoutLabNoticeTab}=await import('/src/components/vyzualz/react/layoutLab/LayoutLabNoticeTab.tsx')
 const {NoticeCard}=await import('/src/components/vyzualz/react/controls/NoticeCard.tsx')
 const {HeaderNotificationsButton}=await import('/src/components/vyzualz/shared/HeaderNotificationsButton.tsx')
 const {NotificationPageProvider,notify}=await import('/src/stores/notificationStore.ts')
@@ -26,7 +25,6 @@ const e=React.createElement,app=Client.createRoot(globalThis.document.querySelec
 const render=mode=>{
 let content
 if(mode==='lyrics')content=e(NotificationPageProvider,{value:'lyric-manager'},e(HeaderNotificationsButton,{page:'lyric-manager'}),e(LyricPreviewPanel,{cues:[],document:null}))
-else if(mode==='gallery')content=e(LayoutLabNoticeTab)
 else content=['info','success','warning','error'].flatMap(tone=>[undefined,'   ',false,[],e('button',{key:'retry'},'Retry')].map((body,index)=>e(NoticeCard,{key:`${tone}-${index}`,title:index===0?'':`${tone} state ${index}`,tone},body)))
 app.render(e('div',{style:{padding:24,display:'grid',gap:12}},content))
 }
@@ -50,9 +48,9 @@ await page.screenshot({path:resolve(out,'empty-document-drawer.png')})
 await page.evaluate(()=>globalThis.noticeCheck.events())
 await page.waitForFunction(()=>globalThis.document.querySelectorAll('.dv-notice').length===5)
 await validate('empty-body notification events in all four tones')
-for(const mode of ['gallery','matrix']){
+for(const mode of ['matrix']){
 await page.evaluate(mode=>globalThis.noticeCheck.render(mode),mode)
-await page.waitForSelector(mode==='gallery'?'[data-layout-lab-notices]':'.dv-notice[data-tone="error"]')
+await page.waitForSelector('.dv-notice[data-tone="error"]')
 await validate(mode)
 }
 if(errors.length)throw new Error(errors.join('\n'))

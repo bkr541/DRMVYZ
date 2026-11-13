@@ -1,5 +1,7 @@
 # Layout Lab Option F — Studio Trace
 
+> Archived: Layout Lab has been cleared to an isolated blank canvas. The studies and their implementation files described below have been removed.
+
 Option F owns a dedicated presentation (`optionF/`), independent of A–E, G–K, the Layout Lab selector and production. G–K keep the original base styling; F no longer does.
 
 ## References and what they contributed

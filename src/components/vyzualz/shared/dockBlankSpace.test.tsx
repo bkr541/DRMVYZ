@@ -1,50 +1,35 @@
 // @vitest-environment jsdom
-;(globalThis as Record<string, unknown>)['IS_REACT_ACT_ENVIRONMENT'] = true
+import { afterEach, describe, expect, it } from 'vitest'
+import { isDockBlankSpace } from './dockBlankSpace'
 
-import React, { act } from 'react'
-import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { TemplateAudioDockMockup } from '../react/layoutLab/TemplateAudioDockMockup'
+afterEach(() => document.body.replaceChildren())
 
-let container: HTMLDivElement
-let root: ReturnType<typeof createRoot>
-
-beforeEach(() => {
-  container = document.createElement('div')
-  document.body.appendChild(container)
-  root = createRoot(container)
-})
-
-afterEach(async () => {
-  await act(async () => root.unmount())
-  container.remove()
-})
-
-const dock = () => container.querySelector<HTMLElement>('.az-dock')!
-const collapsed = () => dock().dataset.collapsed === 'true'
-
-describe('audio dock: empty space toggles expand / collapse', () => {
-  it('has no collapse button', async () => {
-    await act(async () => root.render(<TemplateAudioDockMockup />))
-    expect(container.querySelector('.vz-dock-density-toggle')).toBeNull()
+describe('audio dock empty-space detection', () => {
+  it('recognizes the dock and its structural wrappers', () => {
+    const dock = document.createElement('section')
+    document.body.append(dock)
+    expect(isDockBlankSpace(dock, dock)).toBe(true)
+    for (const className of ['vz-dock-region', 'vz-dock-card', 'vz-dock-left-body', 'vz-dock-right-main', 'vz-dock-right-btns']) {
+      const wrapper = document.createElement('div')
+      wrapper.className = className
+      dock.append(wrapper)
+      expect(isDockBlankSpace(wrapper, dock)).toBe(true)
+    }
   })
 
-  it('collapses and expands when empty dock space is clicked', async () => {
-    await act(async () => root.render(<TemplateAudioDockMockup />))
-    expect(collapsed()).toBe(false)
-    await act(async () => dock().click())
-    expect(collapsed()).toBe(true)
-    await act(async () => container.querySelector<HTMLElement>('.vz-dock-card')!.click())
-    expect(collapsed()).toBe(false)
-    await act(async () => container.querySelector<HTMLElement>('.vz-dock-region')!.click())
-    expect(collapsed()).toBe(true)
-  })
-
-  it('does not toggle when a control or content inside the dock is clicked', async () => {
-    await act(async () => root.render(<TemplateAudioDockMockup />))
-    await act(async () => container.querySelector<HTMLElement>('.az-play-btn')!.click())
-    await act(async () => container.querySelector<HTMLElement>('.vz-dock-track-title')!.click())
-    await act(async () => container.querySelector<HTMLElement>('.vz-dock-play-slot')!.click())
-    expect(collapsed()).toBe(false)
+  it('excludes controls, content, non-elements and wrappers outside the dock', () => {
+    const dock = document.createElement('section')
+    document.body.append(dock)
+    for (const tag of ['button', 'input', 'span', 'canvas']) {
+      const content = document.createElement(tag)
+      dock.append(content)
+      expect(isDockBlankSpace(content, dock)).toBe(false)
+    }
+    const outside = document.createElement('div')
+    outside.className = 'vz-dock-card'
+    document.body.append(outside)
+    expect(isDockBlankSpace(outside, dock)).toBe(false)
+    expect(isDockBlankSpace(null, dock)).toBe(false)
+    expect(isDockBlankSpace(document.createTextNode('Track title'), dock)).toBe(false)
   })
 })

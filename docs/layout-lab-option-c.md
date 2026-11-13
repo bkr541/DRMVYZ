@@ -1,5 +1,7 @@
 # Layout Lab Option C — Afterglow
 
+> Archived: Layout Lab has been cleared to an isolated blank canvas. The studies and their implementation files described below have been removed.
+
 Option C now owns a new presentation architecture. The supplied image informed broad graphite surfaces, circular instruments, quiet lighting and restrained orange/teal signals. The redesign changes composition, navigation, media geometry, control construction, editor organization and the audio dock; it is independent of A, B, D, E and the production interface.
 
 ## Design rationale and research

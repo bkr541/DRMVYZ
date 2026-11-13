@@ -1,4 +1,4 @@
-import type { AppIconKind } from './AppIconGlyph'
+import type { AppIconKind } from '../AppIcon'
 
 export interface AppIconEntry {
   id: string

@@ -5,8 +5,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppIcon, AppIconAppearanceContext } from './AppIcon'
-import { AppIconGlyph } from '../../vyzualz/react/layoutLab/AppIconGlyph'
-import { APP_ICON_INVENTORY } from '../../vyzualz/react/layoutLab/appIconInventory'
+import { APP_ICON_INVENTORY } from './__fixtures__/appIconInventory'
 
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
@@ -30,10 +29,10 @@ describe('approved production icons', () => {
     expect(study.querySelector('path')?.getAttribute('d')).not.toBe(production.querySelector('path')?.getAttribute('d'))
   })
 
-  it('uses the same artwork in production and the review gallery for every inventoried icon', async () => {
+  it('preserves artwork across sizes for every inventoried production icon', async () => {
     const kinds = [...new Set(APP_ICON_INVENTORY.map(icon => icon.kind))]
     await act(async () => root.render(<>{kinds.map(kind => (
-      <div key={kind}><AppIcon kind={kind} /><AppIconGlyph kind={kind} /></div>
+      <div key={kind}><AppIcon kind={kind} /><AppIcon kind={kind} size={36} /></div>
     ))}</>))
     for (const pair of container.children) {
       const [production, gallery] = pair.querySelectorAll('svg')

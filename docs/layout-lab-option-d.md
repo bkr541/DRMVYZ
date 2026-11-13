@@ -1,5 +1,7 @@
 # Layout Lab Option D — Tilework
 
+> Archived: Layout Lab has been cleared to an isolated blank canvas. The studies and their implementation files described below have been removed.
+
 Option D owns a new presentation architecture. It is independent of A, B, C and E, of the Layout Lab selector, and of the production interface. It is the same disconnected fixture study as the other options: no production store, audio decoder, output controller or renderer is touched.
 
 ## Reference analysis
