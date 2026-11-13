@@ -436,7 +436,7 @@ describe('Dropdown menu search', () => {
 describe('ancestor-bound dropdown positioning', () => {
   afterEach(() => vi.restoreAllMocks())
   it.each([{ triggerTop: 260, placement: 'above' }, { triggerTop: 75, placement: 'below' }])('keeps a $placement menu inside its window', ({ triggerTop, placement }) => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.hasAttribute('data-test-boundary')) return { left: 20, top: 40, right: 340, bottom: 340, width: 320, height: 300 } as DOMRect
       if (this.getAttribute('role') === 'combobox') return { left: 45, top: triggerTop, right: 305, bottom: triggerTop + 30, width: 260, height: 30 } as DOMRect
       return { left: 0, top: 0, right: 260, bottom: 420, width: 260, height: 420 } as DOMRect
