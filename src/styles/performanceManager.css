@@ -49,3 +49,8 @@
 .pfm-engine-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 /* Keep the shared poster content legible when both narrow rails are expanded. */
 .pfm-root .rv-preset-card.rv-preset-spotlight-card--poster { min-height: 64px; }
+
+.pfm-pad-details { display: grid; gap: 12px; margin: 0 0 16px; }
+.pfm-pad-details > div { display: flex; justify-content: space-between; gap: 16px; }
+.pfm-pad-details dt { color: var(--color-text-secondary); }
+.pfm-pad-details dd { margin: 0; text-align: right; overflow-wrap: anywhere; }

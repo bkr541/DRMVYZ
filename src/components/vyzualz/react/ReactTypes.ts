@@ -3516,6 +3516,8 @@ export function createDefaultLaserDmxBeamMatrixSettings(): LaserDmxBeamMatrixSet
 }
 
 export interface ReactPerformancePad {
+  /** An explicitly chosen color overrides the default slot palette. */
+  colorAssigned?: boolean
   /** Explicit user links take precedence over engine contextual actions. */
   assignmentOverridesAction?: boolean
   id: string

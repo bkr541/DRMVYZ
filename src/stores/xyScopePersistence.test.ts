@@ -35,13 +35,14 @@ describe('Sound Drawing XY store and persistence contract', () => {
     expect(settings.parameters.trigger).toBe('bar')
   })
 
-  it('persists the word, font and every value as project data and restores them', () => {
-    useReactStore.getState().setXyScopeSettings({ text: 'WILDFLY', fontId: 'font-9', presetId: 'storm', parameters: { ...DEFAULT_XY_SCOPE_SETTINGS.parameters, trail: 200 } })
+  it('persists text, SVG selection, processing and every value as project data and restores them', () => {
+    useReactStore.getState().setXyScopeSettings({ text: 'WILDFLY', fontId: 'font-9', sourceMode: 'svg', svgMediaId: 'uploaded-logo', svgProcessing: 'segments', presetId: 'storm', parameters: { ...DEFAULT_XY_SCOPE_SETTINGS.parameters, trail: 200, bassResponse: .4 } })
     const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
     expect(REACT_PROJECT_STATE_KEYS).toContain('xyScopeSettings')
     expect(persisted.xyScopeSettings).toMatchObject({ text: 'WILDFLY', fontId: 'font-9', presetId: 'storm' })
     const restored = mergeReactStoreState(persisted, useReactStore.getState())
-    expect(restored.xyScopeSettings.text).toBe('WILDFLY')
+    expect(restored.xyScopeSettings).toMatchObject({ text: 'WILDFLY', fontId: 'font-9', sourceMode: 'svg', svgMediaId: 'uploaded-logo', svgProcessing: 'segments' })
+    expect(restored.xyScopeSettings.parameters.bassResponse).toBe(.4)
     expect(restored.xyScopeSettings.parameters.trail).toBe(200)
   })
 

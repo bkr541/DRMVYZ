@@ -209,6 +209,9 @@ export function resampleXyScopeContour(contour: readonly number[], spacing: numb
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 export interface XyScopeGlyphGeometry {
+  /** Omitted for font contours, which are closed. SVG strokes may be open. */
+  closed?: readonly boolean[]
+  drawMode?: 'outline' | 'segments' | 'points'
   character: string
   /** Letter centre, in px from the stage centre (x) — letters share one baseline so y is 0. */
   centerX: number

@@ -5,6 +5,7 @@
 // Each pattern performs the word continuously. Pattern Change only steps between
 // routines through the same event controller Cinema 2.0 uses.
 
+import { buildXyScopeSvgLayout, type XyScopeSvgSource } from './XyScopeSvg'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { StereoScopeFrame } from '../../../../audio/scope/scopeTypes'
 import { Cinema2MainframePatternController } from '../../cinema2/modules/mainframe/Cinema2MainframePatternController'
@@ -69,6 +70,7 @@ export class XyScopeRuntime {
   private params: XyScopeResolvedParameters | null = null
   private font: XyScopeFontSource = getDefaultXyScopeFont()
   private layout: XyScopeLayout = EMPTY_XY_SCOPE_LAYOUT
+  private svgSource: XyScopeSvgSource | null = null
   private layoutKey = ''
   private buffers: XyScopePointBuffers[] = []
   private flashes: number[] = []
@@ -92,7 +94,8 @@ export class XyScopeRuntime {
     this.beam = new XyScopeBeamRenderer(canvas)
   }
 
-  setSettings(settings: XyScopeSettings, font: XyScopeFontSource | null): void {
+  setSettings(settings: XyScopeSettings, font: XyScopeFontSource | null, svg: XyScopeSvgSource | null = null): void {
+    this.svgSource = svg
     const patternChanged = this.params != null && this.params.pattern !== settings.parameters.pattern
     this.settings = settings
     this.params = resolveXyScopeParameters(settings)
@@ -138,7 +141,7 @@ export class XyScopeRuntime {
       const hits = deriveXyScopeEvents(context, { audioReactivity: params.audioReactivity })
       discontinuity = hits.discontinuity
       if (discontinuity) this.conversation.reset(this.layout.glyphs.length)
-      for (const event of hits.events) this.conversation.push(event, input.nowSec, conversationParams)
+      for (const event of hits.events) this.conversation.push({ ...event, strength: event.strength * (event.type === 'kick' ? params.kickResponse : params.snareResponse) }, input.nowSec, conversationParams)
       triggerEventId = resolveXyScopeTriggerEventId(context, this.previousContext, params.trigger, this.sequence)
       if (context) this.previousContext = context
     }
@@ -194,9 +197,9 @@ export class XyScopeRuntime {
     drive.radius = Math.min(this.width, this.height) * 0.38 * sizeScale
     drive.halfWidth = this.width * 0.46 * sizeScale
     drive.halfHeight = this.height * 0.3
-    drive.bass = Math.min(1, (context?.bass ?? 0) * react)
-    drive.mid = Math.min(1, (context?.mid ?? 0) * react)
-    drive.high = Math.min(1, (context?.high ?? 0) * react)
+    drive.bass = Math.min(1, (context?.bass ?? 0) * react * params.bassResponse)
+    drive.mid = Math.min(1, (context?.mid ?? 0) * react * params.midResponse)
+    drive.high = Math.min(1, (context?.high ?? 0) * react * params.highResponse)
     drive.kick = Math.min(1, kick * react)
     drive.snare = Math.min(1, snare * react)
     drive.variation = this.phraseVisit
@@ -221,6 +224,16 @@ export class XyScopeRuntime {
     const glyphs = this.layout.glyphs
     for (let g = 0; g < glyphs.length; g += 1) {
       const state = this.conversation.states[g]
+      if (this.settings?.sourceMode === 'oscillator') {
+        const out = this.buffers[g]
+        for (let i = 0; i < glyphs[g].count; i++) {
+          out.x[i] = scopeFrame.cloudX[i % scopeFrame.cloudX.length] * scopeFrame.cloudGain * drive.radius
+          out.y[i] = -scopeFrame.cloudY[i % scopeFrame.cloudY.length] * scopeFrame.cloudGain * drive.radius
+          out.form[i] = 1; out.dissolved[i] = 0; out.gap[i] = 0
+        }
+        this.flashes[g] = state.flash
+        continue
+      }
       computeXyScopeGlyphPoints(glyphs[g], g, state, this.conversation.dissolve(g), motion, scopeFrame, this.buffers[g])
       applyXyScopeBeamChoreography(glyphs[g], g, glyphs.length, offset, this.layout.totalPoints, this.buffers[g], choreography)
       offset += glyphs[g].count
@@ -259,10 +272,15 @@ export class XyScopeRuntime {
     const settings = this.settings
     const params = this.params
     if (!settings || !params || this.width <= 0 || this.height <= 0) return
-    const key = [settings.text, this.font.id, Math.round(this.width), Math.round(this.height), params.size, params.letterSpacing, params.minPieceSize].join('|')
+    const key = [settings.sourceMode, settings.svgMediaId, settings.svgProcessing, this.svgSource?.hash, settings.text, this.font.id, Math.round(this.width), Math.round(this.height), params.size, params.letterSpacing, params.minPieceSize].join('|')
     if (key === this.layoutKey) return
     this.layoutKey = key
-    this.layout = buildXyScopeLayout({
+    if (settings.sourceMode === 'svg') {
+      this.layout = buildXyScopeSvgLayout(this.svgSource?.id === settings.svgMediaId ? this.svgSource : null, this.width, this.height, params.size, params.minPieceSize, settings.svgProcessing)
+    } else if (settings.sourceMode === 'oscillator') {
+      const points = Array.from({ length: 512 }, (_, i) => ({ x: Math.cos(i / 512 * Math.PI * 2), y: Math.sin(i / 512 * Math.PI * 2), pathIndex: 0, progress: i / 511 }))
+      this.layout = buildXyScopeSvgLayout({ id: 'live-scope', hash: 'scope', points }, this.width, this.height, params.size, 0, 'outline')
+    } else this.layout = buildXyScopeLayout({
       text: settings.text,
       font: this.font,
       width: this.width,

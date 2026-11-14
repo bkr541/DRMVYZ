@@ -27,6 +27,11 @@ export const XY_SCOPE_GROUP_LABELS: Readonly<Record<XyScopeParameterGroup, strin
 })
 
 /** Nested groups inside the Design parent, in order. Controls with no subgroup come first. */
+export const XY_SCOPE_REACT_SUBGROUPS = ['Audio Intelligence'] as const
+export type XyScopeSourceMode = 'text' | 'svg' | 'oscillator'
+export type XyScopeSvgProcessing = 'outline' | 'segments' | 'points'
+export const XY_SCOPE_SVG_PROCESSING = [{ value: 'outline', label: 'Outline' }, { value: 'segments', label: 'Dashed Trace' }, { value: 'points', label: 'Point Trace' }] as const
+
 export const XY_SCOPE_DESIGN_SUBGROUPS: readonly string[] = Object.freeze(['Pattern', 'Letters', 'Beam'])
 
 export interface XyScopeParameterVisibility {
@@ -38,7 +43,7 @@ export interface XyScopeParameterVisibility {
 interface XyScopeParameterBase {
   id: string
   group: XyScopeParameterGroup
-  /** A nested group inside the parent (Design only). */
+  /** A nested group inside its Design or React parent. */
   subgroup?: string
   label: string
   /** One plain-language sentence: what changes on screen. */
@@ -185,6 +190,11 @@ export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object
     description: 'How long each letter waits after its neighbour, in a pattern change or a kick. Longer makes the wave easier to see.',
     default: 45, min: 0, max: 120, step: 1, format: 'ms',
   },
+  { id: 'bassResponse', group: 'react', subgroup: 'Audio Intelligence', kind: 'slider', label: 'Bass Response', description: 'Scales low-frequency expansion of the drawn shape.', default: 1, min: 0, max: 2, step: .01, format: 'percent' },
+  { id: 'midResponse', group: 'react', subgroup: 'Audio Intelligence', kind: 'slider', label: 'Mid Response', description: 'Scales mid-frequency detail in the moving contours.', default: 1, min: 0, max: 2, step: .01, format: 'percent' },
+  { id: 'highResponse', group: 'react', subgroup: 'Audio Intelligence', kind: 'slider', label: 'High Response', description: 'Scales high-frequency contour sharpening.', default: 1, min: 0, max: 2, step: .01, format: 'percent' },
+  { id: 'kickResponse', group: 'react', subgroup: 'Audio Intelligence', kind: 'slider', label: 'Kick Response', description: 'Scales the shared kick events that excite the beam.', default: 1, min: 0, max: 2, step: .01, format: 'percent' },
+  { id: 'snareResponse', group: 'react', subgroup: 'Audio Intelligence', kind: 'slider', label: 'Snare Response', description: 'Scales shared snare events that dissolve and fray the contours.', default: 1, min: 0, max: 2, step: .01, format: 'percent' },
   // ── Palette ─────────────────────────────────────────────────────────────────
   {
     id: 'beamColor', group: 'palette', kind: 'color', label: 'Beam Core',
@@ -246,6 +256,9 @@ export const XY_SCOPE_TEXT_MAX_LENGTH = 16
 export const XY_SCOPE_DEFAULT_TEXT = 'DRMVYZ'
 
 export interface XyScopeSettings {
+  sourceMode: XyScopeSourceMode
+  svgMediaId: string | null
+  svgProcessing: XyScopeSvgProcessing
   /** The word drawn. Single line, upper-cased on draw. */
   text: string
   /** A font-library asset id, or null for the bundled default (Anton). */
@@ -260,6 +273,9 @@ export function getXyScopeDefaultParameters(): Record<string, XyScopeParameterVa
 }
 
 export const DEFAULT_XY_SCOPE_SETTINGS: Readonly<XyScopeSettings> = Object.freeze({
+  sourceMode: 'text',
+  svgMediaId: null,
+  svgProcessing: 'outline',
   text: XY_SCOPE_DEFAULT_TEXT,
   fontId: null,
   presetId: 'conversation',
@@ -297,6 +313,9 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
   const parameters: Record<string, XyScopeParameterValue> = {}
   for (const definition of XY_SCOPE_PARAMETERS) parameters[definition.id] = normalizeXyScopeParameterValue(definition, stored[definition.id])
   return {
+    sourceMode: record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text',
+    svgMediaId: typeof record.svgMediaId === 'string' && record.svgMediaId.length > 0 && record.svgMediaId.length <= 512 ? record.svgMediaId : null,
+    svgProcessing: record.svgProcessing === 'segments' || record.svgProcessing === 'points' ? record.svgProcessing : 'outline',
     text: record.text === undefined ? XY_SCOPE_DEFAULT_TEXT : normalizeXyScopeText(record.text),
     fontId: typeof record.fontId === 'string' && record.fontId.length > 0 && record.fontId.length <= 512 ? record.fontId : null,
     presetId: record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId),
@@ -319,6 +338,11 @@ export function applyXyScopePreset(settings: XyScopeSettings, presetId: string):
 // ── Typed values for the runtime ──────────────────────────────────────────────
 
 export interface XyScopeResolvedParameters {
+  bassResponse: number
+  midResponse: number
+  highResponse: number
+  kickResponse: number
+  snareResponse: number
   intensity: number
   audioReactivity: number
   motionAmount: number
@@ -345,6 +369,7 @@ export interface XyScopeResolvedParameters {
 export function resolveXyScopeParameters(settings: XyScopeSettings): XyScopeResolvedParameters {
   const p = normalizeXyScopeSettings(settings).parameters
   return {
+    bassResponse: p.bassResponse as number, midResponse: p.midResponse as number, highResponse: p.highResponse as number, kickResponse: p.kickResponse as number, snareResponse: p.snareResponse as number,
     intensity: p.intensity as number,
     audioReactivity: p.audioReactivity as number,
     motionAmount: p.motionAmount as number,

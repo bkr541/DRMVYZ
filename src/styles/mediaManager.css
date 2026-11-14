@@ -1210,7 +1210,7 @@
 .mm-model-source-preview { height: 160px; display: flex; justify-content: center; margin: 8px 0; background: repeating-conic-gradient(#27353b 0% 25%, #162026 0% 50%) 0 0 / 16px 16px; }
 .mm-model-source-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .mm-model-library { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 440px; }
-.mm-model-library--sectioned { height: auto; max-height: 300px; flex-shrink: 0; border-bottom: 1px solid var(--az-border, #273b45); margin-bottom: 8px; }
+.mm-model-library--sectioned { height: auto; max-height: 300px; flex-shrink: 0; }
 .mm-model-card-scroll { overflow: auto; min-height: 0; flex: 1; padding: 6px; }
 .mm-model-library > .drc-group { display: flex; flex-direction: column; min-height: 0; }
 .mm-model-group-body { min-height: 0; overflow: hidden; }

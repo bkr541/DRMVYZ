@@ -1,3 +1,4 @@
+import type { ReactPerformancePad } from './ReactTypes'
 import { PerformancePad } from './controls/PerformancePad'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
@@ -27,6 +28,11 @@ const PERFORMANCE_PAD_COLORS = [
   '#84cc16', '#f59e0b', '#0ea5e9', '#6366f1', '#10b981',
   '#f43f5e', '#d946ef', '#2dd4bf', '#fb7185', '#38bdf8',
 ] as const
+
+export function getPerformancePadColor(pad: ReactPerformancePad, index = 0): string {
+  const slot = Number(pad.id.replace('pad-', '')) - 1
+  return pad.colorAssigned ? pad.color : PERFORMANCE_PAD_COLORS[(Number.isInteger(slot) && slot >= 0 ? slot : index) % PERFORMANCE_PAD_COLORS.length]
+}
 
 const PRESSED_DURATION_MS = 40
 
@@ -159,8 +165,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
   const padButtons = (
     <>
       {performancePads.map((pad, index) => {
-            const slot = Number(pad.id.replace('pad-', '')) - 1
-            const slotColor = PERFORMANCE_PAD_COLORS[(Number.isInteger(slot) && slot >= 0 ? slot : index) % PERFORMANCE_PAD_COLORS.length]
+            const padColor = getPerformancePadColor(pad, index)
             const action = editor ? undefined : actionsByPadId.get(pad.id)
             if (action) {
               const available = isReactPerformanceActionCompatible(action, target)
@@ -176,7 +181,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
                   aria-disabled={mirror || !available} aria-label={`${action.label}. ${action.description}`}
                   {...(isToggle ? { 'aria-pressed': isPressed } : {})}
                   title={`${action.label} [${action.keyBinding.toUpperCase()}]: ${action.description}`}
-                  color={slotColor}
+                  color={padColor}
                 />
               )
             }
@@ -191,7 +196,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
                 readOnly={mirror && !editor} onActivate={() => editor ? editor.onSelect(pad.id) : setActivePadId(pad.id)} disabled={!editor && !hasDestination}
                 aria-disabled={!editor && (mirror || !hasDestination)}
                 title={hasDestination ? `${pad.label} [${pad.keyBinding.toUpperCase()}]` : 'Empty pad'}
-                color={slotColor}
+                color={padColor}
               />
             )
           })}

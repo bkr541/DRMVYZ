@@ -126,3 +126,17 @@ Cinema 2.0 and native CANVAS, HEADLINER, Sound Drawing XY and LaserDMX destinati
 `notify('performance-manager', ...)` records review, cancellation, success and failure cards in the existing Notifications drawer and unread bell system. The confirmation also uses the standard informational NoticeCard to explain the shared assignment. No new notification UI or cloud schema is introduced.
 
 Validation: 19 focused component, workflow and engine tests passed, as did TypeScript, focused ESLint and diff checks. The real browser workflow verified the five canonical header keys after the divider, empty/assigned pad drops, Cancel/Link, workflow cards in Notifications, shared React activation, and a CANVAS link overriding contextual pad actions. Reviewed screenshots: `artifacts/performance-manager-phase01/pad-link-confirm.png` and `pad-link-notifications.png` (ignored). No production build was run. Changes are uncommitted.
+
+
+## Pad context actions
+
+Right-clicking an assigned or empty pad opens the same `ContextActionMenu` used by Media Manager thumbnails, with Edit, Link, Random and Clear.
+
+- Edit opens the inspector's Edit tab and displays the selected pad's slot, shortcut, assigned preset and engine. The shared palette control saves an optional explicit pad color; multiple pads can share a color. Existing slot colors remain the default. The persisted `colorAssigned` flag makes an explicit color visible on both manager and live React pad surfaces without changing the default palette.
+- Link opens Presets for the selected pad. Clicking a visible preset card assigns it directly, without performing the pad. Any other click is intercepted before its action and opens the standard cancellation dialog. Keep linking (or dismissing the dialog) preserves the linking session; Cancel link ends it without changing the existing assignment. Escape also offers cancellation. Preset browsing outside a linking session and the existing drag-and-confirm/header workflow are unchanged.
+- Random chooses from the combined canonical catalogs of all seven engines, including both LaserDMX authoring modes, without search or scope filtering. The current engine/preset pair is excluded; other pads may share the chosen preset.
+- Clear removes only the targeted assignment, preserves its shortcut and color, and is disabled for empty pads.
+
+Assignments and colors use the existing persisted performance pad store; no database migration is required. The inspector uses the reusable parent group, color picker and shared typography. Its preset search row retains its normal placement.
+
+Validation for context actions: seven new focused tests passed, including every Random candidate's store validation, repeated colors, direct linking, cancellation, and target-only clearing. The eight existing manager workflow tests and seven cross-engine pad tests also passed. The rendered workspace check passed all four actions, outside-click cancellation, shared menu classes, and 12px/700/0.15em group typography; screenshots are in `artifacts/performance-manager-phase01/pad-editor.png` and `pad-actions.png` (ignored). Two older `ReactPerformancePads.test.tsx` tests fail in setup on an obsolete `[role="button"][aria-expanded]` header selector, before reaching pad behavior. Changes are uncommitted.

@@ -176,3 +176,7 @@ Images & Videos displays eight skeleton tiles (or rows in list view) during
 initial loading and empty refreshes, then replaces them with media. Previously
 loaded media stays visible during refresh. The loader has an accessible busy
 status and a static reduced-motion variant.
+
+Media Library sibling groups use the shared Collapsible spacing. The model
+section adds no extra bottom margin or duplicate outer divider, so the gap
+from 3D Models to Images matches the gap from Images to Videos when collapsed.

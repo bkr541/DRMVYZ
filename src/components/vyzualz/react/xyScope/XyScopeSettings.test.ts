@@ -9,6 +9,7 @@ import {
   normalizeXyScopeText,
   resolveXyScopeParameters,
   XY_SCOPE_DESIGN_SUBGROUPS,
+  XY_SCOPE_REACT_SUBGROUPS,
   XY_SCOPE_GROUP_LABELS,
   XY_SCOPE_GROUP_ORDER,
   XY_SCOPE_PARAMETERS,
@@ -39,11 +40,11 @@ describe('Sound Drawing XY inspector standard', () => {
     }
   })
 
-  it('nests controls only inside Design, in the declared subgroups', () => {
+  it('nests Design and Audio Intelligence controls in their declared parent groups', () => {
     for (const entry of XY_SCOPE_PARAMETERS) {
       if (entry.subgroup) {
-        expect(entry.group).toBe('design')
-        expect(XY_SCOPE_DESIGN_SUBGROUPS).toContain(entry.subgroup)
+        expect(['design', 'react']).toContain(entry.group)
+        expect(entry.group === 'design' ? XY_SCOPE_DESIGN_SUBGROUPS : XY_SCOPE_REACT_SUBGROUPS).toContain(entry.subgroup)
       }
     }
     for (const subgroup of XY_SCOPE_DESIGN_SUBGROUPS) expect(XY_SCOPE_PARAMETERS.some(entry => entry.subgroup === subgroup)).toBe(true)

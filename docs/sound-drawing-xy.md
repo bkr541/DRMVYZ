@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Sound Drawing XY draws a word as a single phosphor beam in the style of an analog XY scope. The letters answer each other in time with the loaded track, then dissolve along their outlines into a waveform and a series of oscillator figures, perform as them, and are drawn again as crisp, bold letters. It replaces the point-offset model of the legacy Sound Drawing engine for text; shapes, SVG and Classic Scope are not part of this engine yet.
+Sound Drawing XY draws a word as a single phosphor beam in the style of an analog XY scope. The letters answer each other in time with the loaded track, then dissolve along their outlines into a waveform and a series of oscillator figures, perform as them, and are drawn again as crisp, bold letters. Uploaded vector SVGs use the same beam, choreography and shared audio path. The OSCILATOR source draws the stereo scope signal; built-in shape authoring remains separate from this engine.
 
 The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It ships **side by side** with the legacy `oscilloscope` engine, which is untouched. When the new engine is approved in the full app, the legacy engine, its store slices and its presets are removed in one change and `oscilloscope` becomes a retired identity that restores as `xyScope`. That migration is deliberately not part of this document's scope.
 
@@ -120,7 +120,7 @@ Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY us
 
 Pattern Change defaults to **on** so the engine performs when it is first opened. The Clean Scope preset turns it off, retaining the Word performance; Motion Amount or Audio Reactivity at zero provides a still word.
 
-The left rail has two tabs. SOURCE holds one standard parent group, **Input**, with the word (up to 16 characters, drawn in capitals) and a Font dropdown listing the built-in Anton and the user's font library (fonts are uploaded in Media Manager). MEDIA is shown disabled until SVG artwork is supported; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
+The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG and OSCILATOR cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 
@@ -145,14 +145,14 @@ option's font family through its typography variable, including in portaled menu
 
 - **Ownership:** `XyScopeSurface` creates the runtime on mount and disposes it on unmount. It owns one `requestAnimationFrame` loop and one `ResizeObserver`, publishes its canvas for recording through `onCanvasReady`, and clears both on unmount.
 - **Store:** the animation loop never subscribes to Zustand. Settings and the resolved font reach the runtime through an effect, so dragging a slider does not recreate the runtime or drop the trail.
-- **Paused audio:** the word keeps drawing and settles to its crisp rest state; the stage is never blank.
+- **Paused audio:** the word keeps drawing and settles to its crisp rest state; an unavailable or unselected SVG instead clears the stage and reports its status.
 - **Beam:** brightness falls with beam speed and is normalised per length of line, so a tightly packed figure is as bright as a letter. The segment that closes a letter's contour fades as its points move into a form, and the beam lifts between the arms of a pinwheel.
 - **Rendering:** Canvas2D only. The phosphor trail is capped at 300 ms. An 8-bit canvas rounds a slow fade to "no change" a few levels above the background, which left a grey ghost of every earlier figure on screen, so each frame also takes one level off (`color-burn`) and clamps to the background (`lighten`); a trail then reaches the background exactly. The shared GPU phosphor pipeline can replace the stroke passes later without changing the motion model.
-- **Not implemented:** Auto Performance, user-authored pattern cycles, a stationary noise-blob or parked-dot pattern, quality tiers, multi-line text, kerning, shapes, SVG, Classic Scope, preview thumbnails for the preset cards, Preset Manager and Help Center entries, and the Sound Drawing timeline lane. The engine has no context-loss path because Canvas2D has none.
+- **Not implemented:** Auto Performance, user-authored pattern cycles, a stationary noise-blob or parked-dot pattern, quality tiers, multi-line text, kerning, built-in shape authoring, preview thumbnails for the preset cards, Preset Manager and Help Center entries, and the Sound Drawing timeline lane. The engine has no context-loss path because Canvas2D has none.
 
 ## Persistence
 
-`xyScopeSettings` (word, font id, preset id and every parameter) persists as project data with the other engine settings and passes through `normalizeXyScopeSettings` on merge, migration, mutation and reset. Values are clamped to the catalog ranges, enums and colours are validated, and text is one line of at most 16 characters. Runtime state (letter states, trail, scope window) is never persisted.
+`xyScopeSettings` (source mode, SVG media id, processing mode, word, font id, preset id and every parameter) persists as project data with the other engine settings and passes through `normalizeXyScopeSettings` on merge, migration, mutation and reset. Values are clamped to the catalog ranges, enums and colours are validated, and text is one line of at most 16 characters. Runtime state (letter states, trail, scope window) is never persisted.
 
 ## Validation
 
@@ -166,9 +166,9 @@ option's font family through its typography variable, including in portaled menu
 
 SOURCE begins with TEXT, SVG and OSCILATOR cards, using the shared Sound Drawing
 source-card styling. TEXT is selected initially and shows the existing Input
-group with Text and Font controls. Selecting another card hides that group;
-returning to TEXT preserves its settings. SVG and OSCILATOR are UI placeholders
-at this stage and do not change the live renderer or add authoring controls.
+group with Text and Font controls. SVG replaces those fields with its uploaded-file
+and processing selectors. Returning to TEXT preserves its settings. OSCILATOR
+draws the live stereo trace, with the existing procedural stand-in when no stereo signal is available.
 
 ### Dropdown window bounds
 
@@ -181,3 +181,22 @@ and scroll their options internally. Window resizing updates the bounds; font pr
 The shared dropdown omits the redundant heading above its options. Search, when
 enabled, is the first visible menu row; the menu name remains available to
 assistive technology. Field labels and option-group labels are retained.
+
+
+## Uploaded SVG oscillator drawing
+
+Selecting SVG shows the canonical Input group with a searchable **SVG** dropdown and **SVG Processing** selector. The file list uses the shared SVG media eligibility predicate over the user's Media Library items: genuine SVG uploads only, excluding pending uploads, failed uploads, deleted files, raster-wrapped SVGs and files merely named `.svg`. No built-in shapes or font assets are mixed into it.
+
+Processing modes are **Outline**, **Dashed Trace** and **Point Trace**. `useXyScopeSvg.ts` downloads the selected file, retries an expired/unavailable URL through the existing signed media URL service, compiles it outside the animation loop, and ignores aborted or outdated requests. File identity/revision changes reload it. Missing, invalid and unsupported selections clear the old geometry and show source status plus the standard error notice; they never substitute a circle or the previous word.
+
+`XyScopeSvg.ts` uses the shared SVG vector compiler for paths, rectangles, circles, ellipses, lines, polylines/polygons and transforms. It centers the entire artwork by its bounds and applies one uniform scale, preserving aspect ratio and subpath placement. Geometry is bounded to 2,048 sampled points. Separate paths become independent beam strokes; open paths stay open. Text-only or raster-only files need conversion to vector outlines; excessively complex files report a simplification request rather than entering the frame loop.
+
+SVG contours feed the existing XY motion, conversation, departure/blank/return choreography, phosphor, palette and audio feature pipeline. Pattern Change off continues the selected routine; the SVG replaces the word as the returning source. Outline traces continuous contours; Dashed Trace lifts the beam between runs; Point Trace samples visible vertices. Processing and geometry changes clear stale trails. Text-only spacing is hidden for SVG, while the shared Size control is labeled SVG Size under SVG Geometry.
+
+The Design tab retains **Master Controls → Design → React → Palette**. React includes an **Audio Intelligence** subgroup with Bass Response, Mid Response, High Response, Kick Response and Snare Response (0–200%, defaults 100%). They scale the existing `SharedPerformanceContext` bands and shared kick/snare events. Master Audio Reactivity remains the overall control; no second analyser or independent beat clock is introduced. The REACT tab continues using the standard `ReactAudioPanel`, including shared analysis diagnostics and Live Input sensitivity/noise gate.
+
+Source mode, SVG media ID, processing and response controls persist through the existing project settings normalizer. Old projects default to Text/Outline with unit response gains; changing source or preset preserves text/font values and the SVG selection.
+
+Validation: focused XY tests cover geometry centering, transforms, open/closed strokes, all three beam modes, SVG choreography with Pattern Change off, kick-response gain, filtering, late-response cancellation, errors and deletion. Store tests verify the new fields and response gain survive project persistence. The actual browser verified the uploaded-only dropdown, visible SVG pixels and centered bounds, processing changes, standard group order, response controls, deleted-file blanking and text preservation. Screenshots were reviewed at `artifacts/xy-svg-outline.png`, `xy-svg-dashed.png`, `xy-svg-points.png` and `xy-svg-design.png` (ignored). No dependency, cloud schema or production build change is required.
+
+Final validation: 155 XY/persistence tests passed across the focused runs, along with TypeScript, focused ESLint, browser workflow checks and diff checks. SVG rendering and processing screenshots were visually reviewed. Changes are uncommitted; no production build was run.

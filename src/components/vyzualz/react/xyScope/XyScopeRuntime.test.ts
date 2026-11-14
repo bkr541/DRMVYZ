@@ -4,6 +4,7 @@ import { createSharedPerformanceFallbackContext, type SharedPerformanceContext }
 import { DEFAULT_XY_SCOPE_SETTINGS, normalizeXyScopeSettings, type XyScopeSettings } from './XyScopeSettings'
 import { XyScopeBeamRenderer } from './XyScopeBeam'
 import { XY_SCOPE_PATTERN_IDS } from './XyScopePatterns'
+import { compileXyScopeSvg } from './XyScopeSvg'
 import { XyScopeRuntime } from './XyScopeRuntime'
 
 let stroke: ReturnType<typeof vi.fn>
@@ -188,4 +189,39 @@ describe('Sound Drawing XY choreography runtime', () => {
     runtime.dispose()
     expect(() => pump(runtime, clock, null)).not.toThrow()
   })
+})
+
+describe('uploaded SVG runtime', () => {
+  it('renders selected SVG contours, clears missing geometry, and uses the existing choreography without Pattern Change', () => {
+    const source = compileXyScopeSvg('svg-1', '<svg><path d="M0 0L100 0L100 100Z"/><path d="M150 0L170 70"/></svg>')
+    const settings = normalizeXyScopeSettings({ ...DEFAULT_XY_SCOPE_SETTINGS, sourceMode:'svg', svgMediaId:'svg-1', parameters: { ...DEFAULT_XY_SCOPE_SETTINGS.parameters, patternChange:false, bpmSync:false, minPieceSize:0 } })
+    const runtime = makeRuntime(settings)
+    expect(runtime.getStatus().points).toBe(0)
+    runtime.setSettings(settings,null,source)
+    expect(runtime.getStatus().letters).toBe(2)
+    expect(runtime.getStatus().points).toBeGreaterThan(100)
+    const draw = vi.spyOn(XyScopeBeamRenderer.prototype,'draw')
+    runtime.renderFrame({nowSec:0,context:null,fresh:false,stereo:null,playing:false})
+    const still = Array.from(draw.mock.calls.at(-1)![1][0].x)
+    for(let i=1;i<180;i++) runtime.renderFrame({nowSec:i/60,context:context(),fresh:true,stereo:null,playing:true})
+    const moving = Array.from(draw.mock.calls.at(-1)![1][0].x)
+    expect(moving).not.toEqual(still)
+    expect(runtime.getStatus().pattern).toBe('word')
+    runtime.setSettings(settings,null,null)
+    expect(runtime.getStatus().points).toBe(0)
+    runtime.dispose()
+  })
+})
+
+it('respects the Audio Intelligence kick-response gain for SVG beam hits', () => {
+  const svg=compileXyScopeSvg('hit-svg','<svg><path d="M0 0L100 0L100 100Z"/></svg>')
+  const flashes: number[]=[]
+  for(const gain of [0,1]) {
+    const settings=normalizeXyScopeSettings({...DEFAULT_XY_SCOPE_SETTINGS,sourceMode:'svg',svgMediaId:'hit-svg',parameters:{...DEFAULT_XY_SCOPE_SETTINGS.parameters,kickResponse:gain,patternChange:false}})
+    const runtime=makeRuntime(settings);runtime.setSettings(settings,null,svg)
+    const draw=vi.spyOn(XyScopeBeamRenderer.prototype,'draw')
+    runtime.renderFrame({nowSec:1,context:context({kick:true,kickStrength:.8}),fresh:true,stereo:null,playing:true})
+    flashes.push(draw.mock.calls.at(-1)![2][0]);runtime.dispose();draw.mockRestore()
+  }
+  expect(flashes[0]).toBe(0);expect(flashes[1]).toBeGreaterThan(0)
 })

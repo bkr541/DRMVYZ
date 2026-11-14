@@ -8,6 +8,8 @@ import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactTrackSection } from '../ReactTypes'
 import { XyScopeRuntime } from './XyScopeRuntime'
 import { useXyScopeFont } from './XyScopeFontLibrary'
+import { useXyScopeSvg } from './useXyScopeSvg'
+import { DrawerNotice } from '../../shared/DrawerNotice'
 import { XyScopeTransportTracker } from './XyScopeTransport'
 
 /** Samples read from the stereo tap each frame; matches the scope window the runtime expects. */
@@ -52,18 +54,19 @@ export function XyScopeSurface({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<XyScopeRuntime | null>(null)
   const settings = useReactStore(state => state.xyScopeSettings)
-  const resolution = useXyScopeFont(settings.fontId)
+  const resolution = useXyScopeFont(settings.sourceMode === 'text' ? settings.fontId : null)
+  const svg = useXyScopeSvg(settings.svgMediaId, settings.sourceMode === 'svg')
   const [scopeSource, setScopeSource] = useState<'stereo' | 'fallback'>('fallback')
 
   const inputRef = useRef({ audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive })
   inputRef.current = { audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive }
-  const settingsRef = useRef({ settings, font: resolution.font })
-  settingsRef.current = { settings, font: resolution.font }
+  const settingsRef = useRef({ settings, font: resolution.font, svg: svg.source })
+  settingsRef.current = { settings, font: resolution.font, svg: svg.source }
 
   // Settings and font changes reach the runtime without recreating it, so the trail survives slider drags.
   useEffect(() => {
-    runtimeRef.current?.setSettings(settings, resolution.font)
-  }, [settings, resolution.font])
+    runtimeRef.current?.setSettings(settings, resolution.font, svg.source)
+  }, [settings, resolution.font, svg.source])
 
   useEffect(() => {
     const host = hostRef.current
@@ -71,7 +74,7 @@ export function XyScopeSurface({
     if (!host || !canvas) return
     const runtime = new XyScopeRuntime(canvas)
     runtimeRef.current = runtime
-    runtime.setSettings(settingsRef.current.settings, settingsRef.current.font)
+    runtime.setSettings(settingsRef.current.settings, settingsRef.current.font, settingsRef.current.svg)
     const pump = new MusicIntelligenceAnalyserFramePump({ publisherId: XY_SCOPE_PUBLISHER_ID })
     const transport = new XyScopeTransportTracker()
 
@@ -168,7 +171,15 @@ export function XyScopeSurface({
       data-xyscope-surface="true"
       data-xyscope-scope-source={scopeSource}
       data-xyscope-font-status={resolution.status}
+      data-xyscope-source={settings.sourceMode}
+      data-xyscope-svg-status={svg.status}
     >
+      {settings.sourceMode === 'svg' && svg.status === 'empty' && <div className="rv-xyscope-note rv-xyscope-note--top" role="status">Choose an uploaded SVG in the Input group.</div>}
+      {settings.sourceMode === 'svg' && svg.status === 'loading' && <div className="rv-xyscope-note rv-xyscope-note--top" role="status">Loading SVG…</div>}
+      {settings.sourceMode === 'svg' && svg.error && <>
+        <div className="rv-xyscope-note rv-xyscope-note--top" role="alert">{svg.error}</div>
+        <DrawerNotice tone="error" title="Sound Drawing XY SVG">{svg.error}</DrawerNotice>
+      </>}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
       {scopeSource === 'fallback' && audio?.trackIdentity && (
         <div className="rv-xyscope-note" role="status">

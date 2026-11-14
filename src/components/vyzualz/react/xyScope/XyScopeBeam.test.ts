@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
+import { buildXyScopeSvgLayout, type XyScopeSvgSource } from './XyScopeSvg'
+import { createXyScopePointBuffers } from './XyScopeMotion'
 import { XyScopeBeamRenderer, parseXyScopeColor, xyScopeSegmentBrightness, XY_SCOPE_REFERENCE_SEGMENT_PX } from './XyScopeBeam'
 
 describe('xyScopeSegmentBrightness', () => {
@@ -64,5 +66,28 @@ describe('XyScopeBeamRenderer fade', () => {
     expect(ops.indexOf('color-burn')).toBeGreaterThan(-1)
     expect(ops.indexOf('lighten')).toBeGreaterThan(ops.indexOf('color-burn'))
     expect(fills).toContain('rgb(3,9,12)')
+  })
+})
+
+describe('SVG beam stroke processing', () => {
+  it('keeps open paths open and renders distinct outline, dashed and point traces', () => {
+    const segments: number[][] = []
+    vi.stubGlobal('Path2D', class { moveTo() {} lineTo(x:number,y:number) {segments.push([x,y])} })
+    const canvas = document.createElement('canvas')
+    vi.spyOn(canvas,'getContext').mockReturnValue({setTransform(){},fillRect(){},stroke(){}} as unknown as CanvasRenderingContext2D)
+    const beam = new XyScopeBeamRenderer(canvas);beam.resize(1000,600,1)
+    const points = Array.from({length:8},(_,i)=>({x:i*.01,y:0,pathIndex:0,progress:i/7}))
+    const source: XyScopeSvgSource = {id:'open',hash:'open',points}
+    const counts: number[]=[]
+    for(const mode of ['outline','segments','points'] as const) {
+      segments.length=0
+      const layout=buildXyScopeSvgLayout(source,1000,600,.84,0,mode)
+      const buffers=layout.glyphs.map(g=>{const b=createXyScopePointBuffers(g.count);b.x.set(g.x);b.y.set(g.y);return b})
+      beam.draw(layout.glyphs,buffers,[0],1/60,{beamColor:[255,255,255],glowColor:[0,255,255],backgroundColor:[0,0,0],intensity:1,glow:1,trailMs:110})
+      counts.push(segments.length)
+      if(mode==='outline') expect(segments.some(p=>p[0]===0)).toBe(false)
+    }
+    expect(counts).toEqual([7,4,8])
+    vi.unstubAllGlobals();vi.restoreAllMocks()
   })
 })

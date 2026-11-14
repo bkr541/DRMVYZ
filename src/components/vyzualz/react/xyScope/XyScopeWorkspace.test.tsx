@@ -125,7 +125,7 @@ describe('Sound Drawing XY Design inspector standard', () => {
 
   it('nests Pattern, Letters and Beam inside Design, with Pattern first and its controls in the Cinema 2.0 order', async () => {
     await act(async () => root.render(<XyScopeDesignPanel />))
-    const subgroups = [...container.querySelectorAll('[data-xyscope-subgroup]')].map(node => node.getAttribute('data-xyscope-subgroup'))
+    const subgroups = [...container.querySelectorAll('[data-xyscope-parent-group="design"] [data-xyscope-subgroup]')].map(node => node.getAttribute('data-xyscope-subgroup'))
     expect(subgroups).toEqual(['Pattern', 'Letters', 'Beam'])
     const pattern = container.querySelector('[data-xyscope-subgroup="Pattern"]')!
     const text = pattern.textContent ?? ''
@@ -210,7 +210,9 @@ describe('Sound Drawing XY source, presets and React tab', () => {
       expect(card.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector('#xyscope-text')).toBeNull()
       expect(container.querySelector('#xyscope-font')).toBeNull()
-      expect(useReactStore.getState().xyScopeSettings).toEqual(settings)
+      expect(useReactStore.getState().xyScopeSettings.text).toBe(settings.text)
+      expect(useReactStore.getState().xyScopeSettings.fontId).toBe(settings.fontId)
+      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[1] ? 'svg' : 'oscillator')
     }
     await act(async () => cards[0].click())
     expect(container.querySelector<HTMLInputElement>('#xyscope-text')?.value).toBe(settings.text)

@@ -122,8 +122,13 @@ export class XyScopeBeamRenderer {
         const from = glyph.starts[c]
         const to = glyph.starts[c + 1]
         for (let i = from; i < to; i += 1) {
-          const j = i + 1 < to ? i + 1 : from
-          const length = Math.hypot(buffer.x[j] - buffer.x[i], buffer.y[j] - buffer.y[i])
+          const dashSpan = Math.max(1, Math.ceil((to - from) / 64))
+          if (glyph.drawMode === 'segments' && Math.floor((i - from) / dashSpan) % 2 === 1) continue
+          const pointMode = glyph.drawMode === 'points'
+          if (pointMode && (i - from) % Math.max(1, Math.ceil((to - from) / 96)) !== 0) continue
+          if (!pointMode && i === to - 1 && glyph.closed?.[c] === false) continue
+          const j = pointMode ? i : i + 1 < to ? i + 1 : from
+          const length = pointMode ? XY_SCOPE_REFERENCE_SEGMENT_PX : Math.hypot(buffer.x[j] - buffer.x[i], buffer.y[j] - buffer.y[i])
           let brightness = xyScopeSegmentBrightness(length, jumpScale, flash, buffer.dissolved[i], buffer.dissolved[j])
           // The segment that closes a letter's contour has no place in an oscillator figure: it fades as the points leave.
           if (j === from && i !== from) brightness *= 1 - 0.97 * Math.min(1, 0.5 * (buffer.form[i] + buffer.form[j]))
@@ -133,7 +138,7 @@ export class XyScopeBeamRenderer {
           if (brightness < 0.02) continue
           const bucket = Math.min(XY_SCOPE_BRIGHTNESS_BUCKETS - 1, Math.floor(brightness * XY_SCOPE_BRIGHTNESS_BUCKETS))
           paths[bucket].moveTo(buffer.x[i], buffer.y[i])
-          paths[bucket].lineTo(buffer.x[j], buffer.y[j])
+          paths[bucket].lineTo(buffer.x[j] + (pointMode ? .7 : 0), buffer.y[j])
         }
       }
     }

@@ -13,6 +13,9 @@ import {
   getXyScopePreset,
   isXyScopeParameterVisible,
   XY_SCOPE_DESIGN_SUBGROUPS,
+  XY_SCOPE_REACT_SUBGROUPS,
+  XY_SCOPE_SVG_PROCESSING,
+  type XyScopeSvgProcessing,
   XY_SCOPE_GROUP_LABELS,
   XY_SCOPE_GROUP_ORDER,
   XY_SCOPE_PARAMETERS,
@@ -23,6 +26,8 @@ import {
   type XyScopeParameterValue,
 } from './XyScopeSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
+import { useMediaStore } from '../../../../stores/mediaStore'
+import { isXyScopeSvgUpload } from './useXyScopeSvg'
 import { useFontPreviewPreload } from '../useFontPreviewPreload'
 
 export { XyScopeSurface } from './XyScopeSurface'
@@ -110,14 +115,17 @@ const XY_SOURCE_CARDS = [
   { id: 'oscillator', label: 'OSCILATOR', icon: 'scope' },
 ] as const
 
-/** Left SOURCE tab: source cards, with existing text controls under TEXT. */
+/** Left SOURCE tab: persisted source selection and source-specific Input controls. */
 export function XyScopeEnginePanel() {
-  const [source, setSource] = useState<typeof XY_SOURCE_CARDS[number]['id']>('text')
+  const media = useMediaStore(state => state.items)
+  const svgOptions = media.filter(isXyScopeSvgUpload)
   const { settings, setXyScopeSettings, fontAssets } = useReactStore(useShallow(state => ({
     settings: state.xyScopeSettings,
     setXyScopeSettings: state.setXyScopeSettings,
     fontAssets: state.oscillatorFontAssets,
   })))
+  const source = settings.sourceMode
+  const setSource = (sourceMode: typeof XY_SOURCE_CARDS[number]['id']) => setXyScopeSettings({ sourceMode })
   const resolution = useXyScopeFont(settings.fontId)
   const previewStatus = useFontPreviewPreload(fontAssets)
   const options = useMemo(() => {
@@ -155,6 +163,21 @@ export function XyScopeEnginePanel() {
           </button>
         ))}
       </div>
+      {source === 'svg' && <Collapsible label="Input" icon={<AppIcon kind="svg" size={15} color="currentColor" />}>
+        <div data-xyscope-input-group="svg" style={{ display: 'contents' }}>
+          <SelectRow id="xyscope-svg" label="SVG" ariaLabel="Uploaded SVG" menuBoundarySelector=".vz-inspector" placement="below" menuSearch menuSearchPlaceholder="Search uploaded SVG files…"
+            value={settings.svgMediaId ?? ''} options={[
+              { value: '', label: 'Select an uploaded SVG…' },
+              ...(settings.svgMediaId && !svgOptions.some(item => item.id === settings.svgMediaId) ? [{ value: settings.svgMediaId, label: 'Unavailable SVG', disabled: true }] : []),
+              ...svgOptions.map(item => ({ value: item.id, label: item.title || item.name })),
+            ]} onChange={svgMediaId => setXyScopeSettings({ svgMediaId: svgMediaId || null })}
+            description="Choose a vector SVG from your uploads in Media Manager." />
+          <SelectRow id="xyscope-svg-processing" label="SVG Processing" menuBoundarySelector=".vz-inspector" placement="below" value={settings.svgProcessing}
+            options={[...XY_SCOPE_SVG_PROCESSING]} onChange={value => setXyScopeSettings({ svgProcessing: value as XyScopeSvgProcessing })}
+            description="Outline traces the full paths; Dashed Trace lifts the beam between segments; Point Trace draws the sampled vertices." />
+          {!svgOptions.length && <div className="rv-ctrl-info">No uploaded vector SVG files yet. Upload one in Media Manager → SVG.</div>}
+        </div>
+      </Collapsible>}
       {source === 'text' && <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
         <div data-xyscope-input-group="true" style={{ display: 'contents' }}>
           <TextInputRow
@@ -239,7 +262,7 @@ export function XyScopeDesignPanel() {
   const renderControl = (definition: XyScopeParameterDefinition) => (
     <XyScopeParameterControl
       key={definition.id}
-      definition={definition}
+      definition={settings.sourceMode === 'svg' ? { ...definition, label: definition.id === 'size' ? 'SVG Size' : definition.label, description: definition.description.replace(/lettering|letters|letter|word|text/gi, 'shape') } : definition}
       value={values[definition.id]}
       onChange={value => setValue(definition.id, value)}
     />
@@ -248,11 +271,11 @@ export function XyScopeDesignPanel() {
   const renderControls = (controls: readonly XyScopeParameterDefinition[]) => (
     <>
       {controls.filter(definition => !definition.subgroup).map(renderControl)}
-      {XY_SCOPE_DESIGN_SUBGROUPS.map(subgroup => {
+      {[...XY_SCOPE_DESIGN_SUBGROUPS, ...XY_SCOPE_REACT_SUBGROUPS].map(subgroup => {
         const inGroup = controls.filter(definition => definition.subgroup === subgroup)
         if (inGroup.length === 0) return null
         return (
-          <Collapsible key={subgroup} label={subgroup}>
+          <Collapsible key={subgroup} label={subgroup === 'Letters' && settings.sourceMode === 'svg' ? 'SVG Geometry' : subgroup}>
             <div data-xyscope-subgroup={subgroup} style={{ display: 'contents' }}>{inGroup.map(renderControl)}</div>
           </Collapsible>
         )
@@ -266,7 +289,7 @@ export function XyScopeDesignPanel() {
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-group" data-xyscope-design-groups={XY_SCOPE_GROUP_ORDER.join(' ')}>
             {XY_SCOPE_GROUP_ORDER.map(group => {
-              const controls = XY_SCOPE_PARAMETERS.filter(definition => definition.group === group && isXyScopeParameterVisible(definition, values))
+              const controls = XY_SCOPE_PARAMETERS.filter(definition => definition.group === group && !(settings.sourceMode !== 'text' && definition.id === 'letterSpacing') && isXyScopeParameterVisible(definition, values))
               return (
                 <Collapsible
                   key={group}
@@ -299,7 +322,7 @@ export function XyScopeReactivityPanel() {
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-info" data-xyscope-react-note="true">
-            What the music does to the word is set under Design → React. Shared music analysis is below.
+            What the music does to the drawing is set under Design → React. Shared music analysis is below.
           </div>
           <ReactAudioPanel />
         </div>
