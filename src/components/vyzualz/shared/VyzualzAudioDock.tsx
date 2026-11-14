@@ -797,6 +797,13 @@ export function VyzualzAudioDock({
   }
 
   const handleTogglePlayback = () => {
+    if (liveInputSelected) {
+      // Live Input: the button is a gate on the incoming signal, not a transport.
+      const open = !engine.liveInputActive
+      engine.setLiveInputGate(open)
+      setPlaying(open)
+      return
+    }
     if (engine.isPlaying) { engine.pause(); setPlaying(false) }
     else                  { engine.play();  setPlaying(true) }
   }
@@ -999,13 +1006,15 @@ export function VyzualzAudioDock({
           <button
             type="button"
             className="az-play-btn"
-            title={liveInputSelected ? trackSourceLockTitle : engine.isPlaying ? 'Pause' : 'Play'}
-            aria-label={engine.isPlaying ? 'Pause' : 'Play'}
-            disabled={!hasTrack || !transportReady || liveInputSelected}
+            title={liveInputSelected ? (engine.liveInputActive ? 'Stop Live Input' : 'Play Live Input') : engine.isPlaying ? 'Pause' : 'Play'}
+            aria-label={liveInputSelected ? (engine.liveInputActive ? 'Stop Live Input' : 'Play Live Input') : engine.isPlaying ? 'Pause' : 'Play'}
+            disabled={liveInputSelected ? false : !hasTrack || !transportReady}
             style={{ borderColor: preset.color, color: preset.color, boxShadow: `0 0 12px ${preset.color}30` }}
             onClick={handleTogglePlayback}
           >
-            {engine.isPlaying
+            {liveInputSelected
+              ? (engine.liveInputActive ? <AppIcon kind="stop" size="26" /> : <AppIcon kind="play" size="26" />)
+              : engine.isPlaying
               ? <AppIcon kind="pause" size="26" />
               : <AppIcon kind="play" size="26" />
             }
@@ -1310,6 +1319,25 @@ export function VyzualzAudioDock({
                     showDescriptions={false}
                   />
                 </div>
+                {engine.source === 'microphone' && (
+                  <div className="mum-field">
+                    <label className="mum-field-label" htmlFor={`${audioSourceSelectId}-device`}>DEVICE</label>
+                    <UnderlineDropdown
+                      triggerId={`${audioSourceSelectId}-device`}
+                      value={engine.liveInputDevices.some(device => device.deviceId === engine.liveInputDeviceId) ? engine.liveInputDeviceId : ''}
+                      onChange={value => engine.setLiveInputDevice(value)}
+                      options={[
+                        { value: '', label: 'System Default' },
+                        ...engine.liveInputDevices.map(device => ({ value: device.deviceId, label: device.label })),
+                      ]}
+                      ariaLabel="Live Input device"
+                      menuLabel="Device"
+                      menuClassName="vz-dock-source-menu"
+                      size="compact"
+                      showDescriptions={false}
+                    />
+                  </div>
+                )}
                 {rekordboxPopoverMenu}
               </div>
             </InfoPopover>

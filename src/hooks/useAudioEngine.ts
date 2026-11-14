@@ -111,6 +111,14 @@ class RingBuffer {
   }
 }
 
+export interface LiveInputDevice { readonly deviceId: string; readonly label: string }
+
+const LIVE_INPUT_DEVICE_STORAGE_KEY = 'drmvyz.liveInputDeviceId'
+
+function readStoredLiveInputDeviceId(): string {
+  try { return window.localStorage.getItem(LIVE_INPUT_DEVICE_STORAGE_KEY) ?? '' } catch { return '' }
+}
+
 export interface AudioEngine {
   source: AudioSource
   setSource: (s: AudioSource, options?: AudioSourceMutationOptions) => Promise<void>
@@ -122,7 +130,15 @@ export interface AudioEngine {
   /** Source-level analysis activity, intentionally independent from file transport playing. */
   analysisActive: boolean
   /** Global Live Input analysis gain. Does not affect monitored/program audio. */
+  /** Audio inputs the browser can capture (microphones, interfaces, a connected iPhone). Labels appear once permission is granted. */
+  liveInputDevices: readonly LiveInputDevice[]
+  /** The chosen input's device id, or '' for the system default. */
+  liveInputDeviceId: string
+  /** Chooses the Live Input device; while Live Input is active the capture restarts on the new device. */
+  setLiveInputDevice: (deviceId: string) => void
   liveInputSensitivity: number
+  /** Live Input gate: opens or closes the live signal into the app without releasing the device. Only meaningful while source is 'microphone'. */
+  setLiveInputGate: (open: boolean) => void
   setLiveInputSensitivity: (value: number) => void
   /** Global Live Input normalized RMS floor. Does not affect monitored/program audio. */
   liveInputNoiseGate: number
@@ -292,6 +308,9 @@ export function useAudioEngine(): AudioEngine {
   const [micError, setMicError] = useState<string | null>(null)
   const [trackLoadError, setTrackLoadError] = useState<string | null>(null)
   const [liveInputActive, setLiveInputActive] = useState(false)
+  const [liveInputDevices, setLiveInputDevices] = useState<readonly LiveInputDevice[]>([])
+  const [liveInputDeviceId, setLiveInputDeviceIdState] = useState(readStoredLiveInputDeviceId)
+  const liveInputDeviceIdRef = useRef(liveInputDeviceId)
   const [liveInputSensitivity, setLiveInputSensitivityState] = useState(LIVE_INPUT_DEFAULT_SENSITIVITY)
   const [liveInputNoiseGate, setLiveInputNoiseGateState] = useState(LIVE_INPUT_DEFAULT_NOISE_GATE)
   const [tracks, setTracks] = useState<Track[]>([])
@@ -812,6 +831,18 @@ export function useAudioEngine(): AudioEngine {
     }
   }, [connectFileSource])
 
+  const refreshLiveInputDevices = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices?.()
+      if (!all || disposedRef.current) return
+      let unnamed = 0
+      const inputs = all
+        .filter(device => device.kind === 'audioinput' && device.deviceId !== 'default' && device.deviceId !== 'communications')
+        .map(device => ({ deviceId: device.deviceId, label: device.label || `Input ${++unnamed}` }))
+      setLiveInputDevices(inputs)
+    } catch { /* Device listing is a convenience; Live Input still works on the default input. */ }
+  }, [])
+
   const connectMicSource = useCallback(async (requestId: number): Promise<boolean> => {
     setMicError(null)
     let ctx: AudioContext
@@ -832,11 +863,19 @@ export function useAudioEngine(): AudioEngine {
     let stream: MediaStream | null = null
     let micNode: MediaStreamAudioSourceNode | null = null
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        // Voice-call processing (echo cancellation, noise suppression, auto gain) flattens and suppresses music.
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-        video: false,
-      })
+      // Voice-call processing (echo cancellation, noise suppression, auto gain) flattens and suppresses music.
+      const processing = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      const chosenDeviceId = liveInputDeviceIdRef.current
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: chosenDeviceId ? { ...processing, deviceId: { exact: chosenDeviceId } } : processing,
+          video: false,
+        })
+      } catch (err) {
+        // A remembered device that is no longer connected falls back to the system default instead of failing Live Input.
+        if (!chosenDeviceId || !(err instanceof DOMException) || (err.name !== 'OverconstrainedError' && err.name !== 'NotFoundError')) throw err
+        stream = await navigator.mediaDevices.getUserMedia({ audio: processing, video: false })
+      }
       if (disposedRef.current || sourceRequestIdRef.current !== requestId) {
         stream.getTracks().forEach(track => track.stop())
         return false
@@ -845,6 +884,8 @@ export function useAudioEngine(): AudioEngine {
       // Silence the program path before the live node is connected. The shared
       // master analyser/ring-buffer path remains active upstream of this gate.
       if (programOutputGainRef.current) programOutputGainRef.current.gain.value = 0
+      // Device names are only exposed once capture permission exists, so list them now.
+      void refreshLiveInputDevices()
       micNode = ctx.createMediaStreamSource(stream)
       micNode.connect(gain)
       micStreamRef.current = stream
@@ -909,7 +950,7 @@ export function useAudioEngine(): AudioEngine {
       }
       return false
     }
-  }, [ensureContext, restoreFileSource])
+  }, [ensureContext, refreshLiveInputDevices, restoreFileSource])
 
   const connectDemoSource = useCallback(() => {
     const ctx = ensureContext()
@@ -1008,6 +1049,34 @@ export function useAudioEngine(): AudioEngine {
       return
     }
   }, [disconnectSource, connectMicSource, connectDemoSource, demoSilent, restoreFileSource])
+
+  const setLiveInputGate = useCallback((open: boolean) => {
+    const node = micSourceRef.current
+    const gain = masterGainRef.current
+    if (sourceRef.current !== 'microphone' || !node || !gain) return
+    if (open) {
+      try { node.connect(gain) } catch { /**/ }
+    } else {
+      try { node.disconnect(gain) } catch { /**/ }
+    }
+    // Closing the gate silences the shared analysis; the analysis pump stops and resets on liveInputActive going false.
+    setLiveInputActive(open)
+  }, [])
+
+  const setLiveInputDevice = useCallback((deviceId: string) => {
+    liveInputDeviceIdRef.current = deviceId
+    setLiveInputDeviceIdState(deviceId)
+    try { window.localStorage.setItem(LIVE_INPUT_DEVICE_STORAGE_KEY, deviceId) } catch { /* not persisted */ }
+    // Capture is bound to a device when it starts, so an active Live Input restarts on the new one.
+    if (sourceRef.current === 'microphone') void setSource('microphone')
+  }, [setSource])
+
+  useEffect(() => {
+    void refreshLiveInputDevices()
+    const devices = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined
+    devices?.addEventListener?.('devicechange', refreshLiveInputDevices)
+    return () => devices?.removeEventListener?.('devicechange', refreshLiveInputDevices)
+  }, [refreshLiveInputDevices])
 
   useEffect(() => {
     disposedRef.current = false
@@ -1754,6 +1823,7 @@ export function useAudioEngine(): AudioEngine {
 
   return {
     source, setSource, micError, trackLoadError, liveInputActive, analysisActive,
+    liveInputDevices, liveInputDeviceId, setLiveInputDevice, setLiveInputGate,
     liveInputSensitivity, setLiveInputSensitivity, liveInputNoiseGate, setLiveInputNoiseGate,
     hasActiveProgramAudio, isActive,
     tracks, currentIndex, isPlaying, autoAdvance, setAutoAdvance, currentTime, getCurrentTime, duration, volume,
