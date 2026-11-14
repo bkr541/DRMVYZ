@@ -1,0 +1,4 @@
+/* Mobile Preview only: the sign-in card sits on the phone screen without the desktop card's outline, glow and HUD corner marks. */
+.mobile-auth-preview .auth-panels { border: 0; box-shadow: none; }
+.mobile-auth-preview .auth-panel--form::before,
+.mobile-auth-preview .auth-panel--form::after { content: none; }

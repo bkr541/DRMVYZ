@@ -14,6 +14,22 @@ export const MOBILE_APP_PREVIEW_WINDOW = {
   height: MOBILE_APP_PREVIEW_SCREEN.height + FRAME_PADDING * 2 + WINDOW_CHROME_ALLOWANCE,
 } as const
 
+/** `?mobilePreview=auth` shows only the sign-in screen (inert), for the production mockup; any other value is the whole app. */
+export const MOBILE_APP_PREVIEW_AUTH = 'auth'
+export type MobileAppPreviewScreen = 'app' | 'auth'
+
+/** Which screen this preview frame was asked to show, or null when this is not a preview frame. */
+export function getMobileAppPreviewScreen(win: Pick<Window, 'location' | 'parent' | 'self'> = window): MobileAppPreviewScreen | null {
+  try {
+    if (win.parent === win.self) return null
+    const value = new URLSearchParams(win.location.search).get(MOBILE_APP_PREVIEW_PARAM)
+    if (value === null) return null
+    return value === MOBILE_APP_PREVIEW_AUTH ? 'auth' : 'app'
+  } catch {
+    return null
+  }
+}
+
 /** True inside the preview's own frame. */
 export function isMobileAppPreviewFrame(win: Pick<Window, 'location' | 'parent' | 'self'> = window): boolean {
   try {
@@ -23,8 +39,8 @@ export function isMobileAppPreviewFrame(win: Pick<Window, 'location' | 'parent' 
   }
 }
 
-export function mobileAppPreviewUrl(location: Pick<Location, 'origin' | 'pathname'> = window.location): string {
-  return `${location.origin}${location.pathname}?${MOBILE_APP_PREVIEW_PARAM}=1`
+export function mobileAppPreviewUrl(location: Pick<Location, 'origin' | 'pathname'> = window.location, screen: MobileAppPreviewScreen = 'app'): string {
+  return `${location.origin}${location.pathname}?${MOBILE_APP_PREVIEW_PARAM}=${screen === 'auth' ? MOBILE_APP_PREVIEW_AUTH : '1'}`
 }
 
 /** Writes the phone frame and the app frame into an empty window. Returns a function that tears the window's listeners down. */
