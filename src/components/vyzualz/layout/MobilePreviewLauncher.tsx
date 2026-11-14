@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '../../shared/icons/AppIcon'
-import { MobilePerformanceMockup } from './MobilePerformanceMockup'
 import { MobileProductionMockup, MOBILE_PRODUCTION_PAGES, type MobileProductionPage } from './MobileProductionMockup'
 import previewStyles from './mobilePreview.css?inline'
 import { mobilePreviewProductionStyles, mirrorMobilePreviewAppearance } from './mobilePreviewProductionStyles'
@@ -11,7 +10,6 @@ export const MOBILE_PREVIEW_WINDOW_NAME = 'drmvyz-mobile-preview'
 export const MOBILE_PREVIEW_WIDTH = 1200
 export const MOBILE_PREVIEW_HEIGHT = 1000
 
-const OPTION_VIEWS = [1, 2, 3, 4].map(number => ({ id: `option-${number}`, label: `Option ${number}`, icon: 'mobilePreview' as const }))
 // The production mockup: the real screens of the app at phone size. Auth is the sign-in screen; the rest are the signed-in pages.
 const MOBILE_CHILDREN = [
   { id: 'mobile-auth', label: 'Auth', icon: 'lock' as const },
@@ -20,21 +18,17 @@ const MOBILE_CHILDREN = [
 const mobilePageOf = (id: string): MobileProductionPage | null => MOBILE_PRODUCTION_PAGES.find(page => `mobile-${page.id.toLowerCase()}` === id)?.id ?? null
 
 function MobilePreviewWorkspace() {
-  const [active, setActive] = useState('option-1')
+  const [active, setActive] = useState('mobile-auth')
   const [mobileOpen, setMobileOpen] = useState(true)
-  const inMobile = active.startsWith('mobile-')
-  const label = OPTION_VIEWS.find(option => option.id === active)?.label ?? `Mobile · ${MOBILE_CHILDREN.find(child => child.id === active)?.label}`
+  const label = `Mobile · ${MOBILE_CHILDREN.find(child => child.id === active)?.label}`
   const mobilePage = mobilePageOf(active)
 
   return <div className="mobile-preview-workspace">
     <aside className="mobile-preview-sidebar">
       <h1 className="mobile-preview-heading"><AppIcon kind="mobilePreview" size={18} />Mobile Preview</h1>
       <nav className="mobile-preview-nav" aria-label="Mobile preview views">
-        {OPTION_VIEWS.map(option => <button key={option.id} type="button" aria-current={active === option.id ? 'page' : undefined} onClick={() => setActive(option.id)}>
-          <AppIcon kind={option.icon} size={20} /><span>{option.label}</span>
-        </button>)}
-        <button type="button" className="mobile-preview-nav-parent" aria-expanded={mobileOpen} aria-controls="mobile-preview-submenu" data-active={inMobile ? 'true' : undefined}
-          onClick={() => { if (!inMobile) { setMobileOpen(true); setActive('mobile-auth') } else setMobileOpen(open => !open) }}>
+        <button type="button" className="mobile-preview-nav-parent" aria-expanded={mobileOpen} aria-controls="mobile-preview-submenu" data-active="true"
+          onClick={() => setMobileOpen(open => !open)}>
           <AppIcon kind="mobileApp" size={20} /><span>Mobile</span><AppIcon kind={mobileOpen ? 'chevronDown' : 'chevronRight'} size={12} />
         </button>
         {mobileOpen && <div id="mobile-preview-submenu" className="mobile-preview-submenu" role="group" aria-label="Mobile screens">
@@ -54,13 +48,9 @@ function MobilePreviewWorkspace() {
               ? <main className="mobile-preview-content mobile-preview-content--app" aria-label="Mobile preview canvas" data-mobile-view={active}>
                   <iframe className="mobile-preview-app-frame" title="DRMVYZ sign-in on iPhone 16" src={mobileAppPreviewUrl(window.location, 'auth')} />
                 </main>
-              : mobilePage
-                ? <main className="mobile-preview-content" aria-label="Mobile preview canvas" data-mobile-view={active}>
-                    <MobileProductionMockup page={mobilePage} onPageChange={next => setActive(`mobile-${next.toLowerCase()}`)} />
-                  </main>
-                : <main className="mobile-preview-content" aria-label="Mobile preview canvas" data-mobile-view={active}>
-                    <MobilePerformanceMockup key={active} variant={Number(active.slice(-1))} />
-                  </main>}
+              : <main className="mobile-preview-content" aria-label="Mobile preview canvas" data-mobile-view={active}>
+                  {mobilePage && <MobileProductionMockup page={mobilePage} onPageChange={next => setActive(`mobile-${next.toLowerCase()}`)} />}
+                </main>}
             <div className="mobile-preview-home" aria-hidden="true" />
           </section>
         </div>
@@ -97,7 +87,8 @@ export function MobilePreviewLauncher() {
     const root = popup.document.createElement('div')
     popup.document.body.appendChild(root)
     const closed = () => { cleanupRef.current?.(); popupRef.current = null; setContainer(null) }
-    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape') popup.close() }
+    // Escape closes an open Notifications drawer first; only with none open does it close the preview window.
+    const keydown = (event: KeyboardEvent) => { if (event.key === 'Escape' && !popup.document.querySelector('.vz-notifications-drawer')) popup.close() }
     popup.addEventListener('beforeunload', closed)
     popup.addEventListener('keydown', keydown)
     cleanupRef.current = () => {

@@ -9,13 +9,15 @@ import dropdown from '../../shared/Dropdown/Dropdown.css?inline'
 import groups from '../react/DualRailCollapsible.css?inline'
 import headers from './RailWindowHeader.css?inline'
 import toolbar from './HeaderControlGroup.css?inline'
+import notifications from '../shared/notificationDrawer.css?inline'
+import viewToggle from '../react/controls/LibraryViewToggle.css?inline'
 import pads from '../react/controls/performancePad.css?inline'
 import icons from '../../shared/icons/appIcon.css?inline'
 import tabs from '../../../styles/tabRows.css?inline'
 import typography from '../../../styles/typography.css?inline'
 
 /** The popup uses production CSS, rather than approximating its presentation. */
-export const mobilePreviewProductionStyles = [base, analyzer, appearance, vyzualz, react, floating, controls, dropdown, groups, headers, toolbar, pads, icons, tabs, typography].join('\n')
+export const mobilePreviewProductionStyles = [base, analyzer, appearance, vyzualz, react, floating, controls, dropdown, groups, headers, toolbar, viewToggle, notifications, pads, icons, tabs, typography].join('\n')
 
 /** Copy typography/theme tokens and font definitions into the separate document. */
 export function mirrorMobilePreviewAppearance(source: Document, target: Document): () => void {

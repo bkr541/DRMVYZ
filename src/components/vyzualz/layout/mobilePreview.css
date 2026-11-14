@@ -49,41 +49,92 @@ body > div { height: 100%; }
 /* Mobile compositions only. Cards, tabs, typography, headers, pads and fields
    retain their actual production classes and CSS without variant restyling. */
 .mpm { display: flex; flex-direction: column; gap: var(--fw-region-gap); height: 100%; min-height: 0; padding: var(--fw-outer-inset); color: var(--color-text); background: var(--color-background); font: var(--type-field-value); }
-.mpm-page-header { display: flex; align-items: center; min-height: 42px; flex-shrink: 0; padding: 0 12px; }
-.mpm-page-header h1 { margin: 0; color: var(--color-text-strong); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); }
-.mpm--1 .mpm-page-header { border-bottom: 1px solid var(--color-border-subtle); }
-.mpm--2 .mpm-page-header { justify-content: center; border: 1px solid var(--color-border-subtle); border-radius: 24px; background: var(--color-panel-alt); }
-.mpm--3 .mpm-page-header { border-left: 2px solid #4ac7db; background: var(--color-panel-alt); }
-.mpm--4 .mpm-page-header { justify-content: center; border-top: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); }
 .mpm-window { flex-shrink: 0; overflow: hidden; }
 .mpm-panel-content { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .mpm-body { display: flex; flex-direction: column; gap: var(--fw-region-gap); flex: 1; min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
 .mpm-navigation { flex-shrink: 0; padding: 0 12px; background: var(--color-panel-alt); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); }
 .mpm-tabs .dv-underline-tab { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; }
-.mpm-engine-card.rv-engine-card { flex-shrink: 0; height: 104px; min-height: 104px; margin: 0; }
 .mpm-pads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.mpm--1 .mpm-pads { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.mpm--2 .mpm-pads { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.mpm--3 .mpm-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .mpm-controls { gap: 16px; }
-.mpm-console-strip, .mpm-dashboard-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); background: var(--color-panel-alt); color: var(--color-text-muted); font: var(--type-field-value); flex-shrink: 0; }
-.mpm-dashboard-footer > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mpm-hub { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.mpm-hub .dv-icon-chip { min-height: 56px; justify-content: flex-start; }
-.mpm-hub .dv-icon-chip > svg:last-child { margin-left: auto; }
 .mpm-output-canvas { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); background: #000; }
 .mpm-output-canvas > .rv-preset-spotlight-thumb { position: absolute; inset: 0; width: 100%; height: 100%; }
-.mpm-devices { display: grid; gap: 8px; }
-.mpm-devices .dv-icon-chip { width: 100%; justify-content: flex-start; min-height: 52px; text-align: left; }
-.mpm-devices strong { display: block; font: var(--type-field-value); }
-.mpm-devices small { display: block; margin-top: 4px; font: var(--type-field-value); color: var(--color-text-muted); }
-.mpm-device-radio { width: 10px; height: 10px; border: 1px solid currentColor; border-radius: 50%; margin-left: auto; }
-.mpm-devices [aria-pressed='true'] .mpm-device-radio { background: currentColor; box-shadow: inset 0 0 0 2px var(--color-panel-alt); }
-.mpm-concept-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 /* Production pages: a header surface, a scrolling body and the shared bottom navigation. */
 .mpm--production .mpm-page-window { flex-shrink: 0; }
 /* Production page header: no icon, a larger centred title. The shared header role is !important, so this matches its specificity and wins by order. */
-:root body .mpm--production [class].rw-window-header { justify-content: center; min-height: 52px; }
+:root body .mpm--production [class].rw-window-header { justify-content: center; min-height: 38px; }
 :root body .mpm--production [class].rw-window-header .rw-window-header-label { flex: 1; text-align: center; font-size: 17px !important; }
-.mpm-panel-content > .mpm-controls { display: flex; flex-direction: column; gap: 16px; }
+
+/* Perform: the selected preset, the tab row and the search box stay put; only the lists below them scroll. */
+.mpm--production .mpm-body[data-mobile-page='Performance'] { overflow: hidden; }
+.mpm--production .mpm-perform { flex: 1; min-height: 0; }
+.mpm--production .mpm-perform > * { flex-shrink: 0; }
+.mpm--production .mpm-perform > .mpm-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.mpm--production .mpm-perform > .mpm-scroll.mpm-controls { display: flex; flex-direction: column; gap: 16px; }
+
+/* Shorter bottom navigation. */
+.mpm--production .mpm-navigation { padding: 0 12px; /* The shared tab row reserves a 25px top gap; the bottom bar needs only a sliver. */ --workspace-tab-top-gap: 4px; }
+.mpm--production .mpm-tabs .dv-underline-tab { gap: 3px; padding-top: 7px; padding-bottom: 7px; }
+/* Perform: 4px added between the Presets/Controls tab row and what follows it (the search box, or the controls list). */
+.mpm--production .mpm-perform > .dv-underline-tabs { margin-bottom: 4px; }
+/* Perform > Presets: 3px added between the search box and the scrolling preset grid. */
+.mpm--production .mpm-perform > .vz-md-search-row { margin-bottom: 3px; }
+
+/* Perform: the production engine dropdown at its production size (84px: the 96px card-plus-inset budget less the 12px rail inset, which the rail
+   normally owns). The dropdown's own top margin is the rail's job, so it is cleared here. */
+.mpm--production { --rv-rail-inline-padding: 12px; }
+.mpm--production .mpm-perform > .rv-engine-dropdown { margin: 0; }
+
+/* A scrolling list ends in the group's rounded corners rather than a hard edge above the bottom navigation. */
+.mpm-body, .mpm-scroll { border-radius: 0 0 var(--radius-group) var(--radius-group); }
+
+/* Perform: the engine options cascade down one after another and sit on a darker backdrop, so they read as raised above the page. */
+.mpm--production .rv-engine-dropdown-scrim { background: linear-gradient(180deg, rgba(2, 6, 12, .58) 0%, rgba(2, 6, 12, .9) 100%); }
+.mpm--production .rv-engine-dropdown-option.rv-engine-card {
+  opacity: 0;
+  transform: translateY(-16px);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--color-primary) 9%, transparent), 0 10px 22px rgba(0, 0, 0, .6);
+  transition: opacity 200ms ease, transform 260ms cubic-bezier(.2, .8, .2, 1), border-color 200ms ease;
+}
+.mpm--production .rv-engine-dropdown-popover:popover-open .rv-engine-dropdown-option.rv-engine-card {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: calc(var(--rv-engine-option-index, 0) * 55ms + 60ms), calc(var(--rv-engine-option-index, 0) * 55ms + 60ms), 0ms;
+}
+@starting-style {
+  .mpm--production .rv-engine-dropdown-popover:popover-open .rv-engine-dropdown-option.rv-engine-card { opacity: 0; transform: translateY(-16px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mpm--production .rv-engine-dropdown-option.rv-engine-card { transition: none; }
+}
+
+/* Perform > Presets: slightly tighter space around the SYSTEM / USER row (8px less above its text, 4px less below). */
+.mpm--production .mpm-perform > .rv-right-subtabs { --workspace-tab-top-gap: 17px; padding-bottom: 8px; }
+
+/* Page header: the title stays centred on the page; the Notifications bell sits at the right edge. */
+.mpm--production .rw-window-header { position: relative; }
+.mpm--production .rw-window-header-actions { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+
+/* Pads: a 3 × 4 bank anchored to the bottom of the page, with the Pads 1 / Pads 2 tab row directly above it. Fixed row heights keep the tab row
+   from moving when the shorter second bank is shown. */
+/* The shared tab-row rule zeroes the top margin of a block that starts with tabs, so the page is pushed down by its container instead. */
+.mpm--production .mpm-body[data-mobile-page='Pads'] { overflow: hidden; justify-content: flex-end; }
+.mpm--production .mpm-pads-page { --workspace-tab-top-gap: 6px; }
+.mpm--production .mpm-pads-page .mpm-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, 94px); }
+
+/* Visualizer: the output runs edge to edge with the header and bottom navigation, with no inset of its own. */
+.mpm--production .mpm-visualizer { padding: 0; }
+
+/* Visualizer: the output and its Design / React tab row stay put; only the inspector below them scrolls. */
+.mpm--production .mpm-body[data-mobile-page='Visualizer'] { overflow: hidden; }
+.mpm--production .mpm-visualizer { flex: 1; min-height: 0; gap: 0; }
+.mpm--production .mpm-visualizer > * { flex-shrink: 0; }
+.mpm--production .mpm-visualizer > .mpm-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+
+/* The inspector is shown as production shows it, with no extra surface or inset: the panel carries no background of its own here, and long control
+   descriptions and info placeholders are hidden, exactly as `.rv-shell` hides them in the React view. */
+.mpm--production .mpm-visualizer .rv-workspace-panel { background: transparent; }
+.mpm--production .mpm-visualizer :is(.rv-ctrl-description, .rv-ctrl-info, .rv-control-helper-copy) { display: none !important; }
+
+/* Design > ENGINE: the parent groups sit 12px in from the left and right edges. */
+.mpm--production .mpm-visualizer [data-cinema2-inspector='design'] .rv-inspector > .rv-ctrl-group { padding-left: 12px; padding-right: 12px; }

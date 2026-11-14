@@ -68,14 +68,21 @@ export function ReactEngineCardContents({ engineId, presetName, pixelLabel = fal
 /**
  * Engine-family switcher shown above the tab row of the React left window.
  */
-export function ReactEngineBrowser({ presetName = null }: {
+export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange, boundarySelector = '.vz-inspector-inner' }: {
   /** The active engine's selected preset, shown under the engine name (Cinema 2.0 and CANVAS). */
   presetName?: string | null
+  /** Controlled mode for store-free hosts (the Mobile Preview mockup): the engine shown, and what choosing another does. */
+  engineId?: ReactEngineId
+  onEngineChange?: (engineId: ReactEngineId) => void
+  /** The container the open menu must fit inside; defaults to the inspector rail. */
+  boundarySelector?: string
 } = {}) {
-  const { activeReactEngineId, selectReactEngine } = useReactStore(useShallow(state => ({
+  const store = useReactStore(useShallow(state => ({
     activeReactEngineId: state.activeReactEngineId,
     selectReactEngine: state.selectReactEngine,
   })))
+  const activeReactEngineId = engineId ?? store.activeReactEngineId
+  const selectReactEngine = onEngineChange ?? store.selectReactEngine
   const [open, setOpen] = useState(false)
   const [closingEngine, setClosingEngine] = useState(activeReactEngineId)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -96,11 +103,13 @@ export function ReactEngineBrowser({ presetName = null }: {
       popover.hidePopover()
       return
     }
-    const rail = trigger.closest('.vz-inspector-inner')
+    const rail = trigger.closest(boundarySelector)
+    // The trigger may live in another window (the Mobile Preview), so listen and measure on its own window.
+    const win = trigger.ownerDocument.defaultView ?? window
 
     const updatePosition = () => {
       const { left, top, right, bottom, width } = trigger.getBoundingClientRect()
-      const railBottom = Math.min(rail?.getBoundingClientRect().bottom ?? window.innerHeight, window.innerHeight)
+      const railBottom = Math.min(rail?.getBoundingClientRect().bottom ?? win.innerHeight, win.innerHeight)
       popover.style.setProperty('--rv-engine-trigger-left', `${left}px`)
       popover.style.setProperty('--rv-engine-trigger-top', `${top}px`)
       popover.style.setProperty('--rv-engine-trigger-right', `${right}px`)
@@ -113,14 +122,14 @@ export function ReactEngineBrowser({ presetName = null }: {
     const observer = new ResizeObserver(updatePosition)
     if (rail) observer.observe(rail)
     observer.observe(trigger)
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
+    win.addEventListener('resize', updatePosition)
+    win.addEventListener('scroll', updatePosition, true)
     return () => {
       observer.disconnect()
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
+      win.removeEventListener('resize', updatePosition)
+      win.removeEventListener('scroll', updatePosition, true)
     }
-  }, [open])
+  }, [open, boundarySelector])
 
   useEffect(() => {
     if (!open) return
@@ -132,8 +141,9 @@ export function ReactEngineBrowser({ presetName = null }: {
       triggerRef.current?.focus({ preventScroll: true })
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    const win = triggerRef.current?.ownerDocument.defaultView ?? window
+    win.addEventListener('keydown', handleKeyDown)
+    return () => win.removeEventListener('keydown', handleKeyDown)
   }, [close, open])
 
   const listedEngines = REACT_ENGINE_IDS.filter(engineId => engineId !== (open ? activeReactEngineId : closingEngine))
@@ -162,9 +172,10 @@ export function ReactEngineBrowser({ presetName = null }: {
       <div className="rv-engine-dropdown-popover" {...popoverAttributes} ref={popoverRef}>
         <div className="rv-engine-dropdown-scrim" aria-hidden="true" onClick={close} />
         <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines" id={menuId}>
-          {listedEngines.map(engineId => (
+          {listedEngines.map((engineId, index) => (
             <button
               key={engineId}
+              style={{ '--rv-engine-option-index': index } as React.CSSProperties}
               type="button"
               role="option"
               aria-selected={false}
