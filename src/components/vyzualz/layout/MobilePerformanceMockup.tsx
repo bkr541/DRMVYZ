@@ -1,8 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
-import { HeaderControlGroup } from './HeaderControlGroup'
-import { HeaderIconKey } from './HeaderIconKey'
-import { HeaderActionIcon } from './HeaderActionIcon'
 import { RailWindowHeader } from './RailWindowHeader'
 import { UnderlineTabs } from '../react/controls/UnderlineTabs'
 import { PanelSubtabs } from '../react/PanelSubtabs'
@@ -51,7 +48,6 @@ export function MobilePerformanceMockup({ variant = 1 }: { variant?: number }) {
   const [controls, setControls] = useState({ intensity: .75, motion: .4, scale: .6, colorShift: .25, bpmSync: true, autoPerformance: false })
   const preset = MOBILE_SAMPLE_PRESETS.find(item => item.id === presetId)!
   const navigate = (next: string) => setPage(next)
-  const nextPreset = () => setPresetId(MOBILE_SAMPLE_PRESETS[(MOBILE_SAMPLE_PRESETS.findIndex(item => item.id === presetId) + 1) % MOBILE_SAMPLE_PRESETS.length].id)
   const scene = <ReactPresetCard id={preset.id} title={preset.metadata.name} description={preset.metadata.description ?? preset.metadata.name} isActive activateLabel={`Open ${preset.metadata.name} controls`} onActivate={() => navigate('Controls')} />
   const navigation = <nav className="mpm-navigation" aria-label="Mockup mobile navigation">
     <UnderlineTabs className="dv-underline-tabs--equal mpm-tabs" tabs={TABS.map(item => ({ ...item, icon: <AppIcon kind={item.icon} size={15} /> }))} activeTab={page} onChange={navigate} ariaLabel="Mobile workspaces" />
@@ -114,11 +110,7 @@ export function MobilePerformanceMockup({ variant = 1 }: { variant?: number }) {
   </>
 
   return <div className={`mpm mpm--${variant}`} aria-label="Mobile performance layout mockup" data-concept={variant} data-workspace-layout="floating">
-    <div className="fw-region mpm-header-region" data-workspace-slot="header"><header className="vz-header mpm-header fw-surface fw-app-header-surface"><HeaderControlGroup label="React controls">
-      {variant === 4 && page !== 'Home' && <HeaderIconKey label="Session dashboard" icon={<HeaderActionIcon action="back" />} onClick={() => navigate('Home')} />}
-      <HeaderIconKey label="Next preset" icon={<AppIcon kind="next" size={12} />} onClick={nextPreset} />
-      <HeaderIconKey label="Cast output" icon={<AppIcon kind="cast" size={12} />} pressed={casting} onClick={() => navigate('Cast')} />
-    </HeaderControlGroup></header></div>
+    <header className="mpm-page-header"><h1>{page}</h1></header>
     {variant === 2 && navigation}
     {variant === 1 && <button type="button" className="rv-engine-card mpm-engine-card" aria-label={`Cinema 2.0, ${preset.metadata.name}`} aria-pressed="true" onClick={() => navigate('Presets')}><ReactEngineCardContents engineId="cinema2" presetName={preset.metadata.name} /></button>}
     {variant === 3 && <div className="mpm-console-strip"><span>Cinema 2.0</span><span>128 BPM</span><span>{casting ? 'Connected' : 'Preview'}</span></div>}

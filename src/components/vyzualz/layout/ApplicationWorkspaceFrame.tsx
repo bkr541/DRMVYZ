@@ -5,6 +5,8 @@ import type { AppView } from '../appView'
 import { APP_VIEW_LABELS } from '../appView'
 import { AppIcon } from '../../shared/icons/AppIcon'
 import { MobilePreviewLauncher } from './MobilePreviewLauncher'
+import { MobileAppPreviewLauncher } from './MobileAppPreviewLauncher'
+import { isMobileAppPreviewFrame } from './mobileAppPreview'
 import { LayoutLabModal } from '../react/LayoutLabModal'
 import { VyzualzSidebar } from '../VyzualzSidebar'
 import { FloatingWorkspaceFrame, WorkspaceRegion, WorkspaceSurface } from './FloatingWorkspace'
@@ -84,6 +86,7 @@ export function ApplicationWorkspaceFrame({
                 appView={appView}
                 onAppViewChange={onAppViewChange}
                 utilityControls={<>
+                  {!isMobileAppPreviewFrame() && <MobileAppPreviewLauncher />}
                   <button type="button" className="fw-layout-lab-launcher az-sidebar-utility" aria-label="Layout Lab"
                     title="Layout Lab" aria-haspopup="dialog" onClick={() => setLayoutLabOpen(true)}>
                     <AppIcon kind="sliders" size={20} />

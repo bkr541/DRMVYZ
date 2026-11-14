@@ -30,8 +30,12 @@ body > div { height: 100%; }
 /* Mobile compositions only. Cards, tabs, typography, headers, pads and fields
    retain their actual production classes and CSS without variant restyling. */
 .mpm { display: flex; flex-direction: column; gap: var(--fw-region-gap); height: 100%; min-height: 0; padding: var(--fw-outer-inset); color: var(--color-text); background: var(--color-background); font: var(--type-field-value); }
-.mpm-header-region { flex-shrink: 0; }
-.mpm-header { display: flex; align-items: center; justify-content: flex-start; gap: 4px; padding: 0 10px; flex-shrink: 0; }
+.mpm-page-header { display: flex; align-items: center; min-height: 42px; flex-shrink: 0; padding: 0 12px; }
+.mpm-page-header h1 { margin: 0; color: var(--color-text-strong); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); }
+.mpm--1 .mpm-page-header { border-bottom: 1px solid var(--color-border-subtle); }
+.mpm--2 .mpm-page-header { justify-content: center; border: 1px solid var(--color-border-subtle); border-radius: 24px; background: var(--color-panel-alt); }
+.mpm--3 .mpm-page-header { border-left: 2px solid #4ac7db; background: var(--color-panel-alt); }
+.mpm--4 .mpm-page-header { justify-content: center; border-top: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); }
 .mpm-window { flex-shrink: 0; overflow: hidden; }
 .mpm-panel-content { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
 .mpm-body { display: flex; flex-direction: column; gap: var(--fw-region-gap); flex: 1; min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }

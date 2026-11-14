@@ -36,11 +36,16 @@ try{
   await expect(nav.getByRole('button',{name:label,exact:true})).toHaveAttribute('aria-current','page');
   await expect(popup.getByRole('main')).toHaveAttribute('data-mobile-view',`option-${number}`);
   await expect(popup.locator('.mpm')).toHaveAttribute('data-concept',String(number));
+  await expect(popup.locator('.mpm .vz-header, .mpm [data-workspace-slot="header"]')).toHaveCount(0);
+  await expect(popup.locator('.mpm-page-header')).toHaveText(number===4?'Home':'Presets');
+  await expect(popup.locator('.mpm-page-header svg, .mpm-page-header button')).toHaveCount(0);
   await phone.screenshot({path:path.join(output,`option-${number}.png`)});
   for(const screen of ['Presets','Pads','Controls','Cast']){
    if(number===4)await popup.locator('.mpm-hub').getByRole('button',{name:new RegExp(screen)}).click();
    else await popup.getByRole('tab',{name:screen,exact:true}).click();
    await expect(popup.locator('.mpm-body')).toHaveAttribute('data-mobile-page',screen);
+   await expect(popup.locator('.mpm .vz-header, .mpm [data-workspace-slot="header"]')).toHaveCount(0);
+   await expect(popup.locator('.mpm-page-header h1')).toHaveText(screen);
    await popup.mouse.move(0,0);
    const header=await productionStyles(popup,'.rw-window-header');assert.deepEqual(header,refs.header,`Option ${number} header differs from production`);
    if(screen==='Presets'){
@@ -77,12 +82,12 @@ try{
    if(number===3){const tabs=popup.getByRole('navigation',{name:'Mockup mobile navigation'}),navBox=await tabs.boundingBox(),bodyBox=await popup.locator('.mpm-body').boundingBox();assert(navBox.y>=bodyBox.y+bodyBox.height-1);const boxes=await tabs.getByRole('tab').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().y));assert.equal(new Set(boxes).size,1);}
    assert.equal(await popup.locator('.mpm-body').evaluate(n=>n.scrollWidth>n.clientWidth),false,`Option ${number}/${screen} overflow`);
    await phone.screenshot({path:path.join(output,`option-${number}-${screen.toLowerCase()}.png`)});
-   if(number===4)await popup.getByRole('button',{name:'Session dashboard',exact:true}).click();
+   if(number===4)await popup.getByRole('button',{name:'Home',exact:true}).click();
   }
   assert.equal(await nav.locator('[aria-current="page"]').count(),1);
  }
  assert.equal(await page.evaluate(()=>globalThis.mobileRuntimeSnapshot()),runtimeBefore,'Preview changed live application state');
- checks.push('All four compositions and 16 screens; real production header/card/tab/pad/field/placeholder style parity, canonical artwork, filters, switches, popup dropdown, pad strike states and local-only casting');
+ checks.push('All four compositions and 16 screens with text-only current-page headers; real production header/card/tab/pad/field/placeholder style parity, canonical artwork, filters, switches, popup dropdown, pad strike states and local-only casting');
  for(const [width,height] of [[800,700],[500,800]]){
  await popup.setViewportSize({width,height});await expect(popup.getByLabel('Mobile performance layout mockup')).toBeVisible();
  const dimensions=await popup.locator('.mobile-preview-screen').evaluate(n=>{const r=n.getBoundingClientRect();return {width:r.width,height:r.height,transform:globalThis.getComputedStyle(n).transform}});assert.deepEqual(dimensions,{width:393,height:852,transform:'none'});

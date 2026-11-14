@@ -393,3 +393,17 @@
 :root body .ll-pad-study--compact .ll-study-pad-label { font: var(--type-pad-label); letter-spacing: .05em; color: #fff; }
 :root body .performance-pad[data-density='compact'] .performance-pad-number,
 :root body .ll-pad-study--compact .ll-study-pad-key { font: 700 32px/1 var(--type-preset-name-family); letter-spacing: normal; }
+
+/* Touch devices: text-entry controls are never smaller than 16px. iOS Safari (and some Android browsers) zoom the whole page when a
+   field under 16px takes focus, and do not zoom back out. The shared field role stays 11px for mouse and keyboard, where there is no zoom.
+   Applies to every text-entry control, including the portaled dropdown search, whatever its own class sets, hence `!important`. */
+@media (hover: none) and (pointer: coarse) {
+  :root body :is(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='button'], [type='submit'], [type='reset'], [type='image'], [type='hidden']),
+    textarea,
+    select,
+    [contenteditable]:not([contenteditable='false'])
+  ) {
+    font-size: max(16px, var(--type-field-size)) !important;
+  }
+}

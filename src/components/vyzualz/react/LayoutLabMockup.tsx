@@ -3,6 +3,7 @@ import canonicalStyles from './controls/canonicalControls.css?inline'
 import typographyStyles from '../../../styles/typography.css?inline'
 import tabStyles from '../../../styles/tabRows.css?inline'
 import workspaceStyles from './layoutLab/layoutLabWorkspace.css?inline'
+import { PresetCardStudies } from './layoutLab/PresetCardStudies'
 import { PerformancePadStudies } from './layoutLab/PerformancePadStudies'
 import { LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
@@ -74,6 +75,6 @@ export function LayoutLabMockup() {
       </div>)}
     </div>
     <p className="ll-workspace-hint" role={saveFailed ? 'status' : undefined}>{saveFailed ? 'Tab names could not be saved in this browser. They will last only for this session.' : 'Click the selected tab again to rename. Enter saves · Escape cancels.'}</p>
-    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>{tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}</section>)}
+    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>{tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}{tab.id === 'layout-lab-tab-02' && <PresetCardStudies />}</section>)}
   </main>
 }
