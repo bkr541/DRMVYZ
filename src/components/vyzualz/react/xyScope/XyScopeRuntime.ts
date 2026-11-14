@@ -5,6 +5,8 @@
 // Each pattern performs the word continuously. Pattern Change only steps between
 // routines through the same event controller Cinema 2.0 uses.
 
+import { XyScopeTextV2Performance, selectTextV2Word, type TextV2PerformanceFrame } from './XyScopeTextV2Performance'
+import { computeTextV2GlyphPoints } from './XyScopeTextV2Geometry'
 import { buildXyScopeSvgLayout, type XyScopeSvgSource } from './XyScopeSvg'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { StereoScopeFrame } from '../../../../audio/scope/scopeTypes'
@@ -36,6 +38,7 @@ const FALLBACK_GLOW: XyScopeRgb = [20, 217, 197]
 const BEATS_PER_TURN = 8
 /** Tempo assumed when nothing is loaded or BPM Sync is off. */
 const FREE_RUN_BEATS_PER_SECOND = 2
+const TEXT_HOLD_SECONDS = 4
 
 export interface XyScopeFrameInput {
   /** Wall-clock seconds, monotonic. */
@@ -50,18 +53,22 @@ export interface XyScopeFrameInput {
 }
 
 export interface XyScopeRuntimeStatus {
-  /** `stereo` is the track's real left/right signal; `fallback` is a procedural stand-in. */
-  scopeSource: 'stereo' | 'fallback'
+  /** Actual synchronized stereo, labelled mono samples, or unavailable sample capture. */
+  scopeSource: 'stereo' | 'mono' | 'fallback'
   points: number
   letters: number
   /** The selected text choreography routine. */
   pattern: XyScopePattern
   performingPattern: XyScopePattern
   phase: XyScopeChoreographyPhase
+  text: string
+  textV2?: { state: TextV2PerformanceFrame['state']; style: TextV2PerformanceFrame['style']; autoPerformance: boolean; grouping: string }
 }
 
 export class XyScopeRuntime {
   private readonly beam: XyScopeBeamRenderer
+  private readonly textV2 = new XyScopeTextV2Performance()
+  private textV2Frame: TextV2PerformanceFrame | null = null
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
   private readonly scope = new XyScopeScopeWindow()
@@ -72,8 +79,15 @@ export class XyScopeRuntime {
   private layout: XyScopeLayout = EMPTY_XY_SCOPE_LAYOUT
   private svgSource: XyScopeSvgSource | null = null
   private layoutKey = ''
+  private words: string[] = []
+  private activeText = ''
+  private textElapsed = 0
   private buffers: XyScopePointBuffers[] = []
   private flashes: number[] = []
+  private textV2Glyphs: XyScopeLayout['glyphs'] = []
+  private textV2Buffers: XyScopePointBuffers[] = []
+  private textV2Flashes: number[] = []
+  private textV2Gains: number[] = []
   private previousContext: SharedPerformanceContext | null = null
   private lastNowSec: number | null = null
   private lastAbsoluteBeat: number | null = null
@@ -95,10 +109,17 @@ export class XyScopeRuntime {
   }
 
   setSettings(settings: XyScopeSettings, font: XyScopeFontSource | null, svg: XyScopeSvgSource | null = null): void {
+    if (this.settings?.sourceMode !== settings.sourceMode) { this.textV2.reset(); this.textV2Frame = null }
     this.svgSource = svg
     const patternChanged = this.params != null && this.params.pattern !== settings.parameters.pattern
     this.settings = settings
     this.params = resolveXyScopeParameters(settings)
+    const words = [...new Set([settings.text, ...settings.additionalTexts].map(text => text.trim().toUpperCase()).filter(Boolean))]
+    if (JSON.stringify(words) !== JSON.stringify(this.words)) {
+      this.words = words
+      this.activeText = words[0] ?? ''
+      this.textElapsed = 0
+    }
     const next = font ?? getDefaultXyScopeFont()
     if (next.id !== this.font.id) this.font = next
     this.rebuildLayoutIfNeeded()
@@ -113,11 +134,16 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.scope.frame.source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase }
+    return { scopeSource: this.scope.frame.source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
   reset(): void {
+    this.textV2.reset()
+    this.textV2Frame = null
+    this.activeText = this.words[0] ?? ''
+    this.textElapsed = 0
+    this.rebuildLayoutIfNeeded()
     this.restartChoreography()
     this.previousContext = null
     this.lastAbsoluteBeat = null
@@ -127,8 +153,23 @@ export class XyScopeRuntime {
   renderFrame(input: XyScopeFrameInput): void {
     const params = this.params
     if (this.disposed || !params || this.width <= 0 || this.height <= 0) return
-    const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, input.nowSec - this.lastNowSec))
+    const elapsed = this.lastNowSec === null ? 0 : Math.max(0, input.nowSec - this.lastNowSec)
+    const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, elapsed))
     this.lastNowSec = input.nowSec
+    const playing = input.playing ?? input.context != null
+    if (this.settings?.sourceMode === 'textV2') {
+      this.renderTextV2(input, dt, playing)
+      return
+    }
+    if (playing && this.settings?.sourceMode === 'text' && this.words.length > 1) {
+      this.textElapsed += elapsed
+      if (this.textElapsed >= TEXT_HOLD_SECONDS) {
+        this.textElapsed %= TEXT_HOLD_SECONDS
+        const candidates = this.words.filter(word => word !== this.activeText)
+        this.activeText = candidates[Math.floor(Math.random() * candidates.length)]
+        this.rebuildLayoutIfNeeded(true)
+      }
+    }
     const background = parseXyScopeColor(params.backgroundColor, FALLBACK_BACKGROUND)
     if (this.needsClear) { this.beam.clear(background); this.needsClear = false }
 
@@ -159,7 +200,6 @@ export class XyScopeRuntime {
     this.activePattern = selection.activePattern
 
     if (discontinuity) { this.choreographyBeat = 0; this.lastAbsoluteBeat = null; this.performingPattern = params.pattern; this.phraseVisit = 0 }
-    const playing = input.playing ?? context != null
     // Figure rotation is beat-locked with BPM Sync (and so stops when the music stops) and free-runs otherwise.
     let deltaBeats: number
     if (params.bpmSync && context && context.bpm > 0) {
@@ -252,7 +292,44 @@ export class XyScopeRuntime {
   dispose(): void {
     this.disposed = true
     this.buffers = []
+    this.textV2Glyphs = []; this.textV2Buffers = []; this.textV2Flashes = []; this.textV2Gains = []
     this.previousContext = null
+  }
+
+  private renderTextV2(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!
+    const p = this.params!
+    const scope = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec, input.stereo?.channelCount ?? 2)
+    const frame = this.textV2.update(settings.textV2, input.context, input.fresh, playing, dt, scope.source !== 'fallback' ? scope.level : 0)
+    this.textV2Frame = frame
+    if (frame.wordEventId && this.words.length > 1) {
+      this.activeText = selectTextV2Word(this.words, this.activeText, frame.wordEventId, input.context?.deterministicVariationSeed ?? 0)
+      this.rebuildLayoutIfNeeded(true)
+    }
+    const background = parseXyScopeColor(p.backgroundColor, FALLBACK_BACKGROUND)
+    if (this.needsClear) { this.beam.clear(background); this.needsClear = false }
+    const glyphCount = this.layout.glyphs.length
+    // Several sequential beam passes per frame reveal coherent ribbons and signed excursions.
+    // A protected near-contour pass always anchors the word; no independent random line cloud.
+    for (let pass = 0; pass < 3; pass++) {
+      for (let g = 0; g < glyphCount; g++) {
+        const index = pass * glyphCount + g
+        computeTextV2GlyphPoints(this.layout.glyphs[g], g, glyphCount, scope, frame, settings.textV2, this.textV2Buffers[index], this.width, this.height, pass)
+        this.textV2Flashes[index] = frame.impact * (settings.textV2.grouping === 'word' ? 1 : .65 + .35 * Math.cos(g * 1.7 + frame.phase))
+        this.textV2Gains[index] = pass === 0 ? .3 + frame.controls.protectedPasses * .4 : pass === 1 ? .72 : .38
+      }
+    }
+    const core = parseXyScopeColor(p.beamColor, FALLBACK_BEAM)
+    const glow = parseXyScopeColor(p.glowColor, FALLBACK_GLOW)
+    const mix = frame.controls.colorMix
+    const beamColor: XyScopeRgb = [0, 1, 2].map(i => Math.round(core[i] * (1 - mix) + glow[i] * mix)) as unknown as XyScopeRgb
+    this.beam.draw(this.textV2Glyphs, this.textV2Buffers, this.textV2Flashes, dt, {
+      beamColor, glowColor: glow, backgroundColor: background,
+      intensity: p.intensity * frame.controls.intensity,
+      glow: p.glow * (.8 + frame.level * .35), trailMs: frame.controls.trailMs,
+      widthPx: frame.controls.widthPx, scanPhase: frame.scanPhase, glyphGains: this.textV2Gains,
+      scanStrength: Math.min(1, frame.amount) * (1 - frame.controls.protectedPasses),
+    })
   }
 
   private restartChoreography(): void {
@@ -268,11 +345,11 @@ export class XyScopeRuntime {
     this.activePattern = pattern
   }
 
-  private rebuildLayoutIfNeeded(): void {
+  private rebuildLayoutIfNeeded(preserveChoreography = false): void {
     const settings = this.settings
     const params = this.params
     if (!settings || !params || this.width <= 0 || this.height <= 0) return
-    const key = [settings.sourceMode, settings.svgMediaId, settings.svgProcessing, this.svgSource?.hash, settings.text, this.font.id, Math.round(this.width), Math.round(this.height), params.size, params.letterSpacing, params.minPieceSize].join('|')
+    const key = [settings.sourceMode, settings.svgMediaId, settings.svgProcessing, this.svgSource?.hash, this.activeText, this.font.id, Math.round(this.width), Math.round(this.height), params.size, params.letterSpacing, params.minPieceSize].join('|')
     if (key === this.layoutKey) return
     this.layoutKey = key
     if (settings.sourceMode === 'svg') {
@@ -281,7 +358,7 @@ export class XyScopeRuntime {
       const points = Array.from({ length: 512 }, (_, i) => ({ x: Math.cos(i / 512 * Math.PI * 2), y: Math.sin(i / 512 * Math.PI * 2), pathIndex: 0, progress: i / 511 }))
       this.layout = buildXyScopeSvgLayout({ id: 'live-scope', hash: 'scope', points }, this.width, this.height, params.size, 0, 'outline')
     } else this.layout = buildXyScopeLayout({
-      text: settings.text,
+      text: this.activeText,
       font: this.font,
       width: this.width,
       height: this.height,
@@ -291,7 +368,12 @@ export class XyScopeRuntime {
     })
     this.buffers = this.layout.glyphs.map(glyph => createXyScopePointBuffers(glyph.count))
     this.flashes = this.layout.glyphs.map(() => 0)
-    this.restartChoreography()
+    this.textV2Glyphs = settings.sourceMode === 'textV2' ? Array.from({ length: 3 }, () => this.layout.glyphs).flat() : []
+    this.textV2Buffers = this.textV2Glyphs.map(glyph => createXyScopePointBuffers(glyph.count))
+    this.textV2Flashes = this.textV2Glyphs.map(() => 0)
+    this.textV2Gains = this.textV2Glyphs.map(() => 1)
+    if (preserveChoreography) this.conversation.reset(this.layout.glyphs.length)
+    else this.restartChoreography()
     this.needsClear = true
   }
 }

@@ -40,6 +40,11 @@ export interface XyScopeBeamStyle {
   /** Glow 0..2. */
   glow: number
   trailMs: number
+  /** Text V2 beam focus and protected scan accent. Omitted by the existing sources. */
+  widthPx?: number
+  scanPhase?: number
+  scanStrength?: number
+  glyphGains?: readonly number[]
 }
 
 export class XyScopeBeamRenderer {
@@ -136,6 +141,11 @@ export class XyScopeBeamRenderer {
           brightness *= 1 - Math.min(1, buffer.gap[i] * 1.2)
           // A hidden segment (a closed-loop seam inside a figure, a repeated point) is not drawn at all.
           if (brightness < 0.02) continue
+          brightness *= style.glyphGains?.[g] ?? 1
+          if (style.scanPhase !== undefined) {
+            const behind = ((glyph.s[i] + g) / Math.max(1, glyphs.length) - style.scanPhase + 1) % 1
+            brightness *= 1 - (style.scanStrength ?? 0) * .35 * (1 - Math.exp(-behind * 9))
+          }
           const bucket = Math.min(XY_SCOPE_BRIGHTNESS_BUCKETS - 1, Math.floor(brightness * XY_SCOPE_BRIGHTNESS_BUCKETS))
           paths[bucket].moveTo(buffer.x[i], buffer.y[i])
           paths[bucket].lineTo(buffer.x[j] + (pointMode ? .7 : 0), buffer.y[j])
@@ -152,13 +162,13 @@ export class XyScopeBeamRenderer {
     const gain = style.intensity
     for (let b = 0; b < XY_SCOPE_BRIGHTNESS_BUCKETS; b += 1) {
       const level = (b + 0.7) / XY_SCOPE_BRIGHTNESS_BUCKETS
-      ctx.lineWidth = 6
+      ctx.lineWidth = 6 * (style.widthPx ?? 1.05) / 1.05
       ctx.strokeStyle = `rgba(${gr},${gg},${gb},${Math.min(1, level * 0.045 * glow * gain).toFixed(3)})`
       ctx.stroke(paths[b])
-      ctx.lineWidth = 2.4
+      ctx.lineWidth = 2.4 * (style.widthPx ?? 1.05) / 1.05
       ctx.strokeStyle = `rgba(${gr},${gg},${gb},${Math.min(1, level * 0.17 * Math.min(1.6, glow) * gain).toFixed(3)})`
       ctx.stroke(paths[b])
-      ctx.lineWidth = 1.05
+      ctx.lineWidth = style.widthPx ?? 1.05
       ctx.strokeStyle = `rgba(${cr},${cg},${cb},${Math.min(1, level * 0.9 * gain).toFixed(3)})`
       ctx.stroke(paths[b])
     }

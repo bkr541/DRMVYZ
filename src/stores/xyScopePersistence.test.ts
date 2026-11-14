@@ -36,14 +36,34 @@ describe('Sound Drawing XY store and persistence contract', () => {
   })
 
   it('persists text, SVG selection, processing and every value as project data and restores them', () => {
-    useReactStore.getState().setXyScopeSettings({ text: 'WILDFLY', fontId: 'font-9', sourceMode: 'svg', svgMediaId: 'uploaded-logo', svgProcessing: 'segments', presetId: 'storm', parameters: { ...DEFAULT_XY_SCOPE_SETTINGS.parameters, trail: 200, bassResponse: .4 } })
+    useReactStore.getState().setXyScopeSettings({ text: 'WILDFLY', additionalTexts: ['HELLO', 'WORLD', '', 'XY'], fontId: 'font-9', sourceMode: 'svg', svgMediaId: 'uploaded-logo', svgProcessing: 'segments', presetId: 'storm', parameters: { ...DEFAULT_XY_SCOPE_SETTINGS.parameters, trail: 200, bassResponse: .4 } })
     const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
     expect(REACT_PROJECT_STATE_KEYS).toContain('xyScopeSettings')
     expect(persisted.xyScopeSettings).toMatchObject({ text: 'WILDFLY', fontId: 'font-9', presetId: 'storm' })
     const restored = mergeReactStoreState(persisted, useReactStore.getState())
     expect(restored.xyScopeSettings).toMatchObject({ text: 'WILDFLY', fontId: 'font-9', sourceMode: 'svg', svgMediaId: 'uploaded-logo', svgProcessing: 'segments' })
+    expect(restored.xyScopeSettings.additionalTexts).toEqual(['HELLO', 'WORLD', '', 'XY'])
     expect(restored.xyScopeSettings.parameters.bassResponse).toBe(.4)
     expect(restored.xyScopeSettings.parameters.trail).toBe(200)
+  })
+
+  it('persists and restores TEXT V2 with its full text configuration', () => {
+    useReactStore.getState().setXyScopeSettings({ sourceMode: 'textV2', text: 'V2', additionalTexts: ['HELLO', 'WORLD'], fontId: 'font-v2' })
+    const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+    const restored = mergeReactStoreState(persisted, useReactStore.getState())
+    expect(restored.xyScopeSettings).toMatchObject({ sourceMode: 'textV2', text: 'V2', additionalTexts: ['HELLO', 'WORLD'], fontId: 'font-v2' })
+    expect(migrateReactStore(persisted, 80).xyScopeSettings).toMatchObject({ sourceMode: 'textV2' })
+  })
+
+  it('persists Text V2 manual settings independently of the original text parameters', () => {
+    const state = useReactStore.getState()
+    state.setXyScopeSettings({ textV2: { ...state.xyScopeSettings.textV2, grouping: 'letters', autoPerformance: false, abstraction: .7, manualStyle: 'impact' } })
+    const saved = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
+    const restored = mergeReactStoreState(saved, useReactStore.getState()).xyScopeSettings
+    expect(restored.textV2).toMatchObject({ grouping: 'letters', autoPerformance: false, abstraction: .7, manualStyle: 'impact' })
+    expect(restored.parameters).toEqual(state.xyScopeSettings.parameters)
+    const old = mergeReactStoreState({ xyScopeSettings: { text: 'OLD' } }, useReactStore.getState()).xyScopeSettings
+    expect(old.textV2).toMatchObject({ grouping: 'both', autoPerformance: true })
   })
 
   it('restores the standalone engine selection without inventing a preset', () => {

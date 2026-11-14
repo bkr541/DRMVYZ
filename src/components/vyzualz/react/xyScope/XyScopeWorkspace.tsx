@@ -12,6 +12,7 @@ import {
   getXyScopeDefaultParameters,
   getXyScopePreset,
   isXyScopeParameterVisible,
+  isXyScopeTextSource,
   XY_SCOPE_DESIGN_SUBGROUPS,
   XY_SCOPE_REACT_SUBGROUPS,
   XY_SCOPE_SVG_PROCESSING,
@@ -21,10 +22,12 @@ import {
   XY_SCOPE_PARAMETERS,
   XY_SCOPE_PRESETS,
   XY_SCOPE_TEXT_MAX_LENGTH,
+  XY_SCOPE_MAX_TEXT_INPUTS,
   type XyScopeParameterDefinition,
   type XyScopeParameterGroup,
   type XyScopeParameterValue,
 } from './XyScopeSettings'
+import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { isXyScopeSvgUpload } from './useXyScopeSvg'
@@ -111,6 +114,7 @@ function XyScopeParameterControl({
 
 const XY_SOURCE_CARDS = [
   { id: 'text', label: 'TEXT', icon: 'text' },
+  { id: 'textV2', label: 'TEXT V2', icon: 'text' },
   { id: 'svg', label: 'SVG', icon: 'svg' },
   { id: 'oscillator', label: 'OSCILATOR', icon: 'scope' },
 ] as const
@@ -178,7 +182,7 @@ export function XyScopeEnginePanel() {
           {!svgOptions.length && <div className="rv-ctrl-info">No uploaded vector SVG files yet. Upload one in Media Manager → SVG.</div>}
         </div>
       </Collapsible>}
-      {source === 'text' && <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
+      {isXyScopeTextSource(source) && <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
         <div data-xyscope-input-group="true" style={{ display: 'contents' }}>
           <TextInputRow
             id="xyscope-text"
@@ -189,6 +193,18 @@ export function XyScopeEnginePanel() {
             description={`Up to ${XY_SCOPE_TEXT_MAX_LENGTH} characters, drawn in capitals.`}
             onChange={text => setXyScopeSettings({ text })}
           />
+          {settings.additionalTexts.map((text, index) => (
+            <TextInputRow
+              key={index}
+              id={`xyscope-text-${index + 2}`}
+              label={`Text ${index + 2}`}
+              value={text}
+              maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
+              placeholder="Type another word"
+              description="Included in random playback when filled in."
+              onChange={value => setXyScopeSettings({ additionalTexts: settings.additionalTexts.map((entry, i) => i === index ? value : entry) })}
+            />
+          ))}
           <SelectRow
             menuBoundarySelector=".vz-inspector"
             placement="below"
@@ -201,6 +217,21 @@ export function XyScopeEnginePanel() {
             description={fontDescription}
             onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
           />
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <IconChipButton
+              aria-label="Add text input"
+              title={settings.additionalTexts.length >= XY_SCOPE_MAX_TEXT_INPUTS - 1 ? 'Maximum of 5 text inputs' : 'Add text input (up to 5)'}
+              disabled={settings.additionalTexts.length >= XY_SCOPE_MAX_TEXT_INPUTS - 1}
+              onClick={() => {
+                const entries = useReactStore.getState().xyScopeSettings.additionalTexts
+                if (entries.length >= XY_SCOPE_MAX_TEXT_INPUTS - 1) return
+                setXyScopeSettings({ additionalTexts: [...entries, ''] })
+                requestAnimationFrame(() => document.getElementById(`xyscope-text-${entries.length + 2}`)?.focus())
+              }}
+            >
+              <AppIcon kind="plus" size={16} />
+            </IconChipButton>
+          </div>
         </div>
       </Collapsible>}
     </section>
@@ -248,6 +279,7 @@ export function XyScopeDesignPanel() {
   const settings = useReactStore(state => state.xyScopeSettings)
   const setXyScopeSettings = useReactStore(state => state.setXyScopeSettings)
   const values = settings.parameters
+  const isTextV2 = settings.sourceMode === 'textV2'
   const defaults = getXyScopeDefaultParameters()
   const preset = getXyScopePreset(settings.presetId)
   const baseline = { ...defaults, ...(preset?.parameters ?? {}) }
@@ -283,13 +315,15 @@ export function XyScopeDesignPanel() {
     </>
   )
 
+  if (isTextV2) return <XyScopeTextV2DesignPanel />
+
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true">
       <div className="rv-workspace-panel-body">
         <div className="rv-inspector rv-inspector-scroll">
           <div className="rv-ctrl-group" data-xyscope-design-groups={XY_SCOPE_GROUP_ORDER.join(' ')}>
             {XY_SCOPE_GROUP_ORDER.map(group => {
-              const controls = XY_SCOPE_PARAMETERS.filter(definition => definition.group === group && !(settings.sourceMode !== 'text' && definition.id === 'letterSpacing') && isXyScopeParameterVisible(definition, values))
+              const controls = XY_SCOPE_PARAMETERS.filter(definition => definition.group === group && !(!isXyScopeTextSource(settings.sourceMode) && definition.id === 'letterSpacing') && isXyScopeParameterVisible(definition, values))
               return (
                 <Collapsible
                   key={group}

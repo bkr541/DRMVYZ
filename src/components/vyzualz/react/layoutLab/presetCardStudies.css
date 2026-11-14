@@ -50,3 +50,51 @@
 .ll-preset-study--monitor [data-selected] .ll-preset-copy::after { background: var(--ll-preset-accent); box-shadow: 0 0 8px #4ac7db66; }
 .ll-preset-study--monitor .ll-preset-favorite { top: 18px; right: 18px; }
 @media (max-width: 1200px) { .ll-preset-study-row { grid-template-columns: repeat(4, minmax(180px, 1fr)); overflow-x: auto; padding-bottom: 6px; } .ll-preset-study-heading { align-items: flex-start; flex-direction: column; gap: 6px; } }
+
+/* 06–10 — the five card treatments above, infused with the Performance Pad styling: a per-preset accent colour drives a signal line, an outlined
+   shortcut numeral, a colour-tinted latched selection and an immediate perimeter halo while the card is held, exactly as a pad behaves. */
+.ll-preset-indicator, .ll-preset-key { display: none; }
+.ll-preset-study--infused .ll-preset-select { transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
+.ll-preset-study--infused .ll-preset-select:hover { border-color: color-mix(in srgb, var(--study-card-color) 55%, #ffffff40); transform: translateY(-2px); }
+.ll-preset-study--infused .ll-preset-select:focus-visible { outline: 2px solid #8ef4ff; outline-offset: 2px; }
+.ll-preset-study--infused .ll-preset-selection { display: none !important; }
+.ll-preset-study--infused .ll-preset-indicator { display: block; position: absolute; z-index: 1; height: 2px; border-radius: 2px; background: var(--study-card-color); }
+.ll-preset-study--infused .ll-preset-key { display: block; position: absolute; z-index: 1; font: 700 48px/1 var(--type-preset-name-family); color: transparent; -webkit-text-stroke: 1px var(--study-card-color); opacity: .24; pointer-events: none; }
+.ll-preset-study--infused .ll-preset-card[data-selected] .ll-preset-select { border-color: #ffffff40; box-shadow: none; background: color-mix(in srgb, var(--study-card-color) 12%, var(--ll-preset-panel)); }
+.ll-preset-study--infused .ll-preset-card[data-hit] .ll-preset-select { transition-duration: 0ms; transform: translateY(1px); border-color: #e8f4f8;
+  box-shadow: 0 0 0 1px var(--study-card-color), 0 0 22px color-mix(in srgb, var(--study-card-color) 75%, transparent), inset 0 0 32px color-mix(in srgb, var(--study-card-color) 30%, transparent); }
+@media (prefers-reduced-motion: reduce) { .ll-preset-study--infused .ll-preset-select { transition: none; } .ll-preset-study--infused .ll-preset-card[data-hit] .ll-preset-select, .ll-preset-study--infused .ll-preset-select:hover { transform: none; } }
+/* 06 — poster with a centred title over a signal line (the Full pad). */
+.ll-preset-study--signal-poster .ll-preset-copy { position: absolute; inset: auto 0 0; align-items: center; padding: 30px 14px 20px; text-align: center; background: linear-gradient(transparent, #020506ed); }
+.ll-preset-study--signal-poster .ll-preset-engine { display: none; }
+.ll-preset-study--signal-poster .ll-preset-indicator { left: 50%; bottom: 9px; width: 56px; transform: translateX(-50%); }
+.ll-preset-study--signal-poster .ll-preset-key { right: 10px; bottom: 4px; }
+/* 07 — framed print with an accent rail beside the caption (the Accent Rail pad). */
+.ll-preset-study--rail-print .ll-preset-select { padding: 8px 8px 0; }
+.ll-preset-study--rail-print .ll-preset-image { border-radius: 3px; }
+.ll-preset-study--rail-print .ll-preset-copy { padding: 14px 44px 14px 18px; }
+.ll-preset-study--rail-print .ll-preset-indicator { left: 4px; top: 12px; bottom: 12px; width: 2px; height: auto; }
+.ll-preset-study--rail-print .ll-preset-favorite { top: auto; bottom: 14px; right: 12px; background: transparent; border-color: transparent; }
+.ll-preset-study--rail-print .ll-preset-key { right: 44px; bottom: 6px; }
+/* 08 — title band above the frame, with a long recessed underline (the Underline pad). */
+.ll-preset-study--underline-gallery .ll-preset-select { flex-direction: column-reverse; border-radius: 6px 6px 0 0; border-bottom-width: 3px; }
+.ll-preset-study--underline-gallery .ll-preset-copy { width: 100%; box-sizing: border-box; padding: 14px 44px 20px 14px; }
+.ll-preset-study--underline-gallery .ll-preset-engine { order: 1; }
+.ll-preset-study--underline-gallery .ll-preset-indicator { left: 14px; right: 14px; bottom: 8px; height: 1px; box-shadow: 0 2px 0 #0008; }
+.ll-preset-study--underline-gallery .ll-preset-key { left: 50%; top: -2px; transform: translateX(-50%); font-size: 56px; opacity: .12; }
+/* 09 — compact strip on a colour wash with a fine lower edge (the Glow pad). */
+.ll-preset-study--glow-strip .ll-preset-select { flex-direction: row; align-items: center; min-height: 84px; background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 14%, #10171b), #10171b); }
+.ll-preset-study--glow-strip .ll-preset-image { width: 44%; flex-shrink: 0; }
+.ll-preset-study--glow-strip .ll-preset-copy { gap: 8px; padding: 12px 26px 14px 12px; }
+.ll-preset-study--glow-strip .ll-preset-indicator { left: 12px; right: 12px; bottom: 6px; height: 1px; opacity: .65; }
+.ll-preset-study--glow-strip .ll-preset-favorite { top: 4px; right: 4px; width: 22px; height: 22px; border: 0; background: transparent; }
+.ll-preset-study--glow-strip .ll-preset-key { right: 30px; top: -4px; font-size: 40px; opacity: .12; }
+.ll-preset-study--glow-strip .ll-preset-card[data-selected] .ll-preset-select { background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 24%, #10171b), #10171b); box-shadow: inset 0 0 12px color-mix(in srgb, var(--study-card-color) 12%, transparent); }
+/* 10 — recessed monitor with a signal line under the centred title; the strike halo is the backlight. */
+.ll-preset-study--backlit-monitor .ll-preset-select { padding: 12px; border-radius: 10px; background: linear-gradient(#1b2429, #10171b); box-shadow: inset 0 1px 0 #ffffff09; }
+.ll-preset-study--backlit-monitor .ll-preset-image { outline: 1px solid #000; border-radius: 4px; box-shadow: 0 0 0 3px #070c10; }
+.ll-preset-study--backlit-monitor .ll-preset-copy { align-self: stretch; align-items: center; padding: 16px 18px 8px; text-align: center; }
+.ll-preset-study--backlit-monitor .ll-preset-engine { order: 1; }
+.ll-preset-study--backlit-monitor .ll-preset-indicator { position: relative; width: 28px; margin-top: 3px; }
+.ll-preset-study--backlit-monitor .ll-preset-favorite { top: 18px; right: 18px; }
+.ll-preset-study--backlit-monitor .ll-preset-key { right: 18px; bottom: 8px; font-size: 40px; }

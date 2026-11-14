@@ -100,6 +100,16 @@ describe('Sound Drawing XY choreography contract (Cinema 2.0 pacing)', () => {
 })
 
 describe('Sound Drawing XY settings normalization', () => {
+  it('accepts TEXT V2 and keeps the original source as the fallback', () => {
+    expect(normalizeXyScopeSettings({ sourceMode: 'textV2' }).sourceMode).toBe('textV2')
+    expect(normalizeXyScopeSettings({ sourceMode: 'missing' }).sourceMode).toBe('text')
+  })
+  it('keeps four additional editable slots, sanitizes text and restores old projects with one input', () => {
+    expect(normalizeXyScopeSettings({ text: 'OLD' }).additionalTexts).toEqual([])
+    expect(normalizeXyScopeSettings({ additionalTexts: 'invalid' }).additionalTexts).toEqual([])
+    expect(normalizeXyScopeSettings({ additionalTexts: ['A\nB', '', 7, 'X'.repeat(30), 'EXTRA'] }).additionalTexts)
+      .toEqual(['A B', '', '', 'X'.repeat(16)])
+  })
   it('returns the documented defaults for empty or corrupt input', () => {
     expect(normalizeXyScopeSettings(undefined)).toEqual(DEFAULT_XY_SCOPE_SETTINGS)
     expect(normalizeXyScopeSettings('nonsense')).toEqual(DEFAULT_XY_SCOPE_SETTINGS)

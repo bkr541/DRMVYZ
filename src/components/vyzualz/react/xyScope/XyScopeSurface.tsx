@@ -6,7 +6,10 @@ import type { TrackIntelligenceAnalysis } from '../../../../features/musicIntell
 import { buildSharedPerformanceContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
 import { useReactStore } from '../../../../stores/reactStore'
 import type { ReactTrackSection } from '../ReactTypes'
-import { XyScopeRuntime } from './XyScopeRuntime'
+import { XyScopeRuntime, type XyScopeRuntimeStatus } from './XyScopeRuntime'
+import { XyScopeTextV2MonoTap } from './XyScopeTextV2Audio'
+import { TEXT_V2_STYLES } from './XyScopeTextV2Settings'
+import { isXyScopeTextSource } from './XyScopeSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useXyScopeSvg } from './useXyScopeSvg'
 import { DrawerNotice } from '../../shared/DrawerNotice'
@@ -54,9 +57,10 @@ export function XyScopeSurface({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const runtimeRef = useRef<XyScopeRuntime | null>(null)
   const settings = useReactStore(state => state.xyScopeSettings)
-  const resolution = useXyScopeFont(settings.sourceMode === 'text' ? settings.fontId : null)
+  const resolution = useXyScopeFont(isXyScopeTextSource(settings.sourceMode) ? settings.fontId : null)
   const svg = useXyScopeSvg(settings.svgMediaId, settings.sourceMode === 'svg')
-  const [scopeSource, setScopeSource] = useState<'stereo' | 'fallback'>('fallback')
+  const [scopeSource, setScopeSource] = useState<'stereo' | 'mono' | 'fallback'>('fallback')
+  const [performanceStatus, setPerformanceStatus] = useState<XyScopeRuntimeStatus['textV2']>()
 
   const inputRef = useRef({ audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive })
   inputRef.current = { audio, scopeStereoTap, onLiveFps, analyser, isPlaying, isPaused, analysisActive }
@@ -77,6 +81,7 @@ export function XyScopeSurface({
     runtime.setSettings(settingsRef.current.settings, settingsRef.current.font, settingsRef.current.svg)
     const pump = new MusicIntelligenceAnalyserFramePump({ publisherId: XY_SCOPE_PUBLISHER_ID })
     const transport = new XyScopeTransportTracker()
+    const monoTap = new XyScopeTextV2MonoTap()
 
     const measure = () => {
       const rect = host.getBoundingClientRect()
@@ -136,7 +141,8 @@ export function XyScopeSurface({
         })
         previousContext = context
       }
-      const stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
+      let stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
+      if (!stereo && settingsRef.current.settings.sourceMode === 'textV2') stereo = monoTap.read(current.analyser, audioTime)
       runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo, playing: clockActive })
 
       fpsFrames += 1
@@ -146,7 +152,11 @@ export function XyScopeSurface({
         fpsFrames = 0
         fpsStart = timestamp
         statusTick += 1
-        if (statusTick % 2 === 0) setScopeSource(runtime.getStatus().scopeSource)
+        if (statusTick % 2 === 0) {
+          const status = runtime.getStatus()
+          setScopeSource(status.scopeSource)
+          setPerformanceStatus(status.textV2)
+        }
       }
     }
     raf = requestAnimationFrame(loop)
@@ -180,10 +190,16 @@ export function XyScopeSurface({
         <div className="rv-xyscope-note rv-xyscope-note--top" role="alert">{svg.error}</div>
         <DrawerNotice tone="error" title="Sound Drawing XY SVG">{svg.error}</DrawerNotice>
       </>}
+      {settings.sourceMode === 'textV2' && performanceStatus && (resolution.status === 'ready' || resolution.status === 'default') && (
+        <div className="rv-xyscope-note rv-xyscope-note--top" data-text-v2-performance="true">
+          {settings.textV2.autoPerformance ? 'Auto Performance' : 'Manual'} · {performanceStatus.state} · {TEXT_V2_STYLES.find(style => style.value === performanceStatus.style)?.label}
+        </div>
+      )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
+      {scopeSource === 'mono' && settings.sourceMode === 'textV2' && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
       {scopeSource === 'fallback' && audio?.trackIdentity && (
         <div className="rv-xyscope-note" role="status">
-          No live stereo signal: dissolves use a stand-in figure instead of the track.
+          {settings.sourceMode === 'textV2' ? 'Stereo samples unavailable: oscillator motion follows audio intelligence.' : 'No live stereo signal: dissolves use a stand-in figure instead of the track.'}
         </div>
       )}
       {resolution.status === 'loading' && settings.fontId && (

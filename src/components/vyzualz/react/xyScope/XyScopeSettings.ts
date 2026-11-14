@@ -9,6 +9,7 @@
 
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../../cinema2/presets/Cinema2AfterhoursPreset'
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from '../../cinema2/modules/Cinema2AfterhoursNativeModule'
+import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
 
 export const XY_SCOPE_ENGINE_ID = 'xyScope' as const
@@ -28,7 +29,12 @@ export const XY_SCOPE_GROUP_LABELS: Readonly<Record<XyScopeParameterGroup, strin
 
 /** Nested groups inside the Design parent, in order. Controls with no subgroup come first. */
 export const XY_SCOPE_REACT_SUBGROUPS = ['Audio Intelligence'] as const
-export type XyScopeSourceMode = 'text' | 'svg' | 'oscillator'
+export type XyScopeSourceMode = 'text' | 'textV2' | 'svg' | 'oscillator'
+
+/** Both text sources use the editable word inputs and font library. V2 owns its performance. */
+export function isXyScopeTextSource(source: XyScopeSourceMode | undefined): source is 'text' | 'textV2' {
+  return source === 'text' || source === 'textV2'
+}
 export type XyScopeSvgProcessing = 'outline' | 'segments' | 'points'
 export const XY_SCOPE_SVG_PROCESSING = [{ value: 'outline', label: 'Outline' }, { value: 'segments', label: 'Dashed Trace' }, { value: 'points', label: 'Point Trace' }] as const
 
@@ -253,14 +259,18 @@ export function getXyScopePreset(id: string | null | undefined): XyScopePreset |
 // ── Persisted settings ────────────────────────────────────────────────────────
 
 export const XY_SCOPE_TEXT_MAX_LENGTH = 16
+export const XY_SCOPE_MAX_TEXT_INPUTS = 5
 export const XY_SCOPE_DEFAULT_TEXT = 'DRMVYZ'
 
 export interface XyScopeSettings {
   sourceMode: XyScopeSourceMode
+  textV2: XyScopeTextV2Settings
   svgMediaId: string | null
   svgProcessing: XyScopeSvgProcessing
   /** The word drawn. Single line, upper-cased on draw. */
   text: string
+  /** Four optional extra words sharing the selected font; blank editing slots are preserved. */
+  additionalTexts: readonly string[]
   /** A font-library asset id, or null for the bundled default (Anton). */
   fontId: string | null
   /** The preset the values started from, or null once a value was edited past it. */
@@ -274,9 +284,11 @@ export function getXyScopeDefaultParameters(): Record<string, XyScopeParameterVa
 
 export const DEFAULT_XY_SCOPE_SETTINGS: Readonly<XyScopeSettings> = Object.freeze({
   sourceMode: 'text',
+  textV2: DEFAULT_TEXT_V2_SETTINGS,
   svgMediaId: null,
   svgProcessing: 'outline',
   text: XY_SCOPE_DEFAULT_TEXT,
+  additionalTexts: Object.freeze([]),
   fontId: null,
   presetId: 'conversation',
   parameters: Object.freeze(getXyScopeDefaultParameters()),
@@ -313,10 +325,14 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
   const parameters: Record<string, XyScopeParameterValue> = {}
   for (const definition of XY_SCOPE_PARAMETERS) parameters[definition.id] = normalizeXyScopeParameterValue(definition, stored[definition.id])
   return {
-    sourceMode: record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text',
+    sourceMode: record.sourceMode === 'textV2' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text',
+    textV2: normalizeTextV2Settings(record.textV2),
     svgMediaId: typeof record.svgMediaId === 'string' && record.svgMediaId.length > 0 && record.svgMediaId.length <= 512 ? record.svgMediaId : null,
     svgProcessing: record.svgProcessing === 'segments' || record.svgProcessing === 'points' ? record.svgProcessing : 'outline',
     text: record.text === undefined ? XY_SCOPE_DEFAULT_TEXT : normalizeXyScopeText(record.text),
+    additionalTexts: Array.isArray(record.additionalTexts)
+      ? record.additionalTexts.slice(0, XY_SCOPE_MAX_TEXT_INPUTS - 1).map(text => typeof text === 'string' ? normalizeXyScopeText(text) : '')
+      : [],
     fontId: typeof record.fontId === 'string' && record.fontId.length > 0 && record.fontId.length <= 512 ? record.fontId : null,
     presetId: record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId),
     parameters,

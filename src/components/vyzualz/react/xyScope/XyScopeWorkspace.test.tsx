@@ -172,6 +172,25 @@ describe('Sound Drawing XY Design inspector standard', () => {
 })
 
 describe('Sound Drawing XY source, presets and React tab', () => {
+  it.each(['text', 'textV2'] as const)('adds and edits up to five text inputs in %s with a centered plus below the font', async sourceMode => {
+    useReactStore.getState().setXyScopeSettings({ sourceMode })
+    await act(async () => root.render(<XyScopeEnginePanel />))
+    const add = container.querySelector<HTMLButtonElement>('button[aria-label="Add text input"]')!
+    expect(add.parentElement?.style.justifyContent).toBe('center')
+    expect(container.querySelector('#xyscope-font')!.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (let i = 2; i <= 5; i += 1) {
+      await act(async () => add.click())
+      const input = container.querySelector<HTMLInputElement>(`#xyscope-text-${i}`)!
+      expect(input).not.toBeNull()
+      await act(async () => setInputValue(input, `WORD ${i}`))
+    }
+    expect(useReactStore.getState().xyScopeSettings.additionalTexts).toEqual(['WORD 2', 'WORD 3', 'WORD 4', 'WORD 5'])
+    expect(container.querySelectorAll('input[type="text"]')).toHaveLength(5)
+    expect(add.disabled).toBe(true)
+    await act(async () => add.click())
+    expect(useReactStore.getState().xyScopeSettings.additionalTexts).toHaveLength(4)
+  })
+
   it('edits the word and opens the font menu below the field even with more room above', async () => {
     container.className = 'vz-inspector'
     vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
@@ -202,21 +221,54 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   it('defaults to TEXT and preserves text settings while browsing source cards', async () => {
     await act(async () => root.render(<XyScopeEnginePanel />))
     const cards = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button'))
-    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'SVG', 'OSCILATOR'])
+    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'TEXT V2', 'SVG', 'OSCILATOR'])
     expect(cards[0].getAttribute('aria-pressed')).toBe('true')
     const settings = useReactStore.getState().xyScopeSettings
-    for (const card of cards.slice(1)) {
+    for (const card of cards.slice(2)) {
       await act(async () => card.click())
       expect(card.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector('#xyscope-text')).toBeNull()
       expect(container.querySelector('#xyscope-font')).toBeNull()
       expect(useReactStore.getState().xyScopeSettings.text).toBe(settings.text)
       expect(useReactStore.getState().xyScopeSettings.fontId).toBe(settings.fontId)
-      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[1] ? 'svg' : 'oscillator')
+      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[2] ? 'svg' : 'oscillator')
     }
     await act(async () => cards[0].click())
     expect(container.querySelector<HTMLInputElement>('#xyscope-text')?.value).toBe(settings.text)
     expect(container.querySelector('#xyscope-font')).not.toBeNull()
+  })
+
+  it('offers compact Text V2 performance controls and restores manual audio style when Auto is off', async () => {
+    useReactStore.getState().setXyScopeSettings({ sourceMode: 'textV2' })
+    const manualParameters = { ...useReactStore.getState().xyScopeSettings.parameters }
+    await act(async () => root.render(<XyScopeDesignPanel />))
+    expect(container.querySelector('[data-text-v2-design]')).not.toBeNull()
+    expect(container.querySelector('#xyscope-v2-auto')).not.toBeNull()
+    expect(container.querySelector('#xyscope-v2-grouping')?.textContent).toContain('Both')
+    expect(container.querySelector('#xyscope-v2-style')).toBeNull()
+    expect(container.querySelector('#xyscope-parameter-pattern')).toBeNull()
+    expect(container.querySelector('#xyscope-parameter-dissolveDepth')).toBeNull()
+    expect(container.querySelectorAll('input[type="range"]').length).toBe(5)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-v2-auto')!.click())
+    expect(useReactStore.getState().xyScopeSettings.textV2.autoPerformance).toBe(false)
+    expect(container.querySelector('#xyscope-v2-style')).not.toBeNull()
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-v2-grouping')!.click())
+    const option = Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]')).find(element => element.textContent?.trim() === 'Individual Letter Oscillators')!
+    await act(async () => option.click())
+    expect(useReactStore.getState().xyScopeSettings.textV2.grouping).toBe('letters')
+    expect(useReactStore.getState().xyScopeSettings.parameters).toEqual(manualParameters)
+  })
+
+  it('selects TEXT V2 with the same text, font, add button and letter controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopeDesignPanel /></>))
+    const card = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button')).find(button => button.textContent === 'TEXT V2')!
+    await act(async () => card.click())
+    expect(card.getAttribute('aria-pressed')).toBe('true')
+    expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('textV2')
+    expect(container.querySelector('#xyscope-font')).not.toBeNull()
+    expect(container.querySelector('#xyscope-parameter-letterSpacing')).not.toBeNull()
+    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('#xyscope-text')!, 'VERSION TWO'))
+    expect(useReactStore.getState().xyScopeSettings.text).toBe('VERSION TWO')
   })
 
   it('renders this engine in the left panel through the shared engine panel', async () => {

@@ -28,7 +28,7 @@ export interface XyScopeScopeFrame {
   traceGain: number
   /** 0..1 loudness relative to the recent peak. */
   level: number
-  source: 'stereo' | 'fallback'
+  source: 'stereo' | 'mono' | 'fallback'
 }
 
 export function createXyScopeScopeFrame(): XyScopeScopeFrame {
@@ -49,14 +49,14 @@ export class XyScopeScopeWindow {
   readonly frame: XyScopeScopeFrame = createXyScopeScopeFrame()
   private levelPeak = 0.05
 
-  update(left: Float32Array | null, right: Float32Array | null, dtSec: number, timeSec: number): XyScopeScopeFrame {
+  update(left: Float32Array | null, right: Float32Array | null, dtSec: number, timeSec: number, channelCount = 2): XyScopeScopeFrame {
     const frame = this.frame
     const { cloudX, cloudY, wave } = frame
     let peak = 1e-4
     let wavePeak = 1e-4
     let energy = 0
     if (left && right && left.length >= WINDOW_SAMPLES && right.length >= WINDOW_SAMPLES) {
-      frame.source = 'stereo'
+      frame.source = channelCount === 1 ? 'mono' : 'stereo'
       const start = left.length - WINDOW_SAMPLES
       for (let k = 0; k < XY_SCOPE_CLOUD_SAMPLES; k += 1) {
         let l = 0
