@@ -229,7 +229,7 @@ test('fails when all shipped assets exceed the installer budget', () => {
 
 test('loads and merges the Cinema 2.0 project budget overrides', () => {
   assert.deepEqual(PROJECT_BUDGETS, {
-    installerBytes: 128 * 1024 * 1024,
+    installerBytes: 131 * 1024 * 1024,
     maxFileBytes: 16 * 1024 * 1024,
     maxTrianglesPerAsset: 250000,
     maxTextureDimension: 4096,

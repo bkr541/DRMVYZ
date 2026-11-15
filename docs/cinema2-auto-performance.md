@@ -26,7 +26,7 @@ changed or rerun. No production build was run for this ordering-only change.
 
 ## Inventory
 
-**Already had the toggle (each keeps its own implementation, unchanged):** Submerge, Orbital, PSYLO, Glassfall, Ifrit, Inertia, Trippy Bro, Switch It, Nightshift, Blockshift, Atmosphere Reference (Crystalized), Afterhours, HUM:N, SAY IT, Depth, Conduit, ATL HOE, Marquee, Echoform, Echowave, Cathedral, Ancient Machine, Event Horizon, Constellation, Sixfold, Hypnotize, Starters, BWC, Canopy, Vacancy, Elevhate.
+**Already had the toggle (each keeps its own implementation, unchanged):** Submerge, Orbital, PSYLO, Glassfall, Ifrit, Inertia, Trippy Bro, Switch It, Nightshift, Blockshift, Atmosphere Reference (Crystalized), Afterhours, HUM:N, SAY IT, Depth, Conduit, ATL HOE, Marquee, Echoform, Echowave, Cathedral, Ancient Machine, Event Horizon, Constellation, Sixfold, Hypnotize, Starters, BWC, Canopy, Vacancy, Elevhate, Neon Forest.
 
 **Received the toggle with this work (off by default):** Mainframe, Backstreet, the six 3D model previews (Form, Shatter, Dust, Hologram, Slices, Voxel), Electric Storm, Reactor, Threshold, GO-TO, Reliquary, War Of Worlds.
 

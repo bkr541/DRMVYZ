@@ -1,3 +1,4 @@
+import { CINEMA2_NEON_FOREST_PRESET_MANIFEST } from './Cinema2NeonForestPreset'
 import { CINEMA2_USER_MODEL_FORM_PRESET_MANIFEST } from './Cinema2UserModelFormPreset'
 import { CINEMA2_USER_MODEL_SHATTER_PRESET_MANIFEST } from './Cinema2UserModelShatterPreset'
 import { CINEMA2_USER_MODEL_DUST_PRESET_MANIFEST } from './Cinema2UserModelDustPreset'
@@ -65,6 +66,8 @@ export const CINEMA2_FIRST_PARTY_PRESET_DECLARATIONS = Object.freeze([
   // Native text/environment implementation; musical review remains available in-app.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_SUBMERGE_PRESET_MANIFEST }),
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_ORBITAL_PRESET_MANIFEST }),
+  // Complete native implementation; human visual acceptance pending.
+  defineCinema2FirstPartyPreset({ role: 'reference', manifest: CINEMA2_NEON_FOREST_PRESET_MANIFEST }),
   // Final PSYLO acceptance granted by the user on 2026-11-02.
   defineCinema2FirstPartyPreset({ role: 'keeper', manifest: CINEMA2_PSYLO_PRESET_MANIFEST }),
   // Static imported scene for visual review; musical behavior is not authored yet.

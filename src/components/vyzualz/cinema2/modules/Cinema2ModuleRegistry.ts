@@ -1,3 +1,4 @@
+import { cinema2NeonForestNativeModuleDefinition } from './Cinema2NeonForestNativeModule'
 import { cinema2OrbitalNativeModuleDefinition } from './Cinema2OrbitalNativeModule'
 import { cinema2SubmergeNativeModuleDefinition } from './Cinema2SubmergeNativeModule'
 import { cinema2PsyloNativeModuleDefinition } from './Cinema2PsyloNativeModule'
@@ -252,6 +253,11 @@ if (!canopyRegistration.ok) {
 const vacancyRegistration = cinema2NativeModuleRegistry.register(cinema2VacancyNativeModuleDefinition)
 if (!vacancyRegistration.ok) {
   throw new Error(`Cinema 2.0 VACANCY native module registration failed: ${vacancyRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
+}
+
+const neonForestRegistration = cinema2NativeModuleRegistry.register(cinema2NeonForestNativeModuleDefinition)
+if (!neonForestRegistration.ok) {
+  throw new Error(`Cinema 2.0 NEON FOREST native module registration failed: ${neonForestRegistration.diagnostics.map(diagnostic => diagnostic.message).join('; ')}`)
 }
 
 function moduleDiagnosticPath(index: number, path: string): string {

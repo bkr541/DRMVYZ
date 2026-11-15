@@ -100,6 +100,13 @@
       "origin": "Owner-supplied DVYDRM Marquee high-fidelity reconstruction v2 (docs/Marquee/Marquee_Reconstruction_v2), rebuilt by scripts/cinema2-assets/build-marquee-runtime.mjs with marked runtime deltas (stronger crown, black tower panels, larger LED cells, one continuous forecourt slab) and capped embedded texture sizes. Node names, fixture counts and the three marquee.<face>.TEXT_SURFACE meshes are preserved. The previous blockout runtime model is kept at docs/Marquee/DVYDRM_Cinema2_Theater_runtime_blockout_rollback.glb."
     },
     {
+      "id": "cinema2-neon-forest-static",
+      "kind": "model",
+      "license": "CC-BY-4.0",
+      "attribution": "Derived from Neon Stage by AnixMoon (https://sketchfab.com/ani111), https://sketchfab.com/3d-models/neon-stage-6037d87967fc4acf8e8ba1de875dc743, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: baked affine transforms, omitted sky, cleared travel corridor, assigned coherent rooted surface attributes, adapted PBR materials and ground texture, added surrounding prism groves, terrain, portal segments and root filaments. Source hash and provenance in scripts/cinema2-assets/sources/neon-forest/source.json.",
+      "origin": "scripts/cinema2-assets/build-neon-forest-runtime.mjs; immutable Neon Stage source in scripts/cinema2-assets/sources/neon-forest/neon_stage.glb"
+    },
+    {
       "id": "cinema2-nightshift-room",
       "kind": "environment",
       "license": "generated-in-house",

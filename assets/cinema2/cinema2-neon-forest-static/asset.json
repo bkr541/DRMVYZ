@@ -1,0 +1,9 @@
+{
+  "id": "cinema2-neon-forest-static",
+  "kind": "model",
+  "compression": "meshopt",
+  "license": "CC-BY-4.0",
+  "attribution": "Derived from Neon Stage by AnixMoon (https://sketchfab.com/ani111), https://sketchfab.com/3d-models/neon-stage-6037d87967fc4acf8e8ba1de875dc743, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: baked affine transforms, omitted sky, cleared travel corridor, assigned coherent rooted surface attributes, adapted PBR materials and ground texture, added surrounding prism groves, terrain, portal segments and root filaments. Source hash and provenance in scripts/cinema2-assets/sources/neon-forest/source.json.",
+  "origin": "scripts/cinema2-assets/build-neon-forest-runtime.mjs; immutable Neon Stage source in scripts/cinema2-assets/sources/neon-forest/neon_stage.glb",
+  "files": { "high": "public/cinema2/models/neon-forest-static.glb" }
+}
