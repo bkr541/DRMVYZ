@@ -7,7 +7,7 @@ import { REACT_ENGINE_CATALOG, REACT_ENGINE_IDS } from './reactEngineCatalog'
 import { ReactEngineBlueprint } from './ReactEngineBlueprint'
 
 /** Decorative blueprint geometry for the Cinema engine identity. */
-function Cinema2EngineBlueprint() {
+export function Cinema2EngineBlueprint() {
   return (
     <svg viewBox="0 0 140 150" fill="none" focusable="false">
       <g stroke="currentColor" strokeWidth={ENGINE_BLUEPRINT_STROKE_WIDTH}>

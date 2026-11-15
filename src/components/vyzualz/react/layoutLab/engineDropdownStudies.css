@@ -1,0 +1,106 @@
+/* Engine dropdown studies. Every option is the production size — 330 × 84px (354px rail less its 12px inset, with the
+   card height 96px less that inset) — with the production 1px neutral border, 4px corner and 6px 12px 4px padding.
+   Surfaces, borders, the cyan primary and the engine eyebrow/label roles are the application's own (dark theme);
+   rows differ in structure only. Text uses the shared `.rv-engine-card` roles from typography.css. */
+.ll-eng-studies {
+  --c-bg: #090d0f; --c-panel: #0b1012; --c-panel-alt: #151a1d; --c-popover: #171b1d;
+  --c-border: rgba(154, 178, 188, .26); --c-border-subtle: rgba(154, 178, 188, .18);
+  --c-primary: #4ac7db; --c-primary-rgb: 74, 199, 219; --c-text: rgba(232, 238, 240, .88); --c-text-strong: rgba(245, 248, 250, .94);
+  --c-text-muted: rgba(196, 207, 211, .58); --c-text-on-primary: #081014; --c-option-border: rgba(212, 215, 219, .42);
+  --c-primary-a: rgba(var(--c-primary-rgb), .14);
+  display: flex; flex-direction: column; gap: 30px; padding: 18px 2px 40px;
+}
+.ll-eng-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 10px; }
+.ll-eng-heading h2 { margin: 0; color: var(--c-text-strong); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.ll-eng-heading p { margin: 0; color: var(--c-text-muted); font: var(--type-field-value); }
+/* The strip is the rail surface the dropdown menu opens over: 12px inset, 8px between options, as in production. */
+.ll-eng-strip { display: flex; gap: 8px; padding: 12px; overflow-x: auto; background: var(--c-panel-alt); border: 1px solid var(--c-border-subtle); border-radius: 4px; scrollbar-width: thin; scrollbar-color: var(--c-primary) var(--c-popover); }
+.ll-eng-cell { flex: 0 0 330px; width: 330px; container-type: inline-size; }
+
+.ll-eng-card { box-sizing: border-box; position: relative; display: block; width: 330px; height: 84px; padding: 6px 12px 4px; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: var(--c-text-strong);
+  background: var(--c-panel); border: 1px solid var(--c-option-border); border-radius: 4px; transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease; }
+.ll-eng-card:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.ll-eng-card:hover { border-color: rgba(var(--c-primary-rgb), .7); }
+.ll-eng-card[aria-selected='true'] { border-color: var(--c-primary); }
+.ll-eng-card .rv-engine-dropdown-icon { position: absolute; display: block; color: var(--c-primary); pointer-events: none; }
+.ll-eng-card .rv-engine-dropdown-icon svg { display: block; width: 100%; height: 100%; }
+.ll-eng-card .rv-engine-dropdown-copy { position: relative; z-index: 1; display: grid; gap: 3px; min-width: 0; }
+.ll-eng-card .rv-engine-dropdown-preset { display: none; }
+.ll-eng-card .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.ll-eng-card .rv-engine-dropdown-eyebrow { text-transform: uppercase; }
+.ll-eng-index { position: absolute; z-index: 1; display: none; font: 600 9px/1 var(--font-mono, 'Manrope', sans-serif); letter-spacing: .12em; font-variant-numeric: tabular-nums; color: var(--c-text-muted); }
+.ll-eng-index i { font-style: normal; opacity: .55; }
+.ll-eng-mark { position: absolute; display: none; pointer-events: none; }
+
+/* ── 1 · Accent rail ──────────────────────────────────────────────────────────────────────────────────────────
+   A flat list row: a primary rail on the left edge, the blueprint small and dim at the right, an index at the foot. */
+.ll-eng-row--rail .ll-eng-card { background: var(--c-panel-alt); padding-left: 16px; }
+.ll-eng-row--rail .ll-eng-mark { display: block; inset: 0 auto 0 0; width: 3px; background: linear-gradient(180deg, rgba(var(--c-primary-rgb), .75), rgba(var(--c-primary-rgb), .25)); transition: box-shadow 160ms, background 160ms; }
+.ll-eng-row--rail .rv-engine-dropdown-icon { right: 14px; top: 50%; width: 62px; height: 62px; transform: translateY(-50%); opacity: .55; }
+.ll-eng-row--rail .ll-eng-card[data-engine='headliner'] .rv-engine-dropdown-icon { inset: 0 0 0 auto; width: 34%; height: 100%; transform: none; opacity: .85; -webkit-mask-image: linear-gradient(to right, transparent, #000 45%); mask-image: linear-gradient(to right, transparent, #000 45%); }
+.ll-eng-row--rail .rv-engine-dropdown-copy { align-content: center; height: 100%; padding-bottom: 14px; }
+.ll-eng-row--rail .ll-eng-index { display: block; left: 16px; bottom: 9px; }
+.ll-eng-row--rail .ll-eng-card:hover { background: linear-gradient(90deg, rgba(var(--c-primary-rgb), .07), var(--c-panel-alt) 70%); }
+.ll-eng-row--rail .ll-eng-card[aria-selected='true'] { background: linear-gradient(90deg, rgba(var(--c-primary-rgb), .18), var(--c-panel-alt) 75%); box-shadow: inset 0 0 18px rgba(var(--c-primary-rgb), .1); }
+.ll-eng-row--rail .ll-eng-card[aria-selected='true'] .ll-eng-mark { background: var(--c-primary); box-shadow: 0 0 10px rgba(var(--c-primary-rgb), .7); }
+.ll-eng-row--rail .ll-eng-card[aria-selected='true'] .rv-engine-dropdown-icon { opacity: .9; }
+
+/* ── 2 · Icon tile ────────────────────────────────────────────────────────────────────────────────────────────
+   The blueprint sits in its own framed chip at the left, like the application's icon chips; text is a two-line block. */
+.ll-eng-row--tile .ll-eng-card { background: linear-gradient(180deg, var(--c-panel-alt), var(--c-panel)); padding-left: 82px; }
+.ll-eng-row--tile .rv-engine-dropdown-icon { left: 12px; top: 50%; width: 56px; height: 56px; box-sizing: border-box; padding: 8px; transform: translateY(-50%); overflow: hidden; border: 1px solid rgba(var(--c-primary-rgb), .4); border-radius: 4px; background: var(--c-primary-a); transition: background 160ms, color 160ms, border-color 160ms; }
+.ll-eng-row--tile .ll-eng-card[data-engine='headliner'] .rv-engine-dropdown-icon { padding: 0; }
+.ll-eng-row--tile .rv-engine-dropdown-copy { align-content: center; height: 100%; padding-bottom: 2px; }
+.ll-eng-row--tile .ll-eng-index { display: block; top: 8px; right: 10px; padding: 3px 5px; border: 1px solid var(--c-border-subtle); border-radius: 3px; }
+.ll-eng-row--tile .ll-eng-card:hover .rv-engine-dropdown-icon { background: rgba(var(--c-primary-rgb), .22); }
+.ll-eng-row--tile .ll-eng-card[aria-selected='true'] { background: linear-gradient(180deg, rgba(var(--c-primary-rgb), .14), var(--c-panel)); box-shadow: inset 0 0 0 1px rgba(var(--c-primary-rgb), .35); }
+.ll-eng-row--tile .ll-eng-card[aria-selected='true'] .rv-engine-dropdown-icon { background: var(--c-primary); border-color: var(--c-primary); color: var(--c-text-on-primary); }
+.ll-eng-row--tile .ll-eng-card[aria-selected='true'] .ll-eng-index { color: var(--c-primary); border-color: rgba(var(--c-primary-rgb), .5); }
+
+/* ── 3 · Spotlight wash ───────────────────────────────────────────────────────────────────────────────────────
+   Edge-to-edge artwork under a strong primary wash; the eyebrow sits at the top and the title is anchored at the foot. */
+.ll-eng-row--wash .ll-eng-card { padding: 8px 12px; border-color: rgba(var(--c-primary-rgb), .45);
+  background: linear-gradient(245deg, rgba(var(--c-primary-rgb), .32), transparent 62%), radial-gradient(ellipse at 100% 50%, rgba(var(--c-primary-rgb), .3), transparent 62%), var(--c-panel); box-shadow: inset 0 0 22px rgba(var(--c-primary-rgb), .1); }
+.ll-eng-row--wash .rv-engine-dropdown-icon { inset: -34px -26px -34px auto; width: 66%; height: auto; opacity: .62; transform: rotate(-8deg) scale(1.05); filter: drop-shadow(0 0 10px rgba(var(--c-primary-rgb), .4)); }
+.ll-eng-row--wash .ll-eng-card[data-engine='headliner'] .rv-engine-dropdown-icon { inset: 0 0 0 auto; width: 64%; height: 100%; opacity: 1; transform: none; filter: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 36%); mask-image: linear-gradient(to right, transparent, #000 36%); }
+.ll-eng-row--wash .rv-engine-dropdown-copy { height: 100%; align-content: space-between; }
+.ll-eng-row--wash .ll-eng-card:hover { box-shadow: inset 0 0 26px rgba(var(--c-primary-rgb), .2); border-color: rgba(var(--c-primary-rgb), .85); }
+.ll-eng-row--wash .ll-eng-card[aria-selected='true'] { border-color: var(--c-primary); box-shadow: inset 0 0 28px rgba(var(--c-primary-rgb), .26), 0 0 14px rgba(var(--c-primary-rgb), .22); }
+
+/* ── 4 · Drafting grid ────────────────────────────────────────────────────────────────────────────────────────
+   The card's own faint grid made the whole field; corner ticks frame it, the blueprint sits to the right, index at the foot. */
+.ll-eng-row--grid .ll-eng-card { background:
+  linear-gradient(90deg, rgba(var(--c-primary-rgb), .13) 1px, transparent 1px) 0 0 / 22px 100%,
+  linear-gradient(0deg, rgba(var(--c-primary-rgb), .13) 1px, transparent 1px) 0 0 / 100% 21px,
+  var(--c-panel); }
+.ll-eng-row--grid .ll-eng-mark { display: block; inset: 3px; opacity: .6; background:
+  linear-gradient(var(--c-primary), var(--c-primary)) 0 0 / 8px 1px no-repeat, linear-gradient(var(--c-primary), var(--c-primary)) 0 0 / 1px 8px no-repeat,
+  linear-gradient(var(--c-primary), var(--c-primary)) 100% 0 / 8px 1px no-repeat, linear-gradient(var(--c-primary), var(--c-primary)) 100% 0 / 1px 8px no-repeat,
+  linear-gradient(var(--c-primary), var(--c-primary)) 0 100% / 8px 1px no-repeat, linear-gradient(var(--c-primary), var(--c-primary)) 0 100% / 1px 8px no-repeat,
+  linear-gradient(var(--c-primary), var(--c-primary)) 100% 100% / 8px 1px no-repeat, linear-gradient(var(--c-primary), var(--c-primary)) 100% 100% / 1px 8px no-repeat; transition: opacity 160ms; }
+.ll-eng-row--grid .rv-engine-dropdown-icon { right: 16px; top: 50%; width: 70px; height: 70px; transform: translateY(-50%); opacity: .85; }
+.ll-eng-row--grid .ll-eng-card[data-engine='headliner'] .rv-engine-dropdown-icon { inset: 0 0 0 auto; width: 40%; height: 100%; transform: none; opacity: 1; -webkit-mask-image: linear-gradient(to right, transparent, #000 40%); mask-image: linear-gradient(to right, transparent, #000 40%); }
+.ll-eng-row--grid .rv-engine-dropdown-copy { padding-top: 4px; }
+.ll-eng-row--grid .ll-eng-index { display: block; left: 12px; bottom: 9px; }
+.ll-eng-row--grid .ll-eng-index::before { content: 'FIG. '; opacity: .55; }
+.ll-eng-row--grid .ll-eng-card:hover .ll-eng-mark { opacity: 1; }
+.ll-eng-row--grid .ll-eng-card[aria-selected='true'] { background-color: rgba(var(--c-primary-rgb), .1); box-shadow: inset 0 0 20px rgba(var(--c-primary-rgb), .14); }
+.ll-eng-row--grid .ll-eng-card[aria-selected='true'] .ll-eng-mark { opacity: 1; inset: 2px; }
+.ll-eng-row--grid .ll-eng-card[aria-selected='true'] .ll-eng-index { color: var(--c-primary); }
+
+/* ── 5 · Recessed well ────────────────────────────────────────────────────────────────────────────────────────
+   A darker inset surface with the blueprint ghosted behind the text; an underline fills from the left on selection. */
+.ll-eng-row--inset .ll-eng-card { background: var(--c-bg); border-color: var(--c-border); box-shadow: inset 0 8px 16px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(0, 0, 0, .4); }
+.ll-eng-row--inset .rv-engine-dropdown-icon { right: -6px; top: -14px; width: 128px; height: 128px; opacity: .16; color: var(--c-text); transition: opacity 200ms, color 200ms; }
+.ll-eng-row--inset .ll-eng-card[data-engine='headliner'] .rv-engine-dropdown-icon { inset: 0 0 0 auto; width: 52%; height: 100%; opacity: .3; filter: grayscale(.85); transition: opacity 200ms, filter 200ms; -webkit-mask-image: linear-gradient(to right, transparent, #000 40%); mask-image: linear-gradient(to right, transparent, #000 40%); }
+.ll-eng-row--inset .rv-engine-dropdown-copy { height: 100%; align-content: center; padding-bottom: 8px; }
+.ll-eng-row--inset .ll-eng-index { display: block; top: 8px; right: 12px; }
+.ll-eng-row--inset .ll-eng-mark { display: block; inset: auto 12px 7px 12px; height: 2px; background: var(--c-primary); box-shadow: 0 0 8px rgba(var(--c-primary-rgb), .6); transform: scaleX(0); transform-origin: left; transition: transform 240ms ease; }
+.ll-eng-row--inset .ll-eng-card:hover { border-color: rgba(var(--c-primary-rgb), .7); }
+.ll-eng-row--inset .ll-eng-card:hover .ll-eng-mark { transform: scaleX(.22); }
+.ll-eng-row--inset .ll-eng-card[aria-selected='true'] { box-shadow: inset 0 8px 16px rgba(0, 0, 0, .35), inset 0 0 20px rgba(var(--c-primary-rgb), .16); }
+.ll-eng-row--inset .ll-eng-card[aria-selected='true'] .ll-eng-mark { transform: scaleX(1); }
+.ll-eng-row--inset .ll-eng-card[aria-selected='true'] .rv-engine-dropdown-icon { opacity: .38; color: var(--c-primary); }
+.ll-eng-row--inset .ll-eng-card[aria-selected='true'] .ll-eng-index { color: var(--c-primary); }
+
+@media (prefers-reduced-motion: reduce) { .ll-eng-card, .ll-eng-mark, .ll-eng-card .rv-engine-dropdown-icon { transition: none !important; } }
