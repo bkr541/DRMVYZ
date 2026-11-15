@@ -13,11 +13,11 @@ beforeEach(() => { window.localStorage.clear(); host = document.createElement('d
 afterEach(async () => { await act(async () => root.unmount()); host.remove() })
 
 describe('Layout Lab navigation icon studies', () => {
-  it('shows ten systems, each with the six destinations drawn as SVG paths', async () => {
+  it('shows fifteen systems, each with the six destinations drawn as SVG paths', async () => {
     await act(async () => root.render(<NavIconStudies />))
     const rows = [...host.querySelectorAll<HTMLElement>('[data-nav-icon-study]')]
     expect(rows.map(row => row.dataset.navIconStudy)).toEqual(NAV_ICON_SYSTEMS.map(system => system.id))
-    expect(rows).toHaveLength(10)
+    expect(rows).toHaveLength(15)
     for (const row of rows) {
       const buttons = [...row.querySelectorAll<HTMLButtonElement>('[data-nav-icon-item]')]
       expect(buttons.map(button => button.title)).toEqual(NAV_ICON_DESTINATIONS.map(destination => destination.label))
@@ -50,25 +50,25 @@ describe('Layout Lab navigation icon studies', () => {
   it('has a Keep checkbox on every icon, counts and persists the kept ones, and leaves the rest unchecked', async () => {
     await act(async () => root.render(<NavIconStudies />))
     const boxes = [...host.querySelectorAll<HTMLInputElement>('input[data-nav-icon-keep]')]
-    expect(boxes).toHaveLength(60)
+    expect(boxes).toHaveLength(90)
     expect(boxes.every(box => !box.checked)).toBe(true)
     const summary = () => host.querySelector('[data-nav-icon-summary]')!.textContent
-    expect(summary()).toContain('0 of 60 kept')
+    expect(summary()).toContain('0 of 90 kept')
     const box = (id: string) => host.querySelector<HTMLInputElement>(`[data-nav-icon-keep="${id}"]`)!
     await act(async () => box('matrix-notifications').click())
     await act(async () => box('bold-pads').click())
     await act(async () => box('bold-media').click())
-    expect(summary()).toContain('3 of 60 kept')
+    expect(summary()).toContain('3 of 90 kept')
     expect(host.querySelector('[data-nav-icon-count="bold"]')!.textContent).toBe('2/6 kept')
     expect(host.querySelector('[data-nav-icon-item="bold-pads"]')!.closest('.ll-ni-cell')!.classList.contains('is-kept')).toBe(true)
     await act(async () => box('bold-pads').click())
-    expect(summary()).toContain('2 of 60 kept')
+    expect(summary()).toContain('2 of 90 kept')
     expect(JSON.parse(window.localStorage.getItem(NAV_ICON_KEEP_STORAGE_KEY)!).kept.sort()).toEqual(['bold-media', 'matrix-notifications'])
     await act(async () => root.unmount())
     root = createRoot(host)
     await act(async () => root.render(<NavIconStudies />))
     expect(box('bold-media').checked).toBe(true)
     expect(box('bold-pads').checked).toBe(false)
-    expect(summary()).toContain('2 of 60 kept')
+    expect(summary()).toContain('2 of 90 kept')
   })
 })

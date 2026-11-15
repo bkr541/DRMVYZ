@@ -56,6 +56,22 @@
 .ll-ni-row--medallion svg path { stroke-width: 1.4; }
 .ll-ni-row--medallion svg path.ring { opacity: .5; stroke-width: 1.2; }
 .ll-ni-row--medallion svg path.a { stroke-width: 1.9; }
+/* 11 Hex fragments */
+.ll-ni-row--fragment svg path { stroke-width: 2.2; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 8; }
+/* 12 Offset duotone */
+.ll-ni-row--misregister svg path { stroke-width: 2.2; }
+.ll-ni-row--misregister svg path.s { stroke: color-mix(in srgb, currentColor 58%, #5d6b80); }
+/* 13 Fade trail */
+.ll-ni-row--fade svg path { stroke-width: 1.8; }
+.ll-ni-row--fade svg path.echo { opacity: .24; stroke-width: 1.4; }
+.ll-ni-row--fade svg path.a { stroke-width: 2.2; }
+/* 14 Dark inlay */
+.ll-ni-row--inlay svg path { stroke-width: 1.8; }
+.ll-ni-row--inlay svg path.inl { fill: var(--llni-accent); fill-opacity: .2; }
+.ll-ni-row--inlay svg path.a { stroke-width: 1.6; }
+/* 15 Flat geometry */
+.ll-ni-row--geometric svg path { stroke: none; }
+.ll-ni-row--geometric svg path.fs { opacity: .92; }
 /* 10 LED matrix */
 .ll-ni-row--matrix svg path { stroke: none; }
 .ll-ni-row--matrix svg path.fs { opacity: .88; }
