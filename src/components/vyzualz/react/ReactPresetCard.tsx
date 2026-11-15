@@ -41,7 +41,7 @@ export interface ReactPresetCardProps {
   description: string
   /** Row layout only: the small thumbnail beside the name. */
   thumbnail?: ReactNode
-  /** Poster layout only: renderer content behind the name. Defaults to the preset's composed blueprint or generated representative frame. */
+  /** Poster layout only: full-color renderer content behind the name. Defaults to the generated production frame. */
   backdrop?: ReactNode
   layout?: ReactPresetCardLayout
   /** Extra `data-*` attributes for the card button (tests and automation look presets up by them). */
@@ -101,12 +101,18 @@ const SWITCH_CHIP_TONE = '#b84fc9'
 const MODIFIED_CHIP_TONE = '#ffb347'
 const DEFAULT_CHIP_TONE = '#4ac7db'
 
-export function ReactPresetArtwork({ id, backdrop, className = '' }: {
+export function ReactPresetArtwork({ id, backdrop, className = '', appearance = 'blueprint' }: {
   id: string
   backdrop?: ReactNode
   className?: string
+  appearance?: 'blueprint' | 'frame'
 }) {
   const artworkFilterId = `preset-blueprint-${useId().replaceAll(':', '')}`
+  if (appearance === 'frame') {
+    return <span className={`rv-preset-spotlight-thumb rv-preset-spotlight-thumb--frame ${className}`.trim()} aria-hidden="true">
+      <span className="rv-preset-frame-scene">{backdrop ?? <PresetBlueprintImage presetId={id} />}</span>
+    </span>
+  }
   const authoredArtworkId = backdrop == null && hasPresetBlueprintArtwork(id) ? id : null
 
   return (
@@ -181,7 +187,7 @@ export function ReactPresetCard({
       >
         {poster ? (
           <>
-            <ReactPresetArtwork id={id} backdrop={backdrop} />
+            <ReactPresetArtwork id={id} backdrop={backdrop} appearance="frame" />
             {(switchChip || isModified) && (
               <span className="rv-preset-poster-badges">
                 {switchChip && <Badge label={switchChip.label} tone={SWITCH_CHIP_TONE} />}
@@ -189,9 +195,10 @@ export function ReactPresetCard({
               </span>
             )}
             <span className="rv-preset-spotlight-caption">
-              <span className="rv-preset-spotlight-name">{title}</span>
+              <span className="rv-preset-spotlight-name" data-two-line={title.trim().includes(' ') || undefined}>{title}</span>
             </span>
             {chipLine && <span className="rv-preset-poster-chip">{chipLine}</span>}
+            {isActive && <span className="rv-preset-poster-selection" aria-hidden="true"><AppIcon kind="check" size={12} /></span>}
           </>
         ) : (
           <>
@@ -235,7 +242,7 @@ export function ReactPresetCard({
               aria-label={`${isFavorite ? 'Remove' : 'Add'} ${title} ${isFavorite ? 'from' : 'to'} favorites`}
               title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <AppIcon kind={isFavorite ? 'starOff' : 'star'} size={15} color="currentColor" />
+              <AppIcon kind={poster ? 'star' : isFavorite ? 'starOff' : 'star'} size={poster ? 13 : 15} color="currentColor" />
             </button>
           )}
           {secondaryActions.map(action => (

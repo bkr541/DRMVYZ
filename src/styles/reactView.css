@@ -364,8 +364,8 @@
 
 /* ── Spotlight preset card ──────────────────────────────────────────────────
    The shared reusable preset card (ReactPresetCard) used across every engine's
-   Presets tab, based on Layout Lab's "04 · Spotlight Card" winner: a full-bleed
-   blueprint thumbnail with the name centred over the artwork.
+   Presets tab, matching Layout Lab Preset Cards row 01, Cinema poster:
+   full-color artwork, a centered shadowed title, quiet border and corner favorite.
    Dedicated classes only — nothing here is shared with any other card style,
    so it can't be affected by unrelated cascade rules elsewhere in this file. */
 
@@ -376,6 +376,8 @@
 
 .rv-preset-spotlight-shell:has(> .rv-preset-spotlight-card--poster) {
   container-type: inline-size;
+  border-radius: 6px;
+  background: var(--color-panel-alt, #151a1d);
 }
 
 /* Scoped through the shell so it outranks the generic `.rv-preset-card-shell > .rv-preset-card { display: block }` rule. */
@@ -565,10 +567,9 @@
   opacity: 0.42;
 }
 
-/* ── Poster preset card (the standard layout) ────────────────────────────────
-   Layout Lab → Presets → 01 · Poster Tile. A 3:2 tile for a two-column grid: the picture (the `backdrop`, or a plate tinted by the preset's
-   first palette colour) fills the card, the name is centred on both axes, the chip line sits at the foot, and
-   the Modified / Switch & Load badges sit on the picture. The favourite heart and the Reload / Restore actions stay top-right. */
+/* ── Poster preset card: Layout Lab → Preset Cards → 01 Cinema poster ────────
+   Full-color renderer frames fill the 148.5 × 69px reference tile. The centered
+   name, quiet selected border and floating favorite match the reference. */
 
 .rv-preset-group-cards.rv-preset-group-cards--poster {
   display: grid;
@@ -584,26 +585,36 @@
 
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--poster {
   --rv-preset-tone: #4ac7db;
+  --rv-preset-elevation: none;
   display: block;
+  box-sizing: border-box;
   /* Keep the responsive tile width, with 30px less height than the 3:2 design. */
   height: calc(100cqw * 2 / 3 - 30px);
   aspect-ratio: auto;
   padding: 0;
-  border-radius: var(--radius-group);
+  border: 1px solid var(--color-border-subtle, #ffffff18);
+  border-radius: 6px;
   background: transparent;
+  color: var(--color-text-strong, #e1e9ed);
+  box-shadow: none;
 }
 
 .rv-preset-card.rv-preset-spotlight-card.rv-preset-spotlight-card--poster:hover {
   background: transparent;
-  border-color: color-mix(in srgb, var(--rv-preset-tone) 55%, transparent);
+  border-color: #4ac7db88;
 }
 
 .rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster.rv-preset-spotlight-card--active {
-  background: transparent;
+  border-color: var(--color-primary, #4ac7db);
+  box-shadow: 0 0 0 1px #4ac7db22;
 }
 
-/* Shared selected-card outline: preset posters and engine-library cards. */
-.rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster.rv-preset-spotlight-card--active,
+.rv-preset-spotlight-shell > .rv-preset-card.rv-preset-spotlight-card--poster:focus-visible {
+  outline: 2px solid var(--color-primary, #4ac7db);
+  outline-offset: 3px;
+}
+
+/* Engine-library cards keep their own selected-card outline. */
 .rv-engine-card[aria-pressed='true'] {
   border-color: var(--rv-preset-tone, var(--color-primary, #4ac7db));
   box-shadow: 0 0 0 1px var(--rv-preset-tone, var(--color-primary, #4ac7db)),
@@ -650,7 +661,7 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  padding: 24px 10px;
+  padding: 8px 24px;
   text-align: center;
   background: none;
 }
@@ -662,15 +673,36 @@
   -webkit-line-clamp: 2;
   overflow: hidden;
   color: #fff;
-  text-shadow: 0 1px 5px #020508, 0 0 12px #020508;
+  text-shadow: 0 1px 3px #000d, 0 0 7px #0009;
   overflow-wrap: anywhere;
   text-overflow: clip;
   white-space: normal;
 }
 
+.rv-preset-spotlight-card--poster .rv-preset-spotlight-name[data-two-line] {
+  max-inline-size: 10ch;
+  text-wrap: balance;
+  overflow-wrap: normal;
+}
+
+.rv-preset-poster-selection {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  z-index: 1;
+  display: flex;
+  color: var(--color-primary, #4ac7db);
+  pointer-events: none;
+}
+
+/* Full-color poster artwork is independent of the Engine dropdown's blueprint treatment. */
+.rv-preset-spotlight-thumb.rv-preset-spotlight-thumb--frame { background: #020506; }
+.rv-preset-frame-scene { position: absolute; inset: 0; }
+.rv-preset-frame-scene > .rv-preset-thumb { width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+
 .rv-preset-poster-chip {
   position: absolute;
-  inset: auto 8px 8px;
+  inset: auto 24px 8px;
   z-index: 1;
   text-align: center;
   pointer-events: none;
@@ -718,8 +750,27 @@
 
 /* The heart and actions ride on the picture, so give them the picture's dark plate. */
 .rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-actions {
-  top: 6px;
-  right: 6px;
+  top: 4px;
+  right: 4px;
+}
+
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-action--favorite {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #ffffff20;
+  border-radius: 4px;
+  background: #090d0fd9;
+  color: #b5c3c9;
+}
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-action--favorite svg { width: 11px; height: 11px; }
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-action--favorite:hover,
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-action--favorite.rv-preset-spotlight-action--active {
+  color: var(--color-primary, #4ac7db);
+  border-color: #4ac7db88;
+}
+.rv-preset-spotlight-shell:has(.rv-preset-spotlight-card--poster) .rv-preset-spotlight-action:focus-visible {
+  outline: 2px solid var(--color-primary, #4ac7db);
+  outline-offset: 3px;
 }
 
 .rv-production-badges,
@@ -1311,6 +1362,41 @@
 
 .rv-xyscope-source-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rv-xyscope-text-entry {
+  position: relative;
+  min-width: 0;
+}
+
+.rv-xyscope-text-entry .rv-ctrl-text-input {
+  padding-right: 38px;
+}
+
+.rv-xyscope-text-entry > .rv-xyscope-text-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rv-xyscope-text-entry:hover > .rv-xyscope-text-clear,
+.rv-xyscope-text-entry:focus-within > .rv-xyscope-text-clear {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .rv-xyscope-text-entry > .rv-xyscope-text-clear {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .rv-sound-source-card {

@@ -330,6 +330,13 @@
   text-transform: uppercase;
   color: #fff;
 }
+/* Production poster names match Layout Lab's 01 Cinema poster reference. */
+:root body .rv-preset-spotlight-card--poster .rv-preset-spotlight-name {
+  font: var(--type-preset-name-weight) 12px/1.2 var(--type-preset-name-family);
+  letter-spacing: var(--type-preset-name-tracking);
+  text-transform: uppercase;
+  color: var(--color-text-strong, #e1e9ed);
+}
 :root body .rv-preset-poster-chip {
   font: 700 9px/1.2 var(--az-font-data, Inter, system-ui, sans-serif);
   letter-spacing: .14em;

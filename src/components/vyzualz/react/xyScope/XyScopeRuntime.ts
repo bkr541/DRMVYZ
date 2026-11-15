@@ -6,7 +6,8 @@
 // routines through the same event controller Cinema 2.0 uses.
 
 import { XyScopeTextV2Performance, selectTextV2Word, type TextV2PerformanceFrame } from './XyScopeTextV2Performance'
-import { computeTextV2GlyphPoints } from './XyScopeTextV2Geometry'
+import { XyScopeTextV2BeamPath } from './XyScopeTextV2Geometry'
+import { XyScopeTextV2Trajectory, type TextV2TrajectoryFrame } from './XyScopeTextV2Trajectory'
 import { buildXyScopeSvgLayout, type XyScopeSvgSource } from './XyScopeSvg'
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
 import type { StereoScopeFrame } from '../../../../audio/scope/scopeTypes'
@@ -28,6 +29,13 @@ import {
   XyScopeScopeWindow,
   type XyScopePointBuffers,
 } from './XyScopeMotion'
+import { Osc1Engine, emptyOsc1Features, type Osc1Features } from './XyScopeOsc1Engine'
+import { Osc1Analyzer } from './XyScopeOsc1Analysis'
+import { Osc1Conductor, osc1StructureFromContext, type Osc1ConductorOutput } from './XyScopeOsc1Performance'
+import { Osc1Renderer } from './XyScopeOsc1Renderer'
+import { createOsc1GlyphSource } from './XyScopeOsc1Glyphs'
+import { DEFAULT_OSC1_LETTER } from './XyScopeOsc1Settings'
+import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
 import { createXyScopeFormDrive, XY_SCOPE_PATTERN_CYCLE, type XyScopePattern } from './XyScopePatterns'
 import { resolveXyScopeParameters, type XyScopeResolvedParameters, type XyScopeSettings } from './XyScopeSettings'
 
@@ -62,13 +70,26 @@ export interface XyScopeRuntimeStatus {
   performingPattern: XyScopePattern
   phase: XyScopeChoreographyPhase
   text: string
-  textV2?: { state: TextV2PerformanceFrame['state']; style: TextV2PerformanceFrame['style']; autoPerformance: boolean; grouping: string }
+  /** OSC 1: where its audio descriptors come from this frame. */
+  osc1Source?: Osc1LiveSnapshot['source']
+  textV2?: { state: TextV2PerformanceFrame['state']; style: TextV2PerformanceFrame['style']; autoPerformance: boolean; grouping: string; phase: TextV2TrajectoryFrame['phase']; morph: number }
 }
 
 export class XyScopeRuntime {
   private readonly beam: XyScopeBeamRenderer
   private readonly textV2 = new XyScopeTextV2Performance()
   private textV2Frame: TextV2PerformanceFrame | null = null
+  private readonly osc1Renderer: Osc1Renderer
+  private osc1Engine = new Osc1Engine(createOsc1GlyphSource(getDefaultXyScopeFont()))
+  private readonly osc1Analyzer = new Osc1Analyzer()
+  private readonly osc1Conductor = new Osc1Conductor()
+  private osc1Output: Osc1ConductorOutput | null = null
+  private osc1Source: Osc1LiveSnapshot['source'] = 'none'
+  private osc1FontId = 'default'
+  private osc1Text: string | null = null
+  private osc1ResetSeen = -1
+  private osc1Auto = false
+  private osc1DropActive = false
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
   private readonly scope = new XyScopeScopeWindow()
@@ -84,10 +105,11 @@ export class XyScopeRuntime {
   private textElapsed = 0
   private buffers: XyScopePointBuffers[] = []
   private flashes: number[] = []
-  private textV2Glyphs: XyScopeLayout['glyphs'] = []
-  private textV2Buffers: XyScopePointBuffers[] = []
-  private textV2Flashes: number[] = []
-  private textV2Gains: number[] = []
+  private readonly textV2Path = new XyScopeTextV2BeamPath()
+  private readonly textV2Glyphs = [this.textV2Path.glyph]
+  private readonly textV2Buffers = [this.textV2Path.buffer]
+  private readonly textV2Trajectory = new XyScopeTextV2Trajectory()
+  private textV2TrajectoryFrame: TextV2TrajectoryFrame | null = null
   private previousContext: SharedPerformanceContext | null = null
   private lastNowSec: number | null = null
   private lastAbsoluteBeat: number | null = null
@@ -106,10 +128,13 @@ export class XyScopeRuntime {
 
   constructor(canvas: HTMLCanvasElement) {
     this.beam = new XyScopeBeamRenderer(canvas)
+    this.osc1Renderer = new Osc1Renderer(canvas)
+    this.osc1Engine.waveL = this.osc1Analyzer.timeL
+    this.osc1Engine.waveR = this.osc1Analyzer.timeR
   }
 
   setSettings(settings: XyScopeSettings, font: XyScopeFontSource | null, svg: XyScopeSvgSource | null = null): void {
-    if (this.settings?.sourceMode !== settings.sourceMode) { this.textV2.reset(); this.textV2Frame = null }
+    if (this.settings?.sourceMode !== settings.sourceMode) { this.textV2.reset(); this.textV2Trajectory.reset(); this.textV2TrajectoryFrame = null; this.textV2Frame = null }
     this.svgSource = svg
     const patternChanged = this.params != null && this.params.pattern !== settings.parameters.pattern
     this.settings = settings
@@ -122,6 +147,11 @@ export class XyScopeRuntime {
     }
     const next = font ?? getDefaultXyScopeFont()
     if (next.id !== this.font.id) this.font = next
+    if (this.font.id !== this.osc1FontId) {
+      this.osc1FontId = this.font.id
+      this.osc1Engine.setFont(createOsc1GlyphSource(this.font))
+      this.needsClear = true
+    }
     this.rebuildLayoutIfNeeded()
     if (patternChanged) this.restartChoreography()
   }
@@ -134,12 +164,15 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.scope.frame.source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping } : undefined }
+    return { scopeSource: this.settings?.sourceMode === 'osc1' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
   reset(): void {
+    this.resetOsc1Signals()
     this.textV2.reset()
+    this.textV2Trajectory.reset()
+    this.textV2TrajectoryFrame = null
     this.textV2Frame = null
     this.activeText = this.words[0] ?? ''
     this.textElapsed = 0
@@ -157,6 +190,10 @@ export class XyScopeRuntime {
     const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, elapsed))
     this.lastNowSec = input.nowSec
     const playing = input.playing ?? input.context != null
+    if (this.settings?.sourceMode === 'osc1') {
+      this.renderOsc1(input, dt, playing)
+      return
+    }
     if (this.settings?.sourceMode === 'textV2') {
       this.renderTextV2(input, dt, playing)
       return
@@ -292,8 +329,87 @@ export class XyScopeRuntime {
   dispose(): void {
     this.disposed = true
     this.buffers = []
-    this.textV2Glyphs = []; this.textV2Buffers = []; this.textV2Flashes = []; this.textV2Gains = []
     this.previousContext = null
+  }
+
+  /** Live values for the inspector: the effective sliders while Auto Performance runs, else the manual ones. */
+  getOsc1Live(): Osc1LiveSnapshot | null {
+    const o = this.settings?.osc1
+    if (!o || this.settings?.sourceMode !== 'osc1') return null
+    const manual = o.presets[o.mode]
+    const out = o.autoPerformance ? this.osc1Output : null
+    return {
+      state: out?.state ?? (o.autoPerformance ? 'LISTENING' : 'MANUAL'),
+      dominant: out?.dominant ?? 'MID', mapped: out?.mapped ?? false, confidence: out?.confidence ?? 0,
+      settings: out?.settings ?? manual,
+      letters: out?.letters ?? this.osc1Engine.letters.map(l => ({ gain: l.gain, offset: l.offset, focus: l.focus })),
+      source: this.osc1Source,
+    }
+  }
+
+  private resetOsc1Signals(): void {
+    this.osc1Engine.reset()
+    this.osc1Analyzer.reset()
+    this.osc1Conductor.reset()
+    this.osc1Output = null
+    this.osc1DropActive = false
+    this.osc1Renderer.clear()
+  }
+
+  private renderOsc1(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!, o = settings.osc1, engine = this.osc1Engine
+    if (this.osc1Renderer.resize(this.width, this.height)) this.needsClear = true
+    if (this.osc1ResetSeen !== o.resetSignals) { this.osc1ResetSeen = o.resetSignals; this.resetOsc1Signals() }
+    if (input.context?.seekDetected) this.resetOsc1Signals()
+    if (this.needsClear) { this.osc1Renderer.clear(); this.needsClear = false }
+    // The drawn word: the first entry, rotated through the others on each new drop (a stable choice per drop).
+    const text = this.words.length > 0 ? this.activeText : ''
+    const display = text.slice(0, 16)
+    if (display !== this.osc1Text) { this.osc1Text = display; engine.setText(display); this.osc1Renderer.clear() }
+
+    // Descriptors: the shared stereo window when present (as the Text Lab's two analysers), else shared analysis.
+    let features: Osc1Features
+    if (playing && input.stereo) {
+      this.osc1Analyzer.load(input.stereo.left, input.stereo.right)
+      features = this.osc1Analyzer.measure(dt, input.stereo.sampleRate)
+      this.osc1Source = input.stereo.channelCount === 1 ? 'mono' : 'stereo'
+    } else if (playing && input.context) {
+      const c = input.context
+      features = { ...emptyOsc1Features(), level: Math.min(1, c.energy), bass: c.bass, mid: c.mid, air: c.high, flux: c.spectralFlux }
+      this.osc1Source = 'shared'
+    } else {
+      features = emptyOsc1Features()
+      if (!playing) this.osc1Analyzer.reset()
+      this.osc1Source = 'none'
+    }
+
+    const manual = o.presets[o.mode]
+    if (this.osc1Auto !== o.autoPerformance) {
+      this.osc1Auto = o.autoPerformance
+      this.osc1Conductor.reset()
+      this.osc1Output = null
+    }
+    engine.letters.forEach((l, i) => {
+      const letter = o.letters[i] ?? DEFAULT_OSC1_LETTER
+      if (!o.autoPerformance) { l.gain = letter.gain; l.offset = letter.offset; l.focus = letter.focus }
+    })
+    if (o.autoPerformance && playing) {
+      const output = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: o.mode, base: manual, letterCount: engine.letters.length })
+      this.osc1Output = output
+      engine.setMode(o.mode, output.settings)
+      output.letters.forEach((value, i) => { const l = engine.letters[i]; if (l) Object.assign(l, value) })
+      // A confirmed drop moves to the next word when several are entered.
+      const dropping = output.state === 'DROP'
+      if (dropping && !this.osc1DropActive && this.words.length > 1) {
+        this.activeText = selectTextV2Word(this.words, this.activeText, `drop:${input.context?.dropOccurrence ?? 0}:${input.context?.sectionIdentity ?? ''}`, input.context?.deterministicVariationSeed ?? 0)
+      }
+      this.osc1DropActive = dropping
+    } else if (!o.autoPerformance || !this.osc1Output) {
+      engine.setMode(o.mode, manual)
+    }
+    engine.tick(dt, features, playing)
+    const settingsNow = o.autoPerformance && this.osc1Output ? this.osc1Output.settings : manual
+    this.osc1Renderer.render(engine, { dt, settings: settingsNow, grid: o.grid, hold: o.hold })
   }
 
   private renderTextV2(input: XyScopeFrameInput, dt: number, playing: boolean): void {
@@ -302,32 +418,27 @@ export class XyScopeRuntime {
     const scope = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec, input.stereo?.channelCount ?? 2)
     const frame = this.textV2.update(settings.textV2, input.context, input.fresh, playing, dt, scope.source !== 'fallback' ? scope.level : 0)
     this.textV2Frame = frame
-    if (frame.wordEventId && this.words.length > 1) {
-      this.activeText = selectTextV2Word(this.words, this.activeText, frame.wordEventId, input.context?.deterministicVariationSeed ?? 0)
+    const previousPhase = this.textV2TrajectoryFrame?.phase
+    const trajectory = this.textV2Trajectory.update(frame, input.context, input.fresh, playing, dt)
+    this.textV2TrajectoryFrame = trajectory
+    if (trajectory.commitWordEvent && this.words.length > 1) {
+      this.activeText = selectTextV2Word(this.words, this.activeText, trajectory.commitWordEvent, input.context?.deterministicVariationSeed ?? 0)
       this.rebuildLayoutIfNeeded(true)
     }
+    // Drop lettering phosphor once the beam fully occupies its oscillator path.
+    if (trajectory.phase === 'formation' && previousPhase !== 'formation') this.needsClear = true
     const background = parseXyScopeColor(p.backgroundColor, FALLBACK_BACKGROUND)
     if (this.needsClear) { this.beam.clear(background); this.needsClear = false }
-    const glyphCount = this.layout.glyphs.length
-    // Several sequential beam passes per frame reveal coherent ribbons and signed excursions.
-    // A protected near-contour pass always anchors the word; no independent random line cloud.
-    for (let pass = 0; pass < 3; pass++) {
-      for (let g = 0; g < glyphCount; g++) {
-        const index = pass * glyphCount + g
-        computeTextV2GlyphPoints(this.layout.glyphs[g], g, glyphCount, scope, frame, settings.textV2, this.textV2Buffers[index], this.width, this.height, pass)
-        this.textV2Flashes[index] = frame.impact * (settings.textV2.grouping === 'word' ? 1 : .65 + .35 * Math.cos(g * 1.7 + frame.phase))
-        this.textV2Gains[index] = pass === 0 ? .3 + frame.controls.protectedPasses * .4 : pass === 1 ? .72 : .38
-      }
-    }
+    this.textV2Path.render(scope, frame, trajectory, settings.textV2, this.width, this.height, dt)
     const core = parseXyScopeColor(p.beamColor, FALLBACK_BEAM)
     const glow = parseXyScopeColor(p.glowColor, FALLBACK_GLOW)
     const mix = frame.controls.colorMix
     const beamColor: XyScopeRgb = [0, 1, 2].map(i => Math.round(core[i] * (1 - mix) + glow[i] * mix)) as unknown as XyScopeRgb
-    this.beam.draw(this.textV2Glyphs, this.textV2Buffers, this.textV2Flashes, dt, {
+    this.beam.draw(this.textV2Glyphs, this.textV2Buffers, [frame.impact], dt, {
       beamColor, glowColor: glow, backgroundColor: background,
       intensity: p.intensity * frame.controls.intensity,
       glow: p.glow * (.8 + frame.level * .35), trailMs: frame.controls.trailMs,
-      widthPx: frame.controls.widthPx, scanPhase: frame.scanPhase, glyphGains: this.textV2Gains,
+      widthPx: frame.controls.widthPx, scanPhase: frame.scanPhase,
       scanStrength: Math.min(1, frame.amount) * (1 - frame.controls.protectedPasses),
     })
   }
@@ -368,12 +479,9 @@ export class XyScopeRuntime {
     })
     this.buffers = this.layout.glyphs.map(glyph => createXyScopePointBuffers(glyph.count))
     this.flashes = this.layout.glyphs.map(() => 0)
-    this.textV2Glyphs = settings.sourceMode === 'textV2' ? Array.from({ length: 3 }, () => this.layout.glyphs).flat() : []
-    this.textV2Buffers = this.textV2Glyphs.map(glyph => createXyScopePointBuffers(glyph.count))
-    this.textV2Flashes = this.textV2Glyphs.map(() => 0)
-    this.textV2Gains = this.textV2Glyphs.map(() => 1)
+    if (settings.sourceMode === 'textV2') this.textV2Path.setLayout(this.layout)
     if (preserveChoreography) this.conversation.reset(this.layout.glyphs.length)
     else this.restartChoreography()
-    this.needsClear = true
+    if (!preserveChoreography || settings.sourceMode !== 'textV2') this.needsClear = true
   }
 }

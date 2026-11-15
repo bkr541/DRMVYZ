@@ -1,10 +1,10 @@
 /** The compact, persisted controls for the signal-driven Text V2 instrument. */
 export const TEXT_V2_STYLES = [
-  { value: 'contour', label: 'Contour / Live Beam' },
+  { value: 'contour', label: 'Orbit / Live Beam' },
   { value: 'stereo', label: 'Stereo / XY Weave' },
   { value: 'harmonic', label: 'Harmonic / Ribbons' },
   { value: 'impact', label: 'Transient / Impact' },
-  { value: 'reform', label: 'Scatter / Reform' },
+  { value: 'reform', label: 'Fold / Reform' },
 ] as const
 export type TextV2Style = typeof TEXT_V2_STYLES[number]['value']
 export type TextV2Grouping = 'both' | 'word' | 'letters'

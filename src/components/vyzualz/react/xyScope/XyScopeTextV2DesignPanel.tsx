@@ -29,7 +29,7 @@ export function XyScopeTextV2DesignPanel() {
               <SelectRow id="xyscope-v2-grouping" label="Oscillator Grouping" value={v2.grouping} menuBoundarySelector=".vz-inspector" placement="below"
                 options={[{ value: 'both', label: 'Both' }, { value: 'word', label: 'Single Word Oscillator' }, { value: 'letters', label: 'Individual Letter Oscillators' }]}
                 onChange={grouping => setV2({ grouping: grouping as XyScopeTextV2Settings['grouping'] })}
-                description="Both combines one coherent word signal with independently phased letter responses." />
+                description="Both lets musical evidence choose and blend whole-word and independent letter oscillators." />
               {slider('intensity', 'Master Intensity', 0, 2, .01, 'Sets overall brightness while Auto Performance shapes beam accents.')}
             </div>
           </Collapsible>
@@ -37,7 +37,7 @@ export function XyScopeTextV2DesignPanel() {
             <div data-xyscope-parent-group="design" style={{ display: 'contents' }}>
               <SliderRow id="xyscope-v2-abstraction" label="Abstraction" value={v2.abstraction} min={0} max={1} step={.01} resetValue={.35}
                 formatValue={value => `${Math.round(value * 100)}%`} onChange={abstraction => setV2({ abstraction })}
-                description="Sets the maximum departure from the lettering. Continuous contours and protected passes prevent a random line cloud." />
+                description="Controls oscillator complexity and signal detail. The beam fully leaves the lettering and reforms from coherent figures." />
               {slider('size', 'Text Size', .3, 1, .01, 'How much of the stage the text fills.')}
               {slider('letterSpacing', 'Letter Spacing', -.05, .3, .002, 'Space between the original letter contours.')}
             </div>
@@ -46,11 +46,11 @@ export function XyScopeTextV2DesignPanel() {
             <div data-xyscope-parent-group="react" style={{ display: 'contents' }}>
               <SliderRow id="xyscope-v2-response" label="Audio Response" value={v2.response} min={0} max={1.5} step={.01} resetValue={1}
                 formatValue={value => `${Math.round(value * 100)}%`} onChange={response => setV2({ response })}
-                description="Scales the real audio response. Zero settles the contours; music changes select new words without a timer." />
+                description="Scales the oscillator response. Zero returns to lettering; musical cues choose departures and new words." />
               {!v2.autoPerformance && <SelectRow id="xyscope-v2-style" label="Response Style" value={v2.manualStyle} menuBoundarySelector=".vz-inspector" placement="below"
                 options={[...TEXT_V2_STYLES]} onChange={manualStyle => setV2({ manualStyle: manualStyle as XyScopeTextV2Settings['manualStyle'] })}
                 description="Choose a manual audio-reactive style. Auto Performance restores its own coordinated control when enabled." />}
-              <div className="rv-ctrl-info">Word changes follow confident phrase, section, drop, or significant energy changes. Pausing holds the current word.</div>
+              <div className="rv-ctrl-info">Signed audio vibrates and expands the lettering. Musical events vary oscillator formations, stage sweeps and reformation. Pausing returns to the selected word.</div>
             </div>
           </Collapsible>
           <Collapsible label="Palette" icon={<AppIcon kind="colorPalette" size={15} color="currentColor" />} bodyClassName="rv-cinema2-palette-body">

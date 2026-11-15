@@ -1,100 +1,141 @@
-/* Layout studies use the application's shared text roles and neutral/cyan palette.
-   Every image keeps the source's full 16:9 frame, original color and no filters. */
-.ll-preset-studies { --ll-preset-panel: var(--color-panel-alt, #151a1d); --ll-preset-border: var(--color-border-subtle, #ffffff18); --ll-preset-accent: var(--color-primary, #4ac7db); display: grid; gap: 30px; padding: 20px 2px 32px; }
+/* Layout studies use the application's shared text roles and neutral/cyan palette. Rows 01–10 use the production Cinema 2.0 preset-card size: the Presets
+   tab's two-column grid in the 354px rail gives 148.5 × 69px tiles (height = 2/3 of the width less 30px) on an 8px gap, with a 6px corner and the title
+   centred in the shared preset-name role. Artwork covers the tile, as it does in production. */
+.ll-preset-studies { --ll-preset-panel: var(--color-panel-alt, #151a1d); --ll-preset-border: var(--color-border-subtle, #ffffff18); --ll-preset-accent: var(--color-primary, #4ac7db);
+  --ll-card-w: 148.5px; --ll-card-h: 69px; display: grid; gap: 26px; padding: 20px 2px 32px; }
 .ll-preset-study { min-width: 0; }
 .ll-preset-study-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .ll-preset-study-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--color-text-strong, #e1e9ed); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
 .ll-preset-study-number { color: var(--ll-preset-accent); }
 .ll-preset-study-heading p { margin: 0; color: var(--color-text-muted, #80929a); font: var(--type-field-value); }
-.ll-preset-study-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.ll-preset-card { position: relative; min-width: 0; border-radius: 6px; background: var(--ll-preset-panel); }
-.ll-preset-select { box-sizing: border-box; display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: inherit; background: transparent; color: var(--color-text-strong, #e1e9ed); text-align: left; cursor: pointer; }
-.ll-preset-image { display: block; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #020506; }
-.ll-preset-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.ll-preset-copy { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px 34px 14px 14px; }
-.ll-preset-engine { color: var(--color-text-muted, #80929a); font: var(--type-field-value); }
+.ll-preset-study-row { display: grid; grid-template-columns: repeat(4, var(--ll-card-w)); gap: 8px; }
+.ll-preset-card { position: relative; box-sizing: border-box; width: var(--ll-card-w); height: var(--ll-card-h); border-radius: 6px; background: var(--ll-preset-panel); }
+.ll-preset-select { box-sizing: border-box; position: relative; display: block; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: inherit; background: transparent; color: var(--color-text-strong, #e1e9ed); text-align: left; cursor: pointer; }
+.ll-preset-image { position: absolute; inset: 0; display: block; overflow: hidden; background: #020506; }
+.ll-preset-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ll-preset-copy { position: absolute; inset: auto 0 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 20px 8px 7px; text-align: center; background: linear-gradient(transparent, #020506e6); }
+.ll-preset-engine { display: none; }
 .ll-preset-name { font: var(--type-preset-name-weight) 12px/1.2 var(--type-preset-name-family); letter-spacing: var(--type-preset-name-tracking); text-transform: uppercase; overflow-wrap: anywhere; }
-.ll-preset-selection { display: none; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ll-preset-accent); }
+.ll-preset-selection { display: none; position: absolute; right: 8px; bottom: 7px; color: var(--ll-preset-accent); }
 .ll-preset-card[data-selected] .ll-preset-selection { display: flex; }
 .ll-preset-card[data-selected] .ll-preset-select { border-color: var(--ll-preset-accent); box-shadow: 0 0 0 1px #4ac7db22; }
 .ll-preset-select:hover { border-color: #4ac7db88; }
 .ll-preset-select:focus-visible, .ll-preset-favorite:focus-visible { outline: 2px solid var(--ll-preset-accent); outline-offset: 3px; }
-.ll-preset-favorite { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 1px solid #ffffff20; border-radius: 5px; background: #090d0fd9; color: #b5c3c9; cursor: pointer; }
+.ll-preset-favorite { position: absolute; top: 4px; right: 4px; z-index: 2; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 1px solid #ffffff20; border-radius: 4px; background: #090d0fd9; color: #b5c3c9; cursor: pointer; }
+.ll-preset-favorite svg { width: 11px; height: 11px; }
 .ll-preset-favorite:hover, .ll-preset-favorite[aria-pressed='true'] { color: var(--ll-preset-accent); border-color: #4ac7db88; }
-/* 01 — full image with a restrained caption at the lower edge. */
-.ll-preset-study--poster .ll-preset-copy { position: absolute; inset: auto 0 0; padding-top: 30px; background: linear-gradient(transparent, #020506ed); }
-.ll-preset-study--poster .ll-preset-engine { display: none; }
-/* 02 — a thin photographic mat with a separate caption plate. */
-.ll-preset-study--print .ll-preset-select { padding: 8px 8px 0; }
-.ll-preset-study--print .ll-preset-image { border-radius: 3px; }
-.ll-preset-study--print .ll-preset-copy { padding-left: 4px; }
-.ll-preset-study--print .ll-preset-favorite { top: auto; bottom: 14px; right: 12px; background: transparent; border-color: transparent; }
-.ll-preset-study--print .ll-preset-selection { right: 36px; }
-/* 03 — an editorial title band above a clean, uninterrupted frame. */
-.ll-preset-study--gallery .ll-preset-select { flex-direction: column-reverse; border-radius: 6px 6px 0 0; border-bottom-width: 3px; }
-.ll-preset-study--gallery .ll-preset-copy { width: 100%; box-sizing: border-box; padding: 14px 44px 14px 14px; }
-.ll-preset-study--gallery .ll-preset-engine { order: 1; }
-.ll-preset-study--gallery .ll-preset-selection { right: 40px; }
-/* 04 — a dense browser row with a complete miniature beside its label. */
-.ll-preset-study--strip .ll-preset-select { flex-direction: row; align-items: center; min-height: 84px; }
-.ll-preset-study--strip .ll-preset-image { width: 44%; flex-shrink: 0; }
-.ll-preset-study--strip .ll-preset-copy { gap: 8px; padding: 12px 26px 12px 12px; }
-.ll-preset-study--strip .ll-preset-favorite { top: 4px; right: 4px; width: 22px; height: 22px; border: 0; background: transparent; }
-.ll-preset-study--strip .ll-preset-selection { right: 8px; top: auto; bottom: 4px; transform: none; }
-/* 05 — a recessed screen with a centered label and inset selection signal. */
-.ll-preset-study--monitor .ll-preset-select { padding: 12px; border-radius: 10px; background: linear-gradient(#1b2429, #10171b); box-shadow: inset 0 1px 0 #ffffff09; }
-.ll-preset-study--monitor .ll-preset-image { outline: 1px solid #000; border-radius: 4px; box-shadow: 0 0 0 3px #070c10; }
-.ll-preset-study--monitor .ll-preset-copy { align-self: stretch; align-items: center; padding: 16px 18px 8px; text-align: center; }
-.ll-preset-study--monitor .ll-preset-engine { order: 1; }
-.ll-preset-study--monitor .ll-preset-copy::after { content: ''; width: 28px; height: 2px; margin-top: 3px; background: #ffffff20; }
-.ll-preset-study--monitor [data-selected] .ll-preset-copy::after { background: var(--ll-preset-accent); box-shadow: 0 0 8px #4ac7db66; }
-.ll-preset-study--monitor .ll-preset-favorite { top: 18px; right: 18px; }
-@media (max-width: 1200px) { .ll-preset-study-row { grid-template-columns: repeat(4, minmax(180px, 1fr)); overflow-x: auto; padding-bottom: 6px; } .ll-preset-study-heading { align-items: flex-start; flex-direction: column; gap: 6px; } }
-
-/* 06–10 — the five card treatments above, infused with the Performance Pad styling: a per-preset accent colour drives a signal line, an outlined
-   shortcut numeral, a colour-tinted latched selection and an immediate perimeter halo while the card is held, exactly as a pad behaves. */
 .ll-preset-indicator, .ll-preset-key { display: none; }
-.ll-preset-study--infused .ll-preset-select { transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
+
+/* 01 — the production tile: artwork edge to edge, with a floating, shadowed centre title. */
+.ll-preset-study--poster .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 24px; background: none; }
+.ll-preset-study--poster .ll-preset-name { text-shadow: 0 1px 3px #000d, 0 0 7px #0009; }
+/* 02 — a thin photographic mat with a separate caption plate. */
+.ll-preset-study--print .ll-preset-select { display: flex; flex-direction: column; padding: 5px 5px 0; }
+.ll-preset-study--print .ll-preset-image { position: relative; inset: auto; flex: 0 0 32px; border-radius: 3px; }
+.ll-preset-study--print .ll-preset-copy { position: static; flex: 1; justify-content: center; align-items: flex-start; padding: 0 22px 0 3px; background: none; text-align: left; }
+.ll-preset-study--print .ll-preset-name { font-size: 11px; }
+.ll-preset-study--print .ll-preset-favorite { top: auto; bottom: 3px; right: 4px; background: transparent; border-color: transparent; }
+/* 03 — an editorial title band above the frame. */
+.ll-preset-study--gallery .ll-preset-select { display: flex; flex-direction: column; border-bottom-width: 3px; border-radius: 6px 6px 0 0; }
+.ll-preset-study--gallery .ll-preset-image { position: relative; inset: auto; order: 2; flex: 1; min-height: 0; }
+.ll-preset-study--gallery .ll-preset-copy { position: static; order: 1; flex: 0 0 32px; justify-content: center; align-items: flex-start; padding: 0 28px 0 8px; background: none; text-align: left; }
+.ll-preset-study--gallery .ll-preset-name { font-size: 11px; }
+/* 04 — a dense browser row: a complete miniature beside its label. */
+.ll-preset-study--strip .ll-preset-select { display: flex; flex-direction: row; align-items: stretch; }
+.ll-preset-study--strip .ll-preset-image { position: relative; inset: auto; flex: 0 0 34%; }
+.ll-preset-study--strip .ll-preset-copy { position: static; flex: 1; min-width: 0; justify-content: center; align-items: flex-start; padding: 0 6px 0 8px; background: none; text-align: left; }
+.ll-preset-study--strip .ll-preset-name { font-size: 9px; letter-spacing: .06em; }
+.ll-preset-study--strip .ll-preset-favorite { top: 2px; right: 2px; border: 0; background: transparent; }
+.ll-preset-study--strip .ll-preset-selection { right: 6px; bottom: 5px; }
+/* 05 — a recessed screen with the title on its lower edge. */
+.ll-preset-study--monitor .ll-preset-select { padding: 5px; border-radius: 8px; background: linear-gradient(#1b2429, #10171b); box-shadow: inset 0 1px 0 #ffffff09; }
+.ll-preset-study--monitor .ll-preset-image { inset: 5px; border-radius: 4px; outline: 1px solid #000; box-shadow: 0 0 0 2px #070c10; }
+.ll-preset-study--monitor .ll-preset-copy { inset: auto 5px 5px; padding: 14px 6px 5px; border-radius: 0 0 4px 4px; }
+.ll-preset-study--monitor .ll-preset-copy::after { content: ''; width: 24px; height: 2px; background: #ffffff20; }
+.ll-preset-study--monitor [data-selected] .ll-preset-copy::after { background: var(--ll-preset-accent); box-shadow: 0 0 8px #4ac7db66; }
+
+/* 06–10 — the tile and the Performance Pad fused. The pad's body is the base (flat #10171b face, hairline border, 8px corner, bold pad label, a
+   signal line in the pad's own colour, an outlined numeral, a colour-tinted latched selection, a halo while held) and the scene artwork is the
+   pad's face rather than a picture placed on top of it: it is dimmed into the pad body, fades into it, or is tinted by the pad colour. Each
+   preset carries the colour and numeral a pad would. */
+.ll-preset-study--infused { --ll-pad-face: #10171b; }
+.ll-preset-study--infused .ll-preset-card { border-radius: 8px; background: var(--ll-pad-face); }
+.ll-preset-study--infused .ll-preset-select { background: var(--ll-pad-face); border-color: #ffffff40; border-radius: 8px; transition: border-color 60ms, background 60ms, box-shadow 60ms, transform 60ms; }
 .ll-preset-study--infused .ll-preset-select:hover { border-color: color-mix(in srgb, var(--study-card-color) 55%, #ffffff40); transform: translateY(-2px); }
 .ll-preset-study--infused .ll-preset-select:focus-visible { outline: 2px solid #8ef4ff; outline-offset: 2px; }
+.ll-preset-study--infused .ll-preset-copy { background: none; }
+.ll-preset-study--infused .ll-preset-name { position: relative; z-index: 1; font: 700 12px/1.2 var(--type-tab-family); letter-spacing: .035em; color: #fff; }
 .ll-preset-study--infused .ll-preset-selection { display: none !important; }
 .ll-preset-study--infused .ll-preset-indicator { display: block; position: absolute; z-index: 1; height: 2px; border-radius: 2px; background: var(--study-card-color); }
-.ll-preset-study--infused .ll-preset-key { display: block; position: absolute; z-index: 1; font: 700 48px/1 var(--type-preset-name-family); color: transparent; -webkit-text-stroke: 1px var(--study-card-color); opacity: .24; pointer-events: none; }
-.ll-preset-study--infused .ll-preset-card[data-selected] .ll-preset-select { border-color: #ffffff40; box-shadow: none; background: color-mix(in srgb, var(--study-card-color) 12%, var(--ll-preset-panel)); }
+.ll-preset-study--infused .ll-preset-key { display: block; position: absolute; z-index: 1; font: 700 44px/1 var(--type-preset-name-family); color: transparent; -webkit-text-stroke: 1px var(--study-card-color); opacity: .24; pointer-events: none; }
+.ll-preset-study--infused .ll-preset-favorite { z-index: 3; }
+.ll-preset-study--infused .ll-preset-card[data-selected] .ll-preset-select { border-color: #ffffff40; box-shadow: none; background: color-mix(in srgb, var(--study-card-color) 12%, var(--ll-pad-face)); }
 .ll-preset-study--infused .ll-preset-card[data-hit] .ll-preset-select { transition-duration: 0ms; transform: translateY(1px); border-color: #e8f4f8;
   box-shadow: 0 0 0 1px var(--study-card-color), 0 0 22px color-mix(in srgb, var(--study-card-color) 75%, transparent), inset 0 0 32px color-mix(in srgb, var(--study-card-color) 30%, transparent); }
 @media (prefers-reduced-motion: reduce) { .ll-preset-study--infused .ll-preset-select { transition: none; } .ll-preset-study--infused .ll-preset-card[data-hit] .ll-preset-select, .ll-preset-study--infused .ll-preset-select:hover { transform: none; } }
-/* 06 — poster with a centred title over a signal line (the Full pad). */
-.ll-preset-study--signal-poster .ll-preset-copy { position: absolute; inset: auto 0 0; align-items: center; padding: 30px 14px 20px; text-align: center; background: linear-gradient(transparent, #020506ed); }
-.ll-preset-study--signal-poster .ll-preset-engine { display: none; }
-.ll-preset-study--signal-poster .ll-preset-indicator { left: 50%; bottom: 9px; width: 56px; transform: translateX(-50%); }
-.ll-preset-study--signal-poster .ll-preset-key { right: 10px; bottom: 4px; }
-/* 07 — framed print with an accent rail beside the caption (the Accent Rail pad). */
-.ll-preset-study--rail-print .ll-preset-select { padding: 8px 8px 0; }
-.ll-preset-study--rail-print .ll-preset-image { border-radius: 3px; }
-.ll-preset-study--rail-print .ll-preset-copy { padding: 14px 44px 14px 18px; }
-.ll-preset-study--rail-print .ll-preset-indicator { left: 4px; top: 12px; bottom: 12px; width: 2px; height: auto; }
-.ll-preset-study--rail-print .ll-preset-favorite { top: auto; bottom: 14px; right: 12px; background: transparent; border-color: transparent; }
-.ll-preset-study--rail-print .ll-preset-key { right: 44px; bottom: 6px; }
-/* 08 — title band above the frame, with a long recessed underline (the Underline pad). */
-.ll-preset-study--underline-gallery .ll-preset-select { flex-direction: column-reverse; border-radius: 6px 6px 0 0; border-bottom-width: 3px; }
-.ll-preset-study--underline-gallery .ll-preset-copy { width: 100%; box-sizing: border-box; padding: 14px 44px 20px 14px; }
-.ll-preset-study--underline-gallery .ll-preset-engine { order: 1; }
-.ll-preset-study--underline-gallery .ll-preset-indicator { left: 14px; right: 14px; bottom: 8px; height: 1px; box-shadow: 0 2px 0 #0008; }
-.ll-preset-study--underline-gallery .ll-preset-key { left: 50%; top: -2px; transform: translateX(-50%); font-size: 56px; opacity: .12; }
-/* 09 — compact strip on a colour wash with a fine lower edge (the Glow pad). */
-.ll-preset-study--glow-strip .ll-preset-select { flex-direction: row; align-items: center; min-height: 84px; background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 14%, #10171b), #10171b); }
-.ll-preset-study--glow-strip .ll-preset-image { width: 44%; flex-shrink: 0; }
-.ll-preset-study--glow-strip .ll-preset-copy { gap: 8px; padding: 12px 26px 14px 12px; }
-.ll-preset-study--glow-strip .ll-preset-indicator { left: 12px; right: 12px; bottom: 6px; height: 1px; opacity: .65; }
-.ll-preset-study--glow-strip .ll-preset-favorite { top: 4px; right: 4px; width: 22px; height: 22px; border: 0; background: transparent; }
-.ll-preset-study--glow-strip .ll-preset-key { right: 30px; top: -4px; font-size: 40px; opacity: .12; }
-.ll-preset-study--glow-strip .ll-preset-card[data-selected] .ll-preset-select { background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 24%, #10171b), #10171b); box-shadow: inset 0 0 12px color-mix(in srgb, var(--study-card-color) 12%, transparent); }
-/* 10 — recessed monitor with a signal line under the centred title; the strike halo is the backlight. */
-.ll-preset-study--backlit-monitor .ll-preset-select { padding: 12px; border-radius: 10px; background: linear-gradient(#1b2429, #10171b); box-shadow: inset 0 1px 0 #ffffff09; }
-.ll-preset-study--backlit-monitor .ll-preset-image { outline: 1px solid #000; border-radius: 4px; box-shadow: 0 0 0 3px #070c10; }
-.ll-preset-study--backlit-monitor .ll-preset-copy { align-self: stretch; align-items: center; padding: 16px 18px 8px; text-align: center; }
-.ll-preset-study--backlit-monitor .ll-preset-engine { order: 1; }
-.ll-preset-study--backlit-monitor .ll-preset-indicator { position: relative; width: 28px; margin-top: 3px; }
-.ll-preset-study--backlit-monitor .ll-preset-favorite { top: 18px; right: 18px; }
-.ll-preset-study--backlit-monitor .ll-preset-key { right: 18px; bottom: 8px; font-size: 40px; }
+/* 06 Scene pad (the Full pad): the artwork is sunk into the pad face under a dark wash; the title sits over a signal line, the numeral outlined beside it. */
+.ll-preset-study--signal-poster .ll-preset-image img { opacity: .5; }
+.ll-preset-study--signal-poster .ll-preset-copy { inset: 0; justify-content: center; padding: 0 8px; }
+.ll-preset-study--signal-poster .ll-preset-indicator { left: 50%; top: calc(50% + 19px); width: 36px; transform: translateX(-50%); }
+.ll-preset-study--signal-poster .ll-preset-key { right: 6px; top: 50%; transform: translateY(-50%); }
+/* 07 Rail scene (the Accent Rail pad): the left of the pad is the pad face with a left-aligned title and a coloured rail; the artwork enters from the right and fades into the face. */
+.ll-preset-study--rail-print .ll-preset-image { left: 38%; -webkit-mask-image: linear-gradient(90deg, transparent, #000 62%); mask-image: linear-gradient(90deg, transparent, #000 62%); }
+.ll-preset-study--rail-print .ll-preset-copy { inset: 0; align-items: flex-start; justify-content: center; padding: 0 10px 0 16px; text-align: left; }
+.ll-preset-study--rail-print .ll-preset-indicator { left: 6px; top: 9px; bottom: 9px; width: 2px; height: auto; }
+.ll-preset-study--rail-print .ll-preset-key { right: 30px; top: 50%; transform: translateY(-50%); opacity: .3; }
+/* 08 Underline scene (the Underline pad): the artwork fades down into the pad face; the title and a long recessed underline sit on the face, the numeral a faint watermark below. */
+.ll-preset-study--underline-gallery .ll-preset-image { bottom: 34%; -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
+.ll-preset-study--underline-gallery .ll-preset-copy { inset: auto 0 0; padding: 0 8px 14px; }
+.ll-preset-study--underline-gallery .ll-preset-indicator { left: 10px; right: 10px; bottom: 7px; height: 1px; box-shadow: 0 2px 0 #0008; }
+.ll-preset-study--underline-gallery .ll-preset-key { left: 50%; bottom: -8px; transform: translateX(-50%); opacity: .12; }
+/* 09 Glow scene (the Glow pad): the artwork is washed in the pad colour, glass over the pad face, with the fine lower edge and a soft inset glow when selected. */
+.ll-preset-study--glow-strip .ll-preset-select { background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 14%, var(--ll-pad-face)), var(--ll-pad-face)); }
+.ll-preset-study--glow-strip .ll-preset-image { background: none; }
+.ll-preset-study--glow-strip .ll-preset-image img { opacity: .5; }
+.ll-preset-study--glow-strip .ll-preset-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 42%, transparent), transparent 78%); }
+.ll-preset-study--glow-strip .ll-preset-copy { inset: auto 0 0; align-items: flex-start; padding: 0 10px 12px; text-align: left; }
+.ll-preset-study--glow-strip .ll-preset-indicator { left: 10px; right: 10px; bottom: 5px; height: 1px; opacity: .65; }
+.ll-preset-study--glow-strip .ll-preset-key { right: 8px; top: -4px; opacity: .14; }
+.ll-preset-study--glow-strip .ll-preset-card[data-selected] .ll-preset-select { background: linear-gradient(135deg, color-mix(in srgb, var(--study-card-color) 24%, var(--ll-pad-face)), var(--ll-pad-face)); box-shadow: inset 0 0 12px color-mix(in srgb, var(--study-card-color) 12%, transparent); }
+/* 10 Backlit scene (the pad's strike halo made permanent): the artwork is a recessed screen in the pad body, the pad colour glowing faintly around it; a strike lights the whole edge. */
+.ll-preset-study--backlit-monitor .ll-preset-select { padding: 5px; box-shadow: 0 0 10px color-mix(in srgb, var(--study-card-color) 22%, transparent), inset 0 0 14px color-mix(in srgb, var(--study-card-color) 14%, transparent); }
+.ll-preset-study--backlit-monitor .ll-preset-image { inset: 5px; border-radius: 4px; outline: 1px solid #000; box-shadow: 0 0 0 2px #070c10; }
+.ll-preset-study--backlit-monitor .ll-preset-copy { inset: 5px; justify-content: flex-end; padding: 0 6px 9px; border-radius: 4px; background: linear-gradient(transparent 30%, #020506cc); }
+.ll-preset-study--backlit-monitor .ll-preset-indicator { position: relative; width: 24px; margin-top: 2px; }
+.ll-preset-study--backlit-monitor .ll-preset-key { right: 11px; bottom: 6px; font-size: 30px; opacity: .3; }
+
+/* Long production names wrap naturally at word boundaries in every comparison. */
+.ll-preset-name[data-two-line] { max-inline-size: 10ch; text-wrap: balance; overflow-wrap: normal; }
+
+/* 11–13 are independent asset-browser layouts, rather than Performance Pad treatments.
+   Anatomy follows Spectrum's preview / title / metadata / secondary-action patterns. */
+.ll-library-card { position: relative; box-sizing: border-box; width: var(--ll-card-w); height: 158px; }
+.ll-library-select { position: relative; box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; overflow: hidden; border: 1px solid var(--ll-preset-border); border-radius: 8px; background: #171e23; color: var(--color-text-strong, #e1e9ed); text-align: left; cursor: pointer; }
+.ll-library-preview { display: block; flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; background: #020506; }
+.ll-library-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ll-library-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: 6px; padding: 10px 12px; }
+.ll-library-name { display: block; order: 0; min-height: 2.4em; }
+.ll-library-engine { order: 1; color: var(--color-text-muted, #80929a); font: var(--type-field-value); }
+.ll-library-selection { display: none; position: absolute; right: 10px; bottom: 11px; color: var(--ll-preset-accent); }
+.ll-library-card[data-selected] .ll-library-selection { display: flex; }
+.ll-library-card[data-selected] .ll-library-select { border-color: var(--ll-preset-accent); box-shadow: 0 0 0 1px var(--ll-preset-accent); }
+.ll-library-select:hover { border-color: var(--ll-preset-accent); }
+.ll-library-select:focus-visible, .ll-library-favorite:focus-visible { outline: 2px solid var(--ll-preset-accent); outline-offset: 3px; }
+.ll-library-favorite { position: absolute; z-index: 2; top: 8px; right: 8px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #ffffff24; border-radius: 5px; color: #d4dfe4; background: #0b1013d9; cursor: pointer; }
+.ll-library-favorite:hover, .ll-library-favorite[aria-pressed='true'] { color: var(--ll-preset-accent); border-color: var(--ll-preset-accent); }
+
+/* 12 — dense browser entry, with an independent thumbnail and readable text column. */
+.ll-preset-study--compact-library .ll-library-card { height: 80px; }
+.ll-preset-study--compact-library .ll-library-select { flex-direction: row; align-items: center; gap: 8px; padding: 8px; border-radius: 6px; background: #12191d; }
+.ll-preset-study--compact-library .ll-library-preview { flex: 0 0 42px; width: 42px; height: 42px; aspect-ratio: auto; border-radius: 4px; }
+.ll-preset-study--compact-library .ll-library-copy { padding: 0; gap: 5px; }
+.ll-preset-study--compact-library .ll-library-favorite { top: auto; right: auto; bottom: 10px; left: 10px; width: 20px; height: 20px; }
+.ll-preset-study--compact-library .ll-library-selection { top: 4px; right: 4px; bottom: auto; }
+
+/* 13 — image-first gallery card; an anchored scrim protects both title lines. */
+.ll-preset-study--immersive-library .ll-library-card { height: 118px; }
+.ll-preset-study--immersive-library .ll-library-preview { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ll-preset-study--immersive-library .ll-library-copy { position: absolute; inset: 0; justify-content: flex-end; padding: 12px; background: linear-gradient(transparent 20%, #02050655 45%, #020506ed); }
+.ll-preset-study--immersive-library .ll-library-name { min-height: 0; text-shadow: 0 1px 3px #000b; }
+.ll-preset-study--immersive-library .ll-library-engine { position: absolute; top: 10px; left: 10px; padding: 3px 5px; border-radius: 4px; background: #071015cc; color: #d4dfe4; }
+.ll-preset-study--immersive-library .ll-library-selection { right: 12px; bottom: 12px; }

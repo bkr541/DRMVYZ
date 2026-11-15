@@ -272,30 +272,32 @@ it('respects the Audio Intelligence kick-response gain for SVG beam hits', () =>
 
 
 describe('Text V2 runtime integration', () => {
-  it('changes words from musical evidence, holds on pause and skips the legacy repeating choreography', () => {
-    const settings = normalizeXyScopeSettings({ sourceMode: 'textV2', text: 'AA', additionalTexts: ['BBB', 'CCCC'] })
+  it('reforms new words through one full oscillator stream, without an anchored font pass', () => {
+    const settings = normalizeXyScopeSettings({ sourceMode: 'textV2', text: 'AA', additionalTexts: ['BBBBBB', 'CCCC'] })
     const runtime = makeRuntime(settings)
     const draw = vi.spyOn(XyScopeBeamRenderer.prototype, 'draw')
-    const c = context({ energy: .7, bass: .8 })
-    c.confidence.phrase = .9
+    const c = context({ energy: .7, bass: .8 }); c.confidence.phrase = .9
     runtime.renderFrame({ nowSec: 0, context: c, fresh: true, stereo: null, playing: true })
-    for (let i = 1; i < 20; i++) runtime.renderFrame({ nowSec: i * 10, context: c, fresh: true, stereo: null, playing: true })
+    for (let i = 1; i < 120; i++) runtime.renderFrame({ nowSec: i / 60, context: c, fresh: false, stereo: null, playing: true })
     expect(runtime.getStatus().text).toBe('AA')
+    expect(runtime.getStatus().textV2).toMatchObject({ phase: 'formation', morph: 1 })
+    const before = draw.mock.calls.at(-1)![1][0].x.slice()
     const phrase = { ...c, phraseIndex: c.phraseIndex + 1 }
-    runtime.renderFrame({ nowSec: 201, context: phrase, fresh: true, stereo: null, playing: true })
+    runtime.renderFrame({ nowSec: 2, context: phrase, fresh: true, stereo: null, playing: true })
     expect(runtime.getStatus().text).not.toBe('AA')
-    expect(runtime.getStatus().textV2).toMatchObject({ grouping: 'both', autoPerformance: true })
+    const call = draw.mock.calls.at(-1)!
+    expect(call[0]).toHaveLength(1)
+    expect(call[0][0].character).toBe('XY')
+    expect(call[1][0].x).toHaveLength(3072)
+    expect(call[1][0].form.every(value => value === 1)).toBe(true)
+    // The destination layout changes while the formation itself moves continuously.
+    expect(Math.max(...call[1][0].x.map((value, i) => Math.abs(value - before[i])))).toBeLessThan(80)
     const selected = runtime.getStatus().text
     const paused = { ...phrase, phraseIndex: phrase.phraseIndex + 1 }
-    runtime.renderFrame({ nowSec: 202, context: paused, fresh: true, stereo: null, playing: false })
-    runtime.renderFrame({ nowSec: 203, context: paused, fresh: true, stereo: null, playing: true })
+    for (let i = 1; i <= 60; i++) runtime.renderFrame({ nowSec: 2 + i / 60, context: paused, fresh: true, stereo: null, playing: false })
     expect(runtime.getStatus().text).toBe(selected)
-    const buffers = draw.mock.calls.at(-1)![1]
-    expect(buffers.every(buffer => buffer.form.every(value => value === 0) && buffer.gap.every(value => value === 0))).toBe(true)
-    expect(draw.mock.calls.at(-1)![4]).toMatchObject({ widthPx: expect.any(Number), scanPhase: expect.any(Number) })
-    expect(settings.text).toBe('AA')
-    expect(settings.additionalTexts).toEqual(['BBB', 'CCCC'])
-    runtime.reset()
-    expect(runtime.getStatus().text).toBe('AA')
+    expect(runtime.getStatus().textV2).toMatchObject({ phase: 'word', morph: 0 })
+    expect(settings.text).toBe('AA'); expect(settings.additionalTexts).toEqual(['BBBBBB', 'CCCC'])
+    runtime.reset(); expect(runtime.getStatus().text).toBe('AA')
   })
 })

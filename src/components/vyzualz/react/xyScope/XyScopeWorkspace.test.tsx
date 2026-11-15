@@ -271,6 +271,36 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(useReactStore.getState().xyScopeSettings.text).toBe('VERSION TWO')
   })
 
+  it('offers OSC 1 as a preset that keeps the same text input and font dropdown and shows the Text Lab controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="osc1"]')!
+    expect(card).not.toBeNull()
+    expect(card.textContent).toContain('OSC 1')
+    await act(async () => card.click())
+    const settings = useReactStore.getState().xyScopeSettings
+    expect(settings.sourceMode).toBe('osc1')
+    expect(settings.presetId).toBe('osc1')
+    // Left window: the same Input group with the text field and font dropdown.
+    expect(container.querySelector('#xyscope-text')).not.toBeNull()
+    expect(container.querySelector('#xyscope-font')).not.toBeNull()
+    // Inspector: four parent groups holding the lab's sixteen sliders (plus letter channels).
+    expect(container.querySelector('[data-osc1-design]')).not.toBeNull()
+    for (const group of ['master-controls', 'design', 'react', 'palette']) expect(container.querySelector(`[data-xyscope-parent-group="${group}"]`)).not.toBeNull()
+    for (const id of ['motion', 'readability', 'depth', 'attack', 'release', 'sensitivity', 'rotation', 'correlation', 'axisX', 'axisY', 'shear', 'harmonics', 'intensity', 'persistence', 'width', 'scan']) {
+      expect(container.querySelector(`#xyscope-osc1-${id}`), id).not.toBeNull()
+    }
+    // Auto Performance starts off, locks the sliders when on and restores them when off.
+    expect(container.querySelector<HTMLInputElement>('#xyscope-osc1-motion')!.disabled).toBe(false)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-osc1-auto')!.click())
+    expect(useReactStore.getState().xyScopeSettings.osc1.autoPerformance).toBe(true)
+    expect(container.querySelector<HTMLInputElement>('#xyscope-osc1-motion')!.disabled).toBe(true)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-osc1-auto')!.click())
+    expect(useReactStore.getState().xyScopeSettings.osc1.presets[0].motion).toBe(88)
+    // Leaving the preset returns to the standard text source.
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="storm"]')!.click())
+    expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('text')
+  })
+
   it('renders this engine in the left panel through the shared engine panel', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()

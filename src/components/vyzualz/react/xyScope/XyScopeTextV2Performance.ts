@@ -1,4 +1,5 @@
 import type { SharedPerformanceContext } from '../../../../features/performanceCore'
+import { createTextV2Plan, TEXT_V2_IDLE_PLAN, type TextV2Plan } from './XyScopeTextV2Plan'
 import { TEXT_V2_STYLES, textV2Unit as unit, type TextV2Style, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 
 /** Hidden controls are effective runtime values, never writes into manual settings. */
@@ -35,6 +36,7 @@ export const TEXT_V2_MANUAL_CONTROLS: Readonly<TextV2Controls> = Object.freeze({
   crossModulation: .4, waveformDetail: .65, intensity: .9, trailMs: 72, widthPx: 1.05,
   scanHz: 90, channelDepth: 1, channelOffset: 0, audioFocus: .75, colorMix: 0,
 })
+const TEXT_V2_UNIT_CONTROLS = new Set<keyof TextV2Controls>(['deflection', 'strokeProtection', 'accentFolds', 'transientSensitivity', 'departure', 'protectedPasses', 'transientReadability', 'stereoCoupling', 'crossModulation', 'waveformDetail', 'audioFocus', 'colorMix'])
 export interface TextV2PerformanceFrame {
   controls: TextV2Controls
   weights: Float32Array
@@ -50,6 +52,7 @@ export interface TextV2PerformanceFrame {
   scanPhase: number
   wordEventId: string | null
   variation: number
+  plan: TextV2Plan
 }
 interface Observation {
   track: string | null
@@ -76,12 +79,16 @@ export class XyScopeTextV2Performance {
   private scanPhase = 0
   private variation = 0
   private initialized = false
+  private plan: TextV2Plan = { ...TEXT_V2_IDLE_PLAN }
+  private lastDecision: string | null = null
+  private secondaryStyle = 0
 
   reset(): void {
     this.previous = null; this.energyAnchor = 0; this.controls = { ...TEXT_V2_MANUAL_CONTROLS }
     this.weights.set([1, 0, 0, 0, 0]); this.style = 'contour'; this.initialized = false
     this.level = 0; this.bass = 0; this.mid = 0; this.high = 0; this.impact = 0
     this.amount = 0; this.phase = 0; this.scanPhase = 0; this.variation = 0
+    this.plan = { ...TEXT_V2_IDLE_PLAN }; this.lastDecision = null; this.secondaryStyle = 0
   }
 
   update(settings: XyScopeTextV2Settings, context: SharedPerformanceContext | null, fresh: boolean, playing: boolean, dt: number, signalLevel: number): TextV2PerformanceFrame {
@@ -116,15 +123,24 @@ export class XyScopeTextV2Performance {
       : this.impact > .38 || (playing && (c?.dropImpact ?? 0) > .6) ? 'Impact'
       : build > .3 ? 'Build' : release ? 'Release' : this.bass > .35 ? 'Groove' : 'Contour'
 
-    if (!settings.autoPerformance) this.style = settings.manualStyle
-    else if (!this.initialized || event) {
-      this.style = state === 'Impact' ? 'impact' : state === 'Build' ? 'harmonic' : state === 'Release' ? 'reform'
-        : this.high > this.mid * 1.25 ? 'stereo' : this.mid > this.bass * 1.1 ? 'harmonic' : this.bass > .3 ? 'stereo' : 'contour'
-      this.initialized = true
+    // Transient decisions are deduplicated at their musical position. Ordinary beats do not reshuffle effects.
+    const attack = c && (hit > .3 || (c.boundaries.beatBoundary && c.spectralFlux > .24 && c.confidence.rhythm >= .35))
+    const cue = event ?? (attack ? `attack:${c!.beatIndex}:${c!.snare ? 'snare' : c!.kick ? 'kick' : 'flux'}` : null)
+    if (settings.autoPerformance && playing && rawLevel > .015 && ((!this.initialized) || (fresh && cue && cue !== this.lastDecision))) {
+      const id = cue ?? `entry:${c?.sectionIdentity ?? 'signal'}:${c?.beatIndex ?? 0}`
+      this.plan = createTextV2Plan(c, id); this.lastDecision = cue; this.initialized = true; this.variation++
+      // Seeded weighted choices: musical evidence biases the palette without a fixed effect sequence.
+      const scores = [1, .5 + this.high * 2, .4 + this.mid + build * 3, .2 + hit * 4 + unit(c?.dropImpact ?? 0) * 3, .3 + (release ? 3 : 0)]
+      let pick = this.plan.choices[12] * scores.reduce((sum, x) => sum + x, 0)
+      let index = scores.length - 1
+      for (let i = 0; i < scores.length; i++) { pick -= scores[i]; if (pick <= 0) { index = i; break } }
+      this.style = TEXT_V2_STYLES[index].value
+      this.secondaryStyle = (index + 1 + Math.floor(this.plan.choices[13] * 4)) % 5
     }
-    if (event) this.variation += 1
+    if (!settings.autoPerformance) this.style = settings.manualStyle
     const styleIndex = TEXT_V2_STYLES.findIndex(s => s.value === this.style)
-    for (let i = 0; i < this.weights.length; i++) this.weights[i] = smooth(this.weights[i], i === styleIndex ? 1 : 0, 280)
+    const blend = settings.autoPerformance ? .12 + this.plan.choices[14] * .25 : 0
+    for (let i = 0; i < this.weights.length; i++) this.weights[i] = smooth(this.weights[i], i === styleIndex ? 1 - blend : i === this.secondaryStyle ? blend : 0, 280)
 
     const target: TextV2Controls = settings.autoPerformance ? {
       deflection: .25 + this.level * .55 + build * .2,
@@ -139,8 +155,8 @@ export class XyScopeTextV2Performance {
       transientReadability: .9 - this.impact * .16,
       angle: (.2 + this.mid * .8 + build * .35),
       stereoCoupling: .3 + this.high * .45 + this.mid * .2,
-      xScale: .97 + this.bass * .06,
-      yScale: .96 + this.mid * .08,
+      xScale: .82 + this.bass * .25,
+      yScale: .8 + this.mid * .3,
       crossModulation: .15 + this.mid * .45 + build * .3,
       waveformDetail: .22 + this.high * .65,
       intensity: .65 + this.level * .38 + this.impact * .2,
@@ -152,8 +168,14 @@ export class XyScopeTextV2Performance {
       audioFocus: .35 + this.high * .5,
       colorMix: styleIndex / 4 * (.25 + this.level * .5),
     } : { ...TEXT_V2_MANUAL_CONTROLS }
-    // Every hidden control shares bounded attack/release, including when Auto is disabled.
-    for (const key of Object.keys(target) as (keyof TextV2Controls)[]) this.controls[key] = smooth(this.controls[key], target[key], 240)
+    // Every hidden control has an event-seeded target and a continuous musical envelope.
+    const keys = Object.keys(target) as (keyof TextV2Controls)[]
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      let value = target[key] * (settings.autoPerformance ? .72 + this.plan.choices[i] * .56 : 1)
+      if (TEXT_V2_UNIT_CONTROLS.has(key)) value = unit(value)
+      this.controls[key] = smooth(this.controls[key], value, 240)
+    }
     const desiredAmount = playing ? unit(rawLevel * 1.8 + this.impact) * settings.response : 0
     this.amount = smooth(this.amount, desiredAmount, playing ? this.controls.attackMs : this.controls.reformMs)
     if (playing) {
@@ -161,7 +183,7 @@ export class XyScopeTextV2Performance {
       this.scanPhase = (this.scanPhase + dt * this.controls.scanHz) % 1
     }
     return { controls: this.controls, weights: this.weights, style: this.style, state, level: this.level, bass: this.bass, mid: this.mid, high: this.high,
-      impact: this.impact, amount: this.amount, phase: this.phase, scanPhase: this.scanPhase, wordEventId: event, variation: this.variation }
+      impact: this.impact, amount: this.amount, phase: this.phase, scanPhase: this.scanPhase, wordEventId: event, variation: this.variation, plan: settings.autoPerformance ? this.plan : { ...TEXT_V2_IDLE_PLAN, id: cue ?? 'manual', intent: release ? 'reform' : 'depart' } }
   }
 }
 

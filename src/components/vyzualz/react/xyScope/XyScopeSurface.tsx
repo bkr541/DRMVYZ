@@ -14,6 +14,7 @@ import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useXyScopeSvg } from './useXyScopeSvg'
 import { DrawerNotice } from '../../shared/DrawerNotice'
 import { XyScopeTransportTracker } from './XyScopeTransport'
+import { publishOsc1Live } from './XyScopeOsc1Live'
 
 /** Samples read from the stereo tap each frame; matches the scope window the runtime expects. */
 const STEREO_READ_FRAMES = 2048
@@ -98,6 +99,8 @@ export function XyScopeSurface({
     let fpsFrames = 0
     let fpsStart = performance.now()
     let statusTick = 0
+    let lastLivePublish = 0
+    let livePublished = false
 
     const loop = (timestamp: number) => {
       raf = requestAnimationFrame(loop)
@@ -142,8 +145,13 @@ export function XyScopeSurface({
         previousContext = context
       }
       let stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
-      if (!stereo && settingsRef.current.settings.sourceMode === 'textV2') stereo = monoTap.read(current.analyser, audioTime)
+      if (!stereo && (settingsRef.current.settings.sourceMode === 'textV2' || settingsRef.current.settings.sourceMode === 'osc1')) stereo = monoTap.read(current.analyser, audioTime)
       runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo, playing: clockActive })
+
+      // OSC 1 shares its effective values (Auto Performance) with the inspector about ten times a second.
+      if (settingsRef.current.settings.sourceMode === 'osc1') {
+        if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishOsc1Live(runtime.getOsc1Live()) }
+      } else if (livePublished) { livePublished = false; publishOsc1Live(null) }
 
       fpsFrames += 1
       const elapsed = timestamp - fpsStart
@@ -165,6 +173,7 @@ export function XyScopeSurface({
 
     return () => {
       cancelAnimationFrame(raf)
+      publishOsc1Live(null)
       observer?.disconnect()
       pump.dispose()
       runtime.dispose()
@@ -192,14 +201,16 @@ export function XyScopeSurface({
       </>}
       {settings.sourceMode === 'textV2' && performanceStatus && (resolution.status === 'ready' || resolution.status === 'default') && (
         <div className="rv-xyscope-note rv-xyscope-note--top" data-text-v2-performance="true">
-          {settings.textV2.autoPerformance ? 'Auto Performance' : 'Manual'} · {performanceStatus.state} · {TEXT_V2_STYLES.find(style => style.value === performanceStatus.style)?.label}
+          {settings.textV2.autoPerformance ? 'Auto Performance' : 'Manual'} · {performanceStatus.state} · {performanceStatus.phase} · {TEXT_V2_STYLES.find(style => style.value === performanceStatus.style)?.label}
         </div>
       )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
-      {scopeSource === 'mono' && settings.sourceMode === 'textV2' && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
+      {scopeSource === 'mono' && (settings.sourceMode === 'textV2' || settings.sourceMode === 'osc1') && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
       {scopeSource === 'fallback' && audio?.trackIdentity && (
         <div className="rv-xyscope-note" role="status">
-          {settings.sourceMode === 'textV2' ? 'Stereo samples unavailable: oscillator motion follows audio intelligence.' : 'No live stereo signal: dissolves use a stand-in figure instead of the track.'}
+          {settings.sourceMode === 'textV2' ? 'Stereo samples unavailable: oscillator motion follows audio intelligence.'
+            : settings.sourceMode === 'osc1' ? 'Stereo samples unavailable: the letters follow the shared audio analysis.'
+              : 'No live stereo signal: dissolves use a stand-in figure instead of the track.'}
         </div>
       )}
       {resolution.status === 'loading' && settings.fontId && (

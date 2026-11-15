@@ -11,6 +11,7 @@ import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from '../../cinema2/presets/Cinema
 import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from '../../cinema2/modules/Cinema2AfterhoursNativeModule'
 import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
+import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
 
 export const XY_SCOPE_ENGINE_ID = 'xyScope' as const
 
@@ -29,11 +30,11 @@ export const XY_SCOPE_GROUP_LABELS: Readonly<Record<XyScopeParameterGroup, strin
 
 /** Nested groups inside the Design parent, in order. Controls with no subgroup come first. */
 export const XY_SCOPE_REACT_SUBGROUPS = ['Audio Intelligence'] as const
-export type XyScopeSourceMode = 'text' | 'textV2' | 'svg' | 'oscillator'
+export type XyScopeSourceMode = 'text' | 'textV2' | 'osc1' | 'svg' | 'oscillator'
 
-/** Both text sources use the editable word inputs and font library. V2 owns its performance. */
-export function isXyScopeTextSource(source: XyScopeSourceMode | undefined): source is 'text' | 'textV2' {
-  return source === 'text' || source === 'textV2'
+/** The text sources use the editable word inputs and font library. V2 and OSC 1 own their performance. */
+export function isXyScopeTextSource(source: XyScopeSourceMode | undefined): source is 'text' | 'textV2' | 'osc1' {
+  return source === 'text' || source === 'textV2' || source === 'osc1'
 }
 export type XyScopeSvgProcessing = 'outline' | 'segments' | 'points'
 export const XY_SCOPE_SVG_PROCESSING = [{ value: 'outline', label: 'Outline' }, { value: 'segments', label: 'Dashed Trace' }, { value: 'points', label: 'Point Trace' }] as const
@@ -250,6 +251,13 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
     description: 'Fast changes every two beats with long trails and a heavy ring.',
     parameters: { intensity: 1.2, audioReactivity: 1, motionAmount: 1, bpmSync: true, pattern: 'word', patternChange: true, trigger: 'beat2', transitionLength: '0.5', trail: 200, glow: 1.5, formResponse: 1.4, vibration: 1.4, dissolveDepth: 1.5, answerDelay: 70 },
   },
+  {
+    // OSC 1 is a complete instrument (the Text Lab's directional oscilloscope text), not a set of Design values:
+    // choosing it switches the engine; its own controls live in the OSC 1 inspector.
+    id: OSC1_PRESET_ID, name: 'OSC 1',
+    description: 'Directional oscilloscope text: audio stretches the anchored letters outward, with Auto Performance.',
+    parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
+  },
 ] satisfies readonly XyScopePreset[])
 
 export function getXyScopePreset(id: string | null | undefined): XyScopePreset | undefined {
@@ -265,6 +273,7 @@ export const XY_SCOPE_DEFAULT_TEXT = 'DRMVYZ'
 export interface XyScopeSettings {
   sourceMode: XyScopeSourceMode
   textV2: XyScopeTextV2Settings
+  osc1: XyScopeOsc1Settings
   svgMediaId: string | null
   svgProcessing: XyScopeSvgProcessing
   /** The word drawn. Single line, upper-cased on draw. */
@@ -285,6 +294,7 @@ export function getXyScopeDefaultParameters(): Record<string, XyScopeParameterVa
 export const DEFAULT_XY_SCOPE_SETTINGS: Readonly<XyScopeSettings> = Object.freeze({
   sourceMode: 'text',
   textV2: DEFAULT_TEXT_V2_SETTINGS,
+  osc1: DEFAULT_OSC1_SETTINGS,
   svgMediaId: null,
   svgProcessing: 'outline',
   text: XY_SCOPE_DEFAULT_TEXT,
@@ -324,9 +334,14 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
     : {}
   const parameters: Record<string, XyScopeParameterValue> = {}
   for (const definition of XY_SCOPE_PARAMETERS) parameters[definition.id] = normalizeXyScopeParameterValue(definition, stored[definition.id])
+  const sourceMode: XyScopeSourceMode = record.sourceMode === 'textV2' || record.sourceMode === 'osc1' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text'
+  // OSC 1 is both a preset and an engine: the two always agree.
+  const storedPreset = record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId)
+  const presetId = sourceMode === 'osc1' ? OSC1_PRESET_ID : storedPreset === OSC1_PRESET_ID ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset
   return {
-    sourceMode: record.sourceMode === 'textV2' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text',
+    sourceMode,
     textV2: normalizeTextV2Settings(record.textV2),
+    osc1: normalizeOsc1Settings(record.osc1),
     svgMediaId: typeof record.svgMediaId === 'string' && record.svgMediaId.length > 0 && record.svgMediaId.length <= 512 ? record.svgMediaId : null,
     svgProcessing: record.svgProcessing === 'segments' || record.svgProcessing === 'points' ? record.svgProcessing : 'outline',
     text: record.text === undefined ? XY_SCOPE_DEFAULT_TEXT : normalizeXyScopeText(record.text),
@@ -334,7 +349,7 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
       ? record.additionalTexts.slice(0, XY_SCOPE_MAX_TEXT_INPUTS - 1).map(text => typeof text === 'string' ? normalizeXyScopeText(text) : '')
       : [],
     fontId: typeof record.fontId === 'string' && record.fontId.length > 0 && record.fontId.length <= 512 ? record.fontId : null,
-    presetId: record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId),
+    presetId,
     parameters,
   }
 }
@@ -348,7 +363,9 @@ export function isXyScopeParameterVisible(definition: XyScopeParameterDefinition
 export function applyXyScopePreset(settings: XyScopeSettings, presetId: string): XyScopeSettings {
   const preset = getXyScopePreset(presetId)
   if (!preset) return settings
-  return normalizeXyScopeSettings({ ...settings, presetId: preset.id, parameters: { ...settings.parameters, ...preset.parameters } })
+  // OSC 1 switches the engine; any other preset leaves it for the standard text source.
+  const sourceMode = preset.id === OSC1_PRESET_ID ? 'osc1' : settings.sourceMode === 'osc1' ? 'text' : settings.sourceMode
+  return normalizeXyScopeSettings({ ...settings, sourceMode, presetId: preset.id, parameters: { ...settings.parameters, ...preset.parameters } })
 }
 
 // ── Typed values for the runtime ──────────────────────────────────────────────

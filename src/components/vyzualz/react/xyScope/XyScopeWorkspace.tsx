@@ -28,6 +28,7 @@ import {
   type XyScopeParameterValue,
 } from './XyScopeSettings'
 import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
+import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { isXyScopeSvgUpload } from './useXyScopeSvg'
@@ -194,16 +195,30 @@ export function XyScopeEnginePanel() {
             onChange={text => setXyScopeSettings({ text })}
           />
           {settings.additionalTexts.map((text, index) => (
-            <TextInputRow
-              key={index}
-              id={`xyscope-text-${index + 2}`}
-              label={`Text ${index + 2}`}
-              value={text}
-              maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
-              placeholder="Type another word"
-              description="Included in random playback when filled in."
-              onChange={value => setXyScopeSettings({ additionalTexts: settings.additionalTexts.map((entry, i) => i === index ? value : entry) })}
-            />
+            <div key={index} className="rv-xyscope-text-entry">
+              <TextInputRow
+                id={`xyscope-text-${index + 2}`}
+                label={`Text ${index + 2}`}
+                value={text}
+                maxLength={XY_SCOPE_TEXT_MAX_LENGTH}
+                placeholder="Type another word"
+                description="Included in random playback when filled in."
+                onChange={value => setXyScopeSettings({ additionalTexts: settings.additionalTexts.map((entry, i) => i === index ? value : entry) })}
+              />
+              <IconChipButton
+                className="rv-xyscope-text-clear"
+                aria-label={`Clear and remove Text ${index + 2}`}
+                title="Clear and remove text input"
+                onClick={() => {
+                  const entries = useReactStore.getState().xyScopeSettings.additionalTexts.filter((_, i) => i !== index)
+                  setXyScopeSettings({ additionalTexts: entries })
+                  const focusId = entries.length ? `xyscope-text-${Math.min(index, entries.length - 1) + 2}` : 'xyscope-text'
+                  requestAnimationFrame(() => document.getElementById(focusId)?.focus())
+                }}
+              >
+                <AppIcon kind="close" size={14} />
+              </IconChipButton>
+            </div>
           ))}
           <SelectRow
             menuBoundarySelector=".vz-inspector"
@@ -315,6 +330,7 @@ export function XyScopeDesignPanel() {
     </>
   )
 
+  if (settings.sourceMode === 'osc1') return <XyScopeOsc1DesignPanel />
   if (isTextV2) return <XyScopeTextV2DesignPanel />
 
   return (

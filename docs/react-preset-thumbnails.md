@@ -1,6 +1,10 @@
 # Reusable preset thumbnails
 
-`ReactPresetCard` uses a responsive poster height of `width × 2 / 3 − 30px`, reduced by 6px from the previous tile. It centers the uppercase preset name on both axes of the poster. Mode metadata stays at the bottom; modification badges and secondary actions stay in their corners. The shared title role uses white, uppercase Manrope at 12px/400 with 0.12em letter spacing, following the supplied geometric wordmark reference. Title and metadata roles live in `src/styles/typography.css`. The surface matches the Cinema 2.0 Engine card: a 245° cyan gradient, upper-right radial glow at 97% / 20%, subtle inward illumination, and a fading registration grid. There is no black gradient overlay; the centered white title retains a text shadow for separation. The poster caption explicitly retains its flex layout inside preset rails, overriding their generic direct-span rule so the name stays vertically centered.
+`ReactPresetCard`'s production poster matches **Layout Lab → Preset cards → 01 Cinema poster**: full-color, edge-to-edge renderer artwork, a 6px corner, quiet neutral border, centered uppercase name, subtle dark text shadow, corner favorite and a small selected check. Height remains responsive at `width × 2 / 3 − 30px` (148.5 × 69px in the production rail). Multiword names wrap in the same 10ch title measure as the study. The poster title role lives in `src/styles/typography.css`: Manrope 12px/400, 1.2 line height and 0.12em tracking. Selected posters use the study's cyan border and subtle one-pixel outline; they do not inherit the Engine card's glow.
+
+Posters use generated production frames or a supplied renderer backdrop without the blueprint filter, registration grid, color wash, image offset or mask. Metadata, Modified / Switch & Load badges, restore/reload actions, activation, favorites and keyboard navigation retain their existing behavior. Compatibility row cards retain their row layout. `ReactPresetArtwork` defaults to its blueprint appearance for independent consumers such as Preset Manager; the production card explicitly requests `appearance="frame"`.
+
+The blueprint catalog below documents the separate illustrations used by those other consumers.
 
 All 37 public Cinema 2.0 presets use composed SVG drawings, built from four defining motifs per preset. The original ten are:
 

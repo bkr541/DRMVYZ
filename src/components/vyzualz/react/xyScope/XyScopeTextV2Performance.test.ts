@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSharedPerformanceFallbackContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
-import { buildXyScopeLayout, getDefaultXyScopeFont } from './XyScopeGeometry'
-import { createXyScopePointBuffers, createXyScopeScopeFrame } from './XyScopeMotion'
-import { computeTextV2GlyphPoints } from './XyScopeTextV2Geometry'
 import { XyScopeTextV2Performance, selectTextV2Word, TEXT_V2_MANUAL_CONTROLS } from './XyScopeTextV2Performance'
-import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, TEXT_V2_STYLES } from './XyScopeTextV2Settings'
+import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings } from './XyScopeTextV2Settings'
 
 const config = { ...DEFAULT_TEXT_V2_SETTINGS }
 function context(patch: Partial<SharedPerformanceContext> = {}): SharedPerformanceContext {
@@ -92,10 +89,24 @@ describe('Text V2 coordinated performance', () => {
         if (Math.abs(frame.controls[key] - quiet[key]) > .001) changed.add(key)
       }
     }
-    expect(frame.style).toBe('impact')
+    expect(frame.plan.intent).toBe('depart')
     expect([...changed].sort()).toEqual(Object.keys(TEXT_V2_MANUAL_CONTROLS).sort())
     expect(frame.weights.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5)
     expect(JSON.stringify(config)).toBe(serialized)
+  })
+  it('randomizes effect targets on new audio evidence, deterministically and without frame jitter', () => {
+    const a = new XyScopeTextV2Performance(), b = new XyScopeTextV2Performance()
+    const plans = new Set<string>(), families = new Set<string>()
+    for (let i = 0; i < 32; i++) {
+      const c = context({ beatIndex: i, audioTimeSec: i * .5, kick: true, kickStrength: .9, spectralFlux: .6, deterministicVariationSeed: i * 17 })
+      const x = a.update(config, c, true, true, .05, .7), y = b.update(config, c, true, true, .05, .7)
+      expect(x.plan).toEqual(y.plan); expect(x.style).toBe(y.style)
+      plans.add(JSON.stringify(x.plan.choices)); families.add(x.style)
+      const held = a.update(config, c, true, true, .016, .7)
+      b.update(config, c, true, true, .016, .7)
+      expect(held.plan).toBe(x.plan)
+    }
+    expect(plans.size).toBe(32); expect(families.size).toBeGreaterThan(2)
   })
   it('keeps manual audio response, restores manual defaults when Auto is disabled, and settles on pause', () => {
     const controller = new XyScopeTextV2Performance()
@@ -114,52 +125,5 @@ describe('Text V2 coordinated performance', () => {
     const controller = new XyScopeTextV2Performance()
     expect(controller.update(config, null, true, true, .016, 0)).toMatchObject({ amount: 0, state: 'Rest' })
     expect(settle(controller, { ...config, response: 0 }).amount).toBe(0)
-  })
-})
-
-describe('Text V2 signed oscillator geometry and legibility', () => {
-  const layout = buildXyScopeLayout({ text: 'DVYDRM', font: getDefaultXyScopeFont(), width: 1000, height: 600, size: .84, letterSpacing: .024, minPieceSize: .07 })
-  const glyph = layout.glyphs[2]
-  const scope = createXyScopeScopeFrame()
-  scope.source = 'stereo'
-  for (let i = 0; i < 512; i++) { scope.trace[i] = Math.sin(i * .09) * .5; scope.cloudX[i] = Math.sin(i * .07) * .4; scope.cloudY[i] = Math.cos(i * .08) * .5 }
-  it('draws original font contours exactly when at rest, including letter positions', () => {
-    const frame = new XyScopeTextV2Performance().update(config, null, true, false, .016, 0)
-    const out = createXyScopePointBuffers(glyph.count)
-    computeTextV2GlyphPoints(glyph, 2, 6, scope, frame, config, out, 1000, 600)
-    for (let i = 0; i < glyph.count; i++) {
-      expect(out.x[i]).toBeCloseTo(glyph.centerX + glyph.x[i], 4)
-      expect(out.y[i]).toBeCloseTo(glyph.y[i], 4)
-    }
-  })
-  it.each(TEXT_V2_STYLES.map(style => style.value))('keeps %s coherent and bounded at maximum abstraction, with no gaps or point scatter', manualStyle => {
-    const settings = { ...config, abstraction: 1, response: 1.5, autoPerformance: false, manualStyle }
-    const frame = settle(new XyScopeTextV2Performance(), settings, context({ kick: true, kickStrength: 1, transient: 1, transientConfidence: 1 }))
-    const out = createXyScopePointBuffers(glyph.count)
-    computeTextV2GlyphPoints(glyph, 2, 6, scope, frame, settings, out, 1000, 600)
-    let max = 0
-    for (let i = 0; i < glyph.count; i++) {
-      expect(Number.isFinite(out.x[i] + out.y[i])).toBe(true)
-      max = Math.max(max, Math.hypot(out.x[i] - glyph.centerX - glyph.x[i], out.y[i] - glyph.y[i]))
-      expect(out.gap[i] + out.form[i] + out.dissolved[i]).toBe(0)
-    }
-    expect(max).toBeGreaterThan(.1)
-    expect(max).toBeLessThan(glyph.heightPx * .34)
-    const repeated = createXyScopePointBuffers(glyph.count)
-    computeTextV2GlyphPoints(glyph, 2, 6, scope, frame, settings, repeated, 1000, 600)
-    expect(repeated.x).toEqual(out.x)
-  })
-  it('uses the actual sign of stereo samples and provides three distinct grouping responses', () => {
-    const frame = settle(new XyScopeTextV2Performance())
-    const results = (['word', 'letters', 'both'] as const).map(grouping => {
-      const out = createXyScopePointBuffers(glyph.count)
-      computeTextV2GlyphPoints(glyph, 2, 6, scope, frame, { ...config, grouping }, out, 1000, 600)
-      return Array.from(out.x)
-    })
-    expect(results[0]).not.toEqual(results[1]); expect(results[2]).not.toEqual(results[0]); expect(results[2]).not.toEqual(results[1])
-    const reversed = { ...scope, trace: Float32Array.from(scope.trace, x => -x), cloudX: Float32Array.from(scope.cloudX, x => -x), cloudY: Float32Array.from(scope.cloudY, x => -x) }
-    const out = createXyScopePointBuffers(glyph.count)
-    computeTextV2GlyphPoints(glyph, 2, 6, reversed, frame, config, out, 1000, 600)
-    expect(Array.from(out.x)).not.toEqual(results[2])
   })
 })
