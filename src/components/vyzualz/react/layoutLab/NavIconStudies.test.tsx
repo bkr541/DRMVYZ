@@ -39,6 +39,28 @@ describe('Layout Lab navigation icon studies', () => {
     expect(section.querySelectorAll('input[data-nav-pad-option-keep]')).toHaveLength(5)
   })
 
+  it('shows five React options inside the production ring, each keepable', async () => {
+    await act(async () => root.render(<NavIconStudies />))
+    const section = host.querySelector('[data-nav-react-options]')!
+    const items = [...section.querySelectorAll('[data-nav-react-option]')]
+    expect(items).toHaveLength(5)
+    expect(new Set(items.map(item => [...item.querySelectorAll('path')].map(path => path.getAttribute('d')).join('|'))).size).toBe(5)
+    expect(items.every(item => item.querySelector('path.ring'))).toBe(true)
+    expect(section.querySelectorAll('input[data-nav-react-option-keep]')).toHaveLength(5)
+  })
+
+  it('shows two more React rows (live stage, audio reaction) of five ringed options each', async () => {
+    await act(async () => root.render(<NavIconStudies />))
+    for (const key of ['react-stage', 'react-audio']) {
+      const section = host.querySelector(`[data-nav-${key}-options]`)!
+      const items = [...section.querySelectorAll(`[data-nav-${key}-option]`)]
+      expect(items, key).toHaveLength(5)
+      expect(new Set(items.map(item => [...item.querySelectorAll('path')].map(path => path.getAttribute('d')).join('|'))).size, key).toBe(5)
+      expect(items.every(item => item.querySelector('path.ring')), key).toBe(true)
+      expect(section.querySelectorAll(`input[data-nav-${key}-option-keep]`), key).toHaveLength(5)
+    }
+  })
+
   it('draws every system differently for the same destination', async () => {
     await act(async () => root.render(<NavIconStudies />))
     for (const destination of NAV_ICON_DESTINATIONS) {

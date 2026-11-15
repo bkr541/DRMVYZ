@@ -137,7 +137,7 @@ export function NumberInputRow({
 
 // ── Select row ────────────────────────────────────────────────────────────────
 
-export interface SelectOption { value: string; label: string; disabled?: boolean; style?: CSSProperties }
+export interface SelectOption { value: string; label: string; disabled?: boolean; style?: CSSProperties; searchText?: string }
 
 export interface SelectRowProps {
   label: string

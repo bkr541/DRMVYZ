@@ -323,6 +323,44 @@ export const NAV_PAD_OPTIONS: readonly { id: string; name: string; detail: strin
   { id: 'padopt-5', name: 'Pad bank', detail: 'Three tall rail pads in a row · middle lit', art: () => [P('t', 'ts', `${rr(7, 9.5, 5, 13, 1.8)}${rr(20, 9.5, 5, 13, 1.8)}`), P('l', 'a', 'M8.6 19.5h1.8M21.6 19.5h1.8'), P('c', 'ta', rr(13.5, 9.5, 5, 13, 1.8)), P('k', 'a', 'M15.1 19.5h1.8')] },
 ])
 
+/** Five options for the React (home) item's symbol inside the production Medallion ring (32 grid, ring radius 16). */
+const ellipse = (cx: number, cy: number, rx: number, ry: number) => `M${cx - rx} ${cy}a${rx} ${ry} 0 1 0 ${rx * 2} 0a${rx} ${ry} 0 1 0 ${-rx * 2} 0`
+export const NAV_REACT_OPTIONS: readonly { id: string; name: string; detail: string; art: () => ReactElement[] }[] = Object.freeze([
+  { id: 'reactopt-1', name: 'Pulse line', detail: 'A heartbeat trace: flat lead-in, one live spike', art: () => [P('s', 's', 'M8.5 16h3.5M20 16h3.5'), P('a', 'a', 'M12 16l2.3-6 3.4 12 2.3-6')] },
+  { id: 'reactopt-2', name: 'Level bars', detail: 'Five meter bars at different heights · the tallest lit', art: () => [P('b', 'fs', [[7.2, 6], [10.8, 11], [18, 9], [21.6, 5]].map(([x, h]) => rr(x, 16 - h / 2, 2.4, h, 1.2)).join('')), P('c', 'fa', rr(14.4, 8.5, 2.4, 15, 1.2))] },
+  { id: 'reactopt-3', name: 'Reactive bolt', detail: 'A lightning bolt: instant response to the music', art: () => [P('a', 'fa', 'M17.6 6.5 10.5 17.2h5l-1.4 8.3 7.4-11.3h-5.2Z')] },
+  { id: 'reactopt-4', name: 'Hit ripple', detail: 'A lit centre with two rings spreading, like a kick landing', art: () => [P('o', 's', ellipse(16, 16, 8.6, 8.6), { style: { opacity: .45 } }), P('m', 's', circle(16, 16, 5.2)), P('c', 'fa', circle(16, 16, 2.2))] },
+  { id: 'reactopt-5', name: 'Orbit atom', detail: 'Three crossing orbits around a lit core', art: () => [P('e1', 's', ellipse(16, 16, 9, 3.6)), P('e2', 's', ellipse(16, 16, 9, 3.6), { transform: 'rotate(60 16 16)' }), P('e3', 'a', ellipse(16, 16, 9, 3.6), { transform: 'rotate(-60 16 16)' }), P('n', 'fa', circle(16, 16, 1.9))] },
+])
+
+/**
+ * What React is in the app (docs/react-view-architecture.md): the default live VJ workspace. A centre stage shows the active engine's
+ * visual output (Cinema 2.0, Sound Drawing, CANVAS, LaserDMX, PixGrid, HEADLINER) reacting to the shared audio; a lower workspace holds
+ * the Track Map and Performance Pads; the audio dock and a visual-output cast control sit beside it. Two option rows follow from that:
+ * one draws the live stage itself, the other draws the audio-to-visual reaction.
+ */
+type ReactOption = { id: string; name: string; detail: string; art: () => ReactElement[] }
+const SCREEN = rr(7.5, 9, 17, 12, 2.2)
+/** Radial spokes at 45° steps; `keep` picks which of the eight, `outer` is each one's end radius. */
+const spokes = (inner: number, outer: number, keep: (k: number) => boolean) => Array.from({ length: 8 }, (_, k) => k).filter(keep).map(k => {
+  const a = k * Math.PI / 4, c = Math.cos(a), n = Math.sin(a)
+  return `M${(16 + c * inner).toFixed(2)} ${(16 + n * inner).toFixed(2)}L${(16 + c * outer).toFixed(2)} ${(16 + n * outer).toFixed(2)}`
+}).join('')
+export const NAV_REACT_STAGE_OPTIONS: readonly ReactOption[] = Object.freeze([
+  { id: 'reactopt-s1', name: 'Live monitor', detail: 'The centre stage: a monitor showing a live waveform', art: () => [P('m', 's', SCREEN), P('w', 'a', 'M10 15h2l1.5-3.5 2.2 7 1.8-3.5h3'), P('b', 's', 'M16 21v2.5M12.5 24h7')] },
+  { id: 'reactopt-s2', name: 'Stage and pads', detail: 'The output stage above the Performance Pads row, middle pad lit', art: () => [P('m', 's', rr(8, 8.5, 16, 9, 2)), P('c', 'fa', circle(16, 13, 2.1)), P('p', 'ts', `${rr(8, 19.5, 4.6, 4, 1)}${rr(19.4, 19.5, 4.6, 4, 1)}`), P('l', 'ta', rr(13.7, 19.5, 4.6, 4, 1))] },
+  { id: 'reactopt-s3', name: 'Output cast', detail: 'A monitor with the visual-output cast waves in its corner', art: () => [P('m', 's', SCREEN), P('w', 'a', 'M11 18.5a2.8 2.8 0 0 1 2.8 2.8M11 15.6a5.7 5.7 0 0 1 5.7 5.7'), P('d', 'fa', circle(11, 21, .9))] },
+  { id: 'reactopt-s4', name: 'Engine stack', detail: 'Layered stages: the engines you switch between, front one live', art: () => [P('b', 's', rr(11.5, 7.5, 13, 9, 2), { style: { opacity: .45 } }), P('m', 's', rr(9.5, 11, 13, 9, 2), { style: { opacity: .75 } }), P('f', 'ta', rr(7.5, 14.5, 13, 9, 2)), P('d', 'fa', circle(14, 19, 1.7))] },
+  { id: 'reactopt-s5', name: 'Stage and dock', detail: 'The output stage over the audio dock waveform', art: () => [P('m', 's', rr(8, 8, 16, 10, 2)), P('c', 'a', circle(16, 13, 2.8)), P('w', 'a', 'M10 22.4v1.2M12.5 21.4v3.2M15 22v2M17.5 20.6v4.8M20 21.8v2.4M22.5 22.4v1.2')] },
+])
+export const NAV_REACT_AUDIO_OPTIONS: readonly ReactOption[] = Object.freeze([
+  { id: 'reactopt-a1', name: 'Wave to shape', detail: 'A waveform on the left turns into a solid shape on the right', art: () => [P('w', 's', 'M7.5 16h1.4l1.6-3.6 2.2 7.2 1.5-3.6'), P('d', 'a', 'M20.5 10.5l4.5 5.5-4.5 5.5-4.5-5.5Z')] },
+  { id: 'reactopt-a2', name: 'Beat burst', detail: 'A lit core with spokes thrown out, like a kick', art: () => [P('c', 'fa', circle(16, 16, 2.4)), P('d', 's', spokes(4.6, 6.8, k => k % 2 === 1)), P('o', 'a', spokes(4.6, 8.4, k => k % 2 === 0))] },
+  { id: 'reactopt-a3', name: 'Spectrum frame', detail: 'A screen whose floor is a live spectrum', art: () => [P('m', 's', rr(8, 8, 16, 14, 2.5)), P('b', 'fs', [[10.2, 3], [12.8, 6], [18, 5], [20.6, 3.5]].map(([x, h]) => rr(x, 20 - h, 1.6, h, .8)).join('')), P('t', 'fa', rr(15.4, 12, 1.6, 8, .8))] },
+  { id: 'reactopt-a4', name: 'Scope dial', detail: 'A round scope carrying the live waveform', art: () => [P('o', 's', circle(16, 16, 7.6)), P('w', 'a', 'M9.6 16h1.6l1.6-3 2.2 6 2.2-6 1.6 3h1.6')] },
+  { id: 'reactopt-a5', name: 'Live indicator', detail: 'A screen with a live dot and its title bar', art: () => [P('m', 's', rr(8, 9, 16, 13, 2.5)), P('d', 'fa', circle(12.5, 13.5, 1.8)), P('l', 'a', 'M16 13.5h5'), P('w', 's', 'M10.5 18.5h11')] },
+])
+
 const SYSTEMS: Record<NavIconSystemId, Draw> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }
 
 /** The artwork for one destination in one system, as the children of a 32 × 32 svg. */

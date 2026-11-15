@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react'
-import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NAV_PAD_OPTIONS, NavIconArtwork } from './navIconSystems'
+import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NAV_PAD_OPTIONS, NAV_REACT_AUDIO_OPTIONS, NAV_REACT_OPTIONS, NAV_REACT_STAGE_OPTIONS, NavIconArtwork } from './navIconSystems'
 import { NAV_MEDALLION_RING } from '../../navMedallionIcons'
 import studyStyles from './navIconStudies.css?inline'
+
+/** Option rows below the system rows: candidate symbols inside the production ring for one left-nav item each. */
+const OPTION_SETS = [
+  { key: 'pad', destination: 'Performance Pads', title: 'Performance Pads options', blurb: 'Five replacements for the symbol inside the left navigation\'s pads ring · production ring and size', options: NAV_PAD_OPTIONS },
+  { key: 'react', destination: 'React', title: 'React options · first round', blurb: 'Five replacements for the React (home) item · production ring and size', options: NAV_REACT_OPTIONS },
+  { key: 'react-stage', destination: 'React', title: 'React options · live stage', blurb: 'React is the live workspace: its centre stage, output and pads, drawn as the stage itself', options: NAV_REACT_STAGE_OPTIONS },
+  { key: 'react-audio', destination: 'React', title: 'React options · audio reaction', blurb: 'React is visuals reacting to the music: the audio-to-visual step, drawn as the reaction itself', options: NAV_REACT_AUDIO_OPTIONS },
+] as const
 
 export const NAV_ICON_KEEP_STORAGE_KEY = 'drmvyz.layoutLab.navIcons.keep.v1'
 
@@ -22,7 +30,7 @@ function readKept(): ReadonlySet<string> {
 export function NavIconStudies() {
   const [active, setActive] = useState<Record<string, string>>(Object.fromEntries(NAV_ICON_SYSTEMS.map(system => [system.id, 'pads'])))
   const [kept, setKept] = useState(readKept)
-  const [activeOption, setActiveOption] = useState(NAV_PAD_OPTIONS[0].id)
+  const [activeOption, setActiveOption] = useState<Record<string, string>>({ pad: NAV_PAD_OPTIONS[0].id, react: NAV_REACT_OPTIONS[0].id, 'react-stage': NAV_REACT_STAGE_OPTIONS[0].id, 'react-audio': NAV_REACT_AUDIO_OPTIONS[0].id })
   const [saveFailed, setSaveFailed] = useState(false)
   useEffect(() => {
     try { window.localStorage.setItem(NAV_ICON_KEEP_STORAGE_KEY, JSON.stringify({ version: 1, kept: [...kept] })); setSaveFailed(false) } catch { setSaveFailed(true) }
@@ -54,23 +62,24 @@ export function NavIconStudies() {
         </div>)}
       </div>
     </section>)}
-    <section className="ll-ni-row ll-ni-row--medallion" data-nav-pad-options aria-labelledby="ll-ni-padopts">
+    {OPTION_SETS.map((set, setIndex) => <section key={set.key} className="ll-ni-row ll-ni-row--medallion" {...{ [`data-nav-${set.key}-options`]: '' }} aria-labelledby={`ll-ni-${set.key}opts`}>
       <header className="ll-ni-heading">
-        <h2 id="ll-ni-padopts"><span>{String(NAV_ICON_SYSTEMS.length + 1).padStart(2, '0')}</span>Performance Pads options</h2>
-        <p>Five replacements for the symbol inside the left navigation's pads ring · production ring and size<b className="ll-ni-count">{NAV_PAD_OPTIONS.filter(option => kept.has(option.id)).length}/{NAV_PAD_OPTIONS.length} kept</b></p>
+        <h2 id={`ll-ni-${set.key}opts`}><span>{String(NAV_ICON_SYSTEMS.length + 1 + setIndex).padStart(2, '0')}</span>{set.title}</h2>
+        <p>{set.blurb}<b className="ll-ni-count">{set.options.filter(option => kept.has(option.id)).length}/{set.options.length} kept</b></p>
       </header>
-      <div className="ll-ni-strip" role="group" aria-label="Performance Pads options">
-        {NAV_PAD_OPTIONS.map(option => <div className={`ll-ni-cell${kept.has(option.id) ? ' is-kept' : ''}`} key={option.id}>
+      <div className="ll-ni-strip" role="group" aria-label={set.title}>
+        {set.options.map(option => <div className={`ll-ni-cell${kept.has(option.id) ? ' is-kept' : ''}`} key={option.id}>
           <label className="ll-ni-keep"><input type="checkbox" checked={kept.has(option.id)} onChange={() => toggle(option.id)}
-            aria-label={`Keep ${option.name}`} data-nav-pad-option-keep={option.id} /><span>Keep</span></label>
+            aria-label={`Keep ${option.name}`} {...{ [`data-nav-${set.key}-option-keep`]: option.id }} /><span>Keep</span></label>
           <svg className="ll-ni-large" viewBox="-3 -3 38 38" width="76" height="76" aria-hidden="true">{NAV_MEDALLION_RING}{option.art()}</svg>
-          <button type="button" className={`ll-ni-nav${activeOption === option.id ? ' is-active' : ''}`} aria-pressed={activeOption === option.id}
-            aria-label={`Performance Pads, ${option.name}`} title={option.detail} data-nav-pad-option={option.id} onClick={() => setActiveOption(option.id)}>
+          <button type="button" className={`ll-ni-nav${activeOption[set.key] === option.id ? ' is-active' : ''}`} aria-pressed={activeOption[set.key] === option.id}
+            aria-label={`${set.destination}, ${option.name}`} title={option.detail} {...{ [`data-nav-${set.key}-option`]: option.id }}
+            onClick={() => setActiveOption(current => ({ ...current, [set.key]: option.id }))}>
             <svg viewBox="-3 -3 38 38" width="43" height="43" aria-hidden="true">{NAV_MEDALLION_RING}{option.art()}</svg>
           </button>
           <span className="ll-ni-label">{option.name}</span>
         </div>)}
       </div>
-    </section>
+    </section>)}
   </div>
 }
