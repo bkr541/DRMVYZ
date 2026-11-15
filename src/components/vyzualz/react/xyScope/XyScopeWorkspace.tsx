@@ -30,6 +30,8 @@ import {
 import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
 import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
 import { XyScopeOsc2DesignPanel } from './XyScopeOsc2DesignPanel'
+import { XyScopeInitDesignPanel } from './XyScopeInitDesignPanel'
+import { INIT_COUNTS } from './XyScopeInitSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { isXyScopeSvgUpload } from './useXyScopeSvg'
@@ -132,6 +134,8 @@ export function XyScopeEnginePanel() {
   })))
   const source = settings.sourceMode
   const setSource = (sourceMode: typeof XY_SOURCE_CARDS[number]['id']) => setXyScopeSettings({ sourceMode })
+  // INIT is a preset of the OSCILATOR source, so that card stays lit while INIT runs.
+  const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => source === id || (id === 'oscillator' && source === 'init')
   const resolution = useXyScopeFont(settings.fontId)
   const previewStatus = useFontPreviewPreload(fontAssets)
   const options = useMemo(() => {
@@ -161,14 +165,22 @@ export function XyScopeEnginePanel() {
       <div className="rv-sound-source-grid rv-xyscope-source-grid" role="group" aria-label="Sound Drawing XY source types">
         {XY_SOURCE_CARDS.map(option => (
           <button key={option.id} type="button"
-            className={`rv-sound-source-card${source === option.id ? ' is-active' : ''}`}
-            aria-pressed={source === option.id}
+            className={`rv-sound-source-card${isCardActive(option.id) ? ' is-active' : ''}`}
+            aria-pressed={isCardActive(option.id)}
             onClick={() => setSource(option.id)}>
             <span className="rv-sound-source-card-icon"><AppIcon kind={option.icon} /></span>
             <span className="rv-sound-source-card-label">{option.label}</span>
           </button>
         ))}
       </div>
+      {source === 'init' && <Collapsible label="Input" icon={<AppIcon kind="scope" size={15} color="currentColor" />}>
+        <div data-xyscope-input-group="init" style={{ display: 'contents' }}>
+          <SelectRow id="xyscope-init-count" label="Oscillators" ariaLabel="Number of oscillators" menuBoundarySelector=".vz-inspector" placement="below"
+            value={String(settings.init.oscillators)} options={INIT_COUNTS.map(option => ({ value: option.value, label: option.label }))}
+            onChange={value => setXyScopeSettings({ init: { ...settings.init, oscillators: Number(value) as 1 | 2 | 3 } })}
+            description="How many oscilloscopes appear in the visualizer at once." />
+        </div>
+      </Collapsible>}
       {source === 'svg' && <Collapsible label="Input" icon={<AppIcon kind="svg" size={15} color="currentColor" />}>
         <div data-xyscope-input-group="svg" style={{ display: 'contents' }}>
           <SelectRow id="xyscope-svg" label="SVG" ariaLabel="Uploaded SVG" menuBoundarySelector=".vz-inspector" placement="below" menuSearch menuSearchPlaceholder="Search uploaded SVG files…"
@@ -333,6 +345,7 @@ export function XyScopeDesignPanel() {
 
   if (settings.sourceMode === 'osc1') return <XyScopeOsc1DesignPanel />
   if (settings.sourceMode === 'osc2') return <XyScopeOsc2DesignPanel />
+  if (settings.sourceMode === 'init') return <XyScopeInitDesignPanel />
   if (isTextV2) return <XyScopeTextV2DesignPanel />
 
   return (

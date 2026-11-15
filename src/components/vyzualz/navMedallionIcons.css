@@ -1,0 +1,10 @@
+/* Navigation Medallion icons (see navMedallionIcons.tsx). Classes: ring · s structure stroke · a accent stroke · fs/fa solid fills ·
+   ts/ta translucent fills. The accent colour is the item's --llni-accent. */
+.nav-medallion { overflow: visible; }
+.nav-medallion path { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.nav-medallion path.ring { opacity: .5; stroke-width: 1.2; }
+.nav-medallion path.a { stroke: var(--llni-accent, #4ac7db); stroke-width: 1.9; }
+.nav-medallion path.fs { fill: currentColor; stroke: none; }
+.nav-medallion path.fa { fill: var(--llni-accent, #4ac7db); stroke: none; }
+.nav-medallion path.ts { fill: currentColor; fill-opacity: .14; }
+.nav-medallion path.ta { fill: var(--llni-accent, #4ac7db); fill-opacity: .22; stroke: var(--llni-accent, #4ac7db); }

@@ -29,7 +29,7 @@ import {
   XyScopeScopeWindow,
   type XyScopePointBuffers,
 } from './XyScopeMotion'
-import { Osc1Engine, emptyOsc1Features, type Osc1Features } from './XyScopeOsc1Engine'
+import { Osc1Engine, emptyOsc1Features, osc1ModeSettings, type Osc1Features } from './XyScopeOsc1Engine'
 import { Osc1Analyzer } from './XyScopeOsc1Analysis'
 import { Osc1Conductor, osc1StructureFromContext, type Osc1ConductorOutput } from './XyScopeOsc1Performance'
 import { Osc1Renderer } from './XyScopeOsc1Renderer'
@@ -39,6 +39,11 @@ import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
 import { Osc2Engine } from './XyScopeOsc2Engine'
 import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
 import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
+import { InitEngine, type InitPcm, type InitSource } from './XyScopeInitEngine'
+import { InitRenderer } from './XyScopeInitRenderer'
+import { InitAutoPerformance } from './XyScopeInitPerformance'
+import type { InitLiveSnapshot } from './XyScopeInitLive'
+import type { InitValues } from './XyScopeInitSettings'
 import { createXyScopeFormDrive, XY_SCOPE_PATTERN_CYCLE, type XyScopePattern } from './XyScopePatterns'
 import { resolveXyScopeParameters, type XyScopeResolvedParameters, type XyScopeSettings } from './XyScopeSettings'
 
@@ -100,6 +105,15 @@ export class XyScopeRuntime {
   private osc2Text: string | null = null
   private osc2ResetSeen = -1
   private osc2AutoOn = false
+  private readonly initEngine = new InitEngine()
+  private readonly initRenderer: InitRenderer
+  private readonly initAuto = new InitAutoPerformance()
+  private initOutput: InitValues | null = null
+  private initState = { state: 'MANUAL', confidence: 0, mapped: false }
+  private initSource: InitSource = 'none'
+  private initResetSeen = -1
+  private initAutoOn = false
+  private initFreeBeat = 0
   private lastSource: XyScopeSettings['sourceMode'] | null = null
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
@@ -140,6 +154,7 @@ export class XyScopeRuntime {
   constructor(canvas: HTMLCanvasElement) {
     this.beam = new XyScopeBeamRenderer(canvas)
     this.osc1Renderer = new Osc1Renderer(canvas)
+    this.initRenderer = new InitRenderer(canvas)
     this.osc1Engine.waveL = this.osc1Analyzer.timeL
     this.osc1Engine.waveR = this.osc1Analyzer.timeR
     this.osc2Engine.waveL = this.osc1Analyzer.timeL
@@ -178,7 +193,7 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
+    return { scopeSource: this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
@@ -204,7 +219,13 @@ export class XyScopeRuntime {
     const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, elapsed))
     this.lastNowSec = input.nowSec
     const playing = input.playing ?? input.context != null
-    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2') this.lastSource = this.settings.sourceMode
+    // Leaving INIT hands the canvas back: its traces must not linger under the next source.
+    if (this.lastSource === 'init' && this.settings && this.settings.sourceMode !== 'init') this.needsClear = true
+    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2' && this.settings.sourceMode !== 'init') this.lastSource = this.settings.sourceMode
+    if (this.settings?.sourceMode === 'init') {
+      this.renderInit(input, dt, playing)
+      return
+    }
     if (this.settings?.sourceMode === 'osc1') {
       this.renderOsc1(input, dt, playing)
       return
@@ -371,6 +392,61 @@ export class XyScopeRuntime {
     const o = this.settings?.osc2
     if (!o || this.settings?.sourceMode !== 'osc2') return null
     return { ...this.osc2State, settings: o.autoPerformance && this.osc2Output ? this.osc2Output : o.values, source: this.osc1Source }
+  }
+
+  /** Live values for the inspector: the effective INIT values while Auto Performance runs. */
+  getInitLive(): InitLiveSnapshot | null {
+    const o = this.settings?.init
+    if (!o || this.settings?.sourceMode !== 'init') return null
+    return { ...this.initState, values: o.autoPerformance && this.initOutput ? this.initOutput : o.values, source: this.initSource, repicks: this.initEngine.repicks }
+  }
+
+  private renderInit(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!, o = settings.init, engine = this.initEngine
+    if (this.lastSource !== 'init') { this.lastSource = 'init'; engine.reset(); this.initRenderer.clear(); this.needsClear = false }
+    if (this.initResetSeen !== o.resetSignals || input.context?.seekDetected) {
+      this.initResetSeen = o.resetSignals
+      engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); this.initAuto.reset(); this.initOutput = null; this.initFreeBeat = 0; this.initRenderer.clear()
+    }
+    if (this.needsClear) { this.initRenderer.clear(); this.needsClear = false }
+
+    let features: Osc1Features
+    let pcm: InitPcm | null = null
+    if (playing && input.stereo) {
+      this.osc1Analyzer.load(input.stereo.left, input.stereo.right)
+      features = this.osc1Analyzer.measure(dt, input.stereo.sampleRate)
+      pcm = { left: this.osc1Analyzer.timeL, right: this.osc1Analyzer.timeR, sampleRate: input.stereo.sampleRate }
+      this.initSource = input.stereo.channelCount === 1 ? 'mono' : 'stereo'
+    } else if (playing && input.context) {
+      const c = input.context
+      features = { ...emptyOsc1Features(), level: Math.min(1, c.energy), bass: c.bass, mid: c.mid, air: c.high, flux: c.spectralFlux }
+      this.initSource = 'shared'
+    } else {
+      features = emptyOsc1Features()
+      if (!playing) this.osc1Analyzer.reset()
+      this.initSource = 'none'
+    }
+
+    if (this.initAutoOn !== o.autoPerformance) {
+      this.initAutoOn = o.autoPerformance
+      this.osc1Conductor.reset(); this.initAuto.reset(); this.initOutput = null
+    }
+    let effective = o.values
+    if (o.autoPerformance && playing) {
+      // Section evidence comes from the shared conductor; the mapping onto INIT's controls is INIT's own.
+      const conducted = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: 0, base: osc1ModeSettings(0), letterCount: 0 })
+      this.initOutput = this.initAuto.update(dt, features, conducted, o.values)
+      this.initState = { state: conducted.state, confidence: conducted.confidence, mapped: conducted.mapped }
+      effective = this.initOutput
+    } else if (o.autoPerformance && this.initOutput) effective = this.initOutput
+    else this.initState = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
+
+    // Line moves follow the track's beat grid with BPM Sync, or a steady clock that runs only while the music plays.
+    if (playing) this.initFreeBeat += dt * FREE_RUN_BEATS_PER_SECOND
+    const beat = o.bpmSync && input.context ? input.context.absoluteBeat : this.initFreeBeat
+    engine.update(dt, beat, o.oscillators, effective)
+    engine.sample(dt, o.oscillators, { ...effective, audioReactivity: effective.audioReactivity }, features, pcm, this.initSource)
+    this.initRenderer.render(engine, { dt, count: o.oscillators, values: effective, hold: o.hold })
   }
 
   private renderOsc2(input: XyScopeFrameInput, dt: number, playing: boolean): void {

@@ -1,4 +1,10 @@
 import { AppIcon } from '../shared/icons/AppIcon'
+import { NavMedallionIcon } from './navMedallionIcons'
+
+/** Left navigation icon size in px (the collapsed sidebar is 72px wide). */
+const NAV_ICON_SIZE = 36
+/** The React item's ring icon is drawn at radius 13 of 32, so it is sized to match the Medallion ring (radius 16 at the symbol scale). */
+const NAV_REACT_ICON_SIZE = 44
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
@@ -90,7 +96,7 @@ export function VyzualzSidebar(props: Props) {
           aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navReact" size={28} />
+          <AppIcon kind="navReact" size={NAV_REACT_ICON_SIZE} />
           <span className="az-nav-label">React</span>
         </button>
 
@@ -98,7 +104,7 @@ export function VyzualzSidebar(props: Props) {
 
         <button type="button" className={`az-nav-item${appView === 'performanceManager' ? ' az-nav-item--active' : ''}`}
           onClick={() => onAppViewChange?.('performanceManager')} title="Performance Manager" aria-label="Performance Manager" aria-current={appView === 'performanceManager' ? 'page' : undefined}>
-          <span className="az-nav-fill" aria-hidden="true" /><AppIcon kind="navPerformance" size={28} /><span className="az-nav-label">Performance Manager</span>
+          <span className="az-nav-fill" aria-hidden="true" /><NavMedallionIcon kind="navPerformance" size={NAV_ICON_SIZE} /><span className="az-nav-label">Performance Manager</span>
         </button>
 
         {/* Preset Manager icon */}
@@ -111,7 +117,7 @@ export function VyzualzSidebar(props: Props) {
           aria-current={appView === 'presetManager' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navPreset" size={28} />
+          <NavMedallionIcon kind="navPreset" size={NAV_ICON_SIZE} />
           <span className="az-nav-label">Preset Manager</span>
         </button>
 
@@ -131,7 +137,7 @@ export function VyzualzSidebar(props: Props) {
           disabled={showManagerUnavailable}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navShow" size={28} />
+          <NavMedallionIcon kind="navShow" size={NAV_ICON_SIZE} />
           <span className="az-nav-label">Show Manager</span>
         </button>
 
@@ -145,7 +151,7 @@ export function VyzualzSidebar(props: Props) {
           aria-current={appView === 'lyrics' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navLyrics" size={28} />
+          <NavMedallionIcon kind="navLyrics" size={NAV_ICON_SIZE} />
           <span className="az-nav-label">Lyric Manager</span>
         </button>
 
@@ -159,7 +165,7 @@ export function VyzualzSidebar(props: Props) {
           aria-current={appView === 'media' ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navMedia" size={28} />
+          <NavMedallionIcon kind="navMedia" size={NAV_ICON_SIZE} />
           <span className="az-nav-label">Media Manager</span>
         </button>
       </nav>

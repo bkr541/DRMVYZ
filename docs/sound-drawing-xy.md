@@ -253,3 +253,19 @@ OSC 2 is a second instrument preset (`sourceMode: 'osc2'`, `presetId: 'osc2'`) t
 - The shared beam scanner (`XyScopeOsc1Renderer.ts`) now accepts any engine whose streams report absolute screen positions.
 
 Tests: `XyScopeOsc2.test.ts` and an OSC 2 case in `XyScopeWorkspace.test.tsx`.
+
+## INIT
+
+INIT is a preset of the OSCILATOR source (Presets tab → INIT). Choosing it switches the engine to `init`; the OSCILATOR card in the Sources tab stays lit, and an **Input** group below the source cards holds the **Oscillators** dropdown (1, 2 or 3 oscillators), which sets how many oscilloscope lines are drawn.
+
+Each oscilloscope is a straight line with a start and an end point carrying a triggered slice of the live waveform. The left window has the four standard groups:
+
+- **Master Controls:** Master Intensity, Audio Reactivity, BPM Sync (line moves follow the track's beat grid; off, a free-running clock that runs only while audio plays), Auto Performance and Hold Trace.
+- **Design:** Layout (Stacked, Side by Side, Overlay, Omnidirectional), Signal (Frequency Bands, Stereo Channels, Timebase Zoom), the **Free Endpoints** toggle, then Scope (Wave Height, Trace Length, Time Window), Endpoints (Change Every, Glide) and Beam & Phosphor (Beam Width, Glow, Phosphor Decay).
+- **React:** Wave Response, Kick Response, Snare Response.
+- **Palette:** a colour per visible oscillator, and Background.
+
+Free Endpoints lets each oscillator start and end away from horizontal: each re-picks a random angle, length and position around its layout slot every Change Every beats. Omnidirectional always does this, anywhere on screen including diagonals. Signals come from the shared stereo window (mono tap, then shared analysis as fallbacks); with no signal the lines are flat. Auto Performance uses the shared conductor to raise height, glow and line speed on drops and calm them in breakdowns, and shows the live values in the inspector.
+
+Code: `XyScopeInitSettings.ts` (values, ranges), `XyScopeInitEngine.ts` (layout, endpoint picking, waveform bands), `XyScopeInitRenderer.ts` (phosphor canvas), `XyScopeInitPerformance.ts`, `XyScopeInitDesignPanel.tsx`.
+

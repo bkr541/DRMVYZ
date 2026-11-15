@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NavIconArtwork } from './navIconSystems'
+import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NAV_PAD_OPTIONS, NavIconArtwork } from './navIconSystems'
+import { NAV_MEDALLION_RING } from '../../navMedallionIcons'
 import studyStyles from './navIconStudies.css?inline'
 
 export const NAV_ICON_KEEP_STORAGE_KEY = 'drmvyz.layoutLab.navIcons.keep.v1'
@@ -21,6 +22,7 @@ function readKept(): ReadonlySet<string> {
 export function NavIconStudies() {
   const [active, setActive] = useState<Record<string, string>>(Object.fromEntries(NAV_ICON_SYSTEMS.map(system => [system.id, 'pads'])))
   const [kept, setKept] = useState(readKept)
+  const [activeOption, setActiveOption] = useState(NAV_PAD_OPTIONS[0].id)
   const [saveFailed, setSaveFailed] = useState(false)
   useEffect(() => {
     try { window.localStorage.setItem(NAV_ICON_KEEP_STORAGE_KEY, JSON.stringify({ version: 1, kept: [...kept] })); setSaveFailed(false) } catch { setSaveFailed(true) }
@@ -52,5 +54,23 @@ export function NavIconStudies() {
         </div>)}
       </div>
     </section>)}
+    <section className="ll-ni-row ll-ni-row--medallion" data-nav-pad-options aria-labelledby="ll-ni-padopts">
+      <header className="ll-ni-heading">
+        <h2 id="ll-ni-padopts"><span>{String(NAV_ICON_SYSTEMS.length + 1).padStart(2, '0')}</span>Performance Pads options</h2>
+        <p>Five replacements for the symbol inside the left navigation's pads ring · production ring and size<b className="ll-ni-count">{NAV_PAD_OPTIONS.filter(option => kept.has(option.id)).length}/{NAV_PAD_OPTIONS.length} kept</b></p>
+      </header>
+      <div className="ll-ni-strip" role="group" aria-label="Performance Pads options">
+        {NAV_PAD_OPTIONS.map(option => <div className={`ll-ni-cell${kept.has(option.id) ? ' is-kept' : ''}`} key={option.id}>
+          <label className="ll-ni-keep"><input type="checkbox" checked={kept.has(option.id)} onChange={() => toggle(option.id)}
+            aria-label={`Keep ${option.name}`} data-nav-pad-option-keep={option.id} /><span>Keep</span></label>
+          <svg className="ll-ni-large" viewBox="-3 -3 38 38" width="76" height="76" aria-hidden="true">{NAV_MEDALLION_RING}{option.art()}</svg>
+          <button type="button" className={`ll-ni-nav${activeOption === option.id ? ' is-active' : ''}`} aria-pressed={activeOption === option.id}
+            aria-label={`Performance Pads, ${option.name}`} title={option.detail} data-nav-pad-option={option.id} onClick={() => setActiveOption(option.id)}>
+            <svg viewBox="-3 -3 38 38" width="43" height="43" aria-hidden="true">{NAV_MEDALLION_RING}{option.art()}</svg>
+          </button>
+          <span className="ll-ni-label">{option.name}</span>
+        </div>)}
+      </div>
+    </section>
   </div>
 }

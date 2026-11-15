@@ -319,6 +319,55 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.querySelector<HTMLInputElement>('#xyscope-osc2-orbitRange')!.disabled).toBe(true)
   })
 
+  it('offers INIT under the OSCILATOR source with an Input group, the four standard groups and its own controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="init"]')!
+    expect(card.textContent).toContain('INIT')
+    expect(container.querySelector('[data-xyscope-input-group="init"]')).toBeNull()
+    await act(async () => card.click())
+    const state = () => useReactStore.getState().xyScopeSettings
+    expect(state().sourceMode).toBe('init')
+    expect(state().presetId).toBe('init')
+    // The OSCILATOR source card stays lit; INIT is a preset of it.
+    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
+    expect(sourceCard.getAttribute('aria-pressed')).toBe('true')
+    // Source tab: an Input group with the oscillator count, below the source cards.
+    const input = container.querySelector('[data-xyscope-input-group="init"]')!
+    expect(input).not.toBeNull()
+    expect(container.querySelector('.rv-xyscope-source-grid')!.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(container.querySelector('#xyscope-text')).toBeNull()
+    expect(input.textContent).toContain('Oscillators')
+    // Design: the four standard parent groups, with Master Controls holding BPM Sync and Auto Performance.
+    expect(container.querySelector('[data-init-design]')).not.toBeNull()
+    const groups = [...container.querySelectorAll('[data-xyscope-parent-group]')].map(el => el.getAttribute('data-xyscope-parent-group'))
+    expect(groups).toEqual(['master-controls', 'design', 'react', 'palette'])
+    const master = container.querySelector('[data-xyscope-parent-group="master-controls"]')!
+    expect(master.querySelector('#xyscope-init-bpm-sync')).not.toBeNull()
+    expect(master.querySelector('#xyscope-init-auto')).not.toBeNull()
+    const design = container.querySelector('[data-xyscope-parent-group="design"]')!
+    for (const id of ['layout', 'signal', 'free-endpoints', 'change-every', 'waveHeight', 'span', 'window', 'glide', 'width', 'glow', 'trail']) {
+      expect(design.querySelector(`#xyscope-init-${id}`), id).not.toBeNull()
+    }
+    for (const id of ['waveResponse', 'kickResponse', 'snareResponse']) expect(container.querySelector(`[data-xyscope-parent-group="react"] #xyscope-init-${id}`), id).not.toBeNull()
+    expect(container.querySelector('[data-xyscope-parent-group="palette"] #xyscope-init-color1')).not.toBeNull()
+    expect(container.querySelector('#xyscope-init-color2')).toBeNull()
+    // The toggles and the count are persisted.
+    expect(state().init.values.freeEndpoints).toBe(false)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-init-free-endpoints')!.click())
+    expect(state().init.values.freeEndpoints).toBe(true)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-init-bpm-sync')!.click())
+    expect(state().init.bpmSync).toBe(false)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-init-auto')!.click())
+    expect(state().init.autoPerformance).toBe(true)
+    expect(container.querySelector<HTMLInputElement>('#xyscope-init-waveHeight')!.disabled).toBe(true)
+    await act(async () => useReactStore.getState().setXyScopeSettings({ init: { ...state().init, oscillators: 3 } }))
+    for (const id of ['color1', 'color2', 'color3']) expect(container.querySelector(`#xyscope-init-${id}`), id).not.toBeNull()
+    // Choosing the OSCILATOR card returns to the figure source.
+    await act(async () => sourceCard.click())
+    expect(state().sourceMode).toBe('oscillator')
+    expect(state().presetId).not.toBe('init')
+  })
+
   it('renders this engine in the left panel through the shared engine panel', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()

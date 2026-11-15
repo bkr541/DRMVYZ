@@ -29,6 +29,16 @@ describe('Layout Lab navigation icon studies', () => {
     }
   })
 
+  it('shows five Performance Pads options, each inside the production ring and keepable', async () => {
+    await act(async () => root.render(<NavIconStudies />))
+    const section = host.querySelector('[data-nav-pad-options]')!
+    const items = [...section.querySelectorAll('[data-nav-pad-option]')]
+    expect(items).toHaveLength(5)
+    expect(new Set(items.map(item => [...item.querySelectorAll('path')].map(path => path.getAttribute('d')).join('|'))).size).toBe(5)
+    expect(items.every(item => item.querySelector('path.ring'))).toBe(true)
+    expect(section.querySelectorAll('input[data-nav-pad-option-keep]')).toHaveLength(5)
+  })
+
   it('draws every system differently for the same destination', async () => {
     await act(async () => root.render(<NavIconStudies />))
     for (const destination of NAV_ICON_DESTINATIONS) {
