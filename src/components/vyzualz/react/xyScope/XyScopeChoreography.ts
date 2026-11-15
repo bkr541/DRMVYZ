@@ -1,5 +1,10 @@
 // A pattern is a complete beam performance, including departure from lettering,
-// a full-field figure, blanking and a new word drawing. Pattern Change chooses
+// a full-field figure and the beam drawing its way back into the word. The beam is
+// never blanked between the word and the figure: like a real scope, the trace
+// stays lit and travels continuously from one to the other. The letters never bob
+// or sway: each one, in turn, slowly turns into its own chaotic sine trace (the
+// way a scope's beam would draw it) before the trace joins the figure, and the
+// figure returns to the word by the same route. Pattern Change chooses
 // another performance; it never enables or disables the current one.
 import type { XyScopeGlyphGeometry } from './XyScopeGeometry'
 import type { XyScopePointBuffers } from './XyScopeMotion'
@@ -8,7 +13,7 @@ import { computeXyScopeFormPoint, xyScopeFormBreak, type XyScopeFormDrive, type 
 const TAU = Math.PI * 2
 const clamp = (x: number) => Math.max(0, Math.min(1, x))
 const smooth = (x: number) => { const t = clamp(x); return t * t * (3 - 2 * t) }
-export type XyScopeChoreographyPhase = 'word' | 'depart' | 'figure' | 'fade' | 'blank' | 'redraw'
+export type XyScopeChoreographyPhase = 'word' | 'depart' | 'figure' | 'redraw'
 
 export interface XyScopeChoreographyFrame {
   pattern: XyScopePattern
@@ -23,16 +28,46 @@ export interface XyScopeChoreographyFrame {
   drive: XyScopeFormDrive
 }
 
+/** Where the performance is in its phrase: the word, the departure into the figure, the figure, and the return (`redraw`) back into the word. */
 export function xyScopeChoreographyPhrase(beat: number, transitionBeats: number) {
   const length = 8 + transitionBeats * 4
   const visit = Math.floor(Math.max(0, beat) / length)
   const progress = (Math.max(0, beat) % length) / length
   const phase: XyScopeChoreographyPhase = progress < 0.12 ? 'word' : progress < 0.44 ? 'depart'
-    : progress < 0.66 ? 'figure' : progress < 0.76 ? 'fade' : progress < 0.8 ? 'blank' : progress < 0.94 ? 'redraw' : 'word'
-  const morph = progress < 0.76 ? smooth((progress - 0.28) / 0.16) : 0
-  const visibility = progress < 0.66 ? 1 : progress < 0.76 ? 1 - smooth((progress - 0.66) / 0.1)
-    : progress < 0.8 ? 0 : 1
-  return { length, visit, progress, phase, morph, visibility, redraw: clamp((progress - 0.8) / 0.14) }
+    : progress < 0.66 ? 'figure' : progress < 0.88 ? 'redraw' : 'word'
+  return { length, visit, progress, phase, morph: xyScopeMorph(progress, 0), redraw: clamp((progress - 0.66) / 0.22) }
+}
+
+/** How far the beam is from the letters' sine traces toward the figure (0 = traces, 1 = figure); `delay` staggers a letter's share of it. */
+export function xyScopeMorph(progress: number, delay: number): number {
+  return progress < 0.66 ? smooth((progress - 0.3 - delay) / 0.14) : progress < 0.8 ? 1 - smooth((progress - 0.66 - delay) / 0.12) : 0
+}
+
+/** How far a letter has turned into its own chaotic sine trace (0 = the letter, 1 = the trace); `delay` makes the letters turn one after another. */
+export function xyScopeSineAmount(progress: number, delay: number): number {
+  return progress < 0.5 ? smooth((progress - 0.12 - delay) / 0.18) : progress < 0.78 ? 1 : 1 - smooth((progress - 0.78 - delay) / 0.1)
+}
+
+/** Chaotic sine sets, one per variant: irregular, non-harmonic frequencies so no two traces repeat. */
+const SINE_SETS: readonly (readonly [number, number, number])[] = [[2.1, 5.3, 11.7], [3.4, 8.9, 17.3], [1.6, 6.1, 13.9], [2.7, 7.4, 19.1]]
+
+/**
+ * A letter point's place on its own chaotic sine trace: the letter's outline unrolled left to right across its width, carrying a sum of
+ * non-harmonic sines (frequency-modulated, drifting with the free-running clock, swelling with the music) plus the live triggered trace.
+ */
+function sineTrace(glyph: XyScopeGlyphGeometry, i: number, index: number, width: number, frame: XyScopeChoreographyFrame, out: { x: number; y: number }): void {
+  const d = frame.drive, u = glyph.s[i], t = d.time
+  const [f1, f2, f3] = SINE_SETS[(d.variation + index) % SINE_SETS.length]
+  const phase = index * 1.7 + TAU * d.phase * 0.35
+  const bend = 0.35 * Math.sin(TAU * 0.7 * u + t * 0.9 + index)
+  const level = 0.55 + 0.45 * Math.min(1, d.bass * 0.6 + d.mid * 0.5 + d.high * 0.3 + d.kick * 0.4)
+  const chaos = Math.sin(TAU * (f1 * u + bend) + phase + t * 1.1) * 0.55
+    + Math.sin(TAU * (f2 * u) - phase * 0.6 - t * 1.9 + 0.4 * Math.sin(TAU * 1.3 * u + t * 0.6)) * 0.3
+    + Math.sin(TAU * (f3 * u) + phase * 1.3 + t * 3.1) * 0.15
+  const j = Math.min(d.trace.length - 1, Math.max(0, Math.floor(u * d.trace.length)))
+  const real = d.trace[j] * d.traceGain
+  out.x = glyph.centerX + (u - 0.5) * width * 1.12
+  out.y = (chaos * level * 0.8 + real * 0.35) * glyph.heightPx * 0.5
 }
 
 const point = { x: 0, y: 0 }
@@ -93,36 +128,29 @@ export function applyXyScopeBeamChoreography(
   const phrase = xyScopeChoreographyPhrase(frame.beat, frame.transitionBeats)
   const amount = frame.amount
   const delay = Math.min(0.05, index * frame.answerDelayBeats / phrase.length)
-  const morph = (phrase.progress < 0.76 ? smooth((phrase.progress - 0.28 - delay) / 0.16) : 0) * amount
-  const departure = smooth((phrase.progress - 0.12) / 0.1) * (1 - smooth((phrase.progress - 0.28) / 0.16)) * amount
-  const focusPass = frame.pattern === 'word' && phrase.visit % 3 === 1
-  const ordered = clamp((phrase.progress - 0.12) / 0.24) * Math.max(1, count)
-  const featured = Math.min(count - 1, Math.floor(ordered))
-  const local = ordered - Math.floor(ordered)
-  const focus = focusPass ? smooth(local / 0.2) * (1 - smooth((local - 0.8) / 0.2)) * departure : 0
-  const wave = Math.sin(TAU * (frame.beat / 4 - index / Math.max(1, count)))
+  const morph = xyScopeMorph(phrase.progress, delay) * amount
+  // Letters turn into their traces one after another, left to right, each one slowly.
+  const turn = index / Math.max(1, count - 1) * 0.04
+  const sine = xyScopeSineAmount(phrase.progress, turn) * amount
+  let minX = Infinity, maxX = -Infinity
+  if (sine > 0) for (let i = 0; i < glyph.count; i += 1) { minX = Math.min(minX, glyph.x[i]); maxX = Math.max(maxX, glyph.x[i]) }
+  const width = Math.max(1, maxX - minX)
+  const trace = { x: 0, y: 0 }
 
   for (let i = 0; i < glyph.count; i += 1) {
     const u = (globalOffset + i) / Math.max(1, globalTotal - 1)
     const target = performancePoint(frame.pattern, u, phrase.visit, frame)
     let x = buffer.x[i], y = buffer.y[i]
-    if (focusPass) {
-      if (index === featured) {
-        const scale = 1 + (Math.min(2.4, frame.height * 0.48 / Math.max(1, glyph.heightPx)) - 1) * focus
-        x = (x - glyph.centerX) * scale + glyph.centerX * (1 - focus)
-        y *= scale
-      }
-    } else {
-      y += wave * frame.height * 0.13 * departure
-      x += Math.sin(TAU * frame.beat / 8 + index) * frame.width * 0.025 * departure
+    if (sine > 0) {
+      sineTrace(glyph, i, index, width, frame, trace)
+      x = x * (1 - sine) + trace.x * sine
+      y = y * (1 - sine) + trace.y * sine
     }
     buffer.x[i] = x * (1 - morph) + target.x * morph
     buffer.y[i] = y * (1 - morph) + target.y * morph
-    buffer.form[i] = morph
-    let visibility = 1 - amount * (1 - phrase.visibility)
-    if (focusPass && index !== featured) visibility *= 1 - focus * (1 - morph)
-    if (phrase.phase === 'redraw') visibility *= 1 - amount * (1 - smooth((phrase.redraw - u) * 24))
-    if (phrase.phase === 'blank') visibility = 1 - amount
+    buffer.form[i] = Math.max(morph, sine)
+    // The beam is lit throughout the move between the word and the figure.
+    let visibility = 1
     if (frame.pattern === 'word' && phrase.visit % 3 === 0 && morph > 0.998) {
       // The beam actually travels around the perimeter, leaving two trailing
       // arcs, rather than continuously repainting a stationary border.
@@ -132,6 +160,6 @@ export function applyXyScopeBeamChoreography(
     let gap = (1 - visibility) / 1.2
     if (frame.pattern !== 'word' && xyScopeFormBreak(frame.pattern, u, Math.min(1, u + 1 / globalTotal), frame.drive.variation)) gap = Math.max(gap, morph)
     buffer.gap[i] = Math.max(buffer.gap[i], gap)
-    buffer.dissolved[i] *= 1 - morph
+    buffer.dissolved[i] *= 1 - Math.max(morph, sine)
   }
 }

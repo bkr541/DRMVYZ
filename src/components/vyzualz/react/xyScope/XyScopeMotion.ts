@@ -14,13 +14,15 @@ import { computeXyScopeFormPoint, xyScopeFormBreak, XY_SCOPE_PATTERN_IDS, type X
 export const XY_SCOPE_CLOUD_SAMPLES = 512
 export const XY_SCOPE_WAVE_SAMPLES = 32
 const WINDOW_SAMPLES = XY_SCOPE_CLOUD_SAMPLES * 4
+/** Samples one Waveform trace spans (about 21 ms at 48 kHz). */
+const TRACE_SPAN = 1024
 
 /** One frame of the live scope: a mid/side trace for the dissolve cloud and a smoothed waveform for texture. */
 export interface XyScopeScopeFrame {
   cloudX: Float32Array
   cloudY: Float32Array
   wave: Float32Array
-  /** The mid signal low-passed to a readable oscilloscope trace (about 1 kHz), for the Waveform pattern. */
+  /** The triggered mid signal (a rising zero crossing starts it), drawn by the Waveform pattern. */
   trace: Float32Array
   /** Gain that fits the trace to the letter box. */
   cloudGain: number
@@ -89,21 +91,28 @@ export class XyScopeScopeWindow {
       wave[k] = sum / block
       wavePeak = Math.max(wavePeak, Math.abs(wave[k]))
     }
-    // A box low-pass over the mid signal: the bass and body of the track, without the hair of the top end.
+    // The Waveform trace is the mid signal itself, triggered like a scope: it starts on a rising zero crossing, so a
+    // steady tone holds still and a sine wave reads as a sine wave. With no capture a clean sine stands in.
     const { trace } = frame
     let tracePeak = 1e-4
-    const radius = 5
-    for (let k = 0; k < XY_SCOPE_CLOUD_SAMPLES; k += 1) {
-      let sum = 0
-      let count = 0
-      for (let q = -radius; q <= radius; q += 1) {
-        const index = k + q
-        if (index < 0 || index >= XY_SCOPE_CLOUD_SAMPLES) continue
-        sum += cloudY[index]
-        count += 1
+    if (left && right && left.length >= WINDOW_SAMPLES && right.length >= WINDOW_SAMPLES) {
+      const base = left.length - WINDOW_SAMPLES
+      const mid = (i: number) => (left[base + i] + right[base + i]) * 0.5
+      let first = 0
+      for (let i = 1; i < WINDOW_SAMPLES - TRACE_SPAN - 8; i += 1) {
+        if (mid(i - 1) <= 0 && mid(i) > 0 && mid(i + 8) > mid(i)) { first = i; break }
       }
-      trace[k] = sum / count
-      tracePeak = Math.max(tracePeak, Math.abs(trace[k]))
+      for (let k = 0; k < XY_SCOPE_CLOUD_SAMPLES; k += 1) {
+        const position = first + k * TRACE_SPAN / XY_SCOPE_CLOUD_SAMPLES
+        const i = Math.floor(position)
+        trace[k] = mid(i) + (mid(Math.min(WINDOW_SAMPLES - 1, i + 1)) - mid(i)) * (position - i)
+        tracePeak = Math.max(tracePeak, Math.abs(trace[k]))
+      }
+    } else {
+      for (let k = 0; k < XY_SCOPE_CLOUD_SAMPLES; k += 1) {
+        trace[k] = 0.7 * Math.sin(Math.PI * 2 * (3 * k / XY_SCOPE_CLOUD_SAMPLES + timeSec * 0.6))
+        tracePeak = Math.max(tracePeak, Math.abs(trace[k]))
+      }
     }
     const targetCloud = 1 / Math.max(peak, 0.03)
     const targetWave = 1 / Math.max(wavePeak, 0.02)

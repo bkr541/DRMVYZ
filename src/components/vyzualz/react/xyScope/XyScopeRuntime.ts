@@ -142,7 +142,6 @@ export class XyScopeRuntime {
   private performanceAmount = 0
   private performingPattern: XyScopePattern = 'word'
   private phraseVisit = 0
-  private blanked = false
   private phase = 0
   private sequence = 0
   private activePattern: XyScopePattern = 'word'
@@ -325,6 +324,8 @@ export class XyScopeRuntime {
     drive.cloudGain = scopeFrame.cloudGain
     drive.trace = scopeFrame.trace
     drive.traceGain = scopeFrame.traceGain
+    drive.time = input.nowSec
+    drive.vibration = params.vibration
 
     // Audio Reactivity zero holds the letters perfectly still.
     const motion = { vibration: params.vibration * reactivity * this.performanceAmount, dissolveDepth: params.dissolveDepth }
@@ -333,10 +334,6 @@ export class XyScopeRuntime {
       width: this.width, height: this.height, transitionBeats: params.transitionBeats,
       answerDelayBeats: params.answerDelayMs / 1000 / secondsPerBeat, drive,
     }
-    if (phrase.phase === 'blank' && this.performanceAmount > 0.999) {
-      if (!this.blanked) this.beam.clear(background)
-      this.blanked = true
-    } else this.blanked = false
     let offset = 0
     const glyphs = this.layout.glyphs
     for (let g = 0; g < glyphs.length; g += 1) {
@@ -597,7 +594,6 @@ export class XyScopeRuntime {
     this.conversation.reset(this.layout.glyphs.length)
     this.performingPattern = pattern
     this.phraseVisit = 0
-    this.blanked = false
     this.choreographyBeat = 0
     this.performanceAmount = 0
     this.phase = 0

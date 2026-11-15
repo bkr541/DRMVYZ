@@ -108,7 +108,7 @@ describe('Sound Drawing XY choreography runtime', () => {
     expect(stroke).toHaveBeenCalled()
   })
 
-  it.each(XY_SCOPE_PATTERN_IDS)('fully departs, blanks and redraws in fixed %s without Pattern Change or drum hits', pattern => {
+  it.each(XY_SCOPE_PATTERN_IDS)('fully departs and draws its way back in fixed %s, never blanking the beam, without Pattern Change or drum hits', pattern => {
     const runtime = makeRuntime(settingsWith({ pattern, patternChange: false, motionAmount: 0.7, vibration: 0, dissolveDepth: 0 }))
     const samples: { xs: number[]; ys: number[]; form: number; gap: number }[] = []
     const draw = XyScopeBeamRenderer.prototype.draw
@@ -125,7 +125,8 @@ describe('Sound Drawing XY choreography runtime', () => {
     expect(Math.max(...samples.map(distance))).toBeGreaterThan(40)
     for (const frame of [360, 720, 1080]) expect(distance(samples[frame])).toBeLessThan(0.01)
     expect(samples.some(sample => sample.form === 1)).toBe(true)
-    expect(samples.some(sample => sample.gap > 0.8)).toBe(true)
+    // No frame blanks a letter's beam between the word and the figure. (Word's one-letter-at-a-time pass hides the other letters by design.)
+    if (pattern !== 'word') expect(samples.some(sample => sample.gap > 0.8)).toBe(false)
     expect(runtime.getStatus().pattern).toBe(pattern)
   })
 

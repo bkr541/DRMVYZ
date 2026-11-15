@@ -199,3 +199,43 @@ describe('computeXyScopeGlyphPoints: moving into an oscillator form and back', (
     }
   })
 })
+
+describe('the Waveform trace is a real, triggered scope trace', () => {
+  const rate = 48000
+  const tone = (hz: number, samples = 2048, offset = 0) => Float32Array.from({ length: samples }, (_, i) => .5 * Math.sin(2 * Math.PI * hz * (i + offset) / rate))
+
+  it('draws a sine wave as a sine wave: it starts on a rising zero crossing and holds still as the tone advances', () => {
+    const window = new XyScopeScopeWindow()
+    const a = Float32Array.from(window.update(tone(440), tone(440), 1 / 60, 0).trace)
+    expect(Math.abs(a[0])).toBeLessThan(0.08 * Math.max(...a.map(Math.abs)))
+    expect(a[6]).toBeGreaterThan(a[0])
+    // Two frames of the same tone at different phases line up: the trigger keeps the display steady.
+    const b = Float32Array.from(window.update(tone(440, 2048, 333), tone(440, 2048, 333), 1 / 60, 0.016).trace)
+    const drift = Math.max(...a.map((v, i) => Math.abs(v - b[i]))) / Math.max(...a.map(Math.abs))
+    expect(drift).toBeLessThan(0.12)
+    // 440 Hz over about 21 ms shows nine and a bit cycles, not a smoothed blur.
+    let crossings = 0
+    for (let i = 1; i < a.length; i += 1) if (a[i - 1] <= 0 && a[i] > 0) crossings += 1
+    expect(crossings).toBeGreaterThanOrEqual(8)
+    expect(crossings).toBeLessThanOrEqual(10)
+  })
+
+  it('keeps the high end of the signal in the trace (it is no longer low-passed)', () => {
+    const window = new XyScopeScopeWindow()
+    const high = tone(6000)
+    const trace = window.update(high, high, 1 / 60, 0).trace
+    expect(Math.max(...trace.map(Math.abs))).toBeGreaterThan(0.3)
+  })
+
+  it('stands in with a clean moving sine when there is no capture', () => {
+    const window = new XyScopeScopeWindow()
+    const first = Float32Array.from(window.update(null, null, 1 / 60, 0).trace)
+    const later = Float32Array.from(window.update(null, null, 1 / 60, 0.5).trace)
+    expect(window.frame.source).toBe('fallback')
+    expect(later).not.toEqual(first)
+    let crossings = 0
+    for (let i = 1; i < first.length; i += 1) if (first[i - 1] <= 0 && first[i] > 0) crossings += 1
+    expect(crossings).toBeGreaterThanOrEqual(2)
+    expect(crossings).toBeLessThanOrEqual(4)
+  })
+})

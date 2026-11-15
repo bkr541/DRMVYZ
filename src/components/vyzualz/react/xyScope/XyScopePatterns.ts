@@ -52,6 +52,10 @@ export interface XyScopeFormDrive {
   /** The smoothed mid-signal trace the Waveform pattern draws, and its gain. */
   trace: Float32Array
   traceGain: number
+  /** Free-running seconds, so the traces keep vibrating whatever the beat clock does. */
+  time: number
+  /** Line Vibration, 0..1.5: how strongly the traces shimmer. The runtime sets it; a bare drive does not shimmer. */
+  vibration: number
 }
 
 export interface XyScopePoint { x: number; y: number }
@@ -78,12 +82,12 @@ function scope(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
 }
 
 function ring(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
-  const theta = TAU * g + TAU * d.phase * 0.15
+  const theta = TAU * g + TAU * d.phase * 0.3
   const teeth = 20 + 6 * (d.variation % 3)
   const depth = 0.015 + 0.06 * d.high + 0.05 * d.snare
-  const squash = 0.62 + 0.38 * Math.abs(Math.cos(TAU * d.phase * 0.11))
+  const squash = 0.62 + 0.38 * Math.abs(Math.cos(TAU * d.phase * 0.22))
   const r = d.radius * (1 + 0.1 * d.kick + 0.16 * d.bass) * (1 + depth * Math.sin(teeth * theta + TAU * d.phase * 0.7))
-  const tilt = TAU * d.phase * 0.05 + 0.6
+  const tilt = TAU * d.phase * 0.12 + 0.6
   const x0 = r * Math.cos(theta)
   const y0 = r * Math.sin(theta) * squash
   out.x = x0 * Math.cos(tilt) - y0 * Math.sin(tilt)
@@ -93,7 +97,7 @@ function ring(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
 function weave(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
   const [a, b] = WEAVE_RATIOS[d.variation % WEAVE_RATIOS.length]
   const theta = TAU * g
-  const delta = TAU * d.phase * 0.06 + 0.7
+  const delta = TAU * d.phase * 0.35 + 0.7
   const r = d.radius * (1 + 0.1 * d.kick + 0.14 * d.bass)
   out.x = r * 1.15 * Math.sin(a * theta + delta)
   out.y = r * Math.sin(b * theta)
@@ -104,8 +108,8 @@ function rosette(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
   const a = 0.46 + 0.2 * d.mid
   const theta = TAU * g
   // Two rotating phasors: the second turns at a different speed, which is what draws the spiral arms.
-  const spin = TAU * d.phase * 0.08
-  const epi = TAU * d.phase * 0.3
+  const spin = TAU * d.phase * 0.2
+  const epi = TAU * d.phase * 0.8
   let x = Math.cos(theta) + a * Math.cos(-(petals - 1) * theta) + 0.12 * Math.cos((petals + 1) * theta + epi)
   let y = Math.sin(theta) + a * Math.sin(-(petals - 1) * theta) + 0.12 * Math.sin((petals + 1) * theta + epi)
   const r = d.radius * (1 + 0.08 * d.kick + 0.12 * d.bass) / (1 + a + 0.12)
@@ -123,7 +127,7 @@ function pinwheel(g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
   const scaled = Math.min(arms - 1e-6, g * arms)
   const arm = Math.floor(scaled)
   const u = scaled - arm
-  const alpha = TAU * arm / arms + TAU * d.phase * 0.12
+  const alpha = TAU * arm / arms + TAU * d.phase * 0.3
   const hub = 0.6 * d.radius * (1 + 0.1 * d.kick)
   const radius = 0.36 * d.radius * (1 + 0.25 * d.mid)
   const beta = alpha + Math.PI * (0.425 + 1.15 * u) + Math.PI * 0.5
@@ -149,6 +153,30 @@ export function xyScopeFormBreak(pattern: XyScopeFormPattern, gA: number, gB: nu
 /** Position of point `g` (0..1 along the whole word) in the given form, px from the stage centre. */
 export function computeXyScopeFormPoint(pattern: XyScopeFormPattern, g: number, drive: XyScopeFormDrive, out: XyScopePoint): void {
   FORMS[pattern](g, drive, out)
+  shimmer(pattern, g, drive, out)
+}
+
+/**
+ * A real scope's trace is never still: the beam shivers with the signal and the electronics. Every figure carries a
+ * constant fine vibration (a few percent of its size, quickening with the highs and snares) and, except for the stereo
+ * scope itself, a trace of the live stereo signal. It is smooth in `g` and time, so neighbouring points move together.
+ */
+function shimmer(pattern: XyScopeFormPattern, g: number, d: XyScopeFormDrive, out: XyScopePoint): void {
+  if (d.vibration <= 0) return
+  const t = d.time
+  if (pattern === 'waveform') {
+    const amp = d.halfHeight * d.vibration * (0.012 + 0.03 * d.high)
+    out.y += amp * (0.6 * Math.sin(TAU * 50 * g + t * 97) + 0.4 * Math.sin(TAU * 20 * g - t * 61))
+    return
+  }
+  const amp = d.radius * d.vibration * (0.008 + 0.025 * d.high + 0.015 * d.snare)
+  out.x += amp * (0.6 * Math.sin(TAU * 42 * g + t * 89) + 0.4 * Math.sin(TAU * 15 * g - t * 53))
+  out.y += amp * (0.6 * Math.cos(TAU * 38 * g - t * 79) + 0.4 * Math.cos(TAU * 21 * g + t * 47))
+  if (pattern !== 'scope') {
+    const j = Math.min(d.cloudX.length - 1, Math.max(0, Math.floor(g * d.cloudX.length)))
+    out.x += d.cloudX[j] * d.cloudGain * d.radius * 0.03 * d.vibration
+    out.y -= d.cloudY[j] * d.cloudGain * d.radius * 0.03 * d.vibration
+  }
 }
 
 export function createXyScopeFormDrive(): XyScopeFormDrive {
@@ -156,6 +184,6 @@ export function createXyScopeFormDrive(): XyScopeFormDrive {
     phase: 0, radius: 200, halfWidth: 400, halfHeight: 120,
     bass: 0, mid: 0, high: 0, kick: 0, snare: 0, variation: 0,
     cloudX: new Float32Array(512), cloudY: new Float32Array(512), cloudGain: 1,
-    trace: new Float32Array(512), traceGain: 1,
+    trace: new Float32Array(512), traceGain: 1, time: 0, vibration: 0,
   }
 }

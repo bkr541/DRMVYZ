@@ -10,9 +10,10 @@ The engine ID is `xyScope` and its catalog label is **Sound Drawing XY**. It shi
 
 Each Pattern is a complete repeating oscilloscope performance. The word is a
 recurring destination, not a permanent overlay: it holds legibly, moves through
-its letters, unravels into a full-field drawing, performs as that drawing, fades
-and briefly blanks, then is traced back into lettering. No stationary word is
-left behind during the figure or blank phase.
+its letters, unravels into a full-field drawing, performs as that drawing, then the same
+lit trace is drawn back into lettering. The letters never bob or sway on the way out: each letter in turn, slowly, unrolls its outline into its own chaotic sine trace (a sum of non-harmonic, frequency-modulated sines drifting with the clock, swelling with the music and carrying the live triggered signal, with a different set on each visit), and the traces then join the figure. The return runs the same route in reverse: figure, then the traces, then the letters. The beam is never blanked between the
+word and the figure, in either direction, and no stationary word is left behind
+during the figure.
 
 **Pattern Change off still performs this entire sequence.** The toggle only
 controls selection of another performance style. With it on, the canonical
@@ -24,8 +25,8 @@ returns to the authored routine; it is not consumed as a trigger.
 
 | Pattern | Performance between visits to the word |
 | --- | --- |
-| Word | Cycles through perimeter tracing, individual-letter focus into off-centre nested orbits, and a corner-to-corner signal sweep |
-| Waveform | The live smoothed audio trace sweeps through changing orientations across the field |
+| Word | Cycles through perimeter tracing, off-centre nested orbits, and a corner-to-corner signal sweep |
+| Waveform | The live audio trace, triggered on a rising zero crossing like a scope (a steady tone holds still; a sine reads as a sine), sweeps through changing orientations across the field |
 | Stereo Scope | The live mid/side trace travels across the stage; the fallback is disclosed when stereo is unavailable |
 | Ring | Large expanding, tilting orbital rings with bass and snare detail |
 | Rosette | Full-field rotating epicycle petals with a different variant on repeat visits |
@@ -33,7 +34,7 @@ returns to the authored routine; it is not consumed as a trigger.
 | Pinwheel | Rotating crescent arms, with the beam blanked between separate strokes |
 
 `XyScopeChoreography` reuses the same letter beam points for the figure, then
-blanks and progressively redraws the word. Whole outlines depart coherently,
+morphs them back into the word with the beam lit throughout. Whole outlines depart coherently,
 with Answer Delay staggering the letters. Every fixed style varies over repeated
 visits without requiring Pattern Change. The active routine has its own clock,
 independent of style-switch events.
@@ -45,6 +46,8 @@ back to readable lettering. BPM Sync follows the real beat clock; without an
 available beat grid, active playback uses the existing steady-tempo fallback.
 The references reviewed were Desktop `ref1.mov`, `ref2.mov` and `ref3.mov`, with
 ref3 providing the lettering → full drawing → fade → lettering direction.
+
+Every figure is in constant fine vibration, as a real scope's trace is: a smooth shimmer of a few percent of its size (quickening with the highs and snares, scaled by Line Vibration, driven by a free-running clock so it never stops while the figure is on screen) plus a trace of the live stereo signal. The figures' Lissajous phases drift continuously with the beat clock. With no stereo capture the Waveform trace is a clean moving sine.
 
 ## Why a new motion model
 
