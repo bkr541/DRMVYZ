@@ -1,0 +1,58 @@
+/* Navigation icon studies. The nav cells reproduce the collapsed sidebar (72px column, 14px vertical padding, 28px icon, 3px active
+   edge, active glow, --llni-accent). Artwork classes: s structure stroke · a accent stroke · fs/fa solid fills · ts/ta tinted fills ·
+   d dashed · sh shadow plane. Each row's rules below give its system its stroke, joins and materials. */
+.ll-ni-studies { --az-sidebar: #0b1012; --az-panel: #151a1d; --az-cyan: #4ac7db; --az-text-muted: rgba(196, 207, 211, .58); --az-text-faint: rgba(196, 207, 211, .32); --az-border: rgba(154, 178, 188, .18);
+  display: grid; gap: 26px; padding: 18px 2px 40px; }
+.ll-ni-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 0 10px; }
+.ll-ni-heading h2 { display: flex; align-items: center; gap: 8px; margin: 0; color: rgba(245, 248, 250, .94); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.ll-ni-heading h2 span { color: var(--az-cyan); }
+.ll-ni-heading p { margin: 0; color: var(--az-text-muted); font: var(--type-field-value); }
+.ll-ni-strip { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 8px; padding: 12px; background: var(--az-panel); border: 1px solid var(--az-border); border-radius: 4px; }
+.ll-ni-cell { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 0 10px; background: var(--az-sidebar); border: 1px solid var(--az-border); border-radius: 4px; color: rgba(232, 238, 240, .88); --llni-accent: rgba(74, 199, 219, .78); }
+.ll-ni-large { display: block; color: rgba(232, 238, 240, .88); }
+.ll-ni-label { color: var(--az-text-muted); font: var(--type-field-value); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; text-align: center; }
+.ll-ni-nav { box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 72px; padding: 14px 0; border: 0; border-left: 3px solid transparent; border-radius: 0; background: transparent; color: var(--az-text-faint); cursor: pointer; --llni-accent: rgba(74, 199, 219, .78); transition: color 150ms, background 150ms, border-color 150ms; }
+.ll-ni-nav:hover { color: var(--az-text-muted); background: rgba(255, 255, 255, .03); }
+.ll-ni-nav:focus-visible { outline: 1px solid rgba(103, 247, 255, .8); outline-offset: -3px; background: rgba(74, 199, 219, .08); }
+.ll-ni-nav.is-active { color: var(--az-cyan); border-left-color: var(--az-cyan); --llni-accent: #b8fbff; }
+.ll-ni-nav.is-active svg { filter: drop-shadow(0 0 6px rgba(74, 199, 219, .4)); }
+.ll-ni-large, .ll-ni-nav svg { overflow: visible; }
+
+/* shared part classes */
+.ll-ni-row svg path { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }
+.ll-ni-row svg path.a { stroke: var(--llni-accent); }
+.ll-ni-row svg path.fs { fill: currentColor; stroke: none; }
+.ll-ni-row svg path.fa { fill: var(--llni-accent); stroke: none; }
+.ll-ni-row svg path.ts { fill: currentColor; fill-opacity: .14; }
+.ll-ni-row svg path.ta { fill: var(--llni-accent); fill-opacity: .22; stroke: var(--llni-accent); }
+.ll-ni-row svg path.d { stroke-dasharray: 2 2.3; }
+
+/* 01 Hairline duotone */
+.ll-ni-row--hairline svg path { stroke-width: 1.25; }
+.ll-ni-row--hairline svg path.s { opacity: .55; }
+/* 02 Bold line */
+.ll-ni-row--bold svg path { stroke-width: 2.4; }
+/* 03 Solid glyph */
+.ll-ni-row--solid svg path { stroke: none; }
+/* 04 Tinted fill */
+.ll-ni-row--tinted svg path { stroke-width: 1.4; }
+.ll-ni-row--tinted svg path.ts { stroke: currentColor; }
+/* 05 Technical cut */
+.ll-ni-row--technical svg path { stroke-width: 1.5; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 8; }
+/* 06 Plotter dash */
+.ll-ni-row--plotter svg path { stroke-width: 1.4; }
+.ll-ni-row--plotter svg path.d { stroke-linecap: butt; opacity: .8; }
+.ll-ni-row--plotter svg path.a { stroke-width: 1.9; }
+/* 07 Offset depth */
+.ll-ni-row--offset svg path { stroke-width: 1.5; }
+.ll-ni-row--offset svg g.sh path.fs { fill: currentColor; opacity: .26; stroke: none; }
+/* 08 Badge tile */
+.ll-ni-row--badge svg path { stroke-width: 1.4; }
+.ll-ni-row--badge svg path.ts { stroke: currentColor; fill-opacity: .16; }
+/* 09 Medallion */
+.ll-ni-row--medallion svg path { stroke-width: 1.4; }
+.ll-ni-row--medallion svg path.ring { opacity: .5; stroke-width: 1.2; }
+.ll-ni-row--medallion svg path.a { stroke-width: 1.9; }
+/* 10 LED matrix */
+.ll-ni-row--matrix svg path { stroke: none; }
+.ll-ni-row--matrix svg path.fs { opacity: .88; }
