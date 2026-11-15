@@ -36,6 +36,9 @@ import { Osc1Renderer } from './XyScopeOsc1Renderer'
 import { createOsc1GlyphSource } from './XyScopeOsc1Glyphs'
 import { DEFAULT_OSC1_LETTER } from './XyScopeOsc1Settings'
 import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
+import { Osc2Engine } from './XyScopeOsc2Engine'
+import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
+import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
 import { createXyScopeFormDrive, XY_SCOPE_PATTERN_CYCLE, type XyScopePattern } from './XyScopePatterns'
 import { resolveXyScopeParameters, type XyScopeResolvedParameters, type XyScopeSettings } from './XyScopeSettings'
 
@@ -90,6 +93,14 @@ export class XyScopeRuntime {
   private osc1ResetSeen = -1
   private osc1Auto = false
   private osc1DropActive = false
+  private osc2Engine = new Osc2Engine(createOsc1GlyphSource(getDefaultXyScopeFont()))
+  private readonly osc2Auto = new Osc2AutoPerformance()
+  private osc2Output: Osc2LiveSnapshot['settings'] | null = null
+  private osc2State = { state: 'MANUAL', confidence: 0, mapped: false }
+  private osc2Text: string | null = null
+  private osc2ResetSeen = -1
+  private osc2AutoOn = false
+  private lastSource: XyScopeSettings['sourceMode'] | null = null
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
   private readonly scope = new XyScopeScopeWindow()
@@ -131,6 +142,8 @@ export class XyScopeRuntime {
     this.osc1Renderer = new Osc1Renderer(canvas)
     this.osc1Engine.waveL = this.osc1Analyzer.timeL
     this.osc1Engine.waveR = this.osc1Analyzer.timeR
+    this.osc2Engine.waveL = this.osc1Analyzer.timeL
+    this.osc2Engine.waveR = this.osc1Analyzer.timeR
   }
 
   setSettings(settings: XyScopeSettings, font: XyScopeFontSource | null, svg: XyScopeSvgSource | null = null): void {
@@ -150,6 +163,7 @@ export class XyScopeRuntime {
     if (this.font.id !== this.osc1FontId) {
       this.osc1FontId = this.font.id
       this.osc1Engine.setFont(createOsc1GlyphSource(this.font))
+      this.osc2Engine.setFont(createOsc1GlyphSource(this.font))
       this.needsClear = true
     }
     this.rebuildLayoutIfNeeded()
@@ -164,7 +178,7 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.settings?.sourceMode === 'osc1' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
+    return { scopeSource: this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
@@ -190,8 +204,13 @@ export class XyScopeRuntime {
     const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, elapsed))
     this.lastNowSec = input.nowSec
     const playing = input.playing ?? input.context != null
+    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2') this.lastSource = this.settings.sourceMode
     if (this.settings?.sourceMode === 'osc1') {
       this.renderOsc1(input, dt, playing)
+      return
+    }
+    if (this.settings?.sourceMode === 'osc2') {
+      this.renderOsc2(input, dt, playing)
       return
     }
     if (this.settings?.sourceMode === 'textV2') {
@@ -347,6 +366,59 @@ export class XyScopeRuntime {
     }
   }
 
+  /** Live values for the inspector: the effective scene settings while Auto Performance runs. */
+  getOsc2Live(): Osc2LiveSnapshot | null {
+    const o = this.settings?.osc2
+    if (!o || this.settings?.sourceMode !== 'osc2') return null
+    return { ...this.osc2State, settings: o.autoPerformance && this.osc2Output ? this.osc2Output : o.values, source: this.osc1Source }
+  }
+
+  private renderOsc2(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!, o = settings.osc2, engine = this.osc2Engine
+    if (this.lastSource !== 'osc2') { this.lastSource = 'osc2'; this.osc1Renderer.clear(); this.needsClear = false }
+    if (this.osc1Renderer.resize(this.width, this.height)) this.needsClear = true
+    if (this.osc2ResetSeen !== o.resetSignals || input.context?.seekDetected) {
+      this.osc2ResetSeen = o.resetSignals
+      engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null; this.osc1Renderer.clear()
+    }
+    if (this.needsClear) { this.osc1Renderer.clear(); this.needsClear = false }
+    const display = (this.words.length > 0 ? this.activeText : '').slice(0, 16)
+    if (display !== this.osc2Text) { this.osc2Text = display; engine.setText(display); this.osc1Renderer.clear() }
+
+    let features: Osc1Features
+    if (playing && input.stereo) {
+      this.osc1Analyzer.load(input.stereo.left, input.stereo.right)
+      features = this.osc1Analyzer.measure(dt, input.stereo.sampleRate)
+      this.osc1Source = input.stereo.channelCount === 1 ? 'mono' : 'stereo'
+    } else if (playing && input.context) {
+      const c = input.context
+      features = { ...emptyOsc1Features(), level: Math.min(1, c.energy), bass: c.bass, mid: c.mid, air: c.high, flux: c.spectralFlux }
+      this.osc1Source = 'shared'
+    } else {
+      features = emptyOsc1Features()
+      if (!playing) this.osc1Analyzer.reset()
+      this.osc1Source = 'none'
+    }
+
+    if (this.osc2AutoOn !== o.autoPerformance) {
+      this.osc2AutoOn = o.autoPerformance
+      this.osc1Conductor.reset(); this.osc2Auto.reset(); this.osc2Output = null
+    }
+    let effective = o.values
+    if (o.autoPerformance && playing) {
+      // Section evidence and beam character come from the shared conductor; the 3D mapping is OSC 2's own.
+      const base = { ...o.values }
+      const conducted = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: 0, base: { ...base, motion: 88, depth: 90, readability: 80, rotation: 70, correlation: 75, axisX: 100, axisY: 100, shear: 48, attack: 12, release: 145, sensitivity: 72, harmonics: 65 }, letterCount: 0 })
+      this.osc2Output = this.osc2Auto.update(dt, features, conducted, o.values)
+      this.osc2State = { state: conducted.state, confidence: conducted.confidence, mapped: conducted.mapped }
+      effective = this.osc2Output
+    } else if (o.autoPerformance && this.osc2Output) effective = this.osc2Output
+    else this.osc2State = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
+    engine.setSettings(effective, o.floor)
+    engine.tick(dt, features, playing)
+    this.osc1Renderer.render(engine, { dt, settings: effective, grid: false, hold: o.hold })
+  }
+
   private resetOsc1Signals(): void {
     this.osc1Engine.reset()
     this.osc1Analyzer.reset()
@@ -361,6 +433,7 @@ export class XyScopeRuntime {
     if (this.osc1Renderer.resize(this.width, this.height)) this.needsClear = true
     if (this.osc1ResetSeen !== o.resetSignals) { this.osc1ResetSeen = o.resetSignals; this.resetOsc1Signals() }
     if (input.context?.seekDetected) this.resetOsc1Signals()
+    if (this.lastSource !== 'osc1') { this.lastSource = 'osc1'; this.osc1Renderer.clear(); this.needsClear = false }
     if (this.needsClear) { this.osc1Renderer.clear(); this.needsClear = false }
     // The drawn word: the first entry, rotated through the others on each new drop (a stable choice per drop).
     const text = this.words.length > 0 ? this.activeText : ''

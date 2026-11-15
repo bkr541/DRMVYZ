@@ -239,3 +239,17 @@ OSC 1 is a preset card in the Presets tab. Choosing it switches the engine to th
 - **Words**: with several text inputs filled, the next word is chosen on each detected drop.
 
 Tests: `XyScopeOsc1.test.ts` (ported from the Text Lab's `verify.cjs` and `performance.cjs`) and an OSC 1 case in `XyScopeWorkspace.test.tsx`.
+
+### OSC 2 preset
+
+OSC 2 is a second instrument preset (`sourceMode: 'osc2'`, `presetId: 'osc2'`) that treats the oscilloscope as a 3D environment. Like OSC 1 it keeps the same left SOURCE window (text input(s) and font dropdown) and reuses OSC 1's analyser, phosphor raster and Auto Performance conductor; only the geometry is new. The beam still draws everything as a single moving point, now through a perspective camera.
+
+- **Solid letters** (`XyScopeOsc2Engine.ts`): each letter is a stack of 2–8 contour slices. Every slice answers one frequency region (rotated per letter), so bass pushes its slice toward the camera and swells it, with onsets adding short thrusts.
+- **Waveform terrain**: the last ten moments of the live waveform are kept as rows that scroll away behind the word, brighter when near and fading into the distance.
+- **Floor grid**: an optional perspective floor.
+- **Camera**: sweeps around the word at a pace set by the music's level, pushes in on kicks, slides with stereo balance, and settles straight-on when the music pauses or is silent.
+- **Auto Performance** (`XyScopeOsc2Performance.ts`): the shared conductor supplies build / drop / breakdown evidence and beam character; builds pull the camera up and back, drops push it in and open the solid. Manual values are never overwritten; with Auto on the sliders show the live values and are read-only.
+- **Inspector** (`XyScopeOsc2DesignPanel.tsx`): Master Controls (Auto Performance, Floor Grid, Hold Trace), Design (Scene, Camera, Beam & Phosphor), React (Band Depth, Kick Dolly), Palette (Phosphor Color).
+- The shared beam scanner (`XyScopeOsc1Renderer.ts`) now accepts any engine whose streams report absolute screen positions.
+
+Tests: `XyScopeOsc2.test.ts` and an OSC 2 case in `XyScopeWorkspace.test.tsx`.

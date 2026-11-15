@@ -3,7 +3,21 @@
 // with a soft bloom and an optional graticule. The raster is capped at 1,200 px wide, as in the lab, and scaled up
 // to the output canvas.
 
-import { Osc1Phosphor, type Osc1Engine, type Osc1Settings, type Osc1Signal } from './XyScopeOsc1Engine'
+import { Osc1Phosphor, type Osc1Signal } from './XyScopeOsc1Engine'
+
+/** A beam stream the scanner can draw: OSC 1 letters, or OSC 2's letters and environment streams. */
+export interface Osc1ScanStream { advance: number; table: Float32Array | null; scanPhase: number; lastLit: boolean; lastX: number; lastY: number; rate?: number }
+export interface Osc1Scannable<L extends Osc1ScanStream = Osc1ScanStream> {
+  letters: L[]
+  signal(l: L, i: number, u: number, pass: number, offset: number, out: Osc1Signal): Osc1Signal
+  beamSamples: number
+  /** Streams return screen positions in letter heights from the stage centre, so no per-letter layout is applied. */
+  absolute?: boolean
+  /** Width in letter heights the stage is fitted to when `absolute`. */
+  fitWidth?: number
+}
+
+export interface Osc1BeamSettings { intensity: number; persistence: number; width: number; scan: number; color: string }
 
 const SAMPLE_RATE = 18000
 const MAX_RASTER_WIDTH = 1200
@@ -11,7 +25,7 @@ const BACKGROUND = '#020807'
 
 export interface Osc1RenderOptions {
   dt: number
-  settings: Osc1Settings
+  settings: Osc1BeamSettings
   grid: boolean
   hold: boolean
 }
@@ -54,7 +68,7 @@ export class Osc1Renderer {
   get beamSamples(): number { return this.phosphor.deposits }
 
   /** One frame: scan every letter into the phosphor (unless held), then composite to the output canvas. */
-  render(engine: Osc1Engine, { dt, settings: s, grid, hold }: Osc1RenderOptions): void {
+  render<L extends Osc1ScanStream>(engine: Osc1Scannable<L>, { dt, settings: s, grid, hold }: Osc1RenderOptions): void {
     const { W, H, phosphor } = this
     if (!this.ctx || !this.rasterCtx || !this.raster || !this.imageData || W === 0) return
     if (!hold) {
@@ -62,15 +76,16 @@ export class Osc1Renderer {
       const n = Math.min(1200, Math.floor(dt * SAMPLE_RATE + this.sampleCarry))
       this.sampleCarry = dt * SAMPLE_RATE + this.sampleCarry - n
       const count = engine.letters.length
-      const total = engine.letters.reduce((sum, l) => sum + l.advance + .30, 0)
+      const fixedLayout = engine.absolute === true
+      const total = fixedLayout ? (engine.fitWidth ?? 6) : engine.letters.reduce((sum, l) => sum + l.advance + .30, 0)
       const size = Math.min(H * .40, W * .82 / Math.max(1, total)), cy = H * .52
       let cursor = W / 2 - total * size / 2
       const out = this.out
       for (let i = 0; i < count; i++) {
-        const l = engine.letters[i], center = cursor + (l.advance + .30) * size / 2
-        cursor += (l.advance + .30) * size
+        const l = engine.letters[i], center = fixedLayout ? W / 2 : cursor + (l.advance + .30) * size / 2
+        if (!fixedLayout) cursor += (l.advance + .30) * size
         if (!l.table) continue
-        const hz = s.scan * (1 + ((i % 5) - 2) * .0017), inc = hz / SAMPLE_RATE
+        const hz = s.scan * (l.rate ?? 1) * (1 + ((i % 5) - 2) * .0017), inc = hz / SAMPLE_RATE
         let absolute = l.scanPhase
         for (let k = 0; k < n; k++) {
           absolute += inc

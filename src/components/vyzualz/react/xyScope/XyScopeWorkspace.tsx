@@ -29,6 +29,7 @@ import {
 } from './XyScopeSettings'
 import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
 import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
+import { XyScopeOsc2DesignPanel } from './XyScopeOsc2DesignPanel'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
 import { isXyScopeSvgUpload } from './useXyScopeSvg'
@@ -331,6 +332,7 @@ export function XyScopeDesignPanel() {
   )
 
   if (settings.sourceMode === 'osc1') return <XyScopeOsc1DesignPanel />
+  if (settings.sourceMode === 'osc2') return <XyScopeOsc2DesignPanel />
   if (isTextV2) return <XyScopeTextV2DesignPanel />
 
   return (

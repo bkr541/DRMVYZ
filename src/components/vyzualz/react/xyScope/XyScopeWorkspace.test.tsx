@@ -301,6 +301,24 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('text')
   })
 
+  it('offers OSC 2 as a preset with the same text input and font dropdown and its own 3D controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="osc2"]')!
+    expect(card.textContent).toContain('OSC 2')
+    await act(async () => card.click())
+    expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('osc2')
+    expect(container.querySelector('#xyscope-text')).not.toBeNull()
+    expect(container.querySelector('#xyscope-font')).not.toBeNull()
+    expect(container.querySelector('[data-osc2-design]')).not.toBeNull()
+    for (const group of ['master-controls', 'design', 'react', 'palette']) expect(container.querySelector(`[data-xyscope-parent-group="${group}"]`)).not.toBeNull()
+    for (const id of ['depth', 'layers', 'terrain', 'distance', 'elevation', 'orbitRange', 'orbitSpeed', 'audioDepth', 'kickDolly', 'intensity', 'persistence', 'width', 'scan']) {
+      expect(container.querySelector(`#xyscope-osc2-${id}`), id).not.toBeNull()
+    }
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-osc2-auto')!.click())
+    expect(useReactStore.getState().xyScopeSettings.osc2.autoPerformance).toBe(true)
+    expect(container.querySelector<HTMLInputElement>('#xyscope-osc2-orbitRange')!.disabled).toBe(true)
+  })
+
   it('renders this engine in the left panel through the shared engine panel', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()
