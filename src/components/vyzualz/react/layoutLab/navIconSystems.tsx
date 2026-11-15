@@ -15,7 +15,7 @@ export const NAV_ICON_DESTINATIONS: readonly { id: NavIconDestination; label: st
   { id: 'media', label: 'Media Manager' },
   { id: 'notifications', label: 'Notifications' },
 ])
-export type NavIconSystemId = 'hairline' | 'bold' | 'solid' | 'tinted' | 'technical' | 'plotter' | 'offset' | 'badge' | 'medallion' | 'matrix' | 'fragment' | 'misregister' | 'fade' | 'inlay' | 'geometric'
+export type NavIconSystemId = 'hairline' | 'bold' | 'solid' | 'tinted' | 'technical' | 'plotter' | 'offset' | 'badge' | 'medallion' | 'matrix' | 'fragment' | 'misregister' | 'fade' | 'inlay' | 'geometric' | 'console' | 'neon' | 'spec' | 'stamp' | 'chips'
 export const NAV_ICON_SYSTEMS: readonly { id: NavIconSystemId; name: string; detail: string }[] = Object.freeze([
   { id: 'hairline', name: 'Hairline duotone', detail: '1.25 stroke · structure at 55% · one live accent' },
   { id: 'bold', name: 'Bold line', detail: '2.4 stroke · simplified silhouettes · round joins' },
@@ -32,6 +32,11 @@ export const NAV_ICON_SYSTEMS: readonly { id: NavIconSystemId; name: string; det
   { id: 'fade', name: 'Fade trail', detail: 'Strokes that fade along their length · ghost echo · one bright accent' },
   { id: 'inlay', name: 'Dark inlay', detail: 'Light outline · tinted dark interior · accent detail inside' },
   { id: 'geometric', name: 'Flat geometry', detail: 'No strokes · circles, bars and triangles in two flat colours' },
+  { id: 'console', name: 'Pad console', detail: 'Production pad tiles · 1px border · colour line · lit hit state · sliders, rig and timeline' },
+  { id: 'neon', name: 'Neon tube', detail: 'Single-weight tube strokes · glowing accent · knobs, spot beams, ball mic' },
+  { id: 'spec', name: 'Spec sheet', detail: 'Chamfered corners · dashed frame · rail pads, parameter table, document tiles' },
+  { id: 'stamp', name: 'Solid stamp', detail: 'Filled shapes with knocked-out detail · vertical faders · condenser mic' },
+  { id: 'chips', name: 'Chip tags', detail: 'Pill bodies · toggle switches · clip chips · filmstrip' },
 ])
 
 /** A rounded rectangle path. */
@@ -220,7 +225,87 @@ const geometric: Draw = {
   notifications: () => [P('a', 'fs', `M7 21a9 9 0 0 1 18 0Z${rr(4, 21.5, 24, 3, 0)}`), P('b', 'fa', `${circle(16, 27.5, 2.3)}${circle(24, 8, 3.6)}`)],
 }
 
-const SYSTEMS: Record<NavIconSystemId, Draw> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric }
+/* ── 16–20: briefed rows. Pads follow production's pad surface (dark tile, 1px border, colour line under the label, lit hit state),
+   Presets show configuration, Show combines DJ lighting with a timeline, Lyrics combine a mic with lyric lines and a note, and
+   Media shows several media types (image, video, audio, font). ── */
+const cell = (n: number, size: number, gap: number, origin: number) => Array.from({ length: n }, (_, i) => origin + i * (size + gap))
+const sq = (xs: number[], ys: number[], w: number, h: number, r: number, skip: (x: number, y: number) => boolean = () => false) =>
+  ys.flatMap(y => xs.filter(x => !skip(x, y)).map(x => rr(x, y, w, h, r))).join('')
+/** Media glyphs on a 12 × 12 tile whose top-left is (x, y): image, video, audio and font. */
+const mediaGlyph = (kind: 'image' | 'video' | 'audio' | 'font', x: number, y: number) => {
+  const m = (px: number, py: number) => `${(x + px).toFixed(1)} ${(y + py).toFixed(1)}`
+  if (kind === 'image') return `M${m(2.6, 9.4)}l2.6-3.2 2 2.2 1.4-1.4 1.8 2.4`
+  if (kind === 'audio') return `M${m(3.2, 7.6)}v2M${m(5.4, 5.6)}v6M${m(7.6, 6.8)}v3.6M${m(9.8, 4.6)}v6.4`
+  if (kind === 'font') return `M${m(2.8, 10.2)}l3.2-7.2 3.2 7.2M${m(4.1, 7.8)}h3.8`
+  return `M${m(4.6, 3.8)}v4.8l4.2-2.4Z`
+}
+
+/** 16 · Pad console: the production pad's construction at icon scale. */
+const PADX = [2, 12, 22]
+const console_: Draw = {
+  pads: () => [
+    P('t', 'ts', sq(PADX, PADX, 8, 8, 2.2, (x, y) => x === 12 && y === 12)),
+    P('l', 'a', PADX.flatMap(y => PADX.filter(x => !(x === 12 && y === 12)).map(x => `M${x + 2} ${y + 5.4}h4`)).join('')),
+    P('h', 'a', rr(10.7, 10.7, 10.6, 10.6, 3), { style: { opacity: .4 } }),
+    P('c', 'ta', rr(12, 12, 8, 8, 2.2)), P('k', 'a', 'M14 17.4h4', { style: { strokeWidth: 2 } }),
+  ],
+  presets: () => [P('a', 's', rr(3, 4, 26, 24, 3)), P('b', 's', 'M8 11h16M8 16.5h16M8 22h16'), P('c', 'a', 'M8 11h5.5M8 16.5h11.5M8 22h3.5'), P('d', 'fa', `${circle(13.5, 11, 2.3)}${circle(19.5, 16.5, 2.3)}${circle(11.5, 22, 2.3)}`)],
+  show: () => [P('a', 's', 'M11 3h10v6H11Z'), P('b', 'a', 'M13 11 8 18M16 11v7M19 11l5 7'), P('c', 's', `${rr(3, 21, 26, 8, 2)}M3 25h26`), P('d', 'ta', rr(5.5, 22.5, 7, 5, 1.2) + rr(15, 22.5, 5, 5, 1.2)), P('e', 'a', 'M23.5 19v12')],
+  lyrics: () => [P('a', 's', rr(5, 3, 7, 12, 3.5)), P('b', 's', 'M3.5 12a5 5 0 0 0 10 0M8.5 17v4M5.5 21h6'), P('c', 'a', 'M17 8h11M17 13h8'), P('d', 'fa', circle(20, 25.5, 2.4)), P('e', 'a', 'M22.4 25.5V18l5 1.8')],
+  media: () => [P('t', 's', `${rr(3, 3, 12, 12, 2.5)}${rr(17, 3, 12, 12, 2.5)}${rr(3, 17, 12, 12, 2.5)}${rr(17, 17, 12, 12, 2.5)}`), P('i', 'a', `${mediaGlyph('image', 3, 3)}${mediaGlyph('audio', 3, 17)}${mediaGlyph('font', 17, 17)}`), P('v', 'fa', mediaGlyph('video', 17, 3))],
+  notifications: () => [P('a', 's', `${bell()}${clapper()}`), P('b', 'ta', circle(24, 8, 3)), P('c', 'a', 'M4 12a12 12 0 0 1 3.2-6.2')],
+}
+
+/** 17 · Neon tube: one weight of glowing stroke; knobs, beams and a ball mic. */
+const neon: Draw = {
+  pads: () => [P('t', 's', sq([3, 17], [3, 17], 12, 12, 3.5, (x, y) => x === 17 && y === 17)), P('l', 'a', 'M7 12h4M21 12h4M7 26h4'), P('c', 'ta', rr(17, 17, 12, 12, 3.5)), P('k', 'a', 'M21 26h4')],
+  presets: () => [P('a', 's', `${circle(10, 10, 5.6)}${circle(22, 10, 5.6)}`), P('b', 'a', 'M10 10l2.8-2.8M22 10l-2.8 2.8'), P('c', 's', rr(4, 20, 13, 7, 3.5)), P('d', 'fa', circle(13.5, 23.5, 2.1)), P('e', 'a', 'M21 22h7M21 26h4.5')],
+  show: () => [P('a', 's', `${circle(9, 6, 3)}${circle(23, 6, 3)}`), P('b', 'a', 'M7.2 8.6 3.6 16M10.8 8.6 14.4 16M21.2 8.6 17.6 16M24.8 8.6 28.4 16'), P('c', 's', 'M3 24h26M3 22v4M29 22v4'), P('d', 'fa', 'M9 21.5l2.5 2.5L9 26.5 6.5 24ZM16 21.5l2.5 2.5-2.5 2.5-2.5-2.5ZM23 21.5l2.5 2.5-2.5 2.5-2.5-2.5Z')],
+  lyrics: () => [P('a', 's', `${circle(9.5, 8.5, 5)}M7.2 14.3 6 27h7l-1.2-12.7`), P('b', 'a', 'M6 7.5h7M5.6 10h7.8'), P('c', 's', 'M19 6h9M19 11h6'), P('d', 'fa', `${circle(21, 25, 2)}${circle(27, 23, 2)}`), P('e', 'a', 'M23 25V17.5M29 23V15.5M23 17.5l6-2')],
+  media: () => [P('a', 's', rr(3, 5, 17, 14, 2.5)), P('b', 'a', 'M6 16l3.4-4 2.6 2.8 1.8-2 3.2 3.2'), P('c', 's', rr(12, 14, 17, 14, 2.5)), P('d', 'fa', 'M19.2 18.4v5.2l4.4-2.6Z')],
+  notifications: () => [P('a', 's', `${bell()}${clapper()}`), P('b', 'a', 'M4 11a12 12 0 0 1 3.4-6M28 11a12 12 0 0 0-3.4-6'), P('c', 'fa', circle(24, 8, 2.3))],
+}
+
+/** 18 · Spec sheet: chamfered corners, a dashed construction frame, parameter table and folded document tiles. */
+const ch = (x: number, y: number, w: number, h: number, c: number) => `M${x + c} ${y}H${x + w}V${y + h - c}L${x + w - c} ${y + h}H${x}V${y + c}Z`
+const doc = (x: number, y: number) => `M${x} ${y}h8l4 4v8H${x}ZM${x + 8} ${y}v4h4`
+const spec: Draw = {
+  pads: () => [P('f', 'd', 'M1.5 1.5h29v29h-29Z'), P('t', 's', [3, 12.5, 22].flatMap(y => [3, 17].filter(x => !(x === 17 && y === 12.5)).map(x => ch(x, y, 12, 7, 2))).join('')), P('l', 'a', 'M5.5 7.2h7M5.5 26.2h7M19.5 7.2h7M19.5 26.2h7M5.5 16.7h7'), P('c', 'ta', ch(17, 12.5, 12, 7, 2)), P('k', 'a', 'M19.5 16.7h7')],
+  presets: () => [P('f', 'd', 'M1.5 1.5h29v29h-29Z'), P('a', 's', 'M4 9h8M4 16h8M4 23h8'), P('b', 'a', `${ch(16, 6, 12, 6, 1.4)}${ch(16, 13, 12, 6, 1.4)}${ch(16, 20, 12, 6, 1.4)}`), P('c', 'fa', 'M18.4 9 20 7.6V10.4ZM18.4 16 20 14.6V17.4ZM18.4 23 20 21.6V24.4Z'), P('d', 'a', 'M22 9h4M22 16h4M22 23h4')],
+  show: () => [P('a', 's', 'M10 3h12l2 6H8ZM10 9h12'), P('b', 'a', 'M10 12 5 19M16 12v7M22 12l5 7'), P('c', 's', 'M3 25h26M3 22.5v5M9 23.5v3M15 22.5v5M21 23.5v3M27 22.5v5'), P('d', 'ta', 'M4 28.5h8v1.5H4ZM14 28.5h5v1.5h-5Z'), P('e', 'a', 'M24 20v10'), P('f', 'fa', 'M22.2 20h3.6L24 22.4Z')],
+  lyrics: () => [P('a', 's', 'M8 3h6l2 2v7l-2 2H8l-2-2V5ZM3.5 11v3l4 4h7l4-4v-3M11 18v6M7 24h8'), P('b', 'a', 'M20 6h8M20 11h6M20 16h8'), P('c', 'fa', 'M19 27l2-2 2 2-2 2Z'), P('d', 'a', 'M23 27V21l5 1.6')],
+  media: () => [P('a', 's', `${doc(3, 3)}${doc(17, 3)}${doc(3, 17)}${doc(17, 17)}`), P('b', 'a', `${mediaGlyph('image', 3, 3)}${mediaGlyph('audio', 3, 17)}${mediaGlyph('font', 17, 17)}`), P('c', 'fa', mediaGlyph('video', 17, 3))],
+  notifications: () => [P('a', 's', 'M16 4l5 4v7l4 5v2H7v-2l4-5V8ZM13 25h6v2h-6Z'), P('b', 'a', 'M22 3.5h5v5h-5Z'), P('c', 'fa', 'M23 4.5h3v3h-3Z')],
+}
+
+/** 19 · Solid stamp: filled shapes with the detail knocked out (even-odd). */
+const EO = { fillRule: 'evenodd' } as const
+const stamp: Draw = {
+  pads: () => [
+    P('t', 'fs', PADX.flatMap(y => PADX.filter(x => !(x === 12 && y === 12)).map(x => rr(x, y, 8, 8, 2.2) + rr(x + 2, y + 4.8, 4, 1.4, .7))).join(''), EO),
+    P('c', 'fa', rr(12, 12, 8, 8, 2.2) + rr(14, 16.8, 4, 1.4, .7), EO),
+  ],
+  presets: () => [P('a', 'fs', `${rr(5.5, 3, 3, 26, 1.5)}${rr(14.5, 3, 3, 26, 1.5)}${rr(23.5, 3, 3, 26, 1.5)}`), P('b', 'fa', `${rr(3, 9, 8, 5, 1.6)}${rr(21, 14, 8, 5, 1.6)}${rr(12, 20.5, 8, 5, 1.6)}`)],
+  show: () => [P('a', 'fs', 'M10 3h12l3 7H7Z'), P('r1', 'fa', rr(15, 13, 2, 7, 1), { transform: 'rotate(-38 16 12)' }), P('r2', 'fa', rr(15, 13.5, 2, 7, 1)), P('r3', 'fa', rr(15, 13, 2, 7, 1), { transform: 'rotate(38 16 12)' }), P('c', 'fs', `${rr(3, 23, 10, 5, 1.5)}${rr(15, 23, 6, 5, 1.5)}${rr(23, 23, 6, 5, 1.5)}`), P('d', 'fa', rr(18.5, 20, 2, 10, 1))],
+  lyrics: () => [P('a', 'fs', rr(5, 2.5, 8, 12.5, 4) + rr(7, 5.6, 4, 1.2, .6) + rr(7, 8.6, 4, 1.2, .6) + rr(7, 11.6, 4, 1.2, .6), EO), P('b', 'fs', 'M3.5 11h2a3.5 3.5 0 0 0 7 0h2a5.5 5.5 0 0 1-11 0ZM8 18.5h2v4H8ZM5 22.5h8v2.4H5Z'), P('c', 'fs', `${rr(17, 6, 11, 2.4, 1.2)}${rr(17, 11, 8, 2.4, 1.2)}${rr(17, 16, 10, 2.4, 1.2)}`), P('d', 'fa', `${circle(21, 26, 2.6)}${rr(22.6, 19, 1.8, 7, .9)}M24.4 19h4l-.6 4h-3.4Z`)],
+  media: () => [
+    P('a', 'fs', rr(3, 3, 12, 12, 2.5) + 'M5.5 12.6l3-4.2 2 2.6 1.2-1.4 1.8 3Z' + rr(3, 17, 12, 12, 2.5) + rr(5.5, 22, 1.8, 4, .9) + rr(8.6, 20, 1.8, 8, .9) + rr(11.7, 22.8, 1.8, 3.2, .9) + rr(17, 17, 12, 12, 2.5) + 'M19.6 26.6l3.4-8.2 3.4 8.2h-1.8l-.5-1.4h-2.2l-.5 1.4Z', EO),
+    P('b', 'fa', rr(17, 3, 12, 12, 2.5) + 'M21.5 6.4v5.2l4.4-2.6Z', EO),
+  ],
+  notifications: () => [P('a', 'fs', `${bell(.9)}${rr(12.8, 4.2, 6.4, 1.6, .8)}M13 24.4a3 3 0 0 0 6 0Z`, EO), P('b', 'fa', `${circle(24, 8, 4.4)}${circle(24, 8, 1.6)}`, EO)],
+}
+
+/** 20 · Chip tags: pill bodies, toggle switches, clip chips and a filmstrip. */
+const chips: Draw = {
+  pads: () => [P('t', 'ts', sq([3, 17], [3, 12.5, 22], 12, 7, 2, (x, y) => x === 17 && y === 12.5)), P('r', 'a', [3, 12.5, 22].flatMap(y => [3, 17].map(x => `M${x + 2.3} ${y + 1.8}v3.4`)).join('')), P('l', 's', [3, 12.5, 22].flatMap(y => [3, 17].map(x => `M${x + 5} ${y + 3.5}h5`)).join('')), P('c', 'ta', rr(17, 12.5, 12, 7, 2))],
+  presets: () => [P('a', 's', `${rr(3, 4, 13, 6.5, 3.25)}${rr(3, 12.8, 13, 6.5, 3.25)}${rr(3, 21.6, 13, 6.5, 3.25)}`), P('b', 'fa', `${circle(12.75, 7.25, 1.9)}${circle(6.25, 16.05, 1.9)}${circle(12.75, 24.85, 1.9)}`), P('c', 'a', 'M20 7.25h9M20 24.85h9'), P('d', 's', 'M20 16h9')],
+  show: () => [P('a', 's', `${circle(6, 6, 3)}${circle(16, 6, 3)}${circle(26, 6, 3)}`), P('b', 'fa', `${circle(6, 6, 1.1)}${circle(26, 6, 1.1)}`), P('c', 'a', 'M6 11v3M16 11v3M26 11v3'), P('d', 'ts', rr(3, 17.5, 10, 5, 2.5) + rr(24, 17.5, 5, 5, 2.5)), P('e', 'ta', rr(15, 17.5, 7, 5, 2.5)), P('f', 's', rr(3, 25, 26, 3.5, 1.75)), P('g', 'a', 'M19 15v15')],
+  lyrics: () => [P('a', 's', rr(3.5, 3, 7, 11, 3.5)), P('b', 's', 'M2.5 11.5a5.5 5.5 0 0 0 9 4'), P('c', 'ts', rr(15, 4, 14, 5, 2.5)), P('d', 'ta', rr(15, 11, 10, 5, 2.5)), P('e', 'fa', circle(7, 24.5, 2.4)), P('f', 'a', 'M9.4 24.5V18.6l4 1.2'), P('g', 's', 'M17 24h12')],
+  media: () => [P('a', 's', rr(3, 3, 26, 12, 2.5)), P('b', 'ts', rr(6, 6.4, 5, 5.2, 1) + rr(13.5, 6.4, 5, 5.2, 1)), P('c', 'ta', rr(21, 6.4, 5, 5.2, 1)), P('d', 'fa', `${circle(8.5, 4.7, .6)}${circle(16, 4.7, .6)}${circle(23.5, 4.7, .6)}${circle(8.5, 13.3, .6)}${circle(16, 13.3, .6)}${circle(23.5, 13.3, .6)}`), P('e', 's', `${rr(3, 18, 12, 11, 2.5)}${rr(17, 18, 12, 11, 2.5)}`), P('f', 'a', `${mediaGlyph('audio', 3, 17.5)}${mediaGlyph('font', 17, 17.5)}`)],
+  notifications: () => [P('a', 's', `${bell(.92)}${clapper(.92)}`), P('b', 'ta', rr(18, 2.5, 10, 6, 3)), P('c', 'a', 'M21 5.5h4')],
+}
+
+const SYSTEMS: Record<NavIconSystemId, Draw> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }
 
 /** The artwork for one destination in one system, as the children of a 32 × 32 svg. */
 export function NavIconArtwork({ system, kind }: { system: NavIconSystemId; kind: NavIconDestination }) {

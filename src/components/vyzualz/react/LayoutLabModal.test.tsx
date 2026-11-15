@@ -36,7 +36,7 @@ describe('isolated Layout Lab', () => {
       expect(canvas.querySelectorAll('[role="tab"]')).toHaveLength(7)
       expect(canvas.querySelectorAll('[data-pad-study]')).toHaveLength(5)
       expect(canvas.querySelectorAll('[data-engine-study]')).toHaveLength(5)
-      expect(canvas.querySelectorAll('[data-nav-icon-study]')).toHaveLength(15)
+      expect(canvas.querySelectorAll('[data-nav-icon-study]')).toHaveLength(20)
       expect([...canvas.querySelectorAll('[role="tabpanel"]')].slice(4).every(panel => panel.childElementCount === 0)).toBe(true)
       expect(canvas.querySelectorAll('[data-preset-study]')).toHaveLength(13)
       expect(popupDocument.head.querySelector('style, link[rel="stylesheet"]')).toBeNull()

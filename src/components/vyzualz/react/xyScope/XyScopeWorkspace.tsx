@@ -186,6 +186,18 @@ export function XyScopeEnginePanel() {
       </Collapsible>}
       {isXyScopeTextSource(source) && <Collapsible label="Input" icon={<AppIcon kind="text" size={15} color="currentColor" />}>
         <div data-xyscope-input-group="true" style={{ display: 'contents' }}>
+          <SelectRow
+            menuBoundarySelector=".vz-inspector"
+            placement="below"
+            id="xyscope-font"
+            label="Font"
+            value={settings.fontId ?? ''}
+            options={options}
+            menuSearch
+            menuSearchPlaceholder="Search fonts…"
+            description={fontDescription}
+            onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
+          />
           <TextInputRow
             id="xyscope-text"
             label="Text"
@@ -221,18 +233,6 @@ export function XyScopeEnginePanel() {
               </IconChipButton>
             </div>
           ))}
-          <SelectRow
-            menuBoundarySelector=".vz-inspector"
-            placement="below"
-            id="xyscope-font"
-            label="Font"
-            value={settings.fontId ?? ''}
-            options={options}
-            menuSearch
-            menuSearchPlaceholder="Search fonts…"
-            description={fontDescription}
-            onChange={value => setXyScopeSettings({ fontId: value === '' ? null : value })}
-          />
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <IconChipButton
               aria-label="Add text input"
