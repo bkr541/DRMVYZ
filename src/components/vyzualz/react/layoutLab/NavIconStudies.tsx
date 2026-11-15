@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NAV_PAD_OPTIONS, NAV_REACT_AUDIO_OPTIONS, NAV_REACT_OPTIONS, NAV_REACT_STAGE_OPTIONS, NavIconArtwork } from './navIconSystems'
+import { NAV_ICON_DESTINATIONS, NAV_ICON_SYSTEMS, NAV_PAD_OPTIONS, NAV_REACT_AUDIO_OPTIONS, NAV_REACT_ENGINE_OPTIONS, NAV_REACT_OPTIONS, NAV_REACT_STAGE_OPTIONS, NAV_REACT_SYSTEM_OPTIONS, NavIconArtwork } from './navIconSystems'
 import { NAV_MEDALLION_RING } from '../../navMedallionIcons'
 import studyStyles from './navIconStudies.css?inline'
 
@@ -9,6 +9,8 @@ const OPTION_SETS = [
   { key: 'react', destination: 'React', title: 'React options · first round', blurb: 'Five replacements for the React (home) item · production ring and size', options: NAV_REACT_OPTIONS },
   { key: 'react-stage', destination: 'React', title: 'React options · live stage', blurb: 'React is the live workspace: its centre stage, output and pads, drawn as the stage itself', options: NAV_REACT_STAGE_OPTIONS },
   { key: 'react-audio', destination: 'React', title: 'React options · audio reaction', blurb: 'React is visuals reacting to the music: the audio-to-visual step, drawn as the reaction itself', options: NAV_REACT_AUDIO_OPTIONS },
+  { key: 'react-engine', destination: 'React', title: 'React options · engine marks', blurb: 'React hosts the engines: Cinema 2.0, Sound Drawing, CANVAS, LaserDMX and PixGrid, each drawn as what it does', options: NAV_REACT_ENGINE_OPTIONS },
+  { key: 'react-system', destination: 'React', title: 'React options · engine system', blurb: 'React is one shell for seven engines: the hub, the switcher, the selector, one in many looks, and the rack', options: NAV_REACT_SYSTEM_OPTIONS },
 ] as const
 
 export const NAV_ICON_KEEP_STORAGE_KEY = 'drmvyz.layoutLab.navIcons.keep.v1'
@@ -30,7 +32,7 @@ function readKept(): ReadonlySet<string> {
 export function NavIconStudies() {
   const [active, setActive] = useState<Record<string, string>>(Object.fromEntries(NAV_ICON_SYSTEMS.map(system => [system.id, 'pads'])))
   const [kept, setKept] = useState(readKept)
-  const [activeOption, setActiveOption] = useState<Record<string, string>>({ pad: NAV_PAD_OPTIONS[0].id, react: NAV_REACT_OPTIONS[0].id, 'react-stage': NAV_REACT_STAGE_OPTIONS[0].id, 'react-audio': NAV_REACT_AUDIO_OPTIONS[0].id })
+  const [activeOption, setActiveOption] = useState<Record<string, string>>({ pad: NAV_PAD_OPTIONS[0].id, react: NAV_REACT_OPTIONS[0].id, 'react-stage': NAV_REACT_STAGE_OPTIONS[0].id, 'react-audio': NAV_REACT_AUDIO_OPTIONS[0].id, 'react-engine': NAV_REACT_ENGINE_OPTIONS[0].id, 'react-system': NAV_REACT_SYSTEM_OPTIONS[0].id })
   const [saveFailed, setSaveFailed] = useState(false)
   useEffect(() => {
     try { window.localStorage.setItem(NAV_ICON_KEEP_STORAGE_KEY, JSON.stringify({ version: 1, kept: [...kept] })); setSaveFailed(false) } catch { setSaveFailed(true) }

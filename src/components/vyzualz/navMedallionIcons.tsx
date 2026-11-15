@@ -6,7 +6,7 @@ import './navMedallionIcons.css'
  * with a lit arc, drawn on a 32 grid. Structure follows the item colour (`currentColor`); accent shapes take `--llni-accent`, which the
  * navigation already sets per item (dimmer at rest, brighter when active). Notifications keeps its own control and is not part of this set.
  */
-export type NavMedallionKind = 'navPerformance' | 'navPreset' | 'navShow' | 'navLyrics' | 'navMedia'
+export type NavMedallionKind = 'navReact' | 'navPerformance' | 'navPreset' | 'navShow' | 'navLyrics' | 'navMedia'
 
 const rr = (x: number, y: number, w: number, h: number, r: number) =>
   `M${x + r} ${y}H${x + w - r}A${r} ${r} 0 0 1 ${x + w} ${y + r}V${y + h - r}A${r} ${r} 0 0 1 ${x + w - r} ${y + h}H${x + r}A${r} ${r} 0 0 1 ${x} ${y + h - r}V${y + r}A${r} ${r} 0 0 1 ${x + r} ${y}Z`
@@ -17,6 +17,16 @@ const EO = { fillRule: 'evenodd' } as const
 /** The ring is wider than the 32 grid (radius 16), so the symbol inside keeps its size and sits clear of the ring. */
 const RING = [P('r', 'ring', circle(16, 16, 16)), P('r2', 'a', 'M16 0a16 16 0 0 1 13.86 8')]
 export const NAV_MEDALLION_RING = RING
+
+/** The Engine switcher symbol (Layout Lab, React options · engine system): the live engine's card in front, the others at the sides. */
+export const engineSwitcherSymbol = (): ReactElement[] => [
+  P('l', 's', rr(6.5, 12, 5.5, 8.5, 1.5), { style: { opacity: .5 } }),
+  P('r', 's', rr(20, 12, 5.5, 8.5, 1.5), { style: { opacity: .5 } }),
+  P('c', 'ta', rr(11.2, 9, 9.6, 14, 2)),
+  P('w', 'a', 'M12.8 16h1.4l.9-2.4 1.5 4.8.9-2.4h1'),
+]
+/** React (home): the engine switcher. */
+const react = (): ReactElement[] => [...RING, ...engineSwitcherSymbol()]
 
 /** Performance Pads: two rail pads (a colour rail and label per pad), the lower one lit. Elements keep their size; the pair sits clear of the ring. */
 const PAD_X = 10
@@ -62,7 +72,7 @@ const media = (): ReactElement[] => [
   </g>,
 ]
 
-export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[]> = { navPerformance: pads, navPreset: presets, navShow: show, navLyrics: lyrics, navMedia: media }
+export const NAV_MEDALLION_ARTWORK: Record<NavMedallionKind, () => ReactElement[]> = { navReact: react, navPerformance: pads, navPreset: presets, navShow: show, navLyrics: lyrics, navMedia: media }
 
 /** `size` is the symbol's scale (px per 32 grid); the svg is 38/32 larger so the wider ring fits. */
 export function NavMedallionIcon({ kind, size = 36 }: { kind: NavMedallionKind; size?: number }) {

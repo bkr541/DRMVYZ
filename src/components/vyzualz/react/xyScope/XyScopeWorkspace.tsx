@@ -138,22 +138,19 @@ export function XyScopeEnginePanel() {
   const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => source === id || (id === 'oscillator' && source === 'init')
   const resolution = useXyScopeFont(settings.fontId)
   const previewStatus = useFontPreviewPreload(fontAssets)
-  // With text in the input, every font option previews that text in its own typeface; the menu search still matches the font's name.
-  const sample = settings.text.trim()
   const options = useMemo(() => {
     const seen = new Set<string>()
-    const named = (name: string) => ({ label: sample === '' ? name : sample, searchText: name })
-    const list: SelectOption[] = [{ value: '', ...named('Anton (default)'), style: { fontFamily: '"DRMVYZ Anton", sans-serif' } }]
+    const list: SelectOption[] = [{ value: '', label: 'Anton (default)', style: { fontFamily: '"DRMVYZ Anton", sans-serif' } }]
     for (const asset of fontAssets) {
       if (seen.has(asset.id)) continue
       seen.add(asset.id)
-      list.push({ value: asset.id, ...named(asset.name), style: previewStatus[asset.id] === 'ready'
+      list.push({ value: asset.id, label: asset.name, style: previewStatus[asset.id] === 'ready'
         ? { fontFamily: `"drmvyz-preview-${asset.id}", sans-serif` } : undefined })
     }
     // A selected font that is not in the list (library still loading) stays visible instead of silently resetting.
     if (settings.fontId && !seen.has(settings.fontId)) list.push({ value: settings.fontId, label: 'Selected font' })
     return list
-  }, [fontAssets, settings.fontId, previewStatus, sample])
+  }, [fontAssets, settings.fontId, previewStatus])
 
   const fontDescription = resolution.status === 'loading'
     ? 'Loading this font…'

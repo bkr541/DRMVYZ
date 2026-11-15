@@ -1,5 +1,5 @@
 import { useId, type ReactElement } from 'react'
-import { NAV_MEDALLION_ARTWORK, NAV_MEDALLION_RING } from '../../navMedallionIcons'
+import { engineSwitcherSymbol, NAV_MEDALLION_ARTWORK, NAV_MEDALLION_RING } from '../../navMedallionIcons'
 
 /**
  * Ten drawing systems for the left navigation's icons, each with the same six destinations. Every glyph is original
@@ -359,6 +359,32 @@ export const NAV_REACT_AUDIO_OPTIONS: readonly ReactOption[] = Object.freeze([
   { id: 'reactopt-a3', name: 'Spectrum frame', detail: 'A screen whose floor is a live spectrum', art: () => [P('m', 's', rr(8, 8, 16, 14, 2.5)), P('b', 'fs', [[10.2, 3], [12.8, 6], [18, 5], [20.6, 3.5]].map(([x, h]) => rr(x, 20 - h, 1.6, h, .8)).join('')), P('t', 'fa', rr(15.4, 12, 1.6, 8, .8))] },
   { id: 'reactopt-a4', name: 'Scope dial', detail: 'A round scope carrying the live waveform', art: () => [P('o', 's', circle(16, 16, 7.6)), P('w', 'a', 'M9.6 16h1.6l1.6-3 2.2 6 2.2-6 1.6 3h1.6')] },
   { id: 'reactopt-a5', name: 'Live indicator', detail: 'A screen with a live dot and its title bar', art: () => [P('m', 's', rr(8, 9, 16, 13, 2.5)), P('d', 'fa', circle(12.5, 13.5, 1.8)), P('l', 'a', 'M16 13.5h5'), P('w', 's', 'M10.5 18.5h11')] },
+])
+
+/**
+ * React's main engine functionality (reactEngineCatalog.ts): one stable shell hosts Cinema 2.0 (composition-native visuals), Sound Drawing and
+ * Sound Drawing XY (audio waveform / phosphor-beam drawing), CANVAS (uploaded media layers), LaserDMX (DMX beam matrix), PixGrid (LED-cell
+ * artwork) and HEADLINER (camera effects), and switches between them. One row draws five of the engines themselves; the other draws the
+ * engine system: the hub of seven, the switcher, the selector, the one-in-many split and the rack.
+ */
+const pixelCell = (col: number, row: number) => rr(7.7 + col * 4.4, 7.7 + row * 4.4, 3.4, 3.4, .8)
+const ring7 = (radius: number) => Array.from({ length: 7 }, (_, k) => {
+  const a = -Math.PI / 2 + k * 2 * Math.PI / 7
+  return { x: 16 + Math.cos(a) * radius, y: 16 + Math.sin(a) * radius }
+})
+export const NAV_REACT_ENGINE_OPTIONS: readonly ReactOption[] = Object.freeze([
+  { id: 'reactopt-e1', name: 'Cinema 2.0', detail: 'Composition-native visuals: a clapperboard over its frame', art: () => [P('b', 's', rr(8, 13, 16, 10, 2)), P('c', 'a', 'M8 10.6l16-3.2M12.2 9.8l-1.6 3.4M16.6 8.9 15 12.3M21 8l-1.6 3.4'), P('p', 'fa', 'M14.2 16.2v4l3.4-2Z')] },
+  { id: 'reactopt-e2', name: 'Sound Drawing', detail: 'The oscilloscope: a screen, its graticule and the live trace', art: () => [P('m', 's', rr(7.5, 9, 17, 14, 3)), P('g', 's', 'M16 9.5v13M8 16h16', { style: { opacity: .3 } }), P('w', 'a', 'M9.5 16h2l1.5-4.5 2.5 9 2-4.5h3')] },
+  { id: 'reactopt-e3', name: 'CANVAS', detail: 'Uploaded media in layers: a photo card over the stack', art: () => [P('b', 's', rr(10.5, 8, 13.5, 10, 2), { style: { opacity: .5 } }), P('f', 'ts', rr(8, 12, 13.5, 11, 2)), P('m', 'a', 'M10 20.5l3-4 2.2 2.6 1.8-2 2.4 3.4'), P('s', 'fa', circle(18, 15.6, 1.1))] },
+  { id: 'reactopt-e4', name: 'LaserDMX', detail: 'A beam matrix: one source fanning five beams through the haze', art: () => [P('h', 's', 'M8.6 9.8Q16 6.4 23.4 9.8', { style: { opacity: .5 } }), P('b', 'a', 'M16 22L9 11.2M16 22 12.3 9.2M16 22V8.4M16 22l3.7-12.8M16 22l7-10.8'), P('d', 'fa', circle(16, 22.2, 1.7))] },
+  { id: 'reactopt-e5', name: 'PixGrid', detail: 'LED-cell artwork: a four-by-four grid with a lit core', art: () => [P('o', 'ts', [0, 1, 2, 3].flatMap(r => [0, 1, 2, 3].filter(c => !(c >= 1 && c <= 2 && r >= 1 && r <= 2)).map(c => pixelCell(c, r))).join('')), P('c', 'fa', [[1, 1], [2, 1], [1, 2], [2, 2]].map(([c, r]) => pixelCell(c, r)).join(''))] },
+])
+export const NAV_REACT_SYSTEM_OPTIONS: readonly ReactOption[] = Object.freeze([
+  { id: 'reactopt-y1', name: 'Engine hub', detail: 'One shell with seven engines around it', art: () => [P('l', 's', ring7(7.2).map(p => `M16 16L${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(''), { style: { opacity: .45 } }), P('n', 'fs', ring7(7.2).map(p => circle(Number(p.x.toFixed(2)), Number(p.y.toFixed(2)), 1.6)).join('')), P('c', 'fa', circle(16, 16, 2.7))] },
+  { id: 'reactopt-y2', name: 'Engine switcher', detail: 'Cards of engines: the live one in front, the others at the sides', art: engineSwitcherSymbol },
+  { id: 'reactopt-y3', name: 'Engine selector', detail: 'The engine dropdown: the current engine and the list below it', art: () => [P('t', 's', rr(8, 8.5, 16, 6.5, 2)), P('w', 'a', 'M10.2 11.8h1.2l.8-1.8 1.2 3.6.8-1.8h.8'), P('v', 'a', 'M19.6 10.8l1.6 1.8 1.6-1.8'), P('o', 's', 'M8.5 18.6h15M8.5 22.2h10')] },
+  { id: 'reactopt-y4', name: 'One in, many looks', detail: 'The audio goes in; the engines each turn it into a look', art: () => [P('i', 's', 'M7 17h3.6'), P('p', 'a', 'M11.6 11.4l5.4 10.2H6.2Z'), P('o', 's', 'M16.2 15.6l7.6-3.4M16.6 17.6h7.4M16.2 19.6l7.6 3.4')] },
+  { id: 'reactopt-y5', name: 'Engine rack', detail: 'Engines racked as modules, the middle one running', art: () => [P('r', 's', `${rr(8, 8.5, 16, 4.6, 1.5)}${rr(8, 19.9, 16, 4.6, 1.5)}`), P('m', 'ta', rr(8, 14.2, 16, 4.6, 1.5)), P('d', 'fa', `${circle(11, 10.8, .9)}${circle(11, 16.5, .9)}${circle(11, 22.2, .9)}`), P('l', 'a', 'M14 10.8h7M14 16.5h7M14 22.2h7')] },
 ])
 
 const SYSTEMS: Record<NavIconSystemId, Draw> = { hairline, bold, solid, tinted, technical, plotter, offset, badge, medallion, matrix, fragment, misregister, fade, inlay, geometric, console: console_, neon, spec, stamp, chips }

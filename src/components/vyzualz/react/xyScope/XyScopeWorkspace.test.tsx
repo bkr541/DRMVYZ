@@ -204,8 +204,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.textContent).toContain('Input')
     expect(group.querySelector('#xyscope-text')).not.toBeNull()
     expect(group.querySelector('#xyscope-font')).not.toBeNull()
-    // With text in the field the dropdown previews that text; the font's name returns when the field is empty (next test).
-    expect(container.querySelector('#xyscope-font')!.textContent).toBe('DRMVYZ')
+    expect(container.textContent).toContain('Anton (default)')
     // Only the Font dropdown has a menu search; the word field is an ordinary text input.
     await act(async () => container.querySelector<HTMLElement>('#xyscope-font')!.click())
     expect(document.body.querySelector('.drm-dropdown__menu-search input[aria-label="Search fonts…"]')).not.toBeNull()
@@ -217,27 +216,6 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     const text = container.querySelector<HTMLInputElement>('#xyscope-text')!
     await act(async () => setInputValue(text, 'WILDFLY'))
     expect(useReactStore.getState().xyScopeSettings.text).toBe('WILDFLY')
-  })
-
-  it('shows the typed text in the font dropdown options, and the font names when the field is empty', async () => {
-    useReactStore.setState({ oscillatorFontAssets: [{ id: 'font-a', name: 'Bebas Neue' }, { id: 'font-b', name: 'Orbitron' }] as never })
-    await act(async () => root.render(<XyScopeEnginePanel />))
-    const trigger = () => container.querySelector<HTMLElement>('#xyscope-font')!
-    const labels = () => [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].map(option => option.textContent?.trim())
-    await act(async () => trigger().click())
-    expect(labels()).toEqual(['DRMVYZ', 'DRMVYZ', 'DRMVYZ'])
-    // The menu search still finds a font by its name.
-    const search = document.body.querySelector<HTMLInputElement>('.drm-dropdown__menu-search input')!
-    await act(async () => setInputValue(search, 'orbit'))
-    expect(labels()).toEqual(['DRMVYZ'])
-    await act(async () => setInputValue(search, ''))
-    // The sample follows the field as it is edited.
-    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('#xyscope-text')!, 'WILDFLY'))
-    expect(labels()).toEqual(['WILDFLY', 'WILDFLY', 'WILDFLY'])
-    // With no text, each option names its font again.
-    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('#xyscope-text')!, ''))
-    expect(labels()).toEqual(['Anton (default)', 'Bebas Neue', 'Orbitron'])
-    useReactStore.setState({ oscillatorFontAssets: [] })
   })
 
   it('defaults to TEXT and preserves text settings while browsing source cards', async () => {

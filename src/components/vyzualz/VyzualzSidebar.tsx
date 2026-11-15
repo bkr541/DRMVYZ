@@ -3,8 +3,6 @@ import { NavMedallionIcon } from './navMedallionIcons'
 
 /** Left navigation icon size in px (the collapsed sidebar is 72px wide). */
 const NAV_ICON_SIZE = 36
-/** The React item's ring icon is drawn at radius 13 of 32, so it is sized to match the Medallion ring (radius 16 at the symbol scale). */
-const NAV_REACT_ICON_SIZE = 44
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useSharedAudio } from '../../context/AudioEngineContext'
 import { HeaderNotificationsButton } from './shared/HeaderNotificationsButton'
@@ -96,7 +94,7 @@ export function VyzualzSidebar(props: Props) {
           aria-current={appView === 'react' || !appView ? 'page' : undefined}
         >
           <span className="az-nav-fill" aria-hidden="true" />
-          <AppIcon kind="navReact" size={NAV_REACT_ICON_SIZE} />
+          <NavMedallionIcon kind="navReact" size={NAV_ICON_SIZE} />
           <span className="az-nav-label">React</span>
         </button>
 

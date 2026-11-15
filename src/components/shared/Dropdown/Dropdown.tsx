@@ -34,8 +34,6 @@ export interface DropdownOption {
   disabled?: boolean
   group?: string
   style?: CSSProperties
-  /** Extra text the menu search also matches, for options whose label is not their name (e.g. a font shown as sample text). */
-  searchText?: string
 }
 
 export type DropdownPlacement = 'auto' | 'above' | 'below'
@@ -120,7 +118,7 @@ function buildOptionRuns(options: readonly DropdownOption[]): DropdownOptionRun[
 
 function filterOptionsByLabel(options: readonly DropdownOption[], query: string): readonly DropdownOption[] {
   const needle = query.trim().toLocaleLowerCase()
-  return needle === '' ? options : options.filter(option => `${option.label} ${option.searchText ?? ''}`.toLocaleLowerCase().includes(needle))
+  return needle === '' ? options : options.filter(option => option.label.toLocaleLowerCase().includes(needle))
 }
 
 function findFirstEnabled(options: readonly DropdownOption[]): number {

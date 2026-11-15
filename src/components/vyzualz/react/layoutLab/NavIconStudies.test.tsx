@@ -49,9 +49,9 @@ describe('Layout Lab navigation icon studies', () => {
     expect(section.querySelectorAll('input[data-nav-react-option-keep]')).toHaveLength(5)
   })
 
-  it('shows two more React rows (live stage, audio reaction) of five ringed options each', async () => {
+  it('shows four more React rows (live stage, audio reaction, engine marks, engine system) of five ringed options each', async () => {
     await act(async () => root.render(<NavIconStudies />))
-    for (const key of ['react-stage', 'react-audio']) {
+    for (const key of ['react-stage', 'react-audio', 'react-engine', 'react-system']) {
       const section = host.querySelector(`[data-nav-${key}-options]`)!
       const items = [...section.querySelectorAll(`[data-nav-${key}-option]`)]
       expect(items, key).toHaveLength(5)
