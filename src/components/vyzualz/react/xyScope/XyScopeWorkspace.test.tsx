@@ -368,6 +368,32 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(state().presetId).not.toBe('init')
   })
 
+  it('offers OCTA under the OSCILATOR source with the four standard groups and its own controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="octa"]')!
+    expect(card.textContent).toContain('OCTA')
+    await act(async () => card.click())
+    const state = () => useReactStore.getState().xyScopeSettings
+    expect(state().sourceMode).toBe('octa')
+    expect(state().presetId).toBe('octa')
+    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
+    expect(sourceCard.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('[data-octa-design]')).not.toBeNull()
+    const groups = [...container.querySelectorAll('[data-xyscope-parent-group]')].map(el => el.getAttribute('data-xyscope-parent-group'))
+    expect(groups).toEqual(['master-controls', 'design', 'react', 'palette'])
+    const group = (name: string) => container.querySelector(`[data-xyscope-parent-group="${name}"]`)!
+    for (const id of ['intensity', 'audioReactivity', 'distortion', 'auto']) expect(group('master-controls').querySelector(`#xyscope-octa-${id}`), id).not.toBeNull()
+    for (const id of ['size', 'spread', 'tilt', 'spin', 'axes', 'width', 'glow', 'trail', 'scan']) expect(group('design').querySelector(`#xyscope-octa-${id}`), id).not.toBeNull()
+    for (const id of ['energyResponse', 'tumble', 'slew', 'dots', 'wiggle']) expect(group('react').querySelector(`#xyscope-octa-${id}`), id).not.toBeNull()
+    for (const id of ['color', 'glow-color', 'background']) expect(group('palette').querySelector(`#xyscope-octa-${id}`), id).not.toBeNull()
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-octa-auto')!.click())
+    expect(state().octa.autoPerformance).toBe(true)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-octa-axes')!.click())
+    expect(state().octa.values.axes).toBe(false)
+    await act(async () => sourceCard.click())
+    expect(state().sourceMode).toBe('oscillator')
+  })
+
   it('renders this engine in the left panel through the shared engine panel', async () => {
     await act(async () => root.render(<ReactEnginePanel />))
     expect(container.querySelector('[data-xyscope-engine-panel="true"]')).not.toBeNull()

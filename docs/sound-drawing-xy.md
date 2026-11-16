@@ -272,3 +272,21 @@ Free Endpoints lets each oscillator start and end away from horizontal: each re-
 
 Code: `XyScopeInitSettings.ts` (values, ranges), `XyScopeInitEngine.ts` (layout, endpoint picking, waveform bands), `XyScopeInitRenderer.ts` (phosphor canvas), `XyScopeInitPerformance.ts`, `XyScopeInitDesignPanel.tsx`.
 
+## OCTA
+
+OCTA is a preset of the OSCILATOR source (Presets tab → OCTA) that reproduces the Reference Video (`~/Desktop/Reference Video.mov`): a plus-shaped cluster of five wireframe octahedra (one in the centre, one above, below, left and right), each with its three axes, drawn by one green phosphor beam that hops from octahedron to octahedron. Choosing it switches the engine to `octa`; the OSCILATOR card stays lit.
+
+What the video shows, and how it is built:
+
+- **Clean cluster:** the figure at rest, turning slowly about its vertical axis, with the live waveform rippling along the axis lines. Each octahedron is a continuous beam path (an Eulerian circuit of its twelve edges, then its three axes), and the beam spends equal time per edge so every edge is equally bright while the hops between octahedra stay faint.
+- **Tumble:** the octahedra spin apart on their own axes and tangle.
+- **Loops:** the beam's finite bandwidth, modelled as a resonant low-pass on the beam position, overshoots every corner and rounds the cluster into loops.
+- **Cage:** every edge bends toward a sphere (each point is pushed onto the octahedron's circumscribed sphere), so the edges become great circles, and the cluster draws in.
+- **Dots:** the beam dwells at each corner far longer than it spends on the lines, so the lines fall faint and the corners flare.
+
+The audio drives the distortion by **energy**: the track's level (with bass and mids) is normalised to the track's own recent range, so every stage is reachable on any material, eased by Energy Response, and scaled by Audio Reactivity and Distortion Amount. As the energy climbs the figure passes through clean, tumble, loops, cage and dots in order, and returns to clean in silence. Paused, or with Audio Reactivity or Distortion Amount at zero, it stays clean. Auto Performance adds the shared conductor's builds and drops to the energy.
+
+The left window has the four standard groups: Master Controls (Master Intensity, Audio Reactivity, Distortion Amount, Auto Performance, Hold Trace, with live Distortion, Energy and Signal readouts), Design (Cluster: size, spread, tilt, spin, axis lines; Beam & Phosphor: width, glow, decay, scan frequency), React (Energy Response, Tumble, Beam Inertia, Dot Scan, Signal Wiggle) and Palette (Beam Color, Glow Color, Background). The renderer is the shared phosphor scanner with a wide tinted halo (`halo` option) so the bloom matches the video.
+
+Code: `XyScopeOctaSettings.ts`, `XyScopeOctaEngine.ts` (geometry, distortion, beam), `XyScopeOctaDesignPanel.tsx`, `XyScopeOctaLive.ts`; rendering in `XyScopeOsc1Renderer.ts`, wiring in `XyScopeRuntime.ts` (`renderOcta`).
+

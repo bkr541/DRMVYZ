@@ -15,6 +15,8 @@ export interface Osc1Scannable<L extends Osc1ScanStream = Osc1ScanStream> {
   absolute?: boolean
   /** Width in letter heights the stage is fitted to when `absolute`. */
   fitWidth?: number
+  /** Vertical centre of the stage as a share of its height (0.52 when omitted). */
+  anchorY?: number
 }
 
 export interface Osc1BeamSettings { intensity: number; persistence: number; width: number; scan: number; color: string }
@@ -28,6 +30,9 @@ export interface Osc1RenderOptions {
   settings: Osc1BeamSettings
   grid: boolean
   hold: boolean
+  /** A wide tinted halo around the bright lines (a phosphor bloom much larger than the default). `amount` 0 turns it off. */
+  halo?: { amount: number; color: string }
+  background?: string
 }
 
 export class Osc1Renderer {
@@ -36,6 +41,7 @@ export class Osc1Renderer {
   private rasterCtx: CanvasRenderingContext2D | null = null
   private phosphor = new Osc1Phosphor(2, 2)
   private imageData: ImageData | null = null
+  private halo: HTMLCanvasElement | null = null
   private W = 0
   private H = 0
   private sampleCarry = 0
@@ -68,7 +74,7 @@ export class Osc1Renderer {
   get beamSamples(): number { return this.phosphor.deposits }
 
   /** One frame: scan every letter into the phosphor (unless held), then composite to the output canvas. */
-  render<L extends Osc1ScanStream>(engine: Osc1Scannable<L>, { dt, settings: s, grid, hold }: Osc1RenderOptions): void {
+  render<L extends Osc1ScanStream>(engine: Osc1Scannable<L>, { dt, settings: s, grid, hold, halo, background = BACKGROUND }: Osc1RenderOptions): void {
     const { W, H, phosphor } = this
     if (!this.ctx || !this.rasterCtx || !this.raster || !this.imageData || W === 0) return
     if (!hold) {
@@ -78,7 +84,7 @@ export class Osc1Renderer {
       const count = engine.letters.length
       const fixedLayout = engine.absolute === true
       const total = fixedLayout ? (engine.fitWidth ?? 6) : engine.letters.reduce((sum, l) => sum + l.advance + .30, 0)
-      const size = Math.min(H * .40, W * .82 / Math.max(1, total)), cy = H * .52
+      const size = Math.min(H * .40, W * .82 / Math.max(1, total)), cy = H * (engine.anchorY ?? .52)
       let cursor = W / 2 - total * size / 2
       const out = this.out
       for (let i = 0; i < count; i++) {
@@ -109,11 +115,33 @@ export class Osc1Renderer {
     const cw = canvas.width, ch = canvas.height, scale = cw / W
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalCompositeOperation = 'source-over'
-    ctx.fillStyle = BACKGROUND
+    ctx.fillStyle = background
     ctx.fillRect(0, 0, cw, ch)
     ctx.save()
     ctx.globalCompositeOperation = 'lighter'
     ctx.globalAlpha = .65
+    if (halo && halo.amount > 0 && typeof document !== 'undefined') {
+      // A tinted halo: the raster blurred wide, multiplied by the glow colour, added under the line.
+      const buffer = this.halo ??= document.createElement('canvas')
+      if (buffer.width !== cw || buffer.height !== ch) { buffer.width = cw; buffer.height = ch }
+      const h = buffer.getContext('2d')
+      if (h) {
+        const [r, g, b] = [1, 3, 5].map(i => parseInt(halo.color.slice(i, i + 2), 16) || 0), top = Math.max(1, r, g, b)
+        for (const [radius, alpha] of [[10, .55], [30, .6]] as const) {
+          h.globalCompositeOperation = 'source-over'
+          h.filter = `blur(${(radius * halo.amount * scale).toFixed(2)}px)`
+          h.fillStyle = '#000'; h.fillRect(0, 0, cw, ch)
+          h.drawImage(this.raster, 0, 0, cw, ch)
+          h.filter = 'none'
+          h.globalCompositeOperation = 'multiply'
+          h.fillStyle = `rgb(${Math.round(r / top * 255)},${Math.round(g / top * 255)},${Math.round(b / top * 255)})`
+          h.fillRect(0, 0, cw, ch)
+          ctx.globalAlpha = alpha * Math.min(1.4, .6 + halo.amount * .4)
+          ctx.drawImage(buffer, 0, 0)
+        }
+        ctx.globalAlpha = .65
+      }
+    }
     ctx.filter = `blur(${(4 * scale).toFixed(2)}px)`
     ctx.drawImage(this.raster, 0, 0, cw, ch)
     ctx.filter = 'none'

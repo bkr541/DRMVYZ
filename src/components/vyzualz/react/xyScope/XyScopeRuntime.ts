@@ -39,6 +39,8 @@ import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
 import { Osc2Engine } from './XyScopeOsc2Engine'
 import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
 import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
+import { OctaEngine } from './XyScopeOctaEngine'
+import type { OctaLiveSnapshot } from './XyScopeOctaLive'
 import { InitEngine, type InitPcm, type InitSource } from './XyScopeInitEngine'
 import { InitRenderer } from './XyScopeInitRenderer'
 import { InitAutoPerformance } from './XyScopeInitPerformance'
@@ -114,6 +116,11 @@ export class XyScopeRuntime {
   private initResetSeen = -1
   private initAutoOn = false
   private initFreeBeat = 0
+  private readonly octaEngine = new OctaEngine()
+  private octaSource: OctaLiveSnapshot['source'] = 'none'
+  private octaConductor = { state: 'MANUAL', confidence: 0, mapped: false }
+  private octaResetSeen = -1
+  private octaAutoOn = false
   private lastSource: XyScopeSettings['sourceMode'] | null = null
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
@@ -192,7 +199,7 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
+    return { scopeSource: this.settings?.sourceMode === 'octa' ? (this.octaSource === 'stereo' || this.octaSource === 'mono' ? this.octaSource : 'fallback') : this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
@@ -219,8 +226,12 @@ export class XyScopeRuntime {
     this.lastNowSec = input.nowSec
     const playing = input.playing ?? input.context != null
     // Leaving INIT hands the canvas back: its traces must not linger under the next source.
-    if (this.lastSource === 'init' && this.settings && this.settings.sourceMode !== 'init') this.needsClear = true
-    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2' && this.settings.sourceMode !== 'init') this.lastSource = this.settings.sourceMode
+    if ((this.lastSource === 'init' || this.lastSource === 'octa') && this.settings && this.settings.sourceMode !== this.lastSource) this.needsClear = true
+    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2' && this.settings.sourceMode !== 'init' && this.settings.sourceMode !== 'octa') this.lastSource = this.settings.sourceMode
+    if (this.settings?.sourceMode === 'octa') {
+      this.renderOcta(input, dt, playing)
+      return
+    }
     if (this.settings?.sourceMode === 'init') {
       this.renderInit(input, dt, playing)
       return
@@ -389,6 +400,58 @@ export class XyScopeRuntime {
     const o = this.settings?.osc2
     if (!o || this.settings?.sourceMode !== 'osc2') return null
     return { ...this.osc2State, settings: o.autoPerformance && this.osc2Output ? this.osc2Output : o.values, source: this.osc1Source }
+  }
+
+  /** Live values for the inspector: the distortion state and energy the music is driving in OCTA. */
+  getOctaLive(): OctaLiveSnapshot | null {
+    const o = this.settings?.octa
+    if (!o || this.settings?.sourceMode !== 'octa') return null
+    return { state: this.octaEngine.state, energy: this.octaEngine.energy, conductor: this.octaConductor.state, confidence: this.octaConductor.confidence, mapped: this.octaConductor.mapped, values: o.values, source: this.octaSource }
+  }
+
+  private renderOcta(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!, o = settings.octa, engine = this.octaEngine, renderer = this.osc1Renderer
+    if (this.lastSource !== 'octa') { this.lastSource = 'octa'; engine.reset(); renderer.clear(); this.needsClear = false }
+    if (renderer.resize(this.width, this.height)) this.needsClear = true
+    if (this.octaResetSeen !== o.resetSignals || input.context?.seekDetected) {
+      this.octaResetSeen = o.resetSignals
+      engine.reset(); this.osc1Analyzer.reset(); this.osc1Conductor.reset(); renderer.clear()
+    }
+    if (this.needsClear) { renderer.clear(); this.needsClear = false }
+
+    let features: Osc1Features
+    if (playing && input.stereo) {
+      this.osc1Analyzer.load(input.stereo.left, input.stereo.right)
+      features = this.osc1Analyzer.measure(dt, input.stereo.sampleRate)
+      this.octaSource = input.stereo.channelCount === 1 ? 'mono' : 'stereo'
+    } else if (playing && input.context) {
+      const c = input.context
+      features = { ...emptyOsc1Features(), level: Math.min(1, c.energy), bass: c.bass, mid: c.mid, air: c.high, flux: c.spectralFlux }
+      this.octaSource = 'shared'
+    } else {
+      features = emptyOsc1Features()
+      if (!playing) this.osc1Analyzer.reset()
+      this.octaSource = 'none'
+    }
+    // The live waveform that ripples along the axis lines.
+    const scopeFrame = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec)
+    engine.wave = scopeFrame.trace
+    engine.waveGain = scopeFrame.traceGain
+
+    if (this.octaAutoOn !== o.autoPerformance) { this.octaAutoOn = o.autoPerformance; this.osc1Conductor.reset(); this.octaConductor = { state: 'MANUAL', confidence: 0, mapped: false } }
+    let bias = 0
+    if (o.autoPerformance && playing) {
+      // Builds and drops from the shared conductor push the energy further, so the figure is distorted when the track calls for it.
+      const conducted = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: 0, base: osc1ModeSettings(0), letterCount: 0 })
+      bias = .12 * Math.min(1, conducted.build) + .3 * Math.min(1, conducted.drop)
+      this.octaConductor = { state: conducted.state, confidence: conducted.confidence, mapped: conducted.mapped }
+    } else this.octaConductor = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
+
+    engine.tick(dt, features, playing, o.values, bias)
+    renderer.render(engine, {
+      dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width, scan: o.values.scan, color: o.values.color },
+      grid: false, hold: o.hold, halo: { amount: o.values.glow, color: o.values.glowColor }, background: o.values.backgroundColor,
+    })
   }
 
   /** Live values for the inspector: the effective INIT values while Auto Performance runs. */

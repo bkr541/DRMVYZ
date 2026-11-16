@@ -31,6 +31,7 @@ import { XyScopeTextV2DesignPanel } from './XyScopeTextV2DesignPanel'
 import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
 import { XyScopeOsc2DesignPanel } from './XyScopeOsc2DesignPanel'
 import { XyScopeInitDesignPanel } from './XyScopeInitDesignPanel'
+import { XyScopeOctaDesignPanel } from './XyScopeOctaDesignPanel'
 import { INIT_COUNTS } from './XyScopeInitSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
@@ -134,8 +135,8 @@ export function XyScopeEnginePanel() {
   })))
   const source = settings.sourceMode
   const setSource = (sourceMode: typeof XY_SOURCE_CARDS[number]['id']) => setXyScopeSettings({ sourceMode })
-  // INIT is a preset of the OSCILATOR source, so that card stays lit while INIT runs.
-  const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => source === id || (id === 'oscillator' && source === 'init')
+  // INIT and OCTA are presets of the OSCILATOR source, so that card stays lit while either runs.
+  const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => source === id || (id === 'oscillator' && (source === 'init' || source === 'octa'))
   const resolution = useXyScopeFont(settings.fontId)
   const previewStatus = useFontPreviewPreload(fontAssets)
   const options = useMemo(() => {
@@ -346,6 +347,7 @@ export function XyScopeDesignPanel() {
   if (settings.sourceMode === 'osc1') return <XyScopeOsc1DesignPanel />
   if (settings.sourceMode === 'osc2') return <XyScopeOsc2DesignPanel />
   if (settings.sourceMode === 'init') return <XyScopeInitDesignPanel />
+  if (settings.sourceMode === 'octa') return <XyScopeOctaDesignPanel />
   if (isTextV2) return <XyScopeTextV2DesignPanel />
 
   return (

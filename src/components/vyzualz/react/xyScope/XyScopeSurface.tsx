@@ -17,6 +17,7 @@ import { XyScopeTransportTracker } from './XyScopeTransport'
 import { publishOsc1Live } from './XyScopeOsc1Live'
 import { publishOsc2Live } from './XyScopeOsc2Live'
 import { publishInitLive } from './XyScopeInitLive'
+import { publishOctaLive } from './XyScopeOctaLive'
 
 /** Samples read from the stereo tap each frame; matches the scope window the runtime expects. */
 const STEREO_READ_FRAMES = 2048
@@ -147,7 +148,7 @@ export function XyScopeSurface({
         previousContext = context
       }
       let stereo = current.scopeStereoTap?.readLatest(STEREO_READ_FRAMES, audioTime) ?? null
-      if (!stereo && (settingsRef.current.settings.sourceMode === 'textV2' || settingsRef.current.settings.sourceMode === 'osc1' || settingsRef.current.settings.sourceMode === 'osc2' || settingsRef.current.settings.sourceMode === 'init')) stereo = monoTap.read(current.analyser, audioTime)
+      if (!stereo && (settingsRef.current.settings.sourceMode === 'textV2' || settingsRef.current.settings.sourceMode === 'osc1' || settingsRef.current.settings.sourceMode === 'osc2' || settingsRef.current.settings.sourceMode === 'init' || settingsRef.current.settings.sourceMode === 'octa')) stereo = monoTap.read(current.analyser, audioTime)
       runtime.renderFrame({ nowSec: timestamp / 1000, context, fresh: fresh || state.discontinuity, stereo, playing: clockActive })
 
       // OSC 1 shares its effective values (Auto Performance) with the inspector about ten times a second.
@@ -157,7 +158,9 @@ export function XyScopeSurface({
         if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishOsc2Live(runtime.getOsc2Live()) }
       } else if (settingsRef.current.settings.sourceMode === 'init') {
         if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishInitLive(runtime.getInitLive()) }
-      } else if (livePublished) { livePublished = false; publishOsc1Live(null); publishOsc2Live(null); publishInitLive(null) }
+      } else if (settingsRef.current.settings.sourceMode === 'octa') {
+        if (timestamp - lastLivePublish >= 100) { lastLivePublish = timestamp; livePublished = true; publishOctaLive(runtime.getOctaLive()) }
+      } else if (livePublished) { livePublished = false; publishOsc1Live(null); publishOsc2Live(null); publishInitLive(null); publishOctaLive(null) }
 
       fpsFrames += 1
       const elapsed = timestamp - fpsStart
@@ -182,6 +185,7 @@ export function XyScopeSurface({
       publishOsc1Live(null)
       publishOsc2Live(null)
       publishInitLive(null)
+      publishOctaLive(null)
       observer?.disconnect()
       pump.dispose()
       runtime.dispose()
@@ -213,11 +217,12 @@ export function XyScopeSurface({
         </div>
       )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
-      {scopeSource === 'mono' && (settings.sourceMode === 'textV2' || settings.sourceMode === 'osc1' || settings.sourceMode === 'osc2' || settings.sourceMode === 'init') && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
+      {scopeSource === 'mono' && (settings.sourceMode === 'textV2' || settings.sourceMode === 'osc1' || settings.sourceMode === 'osc2' || settings.sourceMode === 'init' || settings.sourceMode === 'octa') && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
       {scopeSource === 'fallback' && audio?.trackIdentity && (
         <div className="rv-xyscope-note" role="status">
           {settings.sourceMode === 'textV2' ? 'Stereo samples unavailable: oscillator motion follows audio intelligence.'
             : settings.sourceMode === 'init' ? 'Stereo samples unavailable: the oscillators follow the shared audio analysis.'
+            : settings.sourceMode === 'octa' ? 'Stereo samples unavailable: the cluster follows the shared audio analysis.'
             : settings.sourceMode === 'osc1' || settings.sourceMode === 'osc2' ? 'Stereo samples unavailable: the letters follow the shared audio analysis.'
               : 'No live stereo signal: dissolves use a stand-in figure instead of the track.'}
         </div>
