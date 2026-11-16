@@ -123,7 +123,7 @@ Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY us
 
 Pattern Change defaults to **on** so the engine performs when it is first opened. The Clean Scope preset turns it off, retaining the Word performance; Motion Amount or Audio Reactivity at zero provides a still word.
 
-The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG and OSCILATOR cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1 and OSC 2; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1 and OSC 2; OSCILATOR stays active for INIT and OCTA. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
+The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG, OSCILATOR and WIREFRAME cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1 and OSC 2; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1 and OSC 2; OSCILATOR stays active for INIT and OCTA. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 
@@ -290,3 +290,52 @@ The left window has the four standard groups: Master Controls (Master Intensity,
 
 Code: `XyScopeOctaSettings.ts`, `XyScopeOctaEngine.ts` (geometry, distortion, beam), `XyScopeOctaDesignPanel.tsx`, `XyScopeOctaLive.ts`; rendering in `XyScopeOsc1Renderer.ts`, wiring in `XyScopeRuntime.ts` (`renderOcta`).
 
+## WIREFRAME
+
+WIREFRAME is its own source card (SOURCE → WIREFRAME) with one preset, **CUBES**: a core cube and up to four smaller satellite cubes, drawn in 3D by one green phosphor beam. It follows the "reactive vector" mode described in the research in `Sound Drawing/` (the guide's Appendix B and the engineering package): the drawing is an **immutable shape**, and the music only moves it, within bounds, and it always settles back. It is not a literal stereo-XY view of the track, and it does not make sound.
+
+### How it draws
+
+- **Shape (`XyScopeWireShape.ts`).** Five cubes of eight corners, twelve edges and six outward-wound faces, each cube its own group. The shape is hashed when built; a test proves a long, loud performance never changes the hash.
+- **Stroke routing (`XyScopeWireRoute.ts`).** One beam cannot lift, so each cube is drawn in one continuous stroke. A cube's corners each have three edges, so the router retraces the cheapest four (exact minimum-weight pairing of the odd corners, then Hierholzer's walk). A retraced edge's two passes are half as bright each, so every edge is equally bright. Between cubes the beam makes a visible **hop**; **Beam Travel** decides whether that hop is Blank, Dim or Visible.
+- **Projection (`XyScopeWireProject.ts`).** Quaternion rotations, a camera whose **Perspective** runs from orthographic (0) to a full pinhole (1), points nearer than the near plane clamped so nothing is non-finite, and **hidden edges** found from the projected winding of the faces on each side (an edge is hidden when every face that borders it faces away). **Hidden Edges** shows or dims them; **Depth Cue** fades far edges.
+- **Beam timing.** Time on each segment follows its length and a short dwell at each corner, so brightness follows dwell, not how many points a line was cut into. A longer path (more cubes, copies, the outline) is brightened to compensate, because one beam shares each scan across all of it.
+- **Duplicates.** 1 to 4 copies. The first is the figure; the others are fainter echoes turned slightly apart. **Source Outline** draws a faint copy of the cubes where they sit undisturbed.
+
+### How the music moves it (`XyScopeWireModulation.ts`, `XyScopeWireDeformer.ts`)
+
+Each part of the music drives a different, bounded part of the figure through its own rule (attack, release, curve, confidence floor, and what to do when the feature is not available):
+
+| Music | Moves | At most |
+|---|---|---|
+| kick | expands the cubes, widens the beam | 5% expansion, +55% beam width, released in about 130 ms |
+| snare | brightens the lines | +60%, capped at +35% (+80% with Flash Limit off) |
+| bass, sub | swells each cube | 8% + 3% |
+| mid | turns each cube against its neighbour (rigid, so not counted as deformation) | 10° |
+| low mid | leans each cube sideways | 8% |
+| air, flux | makes the edges shimmer (deterministic, not random) | 3% + 1.5% of an edge |
+
+Features are normalised to the track's own recent range (streaming 10th and 90th percentiles), so a quiet and a loud track both use the whole span, and the estimates freeze in silence. Nothing is random.
+
+Three guarantees, each tested:
+1. **Anchor bound.** No corner moves more than **Max Displacement** (a share of its cube's edge) from where it is placed.
+2. **Readability floor.** A readability score (1 minus 60% of the largest edge stretch against 50%, minus 40% of the largest corner move against the bound) must stay at or above **Readability Floor**; if the music would push it past, the movement is eased back by bisection until it holds.
+3. **Exact recovery.** When the music stops or the drivers release, every corner is back exactly where it is placed (envelopes settle to exactly zero).
+
+### Auto Performance (`XyScopeWireDirector.ts`, `XyScopeWireCues.ts`)
+
+Off: the cubes only move as the settings say, with no scene changes and no breaking apart. On, a seeded director runs the guide's state machine: READABLE, ACCENT (a hit), BUILD (rising structure), ABSTRACT (the cluster drifts apart and tumbles), REASSEMBLE, REST (stopped).
+- **Scenes** (orbit, tumble, breathe, split, echo) change only on a musical boundary chosen by **Scene Change** (section, phrase, 8 bars, 4 bars). The pick is a pure function of **Variation Seed**, the track and the boundary's identity, with a recency filter that stops a scene repeating within the last two, so the same track and seed always give the same show.
+- **ABSTRACT** needs structural evidence above a confidence floor, a drop boundary, and enough recent readable time (**Minimum Readable Time**); it lasts a fixed, short time (about four beats, at most 3.5 s) and always ends by reassembling to zero.
+- **A live microphone has no sections or phrases**, so there is no BUILD or ABSTRACT, and a section or phrase cadence never changes the scene; scenes change only on 4- or 8-bar boundaries the beat grid vouches for. A tempo that is only a guess is not followed (BPM Sync follows a real beat grid only). The inspector shows **Evidence: TRACK SECTIONS** or **ONSETS ONLY**.
+- A seek, loop or track change (and Reset Signals) starts again from the readable figure.
+
+### Controls
+
+The four standard groups. Master Controls: Master Intensity, Audio Reactivity, BPM Sync, Auto Performance, Flash Limit (on by default: brightness accents no more than about four a second, and capped), Hold Trace, and live Scene, Readability, Last Event, Evidence and Signal readouts. Design › Wireframe: satellite cubes, figure size, orbit spread, perspective, view tilt, spin speed, depth cue, duplicates, hidden edges, source outline. Design › Beam & Phosphor: width, glow, decay, scan frequency, beam travel. React: readability floor, max displacement, minimum readable time, attack, release, bass, mid, low-mid, air, kick and snare response, scene change, variation seed. Palette: beam, glow, background. Reset Signals and Reset WIREFRAME.
+
+### Not included
+
+The guide also describes a shared `ShapeDocument` across both Sound Drawing engines, an authentic shape-to-stereo-audio synthesizer and WAV export, 3D import of arbitrary meshes, and a reference-video fitting tool. Those are separate projects; this preset implements the reactive-vector slice for cubes. Other wireframes (an octahedron, a tunnel) would be new shapes built with the same router, projector and modulation.
+
+Code: `XyScopeWireShape.ts`, `XyScopeWireRoute.ts`, `XyScopeWireProject.ts`, `XyScopeWireModulation.ts`, `XyScopeWireDeformer.ts`, `XyScopeWireDirector.ts`, `XyScopeWireCues.ts`, `XyScopeWireEngine.ts`, `XyScopeWireSettings.ts`, `XyScopeWireDesignPanel.tsx`, `XyScopeWireLive.ts`; rendering in `XyScopeOsc1Renderer.ts`; wiring in `XyScopeRuntime.ts` (`renderWire`) and `XyScopeSurface.tsx`. Tests: `XyScopeWire.test.ts`, `XyScopeWireEngine.test.ts`, and the WIREFRAME case in `XyScopeWorkspace.test.tsx`.

@@ -33,6 +33,7 @@ import { XyScopeOsc1DesignPanel } from './XyScopeOsc1DesignPanel'
 import { XyScopeOsc2DesignPanel } from './XyScopeOsc2DesignPanel'
 import { XyScopeInitDesignPanel } from './XyScopeInitDesignPanel'
 import { XyScopeOctaDesignPanel } from './XyScopeOctaDesignPanel'
+import { XyScopeWireDesignPanel } from './XyScopeWireDesignPanel'
 import { INIT_COUNTS } from './XyScopeInitSettings'
 import { useXyScopeFont } from './XyScopeFontLibrary'
 import { useMediaStore } from '../../../../stores/mediaStore'
@@ -122,6 +123,7 @@ const XY_SOURCE_CARDS = [
   { id: 'text', label: 'TEXT', icon: 'text' },
   { id: 'svg', label: 'SVG', icon: 'svg' },
   { id: 'oscillator', label: 'OSCILATOR', icon: 'scope' },
+  { id: 'wire', label: 'WIREFRAME', icon: 'shape' },
 ] as const
 
 /** Left SOURCE tab: persisted source selection and source-specific Input controls. */
@@ -279,7 +281,8 @@ export function XyScopePresetsPanel() {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
   const category = getXyScopeSourceCategory(source)
-  const presets = XY_SCOPE_PRESETS.filter(preset => (!preset.source || preset.source === category)
+  // The standard parameter presets drive lettering and the oscillator figures; WIREFRAME has presets of its own only.
+  const presets = XY_SCOPE_PRESETS.filter(preset => (preset.source ? preset.source === category : category !== 'wire')
     && (needle === '' || `${preset.name} ${preset.description}`.toLowerCase().includes(needle)))
 
   return (
@@ -353,6 +356,7 @@ export function XyScopeDesignPanel() {
   if (settings.sourceMode === 'osc2') return <XyScopeOsc2DesignPanel />
   if (settings.sourceMode === 'init') return <XyScopeInitDesignPanel />
   if (settings.sourceMode === 'octa') return <XyScopeOctaDesignPanel />
+  if (settings.sourceMode === 'wire') return <XyScopeWireDesignPanel />
   if (isTextV2) return <XyScopeTextV2DesignPanel />
 
   return (

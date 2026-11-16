@@ -1,0 +1,286 @@
+import { describe, expect, it } from 'vitest'
+import { createSharedPerformanceFallbackContext, type SharedPerformanceContext } from '../../../../features/performanceCore'
+import { emptyOsc1Features, type Osc1Features } from './XyScopeOsc1Engine'
+import { buildWireReading, deriveWireCue, emptyWireCue, type WireCue } from './XyScopeWireCues'
+import { WireEngine, type WireTick } from './XyScopeWireEngine'
+import { NO_BOUNDARIES } from './XyScopeWireDirector'
+import { silentReading, type WireReading } from './XyScopeWireModulation'
+import { shapeHash } from './XyScopeWireShape'
+import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, normalizeWireValues, WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
+import { applyXyScopePreset, DEFAULT_XY_SCOPE_SETTINGS, normalizeXyScopeSettings, XY_SCOPE_PRESETS } from './XyScopeSettings'
+
+type Overrides = Omit<Partial<SharedPerformanceContext>, 'boundaries' | 'capabilities' | 'confidence'> & {
+  boundaries?: Partial<SharedPerformanceContext['boundaries']>
+  capabilities?: Partial<SharedPerformanceContext['capabilities']>
+  confidence?: Partial<SharedPerformanceContext['confidence']>
+}
+function context(over: Overrides = {}): SharedPerformanceContext {
+  const base = createSharedPerformanceFallbackContext(10)
+  const { boundaries, capabilities, confidence, ...rest } = over
+  return { ...base, ...rest, boundaries: { ...base.boundaries, ...boundaries }, capabilities: { ...base.capabilities, ...capabilities }, confidence: { ...base.confidence, ...confidence } }
+}
+
+const live = (over: Partial<WireReading> = {}, level = .7): WireReading => ({
+  ...silentReading(), playing: true, confidence: .9,
+  features: { sub: level, bass: level, lowMid: level, mid: level, air: level, flux: level, level },
+  available: { sub: true, bass: true, lowMid: true, mid: true, air: true, flux: true, level: true },
+  ...over,
+})
+const tick = (over: Partial<WireTick> = {}): WireTick => ({ dt: 1 / 60, reading: live(), cue: emptyWireCue(), values: WIRE_DEFAULTS, auto: false, discontinuity: false, ...over })
+/** A pulsing, kick-driven track: features swing and a kick lands every half second. */
+function track(frame: number): WireReading {
+  const swing = .5 + .5 * Math.sin(frame / 60 * 7)
+  const hit = frame % 30 === 0
+  return live({ features: { sub: swing, bass: swing, lowMid: swing, mid: swing * .8, air: swing * .6, flux: swing, level: .4 + swing * .5 }, hits: { kick: hit ? 1 : 0, snare: frame % 60 === 30 ? .9 : 0, hat: 0 } })
+}
+function run(engine: WireEngine, frames: number, over: (frame: number) => Partial<WireTick> = () => ({}), reading = track) {
+  for (let f = 0; f < frames; f++) engine.tick(tick({ reading: reading(f), ...over(f) }))
+}
+/** One scan of the beam path. */
+function scan(engine: WireEngine, samples = 3000) {
+  const out = { x: 0, y: 0, z: 0, energy: 0, q: 0 }
+  const points: { x: number; y: number; z: number; energy: number }[] = []
+  for (let k = 0; k < samples; k++) { engine.signal(engine.letters[0], 0, k / samples, 0, 0, out); points.push({ x: out.x, y: out.y, z: out.z, energy: out.energy }) }
+  return points
+}
+const maxGap = (a: Float32Array, b: Float32Array, vertices: number) => { let m = 0; for (let i = 0; i < vertices * 3; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m }
+
+describe('WIREFRAME settings', () => {
+  it('defaults to the safe, readable figure and clamps and rounds stored values', () => {
+    expect(DEFAULT_WIRE_SETTINGS.autoPerformance).toBe(false)
+    expect(WIRE_DEFAULTS.flashLimit).toBe(true)
+    expect(WIRE_DEFAULTS.readableFloor).toBe(.72)
+    expect(WIRE_DEFAULTS.backgroundColor).toBe('#000000')
+    expect(normalizeWireSettings(undefined)).toEqual({ ...DEFAULT_WIRE_SETTINGS, values: WIRE_DEFAULTS })
+    expect(normalizeWireValues({ satellites: 9.4, duplicates: 0, seed: 12.6, spread: 0, color: 'green', hiddenEdges: 'x', travel: 'dim', sceneEvery: 'bar4', flashLimit: 'no', glowColor: '#ABCDEF' }))
+      .toMatchObject({ satellites: 4, duplicates: 1, seed: 13, spread: .6, color: WIRE_DEFAULTS.color, hiddenEdges: 'dim', travel: 'dim', sceneEvery: 'bar4', flashLimit: true, glowColor: '#abcdef' })
+  })
+
+  it('is its own source: choosing CUBES switches the engine, the two agree, and it is the only preset the source offers', () => {
+    const next = applyXyScopePreset(DEFAULT_XY_SCOPE_SETTINGS, CUBES_PRESET_ID)
+    expect(next.sourceMode).toBe('wire')
+    expect(next.presetId).toBe('cubes')
+    expect(normalizeXyScopeSettings({ ...next, presetId: 'conversation' }).presetId).toBe('cubes')
+    expect(normalizeXyScopeSettings({ ...next, sourceMode: 'oscillator' }).presetId).toBe('conversation')
+    expect(XY_SCOPE_PRESETS.filter(preset => preset.source === 'wire').map(preset => preset.id)).toEqual(['cubes'])
+    expect(normalizeXyScopeSettings({ sourceMode: 'wire' }).wire).toEqual({ ...DEFAULT_WIRE_SETTINGS, values: WIRE_DEFAULTS })
+  })
+})
+
+describe('WIREFRAME cues (what the figure is told about the music)', () => {
+  it('knows nothing of sections on a context with no analysed track, so a live microphone never has any', () => {
+    const cue = deriveWireCue(context({ capabilities: { sections: false, beatGrid: true }, bpm: 124 }), null)
+    expect(cue.structure).toBeNull()
+    expect(cue.bpmValid).toBe(true)
+  })
+
+  it('reads structure from an analysed track and names each boundary once', () => {
+    const analysed = context({ analysisIdentity: 'a:1', sectionConfidence: .9, buildProgress: .6, capabilities: { sections: true, beatGrid: true }, bpm: 128, barIndex: 8, boundaries: { eightBarBoundary: true, fourBarBoundary: true } })
+    const cue = deriveWireCue(analysed, null)
+    expect(cue.structure?.confidence).toBeGreaterThan(.55)
+    expect(cue.structure?.build).toBeGreaterThanOrEqual(.6)
+    expect(cue.boundaries.bar8 && cue.boundaries.bar4).toBe(true)
+    expect(cue.boundaries.id).toBe('bar8:8|bar4:8')
+    expect(deriveWireCue(context({ barIndex: 9 }), null).boundaries.id).toBe('')
+  })
+
+  it('detects a drop and a new phrase by comparing with the frame before', () => {
+    const before = context({ dropOccurrence: 1, phraseIndex: 2 })
+    expect(deriveWireCue(context({ dropOccurrence: 2, phraseIndex: 3 }), before)).toMatchObject({ drop: true, boundaries: { phrase: true, id: 'phrase:3' } })
+    expect(deriveWireCue(context({ dropOccurrence: 1, phraseIndex: 2 }), before)).toMatchObject({ drop: false, boundaries: { phrase: false } })
+    expect(deriveWireCue(context({ dropOccurrence: 2 }), null).drop).toBe(false)
+  })
+
+  it('does not call a beat grid reliable without evidence for it', () => {
+    expect(deriveWireCue(context({ capabilities: { beatGrid: false }, confidence: { grid: .9, rhythm: .9 } }), null).gridConfident).toBe(false)
+    expect(deriveWireCue(context({ capabilities: { beatGrid: true }, confidence: { grid: .2, rhythm: .2 } }), null).gridConfident).toBe(false)
+    expect(deriveWireCue(context({ capabilities: { beatGrid: true }, confidence: { grid: .8, rhythm: .2 } }), null).gridConfident).toBe(true)
+    expect(deriveWireCue(null, null)).toEqual(emptyWireCue())
+  })
+
+  it('marks features unavailable rather than zero when they are not measurements, and says nothing while stopped', () => {
+    const features: Osc1Features = { ...emptyOsc1Features(), bass: .6, mid: .4, level: .5 }
+    const fromStereo = buildWireReading(null, features, { kick: 1, snare: 0, hat: 0 }, true)
+    expect(fromStereo.available).toMatchObject({ bass: true, sub: false, lowMid: false })
+    expect(fromStereo.hits.kick).toBe(0) // events come from the shared analysis only
+    expect(buildWireReading(null, features, { kick: 0, snare: 0, hat: 0 }, false).playing).toBe(false)
+    const shared = buildWireReading(context({ capabilities: { liveBands: false, rhythmEvents: false } }), null, { kick: 0, snare: 0, hat: 0 }, true)
+    expect(shared.available).toMatchObject({ bass: false, flux: false, level: true })
+  })
+})
+
+describe('the WIREFRAME engine', () => {
+  const settled = () => { const engine = new WireEngine(); run(engine, 3); return engine }
+
+  it('never touches its shape: the cubes hash the same after a long, loud, Auto Performance show', () => {
+    const engine = new WireEngine()
+    const hash = shapeHash(engine.shape)
+    run(engine, 60 * 20, f => ({ auto: true, values: { ...WIRE_DEFAULTS, satellites: 4, duplicates: 3 }, cue: { ...emptyWireCue(), bpm: 128, bpmValid: true, gridConfident: true, trackIdentity: 't', boundaries: f % 480 === 0 ? { ...NO_BOUNDARIES, bar8: true, bar4: true, id: `bar8:${f}` } : NO_BOUNDARIES } }))
+    expect(shapeHash(engine.shape)).toBe(hash)
+  })
+
+  it('keeps every corner within the anchor bound and the figure above its readability floor, however loud', () => {
+    const engine = new WireEngine()
+    const values: WireValues = { ...WIRE_DEFAULTS, maxDisplacement: .1, readableFloor: .78, bassResponse: 2, kickResponse: 2, midResponse: 2, lowMidResponse: 2, airResponse: 2, satellites: 4 }
+    for (let f = 0; f < 60 * 8; f++) {
+      engine.tick(tick({ values, reading: track(f) }))
+      for (let k = 0; k < 5; k++) {
+        const g = engine.shape.groups[k], scale = k === 0 ? 1 : .42
+        for (let i = 0; i < 8; i++) {
+          const v = (g.vertexStart + i) * 3
+          const d = Math.hypot(engine.deformed[v] - engine.base[v], engine.deformed[v + 1] - engine.base[v + 1], engine.deformed[v + 2] - engine.base[v + 2])
+          // The placement swells a satellite a little (its breathing is placement, not deformation), so measure against its largest size.
+          expect(d).toBeLessThanOrEqual(.1 * engine.shape.edgeLength * scale * 1.2 + 1e-6)
+        }
+      }
+      expect(engine.readability.score).toBeGreaterThanOrEqual(.78 - 1e-6)
+    }
+  })
+
+  it('recovers exactly: once the music stops, every corner is back where it is placed', () => {
+    const engine = new WireEngine()
+    run(engine, 60 * 5)
+    expect(maxGap(engine.deformed, engine.base, 24)).toBeGreaterThan(1e-3) // it really was deformed
+    run(engine, 60 * 4, () => ({ reading: { ...silentReading(), playing: false } }), () => ({ ...silentReading(), playing: false }))
+    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+    expect(engine.readability.score).toBe(1)
+    expect(engine.weight).toBe(1)
+  })
+
+  it('draws the clean figure at Audio Reactivity zero, whatever the music does', () => {
+    const engine = new WireEngine()
+    run(engine, 60 * 5, () => ({ values: { ...WIRE_DEFAULTS, audioReactivity: 0 } }))
+    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+    expect(engine.beamWidthBoost).toBe(0)
+  })
+
+  it('is deterministic: two engines fed the same music draw the same picture', () => {
+    const a = new WireEngine(), b = new WireEngine()
+    const over = (f: number): Partial<WireTick> => ({ auto: true, values: { ...WIRE_DEFAULTS, duplicates: 2 }, cue: { ...emptyWireCue(), bpm: 120, bpmValid: true, gridConfident: true, trackIdentity: 't', boundaries: f % 240 === 0 ? { ...NO_BOUNDARIES, bar8: true, id: `bar8:${f}` } : NO_BOUNDARIES } })
+    run(a, 600, over); run(b, 600, over)
+    expect(scan(a)).toEqual(scan(b))
+    expect(a.sceneId).toBe(b.sceneId)
+  })
+
+  it('lays out one finite, continuous beam path inside the stage', () => {
+    const engine = new WireEngine()
+    run(engine, 90, () => ({ values: { ...WIRE_DEFAULTS, satellites: 4, perspective: 1 } }))
+    const points = scan(engine)
+    expect(points.length).toBeGreaterThan(0)
+    for (const p of points) {
+      expect(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.energy)).toBe(true)
+      expect(Math.abs(p.x)).toBeLessThan(1.3)
+      expect(Math.abs(p.y)).toBeLessThan(1.3)
+    }
+    // No jumps inside a stroke: lit neighbours are close together.
+    let lit = 0
+    for (let i = 1; i < points.length; i++) {
+      if (points[i].z > 0 && points[i - 1].z > 0) { lit++; expect(Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)).toBeLessThan(.2) }
+    }
+    expect(lit).toBeGreaterThan(points.length / 2)
+  })
+
+  it('blanks the travel between cubes by default, dims it, or shows it', () => {
+    const energyOf = (travel: WireValues['travel']) => { const e = settled(); e.tick(tick({ values: { ...WIRE_DEFAULTS, travel, satellites: 2 } })); return scan(e, 6000) }
+    const blank = energyOf('blank'), dim = energyOf('dim'), visible = energyOf('visible')
+    expect(blank.some(p => p.z === 0)).toBe(true)
+    expect(dim.every(p => p.z > 0)).toBe(true)
+    expect(visible.every(p => p.z > 0)).toBe(true)
+    // The travel adds light: none when blanked, a little when dimmed, as much as an edge when visible.
+    const total = (points: typeof blank) => points.reduce((sum, p) => sum + (p.z > 0 ? p.energy : 0), 0)
+    expect(total(blank)).toBeLessThan(total(dim))
+    expect(total(dim)).toBeLessThan(total(visible))
+  })
+
+  it('draws more of the beam for echoes and the source outline, which stay fainter than the figure', () => {
+    const one = settled(); one.tick(tick({ values: { ...WIRE_DEFAULTS, duplicates: 1, outline: false } }))
+    const more = settled(); more.tick(tick({ values: { ...WIRE_DEFAULTS, duplicates: 3, outline: true } }))
+    expect(more.pointCount).toBeGreaterThan(one.pointCount * 3)
+    // A longer path is brightened to keep each line as bright as before (one beam shares every scan); once that is divided out, the
+    // echoes and the outline are never brighter than the figure.
+    const brightest = (e: WireEngine) => Math.max(...scan(e, 4000).map(p => p.energy)) / e.energyScale
+    expect(more.energyScale).toBeGreaterThan(one.energyScale)
+    expect(brightest(more)).toBeLessThanOrEqual(brightest(one) * 1.001)
+  })
+
+  it('fades edges that are farther away and dims the ones hidden behind the figure', () => {
+    const spread = (over: Partial<WireValues>) => { const e = settled(); e.tick(tick({ values: { ...WIRE_DEFAULTS, satellites: 0, outline: false, ...over } })); const en = scan(e, 4000).filter(p => p.z > 0).map(p => p.energy); return Math.max(...en) / Math.min(...en) }
+    expect(spread({ depthCue: 0, hiddenEdges: 'show' })).toBeLessThan(spread({ depthCue: 1, hiddenEdges: 'show' }))
+    expect(spread({ depthCue: 0, hiddenEdges: 'show' })).toBeLessThan(spread({ depthCue: 0, hiddenEdges: 'dim' }))
+  })
+
+  it('turns at the track\'s tempo with BPM Sync, and at a steady one without it', () => {
+    const turned = (bpm: number, sync: boolean) => {
+      const e = new WireEngine()
+      for (let i = 0; i < 120; i++) e.tick(tick({ values: { ...WIRE_DEFAULTS, bpmSync: sync }, cue: { ...emptyWireCue(), bpm, bpmValid: true } }))
+      return (e as unknown as { phase: number }).phase
+    }
+    expect(turned(160, true)).toBeGreaterThan(turned(80, true) * 1.9)
+    expect(turned(160, false)).toBeCloseTo(turned(80, false), 9)
+    // A tempo that is only a guess (no beat grid) is not followed.
+    const guessed = new WireEngine()
+    for (let i = 0; i < 120; i++) guessed.tick(tick({ cue: { ...emptyWireCue(), bpm: 180, bpmValid: false } }))
+    expect((guessed as unknown as { phase: number }).phase).toBeCloseTo(turned(80, false), 9)
+  })
+
+  it('spaces out brightness accents with Flash Limit, and lets them through without it', () => {
+    const accents = (flashLimit: boolean) => {
+      const e = new WireEngine(); let peak = 0, triggers = 0, previous = 0
+      for (let f = 0; f < 120; f++) {
+        // A snare every 6 frames (10 a second).
+        e.tick(tick({ values: { ...WIRE_DEFAULTS, flashLimit }, reading: live({ hits: { kick: 0, snare: f % 6 === 0 ? 1 : 0, hat: 0 } }) }))
+        peak = Math.max(peak, e.targets.brightness)
+        if (e.targets.brightness > previous + .05) triggers++
+        previous = e.targets.brightness
+      }
+      return { peak, triggers }
+    }
+    const limited = accents(true), free = accents(false)
+    expect(limited.triggers).toBeLessThanOrEqual(8) // about four a second over two seconds
+    expect(free.triggers).toBeGreaterThan(limited.triggers)
+    const brightest = (flashLimit: boolean) => {
+      const e = new WireEngine()
+      e.tick(tick({ values: { ...WIRE_DEFAULTS, flashLimit, outline: false }, reading: live({ hits: { kick: 0, snare: 1, hat: 0 } }) }))
+      return Math.max(...scan(e, 3000).map(p => p.energy))
+    }
+    const plain = (() => { const e = new WireEngine(); e.tick(tick({ values: { ...WIRE_DEFAULTS, outline: false } })); return Math.max(...scan(e, 3000).map(p => p.energy)) })()
+    expect(brightest(true)).toBeLessThanOrEqual(plain * 1.36)
+    expect(brightest(false)).toBeGreaterThan(brightest(true))
+  })
+
+  it('starts again from the readable figure after a seek, and when reset', () => {
+    const engine = new WireEngine()
+    run(engine, 60 * 4)
+    engine.tick(tick({ discontinuity: true, reading: silentReading() }))
+    expect(engine.state === 'READABLE' || engine.state === 'REST').toBe(true)
+    expect(engine.abstract).toBe(0)
+    engine.reset()
+    expect(engine.lastEvent).toBe('—')
+    expect(engine.weight).toBe(1)
+  })
+
+  it('on a live microphone shows no section scenes and no abstraction even with Auto Performance on and drops arriving', () => {
+    const engine = new WireEngine()
+    const liveCue: WireCue = { ...emptyWireCue(), bpm: 128, bpmValid: true, gridConfident: false, structure: null, drop: true }
+    for (let f = 0; f < 60 * 12; f++) engine.tick(tick({ auto: true, reading: track(f), cue: { ...liveCue, boundaries: f % 120 === 0 ? { section: true, phrase: true, bar4: true, bar8: true, id: `x:${f}` } : NO_BOUNDARIES }, values: { ...WIRE_DEFAULTS, sceneEvery: 'phrase' } }))
+    expect(engine.sceneId).toBe('base')
+    expect(engine.abstract).toBe(0)
+    expect(['BUILD', 'ABSTRACT', 'REASSEMBLE']).not.toContain(engine.state)
+  })
+
+  it('on an analysed track breaks apart on a confident drop and reassembles to the exact figure', () => {
+    const engine = new WireEngine()
+    const cue = (build: number, drop: boolean): WireCue => ({ ...emptyWireCue(), bpm: 128, bpmValid: true, gridConfident: true, structure: { confidence: .85, build }, drop, trackIdentity: 't' })
+    for (let f = 0; f < 120; f++) engine.tick(tick({ auto: true, reading: track(f), cue: cue(.8, false) }))
+    engine.tick(tick({ auto: true, reading: track(121), cue: cue(.8, true) }))
+    expect(engine.state).toBe('ABSTRACT')
+    let peak = 0
+    for (let f = 0; f < 60 * 8; f++) { engine.tick(tick({ auto: true, reading: track(f), cue: cue(.05, false) })); peak = Math.max(peak, engine.abstract) }
+    expect(peak).toBeGreaterThan(.9)
+    expect(engine.state).toBe('READABLE')
+    expect(engine.abstract).toBe(0)
+    // Silence, and the cubes sit exactly where the unabstracted placement puts them.
+    for (let f = 0; f < 60 * 3; f++) engine.tick(tick({ auto: true, reading: silentReading(), cue: cue(.05, false) }))
+    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+  })
+})

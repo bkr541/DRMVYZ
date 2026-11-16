@@ -15,7 +15,7 @@ import { Cinema2MainframePatternController } from '../../cinema2/modules/mainfra
 import { XyScopeBeamRenderer, parseXyScopeColor, type XyScopeRgb } from './XyScopeBeam'
 import { applyXyScopeBeamChoreography, xyScopeChoreographyPhrase, type XyScopeChoreographyPhase } from './XyScopeChoreography'
 import { XyScopeConversation } from './XyScopeConversation'
-import { deriveXyScopeEvents, resolveXyScopeTriggerEventId } from './XyScopeEvents'
+import { deriveXyScopeEvents, hasXyScopeDiscontinuity, resolveXyScopeTriggerEventId } from './XyScopeEvents'
 import {
   buildXyScopeLayout,
   EMPTY_XY_SCOPE_LAYOUT,
@@ -41,6 +41,10 @@ import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
 import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
 import { OctaEngine } from './XyScopeOctaEngine'
 import type { OctaLiveSnapshot } from './XyScopeOctaLive'
+import { WireEngine } from './XyScopeWireEngine'
+import { buildWireReading, deriveWireCue, emptyWireCue, type WireCue } from './XyScopeWireCues'
+import { NO_BOUNDARIES } from './XyScopeWireDirector'
+import type { WireLiveSnapshot } from './XyScopeWireLive'
 import { InitEngine, type InitPcm, type InitSource } from './XyScopeInitEngine'
 import { InitRenderer } from './XyScopeInitRenderer'
 import { InitAutoPerformance } from './XyScopeInitPerformance'
@@ -121,6 +125,11 @@ export class XyScopeRuntime {
   private octaConductor = { state: 'MANUAL', confidence: 0, mapped: false }
   private octaResetSeen = -1
   private octaAutoOn = false
+  private readonly wireEngine = new WireEngine()
+  private wireSource: WireLiveSnapshot['source'] = 'none'
+  private wireResetSeen = -1
+  private wireCue: WireCue = emptyWireCue()
+  private wirePrevious: SharedPerformanceContext | null = null
   private lastSource: XyScopeSettings['sourceMode'] | null = null
   private readonly conversation = new XyScopeConversation()
   private readonly controller = new Cinema2MainframePatternController<XyScopePattern>(XY_SCOPE_PATTERN_CYCLE, 'word')
@@ -199,7 +208,7 @@ export class XyScopeRuntime {
   }
 
   getStatus(): XyScopeRuntimeStatus {
-    return { scopeSource: this.settings?.sourceMode === 'octa' ? (this.octaSource === 'stereo' || this.octaSource === 'mono' ? this.octaSource : 'fallback') : this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
+    return { scopeSource: this.settings?.sourceMode === 'wire' ? (this.wireSource === 'stereo' || this.wireSource === 'mono' ? this.wireSource : 'fallback') : this.settings?.sourceMode === 'octa' ? (this.octaSource === 'stereo' || this.octaSource === 'mono' ? this.octaSource : 'fallback') : this.settings?.sourceMode === 'init' ? (this.initSource === 'stereo' || this.initSource === 'mono' ? this.initSource : 'fallback') : this.settings?.sourceMode === 'osc1' || this.settings?.sourceMode === 'osc2' ? (this.osc1Source === 'stereo' || this.osc1Source === 'mono' ? this.osc1Source : 'fallback') : this.scope.frame.source, osc1Source: this.osc1Source, points: this.layout.totalPoints, letters: this.layout.glyphs.length, pattern: this.activePattern, performingPattern: this.performingPattern, phase: xyScopeChoreographyPhrase(this.choreographyBeat, this.params?.transitionBeats ?? 1).phase, text: this.activeText, textV2: this.settings?.sourceMode === 'textV2' && this.textV2Frame ? { state: this.textV2Frame.state, style: this.textV2Frame.style, autoPerformance: this.settings.textV2.autoPerformance, grouping: this.settings.textV2.grouping, phase: this.textV2TrajectoryFrame?.phase ?? 'word', morph: this.textV2TrajectoryFrame?.morph ?? 0 } : undefined }
   }
 
   /** A track change or engine restart: every letter returns to the authored pattern and the trail is wiped. */
@@ -226,8 +235,12 @@ export class XyScopeRuntime {
     this.lastNowSec = input.nowSec
     const playing = input.playing ?? input.context != null
     // Leaving INIT hands the canvas back: its traces must not linger under the next source.
-    if ((this.lastSource === 'init' || this.lastSource === 'octa') && this.settings && this.settings.sourceMode !== this.lastSource) this.needsClear = true
-    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2' && this.settings.sourceMode !== 'init' && this.settings.sourceMode !== 'octa') this.lastSource = this.settings.sourceMode
+    if ((this.lastSource === 'init' || this.lastSource === 'octa' || this.lastSource === 'wire') && this.settings && this.settings.sourceMode !== this.lastSource) this.needsClear = true
+    if (this.settings && this.settings.sourceMode !== 'osc1' && this.settings.sourceMode !== 'osc2' && this.settings.sourceMode !== 'init' && this.settings.sourceMode !== 'octa' && this.settings.sourceMode !== 'wire') this.lastSource = this.settings.sourceMode
+    if (this.settings?.sourceMode === 'wire') {
+      this.renderWire(input, dt, playing)
+      return
+    }
     if (this.settings?.sourceMode === 'octa') {
       this.renderOcta(input, dt, playing)
       return
@@ -450,6 +463,50 @@ export class XyScopeRuntime {
     engine.tick(dt, features, playing, o.values, bias)
     renderer.render(engine, {
       dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width, scan: o.values.scan, color: o.values.color },
+      grid: false, hold: o.hold, halo: { amount: o.values.glow, color: o.values.glowColor }, background: o.values.backgroundColor,
+    })
+  }
+
+  /** Live values for the inspector: what the director is doing, how readable the cubes are and where the sound comes from. */
+  getWireLive(): WireLiveSnapshot | null {
+    const o = this.settings?.wire, e = this.wireEngine
+    if (!o || this.settings?.sourceMode !== 'wire') return null
+    return { state: e.state, sceneId: e.sceneId, readability: e.readability.score, readableFraction: e.readableFraction, weight: e.weight, abstract: e.abstract, lastEvent: e.lastEvent, structure: this.wireCue.structure != null, source: this.wireSource, values: o.values }
+  }
+
+  private renderWire(input: XyScopeFrameInput, dt: number, playing: boolean): void {
+    const settings = this.settings!, o = settings.wire, engine = this.wireEngine, renderer = this.osc1Renderer
+    if (this.lastSource !== 'wire') { this.lastSource = 'wire'; engine.reset(); renderer.clear(); this.needsClear = false; this.wirePrevious = null; this.wireCue = emptyWireCue() }
+    if (renderer.resize(this.width, this.height)) this.needsClear = true
+    // A seek, loop, track change or Reset Signals starts the figure again from rest (the guide's single reset contract).
+    const reset = this.wireResetSeen !== o.resetSignals
+    const discontinuity = reset || hasXyScopeDiscontinuity(input.context)
+    if (reset) { this.wireResetSeen = o.resetSignals; this.osc1Analyzer.reset() }
+    if (discontinuity) { renderer.clear(); this.wirePrevious = null; this.wireCue = emptyWireCue() }
+    if (this.needsClear) { renderer.clear(); this.needsClear = false }
+
+    let features: Osc1Features | null = null
+    if (playing && input.stereo) {
+      this.osc1Analyzer.load(input.stereo.left, input.stereo.right)
+      features = this.osc1Analyzer.measure(dt, input.stereo.sampleRate)
+      this.wireSource = input.stereo.channelCount === 1 ? 'mono' : 'stereo'
+    } else if (playing && input.context) this.wireSource = 'shared'
+    else { if (!playing) this.osc1Analyzer.reset(); this.wireSource = 'none' }
+
+    // Hits and boundaries are one-frame events: they are read once per fresh audio frame, never replayed by the frames in between.
+    const hits = { kick: 0, snare: 0, hat: 0 }
+    if (input.fresh && input.context) {
+      const c = input.context
+      if (c.kick) hits.kick = Math.min(1, c.kickStrength || 1)
+      if (c.snare) hits.snare = Math.min(1, c.snareStrength || 1)
+      if (c.hat) hits.hat = Math.min(1, c.hatStrength || 1)
+      this.wireCue = deriveWireCue(c, this.wirePrevious)
+      this.wirePrevious = c
+    } else this.wireCue = { ...this.wireCue, boundaries: NO_BOUNDARIES, drop: false }
+
+    engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, values: o.values, auto: o.autoPerformance, discontinuity })
+    renderer.render(engine, {
+      dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width * (1 + engine.beamWidthBoost), scan: o.values.scan, color: o.values.color },
       grid: false, hold: o.hold, halo: { amount: o.values.glow, color: o.values.glowColor }, background: o.values.backgroundColor,
     })
   }

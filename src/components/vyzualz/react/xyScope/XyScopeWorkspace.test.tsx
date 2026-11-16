@@ -221,7 +221,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   it('defaults to TEXT and preserves text settings while browsing source cards', async () => {
     await act(async () => root.render(<XyScopeEnginePanel />))
     const cards = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button'))
-    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'SVG', 'OSCILATOR'])
+    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'SVG', 'OSCILATOR', 'WIREFRAME'])
     expect(cards[0].getAttribute('aria-pressed')).toBe('true')
     const settings = useReactStore.getState().xyScopeSettings
     for (const card of cards.slice(1)) {
@@ -231,7 +231,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
       expect(container.querySelector('#xyscope-font')).toBeNull()
       expect(useReactStore.getState().xyScopeSettings.text).toBe(settings.text)
       expect(useReactStore.getState().xyScopeSettings.fontId).toBe(settings.fontId)
-      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[1] ? 'svg' : 'oscillator')
+      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[1] ? 'svg' : card === cards[3] ? 'wire' : 'oscillator')
     }
     await act(async () => cards[0].click())
     expect(container.querySelector<HTMLInputElement>('#xyscope-text')?.value).toBe(settings.text)
@@ -409,6 +409,41 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(state().sourceMode).toBe('octa')
     await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="storm"]')!.click())
     expect(state().sourceMode).toBe('oscillator')
+  })
+
+  it('offers WIREFRAME as its own source with the CUBES preset, the four standard groups and its own controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const state = () => useReactStore.getState().xyScopeSettings
+    const cards = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].map(el => el.textContent)
+    expect(cards).toEqual(['TEXT', 'SVG', 'OSCILATOR', 'WIREFRAME'])
+    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'WIREFRAME')!
+    await act(async () => sourceCard.click())
+    // Choosing the source switches the engine, and only its own preset is offered (the lettering presets do not apply to cubes).
+    expect(state().sourceMode).toBe('wire')
+    expect(state().presetId).toBe('cubes')
+    expect(sourceCard.getAttribute('aria-pressed')).toBe('true')
+    expect([...container.querySelectorAll('[data-xyscope-preset-id]')].map(el => el.getAttribute('data-xyscope-preset-id'))).toEqual(['cubes'])
+    expect(container.querySelector('[data-xyscope-preset-id="cubes"]')!.textContent).toContain('CUBES')
+    expect(container.querySelector('[data-wire-design]')).not.toBeNull()
+    expect([...container.querySelectorAll('[data-xyscope-parent-group]')].map(el => el.getAttribute('data-xyscope-parent-group'))).toEqual(['master-controls', 'design', 'react', 'palette'])
+    const group = (name: string) => container.querySelector(`[data-xyscope-parent-group="${name}"]`)!
+    for (const id of ['intensity', 'audioReactivity', 'bpmSync', 'auto', 'flashLimit', 'hold']) expect(group('master-controls').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'depthCue', 'duplicates', 'hiddenEdges', 'outline', 'width', 'glow', 'trail', 'scan', 'travel']) expect(group('design').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['readableFloor', 'maxDisplacement', 'minReadable', 'attack', 'release', 'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse', 'sceneEvery', 'seed']) expect(group('react').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['color', 'glow-color', 'background']) expect(group('palette').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-wire-auto')!.click())
+    expect(state().wire.autoPerformance).toBe(true)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-wire-flashLimit')!.click())
+    expect(state().wire.values.flashLimit).toBe(false)
+    await act(async () => container.querySelector<HTMLElement>('#xyscope-wire-outline')!.click())
+    expect(state().wire.values.outline).toBe(false)
+    // Leaving for another source and coming back keeps the settings.
+    const oscillator = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
+    await act(async () => oscillator.click())
+    expect(state().sourceMode).toBe('oscillator')
+    await act(async () => sourceCard.click())
+    expect(state().sourceMode).toBe('wire')
+    expect(state().wire.autoPerformance).toBe(true)
   })
 
   it('filters instrument presets by source and searches within that source', async () => {

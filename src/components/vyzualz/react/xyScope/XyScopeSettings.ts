@@ -12,6 +12,7 @@ import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from 
 import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
 import { DEFAULT_OCTA_SETTINGS, normalizeOctaSettings, OCTA_PRESET_ID, type XyScopeOctaSettings } from './XyScopeOctaSettings'
+import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, type XyScopeWireSettings } from './XyScopeWireSettings'
 import { DEFAULT_INIT_SETTINGS, INIT_PRESET_ID, normalizeInitSettings, type XyScopeInitSettings } from './XyScopeInitSettings'
 import { DEFAULT_OSC2_SETTINGS, normalizeOsc2Settings, OSC2_PRESET_ID, type XyScopeOsc2Settings } from './XyScopeOsc2Settings'
 import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
@@ -33,7 +34,7 @@ export const XY_SCOPE_GROUP_LABELS: Readonly<Record<XyScopeParameterGroup, strin
 
 /** Nested groups inside the Design parent, in order. Controls with no subgroup come first. */
 export const XY_SCOPE_REACT_SUBGROUPS = ['Audio Intelligence'] as const
-export type XyScopeSourceMode = 'text' | 'textV2' | 'osc1' | 'osc2' | 'init' | 'octa' | 'svg' | 'oscillator'
+export type XyScopeSourceMode = 'text' | 'textV2' | 'osc1' | 'osc2' | 'init' | 'octa' | 'wire' | 'svg' | 'oscillator'
 
 /** The text sources use the editable word inputs and font library. V2 and OSC 1 own their performance. */
 export function isXyScopeTextSource(source: XyScopeSourceMode | undefined): source is 'text' | 'textV2' | 'osc1' | 'osc2' {
@@ -41,8 +42,8 @@ export function isXyScopeTextSource(source: XyScopeSourceMode | undefined): sour
 }
 
 /** User-facing source cards group instruments without changing their persisted runtime modes. */
-export function getXyScopeSourceCategory(source: XyScopeSourceMode): 'text' | 'svg' | 'oscillator' {
-  return isXyScopeTextSource(source) ? 'text' : source === 'svg' ? 'svg' : 'oscillator'
+export function getXyScopeSourceCategory(source: XyScopeSourceMode): 'text' | 'svg' | 'oscillator' | 'wire' {
+  return isXyScopeTextSource(source) ? 'text' : source === 'svg' ? 'svg' : source === 'wire' ? 'wire' : 'oscillator'
 }
 export type XyScopeSvgProcessing = 'outline' | 'segments' | 'points'
 export const XY_SCOPE_SVG_PROCESSING = [{ value: 'outline', label: 'Outline' }, { value: 'segments', label: 'Dashed Trace' }, { value: 'points', label: 'Point Trace' }] as const
@@ -241,7 +242,7 @@ export interface XyScopePreset {
   name: string
   description: string
   /** Instrument presets belong to one source; standard parameter presets work across sources. */
-  source?: 'text' | 'oscillator'
+  source?: 'text' | 'oscillator' | 'wire'
   parameters: Readonly<Record<string, XyScopeParameterValue>>
 }
 
@@ -290,10 +291,16 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
     description: 'Five wireframe octahedra drawn by one green phosphor beam, distorted by the music\'s energy: tumble, loops, a cage of rings, then dots.',
     parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
   },
+  {
+    // CUBES is the preset of the WIREFRAME source: 3D wireframe cubes drawn by one beam, moved by the music within bounds.
+    id: CUBES_PRESET_ID, name: 'CUBES', source: 'wire',
+    description: 'A core cube and orbiting satellites drawn by one phosphor beam. Kicks, bass and mids each move them in bounds, and they always settle back to the clean figure.',
+    parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
+  },
 ] satisfies readonly XyScopePreset[])
 
 /** Presets that are complete instruments: choosing one switches the engine, and the engine and preset always agree. */
-const ENGINE_PRESETS: Readonly<Partial<Record<XyScopeSourceMode, string>>> = { textV2: 'textV2', osc1: OSC1_PRESET_ID, osc2: OSC2_PRESET_ID, init: INIT_PRESET_ID, octa: OCTA_PRESET_ID }
+const ENGINE_PRESETS: Readonly<Partial<Record<XyScopeSourceMode, string>>> = { textV2: 'textV2', osc1: OSC1_PRESET_ID, osc2: OSC2_PRESET_ID, init: INIT_PRESET_ID, octa: OCTA_PRESET_ID, wire: CUBES_PRESET_ID }
 const ENGINE_PRESET_IDS = new Set<string>(Object.values(ENGINE_PRESETS) as string[])
 
 export function getXyScopePreset(id: string | null | undefined): XyScopePreset | undefined {
@@ -313,6 +320,7 @@ export interface XyScopeSettings {
   osc2: XyScopeOsc2Settings
   init: XyScopeInitSettings
   octa: XyScopeOctaSettings
+  wire: XyScopeWireSettings
   svgMediaId: string | null
   svgProcessing: XyScopeSvgProcessing
   /** The word drawn. Single line, upper-cased on draw. */
@@ -337,6 +345,7 @@ export const DEFAULT_XY_SCOPE_SETTINGS: Readonly<XyScopeSettings> = Object.freez
   osc2: DEFAULT_OSC2_SETTINGS,
   init: DEFAULT_INIT_SETTINGS,
   octa: DEFAULT_OCTA_SETTINGS,
+  wire: DEFAULT_WIRE_SETTINGS,
   svgMediaId: null,
   svgProcessing: 'outline',
   text: XY_SCOPE_DEFAULT_TEXT,
@@ -376,7 +385,7 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
     : {}
   const parameters: Record<string, XyScopeParameterValue> = {}
   for (const definition of XY_SCOPE_PARAMETERS) parameters[definition.id] = normalizeXyScopeParameterValue(definition, stored[definition.id])
-  const sourceMode: XyScopeSourceMode = record.sourceMode === 'textV2' || record.sourceMode === 'osc1' || record.sourceMode === 'osc2' || record.sourceMode === 'init' || record.sourceMode === 'octa' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text'
+  const sourceMode: XyScopeSourceMode = record.sourceMode === 'textV2' || record.sourceMode === 'osc1' || record.sourceMode === 'osc2' || record.sourceMode === 'init' || record.sourceMode === 'octa' || record.sourceMode === 'wire' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text'
   // Instrument modes and presets always agree, including projects saved before Text V2 was a preset.
   const storedPreset = record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId)
   const presetId = ENGINE_PRESETS[sourceMode] ?? (storedPreset && ENGINE_PRESET_IDS.has(storedPreset) ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset)
@@ -387,6 +396,7 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
     osc2: normalizeOsc2Settings(record.osc2),
     init: normalizeInitSettings(record.init),
     octa: normalizeOctaSettings(record.octa),
+    wire: normalizeWireSettings(record.wire),
     svgMediaId: typeof record.svgMediaId === 'string' && record.svgMediaId.length > 0 && record.svgMediaId.length <= 512 ? record.svgMediaId : null,
     svgProcessing: record.svgProcessing === 'segments' || record.svgProcessing === 'points' ? record.svgProcessing : 'outline',
     text: record.text === undefined ? XY_SCOPE_DEFAULT_TEXT : normalizeXyScopeText(record.text),
