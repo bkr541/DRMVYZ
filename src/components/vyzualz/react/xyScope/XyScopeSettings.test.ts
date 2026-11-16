@@ -175,6 +175,22 @@ describe('Sound Drawing XY presets', () => {
     expect(applyXyScopePreset(base, 'unknown')).toBe(base)
   })
 
+  it('restores legacy Text V2 selections as a preset without changing their authored settings', () => {
+    const restored = normalizeXyScopeSettings({ sourceMode: 'textV2', presetId: 'storm', text: 'SAVED', fontId: 'saved-font', textV2: { autoPerformance: false, abstraction: .7, grouping: 'letters' } })
+    expect(restored).toMatchObject({ sourceMode: 'textV2', presetId: 'textV2', text: 'SAVED', fontId: 'saved-font', textV2: { autoPerformance: false, abstraction: .7, grouping: 'letters' } })
+  })
+
+  it('switches text instruments while retaining their independent settings and shared inputs', () => {
+    const base = normalizeXyScopeSettings({ text: 'KEEP', additionalTexts: ['ALSO'], fontId: 'font-1', textV2: { abstraction: .7, autoPerformance: false } })
+    let next = base
+    for (const presetId of ['textV2', 'osc1', 'osc2', 'clean-scope', 'textV2']) {
+      next = applyXyScopePreset(next, presetId)
+      expect(next).toMatchObject({ text: base.text, additionalTexts: base.additionalTexts, fontId: base.fontId, textV2: base.textV2, osc1: base.osc1, osc2: base.osc2 })
+      expect(next.sourceMode).toBe(presetId === 'clean-scope' ? 'text' : presetId)
+      expect(next.presetId).toBe(presetId)
+    }
+  })
+
   it('resolves typed values for the runtime', () => {
     const resolved = resolveXyScopeParameters(DEFAULT_XY_SCOPE_SETTINGS)
     expect(resolved.trailMs).toBe(110)

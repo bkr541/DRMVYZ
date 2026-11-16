@@ -221,17 +221,17 @@ describe('Sound Drawing XY source, presets and React tab', () => {
   it('defaults to TEXT and preserves text settings while browsing source cards', async () => {
     await act(async () => root.render(<XyScopeEnginePanel />))
     const cards = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button'))
-    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'TEXT V2', 'SVG', 'OSCILATOR'])
+    expect(cards.map(card => card.textContent)).toEqual(['TEXT', 'SVG', 'OSCILATOR'])
     expect(cards[0].getAttribute('aria-pressed')).toBe('true')
     const settings = useReactStore.getState().xyScopeSettings
-    for (const card of cards.slice(2)) {
+    for (const card of cards.slice(1)) {
       await act(async () => card.click())
       expect(card.getAttribute('aria-pressed')).toBe('true')
       expect(container.querySelector('#xyscope-text')).toBeNull()
       expect(container.querySelector('#xyscope-font')).toBeNull()
       expect(useReactStore.getState().xyScopeSettings.text).toBe(settings.text)
       expect(useReactStore.getState().xyScopeSettings.fontId).toBe(settings.fontId)
-      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[2] ? 'svg' : 'oscillator')
+      expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe(card === cards[1] ? 'svg' : 'oscillator')
     }
     await act(async () => cards[0].click())
     expect(container.querySelector<HTMLInputElement>('#xyscope-text')?.value).toBe(settings.text)
@@ -259,16 +259,25 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(useReactStore.getState().xyScopeSettings.parameters).toEqual(manualParameters)
   })
 
-  it('selects TEXT V2 with the same text, font, add button and letter controls', async () => {
-    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopeDesignPanel /></>))
-    const card = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button')).find(button => button.textContent === 'TEXT V2')!
+  it('selects Text V2 as a TEXT preset with the same text, font, add button and letter controls', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="textV2"]')!
     await act(async () => card.click())
-    expect(card.getAttribute('aria-pressed')).toBe('true')
+    const textCard = Array.from(container.querySelectorAll<HTMLButtonElement>('.rv-xyscope-source-grid button')).find(button => button.textContent === 'TEXT')!
+    expect(textCard.getAttribute('aria-pressed')).toBe('true')
     expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('textV2')
+    expect(useReactStore.getState().xyScopeSettings.presetId).toBe('textV2')
+    expect(container.querySelector('[data-text-v2-design]')).not.toBeNull()
     expect(container.querySelector('#xyscope-font')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Add text input"]')).not.toBeNull()
     expect(container.querySelector('#xyscope-parameter-letterSpacing')).not.toBeNull()
     await act(async () => setInputValue(container.querySelector<HTMLInputElement>('#xyscope-text')!, 'VERSION TWO'))
     expect(useReactStore.getState().xyScopeSettings.text).toBe('VERSION TWO')
+    await act(async () => textCard.click())
+    expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('textV2')
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="conversation"]')!.click())
+    expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('text')
+    expect(container.querySelector('[data-text-v2-design]')).toBeNull()
   })
 
   it('offers OSC 1 as a preset that keeps the same text input and font dropdown and shows the Text Lab controls', async () => {
@@ -280,6 +289,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     const settings = useReactStore.getState().xyScopeSettings
     expect(settings.sourceMode).toBe('osc1')
     expect(settings.presetId).toBe('osc1')
+    expect(container.querySelector('.rv-xyscope-source-grid [aria-pressed="true"]')?.textContent).toBe('TEXT')
     // Left window: the same Input group with the text field and font dropdown.
     expect(container.querySelector('#xyscope-text')).not.toBeNull()
     expect(container.querySelector('#xyscope-font')).not.toBeNull()
@@ -307,6 +317,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(card.textContent).toContain('OSC 2')
     await act(async () => card.click())
     expect(useReactStore.getState().xyScopeSettings.sourceMode).toBe('osc2')
+    expect(container.querySelector('.rv-xyscope-source-grid [aria-pressed="true"]')?.textContent).toBe('TEXT')
     expect(container.querySelector('#xyscope-text')).not.toBeNull()
     expect(container.querySelector('#xyscope-font')).not.toBeNull()
     expect(container.querySelector('[data-osc2-design]')).not.toBeNull()
@@ -321,6 +332,8 @@ describe('Sound Drawing XY source, presets and React tab', () => {
 
   it('offers INIT under the OSCILATOR source with an Input group, the four standard groups and its own controls', async () => {
     await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
+    await act(async () => sourceCard.click())
     const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="init"]')!
     expect(card.textContent).toContain('INIT')
     expect(container.querySelector('[data-xyscope-input-group="init"]')).toBeNull()
@@ -329,7 +342,6 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(state().sourceMode).toBe('init')
     expect(state().presetId).toBe('init')
     // The OSCILATOR source card stays lit; INIT is a preset of it.
-    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
     expect(sourceCard.getAttribute('aria-pressed')).toBe('true')
     // Source tab: an Input group with the oscillator count, below the source cards.
     const input = container.querySelector('[data-xyscope-input-group="init"]')!
@@ -362,21 +374,24 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect(container.querySelector<HTMLInputElement>('#xyscope-init-waveHeight')!.disabled).toBe(true)
     await act(async () => useReactStore.getState().setXyScopeSettings({ init: { ...state().init, oscillators: 3 } }))
     for (const id of ['color1', 'color2', 'color3']) expect(container.querySelector(`#xyscope-init-${id}`), id).not.toBeNull()
-    // Choosing the OSCILATOR card returns to the figure source.
+    // Selecting the active source keeps its instrument; a standard preset returns to its base source.
     await act(async () => sourceCard.click())
+    expect(state().sourceMode).toBe('init')
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="storm"]')!.click())
     expect(state().sourceMode).toBe('oscillator')
     expect(state().presetId).not.toBe('init')
   })
 
   it('offers OCTA under the OSCILATOR source with the four standard groups and its own controls', async () => {
     await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /><XyScopeDesignPanel /></>))
+    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
+    await act(async () => sourceCard.click())
     const card = container.querySelector<HTMLElement>('[data-xyscope-preset-id="octa"]')!
     expect(card.textContent).toContain('OCTA')
     await act(async () => card.click())
     const state = () => useReactStore.getState().xyScopeSettings
     expect(state().sourceMode).toBe('octa')
     expect(state().presetId).toBe('octa')
-    const sourceCard = [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === 'OSCILATOR')!
     expect(sourceCard.getAttribute('aria-pressed')).toBe('true')
     expect(container.querySelector('[data-octa-design]')).not.toBeNull()
     const groups = [...container.querySelectorAll('[data-xyscope-parent-group]')].map(el => el.getAttribute('data-xyscope-parent-group'))
@@ -391,7 +406,23 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     await act(async () => container.querySelector<HTMLElement>('#xyscope-octa-axes')!.click())
     expect(state().octa.values.axes).toBe(false)
     await act(async () => sourceCard.click())
+    expect(state().sourceMode).toBe('octa')
+    await act(async () => container.querySelector<HTMLElement>('[data-xyscope-preset-id="storm"]')!.click())
     expect(state().sourceMode).toBe('oscillator')
+  })
+
+  it('filters instrument presets by source and searches within that source', async () => {
+    await act(async () => root.render(<><XyScopeEnginePanel /><XyScopePresetsPanel /></>))
+    const ids = () => [...container.querySelectorAll('[data-xyscope-preset-id]')].map(el => el.getAttribute('data-xyscope-preset-id'))
+    expect(ids()).toEqual(['textV2', 'conversation', 'clean-scope', 'storm', 'osc1', 'osc2'])
+    const source = (label: string) => [...container.querySelectorAll<HTMLElement>('.rv-sound-source-card')].find(el => el.textContent === label)!
+    await act(async () => source('OSCILATOR').click())
+    expect(ids()).toEqual(['conversation', 'clean-scope', 'storm', 'init', 'octa'])
+    await act(async () => source('SVG').click())
+    expect(ids()).toEqual(['conversation', 'clean-scope', 'storm'])
+    await act(async () => source('TEXT').click())
+    await act(async () => setInputValue(container.querySelector<HTMLInputElement>('input[aria-label="Search Sound Drawing XY presets"]')!, 'OSC'))
+    expect(ids()).toEqual(['textV2', 'osc1', 'osc2'])
   })
 
   it('renders this engine in the left panel through the shared engine panel', async () => {

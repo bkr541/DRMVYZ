@@ -51,7 +51,7 @@ describe('Sound Drawing XY store and persistence contract', () => {
     useReactStore.getState().setXyScopeSettings({ sourceMode: 'textV2', text: 'V2', additionalTexts: ['HELLO', 'WORLD'], fontId: 'font-v2' })
     const persisted = reactStorePartialize(useReactStore.getState()) as Record<string, unknown>
     const restored = mergeReactStoreState(persisted, useReactStore.getState())
-    expect(restored.xyScopeSettings).toMatchObject({ sourceMode: 'textV2', text: 'V2', additionalTexts: ['HELLO', 'WORLD'], fontId: 'font-v2' })
+    expect(restored.xyScopeSettings).toMatchObject({ sourceMode: 'textV2', presetId: 'textV2', text: 'V2', additionalTexts: ['HELLO', 'WORLD'], fontId: 'font-v2' })
     expect(migrateReactStore(persisted, 80).xyScopeSettings).toMatchObject({ sourceMode: 'textV2' })
   })
 

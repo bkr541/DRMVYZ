@@ -123,7 +123,7 @@ Cinema 2.0 and Headliner use **Effects** as the third group. Sound Drawing XY us
 
 Pattern Change defaults to **on** so the engine performs when it is first opened. The Clean Scope preset turns it off, retaining the Word performance; Motion Amount or Audio Reactivity at zero provides a still word.
 
-The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG and OSCILATOR cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab lists Converse, Clean Scope and Storm. A preset sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
+The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG and OSCILATOR cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1 and OSC 2; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1 and OSC 2; OSCILATOR stays active for INIT and OCTA. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
 
@@ -212,7 +212,7 @@ The original `text` and up to four `additionalTexts` persist in project settings
 
 ### TEXT V2
 
-The SOURCE chooser includes **TEXT V2** beside **TEXT**, sharing the five editable text inputs and font library. V2 uses its own signal-driven oscillator performance and compact controls; its `textV2` configuration persists separately from the original text parameters. SVG and OSCILATOR retain their existing behavior.
+**Text V2** is a preset within **TEXT**, sharing the five editable text inputs and font library with the original text presets, OSC 1 and OSC 2. Selecting it activates its original signal-driven oscillator performance and compact controls; selecting Converse, Clean Scope or Storm returns to the original text behavior. Each instrument retains its own configuration when switching presets. V2 keeps its persisted `sourceMode: 'textV2'` and separate `textV2` configuration; older projects with that source automatically select the Text V2 preset without resetting authored settings. INIT and OCTA remain presets within OSCILATOR.
 
 #### Text V2 oscillator and Auto Performance
 
@@ -231,7 +231,7 @@ Focused tests cover musical decisions versus elapsed time, confidence, duplicate
 
 ### OSC 1 preset
 
-OSC 1 is a preset card in the Presets tab. Choosing it switches the engine to the directional oscilloscope text instrument ported from XY / Text Lab 05 (`sourceMode: 'osc1'`, `presetId: 'osc1'`); choosing any other preset returns to the standard text source. The left SOURCE window is unchanged: the same Input group with the text field(s) and font dropdown, so any library font drives the letter contours.
+OSC 1 is a preset card in the TEXT source’s Presets tab. Choosing it switches the engine to the directional oscilloscope text instrument ported from XY / Text Lab 05 (`sourceMode: 'osc1'`, `presetId: 'osc1'`); choosing Converse, Clean Scope or Storm returns to the standard text source, while Text V2 and OSC 2 activate their own instruments. The left SOURCE window is unchanged: the same Input group with the text field(s) and font dropdown, so any library font drives the letter contours.
 
 - **Engine** (`XyScopeOsc1Engine.ts`): anchored contours that only ever stretch outward. Eight frequency regions map to eight directions, with transient bursts, stereo axis extension, triggered-PCM detail and a legibility cap. No free-running motion, springs, rotation or noise.
 - **Five response systems**: Band / deflection, Stereo / vectors, Harmonic / fans, Transient / burst, Resonance / rays. Each keeps its own sixteen control values and phosphor colour.

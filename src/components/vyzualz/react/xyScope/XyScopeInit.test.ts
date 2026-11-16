@@ -33,7 +33,7 @@ describe('INIT settings', () => {
     expect(normalizeXyScopeSettings({ ...next, presetId: 'conversation' }).presetId).toBe('init')
     // Leaving the engine (the OSCILATOR card, or another preset) never keeps the INIT preset id.
     expect(normalizeXyScopeSettings({ ...next, sourceMode: 'oscillator' }).presetId).toBe('conversation')
-    expect(applyXyScopePreset(next, 'storm').sourceMode).toBe('text')
+    expect(applyXyScopePreset(next, 'storm').sourceMode).toBe('oscillator')
   })
 })
 

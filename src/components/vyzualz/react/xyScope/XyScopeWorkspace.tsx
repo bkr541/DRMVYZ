@@ -11,6 +11,7 @@ import {
   applyXyScopePreset,
   getXyScopeDefaultParameters,
   getXyScopePreset,
+  getXyScopeSourceCategory,
   isXyScopeParameterVisible,
   isXyScopeTextSource,
   XY_SCOPE_DESIGN_SUBGROUPS,
@@ -119,7 +120,6 @@ function XyScopeParameterControl({
 
 const XY_SOURCE_CARDS = [
   { id: 'text', label: 'TEXT', icon: 'text' },
-  { id: 'textV2', label: 'TEXT V2', icon: 'text' },
   { id: 'svg', label: 'SVG', icon: 'svg' },
   { id: 'oscillator', label: 'OSCILATOR', icon: 'scope' },
 ] as const
@@ -134,9 +134,11 @@ export function XyScopeEnginePanel() {
     fontAssets: state.oscillatorFontAssets,
   })))
   const source = settings.sourceMode
-  const setSource = (sourceMode: typeof XY_SOURCE_CARDS[number]['id']) => setXyScopeSettings({ sourceMode })
-  // INIT and OCTA are presets of the OSCILATOR source, so that card stays lit while either runs.
-  const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => source === id || (id === 'oscillator' && (source === 'init' || source === 'octa'))
+  const sourceCategory = getXyScopeSourceCategory(source)
+  const setSource = (sourceMode: typeof XY_SOURCE_CARDS[number]['id']) => {
+    if (sourceMode !== sourceCategory) setXyScopeSettings({ sourceMode })
+  }
+  const isCardActive = (id: typeof XY_SOURCE_CARDS[number]['id']) => sourceCategory === id
   const resolution = useXyScopeFont(settings.fontId)
   const previewStatus = useFontPreviewPreload(fontAssets)
   const options = useMemo(() => {
@@ -267,15 +269,18 @@ export function XyScopeEnginePanel() {
   )
 }
 
-/** Right inspector, PRESETS tab. A preset sets the React and Master values and leaves the word, font and palette alone. */
+/** Right inspector, PRESETS tab: source-specific instruments plus shared parameter presets. */
 export function XyScopePresetsPanel() {
+  const source = useReactStore(state => state.xyScopeSettings.sourceMode)
   const activePresetId = useReactStore(state => state.xyScopeSettings.presetId)
   const parameters = useReactStore(state => state.xyScopeSettings.parameters)
   const beamColor = parameters.beamColor
   const setXyScopeSettings = useReactStore(state => state.setXyScopeSettings)
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-  const presets = XY_SCOPE_PRESETS.filter(preset => needle === '' || `${preset.name} ${preset.description}`.toLowerCase().includes(needle))
+  const category = getXyScopeSourceCategory(source)
+  const presets = XY_SCOPE_PRESETS.filter(preset => (!preset.source || preset.source === category)
+    && (needle === '' || `${preset.name} ${preset.description}`.toLowerCase().includes(needle)))
 
   return (
     <section className="rv-engine-panel-list" aria-label="Sound Drawing XY presets">
