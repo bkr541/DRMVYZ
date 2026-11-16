@@ -1,9 +1,12 @@
-// Sound Drawing XY › WIREFRAME: the engine. One phosphor beam draws a cluster of 3D wireframe cubes (a core and up to four satellites).
-// Per frame it: places the cubes (orbit, turn, scale), lets the music deform them within bounds, projects them to the screen, and lays the
-// edges out as a continuous beam path that the shared scanner draws. The cubes themselves (the shape) are never changed.
+// Sound Drawing XY › WIREFRAME: the engine. One phosphor beam draws a cluster of 3D wireframe solids (a core and up to four satellites:
+// cubes, platonic solids or a 4D tesseract). Per frame it: places the figures (orbit, turn, scale), lets the music deform them within
+// bounds, projects them to the screen, and lays the edges out as a continuous beam path that the shared scanner draws. The shape is never
+// changed. Every edge is also an oscillator: a sine wave with its own pitch, phase and chaos that follows the music, mixed with the live
+// captured waveform, drawn as the line's sideways ripple (corners pinned).
 //
 // The pieces, each in its own tested module:
-//   XyScopeWireShape      the immutable cubes
+//   XyScopeWireShape      the immutable solids
+//   XyScopeWireConductor  Auto Performance: moves the whole instrument from the audio intelligence
 //   XyScopeWireRoute      one continuous stroke through every edge, with honest hops between cubes
 //   XyScopeWireProject    quaternions, perspective, hidden edges
 //   XyScopeWireModulation per-feature, bounded, track-relative mappings
@@ -18,9 +21,10 @@ import { applyField, constrainWeight, displacementField, placeShape, type CubePl
 import { WireModMatrix, NO_TARGETS, type WireModSettings, type WireReading, type WireTargets } from './XyScopeWireModulation'
 import { DEFAULT_WIRE_CAMERA, findHiddenEdges, projectPoint, quatFromAxisAngle, quatMul, quatNormalize, quatRotate, type Quat, type WireCamera } from './XyScopeWireProject'
 import { routeEdges, type WireRoute } from './XyScopeWireRoute'
-import { buildCubeCluster, edgesOfGroups, type WireShape } from './XyScopeWireShape'
+import { buildFigure, edgesOfGroups, MAX_GROUP_EDGES, MAX_GROUP_VERTICES, MAX_WIRE_CUBES, verticesOfGroups, type WireFigureId, type WireShape } from './XyScopeWireShape'
+import { NEUTRAL_MOOD, WireConductor, type WireMood } from './XyScopeWireConductor'
 import type { WireCue } from './XyScopeWireCues'
-import type { WireValues } from './XyScopeWireSettings'
+import { WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
 
 const TAU = Math.PI * 2
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
@@ -49,13 +53,31 @@ export interface WireTick {
   dt: number
   reading: WireReading
   cue: WireCue
+  /** The user's values. While Auto Performance is on, the conductor moves them by the music; off, they are used as they are. */
   values: WireValues
   auto: boolean
+  /** What the music says about the feel of this passage (see XyScopeWireConductor). Omitted means a neutral one. */
+  mood?: Readonly<WireMood>
   /** A seek, loop or track change: every state starts again from the readable figure. */
   discontinuity: boolean
 }
 
 type Kind = 0 | 1 // 0 draws an edge, 1 is a hop
+
+const MAX_VERTICES = MAX_WIRE_CUBES * MAX_GROUP_VERTICES
+const MAX_EDGES = MAX_WIRE_CUBES * MAX_GROUP_EDGES
+/** How often the chaotic map that drives the lines steps, per second. */
+const CHAOS_RATE = 40
+/** Past this many cycles along an edge, the wave's depth is eased down so its slope (and so the figure) stays readable. */
+const SLOPE_CYCLES = 5
+/** How quickly a new figure grows in, in seconds. */
+const ENTRANCE_SEC = .55
+
+/** A repeatable pseudo-random number in 0..1 for (index, salt, seed). Used for per-edge constants, never per frame. */
+function unit(index: number, salt: number, seed: number): number {
+  const x = Math.sin(index * 127.1 + salt * 311.7 + seed * 74.7) * 43758.5453
+  return x - Math.floor(x)
+}
 
 export class WireEngine {
   readonly letters: WireStream[] = [{ kind: 'wire', advance: 0, table: new Float32Array(1), scanPhase: 0, lastLit: false, lastX: 0, lastY: 0, rate: 1 }]
@@ -66,9 +88,11 @@ export class WireEngine {
   readonly sampleRate = 54000
   beamSamples = 0
 
-  readonly shape: WireShape = buildCubeCluster()
+  /** The figure being drawn (an immutable cluster of solids); it changes only when the figure does. */
+  shape: WireShape = buildFigure(WIRE_DEFAULTS.figure)
   readonly director = new WireDirector()
   readonly matrix = new WireModMatrix()
+  readonly conductor = new WireConductor()
   readonly camera: WireCamera = { ...DEFAULT_WIRE_CAMERA }
 
   // What the inspector and the tests read.
@@ -81,9 +105,15 @@ export class WireEngine {
   /** The share of the music's deformation that the readability guard let through (1 = all of it). */
   weight = 1
   targets: WireTargets = { ...NO_TARGETS }
+  /** The values actually drawn this frame: the user's, moved by the music while Auto Performance is on. */
+  effective: WireValues = { ...WIRE_DEFAULTS }
+  /** The smoothed mood behind them, and what kind of passage the conductor hears. */
+  mood: WireMood = { ...NEUTRAL_MOOD }
+  feel: 'CALM' | 'DRIVING' | 'TENSE' | 'PEAK' = 'CALM'
+  figure: WireFigureId = WIRE_DEFAULTS.figure
   /** Corner positions as placed (before the music) and as drawn, three floats per corner. */
-  readonly base = new Float32Array(this.shape.vertices.length)
-  readonly deformed = new Float32Array(this.shape.vertices.length)
+  readonly base = new Float32Array(MAX_VERTICES * 3)
+  readonly deformed = new Float32Array(MAX_VERTICES * 3)
   /** Extra beam width from kicks, as a share of the Beam Width setting. */
   beamWidthBoost = 0
   pointCount = 0
@@ -92,7 +122,7 @@ export class WireEngine {
   waveGain = 1
   /** True when `wave` is a real capture of the audio. Otherwise the engine draws a stand-in built from the analysed bands. */
   hasWave = false
-  /** How hard the waveform drives the x, y and z edges of each cube this frame (0..1): bass, mids and highs respectively. */
+  /** How hard the oscillators drive the x, y and z edges of each solid this frame (0..1): bass, mids and highs respectively. */
   readonly rippleAxis = new Float32Array(3)
   /** How much the path's length has been compensated for (1 for a short path). Tests divide it out to compare passes. */
   energyScale = 1
@@ -102,20 +132,27 @@ export class WireEngine {
   private phase = 0
   private orbitPhase = 0
   private tumblePhase = 0
+  private hyperPhase = 0
   private lastFlash = -10
-  private readonly field = new Float32Array(this.shape.vertices.length)
+  private entrance = 1
+  private chaosClock = 0
+  private constSeed = -1
+  private readonly field = new Float32Array(MAX_VERTICES * 3)
   private readonly synth = new Float32Array(512)
-  /** Which axis of its cube each edge lies along (0 x, 1 y, 2 z). */
-  private readonly edgeAxis = (() => {
-    const axis = new Uint8Array(this.shape.edges.length / 2)
-    for (let e = 0; e < axis.length; e++) { const diff = (this.shape.edges[e * 2] % 8) ^ (this.shape.edges[e * 2 + 1] % 8); axis[e] = diff === 1 ? 0 : diff === 2 ? 1 : 2 }
-    return axis
-  })()
-  private readonly projected: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(this.shape.vertices.length / 3 * 2))
-  private readonly hidden: Uint8Array[] = Array.from({ length: MAX_PASSES }, () => new Uint8Array(this.shape.edges.length / 2))
-  private readonly depth: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(this.shape.vertices.length / 3))
-  private readonly routes = new Map<number, WireRoute>()
-  private values!: WireValues
+  // Per-edge oscillators: the line's own sine wave. Constants are fixed by the figure and the seed; the rest moves each frame.
+  private readonly edgeU = [new Float32Array(MAX_EDGES), new Float32Array(MAX_EDGES), new Float32Array(MAX_EDGES)]
+  private readonly edgePhase = new Float32Array(MAX_EDGES)
+  private readonly edgeChaos = new Float32Array(MAX_EDGES)
+  private readonly edgeCycles = new Float32Array(MAX_EDGES)
+  private readonly edgeBeta = new Float32Array(MAX_EDGES)
+  private readonly edgeRatio = new Float32Array(MAX_EDGES)
+  private readonly edgeHarmonic = new Float32Array(MAX_EDGES)
+  private readonly edgeAmp = new Float32Array(MAX_EDGES)
+  private readonly projected: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(MAX_VERTICES * 2))
+  private readonly hidden: Uint8Array[] = Array.from({ length: MAX_PASSES }, () => new Uint8Array(MAX_EDGES))
+  private readonly depth: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(MAX_VERTICES))
+  private readonly routes = new Map<string, WireRoute>()
+  private values: WireValues = { ...WIRE_DEFAULTS }
   private flashBoost = 0
   // The beam path: one point per segment start. kind says what leaves the point; gain scales the beam on that segment.
   private count = 0
@@ -124,7 +161,7 @@ export class WireEngine {
   private kinds: Kind[] = []
   private gain = new Float32Array(0)
   private boost = new Uint8Array(0)
-  /** Per point: how far the waveform may push the segment sideways (screen units), the edge it draws, and whether it is drawn against the edge's own direction. */
+  /** Per point: how far the oscillator may push the segment sideways (screen units), the edge it draws, and whether it is drawn against the edge's own direction. */
   private ripple = new Float32Array(0)
   private edgeOf = new Int16Array(0)
   private reversed = new Uint8Array(0)
@@ -132,26 +169,57 @@ export class WireEngine {
   private rest = new Float32Array(1)
   private cursor = 0
 
+  constructor() { this.seedEdges(this.values.seed) }
+
   reset(): void {
-    this.time = 0; this.phase = 0; this.orbitPhase = 0; this.tumblePhase = 0; this.lastFlash = -10
-    this.director.reset(); this.matrix.reset()
+    this.time = 0; this.phase = 0; this.orbitPhase = 0; this.tumblePhase = 0; this.hyperPhase = 0; this.lastFlash = -10; this.entrance = 1; this.chaosClock = 0
+    this.director.reset(); this.matrix.reset(); this.conductor.reset()
     this.state = 'READABLE'; this.sceneId = 'base'; this.lastEvent = '—'; this.abstract = 0; this.readableFraction = 1
     this.weight = 1; this.targets = { ...NO_TARGETS }; this.beamWidthBoost = 0; this.flashBoost = 0
+    this.edgePhase.fill(0); this.seedEdges(this.values.seed)
     this.cursor = 0
     this.letters[0].scanPhase = 0; this.letters[0].lastLit = false
   }
 
-  /** The route that draws the first `cubes` cubes, built once per count. */
-  private routeFor(cubes: number): WireRoute {
-    let route = this.routes.get(cubes)
-    if (!route) { route = routeEdges(this.shape.vertices.length / 3, edgesOfGroups(this.shape, cubes)); this.routes.set(cubes, route) }
+  /** The constants of each edge's oscillator (pitch spread, phase, chaos start), fixed by the seed and the figure so the same figure always looks the same. */
+  private seedEdges(seed: number): void {
+    this.constSeed = seed
+    for (let e = 0; e < MAX_EDGES; e++) {
+      for (let k = 0; k < 3; k++) this.edgeU[k][e] = unit(e, k + 1, seed)
+      this.edgePhase[e] = this.edgeU[2][e]
+      this.edgeChaos[e] = .1 + .8 * unit(e, 7, seed)
+    }
+  }
+
+  /** Switches to another figure. The shape is immutable, so this only points at a different one and lets it grow in. */
+  private setFigure(figure: WireFigureId): void {
+    if (figure === this.figure && this.shape.id === figure) return
+    this.figure = figure; this.shape = buildFigure(figure)
+    this.entrance = 0; this.cursor = 0
+  }
+
+  /** The route that draws the first `groups` solids, built once per figure and count. */
+  private routeFor(groups: number): WireRoute {
+    const key = `${this.shape.id}:${groups}`
+    let route = this.routes.get(key)
+    if (!route) { route = routeEdges(this.shape.vertices.length / 3, edgesOfGroups(this.shape, groups)); this.routes.set(key, route) }
     return route
   }
 
   tick(input: WireTick): void {
-    const { dt, reading, cue, values, auto } = input
-    this.values = values
+    const { dt, reading, cue, auto } = input
     this.time += dt
+
+    // Auto Performance: the conductor moves the user's values by the music (and chooses the figure). Off, they pass through untouched.
+    const conducted = this.conductor.update({
+      dt, playing: reading.playing, auto, mood: input.mood ?? NEUTRAL_MOOD, base: input.values, boundaries: cue.boundaries, drop: cue.drop,
+      gridConfident: cue.gridConfident, trackIdentity: cue.trackIdentity, seed: input.values.seed, discontinuity: input.discontinuity,
+    })
+    const values = conducted.values
+    this.values = values; this.effective = values; this.mood = conducted.mood; this.feel = conducted.feel
+    if (values.seed !== this.constSeed) this.seedEdges(values.seed)
+    this.setFigure(values.figure)
+    this.entrance = Math.min(1, this.entrance + dt / ENTRANCE_SEC)
 
     // Brightness accents are spaced out and capped unless the user turns Flash Limit off.
     let snare = reading.hits.snare
@@ -169,6 +237,7 @@ export class WireEngine {
       dt, playing: reading.playing, auto, cadence: values.sceneEvery, seed: values.seed, minReadable: values.minReadable,
       trackIdentity: cue.trackIdentity, structure: cue.structure, gridConfident: cue.gridConfident, bpm: cue.bpm,
       boundaries: cue.boundaries, drop: cue.drop, hit: Math.max(reading.hits.kick, reading.hits.snare), discontinuity: input.discontinuity,
+      sectionType: input.mood?.sectionType ?? null,
     })
     this.state = director.state; this.sceneId = director.sceneId; this.lastEvent = director.lastEvent
     this.abstract = director.abstract; this.readableFraction = director.readableFraction
@@ -178,39 +247,77 @@ export class WireEngine {
     const tempo = values.bpmSync && cue.bpmValid && cue.bpm ? cue.bpm : FREE_TEMPO
     const turnsPerSecond = values.spin * tempo / 60 / BEATS_PER_TURN
     this.phase += dt * turnsPerSecond
+    const chaos = clamp(values.chaos)
     this.orbitPhase += dt * turnsPerSecond * 1.5 * scene.orbit
-    const tumble = scene.tumble + director.abstract * 1.2
+    const tumble = scene.tumble + director.abstract * 1.2 + chaos * .35
     this.tumblePhase += dt * turnsPerSecond * (.4 + tumble * 1.6)
+    this.hyperPhase += dt * Math.abs(turnsPerSecond) * (.55 + tumble * .9)
 
-    const cubes = 1 + values.satellites
-    const placements = this.placements(cubes, values, scene.spread, scene.breathe, tumble, director.abstract, targets.rotation)
+    const groups = Math.min(this.shape.groups.length, 1 + values.satellites)
+    const placements = this.placements(groups, values, scene.spread, scene.breathe, tumble, director.abstract, targets.rotation, chaos)
     placeShape(this.shape, placements, this.base)
 
-    // The music's deformation of the cubes, bounded and guarded.
-    displacementField(this.shape, this.base, placements, { cubeScale: targets.cubeScale, expand: targets.expand, shear: targets.shear, wobble: targets.wobble, time: this.time }, values.maxDisplacement, this.field)
+    // The music's deformation of the figures, bounded and guarded.
+    displacementField(this.shape, this.base, placements, { cubeScale: targets.cubeScale, expand: targets.expand, shear: targets.shear, wobble: targets.wobble, time: this.time, chaos }, values.maxDisplacement, this.field)
     const guarded = constrainWeight(this.shape, this.base, this.field, placements, values.maxDisplacement, values.readableFloor)
     this.weight = guarded.weight
     this.readability = guarded.readability
-    applyField(this.shape, this.base, this.field, guarded.weight, cubes, this.deformed)
-    this.driveRipple(reading, values)
+    applyField(this.shape, this.base, this.field, guarded.weight, groups, this.deformed)
+    this.driveOscillators(reading, values, dt, groups)
 
-    this.buildPath(cubes, scene.echo, values)
+    this.buildPath(groups, scene.echo, values)
   }
 
   /**
-   * What the waveform does to the edges. The lines carry the audio itself: the triggered waveform ripples along every edge, and which
-   * band drives an edge depends on its direction (bass on the x edges, mids on y, highs on z), plus every kick. With no real capture the
-   * waveform is built from the analysed bands, so the lines still move with the track. Silence leaves exactly straight lines.
+   * What the lines do. Every edge is an oscillator: a sine wave along the edge with its own pitch (spread by the seed, raised by bright
+   * music), a phase that runs at a speed set by the band that drives the edge's direction (bass on x, mids on y, highs on z, every kick on all),
+   * and, with Chaos, a logistic map per edge (coupled to its neighbour) that drifts the pitch, frequency-modulates the wave and adds a harmonic.
+   * The sine is mixed with the live captured waveform. With no real capture the waveform is built from the analysed bands. Silence leaves
+   * exactly straight lines, and the corners are always pinned, so the figures stay readable.
    */
-  private driveRipple(reading: WireReading, values: WireValues): void {
+  private driveOscillators(reading: WireReading, values: WireValues, dt: number, groups: number): void {
     const d = this.matrix.drive
-    // The ripple has its own bound (Wave Depth, with the corners pinned), so it is not eased back by the deformation guard.
+    // The oscillators have their own bound (Wave Depth, with the corners pinned), so they are not eased back by the deformation guard.
     const gate = reading.playing ? values.audioReactivity * values.waveAmount : 0
     const level = reading.playing ? reading.features.level : 0
     const kick = d.kick ?? 0
     const axisDrive = [d.bass ?? 0, d.mid ?? 0, d.air ?? 0]
     for (let a = 0; a < 3; a++) this.rippleAxis[a] = clamp((.22 * level + .8 * axisDrive[a] + .6 * kick) * gate)
     if (!this.hasWave) this.buildSynthWave(reading)
+
+    const chaos = clamp(values.chaos), edgeEnd = this.shape.groups[groups - 1].edgeStart + this.shape.groups[groups - 1].edgeCount
+    // The chaotic map steps at a fixed rate, whatever the frame rate.
+    this.chaosClock += dt
+    let steps = 0
+    while (this.chaosClock >= 1 / CHAOS_RATE && steps < 4) { this.chaosClock -= 1 / CHAOS_RATE; steps++ }
+    if (this.chaosClock > 1 / CHAOS_RATE) this.chaosClock = 0
+    const r = 3.2 + .78 * chaos
+    for (let step = 0; step < steps; step++) {
+      let carry = this.edgeChaos[edgeEnd - 1]
+      for (let e = 0; e < edgeEnd; e++) {
+        const own = this.edgeChaos[e]
+        // Coupled maps: each edge also feels the edge before it, so the wildness spreads along the figure.
+        const next = .72 * r * own * (1 - own) + .28 * r * carry * (1 - carry)
+        carry = own
+        this.edgeChaos[e] = Math.min(.999, Math.max(.001, next))
+      }
+    }
+    const pitch = this.mood.brightness
+    for (let e = 0; e < edgeEnd; e++) {
+      const axis = this.shape.edgeAxis[e], u1 = this.edgeU[0][e], u2 = this.edgeU[1][e]
+      const jit = (this.edgeChaos[e] - .5) * 2
+      // Pitch: the seed's spread, raised for the upper bands and bright music, and pushed around by chaos.
+      const cycles = Math.max(.5, values.waveDetail * (.5 + .9 * u1) * (.8 + .35 * axis * .5 + .5 * pitch) * (1 + chaos * .8 * jit))
+      this.edgeCycles[e] = cycles
+      // Phase speed (cycles a second): faster with the band that drives the edge and with chaos.
+      const speed = (.5 + 4.5 * axisDrive[axis] + 2 * kick) * (.7 + .6 * u2) * (1 + chaos * .8 * jit)
+      this.edgePhase[e] = (this.edgePhase[e] + dt * speed) % 1
+      this.edgeBeta[e] = chaos * 2.6 * (.35 + .65 * Math.abs(jit))
+      this.edgeRatio[e] = 1.5 + 1.5 * u2
+      this.edgeHarmonic[e] = chaos * .55 * (.5 + .5 * Math.abs(jit))
+      // Chaos only ever takes amplitude away from the bound, so the lines never go past Wave Depth.
+      this.edgeAmp[e] = 1 - chaos * .55 * (1 - jit) * .5
+    }
   }
 
   /** A stand-in waveform made of four sines whose strengths follow the sub-bass, bass, mids and highs and whose phases move with time. */
@@ -228,44 +335,54 @@ export class WireEngine {
     this.wave = this.synth; this.waveGain = 1
   }
 
-  /** Where each cube sits and how it is turned this frame, as a rigid placement (the orbit and the turns are never counted as deformation). */
-  private placements(cubes: number, v: WireValues, spread: number, breathe: number, tumble: number, abstract: number, lean: number): CubePlacement[] {
+  /** Where each solid sits and how it is turned this frame, as a rigid placement (the orbit and the turns are never counted as deformation). */
+  private placements(groups: number, v: WireValues, spread: number, breathe: number, tumble: number, abstract: number, lean: number, chaos: number): CubePlacement[] {
     const view = quatNormalize(quatMul(quatFromAxisAngle(1, 0, 0, v.tilt * Math.PI / 180), quatFromAxisAngle(0, 1, 0, this.phase * TAU)))
     const out: CubePlacement[] = []
     const radius = ORBIT_RADIUS * v.spread * spread * (1 + abstract * .7)
-    this.extent = cubes > 1 ? radius : 0
+    this.extent = groups > 1 ? radius * (1 + chaos * .12) : 0
     const t = this.time
+    const grow = .2 + .8 * this.entrance * this.entrance * (3 - 2 * this.entrance)
     const centre = new Float32Array(3)
-    for (let k = 0; k < cubes; k++) {
+    for (let k = 0; k < groups; k++) {
       const sign = k % 2 === 0 ? 1 : -1
       const swell = 1 + breathe * .1 * Math.sin(TAU * t * .35 + k * 1.7)
-      const scale = (k === 0 ? 1 : SATELLITE_SCALE) * swell
-      // Each cube turns on its own axes, at a slightly different rate, plus the mid band's lean against its neighbour.
+      const scale = (k === 0 ? 1 : SATELLITE_SCALE) * swell * grow
+      // Each solid turns on its own axes, at a slightly different rate, plus the mid band's lean against its neighbour.
       const own = quatNormalize(quatMul(
         quatFromAxisAngle(0, 1, 0, this.tumblePhase * TAU * (1 + .3 * k) + k + lean * sign),
         quatMul(quatFromAxisAngle(1, 0, 0, .5 + tumble * .9 * Math.sin(.37 * t + k * 2.1)), quatFromAxisAngle(0, 0, 1, tumble * .7 * Math.sin(.29 * t + k * 3.3))),
       ))
       let x = 0, y = 0, z = 0
       if (k > 0) {
-        const angle = this.orbitPhase * TAU + TAU * (k - 1) / Math.max(1, cubes - 1)
-        x = radius * Math.cos(angle); z = radius * Math.sin(angle)
-        y = .7 * Math.sin(angle * .5 + k) * (1 + abstract)
+        // Chaos loosens the orbit: the radius and the height wander on two incommensurate beats.
+        const wander = 1 + chaos * .12 * Math.sin(2.3 * t + 1.9 * k) * Math.sin(1.1 * t + k)
+        const angle = this.orbitPhase * TAU + TAU * (k - 1) / Math.max(1, groups - 1) + chaos * .25 * Math.sin(1.7 * t + k)
+        x = radius * wander * Math.cos(angle); z = radius * wander * Math.sin(angle)
+        y = .7 * Math.sin(angle * .5 + k) * (1 + abstract + chaos)
       }
       quatRotate(view, x, y, z, centre)
-      out.push({ cx: centre[0], cy: centre[1], cz: centre[2], q: quatNormalize(quatMul(view, own)), scale })
+      out.push({
+        cx: centre[0], cy: centre[1], cz: centre[2], q: quatNormalize(quatMul(view, own)), scale,
+        // The tesseract turns through the fourth dimension: two planes steadily, and the third with the mid band's lean.
+        hyper: [this.hyperPhase * TAU * (1 + .17 * k) + lean, this.hyperPhase * TAU * .62 + k, .5 * Math.sin(.31 * t + k) + lean * .5],
+      })
     }
     return out
   }
 
-  /** The passes the beam draws, in order: the figure itself, its fainter echoes, and a faint outline of where the cubes sit unmoved. */
-  private buildPath(cubes: number, echo: number, v: WireValues): void {
-    const route = this.routeFor(cubes)
+  /** The passes the beam draws, in order: the figure itself, its fainter echoes, and a faint outline of where the figures sit unmoved. */
+  private buildPath(groups: number, echo: number, v: WireValues): void {
+    const route = this.routeFor(groups)
+    const shape = this.shape
     const copies = Math.max(1, Math.min(4, Math.round(v.duplicates + echo * 2)))
     const outline = v.outline
     const passCount = copies + (outline ? 1 : 0)
     // Fit the figure to the stage: the default cluster fills about 1.1 stage units either side, and a wider orbit pulls the view back.
     const stage = v.size / Math.max(2.6, .9 * (this.extent + SATELLITE_REACH))
-    const edgeCount = cubes * 12
+    const last = shape.groups[groups - 1]
+    const edgeCount = last.edgeStart + last.edgeCount
+    const vertexCount = verticesOfGroups(shape, groups)
     const capacity = passCount * (route.length + 2)
     if (capacity > this.px.length) {
       this.px = new Float32Array(capacity); this.py = new Float32Array(capacity); this.gain = new Float32Array(capacity)
@@ -283,13 +400,12 @@ export class WireEngine {
       // Echoes are the figure turned a little more about the vertical and drawn smaller; the first copy is the figure itself.
       const turn = copy * .22, shrink = Math.pow(.95, copy)
       const q = quatFromAxisAngle(0, 1, 0, turn)
-      const vertexCount = this.shape.groups[cubes - 1].vertexStart + 8
       for (let i = 0; i < vertexCount; i++) {
         quatRotate(q, source[i * 3] * shrink, source[i * 3 + 1] * shrink, source[i * 3 + 2] * shrink, point)
         depth[i] = point[2]
         projectPoint(point[0], point[1], point[2], camera, projected, i * 2)
       }
-      findHiddenEdges(this.shape.faces, this.shape.edgeFaces, projected, 0, edgeCount, this.hidden[pass])
+      findHiddenEdges(shape.faces, shape.faceOffsets, shape.edgeFaces, projected, 0, edgeCount, this.hidden[pass])
       const passGain = isOutline ? .12 : copy === 0 ? 1 : .34 / copy
       const lastStep = route.length - 1
       for (let s = 0; s < route.length; s++) {
@@ -307,7 +423,8 @@ export class WireEngine {
         if (edge >= 0 && copy === 0 && !isOutline) {
           const b = route.to[s]
           const length = Math.hypot((projected[b * 2] - projected[a * 2]) * stage, (projected[b * 2 + 1] - projected[a * 2 + 1]) * stage)
-          this.ripple[n] = v.waveDepth * length * this.rippleAxis[this.edgeAxis[edge]]
+          // A busy wave is shallower than a slow one (its slope stays readable): amplitude eases down once an edge carries more than five cycles.
+          this.ripple[n] = v.waveDepth * length * this.rippleAxis[shape.edgeAxis[edge]] * this.edgeAmp[edge] * Math.min(1, SLOPE_CYCLES / this.edgeCycles[edge])
           this.edgeOf[n] = edge; this.reversed[n] = a > b ? 1 : 0
         }
         n++
@@ -331,7 +448,7 @@ export class WireEngine {
     this.clock[0] = 0
     for (let s = 0; s < n; s++) {
       const j = (s + 1) % n, len = Math.hypot(this.px[j] - this.px[s], this.py[j] - this.py[s])
-      // A segment that carries the waveform is given more of the scan, so its detail is drawn rather than skipped.
+      // A segment that carries a wave is given more of the scan, so its detail is drawn rather than skipped.
       const travel = Math.pow(len, .7) * (this.kinds[s] === 1 ? .35 : 1 + (this.ripple[s] > 0 ? 2.2 : 0))
       this.rest[s] = dwell / (travel + dwell) / 2
       sum += travel + dwell
@@ -356,15 +473,23 @@ export class WireEngine {
     out.x = mix(this.px[s], this.px[j], p); out.y = mix(this.py[s], this.py[j], p)
     const amp = this.ripple[s]
     if (amp > 0) {
-      // The edge's own waveform: the live trace, repeated Wave Detail times along the edge, rippling the line sideways. Seen from the edge's lower corner (so a retraced edge draws the
-      // same curve both times), it is zero at both corners, so the cubes' corners never move.
+      // The edge's own signal. Seen from the edge's lower corner (so a retraced edge draws the same curve both times), it is zero at both
+      // corners, so the corners never move. It is the edge's sine oscillator (with chaotic frequency modulation and a harmonic) mixed with the
+      // live captured waveform.
       const reversed = this.reversed[s] === 1
       let dx = this.px[j] - this.px[s], dy = this.py[j] - this.py[s]
       const length = Math.hypot(dx, dy) || 1
       if (reversed) { dx = -dx; dy = -dy }
       const q = reversed ? 1 - p : p
-      const wave = this.wave, at = (q * this.values.waveDetail + this.edgeOf[s] * .173) % 1
-      const sample = clamp(wave[Math.min(wave.length - 1, Math.floor(at * (wave.length - 1)))] * this.waveGain, -1, 1)
+      const e = this.edgeOf[s]
+      const theta = TAU * (this.edgeCycles[e] * q + this.edgePhase[e])
+      const modulated = Math.sin(theta + this.edgeBeta[e] * Math.sin(TAU * (this.edgeRatio[e] * this.edgeCycles[e] * q - this.edgePhase[e] * 1.3)))
+      const harmonic = this.edgeHarmonic[e]
+      const sine = (modulated + harmonic * Math.sin(2.71 * theta + 1)) / (1 + harmonic)
+      const wave = this.wave, at = (q * this.values.waveDetail + e * .173) % 1
+      const live = clamp(wave[Math.min(wave.length - 1, Math.floor(at * (wave.length - 1)))] * this.waveGain, -1, 1)
+      const mixOsc = this.values.waveOscillator
+      const sample = sine * mixOsc + live * (1 - mixOsc)
       const offset = amp * sample * Math.sin(Math.PI * q)
       out.x += -dy / length * offset
       out.y += dx / length * offset

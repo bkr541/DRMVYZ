@@ -42,7 +42,7 @@ import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
 import { OctaEngine } from './XyScopeOctaEngine'
 import type { OctaLiveSnapshot } from './XyScopeOctaLive'
 import { WireEngine } from './XyScopeWireEngine'
-import { buildWireReading, deriveWireCue, emptyWireCue, type WireCue } from './XyScopeWireCues'
+import { buildWireReading, deriveWireCue, deriveWireMood, emptyWireCue, type WireCue } from './XyScopeWireCues'
 import { NO_BOUNDARIES } from './XyScopeWireDirector'
 import type { WireLiveSnapshot } from './XyScopeWireLive'
 import { InitEngine, type InitPcm, type InitSource } from './XyScopeInitEngine'
@@ -471,7 +471,10 @@ export class XyScopeRuntime {
   getWireLive(): WireLiveSnapshot | null {
     const o = this.settings?.wire, e = this.wireEngine
     if (!o || this.settings?.sourceMode !== 'wire') return null
-    return { state: e.state, sceneId: e.sceneId, readability: e.readability.score, readableFraction: e.readableFraction, weight: e.weight, abstract: e.abstract, lastEvent: e.lastEvent, structure: this.wireCue.structure != null, source: this.wireSource, values: o.values }
+    return {
+      state: e.state, sceneId: e.sceneId, readability: e.readability.score, readableFraction: e.readableFraction, weight: e.weight, abstract: e.abstract, lastEvent: e.lastEvent,
+      structure: this.wireCue.structure != null, source: this.wireSource, values: o.values, effective: e.effective, mood: e.mood, feel: e.feel, figure: e.figure, auto: o.autoPerformance,
+    }
   }
 
   private renderWire(input: XyScopeFrameInput, dt: number, playing: boolean): void {
@@ -508,10 +511,10 @@ export class XyScopeRuntime {
     const scopeFrame = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec)
     engine.hasWave = playing && input.stereo != null
     if (engine.hasWave) { engine.wave = scopeFrame.trace; engine.waveGain = scopeFrame.traceGain }
-    engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, values: o.values, auto: o.autoPerformance, discontinuity })
+    engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, mood: deriveWireMood(input.context, features, playing), values: o.values, auto: o.autoPerformance, discontinuity })
     renderer.render(engine, {
-      dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width * (1 + engine.beamWidthBoost), scan: o.values.scan, color: o.values.color },
-      grid: false, hold: o.hold, halo: { amount: o.values.glow, color: o.values.glowColor }, background: o.values.backgroundColor,
+      dt, settings: { intensity: 100, persistence: engine.effective.trail, width: engine.effective.width * (1 + engine.beamWidthBoost), scan: engine.effective.scan, color: engine.effective.color },
+      grid: false, hold: o.hold, halo: { amount: engine.effective.glow, color: engine.effective.glowColor }, background: o.values.backgroundColor,
     })
   }
 

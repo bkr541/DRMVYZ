@@ -10,6 +10,7 @@ import type { Osc1Features } from './XyScopeOsc1Engine'
 import { osc1StructureFromContext } from './XyScopeOsc1Performance'
 import type { WireBoundaries, WireStructure } from './XyScopeWireDirector'
 import { silentReading, type WireReading } from './XyScopeWireModulation'
+import { NEUTRAL_MOOD, type WireMood } from './XyScopeWireConductor'
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
 
@@ -87,4 +88,46 @@ export function buildWireReading(
     }
   }
   return reading
+}
+
+const KEY_INDEX: Readonly<Record<string, number>> = Object.freeze({ C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 })
+
+/**
+ * Everything the music says about how the figure should feel right now, from all the audio intelligence there is: the shared analysis
+ * (track-relative energy, tension, build, drop impact, complexity, spectral flux, band balance, the section and phrase the track is in,
+ * the key and mode, the tempo) or, with no analysis, only what the live signal itself shows. A microphone carries no sections, phrases
+ * or key, so those fields are absent there and the conductor never pretends otherwise.
+ */
+export function deriveWireMood(context: SharedPerformanceContext | null, features: Osc1Features | null, playing: boolean): WireMood {
+  if (!playing) return { ...NEUTRAL_MOOD }
+  if (context) {
+    const n = context.intelligence.bands.normalized
+    const harmonic = context.intelligence.harmonic
+    const caps = context.capabilities
+    const structured = caps.sections && context.sectionType != null && context.sectionType !== 'unknown'
+    const lowEnd = clamp(n.normalizedSub * .5 + n.normalizedBass * .5), highEnd = clamp(n.normalizedHigh * .5 + n.normalizedAir * .5)
+    const keyConfident = harmonic.key != null && harmonic.keyConfidence >= .4
+    return {
+      energy: clamp(caps.sections || caps.liveBands ? context.trackRelativeEnergy : context.energy),
+      level: clamp(context.energy),
+      tension: clamp(context.tension), build: clamp(context.buildProgress), drop: clamp(context.dropImpact), complexity: clamp(context.complexity),
+      flux: clamp(context.spectralFlux),
+      brightness: clamp(.5 + (highEnd - lowEnd) * .8),
+      tempo: context.bpm > 0 && caps.beatGrid ? context.bpm : null,
+      keyIndex: keyConfident ? (KEY_INDEX[harmonic.key!] ?? null) : null, minor: keyConfident ? harmonic.mode === 'minor' : null,
+      sectionType: structured ? context.sectionType : null,
+      sectionProgress: structured ? clamp(context.sectionProgress) : 0,
+      phraseIndex: structured || caps.beatGrid ? context.phraseIndex : 0,
+      phraseProgress: structured || caps.beatGrid ? clamp(context.phraseProgress) : 0,
+      structured, confidence: clamp(Math.max(context.confidence.overall, context.confidence.rhythm)),
+    }
+  }
+  if (features) {
+    return {
+      ...NEUTRAL_MOOD,
+      energy: clamp(features.level), level: clamp(features.level), flux: clamp(features.flux), tension: clamp(features.flux * .6 + features.air * .4),
+      brightness: clamp(.5 + (features.air - features.bass) * .5), complexity: clamp(features.flux), confidence: .4,
+    }
+  }
+  return { ...NEUTRAL_MOOD }
 }

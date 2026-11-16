@@ -9,11 +9,11 @@ Three independent asset-browser studies follow the original ten:
 - **11 Asset library:** 16:9 preview above a solid caption area, two-line title space, engine metadata and a separate favorite action.
 - **12 Compact library:** a thumbnail beside stacked title and metadata for dense browsing.
 - **13 Immersive gallery:** full-card preview, an anchored contrast scrim, title, engine badge and floating favorite action.
-- **14–16 Poster legibility:** the production poster tile (row 01: artwork edge to edge, centred title in the shared preset-name role, the same size, corner and favorite) with three ways to keep the title readable over any thumbnail, because row 01's white title bleeds into bright or busy artwork. Each puts a known dark surface directly behind the title, so contrast no longer depends on the picture. Measured in Chromium as the contrast of white text against the brightest pixel behind it, on the four preset renders and on a pure-white thumbnail:
-  - **14 Soft scrim:** a dark radial scrim behind the title that eases to nothing at the edges, so the picture still shows. At least 9.2:1.
-  - **15 Name plate:** the title on a frosted, blurred dark plate with a hairline border. About 18:1.
-  - **16 Caption bar:** the title on a solid dark bar docked to the foot of the tile. About 18:1.
-  Row 01 measures 1.0:1 on Reactor and Electric Storm and 1.6:1 on Ancient Machine (CANOPY, 7.5:1, is fine). Rows 14–16 are layout studies only; none has been applied to the production card.
+- **14–16 Poster legibility:** the production poster tile (row 01: artwork edge to edge, centred title in the shared preset-name role, the same size, corner and favorite) with three ways to keep the title readable over any thumbnail, because row 01's white title bleeds into bright or busy artwork.
+  - **14 Soft scrim:** a dark radial scrim behind the title that eases to nothing at the edges, so the picture still shows. Measured in Chromium (white text against the brightest pixel behind it) at least 9.2:1 on the four preset renders and on a pure-white thumbnail.
+  - **15 Frosted band:** a full-width band behind the title that blurs and darkens only that strip, feathered at all four edges so it reads as soft glass, not a box. The blur removes bright detail (lightning, beams) behind the letters while the rest of the tile stays sharp.
+  - **16 Outlined title:** no background at all; a dark outline is painted under the letters with a tight halo, as film subtitles do, so the whole picture stays visible.
+  Rows 15 and 16 were checked by eye on the four presets, a pure-white thumbnail and bright stripes; they have no numeric contrast figure. (A first version of these two rows, a solid name plate and a solid caption bar, was replaced because it boxed the title in and hid the artwork.)
 
 These new studies follow the preview/title/metadata/secondary-action anatomy described in [Adobe Spectrum's card guidance](https://spectrum.adobe.com/page/cards/), using the application's shared typography roles and focus colors. Their layout and surface rules are independent of the Performance Pad treatments.
 

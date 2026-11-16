@@ -5,8 +5,8 @@ import { buildWireReading, deriveWireCue, emptyWireCue, type WireCue } from './X
 import { WireEngine, type WireTick } from './XyScopeWireEngine'
 import { NO_BOUNDARIES } from './XyScopeWireDirector'
 import { silentReading, type WireReading } from './XyScopeWireModulation'
-import { shapeHash } from './XyScopeWireShape'
-import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, normalizeWireValues, WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
+import { shapeHash, verticesOfGroups } from './XyScopeWireShape'
+import { CUBES_PRESET_ID, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, normalizeWireValues, WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
 import { applyXyScopePreset, DEFAULT_XY_SCOPE_SETTINGS, normalizeXyScopeSettings, XY_SCOPE_PRESETS } from './XyScopeSettings'
 
 type Overrides = Omit<Partial<SharedPerformanceContext>, 'boundaries' | 'capabilities' | 'confidence'> & {
@@ -56,14 +56,38 @@ describe('WIREFRAME settings', () => {
       .toMatchObject({ satellites: 4, duplicates: 1, seed: 13, spread: .6, color: WIRE_DEFAULTS.color, hiddenEdges: 'dim', travel: 'dim', sceneEvery: 'bar4', flashLimit: true, glowColor: '#abcdef' })
   })
 
-  it('is its own source: choosing CUBES switches the engine, the two agree, and it is the only preset the source offers', () => {
+  it('is its own source: choosing CUBES switches the engine, the two agree, and it offers one preset per figure', () => {
     const next = applyXyScopePreset(DEFAULT_XY_SCOPE_SETTINGS, CUBES_PRESET_ID)
     expect(next.sourceMode).toBe('wire')
     expect(next.presetId).toBe('cubes')
     expect(normalizeXyScopeSettings({ ...next, presetId: 'conversation' }).presetId).toBe('cubes')
     expect(normalizeXyScopeSettings({ ...next, sourceMode: 'oscillator' }).presetId).toBe('conversation')
-    expect(XY_SCOPE_PRESETS.filter(preset => preset.source === 'wire').map(preset => preset.id)).toEqual(['cubes'])
+    expect(XY_SCOPE_PRESETS.filter(preset => preset.source === 'wire').map(preset => preset.id)).toEqual(['cubes', 'solids', 'tesseract'])
     expect(normalizeXyScopeSettings({ sourceMode: 'wire' }).wire).toEqual({ ...DEFAULT_WIRE_SETTINGS, values: WIRE_DEFAULTS })
+  })
+})
+
+describe('WIREFRAME figures and presets', () => {
+  it('has a preset per figure: choosing one switches the engine and the figure, and keeps the rest of the user\'s settings', () => {
+    const tuned = { ...DEFAULT_XY_SCOPE_SETTINGS, wire: { ...DEFAULT_XY_SCOPE_SETTINGS.wire, values: { ...WIRE_DEFAULTS, chaos: .8, color: '#ff00aa' } } }
+    for (const [id, figure] of [[SOLIDS_PRESET_ID, 'solids'], [TESSERACT_PRESET_ID, 'tesseract'], [CUBES_PRESET_ID, 'cubes']] as const) {
+      const next = applyXyScopePreset(tuned, id)
+      expect(next.sourceMode).toBe('wire')
+      expect(next.presetId).toBe(id)
+      expect(next.wire.values.figure).toBe(figure)
+      expect(next.wire.values.chaos).toBe(.8)
+      expect(next.wire.values.color).toBe('#ff00aa')
+      // A saved project keeps whichever WIREFRAME preset it had.
+      expect(normalizeXyScopeSettings(next).presetId).toBe(id)
+    }
+    // Leaving WIREFRAME forgets its preset, like every other instrument.
+    expect(normalizeXyScopeSettings({ ...applyXyScopePreset(tuned, SOLIDS_PRESET_ID), sourceMode: 'oscillator' }).presetId).toBe('conversation')
+  })
+
+  it('clamps and defaults the new controls: the figure, the oscillator mix and chaos', () => {
+    expect(WIRE_DEFAULTS).toMatchObject({ figure: 'cubes', chaos: .5, waveOscillator: .6 })
+    expect(normalizeWireValues({ figure: 'torus', chaos: 9, waveOscillator: -3, waveDepth: 5 })).toMatchObject({ figure: 'cubes', chaos: 1, waveOscillator: 0, waveDepth: .6 })
+    expect(normalizeWireValues({ figure: 'tesseract' }).figure).toBe('tesseract')
   })
 })
 
@@ -142,7 +166,7 @@ describe('the WIREFRAME engine', () => {
     run(engine, 60 * 5)
     expect(maxGap(engine.deformed, engine.base, 24)).toBeGreaterThan(1e-3) // it really was deformed
     run(engine, 60 * 4, () => ({ reading: { ...silentReading(), playing: false } }), () => ({ ...silentReading(), playing: false }))
-    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+    expect(maxGap(engine.deformed, engine.base, verticesOfGroups(engine.shape, 1 + engine.effective.satellites))).toBe(0)
     expect(engine.readability.score).toBe(1)
     expect(engine.weight).toBe(1)
   })
@@ -150,7 +174,7 @@ describe('the WIREFRAME engine', () => {
   it('draws the clean figure at Audio Reactivity zero, whatever the music does', () => {
     const engine = new WireEngine()
     run(engine, 60 * 5, () => ({ values: { ...WIRE_DEFAULTS, audioReactivity: 0 } }))
-    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+    expect(maxGap(engine.deformed, engine.base, verticesOfGroups(engine.shape, 1 + engine.effective.satellites))).toBe(0)
     expect(engine.beamWidthBoost).toBe(0)
   })
 
@@ -281,7 +305,7 @@ describe('the WIREFRAME engine', () => {
     expect(engine.abstract).toBe(0)
     // Silence, and the cubes sit exactly where the unabstracted placement puts them.
     for (let f = 0; f < 60 * 3; f++) engine.tick(tick({ auto: true, reading: silentReading(), cue: cue(.05, false) }))
-    expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
+    expect(maxGap(engine.deformed, engine.base, verticesOfGroups(engine.shape, 1 + engine.effective.satellites))).toBe(0)
   })
 })
 
@@ -324,7 +348,8 @@ describe('the edges carry the live audio waveform', () => {
   })
 
   it('follows the captured waveform sample for sample, sideways to the edge', () => {
-    const wave = sine(5), e = driven({}, wave), straight = driven({ waveAmount: 0 }, wave)
+    // With the oscillators and chaos off, a line is exactly the captured waveform.
+    const wave = sine(5), e = driven({ waveOscillator: 0, chaos: 0 }, wave), straight = driven({ waveAmount: 0, waveOscillator: 0, chaos: 0 }, wave)
     const i = internals(e)
     for (const s of rippled(e).slice(0, 12)) {
       const n = (s + 1) % e.pointCount

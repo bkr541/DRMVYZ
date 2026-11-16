@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import type { WireState } from './XyScopeWireDirector'
 import type { WireValues } from './XyScopeWireSettings'
+import type { WireMood } from './XyScopeWireConductor'
+import type { WireFigureId } from './XyScopeWireShape'
 
 /** What the runtime shares with the WIREFRAME inspector: what the director is doing, how readable the cubes are, and where the sound comes from. */
 export interface WireLiveSnapshot {
@@ -17,7 +19,14 @@ export interface WireLiveSnapshot {
   /** True when an analysed track backs the director with section evidence. A live microphone never does. */
   structure: boolean
   source: 'stereo' | 'mono' | 'shared' | 'none'
+  /** The user's own values. */
   values: WireValues
+  /** What is actually drawn: the user's values moved by the music while Auto Performance is on (the same object otherwise). */
+  effective: WireValues
+  mood: WireMood
+  feel: 'CALM' | 'DRIVING' | 'TENSE' | 'PEAK'
+  figure: WireFigureId
+  auto: boolean
 }
 
 let current: WireLiveSnapshot | null = null

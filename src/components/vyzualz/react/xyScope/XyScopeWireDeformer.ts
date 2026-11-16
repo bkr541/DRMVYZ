@@ -11,7 +11,7 @@
 // Rigid movement of a whole cube (the orbit, its turn, the mid-band lean) is placement, not deformation, so it is never counted against
 // the limit; only a cube changing shape is.
 
-import { quatRotate, type Quat } from './XyScopeWireProject'
+import { quatRotate, rotateProject4, type Quat } from './XyScopeWireProject'
 import type { WireShape } from './XyScopeWireShape'
 
 
@@ -19,16 +19,23 @@ export interface CubePlacement {
   cx: number; cy: number; cz: number
   q: Quat
   scale: number
+  /** The tesseract's turns in the xw, yw and zw planes (radians). Ignored by the 3D solids. */
+  hyper?: readonly [number, number, number]
 }
 
-/** Writes each cube's corners, rotated, scaled and moved into place, into `out` (three floats per corner). */
+/** Writes each solid's corners, rotated, scaled and moved into place, into `out` (three floats per corner). */
 export function placeShape(shape: WireShape, placements: readonly CubePlacement[], out: Float32Array): void {
-  const tmp = new Float32Array(3)
+  const tmp = new Float32Array(3), hyper = new Float32Array(3)
   placements.forEach((p, k) => {
     const g = shape.groups[k]
     for (let i = 0; i < g.vertexCount; i++) {
       const v = (g.vertexStart + i) * 3
-      quatRotate(p.q, shape.vertices[v] * p.scale, shape.vertices[v + 1] * p.scale, shape.vertices[v + 2] * p.scale, tmp)
+      let x = shape.vertices[v], y = shape.vertices[v + 1], z = shape.vertices[v + 2]
+      if (g.kind === 'tesseract' && p.hyper) {
+        rotateProject4(x, y, z, shape.vertexW[g.vertexStart + i], p.hyper[0], p.hyper[1], p.hyper[2], hyper)
+        x = hyper[0]; y = hyper[1]; z = hyper[2]
+      }
+      quatRotate(p.q, x * p.scale, y * p.scale, z * p.scale, tmp)
       out[v] = tmp[0] + p.cx; out[v + 1] = tmp[1] + p.cy; out[v + 2] = tmp[2] + p.cz
     }
   })
@@ -41,6 +48,8 @@ export interface DeformDrive {
   shear: number
   wobble: number
   time: number
+  /** 0..1: makes the shimmer faster, larger and less regular (it is still bounded by the anchor limit). */
+  chaos?: number
 }
 
 /** The displacement every corner would move at full weight, clamped to the anchor bound. */
@@ -48,7 +57,7 @@ export function displacementField(shape: WireShape, base: Float32Array, placemen
   const radial = drive.cubeScale + drive.expand
   placements.forEach((p, k) => {
     const g = shape.groups[k]
-    const edge = shape.edgeLength * p.scale, bound = limit * edge
+    const edge = g.edgeLength * p.scale, bound = limit * edge
     for (let i = 0; i < g.vertexCount; i++) {
       const v = (g.vertexStart + i) * 3, id = g.vertexStart + i
       const rx = base[v] - p.cx, ry = base[v + 1] - p.cy, rz = base[v + 2] - p.cz
@@ -56,10 +65,11 @@ export function displacementField(shape: WireShape, base: Float32Array, placemen
       let dy = ry * radial
       let dz = rz * radial
       // Shimmer: three slow sines per corner, deterministic (the same time and corner always give the same offset).
-      const w = edge * drive.wobble
-      dx += w * Math.sin(3.1 * drive.time + 1.7 * id)
-      dy += w * Math.sin(4.3 * drive.time + 2.3 * id)
-      dz += w * Math.sin(2.9 * drive.time + 3.1 * id)
+      const chaos = drive.chaos ?? 0
+      const w = edge * drive.wobble * (1 + chaos * 1.6), rate = 1 + chaos * 2.2
+      dx += w * (Math.sin(3.1 * rate * drive.time + 1.7 * id) + chaos * .6 * Math.sin(7.7 * drive.time + 5.3 * id * id))
+      dy += w * (Math.sin(4.3 * rate * drive.time + 2.3 * id) + chaos * .6 * Math.sin(6.1 * drive.time + 3.7 * id * id))
+      dz += w * (Math.sin(2.9 * rate * drive.time + 3.1 * id) + chaos * .6 * Math.sin(8.3 * drive.time + 2.9 * id * id))
       const length = Math.hypot(dx, dy, dz)
       const scale = length > bound && length > 0 ? bound / length : 1
       out[v] = dx * scale; out[v + 1] = dy * scale; out[v + 2] = dz * scale
@@ -82,7 +92,7 @@ const STRETCH_CAP = .5
 export function measureReadability(shape: WireShape, base: Float32Array, field: Float32Array, w: number, placements: readonly CubePlacement[], limit: number): Readability {
   let stretch = 0, displacement = 0
   placements.forEach((p, k) => {
-    const g = shape.groups[k], bound = Math.max(1e-9, limit * shape.edgeLength * p.scale)
+    const g = shape.groups[k], bound = Math.max(1e-9, limit * g.edgeLength * p.scale)
     for (let i = 0; i < g.vertexCount; i++) {
       const v = (g.vertexStart + i) * 3
       displacement = Math.max(displacement, Math.hypot(field[v], field[v + 1], field[v + 2]) * w / bound)

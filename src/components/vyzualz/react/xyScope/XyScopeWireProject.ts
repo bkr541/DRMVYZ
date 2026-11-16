@@ -75,17 +75,33 @@ export function signedArea(xy: Float32Array | Float64Array, corners: ArrayLike<n
 
 /**
  * Which edges are hidden behind the figure: an edge is hidden when every face that borders it faces away from the camera. A face faces
- * away when its projected outline runs clockwise. Edges that border no face are never hidden. Writes 1 for hidden edges into `hidden`.
+ * away when its projected outline runs clockwise. Edges that border no face are never hidden (a tesseract has none). Faces may have any
+ * number of corners: face f's corners are faces[faceOffsets[f] .. faceOffsets[f + 1]]. Writes 1 for hidden edges into `hidden`.
  */
-export function findHiddenEdges(faces: ArrayLike<number>, edgeFaces: ArrayLike<number>, projected: Float32Array | Float64Array, edgeStart: number, edgeCount: number, hidden: Uint8Array): void {
+export function findHiddenEdges(faces: ArrayLike<number>, faceOffsets: ArrayLike<number>, edgeFaces: ArrayLike<number>, projected: Float32Array | Float64Array, edgeStart: number, edgeCount: number, hidden: Uint8Array): void {
   for (let e = edgeStart; e < edgeStart + edgeCount; e++) {
     let bordering = 0, away = 0
     for (let slot = 0; slot < 2; slot++) {
       const face = edgeFaces[e * 2 + slot]
       if (face < 0) continue
       bordering++
-      if (signedArea(projected, faces, face * 4) <= 0) away++
+      const base = faceOffsets[face]
+      if (signedArea(projected, faces, base, faceOffsets[face + 1] - base) <= 0) away++
     }
     hidden[e] = bordering > 0 && away === bordering ? 1 : 0
   }
+}
+
+/** Rotates (x, y, z, w) in the xw, yw and zw planes by the given angles, then projects the fourth dimension away (the hypercube's "shadow"). */
+export function rotateProject4(x: number, y: number, z: number, w: number, xw: number, yw: number, zw: number, out: Float32Array | Float64Array, offset = 0): void {
+  const d = 4
+  let c = Math.cos(xw), s = Math.sin(xw)
+  const x1 = x * c - w * s; let w1 = x * s + w * c
+  c = Math.cos(yw); s = Math.sin(yw)
+  const y1 = y * c - w1 * s; w1 = y * s + w1 * c
+  c = Math.cos(zw); s = Math.sin(zw)
+  const z1 = z * c - w1 * s; w1 = z * s + w1 * c
+  // The shadow is scaled so a tesseract weighs about as much as the other solids at any angle.
+  const k = d / (d - w1) * .72
+  out[offset] = x1 * k; out[offset + 1] = y1 * k; out[offset + 2] = z1 * k
 }

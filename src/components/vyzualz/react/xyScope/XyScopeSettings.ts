@@ -12,7 +12,7 @@ import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from 
 import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
 import { DEFAULT_OCTA_SETTINGS, normalizeOctaSettings, OCTA_PRESET_ID, type XyScopeOctaSettings } from './XyScopeOctaSettings'
-import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, type XyScopeWireSettings } from './XyScopeWireSettings'
+import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, WIRE_PRESET_FIGURES, type XyScopeWireSettings } from './XyScopeWireSettings'
 import { DEFAULT_INIT_SETTINGS, INIT_PRESET_ID, normalizeInitSettings, type XyScopeInitSettings } from './XyScopeInitSettings'
 import { DEFAULT_OSC2_SETTINGS, normalizeOsc2Settings, OSC2_PRESET_ID, type XyScopeOsc2Settings } from './XyScopeOsc2Settings'
 import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
@@ -292,16 +292,27 @@ export const XY_SCOPE_PRESETS: readonly XyScopePreset[] = Object.freeze([
     parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
   },
   {
-    // CUBES is the preset of the WIREFRAME source: 3D wireframe cubes drawn by one beam, moved by the music within bounds.
+    // The WIREFRAME source's presets: each draws one figure with a core and orbiting satellites by one beam, moved by the music within bounds.
+    // Every edge is a sine oscillator that follows the music, and Auto Performance drives the whole figure from the audio intelligence.
     id: CUBES_PRESET_ID, name: 'CUBES', source: 'wire',
-    description: 'A core cube and orbiting satellites drawn by one phosphor beam. Kicks, bass and mids each move them in bounds, and they always settle back to the clean figure.',
+    description: 'A core cube and orbiting satellite cubes. Every edge is a sine oscillator that follows the music; kicks and bass move the cubes in bounds, and they settle back to the clean figure.',
+    parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
+  },
+  {
+    id: SOLIDS_PRESET_ID, name: 'SOLIDS', source: 'wire',
+    description: 'A dodecahedron core with a tetrahedron, octahedron, icosahedron and cube orbiting it, each edge an oscillator driven by the music.',
+    parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
+  },
+  {
+    id: TESSERACT_PRESET_ID, name: 'TESSERACT', source: 'wire',
+    description: 'A four-dimensional hypercube turning through the fourth dimension, with solids orbiting it. Its edges are chaotic oscillators that follow the music.',
     parameters: {} as Readonly<Record<string, XyScopeParameterValue>>,
   },
 ] satisfies readonly XyScopePreset[])
 
 /** Presets that are complete instruments: choosing one switches the engine, and the engine and preset always agree. */
 const ENGINE_PRESETS: Readonly<Partial<Record<XyScopeSourceMode, string>>> = { textV2: 'textV2', osc1: OSC1_PRESET_ID, osc2: OSC2_PRESET_ID, init: INIT_PRESET_ID, octa: OCTA_PRESET_ID, wire: CUBES_PRESET_ID }
-const ENGINE_PRESET_IDS = new Set<string>(Object.values(ENGINE_PRESETS) as string[])
+const ENGINE_PRESET_IDS = new Set<string>([...(Object.values(ENGINE_PRESETS) as string[]), ...Object.keys(WIRE_PRESET_FIGURES)])
 
 export function getXyScopePreset(id: string | null | undefined): XyScopePreset | undefined {
   return XY_SCOPE_PRESETS.find(preset => preset.id === id)
@@ -388,7 +399,8 @@ export function normalizeXyScopeSettings(value: unknown): XyScopeSettings {
   const sourceMode: XyScopeSourceMode = record.sourceMode === 'textV2' || record.sourceMode === 'osc1' || record.sourceMode === 'osc2' || record.sourceMode === 'init' || record.sourceMode === 'octa' || record.sourceMode === 'wire' || record.sourceMode === 'svg' || record.sourceMode === 'oscillator' ? record.sourceMode : 'text'
   // Instrument modes and presets always agree, including projects saved before Text V2 was a preset.
   const storedPreset = record.presetId === null ? null : (typeof record.presetId === 'string' && getXyScopePreset(record.presetId) ? record.presetId : DEFAULT_XY_SCOPE_SETTINGS.presetId)
-  const presetId = ENGINE_PRESETS[sourceMode] ?? (storedPreset && ENGINE_PRESET_IDS.has(storedPreset) ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset)
+  // WIREFRAME has several presets (one per figure); every other instrument has exactly one.
+  const presetId = sourceMode === 'wire' ? (storedPreset && WIRE_PRESET_FIGURES[storedPreset] ? storedPreset : CUBES_PRESET_ID) : ENGINE_PRESETS[sourceMode] ?? (storedPreset && ENGINE_PRESET_IDS.has(storedPreset) ? DEFAULT_XY_SCOPE_SETTINGS.presetId : storedPreset)
   return {
     sourceMode,
     textV2: normalizeTextV2Settings(record.textV2),
@@ -419,9 +431,12 @@ export function applyXyScopePreset(settings: XyScopeSettings, presetId: string):
   const preset = getXyScopePreset(presetId)
   if (!preset) return settings
   // An instrument preset switches the engine; a standard preset leaves it for its base source.
-  const instrument = (Object.keys(ENGINE_PRESETS) as XyScopeSourceMode[]).find(mode => ENGINE_PRESETS[mode] === preset.id)
+  const figure = WIRE_PRESET_FIGURES[preset.id]
+  const instrument = figure ? 'wire' as const : (Object.keys(ENGINE_PRESETS) as XyScopeSourceMode[]).find(mode => ENGINE_PRESETS[mode] === preset.id)
   const sourceMode: XyScopeSourceMode = instrument ?? getXyScopeSourceCategory(settings.sourceMode)
-  return normalizeXyScopeSettings({ ...settings, sourceMode, presetId: preset.id, parameters: { ...settings.parameters, ...preset.parameters } })
+  // A WIREFRAME preset chooses the figure it draws; the rest of the user's WIREFRAME settings are kept.
+  const wire = figure ? { ...settings.wire, values: { ...settings.wire.values, figure } } : settings.wire
+  return normalizeXyScopeSettings({ ...settings, wire, sourceMode, presetId: preset.id, parameters: { ...settings.parameters, ...preset.parameters } })
 }
 
 // ── Typed values for the runtime ──────────────────────────────────────────────

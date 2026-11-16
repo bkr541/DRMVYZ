@@ -3,9 +3,14 @@
 // (Auto Performance) changes how the cluster moves on musical boundaries. See docs/sound-drawing-xy.md.
 
 import type { WireSceneCadence } from './XyScopeWireDirector'
+import type { WireFigureId } from './XyScopeWireShape'
 
 export const WIRE_SOURCE_MODE = 'wire' as const
 export const CUBES_PRESET_ID = 'cubes'
+export const SOLIDS_PRESET_ID = 'solids'
+export const TESSERACT_PRESET_ID = 'tesseract'
+/** Every preset of the WIREFRAME source, with the figure each one draws. */
+export const WIRE_PRESET_FIGURES: Readonly<Record<string, WireFigureId>> = Object.freeze({ [CUBES_PRESET_ID]: 'cubes', [SOLIDS_PRESET_ID]: 'solids', [TESSERACT_PRESET_ID]: 'tesseract' })
 
 export type WireHiddenEdges = 'show' | 'dim'
 export type WireTravel = 'blank' | 'dim' | 'visible'
@@ -17,6 +22,7 @@ export interface WireValues {
   /** Dims and spaces out brightness accents (no more than about four a second) and limits how bright they get. On by default. */
   flashLimit: boolean
   // Design › Wireframe
+  figure: WireFigureId
   satellites: number
   size: number
   spread: number
@@ -37,6 +43,10 @@ export interface WireValues {
   waveAmount: number
   waveDepth: number
   waveDetail: number
+  /** How much of each line's wave is a sine oscillator (the rest is the live captured waveform). */
+  waveOscillator: number
+  /** How chaotic the lines and the sine waves are: 0 is steady, 1 is a coupled chaotic system (still bounded). */
+  chaos: number
   readableFloor: number
   maxDisplacement: number
   minReadable: number
@@ -60,9 +70,9 @@ export type WireBooleanKey = { [K in keyof WireValues]: WireValues[K] extends bo
 
 export const WIRE_DEFAULTS: Readonly<WireValues> = Object.freeze({
   intensity: 1, audioReactivity: 1, bpmSync: true, flashLimit: true,
-  satellites: 2, size: 1, spread: 1, perspective: .45, tilt: 22, spin: .6, hiddenEdges: 'dim', depthCue: .5, duplicates: 1, outline: true,
+  figure: 'cubes', satellites: 2, size: 1, spread: 1, perspective: .45, tilt: 22, spin: .6, hiddenEdges: 'dim', depthCue: .5, duplicates: 1, outline: true,
   width: 2.2, glow: 1.5, trail: 110, scan: 40, travel: 'blank',
-  waveAmount: 1, waveDepth: .22, waveDetail: 7, readableFloor: .72, maxDisplacement: .12, minReadable: .65, attack: 45, release: 240,
+  waveAmount: 1, waveDepth: .3, waveDetail: 7, waveOscillator: .6, chaos: .5, readableFloor: .72, maxDisplacement: .12, minReadable: .65, attack: 45, release: 240,
   bassResponse: 1, midResponse: 1, lowMidResponse: 1, airResponse: 1, kickResponse: 1, snareResponse: 1, sceneEvery: 'phrase', seed: 7,
   color: '#7df08e', glowColor: '#1fa83c', backgroundColor: '#000000',
 })
@@ -71,11 +81,14 @@ export const WIRE_RANGES: Readonly<Record<WireNumberKey, readonly [number, numbe
   intensity: [0, 2], audioReactivity: [0, 1],
   satellites: [0, 4], size: [.5, 1.4], spread: [.6, 1.5], perspective: [0, 1], tilt: [-30, 60], spin: [0, 2], depthCue: [0, 1], duplicates: [1, 4],
   width: [.6, 4], glow: [0, 3], trail: [20, 300], scan: [12, 90],
-  waveAmount: [0, 1.5], waveDepth: [0, .4], waveDetail: [1, 16], readableFloor: [.4, .95], maxDisplacement: [0, .3], minReadable: [.3, .95], attack: [5, 500], release: [40, 1500],
+  waveAmount: [0, 1.5], waveDepth: [0, .6], waveDetail: [1, 16], waveOscillator: [0, 1], chaos: [0, 1], readableFloor: [.4, .95], maxDisplacement: [0, .3], minReadable: [.3, .95], attack: [5, 500], release: [40, 1500],
   bassResponse: [0, 2], midResponse: [0, 2], lowMidResponse: [0, 2], airResponse: [0, 2], kickResponse: [0, 2], snareResponse: [0, 2], seed: [0, 999],
 })
 const INTEGER_KEYS: ReadonlySet<WireNumberKey> = new Set<WireNumberKey>(['satellites', 'duplicates', 'seed', 'waveDetail'])
 
+export const WIRE_FIGURE_OPTIONS: readonly { value: WireFigureId; label: string }[] = Object.freeze([
+  { value: 'cubes', label: 'Cubes' }, { value: 'solids', label: 'Solids' }, { value: 'tesseract', label: 'Tesseract + solids' },
+])
 export const WIRE_HIDDEN_OPTIONS: readonly { value: WireHiddenEdges; label: string }[] = Object.freeze([{ value: 'show', label: 'Show all edges' }, { value: 'dim', label: 'Dim hidden edges' }])
 export const WIRE_TRAVEL_OPTIONS: readonly { value: WireTravel; label: string }[] = Object.freeze([{ value: 'blank', label: 'Blank' }, { value: 'dim', label: 'Dim' }, { value: 'visible', label: 'Visible' }])
 export const WIRE_CADENCE_OPTIONS: readonly { value: WireSceneCadence; label: string }[] = Object.freeze([
@@ -96,13 +109,13 @@ export const WIRE_MASTER_CONTROLS: readonly WireControlSpec[] = Object.freeze([
   spec('audioReactivity', 'Audio Reactivity', 'Scales how much the music moves the cubes. Zero keeps the clean figure.', .01, 'percent'),
 ])
 export const WIRE_FIGURE_CONTROLS: readonly WireControlSpec[] = Object.freeze([
-  spec('satellites', 'Satellite Cubes', 'How many smaller cubes orbit the core cube.', 1, 'count'),
+  spec('satellites', 'Satellite Figures', 'How many smaller figures orbit the core.', 1, 'count'),
   spec('size', 'Figure Size', 'Overall size of the figure on the screen.', .01, 'percent'),
   spec('spread', 'Orbit Spread', 'How far the satellite cubes sit from the core.', .01, 'percent'),
   spec('perspective', 'Perspective', 'Zero draws every cube with no foreshortening (orthographic); one draws a full pinhole camera.', .01, 'percent'),
   spec('tilt', 'View Tilt', 'Looks down on the figure (positive) or up at it (negative).', 1, 'degrees'),
   spec('spin', 'Spin Speed', 'How quickly the figure turns. With BPM Sync on it follows the track\'s tempo.', .01, 'percent'),
-  spec('depthCue', 'Depth Cue', 'Fades the edges that are farther from you, so the cubes read as solid.', .01, 'percent'),
+  spec('depthCue', 'Depth Cue', 'Fades the edges that are farther from you, so the figures read as solid.', .01, 'percent'),
   spec('duplicates', 'Duplicates', 'Draws this many copies of the figure. The first is the figure itself; the others are fainter echoes turned slightly apart.', 1, 'count'),
 ])
 export const WIRE_BEAM_CONTROLS: readonly WireControlSpec[] = Object.freeze([
@@ -113,8 +126,10 @@ export const WIRE_BEAM_CONTROLS: readonly WireControlSpec[] = Object.freeze([
 ])
 export const WIRE_REACT_CONTROLS: readonly WireControlSpec[] = Object.freeze([
   spec('waveAmount', 'Wave Amount', 'How strongly the live audio waveform ripples along every edge of the cubes. Zero draws straight lines.', .01, 'percent'),
-  spec('waveDepth', 'Wave Depth', 'The farthest the waveform may push a line sideways, as a share of that edge\'s length. The corners never move, so the cubes stay readable.', .005, 'percent'),
-  spec('waveDetail', 'Wave Detail', 'How many times the live waveform repeats along each edge. Higher draws a denser, more jagged trace; one draws a single sweep.', 1, 'count'),
+  spec('waveDepth', 'Wave Depth', 'The farthest a line may be pushed sideways, as a share of that edge\'s length. The corners never move, so the figures stay readable.', .005, 'percent'),
+  spec('waveDetail', 'Wave Detail', 'How many wave cycles fit along an edge. Higher draws a denser, more jagged trace; one draws a single sweep.', 1, 'count'),
+  spec('waveOscillator', 'Sine Oscillators', 'Every edge runs its own sine oscillator whose pitch follows the music. This is how much of each line is that sine wave; the rest is the live captured waveform.', .01, 'percent'),
+  spec('chaos', 'Chaos', 'How wild the lines are. Raising it makes each edge\'s oscillator drift in pitch and phase, modulate itself and couple to its neighbours (a chaotic system, but a repeatable one). The corners still never move.', .01, 'percent'),
   spec('readableFloor', 'Readability Floor', 'The least a cube may look like itself. When the music would push it past this, the movement is eased back until it holds.', .01, 'percent'),
   spec('maxDisplacement', 'Max Displacement', 'The farthest any corner may move from its place, as a share of a cube\'s edge.', .005, 'percent'),
   spec('minReadable', 'Minimum Readable Time', 'The share of the recent bars the figure must have been undisturbed before the director may break the cluster apart.', .01, 'percent'),
@@ -156,6 +171,7 @@ export function normalizeWireValues(value: unknown): WireValues {
   out.bpmSync = typeof record.bpmSync === 'boolean' ? record.bpmSync : WIRE_DEFAULTS.bpmSync
   out.flashLimit = typeof record.flashLimit === 'boolean' ? record.flashLimit : WIRE_DEFAULTS.flashLimit
   out.outline = typeof record.outline === 'boolean' ? record.outline : WIRE_DEFAULTS.outline
+  out.figure = pick(record.figure, WIRE_FIGURE_OPTIONS, WIRE_DEFAULTS.figure)
   out.hiddenEdges = pick(record.hiddenEdges, WIRE_HIDDEN_OPTIONS, WIRE_DEFAULTS.hiddenEdges)
   out.travel = pick(record.travel, WIRE_TRAVEL_OPTIONS, WIRE_DEFAULTS.travel)
   out.sceneEvery = pick(record.sceneEvery, WIRE_CADENCE_OPTIONS, WIRE_DEFAULTS.sceneEvery)

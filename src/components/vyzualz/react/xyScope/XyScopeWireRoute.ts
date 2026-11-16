@@ -55,12 +55,15 @@ function shortestPath(adjacency: Arc[][], from: number, to: number): number[] {
   return path.reverse()
 }
 
-/** Pairs up the odd corners so the edges retraced between each pair are as few as possible (exact, by bitmask search; greedy beyond 14 corners). */
+/**
+ * Pairs up the odd corners so the edges retraced between each pair are as few as possible. Exact (a memoized search that always pairs the
+ * lowest unpaired corner) up to 22 corners, which covers a dodecahedron's 20; greedy beyond that.
+ */
 function pairOdd(adjacency: Arc[][], odd: number[]): [number, number][] {
   const n = odd.length
   if (n === 0) return []
   const dist = odd.map(a => odd.map(b => (a === b ? 0 : shortestPath(adjacency, a, b).length)))
-  if (n > 14) {
+  if (n > 22) {
     const left = new Set(odd.keys()), pairs: [number, number][] = []
     while (left.size > 0) {
       const a = [...left][0]; left.delete(a)
@@ -70,25 +73,30 @@ function pairOdd(adjacency: Arc[][], odd: number[]): [number, number][] {
     }
     return pairs
   }
-  const cost = new Float64Array(1 << n).fill(Infinity), choice = new Int16Array(1 << n).fill(-1)
-  cost[0] = 0
-  for (let mask = 0; mask < (1 << n); mask++) {
-    if (!Number.isFinite(cost[mask])) continue
-    const first = (~mask & (mask + 1)) // lowest unset bit
-    if (first === 0 || first >= (1 << n)) continue
-    const i = Math.log2(first)
+  const full = (1 << n) - 1
+  const memo = new Map<number, { cost: number; pick: number }>()
+  const solve = (mask: number): number => {
+    if (mask === full) return 0
+    const known = memo.get(mask)
+    if (known) return known.cost
+    let i = 0
+    while (mask & (1 << i)) i++
+    let best = Infinity, pick = -1
     for (let j = i + 1; j < n; j++) {
       if (mask & (1 << j)) continue
-      const next = mask | first | (1 << j), total = cost[mask] + dist[i][j]
-      if (total < cost[next]) { cost[next] = total; choice[next] = i * 16 + j }
+      const total = dist[i][j] + solve(mask | (1 << i) | (1 << j))
+      if (total < best) { best = total; pick = j }
     }
+    memo.set(mask, { cost: best, pick })
+    return best
   }
+  solve(0)
   const pairs: [number, number][] = []
-  for (let mask = (1 << n) - 1; mask > 0;) {
-    const c = choice[mask]
-    if (c < 0) break
-    const i = Math.floor(c / 16), j = c % 16
-    pairs.push([odd[i], odd[j]]); mask &= ~((1 << i) | (1 << j))
+  for (let mask = 0; mask !== full;) {
+    let i = 0
+    while (mask & (1 << i)) i++
+    const j = memo.get(mask)!.pick
+    pairs.push([odd[i], odd[j]]); mask |= (1 << i) | (1 << j)
   }
   return pairs
 }

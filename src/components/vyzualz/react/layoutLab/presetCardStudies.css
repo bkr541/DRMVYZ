@@ -151,10 +151,15 @@
 /* 14 — a soft dark scrim: nearly opaque behind the title, easing to nothing at the edges so the picture still shows. */
 .ll-preset-study--poster-scrim .ll-preset-copy { background: radial-gradient(ellipse 88% 72% at 50% 50%, #020506c2 0%, #020506b8 48%, #02050650 80%, transparent 100%); }
 .ll-preset-study--poster-scrim .ll-preset-name { text-shadow: 0 1px 2px #000; }
-/* 15 — a frosted plate: a dark, lightly blurred label that sits on the picture and holds the title. */
-.ll-preset-study--poster-plate .ll-preset-name[data-two-line] { max-inline-size: calc(10ch + 20px); }
-.ll-preset-study--poster-plate .ll-preset-name { box-sizing: border-box; padding: 5px 10px; border: 1px solid #ffffff22; border-radius: 4px; background: #03080bee; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); text-shadow: none; }
-/* 16 — a caption bar: a solid band across the foot of the tile, the title centred in it; the picture keeps the rest of the tile. */
-.ll-preset-study--poster-bar .ll-preset-copy { inset: auto 0 0; justify-content: center; padding: 6px 22px 6px 8px; border-top: 1px solid #ffffff1c; background: #03080bf2; }
-.ll-preset-study--poster-bar .ll-preset-name { text-shadow: none; }
-.ll-preset-study--poster-bar .ll-preset-selection { bottom: 6px; }
+/* 15 — a frosted band: a full-width strip behind the title that blurs the picture and tints it dark, feathered at the top and bottom so it reads as a
+   soft glass band, not a box. Bright detail (lightning, beams) is blurred away behind the letters while the rest of the tile stays sharp. */
+.ll-preset-study--poster-plate .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
+.ll-preset-study--poster-plate .ll-preset-copy::before { content: ''; position: absolute; inset: 10px 0; background: rgba(2, 5, 6, .6); -webkit-backdrop-filter: blur(7px) brightness(.5); backdrop-filter: blur(7px) brightness(.5);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent), linear-gradient(transparent, #000 30%, #000 70%, transparent); -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent), linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-composite: intersect; }
+.ll-preset-study--poster-plate .ll-preset-name { position: relative; color: #fff; text-shadow: 0 1px 2px #000c; }
+/* 16 — an outlined title: no background at all. A dark outline is painted under the letters, with a tight halo around it, the way film subtitles stay
+   readable on any shot; the whole picture stays visible. */
+.ll-preset-study--poster-bar .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
+.ll-preset-study--poster-bar .ll-preset-name { position: relative; color: #fff; font-weight: 500; -webkit-text-stroke: 2.6px #020506; paint-order: stroke fill;
+  text-shadow: 0 0 3px #020506, 0 0 6px #020506f2, 0 0 11px #020506c8; }

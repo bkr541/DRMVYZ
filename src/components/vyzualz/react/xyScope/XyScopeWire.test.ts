@@ -139,7 +139,7 @@ describe('projection', () => {
     const world = new Float32Array(24), projected = new Float32Array(16), hidden = new Uint8Array(12)
     placeShape(shape, [{ cx: 0, cy: 0, cz: 0, q, scale: 1 }], world)
     for (let i = 0; i < 8; i++) projectPoint(world[i * 3], world[i * 3 + 1], world[i * 3 + 2], { ...DEFAULT_WIRE_CAMERA, perspective: 0 }, projected, i * 2)
-    findHiddenEdges(shape.faces, shape.edgeFaces, projected, 0, 12, hidden)
+    findHiddenEdges(shape.faces, shape.faceOffsets, shape.edgeFaces, projected, 0, 12, hidden)
     expect(hidden.reduce((a, b) => a + b, 0)).toBe(3)
     const hiddenEdges = [...hidden].flatMap((h, e) => h ? [[shape.edges[e * 2], shape.edges[e * 2 + 1]]] : [])
     const shared = hiddenEdges.flat().filter(v => hiddenEdges.flat().filter(w => w === v).length === 3)

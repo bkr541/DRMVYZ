@@ -34,14 +34,16 @@ export interface WireScene {
   breathe: number
   /** Extra subordinate copies (the duplicator), added to the user's count. */
   echo: number
+  /** The kinds of section this scene suits. A scene is chosen from those that suit the section the track is in, when it has one. */
+  suits?: readonly string[]
 }
 export const BASE_SCENE: WireScene = Object.freeze({ id: 'base', orbit: 1, spread: 1, tumble: .2, breathe: 0, echo: 0 })
 export const WIRE_SCENES: readonly WireScene[] = Object.freeze([
-  { id: 'orbit', orbit: 1, spread: 1, tumble: .15, breathe: 0, echo: 0 },
-  { id: 'tumble', orbit: .45, spread: .92, tumble: 1, breathe: 0, echo: 0 },
-  { id: 'breathe', orbit: .7, spread: 1, tumble: .25, breathe: 1, echo: 0 },
-  { id: 'split', orbit: .55, spread: 1.35, tumble: .35, breathe: .2, echo: 0 },
-  { id: 'echo', orbit: .8, spread: 1, tumble: .2, breathe: 0, echo: 1 },
+  { id: 'orbit', orbit: 1, spread: 1, tumble: .15, breathe: 0, echo: 0, suits: ['intro', 'verse', 'outro', 'bridge'] },
+  { id: 'tumble', orbit: .45, spread: .92, tumble: 1, breathe: 0, echo: 0, suits: ['drop', 'bridge', 'build'] },
+  { id: 'breathe', orbit: .7, spread: 1, tumble: .25, breathe: 1, echo: 0, suits: ['breakdown', 'intro', 'outro', 'verse'] },
+  { id: 'split', orbit: .55, spread: 1.35, tumble: .35, breathe: .2, echo: 0, suits: ['build', 'preDrop', 'drop'] },
+  { id: 'echo', orbit: .8, spread: 1, tumble: .2, breathe: 0, echo: 1, suits: ['verse', 'build', 'preDrop', 'bridge'] },
 ])
 
 /** Structural evidence from an analysed track. Null when there is none (a live microphone, or a track not yet analysed). */
@@ -80,6 +82,8 @@ export interface DirectorInput {
   hit: number
   /** A seek, loop or track change: start again from the readable figure. */
   discontinuity: boolean
+  /** The kind of section the track is in (null on a live microphone, which has none). */
+  sectionType?: string | null
 }
 
 export interface DirectorOutput {
@@ -206,8 +210,11 @@ export class WireDirector {
     const fallback = !structured && (input.cadence === 'section' || input.cadence === 'phrase') && input.gridConfident && b.bar8
     if (!fired && !fallback) return
     this.lastBoundary = b.id
-    const candidates = WIRE_SCENES.filter(scene => !this.recent.includes(scene.id))
-    const pool = candidates.length > 0 ? candidates : WIRE_SCENES
+    // The scenes that suit this kind of section come first; with no section (a live microphone) every scene is a candidate.
+    const suited = input.sectionType ? WIRE_SCENES.filter(scene => scene.suits?.includes(input.sectionType!)) : []
+    const field = suited.length > 0 ? suited : WIRE_SCENES
+    const candidates = field.filter(scene => !this.recent.includes(scene.id))
+    const pool = candidates.length > 0 ? candidates : field
     const picked = pool[selectPerformanceDeterministicIndex(pool.length, 'wire', input.seed, input.trackIdentity ?? 'live', b.id)]
     this.target = picked
     this.recent.push(picked.id)
