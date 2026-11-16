@@ -81,6 +81,7 @@ Each specification tracks its preset’s implementation status and requirements.
 | `docs/mobile-preview-window.md` | Floating mobile-preview launcher, iPhone 16 portrait shell, native window policy and validation |
 | `docs/performance-manager-phase01.md` | Performance Manager engine/preset browsing, read-only pad mirror, Configuration and shared dock |
 | `docs/mobile-stage-links.md` | Desktop lease, account pad sync, shareable stage links and the `stage-link` Edge Function |
+| `docs/mobile-app.md` | The phone experience: who gets it, the Perform / Pads / Visualizer / Remote screens, account pad sync and what is not built yet |
 | `docs/model-release-phase07.md` | Executed release checks, acceptance matrix and remaining production gates |
 | `docs/model-migrations.md` | Model migration rollout, read-only verification, owner acceptance and recovery |
 | `docs/model-generator-phase02.md` | Image-to-3D engine, browser/Electron VTracer runtime, geometry budgets, GLB export and Phase 03 handoff |

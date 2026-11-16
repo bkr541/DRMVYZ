@@ -1,0 +1,68 @@
+/* The real mobile app (see MobileApp.tsx). Page compositions come from ../layout/mobileScreens.css; this file adds what only the live app needs:
+   the full-screen root, the persistent stage, the audio panel, the Remote preview and disabled engine options. */
+html, body { overscroll-behavior: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.mobile-app { position: fixed; inset: 0; box-sizing: border-box; height: 100dvh; overflow: hidden;
+  padding: max(var(--fw-outer-inset), env(safe-area-inset-top)) max(var(--fw-outer-inset), env(safe-area-inset-right)) max(var(--fw-outer-inset), env(safe-area-inset-bottom)) max(var(--fw-outer-inset), env(safe-area-inset-left)); }
+
+/* The stage keeps running across pages, so it is positioned over the Visualizer slot rather than rendered inside it. */
+.mobile-stage-host { position: absolute; z-index: 5; overflow: hidden; border-radius: var(--radius-group); background: #000; pointer-events: none; visibility: hidden; }
+.mobile-stage-host[data-visible='true'] { visibility: visible; }
+.mobile-stage-host .rv-cinema2-stage { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mobile-stage-host .rv-cinema2-canvas { display: block; width: 100%; height: 100%; }
+.mobile-stage-empty { position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; padding: 16px; text-align: center; color: var(--color-text-muted); background: #000; }
+.mobile-stage-empty strong { color: var(--color-text); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.mobile-stage-empty span { font: var(--type-field-value); }
+.mobile-empty-note { padding: 12px; }
+
+/* Perform: the real preset panel fills the page and scrolls only its list. */
+.mpm--production .mpm-perform > .rv-engine-panel-list { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; }
+.mpm--production .mpm-perform > .rv-engine-panel-list > .rv-preset-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+.mpm--production .mpm-perform > .rv-engine-panel-list > * { flex-shrink: 0; }
+.mpm--production .mpm-perform > .rv-engine-panel-list > .rv-preset-scroll { flex-shrink: 1; }
+
+/* Engines the phone cannot run are listed, dimmed and inert. Specificity matches the cascade rule that fades options in. */
+.mpm--production .rv-engine-dropdown-popover:popover-open .rv-engine-dropdown-option.rv-engine-card[data-unavailable] { opacity: .38; filter: saturate(.3); cursor: not-allowed; }
+.mpm--production .rv-engine-dropdown-option.rv-engine-card[data-unavailable]:hover { border-color: inherit; }
+
+/* Pads: the production pads, three to a row, in the same fixed rows the preview used. */
+.mpm--production .mpm-pads-page .mpm-pads { display: block; }
+.mpm--production .mpm-pads-page .rv-pads-section { border: 0; }
+.mpm--production .mpm-pads-page .rv-pads-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, 94px); max-height: none; overflow: visible; padding: 0; gap: 4px; }
+
+/* Visualizer: audio source below the stage. */
+.mpm--production .mpm-visualizer > .mpm-scroll { padding: 0 12px 12px; }
+.mobile-audio { display: flex; flex-direction: column; gap: 10px; }
+.mobile-audio-body { display: flex; flex-direction: column; gap: 10px; }
+.mobile-audio-status { margin: 0; color: var(--color-text-muted); font: var(--type-field-value); line-height: 1.5; }
+.mobile-audio-status[data-listening] { color: var(--color-primary); }
+.mobile-audio-status[data-error] { color: var(--color-danger, #df706d); }
+.mobile-audio-transport { display: flex; align-items: center; gap: 12px; }
+.mobile-audio-time { color: var(--color-text-muted); font: var(--type-field-value); font-variant-numeric: tabular-nums; }
+.mobile-track-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mobile-track { display: grid; gap: 2px; width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); background: var(--color-panel-alt); color: var(--color-text); text-align: left; font: var(--type-field-value); cursor: pointer; }
+.mobile-track strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.mobile-track small { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mobile-track[data-active] { border-color: var(--color-primary); box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 25%, transparent); }
+.mobile-track:disabled { opacity: .6; cursor: default; }
+
+/* Remote preview. */
+.mobile-remote { gap: 16px; }
+.mobile-remote-card { display: grid; justify-items: center; gap: 8px; padding: 20px 16px; text-align: center; border: 1px dashed var(--color-border); border-radius: var(--radius-group); color: var(--color-text-muted); }
+.mobile-remote-card svg { color: var(--color-primary); }
+.mobile-remote-card h2 { margin: 0; color: var(--color-text); font: var(--type-window-heading); letter-spacing: var(--type-window-heading-tracking); text-transform: uppercase; }
+.mobile-remote-card p { margin: 0; font: var(--type-field-value); line-height: 1.6; }
+.mobile-remote-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mobile-remote-list li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; min-height: 56px; padding: 8px 12px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); background: var(--color-panel-alt); }
+.mobile-remote-list strong { display: block; color: var(--color-text); font: var(--type-field-value); font-weight: 600; }
+.mobile-remote-list small { color: var(--color-text-muted); font: var(--type-field-value); }
+.mobile-remote-list button { min-height: 36px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: 4px; background: transparent; color: var(--color-text-muted); font: var(--type-field-value); }
+.mobile-remote-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-muted); opacity: .5; }
+.mobile-remote-list [data-state='online'] .mobile-remote-dot { background: #64b98b; opacity: 1; box-shadow: 0 0 8px #64b98b; }
+.mobile-link-button { align-self: center; min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--color-primary); font: var(--type-field-value); text-decoration: underline; cursor: pointer; }
+
+/* Perform > Controls: the inspector is shown as production shows it in the React view: no extra surface, long descriptions hidden, and the
+   parent groups 12px in from the edges (the same rules the Visualizer preview uses). */
+.mpm--production .mpm-controls .rv-workspace-panel { background: transparent; }
+.mpm--production .mpm-controls :is(.rv-ctrl-description, .rv-ctrl-info, .rv-control-helper-copy) { display: none !important; }
+.mpm--production .mpm-controls .mobile-empty-note { display: block !important; }
+.mpm--production .mpm-controls [data-cinema2-inspector='design'] .rv-inspector > .rv-ctrl-group { padding-left: 12px; padding-right: 12px; }

@@ -68,7 +68,7 @@ export function ReactEngineCardContents({ engineId, presetName, pixelLabel = fal
 /**
  * Engine-family switcher shown above the tab row of the React left window.
  */
-export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange, boundarySelector = '.vz-inspector-inner' }: {
+export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange, boundarySelector = '.vz-inspector-inner', disabledEngines = [], disabledReason = 'Not available on this device' }: {
   /** The active engine's selected preset, shown under the engine name (Cinema 2.0 and CANVAS). */
   presetName?: string | null
   /** Controlled mode for store-free hosts (the Mobile Preview mockup): the engine shown, and what choosing another does. */
@@ -76,6 +76,9 @@ export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange
   onEngineChange?: (engineId: ReactEngineId) => void
   /** The container the open menu must fit inside; defaults to the inspector rail. */
   boundarySelector?: string
+  /** Engines shown in the menu but not selectable (the mobile app, which runs Cinema 2.0 only). */
+  disabledEngines?: readonly ReactEngineId[]
+  disabledReason?: string
 } = {}) {
   const store = useReactStore(useShallow(state => ({
     activeReactEngineId: state.activeReactEngineId,
@@ -172,17 +175,23 @@ export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange
       <div className="rv-engine-dropdown-popover" {...popoverAttributes} ref={popoverRef}>
         <div className="rv-engine-dropdown-scrim" aria-hidden="true" onClick={close} />
         <div className="rv-engine-dropdown-menu" role="listbox" aria-label="React visual engines" id={menuId}>
-          {listedEngines.map((engineId, index) => (
+          {listedEngines.map((engineId, index) => {
+            const unavailable = disabledEngines.includes(engineId)
+            return (
             <button
               key={engineId}
               style={{ '--rv-engine-option-index': index } as React.CSSProperties}
               type="button"
               role="option"
               aria-selected={false}
+              aria-disabled={unavailable || undefined}
+              disabled={unavailable}
+              data-unavailable={unavailable || undefined}
               className="rv-engine-dropdown-option rv-engine-card"
               data-engine={engineId}
-              title={REACT_ENGINE_CATALOG[engineId].description}
+              title={unavailable ? `${REACT_ENGINE_CATALOG[engineId].label}: ${disabledReason}` : REACT_ENGINE_CATALOG[engineId].description}
               onClick={() => {
+                if (unavailable) return
                 close()
                 selectReactEngine(engineId)
                 triggerRef.current?.focus({ preventScroll: true })
@@ -190,7 +199,8 @@ export function ReactEngineBrowser({ presetName = null, engineId, onEngineChange
             >
               <ReactEngineCardContents engineId={engineId} pixelLabel={engineId === 'pixGrid'} />
             </button>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

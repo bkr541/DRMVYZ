@@ -15,7 +15,7 @@ The left navigation has one **Mobile** group (collapsible) with five screens: **
 - **Visualizer:** the output edge to edge, then a Design / React tab row and the production Cinema 2.0 inspector (`MobileVisualizerInspector.tsx` renders `Cinema2InspectorPanel` over the selected preset's real compiled parameters and a real parameter state, with no renderer). Design always shows the four production parent groups (Master Controls, Design, Effects, Palette) with their icons. Most presets declare nothing on the React surface, so when the selected preset has none the React tab borrows the 3D FORM preview's real Model Response controls; ANALYSIS is disabled because it needs the live audio engine.
 - **Remote:** a placeholder for controlling a desktop from the phone.
 
-A separate sidebar button above Layout Lab, **Mobile App Preview**, opens the whole running app in a phone-sized window (`mobileAppPreview.ts`); it is a second instance of the app on the same origin.
+A separate sidebar button above Layout Lab, **Mobile App Preview**, opens the whole running app in a phone-sized window (`mobileAppPreview.ts`); it is a second instance of the app on the same origin. That frame counts as a phone, so it now shows the real mobile screens (`docs/mobile-app.md`) rather than the desktop app.
 
 ## Production audit and visual contract
 

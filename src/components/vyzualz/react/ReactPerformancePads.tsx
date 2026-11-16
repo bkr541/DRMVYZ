@@ -62,7 +62,16 @@ function contextualHint(target: ReactPerformanceActionTarget, actions: readonly 
   return `${keys} = ${label} actions · remaining slots = presets`
 }
 
-export function ReactPerformancePads({ embedded = false, mirror = false, presentation = 'compact', editor }: { embedded?: boolean; mirror?: boolean; presentation?: 'compact' | 'expanded'; editor?: { selectedPadId: string | null; onSelect: (id: string) => void } }) {
+export function ReactPerformancePads({ embedded = false, mirror = false, presentation = 'compact', editor, range, isPadUsable }: {
+  embedded?: boolean
+  mirror?: boolean
+  presentation?: 'compact' | 'expanded'
+  editor?: { selectedPadId: string | null; onSelect: (id: string) => void }
+  /** Shows only the pads from `start` up to (not including) `end`, in slot order: one bank of a paged layout. */
+  range?: { start: number; end?: number }
+  /** A pad this host cannot perform (the mobile app runs Cinema 2.0 only) is shown disabled, and neither a click nor a key fires it. */
+  isPadUsable?: (pad: ReactPerformancePad) => boolean
+}) {
   const [collapsed, setCollapsed] = useState(() => !embedded)
   const [pressedActionId, setPressedActionId] = useState<string | null>(null)
   const [heldPadIds, setHeldPadIds] = useState<Set<string>>(new Set())
@@ -128,6 +137,10 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
     if (isFormFieldKeyboardTarget(event.target) || event.repeat) return
     const route = resolvePerformancePadKeyboardRoute(event.key, contextualActions)
     if (!route) return
+    if (route.kind === 'preset' && isPadUsable) {
+      const keyedPad = performancePads.find(pad => pad.id === route.padId)
+      if (!keyedPad || !isPadUsable(keyedPad)) return
+    }
     event.preventDefault()
     const heldId = PERFORMANCE_PAD_KEY_MAP[event.key.toLowerCase()]
     setHeldPadIds(current => new Set(current).add(heldId))
@@ -137,7 +150,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
       return
     }
     setActivePadId(route.padId)
-  }, [contextualActions, fireAction, setActivePadId])
+  }, [contextualActions, fireAction, isPadUsable, performancePads, setActivePadId])
 
   useEffect(() => {
     if (mirror) return
@@ -162,9 +175,11 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
     <AppIcon kind="grid" size="14" style={{ flexShrink: 0 }} />
   )
 
+  const visiblePads = range ? performancePads.slice(range.start, range.end) : performancePads
   const padButtons = (
     <>
-      {performancePads.map((pad, index) => {
+      {visiblePads.map((pad) => {
+            const index = performancePads.indexOf(pad)
             const padColor = getPerformancePadColor(pad, index)
             const action = editor ? undefined : actionsByPadId.get(pad.id)
             if (action) {
@@ -186,7 +201,7 @@ export function ReactPerformancePads({ embedded = false, mirror = false, present
               )
             }
 
-            const hasDestination = Boolean(pad.presetId || pad.destination)
+            const hasDestination = Boolean(pad.presetId || pad.destination) && (isPadUsable?.(pad) ?? true)
             const isActive = hasDestination && pad.id === activePadId
             return (
               <PerformancePad

@@ -13,9 +13,16 @@ import { useMediaStore } from './stores/mediaStore'
 import { useCinema2TextLibraryStore } from './features/cinema2Text/cinema2TextStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
 import './stores/mediaDeletionGuardBootstrap'
+import { usePerformancePadSync } from './features/performancePads/usePerformancePadSync'
+import { resolveMobileApp } from './components/vyzualz/mobile/mobileDevice'
+import { isMobileAppPreviewFrame } from './components/vyzualz/layout/mobileAppPreview'
 
 const VyzualzView = lazy(() =>
   import('./components/vyzualz/VyzualzView').then(module => ({ default: module.VyzualzView })),
+)
+
+const MobileApp = lazy(() =>
+  import('./components/vyzualz/mobile/MobileApp').then(module => ({ default: module.MobileApp })),
 )
 
 type AuthGateState = 'checking' | 'configuration-required' | 'signed-out' | 'authenticated' | 'password-recovery'
@@ -25,6 +32,11 @@ export default function App() {
     supabaseConfigured ? 'checking' : 'configuration-required',
   )
   const activeBrandKit = useBrandKitStore(state => state.activeKit)
+  // Chosen once per page load: phones get the dedicated mobile screens, everything else the full application. The Mobile App Preview frame is
+  // a phone by definition, so a desktop can see the mobile screens.
+  const [useMobileApp] = useState(() => isMobileAppPreviewFrame() || resolveMobileApp())
+  const [userId, setUserId] = useState<string | null>(null)
+  usePerformancePadSync(authGate === 'authenticated' ? userId : null)
 
   useEffect(() => {
     applyBrandAppAccent(activeBrandKit)
@@ -64,6 +76,7 @@ export default function App() {
 
     function activateUser(userId: string) {
       activeUserId = userId
+      setUserId(userId)
       setAuthGate('authenticated')
       void useBrandKitStore.getState().initializeForUser(userId)
       void useAppearanceStore.getState().initializeForUser(userId)
@@ -72,6 +85,7 @@ export default function App() {
 
     function deactivateUser() {
       activeUserId = null
+      setUserId(null)
       setAuthGate('signed-out')
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
@@ -139,6 +153,19 @@ export default function App() {
   // Not authenticated — show auth gate
   if (authGate !== 'authenticated') {
     return <AuthPage onAuth={() => setAuthGate('authenticated')} />
+  }
+
+  // Authenticated — phones get the dedicated mobile screens
+  if (useMobileApp) {
+    return (
+      <AudioEngineProvider>
+        <VyzualzErrorBoundary section="MobileApp">
+          <Suspense fallback={<div className="auth-loading" role="status" aria-label="Loading DRMVYZ" />}>
+            <MobileApp />
+          </Suspense>
+        </VyzualzErrorBoundary>
+      </AudioEngineProvider>
+    )
   }
 
   // Authenticated — VYZUALZ is the sole view
