@@ -429,7 +429,7 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     const group = (name: string) => container.querySelector(`[data-xyscope-parent-group="${name}"]`)!
     for (const id of ['intensity', 'audioReactivity', 'bpmSync', 'auto', 'flashLimit', 'hold']) expect(group('master-controls').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
     for (const id of ['satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'depthCue', 'duplicates', 'hiddenEdges', 'outline', 'width', 'glow', 'trail', 'scan', 'travel']) expect(group('design').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
-    for (const id of ['readableFloor', 'maxDisplacement', 'minReadable', 'attack', 'release', 'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse', 'sceneEvery', 'seed']) expect(group('react').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['waveAmount', 'waveDepth', 'waveDetail', 'readableFloor', 'maxDisplacement', 'minReadable', 'attack', 'release', 'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse', 'sceneEvery', 'seed']) expect(group('react').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
     for (const id of ['color', 'glow-color', 'background']) expect(group('palette').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
     await act(async () => container.querySelector<HTMLElement>('#xyscope-wire-auto')!.click())
     expect(state().wire.autoPerformance).toBe(true)

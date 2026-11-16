@@ -17,6 +17,8 @@ export interface Osc1Scannable<L extends Osc1ScanStream = Osc1ScanStream> {
   fitWidth?: number
   /** Vertical centre of the stage as a share of its height (0.52 when omitted). */
   anchorY?: number
+  /** Beam samples per second (18,000 when omitted). A figure with fine detail on its lines asks for more. */
+  sampleRate?: number
 }
 
 export interface Osc1BeamSettings { intensity: number; persistence: number; width: number; scan: number; color: string }
@@ -78,9 +80,10 @@ export class Osc1Renderer {
     const { W, H, phosphor } = this
     if (!this.ctx || !this.rasterCtx || !this.raster || !this.imageData || W === 0) return
     if (!hold) {
-      const step = 1 / SAMPLE_RATE
-      const n = Math.min(1200, Math.floor(dt * SAMPLE_RATE + this.sampleCarry))
-      this.sampleCarry = dt * SAMPLE_RATE + this.sampleCarry - n
+      const rate = engine.sampleRate ?? SAMPLE_RATE
+      const step = 1 / rate
+      const n = Math.min(Math.round(rate / 15), Math.floor(dt * rate + this.sampleCarry))
+      this.sampleCarry = dt * rate + this.sampleCarry - n
       const count = engine.letters.length
       const fixedLayout = engine.absolute === true
       const total = fixedLayout ? (engine.fitWidth ?? 6) : engine.letters.reduce((sum, l) => sum + l.advance + .30, 0)
@@ -91,14 +94,14 @@ export class Osc1Renderer {
         const l = engine.letters[i], center = fixedLayout ? W / 2 : cursor + (l.advance + .30) * size / 2
         if (!fixedLayout) cursor += (l.advance + .30) * size
         if (!l.table) continue
-        const hz = s.scan * (l.rate ?? 1) * (1 + ((i % 5) - 2) * .0017), inc = hz / SAMPLE_RATE
+        const hz = s.scan * (l.rate ?? 1) * (1 + ((i % 5) - 2) * .0017), inc = hz / rate
         let absolute = l.scanPhase
         for (let k = 0; k < n; k++) {
           absolute += inc
           const u = absolute % 1, cycle = Math.floor(absolute), offset = -dt + k * step
           engine.signal(l, i, u, cycle, offset, out)
           const x = center + out.x * size, y = cy + out.y * size, lit = out.z > 0
-          const energy = out.energy * .65 * (18000 / SAMPLE_RATE)
+          const energy = out.energy * .65 * (18000 / rate)
           if (lit) {
             if (l.lastLit) phosphor.segment(l.lastX, l.lastY, x, y, energy, s.width)
             else phosphor.deposit(x, y, energy, s.width)

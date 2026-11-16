@@ -62,6 +62,8 @@ export class WireEngine {
   readonly absolute = true
   readonly fitWidth = 2.6
   readonly anchorY = .5
+  /** Beam samples per second: the waveform's detail along the edges needs more than the 18,000 the other figures use. */
+  readonly sampleRate = 54000
   beamSamples = 0
 
   readonly shape: WireShape = buildCubeCluster()
@@ -85,6 +87,13 @@ export class WireEngine {
   /** Extra beam width from kicks, as a share of the Beam Width setting. */
   beamWidthBoost = 0
   pointCount = 0
+  /** The live triggered waveform (−1…1) that ripples along the edges, and its gain. Set each frame by the runtime from the stereo samples. */
+  wave: Float32Array = new Float32Array(512)
+  waveGain = 1
+  /** True when `wave` is a real capture of the audio. Otherwise the engine draws a stand-in built from the analysed bands. */
+  hasWave = false
+  /** How hard the waveform drives the x, y and z edges of each cube this frame (0..1): bass, mids and highs respectively. */
+  readonly rippleAxis = new Float32Array(3)
   /** How much the path's length has been compensated for (1 for a short path). Tests divide it out to compare passes. */
   energyScale = 1
   private extent = 0
@@ -95,6 +104,13 @@ export class WireEngine {
   private tumblePhase = 0
   private lastFlash = -10
   private readonly field = new Float32Array(this.shape.vertices.length)
+  private readonly synth = new Float32Array(512)
+  /** Which axis of its cube each edge lies along (0 x, 1 y, 2 z). */
+  private readonly edgeAxis = (() => {
+    const axis = new Uint8Array(this.shape.edges.length / 2)
+    for (let e = 0; e < axis.length; e++) { const diff = (this.shape.edges[e * 2] % 8) ^ (this.shape.edges[e * 2 + 1] % 8); axis[e] = diff === 1 ? 0 : diff === 2 ? 1 : 2 }
+    return axis
+  })()
   private readonly projected: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(this.shape.vertices.length / 3 * 2))
   private readonly hidden: Uint8Array[] = Array.from({ length: MAX_PASSES }, () => new Uint8Array(this.shape.edges.length / 2))
   private readonly depth: Float32Array[] = Array.from({ length: MAX_PASSES }, () => new Float32Array(this.shape.vertices.length / 3))
@@ -108,6 +124,10 @@ export class WireEngine {
   private kinds: Kind[] = []
   private gain = new Float32Array(0)
   private boost = new Uint8Array(0)
+  /** Per point: how far the waveform may push the segment sideways (screen units), the edge it draws, and whether it is drawn against the edge's own direction. */
+  private ripple = new Float32Array(0)
+  private edgeOf = new Int16Array(0)
+  private reversed = new Uint8Array(0)
   private clock = new Float32Array(1)
   private rest = new Float32Array(1)
   private cursor = 0
@@ -172,8 +192,40 @@ export class WireEngine {
     this.weight = guarded.weight
     this.readability = guarded.readability
     applyField(this.shape, this.base, this.field, guarded.weight, cubes, this.deformed)
+    this.driveRipple(reading, values)
 
     this.buildPath(cubes, scene.echo, values)
+  }
+
+  /**
+   * What the waveform does to the edges. The lines carry the audio itself: the triggered waveform ripples along every edge, and which
+   * band drives an edge depends on its direction (bass on the x edges, mids on y, highs on z), plus every kick. With no real capture the
+   * waveform is built from the analysed bands, so the lines still move with the track. Silence leaves exactly straight lines.
+   */
+  private driveRipple(reading: WireReading, values: WireValues): void {
+    const d = this.matrix.drive
+    // The ripple has its own bound (Wave Depth, with the corners pinned), so it is not eased back by the deformation guard.
+    const gate = reading.playing ? values.audioReactivity * values.waveAmount : 0
+    const level = reading.playing ? reading.features.level : 0
+    const kick = d.kick ?? 0
+    const axisDrive = [d.bass ?? 0, d.mid ?? 0, d.air ?? 0]
+    for (let a = 0; a < 3; a++) this.rippleAxis[a] = clamp((.22 * level + .8 * axisDrive[a] + .6 * kick) * gate)
+    if (!this.hasWave) this.buildSynthWave(reading)
+  }
+
+  /** A stand-in waveform made of four sines whose strengths follow the sub-bass, bass, mids and highs and whose phases move with time. */
+  private buildSynthWave(reading: WireReading): void {
+    const f = reading.features, n = this.synth.length
+    const amp = reading.playing ? [f.sub + f.bass * .8, f.mid, f.air, f.flux] : [0, 0, 0, 0]
+    const total = Math.max(1e-6, amp[0] + amp[1] + amp[2] + amp[3])
+    const cycles = [2, 5, 11, 23], rate = [.7, 1.3, 2.1, 3.4]
+    for (let i = 0; i < n; i++) {
+      const x = i / (n - 1)
+      let v = 0
+      for (let k = 0; k < 4; k++) v += amp[k] * Math.sin(TAU * (cycles[k] * x + rate[k] * this.time + k * .37))
+      this.synth[i] = clamp(v / (total * .55) * Math.min(1, total), -1, 1)
+    }
+    this.wave = this.synth; this.waveGain = 1
   }
 
   /** Where each cube sits and how it is turned this frame, as a rigid placement (the orbit and the turns are never counted as deformation). */
@@ -217,7 +269,7 @@ export class WireEngine {
     const capacity = passCount * (route.length + 2)
     if (capacity > this.px.length) {
       this.px = new Float32Array(capacity); this.py = new Float32Array(capacity); this.gain = new Float32Array(capacity)
-      this.boost = new Uint8Array(capacity); this.kinds = new Array(capacity); this.clock = new Float32Array(capacity + 1); this.rest = new Float32Array(capacity)
+      this.boost = new Uint8Array(capacity); this.ripple = new Float32Array(capacity); this.edgeOf = new Int16Array(capacity); this.reversed = new Uint8Array(capacity); this.kinds = new Array(capacity); this.clock = new Float32Array(capacity + 1); this.rest = new Float32Array(capacity)
     }
     const camera = this.camera
     camera.perspective = v.perspective
@@ -251,12 +303,19 @@ export class WireEngine {
           this.gain[n] = passGain / route.multiplicity[s] * (1 - v.depthCue * .55 * far) * (v.hiddenEdges === 'dim' && this.hidden[pass][edge] ? .35 : 1)
         }
         this.boost[n] = isOutline ? 0 : 1
+        this.ripple[n] = 0
+        if (edge >= 0 && copy === 0 && !isOutline) {
+          const b = route.to[s]
+          const length = Math.hypot((projected[b * 2] - projected[a * 2]) * stage, (projected[b * 2 + 1] - projected[a * 2 + 1]) * stage)
+          this.ripple[n] = v.waveDepth * length * this.rippleAxis[this.edgeAxis[edge]]
+          this.edgeOf[n] = edge; this.reversed[n] = a > b ? 1 : 0
+        }
         n++
         if (s === lastStep && route.edge[s] >= 0) {
           // A route that closes on itself still needs its end point, so the beam can hop on to the next pass.
           const b = route.to[s]
           this.px[n] = projected[b * 2] * stage; this.py[n] = -projected[b * 2 + 1] * stage
-          this.kinds[n] = 1; this.gain[n] = 0; this.boost[n] = 0; n++
+          this.kinds[n] = 1; this.gain[n] = 0; this.boost[n] = 0; this.ripple[n] = 0; n++
         }
       }
     }
@@ -272,7 +331,8 @@ export class WireEngine {
     this.clock[0] = 0
     for (let s = 0; s < n; s++) {
       const j = (s + 1) % n, len = Math.hypot(this.px[j] - this.px[s], this.py[j] - this.py[s])
-      const travel = Math.pow(len, .7) * (this.kinds[s] === 1 ? .35 : 1)
+      // A segment that carries the waveform is given more of the scan, so its detail is drawn rather than skipped.
+      const travel = Math.pow(len, .7) * (this.kinds[s] === 1 ? .35 : 1 + (this.ripple[s] > 0 ? 2.2 : 0))
       this.rest[s] = dwell / (travel + dwell) / 2
       sum += travel + dwell
       this.clock[s + 1] = sum
@@ -294,6 +354,21 @@ export class WireEngine {
     const raw = clamp((u - clock[s]) / Math.max(1e-9, clock[s + 1] - clock[s])), h = this.rest[s]
     const p = clamp((raw - h) / Math.max(1e-6, 1 - 2 * h))
     out.x = mix(this.px[s], this.px[j], p); out.y = mix(this.py[s], this.py[j], p)
+    const amp = this.ripple[s]
+    if (amp > 0) {
+      // The edge's own waveform: the live trace, repeated Wave Detail times along the edge, rippling the line sideways. Seen from the edge's lower corner (so a retraced edge draws the
+      // same curve both times), it is zero at both corners, so the cubes' corners never move.
+      const reversed = this.reversed[s] === 1
+      let dx = this.px[j] - this.px[s], dy = this.py[j] - this.py[s]
+      const length = Math.hypot(dx, dy) || 1
+      if (reversed) { dx = -dx; dy = -dy }
+      const q = reversed ? 1 - p : p
+      const wave = this.wave, at = (q * this.values.waveDetail + this.edgeOf[s] * .173) % 1
+      const sample = clamp(wave[Math.min(wave.length - 1, Math.floor(at * (wave.length - 1)))] * this.waveGain, -1, 1)
+      const offset = amp * sample * Math.sin(Math.PI * q)
+      out.x += -dy / length * offset
+      out.y += dx / length * offset
+    }
     const hop = this.kinds[s] === 1
     const travel = this.values.travel
     out.z = hop && travel === 'blank' ? 0 : 1

@@ -661,7 +661,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  padding: 8px 24px;
+  /* Tight side padding so a long single word (CONSTELLATION) stays on one line in the two-column grid. */
+  padding: 8px 6px;
   text-align: center;
   background: none;
 }

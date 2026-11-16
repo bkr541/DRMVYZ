@@ -504,6 +504,10 @@ export class XyScopeRuntime {
       this.wirePrevious = c
     } else this.wireCue = { ...this.wireCue, boundaries: NO_BOUNDARIES, drop: false }
 
+    // The live triggered waveform that the edges carry (the real stereo samples when there are any).
+    const scopeFrame = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec)
+    engine.hasWave = playing && input.stereo != null
+    if (engine.hasWave) { engine.wave = scopeFrame.trace; engine.waveGain = scopeFrame.traceGain }
     engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, values: o.values, auto: o.autoPerformance, discontinuity })
     renderer.render(engine, {
       dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width * (1 + engine.beamWidthBoost), scan: o.values.scan, color: o.values.color },

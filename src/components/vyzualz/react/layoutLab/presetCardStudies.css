@@ -27,7 +27,7 @@
 .ll-preset-indicator, .ll-preset-key { display: none; }
 
 /* 01 — the production tile: artwork edge to edge, with a floating, shadowed centre title. */
-.ll-preset-study--poster .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 24px; background: none; }
+.ll-preset-study--poster .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
 .ll-preset-study--poster .ll-preset-name { text-shadow: 0 1px 3px #000d, 0 0 7px #0009; }
 /* 02 — a thin photographic mat with a separate caption plate. */
 .ll-preset-study--print .ll-preset-select { display: flex; flex-direction: column; padding: 5px 5px 0; }
@@ -139,3 +139,22 @@
 .ll-preset-study--immersive-library .ll-library-name { min-height: 0; text-shadow: 0 1px 3px #000b; }
 .ll-preset-study--immersive-library .ll-library-engine { position: absolute; top: 10px; left: 10px; padding: 3px 5px; border-radius: 4px; background: #071015cc; color: #d4dfe4; }
 .ll-preset-study--immersive-library .ll-library-selection { right: 12px; bottom: 12px; }
+
+/* 14–16 — the production poster tile (row 01: artwork edge to edge, title centred in the shared preset-name role) with three different ways to keep
+   the title readable over any thumbnail. Each keeps white text and puts a known dark surface directly behind it, so the contrast does not depend on the
+   picture: a measured worst case (a pure-white thumbnail) still gives the title well over 4.5:1. */
+.ll-preset-study--poster-scrim .ll-preset-copy,
+.ll-preset-study--poster-plate .ll-preset-copy { inset: 0; justify-content: center; padding: 8px 6px; background: none; }
+.ll-preset-study--poster-scrim .ll-preset-name,
+.ll-preset-study--poster-plate .ll-preset-name,
+.ll-preset-study--poster-bar .ll-preset-name { position: relative; color: #fff; }
+/* 14 — a soft dark scrim: nearly opaque behind the title, easing to nothing at the edges so the picture still shows. */
+.ll-preset-study--poster-scrim .ll-preset-copy { background: radial-gradient(ellipse 88% 72% at 50% 50%, #020506c2 0%, #020506b8 48%, #02050650 80%, transparent 100%); }
+.ll-preset-study--poster-scrim .ll-preset-name { text-shadow: 0 1px 2px #000; }
+/* 15 — a frosted plate: a dark, lightly blurred label that sits on the picture and holds the title. */
+.ll-preset-study--poster-plate .ll-preset-name[data-two-line] { max-inline-size: calc(10ch + 20px); }
+.ll-preset-study--poster-plate .ll-preset-name { box-sizing: border-box; padding: 5px 10px; border: 1px solid #ffffff22; border-radius: 4px; background: #03080bee; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); text-shadow: none; }
+/* 16 — a caption bar: a solid band across the foot of the tile, the title centred in it; the picture keeps the rest of the tile. */
+.ll-preset-study--poster-bar .ll-preset-copy { inset: auto 0 0; justify-content: center; padding: 6px 22px 6px 8px; border-top: 1px solid #ffffff1c; background: #03080bf2; }
+.ll-preset-study--poster-bar .ll-preset-name { text-shadow: none; }
+.ll-preset-study--poster-bar .ll-preset-selection { bottom: 6px; }

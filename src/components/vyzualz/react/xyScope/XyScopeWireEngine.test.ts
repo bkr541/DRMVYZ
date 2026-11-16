@@ -284,3 +284,112 @@ describe('the WIREFRAME engine', () => {
     expect(maxGap(engine.deformed, engine.base, 24)).toBe(0)
   })
 })
+
+describe('the edges carry the live audio waveform', () => {
+  type Internals = { clock: Float32Array; rest: Float32Array; kinds: number[]; ripple: Float32Array; edgeOf: Int16Array; reversed: Uint8Array; px: Float32Array; py: Float32Array; routeFor(cubes: number): { edge: Int16Array } }
+  const internals = (e: WireEngine) => e as unknown as Internals
+  const sine = (cycles: number) => Float32Array.from({ length: 512 }, (_, i) => Math.sin(2 * Math.PI * cycles * i / 511))
+  /** An engine fed a loud, pulsing track with a real captured waveform. */
+  function driven(over: Partial<WireValues> = {}, wave: Float32Array = sine(6), frames = 90) {
+    const e = new WireEngine()
+    e.hasWave = true; e.wave = wave
+    run(e, frames, () => ({ values: { ...WIRE_DEFAULTS, satellites: 0, outline: false, ...over } }))
+    return e
+  }
+  /** The beam position on segment `s` at fraction `p` of the edge (the rests at each end are skipped). */
+  function at(e: WireEngine, s: number, p: number) {
+    const i = internals(e), out = { x: 0, y: 0, z: 0, energy: 0, q: 0 }
+    const u = i.clock[s] + (i.clock[s + 1] - i.clock[s]) * (i.rest[s] + p * (1 - 2 * i.rest[s]))
+    e.signal(e.letters[0], 0, u, 0, 0, out)
+    return { x: out.x, y: out.y }
+  }
+  const rippled = (e: WireEngine) => [...internals(e).ripple.keys()].filter(s => internals(e).kinds[s] === 0 && internals(e).ripple[s] > 0)
+
+  it('ripples every edge with the waveform, pins the corners, and keeps the ripple inside Wave Depth', () => {
+    const rippling = driven(), straight = driven({ waveAmount: 0 })
+    const segments = rippled(rippling)
+    expect(segments.length).toBeGreaterThan(10)
+    let deepest = 0
+    for (const s of segments) {
+      const i = internals(rippling), length = Math.hypot(i.px[(s + 1) % rippling.pointCount] - i.px[s], i.py[(s + 1) % rippling.pointCount] - i.py[s])
+      for (const p of [0, 1]) { const a = at(rippling, s, p), b = at(straight, s, p); expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(1e-5) }
+      for (const p of [.15, .3, .5, .7, .85]) {
+        const a = at(rippling, s, p), b = at(straight, s, p), d = Math.hypot(a.x - b.x, a.y - b.y)
+        deepest = Math.max(deepest, d)
+        expect(d).toBeLessThanOrEqual(WIRE_DEFAULTS.waveDepth * length * 1.001 + 1e-6)
+      }
+    }
+    expect(deepest).toBeGreaterThan(.004) // it really does move the lines
+    expect(rippled(straight)).toHaveLength(0)
+  })
+
+  it('follows the captured waveform sample for sample, sideways to the edge', () => {
+    const wave = sine(5), e = driven({}, wave), straight = driven({ waveAmount: 0 }, wave)
+    const i = internals(e)
+    for (const s of rippled(e).slice(0, 12)) {
+      const n = (s + 1) % e.pointCount
+      for (const p of [.2, .45, .8]) {
+        const a = at(e, s, p), b = at(straight, s, p)
+        const q = i.reversed[s] ? 1 - p : p
+        const expected = i.ripple[s] * wave[Math.floor(((q * WIRE_DEFAULTS.waveDetail + i.edgeOf[s] * .173) % 1) * 511)] * e.waveGain * Math.sin(Math.PI * q)
+        const offset = Math.hypot(a.x - b.x, a.y - b.y)
+        expect(offset).toBeCloseTo(Math.abs(expected), 5)
+        const dx = i.px[n] - i.px[s], dy = i.py[n] - i.py[s]
+        expect(Math.abs((a.x - b.x) * dx + (a.y - b.y) * dy)).toBeLessThan(1e-5 * Math.hypot(dx, dy) + 1e-9)
+      }
+    }
+  })
+
+  it('gives each direction of edge its own band: bass on x, mids on y, highs on z', () => {
+    const axes = (feature: 'bass' | 'mid' | 'air') => {
+      const e = new WireEngine(); e.hasWave = true; e.wave = sine(4)
+      for (let f = 0; f < 120; f++) {
+        const swing = .5 + .5 * Math.sin(f / 60 * 7)
+        const features = { sub: 0, bass: 0, lowMid: 0, mid: 0, air: 0, flux: 0, level: .3, [feature]: swing }
+        e.tick(tick({ reading: live({ features }), values: { ...WIRE_DEFAULTS, satellites: 0 } }))
+      }
+      return [...e.rippleAxis]
+    }
+    const bass = axes('bass'), mid = axes('mid'), air = axes('air')
+    expect(bass[0]).toBeGreaterThan(bass[1]); expect(bass[0]).toBeGreaterThan(bass[2])
+    expect(mid[1]).toBeGreaterThan(mid[0]); expect(mid[1]).toBeGreaterThan(mid[2])
+    expect(air[2]).toBeGreaterThan(air[0]); expect(air[2]).toBeGreaterThan(air[1])
+  })
+
+  it('draws exactly straight lines when the music stops, or at Wave Amount or Audio Reactivity zero', () => {
+    const e = new WireEngine(); e.hasWave = true; e.wave = sine(6)
+    let strongest = 0
+    for (let f = 0; f < 90; f++) { e.tick(tick({ reading: track(f), values: { ...WIRE_DEFAULTS, satellites: 0, outline: false } })); strongest = Math.max(strongest, ...e.rippleAxis) }
+    expect(strongest).toBeGreaterThan(.4)
+    run(e, 60 * 4, () => ({ values: { ...WIRE_DEFAULTS, satellites: 0, outline: false } }), () => ({ ...silentReading(), playing: false }))
+    expect([...e.rippleAxis]).toEqual([0, 0, 0])
+    expect(rippled(e)).toHaveLength(0)
+    for (const over of [{ waveAmount: 0 }, { audioReactivity: 0 }]) expect(rippled(driven(over))).toHaveLength(0)
+  })
+
+  it('builds a stand-in waveform from the analysed bands when there is no capture, and none for silence', () => {
+    const e = new WireEngine()
+    run(e, 90, () => ({ values: { ...WIRE_DEFAULTS, satellites: 0 } }))
+    const spread = (w: Float32Array) => Math.max(...w) - Math.min(...w)
+    expect(spread(e.wave)).toBeGreaterThan(.5)
+    expect(rippled(e).length).toBeGreaterThan(5)
+    run(e, 10, () => ({ values: { ...WIRE_DEFAULTS, satellites: 0 } }), () => ({ ...silentReading(), playing: false }))
+    expect(spread(e.wave)).toBe(0)
+  })
+
+  it('draws a retraced edge as the same curve both times', () => {
+    const e = driven(), i = internals(e), route = i.routeFor(1)
+    const steps = new Map<number, number[]>()
+    route.edge.forEach((edge, s) => { if (edge >= 0) steps.set(edge, [...(steps.get(edge) ?? []), s]) })
+    const twice = [...steps.values()].filter(list => list.length === 2)
+    expect(twice).toHaveLength(4)
+    for (const [first, second] of twice) {
+      // Drawn the same way twice or in opposite directions, it is the same curve.
+      const opposite = i.reversed[first] !== i.reversed[second]
+      for (const p of [.2, .5, .8]) {
+        const a = at(e, first, p), b = at(e, second, opposite ? 1 - p : p)
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeLessThan(1e-4)
+      }
+    }
+  })
+})

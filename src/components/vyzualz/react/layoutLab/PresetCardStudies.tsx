@@ -27,6 +27,10 @@ const DESIGNS = [
   { id: 'asset-library', name: 'Asset library', detail: 'Full preview · separate two-line title · metadata', fresh: true },
   { id: 'compact-library', name: 'Compact library', detail: 'Square thumbnail · stacked title · dense browsing', fresh: true },
   { id: 'immersive-library', name: 'Immersive gallery', detail: 'Large preview · contrast scrim · floating actions', fresh: true },
+  // 14–16: the production poster tile (row 01) with three different ways of keeping the title readable over any thumbnail.
+  { id: 'poster-scrim', name: 'Poster · soft scrim', detail: 'Production poster · a dark scrim behind the title, clear at the edges', legible: true },
+  { id: 'poster-plate', name: 'Poster · name plate', detail: 'Production poster · the title on a frosted dark plate', legible: true },
+  { id: 'poster-bar', name: 'Poster · caption bar', detail: 'Production poster · the title on a solid bar docked to the foot', legible: true },
 ] as const
 
 /** Local design studies; card actions never select a live engine preset. */

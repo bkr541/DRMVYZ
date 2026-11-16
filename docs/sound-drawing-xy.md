@@ -302,7 +302,17 @@ WIREFRAME is its own source card (SOURCE → WIREFRAME) with one preset, **CUBES
 - **Beam timing.** Time on each segment follows its length and a short dwell at each corner, so brightness follows dwell, not how many points a line was cut into. A longer path (more cubes, copies, the outline) is brightened to compensate, because one beam shares each scan across all of it.
 - **Duplicates.** 1 to 4 copies. The first is the figure; the others are fainter echoes turned slightly apart. **Source Outline** draws a faint copy of the cubes where they sit undisturbed.
 
-### How the music moves it (`XyScopeWireModulation.ts`, `XyScopeWireDeformer.ts`)
+### The lines are the waveform (`XyScopeWireEngine.ts`)
+
+Every edge of the cubes is an oscilloscope trace. The runtime passes the live triggered waveform (the same stereo-sample window the other oscilloscope figures use) to the engine, and the engine ripples each edge sideways with it, repeating it **Wave Detail** times along the edge. Which band drives an edge depends on its direction in its cube: **bass on the x edges, mids on y, highs on z**, plus every kick, each scaled by **Wave Amount** and Audio Reactivity.
+- The ripple is zero at both ends of every edge, so **the corners never move**, and it never exceeds **Wave Depth** (a share of that edge's own length), so the cubes stay readable. A retraced edge is drawn from its lower corner both times, so it is the same curve each pass.
+- With silence, a stopped track, Wave Amount 0 or Audio Reactivity 0, the lines are exactly straight.
+- With no real capture (no stereo or mono samples), the engine builds a stand-in waveform from four sines whose strengths follow the sub-bass/bass, mids, highs and spectral flux, so the lines still move with the analysed track.
+- The beam draws this figure at 54,000 samples a second (the other figures use 18,000) and gives the rippling edges extra time in each scan, because the waveform's detail needs the samples.
+
+### How the music moves the cubes (`XyScopeWireModulation.ts`, `XyScopeWireDeformer.ts`)
+
+On top of the waveform, the cubes themselves move a little:
 
 Each part of the music drives a different, bounded part of the figure through its own rule (attack, release, curve, confidence floor, and what to do when the feature is not available):
 
@@ -332,7 +342,7 @@ Off: the cubes only move as the settings say, with no scene changes and no break
 
 ### Controls
 
-The four standard groups. Master Controls: Master Intensity, Audio Reactivity, BPM Sync, Auto Performance, Flash Limit (on by default: brightness accents no more than about four a second, and capped), Hold Trace, and live Scene, Readability, Last Event, Evidence and Signal readouts. Design › Wireframe: satellite cubes, figure size, orbit spread, perspective, view tilt, spin speed, depth cue, duplicates, hidden edges, source outline. Design › Beam & Phosphor: width, glow, decay, scan frequency, beam travel. React: readability floor, max displacement, minimum readable time, attack, release, bass, mid, low-mid, air, kick and snare response, scene change, variation seed. Palette: beam, glow, background. Reset Signals and Reset WIREFRAME.
+The four standard groups. Master Controls: Master Intensity, Audio Reactivity, BPM Sync, Auto Performance, Flash Limit (on by default: brightness accents no more than about four a second, and capped), Hold Trace, and live Scene, Readability, Last Event, Evidence and Signal readouts. Design › Wireframe: satellite cubes, figure size, orbit spread, perspective, view tilt, spin speed, depth cue, duplicates, hidden edges, source outline. Design › Beam & Phosphor: width, glow, decay, scan frequency, beam travel. React: wave amount, wave depth, wave detail, readability floor, max displacement, minimum readable time, attack, release, bass, mid, low-mid, air, kick and snare response, scene change, variation seed. Palette: beam, glow, background. Reset Signals and Reset WIREFRAME.
 
 ### Not included
 

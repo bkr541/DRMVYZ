@@ -90,7 +90,7 @@ export function XyScopeWireDesignPanel() {
               <SelectRow id="xyscope-wire-sceneEvery" label="Scene Change" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.sceneEvery}
                 options={WIRE_CADENCE_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('sceneEvery', value)}
                 description="How often the director picks a new way for the cluster to move (Auto Performance). Sections and phrases need an analysed track; a live microphone only changes on bars the beat grid is sure of." />
-              <div className="rv-ctrl-info">Each part of the music moves a different part of the figure: kicks expand the cubes and widen the beam, snares brighten the lines, bass swells them, mids turn them against each other, low mids lean them and highs make the edges shimmer. The cubes never move farther than Max Displacement, never lose their shape past the Readability Floor, and always settle back to exactly where they were.</div>
+              <div className="rv-ctrl-info">The lines of the cubes are the live audio waveform: the track's own samples ripple along every edge like an oscilloscope trace, and which band drives an edge depends on its direction (bass on one axis, mids on another, highs on the third, plus every kick). The corners never move and the ripple never goes beyond Wave Depth, so the cubes stay readable; in silence the lines are exactly straight. Kicks also expand the cubes and widen the beam, snares brighten the lines, and the cubes swell, lean and shimmer a little. None of it moves a corner farther than Max Displacement or past the Readability Floor.</div>
             </div>
           </Collapsible>
 

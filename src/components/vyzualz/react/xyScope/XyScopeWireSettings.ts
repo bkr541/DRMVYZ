@@ -34,6 +34,9 @@ export interface WireValues {
   scan: number
   travel: WireTravel
   // React
+  waveAmount: number
+  waveDepth: number
+  waveDetail: number
   readableFloor: number
   maxDisplacement: number
   minReadable: number
@@ -59,7 +62,7 @@ export const WIRE_DEFAULTS: Readonly<WireValues> = Object.freeze({
   intensity: 1, audioReactivity: 1, bpmSync: true, flashLimit: true,
   satellites: 2, size: 1, spread: 1, perspective: .45, tilt: 22, spin: .6, hiddenEdges: 'dim', depthCue: .5, duplicates: 1, outline: true,
   width: 2.2, glow: 1.5, trail: 110, scan: 40, travel: 'blank',
-  readableFloor: .72, maxDisplacement: .12, minReadable: .65, attack: 45, release: 240,
+  waveAmount: 1, waveDepth: .22, waveDetail: 7, readableFloor: .72, maxDisplacement: .12, minReadable: .65, attack: 45, release: 240,
   bassResponse: 1, midResponse: 1, lowMidResponse: 1, airResponse: 1, kickResponse: 1, snareResponse: 1, sceneEvery: 'phrase', seed: 7,
   color: '#7df08e', glowColor: '#1fa83c', backgroundColor: '#000000',
 })
@@ -68,10 +71,10 @@ export const WIRE_RANGES: Readonly<Record<WireNumberKey, readonly [number, numbe
   intensity: [0, 2], audioReactivity: [0, 1],
   satellites: [0, 4], size: [.5, 1.4], spread: [.6, 1.5], perspective: [0, 1], tilt: [-30, 60], spin: [0, 2], depthCue: [0, 1], duplicates: [1, 4],
   width: [.6, 4], glow: [0, 3], trail: [20, 300], scan: [12, 90],
-  readableFloor: [.4, .95], maxDisplacement: [0, .3], minReadable: [.3, .95], attack: [5, 500], release: [40, 1500],
+  waveAmount: [0, 1.5], waveDepth: [0, .4], waveDetail: [1, 16], readableFloor: [.4, .95], maxDisplacement: [0, .3], minReadable: [.3, .95], attack: [5, 500], release: [40, 1500],
   bassResponse: [0, 2], midResponse: [0, 2], lowMidResponse: [0, 2], airResponse: [0, 2], kickResponse: [0, 2], snareResponse: [0, 2], seed: [0, 999],
 })
-const INTEGER_KEYS: ReadonlySet<WireNumberKey> = new Set<WireNumberKey>(['satellites', 'duplicates', 'seed'])
+const INTEGER_KEYS: ReadonlySet<WireNumberKey> = new Set<WireNumberKey>(['satellites', 'duplicates', 'seed', 'waveDetail'])
 
 export const WIRE_HIDDEN_OPTIONS: readonly { value: WireHiddenEdges; label: string }[] = Object.freeze([{ value: 'show', label: 'Show all edges' }, { value: 'dim', label: 'Dim hidden edges' }])
 export const WIRE_TRAVEL_OPTIONS: readonly { value: WireTravel; label: string }[] = Object.freeze([{ value: 'blank', label: 'Blank' }, { value: 'dim', label: 'Dim' }, { value: 'visible', label: 'Visible' }])
@@ -109,6 +112,9 @@ export const WIRE_BEAM_CONTROLS: readonly WireControlSpec[] = Object.freeze([
   spec('scan', 'Scan Frequency', 'How many times per second the beam redraws the whole figure.', 1, 'Hz'),
 ])
 export const WIRE_REACT_CONTROLS: readonly WireControlSpec[] = Object.freeze([
+  spec('waveAmount', 'Wave Amount', 'How strongly the live audio waveform ripples along every edge of the cubes. Zero draws straight lines.', .01, 'percent'),
+  spec('waveDepth', 'Wave Depth', 'The farthest the waveform may push a line sideways, as a share of that edge\'s length. The corners never move, so the cubes stay readable.', .005, 'percent'),
+  spec('waveDetail', 'Wave Detail', 'How many times the live waveform repeats along each edge. Higher draws a denser, more jagged trace; one draws a single sweep.', 1, 'count'),
   spec('readableFloor', 'Readability Floor', 'The least a cube may look like itself. When the music would push it past this, the movement is eased back until it holds.', .01, 'percent'),
   spec('maxDisplacement', 'Max Displacement', 'The farthest any corner may move from its place, as a share of a cube\'s edge.', .005, 'percent'),
   spec('minReadable', 'Minimum Readable Time', 'The share of the recent bars the figure must have been undisturbed before the director may break the cluster apart.', .01, 'percent'),
