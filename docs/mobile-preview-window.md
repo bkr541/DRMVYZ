@@ -41,8 +41,8 @@ The launcher reuses/focuses its existing window and can reopen after manual
 close. Escape closes it; parent teardown removes listeners and closes the child.
 Blocked browser popups show actionable feedback. Reopening starts on Auth.
 
-Electron permits only the named `drmvyz-mobile-preview` blank-window request.
-The native window allows resizing/maximizing with a 800 × 960 minimum content
+Electron permits only the named blank-window requests `drmvyz-mobile-preview` (this window) and `drmvyz-mobile-app-preview` (Mobile App Preview: 449 × 908 content, the 393 × 852 phone plus its padding). Any other name is denied, which makes `window.open` return null; before 2026-11-16 the app preview's name was missing from this list, so its button did nothing in Electron.
+The Mobile Preview window allows resizing/maximizing with a 800 × 960 minimum content
 size, while retaining context isolation, sandbox, web security and disabled Node
 integration. Other application popouts keep their existing window policies.
 The preview never mounts another app, audio engine or renderer.
