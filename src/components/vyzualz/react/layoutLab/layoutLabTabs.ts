@@ -14,7 +14,7 @@ export function readLayoutLabTabs(): LayoutLabTabsState {
   } catch { /* Unavailable or invalid storage starts with the seven default slots. */ }
   const tabs = LAYOUT_LAB_TAB_IDS.map((id, index) => {
     const name = Array.isArray(saved.tabs) ? saved.tabs.find(tab => tab?.id === id)?.name : undefined
-    return { id, name: typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : (index === 1 ? 'Preset cards' : index === 2 ? 'Engine dropdown' : index === 3 ? 'Nav bar icons' : `Tab ${index + 1}`) }
+    return { id, name: typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : (index === 1 ? 'Preset cards' : index === 2 ? 'Engine dropdown' : index === 3 ? 'Nav bar icons' : index === 4 ? 'Left nav bar' : `Tab ${index + 1}`) }
   })
   return { tabs, activeTabId: tabs.some(tab => tab.id === saved.activeTabId) ? saved.activeTabId! : tabs[0].id }
 }

@@ -7,6 +7,7 @@ import { PresetCardStudies } from './layoutLab/PresetCardStudies'
 import { PerformancePadStudies } from './layoutLab/PerformancePadStudies'
 import { EngineDropdownStudies } from './layoutLab/EngineDropdownStudies'
 import { NavIconStudies } from './layoutLab/NavIconStudies'
+import { LeftNavBarStudies } from './layoutLab/LeftNavBarStudies'
 import { LAYOUT_LAB_STORAGE_KEY, readLayoutLabTabs } from './layoutLab/layoutLabTabs'
 
 /** Local-only workspace. Shared CSS supplies the standard design without mounting production components. */
@@ -77,6 +78,6 @@ export function LayoutLabMockup() {
       </div>)}
     </div>
     <p className="ll-workspace-hint" role={saveFailed ? 'status' : undefined}>{saveFailed ? 'Tab names could not be saved in this browser. They will last only for this session.' : 'Click the selected tab again to rename. Enter saves · Escape cancels.'}</p>
-    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>{tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}{tab.id === 'layout-lab-tab-02' && <PresetCardStudies />}{tab.id === 'layout-lab-tab-03' && <EngineDropdownStudies />}{tab.id === 'layout-lab-tab-04' && <NavIconStudies />}</section>)}
+    {workspace.tabs.map(tab => <section key={tab.id} id={`${tab.id}-panel`} className="ll-tab-panel" role="tabpanel" aria-labelledby={tab.id} data-layout-lab-tab-id={tab.id} hidden={workspace.activeTabId !== tab.id}>{tab.id === 'layout-lab-tab-01' && <PerformancePadStudies />}{tab.id === 'layout-lab-tab-02' && <PresetCardStudies />}{tab.id === 'layout-lab-tab-03' && <EngineDropdownStudies />}{tab.id === 'layout-lab-tab-04' && <NavIconStudies />}{tab.id === 'layout-lab-tab-05' && <LeftNavBarStudies />}</section>)}
   </main>
 }
