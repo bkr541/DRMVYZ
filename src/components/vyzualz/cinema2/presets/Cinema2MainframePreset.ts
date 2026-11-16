@@ -23,6 +23,8 @@ import {
   type Cinema2SceneNodeId,
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
@@ -305,7 +307,7 @@ const viewportTarget = (id: Cinema2RenderTargetId, depth = false) => Object.free
   ownership: 'transient' as const,
 })
 
-export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_MAINFRAME_PRESET_ID,
@@ -483,3 +485,18 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 }) as Readonly<Cinema2NativePresetManifest>
+
+/**
+ * Mainframe's own Auto Performance (the build program, the drop program and the mood-chosen pattern in its module) is unchanged. The shared Mood
+ * Conductor adds continuous drives to the same toggle: the board's light swells with the passage's peaks and settles in calm ones, and a drop's
+ * shock lifts it briefly. Master Intensity is the only value driven (the patterns are the module's own choice), around the authored value.
+ */
+export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'mainframe-auto',
+  enabledParameter: CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID,
+  drives: [
+    { id: 'intensity-activity', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'intensity-calm', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+  ],
+})

@@ -15,6 +15,8 @@
  *   consumed whether or not they are used, so enabling later never replays an old one.
  * - A discontinuity (track change, seek back, stop) clears everything, including the consumed drop identity.
  */
+import { Cinema2MoodChooser, type Cinema2MoodChooserConfig, type Cinema2MoodFrame } from '../../conductor/Cinema2MoodConductor'
+
 export interface Cinema2PatternAutoPerformanceConfig<Pattern extends string> {
   readonly buildPattern: Pattern
   readonly dropPattern: Pattern
@@ -23,6 +25,13 @@ export interface Cinema2PatternAutoPerformanceConfig<Pattern extends string> {
   readonly buildOff?: number
   readonly buildMaxBeats?: number
   readonly dropBeats?: number
+  /**
+   * The shared Mood Conductor's pattern choice: the patterns that suit each feel. With it, between builds and drops Auto Performance also puts a
+   * pattern chosen by how the passage feels on stage, changing it only on musical boundaries (a drop, a section change, a phrase), never repeating
+   * the current one, holding it a minimum time. It acts only while Pattern Change is off (the Trigger then has no say) and never invents structure:
+   * with no mood frame it chooses nothing.
+   */
+  readonly mood?: Readonly<Cinema2MoodChooserConfig<Pattern>>
 }
 
 export const CINEMA2_PATTERN_AUTO_BUILD_ON = 0.12
@@ -30,7 +39,7 @@ export const CINEMA2_PATTERN_AUTO_BUILD_OFF = 0.04
 export const CINEMA2_PATTERN_AUTO_BUILD_MAX_BEATS = 32
 export const CINEMA2_PATTERN_AUTO_DROP_BEATS = 8
 
-export interface Cinema2PatternAutoPerformanceInput {
+export interface Cinema2PatternAutoPerformanceInput<Pattern extends string = string> {
   readonly enabled: boolean
   readonly absoluteBeat: number
   /** The shared engine's build charge, 0..1. */
@@ -41,12 +50,22 @@ export interface Cinema2PatternAutoPerformanceInput {
   readonly patternEdited: boolean
   /** A discontinuity: track change, seek back, stop. */
   readonly reset: boolean
+  /** The shared mood for this frame (null without real evidence). Used only when the config has `mood`. */
+  readonly mood?: Readonly<Cinema2MoodFrame> | null
+  /** Seconds of visual time since the last frame, for the mood chooser's hold. */
+  readonly deltaTimeSec?: number
+  /** The pattern on stage from the base controller, so the mood chooser never repeats it. */
+  readonly basePattern?: Pattern
+  /** Pattern Change is on: the Trigger is choosing, so the mood chooser stays out of the way. */
+  readonly patternChange?: boolean
+  /** What makes a mood choice repeatable (the track), alongside the boundary. */
+  readonly seed?: string
 }
 
 export interface Cinema2PatternPerformance<Pattern extends string> {
   /** The pattern Auto Performance has on stage, or null while the base pattern is. */
   readonly pattern: Pattern | null
-  readonly reason: 'build' | 'drop' | null
+  readonly reason: 'build' | 'drop' | 'mood' | null
   /** Where the override's own clock starts, in beats. */
   readonly startBeat: number
 }
@@ -64,6 +83,9 @@ export class Cinema2PatternAutoPerformance<Pattern extends string> {
   private readonly buildOff: number
   private readonly buildMaxBeats: number
   private readonly dropBeats: number
+  private readonly moodChooser: Cinema2MoodChooser<Pattern> | null
+  private moodPattern: Pattern | null = null
+  private moodStartBeat = 0
 
   constructor(private readonly config: Readonly<Cinema2PatternAutoPerformanceConfig<Pattern>>) {
     this.current = this.none
@@ -71,14 +93,16 @@ export class Cinema2PatternAutoPerformance<Pattern extends string> {
     this.buildOff = config.buildOff ?? CINEMA2_PATTERN_AUTO_BUILD_OFF
     this.buildMaxBeats = config.buildMaxBeats ?? CINEMA2_PATTERN_AUTO_BUILD_MAX_BEATS
     this.dropBeats = config.dropBeats ?? CINEMA2_PATTERN_AUTO_DROP_BEATS
+    this.moodChooser = config.mood ? new Cinema2MoodChooser<Pattern>(config.mood) : null
   }
 
-  update(input: Readonly<Cinema2PatternAutoPerformanceInput>): Readonly<Cinema2PatternPerformance<Pattern>> {
+  update(input: Readonly<Cinema2PatternAutoPerformanceInput<Pattern>>): Readonly<Cinema2PatternPerformance<Pattern>> {
     const beat = Number.isFinite(input.absoluteBeat) ? Math.max(0, input.absoluteBeat) : 0
     const charge = Number.isFinite(input.buildCharge) ? Math.min(1, Math.max(0, input.buildCharge)) : 0
     if (input.reset) {
       this.clear()
       this.lastDropEventId = null
+      this.clearMood()
     }
     const newDrop = input.dropEventId != null && input.dropEventId !== this.lastDropEventId
     if (newDrop) this.lastDropEventId = input.dropEventId
@@ -86,8 +110,10 @@ export class Cinema2PatternAutoPerformance<Pattern extends string> {
     if (input.patternEdited || !input.enabled) {
       this.current = this.none
       this.episode = charge >= this.buildOff ? 'spent' : 'idle'
+      this.clearMood()
       return this.current
     }
+    this.updateMood(input, beat)
     // The beat clock only runs backward across a discontinuity; an override from before it is stale.
     if (this.current.pattern && beat < this.current.startBeat - 1e-6) this.current = this.none
 
@@ -116,12 +142,33 @@ export class Cinema2PatternAutoPerformance<Pattern extends string> {
       // While a drop is on stage the build that preceded it can settle without ending the drop.
       this.episode = 'idle'
     }
-    return this.current
+    return this.current.pattern ? this.current : this.moodResult()
+  }
+
+  /** The mood chooser: a pattern for the passage's feel, chosen on a musical boundary while Pattern Change is off. */
+  private updateMood(input: Readonly<Cinema2PatternAutoPerformanceInput<Pattern>>, beat: number): void {
+    if (!this.moodChooser) return
+    if (input.patternChange) { this.clearMood(); return }
+    const shown = this.moodPattern ?? input.basePattern ?? null
+    const next = this.moodChooser.update(input.mood ?? null, shown, input.deltaTimeSec ?? 0, input.seed ?? '')
+    if (next) { this.moodPattern = next; this.moodStartBeat = beat }
+    // The beat clock only runs backward across a discontinuity; a choice from before it is stale.
+    if (this.moodPattern && beat < this.moodStartBeat - 1e-6) this.clearMood()
+  }
+
+  private moodResult(): Readonly<Cinema2PatternPerformance<Pattern>> {
+    return this.moodPattern ? Object.freeze({ pattern: this.moodPattern, reason: 'mood' as const, startBeat: this.moodStartBeat }) : this.none
+  }
+
+  private clearMood(): void {
+    this.moodPattern = null
+    this.moodChooser?.reset()
   }
 
   reset(): void {
     this.clear()
     this.lastDropEventId = null
+    this.clearMood()
   }
 
   private clear(): void {

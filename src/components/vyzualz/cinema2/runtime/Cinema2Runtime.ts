@@ -8,6 +8,7 @@ import {
   type Cinema2AudioIntelligenceFrame,
 } from '../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
+import { Cinema2MoodConductor, type Cinema2MoodFrame } from '../conductor/Cinema2MoodConductor'
 import { CINEMA2_MAINFRAME_PRESET_ID } from '../presets/Cinema2MainframePreset'
 import { selectCinema2MainframeAudio } from '../modules/mainframe/Cinema2MainframeAudioDelivery'
 import {
@@ -398,6 +399,7 @@ export class Cinema2Runtime {
   private readonly audioIntelligenceBridge: Cinema2AudioIntelligenceBridge
   private readonly transportSource: Cinema2RuntimeTransportSource | null
   private readonly visualDirector: Cinema2VisualDirector
+  private readonly moodConductor = new Cinema2MoodConductor()
   private readonly randomService: Cinema2RandomService
   private readonly targetResolver: Cinema2FinalValueResolver
   private readonly spatialRuntime: Cinema2SpatialRuntime
@@ -429,6 +431,7 @@ export class Cinema2Runtime {
   private servicesRetired = false
   private audioIntelligenceFrame: Readonly<Cinema2AudioIntelligenceFrame> | null = null
   private visualDirectorFrame: Readonly<Cinema2VisualDirectorFrame> | null = null
+  private moodFrame: Readonly<Cinema2MoodFrame> | null = null
   private listenersAttached = false
   private contextOwned = false
   private lastFrameTimestampMs: number | null = null
@@ -734,6 +737,11 @@ export class Cinema2Runtime {
     return this.visualDirectorFrame
   }
 
+  /** The shared Mood Conductor's latest reading of the passage (null without real evidence), for diagnostics. */
+  getMoodFrame(): Readonly<Cinema2MoodFrame> | null {
+    return this.moodFrame
+  }
+
   /** Engine-owned namespaced randomness used by choreography and future native modules. */
   getRandomService(): Cinema2RandomService {
     return this.randomService
@@ -901,6 +909,8 @@ export class Cinema2Runtime {
       if (sourceRemoved) {
         this.visualDirector.reset()
         this.visualDirectorFrame = null
+        this.moodConductor.reset()
+        this.moodFrame = null
         this.choreographyRuntime.reset('transport-inactive')
         this.cameraRuntime.reset()
         this.historyService.resetAll('deactivation')
@@ -916,6 +926,8 @@ export class Cinema2Runtime {
           ? selectCinema2MainframeAudio(this.audioIntelligenceFrame, transport.trackId) : null)
         : (transport.analysisActive ? this.audioIntelligenceFrame : null)
       this.visualDirectorFrame = frameAudio ? this.visualDirector.capture(frameAudio) : null
+      // The shared Mood Conductor reads the same two frames (no analysis of its own); it holds still while the transport does.
+      this.moodFrame = this.moodConductor.capture(frameAudio, this.visualDirectorFrame, deltaTimeSec)
       if (frameAudio?.discontinuity.occurred && frameAudio.discontinuity.reason !== 'activation') {
         this.historyService.resetAll('discontinuity')
       }
@@ -930,6 +942,7 @@ export class Cinema2Runtime {
         transport,
         audio: frameAudio,
         director: this.visualDirectorFrame,
+        mood: this.moodFrame,
       })
       this.choreographyRuntime.update(frame)
       this.lightingEnvironmentRuntime.update()

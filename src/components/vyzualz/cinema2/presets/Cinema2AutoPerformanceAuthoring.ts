@@ -18,6 +18,7 @@ import {
   type Cinema2ParameterId,
   type Cinema2ParameterManifest,
 } from '../contracts/Cinema2NativePresetManifest'
+import { createCinema2MoodRules, type Cinema2MoodDrive } from './Cinema2MoodConductorAuthoring'
 
 /**
  * Auto Performance for presets whose music reactions live in the choreography system (rather than in a module-owned pattern controller).
@@ -60,6 +61,11 @@ export interface Cinema2AutoPerformanceSpec {
   /** The preset's own reactivity or intensity control; the added rules scale by it, so a control set to zero silences them. */
   readonly strengthParameter?: Cinema2ParameterId
   readonly gestures: Cinema2AutoPerformanceGestures
+  /**
+   * Continuous drives from the shared Mood Conductor (see Cinema2MoodConductorAuthoring): the whole look moves with how the passage feels, on top of
+   * the four accent gestures. Gated by this same toggle.
+   */
+  readonly mood?: readonly Cinema2MoodDrive[]
   /** Optional capabilities the added rules read that the preset does not already declare. */
   readonly capabilities?: readonly { readonly id: Cinema2CapabilityId; readonly purpose: string }[]
 }
@@ -131,8 +137,11 @@ export function createCinema2AutoPerformanceRules(spec: Readonly<Cinema2AutoPerf
   add('build-rise', 60, BUILD_SOURCE, undefined, spec.gestures.build)
   add('build-peak', 61, DOWNBEAT_SOURCE, [ONCE, { kind: 'build', min: CINEMA2_AUTO_PERFORMANCE_BUILD_PEAK_MIN }], spec.gestures.peak)
   add('drop-hit', 62, DROP_SOURCE, [ONCE], spec.gestures.drop)
+  const moodRules = spec.mood && spec.mood.length > 0
+    ? createCinema2MoodRules({ idPrefix: `${spec.prefix}-auto`, enabledParameter: cinema2StableId<Cinema2ParameterId>(`${spec.prefix}-auto-performance`), strengthParameter: spec.strengthParameter, drives: spec.mood })
+    : []
   add('phrase-lift', 63, DOWNBEAT_SOURCE, [ONCE, { kind: 'beat-interval', every: CINEMA2_AUTO_PERFORMANCE_LIFT_EVERY_BARS, phase: 0, unit: 'bar' }], spec.gestures.lift)
-  return Object.freeze(rules)
+  return Object.freeze([...rules, ...moodRules])
 }
 
 /**
@@ -148,7 +157,8 @@ export function withCinema2AutoPerformance(
     throw new Error(`Cinema 2.0 preset "${manifest.id}" already declares ${parameter.id}.`)
   }
   const declared = new Set((manifest.capabilities ?? []).map(capability => capability.id))
-  const addedCapabilities: Cinema2CapabilityRequirement[] = (spec.capabilities ?? [])
+  const moodCapability = spec.mood && spec.mood.length > 0 ? [{ id: 'visual-director.significance' as Cinema2CapabilityId, purpose: 'The Mood Conductor reads the director to move the preset with the passage\'s mood.' }] : []
+  const addedCapabilities: Cinema2CapabilityRequirement[] = [...(spec.capabilities ?? []), ...moodCapability]
     .filter(capability => !declared.has(capability.id))
     .map(capability => Object.freeze({ id: capability.id, requirement: 'optional' as const, purpose: capability.purpose }))
   return Object.freeze({

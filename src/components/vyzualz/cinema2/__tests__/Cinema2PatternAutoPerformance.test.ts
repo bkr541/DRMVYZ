@@ -16,9 +16,9 @@ import { CINEMA2_MAINFRAME_PRESET_MANIFEST } from '../presets/Cinema2MainframePr
 
 const available = (value: number) => ({ available: true, value, confidence: 1, source: 'test', provenance: null })
 type P = 'build-program' | 'drop-program'
-const idle: Cinema2PatternAutoPerformanceInput = { enabled: true, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: false }
+const idle: Cinema2PatternAutoPerformanceInput<P> = { enabled: true, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: false }
 const make = () => new Cinema2PatternAutoPerformance<P>({ buildPattern: 'build-program', dropPattern: 'drop-program' })
-const step = (c: Cinema2PatternAutoPerformance<P>, beat: number, change: Partial<Cinema2PatternAutoPerformanceInput> = {}) => c.update({ ...idle, absoluteBeat: beat, ...change })
+const step = (c: Cinema2PatternAutoPerformance<P>, beat: number, change: Partial<Cinema2PatternAutoPerformanceInput<P>> = {}) => c.update({ ...idle, absoluteBeat: beat, ...change })
 
 describe('Pattern Auto Performance controller', () => {
   it('stays out of the way until a build or a drop, and never acts while disabled', () => {

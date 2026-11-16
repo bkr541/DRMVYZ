@@ -9,6 +9,7 @@ import type {
 import type { Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
 import type { Cinema2RandomStream } from '../runtime/Cinema2RandomService'
 import type { Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
+import type { Cinema2MoodFrame } from '../conductor/Cinema2MoodConductor'
 import type { Cinema2ResolvedSpatialNode } from '../spatial/Cinema2SpatialRuntime'
 import type { Cinema2CameraFrame } from '../spatial/Cinema2CameraRuntime'
 import type { Cinema2LightingEnvironmentFrame } from '../spatial/Cinema2LightingEnvironmentRuntime'
@@ -140,6 +141,8 @@ export interface Cinema2ModuleFrameReadContext {
   transport?: Readonly<Cinema2TransportFrameState>
   audio: Readonly<Cinema2AudioIntelligenceFrame> | null
   director: Readonly<Cinema2VisualDirectorFrame> | null
+  /** The shared Mood Conductor's reading of the passage; null whenever the director is. Optional for hosts that predate it. */
+  mood?: Readonly<Cinema2MoodFrame> | null
 }
 
 export interface Cinema2ModuleUpdateContext {

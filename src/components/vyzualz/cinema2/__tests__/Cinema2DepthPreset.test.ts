@@ -297,7 +297,11 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.map(rule => rule.source.signal)).toEqual([
       'kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop',
       'beat', 'downbeat', 'phrase', 'continuous', 'drop',
+      // The shared Mood Conductor's drives (one rule per mood source), gated by the same toggle.
+      'continuous', 'continuous', 'continuous', 'continuous', 'continuous',
     ])
+    const moodRules = CINEMA2_DEPTH_PRESET_MANIFEST.choreography!.rules.filter(rule => String(rule.id).includes('-mood-'))
+    expect(moodRules.map(rule => rule.source.path)).toEqual(['mood.activity', 'mood.calm', 'mood.shock', 'mood.tense', 'mood.peak'])
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.slice(9).every(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toBe(true)
     expect(new Set(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions.map(action => action.target.kind)))).toEqual(
       new Set(['parameter', 'module', 'effect']),

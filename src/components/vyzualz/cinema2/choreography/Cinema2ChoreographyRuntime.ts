@@ -25,6 +25,7 @@ import {
 } from '../parameters/Cinema2TargetRuntime'
 import type { Cinema2CompiledPresetPlan } from '../presets/Cinema2PresetCompiler'
 import { Cinema2RandomService } from '../runtime/Cinema2RandomService'
+import { CINEMA2_MOOD_PATHS } from '../conductor/Cinema2MoodConductor'
 
 export interface Cinema2ChoreographyDiagnostic {
   code: string
@@ -405,26 +406,8 @@ export class Cinema2ChoreographyRuntime {
         ? Object.freeze([Object.freeze({ id: transition.eventId, strength: transition.authority, confidence: transition.confidence })])
         : Object.freeze([])
     }
-    if (signal === 'phrase') {
-      const crossed = crossedItems(audio.structure.analyzedPhrases, this.previousAudioTimeSec, audio.upstream.timeSec)
-      if (crossed.length > 0) {
-        return Object.freeze(crossed.map(item => Object.freeze({ id: item.id, strength: clamp01(item.confidence), confidence: item.confidence })))
-      }
-      return fromAudioEvent(audio.rhythm.fixedClocks[16].boundary)
-    }
-    if (signal === 'drop') {
-      const crossed = crossedItems(audio.structure.semanticMoments, this.previousAudioTimeSec, audio.upstream.timeSec)
-        .filter(item => DROP_MOMENT_TYPES.has(item.type))
-      if (crossed.length > 0) {
-        return Object.freeze(crossed.map(item => Object.freeze({ id: item.id, strength: clamp01(item.confidence), confidence: item.confidence })))
-      }
-      const transition = frame.director?.context.transition
-      const section = frame.director?.context.section
-      if (transition?.occurred && transition.eventId && section?.available && section.value?.type === 'drop') {
-        return Object.freeze([Object.freeze({ id: transition.eventId, strength: transition.authority, confidence: transition.confidence })])
-      }
-      return Object.freeze([])
-    }
+    if (signal === 'phrase') return cinema2CanonicalPhraseEvents(audio, this.previousAudioTimeSec)
+    if (signal === 'drop') return cinema2CanonicalDropEvents(audio, frame.director, this.previousAudioTimeSec)
     if (signal === 'lyric-line') {
       const lyrics = audio.lyrics
       if (!lyrics.available || !lyrics.value?.lineEnter || !lyrics.value.lineEventId) return Object.freeze([])
@@ -850,6 +833,21 @@ function sampleContinuousPath(path: Cinema2ChoreographyContinuousSourcePath | un
     case 'director.build': return directorSignal(director?.context.build)
     case 'director.impact': return directorAuthority(director?.authority.impact)
     case 'director.variation': return directorAuthority(director?.authority.variation)
+    case 'mood.energy':
+    case 'mood.tension':
+    case 'mood.build':
+    case 'mood.momentum':
+    case 'mood.complexity':
+    case 'mood.brightness':
+    case 'mood.activity':
+    case 'mood.calm':
+    case 'mood.drive':
+    case 'mood.tense':
+    case 'mood.peak':
+    case 'mood.shock': {
+      const mood = frame.mood
+      return mood ? { available: true, value: mood[CINEMA2_MOOD_PATHS[path]], confidence: null } : unavailableSample()
+    }
     case 'timing.elapsedTimeSec': return { available: true, value: Math.max(0, frame.elapsedTimeSec), confidence: 1 }
     case 'timing.beatPhase': return sampleSignal(audio?.rhythm.beatPhase)
     case 'timing.barPhase': {
@@ -940,6 +938,47 @@ function fromAudioEvent(event: Readonly<Cinema2AudioEvent> | null): readonly Rea
   return event
     ? Object.freeze([Object.freeze({ id: event.id, strength: clamp01(event.strength), confidence: event.confidence })])
     : Object.freeze([])
+}
+
+export interface Cinema2CanonicalEvent {
+  readonly id: string
+  readonly strength: number
+  readonly confidence: number | null
+}
+
+/**
+ * The drops that occurred since the previous audio frame: the analysed semantic drop markers crossed in that time, or, with none, the section
+ * transition into a drop section. This is the one definition of a Cinema 2.0 drop (the choreography `drop` signal and the shared Mood Conductor
+ * both use it), so no second drop detector exists.
+ */
+export function cinema2CanonicalDropEvents(
+  audio: Readonly<Cinema2AudioIntelligenceFrame>,
+  director: Readonly<Cinema2VisualDirectorFrame> | null,
+  previousAudioTimeSec: number | null,
+): readonly Readonly<Cinema2CanonicalEvent>[] {
+  const crossed = crossedItems(audio.structure.semanticMoments, previousAudioTimeSec, audio.upstream.timeSec)
+    .filter(item => DROP_MOMENT_TYPES.has(item.type))
+  if (crossed.length > 0) {
+    return Object.freeze(crossed.map(item => Object.freeze({ id: item.id, strength: clamp01(item.confidence), confidence: item.confidence })))
+  }
+  const transition = director?.context.transition
+  const section = director?.context.section
+  if (transition?.occurred && transition.eventId && section?.available && section.value?.type === 'drop') {
+    return Object.freeze([Object.freeze({ id: transition.eventId, strength: transition.authority, confidence: transition.confidence })])
+  }
+  return Object.freeze([])
+}
+
+/** The phrase boundaries since the previous audio frame: analysed phrase markers crossed, or the fixed 16-beat clock's boundary. */
+export function cinema2CanonicalPhraseEvents(
+  audio: Readonly<Cinema2AudioIntelligenceFrame>,
+  previousAudioTimeSec: number | null,
+): readonly Readonly<Cinema2CanonicalEvent>[] {
+  const crossed = crossedItems(audio.structure.analyzedPhrases, previousAudioTimeSec, audio.upstream.timeSec)
+  if (crossed.length > 0) {
+    return Object.freeze(crossed.map(item => Object.freeze({ id: item.id, strength: clamp01(item.confidence), confidence: item.confidence })))
+  }
+  return fromAudioEvent(audio.rhythm.fixedClocks[16].boundary)
 }
 
 function crossedItems<T extends { readonly id: string; readonly timeSec: number }>(

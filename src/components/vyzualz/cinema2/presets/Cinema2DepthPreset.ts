@@ -23,6 +23,8 @@ import {
   type Cinema2SceneNodeId,
   type Cinema2Vector3,
 } from '../contracts/Cinema2NativePresetManifest'
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import { CINEMA2_CINEMATIC_FINISH_EFFECT_TYPE_ID } from '../effects/Cinema2CinematicFinishEffect'
 import { CINEMA2_HDR_BLOOM_EFFECT_TYPE_ID } from '../effects/Cinema2HdrBloomEffect'
 import { CINEMA2_VOLUMETRIC_ATMOSPHERE_EFFECT_TYPE_ID } from '../effects/Cinema2VolumetricAtmosphereEffect'
@@ -255,7 +257,7 @@ function depthFlightPoints() {
 }
 
 /** Step-3 looping camera and music choreography for the procedural Depth tunnel. */
-export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_DEPTH_PRESET_ID,
@@ -646,4 +648,28 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_DEPTH_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const DEPTH_MODULE = 'depth-tunnel'
+/**
+ * Depth's own Auto Performance (its program choice and accents) is unchanged. The shared Mood Conductor adds continuous drives to the same toggle:
+ * the tunnel travels faster, glows brighter and spills more as a passage becomes active, denser routes join in tense and peak moments, a calm passage
+ * slows and quiets it, and a drop's shock brightens the bloom and speeds the travel for about two seconds. Everything is around the authored values;
+ * "without lifting dark strips" holds because the drives move travel, route density and bloom, never the unlit structure.
+ */
+export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'depth-auto',
+  enabledParameter: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_DEPTH_INTENSITY_ID,
+  drives: [
+    { id: 'rate', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.activity', operation: 'add', value: 0.7 },
+    { id: 'rate-calm', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.calm', operation: 'add', value: -0.35 },
+    { id: 'rate-shock', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.shock', operation: 'add', value: 0.8 },
+    { id: 'spill', target: cinema2AutoTargets.module(DEPTH_MODULE, 'spill'), source: 'mood.activity', operation: 'add', value: 0.22 },
+    { id: 'density-tense', target: cinema2AutoTargets.module(DEPTH_MODULE, 'routeDensity'), source: 'mood.tense', operation: 'add', value: 0.25 },
+    { id: 'density-peak', target: cinema2AutoTargets.module(DEPTH_MODULE, 'routeDensity'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'intensity', target: cinema2AutoTargets.module(DEPTH_MODULE, 'intensity'), source: 'mood.peak', operation: 'add', value: 0.22 },
+    { id: 'intensity-calm', target: cinema2AutoTargets.module(DEPTH_MODULE, 'intensity'), source: 'mood.calm', operation: 'add', value: -0.12 },
+    { id: 'bloom', target: cinema2AutoTargets.effect(BLOOM_EFFECT_ID, 'intensity'), source: 'mood.shock', operation: 'add', value: 0.18 },
+  ],
 })

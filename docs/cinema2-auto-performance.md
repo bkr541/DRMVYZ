@@ -65,6 +65,10 @@ Rules scale by the preset's own reactivity or intensity control (Electric Storm 
 
 Switching the toggle off releases everything at once, including a pulse still in flight. A seek, loop or track change clears transient contributions through the engine's normal discontinuity reset.
 
+## The shared Mood Conductor
+
+Electric Storm, Depth and Mainframe also use the **Cinema 2.0 Mood Conductor** (`docs/cinema2-mood-conductor.md`): a shared reading of how the passage feels (calm, driving, tense, peak) and a decaying drop shock, from the Visual Director, used both to drive parameters continuously (`mood.*` choreography sources, gated by the same toggle) and to choose among a preset's own patterns on musical boundaries. It adds to, and never replaces, the gestures and programs described here.
+
 ## Saved settings
 
 The preset revision is **not** bumped: saved parameter state is bound to the revision and would fail to restore. A state saved before the toggle existed restores with it at its authored default (off). Adding a parameter does change the serialized state the deterministic random seed is derived from, so tests that depend on a specific seeded outcome may need a different seed.

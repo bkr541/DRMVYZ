@@ -206,9 +206,12 @@ describe('Mainframe Stage 5 preset', () => {
     expect(manifest.lighting?.lights).toHaveLength(4)
     expect(manifest.lighting?.lights[0]?.config).toMatchObject({ threeShadow: true })
     expect(manifest.environment).toMatchObject({ exposure: 1 })
+    // The nine musical cue rules, then the shared Mood Conductor's three drives (activity, calm, shock), gated by Auto Performance.
     expect(manifest.choreography?.rules.map(rule => rule.source.signal)).toEqual([
       'kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop',
+      'continuous', 'continuous', 'continuous',
     ])
+    expect(manifest.choreography?.rules.slice(9).every(rule => rule.enabledParameter?.$ref === CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID)).toBe(true)
   })
 
   it('cover-fits every Stage aspect with intentional crop and motion overscan', () => {

@@ -331,7 +331,19 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
     // A bounded local queue avoids subscribing to the Audio Feature Bus a second time.
     const musicalCues: Cinema2MainframeMusicalCue[] = []
     // Auto Performance: a build puts System Surge on stage, a drop restarts Outward Bus from the drop (see Cinema2PatternAutoPerformance).
-    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({ buildPattern: 'system-surge', dropPattern: 'outward-bus' })
+    // Beyond builds and drops, the shared Mood Conductor puts a pattern chosen by how the passage feels on stage, on musical boundaries only (and only
+    // while Pattern Change is off): calm passages sweep and boot, driving ones alternate and relay, tense ones surge, and peaks burst outward.
+    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({
+      buildPattern: 'system-surge', dropPattern: 'outward-bus',
+      mood: {
+        options: {
+          calm: ['radar-sweep', 'inward-boot'],
+          driving: ['bank-alternator', 'quadrant-relay', 'outward-bus'],
+          tense: ['system-surge', 'quadrant-relay'],
+          peak: ['outward-bus', 'bank-alternator', 'quadrant-relay'],
+        },
+      },
+    })
     let previousAuthoredPattern: Cinema2MainframePatternId | null = null
     let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
@@ -513,6 +525,11 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
             dropEventId: coordinated.dropEventId,
             patternEdited: previousAuthoredPattern != null && frame.pattern !== previousAuthoredPattern,
             reset: triggerReset,
+            mood: updateFrame.mood ?? null,
+            deltaTimeSec: updateFrame.deltaTimeSec,
+            basePattern: selection.activePattern,
+            patternChange: frame.patternChange,
+            seed: updateFrame.transport?.trackId ?? '',
           })
           previousAuthoredPattern = frame.pattern
           performance = performing

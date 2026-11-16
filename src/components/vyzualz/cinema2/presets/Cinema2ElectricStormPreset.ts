@@ -473,4 +473,21 @@ export const CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST = withCinema2AutoPerformance
     ],
     lift: [{ id: 'surge', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), operation: 'envelope', value: 0.25, hold: 0.5, release: 3 }],
   },
+  // The shared Mood Conductor: the whole storm moves with how the passage feels, around the authored values. A calm passage lets the storm
+  // thin out and soften; an active one quickens and thickens it; tension makes the bolts jaggier; a peak flashes harder and brighter; and a
+  // drop's shock lands as shake, zoom, flash and a surge of strikes that falls back over about two seconds.
+  mood: [
+    { id: 'rate', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), source: 'mood.activity', operation: 'add', value: 0.22 },
+    { id: 'rate-calm', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), source: 'mood.calm', operation: 'add', value: -0.3 },
+    { id: 'rate-shock', target: cinema2AutoTargets.module(ES_MODULE, 'strikeRate'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'branching', target: cinema2AutoTargets.module(ES_MODULE, 'branching'), source: 'mood.tense', operation: 'add', value: 0.2 },
+    { id: 'thickness', target: cinema2AutoTargets.module(ES_MODULE, 'thickness'), source: 'mood.peak', operation: 'add', value: 0.16 },
+    { id: 'glow', target: cinema2AutoTargets.module(ES_MODULE, 'glow'), source: 'mood.activity', operation: 'add', value: 0.14 },
+    { id: 'glow-calm', target: cinema2AutoTargets.module(ES_MODULE, 'glow'), source: 'mood.calm', operation: 'add', value: -0.14 },
+    { id: 'intensity', target: cinema2AutoTargets.module(ES_MODULE, 'masterIntensity'), source: 'mood.peak', operation: 'add', value: 0.18 },
+    { id: 'intensity-calm', target: cinema2AutoTargets.module(ES_MODULE, 'masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'flash', target: cinema2AutoTargets.module(ES_MODULE, 'flashIntensity'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'shake', target: cinema2AutoTargets.module(ES_MODULE, 'impactShake'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'zoom', target: cinema2AutoTargets.module(ES_MODULE, 'zoomPunch'), source: 'mood.shock', operation: 'add', value: 0.3 },
+  ],
 })

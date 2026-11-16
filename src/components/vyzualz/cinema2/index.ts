@@ -32,6 +32,23 @@ export {
   type Cinema2VisualDirectorTransitionKind,
   type Cinema2VisualPhase,
 } from './director/Cinema2VisualDirector'
+export {
+  CINEMA2_MOOD_PATHS,
+  Cinema2MoodChooser,
+  Cinema2MoodConductor,
+  hashIndex as cinema2MoodHashIndex,
+  type Cinema2MoodChooserConfig,
+  type Cinema2MoodFeel,
+  type Cinema2MoodFrame,
+  type Cinema2MoodPath,
+} from './conductor/Cinema2MoodConductor'
+export {
+  CINEMA2_MOOD_RULE_PRIORITY,
+  createCinema2MoodRules,
+  withCinema2MoodDrives,
+  type Cinema2MoodDrive,
+  type Cinema2MoodDriveSpec,
+} from './presets/Cinema2MoodConductorAuthoring'
 
 export {
   CINEMA2_CAPABILITY_IDS,
