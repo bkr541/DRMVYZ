@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Cinema2AudioIntelligenceBridge, type Cinema2AudioIntelligenceFrame } from '../audio/Cinema2AudioIntelligenceBridge'
-import { CINEMA2_MOOD_PATHS, Cinema2MoodChooser, Cinema2MoodConductor, hashIndex, type Cinema2MoodFrame } from '../conductor/Cinema2MoodConductor'
+import { CINEMA2_MOOD_PATHS, CINEMA2_MOOD_TRIGGER_LADDER, Cinema2MoodChooser, Cinema2MoodConductor, hashIndex, resolveCinema2PatternControls, type Cinema2MoodFrame } from '../conductor/Cinema2MoodConductor'
 import { Cinema2VisualDirector, type Cinema2VisualDirectorFrame } from '../director/Cinema2VisualDirector'
 import { ifritMusicFixture, type IfritFixtureOptions } from '../../../../test/support/IfritMusicFixture'
 
@@ -128,10 +128,156 @@ describe('Cinema 2.0 Mood Conductor', () => {
   })
 })
 
+describe('Cinema 2.0 Mood Conductor: silence ("nearly off")', () => {
+  const play = (s: ReturnType<typeof stage>, from: number, seconds: number, options: Options) => { let last: Readonly<Cinema2MoodFrame> | null = null; const out: Readonly<Cinema2MoodFrame>[] = []; for (let i = 0; i < seconds * 30; i++) { last = s.frame(from + i / 30, options).mood; out.push(last!) } return { last: last!, out } }
+  const LOUD = { energy: .9, tension: .6, bass: .8, section: 'drop' }
+  const QUIET = { energy: 0, tension: 0, bass: 0, section: 'drop' }
+
+  it('does nothing while there is sound, and waits about 0.3 s of real silence before acting', () => {
+    const s = stage()
+    const loud = play(s, 10, 5, LOUD)
+    expect(loud.last.silence).toBe(0)
+    expect(loud.last.feel).toBe('peak')
+    const quiet = play(s, 10 + 5, 1.5, QUIET)
+    // Within the hold time the gate is still shut; shortly after it begins to close.
+    expect(quiet.out[5].silence).toBe(0)
+    expect(quiet.out[20].silence).toBeGreaterThan(.3)
+    expect(quiet.last.silence).toBeGreaterThan(.95)
+  })
+
+  it('pulls the drives out by about 90% and goes calm, even inside a drop section', () => {
+    const s = stage()
+    const loud = play(s, 10, 5, LOUD).last
+    const stop = play(s, 15, 3, QUIET).last
+    expect(stop.feel).toBe('calm')
+    expect(stop.calm).toBeGreaterThan(.85)
+    expect(stop.peak).toBeLessThan(loud.peak * .15)
+    expect(stop.activity).toBeLessThan(loud.activity * .15)
+    expect(stop.shock).toBe(0)
+    expect(stop.tense).toBeLessThanOrEqual(loud.tense)
+    expect(stop.energy).toBeLessThan(loud.energy) // the raw energy still reads what it reads; the drives are what is gated
+  })
+
+  it('comes back within about half a second when sound returns', () => {
+    const s = stage()
+    play(s, 10, 5, LOUD); play(s, 15, 3, QUIET)
+    const back = play(s, 18, 1, LOUD)
+    expect(back.out[15].silence).toBeLessThan(.05)
+    expect(back.last.activity).toBeGreaterThan(.5)
+    expect(back.last.feel).toBe('peak')
+  })
+
+  it('a drop ends a stop at once and lands with its full shock', () => {
+    const s = stage()
+    play(s, 10, 3, LOUD); play(s, 13, 3, QUIET)
+    const hit = s.frame(16, { ...LOUD, event: 'drop', eventId: 41 }).mood!
+    expect(hit.silence).toBe(0)
+    expect(hit.shock).toBeGreaterThanOrEqual(.75)
+    expect(hit.feel).toBe('peak')
+  })
+
+  it('is driven by the real signal level, not the section or the "Silence or stop" marker, and has a gap so it does not chatter', () => {
+    // A quiet section with sound is not a stop.
+    const calm = play(stage(), 10, 6, { energy: .25, section: 'breakdown' }).last
+    expect(calm.silence).toBe(0)
+    // Sound just above the enter threshold never starts a stop; just above the exit threshold ends one.
+    const s = stage()
+    play(s, 10, 2, { energy: .04, section: 'drop' })
+    expect(play(s, 12, 2, { energy: .04, section: 'drop' }).last.silence).toBe(0)
+    const stopped = stage()
+    play(stopped, 10, 3, { energy: 0, section: 'drop' })
+    expect(play(stopped, 13, 2, { energy: .045, section: 'drop' }).last.silence).toBeGreaterThan(.9)
+    expect(play(stopped, 15, 1, { energy: .08, section: 'drop' }).last.silence).toBeLessThan(.05)
+  })
+
+  it('claims no silence without level evidence, holds while paused, and resets with a seek', () => {
+    const blind = play(stage(), 10, 4, { energy: 0, featuresAvailable: false, section: 'drop' }).last
+    expect(blind.silence).toBe(0)
+    const s = stage()
+    play(s, 10, 3, QUIET)
+    const a = s.frame(13.1, QUIET, 0).mood!
+    const b = s.frame(13.1, LOUD, 0).mood!
+    expect(b.silence).toBeCloseTo(a.silence, 9)
+    expect(s.frame(2, { ...LOUD, discontinuity: 'seek' }).mood!.silence).toBe(0)
+  })
+})
+
+describe('Cinema 2.0 Mood Conductor: Pattern Change and Trigger', () => {
+  const play = (s: ReturnType<typeof stage>, from: number, seconds: number, options: Options) => { let last: Readonly<Cinema2MoodFrame> | null = null; for (let i = 0; i < seconds * 30; i++) last = s.frame(from + i / 30, options).mood; return last! }
+
+  it('has a ladder of Triggers from slowest to fastest that every preset with a Trigger control offers', () => {
+    expect([...CINEMA2_MOOD_TRIGGER_LADDER]).toEqual(['bar8', 'bar4', 'bar', 'beat2', 'beat'])
+  })
+
+  it('changes the pattern slowly in a calm passage, every four bars when driving, every bar when tense', () => {
+    const calm = play(stage(), 10, 6, { energy: .15, section: 'breakdown' }).pattern!
+    expect(calm).toMatchObject({ patternChange: true, trigger: 'bar8', reason: 'calm' })
+    const driving = play(stage(), 10, 6, { energy: .6, tension: .1, section: 'verse', sectionProgress: .3 }).pattern!
+    expect(driving).toMatchObject({ patternChange: true, trigger: 'bar4' })
+    const tense = play(stage(), 10, 6, { energy: .6, tension: .8, section: 'preDrop', sectionProgress: .3 }).pattern!
+    expect(tense.trigger).toBe('bar')
+  })
+
+  it('quickens as a build climbs, in a flurry after a drop, and as a section nears its end, then settles back', () => {
+    const early = play(stage(), 10, 8, { energy: .6, tension: .8, build: .6, section: 'build', sectionProgress: .3 }).pattern!
+    const late = play(stage(), 10, 8, { energy: .7, tension: .9, build: .95, section: 'build', sectionProgress: .3 }).pattern!
+    expect(CINEMA2_MOOD_TRIGGER_LADDER.indexOf(late.trigger)).toBeGreaterThan(CINEMA2_MOOD_TRIGGER_LADDER.indexOf(early.trigger))
+    expect(early.reason).toBe('build')
+    const ending = play(stage(), 10, 6, { energy: .6, tension: .1, section: 'verse', sectionProgress: .92 }).pattern!
+    expect(ending).toMatchObject({ trigger: 'bar', reason: 'approach' })
+    const s = stage()
+    play(s, 10, 6, { energy: .9, tension: .3, section: 'drop', sectionProgress: .3 })
+    const hit = s.frame(16, { energy: .95, section: 'drop', sectionProgress: .3, event: 'drop', eventId: 5 }).mood!.pattern!
+    expect(hit).toMatchObject({ trigger: 'beat2', reason: 'impact' }) // a drop changes the Trigger at once
+    const settled = play(s, 16 + 1 / 30, 8, { energy: .9, tension: .3, section: 'drop', sectionProgress: .3 }).pattern!
+    expect(settled.trigger).toBe('bar')
+  })
+
+  it('holds the pattern in a silent stop (Pattern Change off) and changes again when sound returns', () => {
+    const s = stage()
+    play(s, 10, 4, { energy: .9, section: 'drop' })
+    const stop = play(s, 14, 2, { energy: 0, tension: 0, bass: 0, section: 'drop' }).pattern!
+    expect(stop).toMatchObject({ patternChange: false, reason: 'silence' })
+    expect(play(s, 16, 2, { energy: .9, section: 'drop' }).pattern!.patternChange).toBe(true)
+  })
+
+  it('does not flip with every wobble: a change must hold half a second and be three seconds from the last', () => {
+    const s = stage()
+    const seen: string[] = []
+    for (let i = 0; i < 12 * 30; i++) {
+      // The passage alternates between calm and driving every half second.
+      const calm = Math.floor(i / 15) % 2 === 0
+      const m = s.frame(10 + i / 30, calm ? { energy: .15, section: 'breakdown' } : { energy: .6, section: 'verse', sectionProgress: .3 }).mood!
+      if (seen[seen.length - 1] !== m.pattern!.trigger) seen.push(m.pattern!.trigger)
+    }
+    expect(seen.length).toBeLessThanOrEqual(4)
+  })
+
+  it('has no opinion without a beat grid to count, so the saved values stand', () => {
+    const blind = play(stage(), 10, 4, { energy: .6, featuresAvailable: false, section: 'verse' })
+    expect(blind.pattern).toBeNull()
+  })
+
+  it('is deterministic', () => {
+    const run = () => { const s = stage(); const out: string[] = []; for (let i = 0; i < 300; i++) { const m = s.frame(10 + i / 30, { energy: .5 + .4 * Math.sin(i / 25), tension: .5, section: 'build', sectionProgress: .5 }).mood!; out.push(`${m.pattern!.patternChange}${m.pattern!.trigger}`) } return out }
+    expect(run()).toEqual(run())
+  })
+
+  it('is what a preset acts on only while Auto Performance is on and the music has a choice; otherwise the saved values, untouched', () => {
+    const mood = { pattern: { patternChange: true, trigger: 'beat2', reason: 'impact' } } as unknown as Cinema2MoodFrame
+    const saved = { patternChange: false, trigger: 'bar4' as const }
+    expect(resolveCinema2PatternControls(saved, mood, true)).toEqual({ patternChange: true, trigger: 'beat2', automatic: true })
+    expect(resolveCinema2PatternControls(saved, mood, false)).toEqual({ patternChange: false, trigger: 'bar4', automatic: false })
+    expect(resolveCinema2PatternControls(saved, null, true)).toEqual({ patternChange: false, trigger: 'bar4', automatic: false })
+    expect(resolveCinema2PatternControls(saved, { pattern: null } as unknown as Cinema2MoodFrame, true).automatic).toBe(false)
+    expect(saved).toEqual({ patternChange: false, trigger: 'bar4' })
+  })
+})
+
 describe('Cinema 2.0 Mood Chooser', () => {
   const options = { calm: ['a', 'b'], driving: ['c', 'd', 'e'], tense: ['f', 'g'], peak: ['h', 'i', 'j'] } as const
   const withBoundary = (kind: 'drop' | 'section' | 'phrase' | null, id: string, feel: Cinema2MoodFrame['feel'] = 'driving'): Cinema2MoodFrame => ({
-    version: 1, structured: true, energy: .5, tension: .2, build: 0, momentum: .3, complexity: .3, brightness: .5, activity: .5, calm: 0, drive: .5, tense: 0, peak: 0, shock: 0, feel,
+    version: 1, structured: true, energy: .5, tension: .2, build: 0, momentum: .3, complexity: .3, brightness: .5, activity: .5, calm: 0, drive: .5, tense: 0, peak: 0, shock: 0, silence: 0, pattern: null, feel,
     section: { id: 's', type: 'verse', progress: .3 }, drop: { occurred: kind === 'drop', eventId: kind === 'drop' ? id : null }, boundary: kind ? { id, kind } : null,
   })
 

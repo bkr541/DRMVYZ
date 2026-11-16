@@ -15,6 +15,16 @@
  *   - It is deterministic: no randomness, a pure function of the frames and the time between them. A discontinuity (seek, loop, track change)
  *     starts it again.
  *
+ * Silence: a stop in the music should quiet the show, so the conductor gates itself on the real signal level (not on the "Silence or stop" marker, which
+ * the director treats as an impact). After about 0.3 s below the level threshold the gate pulls the activity, peak, drive, tense and shock drives out by
+ * 90% over 0.25 s and raises calm, and it comes back within 0.15 s when sound returns (and at once on a drop). `mood.silence` exposes the gate so
+ * beat-grid accent rules, which keep ticking through silence because the grid is time-based, can switch themselves off with the `not-silent` condition.
+ *
+ * Pattern Change and Trigger: with Auto Performance on, the music also chooses *how often the pattern changes*. The conductor decides Pattern Change on or off
+ * and the Trigger (`mood.pattern`) from how the passage feels, how far a build has climbed, a drop's impact, how close the section is to ending and
+ * silence, and the presets that have those controls use the choice instead of the saved ones (the saved values are never rewritten, and the inspector
+ * shows the live choice). With no beat grid there is nothing to count, so the conductor has no opinion and the saved values stand.
+ *
  * Presets use the mood two ways, both gated by their own Auto Performance toggle and neither rewriting an authored value:
  *   - Continuously, as choreography sources `mood.*` (see `Cinema2ChoreographyContinuousSourcePath`), through `createCinema2MoodRules`.
  *   - For discrete choices (which pattern or program is on stage), through `Cinema2MoodChooser`, which chooses only on musical boundaries, holds
@@ -29,6 +39,18 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, Number.isFinite(v) ? v : 
 
 /** How the passage feels, from its smoothed weights: a drop's peak, tension building toward one, a calm breakdown, or everything in between. */
 export type Cinema2MoodFeel = 'calm' | 'driving' | 'tense' | 'peak'
+
+/** The Triggers the conductor chooses between, slowest to fastest. Every preset with a Trigger control offers all of them. */
+export const CINEMA2_MOOD_TRIGGER_LADDER = Object.freeze(['bar8', 'bar4', 'bar', 'beat2', 'beat'] as const)
+export type Cinema2MoodTrigger = typeof CINEMA2_MOOD_TRIGGER_LADDER[number]
+
+/** What the music wants Pattern Change and the Trigger to be right now. */
+export interface Cinema2MoodPatternChoice {
+  readonly patternChange: boolean
+  readonly trigger: Cinema2MoodTrigger
+  /** Why: the passage's feel, a build climbing, a drop's impact, a section about to end, or a silent stop (the pattern holds). */
+  readonly reason: 'calm' | 'driving' | 'tense' | 'build' | 'impact' | 'approach' | 'peak' | 'silence'
+}
 
 export interface Cinema2MoodFrame {
   readonly version: 1
@@ -51,7 +73,11 @@ export interface Cinema2MoodFrame {
   readonly peak: number
   /** The impact of a drop: jumps to the hit's strength on the frame it lands, then falls over about two seconds. */
   readonly shock: number
+  /** The silence gate, 0..1: 0 while there is sound, rising to 1 in a stop. The drives above are already pulled by it; this is for rules that need to know. */
+  readonly silence: number
   readonly feel: Cinema2MoodFeel
+  /** The music's choice of Pattern Change and Trigger; null when there is no beat grid to count (the saved values stand). */
+  readonly pattern: Readonly<Cinema2MoodPatternChoice> | null
   readonly section: Readonly<{ id: string | null; type: string | null; progress: number }>
   /** A drop landed on this frame (the canonical drop event) and its identity. */
   readonly drop: Readonly<{ occurred: boolean; eventId: string | null }>
@@ -73,6 +99,7 @@ export const CINEMA2_MOOD_PATHS = Object.freeze({
   'mood.tense': 'tense',
   'mood.peak': 'peak',
   'mood.shock': 'shock',
+  'mood.silence': 'silence',
 } as const)
 export type Cinema2MoodPath = keyof typeof CINEMA2_MOOD_PATHS
 
@@ -84,6 +111,14 @@ const SECTION_FEEL: Readonly<Record<string, readonly [number, number, number, nu
 const NO_FEEL: readonly [number, number, number, number] = [0, 0, 0, 0]
 
 const SHOCK_RELEASE_SEC = 1.7
+/** Silence: below this real signal level for `SILENCE_HOLD_SEC` it counts as a stop; it ends above `SILENCE_EXIT_LEVEL` (a gap between the two stops it chattering). */
+const SILENCE_ENTER_LEVEL = .03
+const SILENCE_EXIT_LEVEL = .06
+const SILENCE_HOLD_SEC = .3
+const SILENCE_ATTACK_SEC = .25
+const SILENCE_RELEASE_SEC = .15
+/** How much of the drives a full silence pulls out. */
+const SILENCE_DEPTH = .9
 
 /** A one-pole envelope: fast attack, slower release (the guide's α = 1 − e^(−Δt/τ)). */
 class Follower {
@@ -110,12 +145,20 @@ export class Cinema2MoodConductor {
   private readonly tense = new Follower()
   private readonly peak = new Follower()
   private shock = 0
+  private silent = false
+  private quietForSec = 0
+  private readonly silenceGate = new Follower()
+  private triggerIndex = 1
+  private pendingIndex = 1
+  private pendingForSec = 0
+  private sinceChangeSec = Infinity
+  private buildBonus = 0
   private previousTimeSec: number | null = null
 
   reset(): void {
     for (const f of [this.energy, this.tension, this.build, this.momentum, this.complexity, this.brightness, this.calm, this.drive, this.tense, this.peak]) f.value = 0
     this.brightness.value = .5
-    this.shock = 0; this.previousTimeSec = null
+    this.shock = 0; this.silent = false; this.quietForSec = 0; this.silenceGate.value = 0; this.triggerIndex = 1; this.pendingIndex = 1; this.pendingForSec = 0; this.sinceChangeSec = Infinity; this.buildBonus = 0; this.previousTimeSec = null
   }
 
   /**
@@ -159,7 +202,17 @@ export class Cinema2MoodConductor {
     const peakTarget = structured ? feelRaw[3] : clamp01(shock + energy - .9)
     const peak = clamp01(this.peak.step(Math.max(peakTarget, shock * .9), dt, .12, .7))
 
-    const activity = clamp01(.4 * energy + .2 * tension + .15 * build + .15 * momentum + .2 * drive + .3 * peak + .3 * shock - .2 * calm)
+    // The silence gate, from the real signal level: no level evidence means no claim of silence. A drop ends a stop at once.
+    const levelNow = Math.max(signal(audio.features.overallEnergy) ?? -1, signal(audio.features.rms) ?? -1)
+    if (levelNow < 0 || drop) { this.silent = false; this.quietForSec = 0 }
+    else if (this.silent) { if (levelNow >= SILENCE_EXIT_LEVEL) { this.silent = false; this.quietForSec = 0 } }
+    else if (levelNow < SILENCE_ENTER_LEVEL) { this.quietForSec += dt; if (this.quietForSec >= SILENCE_HOLD_SEC) this.silent = true }
+    else this.quietForSec = 0
+    if (drop) this.silenceGate.value = 0
+    const silence = clamp01(this.silenceGate.step(this.silent ? 1 : 0, dt, SILENCE_ATTACK_SEC, SILENCE_RELEASE_SEC))
+    const keep = 1 - SILENCE_DEPTH * silence
+
+    const activity = clamp01((.4 * energy + .2 * tension + .15 * build + .15 * momentum + .2 * drive + .3 * peak + .3 * shock - .2 * calm) * keep)
 
     // Boundaries, for choosers: a drop, a section change, or a phrase (in that order of authority).
     const sectionId = section.available && section.value ? section.value.id : null
@@ -173,13 +226,46 @@ export class Cinema2MoodConductor {
     }
     this.previousTimeSec = audio.upstream.timeSec
 
-    const feel: Cinema2MoodFeel = peak > .45 || shock > .45 ? 'peak' : tense > .45 ? 'tense' : calm > .55 ? 'calm' : 'driving'
+    // Pattern Change and Trigger: faster in a busy passage, slower in a calm one, quicker as a build climbs, in a flurry on a drop, and held in a stop.
+    const pattern = audio.capabilities.beatGrid
+      ? this.choosePattern(dt, silence, calm, tense, peak, shock, build, structured ? clamp01(section.value!.progress) : null, drop != null)
+      : null
+    // In a stop the show quiets: the drives are pulled out and calm takes over.
+    const gated = { calm: Math.max(calm, SILENCE_DEPTH * silence), drive: drive * keep, tense: tense * keep, peak: peak * keep, shock: shock * keep }
+    const feel: Cinema2MoodFeel = gated.peak > .45 || gated.shock > .45 ? 'peak' : gated.tense > .45 ? 'tense' : gated.calm > .55 ? 'calm' : 'driving'
     return Object.freeze({
-      version: 1 as const, structured, energy, tension, build, momentum, complexity, brightness, activity, calm, drive, tense, peak, shock, feel,
+      version: 1 as const, structured, energy, tension, build, momentum, complexity, brightness, activity, ...gated, silence, feel, pattern,
       section: Object.freeze({ id: sectionId, type: structured ? section.value!.type : null, progress: section.available && section.value ? clamp01(section.value.progress) : 0 }),
       drop: Object.freeze({ occurred: drop != null, eventId: drop?.id ?? null }),
       boundary,
     })
+  }
+
+  /**
+   * The Trigger is a step on the ladder (every 8 bars, 4 bars, bar, 2 beats, beat): a calm passage sits at the slow end, a driving one at every 4 bars,
+   * tense and peak at every bar, and the step quickens when a build climbs (+1 above 50%, +2 above 75%), for the flurry after a drop (+1) and as a
+   * section nears its end (+1). A change must hold half a second and at least three seconds apart, except a drop (at once). A silent stop holds
+   * the pattern (Pattern Change off).
+   */
+  private choosePattern(dt: number, silence: number, calm: number, tense: number, peak: number, shock: number, build: number, progress: number | null, dropped: boolean): Cinema2MoodPatternChoice {
+    const feel = peak > .45 || shock > .45 ? 'peak' : tense > .45 ? 'tense' : calm > .55 ? 'calm' : 'driving'
+    // The build bonus has a gap between rising and falling so it does not chatter at a threshold.
+    const rising = this.buildBonus === 0 ? .5 : this.buildBonus === 1 ? .75 : 2, falling = this.buildBonus === 2 ? .7 : .45
+    if (build >= rising) this.buildBonus = Math.min(2, this.buildBonus + 1)
+    else if (build < falling) this.buildBonus = Math.max(0, this.buildBonus - 1)
+    let index = feel === 'calm' ? 0 : feel === 'driving' ? 1 : 2
+    let reason: Cinema2MoodPatternChoice['reason'] = feel === 'peak' ? 'peak' : feel
+    if (feel !== 'calm' && this.buildBonus > 0) { index += this.buildBonus; reason = 'build' }
+    if (shock > .5) { index += 1; reason = 'impact' }
+    else if (progress != null && progress > .85 && feel !== 'calm') { index += 1; reason = 'approach' }
+    index = Math.min(CINEMA2_MOOD_TRIGGER_LADDER.length - 1, index)
+    this.sinceChangeSec += dt
+    if (index === this.triggerIndex) this.pendingForSec = 0
+    else if (index !== this.pendingIndex) { this.pendingIndex = index; this.pendingForSec = 0 }
+    else this.pendingForSec += dt
+    if (index !== this.triggerIndex && (dropped || (this.pendingForSec >= .5 && this.sinceChangeSec >= 3))) { this.triggerIndex = index; this.sinceChangeSec = 0; this.pendingForSec = 0 }
+    const held = silence >= .5
+    return Object.freeze({ patternChange: !held, trigger: CINEMA2_MOOD_TRIGGER_LADDER[this.triggerIndex], reason: held ? 'silence' as const : reason })
   }
 }
 
@@ -227,3 +313,16 @@ export function hashIndex(length: number, text: string): number {
   return (hash >>> 0) % length
 }
 
+
+/**
+ * The Pattern Change and Trigger a preset should act on. With Auto Performance on and a mood that has a choice (a beat grid to count), the music's;
+ * otherwise exactly the saved ones. The saved values are never written to: a module reads these, and the inspector shows them live.
+ */
+export function resolveCinema2PatternControls<T extends string>(
+  saved: Readonly<{ patternChange: boolean; trigger: T }>,
+  mood: Readonly<Cinema2MoodFrame> | null | undefined,
+  autoEnabled: boolean,
+): Readonly<{ patternChange: boolean; trigger: T | Cinema2MoodTrigger; automatic: boolean }> {
+  if (autoEnabled && mood?.pattern) return { patternChange: mood.pattern.patternChange, trigger: mood.pattern.trigger, automatic: true }
+  return { patternChange: saved.patternChange, trigger: saved.trigger, automatic: false }
+}

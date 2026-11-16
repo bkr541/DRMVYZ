@@ -67,7 +67,7 @@ Switching the toggle off releases everything at once, including a pulse still in
 
 ## The shared Mood Conductor
 
-Electric Storm, Depth and Mainframe also use the **Cinema 2.0 Mood Conductor** (`docs/cinema2-mood-conductor.md`): a shared reading of how the passage feels (calm, driving, tense, peak) and a decaying drop shock, from the Visual Director, used both to drive parameters continuously (`mood.*` choreography sources, gated by the same toggle) and to choose among a preset's own patterns on musical boundaries. It adds to, and never replaces, the gestures and programs described here.
+Electric Storm, Depth and Mainframe also use the **Cinema 2.0 Mood Conductor** (`docs/cinema2-mood-conductor.md`): a shared reading of how the passage feels (calm, driving, tense, peak) and a decaying drop shock, from the Visual Director, used both to drive parameters continuously (`mood.*` choreography sources, gated by the same toggle) and to choose among a preset's own patterns on musical boundaries. It adds to, and never replaces, the gestures and programs described here. For Depth and Mainframe it also **chooses Pattern Change and Trigger** from the music (feel, build, drop impact, section progress, silence) instead of the saved values, which are never rewritten and apply again when the toggle is off; with no beat grid the saved values stand. The inspector shows what it is choosing under those two controls. In a silent stop the conductor's drives are pulled out by 90% and the beat-grid gestures (build, pre-drop downbeats, bar lift) and Depth's accents wait for sound (the `not-silent` condition); a drop is never gated.
 
 ## Saved settings
 

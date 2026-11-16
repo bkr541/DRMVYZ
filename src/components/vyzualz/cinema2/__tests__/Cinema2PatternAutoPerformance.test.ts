@@ -211,7 +211,7 @@ describe.each(FAMILIES)('%s Auto Performance', (_name, manifest, definition, res
     expect(s.inspect()).toMatchObject({ authoredPattern: 'quadrant-relay', onStage: 'quadrant-relay' })
   })
 
-  it('keeps pattern change and the trigger independent of Auto Performance', () => {
+  it('leaves the saved Pattern Change and Trigger alone, and acts on them when the music has no choice (no mood)', () => {
     for (const auto of [false, true]) {
       const s = stage(m, d, { autoPerformance: auto, patternChange: true, trigger: 'beat' })
       s.update(frame(1, 'a')); s.update(frame(1.5, 'b'))
@@ -235,5 +235,48 @@ describe.each(FAMILIES)('%s Auto Performance', (_name, manifest, definition, res
     s.update(frame(4.1, 'c', { trackId: 'another-track', generation: 2 }))
     expect(s.inspect()).toMatchObject({ onStage: 'radar-sweep' })
     expect(s.inspect().performance.pattern).toBeNull()
+  })
+})
+
+describe('Mainframe: Pattern Change and Trigger chosen by the music while Auto Performance is on', () => {
+  const m = CINEMA2_MAINFRAME_PRESET_MANIFEST as Manifest
+  const d = cinema2MainframeNativeModuleDefinition
+  const withMood = (f: Readonly<Cinema2ModuleFrameReadContext>, patternChange: boolean, trigger: string) =>
+    ({ ...f, mood: { pattern: { patternChange, trigger, reason: 'driving' }, feel: 'driving', boundary: null } }) as unknown as Readonly<Cinema2ModuleFrameReadContext>
+  const run = (auto: boolean, saved: { patternChange: boolean; trigger: string }, music: { patternChange: boolean; trigger: string } | null) => {
+    const s = stage(m, d, { autoPerformance: auto, patternChange: saved.patternChange, trigger: saved.trigger })
+    for (let i = 0; i < 6; i++) {
+      const f = frame(1 + i * 0.5, `t${i}`)
+      s.update(music ? withMood(f, music.patternChange, music.trigger) : f)
+    }
+    return s.inspect()
+  }
+
+  it('uses the music\'s Pattern Change and Trigger, never writing the saved ones, and advances the pattern on them', () => {
+    const inspected = run(true, { patternChange: false, trigger: 'bar8' }, { patternChange: true, trigger: 'beat' })
+    expect(inspected).toMatchObject({ patternChange: false, trigger: 'bar8', effectivePatternChange: true, effectiveTrigger: 'beat', patternControlsAutomatic: true })
+    expect(inspected.activePattern).not.toBe(inspected.authoredPattern)
+  })
+
+  it('holds the pattern when the music says to (a silent stop), even with Pattern Change saved on', () => {
+    const inspected = run(true, { patternChange: true, trigger: 'beat' }, { patternChange: false, trigger: 'beat' })
+    expect(inspected).toMatchObject({ patternChange: true, effectivePatternChange: false, patternControlsAutomatic: true })
+    expect(inspected.activePattern).toBe(inspected.authoredPattern)
+  })
+
+  it('acts on the saved values with Auto Performance off, whatever the mood says', () => {
+    const inspected = run(false, { patternChange: false, trigger: 'bar8' }, { patternChange: true, trigger: 'beat' })
+    expect(inspected).toMatchObject({ effectivePatternChange: false, effectiveTrigger: 'bar8', patternControlsAutomatic: false })
+    expect(inspected.activePattern).toBe(inspected.authoredPattern)
+  })
+
+  it('acts on the saved values when the mood has no choice, and with no mood at all', () => {
+    expect(run(true, { patternChange: true, trigger: 'beat' }, null)).toMatchObject({ effectivePatternChange: true, effectiveTrigger: 'beat', patternControlsAutomatic: false })
+  })
+
+  it('tags Pattern Change and Trigger so the inspector can show the music\'s live choice', () => {
+    const tagged = (id: string) => (m.parameters!.find(parameter => parameter.id === id) as unknown as { metadata?: { moodPolicy?: string } }).metadata?.moodPolicy
+    expect(tagged('mainframe-pattern-change')).toBe('patternChange')
+    expect(tagged('mainframe-trigger')).toBe('trigger')
   })
 })

@@ -1117,6 +1117,28 @@
   text-align: right;
 }
 
+/* The value the music is driving a control to (Cinema 2.0 Auto Performance), shown beside the saved value and as a marker on the slider's track. */
+.rv-ctrl-live-val {
+  margin-right: 6px;
+  color: var(--accent, #4ac7db);
+  font-variant-numeric: tabular-nums;
+}
+.rv-ctrl-slider-wrap { width: 100%; }
+.rv-ctrl-live-mark {
+  position: absolute;
+  top: 50%;
+  width: 3px;
+  height: 11px;
+  margin-left: -1.5px;
+  transform: translateY(-50%);
+  border-radius: 1px;
+  background: #ffd75f;
+  box-shadow: 0 0 6px rgba(255, 215, 95, 0.7);
+  pointer-events: none;
+  transition: left 0.1s linear;
+  z-index: 1;
+}
+
 /* ── Select ──────────────────────────────────────────────────────────────────── */
 .rv-ctrl-select {
   width: 100%;

@@ -25,6 +25,17 @@ All 0..1, smoothed (fast to rise, slower to fall):
 | `feel` | `peak` (peak or shock above .45), `tense`, `calm`, else `driving` |
 | `section`, `drop`, `boundary` | the section id, type and progress; whether a drop landed; and the musical boundary of this frame (a drop, a section change or a phrase, in that order of authority) |
 
+## Silence: "nearly off"
+
+A stop in the music quiets the show. The Visual Director deliberately treats a "Silence or stop" marker as an *impact* (a dramatic moment), so the conductor does not use the marker. It gates itself on the **real signal level** (`audio.features.overallEnergy` and `rms`, whichever is higher):
+
+- **Detect.** Below 0.03 for 0.3 s is a stop; it ends above 0.06 (the gap between the two stops it chattering). With no level evidence (features unavailable) it never claims a silence.
+- **Gate.** `mood.silence` rises over 0.25 s and falls over 0.15 s. While it is up, `activity`, `peak`, `drive`, `tense` and `shock` are pulled out by **90%** and `calm` takes over (up to 0.9), so the feel reads calm even inside a drop section. The raw `energy`, `tension` and `build` still report what they report.
+- **A drop ends a stop at once** and lands with its full shock.
+- **Grid accents wait for sound.** The beat grid is time-based, so beat, downbeat and phrase events keep arriving through a silent stop. The new `not-silent` choreography condition (passes unless `mood.silence` is at least 0.5; passes when there is no mood) is on the beat-grid accent rules: Depth's beat, downbeat, phrase and build accents, and the shared Auto Performance build, pre-drop and bar-lift gestures (Electric Storm, Reactor, Threshold, GO-TO, Reliquary, War Of Worlds). Drops are not gated.
+
+Example, a drop at full strength followed by 4 s of silence, from the conductor's real output (Electric Storm strikes, authored 0.58, and Depth rate, authored 1.10): before the stop 0.71 and 1.60; 1 s into silence 0.39 and 0.84; at the end of the stop 0.37 and 0.81, then 0.66 and 1.49 within 0.3 s of the music returning. In a stop the values go **below** the authored ones (calm takes away), not merely back to them; the preset's own audio reactions are already near zero in true silence.
+
 ## Two ways a preset uses it
 
 **Continuously, as choreography sources.** Twelve new continuous paths: `mood.energy`, `.tension`, `.build`, `.momentum`, `.complexity`, `.brightness`, `.activity`, `.calm`, `.drive`, `.tense`, `.peak`, `.shock`. `createCinema2MoodRules` (and `withCinema2MoodDrives` for a manifest, or the `mood` field of a `withCinema2AutoPerformance` spec) turns a list of drives into gated rules:
@@ -42,10 +53,28 @@ All 0..1, smoothed (fast to rise, slower to fall):
 | Preset | Continuous drives (gated by its Auto Performance toggle) | Discrete |
 | --- | --- | --- |
 | **Electric Storm** | Strike Rate: + activity, − calm, + shock. Branching: + tense. Thickness: + peak. Glow: + activity, − calm. Master Intensity: + peak, − calm. Flash Intensity, Impact Shake and Zoom Punch: + shock. The existing four accent gestures (build rise, pre-drop strikes, drop barrage, every fourth bar) are kept. | none (the storm has no pattern) |
-| **Depth** | Rate: + activity, − calm, + shock. Light Spill: + activity. Route Density: + tense, + peak. Intensity: + peak, − calm. Bloom intensity: + shock. Its own program choice and accents are unchanged. | its own orchestration (unchanged) |
-| **Mainframe** | Master Intensity: + activity, − calm, + shock. | Between builds and drops, a pattern chosen by feel on boundaries: calm: Radar Sweep, Inward Boot; driving: Bank Alternator, Quadrant Relay, Outward Bus; tense: System Surge, Quadrant Relay; peak: Outward Bus, Bank Alternator, Quadrant Relay. It acts only while **Pattern Change is off**, never while the Trigger is choosing, and editing the Pattern cancels it at once. The build program (System Surge) and the drop program (Outward Bus) still take the stage for their moments, and the chosen pattern resumes after them. |
+| **Depth** | **Design:** Rate +1.0 activity, +1.0 shock, −0.55 calm (authored 1.1); Active Span +3 peak, −2 calm (4); Light Spill +0.55 activity, +0.4 shock, −0.15 calm (0.28); Center Tone +0.6 peak, +0.4 shock, −0.3 calm (0.7). **Effects:** Route Density +0.35 tense, +0.35 peak, −0.15 calm (0.36); Pulse Width +0.35 activity, +0.3 shock, −0.15 calm (0.42); Atmosphere +0.012 activity, +0.03 shock (0.004); Bloom +0.45 activity, +0.6 shock, −0.15 calm (0.28). **Master:** Intensity +0.3 peak, −0.2 calm (1.0). Its own program choice and accents are unchanged. | its own orchestration, advancing on the music's Trigger while the music has Pattern Change on (see below) |
+| **Mainframe** | Master Intensity: + activity, − calm, + shock. | With Auto Performance on, the music chooses **Pattern Change and Trigger** (see below). When it is choosing, patterns advance on its trigger; between boundaries the mood chooser still picks a pattern by feel (calm: Radar Sweep, Inward Boot; driving: Bank Alternator, Quadrant Relay, Outward Bus; tense: System Surge, Quadrant Relay; peak: Outward Bus, Bank Alternator, Quadrant Relay) when Pattern Change is off. Editing the Pattern cancels it at once. The build program (System Surge) and the drop program (Outward Bus) still take the stage for their moments, and the chosen pattern resumes after them. |
 
 Values are bounded by each target's range. The exact numbers are in the preset files and are meant to be tuned by eye on a real track.
+
+## Pattern Change and Trigger
+
+With Auto Performance on, the **music** chooses whether the preset changes pattern and how often; the saved Pattern Change and Trigger are *never rewritten* and come straight back when the toggle goes off. `Cinema2MoodFrame.pattern` is `{ patternChange, trigger, reason }`, or `null` when there is no beat grid (then the saved values stand). `resolveCinema2PatternControls(saved, mood, autoEnabled)` gives a preset the effective values.
+
+**Trigger** is a ladder, slowest to fastest: `bar8, bar4, bar, beat2, beat`. The starting rung comes from the passage's feel: calm 0, driving 1, tense or peak 2. Then it moves up: +1 while the build is above 0.5 (+2 above 0.75; it falls back at 0.45 / 0.7 so it does not flutter), +1 while the drop's shock is above 0.5 ("impact"), +1 in the last 15% of a non-calm section ("approach"). Changes are debounced (0.5 s of agreement, at least 3 s between changes), except a drop, which moves immediately.
+
+**Pattern Change** is on while there is sound, and **off in a silent stop** (silence of 0.5 or more), which holds the current pattern until the music returns.
+
+Depth advances through its rotation (Sparse, Chase, Orbit, Gate Pulse, Alternating Frames, Portal Relay) on the chosen trigger, only while the music has Pattern Change on, with the special programs (discharge for drops and builds, full pulse in a quiet moment, portal relay at a high level) taking over for their moments. Without a mood frame it keeps its old 16-beat rotation. Mainframe feeds the effective values to its trigger identity, pattern controller and Auto Performance chooser. Its `inspect()` reports `effectivePatternChange`, `effectiveTrigger` and `patternControlsAutomatic`. Other pattern presets (Backstreet and the rest) do not use it yet.
+
+The inspector shows the choice under the two controls ("Auto Performance is choosing: On, Every 4 Bars for a driving passage"), polled like the live slider values. The saved toggle and dropdown keep showing what the user saved. The ladder's thresholds are a first guess for tuning on real tracks.
+
+## Seeing what Auto Performance is doing
+
+Contributions never rewrite a saved value, so a slider's thumb and readout keep showing what the user saved (that is what dragging edits). The Cinema 2.0 Design inspector therefore shows the **live** value too: a second readout ("2.00 →" before the saved "1.10") and a yellow marker on the slider's track, for every numeric control whose live value differs from the saved one by more than 0.4% of its range. It reads what the renderer reads: `resolveCinema2LiveValues` resolves each module or effect target bound to the control (the parameter's own target is the saved value), polled about eight times a second and only re-rendering when something changes. `SliderRow` takes an optional `liveValue`; without it nothing about the slider changes. Any preset with drives gets this for free.
+
+A note on Depth: **choosing a Light Program (or turning Pattern Change on) turns Auto Performance off** (the parameters carry `userEditSetParameters`), so after picking a program the toggle has to be switched back on for any of the drives to act.
 
 ## Adding it to another preset
 
@@ -56,8 +85,8 @@ Values are bounded by each target's range. The exact numbers are in the preset f
 
 ## Tests
 
-`Cinema2MoodConductor.test.ts` (the conductor against the real audio bridge and director, and the chooser) and `Cinema2MoodConductorPresets.test.ts` (the authoring, and Electric Storm, Depth and Mainframe against their real choreography runtimes: calm and peak, a drop's shock and its decay, off, no music, reactivity zero, and the Mainframe pattern chooser). The existing Auto Performance rule and inventory tests pass unchanged except that Depth and Mainframe's authored rule lists now include the mood rules.
+`Cinema2MoodConductor.test.ts` (the conductor against the real audio bridge and director, and the chooser) and `Cinema2MoodConductorPresets.test.ts` (the authoring, and Electric Storm, Depth and Mainframe against their real choreography runtimes: calm and peak, a drop's shock and its decay, off, no music, reactivity zero, and the Mainframe pattern chooser), plus the Pattern Change and Trigger blocks in `Cinema2MoodConductor.test.ts`, `Cinema2DepthPreset.test.ts` and `Cinema2PatternAutoPerformance.test.ts`, and `react/__tests__/Cinema2LiveValueDisplay.test.tsx` for the inspector readout. The existing Auto Performance rule and inventory tests pass unchanged except that Depth and Mainframe's authored rule lists now include the mood rules.
 
 ## Not done
 
-Tuned only against synthetic music in tests, never watched on a real track in the app. The other 43 presets are untouched; Depth's program choice is not mood-aware yet; the conductor has no UI readout.
+Tuned only against synthetic music in tests, never watched on a real track in the app (the silence thresholds 0.03 and 0.06 are a first guess for the `overallEnergy` and `rms` scale and should be checked on a real stop). The other 43 presets are untouched; Depth's Light Program choice is not mood-aware (only its pattern rotation is); only Depth and Mainframe use the music's Pattern Change and Trigger.

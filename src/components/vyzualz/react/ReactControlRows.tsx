@@ -26,6 +26,11 @@ export interface SliderRowProps {
   resetValue?: number
   /** Overrides the value readout (and slider bubble), e.g. "+20", "90°". */
   formatValue?: (value: number) => string
+  /**
+   * The value the music is driving this control to right now (Auto Performance contributions on top of the saved value), when it differs. The
+   * slider and its readout keep showing the saved value, which is what the user edits; the live value is a marker on the track and a second readout.
+   */
+  liveValue?: number | null
   onInteractionStart?: () => void
   onInteractionEnd?: () => void
 }
@@ -33,16 +38,40 @@ export interface SliderRowProps {
 export function SliderRow({
   label, labelAccessory, value, onChange,
   min = 0, max = 1, step = 0.01,
-  color = '#4ac7db', id, disabled = false, description, resetValue, formatValue, onInteractionStart, onInteractionEnd,
+  color = '#4ac7db', id, disabled = false, description, resetValue, formatValue, liveValue, onInteractionStart, onInteractionEnd,
 }: SliderRowProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   const pct = `${Math.round(((value - min) / (max - min)) * 100)}%`
+  const live = liveValue != null && Number.isFinite(liveValue) ? liveValue : null
+  const clamped = live == null ? 0 : Math.max(min, Math.min(max, live))
+  const livePct = `${Math.round(((clamped - min) / (max - min)) * 100)}%`
+  const liveDisplay = live == null ? '' : `${formatValue ? formatValue(live) : (min === 0 && max === 1) ? `${Math.round(live * 100)}%` : step >= 1 ? `${Math.round(live)}` : live.toFixed(2)} →`
   const display =
     formatValue                ? formatValue(value)
     : (min === 0 && max === 1) ? `${Math.round(value * 100)}%`
     : step >= 1               ? `${Math.round(value)}`
     :                           value.toFixed(2)
+  const slider = (
+    <BubbleRevealSlider
+      id={inputId}
+      className="rv-ctrl-slider"
+      bubbleLabel={display}
+      min={min} max={max} step={step}
+      value={value}
+      onChange={e => onChange(parseFloat(e.target.value))}
+      onPointerDown={onInteractionStart}
+      onPointerUp={onInteractionEnd}
+      onPointerCancel={onInteractionEnd}
+      onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionStart?.() }}
+      onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionEnd?.() }}
+      onBlur={onInteractionEnd}
+      onDoubleClick={resetValue === undefined ? undefined : () => onChange(resetValue)}
+      style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
+      disabled={disabled}
+      aria-describedby={description ? `${inputId}-description` : undefined}
+    />
+  )
   return (
     <div className="rv-ctrl-row">
       <div className="rv-ctrl-slider-hdr">
@@ -50,26 +79,17 @@ export function SliderRow({
           <label className="rv-ctrl-label" htmlFor={inputId}>{label}</label>
           {labelAccessory}
         </span>
-        <span className="rv-ctrl-val">{display}</span>
+        <span className="rv-ctrl-val">
+          {live != null && <span className="rv-ctrl-live-val" data-live-value="true" title="Live value: what the music is driving this to now">{liveDisplay}</span>}
+          {display}
+        </span>
       </div>
-      <BubbleRevealSlider
-        id={inputId}
-        className="rv-ctrl-slider"
-        bubbleLabel={display}
-        min={min} max={max} step={step}
-        value={value}
-        onChange={e => onChange(parseFloat(e.target.value))}
-        onPointerDown={onInteractionStart}
-        onPointerUp={onInteractionEnd}
-        onPointerCancel={onInteractionEnd}
-        onKeyDown={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionStart?.() }}
-        onKeyUp={event => { if (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End') onInteractionEnd?.() }}
-        onBlur={onInteractionEnd}
-        onDoubleClick={resetValue === undefined ? undefined : () => onChange(resetValue)}
-        style={{ '--accent': color, '--pct': pct } as React.CSSProperties}
-        disabled={disabled}
-        aria-describedby={description ? `${inputId}-description` : undefined}
-      />
+      {live != null ? (
+        <div className="rv-ctrl-slider-wrap" style={{ position: 'relative' }}>
+          <span className="rv-ctrl-live-mark" data-live-mark="true" aria-hidden="true" style={{ left: livePct }} />
+          {slider}
+        </div>
+      ) : slider}
       {description && <span id={`${inputId}-description`} className="rv-ctrl-description">{description}</span>}
     </div>
   )

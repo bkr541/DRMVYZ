@@ -214,6 +214,8 @@ const moduleEnvelopeAction = (name: string, property: string, value: number, hol
   retrigger: 'restart' as const,
 })
 
+const NOT_SILENT = Object.freeze([Object.freeze({ kind: 'not-silent' as const })])
+
 const moduleContinuousAction = (name: string, property: string) => Object.freeze({
   id: choreographyActionId(name),
   target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_DEPTH_MODULE_ID), property }),
@@ -327,7 +329,8 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       description: 'Advances through all eight geometry-aware programs when the selected Trigger occurs. Enabling it turns Auto Performance off.',
       type: 'boolean' as const,
       defaultValue: false,
-      metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }) }),
+      // The music chooses Pattern Change and the Trigger while Auto Performance is on; the inspector shows the live choice.
+      metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }), moodPolicy: 'patternChange' }),
       designParentGroup: 'design' as const,
       order: 2,
       group: 'Light Program',
@@ -341,6 +344,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       defaultValue: 'bar4',
       options: Object.freeze(CINEMA2_DEPTH_TRIGGER_IDS.map(value => Object.freeze({ value, label: TRIGGER_LABELS[value] }))),
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_PATTERN_CHANGE_ID, value: true })]),
+      metadata: Object.freeze({ moodPolicy: 'trigger' }),
       designParentGroup: 'design' as const,
       order: 3,
       group: 'Light Program',
@@ -526,6 +530,8 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         priority: 20,
         enabledParameter: cinema2Ref(CINEMA2_DEPTH_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'beat' as const, capability: 'music.beat' as const }),
+        // The beat grid ticks through a silent stop, so Auto Performance's accents wait for sound.
+        conditions: NOT_SILENT,
         actions: Object.freeze([
           moduleEnvelopeAction('beat-light', 'beatAccent', 1, 0.025, 0.16),
           effectEnvelopeAction('beat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.025, 0.02, 0.16),
@@ -536,7 +542,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         priority: 30,
         enabledParameter: cinema2Ref(CINEMA2_DEPTH_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'downbeat' as const, capability: 'music.downbeat' as const }),
-        conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
+        conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const }), Object.freeze({ kind: 'not-silent' as const })]),
         actions: Object.freeze([
           moduleEnvelopeAction('downbeat-light', 'downbeatAccent', 1, 0.04, 0.34),
           effectEnvelopeAction('downbeat-bloom', BLOOM_EFFECT_ID, 'intensity', 0.05, 0.04, 0.32),
@@ -547,7 +553,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         priority: 40,
         enabledParameter: cinema2Ref(CINEMA2_DEPTH_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'phrase' as const, capability: 'music.phrase' as const }),
-        conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const })]),
+        conditions: Object.freeze([Object.freeze({ kind: 'once-per-event' as const }), Object.freeze({ kind: 'not-silent' as const })]),
         actions: Object.freeze([
           moduleEnvelopeAction('phrase-light', 'phraseAccent', 1, 0.08, 0.7),
           effectEnvelopeAction('phrase-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.001, 0.08, 0.68),
@@ -558,6 +564,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
         priority: 45,
         enabledParameter: cinema2Ref(CINEMA2_DEPTH_AUTO_PERFORMANCE_ID),
         source: Object.freeze({ signal: 'continuous' as const, capability: 'visual-director.significance' as const, path: 'director.build' as const, smoothingMs: 120 }),
+        conditions: NOT_SILENT,
         actions: Object.freeze([
           moduleContinuousAction('build-light', 'buildAmount'),
           effectContinuousAction('build-atmosphere', ATMOSPHERE_EFFECT_ID, 'density', 0.0015),
@@ -652,24 +659,52 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
 
 const DEPTH_MODULE = 'depth-tunnel'
 /**
- * Depth's own Auto Performance (its program choice and accents) is unchanged. The shared Mood Conductor adds continuous drives to the same toggle:
- * the tunnel travels faster, glows brighter and spills more as a passage becomes active, denser routes join in tense and peak moments, a calm passage
- * slows and quiets it, and a drop's shock brightens the bloom and speeds the travel for about two seconds. Everything is around the authored values;
- * "without lifting dark strips" holds because the drives move travel, route density and bloom, never the unlit structure.
+ * Depth's own Auto Performance (its program choice and accents) is unchanged. The shared Mood Conductor adds continuous drives to the same toggle,
+ * around the authored values, to every control a viewer would expect a high-energy passage to move:
+ *   Design:  Rate and Active Span (the tunnel travels faster and lights more strips), Light Spill (each strip reveals more structure) and Center
+ *            Tone (the object at the tunnel's end glows brighter);
+ *   Effects: Route Density and Pulse Width (more lanes join each cue and the pulse fronts widen), Atmosphere and Bloom (more haze and glow);
+ *   Master:  Intensity (the portal lights).
+ * A calm passage takes away from the same controls (a stop pulls the drives out, see `Cinema2MoodConductor`), and a drop's shock lifts them for about
+ * two seconds. The inspector shows each driven value live next to the saved one. Dark strips stay dark: nothing here lights unlit structure.
  */
+const depthDrive = (id: string, target: ReturnType<typeof cinema2AutoTargets.module>, source: 'mood.activity' | 'mood.calm' | 'mood.shock' | 'mood.peak' | 'mood.tense', value: number) => (
+  { id, target, source, operation: 'add' as const, value }
+)
+const depthModule = (property: string) => cinema2AutoTargets.module(DEPTH_MODULE, property)
 export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST, {
   idPrefix: 'depth-auto',
   enabledParameter: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID,
   strengthParameter: CINEMA2_DEPTH_INTENSITY_ID,
   drives: [
-    { id: 'rate', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.activity', operation: 'add', value: 0.7 },
-    { id: 'rate-calm', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.calm', operation: 'add', value: -0.35 },
-    { id: 'rate-shock', target: cinema2AutoTargets.module(DEPTH_MODULE, 'rate'), source: 'mood.shock', operation: 'add', value: 0.8 },
-    { id: 'spill', target: cinema2AutoTargets.module(DEPTH_MODULE, 'spill'), source: 'mood.activity', operation: 'add', value: 0.22 },
-    { id: 'density-tense', target: cinema2AutoTargets.module(DEPTH_MODULE, 'routeDensity'), source: 'mood.tense', operation: 'add', value: 0.25 },
-    { id: 'density-peak', target: cinema2AutoTargets.module(DEPTH_MODULE, 'routeDensity'), source: 'mood.peak', operation: 'add', value: 0.25 },
-    { id: 'intensity', target: cinema2AutoTargets.module(DEPTH_MODULE, 'intensity'), source: 'mood.peak', operation: 'add', value: 0.22 },
-    { id: 'intensity-calm', target: cinema2AutoTargets.module(DEPTH_MODULE, 'intensity'), source: 'mood.calm', operation: 'add', value: -0.12 },
-    { id: 'bloom', target: cinema2AutoTargets.effect(BLOOM_EFFECT_ID, 'intensity'), source: 'mood.shock', operation: 'add', value: 0.18 },
+    // Design › Light Program: Rate 1.1 (0..4) and Active Span 4 (1..8).
+    depthDrive('rate', depthModule('rate'), 'mood.activity', 1.0),
+    depthDrive('rate-calm', depthModule('rate'), 'mood.calm', -0.55),
+    depthDrive('rate-shock', depthModule('rate'), 'mood.shock', 1.0),
+    depthDrive('span-peak', depthModule('activeSpan'), 'mood.peak', 3),
+    depthDrive('span-calm', depthModule('activeSpan'), 'mood.calm', -2),
+    // Design › Material and Center Object: Light Spill 0.28 (0..2) and Center Tone 0.7 (0..2).
+    depthDrive('spill', depthModule('spill'), 'mood.activity', 0.55),
+    depthDrive('spill-shock', depthModule('spill'), 'mood.shock', 0.4),
+    depthDrive('spill-calm', depthModule('spill'), 'mood.calm', -0.15),
+    depthDrive('tone', depthModule('centerIntensity'), 'mood.peak', 0.6),
+    depthDrive('tone-shock', depthModule('centerIntensity'), 'mood.shock', 0.4),
+    depthDrive('tone-calm', depthModule('centerIntensity'), 'mood.calm', -0.3),
+    // Effects › Geometry Orchestration: Route Density 0.36 and Pulse Width 0.42 (both 0..1).
+    depthDrive('density-tense', depthModule('routeDensity'), 'mood.tense', 0.35),
+    depthDrive('density-peak', depthModule('routeDensity'), 'mood.peak', 0.35),
+    depthDrive('density-calm', depthModule('routeDensity'), 'mood.calm', -0.15),
+    depthDrive('pulse', depthModule('pulseWidth'), 'mood.activity', 0.35),
+    depthDrive('pulse-shock', depthModule('pulseWidth'), 'mood.shock', 0.3),
+    depthDrive('pulse-calm', depthModule('pulseWidth'), 'mood.calm', -0.15),
+    // Master Controls: Intensity 1.0 (0..2).
+    depthDrive('intensity', depthModule('intensity'), 'mood.peak', 0.3),
+    depthDrive('intensity-calm', depthModule('intensity'), 'mood.calm', -0.2),
+    // Effects › Atmosphere (haze 0.004, 0..0.12) and Post › Bloom (0.28, 0..3).
+    { id: 'haze', target: cinema2AutoTargets.effect(ATMOSPHERE_EFFECT_ID, 'density'), source: 'mood.activity', operation: 'add', value: 0.012 },
+    { id: 'haze-shock', target: cinema2AutoTargets.effect(ATMOSPHERE_EFFECT_ID, 'density'), source: 'mood.shock', operation: 'add', value: 0.03 },
+    { id: 'bloom', target: cinema2AutoTargets.effect(BLOOM_EFFECT_ID, 'intensity'), source: 'mood.activity', operation: 'add', value: 0.45 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect(BLOOM_EFFECT_ID, 'intensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'bloom-calm', target: cinema2AutoTargets.effect(BLOOM_EFFECT_ID, 'intensity'), source: 'mood.calm', operation: 'add', value: -0.15 },
   ],
 })

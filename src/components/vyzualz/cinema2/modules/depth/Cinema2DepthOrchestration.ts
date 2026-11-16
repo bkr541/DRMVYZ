@@ -1,3 +1,4 @@
+import { resolveCinema2PatternControls } from '../../conductor/Cinema2MoodConductor'
 import type { Cinema2AudioIntelligenceFrame } from '../../audio/Cinema2AudioIntelligenceBridge'
 import { Cinema2BeatClock, resolveCinema2EffectiveBpm } from '../Cinema2BeatClock'
 import type { Cinema2ModuleFrameReadContext } from '../Cinema2ModuleContracts'
@@ -58,6 +59,8 @@ export class Cinema2DepthOrchestration {
   private activePattern: Cinema2DepthLightProgram | null = null
   private authoredPattern: Cinema2DepthLightProgram | null = null
   private lastPatternTriggerId: string | null = null
+  private autoRotationIndex = 0
+  private autoTriggerId: string | null = null
   private relayGroup = 0
   private dropElapsed = Number.POSITIVE_INFINITY
   private fallbackCountdownStartBeat: number | null = null
@@ -82,6 +85,8 @@ export class Cinema2DepthOrchestration {
     this.activePattern = null
     this.authoredPattern = null
     this.lastPatternTriggerId = null
+    this.autoRotationIndex = 0
+    this.autoTriggerId = null
     this.relayGroup = 0
     this.dropElapsed = Number.POSITIVE_INFINITY
     this.fallbackCountdownStartBeat = null
@@ -153,8 +158,23 @@ export class Cinema2DepthOrchestration {
       this.activePattern = inputs.pattern
       this.lastPatternTriggerId = null
     }
+    // Auto Performance chooses Pattern Change and the Trigger from the music (how the passage feels, a build climbing, a drop, a section about to end,
+    // silence), so they are the music's, not the saved ones, while it is on. The saved values are never written to.
+    const control = resolveCinema2PatternControls({ patternChange: inputs.patternChange, trigger: inputs.trigger }, frame.mood, inputs.auto)
     if (inputs.auto) {
-      this.activePattern = autoPattern(patterns, beats, build, this.quiet, this.level, countdown > 0, dropped || this.dropElapsed < 2.2)
+      const special = autoSpecialPattern(patterns, build, this.quiet, this.level, countdown > 0, dropped || this.dropElapsed < 2.2)
+      const rotation = AUTO_ROTATION.filter(program => patterns.includes(program))
+      if (control.automatic && rotation.length > 0) {
+        // The pattern advances on the music's Trigger while the music wants it to change, and holds otherwise (a silent stop, for instance).
+        if (control.patternChange) {
+          const triggerEvent = resolveTriggerEvent(control.trigger as Cinema2DepthTriggerId, delivered, beats, this.lastBeats)
+          if (triggerEvent && triggerEvent !== this.autoTriggerId) { this.autoRotationIndex = (this.autoRotationIndex + 1) % rotation.length; this.autoTriggerId = triggerEvent }
+        }
+        this.activePattern = special ?? rotation[this.autoRotationIndex % rotation.length]!
+      } else {
+        // No beat grid to count: the previous behavior, a program every sixteen beats.
+        this.activePattern = special ?? rotation[((Math.floor(beats / 16) % rotation.length) + rotation.length) % rotation.length] ?? patterns[0] ?? 'architecturalSparse'
+      }
     } else if (inputs.patternChange) {
       const triggerEvent = resolveTriggerEvent(inputs.trigger, delivered, beats, this.lastBeats)
       if (triggerEvent && triggerEvent !== this.lastPatternTriggerId) {
@@ -243,20 +263,23 @@ export class Cinema2DepthOrchestration {
   }
 }
 
-function autoPattern(
+/** The programs Auto Performance rotates through when nothing special is happening (the order the saved Light Program list offers them in). */
+const AUTO_ROTATION: readonly Cinema2DepthLightProgram[] = ['architecturalSparse', 'depthChase', 'sideOrbit', 'gatePulse', 'alternatingFrames', 'portalRelay']
+
+/** The program a special moment demands (a build, a countdown, a drop, a quiet passage, high energy), or null when the rotation may choose. */
+function autoSpecialPattern(
   patterns: readonly Cinema2DepthLightProgram[],
-  beats: number,
   build: number,
   quiet: number,
   level: number,
   countdown: boolean,
   dropping: boolean,
-): Cinema2DepthLightProgram {
-  if (dropping || countdown || build > 0.22) return 'depthDischarge'
-  if (quiet > 0.5) return 'fullPulse'
-  if (level > 0.68) return 'portalRelay'
-  const rotation: readonly Cinema2DepthLightProgram[] = ['architecturalSparse', 'depthChase', 'sideOrbit', 'gatePulse', 'alternatingFrames', 'portalRelay']
-  return rotation[((Math.floor(beats / 16) % rotation.length) + rotation.length) % rotation.length] ?? patterns[0] ?? 'architecturalSparse'
+): Cinema2DepthLightProgram | null {
+  const pick = (program: Cinema2DepthLightProgram) => patterns.includes(program) ? program : null
+  if (dropping || countdown || build > 0.22) return pick('depthDischarge')
+  if (quiet > 0.5) return pick('fullPulse')
+  if (level > 0.68) return pick('portalRelay')
+  return null
 }
 
 function resolveTriggerEvent(

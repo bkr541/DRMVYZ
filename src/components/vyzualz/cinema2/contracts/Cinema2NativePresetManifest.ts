@@ -712,6 +712,7 @@ export type Cinema2ChoreographyContinuousSourcePath =
   | 'mood.tense'
   | 'mood.peak'
   | 'mood.shock'
+  | 'mood.silence'
   | 'timing.elapsedTimeSec'
   | 'timing.beatPhase'
   | 'timing.barPhase'
@@ -832,6 +833,11 @@ export type Cinema2ChoreographyConditionManifest =
   | { kind: 'capability'; capability: Cinema2CapabilityId; available?: boolean }
   | { kind: 'confidence'; min: number }
   | { kind: 'once-per-event' }
+  /**
+   * Passes unless the music is in a stop: the shared Mood Conductor's silence gate (from the real signal level) is below `max` (default 0.5). With no mood
+   * (no real evidence) it passes, so it never claims a silence it cannot see. Used by the beat-grid accent rules, which tick through silence.
+   */
+  | { kind: 'not-silent'; max?: number }
   /**
    * Passes only when the counter for `unit` satisfies `counter % every === phase` at the event.
    * Counters come from the beat grid: `beat` = beat index, `bar` = bar index, `phrase` = floor(beat index / 16).

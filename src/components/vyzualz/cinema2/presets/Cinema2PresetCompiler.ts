@@ -1381,6 +1381,11 @@ function validateChoreographyConditions(
         break
       case 'once-per-event':
         break
+      case 'not-silent':
+        if (condition.max != null && (!Number.isFinite(condition.max) || Number(condition.max) <= 0 || Number(condition.max) > 1)) {
+          diagnostics.push(error('CINEMA2_PRESET_CHOREOGRAPHY_CONDITION_INVALID', 'not-silent max must be in (0, 1].', `${conditionPath}.max`))
+        }
+        break
       case 'beat-interval': {
         const every = condition.every as unknown
         const phase = (condition.phase ?? 0) as unknown

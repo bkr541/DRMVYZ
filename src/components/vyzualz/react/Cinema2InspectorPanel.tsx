@@ -1,6 +1,6 @@
 import { Cinema2ModelSelector, Cinema2ModelSelectorContext } from '../cinema2/model/Cinema2ModelSelector'
 import { AppIcon, type AppIconKind } from '../../shared/icons/AppIcon'
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   createCinema2DesignParentGroupModel,
   createCinema2InspectorModel,
@@ -16,6 +16,7 @@ import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetM
 import type { Cinema2Runtime } from '../cinema2/runtime/Cinema2Runtime'
 import { Collapsible, ColorRow, CtrlSection, NumberInputRow, PaletteColorRow, SelectRow, SliderRow, TextInputRow, ToggleRow } from './ReactControlRows'
 import { IconChipButton } from './controls/IconChipButton'
+import { Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues, useCinema2LivePolicies, useCinema2LivePolicy, useCinema2LiveValue, useCinema2LiveValues, type Cinema2PolicyControl } from './Cinema2LiveValues'
 import { PanelSubtabs } from './PanelSubtabs'
 import { ReactAudioPanel } from './ReactAudioPanel'
 
@@ -67,6 +68,43 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
     || designParentGroups.some(parent => (
       parent.controls.some(isResettable) || parent.groups.some(group => group.controls.some(isResettable))
     ))
+
+  // What the music is driving each numeric Design control to right now, shown beside the saved value (the saved value is never rewritten).
+  const liveRanges = useMemo(() => {
+    const ranges = new Map<string, readonly [number, number]>()
+    for (const parent of designParentGroups) {
+      for (const control of [...parent.controls, ...parent.groups.flatMap(group => group.controls)]) {
+        const { type, min, max, id } = control.definition
+        if ((type === 'float' || type === 'integer') && typeof min === 'number' && typeof max === 'number' && max > min) ranges.set(id, [min, max])
+      }
+    }
+    return ranges
+  }, [designParentGroups])
+  const readLiveValues = useCallback(() => (
+    runtime && plan
+      ? resolveCinema2LiveValues(plan, runtime.getTargetResolver(), runtime.getParameterState().getSnapshot().persistentValues, liveRanges)
+      : new Map<string, number>()
+  ), [runtime, plan, liveRanges])
+  const liveValues = useCinema2LiveValues(surface === 'design' && runtime != null && liveRanges.size > 0, readLiveValues)
+  // Pattern Change and the Trigger: with Auto Performance on, the music chooses them, so the inspector says what it chose.
+  const policyControls = useMemo(() => {
+    const found: Cinema2PolicyControl[] = []
+    let autoId: string | null = null
+    for (const parent of designParentGroups) {
+      for (const control of [...parent.controls, ...parent.groups.flatMap(group => group.controls)]) {
+        const policy = (control.definition.metadata as { moodPolicy?: unknown } | undefined)?.moodPolicy
+        if (policy === 'patternChange' || policy === 'trigger') found.push({ id: control.definition.id, policy, options: control.definition.options })
+        if (control.definition.label === 'Auto Performance' && control.definition.type === 'boolean') autoId = control.definition.id
+      }
+    }
+    return { controls: found, autoId }
+  }, [designParentGroups])
+  const readPolicies = useCallback(() => {
+    if (!runtime || policyControls.controls.length === 0 || !policyControls.autoId) return new Map<string, string>()
+    const autoOn = runtime.getParameterState().getSnapshot().persistentValues[policyControls.autoId] === true
+    return resolveCinema2LivePolicy(policyControls.controls, autoOn, runtime.getMoodFrame()?.pattern ?? null)
+  }, [runtime, policyControls])
+  const livePolicies = useCinema2LivePolicies(surface === 'design' && runtime != null && policyControls.controls.length > 0, readPolicies)
 
   const refresh = () => setRevision(current => current + 1)
 
@@ -162,7 +200,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
 
   if (surface === 'design') {
     return (
-      <Cinema2ModelSelectorContext.Provider value={{ openManager: onOpenMediaManager, runtime }}><div className="rv-workspace-panel" data-cinema2-inspector={surface}>
+      <Cinema2LiveValuesProvider value={liveValues}><Cinema2LivePolicyProvider value={livePolicies}><Cinema2ModelSelectorContext.Provider value={{ openManager: onOpenMediaManager, runtime }}><div className="rv-workspace-panel" data-cinema2-inspector={surface}>
         <PanelSubtabs
           value={designSurface}
           onChange={setDesignSurface}
@@ -197,7 +235,7 @@ export function Cinema2InspectorPanel({ runtime, surface, sharedAudioAnalysis = 
             )}
           </div>
         </div>
-      </div></Cinema2ModelSelectorContext.Provider>
+      </div></Cinema2ModelSelectorContext.Provider></Cinema2LivePolicyProvider></Cinema2LiveValuesProvider>
     )
   }
 
@@ -452,6 +490,8 @@ export function Cinema2SchemaControl({
   const description = [definition.description, disabledReason].filter(Boolean).join(' ')
   const disabled = !enabled
   const controlId = `${idPrefix}-${definition.id}`
+  const liveValue = useCinema2LiveValue(definition.id)
+  const livePolicy = useCinema2LivePolicy(definition.id)
 
   switch (definition.type) {
     case 'float':
@@ -470,6 +510,7 @@ export function Cinema2SchemaControl({
               disabled={disabled}
               description={description || undefined}
               resetValue={typeof definition.defaultValue === 'number' ? definition.defaultValue : undefined}
+              liveValue={liveValue}
               onChange={next => onChange(definition.type === 'integer' ? Math.round(next) : next)}
             />
           </div>
@@ -502,6 +543,7 @@ export function Cinema2SchemaControl({
             description={description || undefined}
             onChange={onChange}
           />
+          {livePolicy && <div className="rv-ctrl-info rv-ctrl-live-policy" data-live-policy="true">{livePolicy}</div>}
         </div>
       )
     case 'enum':
@@ -516,6 +558,7 @@ export function Cinema2SchemaControl({
             options={(definition.options ?? []).map(option => ({ value: option.value, label: option.label }))}
             onChange={onChange}
           />
+          {livePolicy && <div className="rv-ctrl-info rv-ctrl-live-policy" data-live-policy="true">{livePolicy}</div>}
         </div>
       )
     case 'color': {

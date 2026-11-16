@@ -844,7 +844,8 @@ function sampleContinuousPath(path: Cinema2ChoreographyContinuousSourcePath | un
     case 'mood.drive':
     case 'mood.tense':
     case 'mood.peak':
-    case 'mood.shock': {
+    case 'mood.shock':
+    case 'mood.silence': {
       const mood = frame.mood
       return mood ? { available: true, value: mood[CINEMA2_MOOD_PATHS[path]], confidence: null } : unavailableSample()
     }
@@ -1015,6 +1016,7 @@ function conditionPasses(
       return confidence != null && confidence >= condition.min
     }
     case 'once-per-event': return event != null
+    case 'not-silent': return !frame.mood || frame.mood.silence < (condition.max ?? .5)
     case 'beat-interval': return beatIntervalPasses(condition, frame, tempo)
   }
 }

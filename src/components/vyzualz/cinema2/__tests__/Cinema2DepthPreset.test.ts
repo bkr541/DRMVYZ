@@ -301,7 +301,7 @@ describe('Cinema 2.0 Depth preset', () => {
       'continuous', 'continuous', 'continuous', 'continuous', 'continuous',
     ])
     const moodRules = CINEMA2_DEPTH_PRESET_MANIFEST.choreography!.rules.filter(rule => String(rule.id).includes('-mood-'))
-    expect(moodRules.map(rule => rule.source.path)).toEqual(['mood.activity', 'mood.calm', 'mood.shock', 'mood.tense', 'mood.peak'])
+    expect(moodRules.map(rule => rule.source.path)).toEqual(['mood.activity', 'mood.calm', 'mood.shock', 'mood.peak', 'mood.tense'])
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.slice(9).every(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toBe(true)
     expect(new Set(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.flatMap(rule => rule.actions.map(action => action.target.kind)))).toEqual(
       new Set(['parameter', 'module', 'effect']),
@@ -363,6 +363,60 @@ describe('Cinema 2.0 Depth preset', () => {
     manualRuntime.enqueueCue('kick', 'kick-cue')
     const changed = manualRuntime.update(depthMusicFrame(0), depthInputs({ auto: false, patternChange: true, trigger: 'kick' }), CINEMA2_DEPTH_LIGHT_PROGRAMS)
     expect(changed.pattern).toBe('depthChase')
+  })
+
+  describe('Pattern Change and Trigger chosen by the music while Auto Performance is on', () => {
+    const choice = (patternChange: boolean, trigger: string) => ({ pattern: { patternChange, trigger, reason: 'driving' } }) as never
+    const run = (seconds: number, mood: unknown, inputs: Partial<Cinema2DepthOrchestrationInputs> = {}, options: Parameters<typeof depthMusicFrame>[1] = { energy: .5, bass: .4 }) => {
+      const orchestration = new Cinema2DepthOrchestration()
+      const patterns: string[] = []
+      for (let index = 0; index <= seconds / DEPTH_DT; index += 1) {
+        const frame = { ...depthMusicFrame(index, options), mood } as Cinema2ModuleFrameReadContext
+        patterns.push(orchestration.update(frame, depthInputs(inputs), CINEMA2_DEPTH_LIGHT_PROGRAMS).pattern)
+      }
+      const changes = patterns.filter((pattern, i) => i > 0 && pattern !== patterns[i - 1]).length
+      return { patterns, changes }
+    }
+
+    it('advances through its programs on the Trigger the music chose, faster on a faster Trigger', () => {
+      const bar = run(12, choice(true, 'bar')), bar8 = run(24, choice(true, 'bar8')), beat2 = run(12, choice(true, 'beat2'))
+      expect(bar.changes).toBeGreaterThanOrEqual(4)
+      expect(beat2.changes).toBeGreaterThan(bar.changes)
+      expect(bar8.changes).toBeLessThan(bar.changes)
+      expect(bar.patterns[0]).toBe('architecturalSparse')
+      // In order, one program at a time.
+      const order = ['architecturalSparse', 'depthChase', 'sideOrbit', 'gatePulse', 'alternatingFrames', 'portalRelay']
+      const seen = bar.patterns.filter((pattern, i) => i === 0 || pattern !== bar.patterns[i - 1])
+      seen.forEach((pattern, i) => expect(pattern).toBe(order[i % order.length]))
+    })
+
+    it('holds the program while the music says to hold (a silent stop), whatever the saved Pattern Change and Trigger are', () => {
+      const held = run(12, choice(false, 'beat'), { patternChange: true, trigger: 'beat' })
+      expect(held.changes).toBe(0)
+    })
+
+    it('ignores the saved Pattern Change and Trigger while the music is choosing, and uses them again with Auto Performance off', () => {
+      const music = run(12, choice(true, 'bar'), { patternChange: false, trigger: 'bar8' })
+      expect(music.changes).toBeGreaterThanOrEqual(4)
+      const manualOff = run(12, choice(true, 'bar'), { auto: false, patternChange: false, trigger: 'bar8' })
+      expect(manualOff.changes).toBe(0)
+    })
+
+    it('still gives a build, a countdown, a drop and a quiet passage their own program, over the rotation', () => {
+      const build = run(6, choice(true, 'bar'), {}, { energy: .78, bass: .72, build: .9, nextDropSec: 2.5 })
+      expect(build.patterns[build.patterns.length - 1]).toBe('depthDischarge')
+      const quiet = run(6, choice(true, 'bar'), {}, { energy: .08, bass: .05, vocal: .8, sectionType: 'breakdown' })
+      expect(quiet.patterns[quiet.patterns.length - 1]).toBe('fullPulse')
+    })
+
+    it('without a mood choice (no beat grid) keeps the previous behavior: a program every sixteen beats', () => {
+      const none = run(40, null)
+      const none2 = run(40, { pattern: null })
+      expect(none.patterns).toEqual(none2.patterns)
+      // 40 s at 120 BPM is 80 beats: a program at beats 16, 32, 48, 64 and 80.
+      expect(none.changes).toBeGreaterThanOrEqual(3)
+      expect(none.changes).toBeLessThanOrEqual(5)
+    })
   })
 
   it('builds sparse helical segments, discharges rings toward the camera, and never modulates the matte center', () => {

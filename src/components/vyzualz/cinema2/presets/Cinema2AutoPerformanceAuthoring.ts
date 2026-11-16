@@ -97,6 +97,8 @@ const actionManifest = (rulePrefix: string, action: Cinema2AutoAction): Cinema2C
 })
 
 const ONCE: Cinema2ChoreographyConditionManifest = Object.freeze({ kind: 'once-per-event' as const })
+/** The beat grid keeps ticking through a silent stop, so the grid-driven gestures wait for sound (the build and the drop are not gated: a drop ends a stop). */
+const NOT_SILENT: Cinema2ChoreographyConditionManifest = Object.freeze({ kind: 'not-silent' as const })
 
 /** The toggle itself: boolean, Design > Master Controls, off by default, persisted and reset like every other preset control. */
 export function createCinema2AutoPerformanceParameter(spec: Readonly<Pick<Cinema2AutoPerformanceSpec, 'prefix' | 'description' | 'group' | 'order'>>): Readonly<Cinema2ParameterManifest> {
@@ -134,13 +136,13 @@ export function createCinema2AutoPerformanceRules(spec: Readonly<Cinema2AutoPerf
       actions: Object.freeze(actions.map(action => actionManifest(ruleName, action))),
     }))
   }
-  add('build-rise', 60, BUILD_SOURCE, undefined, spec.gestures.build)
-  add('build-peak', 61, DOWNBEAT_SOURCE, [ONCE, { kind: 'build', min: CINEMA2_AUTO_PERFORMANCE_BUILD_PEAK_MIN }], spec.gestures.peak)
+  add('build-rise', 60, BUILD_SOURCE, [NOT_SILENT], spec.gestures.build)
+  add('build-peak', 61, DOWNBEAT_SOURCE, [ONCE, NOT_SILENT, { kind: 'build', min: CINEMA2_AUTO_PERFORMANCE_BUILD_PEAK_MIN }], spec.gestures.peak)
   add('drop-hit', 62, DROP_SOURCE, [ONCE], spec.gestures.drop)
   const moodRules = spec.mood && spec.mood.length > 0
     ? createCinema2MoodRules({ idPrefix: `${spec.prefix}-auto`, enabledParameter: cinema2StableId<Cinema2ParameterId>(`${spec.prefix}-auto-performance`), strengthParameter: spec.strengthParameter, drives: spec.mood })
     : []
-  add('phrase-lift', 63, DOWNBEAT_SOURCE, [ONCE, { kind: 'beat-interval', every: CINEMA2_AUTO_PERFORMANCE_LIFT_EVERY_BARS, phase: 0, unit: 'bar' }], spec.gestures.lift)
+  add('phrase-lift', 63, DOWNBEAT_SOURCE, [ONCE, NOT_SILENT, { kind: 'beat-interval', every: CINEMA2_AUTO_PERFORMANCE_LIFT_EVERY_BARS, phase: 0, unit: 'bar' }], spec.gestures.lift)
   return Object.freeze([...rules, ...moodRules])
 }
 

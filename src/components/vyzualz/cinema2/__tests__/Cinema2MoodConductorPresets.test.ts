@@ -16,6 +16,7 @@ import {
 import { CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID, CINEMA2_MAINFRAME_MASTER_INTENSITY_ID, CINEMA2_MAINFRAME_PRESET_MANIFEST } from '../presets/Cinema2MainframePreset'
 import { createCinema2MoodRules, withCinema2MoodDrives } from '../presets/Cinema2MoodConductorAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
+import { resolveCinema2LiveValues } from '../../react/Cinema2LiveValues'
 import { ifritMusicFixture, type IfritFixtureOptions } from '../../../../test/support/IfritMusicFixture'
 
 const CAPABILITIES = [
@@ -68,7 +69,7 @@ function stage(manifest: Readonly<Cinema2NativePresetManifest>) {
     if (!target) throw new Error(`no target for ${parameter}`)
     return Number(resolver.resolve(target.id).value)
   }
-  return { plan, state, choreography, value }
+  return { plan, state, choreography, value, resolver }
 }
 
 /** Plays the same music into an Auto Performance preset and its twin with the toggle off, and reads a value from both. */
@@ -106,7 +107,7 @@ const PRESETS = [
 
 describe('the shared mood sources and authoring', () => {
   it('has a continuous mood source for every mood field the conductor reports', () => {
-    expect(Object.keys(CINEMA2_MOOD_PATHS).sort()).toEqual(['mood.activity', 'mood.brightness', 'mood.build', 'mood.calm', 'mood.complexity', 'mood.drive', 'mood.energy', 'mood.momentum', 'mood.peak', 'mood.shock', 'mood.tense', 'mood.tension'])
+    expect(Object.keys(CINEMA2_MOOD_PATHS).sort()).toEqual(['mood.activity', 'mood.brightness', 'mood.build', 'mood.calm', 'mood.complexity', 'mood.drive', 'mood.energy', 'mood.momentum', 'mood.peak', 'mood.shock', 'mood.silence', 'mood.tense', 'mood.tension'])
   })
 
   it('turns drives into gated continuous rules, one per source, with distinct priorities and the toggle and strength references', () => {
@@ -242,12 +243,131 @@ describe('Mainframe', () => {
   })
 })
 
+describe('silence ("nearly off") in the presets', () => {
+  it('marks the beat-grid accent rules (Depth\'s, and the shared downbeat gestures) as waiting for sound', () => {
+    const depth = CINEMA2_DEPTH_PRESET_MANIFEST.choreography!.rules.filter(rule => rule.enabledParameter?.$ref === CINEMA2_DEPTH_AUTO_PERFORMANCE_ID && !String(rule.id).includes('-mood-'))
+    expect(depth.length).toBeGreaterThanOrEqual(5)
+    const gated = depth.filter(rule => (rule.conditions ?? []).some(condition => condition.kind === 'not-silent'))
+    // Beat, downbeat, phrase and build wait for sound; the drop does not (a drop ends a stop).
+    expect(gated.length).toBe(4)
+    expect(depth.find(rule => rule.source.signal === 'drop')!.conditions ?? []).not.toContainEqual({ kind: 'not-silent' })
+    const storm = CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST.choreography!.rules.filter(rule => String(rule.id).startsWith('electric-storm-auto-') && !String(rule.id).includes('-mood-'))
+    for (const name of ['build-rise', 'build-peak', 'phrase-lift']) expect(storm.find(rule => rule.id === `electric-storm-auto-${name}`)!.conditions, name).toContainEqual({ kind: 'not-silent' })
+    expect(storm.find(rule => rule.id === 'electric-storm-auto-drop-hit')!.conditions).not.toContainEqual({ kind: 'not-silent' })
+  })
+
+  it('Electric Storm: the pre-drop and bar-lift strikes fire with sound and not in a stop; a drop still lands after one', () => {
+    const t = twin(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, 'electric-storm-auto-performance' as Cinema2ParameterId)
+    const actions = () => ({ on: t.on.choreography.getSnapshot().dispatchedActionCount, off: t.off.choreography.getSnapshot().dispatchedActionCount })
+    t.play(2, { energy: .7, build: .9, section: 'build' })
+    const before = actions()
+    t.play(.2, { energy: .7, build: .9, section: 'build', event: 'downbeat', beatIndex: 60 })
+    const withSound = actions()
+    expect(withSound.on - before.on).toBeGreaterThan(withSound.off - before.off) // the gated gesture fired on top of the storm's own
+    // A stop: the grid still ticks a downbeat, but the gestures wait for sound.
+    t.play(1.5, { energy: 0, tension: 0, bass: 0, build: .9, section: 'build' })
+    const stopBefore = actions()
+    t.play(.2, { energy: 0, tension: 0, bass: 0, build: .9, section: 'build', event: 'downbeat', beatIndex: 64 })
+    const stopAfter = actions()
+    expect(stopAfter.on - stopBefore.on).toBe(stopAfter.off - stopBefore.off)
+    // And the drop at the end of the stop is not gated.
+    const dropBefore = actions()
+    t.play(.2, { energy: .9, build: 0, section: 'drop', event: 'drop', eventId: 888 })
+    const dropAfter = actions()
+    expect(dropAfter.on - dropBefore.on).toBeGreaterThan(dropAfter.off - dropBefore.off)
+  })
+
+  it('Depth: a stop quiets the tunnel (slower, dimmer) and the sound brings it back', () => {
+    const t = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    const loud = t.play(5, { energy: .95, section: 'drop' }, CINEMA2_DEPTH_RATE_ID)
+    const loudIntensity = t.play(.1, { energy: .95, section: 'drop' }, CINEMA2_DEPTH_INTENSITY_ID)
+    expect(loud.on).toBeGreaterThan(loud.off + .3)
+    expect(loudIntensity.on).toBeGreaterThan(loudIntensity.off)
+    const stopped = t.play(3, { energy: 0, tension: 0, bass: 0, section: 'drop' }, CINEMA2_DEPTH_RATE_ID)
+    const stoppedIntensity = t.play(.1, { energy: 0, tension: 0, bass: 0, section: 'drop' }, CINEMA2_DEPTH_INTENSITY_ID)
+    // Nearly off: below the authored values, not merely back to them.
+    expect(stopped.on).toBeLessThan(stopped.off)
+    expect(stoppedIntensity.on).toBeLessThan(stoppedIntensity.off)
+    const back = t.play(2, { energy: .95, section: 'drop' }, CINEMA2_DEPTH_RATE_ID)
+    expect(back.on).toBeGreaterThan(back.off + .3)
+  })
+
+  it('Electric Storm: a stop takes the storm below its authored strike rate and intensity, and sound returns it', () => {
+    const autoId = 'electric-storm-auto-performance' as Cinema2ParameterId
+    const t = twin(CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, autoId)
+    const loud = t.play(5, { energy: .95, tension: .6, section: 'drop' }, CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID)
+    expect(loud.on).toBeGreaterThan(loud.off + .1)
+    const stopped = t.play(3, { energy: 0, tension: 0, bass: 0, section: 'drop' }, CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID)
+    expect(stopped.on).toBeLessThan(stopped.off - .1)
+    const intensity = t.play(.1, { energy: 0, tension: 0, bass: 0, section: 'drop' }, CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID)
+    expect(intensity.on).toBeLessThan(intensity.off)
+    const back = t.play(2, { energy: .95, tension: .6, section: 'drop' }, CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID)
+    expect(back.on).toBeGreaterThan(back.off + .1)
+  })
+})
+
+describe('Depth: every control a high-energy passage should move, and the inspector\'s live values for them', () => {
+  const DRIVEN = {
+    'depth-rate': 'Rate', 'depth-active-span': 'Active Span', 'depth-spill': 'Light Spill', 'depth-center-intensity': 'Center Tone', 'depth-route-density': 'Route Density',
+    'depth-pulse-width': 'Pulse Width', 'depth-haze': 'Atmosphere', 'depth-bloom': 'Bloom', 'depth-intensity': 'Intensity',
+  } as const
+  const ranges = (plan: ReturnType<typeof stage>['plan']) => {
+    const out = new Map<string, readonly [number, number]>()
+    for (const definition of plan.parameters.definitions) {
+      const d = definition as unknown as { id: string; type: string; min?: number; max?: number }
+      if ((d.type === 'float' || d.type === 'integer') && typeof d.min === 'number' && typeof d.max === 'number') out.set(d.id, [d.min, d.max])
+    }
+    return out
+  }
+  const live = (t: ReturnType<typeof twin>) => resolveCinema2LiveValues(t.on.plan, t.on.resolver, t.on.state.getSnapshot().persistentValues, ranges(t.on.plan))
+
+  it('moves Rate, Active Span, Light Spill, Center Tone, Route Density, Pulse Width, Atmosphere, Bloom and Intensity up at high energy', () => {
+    const t = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    t.play(6, { energy: .95, tension: .6, section: 'drop' })
+    const values = live(t), saved = t.on.state.getSnapshot().persistentValues
+    for (const [id, label] of Object.entries(DRIVEN)) {
+      expect(values.has(id), `${label} is driven`).toBe(true)
+      expect(values.get(id)!, `${label} is higher than saved`).toBeGreaterThan(Number(saved[id]))
+    }
+    // By enough to see: Rate +30% or more, Light Spill +40% or more, Pulse Width +20% or more, Bloom +30% or more.
+    expect(values.get('depth-rate')! / Number(saved['depth-rate'])).toBeGreaterThan(1.3)
+    expect(values.get('depth-spill')! / Number(saved['depth-spill'])).toBeGreaterThan(1.4)
+    expect(values.get('depth-pulse-width')! / Number(saved['depth-pulse-width'])).toBeGreaterThan(1.2)
+    expect(values.get('depth-bloom')! / Number(saved['depth-bloom'])).toBeGreaterThan(1.3)
+    expect(values.get('depth-active-span')!).toBeGreaterThanOrEqual(Number(saved['depth-active-span']) + 1)
+  })
+
+  it('takes the same controls down in a calm passage, and shows nothing at all with Auto Performance off or no music', () => {
+    const calm = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    calm.play(6, { energy: .12, section: 'breakdown' })
+    const values = live(calm), saved = calm.on.state.getSnapshot().persistentValues
+    for (const id of ['depth-rate', 'depth-spill', 'depth-center-intensity', 'depth-pulse-width', 'depth-bloom', 'depth-intensity']) expect(values.get(id)!, id).toBeLessThan(Number(saved[id]))
+    const off = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    off.on.state.setPersistentValue(CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, false)
+    off.play(6, { energy: .95, section: 'drop' })
+    expect(live(off).size).toBe(0)
+    const silent = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    silent.silent(2, CINEMA2_DEPTH_RATE_ID)
+    expect(live(silent).size).toBe(0)
+  })
+
+  it('lifts them further for a drop and settles them back afterward', () => {
+    const t = twin(CINEMA2_DEPTH_PRESET_MANIFEST, CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)
+    t.play(4, { energy: .6, section: 'verse' })
+    const before = live(t).get('depth-bloom') ?? 0.28
+    t.frameOnce({ energy: .95, event: 'drop', eventId: 71, section: 'drop' }, CINEMA2_DEPTH_RATE_ID)
+    expect(live(t).get('depth-bloom')!).toBeGreaterThan(before + .3)
+    t.play(10, { energy: .6, section: 'verse' })
+    expect(live(t).get('depth-bloom') ?? 0.28).toBeLessThan(before + .2)
+  })
+})
+
 describe('Mainframe pattern choice by mood', () => {
   type P = 'radar-sweep' | 'inward-boot' | 'bank-alternator' | 'quadrant-relay' | 'outward-bus' | 'system-surge'
   const options = { calm: ['radar-sweep', 'inward-boot'], driving: ['bank-alternator', 'quadrant-relay', 'outward-bus'], tense: ['system-surge', 'quadrant-relay'], peak: ['outward-bus', 'bank-alternator', 'quadrant-relay'] } as const
   const make = () => new Cinema2PatternAutoPerformance<P>({ buildPattern: 'system-surge', dropPattern: 'outward-bus', mood: { options: options as never, minHoldSec: 0 } })
   const moodFrame = (boundary: 'drop' | 'section' | 'phrase' | null, id: string, feel: 'calm' | 'driving' | 'tense' | 'peak') => ({
-    version: 1 as const, structured: true, energy: .5, tension: .2, build: 0, momentum: .3, complexity: .3, brightness: .5, activity: .5, calm: 0, drive: .5, tense: 0, peak: 0, shock: 0, feel,
+    version: 1 as const, structured: true, energy: .5, tension: .2, build: 0, momentum: .3, complexity: .3, brightness: .5, activity: .5, calm: 0, drive: .5, tense: 0, peak: 0, shock: 0, silence: 0, pattern: null, feel,
     section: { id: 's', type: 'verse', progress: .3 }, drop: { occurred: boundary === 'drop', eventId: boundary === 'drop' ? id : null }, boundary: boundary ? { id, kind: boundary } : null,
   })
   const input = (beat: number, over: object = {}) => ({ enabled: true, absoluteBeat: beat, buildCharge: 0, dropEventId: null, patternEdited: false, reset: false, basePattern: 'outward-bus' as P, patternChange: false, deltaTimeSec: 1, seed: 'track', ...over })
