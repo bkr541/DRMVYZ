@@ -24,10 +24,16 @@ export interface WireCue {
   drop: boolean
   gridConfident: boolean
   trackIdentity: string | null
+  /** The track's position in beats (from the beat grid), or null when there is no grid. The engine locks its motion to it with BPM Sync. */
+  absoluteBeat: number | null
+  /** One-frame events from the beat grid and the harmony. */
+  beat: boolean
+  downbeat: boolean
+  chordChanged: boolean
 }
 
 export function emptyWireCue(): WireCue {
-  return { bpm: null, bpmValid: false, structure: null, boundaries: { section: false, phrase: false, bar4: false, bar8: false, id: '' }, drop: false, gridConfident: false, trackIdentity: null }
+  return { bpm: null, bpmValid: false, structure: null, boundaries: { section: false, phrase: false, bar4: false, bar8: false, id: '' }, drop: false, gridConfident: false, trackIdentity: null, absoluteBeat: null, beat: false, downbeat: false, chordChanged: false }
 }
 
 /** The musical position from this frame's context and the one before it (events are the differences between them). */
@@ -50,6 +56,8 @@ export function deriveWireCue(context: SharedPerformanceContext | null, previous
     drop: previous != null && context.dropOccurrence > previous.dropOccurrence,
     gridConfident: context.capabilities.beatGrid && gridConfidence >= .5,
     trackIdentity: context.trackIdentity,
+    absoluteBeat: context.capabilities.beatGrid && context.bpm > 0 ? context.absoluteBeat : null,
+    beat: b.beatBoundary, downbeat: b.barBoundary, chordChanged: context.intelligence.harmonic.chordChanged,
   }
 }
 

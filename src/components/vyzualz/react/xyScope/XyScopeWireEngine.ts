@@ -12,6 +12,9 @@
 //   XyScopeWireModulation per-feature, bounded, track-relative mappings
 //   XyScopeWireDeformer   bounded deformation with a readability guard and exact recovery
 //   XyScopeWireDirector   seeded choreography that never invents structure
+//   XyScopeWireBackground tunnel, floor, shells and stars behind the figure
+//   XyScopeWireTransitions shatter, morph, glitch and zoom-through when the figure changes
+//   XyScopeWireReactions  rules: when a trigger fires, do a reaction
 // This file only composes them.
 
 import type { Osc1ScanStream } from './XyScopeOsc1Renderer'
@@ -22,7 +25,10 @@ import { WireModMatrix, NO_TARGETS, type WireModSettings, type WireReading, type
 import { DEFAULT_WIRE_CAMERA, findHiddenEdges, projectPoint, quatFromAxisAngle, quatMul, quatNormalize, quatRotate, type Quat, type WireCamera } from './XyScopeWireProject'
 import { routeEdges, type WireRoute } from './XyScopeWireRoute'
 import { buildFigure, edgesOfGroups, MAX_GROUP_EDGES, MAX_GROUP_VERTICES, MAX_WIRE_CUBES, verticesOfGroups, type WireFigureId, type WireShape } from './XyScopeWireShape'
-import { NEUTRAL_MOOD, WireConductor, type WireMood } from './XyScopeWireConductor'
+import { conductColor, NEUTRAL_MOOD, WireConductor, type WireMood } from './XyScopeWireConductor'
+import { emitBackground, emitStars, WireBackgroundPath, type WireBackgroundDrive } from './XyScopeWireBackground'
+import { glitchAmount, glitchSlip, morphMix, shatterAmount, shatterDirection, WIRE_TRANSITION_KINDS, WireTransition, zoomAmount, zoomFade, zoomScale, type WireTransitionKind, type WireTransitionStyle } from './XyScopeWireTransitions'
+import { DEFAULT_WIRE_RULES, RING_LIFE, WireFx, type WireRule } from './XyScopeWireReactions'
 import type { WireCue } from './XyScopeWireCues'
 import { WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
 
@@ -46,6 +52,16 @@ const FLASH_REFRACTORY = .25
 const FLASH_CAP = .35
 const FLASH_CAP_UNLIMITED = .8
 const MAX_PASSES = 6
+/** The share of the beam's scan the dim background lines get, per segment, against the figure's. */
+const BACKGROUND_WEIGHT = .8
+/** The background lines are drawn this much brighter than the shapes say, so they read against the figure (they are many and thin). */
+const BACKGROUND_GAIN = 2.1
+/** Below this level a track that is playing without a beat grid is treated as silent: the figure holds still. */
+const ACTIVE_LEVEL = .015
+/** Seconds a reaction-requested transition must wait after the last one ended. */
+const TRANSITION_GAP = 1.6
+/** How far (in world units) a shattered corner flies at full strength. */
+const SHATTER_DISTANCE = 2.6
 
 export interface WireStream extends Osc1ScanStream { kind: 'wire' }
 
@@ -58,11 +74,13 @@ export interface WireTick {
   auto: boolean
   /** What the music says about the feel of this passage (see XyScopeWireConductor). Omitted means a neutral one. */
   mood?: Readonly<WireMood>
+  /** The reaction rules (when this trigger fires, do that). Omitted means the default rules. */
+  rules?: readonly WireRule[]
   /** A seek, loop or track change: every state starts again from the readable figure. */
   discontinuity: boolean
 }
 
-type Kind = 0 | 1 // 0 draws an edge, 1 is a hop
+type Kind = 0 | 1 | 2 // 0 draws an edge, 1 is a hop between figures, 2 is a hop between background lines (always blank)
 
 const MAX_VERTICES = MAX_WIRE_CUBES * MAX_GROUP_VERTICES
 const MAX_EDGES = MAX_WIRE_CUBES * MAX_GROUP_EDGES
@@ -93,6 +111,9 @@ export class WireEngine {
   readonly director = new WireDirector()
   readonly matrix = new WireModMatrix()
   readonly conductor = new WireConductor()
+  readonly fx = new WireFx()
+  readonly transition = new WireTransition()
+  readonly bg = new WireBackgroundPath()
   readonly camera: WireCamera = { ...DEFAULT_WIRE_CAMERA }
 
   // What the inspector and the tests read.
@@ -111,6 +132,17 @@ export class WireEngine {
   mood: WireMood = { ...NEUTRAL_MOOD }
   feel: 'CALM' | 'DRIVING' | 'TENSE' | 'PEAK' = 'CALM'
   figure: WireFigureId = WIRE_DEFAULTS.figure
+  /** How much the figure is moving: 1 while the music plays, easing to 0 (and holding still) when it stops. */
+  motion = 0
+  /** True when the figure's motion is locked to the beat grid (BPM Sync with a beat grid), not to a steady tempo. */
+  beatLocked = false
+  /** The build pulse, 0..1: a repeating swell that speeds up through a build. */
+  pulse = 0
+  /** The transition running now, and how far through it is. */
+  transitionKind: WireTransitionKind | null = null
+  transitionProgress = 0
+  /** The impact of the last drop (from the conductor), for the inspector. */
+  shock = 0
   /** Corner positions as placed (before the music) and as drawn, three floats per corner. */
   readonly base = new Float32Array(MAX_VERTICES * 3)
   readonly deformed = new Float32Array(MAX_VERTICES * 3)
@@ -129,6 +161,24 @@ export class WireEngine {
   private extent = 0
 
   private time = 0
+  private beatPos = -1
+  private lastCueBeat: number | null = null
+  /** The beats played so far (the background's flow clock runs on this) and the same in tenths of a minute-ish "seconds at 100 BPM" for slow sine motion. */
+  private beatTotal = 0
+  private beatTime = 0
+  private flowClock = 0
+  private starFlow = 0
+  private buildPhase = 0
+  private pendingFigure: WireFigureId = WIRE_DEFAULTS.figure
+  private transitionAmount = 1
+  private lastTransitionEnd = -10
+  private autoStyle = 0
+  private morphFrom = new Float32Array(MAX_VERTICES * 3)
+  private morphCount = 0
+  private morphOther: WireShape | null = null
+  private glitch = 0
+  private zoom = 1
+  private fade = 1
   private phase = 0
   private orbitPhase = 0
   private tumblePhase = 0
@@ -138,6 +188,7 @@ export class WireEngine {
   private chaosClock = 0
   private constSeed = -1
   private readonly field = new Float32Array(MAX_VERTICES * 3)
+  private readonly dir = new Float32Array(3)
   private readonly synth = new Float32Array(512)
   // Per-edge oscillators: the line's own sine wave. Constants are fixed by the figure and the seed; the rest moves each frame.
   private readonly edgeU = [new Float32Array(MAX_EDGES), new Float32Array(MAX_EDGES), new Float32Array(MAX_EDGES)]
@@ -159,6 +210,7 @@ export class WireEngine {
   private px = new Float32Array(0)
   private py = new Float32Array(0)
   private kinds: Kind[] = []
+  private share = new Float32Array(0)
   private gain = new Float32Array(0)
   private boost = new Uint8Array(0)
   /** Per point: how far the oscillator may push the segment sideways (screen units), the edge it draws, and whether it is drawn against the edge's own direction. */
@@ -173,7 +225,10 @@ export class WireEngine {
 
   reset(): void {
     this.time = 0; this.phase = 0; this.orbitPhase = 0; this.tumblePhase = 0; this.hyperPhase = 0; this.lastFlash = -10; this.entrance = 1; this.chaosClock = 0
-    this.director.reset(); this.matrix.reset(); this.conductor.reset()
+    this.beatPos = -1; this.lastCueBeat = null; this.beatTotal = 0; this.beatTime = 0; this.flowClock = 0; this.starFlow = 0; this.buildPhase = 0
+    this.motion = 0; this.pulse = 0; this.shock = 0; this.glitch = 0; this.zoom = 1; this.fade = 1; this.lastTransitionEnd = -10
+    this.director.reset(); this.matrix.reset(); this.conductor.reset(); this.fx.reset(); this.transition.reset(); this.transitionKind = null; this.transitionProgress = 0
+    this.pendingFigure = this.figure
     this.state = 'READABLE'; this.sceneId = 'base'; this.lastEvent = '—'; this.abstract = 0; this.readableFraction = 1
     this.weight = 1; this.targets = { ...NO_TARGETS }; this.beamWidthBoost = 0; this.flashBoost = 0
     this.edgePhase.fill(0); this.seedEdges(this.values.seed)
@@ -191,11 +246,11 @@ export class WireEngine {
     }
   }
 
-  /** Switches to another figure. The shape is immutable, so this only points at a different one and lets it grow in. */
-  private setFigure(figure: WireFigureId): void {
+  /** Switches to another figure. The shape is immutable, so this only points at a different one; with `grow` it grows in over about half a second so it never pops. */
+  private setFigure(figure: WireFigureId, grow: boolean): void {
     if (figure === this.figure && this.shape.id === figure) return
     this.figure = figure; this.shape = buildFigure(figure)
-    this.entrance = 0; this.cursor = 0
+    this.entrance = grow ? 0 : 1; this.cursor = 0
   }
 
   /** The route that draws the first `groups` solids, built once per figure and count. */
@@ -206,20 +261,70 @@ export class WireEngine {
     return route
   }
 
+  private resolveStyle(style: WireTransitionStyle): WireTransitionKind | 'cut' {
+    if (style !== 'auto') return style
+    return WIRE_TRANSITION_KINDS[this.autoStyle++ % WIRE_TRANSITION_KINDS.length]
+  }
+
+  /** Starts a transition toward `target`. A morph starts from the figure being left (or, when the figure is not changing, from the next one in the cycle). */
+  private beginTransition(kind: WireTransitionKind, target: WireFigureId, amount: number, vertexCount: number): void {
+    if (!this.transition.start(kind)) return
+    this.pendingFigure = target; this.transitionAmount = amount
+    if (kind !== 'morph') return
+    if (target !== this.figure) {
+      this.morphFrom.set(this.base.subarray(0, vertexCount * 3)); this.morphCount = vertexCount; this.morphOther = null
+      this.setFigure(target, false)
+    } else {
+      const order: WireFigureId[] = ['cubes', 'solids', 'tesseract']
+      this.morphOther = buildFigure(order[(order.indexOf(this.figure) + 1) % order.length])
+    }
+  }
+
   tick(input: WireTick): void {
     const { dt, reading, cue, auto } = input
     this.time += dt
+    const playing = reading.playing
 
-    // Auto Performance: the conductor moves the user's values by the music (and chooses the figure). Off, they pass through untouched.
+    // Auto Performance: the conductor moves the user's values by the music (and chooses the figure, the background and the transition). Off, they pass through untouched.
     const conducted = this.conductor.update({
-      dt, playing: reading.playing, auto, mood: input.mood ?? NEUTRAL_MOOD, base: input.values, boundaries: cue.boundaries, drop: cue.drop,
+      dt, playing, auto, mood: input.mood ?? NEUTRAL_MOOD, base: input.values, boundaries: cue.boundaries, drop: cue.drop,
       gridConfident: cue.gridConfident, trackIdentity: cue.trackIdentity, seed: input.values.seed, discontinuity: input.discontinuity,
     })
-    const values = conducted.values
-    this.values = values; this.effective = values; this.mood = conducted.mood; this.feel = conducted.feel
+    let values = conducted.values
+    this.mood = conducted.mood; this.feel = conducted.feel; this.shock = conducted.shock ?? 0
+    if (input.discontinuity) { this.beatPos = -1; this.lastCueBeat = null; this.transition.reset(); this.fx.reset() }
     if (values.seed !== this.constSeed) this.seedEdges(values.seed)
-    this.setFigure(values.figure)
-    this.entrance = Math.min(1, this.entrance + dt / ENTRANCE_SEC)
+
+    // ── The clocks. With BPM Sync and a beat grid, everything moves in beats of the track (locked to its tempo and to where it is in the
+    // bar); otherwise at a steady tempo. With no music playing (or none that is audible) nothing moves at all.
+    const locked = values.bpmSync && cue.bpmValid && cue.absoluteBeat != null
+    this.beatLocked = locked
+    const bpm = cue.bpm && cue.bpm > 0 ? cue.bpm : FREE_TEMPO
+    const active = playing && (locked || reading.features.level > ACTIVE_LEVEL)
+    this.motion += ((active ? 1 : 0) - this.motion) * (1 - Math.exp(-dt / (active ? .25 : .6)))
+    if (!active && this.motion < .003) this.motion = 0
+    let dBeat = 0
+    if (locked) {
+      if (playing) {
+        const before = this.beatPos
+        let pos = before < 0 ? cue.absoluteBeat! : before + dt * bpm / 60
+        // The beat grid updates in steps; between them the clock runs on the tempo and is eased toward the grid when a new position arrives.
+        if (cue.absoluteBeat !== this.lastCueBeat) {
+          const error = cue.absoluteBeat! - pos
+          pos = Math.abs(error) > 2 ? cue.absoluteBeat! : pos + error * .35
+          this.lastCueBeat = cue.absoluteBeat
+        }
+        this.beatPos = pos
+        dBeat = before < 0 ? 0 : Math.max(0, pos - before)
+      }
+    } else { this.beatPos = -1; this.lastCueBeat = null; dBeat = dt * FREE_TEMPO / 60 * this.motion }
+    this.beatTotal += dBeat; this.beatTime += dBeat * .6
+
+    // The build pulse: a swell that repeats faster and harder as a build climbs.
+    const build = playing ? clamp(this.mood.build) : 0
+    this.buildPhase += dBeat * (.5 + 3.5 * build * build)
+    const saw = 1 - (this.buildPhase % 1)
+    this.pulse = clamp((build - .1) / .7) * saw * saw
 
     // Brightness accents are spaced out and capped unless the user turns Flash Limit off.
     let snare = reading.hits.snare
@@ -230,11 +335,47 @@ export class WireEngine {
       response: { kick: values.kickResponse, snare: values.snareResponse, bass: values.bassResponse, sub: values.bassResponse, mid: values.midResponse, lowMid: values.lowMidResponse, air: values.airResponse, flux: values.airResponse },
     }
     const targets = this.matrix.resolve(gated, dt, settings, this.targets)
-    this.beamWidthBoost = targets.beamWidth
-    this.flashBoost = Math.min(targets.brightness, values.flashLimit ? FLASH_CAP : FLASH_CAP_UNLIMITED)
+
+    // ── Reactions: the rules watch the music's triggers and fire their reactions.
+    const hits = reading.hits
+    const events = this.fx.detect({
+      kick: hits.kick, snare: hits.snare, hat: hits.hat, beat: cue.beat ? 1 : 0, downbeat: cue.downbeat ? 1 : 0, bar4: cue.boundaries.bar4 ? 1 : 0, bar8: cue.boundaries.bar8 ? 1 : 0,
+      phrase: cue.boundaries.phrase ? 1 : 0, section: cue.boundaries.section ? 1 : 0, drop: cue.drop ? 1 : 0, chord: cue.chordChanged ? 1 : 0,
+    }, build, this.mood.energy, this.matrix.drive.bass ?? 0)
+    if (playing) this.fx.apply(input.rules ?? DEFAULT_WIRE_RULES, events, values.audioReactivity)
+    this.beamWidthBoost = targets.beamWidth + this.fx.punch * .3
+    this.flashBoost = Math.min(targets.brightness + this.fx.flash * .7, values.flashLimit ? FLASH_CAP : FLASH_CAP_UNLIMITED)
+    // A colour pulse turns the hue for a moment, on top of whatever the conductor chose.
+    if (Math.abs(this.fx.hue) > 1) values = { ...values, color: conductColor(values.color, this.fx.hue, .5, .3), glowColor: conductColor(values.glowColor, this.fx.hue, .4, .3) }
+    this.values = values; this.effective = values
+
+    // ── Figure changes and transitions.
+    const groupsNow = Math.min(this.shape.groups.length, 1 + values.satellites)
+    const vertexNow = verticesOfGroups(this.shape, groupsNow)
+    if (!this.transition.active && this.fx.transitions.length > 0 && this.time - this.lastTransitionEnd > TRANSITION_GAP) {
+      const request = this.fx.transitions.shift()!
+      this.beginTransition(request.kind, this.figure, request.amount, vertexNow)
+    } else if (this.transition.active) this.fx.transitions.length = 0
+    if (values.figure !== this.figure) {
+      this.pendingFigure = values.figure
+      if (!this.transition.active) {
+        const style = this.resolveStyle(values.transition)
+        if (style === 'cut') this.setFigure(values.figure, true)
+        else this.beginTransition(style, values.figure, 1, vertexNow)
+      }
+    } else if (!this.transition.active) this.pendingFigure = this.figure
+    const frame = this.transition.update(dt)
+    if (frame.swap && frame.kind !== 'morph') this.setFigure(this.pendingFigure, false)
+    this.transitionKind = frame.active ? frame.kind : null; this.transitionProgress = frame.p
+    if (frame.active && frame.p >= 1) this.lastTransitionEnd = this.time
+    const amount = clamp(this.transitionAmount, 0, 1.2)
+    this.glitch = frame.active && frame.kind === 'glitch' ? glitchAmount(frame.p) * Math.min(1, amount) : 0
+    this.zoom = frame.active && frame.kind === 'zoom' ? 1 + (zoomScale(frame.p) - 1) * Math.min(1, amount) : 1
+    this.fade = frame.active && frame.kind === 'zoom' ? 1 - (1 - zoomFade(frame.p)) * Math.min(1, amount) : 1
+    this.entrance = Math.min(1, this.entrance + dt / ENTRANCE_SEC)
 
     const director: DirectorOutput = this.director.update({
-      dt, playing: reading.playing, auto, cadence: values.sceneEvery, seed: values.seed, minReadable: values.minReadable,
+      dt, playing, auto, cadence: values.sceneEvery, seed: values.seed, minReadable: values.minReadable,
       trackIdentity: cue.trackIdentity, structure: cue.structure, gridConfident: cue.gridConfident, bpm: cue.bpm,
       boundaries: cue.boundaries, drop: cue.drop, hit: Math.max(reading.hits.kick, reading.hits.snare), discontinuity: input.discontinuity,
       sectionType: input.mood?.sectionType ?? null,
@@ -243,29 +384,76 @@ export class WireEngine {
     this.abstract = director.abstract; this.readableFraction = director.readableFraction
     const scene = director.scene
 
-    // Turn rates: BPM Sync follows the beat grid's tempo; otherwise a steady one.
-    const tempo = values.bpmSync && cue.bpmValid && cue.bpm ? cue.bpm : FREE_TEMPO
-    const turnsPerSecond = values.spin * tempo / 60 / BEATS_PER_TURN
-    this.phase += dt * turnsPerSecond
+    // ── Turning: in beats (so it follows the tempo, and the bar, when locked), plus any spin kick from a reaction.
+    const turn = values.spin / BEATS_PER_TURN
+    this.phase += dBeat * turn + dt * this.fx.spin * this.motion
     const chaos = clamp(values.chaos)
-    this.orbitPhase += dt * turnsPerSecond * 1.5 * scene.orbit
+    this.orbitPhase += dBeat * turn * 1.5 * scene.orbit
     const tumble = scene.tumble + director.abstract * 1.2 + chaos * .35
-    this.tumblePhase += dt * turnsPerSecond * (.4 + tumble * 1.6)
-    this.hyperPhase += dt * Math.abs(turnsPerSecond) * (.55 + tumble * .9)
+    this.tumblePhase += dBeat * turn * (.4 + tumble * 1.6)
+    this.hyperPhase += dBeat * Math.abs(turn) * (.55 + tumble * .9)
 
     const groups = Math.min(this.shape.groups.length, 1 + values.satellites)
     const placements = this.placements(groups, values, scene.spread, scene.breathe, tumble, director.abstract, targets.rotation, chaos)
     placeShape(this.shape, placements, this.base)
+    const vertexCount = verticesOfGroups(this.shape, groups)
+    if (frame.active) this.disturb(frame.kind!, frame.p, amount, vertexCount, placements, groups)
 
     // The music's deformation of the figures, bounded and guarded.
-    displacementField(this.shape, this.base, placements, { cubeScale: targets.cubeScale, expand: targets.expand, shear: targets.shear, wobble: targets.wobble, time: this.time, chaos }, values.maxDisplacement, this.field)
+    displacementField(this.shape, this.base, placements, { cubeScale: targets.cubeScale, expand: targets.expand, shear: targets.shear, wobble: targets.wobble, time: this.beatTime, chaos }, values.maxDisplacement, this.field)
     const guarded = constrainWeight(this.shape, this.base, this.field, placements, values.maxDisplacement, values.readableFloor)
     this.weight = guarded.weight
     this.readability = guarded.readability
     applyField(this.shape, this.base, this.field, guarded.weight, groups, this.deformed)
     this.driveOscillators(reading, values, dt, groups)
 
-    this.buildPath(groups, scene.echo, values)
+    // ── The background, the shockwave rings and the star burst: dim lines drawn first.
+    this.flowClock += dBeat * (1 + 4 * (frame.active && frame.kind === 'zoom' ? zoomAmount(frame.p) : 0))
+    this.starFlow += dt * this.fx.stars * 3
+    this.fx.step(dt)
+    const drive: WireBackgroundDrive = {
+      flow: this.flowClock, turn: this.beatTotal, pulse: Math.max(this.pulse, this.fx.background), bass: this.matrix.drive.bass ?? 0, mid: this.matrix.drive.mid ?? 0,
+      burst: this.fx.stars, amount: values.backgroundAmount, tilt: values.tilt * Math.PI / 180, perspective: values.perspective,
+    }
+    emitBackground(this.bg, values.background, drive, this.starFlow)
+    if (this.fx.stars > .05 && values.background !== 'stars' && values.background !== 'all') emitStars(this.bg, { ...drive, amount: Math.max(.5, values.backgroundAmount) * Math.min(1, this.fx.stars) }, this.starFlow)
+    this.addRings()
+
+    this.buildPath(groups, scene.echo + this.fx.echo * 2, values)
+  }
+
+  /** What a running transition does to the placed corners (a shatter flings them apart, a morph carries them from the old figure's places). */
+  private disturb(kind: WireTransitionKind, p: number, amount: number, vertexCount: number, placements: readonly CubePlacement[], groups: number): void {
+    if (kind === 'shatter') {
+      const distance = shatterAmount(p) * SHATTER_DISTANCE * amount, dir = this.dir
+      for (let i = 0; i < vertexCount; i++) {
+        shatterDirection(i, dir)
+        this.base[i * 3] += dir[0] * distance; this.base[i * 3 + 1] += dir[1] * distance; this.base[i * 3 + 2] += dir[2] * distance
+      }
+    } else if (kind === 'morph') {
+      if (this.morphOther) {
+        placeShape(this.morphOther, placements.slice(0, Math.min(groups, this.morphOther.groups.length)), this.morphFrom)
+        this.morphCount = verticesOfGroups(this.morphOther, Math.min(groups, this.morphOther.groups.length)); this.morphOther = null
+      }
+      const m = morphMix(p) ** (1 / Math.max(.4, Math.min(1, amount)))
+      for (let i = 0; i < vertexCount; i++) {
+        const from = (i % Math.max(1, this.morphCount)) * 3
+        for (let k = 0; k < 3; k++) this.base[i * 3 + k] = mix(this.morphFrom[from + k], this.base[i * 3 + k], m)
+      }
+    }
+  }
+
+  /** The shockwave rings: each expands from the middle and fades, drawn with the background. */
+  private addRings(): void {
+    for (const ring of this.fx.rings) {
+      const life = ring.age / RING_LIFE, radius = 2 * (1 - (1 - life) ** 2.2), gain = Math.min(1.2, ring.strength) * .8 * (1 - life) ** 1.3
+      if (gain < .01) continue
+      const points = 36
+      for (let k = 0; k <= points; k++) {
+        const a = k / points * TAU
+        this.bg.point(Math.cos(a) * radius, Math.sin(a) * radius * .82, gain, k === points)
+      }
+    }
   }
 
   /**
@@ -311,7 +499,7 @@ export class WireEngine {
       this.edgeCycles[e] = cycles
       // Phase speed (cycles a second): faster with the band that drives the edge and with chaos.
       const speed = (.5 + 4.5 * axisDrive[axis] + 2 * kick) * (.7 + .6 * u2) * (1 + chaos * .8 * jit)
-      this.edgePhase[e] = (this.edgePhase[e] + dt * speed) % 1
+      this.edgePhase[e] = (this.edgePhase[e] + dt * speed * this.motion) % 1
       this.edgeBeta[e] = chaos * 2.6 * (.35 + .65 * Math.abs(jit))
       this.edgeRatio[e] = 1.5 + 1.5 * u2
       this.edgeHarmonic[e] = chaos * .55 * (.5 + .5 * Math.abs(jit))
@@ -341,13 +529,16 @@ export class WireEngine {
     const out: CubePlacement[] = []
     const radius = ORBIT_RADIUS * v.spread * spread * (1 + abstract * .7)
     this.extent = groups > 1 ? radius * (1 + chaos * .12) : 0
-    const t = this.time
+    // Slow motion (breathing, wandering, tumbling) runs on the beat clock, so it holds still with the music and follows its tempo.
+    const t = this.beatTime
     const grow = .2 + .8 * this.entrance * this.entrance * (3 - 2 * this.entrance)
+    // A kick's camera punch and the build pulse swell the whole figure.
+    const swell0 = grow * (1 + .3 * this.fx.punch + .09 * this.pulse)
     const centre = new Float32Array(3)
     for (let k = 0; k < groups; k++) {
       const sign = k % 2 === 0 ? 1 : -1
       const swell = 1 + breathe * .1 * Math.sin(TAU * t * .35 + k * 1.7)
-      const scale = (k === 0 ? 1 : SATELLITE_SCALE) * swell * grow
+      const scale = (k === 0 ? 1 : SATELLITE_SCALE) * swell * swell0
       // Each solid turns on its own axes, at a slightly different rate, plus the mid band's lean against its neighbour.
       const own = quatNormalize(quatMul(
         quatFromAxisAngle(0, 1, 0, this.tumblePhase * TAU * (1 + .3 * k) + k + lean * sign),
@@ -371,26 +562,35 @@ export class WireEngine {
     return out
   }
 
-  /** The passes the beam draws, in order: the figure itself, its fainter echoes, and a faint outline of where the figures sit unmoved. */
+  /** The passes the beam draws, in order: the background (and rings), the figure itself, its fainter echoes, and a faint outline of where the figures sit unmoved. */
   private buildPath(groups: number, echo: number, v: WireValues): void {
     const route = this.routeFor(groups)
     const shape = this.shape
-    const copies = Math.max(1, Math.min(4, Math.round(v.duplicates + echo * 2)))
+    const copies = Math.max(1, Math.min(4, Math.round(v.duplicates + echo)))
     const outline = v.outline
     const passCount = copies + (outline ? 1 : 0)
     // Fit the figure to the stage: the default cluster fills about 1.1 stage units either side, and a wider orbit pulls the view back.
-    const stage = v.size / Math.max(2.6, .9 * (this.extent + SATELLITE_REACH))
+    const stage = v.size / Math.max(2.6, .9 * (this.extent + SATELLITE_REACH)) * this.zoom
     const last = shape.groups[groups - 1]
     const edgeCount = last.edgeStart + last.edgeCount
     const vertexCount = verticesOfGroups(shape, groups)
-    const capacity = passCount * (route.length + 2)
+    const bgCount = this.bg.count
+    const capacity = bgCount + passCount * (route.length + 2)
     if (capacity > this.px.length) {
-      this.px = new Float32Array(capacity); this.py = new Float32Array(capacity); this.gain = new Float32Array(capacity)
+      this.px = new Float32Array(capacity); this.py = new Float32Array(capacity); this.gain = new Float32Array(capacity); this.share = new Float32Array(capacity)
       this.boost = new Uint8Array(capacity); this.ripple = new Float32Array(capacity); this.edgeOf = new Int16Array(capacity); this.reversed = new Uint8Array(capacity); this.kinds = new Array(capacity); this.clock = new Float32Array(capacity + 1); this.rest = new Float32Array(capacity)
     }
     const camera = this.camera
     camera.perspective = v.perspective
     let n = 0
+    // The background first: dim lines, each polyline ending in a blank hop.
+    for (let i = 0; i < bgCount; i++) {
+      this.px[n] = this.bg.x[i]; this.py[n] = this.bg.y[i]
+      this.kinds[n] = this.bg.end[i] ? 2 : 0; this.gain[n] = this.bg.end[i] ? 0 : this.bg.gain[i] * BACKGROUND_GAIN
+      this.boost[n] = 0; this.ripple[n] = 0; this.share[n] = BACKGROUND_WEIGHT
+      n++
+    }
+    const figureStart = n
     const point = new Float32Array(3)
     for (let pass = 0; pass < passCount; pass++) {
       const isOutline = outline && pass === passCount - 1
@@ -411,6 +611,7 @@ export class WireEngine {
       for (let s = 0; s < route.length; s++) {
         const a = route.from[s], edge = route.edge[s]
         this.px[n] = projected[a * 2] * stage; this.py[n] = -projected[a * 2 + 1] * stage
+        this.share[n] = 1
         if (edge < 0) { this.kinds[n] = 1; this.gain[n] = 0 } else {
           this.kinds[n] = 0
           const b = route.to[s]
@@ -432,29 +633,34 @@ export class WireEngine {
           // A route that closes on itself still needs its end point, so the beam can hop on to the next pass.
           const b = route.to[s]
           this.px[n] = projected[b * 2] * stage; this.py[n] = -projected[b * 2 + 1] * stage
-          this.kinds[n] = 1; this.gain[n] = 0; this.boost[n] = 0; this.ripple[n] = 0; n++
+          this.kinds[n] = 1; this.gain[n] = 0; this.boost[n] = 0; this.ripple[n] = 0; this.share[n] = 1; n++
         }
       }
     }
     this.count = n; this.pointCount = n
-    this.energyScale = clamp(n / REFERENCE_POINTS, 1, MAX_COMPENSATION)
     // Time on each segment: roughly its length (so every edge gets the same brightness), a short dwell at each corner (so corners glow),
-    // and hops quick. Brightness follows dwell, not how many points a line was cut into (the guide's §18.2).
+    // and hops quick. Brightness follows dwell, not how many points a line was cut into (the guide's §18.2). The dim background lines
+    // take less of each scan than the figure.
     let mean = 0
-    for (let s = 0; s < n; s++) { const j = (s + 1) % n; mean += Math.hypot(this.px[j] - this.px[s], this.py[j] - this.py[s]) }
-    mean /= Math.max(1, n)
+    for (let s = figureStart; s < n; s++) { const j = (s + 1) % n; mean += Math.hypot(this.px[j] - this.px[s], this.py[j] - this.py[s]) }
+    mean /= Math.max(1, n - figureStart)
     const dwell = .1 * Math.pow(Math.max(mean, 1e-4), .7)
-    let sum = 0
+    let sum = 0, figureTime = 0
     this.clock[0] = 0
     for (let s = 0; s < n; s++) {
       const j = (s + 1) % n, len = Math.hypot(this.px[j] - this.px[s], this.py[j] - this.py[s])
+      const isBackground = s < figureStart
       // A segment that carries a wave is given more of the scan, so its detail is drawn rather than skipped.
-      const travel = Math.pow(len, .7) * (this.kinds[s] === 1 ? .35 : 1 + (this.ripple[s] > 0 ? 2.2 : 0))
-      this.rest[s] = dwell / (travel + dwell) / 2
-      sum += travel + dwell
+      const travel = Math.pow(len, .7) * (this.kinds[s] !== 0 ? .35 : 1 + (this.ripple[s] > 0 ? 2.2 : 0)) * this.share[s]
+      const d = isBackground ? dwell * .3 : dwell
+      this.rest[s] = d / (travel + d) / 2
+      sum += travel + d
+      if (!isBackground) figureTime += travel + d
       this.clock[s + 1] = sum
     }
     for (let s = 1; s <= n; s++) this.clock[s] /= sum
+    // A longer path is brightened to compensate (one beam shares each scan across all of it), and so is the share the background takes.
+    this.energyScale = clamp((n - figureStart) / REFERENCE_POINTS, 1, MAX_COMPENSATION) * clamp(sum / Math.max(1e-9, figureTime), 1, 2.2)
   }
 
   /** The beam at phase `u` of its path (called in order, once per sample, by the shared scanner). */
@@ -494,12 +700,14 @@ export class WireEngine {
       out.x += -dy / length * offset
       out.y += dx / length * offset
     }
-    const hop = this.kinds[s] === 1
+    // A glitch tears the picture into horizontal bands and slips some of them sideways.
+    if (this.glitch > 0) out.x += glitchSlip(Math.floor(out.y * 7 + 30), Math.floor(this.time * 16)) * .3 * this.glitch
+    const kind = this.kinds[s], hop = kind !== 0
     const travel = this.values.travel
-    out.z = hop && travel === 'blank' ? 0 : 1
+    out.z = kind === 2 || (hop && travel === 'blank') ? 0 : 1
     const hopGain = travel === 'dim' ? .1 : 1
     const accent = this.boost[s] ? 1 + this.flashBoost : 1
-    out.energy = BEAM_GAIN * this.energyScale * this.values.intensity * (hop ? hopGain : this.gain[s]) * accent
+    out.energy = BEAM_GAIN * this.energyScale * this.values.intensity * (kind === 2 ? 0 : hop ? hopGain : this.gain[s]) * accent * this.fade
     out.q = 0
     this.beamSamples++
     return out

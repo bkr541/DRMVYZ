@@ -6,6 +6,8 @@ import { NO_BOUNDARIES } from './XyScopeWireDirector'
 import { WireEngine, type WireTick } from './XyScopeWireEngine'
 import { silentReading, type WireReading } from './XyScopeWireModulation'
 import { WIRE_DEFAULTS, WIRE_RANGES, type WireNumberKey, type WireValues } from './XyScopeWireSettings'
+/** The figure alone: no background, and no transition when the figure changes (these tests are about the figure). */
+const NOBG: WireValues = { ...WIRE_DEFAULTS, background: 'none', transition: 'cut' }
 
 const mood = (over: Partial<WireMood> = {}): WireMood => ({ ...NEUTRAL_MOOD, ...over })
 const calmMood = mood({ energy: .15, level: .15, tension: .05, complexity: .1, brightness: .35, sectionType: 'breakdown', structured: true, sectionProgress: .4, phraseIndex: 3, phraseProgress: .3, keyIndex: 9, minor: true, confidence: .8 })
@@ -173,7 +175,7 @@ describe('the mood from the shared analysis', () => {
 })
 
 describe('Auto Performance in the engine', () => {
-  const tick = (over: Partial<WireTick> = {}): WireTick => ({ dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: WIRE_DEFAULTS, auto: false, discontinuity: false, ...over })
+  const tick = (over: Partial<WireTick> = {}): WireTick => ({ dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: NOBG, auto: false, discontinuity: false, ...over })
 
   it('draws the user\'s own values when off, and the music\'s when on', () => {
     const off = new WireEngine(), on = new WireEngine()
@@ -181,7 +183,7 @@ describe('Auto Performance in the engine', () => {
       off.tick(tick({ reading: loud(f), mood: dropMood }))
       on.tick(tick({ reading: loud(f), mood: dropMood, auto: true }))
     }
-    expect(off.effective).toEqual(WIRE_DEFAULTS)
+    expect(off.effective).toEqual(NOBG)
     expect(on.effective.chaos).toBeGreaterThan(off.effective.chaos)
     expect(on.effective.glow).not.toBe(off.effective.glow)
     expect(on.feel).toBe('PEAK')

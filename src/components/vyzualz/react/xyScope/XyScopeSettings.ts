@@ -12,7 +12,7 @@ import { CINEMA2_AFTERHOURS_TRIGGER_IDS, type Cinema2AfterhoursTriggerId } from 
 import { DEFAULT_TEXT_V2_SETTINGS, normalizeTextV2Settings, type XyScopeTextV2Settings } from './XyScopeTextV2Settings'
 import { XY_SCOPE_PATTERN_OPTIONS, type XyScopePattern } from './XyScopePatterns'
 import { DEFAULT_OCTA_SETTINGS, normalizeOctaSettings, OCTA_PRESET_ID, type XyScopeOctaSettings } from './XyScopeOctaSettings'
-import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, WIRE_PRESET_FIGURES, type XyScopeWireSettings } from './XyScopeWireSettings'
+import { CUBES_PRESET_ID, DEFAULT_WIRE_SETTINGS, normalizeWireSettings, SOLIDS_PRESET_ID, TESSERACT_PRESET_ID, WIRE_PRESET_FIGURES, WIRE_PRESET_LOOKS, type XyScopeWireSettings } from './XyScopeWireSettings'
 import { DEFAULT_INIT_SETTINGS, INIT_PRESET_ID, normalizeInitSettings, type XyScopeInitSettings } from './XyScopeInitSettings'
 import { DEFAULT_OSC2_SETTINGS, normalizeOsc2Settings, OSC2_PRESET_ID, type XyScopeOsc2Settings } from './XyScopeOsc2Settings'
 import { DEFAULT_OSC1_SETTINGS, normalizeOsc1Settings, OSC1_PRESET_ID, type XyScopeOsc1Settings } from './XyScopeOsc1Settings'
@@ -434,8 +434,8 @@ export function applyXyScopePreset(settings: XyScopeSettings, presetId: string):
   const figure = WIRE_PRESET_FIGURES[preset.id]
   const instrument = figure ? 'wire' as const : (Object.keys(ENGINE_PRESETS) as XyScopeSourceMode[]).find(mode => ENGINE_PRESETS[mode] === preset.id)
   const sourceMode: XyScopeSourceMode = instrument ?? getXyScopeSourceCategory(settings.sourceMode)
-  // A WIREFRAME preset chooses the figure it draws; the rest of the user's WIREFRAME settings are kept.
-  const wire = figure ? { ...settings.wire, values: { ...settings.wire.values, figure } } : settings.wire
+  // A WIREFRAME preset chooses the figure it draws, the background around it and how it changes figure; the rest of the user's WIREFRAME settings are kept.
+  const wire = figure ? { ...settings.wire, values: { ...settings.wire.values, ...WIRE_PRESET_LOOKS[preset.id] } } : settings.wire
   return normalizeXyScopeSettings({ ...settings, wire, sourceMode, presetId: preset.id, parameters: { ...settings.parameters, ...preset.parameters } })
 }
 

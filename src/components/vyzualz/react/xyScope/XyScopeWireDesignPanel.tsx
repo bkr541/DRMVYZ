@@ -2,8 +2,11 @@ import { AppIcon } from '../../../shared/icons/AppIcon'
 import { useReactStore } from '../../../../stores/reactStore'
 import { Collapsible, PaletteColorRow, SelectRow, SliderRow, ToggleRow } from '../ReactControlRows'
 import { IconChipButton } from '../controls/IconChipButton'
-import { useWireLive } from './XyScopeWireLive'
 import { WIRE_MANUAL_NOTE } from './XyScopeWireConductor'
+import { useWireLive } from './XyScopeWireLive'
+import { WIRE_BACKGROUND_OPTIONS } from './XyScopeWireBackground'
+import { WIRE_TRANSITION_OPTIONS } from './XyScopeWireTransitions'
+import { XyScopeWireReactionsEditor } from './XyScopeWireReactionsEditor'
 import {
   DEFAULT_WIRE_SETTINGS, WIRE_BEAM_CONTROLS, WIRE_CADENCE_OPTIONS, WIRE_DEFAULTS, WIRE_FIGURE_CONTROLS, WIRE_FIGURE_OPTIONS, WIRE_HIDDEN_OPTIONS, WIRE_MASTER_CONTROLS, WIRE_RANGES,
   WIRE_REACT_CONTROLS, WIRE_TRAVEL_OPTIONS, type WireControlSpec, type WireValues,
@@ -21,9 +24,6 @@ function formatControl(spec: WireControlSpec): (value: number) => string {
   }
 }
 
-const KEY_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'] as const
-const pct = (v: number) => `${Math.round(v * 100)}%`
-const SOURCE_LABELS = { stereo: 'LIVE STEREO', mono: 'LIVE MONO', shared: 'SHARED ANALYSIS', none: 'NO SIGNAL' } as const
 
 /** WIREFRAME inspector, under the four standard parent groups: Master Controls, Design, React and Palette. */
 export function XyScopeWireDesignPanel() {
@@ -39,13 +39,6 @@ export function XyScopeWireDesignPanel() {
     return <SliderRow key={spec.id} id={`xyscope-wire-${spec.id}`} label={spec.label} value={o.values[spec.id]} min={min} max={max} step={spec.step}
       resetValue={WIRE_DEFAULTS[spec.id]} formatValue={formatControl(spec)} description={spec.description} onChange={value => setValue(spec.id, value)} />
   }
-  const kv = (label: string, value: string) => (
-    <div className="vz-mi-kv-row" key={label}>
-      <span className="vz-mi-kv-label">{label}</span>
-      <span className="vz-mi-kv-val vz-mi-kv-val--tag">{value}</span>
-    </div>
-  )
-
   return (
     <div className="rv-workspace-panel rv-xyscope-workspace-panel" data-xyscope-design="true" data-wire-design="true">
       <div className="rv-workspace-panel-body"><div className="rv-inspector rv-inspector-scroll">
@@ -60,17 +53,6 @@ export function XyScopeWireDesignPanel() {
               <ToggleRow id="xyscope-wire-flashLimit" label="Flash Limit" value={o.values.flashLimit} onChange={flashLimit => setValue('flashLimit', flashLimit)}
                 description="Spaces out brightness accents (no more than about four a second) and limits how bright they get." />
               <ToggleRow id="xyscope-wire-hold" label="Hold Trace" value={o.hold} onChange={hold => patch({ hold })} description="Freezes the displayed trace while audio and analysis continue." />
-              {kv('Scene', live ? `${live.state} · ${live.sceneId.toUpperCase()}` : 'READABLE')}
-              {live?.auto && kv('Feel', `${live.feel} · ${live.figure.toUpperCase()}`)}
-              {live?.auto && kv('Mood', `ENERGY ${pct(live.mood.energy)} · TENSION ${pct(live.mood.tension)} · DROP ${pct(live.mood.drop)}`)}
-              {live?.auto && kv('Texture', `COMPLEXITY ${pct(live.mood.complexity)} · BRIGHT ${pct(live.mood.brightness)}`)}
-              {live?.auto && kv('Section', live.mood.structured && live.mood.sectionType ? `${live.mood.sectionType.toUpperCase()} ${pct(live.mood.sectionProgress)} · PHRASE ${live.mood.phraseIndex + 1}` : 'NONE (LIVE SIGNAL)')}
-              {live?.auto && kv('Key', live.mood.keyIndex != null ? `${KEY_NAMES[live.mood.keyIndex]} ${live.mood.minor ? 'MINOR' : 'MAJOR'}` : 'UNKNOWN')}
-              {live?.auto && kv('Driving', `CHAOS ${pct(live.effective.chaos)} · DEPTH ${pct(live.effective.waveDepth)} · SPIN ${live.effective.spin.toFixed(2)}`)}
-              {kv('Readability', `${Math.round((live?.readability ?? 1) * 100)}% · ${Math.round((live?.readableFraction ?? 1) * 100)}% RECENT`)}
-              {kv('Last Event', live?.lastEvent ?? '—')}
-              {kv('Evidence', live?.structure ? 'TRACK SECTIONS' : 'ONSETS ONLY')}
-              {kv('Signal', SOURCE_LABELS[live?.source ?? 'none'])}
             </div>
           </Collapsible>
 
@@ -80,7 +62,11 @@ export function XyScopeWireDesignPanel() {
                 <SelectRow id="xyscope-wire-figure" label="Figure" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.figure}
                   options={WIRE_FIGURE_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('figure', value)}
                   description="What is drawn: cubes; platonic solids (dodecahedron, tetrahedron, octahedron, icosahedron, cube); or a four-dimensional tesseract with solids orbiting it. With Auto Performance on, the music chooses the figure at each section." />
-                {WIRE_FIGURE_CONTROLS.map(slider)}
+                {WIRE_FIGURE_CONTROLS.filter(spec => spec.id !== 'backgroundAmount').map(slider)}
+                <SelectRow id="xyscope-wire-backgroundShapes" label="Background Shapes" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.background}
+                  options={WIRE_BACKGROUND_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('background', value)}
+                  description="The shapes that fill the space around the figure: a tunnel of rings rushing toward you, a horizon floor, giant shells, or a star field (or all of them). They move in beats, pulse through builds and react to bass, mids and drops. With Auto Performance on, the music chooses between all of them." />
+                {WIRE_FIGURE_CONTROLS.filter(spec => spec.id === 'backgroundAmount').map(slider)}
                 <SelectRow id="xyscope-wire-hiddenEdges" label="Hidden Edges" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.hiddenEdges}
                   options={WIRE_HIDDEN_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('hiddenEdges', value)}
                   description="An edge is hidden when every face that borders it faces away from you. Dim draws those fainter so the figures read as solid. A tesseract has no front, so none of its edges are hidden." />
@@ -99,9 +85,15 @@ export function XyScopeWireDesignPanel() {
           <Collapsible label="React" icon={<AppIcon kind="waveform" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="react" style={{ display: 'contents' }}>
               {WIRE_REACT_CONTROLS.map(slider)}
+              <SelectRow id="xyscope-wire-transition" label="Transitions" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.transition}
+                options={WIRE_TRANSITION_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('transition', value)}
+                description="How the figure changes into another: it shatters and re-forms, morphs, glitches and tears, or is flown through by the camera. With Auto Performance on, the music chooses between all of them at each section and drop; this is the style used when you change the figure yourself." />
               <SelectRow id="xyscope-wire-sceneEvery" label="Scene Change" menuBoundarySelector=".vz-inspector" placement="below" value={o.values.sceneEvery}
                 options={WIRE_CADENCE_OPTIONS.map(option => ({ value: option.value, label: option.label }))} onChange={value => setValue('sceneEvery', value)}
                 description="How often the director picks a new way for the cluster to move (Auto Performance). Sections and phrases need an analysed track; a live microphone only changes on bars the beat grid is sure of." />
+              <Collapsible label="Reactions"><div data-xyscope-subgroup="Reactions" style={{ display: 'contents' }}>
+                <XyScopeWireReactionsEditor rules={o.rules} onChange={rules => patch({ rules })} />
+              </div></Collapsible>
               <div className="rv-ctrl-info">Every edge is an oscillator, the way an XY oscilloscope draws: its own sine wave along the line, with a pitch and speed that follow the music (bass drives one direction, mids another, highs the third, and every kick all of them), mixed with the live captured waveform. Chaos makes each oscillator drift, modulate itself and pull on its neighbours. The corners never move and no line goes past Wave Depth, so the figures stay readable; in silence every line is exactly straight. {live?.auto ? WIRE_MANUAL_NOTE : 'With Auto Performance on, the music moves almost every control above around your values.'}</div>
             </div>
           </Collapsible>

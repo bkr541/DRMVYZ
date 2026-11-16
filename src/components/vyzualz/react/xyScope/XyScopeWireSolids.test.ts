@@ -7,6 +7,8 @@ import { quatFromAxisAngle } from './XyScopeWireProject'
 import { routeEdges } from './XyScopeWireRoute'
 import { buildCluster, buildFigure, edgesOfGroups, shapeHash, WIRE_FIGURES, WIRE_KINDS, wireSolidCounts, type WireFigureId, type WireKind } from './XyScopeWireShape'
 import { WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
+/** The figure alone: no background, and no transition when the figure changes (these tests are about the figure). */
+const NOBG: WireValues = { ...WIRE_DEFAULTS, background: 'none', transition: 'cut' }
 
 const EXPECTED: Record<WireKind, { vertices: number; edges: number; faces: number }> = {
   tetra: { vertices: 4, edges: 6, faces: 4 }, cube: { vertices: 8, edges: 12, faces: 6 }, octa: { vertices: 6, edges: 12, faces: 8 },
@@ -88,7 +90,7 @@ describe('the solids', () => {
     expect(shapeHash(buildFigure('solids'))).toBe(buildFigure('solids').sourceHash)
     const engine = new WireEngine()
     const before = hashes.slice()
-    for (let f = 0; f < 240; f++) engine.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, figure: (['cubes', 'solids', 'tesseract'] as const)[Math.floor(f / 80)] } }))
+    for (let f = 0; f < 240; f++) engine.tick(tick({ reading: loud(f), values: { ...NOBG, figure: (['cubes', 'solids', 'tesseract'] as const)[Math.floor(f / 80)] } }))
     expect((Object.keys(WIRE_FIGURES) as WireFigureId[]).map(figure => shapeHash(buildFigure(figure)))).toEqual(before)
   })
 })
@@ -110,7 +112,7 @@ describe('the fourth dimension', () => {
 
   it('draws a tesseract figure that stays finite, on screen and never hides an edge', () => {
     const engine = new WireEngine()
-    for (let f = 0; f < 200; f++) engine.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, figure: 'tesseract', satellites: 4, duplicates: 3, chaos: 1 } }))
+    for (let f = 0; f < 200; f++) engine.tick(tick({ reading: loud(f), values: { ...NOBG, figure: 'tesseract', satellites: 4, duplicates: 3, chaos: 1 } }))
     expect(engine.figure).toBe('tesseract')
     const out = { x: 0, y: 0, z: 0, energy: 0, q: 0 }
     for (let k = 0; k < 4000; k++) {
@@ -126,7 +128,7 @@ describe('mixed figures in the engine', () => {
   it('draws every figure with every satellite count, within the stage and with a bounded brightness', () => {
     for (const figure of ['cubes', 'solids', 'tesseract'] as const) for (const satellites of [0, 2, 4]) {
       const engine = new WireEngine()
-      for (let f = 0; f < 90; f++) engine.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, figure, satellites } }))
+      for (let f = 0; f < 90; f++) engine.tick(tick({ reading: loud(f), values: { ...NOBG, figure, satellites } }))
       const out = { x: 0, y: 0, z: 0, energy: 0, q: 0 }
       let peak = 0
       for (let k = 0; k < 3000; k++) { engine.signal(engine.letters[0], 0, k / 3000, 0, 0, out); peak = Math.max(peak, Math.hypot(out.x, out.y)); expect(out.energy).toBeLessThan(30) }
@@ -138,20 +140,20 @@ describe('mixed figures in the engine', () => {
 
   it('grows a new figure in rather than popping it, and the figure that was chosen is the one drawn', () => {
     const engine = new WireEngine()
-    for (let f = 0; f < 30; f++) engine.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, figure: 'cubes' } }))
+    for (let f = 0; f < 30; f++) engine.tick(tick({ reading: loud(f), values: { ...NOBG, figure: 'cubes' } }))
     const settled = engine.base[0]
-    engine.tick(tick({ reading: loud(31), values: { ...WIRE_DEFAULTS, figure: 'solids' } }))
+    engine.tick(tick({ reading: loud(31), values: { ...NOBG, figure: 'solids' } }))
     expect(engine.shape.id).toBe('solids')
     expect(engine.shape.groups[0].kind).toBe('dodeca')
     expect(Math.hypot(engine.base[0], engine.base[1], engine.base[2])).toBeLessThan(Math.sqrt(3) * .9)
-    for (let f = 0; f < 60; f++) engine.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, figure: 'solids' } }))
+    for (let f = 0; f < 60; f++) engine.tick(tick({ reading: loud(f), values: { ...NOBG, figure: 'solids' } }))
     expect(Number.isFinite(settled)).toBe(true)
     expect(Math.hypot(...[0, 1, 2].map(i => engine.base[i]))).toBeGreaterThan(1)
   })
 })
 
 function tick(over: Partial<WireTick> = {}): WireTick {
-  return { dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: WIRE_DEFAULTS as WireValues, auto: false, discontinuity: false, ...over }
+  return { dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: NOBG as WireValues, auto: false, discontinuity: false, ...over }
 }
 function loud(frame: number): WireReading {
   const swing = .5 + .5 * Math.sin(frame / 60 * 7)

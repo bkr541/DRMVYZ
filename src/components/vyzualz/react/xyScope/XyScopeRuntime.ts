@@ -474,6 +474,7 @@ export class XyScopeRuntime {
     return {
       state: e.state, sceneId: e.sceneId, readability: e.readability.score, readableFraction: e.readableFraction, weight: e.weight, abstract: e.abstract, lastEvent: e.lastEvent,
       structure: this.wireCue.structure != null, source: this.wireSource, values: o.values, effective: e.effective, mood: e.mood, feel: e.feel, figure: e.figure, auto: o.autoPerformance,
+      motion: e.motion, beatLocked: e.beatLocked, pulse: e.pulse, shock: e.shock, transition: e.transitionKind, lastReaction: e.fx.lastFired, reactionsFired: e.fx.fired,
     }
   }
 
@@ -505,13 +506,13 @@ export class XyScopeRuntime {
       if (c.hat) hits.hat = Math.min(1, c.hatStrength || 1)
       this.wireCue = deriveWireCue(c, this.wirePrevious)
       this.wirePrevious = c
-    } else this.wireCue = { ...this.wireCue, boundaries: NO_BOUNDARIES, drop: false }
+    } else this.wireCue = { ...this.wireCue, boundaries: NO_BOUNDARIES, drop: false, beat: false, downbeat: false, chordChanged: false }
 
     // The live triggered waveform that the edges carry (the real stereo samples when there are any).
     const scopeFrame = this.scope.update(input.stereo?.left ?? null, input.stereo?.right ?? null, dt, input.nowSec)
     engine.hasWave = playing && input.stereo != null
     if (engine.hasWave) { engine.wave = scopeFrame.trace; engine.waveGain = scopeFrame.traceGain }
-    engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, mood: deriveWireMood(input.context, features, playing), values: o.values, auto: o.autoPerformance, discontinuity })
+    engine.tick({ dt, reading: buildWireReading(input.context, features, hits, playing), cue: this.wireCue, mood: deriveWireMood(input.context, features, playing), values: o.values, rules: o.rules, auto: o.autoPerformance, discontinuity })
     renderer.render(engine, {
       dt, settings: { intensity: 100, persistence: engine.effective.trail, width: engine.effective.width * (1 + engine.beamWidthBoost), scan: engine.effective.scan, color: engine.effective.color },
       grid: false, hold: o.hold, halo: { amount: engine.effective.glow, color: engine.effective.glowColor }, background: o.values.backgroundColor,

@@ -3,6 +3,8 @@ import { emptyWireCue } from './XyScopeWireCues'
 import { WireEngine, type WireTick } from './XyScopeWireEngine'
 import { silentReading, type WireReading } from './XyScopeWireModulation'
 import { WIRE_DEFAULTS, type WireValues } from './XyScopeWireSettings'
+/** The figure alone: no background, and no transition when the figure changes (these tests are about the figure). */
+const NOBG: WireValues = { ...WIRE_DEFAULTS, background: 'none', transition: 'cut' }
 
 type Internals = {
   clock: Float32Array; rest: Float32Array; kinds: number[]; ripple: Float32Array; edgeOf: Int16Array; reversed: Uint8Array; px: Float32Array; py: Float32Array
@@ -19,12 +21,12 @@ function loud(frame: number): WireReading {
     hits: { kick: frame % 30 === 0 ? 1 : 0, snare: frame % 60 === 30 ? .9 : 0, hat: 0 },
   }
 }
-const tick = (over: Partial<WireTick> = {}): WireTick => ({ dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: WIRE_DEFAULTS, auto: false, discontinuity: false, ...over })
+const tick = (over: Partial<WireTick> = {}): WireTick => ({ dt: 1 / 60, reading: loud(0), cue: emptyWireCue(), values: NOBG, auto: false, discontinuity: false, ...over })
 
 /** An engine without a real capture (so the lines are the oscillators), run for a while on a loud, pulsing track. */
 function driven(over: Partial<WireValues> = {}, frames = 120, reading: (f: number) => WireReading = loud): WireEngine {
   const e = new WireEngine()
-  for (let f = 0; f < frames; f++) e.tick(tick({ reading: reading(f), values: { ...WIRE_DEFAULTS, satellites: 0, outline: false, ...over } }))
+  for (let f = 0; f < frames; f++) e.tick(tick({ reading: reading(f), values: { ...NOBG, satellites: 0, outline: false, ...over } }))
   return e
 }
 function at(e: WireEngine, s: number, p: number) {
@@ -78,7 +80,7 @@ describe('every edge is a sine oscillator', () => {
     const straight = driven({ waveOscillator: 1, chaos: 0, waveAmount: 0 }, 60)
     const s = rippled(e)[0]
     const first = profile(e, straight, s)
-    for (let f = 60; f < 75; f++) e.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, satellites: 0, outline: false, waveOscillator: 1, chaos: 0 } }))
+    for (let f = 60; f < 75; f++) e.tick(tick({ reading: loud(f), values: { ...NOBG, satellites: 0, outline: false, waveOscillator: 1, chaos: 0 } }))
     const later = profile(e, straight, rippled(e)[0])
     const gap = Math.max(...first.map((v, k) => Math.abs(v - later[k])))
     expect(gap).toBeGreaterThan(.002)
@@ -87,7 +89,7 @@ describe('every edge is a sine oscillator', () => {
   it('speeds the oscillators with the band that drives them: a track of pure highs turns the z edges faster than the x edges', () => {
     const highs = (f: number): WireReading => ({ ...loud(f), features: { sub: 0, bass: 0, lowMid: 0, mid: 0, air: .9, flux: .5, level: .5 }, hits: { kick: 0, snare: 0, hat: 0 } })
     const e = driven({ chaos: 0 }, 1, highs), before = Float32Array.from(internals(e).edgePhase)
-    for (let f = 1; f < 90; f++) e.tick(tick({ reading: highs(f), values: { ...WIRE_DEFAULTS, satellites: 0, outline: false, chaos: 0 } }))
+    for (let f = 1; f < 90; f++) e.tick(tick({ reading: highs(f), values: { ...NOBG, satellites: 0, outline: false, chaos: 0 } }))
     const axis = e.shape.edgeAxis, move = (a: number) => { let sum = 0, n = 0; for (let k = 0; k < 12; k++) if (axis[k] === a) { const d = (internals(e).edgePhase[k] - before[k] + 1) % 1; sum += Math.min(d, 1 - d); n++ } return sum / Math.max(1, n) }
     expect(move(2)).toBeGreaterThanOrEqual(0)
     // The x edges are barely driven by highs, the z edges are, so their phases have travelled a different distance.
@@ -140,7 +142,7 @@ describe('chaos', () => {
   })
 
   it('steps at a fixed rate, so a fast screen and a slow one see the same lines', () => {
-    const run = (dt: number) => { const e = new WireEngine(); for (let t = 0; t < 3; t += dt) e.tick(tick({ dt, reading: loud(Math.floor(t * 60)), values: { ...WIRE_DEFAULTS, satellites: 0, chaos: 1 } })); return Array.from(internals(e).edgeChaos.slice(0, 8)) }
+    const run = (dt: number) => { const e = new WireEngine(); for (let t = 0; t < 3; t += dt) e.tick(tick({ dt, reading: loud(Math.floor(t * 60)), values: { ...NOBG, satellites: 0, chaos: 1 } })); return Array.from(internals(e).edgeChaos.slice(0, 8)) }
     const a = run(1 / 60), b = run(1 / 120)
     // The map is chaotic, so only the way it is stepped is compared: both visit values across the same interval.
     expect(Math.max(...a) - Math.min(...a)).toBeGreaterThan(.1)
@@ -151,7 +153,7 @@ describe('chaos', () => {
     const wander = (chaos: number) => {
       const e = new WireEngine(), distances: number[] = []
       for (let f = 0; f < 900; f++) {
-        e.tick(tick({ reading: loud(f), values: { ...WIRE_DEFAULTS, satellites: 1, chaos, maxDisplacement: 0 } }))
+        e.tick(tick({ reading: loud(f), values: { ...NOBG, satellites: 1, chaos, maxDisplacement: 0 } }))
         if (f > 120) { let x = 0, y = 0, z = 0; for (let v = 8; v < 16; v++) { x += e.base[v * 3] / 8; y += e.base[v * 3 + 1] / 8; z += e.base[v * 3 + 2] / 8 } distances.push(Math.hypot(x, y, z)) }
       }
       const mean = distances.reduce((a, b) => a + b, 0) / distances.length

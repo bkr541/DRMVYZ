@@ -4,6 +4,9 @@
 
 import type { WireSceneCadence } from './XyScopeWireDirector'
 import type { WireFigureId } from './XyScopeWireShape'
+import { WIRE_BACKGROUND_OPTIONS, type WireBackgroundId } from './XyScopeWireBackground'
+import { WIRE_TRANSITION_OPTIONS, type WireTransitionStyle } from './XyScopeWireTransitions'
+import { DEFAULT_WIRE_RULES, normalizeWireRules, type WireRule } from './XyScopeWireReactions'
 
 export const WIRE_SOURCE_MODE = 'wire' as const
 export const CUBES_PRESET_ID = 'cubes'
@@ -11,6 +14,12 @@ export const SOLIDS_PRESET_ID = 'solids'
 export const TESSERACT_PRESET_ID = 'tesseract'
 /** Every preset of the WIREFRAME source, with the figure each one draws. */
 export const WIRE_PRESET_FIGURES: Readonly<Record<string, WireFigureId>> = Object.freeze({ [CUBES_PRESET_ID]: 'cubes', [SOLIDS_PRESET_ID]: 'solids', [TESSERACT_PRESET_ID]: 'tesseract' })
+/** What each preset sets: its figure, the background that fills the space around it and how it changes figure. Every preset is a whole show. */
+export const WIRE_PRESET_LOOKS: Readonly<Record<string, { figure: WireFigureId; background: WireBackgroundId; transition: WireTransitionStyle }>> = Object.freeze({
+  [CUBES_PRESET_ID]: { figure: 'cubes', background: 'floor', transition: 'glitch' },
+  [SOLIDS_PRESET_ID]: { figure: 'solids', background: 'shells', transition: 'morph' },
+  [TESSERACT_PRESET_ID]: { figure: 'tesseract', background: 'tunnel', transition: 'zoom' },
+})
 
 export type WireHiddenEdges = 'show' | 'dim'
 export type WireTravel = 'blank' | 'dim' | 'visible'
@@ -23,6 +32,9 @@ export interface WireValues {
   flashLimit: boolean
   // Design › Wireframe
   figure: WireFigureId
+  /** The shapes that fill the space around the figure. */
+  background: WireBackgroundId
+  backgroundAmount: number
   satellites: number
   size: number
   spread: number
@@ -59,6 +71,8 @@ export interface WireValues {
   kickResponse: number
   snareResponse: number
   sceneEvery: WireSceneCadence
+  /** How the figure changes into another (and what the reactions' transitions look like). */
+  transition: WireTransitionStyle
   seed: number
   // Palette
   color: string
@@ -70,16 +84,16 @@ export type WireBooleanKey = { [K in keyof WireValues]: WireValues[K] extends bo
 
 export const WIRE_DEFAULTS: Readonly<WireValues> = Object.freeze({
   intensity: 1, audioReactivity: 1, bpmSync: true, flashLimit: true,
-  figure: 'cubes', satellites: 2, size: 1, spread: 1, perspective: .45, tilt: 22, spin: .6, hiddenEdges: 'dim', depthCue: .5, duplicates: 1, outline: true,
+  figure: 'cubes', background: 'floor', backgroundAmount: .8, satellites: 2, size: 1, spread: 1, perspective: .45, tilt: 22, spin: .6, hiddenEdges: 'dim', depthCue: .5, duplicates: 1, outline: true,
   width: 2.2, glow: 1.5, trail: 110, scan: 40, travel: 'blank',
   waveAmount: 1, waveDepth: .3, waveDetail: 7, waveOscillator: .6, chaos: .5, readableFloor: .72, maxDisplacement: .12, minReadable: .65, attack: 45, release: 240,
-  bassResponse: 1, midResponse: 1, lowMidResponse: 1, airResponse: 1, kickResponse: 1, snareResponse: 1, sceneEvery: 'phrase', seed: 7,
+  bassResponse: 1, midResponse: 1, lowMidResponse: 1, airResponse: 1, kickResponse: 1, snareResponse: 1, sceneEvery: 'phrase', transition: 'glitch', seed: 7,
   color: '#7df08e', glowColor: '#1fa83c', backgroundColor: '#000000',
 })
 
 export const WIRE_RANGES: Readonly<Record<WireNumberKey, readonly [number, number]>> = Object.freeze({
   intensity: [0, 2], audioReactivity: [0, 1],
-  satellites: [0, 4], size: [.5, 1.4], spread: [.6, 1.5], perspective: [0, 1], tilt: [-30, 60], spin: [0, 2], depthCue: [0, 1], duplicates: [1, 4],
+  backgroundAmount: [0, 1], satellites: [0, 4], size: [.5, 1.4], spread: [.6, 1.5], perspective: [0, 1], tilt: [-30, 60], spin: [0, 2], depthCue: [0, 1], duplicates: [1, 4],
   width: [.6, 4], glow: [0, 3], trail: [20, 300], scan: [12, 90],
   waveAmount: [0, 1.5], waveDepth: [0, .6], waveDetail: [1, 16], waveOscillator: [0, 1], chaos: [0, 1], readableFloor: [.4, .95], maxDisplacement: [0, .3], minReadable: [.3, .95], attack: [5, 500], release: [40, 1500],
   bassResponse: [0, 2], midResponse: [0, 2], lowMidResponse: [0, 2], airResponse: [0, 2], kickResponse: [0, 2], snareResponse: [0, 2], seed: [0, 999],
@@ -110,6 +124,7 @@ export const WIRE_MASTER_CONTROLS: readonly WireControlSpec[] = Object.freeze([
 ])
 export const WIRE_FIGURE_CONTROLS: readonly WireControlSpec[] = Object.freeze([
   spec('satellites', 'Satellite Figures', 'How many smaller figures orbit the core.', 1, 'count'),
+  spec('backgroundAmount', 'Background Brightness', 'How bright the shapes behind the figure are. Zero hides them.', .01, 'percent'),
   spec('size', 'Figure Size', 'Overall size of the figure on the screen.', .01, 'percent'),
   spec('spread', 'Orbit Spread', 'How far the satellite cubes sit from the core.', .01, 'percent'),
   spec('perspective', 'Perspective', 'Zero draws every cube with no foreshortening (orthographic); one draws a full pinhole camera.', .01, 'percent'),
@@ -149,10 +164,12 @@ export interface XyScopeWireSettings {
   hold: boolean
   resetSignals: number
   values: WireValues
+  /** The reaction rules: when this audio-intelligence trigger fires, do that. */
+  rules: WireRule[]
 }
 
 export const DEFAULT_WIRE_SETTINGS: Readonly<XyScopeWireSettings> = Object.freeze({
-  autoPerformance: false, hold: false, resetSignals: 0, values: Object.freeze({ ...WIRE_DEFAULTS }) as WireValues,
+  autoPerformance: false, hold: false, resetSignals: 0, values: Object.freeze({ ...WIRE_DEFAULTS }) as WireValues, rules: DEFAULT_WIRE_RULES.map(r => ({ ...r })),
 })
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
@@ -172,6 +189,8 @@ export function normalizeWireValues(value: unknown): WireValues {
   out.flashLimit = typeof record.flashLimit === 'boolean' ? record.flashLimit : WIRE_DEFAULTS.flashLimit
   out.outline = typeof record.outline === 'boolean' ? record.outline : WIRE_DEFAULTS.outline
   out.figure = pick(record.figure, WIRE_FIGURE_OPTIONS, WIRE_DEFAULTS.figure)
+  out.background = pick(record.background, WIRE_BACKGROUND_OPTIONS, WIRE_DEFAULTS.background)
+  out.transition = pick(record.transition, WIRE_TRANSITION_OPTIONS, WIRE_DEFAULTS.transition)
   out.hiddenEdges = pick(record.hiddenEdges, WIRE_HIDDEN_OPTIONS, WIRE_DEFAULTS.hiddenEdges)
   out.travel = pick(record.travel, WIRE_TRAVEL_OPTIONS, WIRE_DEFAULTS.travel)
   out.sceneEvery = pick(record.sceneEvery, WIRE_CADENCE_OPTIONS, WIRE_DEFAULTS.sceneEvery)
@@ -188,5 +207,6 @@ export function normalizeWireSettings(value: unknown): XyScopeWireSettings {
     hold: typeof record.hold === 'boolean' ? record.hold : false,
     resetSignals: Math.max(0, Math.min(1e9, Math.round(finiteOr(record.resetSignals, 0)))),
     values: normalizeWireValues(record.values),
+    rules: normalizeWireRules(record.rules),
   }
 }

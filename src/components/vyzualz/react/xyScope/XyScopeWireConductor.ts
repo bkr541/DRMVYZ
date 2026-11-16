@@ -19,6 +19,8 @@ import { Envelope } from './XyScopeWireModulation'
 import { WIRE_RANGES, type WireNumberKey, type WireValues } from './XyScopeWireSettings'
 import type { WireBoundaries } from './XyScopeWireDirector'
 import type { WireFigureId } from './XyScopeWireShape'
+import { WIRE_BACKGROUND_LAYERS, type WireBackgroundId } from './XyScopeWireBackground'
+import { WIRE_TRANSITION_KINDS, type WireTransitionKind } from './XyScopeWireTransitions'
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v))
 const smoothstep = (t: number) => { const x = clamp(t); return x * x * (3 - 2 * x) }
@@ -58,7 +60,7 @@ export const NEUTRAL_MOOD: Readonly<WireMood> = Object.freeze({
 
 /** The controls Auto Performance may move (each by a bounded amount around the user's own value). */
 export const WIRE_DRIVEN_KEYS: readonly (keyof WireValues)[] = Object.freeze([
-  'figure', 'satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'hiddenEdges', 'depthCue', 'duplicates', 'outline',
+  'figure', 'background', 'backgroundAmount', 'transition', 'satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'hiddenEdges', 'depthCue', 'duplicates', 'outline',
   'width', 'glow', 'trail', 'travel',
   'waveAmount', 'waveDepth', 'waveDetail', 'waveOscillator', 'chaos',
   'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse',
@@ -92,6 +94,8 @@ export interface ConductorOutput {
   /** What kind of passage the conductor thinks this is. */
   feel: 'CALM' | 'DRIVING' | 'TENSE' | 'PEAK'
   driving: boolean
+  /** The impact of a drop landing, 1 at the hit, falling over about two seconds (0 otherwise). */
+  shock?: number
 }
 
 // ── Colour ───────────────────────────────────────────────────────────────────
@@ -137,10 +141,10 @@ function figureScores(calm: number, activity: number, tension: number, complexit
   }
 }
 
-/** The most Auto Performance takes these to, however hard the music pushes. */
-const PEAK_DEPTH = .38
+/** The most Auto Performance takes these to while a passage is sustained at its peak. A drop's impact (the shock below) briefly goes past them, up to each control's own maximum. */
+const PEAK_DEPTH = .42
 const PEAK_DETAIL = 10
-const PEAK_CHAOS = .85
+const PEAK_CHAOS = .9
 
 const FIGURES: readonly WireFigureId[] = ['cubes', 'solids', 'tesseract']
 
@@ -148,6 +152,11 @@ export class WireConductor {
   private readonly env = new Map<string, Envelope>()
   private figure: WireFigureId = 'cubes'
   private figureSince = 0
+  private background: WireBackgroundId = 'floor'
+  private backgroundSince = 0
+  private transition: WireTransitionKind = 'glitch'
+  private lastTransition: WireTransitionKind | null = null
+  private shock = new Envelope()
   private lastBoundary = ''
   private lastPhrase = -1
   private satellites = -1
@@ -164,7 +173,7 @@ export class WireConductor {
   private time = 0
 
   reset(): void {
-    this.env.clear(); this.figure = 'cubes'; this.figureSince = 0; this.lastBoundary = ''; this.lastPhrase = -1
+    this.env.clear(); this.figure = 'cubes'; this.figureSince = 0; this.backgroundSince = 0; this.shock.reset(); this.lastBoundary = ''; this.lastPhrase = -1
     this.satellites = -1; this.duplicates = -1; this.hue = 0; this.tilt = 0; this.tiltTarget = 0; this.spinSign = 1; this.spinDir = 1; this.time = 0
   }
 
@@ -182,7 +191,10 @@ export class WireConductor {
       this.figure = base.figure
       return { values: base as WireValues, figure: base.figure, mood: { ...mood }, feel: 'CALM', driving: false }
     }
-    if (!this.wasAuto) { this.reset(); this.wasAuto = true; this.figure = base.figure }
+    if (!this.wasAuto) {
+      this.reset(); this.wasAuto = true; this.figure = base.figure; this.background = base.background
+      this.transition = base.transition === 'auto' || base.transition === 'cut' ? 'glitch' : base.transition
+    }
     this.time += dt
     const playing = input.playing
 
@@ -212,22 +224,29 @@ export class WireConductor {
     // ── Discrete choices happen on musical boundaries (a drop is one), never between them.
     const fired = input.boundaries.id !== '' && input.boundaries.id !== this.lastBoundary
     const boundary = fired && (input.boundaries.section || input.boundaries.phrase || (input.gridConfident && input.boundaries.bar8))
+    // The shock of a drop landing (or a drop section beginning): everything jumps well past its sustained level, then falls back over a couple of seconds.
+    if (input.drop || (boundary && input.boundaries.section && mood.sectionType === 'drop')) this.shock.hit(clamp(Math.max(mood.drop, .75)))
+    const shock = this.shock.step(0, dt, 10, 1700)
     if (boundary || input.drop) {
       this.lastBoundary = input.boundaries.id
       // A drop is a moment the smoothed mood has not caught up with yet, so the choice reads the music as it is on that frame.
       const now = input.drop
-      this.chooseFigure(input, m, now ? 0 : calm, now ? Math.max(activity, mood.energy, mood.drop) : activity, now ? Math.max(tens, mood.tension) : tens, now ? Math.max(peak, mood.drop) : peak)
+      const [c, a, t, p] = [now ? 0 : calm, now ? Math.max(activity, mood.energy, mood.drop) : activity, now ? Math.max(tens, mood.tension) : tens, now ? Math.max(peak, mood.drop) : peak]
+      this.chooseTransition(input, c, a, t, p)
+      this.chooseFigure(input, m, c, a, t, p)
+      this.chooseBackground(input, c, a, t, p)
     }
     if (mood.phraseIndex !== this.lastPhrase) {
       this.lastPhrase = mood.phraseIndex
       // A new phrase picks a new view angle and turning direction (seeded: the same track and phrase always make the same choice).
       const unit = (k: string) => performanceDeterministicUnit('wire-conductor', input.seed, input.trackIdentity ?? 'live', mood.phraseIndex, k)
       this.tiltTarget = (unit('tilt') - .5) * 44
-      this.spinSign = unit('spin') < .22 ? -1 : 1
+      // The turn reverses on some phrases, but never as a drop lands: easing through a stop would take the force out of the hit.
+      if (shock < .15) this.spinSign = unit('spin') < .22 ? -1 : 1
     }
     this.tilt += (this.tiltTarget - this.tilt) * (1 - Math.exp(-dt / 1.6))
 
-    // ── The values.
+    // ── The values. Sustained levels come from the smoothed mood; the shock adds a short, much bigger jump on a drop (up to each control's own maximum).
     const out: WireValues = { ...base }
     const set = (key: WireNumberKey, value: number) => {
       const [lo, hi] = WIRE_RANGES[key]
@@ -238,37 +257,40 @@ export class WireConductor {
     const lowHeavy = 1 - m.brightness
     // The turning direction eases through a stop to reverse at a new phrase, never jumping.
     this.spinDir += (this.spinSign - this.spinDir) * (1 - Math.exp(-dt / .9))
-    set('spin', b.spin * (.55 + 1.05 * activity + .5 * m.drop))
+    set('spin', b.spin * (.4 + 1.3 * activity + .8 * m.drop) * (1 + 1.6 * shock))
     out.spin *= this.spinDir
-    set('spread', b.spread * (.82 + .3 * m.build + .3 * activity + .3 * m.drop))
-    set('size', b.size * (.95 + .07 * m.energy))
-    set('perspective', b.perspective + .24 * (tens - .3) + .14 * m.drop)
-    set('tilt', b.tilt + this.tilt + 12 * m.build - 8 * calm)
+    set('spread', b.spread * (.8 + .35 * m.build + .4 * activity + .4 * m.drop + .35 * shock))
+    set('size', b.size * (.94 + .08 * m.energy + .1 * shock))
+    set('perspective', b.perspective + .3 * (tens - .3) + .2 * m.drop + .25 * shock)
+    set('tilt', b.tilt + this.tilt + 14 * m.build - 8 * calm + 14 * shock)
     set('depthCue', b.depthCue + .2 * calm - .1 * m.drop)
-    set('waveAmount', b.waveAmount * (.5 + .85 * activity + .4 * m.drop))
-    // The peaks are capped below the control's own maximum so even the biggest drop keeps the figures readable.
-    set('waveDepth', Math.min(PEAK_DEPTH, b.waveDepth * (.55 + .5 * tens + .35 * m.drop + .2 * m.flux)))
-    set('waveDetail', Math.min(PEAK_DETAIL, b.waveDetail * (.6 + .8 * m.complexity + .5 * m.brightness)))
+    set('waveAmount', b.waveAmount * (.5 + 1 * activity + .6 * m.drop) + .3 * shock)
+    // Sustained peaks are capped below the control's own maximum so the figures stay readable; only the brief shock goes past the cap.
+    set('waveDepth', Math.min(PEAK_DEPTH, b.waveDepth * (.55 + .6 * tens + .5 * m.drop + .2 * m.flux)) + .2 * shock)
+    set('waveDetail', Math.min(PEAK_DETAIL, b.waveDetail * (.6 + .8 * m.complexity + .5 * m.brightness)) + 3 * shock)
     out.waveDetail = Math.round(out.waveDetail)
     set('waveOscillator', b.waveOscillator + .35 * (m.brightness - .5) + .15 * calm)
-    set('chaos', Math.min(PEAK_CHAOS, b.chaos * (.4 + .7 * tens) + .25 * m.drop + .15 * m.flux + .15 * arc - .3 * calm))
-    set('width', b.width * (.85 + .4 * m.drop + .15 * m.energy))
-    set('glow', b.glow * (.7 + .5 * m.energy + .6 * m.drop))
-    set('trail', b.trail * (1.25 - .5 * activity + .5 * calm))
-    set('kickResponse', b.kickResponse * (.7 + .5 * activity + .5 * m.drop))
-    set('snareResponse', b.snareResponse * (.7 + .5 * m.flux + .4 * activity))
-    set('bassResponse', b.bassResponse * (.6 + .8 * lowHeavy))
+    set('chaos', Math.min(PEAK_CHAOS, b.chaos * (.4 + .8 * tens) + .3 * m.drop + .15 * m.flux + .15 * arc - .3 * calm) + .5 * shock)
+    set('width', b.width * (.85 + .55 * m.drop + .2 * m.energy + .6 * shock))
+    set('glow', b.glow * (.7 + .6 * m.energy + .9 * m.drop + 1 * shock))
+    set('trail', b.trail * (1.3 - .6 * activity + .5 * calm))
+    set('kickResponse', b.kickResponse * (.7 + .7 * activity + .8 * m.drop + .5 * shock))
+    set('snareResponse', b.snareResponse * (.7 + .5 * m.flux + .5 * activity + .3 * shock))
+    set('bassResponse', b.bassResponse * (.6 + .8 * lowHeavy + .4 * shock))
     set('lowMidResponse', b.lowMidResponse * (.7 + .6 * lowHeavy))
     set('midResponse', b.midResponse * (.7 + .6 * m.complexity))
     set('airResponse', b.airResponse * (.6 + .9 * m.brightness))
+    set('backgroundAmount', b.backgroundAmount * (.5 + .9 * activity + .5 * m.drop) + .3 * shock)
 
     // Whole-number choices change only when the wanted value moves a full step away (so a figure never flickers between two counts).
-    const wantSatellites = b.satellites + (m.complexity - .5) * 2.4 + (activity - .5) * 1.2
+    // On the frame a drop lands the smoothed mood has not caught up, so the count reads the music as it is.
+    const cx = input.drop ? Math.max(m.complexity, mood.complexity) : m.complexity, ax = input.drop ? Math.max(activity, mood.energy) : activity
+    const wantSatellites = b.satellites + (cx - .5) * 2.4 + (ax - .5) * 1.2 + 2 * shock
     if (this.satellites < 0) this.satellites = Math.round(b.satellites)
     if (Math.abs(wantSatellites - this.satellites) >= 1.15 && (boundary || input.drop || this.satellites < 0)) this.satellites = Math.round(wantSatellites)
     out.satellites = Math.round(clamp(this.satellites, WIRE_RANGES.satellites[0], WIRE_RANGES.satellites[1]))
-    // At most one extra echo: more than that blurs the figures into each other.
-    const wantDuplicates = b.duplicates + (m.build > .45 || m.drop > .35 ? 1 : 0)
+    // At most one or two extra echoes: more than that blurs the figures into each other.
+    const wantDuplicates = b.duplicates + (m.build > .45 || m.drop > .35 ? 1 : 0) + (shock > .4 ? 1 : 0)
     if (this.duplicates < 0) this.duplicates = Math.round(b.duplicates)
     if (Math.abs(wantDuplicates - this.duplicates) >= .9) this.duplicates = Math.round(wantDuplicates)
     out.duplicates = Math.round(clamp(this.duplicates, WIRE_RANGES.duplicates[0], WIRE_RANGES.duplicates[1]))
@@ -278,7 +300,7 @@ export class WireConductor {
     if (m.drop > .55) this.travel = 'visible'; else if (calm > .6 && activity < .35) this.travel = 'dim'; else if (m.drop < .2) this.travel = 'blank'
     if (activity > .65) this.outline = false; else if (activity < .45) this.outline = true
     out.hiddenEdges = this.hidden; out.travel = this.travel; out.outline = this.outline
-    out.figure = this.figure
+    out.figure = this.figure; out.background = this.background; out.transition = this.transition
 
     // Colour: the user's hue turned by the key (up to 60° either way, a minor key a little cooler), and its lightness and depth by the music.
     const shiftTarget = mood.keyIndex != null ? ((mood.keyIndex / 12) - .5) * 120 - (mood.minor ? 18 : 0) : 0
@@ -287,7 +309,37 @@ export class WireConductor {
     out.glowColor = conductColor(b.glowColor, this.hue, m.energy * .8, tens)
 
     const feel: ConductorOutput['feel'] = peak > .45 ? 'PEAK' : tense > .45 ? 'TENSE' : calm > .55 ? 'CALM' : 'DRIVING'
-    return { values: out, figure: this.figure, mood: m, feel, driving: true }
+    return { values: out, figure: this.figure, mood: m, feel, driving: true, shock }
+  }
+
+  /** Picks the transition for the change that is starting (all four styles are in play; the previous one is disfavoured so it never repeats by accident). */
+  private chooseTransition(input: ConductorInput, calm: number, activity: number, tension: number, peak: number): void {
+    const scores: Record<WireTransitionKind, number> = {
+      shatter: .3 + .9 * peak + .3 * tension, zoom: .3 + .7 * peak + .4 * activity, glitch: .3 + .8 * tension + .2 * activity, morph: .35 + .9 * calm + .3 * (1 - activity),
+    }
+    let best = this.transition, bestScore = -Infinity
+    for (const kind of WIRE_TRANSITION_KINDS) {
+      const nudge = performanceDeterministicUnit('wire-transition', input.seed, input.trackIdentity ?? 'live', input.boundaries.id, kind)
+      const score = scores[kind] + (kind === this.lastTransition ? -.25 : 0) + nudge * .2
+      if (score > bestScore) { bestScore = score; best = kind }
+    }
+    this.transition = best; this.lastTransition = best
+  }
+
+  /** Picks the background (all four layers, or all of them at a peak). It holds for at least four seconds unless a drop lands. */
+  private chooseBackground(input: ConductorInput, calm: number, activity: number, tension: number, peak: number): void {
+    if (this.time - this.backgroundSince < 4 && !input.drop) return
+    const scores: Record<Exclude<WireBackgroundId, 'none'>, number> = {
+      tunnel: .3 + .7 * (tension + peak) / 2 + .3 * activity, floor: .4 + .5 * activity + .3 * calm, shells: .3 + .8 * calm + .2 * (1 - activity), stars: .2 + .6 * peak + .3 * activity,
+      all: .1 + 1.1 * peak,
+    }
+    let best: WireBackgroundId = this.background, bestScore = -Infinity
+    for (const id of [...WIRE_BACKGROUND_LAYERS, 'all'] as const) {
+      const nudge = performanceDeterministicUnit('wire-background', input.seed, input.trackIdentity ?? 'live', input.boundaries.id, id)
+      const score = scores[id] + (id === this.background ? -.15 : 0) + nudge * .15
+      if (score > bestScore) { bestScore = score; best = id }
+    }
+    if (best !== this.background) { this.background = best; this.backgroundSince = this.time }
   }
 
   /** Picks the figure for the passage that is starting. It holds for at least one phrase's worth of boundaries and never repeats by accident. */

@@ -1205,7 +1205,8 @@ export function MusicIntelligenceDiagnosticsPanel({ liveInputActive = false, hea
 
 // ── Local sub-components ──────────────────────────────────────────────────────
 
-function MiSection({ title, children }: { title: string; children: React.ReactNode }) {
+/** The Audio Intelligence group's titled, collapsible block. Exported so other panels that sit beside Audio Intelligence in the REACT tab show their information the same way. */
+export function MiSection({ title, children }: { title: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true)
 
   return (
@@ -1246,8 +1247,24 @@ function MiSectionIcon({ title }: { title: string }) {
     case 'Stems': return <AppIcon kind="split" {...props} />
     case 'Lyrics': return <AppIcon kind="lyrics" {...props} />
     case 'Semantic': return <AppIcon kind="tag" {...props} />
+    case 'Performance': return <AppIcon kind="rhythm" {...props} />
+    case 'Mood': return <AppIcon kind="energy" {...props} />
+    case 'Driving': return <AppIcon kind="sliders" {...props} />
+    case 'Reactions': return <AppIcon kind="wand" {...props} />
     default: return <AppIcon kind="layers" {...props} />
   }
+}
+
+/** A level row (label, bar, value) in the Audio Intelligence style, for values held in React state rather than updated by refs. */
+export function MiLevelRow({ label, value, text }: { label: string; value: number; text?: string }) {
+  const level = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0))
+  return (
+    <div className="vz-mi-row">
+      <span className="vz-mi-row-label">{label}</span>
+      <div className="vz-mi-row-track"><div className="vz-mi-row-fill" style={{ width: `${level * 100}%` }} /></div>
+      <span className="vz-mi-row-val">{text ?? level.toFixed(2)}</span>
+    </div>
+  )
 }
 
 function MiBar({

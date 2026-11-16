@@ -221,17 +221,6 @@ export function XyScopeSurface({
         </div>
       )}
       <canvas ref={canvasRef} className="rv-xyscope-canvas" data-xyscope-output-canvas="true" />
-      {scopeSource === 'mono' && (settings.sourceMode === 'textV2' || settings.sourceMode === 'osc1' || settings.sourceMode === 'osc2' || settings.sourceMode === 'init' || settings.sourceMode === 'octa' || settings.sourceMode === 'wire') && <div className="rv-xyscope-note" role="status">Stereo capture unavailable: using the live mono waveform.</div>}
-      {scopeSource === 'fallback' && audio?.trackIdentity && (
-        <div className="rv-xyscope-note" role="status">
-          {settings.sourceMode === 'textV2' ? 'Stereo samples unavailable: oscillator motion follows audio intelligence.'
-            : settings.sourceMode === 'init' ? 'Stereo samples unavailable: the oscillators follow the shared audio analysis.'
-            : settings.sourceMode === 'octa' ? 'Stereo samples unavailable: the cluster follows the shared audio analysis.'
-            : settings.sourceMode === 'wire' ? 'Stereo samples unavailable: the cubes follow the shared audio analysis.'
-            : settings.sourceMode === 'osc1' || settings.sourceMode === 'osc2' ? 'Stereo samples unavailable: the letters follow the shared audio analysis.'
-              : 'No live stereo signal: dissolves use a stand-in figure instead of the track.'}
-        </div>
-      )}
       {resolution.status === 'loading' && settings.fontId && (
         <div className="rv-xyscope-note rv-xyscope-note--top" role="status">Loading font…</div>
       )}

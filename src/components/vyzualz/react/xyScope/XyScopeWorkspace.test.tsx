@@ -428,8 +428,13 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     expect([...container.querySelectorAll('[data-xyscope-parent-group]')].map(el => el.getAttribute('data-xyscope-parent-group'))).toEqual(['master-controls', 'design', 'react', 'palette'])
     const group = (name: string) => container.querySelector(`[data-xyscope-parent-group="${name}"]`)!
     for (const id of ['intensity', 'audioReactivity', 'bpmSync', 'auto', 'flashLimit', 'hold']) expect(group('master-controls').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
-    for (const id of ['figure', 'satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'depthCue', 'duplicates', 'hiddenEdges', 'outline', 'width', 'glow', 'trail', 'scan', 'travel']) expect(group('design').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
-    for (const id of ['waveAmount', 'waveDepth', 'waveDetail', 'waveOscillator', 'chaos', 'readableFloor', 'maxDisplacement', 'minReadable', 'attack', 'release', 'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse', 'sceneEvery', 'seed']) expect(group('react').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['figure', 'backgroundShapes', 'backgroundAmount', 'satellites', 'size', 'spread', 'perspective', 'tilt', 'spin', 'depthCue', 'duplicates', 'hiddenEdges', 'outline', 'width', 'glow', 'trail', 'scan', 'travel']) expect(group('design').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    for (const id of ['waveAmount', 'waveDepth', 'waveDetail', 'waveOscillator', 'chaos', 'readableFloor', 'maxDisplacement', 'minReadable', 'attack', 'release', 'bassResponse', 'midResponse', 'lowMidResponse', 'airResponse', 'kickResponse', 'snareResponse', 'sceneEvery', 'transition', 'seed']) expect(group('react').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
+    // The live performance readouts are information, not controls: they live in the REACT tab's Wireframe Performance group, never in Master Controls.
+    expect(group('master-controls').querySelector('.vz-mi-kv-row, .vz-mi-kv-label')).toBeNull()
+    for (const text of ['Feel', 'Mood', 'Texture', 'Readability', 'Last Event', 'Evidence']) expect(group('master-controls').textContent, text).not.toContain(text)
+    expect(group('react').querySelector('[data-wire-reactions]')).not.toBeNull()
+    expect(group('react').querySelectorAll('[data-wire-rule]').length).toBeGreaterThan(0)
     for (const id of ['color', 'glow-color', 'background']) expect(group('palette').querySelector(`#xyscope-wire-${id}`), id).not.toBeNull()
     await act(async () => container.querySelector<HTMLElement>('#xyscope-wire-auto')!.click())
     expect(state().wire.autoPerformance).toBe(true)
@@ -591,12 +596,13 @@ describe('Sound Drawing XY surface', () => {
     expect(rafCallbacks.size).toBe(0)
   })
 
-  it('keeps drawing the word while nothing is playing and reports the missing stereo signal honestly', async () => {
+  it('keeps drawing the word while nothing is playing, and shows no stereo-signal notice (a DJ never has one to act on)', async () => {
     await act(async () => root.render(<XyScopeSurface audio={{ trackIdentity: 'track-1' }} />))
     const [id, callback] = rafCallbacks.entries().next().value as [number, FrameRequestCallback]
     rafCallbacks.delete(id)
     await act(async () => callback(16))
     expect(stroke).toHaveBeenCalled()
-    expect(container.textContent).toContain('No live stereo signal')
+    expect(container.textContent).not.toMatch(/stereo/i)
+    expect(container.querySelector('.rv-xyscope-note')).toBeNull()
   })
 })

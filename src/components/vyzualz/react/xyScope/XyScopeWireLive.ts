@@ -27,6 +27,18 @@ export interface WireLiveSnapshot {
   feel: 'CALM' | 'DRIVING' | 'TENSE' | 'PEAK'
   figure: WireFigureId
   auto: boolean
+  /** How much the figure is moving (0 when the music has stopped). */
+  motion: number
+  /** True when the motion is locked to the track's beat grid. */
+  beatLocked: boolean
+  /** The build pulse, 0..1. */
+  pulse: number
+  /** The impact of the last drop, 0..1, falling. */
+  shock: number
+  /** The transition running now (null when none), the latest reaction that fired and how many have fired. */
+  transition: string | null
+  lastReaction: string
+  reactionsFired: number
 }
 
 let current: WireLiveSnapshot | null = null
