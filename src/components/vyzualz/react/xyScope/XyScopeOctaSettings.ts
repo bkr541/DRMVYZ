@@ -77,13 +77,15 @@ export const OCTA_REACT_CONTROLS: readonly OctaControlSpec[] = Object.freeze([
 
 export interface XyScopeOctaSettings {
   autoPerformance: boolean
+  /** On: the figure's turn and tumble run in the track's beats. Off: at a steady tempo. */
+  bpmSync: boolean
   hold: boolean
   resetSignals: number
   values: OctaValues
 }
 
 export const DEFAULT_OCTA_SETTINGS: Readonly<XyScopeOctaSettings> = Object.freeze({
-  autoPerformance: false, hold: false, resetSignals: 0, values: Object.freeze({ ...OCTA_DEFAULTS }) as OctaValues,
+  autoPerformance: false, bpmSync: true, hold: false, resetSignals: 0, values: Object.freeze({ ...OCTA_DEFAULTS }) as OctaValues,
 })
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
@@ -108,6 +110,7 @@ export function normalizeOctaSettings(value: unknown): XyScopeOctaSettings {
   const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   return {
     autoPerformance: typeof record.autoPerformance === 'boolean' ? record.autoPerformance : false,
+    bpmSync: typeof record.bpmSync === 'boolean' ? record.bpmSync : true,
     hold: typeof record.hold === 'boolean' ? record.hold : false,
     resetSignals: Math.max(0, Math.min(1e9, Math.round(finiteOr(record.resetSignals, 0)))),
     values: normalizeOctaValues(record.values),

@@ -39,6 +39,8 @@ export const OSC2_BEAM_CONTROLS: readonly Osc2ControlSpec[] = Object.freeze([
 
 export interface XyScopeOsc2Settings {
   autoPerformance: boolean
+  /** On: the camera sweep and the terrain scroll run in the track's beats. Off: at a steady tempo. */
+  bpmSync: boolean
   /** Draws the perspective floor grid. */
   floor: boolean
   hold: boolean
@@ -47,7 +49,7 @@ export interface XyScopeOsc2Settings {
 }
 
 export const DEFAULT_OSC2_SETTINGS: Readonly<XyScopeOsc2Settings> = Object.freeze({
-  autoPerformance: false, floor: true, hold: false, resetSignals: 0, values: Object.freeze({ ...OSC2_DEFAULTS }),
+  autoPerformance: false, bpmSync: true, floor: true, hold: false, resetSignals: 0, values: Object.freeze({ ...OSC2_DEFAULTS }),
 })
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
@@ -69,6 +71,7 @@ export function normalizeOsc2Settings(value: unknown): XyScopeOsc2Settings {
   const record = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
   return {
     autoPerformance: typeof record.autoPerformance === 'boolean' ? record.autoPerformance : false,
+    bpmSync: typeof record.bpmSync === 'boolean' ? record.bpmSync : true,
     floor: typeof record.floor === 'boolean' ? record.floor : true,
     hold: typeof record.hold === 'boolean' ? record.hold : false,
     resetSignals: Math.max(0, Math.min(1e9, Math.round(finiteOr(record.resetSignals, 0)))),

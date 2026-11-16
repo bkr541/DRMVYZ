@@ -31,13 +31,15 @@ import {
 } from './XyScopeMotion'
 import { Osc1Engine, emptyOsc1Features, osc1ModeSettings, type Osc1Features } from './XyScopeOsc1Engine'
 import { Osc1Analyzer } from './XyScopeOsc1Analysis'
-import { Osc1Conductor, osc1StructureFromContext, type Osc1ConductorOutput } from './XyScopeOsc1Performance'
+import { Osc1Conductor, osc1StructureFromContext, scaleOsc1Times, type Osc1ConductorOutput } from './XyScopeOsc1Performance'
 import { Osc1Renderer } from './XyScopeOsc1Renderer'
 import { createOsc1GlyphSource } from './XyScopeOsc1Glyphs'
 import { DEFAULT_OSC1_LETTER } from './XyScopeOsc1Settings'
 import type { Osc1LiveSnapshot } from './XyScopeOsc1Live'
 import { Osc2Engine } from './XyScopeOsc2Engine'
 import { Osc2AutoPerformance } from './XyScopeOsc2Performance'
+import { BeatClock, type BeatClockFrame } from './XyScopeBeatClock'
+import { StandardAutoPerformance } from './XyScopeStandardPerformance'
 import type { Osc2LiveSnapshot } from './XyScopeOsc2Live'
 import { OctaEngine } from './XyScopeOctaEngine'
 import type { OctaLiveSnapshot } from './XyScopeOctaLive'
@@ -106,6 +108,10 @@ export class XyScopeRuntime {
   private osc1DropActive = false
   private osc2Engine = new Osc2Engine(createOsc1GlyphSource(getDefaultXyScopeFont()))
   private readonly osc2Auto = new Osc2AutoPerformance()
+  /** The BPM Sync clock shared by the engines that run their motion on the track's beats (only one engine draws at a time). */
+  private readonly beatClock = new BeatClock()
+  /** Auto Performance for the standard presets (Converse, Clean Scope, Storm). */
+  private readonly standardAuto = new StandardAutoPerformance()
   private osc2Output: Osc2LiveSnapshot['settings'] | null = null
   private osc2State = { state: 'MANUAL', confidence: 0, mapped: false }
   private osc2Text: string | null = null
@@ -228,8 +234,8 @@ export class XyScopeRuntime {
   }
 
   renderFrame(input: XyScopeFrameInput): void {
-    const params = this.params
-    if (this.disposed || !params || this.width <= 0 || this.height <= 0) return
+    const baseParams = this.params
+    if (this.disposed || !baseParams || this.width <= 0 || this.height <= 0) return
     const elapsed = this.lastNowSec === null ? 0 : Math.max(0, input.nowSec - this.lastNowSec)
     const dt = this.lastNowSec === null ? 1 / 60 : Math.max(1 / 240, Math.min(0.06, elapsed))
     this.lastNowSec = input.nowSec
@@ -270,6 +276,10 @@ export class XyScopeRuntime {
         this.rebuildLayoutIfNeeded(true)
       }
     }
+    // Auto Performance: the music moves the values around the user's own (and chooses the pattern); off, the user's values are used exactly.
+    const params = baseParams.autoPerformance
+      ? this.standardAuto.update({ dt, playing, base: baseParams, context: input.context, level: this.scope.frame.level })
+      : (this.standardAuto.reset(), baseParams)
     const background = parseXyScopeColor(params.backgroundColor, FALLBACK_BACKGROUND)
     if (this.needsClear) { this.beam.clear(background); this.needsClear = false }
 
@@ -460,7 +470,7 @@ export class XyScopeRuntime {
       this.octaConductor = { state: conducted.state, confidence: conducted.confidence, mapped: conducted.mapped }
     } else this.octaConductor = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
 
-    engine.tick(dt, features, playing, o.values, bias)
+    engine.tick(dt, features, playing, o.values, bias, this.clockFor(input.context, o.bpmSync, playing, dt))
     renderer.render(engine, {
       dt, settings: { intensity: 100, persistence: o.values.trail, width: o.values.width, scan: o.values.scan, color: o.values.color },
       grid: false, hold: o.hold, halo: { amount: o.values.glow, color: o.values.glowColor }, background: o.values.backgroundColor,
@@ -616,8 +626,18 @@ export class XyScopeRuntime {
     } else if (o.autoPerformance && this.osc2Output) effective = this.osc2Output
     else this.osc2State = { state: o.autoPerformance ? 'LISTENING' : 'MANUAL', confidence: 0, mapped: false }
     engine.setSettings(effective, o.floor)
-    engine.tick(dt, features, playing)
+    engine.tick(dt, features, playing, this.clockFor(input.context, o.bpmSync, playing, dt))
     this.osc1Renderer.render(engine, { dt, settings: effective, grid: false, hold: o.hold })
+  }
+
+  /**
+   * The BPM Sync clock for an engine that moves on the track's beats. Locked (BPM Sync on and a beat grid) it advances by the beats that
+   * played and reports the tempo's time scale; otherwise it is the real frame time at a steady tempo.
+   */
+  private clockFor(context: SharedPerformanceContext | null, sync: boolean, playing: boolean, dt: number): BeatClockFrame {
+    const grid = context != null && context.capabilities.beatGrid && context.bpm > 0
+    if (context?.seekDetected) this.beatClock.reset()
+    return this.beatClock.step(dt, { playing, sync, bpm: grid ? context.bpm : null, absoluteBeat: grid ? context.absoluteBeat : null })
   }
 
   private resetOsc1Signals(): void {
@@ -657,7 +677,9 @@ export class XyScopeRuntime {
       this.osc1Source = 'none'
     }
 
-    const manual = o.presets[o.mode]
+    // BPM Sync: the envelope times are musical times, so they follow the track's tempo (a fast track reacts faster).
+    const tempoScale = this.clockFor(input.context, o.bpmSync, playing, dt).tempoScale
+    const manual = scaleOsc1Times(o.presets[o.mode], tempoScale)
     if (this.osc1Auto !== o.autoPerformance) {
       this.osc1Auto = o.autoPerformance
       this.osc1Conductor.reset()
@@ -670,7 +692,7 @@ export class XyScopeRuntime {
     if (o.autoPerformance && playing) {
       const output = this.osc1Conductor.update(dt, features, { structure: osc1StructureFromContext(input.context), mode: o.mode, base: manual, letterCount: engine.letters.length })
       this.osc1Output = output
-      engine.setMode(o.mode, output.settings)
+      engine.setMode(o.mode, scaleOsc1Times(output.settings, tempoScale))
       output.letters.forEach((value, i) => { const l = engine.letters[i]; if (l) Object.assign(l, value) })
       // A confirmed drop moves to the next word when several are entered.
       const dropping = output.state === 'DROP'
@@ -682,7 +704,7 @@ export class XyScopeRuntime {
       engine.setMode(o.mode, manual)
     }
     engine.tick(dt, features, playing)
-    const settingsNow = o.autoPerformance && this.osc1Output ? this.osc1Output.settings : manual
+    const settingsNow = o.autoPerformance && this.osc1Output ? scaleOsc1Times(this.osc1Output.settings, tempoScale) : manual
     this.osc1Renderer.render(engine, { dt, settings: settingsNow, grid: o.grid, hold: o.hold })
   }
 
@@ -693,7 +715,7 @@ export class XyScopeRuntime {
     const frame = this.textV2.update(settings.textV2, input.context, input.fresh, playing, dt, scope.source !== 'fallback' ? scope.level : 0)
     this.textV2Frame = frame
     const previousPhase = this.textV2TrajectoryFrame?.phase
-    const trajectory = this.textV2Trajectory.update(frame, input.context, input.fresh, playing, dt)
+    const trajectory = this.textV2Trajectory.update(frame, input.context, input.fresh, playing, dt, settings.textV2.bpmSync)
     this.textV2TrajectoryFrame = trajectory
     if (trajectory.commitWordEvent && this.words.length > 1) {
       this.activeText = selectTextV2Word(this.words, this.activeText, trajectory.commitWordEvent, input.context?.deterministicVariationSeed ?? 0)

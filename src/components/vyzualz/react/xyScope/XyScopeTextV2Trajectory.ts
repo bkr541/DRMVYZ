@@ -30,11 +30,12 @@ export class XyScopeTextV2Trajectory {
     this.pendingWord = null; this.lastCue = null; this.previousAmount = 0; this.started = false; this.lastDecision = 'idle'; this.revealWord = false
   }
 
-  update(frame: TextV2PerformanceFrame, context: SharedPerformanceContext | null, fresh: boolean, playing: boolean, dt: number): TextV2TrajectoryFrame {
+  /** `bpmSync`: with it (and a tempo in the context) the beats are the track's; without it they are a steady 120 BPM. */
+  update(frame: TextV2PerformanceFrame, context: SharedPerformanceContext | null, fresh: boolean, playing: boolean, dt: number, bpmSync = true): TextV2TrajectoryFrame {
     let commitWordEvent: string | null = null
     const discontinuity = fresh && context && (context.seekDetected || context.loopWrapDetected || context.trackReplacementDetected)
     if (discontinuity) { this.reset(); this.started = true; this.previousAmount = frame.amount }
-    const secondsPerBeat = context && context.bpm > 0 ? 60 / context.bpm : .5
+    const secondsPerBeat = bpmSync && context && context.bpm > 0 ? 60 / context.bpm : .5
     const beats = Math.max(0, dt) / secondsPerBeat
     const music = playing && frame.amount > .025
     const onset = music && this.previousAmount <= .1 && frame.amount > .1

@@ -5,6 +5,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReactStore } from '../../../../stores/reactStore'
+import { applyXyScopePreset, DEFAULT_XY_SCOPE_SETTINGS, XY_SCOPE_PRESETS, type XyScopeSourceMode } from './XyScopeSettings'
 import { ReactEnginePanel } from '../ReactEnginePanel'
 import {
   XyScopeDesignPanel,
@@ -449,6 +450,48 @@ describe('Sound Drawing XY source, presets and React tab', () => {
     await act(async () => sourceCard.click())
     expect(state().sourceMode).toBe('wire')
     expect(state().wire.autoPerformance).toBe(true)
+  })
+
+  it('gives every preset and option, in every source, both an Auto Performance and a BPM Sync toggle in Master Controls', async () => {
+    const audited: string[] = []
+    // The instrument presets each own their engine; the standard presets (Converse, Clean Scope, Storm) work in the TEXT, SVG and OSCILATOR sources.
+    const cases: { label: string; presetId: string; source?: XyScopeSourceMode }[] = []
+    for (const preset of XY_SCOPE_PRESETS) {
+      if (preset.parameters && Object.keys(preset.parameters).length > 0) for (const source of ['text', 'svg', 'oscillator'] as const) cases.push({ label: `${preset.name} in ${source}`, presetId: preset.id, source })
+      else cases.push({ label: preset.name, presetId: preset.id })
+    }
+    expect(cases.length).toBeGreaterThanOrEqual(11 + 6)
+    for (const { label, presetId, source } of cases) {
+      const base = source ? { ...DEFAULT_XY_SCOPE_SETTINGS, sourceMode: source } : DEFAULT_XY_SCOPE_SETTINGS
+      await act(async () => useReactStore.getState().setXyScopeSettings(applyXyScopePreset(base, presetId)))
+      await act(async () => root.render(<XyScopeDesignPanel />))
+      const master = container.querySelector('[data-xyscope-parent-group="master-controls"]')!
+      expect(master, label).not.toBeNull()
+      const labels = [...master.querySelectorAll('label, [class*="label"], span')].map(el => el.textContent?.trim())
+      expect(labels, `${label}: BPM Sync`).toContain('BPM Sync')
+      expect(labels, `${label}: Auto Performance`).toContain('Auto Performance')
+      audited.push(label)
+    }
+    expect(audited).toContain('Text V2'); expect(audited).toContain('OCTA'); expect(audited).toContain('CUBES'); expect(audited).toContain('Storm in svg')
+  })
+
+  it('turns BPM Sync and Auto Performance on and off from Master Controls, for the engines that gained them', async () => {
+    const state = () => useReactStore.getState().xyScopeSettings
+    const flip = async (id: string) => { await act(async () => container.querySelector<HTMLElement>(`#${id}`)!.click()) }
+    const show = async (presetId: string, source?: XyScopeSourceMode) => {
+      await act(async () => useReactStore.getState().setXyScopeSettings(applyXyScopePreset(source ? { ...DEFAULT_XY_SCOPE_SETTINGS, sourceMode: source } : DEFAULT_XY_SCOPE_SETTINGS, presetId)))
+      await act(async () => root.render(<XyScopeDesignPanel />))
+    }
+    await show('textV2'); expect(state().textV2.bpmSync).toBe(true); await flip('xyscope-v2-bpm-sync'); expect(state().textV2.bpmSync).toBe(false)
+    await show('osc1'); expect(state().osc1.bpmSync).toBe(true); await flip('xyscope-osc1-bpm-sync'); expect(state().osc1.bpmSync).toBe(false)
+    await show('osc2'); expect(state().osc2.bpmSync).toBe(true); await flip('xyscope-osc2-bpm-sync'); expect(state().osc2.bpmSync).toBe(false)
+    await show('octa'); expect(state().octa.bpmSync).toBe(true); await flip('xyscope-octa-bpm-sync'); expect(state().octa.bpmSync).toBe(false)
+    for (const source of ['text', 'svg', 'oscillator'] as const) {
+      await show('storm', source)
+      expect(state().parameters.autoPerformance).toBe(false)
+      await flip('xyscope-parameter-autoPerformance'); expect(state().parameters.autoPerformance).toBe(true)
+      await flip('xyscope-parameter-autoPerformance'); expect(state().parameters.autoPerformance).toBe(false)
+    }
   })
 
   it('filters instrument presets by source and searches within that source', async () => {

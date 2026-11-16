@@ -107,13 +107,14 @@ export class OctaEngine {
    * One frame. `bias` is added to the energy (Auto Performance's builds and drops). The energy is normalised to the track's own recent
    * range so every distortion is reachable on any material, then eased by Energy Response.
    */
-  tick(dt: number, features: Osc1Features, playing: boolean, values: OctaValues, bias = 0): void {
+  tick(dt: number, features: Osc1Features, playing: boolean, values: OctaValues, bias = 0, clock: { motionDt: number; tempoScale: number } = { motionDt: dt, tempoScale: 1 }): void {
     this.values = values
     const raw = playing ? clamp(.65 * features.level + .35 * Math.max(features.bass, features.mid)) : 0
     this.rawPeak = Math.max(.25, raw, this.rawPeak * Math.exp(-dt / 10))
     this.level = clamp(features.level)
     const target = clamp((raw / this.rawPeak + bias) * values.audioReactivity * values.distortion)
-    const tau = mix(.7, .05, values.energyResponse)
+    // Energy Response is a musical time: with BPM Sync it scales with the tempo (a fast track is followed faster).
+    const tau = mix(.7, .05, values.energyResponse) * clock.tempoScale
     this.energy += (target - this.energy) * (1 - Math.exp(-dt / tau))
     const e = this.energy
     // The distortion ladder: tumble first, then the beam's inertia rounds it into loops, the cluster folds into a cage, and dots last.
@@ -123,9 +124,9 @@ export class OctaEngine {
     this.loops = smooth(.38, .5, e) * (1 - smooth(.56, .66, e)) * values.slew
     this.cage = smooth(.6, .7, e) * (1 - smooth(.78, .86, e)) * values.slew
     this.state = this.dots > .3 ? 'DOTS' : this.cage > .3 ? 'CAGE' : this.loops > .3 ? 'LOOPS' : this.tumbleAmount > .25 ? 'TUMBLE' : 'CLEAN'
-    this.time += dt
+    this.time += clock.motionDt
     // The loops and the cage hold the figure still so the beam retraces the same path each scan.
-    this.spin += dt * values.spin * .25 * (1 + this.tumbleAmount * 2) * (1 - clamp(this.loops + this.cage + this.dots * .8))
+    this.spin += clock.motionDt * values.spin * .25 * (1 + this.tumbleAmount * 2) * (1 - clamp(this.loops + this.cage + this.dots * .8))
     this.letters[0].rate = 1 + this.dots * 1.6
     this.buildPath(values)
     this.setBeamFilter()

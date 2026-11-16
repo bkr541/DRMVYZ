@@ -59,6 +59,8 @@ export interface XyScopeOsc1Settings {
   /** The selected response system, 0–4. */
   mode: number
   autoPerformance: boolean
+  /** On: the envelope times follow the track's tempo (a fast track reacts faster). Off: they are the fixed times you set. */
+  bpmSync: boolean
   grid: boolean
   /** Hold freezes the displayed trace while audio and analysis continue. */
   hold: boolean
@@ -71,7 +73,7 @@ export interface XyScopeOsc1Settings {
 }
 
 export const DEFAULT_OSC1_SETTINGS: Readonly<XyScopeOsc1Settings> = Object.freeze({
-  mode: 0, autoPerformance: false, grid: true, hold: false, letterIndex: -1, resetSignals: 0,
+  mode: 0, autoPerformance: false, bpmSync: true, grid: true, hold: false, letterIndex: -1, resetSignals: 0,
   presets: Object.freeze(OSC1_MODES.map((_, i) => Object.freeze(osc1ModeSettings(i)))),
   letters: Object.freeze([]),
 })
@@ -99,6 +101,7 @@ export function normalizeOsc1Settings(value: unknown): XyScopeOsc1Settings {
   return {
     mode: Math.max(0, Math.min(OSC1_MODES.length - 1, Math.round(finiteOr(record.mode, 0)))),
     autoPerformance: typeof record.autoPerformance === 'boolean' ? record.autoPerformance : false,
+    bpmSync: typeof record.bpmSync === 'boolean' ? record.bpmSync : true,
     grid: typeof record.grid === 'boolean' ? record.grid : true,
     hold: typeof record.hold === 'boolean' ? record.hold : false,
     letterIndex: Math.max(-1, Math.min(OSC1_MAX_LETTERS - 1, Math.round(finiteOr(record.letterIndex, -1)))),

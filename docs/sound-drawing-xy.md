@@ -112,7 +112,7 @@ The Design tab follows the same hierarchy as the Cinema 2.0 and Headliner Design
 
 | Group | Controls |
 | --- | --- |
-| Master Controls | Master Intensity, Audio Reactivity, Motion Amount, BPM Sync |
+| Master Controls | Master Intensity, Audio Reactivity, Motion Amount, BPM Sync, Auto Performance |
 | Design › Pattern | Pattern, Pattern Change, Trigger (only while Pattern Change is on), Transition Length |
 | Design › Letters | Text Size, Letter Spacing, Ignore Small Pieces |
 | Design › Beam | Phosphor Trail, Glow |
@@ -126,6 +126,35 @@ Pattern Change defaults to **on** so the engine performs when it is first opened
 The left rail has SOURCE and MEDIA tabs. SOURCE has TEXT, SVG, OSCILATOR and WIREFRAME cards with persisted selection. TEXT holds the standard **Input** group with the word (up to 16 characters, drawn in capitals) and Font dropdown. SVG holds its own **Input** group with an uploaded SVG selector and processing mode. MEDIA remains a disabled placeholder; uploads are managed in Media Manager; a disabled tab can never be the open tab (`disabledLeftTabs` in `reactWorkspaceComposition.ts`). The PRESETS tab follows the selected source. TEXT includes Text V2, Converse, Clean Scope, Storm, OSC 1 and OSC 2; OSCILATOR includes INIT and OCTA alongside the three shared parameter presets. SVG offers the three shared parameter presets. The TEXT card stays active for Text V2, OSC 1 and OSC 2; OSCILATOR stays active for INIT and OCTA; WIREFRAME offers CUBES, SOLIDS and TESSERACT. Clicking an already active source card keeps its current instrument. A shared parameter preset returns an instrument to its base source (TEXT or OSCILATOR), sets Master Controls, the Pattern group, and React values and leaves the word, font, letters, beam and palette alone. A manual edit keeps the preset id and the card shows Modified.
 
 `XY_SCOPE_PARAMETERS` is the single source of truth for labels, ranges, defaults and visibility; the panel, the store normalizer and the runtime all read it.
+
+## Auto Performance and BPM Sync in every option
+
+**Every preset and option in Sound Drawing XY has both an Auto Performance toggle and a BPM Sync toggle in its Master Controls.** A test renders every preset's Design panel (the standard presets in each of the TEXT, SVG and OSCILATOR sources) and fails if either is missing.
+
+What the two toggles mean here, and so what each engine has to do for them:
+
+- **BPM Sync.** On, with a beat grid, the engine's musical timing runs in the track's own beats: slow motion advances by the beats that actually played (so it stays in step with the bar, follows a tempo change, falls into place after a seek, and holds still when the music stops), and times that are meant to feel musical scale with the tempo. Off, or with no beat grid, it runs at a steady tempo (100 BPM, or 120 BPM for Text V2's beats). A tempo that is only a guess is never followed. The shared clock is `XyScopeBeatClock.ts`: it reports `motionDt` (the beats played, expressed in seconds at the 100 BPM reference tempo, or the real frame time when not locked) and `tempoScale` (100 / BPM when locked, else 1). With BPM Sync off the engines run exactly as they did before the toggle existed.
+- **Auto Performance.** On, the audio intelligence conducts the instrument (energy, builds, drops, breakdowns, sections and phrases) instead of leaving every value to the sliders. The user's values are the baseline, each driven value is the user's moved by a bounded, smoothed amount, off (or nothing playing) restores the user's values exactly, nothing is random, and a live microphone (no sections, phrases or key) never has any invented.
+
+| Option | BPM Sync | Auto Performance |
+| --- | --- | --- |
+| Converse, Clean Scope, Storm (TEXT, SVG, OSCILATOR) | beat-locked figure turn and choreography (existing) | **new**: `XyScopeStandardPerformance.ts` |
+| Text V2 | **new**: departure, hold and return beats follow the track's tempo; off is a steady 120 BPM | existing conductor |
+| OSC 1 | **new**: Attack and Release follow the tempo (`scaleOsc1Times`) | existing conductor |
+| OSC 2 | **new**: camera sweep and terrain scroll run on the beat clock | existing conductor |
+| INIT | beat-locked oscillator moves (existing) | existing conductor |
+| OCTA | **new**: turn and tumble run on the beat clock; Energy Response follows the tempo | existing conductor |
+| CUBES, SOLIDS, TESSERACT (WIREFRAME) | beat-locked motion (existing) | existing conductor |
+
+The new BPM Sync toggles default to **on** (as INIT's and WIREFRAME's do). For OSC 1, OSC 2 and OCTA that means that, on a track with a beat grid, their timing now follows its tempo; turn the toggle off for the previous fixed times. OSC 1 has no clock-driven motion (it is signal-driven, with no angle advanced by elapsed time), so its tempo sync is the scaling of the envelope times, which is the only musical timing it has.
+
+### Auto Performance for the standard presets
+
+`StandardAutoPerformance` (Design › Master Controls › Auto Performance in Converse, Clean Scope and Storm, in every source) reads the same structural evidence the other engines use (`osc1StructureFromContext`: track-relative energy, builds, drops, breakdowns; without an analysed track, only the signal's level):
+- **It chooses the pattern** on a musical boundary only (a drop, a new phrase, a section entry, and with no sections only the eight-bar boundaries a beat grid vouches for), from the patterns that suit the passage (drops: Pinwheel, Rosette, Stereo Scope, Ring; builds: Ring, Weave, Waveform, Rosette; grooves: Weave, Ring, Stereo Scope, Waveform, Word; calm: Word, Waveform, Stereo Scope), never repeating the current one, held at least four seconds unless a drop lands, as a pure function of the track's seed, the section and the boundary (the same track gives the same show). While it is on, Pattern Change is off in effect (the music chooses), and the Pattern and Trigger rows are the baseline it starts from.
+- **It moves** Transition Length, Motion Amount, Form Response, Line Vibration, Snare Fray, Answer Delay, Glow, Phosphor Trail and Master Intensity around the user's values, each inside its own control's range, quick to rise and slower to fall: a drop opens the scene (more motion, glow, form response and fray; shorter trails, answers and transitions), a breakdown calms it. A value the user set to zero stays zero.
+- **It never touches** Audio Reactivity, BPM Sync, the letters (size, spacing, small pieces), the response sliders (bass, mid, high, kick, snare), the colours and the Trigger.
+- A live microphone gives no boundaries, so the pattern stays the user's and only the signal's level moves the values.
 
 ## Fonts
 

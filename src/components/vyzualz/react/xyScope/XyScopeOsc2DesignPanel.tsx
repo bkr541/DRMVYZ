@@ -59,6 +59,8 @@ export function XyScopeOsc2DesignPanel() {
         <div className="rv-ctrl-group" data-xyscope-design-groups="master-controls design react palette">
           <Collapsible label="Master Controls" icon={<AppIcon kind="sliders" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="master-controls" style={{ display: 'contents' }}>
+              <ToggleRow id="xyscope-osc2-bpm-sync" label="BPM Sync" value={o.bpmSync} onChange={bpmSync => patch({ bpmSync })}
+                description="On: the camera sweep and the terrain scroll run in the track's own beats, so they stay in step with the bar and stop when the music stops. Off: they run at a steady tempo." />
               <ToggleRow id="xyscope-osc2-auto" label="Auto Performance" value={auto} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Audio intelligence conducts the camera, depth, terrain and beam together: builds pull the camera up and back, drops push it in and open the solid. Switching off restores your values." />
               {auto && <>

@@ -47,6 +47,8 @@ export function XyScopeOctaDesignPanel() {
           <Collapsible label="Master Controls" icon={<AppIcon kind="sliders" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="master-controls" style={{ display: 'contents' }}>
               {OCTA_MASTER_CONTROLS.map(slider)}
+              <ToggleRow id="xyscope-octa-bpm-sync" label="BPM Sync" value={o.bpmSync} onChange={bpmSync => patch({ bpmSync })}
+                description="On: the cluster's turn and tumble run in the track's own beats (and Energy Response follows its tempo), so it stays in step with the bar. Off: it moves at a steady tempo." />
               <ToggleRow id="xyscope-octa-auto" label="Auto Performance" value={o.autoPerformance} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Audio intelligence adds to the energy on builds and drops, so the figure is pushed further through its distortions at the moments that call for it." />
               {kv('Distortion', live?.state ?? 'CLEAN')}

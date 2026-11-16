@@ -136,6 +136,11 @@ export const XY_SCOPE_PARAMETERS: readonly XyScopeParameterDefinition[] = Object
     description: 'On: the figures turn in time with the loaded track. Off: they turn at a steady tempo.',
     default: true,
   },
+  {
+    id: 'autoPerformance', group: 'master-controls', kind: 'toggle', label: 'Auto Performance',
+    description: 'The music conducts the instrument: its builds, drops, breakdowns, sections and phrases choose the pattern and move Transition Length, Motion Amount, Form Response, Line Vibration, Snare Fray, Answer Delay, Glow, Phosphor Trail and Master Intensity around your values. Switching off restores exactly your values.',
+    default: false,
+  },
   // ── Design › Pattern ────────────────────────────────────────────────────────
   {
     id: 'pattern', group: 'design', subgroup: 'Pattern', kind: 'select', label: 'Pattern',
@@ -451,6 +456,7 @@ export interface XyScopeResolvedParameters {
   audioReactivity: number
   motionAmount: number
   bpmSync: boolean
+  autoPerformance: boolean
   pattern: XyScopePattern
   patternChange: boolean
   trigger: XyScopeTrigger
@@ -478,6 +484,7 @@ export function resolveXyScopeParameters(settings: XyScopeSettings): XyScopeReso
     audioReactivity: p.audioReactivity as number,
     motionAmount: p.motionAmount as number,
     bpmSync: p.bpmSync as boolean,
+    autoPerformance: p.autoPerformance as boolean,
     pattern: p.pattern as XyScopePattern,
     patternChange: p.patternChange as boolean,
     trigger: p.trigger as XyScopeTrigger,

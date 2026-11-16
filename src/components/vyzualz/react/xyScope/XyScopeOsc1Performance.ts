@@ -18,6 +18,17 @@ export const OSC1_RANGES: Readonly<Record<Osc1ControlKey, readonly [number, numb
   intensity: [10, 100], persistence: [20, 250], width: [.6, 3], scan: [8, 180],
 })
 
+/**
+ * BPM Sync for OSC 1: its only musical times are the attack and release of its envelopes, so with BPM Sync they follow the track's tempo
+ * (`scale` is 100 / BPM: a track faster than the reference tempo reacts proportionally faster, a slower one slower), kept inside their ranges.
+ * A scale of 1 (BPM Sync off, or no beat grid) returns the settings untouched.
+ */
+export function scaleOsc1Times(settings: Osc1Settings, scale: number): Osc1Settings {
+  if (scale === 1 || !Number.isFinite(scale)) return settings
+  const [attackLo, attackHi] = OSC1_RANGES.attack, [releaseLo, releaseHi] = OSC1_RANGES.release
+  return { ...settings, attack: clamp(settings.attack * scale, attackLo, attackHi), release: clamp(settings.release * scale, releaseLo, releaseHi) }
+}
+
 /** Structural evidence at the playback position, the equivalent of the Text Lab's track-map sample. */
 export interface Osc1StructureFrame {
   energy: number

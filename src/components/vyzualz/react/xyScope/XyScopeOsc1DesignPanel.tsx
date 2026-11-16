@@ -74,6 +74,8 @@ export function XyScopeOsc1DesignPanel() {
         <div className="rv-ctrl-group" data-xyscope-design-groups="master-controls design react palette">
           <Collapsible label="Master Controls" icon={<AppIcon kind="sliders" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="master-controls" style={{ display: 'contents' }}>
+              <ToggleRow id="xyscope-osc1-bpm-sync" label="BPM Sync" value={o.bpmSync} onChange={bpmSync => patch({ bpmSync })}
+                description="On: Attack and Release follow the track's tempo when it has a beat grid, so a fast track reacts faster and a slow one more slowly. Off: they are exactly the times you set." />
               <ToggleRow id="xyscope-osc1-auto" label="Auto Performance" value={auto} onChange={autoPerformance => patch({ autoPerformance })}
                 description="Coordinates all sixteen visual controls, the phosphor colour and each letter’s gain, direction and focus from live audio and section evidence. Switching off restores your saved values." />
               {auto && <>

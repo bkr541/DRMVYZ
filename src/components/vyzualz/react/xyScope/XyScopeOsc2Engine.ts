@@ -148,7 +148,8 @@ export class Osc2Engine {
 
   setSettings(s: Osc2Settings, floor: boolean): void { this.s = s; this.floor = floor }
 
-  tick(dt: number, features: Osc1Features, playing: boolean): void {
+  /** `clock.motionDt` is the time the camera sweep and the terrain scroll advance by (the track's beats with BPM Sync); envelopes stay in real time. */
+  tick(dt: number, features: Osc1Features, playing: boolean, clock: { motionDt: number } = { motionDt: dt }): void {
     this.playing = playing
     const input = playing ? features : emptyOsc1Features()
     const f = this.f as unknown as Record<string, number>
@@ -168,7 +169,7 @@ export class Osc2Engine {
 
     // Camera: a sweep whose pace follows the music's level, settling straight-on in silence and when paused.
     const s = this.s, level = playing ? this.f.level : 0
-    this.phase += dt * s.orbitSpeed * 1.4 * (.15 + level * 1.6)
+    this.phase += clock.motionDt * s.orbitSpeed * 1.4 * (.15 + level * 1.6)
     const range = playing ? s.orbitRange * clamp(level * 4) : 0
     this.sweep = mix(this.sweep, range, 1 - Math.exp(-dt / .4))
     this.yaw = Math.sin(this.phase) * this.sweep * Math.PI / 180
@@ -180,7 +181,7 @@ export class Osc2Engine {
 
     // Terrain: the newest moment of waveform enters the front row, older rows recede.
     if (playing && this.waveL?.length) {
-      this.rowClock += dt
+      this.rowClock += clock.motionDt
       if (this.rowClock >= .07) {
         this.rowClock %= .07
         const oldest = this.rows.pop()!

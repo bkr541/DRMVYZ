@@ -24,6 +24,8 @@ export function XyScopeTextV2DesignPanel() {
         <div className="rv-ctrl-group" data-xyscope-design-groups="master-controls design react palette">
           <Collapsible label="Master Controls" icon={<AppIcon kind="sliders" size={15} color="currentColor" />}>
             <div data-xyscope-parent-group="master-controls" style={{ display: 'contents' }}>
+              <ToggleRow id="xyscope-v2-bpm-sync" label="BPM Sync" value={v2.bpmSync} onChange={bpmSync => setV2({ bpmSync })}
+                description="On: the word's departures, holds and returns are counted in the track's own beats (its tempo, when it has a beat grid). Off: they run at a steady tempo whatever the track." />
               <ToggleRow id="xyscope-v2-auto" label="Auto Performance" value={v2.autoPerformance} onChange={autoPerformance => setV2({ autoPerformance })}
                 description="Audio intelligence conducts response styles, geometry, departure and reform, beam, and letter channels together." />
               <SelectRow id="xyscope-v2-grouping" label="Oscillator Grouping" value={v2.grouping} menuBoundarySelector=".vz-inspector" placement="below"
