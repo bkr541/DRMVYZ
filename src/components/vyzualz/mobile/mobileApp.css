@@ -36,7 +36,10 @@ html, body { overscroll-behavior: none; touch-action: manipulation; -webkit-tap-
 .mobile-audio-status { margin: 0; color: var(--color-text-muted); font: var(--type-field-value); line-height: 1.5; }
 .mobile-audio-status[data-listening] { color: var(--color-primary); }
 .mobile-audio-status[data-error] { color: var(--color-danger, #df706d); }
-.mobile-audio-transport { display: flex; align-items: center; gap: 12px; }
+.mobile-audio-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+.mobile-audio-transport { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mobile-audio-now { display: grid; gap: 2px; min-width: 0; }
+.mobile-audio-now strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text); font: var(--type-field-value); font-weight: 600; }
 .mobile-audio-time { color: var(--color-text-muted); font: var(--type-field-value); font-variant-numeric: tabular-nums; }
 .mobile-track-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .mobile-track { display: grid; gap: 2px; width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-group); background: var(--color-panel-alt); color: var(--color-text); text-align: left; font: var(--type-field-value); cursor: pointer; }
