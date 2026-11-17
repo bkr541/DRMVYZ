@@ -958,7 +958,7 @@ While Auto Performance is on, the Design tab shows what the music is doing and d
 - A locked control exposes its disabled state to assistive technology (`disabled`/`aria-disabled`) and a reason ("Auto Performance is on") wherever a disabled reason is shown elsewhere in the Inspector.
 - **Generic mechanism.** The lock is one shared Inspector projection driven by the preset's declared Auto Performance toggle and the parent-group placement (Section 9). It must not match labels, parameter names or preset names, and a preset adds nothing preset-specific to get it.
 
-*Rollout status:* this lock is a shared Inspector feature that is **not built yet**. It becomes the required behavior for every Cinema 2.0 preset as each preset is migrated to the shared enhancements. Until it ships, presets keep their existing interim behavior (for example Depth turning Auto Performance off when its Light Program or Pattern Change is edited), and neither the lock tests nor the lock stop-ship items below can be satisfied.
+*Rollout status:* this lock is a shared Inspector feature that is **not built yet**. It becomes the required behavior for every Cinema 2.0 preset as each preset is migrated to the shared enhancements. Until it ships, presets keep their existing interim behavior (for example Depth turning Auto Performance off when its Pattern or Pattern Change is edited), and neither the lock tests nor the lock stop-ship items below can be satisfied.
 
 ### Live value display in the Inspector
 

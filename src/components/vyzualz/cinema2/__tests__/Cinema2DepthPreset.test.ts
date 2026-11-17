@@ -195,7 +195,7 @@ describe('Cinema 2.0 Depth preset', () => {
     const effectValidation = cinema2NativeEffectRegistry.validateEffects(CINEMA2_DEPTH_PRESET_MANIFEST.effects ?? [])
     expect(effectValidation.ok, effectValidation.diagnostics.map(diagnostic => `${diagnostic.code}: ${diagnostic.message}`).join('\n')).toBe(true)
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: 'Light Program', type: 'enum', defaultValue: 'architecturalSparse' }),
+      expect.objectContaining({ label: 'Pattern', type: 'enum', defaultValue: 'architecturalSparse' }),
       expect.objectContaining({ label: 'Direction', type: 'enum', defaultValue: 'forward' }),
       expect.objectContaining({ label: 'Rate', defaultValue: 1.1 }),
       expect.objectContaining({ label: 'Active Span', defaultValue: 4 }),
@@ -291,7 +291,7 @@ describe('Cinema 2.0 Depth preset', () => {
       tempoSync: { $ref: CINEMA2_DEPTH_BPM_SYNC_ID },
     })
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.parameters).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, defaultValue: true }),
+      expect.objectContaining({ id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, defaultValue: false }),
       expect.objectContaining({ id: CINEMA2_DEPTH_MOTION_SAFETY_ID, type: 'enum', defaultValue: 'full' }),
     ]))
     expect(CINEMA2_DEPTH_PRESET_MANIFEST.choreography?.rules.map(rule => rule.source.signal)).toEqual([
@@ -388,6 +388,16 @@ describe('Cinema 2.0 Depth preset', () => {
       const order = ['architecturalSparse', 'depthChase', 'sideOrbit', 'gatePulse', 'alternatingFrames', 'portalRelay']
       const seen = bar.patterns.filter((pattern, i) => i === 0 || pattern !== bar.patterns[i - 1])
       seen.forEach((pattern, i) => expect(pattern).toBe(order[i % order.length]))
+    })
+
+    it('reports what the music chose (and that it is choosing) for the module\'s inspect(), and the saved values when it is not', () => {
+      const frame = { ...depthMusicFrame(0, { energy: .5, bass: .4 }), mood: choice(true, 'bar4') } as Cinema2ModuleFrameReadContext
+      const orchestration = new Cinema2DepthOrchestration()
+      expect(orchestration.inspectPatternControls()).toEqual({ effectivePatternChange: null, effectiveTrigger: null, patternControlsAutomatic: false })
+      orchestration.update(frame, depthInputs({ patternChange: false, trigger: 'bar8' }), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+      expect(orchestration.inspectPatternControls()).toEqual({ effectivePatternChange: true, effectiveTrigger: 'bar4', patternControlsAutomatic: true })
+      orchestration.update(frame, depthInputs({ auto: false, patternChange: false, trigger: 'bar8' }), CINEMA2_DEPTH_LIGHT_PROGRAMS)
+      expect(orchestration.inspectPatternControls()).toEqual({ effectivePatternChange: false, effectiveTrigger: 'bar8', patternControlsAutomatic: false })
     })
 
     it('holds the program while the music says to hold (a silent stop), whatever the saved Pattern Change and Trigger are', () => {
@@ -819,7 +829,7 @@ describe('Cinema 2.0 Depth preset', () => {
     expect(draw.mock.calls[0]?.[0].spills).toHaveLength(769)
     expect(draw.mock.calls[0]?.[0]).toMatchObject({ repeatDistance: 48, repeatOriginZ: 12 })
     expect(draw.mock.calls[0]?.[0].structureRotationRadians).toBeCloseTo(2.25 / CINEMA2_DEPTH_STRUCTURE_ROTATION_SECONDS * Math.PI * 2, 8)
-    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 769, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse' })
+    expect(instance.inspect()).toMatchObject({ portalCount: 8, lapCopies: 3, instanceCount: 769, estimatedGpuBytes: 4096, lightProgram: 'sideOrbit', direction: 'reverse', patternControlsAutomatic: false })
     expect(reportGpuBytes).toHaveBeenCalledWith(4096)
 
     instance.lifecycle.dispose()

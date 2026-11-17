@@ -291,7 +291,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   parameters: Object.freeze([
     CINEMA2_QUALITY_MODE_PARAMETER,
     floatParameter(CINEMA2_DEPTH_INTENSITY_ID, 'Intensity', 'Master brightness of the portal lights and their local structural response.', 1, 0, 2, 0.01, 'master-controls', 1, 'Light'),
-    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, label: 'Auto Performance', description: 'Lets the shared Audio Intelligence choose sparse, chase, relay, build, countdown and discharge behavior from the current musical context.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 2, group: 'Playback' }),
+    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, label: 'Auto Performance', description: 'Lets the shared Audio Intelligence choose sparse, chase, relay, build, countdown and discharge behavior from the current musical context.', type: 'boolean' as const, defaultValue: false, designParentGroup: 'master-controls' as const, order: 2, group: 'Playback' }),
     Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_BPM_SYNC_ID, label: 'BPM Sync', description: 'Sync the camera travel, geometry-aware light routes and musical rotation changes to detected track tempo. Without a track, they free-run deterministically.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 3, group: 'Playback' }),
     Object.freeze({
       ...parameterBase,
@@ -312,14 +312,14 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     Object.freeze({
       ...parameterBase,
       id: CINEMA2_DEPTH_PROGRAM_ID,
-      label: 'Light Program',
-      description: 'Choose how portal rings, depth lanes, opposing pairs and helices respond to the music. Choosing a program turns Auto Performance off.',
+      label: 'Pattern',
+      description: 'Choose how portal rings, depth lanes, opposing pairs and helices respond to the music. Choosing a pattern turns Auto Performance off.',
       type: 'enum' as const,
       defaultValue: 'architecturalSparse',
       metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }) }),
       designParentGroup: 'design' as const,
       order: 1,
-      group: 'Light Program',
+      group: 'Pattern',
       options: Object.freeze(CINEMA2_DEPTH_LIGHT_PROGRAMS.map(value => Object.freeze({ value, label: PATTERN_LABELS[value] }))),
     }),
     Object.freeze({
@@ -332,7 +332,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_DEPTH_AUTO_PERFORMANCE_ID]: false }) }),
       designParentGroup: 'design' as const,
       order: 2,
-      group: 'Light Program',
+      group: 'Pattern',
     }),
     Object.freeze({
       ...parameterBase,
@@ -345,7 +345,7 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_DEPTH_PATTERN_CHANGE_ID, value: true })]),
       designParentGroup: 'design' as const,
       order: 3,
-      group: 'Light Program',
+      group: 'Pattern',
     }),
     Object.freeze({
       ...parameterBase,
@@ -356,15 +356,15 @@ const CINEMA2_DEPTH_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
       defaultValue: 'forward',
       designParentGroup: 'design' as const,
       order: 4,
-      group: 'Light Program',
+      group: 'Pattern',
       options: Object.freeze([
         Object.freeze({ value: 'forward', label: 'Forward' }),
         Object.freeze({ value: 'reverse', label: 'Reverse' }),
       ]),
     }),
     floatParameter(CINEMA2_DEPTH_RATE_ID, 'Rate', 'Light-program travel or pulse rate. Zero freezes the selected state.', 1.1, 0, 4, 0.05, 'design', 5, 'Light Program'),
-    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_ACTIVE_SPAN_ID, label: 'Active Span', description: 'Approximate active-bar count for Sparse Architecture, or portal span for depth-based programs.', type: 'integer' as const, defaultValue: 4, min: 1, max: CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount, step: 1, designParentGroup: 'design' as const, order: 6, group: 'Light Program' }),
-    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_SEED_ID, label: 'Random Seed', description: 'Deterministic starting phase for every light program.', type: 'integer' as const, defaultValue: 7, min: 0, max: 9999, step: 1, designParentGroup: 'design' as const, order: 7, group: 'Light Program' }),
+    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_ACTIVE_SPAN_ID, label: 'Active Span', description: 'Approximate active-bar count for Sparse Architecture, or portal span for depth-based programs.', type: 'integer' as const, defaultValue: 4, min: 1, max: CINEMA2_DEPTH_LAYOUT_CONFIG.portalCount, step: 1, designParentGroup: 'design' as const, order: 6, group: 'Pattern' }),
+    Object.freeze({ ...parameterBase, id: CINEMA2_DEPTH_SEED_ID, label: 'Random Seed', description: 'Deterministic starting phase for every light program.', type: 'integer' as const, defaultValue: 7, min: 0, max: 9999, step: 1, designParentGroup: 'design' as const, order: 7, group: 'Pattern' }),
     floatParameter(CINEMA2_DEPTH_ROUTE_DENSITY_ID, 'Route Density', 'How many neighboring portal lanes, ring families and helices join a routed musical cue.', 0.36, 0, 1, 0.01, 'effects', 1, 'Geometry Orchestration'),
     floatParameter(CINEMA2_DEPTH_PULSE_WIDTH_ID, 'Pulse Width', 'Physical width of traveling gate fronts, relay pulses and the drop discharge wave.', 0.42, 0, 1, 0.01, 'effects', 2, 'Geometry Orchestration'),
     floatParameter(CINEMA2_DEPTH_DROP_INTENSITY_ID, 'Drop Intensity', 'Strength of the post-countdown tunnel discharge and its structural afterglow.', 0.9, 0, 1, 0.01, 'effects', 3, 'Geometry Orchestration'),
@@ -677,7 +677,7 @@ export const CINEMA2_DEPTH_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest
   // With Auto Performance on, the music chooses Pattern Change and the Trigger (the orchestration reads it through Cinema2PatternControlResolver).
   patternControls: { patternChange: CINEMA2_DEPTH_PATTERN_CHANGE_ID, trigger: CINEMA2_DEPTH_TRIGGER_ID },
   drives: [
-    // Design › Light Program: Rate 1.1 (0..4) and Active Span 4 (1..8).
+    // Design › Pattern: Rate 1.1 (0..4) and Active Span 4 (1..8).
     depthDrive('rate', depthModule('rate'), 'mood.activity', 1.0),
     depthDrive('rate-calm', depthModule('rate'), 'mood.calm', -0.55),
     depthDrive('rate-shock', depthModule('rate'), 'mood.shock', 1.0),

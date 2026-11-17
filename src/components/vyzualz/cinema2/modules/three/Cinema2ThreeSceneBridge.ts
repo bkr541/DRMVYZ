@@ -187,6 +187,8 @@ export interface Cinema2ThreeDrawPlacement {
   scale?: number
   /** Visibility by mesh or material name. Unlisted parts remain visible. */
   parts?: Readonly<Record<string, boolean>>
+  /** A view pose in world space, applied after the Scene Graph placement: a move (toward the lens is +z) and a rotation in radians, both about the model origin. */
+  view?: Readonly<{ offset: readonly [number, number, number]; rotationRadians: readonly [number, number, number] }>
 }
 
 export interface Cinema2ThreeBridgeDiagnostic {
@@ -279,6 +281,8 @@ export class Cinema2ThreeSceneBridge {
   private readonly placed: PlacedInstance[] = []
   private readonly spinMatrix: ThreeNamespace.Matrix4
   private readonly scaleMatrix: ThreeNamespace.Matrix4
+  private readonly viewMatrix: ThreeNamespace.Matrix4
+  private readonly viewRotation: ThreeNamespace.Matrix4
   private readonly pendingTextures: ThreeNamespace.Texture[] = []
   private readonly guard: Cinema2GlStateGuard
   private stage: WarmStage = 'environment'
@@ -321,6 +325,8 @@ export class Cinema2ThreeSceneBridge {
     this.camera = new THREE.PerspectiveCamera()
     this.spinMatrix = new THREE.Matrix4()
     this.scaleMatrix = new THREE.Matrix4()
+    this.viewMatrix = new THREE.Matrix4()
+    this.viewRotation = new THREE.Matrix4()
     this.lightRig = new Cinema2ThreeLightRig(THREE, this.scene)
     // A render target that only points at the engine's framebuffer: Three allocates nothing for it. Flagged like an XR target
     // so Three encodes display-referred sRGB itself (the engine's targets are plain RGBA8 with no hardware sRGB write).
@@ -561,7 +567,7 @@ export class Cinema2ThreeSceneBridge {
       if (!this.options.modelController?.afterVisibility) this.options.modelController?.beforeDraw?.(lighting.quality)
       this.applyPartVisibility(placement?.parts ?? null)
       if (this.options.modelController?.afterVisibility) this.options.modelController.beforeDraw?.(lighting.quality)
-      this.place(exec, spinRadians, placement?.scale ?? 1)
+      this.place(exec, spinRadians, placement?.scale ?? 1, placement?.view ?? null)
       applyCinema2CameraFrame(this.camera, camera)
       if (this.particleFields.length > 0) {
         const scale = (exec.height * this.camera.projectionMatrix.elements[5]!) / 2
@@ -612,7 +618,7 @@ export class Cinema2ThreeSceneBridge {
     return this.scene.environment != null
   }
 
-  private place(exec: Cinema2ModuleRenderExecutionContext, spinRadians: number, scale: number): void {
+  private place(exec: Cinema2ModuleRenderExecutionContext, spinRadians: number, scale: number, view: Cinema2ThreeDrawPlacement['view'] | null): void {
     const nodes = exec.spatialNodes ?? []
     const resolvedScale = Number.isFinite(scale) ? Math.max(0.01, scale) : 1
     for (const placed of this.placed) {
@@ -624,6 +630,14 @@ export class Cinema2ThreeSceneBridge {
       // A turntable spin: about the instance's own vertical axis, applied after the node's placement.
       if (placed.spin && spinRadians !== 0) placed.root.matrix.multiply(this.spinMatrix.makeRotationY(spinRadians))
       if (resolvedScale !== 1) placed.root.matrix.multiply(this.scaleMatrix.makeScale(resolvedScale, resolvedScale, resolvedScale))
+      // A view pose (a push toward the lens and a sway), in world space: the same on screen as moving the camera, with the model's own parallax.
+      if (view) {
+        const [rx, ry, rz] = view.rotationRadians
+        const [ox, oy, oz] = view.offset
+        this.viewMatrix.makeRotationY(ry).multiply(this.viewRotation.makeRotationX(rx)).multiply(this.viewRotation.makeRotationZ(rz))
+        this.viewMatrix.setPosition(ox, oy, oz)
+        placed.root.matrix.premultiply(this.viewMatrix)
+      }
       placed.root.matrixWorldNeedsUpdate = true
     }
   }

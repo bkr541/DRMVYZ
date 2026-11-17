@@ -49,6 +49,10 @@ export interface Cinema2DepthModuleInspection {
   estimatedGpuBytes: number
   lightProgram: Cinema2DepthLightProgram
   direction: Cinema2DepthLightDirection
+  /** The music's Pattern Change and Trigger while Auto Performance is on (null until the first frame), and whether it is choosing. */
+  effectivePatternChange: boolean | null
+  effectiveTrigger: Cinema2DepthTriggerId | null
+  patternControlsAutomatic: boolean
 }
 
 interface Cinema2DepthRendererRuntime {
@@ -182,6 +186,7 @@ export function createCinema2DepthNativeModuleDefinition(options: {
           estimatedGpuBytes,
           lightProgram: readEnum(context, 'program', CINEMA2_DEPTH_LIGHT_PROGRAMS, 'architecturalSparse'),
           direction: readEnum(context, 'direction', CINEMA2_DEPTH_LIGHT_DIRECTIONS, 'forward'),
+          ...orchestration.inspectPatternControls(),
         }),
       }
     },

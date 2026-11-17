@@ -13,7 +13,10 @@ import {
   CINEMA2_ELECTRIC_STORM_FLASH_INTENSITY_ID, CINEMA2_ELECTRIC_STORM_IMPACT_SHAKE_ID, CINEMA2_ELECTRIC_STORM_MASTER_INTENSITY_ID,
   CINEMA2_ELECTRIC_STORM_PRESET_MANIFEST, CINEMA2_ELECTRIC_STORM_STRIKE_RATE_ID, CINEMA2_ELECTRIC_STORM_ZOOM_PUNCH_ID,
 } from '../presets/Cinema2ElectricStormPreset'
-import { CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID, CINEMA2_MAINFRAME_MASTER_INTENSITY_ID, CINEMA2_MAINFRAME_PRESET_MANIFEST } from '../presets/Cinema2MainframePreset'
+import {
+  CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID, CINEMA2_MAINFRAME_BOARD_GLOW_ID, CINEMA2_MAINFRAME_CAMERA_DRIFT_ID, CINEMA2_MAINFRAME_CAMERA_ZOOM_ID,
+  CINEMA2_MAINFRAME_MASTER_INTENSITY_ID, CINEMA2_MAINFRAME_PRESET_MANIFEST,
+} from '../presets/Cinema2MainframePreset'
 import { createCinema2MoodRules, withCinema2MoodDrives } from '../presets/Cinema2MoodConductorAuthoring'
 import { compileCinema2NativePreset } from '../presets/Cinema2PresetCompiler'
 import { resolveCinema2LiveValues } from '../../react/Cinema2LiveValues'
@@ -240,6 +243,58 @@ describe('Mainframe', () => {
     const hit = t.frameOnce({ energy: .5, event: 'drop', eventId: 9, section: 'verse' }, intensity)
     expect(hit.on).toBeGreaterThan(hit.off)
     expect(t.play(10, { energy: .5, section: 'verse' }, intensity).on).toBeCloseTo(t.off.value(intensity), 1)
+  })
+})
+
+describe('Mainframe: Camera Zoom, Camera Drift and Board Glow', () => {
+  const ZOOM = CINEMA2_MAINFRAME_CAMERA_ZOOM_ID, DRIFT = CINEMA2_MAINFRAME_CAMERA_DRIFT_ID, GLOW = CINEMA2_MAINFRAME_BOARD_GLOW_ID
+  const auto = CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID
+  const authored = (id: Cinema2ParameterId) => CINEMA2_MAINFRAME_PRESET_MANIFEST.parameters!.find(parameter => parameter.id === id)!.defaultValue
+
+  it('keeps the authored framing and look at the defaults: zoom 0, drift 0, glow 0.5', () => {
+    expect([authored(ZOOM), authored(DRIFT), authored(GLOW)]).toEqual([0, 0, 0.5])
+    const quiet = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    // With Auto Performance off nothing moves them, whatever the music does.
+    const played = quiet.play(6, { energy: .95, section: 'drop' }, ZOOM)
+    expect(played.off).toBe(0)
+    expect(quiet.off.value(DRIFT)).toBe(0)
+    expect(quiet.off.value(GLOW)).toBeCloseTo(0.5, 5)
+  })
+
+  it('pushes the view in on a peak and on a drop\'s impact, and lets it settle afterwards', () => {
+    const peak = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    const peaked = peak.play(6, { energy: .95, section: 'drop' }, ZOOM)
+    expect(peaked.on).toBeGreaterThan(0.2)
+    expect(peaked.off).toBe(0)
+    const t = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    t.play(4, { energy: .5, section: 'verse' })
+    const verse = t.on.value(ZOOM)
+    const hit = t.frameOnce({ energy: .5, event: 'drop', eventId: 9, section: 'verse' }, ZOOM)
+    expect(hit.on).toBeGreaterThan(verse + 0.2)
+    expect(t.play(10, { energy: .5, section: 'verse' }, ZOOM).on).toBeLessThan(hit.on * 0.5)
+  })
+
+  it('sways more through an active, tense passage than a calm one', () => {
+    const active = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    const calm = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    expect(active.play(6, { energy: .9, tension: .6, section: 'build' }, DRIFT).on).toBeGreaterThan(calm.play(6, { energy: .1, section: 'breakdown' }, DRIFT).on + 0.15)
+  })
+
+  it('lifts the glow with the music, flares on a drop and settles below the authored look when calm', () => {
+    const hot = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto), calm = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    expect(hot.play(6, { energy: .95, section: 'drop' }, GLOW).on).toBeGreaterThan(0.7)
+    expect(calm.play(6, { energy: .1, section: 'breakdown' }, GLOW).on).toBeLessThan(0.45)
+  })
+
+  it('shows all three as live values in the inspector, with the saved values unchanged', () => {
+    const t = twin(CINEMA2_MAINFRAME_PRESET_MANIFEST, auto)
+    t.play(6, { energy: .95, tension: .6, section: 'drop' })
+    const ranges = new Map<string, readonly [number, number]>([[ZOOM, [0, 1]], [DRIFT, [0, 1]], [GLOW, [0, 1]]])
+    const values = resolveCinema2LiveValues(t.on.plan, t.on.resolver, t.on.state.getSnapshot().persistentValues, ranges)
+    for (const id of [ZOOM, DRIFT, GLOW]) expect(values.has(id), id).toBe(true)
+    expect(values.get(ZOOM)!).toBeGreaterThan(0.2)
+    expect(t.on.state.getSnapshot().persistentValues[ZOOM]).toBe(0)
+    expect(t.on.state.getSnapshot().persistentValues[GLOW]).toBe(0.5)
   })
 })
 

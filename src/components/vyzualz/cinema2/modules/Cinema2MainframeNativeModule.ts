@@ -45,6 +45,7 @@ import {
 } from './mainframe/Cinema2MainframePatternController'
 import { Cinema2PatternAutoPerformance } from './mainframe/Cinema2PatternAutoPerformance'
 import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
+import { isIdentityCinema2MainframeView, resolveCinema2MainframeView, type Cinema2MainframeView } from './mainframe/Cinema2MainframeView'
 import {
   resolveCinema2MainframeQualityProfile,
   type Cinema2MainframeQualityProfile,
@@ -69,6 +70,9 @@ export const CINEMA2_MAINFRAME_NATIVE_MODULE_VERSION = 1 as const
 export const CINEMA2_MAINFRAME_COMPOSITION_ASPECT = 16 / 9
 /** Default crop beyond every Stage edge, leaving safe travel for later camera motion and zoom releases. */
 export const CINEMA2_MAINFRAME_COVER_OVERSCAN = 1.12
+/** Board Glow's emission gain at 0 and at 1; 0.5 gives exactly 1 (the authored look). */
+export const CINEMA2_MAINFRAME_GLOW_GAIN_MIN = 0.4
+export const CINEMA2_MAINFRAME_GLOW_GAIN_MAX = 1.6
 /** The production GLB continues the authored wall this far in both axes. */
 export const CINEMA2_MAINFRAME_MODEL_EXTENT_MULTIPLIER = 2.5
 /** Deepest operator zoom-out supported by the extended physical wall. */
@@ -93,6 +97,12 @@ export interface Cinema2MainframeStaticFrame {
   /** Substitutes a pattern for builds and drops; off by default. Never alters the authored Pattern. */
   readonly autoPerformance: boolean
   readonly scale: number
+  /** Camera Zoom and Camera Drift (0..1): the view motion, see Cinema2MainframeView. */
+  readonly cameraZoom: number
+  readonly cameraDrift: number
+  /** Board Glow (0..1, 0.5 is the authored look) and the emission gain it gives (1 at the default). */
+  readonly boardGlow: number
+  readonly glowGain: number
   readonly colors: Readonly<{ logo: Rgb; circuits: Rgb; indicators: Rgb }>
   readonly visibility: Readonly<Record<string, boolean>>
   readonly overrides: Readonly<Cinema2ThreeMaterialOverrides>
@@ -257,6 +267,11 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
   const triggerValue = parameters.get('trigger')
   const trigger = isMainframeTrigger(triggerValue) ? triggerValue : 'bar4'
   const scale = readNumber(parameters, 'scale', 1, CINEMA2_MAINFRAME_MIN_SCALE, CINEMA2_MAINFRAME_MAX_SCALE)
+  const cameraZoom = readNumber(parameters, 'cameraZoom', 0, 0, 1)
+  const cameraDrift = readNumber(parameters, 'cameraDrift', 0, 0, 1)
+  const boardGlow = readNumber(parameters, 'boardGlow', 0.5, 0, 1)
+  // Board Glow scales the board's emission and the music-driven light (not the static hardware): 0.5 is the authored look (x1).
+  const glowGain = CINEMA2_MAINFRAME_GLOW_GAIN_MIN + (CINEMA2_MAINFRAME_GLOW_GAIN_MAX - CINEMA2_MAINFRAME_GLOW_GAIN_MIN) * boardGlow
   const background = readColor(parameters, 'background', DEFAULT_BACKGROUND)
   const logo = readColor(parameters, 'logoColor', DEFAULT_LOGO)
   const circuits = readColor(parameters, 'circuitsColor', DEFAULT_CIRCUITS)
@@ -274,11 +289,11 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
     chipHardware: part('chipHardware', [0.065, 0.075, 0.07], { roughness: 0.38, metalness: 0.7, clearcoat: 0.2, clearcoatRoughness: 0.2, environmentIntensity: 0.48 }),
     logoHousing: part('logoHousing', [0.3, 0.34, 0.31], { roughness: 0.22, metalness: 1, clearcoat: 0.28, clearcoatRoughness: 0.12, environmentIntensity: 0.68 }),
     // These values are the no-audio/static fallback. During playback the semantic shader replaces them with a much wider dark-to-hot range.
-    circuitCores: part('circuitCores', scaled(circuits, 0.055), { emissive: circuits, emissiveIntensity: 0.3 * intensity, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.08 }),
-    indicatorCores: part('indicatorCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    radarCores: part('radarCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    chipCores: part('chipCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
-    logoCore: part('logoCore', scaled(logo, 0.075), { emissive: logo, emissiveIntensity: 0.52 * intensity, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.12 }),
+    circuitCores: part('circuitCores', scaled(circuits, 0.055), { emissive: circuits, emissiveIntensity: 0.3 * intensity * glowGain, roughness: 0.26, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.12, environmentIntensity: 0.08 }),
+    indicatorCores: part('indicatorCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity * glowGain, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    radarCores: part('radarCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity * glowGain, roughness: 0.22, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    chipCores: part('chipCores', scaled(indicators, 0.07), { emissive: indicators, emissiveIntensity: 0.4 * intensity * glowGain, roughness: 0.24, metalness: 0, clearcoat: 0.22, clearcoatRoughness: 0.1, environmentIntensity: 0.08 }),
+    logoCore: part('logoCore', scaled(logo, 0.075), { emissive: logo, emissiveIntensity: 0.52 * intensity * glowGain, roughness: 0.18, metalness: 0.04, clearcoat: 0.3, clearcoatRoughness: 0.08, environmentIntensity: 0.12 }),
   }
 
   return Object.freeze({
@@ -289,6 +304,10 @@ export function resolveCinema2MainframeStaticFrame(parameters: Cinema2ModulePara
     autoPerformance,
     trigger,
     scale,
+    cameraZoom,
+    cameraDrift,
+    boardGlow,
+    glowGain,
     colors: Object.freeze({ logo, circuits, indicators }),
     visibility: Object.freeze({ radarHardware: radar, radarCores: radar, chipHardware: chip, chipCores: chip }),
     overrides: Object.freeze({
@@ -346,6 +365,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
       },
     })
     let previousAuthoredPattern: Cinema2MainframePatternId | null = null
+    let viewPose: Readonly<Cinema2MainframeView> = resolveCinema2MainframeView({ zoom: 0, drift: 0, timeSec: 0, bpm: null, bpmSync: false })
     const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
     let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
@@ -465,11 +485,12 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           bridge.draw(execution, frame.overrides, 0, null, null, {
             scale: resolveCinema2MainframeCoverScale(execution.width, execution.height, frame.scale),
             parts: frame.visibility,
+            ...(isIdentityCinema2MainframeView(viewPose) ? {} : { view: viewPose }),
           }, renderedLighting ? {
             circuitColor: frame.colors.circuits,
             indicatorColor: frame.colors.indicators,
             logoColor: frame.colors.logo,
-            strength: diagnosticLighting ? 1 : frame.intensity,
+            strength: diagnosticLighting ? 1 : frame.intensity * frame.glowGain,
             frame: renderedLighting,
           } : null)
         } catch (error) {
@@ -492,6 +513,7 @@ export const cinema2MainframeNativeModuleDefinition: Readonly<Cinema2ModuleTypeD
           const acceptedFrame = audio === updateFrame.audio ? updateFrame : { ...updateFrame, audio }
           const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
           const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
+          viewPose = resolveCinema2MainframeView({ zoom: frame.cameraZoom, drift: frame.cameraDrift, timeSec, bpm: updateFrame.transport?.bpm, bpmSync: frame.bpmSync })
           const sourceIdentity = updateFrame.transport?.paused && !audio && triggerSourceIdentity != null
             && updateFrame.transport.trackId === triggerTrackId
             ? triggerSourceIdentity : resolveCinema2MainframeSourceIdentity(updateFrame, audio)

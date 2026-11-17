@@ -22,6 +22,9 @@ import {
 } from '../modules/mainframe/Cinema2MainframeQuality'
 import {
   CINEMA2_MAINFRAME_BACKGROUND_ID,
+  CINEMA2_MAINFRAME_BOARD_GLOW_ID,
+  CINEMA2_MAINFRAME_CAMERA_DRIFT_ID,
+  CINEMA2_MAINFRAME_CAMERA_ZOOM_ID,
   CINEMA2_MAINFRAME_BPM_SYNC_ID,
   CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID,
   CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID,
@@ -91,7 +94,7 @@ describe('Mainframe Stage 5 preset', () => {
       .map(parameter => parameter.label)
     expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
     expect(inGroup('design')).toEqual(['Enable Radar Circuit', 'Enable Chip', 'Scale', 'Pattern', 'Pattern Change', 'Trigger'])
-    expect(inGroup('effects')).toEqual([])
+    expect(inGroup('effects')).toEqual(['Camera Zoom', 'Camera Drift', 'Board Glow'])
     expect(inGroup('palette')).toEqual(['Background', 'Logo', 'Circuits', 'Indicators'])
     expect(parameters.find(parameter => parameter.id === CINEMA2_MAINFRAME_SCALE_ID)).toMatchObject({ defaultValue: 1, min: 0.45, max: 1.35 })
     expect(parameters.find(parameter => parameter.id === CINEMA2_MAINFRAME_PATTERN_ID)).toMatchObject({
@@ -129,6 +132,9 @@ describe('Mainframe Stage 5 preset', () => {
       enableRadar: ref(CINEMA2_MAINFRAME_ENABLE_RADAR_ID),
       enableChip: ref(CINEMA2_MAINFRAME_ENABLE_CHIP_ID),
       scale: ref(CINEMA2_MAINFRAME_SCALE_ID),
+      cameraZoom: ref(CINEMA2_MAINFRAME_CAMERA_ZOOM_ID),
+      cameraDrift: ref(CINEMA2_MAINFRAME_CAMERA_DRIFT_ID),
+      boardGlow: ref(CINEMA2_MAINFRAME_BOARD_GLOW_ID),
       background: ref(CINEMA2_MAINFRAME_BACKGROUND_ID),
       logoColor: ref(CINEMA2_MAINFRAME_LOGO_COLOR_ID),
       circuitsColor: ref(CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID),
@@ -207,10 +213,10 @@ describe('Mainframe Stage 5 preset', () => {
     expect(manifest.lighting?.lights).toHaveLength(4)
     expect(manifest.lighting?.lights[0]?.config).toMatchObject({ threeShadow: true })
     expect(manifest.environment).toMatchObject({ exposure: 1 })
-    // The nine musical cue rules, then the shared Mood Conductor's three drives (activity, calm, shock), gated by Auto Performance.
+    // The nine musical cue rules, then the shared Mood Conductor's drives (one rule per source: activity, calm, shock, peak, tense), gated by Auto Performance.
     expect(manifest.choreography?.rules.map(rule => rule.source.signal)).toEqual([
       'kick', 'snare', 'transient', 'beat', 'downbeat', 'bar', 'phrase', 'section-change', 'drop',
-      'continuous', 'continuous', 'continuous',
+      'continuous', 'continuous', 'continuous', 'continuous', 'continuous',
     ])
     expect(manifest.choreography?.rules.slice(9).every(rule => rule.enabledParameter?.$ref === CINEMA2_MAINFRAME_AUTO_PERFORMANCE_ID)).toBe(true)
   })

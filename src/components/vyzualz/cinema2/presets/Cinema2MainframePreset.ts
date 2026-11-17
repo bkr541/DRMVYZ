@@ -56,6 +56,9 @@ export const CINEMA2_MAINFRAME_TRIGGER_ID = cinema2StableId<Cinema2ParameterId>(
 export const CINEMA2_MAINFRAME_ENABLE_RADAR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-enable-radar')
 export const CINEMA2_MAINFRAME_ENABLE_CHIP_ID = cinema2StableId<Cinema2ParameterId>('mainframe-enable-chip')
 export const CINEMA2_MAINFRAME_SCALE_ID = cinema2StableId<Cinema2ParameterId>('mainframe-scale')
+export const CINEMA2_MAINFRAME_CAMERA_ZOOM_ID = cinema2StableId<Cinema2ParameterId>('mainframe-camera-zoom')
+export const CINEMA2_MAINFRAME_CAMERA_DRIFT_ID = cinema2StableId<Cinema2ParameterId>('mainframe-camera-drift')
+export const CINEMA2_MAINFRAME_BOARD_GLOW_ID = cinema2StableId<Cinema2ParameterId>('mainframe-board-glow')
 export const CINEMA2_MAINFRAME_BACKGROUND_ID = cinema2StableId<Cinema2ParameterId>('mainframe-background')
 export const CINEMA2_MAINFRAME_LOGO_COLOR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-logo-color')
 export const CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID = cinema2StableId<Cinema2ParameterId>('mainframe-circuits-color')
@@ -240,6 +243,48 @@ const PARAMETERS = Object.freeze([
   }),
   Object.freeze({
     ...baseParameter,
+    id: CINEMA2_MAINFRAME_CAMERA_ZOOM_ID,
+    label: 'Camera Zoom',
+    description: 'Pushes the view in toward the board, past the framing Scale gives, so the modeled 3D parts that stand above the plate come into view with real parallax. At 0 the framing is exactly the authored one. Auto Performance pushes in on peaks and drops.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Camera',
+    order: 1,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_MAINFRAME_CAMERA_DRIFT_ID,
+    label: 'Camera Drift',
+    description: 'A slow sway of the view about the logo, a few degrees at most, that shows the board\'s depth as it moves. It locks to the track tempo with BPM Sync on and free-runs otherwise. At 0 the view is still. Auto Performance sways more in active passages.',
+    type: 'float' as const,
+    defaultValue: 0,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Camera',
+    order: 2,
+  }),
+  Object.freeze({
+    ...baseParameter,
+    id: CINEMA2_MAINFRAME_BOARD_GLOW_ID,
+    label: 'Board Glow',
+    description: 'How strongly the logo, circuits and indicators glow, on top of Master Intensity. 0.50 is the authored look; 0 dims the glow to a fraction and 1 lifts it. Auto Performance lifts it with the music and drops.',
+    type: 'float' as const,
+    defaultValue: 0.5,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    designParentGroup: 'effects' as const,
+    group: 'Light',
+    order: 3,
+  }),
+  Object.freeze({
+    ...baseParameter,
     id: CINEMA2_MAINFRAME_BACKGROUND_ID,
     label: 'Background',
     description: 'Sets the physical circuit-board substrate and panel tint while preserving roughness, shadows and metal separation.',
@@ -357,6 +402,9 @@ const CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetMa
       enableRadar: true,
       enableChip: true,
       scale: 1,
+      cameraZoom: 0,
+      cameraDrift: 0,
+      boardGlow: 0.5,
       background: CINEMA2_MAINFRAME_DEFAULT_BACKGROUND,
       logoColor: CINEMA2_MAINFRAME_DEFAULT_LOGO,
       circuitsColor: CINEMA2_MAINFRAME_DEFAULT_CIRCUITS,
@@ -372,6 +420,9 @@ const CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetMa
       enableRadar: cinema2Ref(CINEMA2_MAINFRAME_ENABLE_RADAR_ID),
       enableChip: cinema2Ref(CINEMA2_MAINFRAME_ENABLE_CHIP_ID),
       scale: cinema2Ref(CINEMA2_MAINFRAME_SCALE_ID),
+      cameraZoom: cinema2Ref(CINEMA2_MAINFRAME_CAMERA_ZOOM_ID),
+      cameraDrift: cinema2Ref(CINEMA2_MAINFRAME_CAMERA_DRIFT_ID),
+      boardGlow: cinema2Ref(CINEMA2_MAINFRAME_BOARD_GLOW_ID),
       background: cinema2Ref(CINEMA2_MAINFRAME_BACKGROUND_ID),
       logoColor: cinema2Ref(CINEMA2_MAINFRAME_LOGO_COLOR_ID),
       circuitsColor: cinema2Ref(CINEMA2_MAINFRAME_CIRCUITS_COLOR_ID),
@@ -489,7 +540,7 @@ const CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetMa
 /**
  * Mainframe's own Auto Performance (the build program, the drop program and the mood-chosen pattern in its module) is unchanged. The shared Mood
  * Conductor adds continuous drives to the same toggle: the board's light swells with the passage's peaks and settles in calm ones, and a drop's
- * shock lifts it briefly. Master Intensity is the only value driven (the patterns are the module's own choice), around the authored value.
+ * shock lifts it briefly. Master Intensity, Camera Zoom, Camera Drift and Board Glow are driven (the patterns are the module's own choice), around the authored values.
  */
 export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_MAINFRAME_AUTHORED_PRESET_MANIFEST, {
   idPrefix: 'mainframe-auto',
@@ -500,5 +551,15 @@ export const CINEMA2_MAINFRAME_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
     { id: 'intensity-activity', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
     { id: 'intensity-calm', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
     { id: 'intensity-shock', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    // Effects › Camera: the view pushes in on peaks and (briefly) on a drop's impact, and sways more through active and tense passages.
+    { id: 'zoom-peak', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'cameraZoom'), source: 'mood.peak', operation: 'add', value: 0.3 },
+    { id: 'zoom-shock', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'cameraZoom'), source: 'mood.shock', operation: 'add', value: 0.4 },
+    { id: 'zoom-tense', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'cameraZoom'), source: 'mood.tense', operation: 'add', value: 0.12 },
+    { id: 'drift-activity', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'cameraDrift'), source: 'mood.activity', operation: 'add', value: 0.45 },
+    { id: 'drift-tense', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'cameraDrift'), source: 'mood.tense', operation: 'add', value: 0.2 },
+    // Effects › Light: the board glows with the passage and flares on a drop; a calm passage settles it below the authored look.
+    { id: 'glow-activity', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'boardGlow'), source: 'mood.activity', operation: 'add', value: 0.4 },
+    { id: 'glow-shock', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'boardGlow'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'glow-calm', target: cinema2AutoTargets.module(CINEMA2_MAINFRAME_MODULE_ID as string, 'boardGlow'), source: 'mood.calm', operation: 'add', value: -0.2 },
   ],
 })

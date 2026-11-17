@@ -102,6 +102,11 @@ export class Cinema2DepthOrchestration {
     this.cueEnvelopes.downbeat = 0
   }
 
+  /** What the music is choosing for Pattern Change and the Trigger, for the module's inspect(). */
+  inspectPatternControls() {
+    return this.patternControls.inspect()
+  }
+
   enqueueCue(kind: Cinema2DepthCueKind, eventId: string): void {
     this.canonicalDeliveryActive = true
     this.queueCue(kind, eventId)
