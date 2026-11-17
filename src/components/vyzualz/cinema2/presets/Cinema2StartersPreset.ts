@@ -1,5 +1,7 @@
 import { CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2Color, type Cinema2LayerId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2PresetId, type Cinema2RenderPassId, type Cinema2SceneNodeId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_STARTERS_NATIVE_MODULE_TYPE_ID } from '../modules/Cinema2StartersNativeModule'
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_STARTERS_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.starters')
 export const CINEMA2_STARTERS_MODULE_ID = cinema2StableId<Cinema2ModuleId>('starters-scene')
@@ -21,7 +23,7 @@ const actionId = (name: string) => cinema2StableId<Cinema2ChoreographyActionId>(
 const continuous = (name: string, property: string) => Object.freeze({ id: actionId(name), target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_STARTERS_MODULE_ID), property }), operation: 'replace' as const, value: 1 })
 const envelope = (name: string, property: string, release: number) => Object.freeze({ id: actionId(name), target: Object.freeze({ kind: 'module' as const, ref: cinema2Ref(CINEMA2_STARTERS_MODULE_ID), property }), operation: 'envelope' as const, value: 1, composition: 'replace' as const, envelope: Object.freeze({ attack: 0.015, hold: 0.035, release, unit: 'seconds' as const }), retrigger: 'restart' as const })
 
-export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_STARTERS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_STARTERS_PRESET_ID, revision: 1,
   metadata: Object.freeze({ name: 'Starters', description: 'A procedural field case and three capture balls that rock, rotate, flash, and recoil with shared Audio Intelligence.', tags: Object.freeze(['keeper', 'procedural', 'meadow', 'starter', 'audio-reactive']) }),
   capabilities: Object.freeze([
@@ -71,4 +73,30 @@ export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
   ]) }),
   render: Object.freeze({ passes: Object.freeze([Object.freeze({ id: PASS, kind: 'scene' as const, layers: Object.freeze([cinema2Ref(LAYER)]) })]), outputPass: cinema2Ref(PASS) }),
   output: Object.freeze({ renderPass: cinema2Ref(PASS), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+/**
+ * The shared Mood Conductor adds continuous drives to the same Auto Performance toggle (its build, drop and accent rules are unchanged): the balls, light,
+ * glow and camera move with how the passage feels, around the authored values. Ball Rotation, Camera Orbit, Pan and Speed and the case are not driven.
+ */
+const startersModule = (property: string) => cinema2AutoTargets.module(CINEMA2_STARTERS_MODULE_ID as string, property)
+export const CINEMA2_STARTERS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_STARTERS_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'starters-auto',
+  enabledParameter: P.autoPerformance,
+  strengthParameter: P.reactivity,
+  drives: [
+    { id: 'ambient-activity', target: startersModule('ambientMotion'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'ambient-calm', target: startersModule('ambientMotion'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'wiggle-activity', target: startersModule('ballWiggle'), source: 'mood.activity', operation: 'add', value: 0.4 },
+    { id: 'wiggle-shock', target: startersModule('ballWiggle'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'light-peak', target: startersModule('centerLight'), source: 'mood.peak', operation: 'add', value: 0.5 },
+    { id: 'light-shock', target: startersModule('centerLight'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'light-calm', target: startersModule('centerLight'), source: 'mood.calm', operation: 'add', value: -0.25 },
+    { id: 'glow-shock', target: startersModule('glow'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'glow-peak', target: startersModule('glow'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'vignette-calm', target: startersModule('vignette'), source: 'mood.calm', operation: 'add', value: 0.15 },
+    { id: 'vignette-peak', target: startersModule('vignette'), source: 'mood.peak', operation: 'add', value: -0.1 },
+    { id: 'camera-activity', target: startersModule('cameraMotion'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'intensity-calm', target: startersModule('intensity'), source: 'mood.calm', operation: 'add', value: -0.2 },
+  ],
 })

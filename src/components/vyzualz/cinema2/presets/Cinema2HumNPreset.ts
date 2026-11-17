@@ -25,6 +25,8 @@ import {
 } from '../modules/Cinema2HumNNativeModule'
 import { cinema2CinematicMotion } from './Cinema2CameraMotionAuthoring'
 import { CINEMA2_QUALITY_MODE_PARAMETER } from '../parameters/Cinema2PerformanceParameters'
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 
 export const CINEMA2_HUMN_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.hum-n')
 export const CINEMA2_HUMN_MODULE_ID = cinema2StableId<Cinema2ModuleId>('hum-n-emergence')
@@ -586,7 +588,7 @@ const CINEMA2_HUMN_RUNTIME_PARAMETERS = Object.freeze([
   }),
 ])
 
-export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_HUMN_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_HUMN_PRESET_ID,
@@ -1173,4 +1175,24 @@ export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest>
     colorSpace: 'srgb' as const,
     alphaMode: 'premultiplied' as const,
   }),
+})
+
+/**
+ * The shared Mood Conductor adds continuous drives to the same Auto Performance toggle (its pose, structural and emphasis rules are unchanged), and only
+ * where the preset's authority model allows: Facet Fill rises with peaks and drops, and Glow is nudged on a drop (scaled, so a 0 stays 0, and inside the preset's own x1.35 bound).
+ * Master Intensity scales them, as it does the existing Auto Performance rules. Line Weight, Flicker, Fragment Jitter and Figure Scale are user-owned and
+ * never written; Fragmentation, Motion Amount and Line Presence belong to the module's own pose, fragment and tempo logic; and Trails and the rest of Glow's
+ * modulation are bounded by the preset's own finishing contract (its tests pin exact values), so they are not driven either.
+ */
+const humnModule = (property: string) => cinema2AutoTargets.module(CINEMA2_HUMN_MODULE_ID as string, property)
+export const CINEMA2_HUMN_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_HUMN_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'hum-n-auto',
+  enabledParameter: CINEMA2_HUMN_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_HUMN_MASTER_INTENSITY_ID,
+  drives: [
+    { id: 'fill-peak', target: humnModule('facetFill'), source: 'mood.peak', operation: 'add', value: 0.35 },
+    { id: 'fill-shock', target: humnModule('facetFill'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    // Glow is hard-off at 0 and already bounded upward by the preset's own rules (x1.35), so a drop only nudges it, scaled (a 0 stays 0) and inside that bound.
+    { id: 'glow-shock', target: cinema2AutoTargets.effect('hum-n-bloom', 'mix'), source: 'mood.shock', operation: 'multiply', value: 1.3 },
+  ],
 })

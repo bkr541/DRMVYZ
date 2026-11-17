@@ -42,7 +42,7 @@ Lowest risk. Electric Storm is the working example: add a `mood` drive list to `
 | go-to | three-scene | off | none | - | 4 | 14 | no Pattern Change (tag-only); camera controls |
 | reliquary | three-scene | off | none | - | 4 | 11 | no Pattern Change (tag-only) |
 
-### Batch 1B: Rule-based Auto Performance, no patterns, default ON (2)
+### Batch 1B: Rule-based Auto Performance, no patterns, default ON (2) — DONE (uncommitted; awaiting your real-app check)
 
 Same work as 1A, but both default Auto Performance on, so they are the first to meet the lock and the default decision.
 
@@ -123,7 +123,7 @@ Each has something unusual: Afterhours has 39 patterns and a show planner; Hypno
 
 ### Already migrated
 
-Electric Storm, Depth, Mainframe, Ifrit, and (Batch 1A) Reactor, Threshold, GO-TO, Reliquary.
+Electric Storm, Depth, Mainframe, Ifrit, and (Batch 1A) Reactor, Threshold, GO-TO, Reliquary, and (Batch 1B) HUM:N, Starters.
 
 ### Skipped by decision
 

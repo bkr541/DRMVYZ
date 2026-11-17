@@ -79,13 +79,11 @@ export function createCinema2MoodRules(spec: Readonly<Cinema2MoodDriveSpec>): re
  */
 export function withCinema2MoodDrives(manifest: Readonly<Cinema2NativePresetManifest>, spec: Readonly<Cinema2MoodDriveSpec>): Readonly<Cinema2NativePresetManifest> {
   const rules = createCinema2MoodRules(spec)
-  const tagged = spec.patternControls
-    ? tagCinema2MoodPolicies(manifest, {
-      [String(spec.patternControls.patternChange)]: 'patternChange',
-      [String(spec.patternControls.trigger)]: 'trigger',
-      [String(spec.enabledParameter)]: 'autoPerformance',
-    })
-    : manifest
+  // The Auto Performance toggle is always tagged (the Inspector's lock finds it by the tag); Pattern Change and Trigger only for a preset with patterns.
+  const tagged = tagCinema2MoodPolicies(manifest, {
+    ...(spec.patternControls ? { [String(spec.patternControls.patternChange)]: 'patternChange' as const, [String(spec.patternControls.trigger)]: 'trigger' as const } : {}),
+    [String(spec.enabledParameter)]: 'autoPerformance',
+  })
   if (rules.length === 0) return tagged
   const declared = (manifest.capabilities ?? []).some(capability => capability.id === 'visual-director.significance')
   return Object.freeze({

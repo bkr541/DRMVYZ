@@ -131,7 +131,12 @@ describe('the shared mood sources and authoring', () => {
 
   it('adds nothing for no drives, and declares the Visual Director capability once', () => {
     const base = CINEMA2_DEPTH_PRESET_MANIFEST
-    expect(withCinema2MoodDrives(base, { idPrefix: 'n', enabledParameter: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, drives: [] })).toBe(base)
+    // No drives adds no rule and no capability; the only change is the tag on the Auto Performance toggle (which the Inspector's lock finds it by).
+    const same = withCinema2MoodDrives(base, { idPrefix: 'n', enabledParameter: CINEMA2_DEPTH_AUTO_PERFORMANCE_ID, drives: [] })
+    expect(same.choreography).toBe(base.choreography)
+    expect(same.capabilities).toBe(base.capabilities)
+    expect(same.revision).toBe(base.revision)
+    expect(same.parameters!.map(p => [p.id, p.metadata]).filter(([id], i) => id !== CINEMA2_DEPTH_AUTO_PERFORMANCE_ID)).toEqual(base.parameters!.map(p => [p.id, p.metadata]).filter(([id]) => id !== CINEMA2_DEPTH_AUTO_PERFORMANCE_ID))
     expect(base.capabilities!.filter(capability => capability.id === 'visual-director.significance')).toHaveLength(1)
   })
 })
