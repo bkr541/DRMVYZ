@@ -123,9 +123,12 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     ])
     expect(manifest?.revision).toBe(3)
     expect(manifest?.metadata.tags).toContain('keeper')
-    // The six authored rules, plus the four Auto Performance rules that are enabled only by its toggle.
+    // The six authored rules, plus the four Auto Performance gesture rules and the shared Mood Conductor's five drive rules (one per mood source),
+    // all enabled only by its toggle.
     expect(manifest?.choreography?.rules.filter(rule => rule.enabledParameter == null)).toHaveLength(6)
-    expect(manifest?.choreography?.rules.filter(rule => rule.enabledParameter?.$ref === 'reactor-auto-performance')).toHaveLength(4)
+    const gated = manifest?.choreography?.rules.filter(rule => rule.enabledParameter?.$ref === 'reactor-auto-performance') ?? []
+    expect(gated.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(4)
+    expect(gated.filter(rule => String(rule.id).includes('-mood-'))).toHaveLength(5)
 
     const definitions = new Map((manifest?.parameters ?? []).map(definition => [definition.id, definition]))
     expect(definitions.get(CINEMA2_REACTOR_ROTATION_SPEED_ID)).toMatchObject({ defaultValue: 0.21, min: -2, max: 2 })
@@ -158,8 +161,9 @@ describe('Cinema 2.0 Reactor native rendering slice', () => {
     const refractionTarget = compiled.plan.targets.targets.find(target => target.kind === 'module' && target.ownerId === 'reactor-composite' && target.property === 'refraction')
     expect(coreTarget?.parameterId).toBe(CINEMA2_REACTOR_CORE_SIZE_ID)
     expect(refractionTarget?.parameterId).toBe(CINEMA2_REACTOR_REFRACTION_ID)
-    // Ten authored choreography targets, plus the seven Auto Performance adds that are not already among them (all gated by its toggle).
-    expect(compiled.plan.targets.choreographyTargets).toHaveLength(17)
+    // Ten authored choreography targets, plus the seven Auto Performance gesture adds that are not already among them, plus the fifteen shared
+    // Mood Conductor drives (all gated by its toggle).
+    expect(compiled.plan.targets.choreographyTargets).toHaveLength(32)
   })
 
   it('uses engine-owned quality scaling and namespaced randomness for production rendering', () => {

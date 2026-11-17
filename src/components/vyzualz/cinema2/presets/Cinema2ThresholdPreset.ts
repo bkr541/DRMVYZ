@@ -615,4 +615,18 @@ export const CINEMA2_THRESHOLD_PRESET_MANIFEST = withCinema2AutoPerformance(CINE
     ],
     lift: [{ id: 'shafts', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), operation: 'envelope', value: 0.5, hold: 0.5, release: 4 }],
   },
+  // The shared Mood Conductor: panels, haze, shafts, floor glare and bloom move with how the passage feels, around the authored values.
+  mood: [
+    { id: 'panels-activity', target: cinema2AutoTargets.module('threshold-monoliths', 'panelBrightness'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'panels-peak', target: cinema2AutoTargets.module('threshold-monoliths', 'panelBrightness'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'panels-calm', target: cinema2AutoTargets.module('threshold-monoliths', 'panelBrightness'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'intensity-calm', target: cinema2AutoTargets.module('threshold-monoliths', 'intensity'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'fog-tense', target: cinema2AutoTargets.effect('threshold-atmosphere', 'density'), source: 'mood.tense', operation: 'add', value: 0.006 },
+    { id: 'shafts-peak', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), source: 'mood.peak', operation: 'add', value: 0.3 },
+    { id: 'shafts-shock', target: cinema2AutoTargets.effect('threshold-atmosphere', 'shafts'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'floor-shock', target: cinema2AutoTargets.effect('threshold-floor', 'reflectivity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'bloom-activity', target: cinema2AutoTargets.effect('threshold-bloom', 'intensity'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('threshold-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'bloom-calm', target: cinema2AutoTargets.effect('threshold-bloom', 'intensity'), source: 'mood.calm', operation: 'add', value: -0.15 },
+  ],
 })

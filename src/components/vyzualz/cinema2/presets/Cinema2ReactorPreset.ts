@@ -587,4 +587,22 @@ export const CINEMA2_REACTOR_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA
     ],
     lift: [{ id: 'shockwave', target: cinema2AutoTargets.module('reactor-composite', 'shockwavePulse'), operation: 'envelope', value: 0.45, hold: 0.1, release: 2 }],
   },
+  // The shared Mood Conductor: the core, rays, refraction, shockwave and bloom move with how the passage feels, around the authored values.
+  mood: [
+    { id: 'core-intensity', target: cinema2AutoTargets.module('reactor-generator', 'coreIntensity'), source: 'mood.peak', operation: 'add', value: 0.5 },
+    { id: 'core-shock', target: cinema2AutoTargets.module('reactor-generator', 'coreIntensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'core-calm', target: cinema2AutoTargets.module('reactor-generator', 'coreIntensity'), source: 'mood.calm', operation: 'add', value: -0.25 },
+    { id: 'core-size', target: cinema2AutoTargets.module('reactor-generator', 'coreSize'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'core-size-shock', target: cinema2AutoTargets.module('reactor-generator', 'coreSize'), source: 'mood.shock', operation: 'add', value: 0.08 },
+    { id: 'rays-activity', target: cinema2AutoTargets.module('reactor-generator', 'rayDensity'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'rays-tense', target: cinema2AutoTargets.module('reactor-generator', 'rayDensity'), source: 'mood.tense', operation: 'add', value: 0.15 },
+    { id: 'refraction-peak', target: cinema2AutoTargets.module('reactor-composite', 'refraction'), source: 'mood.peak', operation: 'add', value: 0.5 },
+    { id: 'refraction-tense', target: cinema2AutoTargets.module('reactor-composite', 'refraction'), source: 'mood.tense', operation: 'add', value: 0.4 },
+    { id: 'shockwave', target: cinema2AutoTargets.module('reactor-composite', 'shockwaveIntensity'), source: 'mood.shock', operation: 'add', value: 1 },
+    { id: 'shockwave-peak', target: cinema2AutoTargets.module('reactor-composite', 'shockwaveIntensity'), source: 'mood.peak', operation: 'add', value: 0.4 },
+    { id: 'bloom-activity', target: cinema2AutoTargets.effect('reactor-bloom', 'intensity'), source: 'mood.activity', operation: 'add', value: 0.5 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('reactor-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 1 },
+    { id: 'bloom-calm', target: cinema2AutoTargets.effect('reactor-bloom', 'intensity'), source: 'mood.calm', operation: 'add', value: -0.35 },
+    { id: 'trails-calm', target: cinema2AutoTargets.effect('reactor-feedback', 'persistence'), source: 'mood.calm', operation: 'add', value: 0.05 },
+  ],
 })

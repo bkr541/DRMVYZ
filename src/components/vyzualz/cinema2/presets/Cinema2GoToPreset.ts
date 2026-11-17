@@ -494,4 +494,17 @@ export const CINEMA2_GO_TO_PRESET_MANIFEST = withCinema2AutoPerformance(CINEMA2_
     ],
     lift: [{ id: 'beams', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), operation: 'envelope', value: 1.2, hold: 0.5, release: 4 }],
   },
+  // The shared Mood Conductor: beams, mist, floor and bloom move with how the passage feels, around the authored values.
+  mood: [
+    { id: 'beams-peak', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), source: 'mood.peak', operation: 'add', value: 1.2 },
+    { id: 'beams-shock', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), source: 'mood.shock', operation: 'add', value: 1.5 },
+    { id: 'beams-activity', target: cinema2AutoTargets.effect('go-to-volumetric', 'beamIntensity'), source: 'mood.activity', operation: 'add', value: 0.6 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('go-to-volumetric', 'density'), source: 'mood.tense', operation: 'add', value: 0.01 },
+    { id: 'mist-activity', target: cinema2AutoTargets.effect('go-to-volumetric', 'mistAmount'), source: 'mood.activity', operation: 'add', value: 0.5 },
+    { id: 'mist-calm', target: cinema2AutoTargets.effect('go-to-volumetric', 'mistAmount'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'floor-shock', target: cinema2AutoTargets.effect('go-to-floor', 'reflectivity'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'bloom-activity', target: cinema2AutoTargets.effect('go-to-bloom', 'intensity'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('go-to-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'bloom-calm', target: cinema2AutoTargets.effect('go-to-bloom', 'intensity'), source: 'mood.calm', operation: 'add', value: -0.15 },
+  ],
 })

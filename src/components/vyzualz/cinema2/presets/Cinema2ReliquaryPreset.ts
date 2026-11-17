@@ -798,4 +798,20 @@ export const CINEMA2_RELIQUARY_PRESET_MANIFEST = withCinema2AutoPerformance(CINE
     ],
     lift: [{ id: 'beams', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), operation: 'envelope', value: 0.9, hold: 0.5, release: 4 }],
   },
+  // The shared Mood Conductor: the crystal's glow and sparkle, the beams, haze and bloom move with how the passage feels, around the authored values.
+  mood: [
+    { id: 'glow-peak', target: cinema2AutoTargets.module('reliquary-scene', 'glowStrength'), source: 'mood.peak', operation: 'add', value: 1.2 },
+    { id: 'glow-shock', target: cinema2AutoTargets.module('reliquary-scene', 'glowStrength'), source: 'mood.shock', operation: 'add', value: 1.8 },
+    { id: 'glow-activity', target: cinema2AutoTargets.module('reliquary-scene', 'glowStrength'), source: 'mood.activity', operation: 'add', value: 0.6 },
+    { id: 'glow-calm', target: cinema2AutoTargets.module('reliquary-scene', 'glowStrength'), source: 'mood.calm', operation: 'add', value: -0.6 },
+    { id: 'sparkle-peak', target: cinema2AutoTargets.module('reliquary-scene', 'crystal.dispersion'), source: 'mood.peak', operation: 'add', value: 3 },
+    { id: 'sparkle-shock', target: cinema2AutoTargets.module('reliquary-scene', 'crystal.dispersion'), source: 'mood.shock', operation: 'add', value: 4 },
+    { id: 'sparkle-calm', target: cinema2AutoTargets.module('reliquary-scene', 'crystal.dispersion'), source: 'mood.calm', operation: 'add', value: -1.5 },
+    { id: 'beams-peak', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), source: 'mood.peak', operation: 'add', value: 1 },
+    { id: 'beams-shock', target: cinema2AutoTargets.effect('reliquary-haze', 'beamIntensity'), source: 'mood.shock', operation: 'add', value: 1.5 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('reliquary-haze', 'density'), source: 'mood.tense', operation: 'add', value: 0.03 },
+    { id: 'bloom-activity', target: cinema2AutoTargets.effect('reliquary-bloom-effect', 'intensity'), source: 'mood.activity', operation: 'add', value: 0.35 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('reliquary-bloom-effect', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.7 },
+    { id: 'bloom-calm', target: cinema2AutoTargets.effect('reliquary-bloom-effect', 'intensity'), source: 'mood.calm', operation: 'add', value: -0.2 },
+  ],
 })

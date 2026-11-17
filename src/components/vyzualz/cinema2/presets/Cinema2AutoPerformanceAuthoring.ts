@@ -115,6 +115,8 @@ export function createCinema2AutoPerformanceParameter(spec: Readonly<Pick<Cinema
     exposure: 'primary' as const,
     persistence: 'preset' as const,
     reset: 'authored-default' as const,
+    // Marks the toggle for the shared Auto Performance policy (the Inspector finds it by this tag, and the lock will).
+    metadata: Object.freeze({ moodPolicy: 'autoPerformance' }),
   })
 }
 
