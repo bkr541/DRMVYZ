@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { loadCinema2ThreeLibrary, type Cinema2ThreeLibrary } from './three/Cinema2ThreeLibrary'
@@ -28,6 +29,7 @@ export function createCinema2HypnotizeNativeModuleDefinition(
       let failed = false
       let disposed = false
       const patternEngine = new Cinema2HypnotizePatternEngine()
+      const patternControls = new Cinema2PatternControlResolver<string>()
       const diagnostics: Cinema2ModuleDiagnostic[] = []
 
       const ensureRenderer = () => {
@@ -59,8 +61,14 @@ export function createCinema2HypnotizeNativeModuleDefinition(
           ensureRenderer()
           if (!renderer) return
           const authoredPattern = readPattern(context.parameters.get('look'))
-          const trigger = readString(context.parameters, 'trigger', 'bar4')
           const audio = execution.frame.audio
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const autoOn = readBoolean(context.parameters, 'autoPerformance', true) && (execution.frame.transport?.sourcePresent ?? audio != null)
+          const control = patternControls.update({
+            saved: { patternChange: readBoolean(context.parameters, 'patternChange', false), trigger: readString(context.parameters, 'trigger', 'bar4') },
+            mood: execution.frame.mood, autoPerformance: autoOn && execution.frame.transport?.playing === true && !execution.frame.transport.paused,
+          })
+          const trigger = control.trigger
           const bpm = audio?.rhythm.bpm.available
             ? audio.rhythm.bpm.value ?? 120
             : execution.frame.transport?.bpm ?? 120
@@ -89,8 +97,8 @@ export function createCinema2HypnotizeNativeModuleDefinition(
           })
           const patternFrame = patternEngine.update({
             authoredPattern,
-            patternChange: readBoolean(context.parameters, 'patternChange', false),
-            autoPerformance: readBoolean(context.parameters, 'autoPerformance', true) && (execution.frame.transport?.sourcePresent ?? audio != null),
+            patternChange: control.patternChange,
+            autoPerformance: autoOn,
             trigger,
             triggerEventId: resolveCinema2HypnotizeTriggerEventId(audio, trigger),
             triggerPulse,
@@ -162,11 +170,13 @@ export function createCinema2HypnotizeNativeModuleDefinition(
           dispose() {
             disposed = true
             patternEngine.reset()
+            patternControls.reset()
             renderer = null
           },
         },
         render: { providers: Object.freeze([provider]) },
         getDiagnostics: () => Object.freeze([...diagnostics]),
+        inspect: () => patternControls.inspect(),
       }
     },
   })

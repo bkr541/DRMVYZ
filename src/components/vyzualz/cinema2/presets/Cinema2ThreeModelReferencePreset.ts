@@ -17,7 +17,7 @@ import {
   CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_NODE_NAMES,
   CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID,
   CINEMA2_ATMOSPHERE_REFERENCE_PILLAR_SCENE,
-  CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST,
+  CINEMA2_ATMOSPHERE_REFERENCE_AUTHORED_PRESET_MANIFEST,
 } from './Cinema2AtmosphereReferencePreset'
 
 export const CINEMA2_THREE_MODEL_REFERENCE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.three-model-reference')
@@ -29,7 +29,7 @@ export const CINEMA2_THREE_MODEL_REFERENCE_PANEL_INTENSITY_ID = cinema2StableId<
 const THREE_SCENE_TYPE_ID = cinema2StableId<Cinema2ModuleTypeId>('three-scene')
 
 /** The Atmosphere Reference rig (spot beams, haze, wet floor, bloom, finish), with shipped glossy models in place of the extruded pillars. */
-const base = CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST
+const base = CINEMA2_ATMOSPHERE_REFERENCE_AUTHORED_PRESET_MANIFEST
 
 function floatParameter(id: Cinema2ParameterId, label: string, description: string, defaultValue: number, min: number, max: number, order: number) {
   return Object.freeze({

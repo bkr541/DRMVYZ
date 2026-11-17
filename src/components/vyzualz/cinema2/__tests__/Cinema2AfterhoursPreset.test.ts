@@ -253,9 +253,10 @@ describe('Cinema 2.0 Afterhours 2.0 production preset', () => {
       persistence: 'runtime-only',
     })
     expect(plan.parameters.definitions.find(definition => definition.id === CINEMA2_AFTERHOURS_BEAM_COUNT_ID)).toMatchObject({ label: 'Laser Count', min: 2, max: 46, step: 1, defaultValue: 46 })
-    expect(plan.manifest.choreography?.rules).toHaveLength(17)
+    // Seventeen authored rules, plus the shared mood rules (one per mood source, gated by Auto Performance).
+    expect(plan.manifest.choreography?.rules.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(17)
     const corePerformanceRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter == null)
-    const autoPresentationRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter != null)
+    const autoPresentationRules = (plan.manifest.choreography?.rules ?? []).filter(rule => rule.enabledParameter != null && !String(rule.id).includes('-mood-'))
     expect(corePerformanceRules).toHaveLength(10)
     expect(autoPresentationRules).toHaveLength(7)
     for (const rule of autoPresentationRules) {

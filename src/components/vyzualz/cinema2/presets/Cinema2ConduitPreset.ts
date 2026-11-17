@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -481,7 +484,7 @@ const LED_OFF = color(0.025, 0.025, 0.03)
 /** Midtone brushed silver: brighter than the recessed tracks, but below the pearl letters and emissive LEDs. */
 const SHELL = color(0.47, 0.46, 0.45)
 
-export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_CONDUIT_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_CONDUIT_PRESET_ID,
@@ -785,3 +788,26 @@ export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 }) as Readonly<Cinema2NativePresetManifest>
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_CONDUIT_MODULE_ID as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * CONDUIT with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the energy routing around its
+ * authored values: Route Density follows how active the passage is and thins in a calm one, Pulse Width widens on a peak, and Flicker rises when
+ * tense. The preset's segment lighting already chooses the lighting pattern itself while Auto Performance is on, so only the Auto Performance toggle
+ * is tagged (not Pattern Change and the Trigger, which that choice overrides). Drop Intensity is already at its maximum, and the camera controls
+ * are bound to the camera, so neither is driven.
+ */
+export const CINEMA2_CONDUIT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_CONDUIT_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'conduit-auto',
+  enabledParameter: moodParameter('conduit-auto-performance'),
+  strengthParameter: moodParameter('conduit-master-intensity'),
+  drives: [
+    { id: 'density-activity', target: moduleTarget('segmentRouteDensity'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'density-peak', target: moduleTarget('segmentRouteDensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'density-calm', target: moduleTarget('segmentRouteDensity'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'width-peak', target: moduleTarget('segmentPulseWidth'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'width-calm', target: moduleTarget('segmentPulseWidth'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'flicker-tense', target: moduleTarget('segmentFlicker'), source: 'mood.tense', operation: 'add', value: 0.1 },
+  ],
+})

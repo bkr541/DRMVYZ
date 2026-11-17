@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import { elevhateAudioRules } from './Cinema2ElevhateChoreography'
 import { ELEVHATE_CHANNELS } from '../modules/elevhate/Cinema2ElevhatePerformance'
 import {
@@ -28,7 +31,7 @@ const param = (name: string, label: string, type: 'float' | 'boolean' | 'color',
   ...(type === 'float' ? { min, max, step } : {}),
 } as Cinema2ParameterManifest)
 const bindings = Object.fromEntries(['master','speed','response','bpmSync','autoPerformance','pattern','patternChange','trigger','opening','width','sway','haze','void','body','primary','junction','secondary'].map(name => [name, cinema2Ref(elevhateParameter(name))]))
-export const CINEMA2_ELEVHATE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_ELEVHATE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ELEVHATE_PRESET_ID, revision: 1,
   metadata: { name: 'Elevhate', description: 'An outlined black megastructure with a continuous journey through passages, crossings and stacked levels.', tags: ['keeper', '3d', 'architecture', 'elevhate'] },
@@ -90,3 +93,32 @@ export const CINEMA2_ELEVHATE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
   },
   defaults: { camera: cinema2Ref(ELEVHATE_CAMERA) }, output: { renderPass: cinema2Ref(finishPass), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module('elevhate-world' as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * Elevhate with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the corridor around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Master Intensity and Travel Speed follow how active the passage is
+ * (and settle in a calm one); the opening and the edges widen on a peak and a drop; the haze thickens when tense; the bloom flares. Camera Sway is
+ * bound to the camera, so it stays the user's, and Music Response scales every drive.
+ */
+export const CINEMA2_ELEVHATE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ELEVHATE_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'elevhate-auto',
+  enabledParameter: moodParameter('elevhate-autoperformance'),
+  strengthParameter: moodParameter('elevhate-response'),
+  patternControls: { patternChange: moodParameter('elevhate-patternchange'), trigger: moodParameter('elevhate-trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('master'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'master-calm', target: moduleTarget('master'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('master'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'speed-activity', target: moduleTarget('speed'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'speed-calm', target: moduleTarget('speed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'opening-peak', target: moduleTarget('opening'), source: 'mood.peak', operation: 'add', value: 0.4 },
+    { id: 'opening-shock', target: moduleTarget('opening'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'width-peak', target: moduleTarget('width'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'width-shock', target: moduleTarget('width'), source: 'mood.shock', operation: 'add', value: 0.4 },
+    { id: 'haze-tense', target: moduleTarget('haze'), source: 'mood.tense', operation: 'add', value: 0.01 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('elevhate-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('elevhate-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+  ],
+})

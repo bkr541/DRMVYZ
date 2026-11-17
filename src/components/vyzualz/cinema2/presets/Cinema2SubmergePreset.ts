@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import { cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest, type Cinema2NativePresetManifest, type Cinema2ParameterManifest, type Cinema2ParameterId, type Cinema2PresetId } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_SAY_IT_AUTHORED_PRESET_MANIFEST } from './Cinema2SayItPreset'
 import { CINEMA2_SUBMERGE_MODULE_TYPE_ID } from '../modules/Cinema2SubmergeNativeModule'
@@ -76,7 +79,7 @@ const waterAudioRules: Cinema2ChoreographyRuleManifest[] = waterAudioRoutes.map(
   }],
 }))
 
-export const CINEMA2_SUBMERGE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
+const CINEMA2_SUBMERGE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
   ...template,
   revision: 2,
   id: CINEMA2_SUBMERGE_PRESET_ID,
@@ -102,4 +105,50 @@ export const CINEMA2_SUBMERGE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     intensity: light.type === 'ambient' ? 0.035 : (light.intensity ?? 1) * 0.025,
   })) },
   environment: { ...template.environment, backgroundColor: [0.012, 0.11, 0.16, 1] as const },
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module('submerge-glyphs' as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+// The migration's own change to the authored preset: the module reads the Auto Performance toggle (it needs it to know when the music chooses
+// Pattern Change and the Trigger).
+const CINEMA2_SUBMERGE_MOOD_BASE_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+  ...CINEMA2_SUBMERGE_AUTHORED_PRESET_MANIFEST,
+  modules: Object.freeze((CINEMA2_SUBMERGE_AUTHORED_PRESET_MANIFEST.modules ?? []).map(module => Object.freeze({
+    ...module,
+    parameters: Object.freeze({ ...(module.parameters ?? {}), autoPerformance: true }),
+    parameterBindings: Object.freeze({ ...(module.parameterBindings ?? {}), autoPerformance: cinema2Ref(submergeParameterId('auto-performance')) }),
+  }))),
+})
+/**
+ * SUBMERGE with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the scene around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. The current quickens with activity, reaches further and the waves
+ * build on a peak and a drop, the surface light and caustics follow the passage, the haze thickens when tense, the suspended particles and bubbles
+ * rise with it, and the bloom flares. Your text, layout, material, Letter Buoyancy and Seabed stay yours, and Motion Amount scales every drive.
+ */
+export const CINEMA2_SUBMERGE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_SUBMERGE_MOOD_BASE_MANIFEST, {
+  idPrefix: 'submerge-auto',
+  enabledParameter: moodParameter('submerge-auto-performance'),
+  strengthParameter: moodParameter('submerge-motion'),
+  patternControls: { patternChange: moodParameter('submerge-pattern-change'), trigger: moodParameter('submerge-trigger') },
+  drives: [
+    { id: 'period-activity', target: moduleTarget('cycleSeconds'), source: 'mood.activity', operation: 'add', value: -2.5 },
+    { id: 'period-calm', target: moduleTarget('cycleSeconds'), source: 'mood.calm', operation: 'add', value: 2.5 },
+    { id: 'reach-peak', target: moduleTarget('spread'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'reach-shock', target: moduleTarget('spread'), source: 'mood.shock', operation: 'add', value: 0.4 },
+    { id: 'waves-activity', target: moduleTarget('waves'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'waves-shock', target: moduleTarget('waves'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'sun-peak', target: moduleTarget('sunlight'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'sun-shock', target: moduleTarget('sunlight'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'sun-calm', target: moduleTarget('sunlight'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'caustics-activity', target: moduleTarget('caustics'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'caustics-peak', target: moduleTarget('caustics'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'haze-tense', target: moduleTarget('haze'), source: 'mood.tense', operation: 'add', value: 0.03 },
+    { id: 'particles-activity', target: moduleTarget('particles'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'particles-peak', target: moduleTarget('particles'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'bubbles-peak', target: moduleTarget('bubbles'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bubbles-shock', target: moduleTarget('bubbles'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'sweep-activity', target: moduleTarget('highlightSweep'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('submerge-bloom-effect', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('submerge-bloom-effect', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.4 },
+  ],
 })

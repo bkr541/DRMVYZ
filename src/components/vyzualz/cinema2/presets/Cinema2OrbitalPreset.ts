@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2ChoreographyRuleManifest,
@@ -69,7 +72,7 @@ const geometryRules: Cinema2ChoreographyRuleManifest[] = routes.map(([property, 
 const parameters = template.parameters!.filter(parameter => !removed.has(parameter.id))
   .map(parameter => ({ ...parameter, ...changes[parameter.id.slice('orbital-'.length)] }))
 
-export const CINEMA2_ORBITAL_PRESET_MANIFEST = Object.freeze<Cinema2NativePresetManifest>({
+const CINEMA2_ORBITAL_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze<Cinema2NativePresetManifest>({
   ...template,
   id: CINEMA2_ORBITAL_PRESET_ID, revision: 1,
   metadata: { ...template.metadata, name: 'ORBITAL', description: 'Metal lettering gently wrapped around the supplied textured sphere, sharing its physical surface finish in a dark neutral space.', tags: ['3d', 'typography', 'space', 'sphere'] },
@@ -85,4 +88,50 @@ export const CINEMA2_ORBITAL_PRESET_MANIFEST = Object.freeze<Cinema2NativePreset
     intensity: light.type === 'ambient' ? .38 : (light.intensity ?? 1) * .18,
   })) },
   environment: { ...template.environment, backgroundColor: [.008, .012, .018, 1] },
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module('orbital-glyphs' as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+// The migration's own changes to the authored preset: the Pattern controls move to Design, and the module reads the Auto Performance toggle
+// (it needs it to know when the music chooses Pattern Change and the Trigger).
+const ORBITAL_MOVED_TO_DESIGN: Readonly<Record<string, number>> = Object.freeze({ 'orbital-pattern': 20, 'orbital-pattern-change': 21, 'orbital-trigger': 22 })
+const CINEMA2_ORBITAL_MOOD_BASE_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+  ...CINEMA2_ORBITAL_AUTHORED_PRESET_MANIFEST,
+  parameters: Object.freeze((CINEMA2_ORBITAL_AUTHORED_PRESET_MANIFEST.parameters ?? []).map(parameter => (
+    ORBITAL_MOVED_TO_DESIGN[parameter.id] != null ? Object.freeze({ ...parameter, designParentGroup: 'design' as const, order: ORBITAL_MOVED_TO_DESIGN[parameter.id] }) : parameter
+  ))),
+  modules: Object.freeze((CINEMA2_ORBITAL_AUTHORED_PRESET_MANIFEST.modules ?? []).map(module => Object.freeze({
+    ...module,
+    parameters: Object.freeze({ ...(module.parameters ?? {}), autoPerformance: true }),
+    parameterBindings: Object.freeze({ ...(module.parameterBindings ?? {}), autoPerformance: cinema2Ref(id('auto-performance')) }),
+  }))),
+})
+/**
+ * ORBITAL with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the assembly around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern (these controls moved to Design). The orbit quickens as the passage
+ * gets active and slows in a calm one; sphere motion, letter depth, reflections, the highlight sweep and the bloom swell on a peak and a drop; the
+ * debris follows activity. Your text, layout, material and colors stay yours, and Motion Amount scales every drive.
+ */
+export const CINEMA2_ORBITAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ORBITAL_MOOD_BASE_MANIFEST, {
+  idPrefix: 'orbital-auto',
+  enabledParameter: moodParameter('orbital-auto-performance'),
+  strengthParameter: moodParameter('orbital-motion'),
+  patternControls: { patternChange: moodParameter('orbital-pattern-change'), trigger: moodParameter('orbital-trigger') },
+  drives: [
+    { id: 'cycle-activity', target: moduleTarget('cycleSeconds'), source: 'mood.activity', operation: 'add', value: -2.5 },
+    { id: 'cycle-calm', target: moduleTarget('cycleSeconds'), source: 'mood.calm', operation: 'add', value: 2.5 },
+    { id: 'travel-peak', target: moduleTarget('ring-travel'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'travel-shock', target: moduleTarget('ring-travel'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'sphere-shock', target: moduleTarget('gyroscope-size'), source: 'mood.shock', operation: 'add', value: 0.08 },
+    { id: 'debris-activity', target: moduleTarget('debris'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'debris-peak', target: moduleTarget('debris'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'debris-calm', target: moduleTarget('debris'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'depth-peak', target: moduleTarget('letter-depth'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'reflection-peak', target: moduleTarget('environmentIntensity'), source: 'mood.peak', operation: 'add', value: 0.4 },
+    { id: 'reflection-shock', target: moduleTarget('environmentIntensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+    { id: 'sweep-activity', target: moduleTarget('highlightSweep'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'sweep-shock', target: moduleTarget('highlightSweep'), source: 'mood.shock', operation: 'add', value: 0.4 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('orbital-bloom-effect', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('orbital-bloom-effect', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.5 },
+  ],
 })

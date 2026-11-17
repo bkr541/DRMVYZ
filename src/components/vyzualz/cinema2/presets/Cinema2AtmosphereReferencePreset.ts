@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -275,7 +278,8 @@ function accentParameter(id: Cinema2ParameterId, label: string, description: str
  * The downbeat swells the beams (Musical Event -> Choreography -> Visual Action),
  * and the effect's own `reactivity` follows the Visual Director's gated impact.
  */
-export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+/** Atmosphere Reference as authored, before the shared mood migration. The Three Model Reference derives from it. */
+export const CINEMA2_ATMOSPHERE_REFERENCE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ATMOSPHERE_REFERENCE_PRESET_ID,
@@ -720,4 +724,44 @@ export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2Nativ
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ATMOSPHERE_REFERENCE_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_ATMOSPHERE_REFERENCE_OBJECT_MODULE_ID as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * Atmosphere Reference (Crystalized) with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the
+ * scene around its authored values and the music chooses Pattern Change and the Trigger for the Pattern (it has four patterns). Motion Amount
+ * follows how active the passage is; the crystal and monoliths grow a little on a peak and a drop; the cracks glow and the crystal sparkles on a peak and a
+ * drop; the beams and bloom flare, and the haze and ground mist thicken when tense. Crack Glow and Crystal Sparkle drive all four monoliths' emissive
+ * values at once (they share the control). Crystal Clarity and the camera stay the user's, and Music Response scales every drive.
+ */
+export const CINEMA2_ATMOSPHERE_REFERENCE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ATMOSPHERE_REFERENCE_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'atmosphere-reference-auto',
+  enabledParameter: moodParameter('crystalized-auto-performance'),
+  strengthParameter: moodParameter('atmosphere-reference-reactivity'),
+  patternControls: { patternChange: moodParameter('crystalized-pattern-change'), trigger: moodParameter('crystalized-trigger') },
+  drives: [
+    { id: 'master-calm', target: moduleTarget('master'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'motion-activity', target: moduleTarget('motion'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'motion-calm', target: moduleTarget('motion'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'crystal-peak', target: moduleTarget('crystalScale'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'monolith-peak', target: moduleTarget('monolithHeight'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'monolith-shock', target: moduleTarget('monolithHeight'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'sparkle-peak', target: moduleTarget('crystal.dispersion'), source: 'mood.peak', operation: 'add', value: 2 },
+    { id: 'sparkle-shock', target: moduleTarget('crystal.dispersion'), source: 'mood.shock', operation: 'add', value: 3 },
+    { id: 'crack-left-peak', target: moduleTarget('left.emissiveIntensity'), source: 'mood.peak', operation: 'add', value: 0.8 },
+    { id: 'crack-violet-peak', target: moduleTarget('violet.emissiveIntensity'), source: 'mood.peak', operation: 'add', value: 0.8 },
+    { id: 'crack-right-peak', target: moduleTarget('right.emissiveIntensity'), source: 'mood.peak', operation: 'add', value: 0.8 },
+    { id: 'crack-back-peak', target: moduleTarget('back.emissiveIntensity'), source: 'mood.peak', operation: 'add', value: 0.8 },
+    { id: 'crack-left-shock', target: moduleTarget('left.emissiveIntensity'), source: 'mood.shock', operation: 'add', value: 1.2 },
+    { id: 'crack-violet-shock', target: moduleTarget('violet.emissiveIntensity'), source: 'mood.shock', operation: 'add', value: 1.2 },
+    { id: 'crack-right-shock', target: moduleTarget('right.emissiveIntensity'), source: 'mood.shock', operation: 'add', value: 1.2 },
+    { id: 'crack-back-shock', target: moduleTarget('back.emissiveIntensity'), source: 'mood.shock', operation: 'add', value: 1.2 },
+    { id: 'beam-peak', target: cinema2AutoTargets.effect('atmosphere-reference-volumetric', 'beamIntensity'), source: 'mood.peak', operation: 'add', value: 0.5 },
+    { id: 'beam-shock', target: cinema2AutoTargets.effect('atmosphere-reference-volumetric', 'beamIntensity'), source: 'mood.shock', operation: 'add', value: 0.8 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('atmosphere-reference-volumetric', 'density'), source: 'mood.tense', operation: 'add', value: 0.01 },
+    { id: 'mist-tense', target: cinema2AutoTargets.effect('atmosphere-reference-volumetric', 'mistAmount'), source: 'mood.tense', operation: 'add', value: 0.3 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('atmosphere-reference-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('atmosphere-reference-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.6 },
+  ],
 })

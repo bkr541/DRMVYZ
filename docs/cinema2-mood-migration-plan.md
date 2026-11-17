@@ -114,7 +114,9 @@ Own timelines and audio files; Glassfall has the heaviest existing Auto Performa
 | vacancy | vacancy | off | design; Pattern (8) | 11 options | 0 | 13 | camera controls |
 | marquee | marquee | on | design; Pattern (7) | 11 options | 0 | 13 | default on; camera controls |
 
-### Batch 5: Special cases, one at a time (8)
+### Batch 5: Special cases (8) — DONE (uncommitted; awaiting your real-app check)
+
+All eight are migrated, so every non-skipped first-party preset now uses the shared enhancements. Three tag only the Auto Performance toggle, because their own program already chooses the pattern from the music (Conduit's segment lighting, ATL HOE's pattern controller) or because Pattern Change is not a toggle (Afterhours: a six-way choice, Trigger under Effects, 39 patterns and a show planner). Hypnotize has no drop-time drives, to respect its Flash Accents and Drop / Impact LED Gating limits. Three Model Reference derives from Atmosphere Reference's authored manifest. Orbital's Pattern controls moved to Design.
 
 Each has something unusual: Afterhours has 39 patterns and a show planner; Hypnotize its own pattern engine; Orbital and Submerge are default on with different module wiring; Conduit's module reads nothing from Pattern/Trigger; Elevhate has its own performance class; Atmosphere Reference has only 4 patterns; ATL HOE is default on and has its own pattern controller on the shared three-scene module.
 

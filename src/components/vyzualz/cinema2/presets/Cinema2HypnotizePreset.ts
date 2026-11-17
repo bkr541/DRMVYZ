@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   cinema2NamespacedId,
   cinema2Ref,
@@ -396,7 +399,7 @@ const lighting = Object.freeze({
   ]),
 })
 
-export const CINEMA2_HYPNOTIZE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_HYPNOTIZE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   ...staticDerived,
   id: CINEMA2_HYPNOTIZE_PRESET_ID,
   revision: 7,
@@ -482,3 +485,36 @@ export const CINEMA2_HYPNOTIZE_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
 
 function vec3(x: number, y: number, z: number): Cinema2Vector3 { return Object.freeze([x, y, z]) }
 function color(r: number, g: number, b: number, a = 1): Cinema2Color { return Object.freeze([r, g, b, a]) }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module('hypnotize-system' as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * HYPNOTIZE with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the chamber around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. The chamber and tunnel open on a peak, the rings thin out in a calm
+ * passage, rotation, counter-rotation and pulse depth follow how active it is, and the LEDs, core and bloom brighten on a peak. There are deliberately
+ * no drop-time flashes: the preset's Flash Accents and Drop / Impact LED Gating controls limit flashing, and the mood must not bypass them. Core Size,
+ * Perspective Reveal, Vane Length, Travel (it also scales the camera), the flash controls and Chromatic Split stay the user's.
+ */
+export const CINEMA2_HYPNOTIZE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_HYPNOTIZE_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'hypnotize-auto',
+  enabledParameter: moodParameter('hypnotize-auto-performance'),
+  strengthParameter: moodParameter('hypnotize-reactivity'),
+  patternControls: { patternChange: moodParameter('hypnotize-pattern-change'), trigger: moodParameter('hypnotize-trigger') },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('intensity'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'chamber-peak', target: moduleTarget('spread'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'tunnel-peak', target: moduleTarget('depthSpread'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'density-calm', target: moduleTarget('nodeDensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'warp-peak', target: moduleTarget('burst'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'pulse-activity', target: moduleTarget('drift'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'rotation-activity', target: moduleTarget('spin'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'rotation-calm', target: moduleTarget('spin'), source: 'mood.calm', operation: 'add', value: -0.12 },
+    { id: 'counter-activity', target: moduleTarget('counterRotation'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'led-peak', target: moduleTarget('edgeGlow'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'core-activity', target: moduleTarget('internalGlow'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'detail-peak', target: moduleTarget('starDensity'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'atmosphere-tense', target: cinema2AutoTargets.effect('hypnotize-atmosphere', 'mix'), source: 'mood.tense', operation: 'add', value: 0.1 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('hypnotize-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+  ],
+})

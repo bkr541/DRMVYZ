@@ -34,7 +34,7 @@ describe('Cinema 2.0 ORBITAL', () => {
     expect(validateCinema2PresetAuthoringConventions({ role: 'keeper', manifest }).diagnostics).toEqual([])
     expect(cinema2NativeModuleRegistry.get(CINEMA2_ORBITAL_MODULE_TYPE_ID, 1)).toBeTruthy()
     expect(new Set(manifest.parameters!.map(parameter => parameter.designParentGroup).filter(Boolean))).toEqual(new Set(['master-controls', 'design', 'effects', 'palette']))
-    expect(manifest.parameters!.find(parameter => parameter.id === 'orbital-pattern')).toMatchObject({ defaultValue: 'gyroscopic-drift', options: CINEMA2_ORBITAL_PATTERNS, designParentGroup: 'effects' })
+    expect(manifest.parameters!.find(parameter => parameter.id === 'orbital-pattern')).toMatchObject({ defaultValue: 'gyroscopic-drift', options: CINEMA2_ORBITAL_PATTERNS, designParentGroup: 'design' })
     expect(manifest.parameters!.find(parameter => parameter.id === 'orbital-trigger')).toMatchObject({ defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: 'orbital-pattern-change', value: true }] })
   })
 

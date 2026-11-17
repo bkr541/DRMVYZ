@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -197,7 +200,7 @@ const BACKGROUND_COLOR = Object.freeze([0, 0, 0, 1] as const)
  * and engine-owned feedback history cooperate without moving temporal GPU
  * ownership into the laser module.
  */
-export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_AFTERHOURS_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_AFTERHOURS_PRESET_ID,
@@ -724,4 +727,30 @@ export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_AFTERHOURS_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(AFTERHOURS_TRAILS_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_AFTERHOURS_MODULE_ID as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * Afterhours with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the rig around its authored
+ * values: Master Intensity follows how active the passage is and flares on a drop, Motion Amount follows activity, Spread opens on a peak and a drop,
+ * the atmosphere thickens when tense and Pulse Amount rises on a peak. Only the Auto Performance toggle is tagged: Afterhours' Pattern Change is a
+ * six-way choice (not a toggle), the Trigger sits under Effects with its own default, and its 39 patterns and show planner are its own program, so the
+ * music does not choose them. Master Intensity scales every drive (the preset has no separate reactivity control).
+ */
+export const CINEMA2_AFTERHOURS_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_AFTERHOURS_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'afterhours-auto',
+  enabledParameter: moodParameter('afterhours-auto-performance'),
+  strengthParameter: moodParameter('afterhours-master-intensity'),
+  drives: [
+    { id: 'master-activity', target: moduleTarget('masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.08 },
+    { id: 'master-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'motion-activity', target: moduleTarget('motionAmount'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'motion-calm', target: moduleTarget('motionAmount'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'spread-peak', target: moduleTarget('spread'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'spread-shock', target: moduleTarget('spread'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'atmosphere-tense', target: moduleTarget('atmosphere'), source: 'mood.tense', operation: 'add', value: 0.1 },
+    { id: 'pulse-peak', target: moduleTarget('pulseAmount'), source: 'mood.peak', operation: 'add', value: 0.15 },
+  ],
 })

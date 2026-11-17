@@ -20,7 +20,8 @@ export const cinema2ElevhateNativeModuleDefinition: Cinema2ModuleTypeDefinition 
       return Array.isArray(v) && v.length === 4 ? [v[0], v[1], v[2]] : [fallback, fallback, fallback]
     }
     return {
-      lifecycle: { dispose() {}, update(update) {
+      inspect: () => performance.controls.inspect(),
+      lifecycle: { dispose() { performance.controls.reset() }, update(update) {
         performance.update(update)
         const { frame } = update
         const selected = Math.max(0, ELEVHATE_PATTERNS.findIndex(p => p.value === performance.state.pattern))
