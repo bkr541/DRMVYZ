@@ -63,7 +63,9 @@ Same controller class as Mainframe and Backstreet: add the resolver, tags and dr
 | switch-it | switch-it | off | design; Pattern (6) | 11 options | 0 | 14 |  |
 | canopy | canopy | off | design; Pattern (6) | 11 options | 1 | 14 | camera controls |
 
-### Batch 3A: Afterhours-family looks and programs, default ON (4)
+### Batch 3A: Afterhours-family looks and programs, default ON (4) — DONE (uncommitted; Event Horizon was done earlier with its galaxy upgrade)
+
+Selector names and counts were kept as they are (Machine Look 3, Light Program 5, Constellation Look 12, Horizon Look 3): the pattern controls moved to Design and the music chooses them, with no rename or new options. Hypnotize and Sixfold derive from Constellation's manifest, so they now derive from its authored manifest (without the mood drives) until they are migrated in Batches 3B and 5.
 
 Use the Afterhours trigger helper plus a program controller. All four default Auto Performance on, have their pattern controls in Effects, and name the selector something other than Pattern (Machine Look has 3 options).
 

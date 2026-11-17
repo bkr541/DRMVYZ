@@ -55,7 +55,7 @@ describe('Cinema 2.0 Ancient Machine preset', () => {
     expect(CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST.parameters?.find(parameter => parameter.id === CINEMA2_ANCIENT_MACHINE_TRIGGER_ID)).toMatchObject({ type: 'enum', defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: [{ kind: 'parameter-equals', parameterId: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, value: true }] })
     const state = new Cinema2ParameterState(compiled.plan.parameters)
     const labels = () => {
-      const effects = createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).find(parent => parent.id === 'effects')
+      const effects = createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).find(parent => parent.id === 'design')
       return [...(effects?.controls.map(control => control.definition.label) ?? []), ...(effects?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? [])]
     }
     expect(labels()).not.toContain('Trigger')

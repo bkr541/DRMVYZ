@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -210,7 +212,7 @@ function flightPoints() {
   return Object.freeze([point(0), point(0.25), point(0.5), point(0.75)])
 }
 
-export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_CATHEDRAL_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest>=Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_CATHEDRAL_PRESET_ID,
@@ -269,7 +271,7 @@ export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       type: 'enum' as const,
       defaultValue: 'cathedralRun',
       metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_CATHEDRAL_AUTO_PERFORMANCE_ID]: false }) }),
-      designParentGroup: 'effects' as const,
+      designParentGroup: 'design' as const,
       order: 1,
       group: 'Pattern',
       options: Object.freeze(CINEMA2_CATHEDRAL_PROGRAMS.map(value => Object.freeze({ value, label: PROGRAM_LABELS[value] }))),
@@ -281,7 +283,7 @@ export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.',
       type: 'boolean' as const,
       defaultValue: false,
-      designParentGroup: 'effects' as const,
+      designParentGroup: 'design' as const,
       order: 2,
       group: 'Pattern',
     }),
@@ -294,7 +296,7 @@ export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
       defaultValue: 'bar4',
       options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
       visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_CATHEDRAL_PATTERN_CHANGE_ID, value: true })]),
-      designParentGroup: 'effects' as const,
+      designParentGroup: 'design' as const,
       order: 3,
       group: 'Pattern',
     }),
@@ -509,4 +511,34 @@ export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetMani
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_CATHEDRAL_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_CATHEDRAL_MODULE_ID as string, property)
+/**
+ * Cathedral with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves it around its authored values and the
+ * music chooses Pattern Change and the Trigger for the Light Program. Master Intensity brightens with activity and a drop; Active Architecture and Spark Density follow how active the passage is and settle in a calm one; Arch Expansion opens on a peak and a drop; Light Shafts and Bloom flare on a peak and a drop and the haze thickens in tense passages. The floor reflection stays the user's.
+ */
+export const CINEMA2_CATHEDRAL_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_CATHEDRAL_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'cathedral-auto',
+  enabledParameter: CINEMA2_CATHEDRAL_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_CATHEDRAL_REACTIVITY_ID,
+  patternControls: { patternChange: CINEMA2_CATHEDRAL_PATTERN_CHANGE_ID, trigger: CINEMA2_CATHEDRAL_TRIGGER_ID },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('intensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('intensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'architecture-activity', target: moduleTarget('activeDensity'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'architecture-peak', target: moduleTarget('activeDensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'architecture-calm', target: moduleTarget('activeDensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'expansion-peak', target: moduleTarget('expansion'), source: 'mood.peak', operation: 'add', value: 0.3 },
+    { id: 'expansion-shock', target: moduleTarget('expansion'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'sparks-activity', target: moduleTarget('sparkDensity'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'sparks-peak', target: moduleTarget('sparkDensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'sparks-calm', target: moduleTarget('sparkDensity'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'shafts-peak', target: cinema2AutoTargets.effect('cathedral-atmosphere-effect', 'beamIntensity'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'shafts-shock', target: cinema2AutoTargets.effect('cathedral-atmosphere-effect', 'beamIntensity'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('cathedral-atmosphere-effect', 'density'), source: 'mood.tense', operation: 'add', value: 0.02 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('cathedral-bloom-effect', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('cathedral-bloom-effect', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.5 },
+  ],
 })

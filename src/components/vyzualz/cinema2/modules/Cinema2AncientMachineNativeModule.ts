@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleDiagnostic, Cinema2ModuleRenderExecutionContext, Cinema2ModuleTypeDefinition, Cinema2ModuleUpdateContext } from './Cinema2ModuleContracts'
 import { resolveCinema2AfterhoursTriggerEventIdentity } from './Cinema2AfterhoursNativeModule'
@@ -43,6 +44,7 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
       )
       context.resources.reportGpuBytes(renderer.estimateGpuBytes())
       const initialLook = readEnum(context.parameters, 'look', CINEMA2_ANCIENT_MACHINE_LOOKS, 'oracleLock')
+      const patternControls = new Cinema2PatternControlResolver<typeof CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS[number]>()
       const controller = new Cinema2AncientMachineProgramController(
         createCinema2AncientMachineLookCycle(index => context.randomness.sample('ancient-machine-look-cycle', index)),
         initialLook,
@@ -96,11 +98,15 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
         lifecycle: {
           update: ({ parameters, frame }: Cinema2ModuleUpdateContext) => {
             const authoredLook = readEnum(parameters, 'look', CINEMA2_ANCIENT_MACHINE_LOOKS, 'oracleLock')
-            const patternChange = readBoolean(parameters, 'patternChange', false)
-            const trigger = readEnum(parameters, 'trigger', CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS, 'bar4')
+            const savedPatternChange = readBoolean(parameters, 'patternChange', false)
+            const savedTrigger = readEnum(parameters, 'trigger', CINEMA2_ANCIENT_MACHINE_TRIGGER_IDS, 'bar4')
             const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
             const acceptedFrame = audio === frame.audio ? frame : { ...frame, audio }
             const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({ saved: { patternChange: savedPatternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: readBoolean(parameters, 'autoPerformance', true) && playback === 'playing' })
+            const patternChange = control.patternChange
+            const trigger = control.trigger
             const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
             const sourceIdentity = frame.transport?.paused && !audio && previousSourceIdentity != null && frame.transport.trackId === previousTrackId
               ? previousSourceIdentity : resolveCinema2MainframeSourceIdentity(acceptedFrame, audio)
@@ -116,9 +122,10 @@ export function createCinema2AncientMachineNativeModuleDefinition(options: {
             previousTimeSec = timeSec; previousBeat = timing.beats; previousSourceIdentity = sourceIdentity
             previousTrackId = frame.transport?.trackId; previousContextGeneration = frame.contextGeneration; previousPlayback = playback
           },
-          dispose: () => { controller.reset(); beatClock.reset() },
+          dispose: () => { controller.reset(); beatClock.reset(); patternControls.reset() },
         },
         render: { providers: Object.freeze([provider]) },
+        inspect: () => patternControls.inspect(),
       }
     },
   })

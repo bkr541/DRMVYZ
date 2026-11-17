@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2CameraId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2Color, type Cinema2EffectId,
@@ -74,7 +76,7 @@ function effectPass(id: Cinema2RenderPassId, after: Cinema2RenderPassId, input: 
   ]), ...(output ? { outputs: Object.freeze([Object.freeze({ id: slot(`${name}-output`), target: cinema2Ref(output), attachment: 'color' as const })]) } : {}) })
 }
 
-export const CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_ANCIENT_MACHINE_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest>=Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_ANCIENT_MACHINE_PRESET_ID, revision: 1,
   metadata: Object.freeze({ name: 'Ancient Machine', description: 'A monumental concentric mechanism combining Oracle Lock, Gear Sun and Epoch Engine as native authored looks.', tags: Object.freeze(['keeper', '3d', 'mechanical', 'architecture', 'choreography']), metadata: Object.freeze({ legacySources: Object.freeze(['preset-oracle-lock', 'preset-gear-sun', 'preset-epoch-engine']) }) }),
   capabilities: Object.freeze([
@@ -92,9 +94,9 @@ export const CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST: Readonly<Cinema2NativePres
     Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID, label: 'Auto Performance', description: 'Lets Audio Intelligence select build and drop machine states.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 3, group: 'Playback' }),
     Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_BPM_SYNC_ID, label: 'BPM Sync', description: 'Uses the analyzed beat grid for Trigger timing and camera tempo.', type: 'boolean' as const, defaultValue: true, designParentGroup: 'master-controls' as const, order: 4, group: 'Playback' }),
     Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_MOTION_SAFETY_ID, label: 'Camera Motion', description: 'Full orbit, reduced motion, or lock-off.', type: 'enum' as const, defaultValue: 'full', designParentGroup: 'master-controls' as const, order: 5, group: 'Playback', options: Object.freeze([Object.freeze({ value: 'full', label: 'Full Motion' }), Object.freeze({ value: 'reduced', label: 'Reduced Motion' }), Object.freeze({ value: 'lockoff', label: 'Lock Off' })]) }),
-    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_LOOK_ID, label: 'Machine Look', description: 'Selects Oracle Lock, Gear Sun, or Epoch Engine immediately.', type: 'enum' as const, defaultValue: 'oracleLock', metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID]: false }) }), options: Object.freeze(CINEMA2_ANCIENT_MACHINE_LOOKS.map(value => Object.freeze({ value, label: LOOK_LABELS[value] }))), designParentGroup: 'effects' as const, order: 1, group: 'Pattern' }),
-    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, label: 'Pattern Change', description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.', type: 'boolean' as const, defaultValue: false, designParentGroup: 'effects' as const, order: 2, group: 'Pattern' }),
-    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_TRIGGER_ID, label: 'Trigger', description: 'Chooses the musical event that advances to the next Machine Look while Pattern Change is enabled.', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, value: true })]), designParentGroup: 'effects' as const, order: 3, group: 'Pattern' }),
+    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_LOOK_ID, label: 'Machine Look', description: 'Selects Oracle Lock, Gear Sun, or Epoch Engine immediately.', type: 'enum' as const, defaultValue: 'oracleLock', metadata: Object.freeze({ userEditSetParameters: Object.freeze({ [CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID]: false }) }), options: Object.freeze(CINEMA2_ANCIENT_MACHINE_LOOKS.map(value => Object.freeze({ value, label: LOOK_LABELS[value] }))), designParentGroup: 'design' as const, order: 1, group: 'Pattern' }),
+    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, label: 'Pattern Change', description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.', type: 'boolean' as const, defaultValue: false, designParentGroup: 'design' as const, order: 2, group: 'Pattern' }),
+    Object.freeze({ ...base, id: CINEMA2_ANCIENT_MACHINE_TRIGGER_ID, label: 'Trigger', description: 'Chooses the musical event that advances to the next Machine Look while Pattern Change is enabled.', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, value: true })]), designParentGroup: 'design' as const, order: 3, group: 'Pattern' }),
     floatParam(CINEMA2_ANCIENT_MACHINE_ROTATION_SPEED_ID, 'Rotation Speed', 'Base ring rotation rate.', 0.35, -2, 2, 0.01, 'design', 1, 'Mechanics'),
     floatParam(CINEMA2_ANCIENT_MACHINE_COUNTER_ROTATION_ID, 'Counter-Rotation', 'Opposing rotation strength between neighboring rings.', 0.72, 0, 2, 0.01, 'design', 2, 'Mechanics'),
     floatParam(CINEMA2_ANCIENT_MACHINE_DEPTH_ID, 'Mechanical Depth', 'Separation between concentric mechanism layers.', 1, 0.25, 2, 0.01, 'design', 3, 'Mechanics'),
@@ -133,4 +135,30 @@ export const CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST: Readonly<Cinema2NativePres
     effectPass(ATMOSPHERE_PASS, SCENE_PASS, SCENE_COLOR, ATMOSPHERE, 'atmosphere', ATMOSPHERE_TARGET, true), effectPass(BLOOM_PASS, ATMOSPHERE_PASS, slot('atmosphere-output'), BLOOM, 'bloom', BLOOM_TARGET, false), effectPass(FINISH_PASS, BLOOM_PASS, slot('bloom-output'), FINISH, 'finish', null, false),
   ]), outputPass: cinema2Ref(FINISH_PASS) }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_ANCIENT_MACHINE_CAMERA_ID) }), output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_ANCIENT_MACHINE_MODULE_ID as string, property)
+/**
+ * AncientMachine with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves it around its authored values and the
+ * music chooses Pattern Change and the Trigger for the Machine Look (Oracle Lock, Gear Sun, Epoch Engine). Master Intensity brightens with activity and a drop; the rings turn faster with activity and the counter-rotation follows; Mechanical Depth and Crystal Expansion open on a peak and a drop; Internal Haze thickens in tense passages; Bloom flares on a peak and a drop. Lock Progress and Glyph Density stay the user's.
+ */
+export const CINEMA2_ANCIENT_MACHINE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ANCIENT_MACHINE_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'ancient-machine-auto',
+  enabledParameter: CINEMA2_ANCIENT_MACHINE_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_ANCIENT_MACHINE_REACTIVITY_ID,
+  patternControls: { patternChange: CINEMA2_ANCIENT_MACHINE_PATTERN_CHANGE_ID, trigger: CINEMA2_ANCIENT_MACHINE_TRIGGER_ID },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('intensity'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('intensity'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'rotation-activity', target: moduleTarget('rotationSpeed'), source: 'mood.activity', operation: 'add', value: 0.4 },
+    { id: 'rotation-calm', target: moduleTarget('rotationSpeed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'counter-activity', target: moduleTarget('counterRotation'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'depth-peak', target: moduleTarget('mechanicalDepth'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'aperture-peak', target: moduleTarget('aperture'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'aperture-shock', target: moduleTarget('aperture'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('ancient-machine-atmosphere', 'density'), source: 'mood.tense', operation: 'add', value: 0.02 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('ancient-machine-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('ancient-machine-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.5 },
+  ],
 })

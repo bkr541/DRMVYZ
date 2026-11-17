@@ -1,6 +1,6 @@
 import { cinema2NamespacedId, cinema2Ref, cinema2StableId, type Cinema2CameraId, type Cinema2ChoreographyActionId, type Cinema2ChoreographyRuleId, type Cinema2LightId, type Cinema2ModuleId, type Cinema2NativePresetManifest, type Cinema2ParameterId, type Cinema2PresetId, type Cinema2SceneNodeId, type Cinema2Vector3 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_SIXFOLD_NATIVE_MODULE_TYPE_ID, CINEMA2_SIXFOLD_PATTERNS } from '../modules/Cinema2SixfoldNativeModule'
-import { CINEMA2_CONSTELLATION_PRESET_ID, CINEMA2_CONSTELLATION_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
+import { CINEMA2_CONSTELLATION_PRESET_ID, CINEMA2_CONSTELLATION_AUTHORED_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
 
 export const CINEMA2_SIXFOLD_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.sixfold')
 export const CINEMA2_SIXFOLD_MODULE_ID = cinema2StableId<Cinema2ModuleId>('sixfold-system')
@@ -46,7 +46,7 @@ function rewrite(value: unknown): unknown {
   return value
 }
 
-const derived = rewrite(CINEMA2_CONSTELLATION_PRESET_MANIFEST) as Cinema2NativePresetManifest
+const derived = rewrite(CINEMA2_CONSTELLATION_AUTHORED_PRESET_MANIFEST) as Cinema2NativePresetManifest
 const labelOverrides: Readonly<Record<string, readonly [string, string]>> = Object.freeze({
   'sixfold-node-density': ['Mechanical Detail', 'Controls quality-bounded rails, fasteners and chamber articulation.'],
   'sixfold-spread': ['Chamber Radius', 'Expands or compresses the overall six-way chamber architecture.'],

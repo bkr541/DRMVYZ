@@ -16,7 +16,7 @@ import {
 } from '../contracts/Cinema2NativePresetManifest'
 import { CINEMA2_HYPNOTIZE_NATIVE_MODULE_TYPE_ID, CINEMA2_HYPNOTIZE_PATTERNS } from '../modules/Cinema2HypnotizeNativeModule'
 import { CINEMA2_AFTERHOURS_TRIGGER_OPTIONS } from './Cinema2AfterhoursPreset'
-import { CINEMA2_CONSTELLATION_PRESET_ID, CINEMA2_CONSTELLATION_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
+import { CINEMA2_CONSTELLATION_PRESET_ID, CINEMA2_CONSTELLATION_AUTHORED_PRESET_MANIFEST } from './Cinema2ConstellationPreset'
 
 export const CINEMA2_HYPNOTIZE_PRESET_ID = cinema2NamespacedId<Cinema2PresetId>('drmvyz.cinema2.hypnotize')
 export const CINEMA2_HYPNOTIZE_MODULE_ID = cinema2StableId<Cinema2ModuleId>('hypnotize-system')
@@ -130,7 +130,7 @@ function rewrite(value: unknown): unknown {
   return value
 }
 
-const derived = rewrite(CINEMA2_CONSTELLATION_PRESET_MANIFEST) as Cinema2NativePresetManifest
+const derived = rewrite(CINEMA2_CONSTELLATION_AUTHORED_PRESET_MANIFEST) as Cinema2NativePresetManifest
 const { choreography: _deferredChoreography, ...staticDerived } = derived
 const labelOverrides: Readonly<Record<string, readonly [string, string]>> = Object.freeze({
   'hypnotize-intensity': ['Master Intensity', 'Scales the optical engine emission while preserving the black-metal architecture.'],

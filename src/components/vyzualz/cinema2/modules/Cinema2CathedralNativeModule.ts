@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import {
   cinema2StableId,
   type Cinema2Color,
@@ -78,6 +79,7 @@ export function createCinema2CathedralNativeModuleDefinition(options: {
       const estimatedGpuBytes = renderer.estimateGpuBytes()
       context.resources.reportGpuBytes(estimatedGpuBytes)
       const initialProgram = readEnum(context, 'program', CINEMA2_CATHEDRAL_PROGRAMS, 'cathedralRun')
+      const patternControls = new Cinema2PatternControlResolver<typeof CINEMA2_CATHEDRAL_TRIGGER_IDS[number]>()
       const programController = new Cinema2CathedralProgramController(
         createCinema2CathedralProgramCycle(index => context.randomness.sample('cathedral-program-cycle', index)),
         initialProgram,
@@ -136,12 +138,16 @@ export function createCinema2CathedralNativeModuleDefinition(options: {
         lifecycle: {
           update: ({ parameters, frame }: Cinema2ModuleUpdateContext) => {
             const authoredProgram = readEnumFromParameters(parameters, 'program', CINEMA2_CATHEDRAL_PROGRAMS, 'cathedralRun')
-            const patternChange = readBooleanFromParameters(parameters, 'patternChange', false)
-            const trigger = readEnumFromParameters(parameters, 'trigger', CINEMA2_CATHEDRAL_TRIGGER_IDS, 'bar4')
+            const savedPatternChange = readBooleanFromParameters(parameters, 'patternChange', false)
+            const savedTrigger = readEnumFromParameters(parameters, 'trigger', CINEMA2_CATHEDRAL_TRIGGER_IDS, 'bar4')
             const bpmSync = readBooleanFromParameters(parameters, 'bpmSync', true)
             const audio = selectCinema2MainframeAudio(frame.audio, frame.transport?.trackId)
             const acceptedFrame = audio === frame.audio ? frame : { ...frame, audio }
             const playback = resolveCinema2MainframePlaybackState(acceptedFrame, audio)
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({ saved: { patternChange: savedPatternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: readBooleanFromParameters(parameters, 'autoPerformance', true) && playback === 'playing' })
+            const patternChange = control.patternChange
+            const trigger = control.trigger
             const timeSec = resolveCinema2MainframeTimeSec(acceptedFrame)
             const sourceIdentity = frame.transport?.paused && !audio && previousSourceIdentity != null
               && frame.transport.trackId === previousTrackId
@@ -188,9 +194,11 @@ export function createCinema2CathedralNativeModuleDefinition(options: {
           dispose: () => {
             programController.reset()
             beatClock.reset()
+            patternControls.reset()
           },
         },
         render: { providers: Object.freeze([provider]) },
+        inspect: () => patternControls.inspect(),
       }
     },
   })

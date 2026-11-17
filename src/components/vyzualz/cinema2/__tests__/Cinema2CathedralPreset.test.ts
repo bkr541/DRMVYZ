@@ -126,7 +126,7 @@ describe('Cinema 2.0 Cathedral preset', () => {
 
     const state = new Cinema2ParameterState(compiled.plan.parameters)
     const patternLabels = () => {
-      const design = createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).find(parent => parent.id === 'effects')
+      const design = createCinema2DesignParentGroupModel(compiled.plan, state.getSnapshot()).find(parent => parent.id === 'design')
       return [
         ...(design?.controls.map(control => control.definition.label) ?? []),
         ...(design?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
