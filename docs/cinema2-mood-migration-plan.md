@@ -71,7 +71,7 @@ Use the Afterhours trigger helper plus a program controller. All four default Au
 |---|---|---|---|---|---|---|---|
 | ancient-machine | ancient-machine | on | effects; selector not named Pattern | 11 options | 9 | 11 | move to Design; look selector, check count and name; default on; camera controls |
 | cathedral | cathedral | on | effects; Light Program (5) | 11 options | 9 | 10 | move to Design; rename to Pattern; fewer than 6 patterns; default on; camera controls |
-| event-horizon | event-horizon | on | effects; selector not named Pattern | 11 options | 8 | 12 | move to Design; look selector, check count and name; default on; camera controls |
+| event-horizon | event-horizon | on | **DONE out of order (uncommitted), 2026-11-17** | 3 looks (kept: Horizon Look) | 12 | - | pattern controls moved to Design; galaxy (space.glb) replaces the procedural stars; Camera Mode Orbit / Fly Through / Deep Space; see docs/cinema2-event-horizon-galaxy.md |
 | constellation | constellation | on | effects; selector not named Pattern | 11 options | 9 | 17 | move to Design; look selector, check count and name; default on; camera controls |
 
 ### Batch 3B: Afterhours-family patterns (4)

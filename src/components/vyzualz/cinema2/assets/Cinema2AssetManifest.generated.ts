@@ -239,6 +239,25 @@ export const CINEMA2_ASSET_RECORDS = [
     }
   },
   {
+    "id": "cinema2-event-horizon-space",
+    "kind": "model",
+    "compression": "none",
+    "license": "CC-BY-4.0",
+    "attribution": "Need some space? by Loïc Norgeot (https://sketchfab.com/norgeotloic). Source: https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303. Licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified by DRMVYZ: positions quantized to 16 bits and colors to 8 bits to fit the installer budget; the runtime recenters the galaxy on the black hole, scales it and draws its 50,000 stars as audio-reactive points for EVENT HORIZON.",
+    "files": {
+      "high": {
+        "url": "/cinema2/models/event-horizon-space.glb",
+        "bytes": 601716,
+        "triangles": 0
+      }
+    },
+    "gpuBytes": {
+      "high": 500000,
+      "medium": 500000,
+      "low": 500000
+    }
+  },
+  {
     "id": "cinema2-golden-roots",
     "kind": "model",
     "compression": "none",

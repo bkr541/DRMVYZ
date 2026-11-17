@@ -20,6 +20,8 @@ export interface MoodMigrationCase {
   shock: readonly MoodDrive[]
   /** How many controls must show a live value at a peak (3 unless the preset's authority model allows fewer). */
   minLive?: number
+  /** Presets with a Pattern Change and a Trigger: their ids, so the music can choose them while Auto Performance is on. */
+  pattern?: { patternChange: string; trigger: string }
 }
 const asId = (value: string) => value as Cinema2ParameterId
 
@@ -28,10 +30,11 @@ const asId = (value: string) => value as Cinema2ParameterId
  * a drop, identical with Auto Performance off and at zero reactivity, quiet in a silent stop, saved values untouched, and live values shown.
  */
 export function describeMoodMigration(batch: string, cases: readonly MoodMigrationCase[]) {
-  describe.each(cases)(`${batch}: $name with the shared Mood Conductor`, ({ name, manifest, auto, strength, up, down, shock, minLive = 3 }) => {
-  it('tags its Auto Performance toggle alone (it has no patterns), compiles, and gates every mood rule by that toggle and its reactivity control', () => {
+  describe.each(cases)(`${batch}: $name with the shared Mood Conductor`, ({ name, manifest, auto, strength, up, down, shock, minLive = 3, pattern }) => {
+  it('tags its Auto Performance toggle (and its Pattern Change and Trigger, when it has them), compiles, and gates every mood rule by that toggle and its reactivity control', () => {
     const tagged = manifest.parameters!.filter(p => readCinema2MoodPolicy(p.metadata) != null)
-    expect(tagged.map(p => [String(p.id), readCinema2MoodPolicy(p.metadata)])).toEqual([[auto, 'autoPerformance']])
+    const expected = pattern ? [[auto, 'autoPerformance'], [pattern.patternChange, 'patternChange'], [pattern.trigger, 'trigger']] : [[auto, 'autoPerformance']]
+    expect(tagged.map(p => [String(p.id), readCinema2MoodPolicy(p.metadata)]).sort()).toEqual([...expected].sort())
     const rules = manifest.choreography!.rules.filter(rule => String(rule.id).includes('-mood-'))
     expect(rules.length).toBeGreaterThan(0)
     for (const rule of rules) { expect(rule.enabledParameter).toEqual({ $ref: auto }); expect(rule.strengthParameter).toEqual({ $ref: strength }) }
