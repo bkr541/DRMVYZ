@@ -22,6 +22,7 @@ import {
   Cinema2ParameterState,
   type Cinema2SerializedParameterState,
 } from '../parameters/Cinema2ParameterState'
+import { subscribeCinema2AutoPerformanceUserDefault } from '../parameters/Cinema2AutoPerformanceDefault'
 import {
   Cinema2FinalValueResolver,
 } from '../parameters/Cinema2TargetRuntime'
@@ -389,6 +390,7 @@ export class Cinema2Runtime {
     }
   }
 
+  private readonly unsubscribeAutoPerformanceDefault: () => void
   private readonly requestFrame: typeof requestAnimationFrame
   private readonly cancelFrame: typeof cancelAnimationFrame
   private readonly onSnapshot: ((snapshot: Cinema2RuntimeSnapshot) => void) | null
@@ -449,6 +451,8 @@ export class Cinema2Runtime {
     effectRegistry: Cinema2EffectRegistry,
     options: Cinema2RuntimeCreateOptions,
   ) {
+    // The user's Auto Performance default (System Settings) reaches a preset that is already running.
+    this.unsubscribeAutoPerformanceDefault = subscribeCinema2AutoPerformanceUserDefault(value => parameterState.applyAutoPerformanceDefault(value))
     this.requestFrame = options.requestAnimationFrame ?? (callback => window.requestAnimationFrame(callback))
     this.cancelFrame = options.cancelAnimationFrame ?? (handle => window.cancelAnimationFrame(handle))
     this.onSnapshot = options.onSnapshot ?? null
@@ -839,6 +843,7 @@ export class Cinema2Runtime {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.unsubscribeAutoPerformanceDefault()
     this.runningRequested = false
     this.cancelScheduledFrame()
 

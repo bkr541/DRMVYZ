@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabaseConfigured } from '../lib/supabase'
+import { setCinema2AutoPerformanceUserDefault } from '../components/vyzualz/cinema2/parameters/Cinema2AutoPerformanceDefault'
 import {
   dbCreateSession,
   dbUpdateSession,
@@ -560,6 +561,11 @@ interface VisualState {
   setAutoQualityMax(q: Quality): void
   setAutoQualityReason(r: string): void
 
+  // ── Auto Performance default ──────────────────────────────────────────────
+  /** System Settings > Auto Performance: the value every Cinema 2.0 preset's Auto Performance toggle starts, loads and resets with. */
+  autoPerformanceDefault: boolean
+  setAutoPerformanceDefault(v: boolean): void
+
   // ── Audio reactivity master toggle ────────────────────────────────────────
   // Controls whether beat-driven modulation and scale pulsing affect rendering.
   // Defaults to false so a clean project starts with a visually static canvas.
@@ -665,6 +671,7 @@ export const useVisualStore = create<VisualState>()(
       autoQualityMin:     'Low',
       autoQualityMax:     'High',
       autoQualityReason:  '',
+      autoPerformanceDefault: false,
       audioReactivityEnabled: false,
       videoBaselineMode:      false,   // ephemeral — never persisted
       rendererType:           'canvas2d' as const,  // ephemeral — resolved from gpuPreference
@@ -1474,6 +1481,9 @@ export const useVisualStore = create<VisualState>()(
       setAutoQualityMax(q)     { set({ autoQualityMax: q }) },
       setAutoQualityReason(r)  { set({ autoQualityReason: r }) },
 
+      // ── Auto Performance default ──────────────────────────────────────────
+      setAutoPerformanceDefault(v) { set({ autoPerformanceDefault: v }) },
+
       // ── Audio reactivity ──────────────────────────────────────────────────
       setAudioReactivityEnabled(v) { set({ audioReactivityEnabled: v }) },
 
@@ -1513,6 +1523,7 @@ export const useVisualStore = create<VisualState>()(
         autoQualityEnabled: s.autoQualityEnabled,
         autoQualityMin:     s.autoQualityMin,
         autoQualityMax:     s.autoQualityMax,
+        autoPerformanceDefault: s.autoPerformanceDefault,
         // autoQualityReason is ephemeral — not persisted
         audioReactivityEnabled: s.audioReactivityEnabled,
         gpuPreference:          s.gpuPreference,
@@ -1574,6 +1585,7 @@ export const useVisualStore = create<VisualState>()(
           autoQualityMin:     (p as Partial<VisualState>).autoQualityMin     ?? 'Low',
           autoQualityMax:     (p as Partial<VisualState>).autoQualityMax     ?? 'High',
           autoQualityReason:  '',
+          autoPerformanceDefault: (p as Partial<VisualState>).autoPerformanceDefault ?? false,
           // Older saves without this field default to false (static canvas until user opts in)
           audioReactivityEnabled: (p as Partial<VisualState>).audioReactivityEnabled ?? false,
           // INTENTIONAL: always reset to blank canvas on launch regardless of what
@@ -1605,3 +1617,7 @@ export const useVisualStore = create<VisualState>()(
     }
   )
 )
+
+// Cinema 2.0 presets read the user's Auto Performance default through this tiny module, so the runtime never imports the store.
+setCinema2AutoPerformanceUserDefault(useVisualStore.getState().autoPerformanceDefault)
+useVisualStore.subscribe(state => setCinema2AutoPerformanceUserDefault(state.autoPerformanceDefault))

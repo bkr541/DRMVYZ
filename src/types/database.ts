@@ -110,6 +110,8 @@ export interface UserSettings {
   smoothing: number
   default_volume: number
   info_enabled: boolean
+  /** Settings > System Settings, synced across devices; null until first saved. */
+  system_settings: Json | null
   active_brand_kit_id: string | null
   updated_at: string
 }

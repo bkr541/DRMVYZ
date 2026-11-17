@@ -12,6 +12,7 @@ import { startPixGridDeckCompilerRuntime } from './components/vyzualz/react/pixG
 import { useMediaStore } from './stores/mediaStore'
 import { useCinema2TextLibraryStore } from './features/cinema2Text/cinema2TextStore'
 import { useAppearanceStore } from './features/appearance/appearanceStore'
+import { useSystemSettingsStore } from './features/systemSettings/systemSettingsStore'
 import './stores/mediaDeletionGuardBootstrap'
 import { usePerformancePadSync } from './features/performancePads/usePerformancePadSync'
 import { resolveMobileApp } from './components/vyzualz/mobile/mobileDevice'
@@ -80,6 +81,7 @@ export default function App() {
       setAuthGate('authenticated')
       void useBrandKitStore.getState().initializeForUser(userId)
       void useAppearanceStore.getState().initializeForUser(userId)
+      void useSystemSettingsStore.getState().initializeForUser(userId)
       void useCinema2TextLibraryStore.getState().initializeForUser(userId)
     }
 
@@ -89,6 +91,7 @@ export default function App() {
       setAuthGate('signed-out')
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
+      useSystemSettingsStore.getState().clearForSignedOut()
       useCinema2TextLibraryStore.getState().clearForSignedOut()
     }
 
@@ -97,6 +100,7 @@ export default function App() {
     if (!supabaseConfigured) {
       useBrandKitStore.getState().clearForSignedOut()
       useAppearanceStore.getState().clearForSignedOut()
+      useSystemSettingsStore.getState().clearForSignedOut()
       useCinema2TextLibraryStore.getState().clearForSignedOut()
       useMediaStore.getState().clear()
       setAuthGate('configuration-required')

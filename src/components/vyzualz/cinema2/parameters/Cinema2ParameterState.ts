@@ -9,6 +9,7 @@ import {
   type Cinema2CompiledParameterPlan,
   type Cinema2ParameterSchemaDiagnostic,
 } from './Cinema2ParameterSchema'
+import { getCinema2AutoPerformanceUserDefault, isCinema2AutoPerformanceToggle } from './Cinema2AutoPerformanceDefault'
 
 export const CINEMA2_PARAMETER_STATE_SCHEMA_ID = 'drmvyz.cinema2.parameter-state' as const
 export const CINEMA2_PARAMETER_STATE_SCHEMA_VERSION = 1 as const
@@ -61,9 +62,28 @@ export class Cinema2ParameterState {
     return this.editRevisions.get(parameterId) ?? 0
   }
 
+  /** The plan's authored defaults, with the Auto Performance toggle replaced by the user's own default when they have set one. */
+  private readonly authoredDefaults: Readonly<Record<string, Cinema2JsonValue>>
+  private readonly autoPerformanceToggleIds: readonly Cinema2ParameterId[]
+
   constructor(private readonly plan: Readonly<Cinema2CompiledParameterPlan>) {
     for (const definition of plan.definitions) this.definitions.set(definition.id, definition)
+    this.autoPerformanceToggleIds = plan.definitions.filter(isCinema2AutoPerformanceToggle).map(definition => definition.id)
+    const userDefault = getCinema2AutoPerformanceUserDefault()
+    const defaults: Record<string, Cinema2JsonValue> = { ...plan.authoredDefaults }
+    if (userDefault !== null) for (const id of this.autoPerformanceToggleIds) defaults[id] = userDefault
+    this.authoredDefaults = defaults
     this.resetAll()
+  }
+
+  /**
+   * Applies the user's Auto Performance default to this preset's toggle now (the setting changed while the preset is running).
+   * An edit like any other, so it is saved with the preset and the toggle's own readouts follow it.
+   */
+  applyAutoPerformanceDefault(value: boolean): void {
+    const patch: Record<string, boolean> = {}
+    for (const id of this.autoPerformanceToggleIds) if (this.persistentValues[id] !== value) patch[id] = value
+    if (Object.keys(patch).length > 0) this.setPersistentValues(patch)
   }
 
   getDefinition(parameterId: Cinema2ParameterId): Readonly<Cinema2CompiledParameterDefinition> | null {
@@ -146,7 +166,7 @@ export class Cinema2ParameterState {
     const definition = this.definitions.get(parameterId)
     if (!definition) return failure('CINEMA2_PARAMETER_STATE_UNKNOWN_ID', `Unknown Cinema 2.0 parameter "${parameterId}".`, `values.${parameterId}`)
     if (definition.reset === 'none' || definition.type === 'trigger') return success()
-    const authoredDefault = this.plan.authoredDefaults[parameterId]
+    const authoredDefault = this.authoredDefaults[parameterId]
     if (authoredDefault === undefined) {
       return failure('CINEMA2_PARAMETER_STATE_DEFAULT_MISSING', `Parameter "${parameterId}" has no compiled authored default.`, `values.${parameterId}`)
     }
@@ -165,7 +185,7 @@ export class Cinema2ParameterState {
     const runtimeOnlyValues: Record<string, Cinema2JsonValue> = {}
     for (const definition of this.plan.definitions) {
       if (definition.type === 'trigger') continue
-      const authoredDefault = this.plan.authoredDefaults[definition.id]
+      const authoredDefault = this.authoredDefaults[definition.id]
       if (authoredDefault === undefined) continue
       if (definition.persistence === 'runtime-only') runtimeOnlyValues[definition.id] = cloneJson(authoredDefault)
       else persistentValues[definition.id] = cloneJson(authoredDefault)
@@ -205,16 +225,19 @@ export class Cinema2ParameterState {
     const nextValues: Record<string, Cinema2JsonValue> = {}
     for (const definition of this.plan.definitions) {
       if (definition.persistence === 'runtime-only' || definition.type === 'trigger') continue
-      const authoredDefault = this.plan.authoredDefaults[definition.id]
+      const authoredDefault = this.authoredDefaults[definition.id]
       if (authoredDefault !== undefined) nextValues[definition.id] = cloneJson(authoredDefault)
     }
     const diagnostics: Cinema2ParameterSchemaDiagnostic[] = []
+    const followUserAutoPerformanceDefault = getCinema2AutoPerformanceUserDefault() !== null
     for (const [key, candidate] of Object.entries(parsed.values)) {
       const definition = this.definitions.get(key as Cinema2ParameterId)
       if (!definition) {
         diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_UNKNOWN_ID', message: `Serialized state contains unknown parameter "${key}".`, path: `$.values.${key}` })
         continue
       }
+      // The user's own Auto Performance default decides the toggle every time a preset loads; a value saved earlier does not override it.
+      if (followUserAutoPerformanceDefault && isCinema2AutoPerformanceToggle(definition)) continue
       if (definition.persistence === 'runtime-only' || definition.readOnly || definition.type === 'trigger') {
         diagnostics.push({ code: 'CINEMA2_PARAMETER_STATE_RUNTIME_ONLY_PERSISTED', message: `Runtime-only parameter "${key}" cannot be restored from persistent state.`, path: `$.values.${key}` })
         continue

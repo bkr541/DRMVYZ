@@ -73,6 +73,14 @@ Electric Storm, Depth and Mainframe also use the **Cinema 2.0 Mood Conductor** (
 
 The preset revision is **not** bumped: saved parameter state is bound to the revision and would fail to restore. A state saved before the toggle existed restores with it at its authored default (off). Adding a parameter does change the serialized state the deterministic random seed is derived from, so tests that depend on a specific seeded outcome may need a different seed.
 
+## The user's Auto Performance default (System Settings)
+
+Settings > System Settings > **Auto Performance** has one toggle: the default every preset's Auto Performance toggle starts with. It is stored in `visualStore.autoPerformanceDefault` (off for a new install) and mirrored into `parameters/Cinema2AutoPerformanceDefault.ts`, so the runtime never imports a store.
+
+- `Cinema2ParameterState` replaces the authored default of every boolean tagged `moodPolicy: 'autoPerformance'` with the user's value. That covers a new preset state, Reset, and Reset All. The preset's own authored default (on for 16 presets) is therefore only used when no setting exists (tests, hosts that never set it).
+- `restore()` skips the saved value of that toggle, so a workspace saved before the setting existed follows the setting too. Every other saved value is untouched. A toggle you flip in the Inspector lasts until that preset is loaded again.
+- A running preset follows a change right away: `Cinema2Runtime` subscribes and calls `applyAutoPerformanceDefault`.
+
 ## Adding Auto Performance to a new preset
 
 Use the pattern controller approach if the preset has Pattern, Pattern Change and Trigger; otherwise call `withCinema2AutoPerformance` with a `gestures` description. Either way: default off, `designParentGroup: 'master-controls'`, no new analyzers or drop detectors, and add the preset to the lists in `Cinema2AutoPerformanceInventory.test.ts` and the behavior tests.

@@ -309,6 +309,7 @@ function SystemSettingsPanel() {
     resetEffects, resetModulationRoutes,
     autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
     setAutoQualityEnabled, setAutoQualityMin, setAutoQualityMax,
+    autoPerformanceDefault, setAutoPerformanceDefault,
   } = useVisualStore()
   const { storageAvailable, authRequired } = useMediaStore(useShallow(state => ({
     storageAvailable: state.storageAvailable,
@@ -344,6 +345,8 @@ function SystemSettingsPanel() {
       onAutoQualityEnabledChange={setAutoQualityEnabled}
       onAutoQualityMinChange={setAutoQualityMin}
       onAutoQualityMaxChange={setAutoQualityMax}
+      autoPerformanceDefault={autoPerformanceDefault}
+      onAutoPerformanceDefaultChange={setAutoPerformanceDefault}
       bpmSync={bpmSync}
       onToggleBpmSync={toggleBpmSync}
       bpm={bpm}
@@ -362,7 +365,7 @@ type QualityLevel = typeof QUALITY_LEVELS[number]
 /** The System Settings tab's markup. Layout Lab mounts it with placeholder values instead of the visual and media stores. */
 export function SystemSettingsView({
   quality, onQualityChange, autoQualityEnabled, autoQualityMin, autoQualityMax, autoQualityReason,
-  onAutoQualityEnabledChange, onAutoQualityMinChange, onAutoQualityMaxChange, bpmSync, onToggleBpmSync, bpm,
+  onAutoQualityEnabledChange, onAutoQualityMinChange, onAutoQualityMaxChange, autoPerformanceDefault, onAutoPerformanceDefaultChange, bpmSync, onToggleBpmSync, bpm,
   storageAvailable, authRequired, onResetEffects, onResetModulation, diagnosticsStatus, onCopyDiagnostics,
 }: {
   quality: QualityLevel
@@ -374,6 +377,8 @@ export function SystemSettingsView({
   onAutoQualityEnabledChange: (enabled: boolean) => void
   onAutoQualityMinChange: (quality: QualityLevel) => void
   onAutoQualityMaxChange: (quality: QualityLevel) => void
+  autoPerformanceDefault: boolean
+  onAutoPerformanceDefaultChange: (enabled: boolean) => void
   bpmSync: boolean
   onToggleBpmSync: () => void
   bpm: number
@@ -447,6 +452,24 @@ export function SystemSettingsView({
             </div>
           </div>
         )}
+      </section>
+
+      <section className="vsm-settings-group">
+        <div className="vsm-settings-group-heading">
+          <div>
+            <h2>Auto Performance</h2>
+            <p>Choose whether Cinema 2.0 presets start with Auto Performance on or off.</p>
+          </div>
+        </div>
+        <div className="vsm-settings-inline-row">
+          <IconMorphToggle
+            checked={autoPerformanceDefault}
+            onCheckedChange={onAutoPerformanceDefaultChange}
+            className="vz-settings-seg-btn vsm-settings-toggle"
+            aria-label="Auto Performance default"
+          />
+          <span>{autoPerformanceDefault ? 'Default: On — presets start with Auto Performance on' : 'Default: Off — presets start with Auto Performance off'}</span>
+        </div>
       </section>
 
       <section className="vsm-settings-group">
