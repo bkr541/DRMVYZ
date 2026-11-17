@@ -102,7 +102,9 @@ Each has its own performance class and trigger logic. Do one at a time inside th
 | psylo | psylo | off | design; Pattern (8) | 11 options | 0 | 19 | camera controls |
 | neon-forest | neon-forest | off | design; Pattern (8) | 11 options | 0 | 21 | camera controls |
 
-### Batch 4B: Bespoke performance classes, others (3)
+### Batch 4B: Bespoke performance classes, others (3) — DONE (uncommitted; awaiting your real-app check)
+
+Glassfall's Bloom and Reflection Strength are not driven (the preset states that automation cannot change them), and Vacancy leaves the screens themselves (Static, Scanlines, media) to the user.
 
 Own timelines and audio files; Glassfall has the heaviest existing Auto Performance (12 gated rules).
 

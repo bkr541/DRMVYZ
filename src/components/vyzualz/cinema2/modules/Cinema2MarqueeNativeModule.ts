@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import {
   cinema2StableId,
   type Cinema2JsonObject,
@@ -147,6 +148,7 @@ export const cinema2MarqueeNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     let state: 'idle' | 'loading' | 'building' | 'ready' | 'failed' = 'idle'
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const beatClock = new Cinema2BeatClock()
+    const patternControls = new Cinema2PatternControlResolver<Cinema2MarqueeTriggerId>()
     const patternController = new Cinema2MarqueePatternController(createCinema2MarqueePatternCycle(index => context.randomness.sample('marquee-pattern-cycle', index)))
     const impulse = { ...CINEMA2_MARQUEE_ZERO_IMPULSES }
     const cueIds = new Set<string>()
@@ -227,12 +229,14 @@ export const cinema2MarqueeNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
           const dt = Math.min(0.25, Math.max(0, frame.deltaTimeSec))
           for (const key of Object.keys(impulse) as CueKind[]) impulse[key] *= Math.exp(-dt / (key === 'phrase' || key === 'section' || key === 'drop' ? 0.9 : 0.26))
           const beats = beatClock.update(frame, staticFrame.bpmSync).beats
-          const triggerEventId = resolveCinema2MarqueeTriggerEventIdentity(frame, staticFrame.trigger, reset ? null : previousTimeSec)
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: staticFrame.patternChange, trigger: staticFrame.trigger }, mood: frame.mood, autoPerformance: staticFrame.autoPerformance && frame.transport?.playing === true && !frame.transport.paused })
+          const triggerEventId = resolveCinema2MarqueeTriggerEventIdentity(frame, control.trigger, reset ? null : previousTimeSec)
           const audio = frame.audio
           const director = frame.director
           const build = Math.max(signal(audio?.features.buildProgress), director?.context.build.available && typeof director.context.build.value === 'number' ? clamp01(director.context.build.value) : 0)
           const selection = patternController.update({
-            authoredPattern: staticFrame.pattern, patternChange: staticFrame.patternChange, trigger: staticFrame.trigger,
+            authoredPattern: staticFrame.pattern, patternChange: control.patternChange, trigger: control.trigger,
             triggerEventId, absoluteBeat: beats, autoPerformance: staticFrame.autoPerformance, build, dropEventId, reset,
           })
           const performance: Cinema2MarqueePerformanceFrame = Object.freeze({
@@ -249,7 +253,7 @@ export const cinema2MarqueeNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
             signIllumination: staticFrame.signIllumination, zoneIntensity: staticFrame.zoneIntensity, colors: staticFrame.colors, reflection: staticFrame.reflection })
           previousTimeSec = timeSec; previousTrackId = frame.transport?.trackId; previousGeneration = frame.contextGeneration
         },
-        dispose() { disposed = true; resetTimeline(); if (!bridge && held) { assets.release(held); held = null } },
+        dispose() { disposed = true; patternControls.reset(); resetTimeline(); if (!bridge && held) { assets.release(held); held = null } },
       },
       handleAction(action: string, event: Readonly<Cinema2DispatchedTargetAction>) {
         if (action !== 'musicalCue' || disposed || !event.eventId || cueIds.has(event.eventId) || !event.payload || typeof event.payload !== 'object' || Array.isArray(event.payload)) return
@@ -261,6 +265,7 @@ export const cinema2MarqueeNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
       },
       render: { providers: Object.freeze([provider]) },
       getDiagnostics: () => Object.freeze([...diagnostics, ...(bridge?.getDiagnostics().map(item => ({ ...item, path: '$.config.environment' })) ?? [])]),
+      inspect: () => patternControls.inspect(),
     }
   },
 })

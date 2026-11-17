@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
@@ -110,7 +113,7 @@ function finishingGraph() {
 const finishing = finishingGraph()
 
 /** VACANCY: a tower of stacked CRT televisions in an empty dark room, every screen glowing analog static. Approved composition with native CRT programs, media and bounded music response. */
-export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_VACANCY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_VACANCY_PRESET_ID, revision: 2,
   metadata: {
@@ -165,3 +168,32 @@ export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   },
   output: { renderPass: cinema2Ref(OUTPUT), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module('vacancy-core' as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * Vacancy with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the room around its authored values
+ * and the music chooses Pattern Change and the Trigger for the Pattern. Master Intensity follows the passage and flares on a drop; Bass Rattle and
+ * Room Visibility rise on a peak and a drop; fewer screens stay lit in a calm passage; the haze thickens when tense; reflections and bloom flare.
+ * Static, Scanlines, Tower Size, the screen media and the colors stay the user's (the screens are the subject), and Music Response scales every drive.
+ */
+export const CINEMA2_VACANCY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_VACANCY_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'vacancy-auto',
+  enabledParameter: moodParameter('vacancy-auto-performance'),
+  strengthParameter: moodParameter('vacancy-music-response'),
+  patternControls: { patternChange: moodParameter('vacancy-pattern-change'), trigger: moodParameter('vacancy-trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('master'), source: 'mood.activity', operation: 'add', value: 0.08 },
+    { id: 'master-calm', target: moduleTarget('master'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('master'), source: 'mood.shock', operation: 'add', value: 0.12 },
+    { id: 'rattle-peak', target: moduleTarget('bassRattle'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'rattle-shock', target: moduleTarget('bassRattle'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'screens-calm', target: moduleTarget('screensLit'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'visibility-peak', target: moduleTarget('roomVisibility'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'visibility-shock', target: moduleTarget('roomVisibility'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('vacancy-haze-effect', 'mix'), source: 'mood.tense', operation: 'add', value: 0.15 },
+    { id: 'reflections-shock', target: cinema2AutoTargets.effect('vacancy-reflections-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.1 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('vacancy-bloom-effect', 'mix'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('vacancy-bloom-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.2 },
+  ],
+})

@@ -1,3 +1,6 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
+import { cinema2StableId as moodStableId, type Cinema2ParameterId as MoodParameterId } from '../contracts/Cinema2NativePresetManifest'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -164,7 +167,7 @@ const MUSIC_CUES = Object.freeze([
   ['section', 'section-change', 'music.section'], ['drop', 'drop', 'music.drop'],
 ] as const satisfies readonly (readonly [string, Cinema2ChoreographySignal, Cinema2CapabilityId])[])
 
-export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_MARQUEE_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_MARQUEE_PRESET_ID, revision: 1,
   metadata: Object.freeze({ name: 'MARQUEE', description: 'A richly modeled Art Deco theater facade with editable triple-face marquee copy, deep canopy bulbs, vertical light towers, crown neon and wet-street reflections.', tags: Object.freeze(['marquee', 'theater', 'art-deco', 'native', '3d', 'audio-reactive', 'keeper']) }),
@@ -246,4 +249,40 @@ export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
     effectPass(FINISH_PASS, BLOOM_PASS, slot('bloom-output'), FINISH, 'finish', null, false),
   ]), outputPass: cinema2Ref(FINISH_PASS) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_MARQUEE_MODULE_ID as string, property)
+const moodParameter = (id: string) => moodStableId<MoodParameterId>(id)
+/**
+ * Marquee with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the lighting around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Each lighting zone follows the passage in its own way (the side
+ * marquees and entrance LEDs with activity, the canopy and entrance on a drop, the towers, neon crown and sign on a peak), the front marquee softens
+ * in a calm passage, the wet street reflects more on a drop, the haze thickens when tense, and the bloom flares. Master Intensity scales every
+ * drive (the preset has no separate reactivity control). The marquee text, Camera Motion and the colors stay the user's.
+ */
+export const CINEMA2_MARQUEE_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_MARQUEE_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'marquee-auto',
+  enabledParameter: moodParameter('marquee-auto-performance'),
+  strengthParameter: moodParameter('marquee-master-intensity'),
+  patternControls: { patternChange: moodParameter('marquee-pattern-change'), trigger: moodParameter('marquee-trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.05 },
+    { id: 'master-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.1 },
+    { id: 'front-calm', target: moduleTarget('frontIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'side-activity', target: moduleTarget('sideIntensity'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'side-peak', target: moduleTarget('sideIntensity'), source: 'mood.peak', operation: 'add', value: 0.12 },
+    { id: 'canopy-activity', target: moduleTarget('canopyIntensity'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'canopy-shock', target: moduleTarget('canopyIntensity'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'tower-peak', target: moduleTarget('towerIntensity'), source: 'mood.peak', operation: 'add', value: 0.12 },
+    { id: 'tower-shock', target: moduleTarget('towerIntensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'entrance-activity', target: moduleTarget('entranceIntensity'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'entrance-shock', target: moduleTarget('entranceIntensity'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'neon-peak', target: moduleTarget('neonIntensity'), source: 'mood.peak', operation: 'add', value: 0.08 },
+    { id: 'sign-peak', target: moduleTarget('signIllumination'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'reflection-shock', target: moduleTarget('reflection'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('marquee-haze', 'density'), source: 'mood.tense', operation: 'add', value: 0.008 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('marquee-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('marquee-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.3 },
+  ],
 })

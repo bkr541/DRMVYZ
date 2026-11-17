@@ -28,7 +28,8 @@ describe('GLASSFALL final production wiring', () => {
       autoPerformance: { $ref: pid('autoPerformance') },
       choreography: { $ref: pid('autoPerformance') },
     })
-    expect(manifest.choreography!.rules).toHaveLength(12)
+    // Twelve authored rules, plus the shared mood rules (one per mood source); every one of them is owned by Auto Performance.
+    expect(manifest.choreography!.rules.filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(12)
     for (const rule of manifest.choreography!.rules) expect(rule.enabledParameter?.$ref).toBe(pid('autoPerformance'))
     const master = manifest.parameters!.filter(p => p.designParentGroup === 'master-controls' && p.exposure !== 'hidden').sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     expect(master.slice(-2).map(p => p.label)).toEqual(['BPM Sync', 'Auto Performance'])

@@ -1,3 +1,5 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
+import type { Cinema2AfterhoursTriggerId } from './Cinema2AfterhoursNativeModule'
 import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleTypeDefinition, Cinema2ModuleDiagnostic } from './Cinema2ModuleContracts'
 import { Cinema2ThreeAssetCache, type Cinema2ThreeLoadedAsset } from './three/Cinema2ThreeAssetCache'
@@ -24,6 +26,7 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     let bridge: Cinema2ThreeSceneBridge | null = null, controller: Cinema2VacancySceneController | null = null
     let sceneFrame: VacancySceneFrame | null = null
     const performance = new Cinema2VacancyPerformance()
+    const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
     let reportedReady = false
     const diagnostics: Cinema2ModuleDiagnostic[] = []
     const report = (code: string, error: unknown) => {
@@ -33,11 +36,16 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
     return {
       lifecycle: {
         update({ parameters, frame }) {
-          const controls = readVacancyControls(parameters), state = performance.update(frame, controls, parameters)
+          const saved = readVacancyControls(parameters)
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: saved.patternChange, trigger: saved.trigger }, mood: frame.mood, autoPerformance: saved.autoPerformance && frame.transport?.playing === true && !frame.transport.paused })
+          const controls = { ...saved, patternChange: control.patternChange, trigger: control.trigger }
+          const state = performance.update(frame, controls, parameters)
           sceneFrame = { controls, timeSec: state.timeSec, performance: state, quality: sceneFrame?.quality ?? 'high' }
         },
         dispose() {
           disposed = true
+          patternControls.reset()
           if (!bridge && held) { assets.release(held); held = null }
         },
       },
@@ -84,6 +92,7 @@ export const cinema2VacancyNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
         },
       }] },
       getDiagnostics: () => [...diagnostics, ...(bridge?.getDiagnostics().map(d => ({ ...d, path: '$.config.environment' })) ?? [])],
+      inspect: () => patternControls.inspect(),
     }
   },
 }

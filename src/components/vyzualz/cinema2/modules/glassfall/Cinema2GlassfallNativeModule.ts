@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../../conductor/Cinema2PatternControls'
 import { GlassfallAutoPerformance } from './Cinema2GlassfallAutoPerformance'
 import { GLASSFALL_DIRECTOR_SILENCE, GLASSFALL_DIRECTOR_NEUTRAL, readGlassfallDirector, resolveGlassfallDirector } from './Cinema2GlassfallDirector'
 import { sampleGlassfallAudio, GLASSFALL_SILENCE, GlassfallPatternSelection, readGlassfallChoreography } from './Cinema2GlassfallAudio'
@@ -19,8 +20,9 @@ function disposeSource(source: Three.Object3D) {
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) material.dispose()
   })
 }
-function createGlassfallModule(context: Cinema2ModuleCreateContext, animated: boolean, audioEnabled = false, choreographed = false, directed = false, automatic = false): ReturnType<Cinema2ModuleTypeDefinition['create']> {
+function createGlassfallModule(context: Cinema2ModuleCreateContext, animated: boolean, audioEnabled = false, choreographed = false, directed = false, automatic = false): ReturnType<Cinema2ModuleTypeDefinition['create']> & { inspect(): ReturnType<Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>['inspect']> } {
     const timeline = new GlassfallTimeline(), selection = new GlassfallPatternSelection(), auto = new GlassfallAutoPerformance()
+    const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
     let directorFacts = { ...GLASSFALL_DIRECTOR_SILENCE }, director = GLASSFALL_DIRECTOR_NEUTRAL
     let audio = { ...GLASSFALL_SILENCE }, response = 0
     let previousTimestamp: number | null = null, idleTime = 0
@@ -58,8 +60,13 @@ function createGlassfallModule(context: Cinema2ModuleCreateContext, animated: bo
           const reset = previousTime === null || nextRevision !== revision || time < previousTime - .001
           phases = timeline.update(frame, time, controls, reset)
           if (audioEnabled) {
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({
+              saved: { patternChange: context.parameters.get('patternChange') === true, trigger: context.parameters.get('trigger') as Cinema2AfterhoursTriggerId },
+              mood: frame.mood, autoPerformance: context.parameters.get('autoPerformance') === true && frame.transport?.playing === true && !frame.transport.paused,
+            })
             controls.pattern = selection.update(frame, controls.pattern, context.parameters.getEditRevision?.('pattern') ?? 0,
-              context.parameters.get('patternChange') === true, context.parameters.get('trigger') as Cinema2AfterhoursTriggerId, previousTime, reset)
+              control.patternChange, control.trigger, previousTime, reset)
             if (reset) audio = { ...GLASSFALL_SILENCE }
             if (choreographed) {
               audio = context.parameters.get('choreography') === false ? { ...GLASSFALL_SILENCE } : readGlassfallChoreography(context.parameters)
@@ -82,9 +89,10 @@ function createGlassfallModule(context: Cinema2ModuleCreateContext, animated: bo
           }
           previousTime = time; revision = nextRevision
         },
-        dispose() { disposed = true; abort.abort(); if (source) disposeSource(source); source = null; library = null },
+        dispose() { disposed = true; patternControls.reset(); abort.abort(); if (source) disposeSource(source); source = null; library = null },
       },
       getDiagnostics: () => diagnostics,
+      inspect: () => patternControls.inspect(),
       render: { providers: [{
         id: `${context.module.id}:raised-field`, moduleId: context.module.id, intent: 'world',
         execute(exec) {
