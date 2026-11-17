@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -195,7 +197,7 @@ const PARAMETERS = Object.freeze([
     type: 'enum' as const,
     defaultValue: CINEMA2_MAINFRAME_DEFAULT_PATTERN,
     options: CINEMA2_BACKSTREET_PATTERN_OPTIONS,
-    designParentGroup: 'effects' as const,
+    designParentGroup: 'design' as const,
     group: 'Pattern',
     order: 1,
   }),
@@ -206,7 +208,7 @@ const PARAMETERS = Object.freeze([
     description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.',
     type: 'boolean' as const,
     defaultValue: false,
-    designParentGroup: 'effects' as const,
+    designParentGroup: 'design' as const,
     group: 'Pattern',
     order: 2,
   }),
@@ -219,7 +221,7 @@ const PARAMETERS = Object.freeze([
     defaultValue: 'bar4',
     options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS,
     visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_BACKSTREET_PATTERN_CHANGE_ID, value: true })]),
-    designParentGroup: 'effects' as const,
+    designParentGroup: 'design' as const,
     group: 'Pattern',
     order: 3,
   }),
@@ -234,7 +236,7 @@ const PARAMETERS = Object.freeze([
     max: 1,
     step: 0.01,
     designParentGroup: 'effects' as const,
-    group: 'Pattern',
+    group: 'Light',
     order: 4,
   }),
   Object.freeze({
@@ -290,7 +292,7 @@ function driftPath() {
   ])
 }
 
-export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_BACKSTREET_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_BACKSTREET_PRESET_ID,
@@ -465,3 +467,26 @@ export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
 }) as Readonly<Cinema2NativePresetManifest>
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_BACKSTREET_MODULE_ID as string, property)
+/**
+ * Backstreet with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the sign around its authored
+ * values, and the music chooses Pattern Change and the Trigger (and, between builds and drops, which lighting program is on). Idle Glow follows how
+ * active the passage is and how much of a peak it is; a calm one settles Master Intensity below the authored value (it is already at its maximum
+ * by default, so it can only come down); Scale pushes in a little on a peak and more on a drop. The bloom and finish effects and the tube color are not driven: they
+ * have no control to show a live value on.
+ */
+export const CINEMA2_BACKSTREET_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_BACKSTREET_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'backstreet-auto',
+  enabledParameter: CINEMA2_BACKSTREET_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_BACKSTREET_MASTER_INTENSITY_ID,
+  patternControls: { patternChange: CINEMA2_BACKSTREET_PATTERN_CHANGE_ID, trigger: CINEMA2_BACKSTREET_TRIGGER_ID },
+  drives: [
+    { id: 'idle-activity', target: moduleTarget('idleGlow'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'idle-peak', target: moduleTarget('idleGlow'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'idle-calm', target: moduleTarget('idleGlow'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'intensity-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.12 },
+    { id: 'scale-peak', target: moduleTarget('scale'), source: 'mood.peak', operation: 'add', value: 0.04 },
+    { id: 'scale-shock', target: moduleTarget('scale'), source: 'mood.shock', operation: 'add', value: 0.08 },
+  ],
+})

@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import {
   cinema2StableId,
   type Cinema2JsonObject,
@@ -252,7 +253,12 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
     // Filled only by the engine-owned choreography dispatcher before module.update; no second subscription to the Audio Feature Bus.
     const musicalCues: Cinema2MainframeMusicalCue[] = []
     // Auto Performance: a build puts System Surge on stage, a drop restarts Outward Bus from the drop (see Cinema2PatternAutoPerformance).
-    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({ buildPattern: 'system-surge', dropPattern: 'outward-bus' })
+    const autoPerformance = new Cinema2PatternAutoPerformance<Cinema2MainframePatternId>({
+      buildPattern: 'system-surge', dropPattern: 'outward-bus',
+      // Between builds and drops the passage's feel chooses the pattern (only while Pattern Change is off): calm sweeps and boots, driving alternates and relays, tense surges, peaks burst outward.
+      mood: { options: { calm: ['radar-sweep', 'inward-boot'], driving: ['bank-alternator', 'quadrant-relay', 'outward-bus'], tense: ['system-surge', 'quadrant-relay'], peak: ['outward-bus', 'bank-alternator', 'quadrant-relay'] } },
+    })
+    const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
     let previousAuthoredPattern: Cinema2MainframePatternId | null = null
     let performance: Readonly<ReturnType<typeof autoPerformance.update>> = autoPerformance.update({ enabled: false, absoluteBeat: 0, buildCharge: 0, dropEventId: null, patternEdited: false, reset: true })
     const patternController = new Cinema2MainframePatternController(
@@ -367,16 +373,18 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
           const coordinated = dropCoordinator.update(acceptedFrame, dispatched)
           if (triggerReset) beatClock.reset()
           const timing = beatClock.resolve(acceptedFrame, frame.bpmSync)
+          // With Auto Performance on, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: frame.patternChange, trigger: frame.trigger }, mood: updateFrame.mood, autoPerformance: frame.autoPerformance && playback === 'playing' })
           const triggerEventId = triggerReset
             ? null
-            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, frame.trigger, triggerPreviousTimeSec, coordinated.dropEventId, {
+            : resolveCinema2MainframeTriggerEventIdentity(acceptedFrame, control.trigger, triggerPreviousTimeSec, coordinated.dropEventId, {
               previousBeat: triggerPreviousBeat,
               current: timing,
             })
           selection = patternController.update({
             authoredPattern: frame.pattern,
-            patternChange: frame.patternChange,
-            trigger: frame.trigger,
+            patternChange: control.patternChange,
+            trigger: control.trigger,
             triggerEventId,
             absoluteBeat: timing.beats,
             reset: triggerReset,
@@ -389,6 +397,11 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
             dropEventId: coordinated.dropEventId,
             patternEdited: previousAuthoredPattern != null && frame.pattern !== previousAuthoredPattern,
             reset: triggerReset,
+            mood: updateFrame.mood ?? null,
+            deltaTimeSec: updateFrame.deltaTimeSec,
+            basePattern: selection.activePattern,
+            patternChange: control.patternChange,
+            seed: updateFrame.transport?.trackId ?? '',
           })
           previousAuthoredPattern = frame.pattern
           performance = performing
@@ -413,6 +426,7 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
           reactivity.reset()
           patternController.reset()
           autoPerformance.reset()
+          patternControls.reset()
           previousAuthoredPattern = null
           if (!bridge && held) { assets.release(held); held = null }
         },
@@ -431,6 +445,7 @@ export const cinema2BackstreetNativeModuleDefinition: Readonly<Cinema2ModuleType
         ...(bridge?.getDiagnostics().map(diagnostic => ({ ...diagnostic, path: '$.config.environment' })) ?? []),
       ]),
       inspect: () => Object.freeze({
+        ...patternControls.inspect(),
         state,
         authoredPattern: frame.pattern,
         activePattern: selection.activePattern,

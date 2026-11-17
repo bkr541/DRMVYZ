@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleManifest, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2DispatchedTargetAction } from '../parameters/Cinema2TargetRuntime'
 import type {
@@ -48,6 +49,10 @@ export interface Cinema2CanopyRendererLike {
 }
 
 export interface Cinema2CanopyModuleInspection {
+  /** What the music is choosing for Pattern Change and the Trigger while Auto Performance is on (see Cinema2PatternControlResolver). */
+  readonly effectivePatternChange: boolean | null
+  readonly effectiveTrigger: Cinema2MainframeTriggerId | null
+  readonly patternControlsAutomatic: boolean
   readonly rows: number
   readonly columns: number
   readonly rodCount: number
@@ -89,6 +94,7 @@ export function createCinema2CanopyNativeModuleDefinition(
       let drive: Readonly<CanopyDrive> | null = null
       // Filled only by the engine-owned choreography dispatcher before module.update; there is no second subscription to the audio bus.
       const musicalCues: Cinema2MainframeMusicalCue[] = []
+      const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
       const orchestration = new Cinema2CanopyOrchestration(index => context.randomness.sample('canopy-pattern-cycle', index), design.pattern)
 
       const provider = Object.freeze({
@@ -124,8 +130,13 @@ export function createCinema2CanopyNativeModuleDefinition(
               rods = createCanopyRodState(layout.fixtures.length)
               counts = canopyInstanceCounts(layout)
             }
+            // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+            const control = patternControls.update({
+              saved: { patternChange: design.patternChange, trigger: design.trigger }, mood: frame.mood,
+              autoPerformance: design.autoPerformance && frame.transport?.playing === true && !frame.transport.paused,
+            })
             drive = orchestration.update(frame, {
-              pattern: design.pattern, patternChange: design.patternChange, trigger: design.trigger, bpmSync: design.bpmSync, motionSpeed: design.motionSpeed,
+              pattern: design.pattern, patternChange: control.patternChange, trigger: control.trigger, bpmSync: design.bpmSync, motionSpeed: design.motionSpeed,
             }, musicalCues.splice(0))
             solveCanopyRods(layout, design, drive, rods)
             packCanopyInstances(layout, rods, instances)
@@ -135,6 +146,7 @@ export function createCinema2CanopyNativeModuleDefinition(
           },
           dispose() {
             orchestration.reset()
+            patternControls.reset()
             musicalCues.splice(0)
             drive = null
           },
@@ -149,6 +161,7 @@ export function createCinema2CanopyNativeModuleDefinition(
         },
         render: { providers: Object.freeze([provider]) },
         inspect: (): Cinema2CanopyModuleInspection => ({
+          ...patternControls.inspect(),
           rows: layout.structure.rows,
           columns: layout.structure.columns,
           rodCount: layout.fixtures.length,

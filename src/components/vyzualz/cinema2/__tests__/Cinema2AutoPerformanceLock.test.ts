@@ -74,8 +74,10 @@ describe.each(TAGGED)('the Auto Performance lock: %s', (_name, manifest) => {
 
 describe('the Auto Performance lock: opt-in and identification', () => {
   it('does not apply to a preset that has not tagged its Auto Performance toggle', () => {
-    const plan = compile(CINEMA2_BACKSTREET_PRESET_MANIFEST)
-    expect(resolveCinema2AutoPerformanceLock(plan, { [String(CINEMA2_BACKSTREET_PRESET_MANIFEST.parameters!.find(p => p.label === 'Auto Performance')!.id)]: true })).toMatchObject({ active: false, autoParameterId: null })
+    // Every preset will be migrated eventually, so this builds an untagged preset by removing the shared policy tags from a migrated one.
+    const untagged = { ...CINEMA2_BACKSTREET_PRESET_MANIFEST, parameters: CINEMA2_BACKSTREET_PRESET_MANIFEST.parameters!.map(p => ({ ...p, metadata: undefined })) } as typeof CINEMA2_BACKSTREET_PRESET_MANIFEST
+    const plan = compile(untagged)
+    expect(resolveCinema2AutoPerformanceLock(plan, { [String(untagged.parameters!.find(p => p.label === 'Auto Performance')!.id)]: true })).toMatchObject({ active: false, autoParameterId: null })
   })
 
   it('finds BPM Sync by the declared tempo-sync parameter (Ifrit), else by the standard control (Reactor), and never exempts anything else', () => {

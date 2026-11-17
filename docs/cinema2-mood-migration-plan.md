@@ -51,7 +51,7 @@ Same work as 1A, but both default Auto Performance on, so they are the first to 
 | hum-n | hum-n | on | none | - | 6 | 11 | default on; no Pattern Change (tag-only); camera controls |
 | starters | starters | on | none | - | 7 | 16 | default on; no Pattern Change (tag-only) |
 
-### Batch 2: Pattern controller family (Mainframe pattern controller) (5)
+### Batch 2: Pattern controller family (Mainframe pattern controller) (5) — DONE (uncommitted; awaiting your real-app check)
 
 Same controller class as Mainframe and Backstreet: add the resolver, tags and drives. Echoform and Echowave are twins. Backstreet, Echoform and Echowave have their pattern controls in Effects.
 

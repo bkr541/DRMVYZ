@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import goonzSvgSource from '../../../../assets/goonz_true_vector_master.svg?raw'
 import {
   cinema2StableId,
@@ -136,6 +137,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
     const dropCoordinator = new Cinema2MainframeDropCoordinator()
     const musicalCues: Cinema2MainframeMusicalCue[] = []
     const initialPattern = parameterPattern(context.parameters.get('pattern'))
+    const patternControls = new Cinema2PatternControlResolver<Cinema2MainframeTriggerId>()
     const patternController = new Cinema2MainframePatternController(
       createCinema2MainframePatternCycle(index => context.randomness.sample('echoform-pattern-cycle', index)),
       initialPattern,
@@ -177,9 +179,9 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
       lifecycle: {
         update: ({ frame, parameters }: Cinema2ModuleUpdateContext) => {
           const authoredPattern = parameterPattern(parameters.get('pattern'))
-          const patternChange = bool(parameters.get('patternChange'), false)
+          const savedPatternChange = bool(parameters.get('patternChange'), false)
           const triggerValue = parameters.get('trigger')
-          const trigger: Cinema2MainframeTriggerId = typeof triggerValue === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(triggerValue as Cinema2MainframeTriggerId)
+          const savedTrigger: Cinema2MainframeTriggerId = typeof triggerValue === 'string' && CINEMA2_MAINFRAME_TRIGGER_IDS.includes(triggerValue as Cinema2MainframeTriggerId)
             ? triggerValue as Cinema2MainframeTriggerId : 'bar4'
           const idleGlow = clamp(number(parameters.get('idleGlow'), 0.45))
           const bpmSync = bool(parameters.get('bpmSync'), true)
@@ -187,6 +189,10 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
           const accepted = audio === frame.audio ? frame : { ...frame, audio }
           const playback = resolveCinema2MainframePlaybackState(accepted, audio)
           const timeSec = resolveCinema2MainframeTimeSec(accepted)
+          // With Auto Performance on, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: savedPatternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: bool(parameters.get('autoPerformance'), true) && playback === 'playing' })
+          const patternChange = control.patternChange
+          const trigger = control.trigger
           const sourceIdentity = frame.transport?.paused && !audio && triggerSourceIdentity != null && frame.transport.trackId === triggerTrackId
             ? triggerSourceIdentity : resolveCinema2MainframeSourceIdentity(frame, audio)
           const triggerReset = shouldResetCinema2MainframeDropState(accepted,
@@ -281,6 +287,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
           orchestrationClock.reset()
           reactivity.reset()
           patternController.reset()
+          patternControls.reset()
           draw = null
         },
       },
@@ -300,6 +307,7 @@ export function createCinema2EchoformModuleDefinition(figure: Readonly<Cinema2Ec
         turnDirection = stream.next() < 0.5 ? -1 : 1
       },
       render: { providers: Object.freeze([provider]) },
+      inspect: () => patternControls.inspect(),
     }
   },
   })

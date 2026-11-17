@@ -102,7 +102,7 @@ describe('Echoform preset', () => {
 
   it('carries Mainframe\u2019s orchestration surface: the six programs, Pattern Change with its Trigger, Idle Glow and the nine musical cues', () => {
     const parameters = CINEMA2_ECHOFORM_PRESET_MANIFEST.parameters ?? []
-    expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_PATTERN_ID)).toMatchObject({ type: 'enum', defaultValue: 'outward-bus', designParentGroup: 'effects' })
+    expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_PATTERN_ID)).toMatchObject({ type: 'enum', defaultValue: 'outward-bus', designParentGroup: 'design' })
     expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_PATTERN_CHANGE_ID)).toMatchObject({ type: 'boolean', defaultValue: false })
     expect(parameters.find(parameter => parameter.id === CINEMA2_ECHOFORM_TRIGGER_ID)).toMatchObject({
       defaultValue: 'bar4',

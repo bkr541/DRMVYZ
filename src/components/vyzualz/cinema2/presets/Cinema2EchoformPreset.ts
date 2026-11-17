@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -166,17 +168,17 @@ const PARAMETERS = Object.freeze([
   colorParameter(CINEMA2_ECHOFORM_EYE_ID, 'Eye Cyan', 'The bright cyan of the focal features (the eyes) and the strongest glow.', color(0.05, 0.9, 1), 5),
   colorParameter(CINEMA2_ECHOFORM_ACCENT_ID, 'Topology Accent', 'The violet accent threaded through the wire mesh and outline.', color(0.55, 0.2, 0.85), 6),
 
-  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_PATTERN_ID, label: 'Pattern', description: 'Selects one of Mainframe\u2019s six lighting programs, laid over the figure\u2019s own geometry: Center Out and Edges In run between the middle of the figure and its edge, Marquee chases vertical bars across it, Quadrant Relay passes light round the head, Radar Sweep turns a beam round it, and Surge charges the figure and flashes it on a drop.', type: 'enum' as const, defaultValue: CINEMA2_MAINFRAME_DEFAULT_PATTERN, options: CINEMA2_BACKSTREET_PATTERN_OPTIONS, designParentGroup: 'effects' as const, group: 'Pattern', order: 1 }),
-  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_PATTERN_CHANGE_ID, label: 'Pattern Change', description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.', type: 'boolean' as const, defaultValue: false, designParentGroup: 'effects' as const, group: 'Pattern', order: 2 }),
-  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_TRIGGER_ID, label: 'Trigger', description: 'Chooses the musical event that advances to the next lighting program while Pattern Change is enabled.', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_ECHOFORM_PATTERN_CHANGE_ID, value: true })]), designParentGroup: 'effects' as const, group: 'Pattern', order: 3 }),
-  floatParameter(CINEMA2_ECHOFORM_IDLE_GLOW_ID, 'Idle Glow', 'How much of the figure stays lit between hits. 1 keeps all of it present with the programs riding on top; 0 lets a program switch the parts it is not addressing right down.', 0.45, 0, 1, 0.01, 'effects', 'Pattern', 4),
+  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_PATTERN_ID, label: 'Pattern', description: 'Selects one of Mainframe\u2019s six lighting programs, laid over the figure\u2019s own geometry: Center Out and Edges In run between the middle of the figure and its edge, Marquee chases vertical bars across it, Quadrant Relay passes light round the head, Radar Sweep turns a beam round it, and Surge charges the figure and flashes it on a drop.', type: 'enum' as const, defaultValue: CINEMA2_MAINFRAME_DEFAULT_PATTERN, options: CINEMA2_BACKSTREET_PATTERN_OPTIONS, designParentGroup: 'design' as const, group: 'Pattern', order: 1 }),
+  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_PATTERN_CHANGE_ID, label: 'Pattern Change', description: 'When enabled, each qualified Trigger advances through a deterministic shuffled cycle with no immediate repeat.', type: 'boolean' as const, defaultValue: false, designParentGroup: 'design' as const, group: 'Pattern', order: 2 }),
+  Object.freeze({ ...parameterBase, id: CINEMA2_ECHOFORM_TRIGGER_ID, label: 'Trigger', description: 'Chooses the musical event that advances to the next lighting program while Pattern Change is enabled.', type: 'enum' as const, defaultValue: 'bar4', options: CINEMA2_AFTERHOURS_TRIGGER_OPTIONS, visibleWhen: Object.freeze([Object.freeze({ kind: 'parameter-equals' as const, parameterId: CINEMA2_ECHOFORM_PATTERN_CHANGE_ID, value: true })]), designParentGroup: 'design' as const, group: 'Pattern', order: 3 }),
+  floatParameter(CINEMA2_ECHOFORM_IDLE_GLOW_ID, 'Idle Glow', 'How much of the figure stays lit between hits. 1 keeps all of it present with the programs riding on top; 0 lets a program switch the parts it is not addressing right down.', 0.45, 0, 1, 0.01, 'effects', 'Light', 4),
   floatParameter(CINEMA2_ECHOFORM_GLOW_ID, 'Glow', 'Adds bloom to the silver highlights, eyes and reconstructed topology.', 0.38, 0, 1, 0.01, 'effects', 'Finish', 1),
   floatParameter(CINEMA2_ECHOFORM_TRAILS_ID, 'Trails', 'Retains restrained afterimages from real turns and shell movement.', 0.22, 0, 1, 0.01, 'effects', 'Finish', 2),
   Object.freeze({ id: CINEMA2_ECHOFORM_MUSICAL_CUE_ID, label: 'Musical Cue', type: 'trigger' as const, section: 'React', group: 'Runtime', order: 998, exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const }),
   Object.freeze({ id: STRUCTURAL_EVENT_ID, label: 'Structural Event', type: 'trigger' as const, section: 'React', group: 'Runtime', order: 999, exposure: 'hidden' as const, persistence: 'runtime-only' as const, reset: 'none' as const }),
 ])
 
-export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_ECHOFORM_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_ECHOFORM_PRESET_ID,
@@ -290,4 +292,37 @@ export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManif
     outputPass: cinema2Ref(BLOOM_PASS_ID),
   }),
   output: Object.freeze({ renderPass: cinema2Ref(BLOOM_PASS_ID), colorSpace: 'srgb' as const, alphaMode: 'premultiplied' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_ECHOFORM_MODULE_ID as string, property)
+/**
+ * Echoform (and Echowave, which is derived from this manifest) with the shared Mood Conductor and Auto Performance. With Auto Performance on, the
+ * passage's mood moves the figure around its authored values and the music chooses Pattern Change and the Trigger. Master Intensity brightens with
+ * activity and a drop; the figure breaks up more in tense passages and on a drop and holds together more in calm ones; the layers spread and the
+ * turn widens as the passage gets active; the points swell on a peak; Idle Glow, Glow and Trails follow the passage. Figure Scale, Motion Amount
+ * and Motion Rate stay the user's: Motion Amount also scales the camera and the point-cloud's own beat-timed cycle.
+ */
+export const CINEMA2_ECHOFORM_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_ECHOFORM_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'echoform-auto',
+  enabledParameter: CINEMA2_ECHOFORM_AUTO_PERFORMANCE_ID,
+  strengthParameter: CINEMA2_ECHOFORM_MASTER_INTENSITY_ID,
+  patternControls: { patternChange: CINEMA2_ECHOFORM_PATTERN_CHANGE_ID, trigger: CINEMA2_ECHOFORM_TRIGGER_ID },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'intensity-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'fragmentation-tense', target: moduleTarget('fragmentation'), source: 'mood.tense', operation: 'add', value: 0.2 },
+    { id: 'fragmentation-shock', target: moduleTarget('fragmentation'), source: 'mood.shock', operation: 'add', value: 0.25 },
+    { id: 'fragmentation-calm', target: moduleTarget('fragmentation'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'shells-activity', target: moduleTarget('shellSeparation'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'shells-peak', target: moduleTarget('shellSeparation'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'turn-activity', target: moduleTarget('rotationAmount'), source: 'mood.activity', operation: 'add', value: 10 },
+    { id: 'turn-calm', target: moduleTarget('rotationAmount'), source: 'mood.calm', operation: 'add', value: -6 },
+    { id: 'points-peak', target: moduleTarget('pointSize'), source: 'mood.peak', operation: 'add', value: 0.08 },
+    { id: 'idle-activity', target: moduleTarget('idleGlow'), source: 'mood.activity', operation: 'add', value: 0.3 },
+    { id: 'idle-calm', target: moduleTarget('idleGlow'), source: 'mood.calm', operation: 'add', value: -0.2 },
+    { id: 'glow-shock', target: cinema2AutoTargets.effect('echoform-bloom', 'mix'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'glow-peak', target: cinema2AutoTargets.effect('echoform-bloom', 'mix'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'trails-calm', target: cinema2AutoTargets.effect('echoform-trails', 'mix'), source: 'mood.calm', operation: 'add', value: 0.15 },
+  ],
 })

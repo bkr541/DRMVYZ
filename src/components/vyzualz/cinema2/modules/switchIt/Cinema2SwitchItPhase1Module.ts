@@ -10,7 +10,7 @@ import { Cinema2SwitchItRenderer } from './Cinema2SwitchItRenderer'
 import { SWITCH_IT_STATIC_STATES, type SwitchItStaticState } from './Cinema2SwitchItGeometry'
 
 export const SWITCH_IT_PHASE1_MODULE_TYPE = cinema2StableId<Cinema2ModuleTypeId>('switch-it-phase1-study')
-function createSwitchItModule(context: Cinema2ModuleCreateContext, animated: boolean,withAudio=false,production=false): ReturnType<Cinema2ModuleTypeDefinition['create']> {
+function createSwitchItModule(context: Cinema2ModuleCreateContext, animated: boolean,withAudio=false,production=false): ReturnType<Cinema2ModuleTypeDefinition['create']> & { inspect(): ReturnType<Cinema2SwitchItMotion['controls']['inspect']> } {
     const motion=new Cinema2SwitchItMotion(),audio=new Cinema2SwitchItAudio(),performance=new Cinema2SwitchItPerformance()
     let controls=SWITCH_IT_VISUAL_DEFAULTS
     let library: Cinema2ThreeLibrary | null = null, maskSource: Three.Object3D | null = null, disposed = false
@@ -48,6 +48,7 @@ function createSwitchItModule(context: Cinema2ModuleCreateContext, animated: boo
         },
       }] },
       getDiagnostics: () => diagnostics,
+      inspect: () => motion.controls.inspect(),
     }
   }
 

@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID,
   CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
@@ -104,7 +106,7 @@ const viewportTarget = (id: Cinema2RenderTargetId, depth = false) => Object.free
   ownership: 'transient' as const,
 })
 
-export const CINEMA2_CANOPY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
+const CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = Object.freeze({
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, id: CINEMA2_CANOPY_PRESET_ID, revision: 1,
   metadata: Object.freeze({
     name: 'CANOPY',
@@ -303,4 +305,36 @@ export const CINEMA2_CANOPY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifes
   }),
   defaults: Object.freeze({ camera: cinema2Ref(CINEMA2_CANOPY_CAMERA_ID) }),
   output: Object.freeze({ renderPass: cinema2Ref(FINISH_PASS), colorSpace: 'srgb' as const, alphaMode: 'opaque' as const }),
+})
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_CANOPY_MODULE_ID as string, property)
+/**
+ * CANOPY with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the array around its authored
+ * values and the music chooses Pattern Change and the Trigger. Master Intensity, Motion Amount and Motion Speed follow how active the passage is
+ * (and settle in a calm one); the rods travel further on a peak and a drop; Idle Glow, Accent Strength and Bloom follow the passage and flare on
+ * a drop. The structure (rows, columns, spacing, length) and Camera Motion stay the user's: the layout is rebuilt when they change, and Camera
+ * Motion is bound to the camera, not to a target the music can move.
+ */
+export const CINEMA2_CANOPY_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_CANOPY_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'canopy-auto',
+  enabledParameter: P.autoPerformance,
+  strengthParameter: P.masterIntensity,
+  patternControls: { patternChange: P.patternChange, trigger: P.trigger },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('masterIntensity'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'intensity-calm', target: moduleTarget('masterIntensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('masterIntensity'), source: 'mood.shock', operation: 'add', value: 0.12 },
+    { id: 'motion-activity', target: moduleTarget('motionAmount'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'motion-calm', target: moduleTarget('motionAmount'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'speed-activity', target: moduleTarget('motionSpeed'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'speed-calm', target: moduleTarget('motionSpeed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'height-peak', target: moduleTarget('heightRange'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'height-shock', target: moduleTarget('heightRange'), source: 'mood.shock', operation: 'add', value: 0.1 },
+    { id: 'idle-activity', target: moduleTarget('idleGlow'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'idle-calm', target: moduleTarget('idleGlow'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'accent-peak', target: moduleTarget('accentStrength'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'accent-shock', target: moduleTarget('accentStrength'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('canopy-bloom', 'intensity'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('canopy-bloom', 'intensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+  ],
 })

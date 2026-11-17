@@ -111,8 +111,8 @@ describe('Backstreet preset', () => {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
       .map(parameter => parameter.label)
     expect(inGroup('master-controls')).toEqual(['Master Intensity', 'BPM Sync', 'Auto Performance'])
-    expect(inGroup('design')).toEqual(['Scale'])
-    expect(inGroup('effects')).toEqual(['Pattern', 'Pattern Change', 'Trigger', 'Idle Glow'])
+    expect(inGroup('design')).toEqual(['Scale', 'Pattern', 'Pattern Change', 'Trigger'])
+    expect(inGroup('effects')).toEqual(['Idle Glow'])
     expect(inGroup('palette')).toEqual(['Tube Color'])
     expect(parameters.find(parameter => parameter.id === CINEMA2_BACKSTREET_TUBE_COLOR_ID)).toMatchObject({ type: 'color', defaultValue: [1, 1, 1, 1] })
     expect(parameters.find(parameter => parameter.id === CINEMA2_BACKSTREET_PATTERN_ID)).toMatchObject({ type: 'enum', defaultValue: 'outward-bus' })
@@ -124,16 +124,16 @@ describe('Backstreet preset', () => {
 
     const plan = compileBackstreet()
     const state = new Cinema2ParameterState(plan.parameters)
-    const effectLabels = () => {
-      const effects = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Effects')
+    const designLabels = () => {
+      const design = createCinema2DesignParentGroupModel(plan, state.getSnapshot()).find(parent => parent.label === 'Design')
       return [
-        ...(effects?.controls.map(control => control.definition.label) ?? []),
-        ...(effects?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
+        ...(design?.controls.map(control => control.definition.label) ?? []),
+        ...(design?.groups.flatMap(group => group.controls.map(control => control.definition.label)) ?? []),
       ]
     }
-    expect(effectLabels()).toEqual(['Pattern', 'Pattern Change', 'Idle Glow'])
+    expect(designLabels()).toEqual(['Scale', 'Pattern', 'Pattern Change'])
     expect(state.setPersistentValue(CINEMA2_BACKSTREET_PATTERN_CHANGE_ID, true)).toMatchObject({ ok: true })
-    expect(effectLabels()).toEqual(['Pattern', 'Pattern Change', 'Trigger', 'Idle Glow'])
+    expect(designLabels()).toEqual(['Scale', 'Pattern', 'Pattern Change', 'Trigger'])
   })
 
   it('binds every control to the module and routes the same nine musical cues Mainframe does', () => {

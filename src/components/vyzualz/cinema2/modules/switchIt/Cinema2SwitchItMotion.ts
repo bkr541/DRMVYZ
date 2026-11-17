@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../../conductor/Cinema2PatternControls'
 import { Cinema2BeatClock } from '../Cinema2BeatClock'
 import type { Cinema2ModuleParameterReadFacet, Cinema2ModuleUpdateContext } from '../Cinema2ModuleContracts'
 import { Cinema2MainframePatternController } from '../mainframe/Cinema2MainframePatternController'
@@ -91,6 +92,8 @@ export class Cinema2SwitchItMotion {
   private revision=-1
   private authored='switch-cycle'
   private patternChange=false
+  /** With Auto Performance on and music playing, the music chooses Pattern Change and the Trigger; the saved values are never written to. */
+  readonly controls=new Cinema2PatternControlResolver<typeof CINEMA2_AFTERHOURS_TRIGGER_IDS[number]>()
   private allowPausedTransition=false
   private readonly events=new Set<string>()
   private transition=1
@@ -107,14 +110,16 @@ export class Cinema2SwitchItMotion {
     const reset=this.generation!==frame.contextGeneration||this.track!==track||
       (this.lastTime!=null&&(time<this.lastTime-.05||time-this.lastTime>Math.max(.75,elapsed+.5)))||
       (audio?.discontinuity.occurred===true&&audio.discontinuity.reason!=='activation'&&audio.discontinuity.generation!==this.audioGeneration)
-    if(reset){this.clock.reset();this.previousBeats=0;this.phase=0;this.cycles=0;this.epoch++;this.patterns.reset();this.transition=1;this.events.clear()}
+    if(reset){this.controls.reset();this.clock.reset();this.previousBeats=0;this.phase=0;this.cycles=0;this.epoch++;this.patterns.reset();this.transition=1;this.events.clear()}
     const dt=reset||!active?0:elapsed
     const beat=this.clock.update({...frame,deltaTimeSec:dt,elapsedTimeSec:0,transport:frame.transport?{...frame.transport,animationActive:active}:undefined},p.get('bpmSync')!==false&&frame.transport?.bpmSync!==false,60/2.25*4)
     const advance=(Math.max(0,beat.beats-this.previousBeats)/4)*switchItNumber(p,'speed',1,0,2)
     this.phase+=advance;this.cycles+=advance
     this.previousBeats=beat.beats
     const authored=SWITCH_IT_PATTERNS.find(option=>option.value===p.get('pattern'))?.value??'switch-cycle'
-    const trigger=CINEMA2_AFTERHOURS_TRIGGER_IDS.find(value=>value===p.get('trigger'))??'bar4'
+    const savedTrigger=CINEMA2_AFTERHOURS_TRIGGER_IDS.find(value=>value===p.get('trigger'))??'bar4'
+    const control=this.controls.update({saved:{patternChange:p.get('patternChange')===true,trigger:savedTrigger},mood:input.mood,autoPerformance:p.get('autoPerformance')===true&&active})
+    const trigger=control.trigger
     const revision=p.getEditRevision?.('pattern')??0
     const edited=this.revision!==-1&&revision!==this.revision
     const eventFrame=!active&&frame.transport?{...frame,transport:{...frame.transport,paused:false,playing:true}}:frame
@@ -122,10 +127,10 @@ export class Cinema2SwitchItMotion {
     const event=active&&observed&&!this.events.has(observed)?observed:null
     if(observed)this.events.add(observed)
     while(this.events.size>128)this.events.delete(this.events.values().next().value!)
-    const selection=this.patterns.update({authoredPattern:authored,patternChange:p.get('patternChange')===true,trigger,triggerEventId:event,absoluteBeat:beat.beats,reset:reset||edited})
+    const selection=this.patterns.update({authoredPattern:authored,patternChange:control.patternChange,trigger,triggerEventId:event,absoluteBeat:beat.beats,reset:reset||edited})
     if(selection.changed||reset){
       this.phase=0;this.from=this.pose;this.transition=reset?1:0
-      this.allowPausedTransition=edited||authored!==this.authored||this.patternChange!==(p.get('patternChange')===true)
+      this.allowPausedTransition=edited||authored!==this.authored||this.patternChange!==control.patternChange
     }
     // Manual edits still take effect while paused; authored motion itself stays frozen.
     this.transition=clamp(this.transition+(active||this.allowPausedTransition?elapsed:0)/.24)
@@ -133,7 +138,7 @@ export class Cinema2SwitchItMotion {
     this.pose=mixSwitchItPose(this.from,target,this.transition)
     this.state={pattern:selection.activePattern,phase:this.phase,cycles:this.cycles,epoch:this.epoch,locked:beat.locked,bpm:beat.bpm,transition:this.transition}
     this.lastTime=time;this.lastTimestamp=frame.timestampMs;this.track=track;this.generation=frame.contextGeneration;this.revision=revision
-    this.authored=authored;this.patternChange=p.get('patternChange')===true
+    this.authored=authored;this.patternChange=control.patternChange
     if(audio)this.audioGeneration=audio.discontinuity.generation
   }
 }
