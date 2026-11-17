@@ -51,7 +51,8 @@ describe('Inertia static visual core', () => {
     expect(cinema2NativeModuleRegistry.get(module.typeId, module.version)).not.toBeNull()
     expect(CINEMA2_INERTIA_PRESET_MANIFEST.effects ?? []).toHaveLength(2)
     expect(CINEMA2_INERTIA_PRESET_MANIFEST.effects!.every(effect => effect.enabled === false)).toBe(true)
-    expect(CINEMA2_INERTIA_PRESET_MANIFEST.choreography?.rules ?? []).toHaveLength(13)
+    // Thirteen authored rules, plus the shared mood rules (one per mood source, gated by Auto Performance).
+    expect((CINEMA2_INERTIA_PRESET_MANIFEST.choreography?.rules ?? []).filter(rule => !String(rule.id).includes('-mood-'))).toHaveLength(13)
     expect(CINEMA2_INERTIA_PRESET_MANIFEST.parameters!.filter(p => p.id.includes('proof-')).every(p => p.exposure === 'hidden')).toBe(true)
   })
 })

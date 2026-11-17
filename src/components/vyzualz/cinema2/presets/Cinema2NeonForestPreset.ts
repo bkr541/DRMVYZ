@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import { NEON_FOREST_FINISHING_EFFECTS, neonForestFinishingRules, neonForestFinishingGraph } from './Cinema2NeonForestFinishing'
 import { createNeonForestChoreography, NEON_FOREST_CHOREOGRAPHY_DEFAULTS } from './Cinema2NeonForestChoreography'
 import { NEON_FOREST_MUSIC_DEFAULTS } from '../modules/neonForest/Cinema2NeonForestAudio'
@@ -34,7 +36,7 @@ const moduleDefaults = { autoPerformance: false, musicResponse: .8, master: .85,
 const orbitOnly = [{ kind: 'parameter-equals', parameterId: neonForestParameterId('cameraMode'), value: 'orbit' }] as const
 
 /** Native reference entry until human visual acceptance. Stable IDs preserve authored edits. */
-export const CINEMA2_NEON_FOREST_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_NEON_FOREST_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_NEON_FOREST_PRESET_ID, revision: 1,
   metadata: {
@@ -136,3 +138,40 @@ export const CINEMA2_NEON_FOREST_PRESET_MANIFEST: Readonly<Cinema2NativePresetMa
   defaults: { camera: cinema2Ref(camera) },
   output: { renderPass: cinema2Ref(finishing.output), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(moduleId as string, property)
+/**
+ * Neon Forest with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the forest around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Master Intensity, Motion Amount and Motion Speed follow how active the
+ * passage is (and settle in a calm one); the crystal glow flare on a peak and a drop, the light shafts and bloom flare, and the ground mist thickens in tense passages.
+ * Density, scale, the camera and the colors stay the user's, and Music Response scales every drive.
+ */
+export const CINEMA2_NEON_FOREST_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_NEON_FOREST_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'neon-forest-auto',
+  enabledParameter: neonForestParameterId('auto-performance'),
+  strengthParameter: neonForestParameterId('music-response'),
+  patternControls: { patternChange: neonForestParameterId('pattern-change'), trigger: neonForestParameterId('trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('master'), source: 'mood.activity', operation: 'add', value: 0.08 },
+    { id: 'master-calm', target: moduleTarget('master'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('master'), source: 'mood.shock', operation: 'add', value: 0.12 },
+    { id: 'amount-activity', target: moduleTarget('amount'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'amount-calm', target: moduleTarget('amount'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'speed-activity', target: moduleTarget('speed'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'speed-calm', target: moduleTarget('speed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'emission-peak', target: moduleTarget('emission'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'emission-shock', target: moduleTarget('emission'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'emission-calm', target: moduleTarget('emission'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'particles-activity', target: moduleTarget('particles'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'particles-peak', target: moduleTarget('particles'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'particles-calm', target: moduleTarget('particles'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'portal-peak', target: moduleTarget('portalSize'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'portal-shock', target: moduleTarget('portalSize'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'shafts-peak', target: cinema2AutoTargets.effect('neon-forest-atmosphere-effect', 'beamIntensity'), source: 'mood.peak', operation: 'add', value: 0.3 },
+    { id: 'shafts-shock', target: cinema2AutoTargets.effect('neon-forest-atmosphere-effect', 'beamIntensity'), source: 'mood.shock', operation: 'add', value: 0.5 },
+    { id: 'mist-tense', target: cinema2AutoTargets.effect('neon-forest-atmosphere-effect', 'mistAmount'), source: 'mood.tense', operation: 'add', value: 0.05 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('neon-forest-bloom-effect', 'mix'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('neon-forest-bloom-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'reflections-shock', target: cinema2AutoTargets.effect('neon-forest-reflections-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.15 },
+  ],
+})

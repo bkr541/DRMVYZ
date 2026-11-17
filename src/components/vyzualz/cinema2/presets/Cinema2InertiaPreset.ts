@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION, cinema2NamespacedId, cinema2Ref, cinema2StableId,
   type Cinema2PresetId, type Cinema2ModuleId, type Cinema2ParameterId, type Cinema2SceneNodeId,
@@ -92,7 +94,7 @@ const parameters: Cinema2ParameterManifest[] = [
 ]
 
 /** User-approved first-party Inertia preset. */
-export const CINEMA2_INERTIA_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_INERTIA_PRESET_ID, revision: 6,
   metadata: { name: 'Inertia', description: 'A dotted spherical core inside a folding lattice, with musical inertia, temporary automatic performances and restrained finishing.', tags: ['inertia', 'geometric', 'audio-reactive'] },
@@ -168,3 +170,35 @@ export const CINEMA2_INERTIA_PRESET_MANIFEST: Readonly<Cinema2NativePresetManife
   defaults: { camera: cinema2Ref(camera) },
   output: { renderPass: cinema2Ref(bloomPass), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(CINEMA2_INERTIA_MODULE_ID as string, property)
+/**
+ * Inertia with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the sculpture around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Intensity, Motion Speed and Motion Amount follow how active the
+ * passage is (and settle in a calm one); Deformation, Point Size and Core Size swell on a peak and a drop; Bloom Amount rises on a peak and a drop (it
+ * shows once Bloom is switched on). Cage Size, Lattice Density, Anchor Size, Damping, Trails and the colors stay the user's, and Audio Response
+ * scales every drive.
+ */
+export const CINEMA2_INERTIA_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_INERTIA_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'inertia-auto',
+  enabledParameter: inertiaParameterId('auto-performance'),
+  strengthParameter: inertiaParameterId('audio-response'),
+  patternControls: { patternChange: inertiaParameterId('pattern-change'), trigger: inertiaParameterId('trigger') },
+  drives: [
+    { id: 'intensity-activity', target: moduleTarget('intensity'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'intensity-calm', target: moduleTarget('intensity'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'intensity-shock', target: moduleTarget('intensity'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'speed-activity', target: moduleTarget('motionSpeed'), source: 'mood.activity', operation: 'add', value: 0.25 },
+    { id: 'speed-calm', target: moduleTarget('motionSpeed'), source: 'mood.calm', operation: 'add', value: -0.15 },
+    { id: 'motion-activity', target: moduleTarget('motionAmount'), source: 'mood.activity', operation: 'add', value: 0.15 },
+    { id: 'motion-calm', target: moduleTarget('motionAmount'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'deformation-peak', target: moduleTarget('deformation'), source: 'mood.peak', operation: 'add', value: 0.2 },
+    { id: 'deformation-shock', target: moduleTarget('deformation'), source: 'mood.shock', operation: 'add', value: 0.3 },
+    { id: 'points-peak', target: moduleTarget('pointSize'), source: 'mood.peak', operation: 'add', value: 0.25 },
+    { id: 'points-shock', target: moduleTarget('pointSize'), source: 'mood.shock', operation: 'add', value: 0.35 },
+    { id: 'core-peak', target: moduleTarget('coreSize'), source: 'mood.peak', operation: 'add', value: 0.1 },
+    { id: 'core-shock', target: moduleTarget('coreSize'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('inertia-bloom', 'mix'), source: 'mood.peak', operation: 'add', value: 0.04 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('inertia-bloom', 'mix'), source: 'mood.shock', operation: 'add', value: 0.08 },
+  ],
+})

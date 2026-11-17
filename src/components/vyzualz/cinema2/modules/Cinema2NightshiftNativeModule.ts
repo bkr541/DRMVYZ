@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleTypeDefinition, Cinema2ModuleDiagnostic } from './Cinema2ModuleContracts'
 import { Cinema2BeatClock } from './Cinema2BeatClock'
@@ -33,6 +34,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
     const directorDelivery = new Cinema2NightshiftDirector()
     const transition = new NightshiftPatternTransition()
     const performance = new Cinema2NightshiftAutoPerformance()
+    const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
     let lastPatternEdit = -1, lastAuthoredPattern = ''
     let lastPatternChange: boolean | undefined
     let lastTimestamp: number | null = null, lastTime: number | null = null
@@ -75,26 +77,31 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
           phase += delta * motion * music.musicMotion
           if (c.rotation) angle = (angle + delta * motion * music.musicRotation * Math.PI * 2 / 128) % (Math.PI * 2)
           glintPhase += delta * motion * music.musicGlintRate * .06
-          const trigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(c.trigger as Cinema2AfterhoursTriggerId) ? c.trigger as Cinema2AfterhoursTriggerId : 'bar4'
+          const savedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(c.trigger as Cinema2AfterhoursTriggerId) ? c.trigger as Cinema2AfterhoursTriggerId : 'bar4'
           const hold = frame.transport?.paused === true || frame.transport?.playing === false
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const control = patternControls.update({ saved: { patternChange: c.patternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: c.autoPerformance && !hold && frame.transport?.sourcePresent === true })
+          const trigger = control.trigger
+          const patternChange = control.patternChange
           // Consume held rhythm identities without cycling, so resume cannot replay them.
           const eventFrame = hold && frame.transport ? { ...frame, transport: { ...frame.transport, paused: false, playing: true } } : frame
           const event = resolveNightshiftPatternEvent(eventFrame, trigger, reset ? null : lastTime)
           const patternEdit = parameters.getEditRevision?.('pattern') ?? 0
-          const basePattern = patterns.update(c.pattern, c.patternChange, trigger, event, patternEdit, reset, hold)
+          const basePattern = patterns.update(c.pattern, patternChange, trigger, event, patternEdit, reset, hold)
           const manual = patternEdit !== lastPatternEdit || c.pattern !== lastAuthoredPattern
           const performing = performance.update({ frame, base: basePattern, enabled: c.autoPerformance, manual, reset, beats: current, previousTime: lastTime })
           const pattern = performing.pattern
-          const immediate = performing.immediate || (lastPatternChange !== c.patternChange && !c.patternChange && !performing.kind)
+          const immediate = performing.immediate || (lastPatternChange !== patternChange && !patternChange && !performing.kind)
           const blend = transition.update(pattern, visualTime, immediate, reset)
           sceneFrame = { controls: c, phase, angle, pattern, music, glintPhase, ...blend }
           lastPatternEdit = patternEdit; lastAuthoredPattern = c.pattern
-          lastPatternChange = c.patternChange
+          lastPatternChange = patternChange
           lastTimestamp = frame.timestampMs; lastTime = time; track = frame.transport?.trackId
           generation = frame.contextGeneration; discontinuity = newGeneration; beats = current; sourceIdentity = source
         },
         dispose() {
           disposed = true
+          patternControls.reset()
           if (!bridge && held) { assets.release(held); held = null }
         },
       },
@@ -141,6 +148,7 @@ export const cinema2NightshiftNativeModuleDefinition: Readonly<Cinema2ModuleType
         },
       }] },
       getDiagnostics: () => [...diagnostics, ...(bridge?.getDiagnostics().map(d => ({ ...d, path: '$.config.environment' })) ?? [])],
+      inspect: () => patternControls.inspect(),
     }
   },
 }

@@ -1,3 +1,5 @@
+import { cinema2AutoTargets } from './Cinema2AutoPerformanceAuthoring'
+import { withCinema2MoodDrives } from './Cinema2MoodConductorAuthoring'
 import {
   CINEMA2_NATIVE_PRESET_SCHEMA_ID, CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   cinema2NamespacedId, cinema2Ref, cinema2StableId,
@@ -95,7 +97,7 @@ const parameters: Cinema2ParameterManifest[] = [
 
 const finishing = nightshiftFinishingGraph(SCENE, COLOR, DEPTH)
 /** Accepted native NIGHTSHIFT installation with bounded shared musical behavior. */
-export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = {
+const CINEMA2_NIGHTSHIFT_AUTHORED_PRESET_MANIFEST:Readonly<Cinema2NativePresetManifest> = {
   schemaId: CINEMA2_NATIVE_PRESET_SCHEMA_ID, schemaVersion: CINEMA2_NATIVE_PRESET_SCHEMA_VERSION,
   id: CINEMA2_NIGHTSHIFT_PRESET_ID, revision: 3,
   metadata: {
@@ -169,3 +171,37 @@ export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetMan
   },
   output: { renderPass: cinema2Ref(OUTPUT), colorSpace: 'srgb', alphaMode: 'opaque' },
 }
+
+const moduleTarget = (property: string) => cinema2AutoTargets.module(cinema2StableId<Cinema2ModuleId>('nightshift-static-core') as string, property)
+/**
+ * Nightshift with the shared Mood Conductor and Auto Performance. With Auto Performance on, the passage's mood moves the club around its authored
+ * values and the music chooses Pattern Change and the Trigger for the Pattern. Master Intensity, Motion Amount and the Floor and Ceiling Intensity
+ * follow how active the passage is (and settle in a calm one); the ball highlights, pattern coverage, reflections and bloom flare on a peak and a drop,
+ * and the haze thickens in tense passages. Ball Rotation, Pan Room, the signs, Camera Motion and the colors stay the user's, and Music Response
+ * scales every drive.
+ */
+export const CINEMA2_NIGHTSHIFT_PRESET_MANIFEST: Readonly<Cinema2NativePresetManifest> = withCinema2MoodDrives(CINEMA2_NIGHTSHIFT_AUTHORED_PRESET_MANIFEST, {
+  idPrefix: 'nightshift-auto',
+  enabledParameter: cinema2StableId<Cinema2ParameterId>('nightshift-auto-performance'),
+  strengthParameter: cinema2StableId<Cinema2ParameterId>('nightshift-music-response'),
+  patternControls: { patternChange: cinema2StableId<Cinema2ParameterId>('nightshift-pattern-change'), trigger: cinema2StableId<Cinema2ParameterId>('nightshift-trigger') },
+  drives: [
+    { id: 'master-activity', target: moduleTarget('master'), source: 'mood.activity', operation: 'add', value: 0.08 },
+    { id: 'master-calm', target: moduleTarget('master'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'master-shock', target: moduleTarget('master'), source: 'mood.shock', operation: 'add', value: 0.12 },
+    { id: 'motion-activity', target: moduleTarget('motion'), source: 'mood.activity', operation: 'add', value: 0.2 },
+    { id: 'motion-calm', target: moduleTarget('motion'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'floor-activity', target: moduleTarget('floor'), source: 'mood.activity', operation: 'add', value: 0.1 },
+    { id: 'floor-shock', target: moduleTarget('floor'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'floor-calm', target: moduleTarget('floor'), source: 'mood.calm', operation: 'add', value: -0.1 },
+    { id: 'ball-peak', target: moduleTarget('ball'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'ball-shock', target: moduleTarget('ball'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'ceiling-activity', target: moduleTarget('ceiling'), source: 'mood.activity', operation: 'add', value: 0.12 },
+    { id: 'ceiling-shock', target: moduleTarget('ceiling'), source: 'mood.shock', operation: 'add', value: 0.2 },
+    { id: 'coverage-peak', target: moduleTarget('coverage'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'haze-tense', target: cinema2AutoTargets.effect('nightshift-haze-effect', 'mix'), source: 'mood.tense', operation: 'add', value: 0.15 },
+    { id: 'reflections-shock', target: cinema2AutoTargets.effect('nightshift-reflections-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.15 },
+    { id: 'bloom-peak', target: cinema2AutoTargets.effect('nightshift-bloom-effect', 'mix'), source: 'mood.peak', operation: 'add', value: 0.15 },
+    { id: 'bloom-shock', target: cinema2AutoTargets.effect('nightshift-bloom-effect', 'mix'), source: 'mood.shock', operation: 'add', value: 0.3 },
+  ],
+})

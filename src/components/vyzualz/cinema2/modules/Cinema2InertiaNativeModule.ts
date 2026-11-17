@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { cinema2StableId, type Cinema2Color, type Cinema2ModuleTypeId } from '../contracts/Cinema2NativePresetManifest'
 import type { Cinema2ModuleCreateContext, Cinema2ModuleTypeDefinition } from './Cinema2ModuleContracts'
 import { INERTIA_PARTS, INERTIA_PROOF_POSES } from './inertia/Cinema2InertiaGeometry'
@@ -16,10 +17,12 @@ export const cinema2InertiaNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
   create(context: Cinema2ModuleCreateContext) {
     const motion = new Cinema2InertiaMotion()
     const audio = new Cinema2InertiaAudio()
+    const patternControls = new Cinema2PatternControlResolver<(typeof CINEMA2_AFTERHOURS_TRIGGER_IDS)[number]>()
     const renderer = context.resources.acquire('inertia:static-sculpture:v1', 'Cinema2InertiaRenderer',
       gl => new Cinema2InertiaRenderer(gl), value => value.dispose())
     return {
-      lifecycle: { update() {}, dispose() {} },
+      lifecycle: { update() {}, dispose() { patternControls.reset() } },
+      inspect: () => patternControls.inspect(),
       render: { providers: [{
         id: `${context.module.id}:sculpture`, moduleId: context.module.id, intent: 'world',
         execute(execution) {
@@ -29,12 +32,18 @@ export const cinema2InertiaNativeModuleDefinition: Readonly<Cinema2ModuleTypeDef
           const amount = numeric(context, 'motionAmount', 0.65, 0, 1), deformation = numeric(context, 'deformation', 0.45, 0, 1)
           const damping = numeric(context, 'damping', 0.65, 0, 1)
           const response = audio.update(accepted, name => numeric(context, name, 0, 0, 1), numeric(context, 'audioResponse', 0.65, 0, 1), amount, deformation, damping)
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          const transport = execution.frame.transport
+          const control = patternControls.update({
+            saved: { patternChange: context.parameters.get('patternChange') === true, trigger: enumValue(context, 'trigger', CINEMA2_AFTERHOURS_TRIGGER_IDS, 'bar4') },
+            mood: execution.frame.mood, autoPerformance: context.parameters.get('autoPerformance') === true && transport?.playing === true && !transport.paused,
+          })
           const nativePose = motion.update(accepted, {
             pattern: enumValue(context, 'pattern', INERTIA_PATTERNS.map(p => p[0]), 'reference-cycle'),
             sync: context.parameters.get('bpmSync') !== false,
             speed: numeric(context, 'motionSpeed', 1, 0.25, 2), amount, deformation, damping,
-            patternChange: context.parameters.get('patternChange') === true,
-            trigger: enumValue(context, 'trigger', CINEMA2_AFTERHOURS_TRIGGER_IDS, 'bar4'),
+            patternChange: control.patternChange,
+            trigger: control.trigger,
             editRevision: context.parameters.getEditRevision?.('pattern') ?? 0,
             autoPerformance: context.parameters.get('autoPerformance') === true,
             audioResponse: numeric(context, 'audioResponse', 0.65, 0, 1),

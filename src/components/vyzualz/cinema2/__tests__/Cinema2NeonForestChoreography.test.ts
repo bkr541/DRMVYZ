@@ -7,7 +7,7 @@ import { NEON_FOREST_MUSIC_DEFAULTS } from '../modules/neonForest/Cinema2NeonFor
 
 describe('NEON_FOREST bounded shared choreography', () => {
   it('routes facts/actions exclusively into transient native channels and leaves manual controls unbound', () => {
-    for (const rule of manifest.choreography!.rules.filter(r => r.source.signal !== 'parameter')) {
+    for (const rule of manifest.choreography!.rules.filter(r => r.source.signal !== 'parameter' && !String(r.id).includes('-mood-'))) {
       expect(rule.strengthParameter).toBeUndefined() // Music Response applied once downstream.
       for (const action of rule.actions) {
         expect(action.target.kind).toBe('module')

@@ -23,7 +23,7 @@ describe('PSYLO accepted keeper', () => {
 
   it('authors four camera modes, eight native patterns and all mandatory manual controls', () => {
     expect(manifest.effects?.map(e => e.typeId)).toEqual(['volumetric-atmosphere', 'hdr-bloom', 'cinematic-finish'])
-    expect(manifest.choreography?.rules.filter(r => r.source.signal !== 'parameter')).toHaveLength(15)
+    expect(manifest.choreography?.rules.filter(r => r.source.signal !== 'parameter' && !String(r.id).includes('-mood-'))).toHaveLength(15)
     expect(Object.keys(manifest.cameras?.[0].rigVariants ?? {})).toEqual(['travel', 'elevated', 'orbit', 'fixed'])
     const parameters = manifest.parameters!
     expect(parameters.find(p => p.label === 'Pattern')?.options).toHaveLength(8)

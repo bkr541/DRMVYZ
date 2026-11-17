@@ -1,3 +1,4 @@
+import { Cinema2PatternControlResolver } from '../conductor/Cinema2PatternControls'
 import { Cinema2PsyloAutoPerformance } from './psylo/Cinema2PsyloAutoPerformance'
 import { Cinema2PsyloDirector } from './psylo/Cinema2PsyloDirector'
 import { PsyloPatternTransition } from './psylo/Cinema2PsyloTransition'
@@ -29,6 +30,7 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
     let library: Cinema2ThreeLibrary | null = null
     let bridge: Cinema2ThreeSceneBridge | null = null
     const diagnostics: Cinema2ModuleDiagnostic[] = []
+    const patternControls = new Cinema2PatternControlResolver<Cinema2AfterhoursTriggerId>()
     const clock = new Cinema2BeatClock(), delivery = new Cinema2PsyloAudio(), patterns = new PsyloPatternController(), transition = new PsyloPatternTransition(), director = new Cinema2PsyloDirector(), performance = new Cinema2PsyloAutoPerformance()
     let music = { ...PSYLO_MUSIC_DEFAULTS } as import('./psylo/Cinema2PsyloAudio').PsyloMusic
     let audioAvailable = false, wasPaused = false
@@ -67,15 +69,19 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
           const governedFrame = { ...frame, elapsedTimeSec: 0, deltaTimeSec: active ? dt : 0,
             ...(frame.transport ? { transport: { ...frame.transport, animationActive: active } } : {}) }
           const eventFrame = frame.transport ? { ...frame, transport: { ...frame.transport, paused: false, playing: true } } : frame
-          const trigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(controls.trigger as Cinema2AfterhoursTriggerId) ? controls.trigger as Cinema2AfterhoursTriggerId : 'bar4'
+          const savedTrigger = CINEMA2_AFTERHOURS_TRIGGER_IDS.includes(controls.trigger as Cinema2AfterhoursTriggerId) ? controls.trigger as Cinema2AfterhoursTriggerId : 'bar4'
+          // With Auto Performance on and music playing, Pattern Change and the Trigger are the music's choice (the saved values are never written to).
+          // The manual-edit check below keeps reading the saved values, so the music's choice never counts as an edit.
+          const control = patternControls.update({ saved: { patternChange: controls.patternChange, trigger: savedTrigger }, mood: frame.mood, autoPerformance: controls.autoPerformance && active && frame.transport?.sourcePresent === true })
+          const trigger = control.trigger
           const event = resolvePsyloEvent(eventFrame, trigger, reset || activated ? null : time)
           const channels = readPsyloChoreography(parameters)
           const responseReset = reset || activated || refreshed || returning
           const delivered = delivery.update(frame, controls.musicResponse, reset || activated ? null : time, responseReset, resuming, channels)
           music = resolvePsyloMusic(director.apply(frame, controls.musicResponse, delivered, channels, responseReset, resuming), parameters, targets)
-          const authority = JSON.stringify([controls.pattern, parameters.getEditRevision?.('pattern') ?? 0, controls.patternChange, trigger])
+          const authority = JSON.stringify([controls.pattern, parameters.getEditRevision?.('pattern') ?? 0, controls.patternChange, savedTrigger])
           const manual = authority !== patternAuthority
-          controls.pattern = patterns.update(controls.pattern, controls.patternChange, trigger, event, parameters.getEditRevision?.('pattern') ?? 0, reset || activated, !active || refreshed || returning || resuming)
+          controls.pattern = patterns.update(controls.pattern, control.patternChange, trigger, event, parameters.getEditRevision?.('pattern') ?? 0, reset || activated, !active || refreshed || returning || resuming)
           const current = clock.update(governedFrame, controls.bpmSync, 100).beats
           const performing = performance.update({ frame, base: controls.pattern, enabled: controls.autoPerformance,
             manual, reset: responseReset, latch: resuming, beats: current, previousTime: time })
@@ -90,6 +96,7 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
         },
         dispose() {
           disposed = true
+          patternControls.reset()
           if (!bridge && held) { assets.release(held); held = null }
         },
       },
@@ -136,6 +143,7 @@ export const cinema2PsyloNativeModuleDefinition: Readonly<Cinema2ModuleTypeDefin
         },
       }] },
       getDiagnostics: () => [...diagnostics, ...(bridge?.getDiagnostics().map(d => ({ ...d, path: '$.config.asset' })) ?? [])],
+      inspect: () => patternControls.inspect(),
     }
   },
 }

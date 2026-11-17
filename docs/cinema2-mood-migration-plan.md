@@ -89,7 +89,9 @@ Same trigger helper. Say It and Sixfold default on and have their controls in Ef
 | blockshift | blockshift | off | design; Pattern (6) | 11 options | 0 | 13 | camera controls |
 | trippy-bro | trippy-bro | off | design; Pattern (8) | 11 options | 0 | 12 |  |
 
-### Batch 4A: Bespoke performance classes, native-render family (4)
+### Batch 4A: Bespoke performance classes, native-render family (4) — DONE (uncommitted; awaiting your real-app check)
+
+PSYLO, Neon Forest and Nightshift keep their manual-edit check on the *saved* Pattern, Pattern Change and Trigger, so the music's choice never counts as a manual edit and cancels their own Auto Performance.
 
 Each has its own performance class and trigger logic. Do one at a time inside the batch.
 
