@@ -34,6 +34,9 @@ export function buildIfritGeometry(): Float32Array {
     const rotation = 0
     const gain = 1
     for (let side = 0; side < 6; side++) {
+      // Portal beams carry their sector in the detail slot so the shader can retire an edge whose shards are in flight. The wall paths below set
+      // their own detail rank before every beam and are unchanged.
+      detailRank = side
       beam(point(side, IFRIT_RADIUS, z, rotation), point(side + 1, IFRIT_RADIUS, z, rotation), 0.12, 0.30, 0, gain)
       // Trace both edges of the front annulus. A centerline on the rear face
       // would be occluded by its own structural body from this axial camera.
@@ -45,6 +48,7 @@ export function buildIfritGeometry(): Float32Array {
       beam(point(side, IFRIT_RADIUS + 0.07, z - 0.17, rotation), point(side, IFRIT_RADIUS + 0.07, z + 0.19, rotation), 0.04, 0.04, 3, gain)
     }
   })
+  detailRank = 0
   // Three radial layers: fragmented conduits, transverse braces and irregular
   // panel edges. Every beam carries a common midpoint for rigid axial recycling.
   ringIndex = -1

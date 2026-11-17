@@ -1,5 +1,5 @@
 import { readCinema2MoodPolicy } from '../cinema2/conductor/Cinema2MoodPolicy'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { Cinema2JsonValue } from '../cinema2/contracts/Cinema2NativePresetManifest'
 import type { Cinema2FinalValueResolver } from '../cinema2/parameters/Cinema2TargetRuntime'
 import type { Cinema2CompiledPresetPlan } from '../cinema2/presets/Cinema2PresetCompiler'
@@ -52,21 +52,25 @@ export function useCinema2LiveValue(parameterId: string): number | null {
 /** Polls a map about eight times a second (and only re-renders when it changes), while `active`. */
 function usePolledMap<V extends number | string>(active: boolean, read: () => ReadonlyMap<string, V>, empty: ReadonlyMap<string, V>, intervalMs: number): ReadonlyMap<string, V> {
   const [values, setValues] = useState<ReadonlyMap<string, V>>(empty)
+  // The latest reader and the last published signature live in refs, so a reader whose identity changes on a render (it closes over per-render model
+  // objects) never restarts the poll or republishes an unchanged map: only a change in the values themselves re-renders.
+  const readRef = useRef(read)
+  const lastRef = useRef('')
+  useEffect(() => { readRef.current = read })
   useEffect(() => {
-    if (!active) { setValues(empty); return }
+    if (!active) { lastRef.current = ''; setValues(empty); return }
     const signature = (map: ReadonlyMap<string, V>) => [...map].map(([id, v]) => `${id}:${typeof v === 'number' ? v.toFixed(3) : v}`).sort().join('|')
-    let last = ''
     const tick = () => {
-      const next = read()
+      const next = readRef.current()
       const key = signature(next)
-      if (key === last) return
-      last = key
+      if (key === lastRef.current) return
+      lastRef.current = key
       setValues(next.size === 0 ? empty : next)
     }
     tick()
     const handle = window.setInterval(tick, intervalMs)
     return () => window.clearInterval(handle)
-  }, [active, read, empty, intervalMs])
+  }, [active, empty, intervalMs])
   return values
 }
 

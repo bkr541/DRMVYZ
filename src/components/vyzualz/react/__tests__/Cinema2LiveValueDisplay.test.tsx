@@ -3,9 +3,9 @@
 
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Cinema2SchemaControl } from '../Cinema2InspectorPanel'
-import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues } from '../Cinema2LiveValues'
+import { findCinema2PolicyControls, Cinema2LivePolicyProvider, Cinema2LiveValuesProvider, resolveCinema2LivePolicy, resolveCinema2LiveValues, useCinema2LiveValues } from '../Cinema2LiveValues'
 import { CINEMA2_DEPTH_PRESET_MANIFEST } from '../../cinema2/presets/Cinema2DepthPreset'
 import { SliderRow } from '../ReactControlRows'
 import type { Cinema2InspectorControlModel } from '../../cinema2/parameters/Cinema2InspectorModel'
@@ -147,5 +147,28 @@ describe('Pattern Change and Trigger: what Auto Performance is choosing', () => 
     expect(found.controls.map(control => [control.id, control.policy])).toEqual([['pc', 'patternChange'], ['tr', 'trigger']])
     expect(found.controls[1]!.options).toBe(options)
     expect(findCinema2PolicyControls([{ definition: { id: 'plain' } }])).toEqual({ controls: [], autoId: null })
+  })
+})
+
+describe('the live-value poll', () => {
+  it('does not loop or restart when its reader is a new function on every render, and re-renders only when the values change', async () => {
+    vi.useFakeTimers()
+    let renders = 0, reads = 0, current = 0.5
+    function Probe() {
+      renders++
+      // A reader that is a different function on every render, as when it closes over per-render model objects.
+      const values = useCinema2LiveValues(true, () => { reads++; return new Map([['rate', current]]) })
+      return <span data-testid="v">{values.get('rate')}</span>
+    }
+    await act(async () => { root.render(<Probe />) })
+    await act(async () => { vi.advanceTimersByTime(125 * 12) })
+    expect(container.textContent).toBe('0.5')
+    expect(renders).toBeLessThan(5)
+    expect(reads).toBeGreaterThan(5)
+    current = 0.9
+    await act(async () => { vi.advanceTimersByTime(250) })
+    expect(container.textContent).toBe('0.9')
+    expect(renders).toBeLessThan(8)
+    vi.useRealTimers()
   })
 })

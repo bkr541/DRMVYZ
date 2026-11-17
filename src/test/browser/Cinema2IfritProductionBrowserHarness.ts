@@ -17,6 +17,8 @@ import '../../styles.css'
 import '../../styles/vyzualz.css'
 import '../../styles/reactView.css'
 
+/** `?enhancements=off` runs the original visualizer: reset and re-creation leave Radial Mechanics and Shatter & Reconstruction off, so the original acceptance measurements apply. */
+const originalMode = new URLSearchParams(location.search).get('enhancements') === 'off'
 const canvas = document.querySelector<HTMLCanvasElement>('#ifrit-production')
 if (!canvas) throw new Error('Ifrit review canvas is missing.')
 AudioFeatureBus.reset()
@@ -70,6 +72,8 @@ const create = (presetId: Cinema2PresetId = CINEMA2_IFRIT_PRESET_ID, serializedP
 const result=create()
 if(!result.runtime) throw new Error(result.error)
 runtime=result.runtime
+const applyOriginalMode=() => { if(!originalMode) return; for(const key of ['mechanics-enabled','shatter-enabled']) runtime.getParameterState().setPersistentValue(`ifrit-${key}` as Cinema2ParameterId,false) }
+applyOriginalMode()
 const host=document.createElement('aside')
 host.id='ifrit-inspector'
 host.style.cssText='position:fixed;right:0;top:0;bottom:0;width:360px;overflow:auto;background:#16151f;color:white;padding:12px;display:none'
@@ -124,7 +128,7 @@ const api={
     }
     refresh(); await settle(); return status()
   },
-  async reset(){ runtime.getParameterState().resetAll(); refresh(); await settle(); return status() },
+  async reset(){ runtime.getParameterState().resetAll(); applyOriginalMode(); refresh(); await settle(); return status() },
   async music(options:Partial<IfritFixtureOptions>, enabled=true){
     source=enabled
     if(options.timeSec!=null) musicTime=options.timeSec
@@ -152,7 +156,7 @@ const api={
     await settle(); other.runtime.dispose()
     const next=create(CINEMA2_IFRIT_PRESET_ID,saved)
     if(!next.runtime) throw new Error(next.error)
-    runtime=next.runtime; resize(); runtime.start(); refresh(); await settle()
+    runtime=next.runtime; applyOriginalMode(); resize(); runtime.start(); refresh(); await settle()
     return { retired,current:status() }
   },
   showInspector(show:boolean){ host.style.display=show?'block':'none'; refresh() },

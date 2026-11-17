@@ -9,29 +9,30 @@ const smooth = (v: number) => { const t = clamp(v); return t * t * (3 - 2 * t) }
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 const mod = (v: number, span: number) => ((v % span) + span) % span
 
-export interface IfritMotionControls { travel: number; rotation: number; sync: boolean }
-export interface IfritPhases { travel: number; spin: number; score: number }
+export interface IfritMotionControls { travel: number; rotation: number; sync: boolean; /** Radial Mechanics gear rate; optional so the original three-control timeline is unchanged. */ gearSpeed?: number }
+export interface IfritPhases { travel: number; spin: number; score: number; /** Gear angle in turns of the shared musical position; absent means 0. */ gear?: number }
 /** Reads shared musical position. Energy never enters the timeline integral.
  * Control/sync edits preserve the current pose; discontinuities reconstruct from
  * current authored settings at the canonical position, independent of prior energy.
  */
 export class IfritTimeline {
   private previous: IfritMotionControls | null = null
-  private offsets: IfritPhases = { travel: 0, spin: 0, score: 0 }
-  private last: IfritPhases = { travel: 0, spin: 0, score: 0 }
-  reset() { this.previous = null; this.offsets = { travel: 0, spin: 0, score: 0 } }
+  private offsets: Required<IfritPhases> = { travel: 0, spin: 0, score: 0, gear: 0 }
+  private last: Required<IfritPhases> = { travel: 0, spin: 0, score: 0, gear: 0 }
+  reset() { this.previous = null; this.offsets = { travel: 0, spin: 0, score: 0, gear: 0 } }
   update(frame: Readonly<Cinema2ModuleFrameReadContext>, time: number, controls: IfritMotionControls, reset: boolean): IfritPhases {
     const index = frame.audio?.rhythm.beatIndex, phase = frame.audio?.rhythm.beatPhase
     const hasGrid = controls.sync && index?.available && phase?.available && typeof index.value === 'number' && typeof phase.value === 'number'
     const position = hasGrid ? index!.value! + phase!.value! : time * (controls.sync ? (resolveCinema2EffectiveBpm(frame) ?? 120) / 60 : 2)
     const idle = frame.transport?.sourcePresent === false ? 0.12 : 1
-    const raw = { travel: position * controls.travel * 2.3 * idle, spin: position * controls.rotation * 1.4 * idle, score: position * Math.max(controls.travel, Math.abs(controls.rotation)) * idle }
+    const gearSpeed = controls.gearSpeed ?? 0
+    const raw = { travel: position * controls.travel * 2.3 * idle, spin: position * controls.rotation * 1.4 * idle, score: position * Math.max(controls.travel, Math.abs(controls.rotation)) * idle, gear: position * gearSpeed * 0.25 * idle }
     if (reset) this.reset()
-    if (this.previous && (this.previous.sync !== controls.sync || this.previous.travel !== controls.travel || this.previous.rotation !== controls.rotation)) {
-      this.offsets = { travel: this.last.travel - raw.travel, spin: this.last.spin - raw.spin, score: this.last.score - raw.score }
+    if (this.previous && (this.previous.sync !== controls.sync || this.previous.travel !== controls.travel || this.previous.rotation !== controls.rotation || (this.previous.gearSpeed ?? 0) !== gearSpeed)) {
+      this.offsets = { travel: this.last.travel - raw.travel, spin: this.last.spin - raw.spin, score: this.last.score - raw.score, gear: this.last.gear - raw.gear }
     }
     this.previous = { ...controls }
-    this.last = { travel: raw.travel + this.offsets.travel, spin: raw.spin + this.offsets.spin, score: raw.score + this.offsets.score }
+    this.last = { travel: raw.travel + this.offsets.travel, spin: raw.spin + this.offsets.spin, score: raw.score + this.offsets.score, gear: raw.gear + this.offsets.gear }
     return { ...this.last }
   }
 }

@@ -6,6 +6,9 @@ import { IFRIT_COLORS, IFRIT_NUMBERS } from './Cinema2IfritDomain'
 import type { IfritVisualFrame } from './Cinema2IfritMotion'
 import { IFRIT_PASSAGE_SPAN } from './Cinema2IfritMotion'
 import { buildIfritGeometry } from './Cinema2IfritGeometry'
+import { Cinema2IfritInstancedRenderer, type IfritInstancedDrawStats } from './Cinema2IfritInstancedRenderer'
+import type { IfritComponentPose } from './Cinema2IfritMechanics'
+import type { IfritShardPose } from './Cinema2IfritShatter'
 
 const VERTEX = `#version 300 es
 precision highp float;
@@ -17,6 +20,8 @@ layout(location=4) in vec3 a_spine;
 uniform mat4 u_viewProjection;
 uniform vec4 u_pose[12];
 uniform float u_count,u_aperture,u_thickness,u_spacing,u_wallDensity,u_wallTravel,u_wallRoll,u_span;
+// 1 where a portal edge is whole, 0 where its shards are in flight: ring slot * 6 + sector.
+uniform float u_survive[72];
 out vec3 v_normal;
 out vec3 v_world;
 flat out vec2 v_material;
@@ -25,7 +30,7 @@ void main() {
   bool portal=a_identity.x>=0.0;
   vec3 p=a_position;
   float angle=u_wallRoll, gain=a_material.y;
-  v_visible=portal?step(a_identity.x+.5,u_count):step(a_identity.y,u_wallDensity);
+  v_visible=portal?step(a_identity.x+.5,u_count)*step(.5,u_survive[int(clamp(a_identity.x,0.0,11.0))*6+int(clamp(a_identity.y+.5,0.0,5.0))]):step(a_identity.y,u_wallDensity);
   if(portal) {
     vec4 pose=u_pose[int(clamp(a_identity.x,0.0,11.0))];
     p=a_spine+(a_position-a_spine)*u_thickness;
@@ -87,6 +92,8 @@ export class Cinema2IfritRenderer {
   private readonly vertexCount: number
   readonly gpuBytes: number
   private disposed = false
+  private readonly instanced: Cinema2IfritInstancedRenderer
+  private readonly ones = new Float32Array(72).fill(1)
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     const result = ShaderProgram.create(gl, new ShaderCompiler(gl), {
@@ -94,17 +101,19 @@ export class Cinema2IfritRenderer {
     })
     if (!result.program) throw new Error(`Ifrit shader failed: ${result.error.log}`)
     this.program = result.program
+    try { this.instanced = new Cinema2IfritInstancedRenderer(gl) } catch (error) { this.program.dispose(); throw error }
     const buffer = gl.createBuffer(), vao = gl.createVertexArray()
     if (!buffer || !vao) {
       if (buffer) gl.deleteBuffer(buffer)
       if (vao) gl.deleteVertexArray(vao)
+      this.instanced.dispose()
       this.program.dispose()
       throw new Error('Ifrit geometry allocation failed.')
     }
     this.buffer = buffer; this.vao = vao
     const geometry = buildIfritGeometry()
     this.vertexCount = geometry.length / 13
-    this.gpuBytes = geometry.byteLength
+    this.gpuBytes = geometry.byteLength + this.instanced.gpuBytes
     gl.bindVertexArray(vao)
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, geometry, gl.STATIC_DRAW)
@@ -115,7 +124,10 @@ export class Cinema2IfritRenderer {
     gl.bindVertexArray(null); gl.bindBuffer(gl.ARRAY_BUFFER, null)
   }
 
-  draw(exec: Cinema2ModuleRenderExecutionContext, parameters: Cinema2ModuleParameterReadFacet, state: IfritVisualFrame) {
+  /** The instanced draw counts of the last frame (for tests and diagnostics). */
+  get lastInstancedStats(): IfritInstancedDrawStats { return this.instanced.lastStats }
+
+  draw(exec: Cinema2ModuleRenderExecutionContext, parameters: Cinema2ModuleParameterReadFacet, state: IfritVisualFrame, enhancement?: Readonly<{ mechanics: readonly IfritComponentPose[]; shards: readonly IfritShardPose[]; survival: Float32Array | null }>) {
     if (this.disposed) return
     if (!exec.camera || !exec.depthAvailable) throw new Error('Ifrit requires a world camera and depth attachment.')
     const gl = this.gl
@@ -134,16 +146,23 @@ export class Cinema2IfritRenderer {
       this.program.setVec3(`u_${key}`,color[0],color[1],color[2])
     }
 
+    const survive = this.program.getUniform('u_survive[0]')
+    if (survive) gl.uniform1fv(survive, enhancement?.survival ?? this.ones)
+
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true)
     gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE)
     gl.bindVertexArray(this.vao)
     gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount)
     gl.bindVertexArray(null)
+    if (enhancement) {
+      const color = (key: 'portal' | 'wall' | 'corner') => { const value = parameters.get(key); return Array.isArray(value) ? value as number[] : IFRIT_COLORS[key] as unknown as number[] }
+      this.instanced.draw(new Float32Array(exec.camera.viewProjectionMatrix), { portal: color('portal'), wall: color('wall'), corner: color('corner') }, number('intensity', 1), enhancement.mechanics, enhancement.shards)
+    } else this.instanced.draw(new Float32Array(16), { portal: [0, 0, 0], wall: [0, 0, 0], corner: [0, 0, 0] }, 0, [], [])
   }
 
   dispose() {
     if (this.disposed) return
     this.disposed = true
-    this.gl.deleteBuffer(this.buffer); this.gl.deleteVertexArray(this.vao); this.program.dispose()
+    this.instanced.dispose(); this.gl.deleteBuffer(this.buffer); this.gl.deleteVertexArray(this.vao); this.program.dispose()
   }
 }

@@ -61,5 +61,9 @@ function spatialScore(): Cinema2ChoreographyRuleManifest[] {
     cue('drop','dropExpand',0,.025,.08,.32),cue('drop','dropAlign',.45,.08,.16,.45),cue('drop','dropRecover',1,.15,.1,.75),
     cue('downbeat','downbeatAccent',0,.02,.04,.25),cue('phrase','phraseAccent',.15,.06,.10,.5),
     cue('section-change','phraseAccent',0,.06,.12,.6),
+    // Radial Mechanics and Shatter & Reconstruction: transient shared targets; delays and envelopes belong to shared Choreography.
+    cue('kick','spokeKick',0,.012,.025,.24),cue('snare','bladeSnare',0,.008,.025,.22),
+    cue('downbeat','gearDownbeat',0,.02,.05,.35),cue('phrase','satellitePhrase',0,.06,.08,.60),
+    cue('drop','shatterBurst',0,.015,.12,.75),cue('drop','shatterRecall',.5,.08,.08,.75),cue('phrase','shatterPhrase',0,.04,.08,.45),
   ]
 }

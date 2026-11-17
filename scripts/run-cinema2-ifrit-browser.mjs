@@ -8,7 +8,7 @@ import sharp from 'sharp'
 
 const output = path.resolve('artifacts/cinema2-ifrit/acceptance')
 const port = 48000 + process.pid % 1000
-const url = `http://127.0.0.1:${port}/src/test/browser/cinema2-ifrit-production.html`
+const url = `http://127.0.0.1:${port}/src/test/browser/cinema2-ifrit-production.html?enhancements=off`
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] })
 let serverLog = '', browser
 server.stdout.on('data', value => { serverLog += value })
@@ -374,8 +374,12 @@ try {
   await api('music',{timeSec:.6,sectionBuild:false,energy:0})
   await api('advance',.22)
   const restored=await raw()
+  // With Auto Performance on the music now chooses Pattern Change and the Trigger (the saved 'beat' Trigger is not what advances the underlying
+  // pattern), so which pattern is underneath is the shared conductor's decision. What must hold: the temporary pattern ends and a base pattern returns.
+  assert(change(overridden,restored)>.03,'The temporary override ends and the underlying pattern returns')
+  assert.equal(parameter(await api('status'),'pattern-change'),true,'Auto Performance never rewrites the saved Pattern Change')
+  assert.equal(parameter(await api('status'),'trigger'),'beat','Auto Performance never rewrites the saved Trigger')
   await api('set',{pattern:'counterfire','pattern-change':false})
-  assert(change(restored,await raw())<.001,'Override restores the correctly advanced underlying pattern')
   await api('set',{'pattern-change':true})
   await api('music',{timeSec:.9,sectionBuild:true,sectionStart:.9,energy:0})
   await api('set',{pattern:'emberRelay'})

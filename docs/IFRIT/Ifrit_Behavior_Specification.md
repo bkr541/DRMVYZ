@@ -239,3 +239,83 @@ Reproduce the local reference-audio artifact before the real-audio check:
 ```sh
 ffmpeg -i /Users/kodyrobinson/Desktop/Ifrit.mov -vn -af 'adelay=159:all=1' -ac 1 -ar 48000 artifacts/cinema2-ifrit/reference-audio.wav
 ```
+
+---
+
+# Revision 5: Radial Mechanics and Shatter & Reconstruction (additive)
+
+Revision 5 adds two independently controllable procedural geometry systems to the approved Ifrit. Both are real instanced 3D geometry driven by the shared Audio Intelligence, Choreography and Visual Director. **With both toggles off the render is pixel-identical to revision 4** (measured, see Evidence). Preset id, module type/version, the six patterns, every revision-4 parameter id and default, the four palette roles, the fixed camera, bloom and the central opening are unchanged; saved revision-4 settings load with the new controls at their defaults.
+
+## Controls (Design)
+
+| Group | Control (id suffix) | Type | Range | Default |
+|---|---|---|---|---|
+| Radial Mechanics | Radial Mechanics (`mechanics-enabled`) | toggle | | on |
+| | Mechanics Density (`mechanics-density`) | float | 0-1 | 0.70 |
+| | Spoke Extension (`spoke-extension`) | float | 0-1 | 0.35 |
+| | Spoke Pulse (`spoke-pulse`) | float | 0-1 | 0.55 |
+| | Gear Speed (`gear-speed`) | float | -2-2 | 0.35 |
+| | Blade Sweep (`blade-sweep`) | float | 0-1 | 0.60 |
+| | Blade Count (`blade-count`) | integer | 0-6 | 3 |
+| | Satellite Count (`satellite-count`) | integer | 0-6 | 2 |
+| | Satellite Orbit Radius (`satellite-orbit-radius`) | float | 0.1-1.5 | 0.65 |
+| | Satellite Orbit Speed (`satellite-orbit-speed`) | float | -2-2 | 0.45 |
+| Shatter & Reconstruction | Shatter & Reconstruction (`shatter-enabled`) | toggle | | on |
+| | Shatter Trigger (`shatter-trigger`) | enum | drop / kick / phrase / manual | drop |
+| | Shatter Strength (`shatter-strength`) | float | 0-1 | 0.72 |
+| | Shatter Hold (`shatter-hold`) | float | 0-1 | 0 |
+| | Fragments Per Edge (`fragments-per-edge`) | integer | 1-4 | 3 |
+| | Fragment Spread (`fragment-spread`) | float | 0-2 | 0.90 |
+| | Fragment Spin (`fragment-spin`) | float | 0-3 | 1.25 |
+| | Reassembly Duration (`reassembly-duration`) | float | 0.15-2 | 0.75 |
+| Radial Mechanics / Sector Overrides (advanced) | per side 1-6: `sector-N-enabled`, `sector-N-arm-offset` (-1..1), `sector-N-blade-offset` (-180..180 deg) | | | on, 0, 0 |
+| Shatter & Reconstruction / Sector Overrides (advanced) | per side 1-6: `sector-N-shatter-bias` | float | 0-1 | 1 |
+| Element Overrides (advanced) | `element-overrides` | text (JSON) | | `{}` |
+
+Secondary controls hide when their toggle is off. Mechanics Density and the counts are applied as: density 0 removes everything, density 0.70 (default) keeps the authored counts, lower density thins blades and satellites. Manual shatter shows `shatter-hold` and never invents an event; for the other triggers the hold keeps a live fracture lingering at that level.
+
+## Part identities
+
+Every part has a stable id that never depends on allocation order: `ring-RR/sector-S/spoke`, `.../gear`, `.../blade-I`, `.../satellite-I`, `.../shard-I` (ring slot 00-11, sector 0-5, which is the edge between hexagon corners S and S+1). A ring's near/middle/far musical role comes from its current distance, never its slot.
+
+`element-overrides` is a JSON map keyed by ring (`ring-01`), sector (`ring-01/sector-4`), group (`ring-01/sector-4/blade`) or part (`ring-01/sector-4/blade-2`); later scopes override earlier ones field by field. Each patch may hold `enabled`, `rotationOffset` (rad), `extensionOffset` (-1..1), `spreadMultiplier` (0-4), `angularVelocityMultiplier` (-4..4), `phaseOffset` (rad), `scaleMultiplier` (0.25-3). Unknown ids, unknown keys, malformed JSON and non-finite numbers are ignored; values are clamped; the text is parsed only when it changes. The generic Inspector shows it as an advanced text field; there is no structured editor for it (the shared Inspector was not changed for Ifrit), so the per-sector controls are the everyday way to choreograph a side.
+
+## What each system builds
+
+**Radial Mechanics** (annular zone outside the portal contour, in front of the wall): per sector, a telescoping spoke (reach driven by pattern, kicks and drops), a 12-tooth rotor with an orange rim and bright tooth tips (rate and direction independent, counter-rotating on alternate sectors), 0-6 pivoting kite blades fanned across the sector, and 0-6 octahedral satellites that orbit in the plane of the tangent and the viewing axis (they sweep through depth and never enter the central opening).
+
+**Shatter & Reconstruction:** each of a portal's six edges is divided into 1-4 sections. A section is the beam's own cross-section (dark red body, three orange contour strips; the first section of an edge also carries the corner links) with both ends slanted by cuts shared with its neighbours, so whole sections tile the edge exactly. A section's pose is a pure function of its fracture amount: it leaves its source along a deterministic path (radial, tangential/swirl and axial parts from integer hashes of ring/sector/index, plus its own tumble) and returns along the same path, reaching its source position and orientation exactly at fracture 0. Each piece has its own threshold, so a small cue moves only some pieces, and nearer frames separate slightly more readily. The original edge of a sector is retired in the vertex shader (sector index carried in the portal beams' previously unused detail slot, per ring and sector mask `u_survive[72]`) for exactly the sectors that have pieces in flight; at fracture 0 the mask is all ones and no shard is drawn, so there is never a doubled edge.
+
+## Shared musical mapping (no Ifrit-specific detector)
+
+New transient targets are shared-Choreography envelopes scaled by Music Reactivity (silent at 0): `spokeKick` (kick), `bladeSnare` (snare), `gearDownbeat` (downbeat), `satellitePhrase` (phrase), `shatterBurst` (drop), `shatterRecall` (the same drop, delayed half a shared beat) and `shatterPhrase` (phrase). The existing channels are kept. Near/middle/far kicks (`kickNear/Middle/Far`) extend different rings by their current distance; snares strike alternate blades by left/right bank; downbeats snap the gears a short angular stroke; phrases shift the satellite orbits; a drop expands and then aligns spokes, blades and gear teeth to the hexagonal angles. Energy, bass, highs and the Director's impact and intensity change bounded geometry and light and never the passage clock. Trigger routing: drop = burst minus the recall's pull-back; kick = staged kicks with alternating banks; phrase = a travelling fracture wave; manual = `shatter-hold` only. Reassembly Duration reshapes the return curve of the shared envelope (shorter snaps back, longer lingers) without a private clock.
+
+## The six patterns
+
+| Pattern | Mechanics | Shatter |
+|---|---|---|
+| Infernal Passage | foreground-first spoke reach, slow staggered rotors | front-to-back ripple, mostly radial extraction |
+| Twisted Descent | counter-rotating depth helix, staggered blades | tangential spiral pieces |
+| Counterfire | odd/even gears reverse, alternating sides strike | alternating sectors detach, snare backbeats add |
+| Compression Chamber | spokes telescope in and brace, blades close, orbits tighten | pieces gather before expanding and returning |
+| Ember Relay | sequential sector lighting passed on by the satellites | sequential relay, not all at once |
+| Rift Lock | teeth, blades and orbits lock to hexagonal angles | strongest scatter, exact re-lock |
+
+All mechanical and shard values blend across the existing 180 ms pattern transition (angles take the short way round) and return to the underlying pattern after temporary Auto Performance overrides.
+
+## Rendering, determinism and limits
+
+The original tunnel draw, shader, 13-float vertex layout, `u_pose[12]`, depth, camera and bloom are unchanged. Five static meshes (spoke, gear, blade, satellite, shard) are built once with one preallocated per-instance buffer each, uploaded with `bufferSubData` for the live instances only and drawn with `drawElementsInstanced`: at most five extra draws, none with both systems off, no per-frame buffer allocation. Per-instance data is 64 bytes; the added GPU memory is about 105 KB (83 KB of preallocated instance buffers for the 1,296-instance maximum, the rest static meshes), measured against the 9.2 MB tunnel geometry and reported through `reportGpuBytes`. Quality tiers thin blades (2/4/6), satellites (1/3/6) and fragments (2/3/4) for low/medium/high; ids of surviving parts are unchanged. Every pose is a pure function of the canonical timeline phases (a new `gear` phase, preserved across rate edits like the others), the authored settings and the shared channel values: the same inputs give identical poses after play, seek, loop and re-entry; a paused transport freezes mechanics; there is no `Date.now`, `Math.random` or accumulated random walk.
+
+## Shared Mood Conductor and Auto Performance
+
+Ifrit's own Auto Performance (build and drop pattern substitutions) is unchanged. It now also uses the shared enhancements: while it is on, the music chooses Pattern Change and Trigger (the saved values are never written; tagged with `moodPolicy` so the Inspector shows the live choice), and Mood drives move, around the authored values: Master Intensity (down in calm passages), Twist Amount, Frame Thickness, Bloom, Spoke Extension, Spoke Pulse, Blade Sweep and Satellite Orbit Radius, with live readouts and markers. Travel, Rotation, Gear Speed and Satellite Orbit Speed are deliberately not driven: they set the shared timeline.
+
+## Evidence
+
+`node scripts/run-cinema2-ifrit-enhancement-browser.mjs` captures, at 16:9, 1:1 and 9:16, in `artifacts/cinema2-ifrit/enhancement/`: `baseline-both-off`, `default`, `mechanics-only`, `shatter-max`, `mid-shatter`, `reconstruction`, `both-shatter-max` and a real shared-Choreography drop (`drop-0..3` against `drop-off-0..3`). Measured: both toggles off equals the revision-4 render pixel for pixel (compared with a clean checkout of the previous commit), reconstruction equals the baseline exactly, the drop's scatter is clearly visible and the edges are exactly rebuilt 1.6 s after it, and the dark central opening stays open in every state. The original acceptance script runs the original visualizer (`?enhancements=off`).
+
+## Limitations
+
+Not checked: real-audio playback (the reference soundtrack is not in the repository, so the `--real-audio` check was not run), and a human visual acceptance of the new look. The geometry is lit by the same simple emission model as the rest of Ifrit (no shadows). Drive amounts, the mechanics counts at each quality tier and the shatter reach are first values to tune by eye on a real track. The Element Overrides text has no structured editor.
+
